@@ -16,7 +16,7 @@ const Header = () => {
             <Shield className={`h-6 w-6 ${isLandingPage ? 'text-primary-foreground' : 'text-primary'}`} />
           </div>
           <span className={`text-xl font-bold ${isLandingPage ? 'text-primary-foreground' : 'text-foreground'}`}>
-            Yukartisan
+            VerifierMonDevis.fr
           </span>
         </Link>
 

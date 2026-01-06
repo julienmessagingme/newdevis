@@ -17,7 +17,7 @@ const CTASection = () => {
             Prêt à sécuriser vos travaux ?
           </h2>
           <p className="text-lg md:text-xl text-primary-foreground/80 mb-8">
-            Rejoignez les particuliers qui font confiance à Yukartisan pour analyser leurs devis d'artisans.
+            Rejoignez les particuliers qui font confiance à VerifierMonDevis.fr pour analyser leurs devis d'artisans.
           </p>
 
           <Link to="/inscription">
