@@ -25,7 +25,7 @@ const Login = () => {
               <div className="p-2 rounded-lg bg-primary/10">
                 <Shield className="h-6 w-6 text-primary" />
               </div>
-              <span className="text-xl font-bold text-foreground">Yukartisan</span>
+              <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
             </Link>
             <h1 className="text-2xl font-bold text-foreground mb-2">
               Connexion à votre compte

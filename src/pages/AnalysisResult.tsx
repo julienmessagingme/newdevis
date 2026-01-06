@@ -133,7 +133,7 @@ const AnalysisResult = () => {
             <div className="p-2 rounded-lg bg-primary/10">
               <Shield className="h-6 w-6 text-primary" />
             </div>
-            <span className="text-xl font-bold text-foreground">Yukartisan</span>
+            <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
           </Link>
           <Button variant="outline" size="sm">
             <Download className="h-4 w-4 mr-2" />

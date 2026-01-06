@@ -126,7 +126,7 @@ const Admin = () => {
             <div className="p-2 rounded-lg bg-primary/10">
               <Shield className="h-6 w-6 text-primary" />
             </div>
-            <span className="text-xl font-bold text-foreground">Yukartisan</span>
+            <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
             <span className="ml-2 px-2 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded">
               Admin
             </span>

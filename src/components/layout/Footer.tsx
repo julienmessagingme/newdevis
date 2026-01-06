@@ -12,7 +12,7 @@ const Footer = () => {
               <div className="p-2 rounded-lg bg-primary/10">
                 <Shield className="h-6 w-6 text-primary" />
               </div>
-              <span className="text-xl font-bold text-foreground">Yukartisan</span>
+              <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
             </Link>
             <p className="text-muted-foreground text-sm max-w-md">
               Analysez vos devis d'artisans en quelques minutes. Obtenez un score de fiabilité 
@@ -67,7 +67,7 @@ const Footer = () => {
 
         <div className="border-t border-border mt-8 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} Yukartisan. Tous droits réservés.
+            © {new Date().getFullYear()} VerifierMonDevis.fr. Tous droits réservés.
           </p>
           <p className="text-xs text-muted-foreground">
             Service informatif - Ne constitue pas un conseil juridique
