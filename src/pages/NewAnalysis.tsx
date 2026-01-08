@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,9 +11,11 @@ import {
   X, 
   ArrowLeft,
   ArrowRight,
-  HelpCircle
+  HelpCircle,
+  Loader2
 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const NewAnalysis = () => {
   const navigate = useNavigate();
@@ -22,6 +24,21 @@ const NewAnalysis = () => {
   const [workType, setWorkType] = useState("");
   const [notes, setNotes] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("Veuillez vous connecter");
+        navigate("/connexion");
+      } else {
+        setUser(user);
+      }
+    };
+    checkAuth();
+  }, [navigate]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -63,16 +80,67 @@ const NewAnalysis = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file) {
+    if (!file || !user) {
       toast.error("Veuillez sélectionner un fichier");
       return;
     }
-    // TODO: Upload file and start analysis
-    toast.success("Analyse en cours...");
-    // Simulate redirect to result
-    setTimeout(() => navigate("/analyse/1"), 2000);
+
+    setLoading(true);
+
+    try {
+      // Generate unique file path
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+
+      // Upload file to storage
+      const { error: uploadError } = await supabase.storage
+        .from("devis")
+        .upload(filePath, file);
+
+      if (uploadError) {
+        throw new Error("Erreur lors du téléversement du fichier");
+      }
+
+      // Create analysis record
+      const { data: analysis, error: insertError } = await supabase
+        .from("analyses")
+        .insert({
+          user_id: user.id,
+          file_name: file.name,
+          file_path: filePath,
+          status: "pending",
+        })
+        .select()
+        .single();
+
+      if (insertError || !analysis) {
+        throw new Error("Erreur lors de la création de l'analyse");
+      }
+
+      toast.success("Fichier téléversé ! Analyse en cours...");
+
+      // Trigger the analysis
+      const { error: functionError } = await supabase.functions.invoke("analyze-quote", {
+        body: { analysisId: analysis.id },
+      });
+
+      if (functionError) {
+        console.error("Function error:", functionError);
+        toast.error("Erreur lors du démarrage de l'analyse. Veuillez réessayer.");
+      }
+
+      // Navigate to result page
+      navigate(`/analyse/${analysis.id}`);
+
+    } catch (error) {
+      console.error("Error:", error);
+      toast.error(error instanceof Error ? error.message : "Une erreur est survenue");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -165,6 +233,7 @@ const NewAnalysis = () => {
                   variant="ghost"
                   size="icon"
                   onClick={() => setFile(null)}
+                  disabled={loading}
                 >
                   <X className="h-5 w-5" />
                 </Button>
@@ -182,6 +251,7 @@ const NewAnalysis = () => {
               placeholder="Ex: Plomberie, Électricité, Peinture, Toiture..."
               value={workType}
               onChange={(e) => setWorkType(e.target.value)}
+              disabled={loading}
             />
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <HelpCircle className="h-3 w-3" />
@@ -200,13 +270,23 @@ const NewAnalysis = () => {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={4}
+              disabled={loading}
             />
           </div>
 
           {/* Submit */}
-          <Button type="submit" size="lg" className="w-full" disabled={!file}>
-            Lancer l'analyse
-            <ArrowRight className="h-5 w-5" />
+          <Button type="submit" size="lg" className="w-full" disabled={!file || loading}>
+            {loading ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Analyse en cours...
+              </>
+            ) : (
+              <>
+                Lancer l'analyse
+                <ArrowRight className="h-5 w-5" />
+              </>
+            )}
           </Button>
 
           {/* Info */}
