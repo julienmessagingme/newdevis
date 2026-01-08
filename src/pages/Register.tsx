@@ -1,22 +1,59 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Shield, Mail, Lock, User, ArrowRight } from "lucide-react";
+import { Shield, Mail, Lock, User, ArrowRight, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const Register = () => {
+  const navigate = useNavigate();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement registration with Supabase
-    console.log("Register attempt:", { firstName, lastName, email, password, acceptTerms });
+    
+    if (!acceptTerms) {
+      toast.error("Veuillez accepter les conditions générales");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+          },
+        },
+      });
+
+      if (error) {
+        if (error.message.includes("already registered")) {
+          toast.error("Cet email est déjà utilisé");
+        } else {
+          toast.error(error.message);
+        }
+      } else {
+        toast.success("Compte créé avec succès !");
+        navigate("/tableau-de-bord");
+      }
+    } catch (error) {
+      toast.error("Une erreur est survenue");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -53,6 +90,7 @@ const Register = () => {
                     onChange={(e) => setFirstName(e.target.value)}
                     className="pl-10"
                     required
+                    disabled={loading}
                   />
                 </div>
               </div>
@@ -65,6 +103,7 @@ const Register = () => {
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
                   required
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -81,6 +120,7 @@ const Register = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10"
                   required
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -98,6 +138,7 @@ const Register = () => {
                   className="pl-10"
                   required
                   minLength={8}
+                  disabled={loading}
                 />
               </div>
               <p className="text-xs text-muted-foreground">
@@ -111,6 +152,7 @@ const Register = () => {
                 checked={acceptTerms}
                 onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
                 className="mt-1"
+                disabled={loading}
               />
               <Label htmlFor="terms" className="text-sm text-muted-foreground font-normal">
                 J'accepte les{" "}
@@ -124,9 +166,18 @@ const Register = () => {
               </Label>
             </div>
 
-            <Button type="submit" className="w-full" size="lg" disabled={!acceptTerms}>
-              Créer mon compte
-              <ArrowRight className="h-4 w-4" />
+            <Button type="submit" className="w-full" size="lg" disabled={!acceptTerms || loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Création...
+                </>
+              ) : (
+                <>
+                  Créer mon compte
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
             </Button>
           </form>
 
