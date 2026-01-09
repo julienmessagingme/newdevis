@@ -13,11 +13,17 @@ const CTASection = () => {
 
       <div className="container relative">
         <div className="max-w-3xl mx-auto text-center">
+          <div className="inline-flex items-center gap-2 bg-score-green/20 border border-score-green/30 rounded-full px-4 py-2 mb-6">
+            <span className="text-sm font-bold text-score-green">
+              🎉 100% GRATUIT pour les particuliers
+            </span>
+          </div>
+          
           <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-primary-foreground mb-6">
             Prêt à sécuriser vos travaux ?
           </h2>
           <p className="text-lg md:text-xl text-primary-foreground/80 mb-8">
-            Rejoignez les particuliers qui font confiance à VerifierMonDevis.fr pour analyser leurs devis d'artisans.
+            Analysez tous vos devis gratuitement et sans limite. Rejoignez les particuliers qui font confiance à VerifierMonDevis.fr.
           </p>
 
           <Link to="/inscription">
