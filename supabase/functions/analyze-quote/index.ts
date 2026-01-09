@@ -75,7 +75,16 @@ serve(async (req) => {
 
     // Extract text from PDF using OpenAI Vision
     const arrayBuffer = await fileData.arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    const uint8Array = new Uint8Array(arrayBuffer);
+    
+    // Convert to base64 in chunks to avoid stack overflow
+    let binaryString = "";
+    const chunkSize = 8192;
+    for (let i = 0; i < uint8Array.length; i += chunkSize) {
+      const chunk = uint8Array.subarray(i, i + chunkSize);
+      binaryString += String.fromCharCode.apply(null, [...chunk]);
+    }
+    const base64 = btoa(binaryString);
     const mimeType = fileData.type || "application/pdf";
 
     let extractedText = "";
