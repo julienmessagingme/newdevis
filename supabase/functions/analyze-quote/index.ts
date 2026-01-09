@@ -7,6 +7,158 @@ const corsHeaders = {
 };
 
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const PAPPERS_API_URL = "https://api.pappers.fr/v2";
+
+interface PappersCompanyInfo {
+  siren: string;
+  nom_entreprise: string;
+  date_creation: string;
+  date_cessation?: string;
+  forme_juridique?: string;
+  capital?: number;
+  effectif?: string;
+  code_naf?: string;
+  procedure_collective?: boolean;
+  derniers_comptes?: {
+    date_cloture: string;
+    capitaux_propres?: number;
+    resultat?: number;
+    chiffre_affaires?: number;
+  };
+}
+
+interface CompanyAnalysis {
+  found: boolean;
+  siren?: string;
+  nom_entreprise?: string;
+  anciennete_years?: number;
+  anciennete_risk?: "faible" | "moyen" | "eleve";
+  bilans_disponibles?: boolean;
+  capitaux_propres?: number;
+  capitaux_propres_positifs?: boolean;
+  procedure_collective?: boolean;
+  alertes: string[];
+  points_ok: string[];
+}
+
+async function analyzeCompanyWithPappers(siret: string): Promise<CompanyAnalysis> {
+  const pappersApiKey = Deno.env.get("PAPPERS_API_KEY");
+  
+  if (!pappersApiKey) {
+    console.log("Pappers API key not configured");
+    return { found: false, alertes: [], points_ok: [] };
+  }
+
+  // Extract SIREN from SIRET (first 9 digits)
+  const siren = siret.replace(/\s/g, "").substring(0, 9);
+  
+  if (siren.length < 9 || !/^\d{9}$/.test(siren)) {
+    console.log("Invalid SIREN format:", siren);
+    return { found: false, alertes: ["Numéro SIREN/SIRET invalide ou non trouvé dans le devis"], points_ok: [] };
+  }
+
+  try {
+    const response = await fetch(
+      `${PAPPERS_API_URL}/entreprise?siren=${siren}&api_token=${pappersApiKey}`,
+      { method: "GET" }
+    );
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return { 
+          found: false, 
+          alertes: ["Entreprise non trouvée dans les registres officiels (SIREN: " + siren + ")"], 
+          points_ok: [] 
+        };
+      }
+      console.error("Pappers API error:", response.status, await response.text());
+      return { found: false, alertes: [], points_ok: [] };
+    }
+
+    const data: PappersCompanyInfo = await response.json();
+    const alertes: string[] = [];
+    const points_ok: string[] = [];
+
+    // Verify company exists and is active
+    if (data.date_cessation) {
+      alertes.push(`⚠️ ALERTE: L'entreprise a cessé son activité le ${data.date_cessation}`);
+    } else {
+      points_ok.push("✓ Entreprise en activité");
+    }
+
+    // Calculate company age
+    let ancienneteYears = 0;
+    let ancienneteRisk: "faible" | "moyen" | "eleve" = "eleve";
+    
+    if (data.date_creation) {
+      const creationDate = new Date(data.date_creation);
+      const now = new Date();
+      ancienneteYears = Math.floor((now.getTime() - creationDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+      
+      if (ancienneteYears < 2) {
+        ancienneteRisk = "eleve";
+        alertes.push(`⚠️ Entreprise récente (créée le ${data.date_creation}, moins de 2 ans) - vigilance recommandée`);
+      } else if (ancienneteYears < 5) {
+        ancienneteRisk = "moyen";
+        points_ok.push(`✓ Entreprise établie depuis ${ancienneteYears} ans (créée le ${data.date_creation})`);
+      } else {
+        ancienneteRisk = "faible";
+        points_ok.push(`✓ Entreprise bien établie depuis ${ancienneteYears} ans (créée le ${data.date_creation})`);
+      }
+    }
+
+    // Check for collective procedures (bankruptcy, etc.)
+    if (data.procedure_collective) {
+      alertes.push("🚨 ALERTE FORTE: Procédure collective en cours (redressement ou liquidation judiciaire)");
+    } else {
+      points_ok.push("✓ Aucune procédure collective en cours");
+    }
+
+    // Check financial statements
+    let bilansDisponibles = false;
+    let capitauxPropres: number | undefined;
+    let capitauxPropresPositifs: boolean | undefined;
+
+    if (data.derniers_comptes) {
+      bilansDisponibles = true;
+      points_ok.push(`✓ Bilans disponibles (dernier exercice: ${data.derniers_comptes.date_cloture})`);
+      
+      if (data.derniers_comptes.capitaux_propres !== undefined) {
+        capitauxPropres = data.derniers_comptes.capitaux_propres;
+        capitauxPropresPositifs = capitauxPropres > 0;
+        
+        if (capitauxPropresPositifs) {
+          points_ok.push(`✓ Capitaux propres positifs (${capitauxPropres.toLocaleString('fr-FR')} €)`);
+        } else {
+          alertes.push(`⚠️ Capitaux propres négatifs (${capitauxPropres.toLocaleString('fr-FR')} €) - santé financière fragile`);
+        }
+      }
+
+      if (data.derniers_comptes.chiffre_affaires) {
+        points_ok.push(`✓ Chiffre d'affaires déclaré: ${data.derniers_comptes.chiffre_affaires.toLocaleString('fr-FR')} €`);
+      }
+    } else {
+      alertes.push("⚠️ Aucun bilan publié - impossible de vérifier la santé financière");
+    }
+
+    return {
+      found: true,
+      siren: data.siren,
+      nom_entreprise: data.nom_entreprise,
+      anciennete_years: ancienneteYears,
+      anciennete_risk: ancienneteRisk,
+      bilans_disponibles: bilansDisponibles,
+      capitaux_propres: capitauxPropres,
+      capitaux_propres_positifs: capitauxPropresPositifs,
+      procedure_collective: data.procedure_collective,
+      alertes,
+      points_ok,
+    };
+  } catch (error) {
+    console.error("Pappers API error:", error);
+    return { found: false, alertes: [], points_ok: [] };
+  }
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -94,13 +246,18 @@ serve(async (req) => {
 
     const systemPrompt = `Tu es un expert en analyse de devis travaux pour particuliers en France. Tu analyses des devis d'artisans et tu identifies les risques, incohérences et points de vigilance. Tu réponds uniquement avec un JSON valide, sans texte libre.`;
 
-    const userPrompt = `Analyse ce document de devis d'artisan. Retourne un JSON STRICTEMENT STRUCTURÉ avec exactement les champs suivants :
+    const userPrompt = `Analyse ce document de devis d'artisan. 
+
+IMPORTANT: Extrait également le numéro SIRET ou SIREN de l'entreprise s'il est présent dans le document.
+
+Retourne un JSON STRICTEMENT STRUCTURÉ avec exactement les champs suivants :
 
 - score (VERT, ORANGE ou ROUGE)
 - resume (résumé clair pour un particulier)
 - points_ok (liste des éléments conformes)
 - alertes (liste des risques ou éléments manquants)
 - recommandations (actions concrètes à conseiller au particulier)
+- siret (numéro SIRET ou SIREN extrait du document, ou null si non trouvé)
 
 FORMAT DE RÉPONSE ATTENDU (OBLIGATOIRE) :
 {
@@ -108,7 +265,8 @@ FORMAT DE RÉPONSE ATTENDU (OBLIGATOIRE) :
   "resume": "",
   "points_ok": [],
   "alertes": [],
-  "recommandations": []
+  "recommandations": [],
+  "siret": ""
 }
 
 CONTRAINTES :
@@ -194,11 +352,50 @@ CONTRAINTES :
       );
     }
 
-    // Validate the score
+    // Initialize arrays from AI analysis
+    let allPointsOk = Array.isArray(parsedAnalysis.points_ok) ? [...parsedAnalysis.points_ok] : [];
+    let allAlertes = Array.isArray(parsedAnalysis.alertes) ? [...parsedAnalysis.alertes] : [];
+    let allRecommandations = Array.isArray(parsedAnalysis.recommandations) ? [...parsedAnalysis.recommandations] : [];
+
+    // If SIRET found, analyze company with Pappers
+    let companyAnalysis: CompanyAnalysis | null = null;
+    if (parsedAnalysis.siret) {
+      console.log("SIRET found in document:", parsedAnalysis.siret);
+      companyAnalysis = await analyzeCompanyWithPappers(parsedAnalysis.siret);
+      
+      if (companyAnalysis.found) {
+        // Prepend company analysis results
+        allPointsOk = [...companyAnalysis.points_ok, ...allPointsOk];
+        allAlertes = [...companyAnalysis.alertes, ...allAlertes];
+        
+        // Add company-specific recommendation if there are alerts
+        if (companyAnalysis.alertes.length > 0) {
+          allRecommandations.unshift("Vérifiez la situation de l'entreprise sur societe.com ou infogreffe.fr");
+        }
+      } else if (companyAnalysis.alertes.length > 0) {
+        allAlertes = [...companyAnalysis.alertes, ...allAlertes];
+      }
+    } else {
+      allAlertes.unshift("⚠️ Aucun numéro SIRET/SIREN trouvé sur le devis - vérification de l'entreprise impossible");
+      allRecommandations.unshift("Demandez à l'artisan son numéro SIRET pour vérifier son immatriculation");
+    }
+
+    // Recalculate score based on combined alerts
+    let score = parsedAnalysis.score?.toUpperCase() || "ORANGE";
     const validScores = ["VERT", "ORANGE", "ROUGE"];
-    const score = validScores.includes(parsedAnalysis.score?.toUpperCase()) 
-      ? parsedAnalysis.score.toUpperCase() 
-      : "ORANGE";
+    
+    // Adjust score based on Pappers findings
+    if (companyAnalysis) {
+      if (companyAnalysis.procedure_collective) {
+        score = "ROUGE";
+      } else if (companyAnalysis.anciennete_risk === "eleve" || companyAnalysis.capitaux_propres_positifs === false) {
+        if (score === "VERT") score = "ORANGE";
+      }
+    }
+    
+    if (!validScores.includes(score)) {
+      score = "ORANGE";
+    }
 
     // Update the analysis with results
     const { error: updateError } = await supabase
@@ -207,9 +404,9 @@ CONTRAINTES :
         status: "completed",
         score: score,
         resume: parsedAnalysis.resume || "Analyse terminée",
-        points_ok: Array.isArray(parsedAnalysis.points_ok) ? parsedAnalysis.points_ok : [],
-        alertes: Array.isArray(parsedAnalysis.alertes) ? parsedAnalysis.alertes : [],
-        recommandations: Array.isArray(parsedAnalysis.recommandations) ? parsedAnalysis.recommandations : [],
+        points_ok: allPointsOk,
+        alertes: allAlertes,
+        recommandations: allRecommandations,
         raw_text: analysisContent,
       })
       .eq("id", analysisId);
@@ -227,6 +424,7 @@ CONTRAINTES :
         success: true, 
         analysisId,
         score,
+        companyVerified: companyAnalysis?.found || false,
         message: "Analyse terminée avec succès" 
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
