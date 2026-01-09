@@ -8,6 +8,85 @@ const corsHeaders = {
 
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const PAPPERS_API_URL = "https://api.pappers.fr/v2";
+const BODACC_API_URL = "https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales/records";
+
+interface BodaccResult {
+  hasProcedure: boolean;
+  procedures: string[];
+  alertes: string[];
+  points_ok: string[];
+}
+
+async function checkBodaccProcedures(siren: string): Promise<BodaccResult> {
+  const result: BodaccResult = {
+    hasProcedure: false,
+    procedures: [],
+    alertes: [],
+    points_ok: [],
+  };
+
+  try {
+    // Search BODACC for the company using SIREN
+    const searchQuery = encodeURIComponent(`registre:${siren}`);
+    const response = await fetch(
+      `${BODACC_API_URL}?limit=20&where=${searchQuery}`,
+      { method: "GET" }
+    );
+
+    if (!response.ok) {
+      console.log("BODACC API error:", response.status);
+      return result;
+    }
+
+    const data = await response.json();
+    const records = data.results || [];
+
+    if (records.length === 0) {
+      result.points_ok.push("✓ Aucune annonce BODACC trouvée (pas de procédure collective publiée)");
+      return result;
+    }
+
+    // Check for collective procedures in the announcements
+    const procedureKeywords = [
+      "liquidation judiciaire",
+      "redressement judiciaire",
+      "sauvegarde",
+      "plan de cession",
+      "jugement d'ouverture",
+      "jugement de clôture pour insuffisance d'actif",
+    ];
+
+    for (const record of records) {
+      const annonce = record.contenu || record.annonce || "";
+      const nature = record.nature || record.familleavis || "";
+      const datePublication = record.dateparution || record.date_publication || "";
+
+      const annonceText = `${annonce} ${nature}`.toLowerCase();
+
+      for (const keyword of procedureKeywords) {
+        if (annonceText.includes(keyword)) {
+          result.hasProcedure = true;
+          const procedureInfo = `${keyword.charAt(0).toUpperCase() + keyword.slice(1)} (publié le ${datePublication})`;
+          if (!result.procedures.includes(procedureInfo)) {
+            result.procedures.push(procedureInfo);
+          }
+        }
+      }
+    }
+
+    if (result.hasProcedure) {
+      result.alertes.push(`🚨 ALERTE BODACC: Procédure(s) collective(s) détectée(s): ${result.procedures.join(", ")}`);
+    } else {
+      // Check if there are announcements but no procedures
+      result.points_ok.push(`✓ ${records.length} annonce(s) BODACC trouvée(s) mais aucune procédure collective en cours`);
+    }
+
+    return result;
+  } catch (error) {
+    console.error("BODACC API error:", error);
+    return result;
+  }
+}
 
 interface PappersCompanyInfo {
   siren: string;
@@ -357,11 +436,22 @@ CONTRAINTES :
     let allAlertes = Array.isArray(parsedAnalysis.alertes) ? [...parsedAnalysis.alertes] : [];
     let allRecommandations = Array.isArray(parsedAnalysis.recommandations) ? [...parsedAnalysis.recommandations] : [];
 
-    // If SIRET found, analyze company with Pappers
+    // If SIRET found, analyze company with Pappers and BODACC
     let companyAnalysis: CompanyAnalysis | null = null;
+    let bodaccResult: BodaccResult | null = null;
+    
     if (parsedAnalysis.siret) {
       console.log("SIRET found in document:", parsedAnalysis.siret);
-      companyAnalysis = await analyzeCompanyWithPappers(parsedAnalysis.siret);
+      const siren = parsedAnalysis.siret.replace(/\s/g, "").substring(0, 9);
+      
+      // Run Pappers and BODACC checks in parallel
+      const [pappersResult, bodaccCheck] = await Promise.all([
+        analyzeCompanyWithPappers(parsedAnalysis.siret),
+        checkBodaccProcedures(siren),
+      ]);
+      
+      companyAnalysis = pappersResult;
+      bodaccResult = bodaccCheck;
       
       if (companyAnalysis.found) {
         // Prepend company analysis results
@@ -374,6 +464,12 @@ CONTRAINTES :
         }
       } else if (companyAnalysis.alertes.length > 0) {
         allAlertes = [...companyAnalysis.alertes, ...allAlertes];
+      }
+      
+      // Add BODACC results
+      if (bodaccResult) {
+        allPointsOk = [...bodaccResult.points_ok, ...allPointsOk];
+        allAlertes = [...bodaccResult.alertes, ...allAlertes];
       }
     } else {
       allAlertes.unshift("⚠️ Aucun numéro SIRET/SIREN trouvé sur le devis - vérification de l'entreprise impossible");
@@ -391,6 +487,11 @@ CONTRAINTES :
       } else if (companyAnalysis.anciennete_risk === "eleve" || companyAnalysis.capitaux_propres_positifs === false) {
         if (score === "VERT") score = "ORANGE";
       }
+    }
+    
+    // BODACC procedure = automatic RED score
+    if (bodaccResult?.hasProcedure) {
+      score = "ROUGE";
     }
     
     if (!validScores.includes(score)) {
