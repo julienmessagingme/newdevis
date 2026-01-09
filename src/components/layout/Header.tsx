@@ -28,12 +28,6 @@ const Header = () => {
           >
             Comment ça marche
           </Link>
-          <Link 
-            to="/tarifs" 
-            className={`text-sm font-medium transition-colors hover:opacity-80 ${isLandingPage ? 'text-primary-foreground/80' : 'text-muted-foreground hover:text-foreground'}`}
-          >
-            Tarifs
-          </Link>
           <div className="flex items-center gap-3">
             <Link to="/connexion">
               <Button variant={isLandingPage ? "ghost" : "outline"} className={isLandingPage ? 'text-primary-foreground hover:bg-primary-foreground/10' : ''}>
@@ -71,13 +65,6 @@ const Header = () => {
               onClick={() => setMobileMenuOpen(false)}
             >
               Comment ça marche
-            </Link>
-            <Link 
-              to="/tarifs" 
-              className={`text-sm font-medium ${isLandingPage ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Tarifs
             </Link>
             <div className="flex flex-col gap-2 pt-2">
               <Link to="/connexion" onClick={() => setMobileMenuOpen(false)}>

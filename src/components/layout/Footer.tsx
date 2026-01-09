@@ -30,11 +30,6 @@ const Footer = () => {
                 </Link>
               </li>
               <li>
-                <Link to="/tarifs" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  Tarifs
-                </Link>
-              </li>
-              <li>
                 <Link to="/inscription" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   Créer un compte
                 </Link>
