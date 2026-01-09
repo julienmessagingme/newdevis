@@ -1,11 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import OpenAI from "https://esm.sh/openai@4.20.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -24,17 +25,16 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
+    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
 
-    if (!openaiApiKey) {
+    if (!lovableApiKey) {
       return new Response(
-        JSON.stringify({ error: "OpenAI API key not configured" }),
+        JSON.stringify({ error: "Lovable API key not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const openai = new OpenAI({ apiKey: openaiApiKey });
 
     // Get the analysis record
     const { data: analysis, error: fetchError } = await supabase
@@ -73,11 +73,10 @@ serve(async (req) => {
       );
     }
 
-    // Extract text from PDF using OpenAI Vision
+    // Convert file to base64
     const arrayBuffer = await fileData.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
     
-    // Convert to base64 in chunks to avoid stack overflow
     let binaryString = "";
     const chunkSize = 8192;
     for (let i = 0; i < uint8Array.length; i += chunkSize) {
@@ -85,79 +84,23 @@ serve(async (req) => {
       binaryString += String.fromCharCode.apply(null, [...chunk]);
     }
     const base64 = btoa(binaryString);
-    const mimeType = fileData.type || "application/pdf";
+    
+    // Determine MIME type
+    const fileName = analysis.file_name.toLowerCase();
+    let mimeType = "application/pdf";
+    if (fileName.endsWith(".png")) mimeType = "image/png";
+    else if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg")) mimeType = "image/jpeg";
+    else if (fileName.endsWith(".webp")) mimeType = "image/webp";
 
-    let extractedText = "";
-
-    try {
-      // Use GPT-4o vision to extract text from the PDF/image
-      const visionResponse = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Extrais tout le texte de ce document. Retourne uniquement le texte brut, sans formatage ni commentaire.",
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:${mimeType};base64,${base64}`,
-                },
-              },
-            ],
-          },
-        ],
-        max_tokens: 4000,
-      });
-
-      extractedText = visionResponse.choices[0]?.message?.content || "";
-    } catch (visionError) {
-      console.error("Vision extraction error:", visionError);
-      await supabase
-        .from("analyses")
-        .update({ 
-          status: "error", 
-          error_message: "Impossible de lire le contenu du fichier. Vérifiez que le fichier est lisible." 
-        })
-        .eq("id", analysisId);
-
-      return new Response(
-        JSON.stringify({ error: "Failed to extract text from file" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    if (!extractedText || extractedText.trim().length < 50) {
-      await supabase
-        .from("analyses")
-        .update({ 
-          status: "error", 
-          error_message: "Le document semble vide ou illisible. Veuillez téléverser un devis plus lisible." 
-        })
-        .eq("id", analysisId);
-
-      return new Response(
-        JSON.stringify({ error: "Document appears to be empty or unreadable" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Analyze the quote with OpenAI
     const systemPrompt = `Tu es un expert en analyse de devis travaux pour particuliers en France. Tu analyses des devis d'artisans et tu identifies les risques, incohérences et points de vigilance. Tu réponds uniquement avec un JSON valide, sans texte libre.`;
 
-    const userPrompt = `Analyse le texte suivant issu d'un devis d'artisan. Retourne un JSON STRICTEMENT STRUCTURÉ avec exactement les champs suivants :
+    const userPrompt = `Analyse ce document de devis d'artisan. Retourne un JSON STRICTEMENT STRUCTURÉ avec exactement les champs suivants :
 
 - score (VERT, ORANGE ou ROUGE)
 - resume (résumé clair pour un particulier)
 - points_ok (liste des éléments conformes)
 - alertes (liste des risques ou éléments manquants)
 - recommandations (actions concrètes à conseiller au particulier)
-
-TEXTE DU DEVIS :
-${extractedText}
 
 FORMAT DE RÉPONSE ATTENDU (OBLIGATOIRE) :
 {
@@ -175,17 +118,53 @@ CONTRAINTES :
 - Ne jamais affirmer qu'il s'agit d'une arnaque
 - L'analyse est informative et non contractuelle`;
 
-    const analysisResponse = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: 2000,
+    // Use Lovable AI Gateway with Gemini (supports PDF natively)
+    const aiResponse = await fetch(LOVABLE_AI_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${lovableApiKey}`,
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-pro",
+        messages: [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: userPrompt },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:${mimeType};base64,${base64}`,
+                },
+              },
+            ],
+          },
+        ],
+        response_format: { type: "json_object" },
+      }),
     });
 
-    const analysisContent = analysisResponse.choices[0]?.message?.content;
+    if (!aiResponse.ok) {
+      const errorText = await aiResponse.text();
+      console.error("AI API error:", errorText);
+      await supabase
+        .from("analyses")
+        .update({ 
+          status: "error", 
+          error_message: "Impossible de lire le contenu du fichier. Vérifiez que le fichier est lisible." 
+        })
+        .eq("id", analysisId);
+
+      return new Response(
+        JSON.stringify({ error: "Failed to analyze document" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const aiResult = await aiResponse.json();
+    const analysisContent = aiResult.choices?.[0]?.message?.content;
 
     if (!analysisContent) {
       await supabase
@@ -203,6 +182,7 @@ CONTRAINTES :
     try {
       parsedAnalysis = JSON.parse(analysisContent);
     } catch (parseError) {
+      console.error("Parse error, raw content:", analysisContent);
       await supabase
         .from("analyses")
         .update({ status: "error", error_message: "Erreur lors du traitement de l'analyse" })
@@ -230,7 +210,7 @@ CONTRAINTES :
         points_ok: Array.isArray(parsedAnalysis.points_ok) ? parsedAnalysis.points_ok : [],
         alertes: Array.isArray(parsedAnalysis.alertes) ? parsedAnalysis.alertes : [],
         recommandations: Array.isArray(parsedAnalysis.recommandations) ? parsedAnalysis.recommandations : [],
-        raw_text: extractedText,
+        raw_text: analysisContent,
       })
       .eq("id", analysisId);
 
