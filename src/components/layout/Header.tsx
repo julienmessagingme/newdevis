@@ -1,7 +1,8 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Shield, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { useState } from "react";
+import logo from "@/assets/logo.png";
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -12,9 +13,7 @@ const Header = () => {
     <header className={`sticky top-0 z-50 w-full border-b ${isLandingPage ? 'bg-primary border-primary/20' : 'bg-card border-border'}`}>
       <div className="container flex h-16 items-center justify-between">
         <Link to="/" className="flex items-center gap-2">
-          <div className={`p-2 rounded-lg ${isLandingPage ? 'bg-primary-foreground/10' : 'bg-primary/10'}`}>
-            <Shield className={`h-6 w-6 ${isLandingPage ? 'text-primary-foreground' : 'text-primary'}`} />
-          </div>
+          <img src={logo} alt="VerifierMonDevis.fr" className="h-12 w-12 object-contain" />
           <span className={`text-xl font-bold ${isLandingPage ? 'text-primary-foreground' : 'text-foreground'}`}>
             VerifierMonDevis.fr
           </span>
