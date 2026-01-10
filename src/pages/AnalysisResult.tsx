@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { generatePdfReport } from "@/utils/generatePdfReport";
 
 type Analysis = {
   id: string;
@@ -221,7 +222,7 @@ const AnalysisResult = () => {
             </div>
             <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
           </Link>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => generatePdfReport(analysis)}>
             <Download className="h-4 w-4 mr-2" />
             Télécharger le rapport
           </Button>
