@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Shield } from "lucide-react";
+import logo from "@/assets/logo.png";
 
 const Footer = () => {
   return (
@@ -9,9 +9,7 @@ const Footer = () => {
           {/* Logo & Description */}
           <div className="md:col-span-2">
             <Link to="/" className="flex items-center gap-2 mb-4">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Shield className="h-6 w-6 text-primary" />
-              </div>
+              <img src={logo} alt="VerifierMonDevis.fr" className="h-12 w-12 object-contain" />
               <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
             </Link>
             <p className="text-muted-foreground text-sm max-w-md">
