@@ -329,10 +329,22 @@ const AnalysisResult = () => {
         )}
 
         {/* Disclaimer */}
-        <p className="text-xs text-center text-muted-foreground mb-8">
-          Cette analyse est fournie à titre informatif et ne constitue pas un conseil juridique. 
-          Les informations sont basées sur l'analyse automatique du devis fourni.
-        </p>
+        <div className="bg-muted/50 border border-border rounded-xl p-5 mb-8">
+          <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+            ⚠️ Avertissement important
+          </h3>
+          <div className="text-xs text-muted-foreground space-y-2">
+            <p>
+              L'analyse fournie par VerifierMonDevis.fr est <strong className="text-foreground">automatisée</strong> et repose sur les informations figurant sur le devis transmis, des données publiques issues de sources administratives ou institutionnelles, et des moyennes de prix observées sur le marché.
+            </p>
+            <p>
+              Cette analyse constitue une <strong className="text-foreground">aide à la décision</strong> et une <strong className="text-foreground">information indicative</strong>. Elle ne constitue ni un avis juridique, ni un conseil professionnel, ni une expertise technique.
+            </p>
+            <p>
+              VerifierMonDevis.fr <strong className="text-foreground">n'évalue pas les artisans</strong> et ne porte aucun jugement sur leur probité ou leur compétence. Les résultats présentés ne sauraient se substituer à l'avis d'un professionnel du bâtiment ou à une vérification humaine approfondie.
+            </p>
+          </div>
+        </div>
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
