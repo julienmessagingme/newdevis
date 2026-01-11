@@ -10,6 +10,135 @@ const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const PAPPERS_API_URL = "https://api.pappers.fr/v2";
 const BODACC_API_URL = "https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales/records";
 
+// ============ PRICE COMPARISON LOGIC ============
+
+interface PriceComparisonResult {
+  score: "VERT" | "ORANGE" | "ROUGE";
+  prixUnitaireDevis: number;
+  fourchetteBasse: number;
+  fourchetteHaute: number;
+  coefficient: number;
+  zoneType: string;
+  explication: string;
+  alerte?: string;
+  point_ok?: string;
+}
+
+interface TravauxReferencePrix {
+  categorie_travaux: string;
+  unite: string;
+  prix_min_national: number;
+  prix_max_national: number;
+  description: string | null;
+}
+
+interface ZoneGeographique {
+  prefixe_postal: string;
+  type_zone: string;
+  coefficient: number;
+}
+
+// Get zone coefficient from postal code
+function getZoneCoefficient(codePostal: string, zones: ZoneGeographique[]): { coefficient: number; zoneType: string } {
+  const prefix = codePostal.substring(0, 2);
+  const zone = zones.find(z => z.prefixe_postal === prefix);
+  
+  if (zone) {
+    return { coefficient: zone.coefficient, zoneType: zone.type_zone };
+  }
+  
+  // Default: province (coefficient 0.90) if not found
+  return { coefficient: 0.90, zoneType: "province" };
+}
+
+// Compare quote price with reference
+function comparePrix(
+  categorieTravaux: string,
+  quantite: number,
+  montantHT: number,
+  codePostal: string,
+  referencePrix: TravauxReferencePrix[],
+  zones: ZoneGeographique[]
+): PriceComparisonResult | null {
+  // Find reference price for the category
+  const reference = referencePrix.find(r => 
+    r.categorie_travaux.toLowerCase() === categorieTravaux.toLowerCase()
+  );
+  
+  if (!reference) {
+    return null; // Category not found in reference
+  }
+  
+  // Calculate unit price from quote
+  const prixUnitaireDevis = montantHT / quantite;
+  
+  // Get zone coefficient
+  const { coefficient, zoneType } = getZoneCoefficient(codePostal, zones);
+  
+  // Adjust price range with coefficient
+  const fourchetteBasse = reference.prix_min_national * coefficient;
+  const fourchetteHaute = reference.prix_max_national * coefficient;
+  
+  // Compare and determine score
+  let score: "VERT" | "ORANGE" | "ROUGE";
+  let explication: string;
+  let alerte: string | undefined;
+  let point_ok: string | undefined;
+  
+  const zoneLabel = zoneType === "grande_ville" ? "grande ville" : 
+                    zoneType === "ville_moyenne" ? "ville moyenne" : "province";
+  
+  if (prixUnitaireDevis < fourchetteBasse * 0.7) {
+    // More than 30% below minimum = RED (suspiciously low)
+    score = "ROUGE";
+    explication = `Le prix unitaire de ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} est anormalement bas. ` +
+      `Pour cette zone (${zoneLabel}), les prix de marché sont entre ${fourchetteBasse.toFixed(2)}€ et ${fourchetteHaute.toFixed(2)}€/${reference.unite}. ` +
+      `Un prix aussi bas peut indiquer des matériaux de qualité inférieure, du travail non déclaré, ou une mauvaise estimation qui pourrait entraîner des suppléments.`;
+    alerte = `🚨 Prix anormalement bas: ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} (fourchette marché: ${fourchetteBasse.toFixed(2)}€-${fourchetteHaute.toFixed(2)}€)`;
+  } else if (prixUnitaireDevis < fourchetteBasse) {
+    // Between 70% and 100% of minimum = ORANGE (low)
+    score = "ORANGE";
+    explication = `Le prix unitaire de ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} est en dessous de la fourchette de marché. ` +
+      `Pour cette zone (${zoneLabel}), les prix sont généralement entre ${fourchetteBasse.toFixed(2)}€ et ${fourchetteHaute.toFixed(2)}€/${reference.unite}. ` +
+      `Vérifiez les prestations incluses et la qualité des matériaux proposés.`;
+    alerte = `⚠️ Prix bas: ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} (fourchette marché: ${fourchetteBasse.toFixed(2)}€-${fourchetteHaute.toFixed(2)}€)`;
+  } else if (prixUnitaireDevis <= fourchetteHaute) {
+    // Within range = GREEN
+    score = "VERT";
+    explication = `Le prix unitaire de ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} est dans la fourchette de marché. ` +
+      `Pour cette zone (${zoneLabel}), les prix sont entre ${fourchetteBasse.toFixed(2)}€ et ${fourchetteHaute.toFixed(2)}€/${reference.unite}. Le prix est cohérent.`;
+    point_ok = `✓ Prix cohérent: ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} (fourchette marché: ${fourchetteBasse.toFixed(2)}€-${fourchetteHaute.toFixed(2)}€)`;
+  } else if (prixUnitaireDevis <= fourchetteHaute * 1.3) {
+    // Up to 30% above maximum = ORANGE (high)
+    score = "ORANGE";
+    explication = `Le prix unitaire de ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} est au-dessus de la fourchette de marché. ` +
+      `Pour cette zone (${zoneLabel}), les prix sont généralement entre ${fourchetteBasse.toFixed(2)}€ et ${fourchetteHaute.toFixed(2)}€/${reference.unite}. ` +
+      `Ce n'est pas anormal si des prestations premium ou des matériaux haut de gamme sont inclus. Demandez des précisions.`;
+    alerte = `⚠️ Prix élevé: ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} (fourchette marché: ${fourchetteBasse.toFixed(2)}€-${fourchetteHaute.toFixed(2)}€)`;
+  } else {
+    // More than 30% above maximum = RED (excessively high)
+    score = "ROUGE";
+    explication = `Le prix unitaire de ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} est très au-dessus du marché. ` +
+      `Pour cette zone (${zoneLabel}), les prix sont entre ${fourchetteBasse.toFixed(2)}€ et ${fourchetteHaute.toFixed(2)}€/${reference.unite}. ` +
+      `Sans justification claire (matériaux exceptionnels, conditions d'accès difficiles), ce prix semble excessif. Demandez un second devis.`;
+    alerte = `🚨 Prix excessif: ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} (fourchette marché: ${fourchetteBasse.toFixed(2)}€-${fourchetteHaute.toFixed(2)}€)`;
+  }
+  
+  return {
+    score,
+    prixUnitaireDevis,
+    fourchetteBasse,
+    fourchetteHaute,
+    coefficient,
+    zoneType,
+    explication,
+    alerte,
+    point_ok
+  };
+}
+
+// ============ END PRICE COMPARISON ============
+
 interface BodaccResult {
   hasProcedure: boolean;
   procedures: string[];
@@ -327,7 +456,12 @@ serve(async (req) => {
 
     const userPrompt = `Analyse ce document de devis d'artisan. 
 
-IMPORTANT: Extrait également le numéro SIRET ou SIREN de l'entreprise s'il est présent dans le document.
+IMPORTANT: Extrait également:
+- Le numéro SIRET ou SIREN de l'entreprise s'il est présent
+- La catégorie principale de travaux (ex: peinture_interieure, carrelage_sol, electricite_renovation, plomberie_sdb, etc.)
+- La quantité totale (en m², unités ou forfait selon la catégorie)
+- Le montant HT total du devis
+- Le code postal du chantier
 
 Retourne un JSON STRICTEMENT STRUCTURÉ avec exactement les champs suivants :
 
@@ -337,6 +471,10 @@ Retourne un JSON STRICTEMENT STRUCTURÉ avec exactement les champs suivants :
 - alertes (liste des risques ou éléments manquants)
 - recommandations (actions concrètes à conseiller au particulier)
 - siret (numéro SIRET ou SIREN extrait du document, ou null si non trouvé)
+- categorie_travaux (une des catégories: peinture_interieure, carrelage_sol, carrelage_mural, parquet_stratifie, parquet_massif, isolation_combles, isolation_murs, placo_cloison, electricite_renovation, plomberie_sdb, cuisine_pose, toiture_tuiles, facade_ravalement, menuiserie_fenetre, menuiserie_porte, chauffage_pac, chaudiere_gaz, ou null si non identifiable)
+- quantite (nombre total, ex: 50 pour 50m², ou null)
+- montant_ht (montant HT total en euros, ou null)
+- code_postal_chantier (code postal du lieu des travaux, ou null)
 
 FORMAT DE RÉPONSE ATTENDU (OBLIGATOIRE) :
 {
@@ -345,7 +483,11 @@ FORMAT DE RÉPONSE ATTENDU (OBLIGATOIRE) :
   "points_ok": [],
   "alertes": [],
   "recommandations": [],
-  "siret": ""
+  "siret": "",
+  "categorie_travaux": "",
+  "quantite": null,
+  "montant_ht": null,
+  "code_postal_chantier": ""
 }
 
 CONTRAINTES :
@@ -436,6 +578,55 @@ CONTRAINTES :
     let allAlertes = Array.isArray(parsedAnalysis.alertes) ? [...parsedAnalysis.alertes] : [];
     let allRecommandations = Array.isArray(parsedAnalysis.recommandations) ? [...parsedAnalysis.recommandations] : [];
 
+    // ============ PRICE COMPARISON ANALYSIS ============
+    let priceComparisonResult: PriceComparisonResult | null = null;
+    
+    if (parsedAnalysis.categorie_travaux && parsedAnalysis.quantite && parsedAnalysis.montant_ht && parsedAnalysis.code_postal_chantier) {
+      console.log("Price comparison data found:", {
+        categorie: parsedAnalysis.categorie_travaux,
+        quantite: parsedAnalysis.quantite,
+        montant_ht: parsedAnalysis.montant_ht,
+        code_postal: parsedAnalysis.code_postal_chantier
+      });
+      
+      // Fetch reference prices and zones from database
+      const [referencePrixResult, zonesResult] = await Promise.all([
+        supabase.from("travaux_reference_prix").select("*"),
+        supabase.from("zones_geographiques").select("*")
+      ]);
+      
+      if (referencePrixResult.data && zonesResult.data) {
+        priceComparisonResult = comparePrix(
+          parsedAnalysis.categorie_travaux,
+          parseFloat(parsedAnalysis.quantite),
+          parseFloat(parsedAnalysis.montant_ht),
+          parsedAnalysis.code_postal_chantier,
+          referencePrixResult.data as TravauxReferencePrix[],
+          zonesResult.data as ZoneGeographique[]
+        );
+        
+        if (priceComparisonResult) {
+          console.log("Price comparison result:", priceComparisonResult);
+          
+          // Add price analysis to results
+          if (priceComparisonResult.point_ok) {
+            allPointsOk.push(priceComparisonResult.point_ok);
+          }
+          if (priceComparisonResult.alerte) {
+            allAlertes.push(priceComparisonResult.alerte);
+          }
+          
+          // Add explanation to recommendations
+          allRecommandations.push(`💰 Analyse des prix: ${priceComparisonResult.explication}`);
+        } else {
+          console.log("Category not found in reference prices:", parsedAnalysis.categorie_travaux);
+        }
+      }
+    } else {
+      console.log("Price comparison data incomplete, skipping price analysis");
+    }
+    // ============ END PRICE COMPARISON ============
+
     // If SIRET found, analyze company with Pappers and BODACC
     let companyAnalysis: CompanyAnalysis | null = null;
     let bodaccResult: BodaccResult | null = null;
@@ -492,6 +683,15 @@ CONTRAINTES :
     // BODACC procedure = automatic RED score
     if (bodaccResult?.hasProcedure) {
       score = "ROUGE";
+    }
+    
+    // Price comparison impact on score
+    if (priceComparisonResult) {
+      if (priceComparisonResult.score === "ROUGE") {
+        score = "ROUGE";
+      } else if (priceComparisonResult.score === "ORANGE" && score === "VERT") {
+        score = "ORANGE";
+      }
     }
     
     if (!validScores.includes(score)) {
