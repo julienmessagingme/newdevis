@@ -65,6 +65,63 @@ export type Database = {
         }
         Relationships: []
       }
+      travaux_reference_prix: {
+        Row: {
+          categorie_travaux: string
+          created_at: string
+          description: string | null
+          id: string
+          prix_max_national: number
+          prix_min_national: number
+          unite: string
+          updated_at: string
+        }
+        Insert: {
+          categorie_travaux: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          prix_max_national: number
+          prix_min_national: number
+          unite?: string
+          updated_at?: string
+        }
+        Update: {
+          categorie_travaux?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          prix_max_national?: number
+          prix_min_national?: number
+          unite?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      zones_geographiques: {
+        Row: {
+          coefficient: number
+          created_at: string
+          id: string
+          prefixe_postal: string
+          type_zone: string
+        }
+        Insert: {
+          coefficient?: number
+          created_at?: string
+          id?: string
+          prefixe_postal: string
+          type_zone: string
+        }
+        Update: {
+          coefficient?: number
+          created_at?: string
+          id?: string
+          prefixe_postal?: string
+          type_zone?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
