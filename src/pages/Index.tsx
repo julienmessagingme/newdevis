@@ -5,6 +5,7 @@ import HowItWorksSection from "@/components/landing/HowItWorksSection";
 import ScoringExplainedSection from "@/components/landing/ScoringExplainedSection";
 import RisksSection from "@/components/landing/RisksSection";
 import CTASection from "@/components/landing/CTASection";
+import DisclaimerSection from "@/components/landing/DisclaimerSection";
 
 const Index = () => {
   return (
@@ -15,6 +16,7 @@ const Index = () => {
         <HowItWorksSection />
         <ScoringExplainedSection />
         <RisksSection />
+        <DisclaimerSection />
         <CTASection />
       </main>
       <Footer />
