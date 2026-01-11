@@ -40,6 +40,11 @@ const Footer = () => {
             <h4 className="font-semibold text-foreground mb-4">Légal</h4>
             <ul className="space-y-2">
               <li>
+                <Link to="/cgu" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Conditions Générales d'Utilisation
+                </Link>
+              </li>
+              <li>
                 <Link to="/mentions-legales" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   Mentions légales
                 </Link>
@@ -47,11 +52,6 @@ const Footer = () => {
               <li>
                 <Link to="/confidentialite" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   Politique de confidentialité
-                </Link>
-              </li>
-              <li>
-                <Link to="/cgv" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                  CGV
                 </Link>
               </li>
             </ul>

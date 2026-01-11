@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import NewAnalysis from "./pages/NewAnalysis";
 import AnalysisResult from "./pages/AnalysisResult";
 import Admin from "./pages/Admin";
+import CGU from "./pages/CGU";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
           <Route path="/nouvelle-analyse" element={<NewAnalysis />} />
           <Route path="/analyse/:id" element={<AnalysisResult />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/cgu" element={<CGU />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
