@@ -120,7 +120,7 @@ const NewAnalysis = () => {
         throw new Error("Erreur lors de la création de l'analyse");
       }
 
-      toast.success("Fichier téléversé ! Analyse en cours...");
+      toast.success("Fichier téléchargé ! Analyse en cours...");
 
       // Trigger the analysis
       const { error: functionError } = await supabase.functions.invoke("analyze-quote", {
@@ -172,7 +172,7 @@ const NewAnalysis = () => {
             Nouvelle analyse de devis
           </h1>
           <p className="text-muted-foreground">
-            Téléversez votre devis et obtenez un score de fiabilité en quelques minutes
+            Téléchargez votre devis et obtenez un score de fiabilité en quelques minutes
           </p>
         </div>
 
