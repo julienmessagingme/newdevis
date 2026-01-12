@@ -229,7 +229,7 @@ const Dashboard = () => {
                   Analyser un nouveau devis
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Téléversez un devis PDF ou photo pour obtenir votre score
+                  Téléchargez un devis PDF ou photo pour obtenir votre score
                 </p>
               </div>
             </div>
@@ -252,7 +252,7 @@ const Dashboard = () => {
               <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="font-semibold text-foreground mb-2">Aucune analyse</h3>
               <p className="text-muted-foreground mb-4">
-                Commencez par téléverser votre premier devis
+                Commencez par télécharger votre premier devis
               </p>
               <Link to="/nouvelle-analyse">
                 <Button>

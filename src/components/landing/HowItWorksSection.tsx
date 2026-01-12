@@ -3,7 +3,7 @@ import { Upload, Search, FileCheck, ArrowRight } from "lucide-react";
 const steps = [
   {
     icon: Upload,
-    title: "Téléversez votre devis",
+    title: "Téléchargez votre devis",
     description: "Importez votre devis au format PDF ou photo. Notre système sécurisé protège vos données.",
     step: "01"
   },

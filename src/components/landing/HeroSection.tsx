@@ -33,7 +33,7 @@ const HeroSection = () => {
             </h1>
 
             <p className="text-lg md:text-xl text-primary-foreground/80 mb-8 max-w-xl mx-auto lg:mx-0">
-              Téléversez votre devis et obtenez instantanément un score de fiabilité. 
+              Téléchargez votre devis et obtenez instantanément un score de fiabilité. 
               Feu vert, orange ou rouge : sachez si vous pouvez faire confiance à l'artisan.
             </p>
 
