@@ -269,7 +269,7 @@ const BlockContexte = ({ siteContext, pointsOk, alertes, chantierAddress, rawTex
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-4">
-            <h2 className="font-bold text-foreground text-xl">BLOC 4 — Contexte du chantier</h2>
+            <h2 className="font-bold text-foreground text-xl">Contexte du chantier</h2>
             <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">
               <Info className="h-3 w-3 inline mr-1" />
               Informatif
