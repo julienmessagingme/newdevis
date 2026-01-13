@@ -363,80 +363,138 @@ const filterOutAssurance = (items: string[]): string[] => {
   });
 };
 
-// Extract IBAN verification data from points_ok or alertes
-interface IBANInfo {
+// Extract Payment Conditions data from points_ok or alertes
+interface PaymentConditionsInfo {
+  modes_paiement: string[];
+  acompte_pourcentage: number | null;
+  paiement_integral_avant_travaux: boolean;
   hasIBAN: boolean;
-  isValid?: boolean;
-  countryCode?: string;
-  isFrance?: boolean;
+  ibanValid?: boolean;
+  ibanFrance?: boolean;
+  ibanCountry?: string;
   score: "VERT" | "ORANGE" | "ROUGE";
-  explanation: string;
+  vigilanceReasons: string[];
+  positivePoints: string[];
 }
 
-const extractIBANData = (analysis: Analysis): IBANInfo | null => {
+const extractPaymentConditionsData = (analysis: Analysis): PaymentConditionsInfo | null => {
   const allPoints = [...(analysis.points_ok || []), ...(analysis.alertes || [])];
+  
+  const result: PaymentConditionsInfo = {
+    modes_paiement: [],
+    acompte_pourcentage: null,
+    paiement_integral_avant_travaux: false,
+    hasIBAN: false,
+    score: "ORANGE",
+    vigilanceReasons: [],
+    positivePoints: [],
+  };
+  
+  let foundPaymentInfo = false;
   
   for (const point of allPoints) {
     const lowerPoint = point.toLowerCase();
     
-    // Check for IBAN / mode de règlement mentions
-    if (lowerPoint.includes("mode de règlement") || lowerPoint.includes("iban")) {
-      // Valid French IBAN
-      if (lowerPoint.includes("valide") && lowerPoint.includes("france")) {
-        return {
-          hasIBAN: true,
-          isValid: true,
-          countryCode: "FR",
-          isFrance: true,
-          score: "VERT",
-          explanation: point
-        };
+    // Check for payment conditions mentions
+    if (lowerPoint.includes("conditions de paiement") || 
+        lowerPoint.includes("mode de paiement") ||
+        lowerPoint.includes("mode de règlement") ||
+        lowerPoint.includes("iban") ||
+        lowerPoint.includes("acompte")) {
+      
+      foundPaymentInfo = true;
+      
+      // Extract payment modes
+      if (lowerPoint.includes("virement")) result.modes_paiement.push("Virement");
+      if (lowerPoint.includes("chèque") || lowerPoint.includes("cheque")) result.modes_paiement.push("Chèque");
+      if (lowerPoint.includes("carte")) result.modes_paiement.push("Carte bancaire");
+      if (lowerPoint.includes("espèces") || lowerPoint.includes("especes") || lowerPoint.includes("cash") || lowerPoint.includes("comptant")) {
+        result.modes_paiement.push("Espèces");
+        result.vigilanceReasons.push("Paiement en espèces");
       }
       
-      // Valid but foreign IBAN
-      if (lowerPoint.includes("valide") && (lowerPoint.includes("hors de france") || lowerPoint.includes("étranger"))) {
-        // Extract country from the point
-        const countryMatch = point.match(/\(([A-Za-zÀ-ÿ\s]+)\)/);
-        const country = countryMatch ? countryMatch[1] : "Étranger";
-        return {
-          hasIBAN: true,
-          isValid: true,
-          isFrance: false,
-          score: "ORANGE",
-          explanation: point
-        };
+      // Extract acompte percentage
+      const acompteMatch = point.match(/acompte[^\d]*(\d+)\s*%/i);
+      if (acompteMatch) {
+        result.acompte_pourcentage = parseInt(acompteMatch[1], 10);
+        if (result.acompte_pourcentage > 50) {
+          result.vigilanceReasons.push(`Acompte élevé (${result.acompte_pourcentage}%)`);
+        } else if (result.acompte_pourcentage > 30) {
+          result.vigilanceReasons.push(`Acompte modéré (${result.acompte_pourcentage}%)`);
+        } else {
+          result.positivePoints.push(`Acompte raisonnable (${result.acompte_pourcentage}%)`);
+        }
       }
       
-      // Invalid IBAN
-      if (lowerPoint.includes("non valide") || lowerPoint.includes("invalide")) {
-        return {
-          hasIBAN: true,
-          isValid: false,
-          score: "ROUGE",
-          explanation: point
-        };
+      // Check for full payment before work
+      if (lowerPoint.includes("paiement intégral") && lowerPoint.includes("avant")) {
+        result.paiement_integral_avant_travaux = true;
+        result.vigilanceReasons.push("Paiement intégral avant travaux");
       }
       
-      // No IBAN detected
-      if (lowerPoint.includes("aucun iban")) {
-        return {
-          hasIBAN: false,
-          score: "ORANGE",
-          explanation: point
-        };
+      // IBAN status
+      if (lowerPoint.includes("iban")) {
+        if (lowerPoint.includes("valide") && lowerPoint.includes("france")) {
+          result.hasIBAN = true;
+          result.ibanValid = true;
+          result.ibanFrance = true;
+          result.ibanCountry = "France";
+          result.positivePoints.push("IBAN valide - France");
+        } else if (lowerPoint.includes("valide") && (lowerPoint.includes("étranger") || !lowerPoint.includes("france"))) {
+          result.hasIBAN = true;
+          result.ibanValid = true;
+          result.ibanFrance = false;
+          // Try to extract country
+          const countryMatch = point.match(/(?:domicilié|valide)[^(]*\(([^)]+)\)/i);
+          result.ibanCountry = countryMatch ? countryMatch[1] : "Étranger";
+          result.vigilanceReasons.push(`IBAN étranger (${result.ibanCountry})`);
+        } else if (lowerPoint.includes("non valide") || lowerPoint.includes("invalide")) {
+          result.hasIBAN = true;
+          result.ibanValid = false;
+          result.vigilanceReasons.push("IBAN non valide");
+        } else if (lowerPoint.includes("non détecté") || lowerPoint.includes("aucun iban")) {
+          result.hasIBAN = false;
+        }
+      }
+      
+      // Determine score from emoji or explicit mentions
+      if (point.includes("✓") || point.includes("🟢")) {
+        result.score = "VERT";
+      } else if (point.includes("🔴")) {
+        result.score = "ROUGE";
+      } else if (point.includes("⚠️")) {
+        result.score = "ORANGE";
       }
     }
   }
   
-  return null;
+  // Deduplicate modes
+  result.modes_paiement = [...new Set(result.modes_paiement)];
+  
+  // If no explicit score found, determine from vigilance reasons
+  if (foundPaymentInfo && result.score === "ORANGE") {
+    if (result.vigilanceReasons.length === 0 && result.positivePoints.length > 0) {
+      result.score = "VERT";
+    } else if (
+      result.vigilanceReasons.some(r => r.includes("espèces") || r.includes("non valide") || r.includes("intégral")) ||
+      result.vigilanceReasons.length >= 2
+    ) {
+      result.score = "ROUGE";
+    }
+  }
+  
+  return foundPaymentInfo ? result : null;
 };
 
-// Filter out IBAN-related items from points_ok/alertes to avoid duplicates
-const filterOutIBAN = (items: string[]): string[] => {
+// Filter out payment conditions-related items from points_ok/alertes to avoid duplicates
+const filterOutPaymentConditions = (items: string[]): string[] => {
   return items.filter(item => {
     const lower = item.toLowerCase();
-    return !lower.includes("mode de règlement") && 
-           !lower.includes("iban");
+    return !lower.includes("conditions de paiement") && 
+           !lower.includes("mode de paiement") &&
+           !lower.includes("mode de règlement") &&
+           !lower.includes("iban") &&
+           !(lower.includes("acompte") && (lower.includes("paiement") || lower.includes("%")));
   });
 };
 
@@ -1131,89 +1189,141 @@ const AnalysisResult = () => {
           );
         })()}
 
-        {/* Mode de règlement - IBAN - Bloc dédié */}
+        {/* Conditions de paiement - Bloc dédié */}
         {(() => {
-          const ibanInfo = extractIBANData(analysis);
-          if (!ibanInfo) return null;
+          const paymentInfo = extractPaymentConditionsData(analysis);
+          if (!paymentInfo) return null;
           
-          const getIBANBgClass = () => {
-            switch (ibanInfo.score) {
+          const getPaymentBgClass = () => {
+            switch (paymentInfo.score) {
               case "VERT": return "bg-score-green-bg border-score-green/30";
               case "ORANGE": return "bg-score-orange-bg border-score-orange/30";
               case "ROUGE": return "bg-score-red-bg border-score-red/30";
             }
           };
 
-          const getIBANIcon = () => {
-            switch (ibanInfo.score) {
+          const getPaymentIcon = () => {
+            switch (paymentInfo.score) {
               case "VERT": return <CheckCircle2 className="h-6 w-6 text-score-green" />;
               case "ORANGE": return <AlertCircle className="h-6 w-6 text-score-orange" />;
               case "ROUGE": return <XCircle className="h-6 w-6 text-score-red" />;
             }
           };
 
-          const getIBANStatusText = () => {
-            if (!ibanInfo.hasIBAN) {
-              return "Aucun IBAN détecté sur le devis";
+          const getPaymentModeText = () => {
+            if (paymentInfo.modes_paiement.length === 0) {
+              return "Mode de paiement non précisé";
             }
-            if (ibanInfo.isValid === false) {
-              return "IBAN non valide techniquement";
-            }
-            if (ibanInfo.isFrance) {
-              return "IBAN valide - Domicilié en France";
-            }
-            return "IBAN valide - Domicilié à l'étranger";
+            return paymentInfo.modes_paiement.join(", ");
           };
 
-          const getIBANExplanation = () => {
-            if (!ibanInfo.hasIBAN) {
-              return "Aucun numéro IBAN n'a été détecté sur le devis. Si un paiement par virement est demandé, vérifiez les coordonnées bancaires directement avec l'artisan.";
+          const getAcompteText = () => {
+            if (paymentInfo.acompte_pourcentage !== null) {
+              return `${paymentInfo.acompte_pourcentage}%`;
             }
-            if (ibanInfo.isValid === false) {
-              return "L'IBAN mentionné sur le devis n'est pas valide techniquement. Cela peut indiquer une erreur de saisie ou un numéro erroné. Vérifiez ce point avec l'artisan avant tout paiement.";
+            return "Non précisé";
+          };
+
+          const getIBANStatusText = () => {
+            if (!paymentInfo.hasIBAN) {
+              return "Non détecté";
             }
-            if (ibanInfo.isFrance) {
-              return "L'IBAN mentionné sur le devis est valide et domicilié en France. Cela correspond à la situation habituelle pour un artisan intervenant en France.";
+            if (paymentInfo.ibanValid === false) {
+              return "Non valide";
             }
-            return "L'IBAN mentionné sur le devis est valide mais domicilié à l'étranger. Pour un artisan intervenant en France, un compte bancaire français est plus habituel. Cela ne préjuge pas de la qualité du prestataire, mais mérite vérification.";
+            if (paymentInfo.ibanFrance) {
+              return "Valide - France";
+            }
+            return `Valide - ${paymentInfo.ibanCountry || "Étranger"}`;
+          };
+
+          const getIBANStatusClass = () => {
+            if (!paymentInfo.hasIBAN) return "text-score-orange";
+            if (paymentInfo.ibanValid === false) return "text-score-red";
+            if (paymentInfo.ibanFrance) return "text-score-green";
+            return "text-score-orange";
+          };
+
+          const getAcompteClass = () => {
+            if (paymentInfo.acompte_pourcentage === null) return "text-muted-foreground";
+            if (paymentInfo.acompte_pourcentage <= 30) return "text-score-green";
+            if (paymentInfo.acompte_pourcentage <= 50) return "text-score-orange";
+            return "text-score-red";
           };
 
           return (
-            <div className={`border rounded-xl p-6 mb-6 ${getIBANBgClass()}`}>
+            <div className={`border rounded-xl p-6 mb-6 ${getPaymentBgClass()}`}>
               <div className="flex items-start gap-4">
                 <div className="p-3 bg-background/50 rounded-xl flex-shrink-0">
                   <CreditCard className="h-6 w-6 text-primary" />
                 </div>
                 <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-3">
-                    <h2 className="font-semibold text-foreground text-lg">Mode de règlement</h2>
-                    {getIBANIcon()}
+                  <div className="flex items-center gap-3 mb-4">
+                    <h2 className="font-semibold text-foreground text-lg">Conditions de paiement</h2>
+                    {getPaymentIcon()}
                   </div>
                   
-                  <div className="mb-3">
-                    <span className={`font-bold text-lg ${
-                      ibanInfo.score === "VERT" ? "text-score-green" :
-                      ibanInfo.score === "ORANGE" ? "text-score-orange" :
-                      "text-score-red"
-                    }`}>
-                      {getIBANStatusText()}
-                    </span>
+                  {/* Payment details grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    {/* Mode de paiement */}
+                    <div className="p-3 bg-background/30 rounded-lg">
+                      <p className="text-xs text-muted-foreground mb-1">Mode de paiement</p>
+                      <p className="font-medium text-foreground">{getPaymentModeText()}</p>
+                    </div>
+                    
+                    {/* Acompte */}
+                    <div className="p-3 bg-background/30 rounded-lg">
+                      <p className="text-xs text-muted-foreground mb-1">Acompte demandé</p>
+                      <p className={`font-medium ${getAcompteClass()}`}>{getAcompteText()}</p>
+                    </div>
+                    
+                    {/* IBAN */}
+                    <div className="p-3 bg-background/30 rounded-lg">
+                      <p className="text-xs text-muted-foreground mb-1">Statut IBAN</p>
+                      <p className={`font-medium ${getIBANStatusClass()}`}>{getIBANStatusText()}</p>
+                    </div>
                   </div>
                   
-                  <p className="text-sm text-muted-foreground">
-                    {getIBANExplanation()}
-                  </p>
+                  {/* Paiement intégral warning */}
+                  {paymentInfo.paiement_integral_avant_travaux && (
+                    <div className="mb-3 p-2 bg-score-red/10 rounded-lg border border-score-red/20">
+                      <p className="text-sm text-score-red font-medium">
+                        ⚠️ Paiement intégral demandé avant le début des travaux
+                      </p>
+                    </div>
+                  )}
                   
-                  {(ibanInfo.score === "ORANGE" || ibanInfo.score === "ROUGE") && (
+                  {/* Vigilance reasons */}
+                  {paymentInfo.vigilanceReasons.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-medium">Points de vigilance :</span>{" "}
+                        {paymentInfo.vigilanceReasons.join(", ")}.
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Positive points */}
+                  {paymentInfo.positivePoints.length > 0 && paymentInfo.score === "VERT" && (
+                    <div className="mb-3">
+                      <p className="text-sm text-score-green">
+                        <span className="font-medium">Points positifs :</span>{" "}
+                        {paymentInfo.positivePoints.join(", ")}.
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Recommendation */}
+                  {(paymentInfo.score === "ORANGE" || paymentInfo.score === "ROUGE") && (
                     <div className="mt-3 p-2 bg-background/50 rounded-lg">
                       <p className="text-xs text-muted-foreground">
-                        💡 <strong>Recommandation</strong> : Nous vous recommandons de vérifier ce point avec l'artisan avant tout paiement.
+                        💡 <strong>Recommandation</strong> : Nous vous recommandons de privilégier un mode de paiement traçable et de limiter l'acompte à 30% maximum.
                       </p>
                     </div>
                   )}
                   
                   <p className="text-xs text-muted-foreground/70 mt-3 italic">
-                    Vérification technique de l'IBAN via l'API OpenIBAN. Cette analyse est purement factuelle et ne constitue pas un jugement.
+                    Analyse des conditions de paiement basée sur les informations du devis. Vérification IBAN via l'API OpenIBAN. Ces éléments sont des indicateurs de vigilance factuels.
                   </p>
                 </div>
               </div>
@@ -1223,7 +1333,7 @@ const AnalysisResult = () => {
 
         {/* Points OK - Filtered to exclude reputation, RGE, QUALIBAT, Assurance and IBAN items */}
         {(() => {
-          const filteredPoints = filterOutIBAN(filterOutAssurance(filterOutQualibat(filterOutRGE(filterOutReputation(analysis.points_ok || [])))));
+          const filteredPoints = filterOutPaymentConditions(filterOutAssurance(filterOutQualibat(filterOutRGE(filterOutReputation(analysis.points_ok || [])))));
           if (filteredPoints.length === 0) return null;
           
           return (
@@ -1246,7 +1356,7 @@ const AnalysisResult = () => {
 
         {/* Alertes - Filtered to exclude reputation, RGE, QUALIBAT, Assurance and IBAN items */}
         {(() => {
-          const filteredAlertes = filterOutIBAN(filterOutAssurance(filterOutQualibat(filterOutRGE(filterOutReputation(analysis.alertes || [])))));
+          const filteredAlertes = filterOutPaymentConditions(filterOutAssurance(filterOutQualibat(filterOutRGE(filterOutReputation(analysis.alertes || [])))));
           if (filteredAlertes.length === 0) return null;
           
           return (
