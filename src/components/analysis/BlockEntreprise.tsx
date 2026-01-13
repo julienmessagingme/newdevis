@@ -5,6 +5,7 @@ interface ReputationOnline {
   reviews_count?: number;
   score: "VERT" | "ORANGE" | "ROUGE";
   explanation: string;
+  status: "found" | "uncertain" | "not_found" | "not_searched";
 }
 
 interface BlockEntrepriseProps {
@@ -60,6 +61,9 @@ const extractEntrepriseData = (pointsOk: string[], alertes: string[]): Entrepris
   let reputation: ReputationOnline | null = null;
   let positiveCount = 0;
   let alertCount = 0;
+  
+  // Track if we found any reputation-related info
+  let reputationSearched = false;
   
   for (const point of allPoints) {
     const lowerPoint = point.toLowerCase();
@@ -124,20 +128,22 @@ const extractEntrepriseData = (pointsOk: string[], alertes: string[]): Entrepris
       }
     }
     
-    // Extract reputation
-    const ratingMatch = point.match(/[rR]éputation en ligne.*?(\d+(?:\.\d+)?)\s*\/\s*5.*?\((\d+)\s*avis/i);
+    // Extract reputation - Case A: Rating found
+    const ratingMatch = point.match(/[rR]éputation en ligne.*?(\d+(?:[.,]\d+)?)\s*\/\s*5.*?\((\d+)\s*avis/i);
     if (ratingMatch) {
-      const rating = parseFloat(ratingMatch[1]);
+      reputationSearched = true;
+      const rating = parseFloat(ratingMatch[1].replace(',', '.'));
       const reviewsCount = parseInt(ratingMatch[2], 10);
       
       let score: "VERT" | "ORANGE" | "ROUGE";
-      if (rating > 4.5) {
+      if (rating >= 4.0) {
         score = "VERT";
         positiveCount++;
-      } else if (rating >= 4.0) {
+      } else if (rating >= 3.0) {
         score = "ORANGE";
       } else {
-        score = "ROUGE";
+        // Low rating - still ORANGE, never ROUGE for reputation alone
+        score = "ORANGE";
         alertCount++;
       }
       
@@ -145,14 +151,37 @@ const extractEntrepriseData = (pointsOk: string[], alertes: string[]): Entrepris
         rating,
         reviews_count: reviewsCount,
         score,
-        explanation: point
+        explanation: point,
+        status: "found"
       };
-    } else if (lowerPoint.includes("réputation en ligne") && (lowerPoint.includes("aucun avis") || lowerPoint.includes("non trouvé"))) {
+    } 
+    // Case B: Uncertain match
+    else if (lowerPoint.includes("réputation en ligne") && (lowerPoint.includes("correspondance incertaine") || lowerPoint.includes("incertaine"))) {
+      reputationSearched = true;
       reputation = {
         score: "ORANGE",
-        explanation: point
+        explanation: point,
+        status: "uncertain"
       };
     }
+    // Case C: Not found but searched
+    else if (lowerPoint.includes("réputation en ligne") && (lowerPoint.includes("aucun avis") || lowerPoint.includes("non trouvé") || lowerPoint.includes("non disponible"))) {
+      reputationSearched = true;
+      reputation = {
+        score: "ORANGE",
+        explanation: point,
+        status: "not_found"
+      };
+    }
+  }
+  
+  // ALWAYS show reputation block - if not found in points, create default
+  if (!reputation) {
+    reputation = {
+      score: "ORANGE",
+      explanation: "Recherche Google effectuée",
+      status: reputationSearched ? "not_found" : "not_searched"
+    };
   }
   
   // Determine overall score
@@ -270,45 +299,63 @@ const BlockEntreprise = ({ pointsOk, alertes }: BlockEntrepriseProps) => {
             )}
           </div>
           
-          {/* Réputation en ligne */}
-          {info.reputation && (
-            <div className={`p-4 rounded-lg border ${getScoreBgClass(info.reputation.score)}`}>
-              <div className="flex items-center gap-3 mb-2">
-                <Globe className="h-5 w-5 text-primary" />
-                <span className="font-medium text-foreground">Réputation en ligne</span>
-                {getScoreIcon(info.reputation.score)}
-              </div>
-              
-              {info.reputation.rating !== undefined && info.reputation.reviews_count !== undefined ? (
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Star
-                        key={star}
-                        className={`h-4 w-4 ${
-                          star <= Math.round(info.reputation!.rating!)
-                            ? "text-yellow-400 fill-yellow-400"
-                            : "text-muted-foreground/30"
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  <span className="font-bold text-foreground">
-                    {info.reputation.rating}/5
-                  </span>
-                  <span className="text-muted-foreground text-sm">
-                    ({info.reputation.reviews_count} avis Google)
-                  </span>
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-sm">
-                  {info.reputation.explanation.includes("non trouvé") 
-                    ? "Établissement non trouvé sur Google"
-                    : "Aucun avis disponible"}
-                </p>
-              )}
+          {/* Réputation en ligne - ALWAYS VISIBLE */}
+          <div className={`p-4 rounded-lg border ${getScoreBgClass(info.reputation?.score || "ORANGE")}`}>
+            <div className="flex items-center gap-3 mb-2">
+              <Globe className="h-5 w-5 text-primary" />
+              <span className="font-medium text-foreground">Réputation en ligne (Google)</span>
+              {getScoreIcon(info.reputation?.score || "ORANGE")}
             </div>
-          )}
+            
+            {/* Case A: Rating found */}
+            {info.reputation?.status === "found" && info.reputation.rating !== undefined && info.reputation.reviews_count !== undefined ? (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      className={`h-4 w-4 ${
+                        star <= Math.round(info.reputation!.rating!)
+                          ? "text-yellow-400 fill-yellow-400"
+                          : "text-muted-foreground/30"
+                      }`}
+                    />
+                  ))}
+                </div>
+                <span className="font-bold text-foreground">
+                  {info.reputation.rating.toFixed(1).replace('.', ',')}/5
+                </span>
+                <span className="text-muted-foreground text-sm">
+                  ({info.reputation.reviews_count} avis)
+                </span>
+                <span className="text-xs text-muted-foreground/70 ml-2">
+                  Source: Google
+                </span>
+              </div>
+            ) : info.reputation?.status === "uncertain" ? (
+              /* Case B: Uncertain match */
+              <div>
+                <p className="text-sm text-score-orange font-medium">
+                  Note Google : non affichée (correspondance incertaine)
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  La recherche Google a été effectuée mais l'établissement trouvé ne correspond peut-être pas exactement à cette entreprise.
+                </p>
+              </div>
+            ) : (
+              /* Case C: Not found or not searched */
+              <div>
+                <p className="text-sm text-muted-foreground font-medium">
+                  Note Google : non disponible
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {info.reputation?.status === "not_found" 
+                    ? "La recherche Google a été effectuée mais aucun avis n'a été trouvé pour cet établissement."
+                    : "La recherche d'avis Google a été effectuée."}
+                </p>
+              </div>
+            )}
+          </div>
           
           {/* Score explanation */}
           <div className="mt-4 p-3 bg-muted/50 rounded-lg">
