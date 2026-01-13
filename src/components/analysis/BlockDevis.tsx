@@ -1,4 +1,5 @@
 import { CheckCircle2, AlertCircle, XCircle, Receipt } from "lucide-react";
+import MarketComparisonGauge from "./MarketComparisonGauge";
 
 interface BlockDevisProps {
   pointsOk: string[];
@@ -34,9 +35,12 @@ const getScoreTextClass = (score: string | null) => {
 
 interface DevisInfo {
   prixTotal: string | null;
+  prixTotalNumber: number | null;
   comparaisonMarche: string | null;
   prixMarcheFourchette: string | null;
-  ecart: "normal" | "elevé" | "tres_elevé" | null;
+  prixMinMarche: number | null;
+  prixMaxMarche: number | null;
+  ecart: "normal" | "elevé" | "tres_elevé" | "inferieur" | null;
   detailMoDoeuvre: boolean | null;
   detailMateriaux: boolean | null;
   tvaApplicable: string | null;
@@ -50,9 +54,12 @@ const extractDevisData = (pointsOk: string[], alertes: string[]): DevisInfo => {
   const allPoints = [...pointsOk, ...alertes];
   
   let prixTotal: string | null = null;
+  let prixTotalNumber: number | null = null;
   let comparaisonMarche: string | null = null;
   let prixMarcheFourchette: string | null = null;
-  let ecart: "normal" | "elevé" | "tres_elevé" | null = null;
+  let prixMinMarche: number | null = null;
+  let prixMaxMarche: number | null = null;
+  let ecart: "normal" | "elevé" | "tres_elevé" | "inferieur" | null = null;
   let detailMoDoeuvre: boolean | null = null;
   let detailMateriaux: boolean | null = null;
   let tvaApplicable: string | null = null;
@@ -61,6 +68,12 @@ const extractDevisData = (pointsOk: string[], alertes: string[]): DevisInfo => {
   let alertCount = 0;
   const explanations: string[] = [];
   let hasDevisRelatedInfo = false;
+
+  const parsePrice = (priceStr: string): number | null => {
+    const cleaned = priceStr.replace(/\s/g, '').replace(',', '.');
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? null : num;
+  };
   
   for (const point of allPoints) {
     const lowerPoint = point.toLowerCase();
@@ -81,6 +94,7 @@ const extractDevisData = (pointsOk: string[], alertes: string[]): DevisInfo => {
     const prixMatch = point.match(/(?:prix|montant|total)[^\d]*([\d\s,\.]+)\s*€/i);
     if (prixMatch && !lowerPoint.includes("marché") && !lowerPoint.includes("fourchette")) {
       prixTotal = prixMatch[1].trim() + " €";
+      prixTotalNumber = parsePrice(prixMatch[1]);
     }
     
     // Extract comparaison marché
@@ -103,6 +117,7 @@ const extractDevisData = (pointsOk: string[], alertes: string[]): DevisInfo => {
         }
       } else if (lowerPoint.includes("inférieur")) {
         comparaisonMarche = "Inférieur au marché";
+        ecart = "inferieur";
         positiveCount++;
       }
       
@@ -110,6 +125,8 @@ const extractDevisData = (pointsOk: string[], alertes: string[]): DevisInfo => {
       const fourchetteMatch = point.match(/([\d\s,\.]+)\s*€?\s*[-–à]\s*([\d\s,\.]+)\s*€/);
       if (fourchetteMatch) {
         prixMarcheFourchette = `${fourchetteMatch[1].trim()} € - ${fourchetteMatch[2].trim()} €`;
+        prixMinMarche = parsePrice(fourchetteMatch[1]);
+        prixMaxMarche = parsePrice(fourchetteMatch[2]);
       }
     }
     
@@ -185,8 +202,11 @@ const extractDevisData = (pointsOk: string[], alertes: string[]): DevisInfo => {
   
   return {
     prixTotal,
+    prixTotalNumber,
     comparaisonMarche,
     prixMarcheFourchette,
+    prixMinMarche,
+    prixMaxMarche,
     ecart,
     detailMoDoeuvre,
     detailMateriaux,
@@ -247,6 +267,18 @@ const BlockDevis = ({ pointsOk, alertes }: BlockDevisProps) => {
             Vérifier la clarté et la cohérence du devis par rapport au marché.
           </p>
           
+          {/* Market Comparison Gauge */}
+          {info.ecart && (
+            <div className="mb-4">
+              <MarketComparisonGauge 
+                ecart={info.ecart}
+                prixDevis={info.prixTotalNumber}
+                prixMinMarche={info.prixMinMarche}
+                prixMaxMarche={info.prixMaxMarche}
+              />
+            </div>
+          )}
+          
           {/* Info grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             {/* Prix total */}
@@ -254,25 +286,6 @@ const BlockDevis = ({ pointsOk, alertes }: BlockDevisProps) => {
               <div className="p-3 bg-background/30 rounded-lg">
                 <p className="text-xs text-muted-foreground mb-1">Prix total TTC</p>
                 <p className="font-medium text-foreground text-lg">{info.prixTotal}</p>
-              </div>
-            )}
-            
-            {/* Comparaison marché */}
-            {info.comparaisonMarche && (
-              <div className="p-3 bg-background/30 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Comparaison marché</p>
-                <p className={`font-medium ${
-                  info.ecart === "normal" ? "text-score-green" :
-                  info.ecart === "elevé" ? "text-score-orange" :
-                  info.ecart === "tres_elevé" ? "text-score-red" : "text-foreground"
-                }`}>
-                  {info.comparaisonMarche}
-                </p>
-                {info.prixMarcheFourchette && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Fourchette : {info.prixMarcheFourchette}
-                  </p>
-                )}
               </div>
             )}
             
