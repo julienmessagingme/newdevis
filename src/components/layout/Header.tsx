@@ -22,10 +22,10 @@ const Header = () => {
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center gap-6">
           <Link 
-            to="/comment-ca-marche" 
+            to="/comprendre-score" 
             className={`text-sm font-medium transition-colors hover:opacity-80 ${isLandingPage ? 'text-primary-foreground/80' : 'text-muted-foreground hover:text-foreground'}`}
           >
-            Comment ça marche
+            Comprendre mon score
           </Link>
           <div className="flex items-center gap-3">
             <Link to="/connexion">
@@ -59,11 +59,11 @@ const Header = () => {
         <div className={`md:hidden border-t ${isLandingPage ? 'bg-primary border-primary/20' : 'bg-card border-border'}`}>
           <nav className="container py-4 flex flex-col gap-4">
             <Link 
-              to="/comment-ca-marche" 
+              to="/comprendre-score" 
               className={`text-sm font-medium ${isLandingPage ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}
               onClick={() => setMobileMenuOpen(false)}
             >
-              Comment ça marche
+              Comprendre mon score
             </Link>
             <div className="flex flex-col gap-2 pt-2">
               <Link to="/connexion" onClick={() => setMobileMenuOpen(false)}>
