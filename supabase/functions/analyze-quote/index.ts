@@ -633,7 +633,8 @@ CONTRAINTES :
 - Ne jamais employer de termes juridiques complexes
 - Rester pédagogique et neutre
 - Ne jamais affirmer qu'il s'agit d'une arnaque
-- L'analyse est informative et non contractuelle`;
+- L'analyse est informative et non contractuelle
+- NE PAS générer d'alerte concernant la date du devis (ancienneté du devis, devis ancien, date de validité, etc.) - ce n'est pas un critère pertinent pour l'analyse`;
 
     // Use Lovable AI Gateway with Gemini (supports PDF natively)
     const aiResponse = await fetch(LOVABLE_AI_URL, {
