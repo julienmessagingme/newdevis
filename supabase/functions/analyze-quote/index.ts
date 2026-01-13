@@ -478,31 +478,169 @@ function getCountryName(countryCode: string): string {
 
 // ============ END PAYMENT CONDITIONS ANALYSIS ============
 
-// ============ SITE CONTEXT ANALYSIS (Géorisques) ============
+// ============ SITE CONTEXT ANALYSIS (Géorisques + Géocodage) ============
 
 const GEORISQUES_API_URL = "https://georisques.gouv.fr/api/v1";
+const ADRESSE_API_URL = "https://api-adresse.data.gouv.fr/search";
 
 interface GeorisqueRisk {
   num_risque: string;
   libelle_risque_long: string;
 }
 
+interface GeocodageResult {
+  success: boolean;
+  address_normalized: string | null;
+  postal_code: string | null;
+  city: string | null;
+  code_insee: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  score: number;
+}
+
 interface SiteContextResult {
   code_insee: string | null;
   commune: string | null;
+  address_normalized: string | null;
   risques_naturels: string[];
   risques_technologiques: string[];
   zone_sismique: string | null;
   has_data: boolean;
+  geocodage_success: boolean;
+  status: "data_found" | "no_data" | "address_incomplete";
 }
 
-// Extract INSEE code from postal code (using API geo.api.gouv.fr)
-async function getInseeCodeFromPostalCode(codePostal: string): Promise<{ code_insee: string; commune: string } | null> {
-  if (!codePostal || codePostal.length < 5) return null;
+// Clean and normalize address before geocoding
+function cleanAddress(rawAddress: string): string {
+  if (!rawAddress) return "";
+  
+  let cleaned = rawAddress
+    // Remove parasitic mentions
+    .replace(/chez\s+le\s+client/gi, "")
+    .replace(/voir\s+ci-dessus/gi, "")
+    .replace(/voir\s+ci-dessous/gi, "")
+    .replace(/idem/gi, "")
+    .replace(/même\s+adresse/gi, "")
+    .replace(/\(.*?\)/g, "") // Remove parentheses content
+    .replace(/\[.*?\]/g, "") // Remove brackets content
+    // Normalize separators
+    .replace(/[,;:\-–—]+/g, " ")
+    .replace(/\n+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  
+  return cleaned;
+}
+
+// Extract address from various sources in quote
+function extractAddressFromQuote(parsedAnalysis: Record<string, unknown>): string | null {
+  const addressFields = [
+    "adresse_chantier",
+    "adresse_travaux",
+    "lieu_intervention",
+    "adresse_intervention",
+    "site_address",
+    "chantier_adresse"
+  ];
+  
+  // First try explicit site address fields
+  for (const field of addressFields) {
+    if (parsedAnalysis[field] && typeof parsedAnalysis[field] === "string" && parsedAnalysis[field] !== "") {
+      return parsedAnalysis[field] as string;
+    }
+  }
+  
+  // If postal code exists, try to build address
+  if (parsedAnalysis.code_postal_chantier) {
+    return parsedAnalysis.code_postal_chantier as string;
+  }
+  
+  // Fallback to client address
+  if (parsedAnalysis.adresse_client && typeof parsedAnalysis.adresse_client === "string") {
+    return parsedAnalysis.adresse_client as string;
+  }
+  
+  return null;
+}
+
+// Geocode address using api-adresse.data.gouv.fr
+async function geocodeAddress(address: string): Promise<GeocodageResult> {
+  const result: GeocodageResult = {
+    success: false,
+    address_normalized: null,
+    postal_code: null,
+    city: null,
+    code_insee: null,
+    latitude: null,
+    longitude: null,
+    score: 0
+  };
+  
+  const cleanedAddress = cleanAddress(address);
+  
+  if (!cleanedAddress || cleanedAddress.length < 5) {
+    console.log("Address too short for geocoding:", cleanedAddress);
+    return result;
+  }
   
   try {
     const response = await fetch(
-      `https://geo.api.gouv.fr/communes?codePostal=${codePostal}&fields=code,nom&limit=1`,
+      `${ADRESSE_API_URL}?q=${encodeURIComponent(cleanedAddress)}&limit=1`,
+      { method: "GET" }
+    );
+    
+    if (!response.ok) {
+      console.error("Geocoding API error:", response.status);
+      return result;
+    }
+    
+    const data = await response.json();
+    
+    if (data.features && data.features.length > 0) {
+      const feature = data.features[0];
+      const props = feature.properties;
+      
+      result.success = true;
+      result.score = props.score || 0;
+      result.address_normalized = props.label || null;
+      result.postal_code = props.postcode || null;
+      result.city = props.city || null;
+      result.code_insee = props.citycode || null;
+      
+      if (feature.geometry && feature.geometry.coordinates) {
+        result.longitude = feature.geometry.coordinates[0];
+        result.latitude = feature.geometry.coordinates[1];
+      }
+      
+      console.log("Geocoding successful:", {
+        original: cleanedAddress,
+        normalized: result.address_normalized,
+        insee: result.code_insee,
+        score: result.score
+      });
+    }
+    
+    return result;
+  } catch (error) {
+    console.error("Geocoding error:", error);
+    return result;
+  }
+}
+
+// Get INSEE code from postal code (fallback if geocoding fails)
+async function getInseeCodeFromPostalCode(codePostal: string): Promise<{ code_insee: string; commune: string } | null> {
+  if (!codePostal || codePostal.length < 5) return null;
+  
+  // Extract just the 5-digit postal code
+  const postalMatch = codePostal.match(/(\d{5})/);
+  if (!postalMatch) return null;
+  
+  const cleanPostal = postalMatch[1];
+  
+  try {
+    const response = await fetch(
+      `https://geo.api.gouv.fr/communes?codePostal=${cleanPostal}&fields=code,nom&limit=1`,
       { method: "GET" }
     );
     
@@ -607,54 +745,101 @@ async function fetchSeismicZone(codeInsee: string): Promise<string | null> {
   }
 }
 
-// Main function to analyze site context
-async function analyzeSiteContext(codePostal: string | null): Promise<SiteContextResult> {
+// Main function to analyze site context with improved address extraction
+async function analyzeSiteContext(
+  rawAddress: string | null, 
+  parsedAnalysis: Record<string, unknown>
+): Promise<SiteContextResult> {
   const result: SiteContextResult = {
     code_insee: null,
     commune: null,
+    address_normalized: null,
     risques_naturels: [],
     risques_technologiques: [],
     zone_sismique: null,
     has_data: false,
+    geocodage_success: false,
+    status: "address_incomplete"
   };
   
-  if (!codePostal) {
-    console.log("No postal code available for site context analysis");
+  // Try to extract address from multiple sources
+  const addressToGeocode = rawAddress || extractAddressFromQuote(parsedAnalysis);
+  
+  if (!addressToGeocode) {
+    console.log("No address available for site context analysis");
     return result;
   }
   
-  // Get INSEE code from postal code
-  const inseeInfo = await getInseeCodeFromPostalCode(codePostal);
+  console.log("Attempting to geocode address:", addressToGeocode);
   
-  if (!inseeInfo) {
-    console.log("Could not get INSEE code for postal code:", codePostal);
-    return result;
+  // Try geocoding first (most reliable)
+  const geocodeResult = await geocodeAddress(addressToGeocode);
+  
+  if (geocodeResult.success && geocodeResult.code_insee && geocodeResult.score >= 0.4) {
+    // Geocoding successful
+    result.geocodage_success = true;
+    result.code_insee = geocodeResult.code_insee;
+    result.commune = geocodeResult.city;
+    result.address_normalized = geocodeResult.address_normalized;
+    
+    console.log(`Geocoding successful for: ${geocodeResult.address_normalized} (INSEE: ${geocodeResult.code_insee})`);
+  } else {
+    // Fallback: try to extract postal code and get INSEE from it
+    const postalMatch = addressToGeocode.match(/(\d{5})/);
+    
+    if (postalMatch) {
+      const inseeInfo = await getInseeCodeFromPostalCode(postalMatch[1]);
+      
+      if (inseeInfo) {
+        result.code_insee = inseeInfo.code_insee;
+        result.commune = inseeInfo.commune;
+        result.address_normalized = `${inseeInfo.commune} (${postalMatch[1]})`;
+        result.geocodage_success = true; // Partial success
+        
+        console.log(`Fallback geocoding via postal code: ${inseeInfo.commune} (${inseeInfo.code_insee})`);
+      } else {
+        console.log("Could not get INSEE code for postal code:", postalMatch[1]);
+        return result; // status remains "address_incomplete"
+      }
+    } else {
+      console.log("No postal code found in address and geocoding failed");
+      return result; // status remains "address_incomplete"
+    }
   }
   
-  result.code_insee = inseeInfo.code_insee;
-  result.commune = inseeInfo.commune;
-  
-  console.log(`Fetching site context for ${inseeInfo.commune} (${inseeInfo.code_insee})...`);
-  
-  // Fetch risks and seismic zone in parallel
-  const [risquesResult, seismicZone] = await Promise.all([
-    fetchGeorisquesRisks(inseeInfo.code_insee),
-    fetchSeismicZone(inseeInfo.code_insee),
-  ]);
-  
-  result.risques_naturels = risquesResult.risques_naturels;
-  result.risques_technologiques = risquesResult.risques_technologiques;
-  result.zone_sismique = seismicZone;
-  result.has_data = risquesResult.risques_naturels.length > 0 || 
-                    risquesResult.risques_technologiques.length > 0 || 
-                    seismicZone !== null;
-  
-  console.log("Site context result:", {
-    commune: result.commune,
-    risques_naturels: result.risques_naturels.length,
-    risques_technologiques: result.risques_technologiques.length,
-    zone_sismique: result.zone_sismique
-  });
+  // Now fetch risks from Géorisques
+  if (result.code_insee) {
+    console.log(`Fetching site context for ${result.commune} (${result.code_insee})...`);
+    
+    // Fetch risks and seismic zone in parallel
+    const [risquesResult, seismicZone] = await Promise.all([
+      fetchGeorisquesRisks(result.code_insee),
+      fetchSeismicZone(result.code_insee),
+    ]);
+    
+    result.risques_naturels = risquesResult.risques_naturels;
+    result.risques_technologiques = risquesResult.risques_technologiques;
+    result.zone_sismique = seismicZone;
+    result.has_data = risquesResult.risques_naturels.length > 0 || 
+                      risquesResult.risques_technologiques.length > 0 || 
+                      seismicZone !== null;
+    
+    // Determine final status
+    if (result.has_data) {
+      result.status = "data_found";
+    } else {
+      result.status = "no_data";
+    }
+    
+    console.log("Site context result:", {
+      commune: result.commune,
+      address_normalized: result.address_normalized,
+      risques_naturels: result.risques_naturels.length,
+      risques_technologiques: result.risques_technologiques.length,
+      zone_sismique: result.zone_sismique,
+      status: result.status
+    });
+  }
   
   return result;
 }
@@ -2217,10 +2402,20 @@ serve(async (req) => {
 
 IMPORTANT: Extrait les informations suivantes:
 - Le numéro SIRET ou SIREN de l'entreprise s'il est présent
+- L'ADRESSE COMPLÈTE DU CHANTIER (prioritaire)
 - Le code postal du chantier
 - TOUS les types de travaux présents dans le devis (il peut y en avoir plusieurs)
 - Pour chaque type de travaux: la catégorie, la quantité, le montant HT
 - Si le devis provient d'un architecte ou maître d'œuvre
+
+EXTRACTION DE L'ADRESSE DU CHANTIER (TRÈS IMPORTANT):
+Recherche l'adresse du chantier en priorité dans cet ordre:
+1. "Adresse du chantier" ou "Lieu d'intervention" ou "Adresse des travaux" explicitement mentionné
+2. "Adresse d'exécution" ou "Site des travaux"
+3. Si aucune adresse de chantier distincte, utiliser l'adresse du client/destinataire comme adresse par défaut
+
+L'adresse doit être la plus complète possible: numéro, rue, code postal, ville.
+Ignorer les mentions parasites comme "chez le client", "voir ci-dessus", "idem".
 
 TYPES DE TRAVAUX À IDENTIFIER (catégories standardisées):
 plomberie, electricite, chauffage_pac, chaudiere_gaz, isolation_combles, isolation_murs, toiture_tuiles, toiture_ardoise, etancheite, menuiserie_fenetre, menuiserie_porte, peinture_interieure, peinture_exterieure, maconnerie, renovation_sdb, renovation_cuisine, terrassement, carrelage_sol, carrelage_mural, parquet_stratifie, parquet_massif, placo_cloison, facade_ravalement, renovation_globale, autre
@@ -2241,7 +2436,9 @@ Retourne un JSON STRICTEMENT STRUCTURÉ avec exactement les champs suivants :
   "alertes": ["liste des risques ou éléments manquants"],
   "recommandations": ["actions concrètes à conseiller au particulier"],
   "siret": "numéro SIRET ou SIREN ou null",
+  "adresse_chantier": "adresse complète du chantier ou null",
   "code_postal_chantier": "code postal ou null",
+  "adresse_client": "adresse du client si différente du chantier ou null",
   "types_travaux": [
     {
       "categorie": "une des catégories standardisées",
@@ -2266,6 +2463,7 @@ Retourne un JSON STRICTEMENT STRUCTURÉ avec exactement les champs suivants :
 }
 
 CONTRAINTES :
+- adresse_chantier: TOUJOURS extraire si une adresse est visible, même l'adresse client si pas d'adresse chantier distincte
 - types_travaux: liste TOUS les types de travaux distincts du devis
 - Pour chaque type, extraire la catégorie standardisée, le libellé original, la quantité, l'unité et le montant HT
 - Si un seul type de travaux, mettre quand même un tableau avec 1 élément
@@ -2504,7 +2702,34 @@ CONTRAINTES :
     }
     // ============ END ARCHITECT / MOE ANALYSIS ============
 
-    // If SIRET found, analyze company with Pappers, BODACC, RGE and Google Places
+    // ============ SITE CONTEXT ANALYSIS (Géorisques + GPU) ============
+    console.log("Starting site context analysis...");
+    const siteContextResult = await analyzeSiteContext(
+      parsedAnalysis.adresse_chantier as string | null,
+      parsedAnalysis as Record<string, unknown>
+    );
+    
+    console.log("Site context analysis completed:", {
+      status: siteContextResult.status,
+      commune: siteContextResult.commune,
+      address_normalized: siteContextResult.address_normalized,
+      risques_count: siteContextResult.risques_naturels.length
+    });
+    
+    // Add site context information to points_ok (informational only, no impact on score)
+    if (siteContextResult.status === "data_found") {
+      if (siteContextResult.risques_naturels.length > 0) {
+        allPointsOk.push(`📍 Contexte chantier (${siteContextResult.commune}) : ${siteContextResult.risques_naturels.length} risque(s) naturel(s) identifié(s) - ${siteContextResult.risques_naturels.slice(0, 3).join(", ")}`);
+      }
+      if (siteContextResult.zone_sismique) {
+        allPointsOk.push(`📍 Zone sismique : ${siteContextResult.zone_sismique}`);
+      }
+    } else if (siteContextResult.status === "no_data" && siteContextResult.commune) {
+      allPointsOk.push(`📍 Contexte chantier (${siteContextResult.commune}) : Aucune contrainte particulière identifiée`);
+    }
+    // Note: we don't add alerts for address_incomplete as it's purely informational
+    // ============ END SITE CONTEXT ANALYSIS ============
+
     let companyAnalysis: CompanyAnalysis | null = null;
     let bodaccResult: BodaccResult | null = null;
     let googlePlacesResult: GooglePlacesResult | null = null;
