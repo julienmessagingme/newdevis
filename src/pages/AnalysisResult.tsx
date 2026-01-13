@@ -28,7 +28,8 @@ interface ReputationOnline {
 
 interface RGEQualification {
   isRGE: boolean;
-  score: "VERT" | "ORANGE";
+  status: "OUI" | "NON" | "INDISPONIBLE" | "NON_REQUIS";
+  score: "VERT" | "ORANGE" | "NON_REQUIS";
   explanation: string;
 }
 
@@ -146,10 +147,21 @@ const extractRGEData = (analysis: Analysis): RGEQualification | null => {
   const allPoints = [...(analysis.points_ok || []), ...(analysis.alertes || [])];
   
   for (const point of allPoints) {
+    // Pattern for RGE = NOT REQUIRED (non requis / hors périmètre)
+    if (point.includes("Qualification RGE") && (point.includes("non requise") || point.includes("hors périmètre"))) {
+      return {
+        isRGE: false,
+        status: "NON_REQUIS",
+        score: "NON_REQUIS",
+        explanation: point
+      };
+    }
+    
     // Pattern for RGE = YES
     if (point.includes("Qualification RGE") && point.includes("Oui")) {
       return {
         isRGE: true,
+        status: "OUI",
         score: "VERT",
         explanation: point
       };
@@ -159,6 +171,17 @@ const extractRGEData = (analysis: Analysis): RGEQualification | null => {
     if (point.includes("Qualification RGE") && point.includes("Non")) {
       return {
         isRGE: false,
+        status: "NON",
+        score: "ORANGE",
+        explanation: point
+      };
+    }
+    
+    // Pattern for RGE = UNAVAILABLE (service indisponible, vérification impossible, erreur)
+    if (point.includes("Qualification RGE") && (point.includes("indisponible") || point.includes("impossible") || point.includes("erreur"))) {
+      return {
+        isRGE: false,
+        status: "INDISPONIBLE",
         score: "ORANGE",
         explanation: point
       };
@@ -419,9 +442,43 @@ const AnalysisResult = () => {
           if (!rge) return null;
           
           const getRGEBgClass = () => {
-            return rge.isRGE 
-              ? "bg-score-green-bg border-score-green/30" 
-              : "bg-score-orange-bg border-score-orange/30";
+            if (rge.status === "NON_REQUIS" || rge.isRGE) {
+              return "bg-score-green-bg border-score-green/30";
+            }
+            return "bg-score-orange-bg border-score-orange/30";
+          };
+
+          const getRGEIcon = () => {
+            if (rge.status === "NON_REQUIS" || rge.isRGE) {
+              return <CheckCircle2 className="h-6 w-6 text-score-green" />;
+            }
+            return <AlertCircle className="h-6 w-6 text-score-orange" />;
+          };
+
+          const getRGEStatusText = () => {
+            switch (rge.status) {
+              case "OUI":
+                return "Oui – Artisan reconnu par France Rénov'";
+              case "NON":
+                return "Non – Artisan non référencé RGE à ce jour";
+              case "INDISPONIBLE":
+                return "Vérification indisponible";
+              case "NON_REQUIS":
+                return "Non requise pour ce type de travaux";
+            }
+          };
+
+          const getRGEExplanation = () => {
+            switch (rge.status) {
+              case "OUI":
+                return "L'entreprise est référencée dans l'annuaire officiel des professionnels RGE (ADEME / France Rénov'). Cette qualification permet de bénéficier des aides de l'État pour les travaux de rénovation énergétique.";
+              case "NON":
+                return "La qualification RGE est obligatoire pour bénéficier des aides publiques (MaPrimeRénov', CEE, Éco-PTZ) pour les travaux de rénovation énergétique. Cela ne préjuge pas de la qualité de l'artisan.";
+              case "INDISPONIBLE":
+                return "Le service de vérification RGE est temporairement indisponible. Vous pouvez vérifier manuellement sur france-renov.gouv.fr.";
+              case "NON_REQUIS":
+                return "La qualification RGE n'est pas requise pour ce type de travaux. Elle est pertinente uniquement pour les travaux de rénovation énergétique (isolation, pompe à chaleur, panneaux solaires, etc.).";
+            }
           };
 
           return (
@@ -433,25 +490,24 @@ const AnalysisResult = () => {
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-3">
                     <h2 className="font-semibold text-foreground text-lg">Qualification RGE</h2>
-                    {rge.isRGE ? (
-                      <CheckCircle2 className="h-6 w-6 text-score-green" />
-                    ) : (
-                      <AlertCircle className="h-6 w-6 text-score-orange" />
-                    )}
+                    {getRGEIcon()}
                   </div>
                   
                   <div className="mb-3">
-                    <span className={`font-bold text-lg ${rge.isRGE ? "text-score-green" : "text-score-orange"}`}>
-                      {rge.isRGE ? "Oui – Artisan reconnu par France Rénov'" : "Non – Artisan non référencé RGE à ce jour"}
+                    <span className={`font-bold text-lg ${rge.status === "NON_REQUIS" || rge.isRGE ? "text-score-green" : "text-score-orange"}`}>
+                      {getRGEStatusText()}
                     </span>
                   </div>
                   
                   <p className="text-sm text-muted-foreground">
-                    {rge.isRGE 
-                      ? "L'entreprise est référencée dans l'annuaire officiel des professionnels RGE (ADEME / France Rénov'). Cette qualification permet de bénéficier des aides de l'État."
-                      : "La qualification RGE est obligatoire uniquement pour bénéficier de certaines aides publiques (MaPrimeRénov', CEE, Éco-PTZ). Cela ne préjuge pas de la qualité de l'artisan."
-                    }
+                    {getRGEExplanation()}
                   </p>
+                  
+                  {rge.status !== "NON_REQUIS" && (
+                    <p className="text-xs text-muted-foreground/70 mt-3 italic">
+                      Vérification effectuée via l'annuaire officiel France Rénov' (ADEME).
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

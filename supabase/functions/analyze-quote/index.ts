@@ -207,20 +207,127 @@ function detectQualibatFromText(rawText: string): QualibatResult {
 // ============ END QUALIBAT DETECTION ============
 
 // ============ RGE VERIFICATION (ADEME) ============
+
+// List of work types that require/benefit from RGE qualification
+const RGE_RELEVANT_WORK_TYPES = [
+  // Isolation
+  "isolation_combles",
+  "isolation_murs",
+  "isolation_planchers",
+  "isolation_toiture",
+  "isolation",
+  // Heat pumps
+  "chauffage_pac",
+  "pompe_chaleur",
+  "pac_air_eau",
+  "pac_air_air",
+  // Condensation boilers
+  "chaudiere_condensation",
+  "chaudiere_gaz",
+  // Thermodynamic water heater
+  "chauffe_eau_thermodynamique",
+  "ballon_thermodynamique",
+  // Solar panels
+  "panneaux_solaires",
+  "photovoltaique",
+  "solaire_thermique",
+  // Ventilation
+  "vmc_double_flux",
+  "ventilation",
+  "vmc",
+  // Global energy renovation
+  "renovation_energetique",
+  "renovation_globale",
+  "performance_energetique",
+];
+
+// Keywords to detect RGE-relevant work in document text
+const RGE_RELEVANT_KEYWORDS = [
+  // Isolation
+  "isolation", "isolant", "laine de verre", "laine de roche", "polystyrène",
+  "combles", "rampants", "ite", "iti", "isolation thermique",
+  // Heat pumps
+  "pompe à chaleur", "pompe a chaleur", "pac", "air-eau", "air-air",
+  "géothermie", "aérothermie",
+  // Condensation boilers
+  "chaudière à condensation", "chaudiere a condensation", "chaudière condensation",
+  "chaudière gaz", "chaudiere gaz",
+  // Thermodynamic water heater
+  "chauffe-eau thermodynamique", "chauffe eau thermodynamique",
+  "ballon thermodynamique", "ecs thermodynamique",
+  // Solar panels
+  "panneau solaire", "panneaux solaires", "photovoltaïque", "photovoltaique",
+  "solaire thermique", "capteur solaire",
+  // Ventilation
+  "vmc double flux", "ventilation double flux",
+  // Global energy renovation
+  "rénovation énergétique", "renovation energetique", "performance énergétique",
+  "maprimerénov", "maprimerenov", "prime énergie", "cee", "éco-ptz", "eco ptz",
+];
+
 interface RGEResult {
   isRGE: boolean;
   qualifications: string[];
-  score: ScoringColor;
+  score: ScoringColor | "NON_REQUIS";
+  status: "OUI" | "NON" | "INDISPONIBLE" | "NON_REQUIS";
+  isRelevant: boolean;
   indicator?: CompanyIndicator;
   point_ok?: string;
   alerte?: string;
 }
 
-async function checkRGEQualification(siret: string): Promise<RGEResult> {
+// Determine if RGE is relevant based on work type
+function isRGERelevantForWorkType(categorieTravaux: string | null, rawText: string | null): boolean {
+  // Check by category first
+  if (categorieTravaux) {
+    const normalizedCategory = categorieTravaux.toLowerCase().replace(/[\s-]/g, "_");
+    if (RGE_RELEVANT_WORK_TYPES.some(type => normalizedCategory.includes(type) || type.includes(normalizedCategory))) {
+      return true;
+    }
+  }
+  
+  // Check by keywords in document text
+  if (rawText) {
+    const normalizedText = rawText.toLowerCase();
+    for (const keyword of RGE_RELEVANT_KEYWORDS) {
+      if (normalizedText.includes(keyword.toLowerCase())) {
+        return true;
+      }
+    }
+  }
+  
+  return false;
+}
+
+async function checkRGEQualification(siret: string, categorieTravaux: string | null, rawText: string | null): Promise<RGEResult> {
+  // First, check if RGE is relevant for this type of work
+  const isRelevant = isRGERelevantForWorkType(categorieTravaux, rawText);
+  
+  if (!isRelevant) {
+    // RGE not required for this type of work - return neutral status
+    return {
+      isRGE: false,
+      qualifications: [],
+      score: "NON_REQUIS",
+      status: "NON_REQUIS",
+      isRelevant: false,
+      indicator: {
+        label: "Qualification RGE",
+        value: "Non requise pour ce type de travaux",
+        score: "VERT", // Display as green since it's not a problem
+        explanation: "La qualification RGE n'est pas requise pour ce type de travaux. Elle est pertinente uniquement pour les travaux liés à la rénovation énergétique (isolation, pompe à chaleur, chaudière à condensation, panneaux solaires, VMC double flux, etc.)."
+      },
+      point_ok: "✓ Qualification RGE : non requise pour ce type de travaux (travaux hors périmètre rénovation énergétique)."
+    };
+  }
+
+  // RGE is relevant - proceed with verification
   const result: RGEResult = {
     isRGE: false,
     qualifications: [],
     score: "ORANGE",
+    status: "NON",
+    isRelevant: true,
   };
 
   // Clean SIRET - remove spaces
@@ -231,12 +338,20 @@ async function checkRGEQualification(siret: string): Promise<RGEResult> {
   
   if (siren.length < 9 || !/^\d{9}$/.test(siren)) {
     console.log("Invalid SIREN for RGE check:", siren);
+    result.status = "INDISPONIBLE";
+    result.indicator = {
+      label: "Qualification RGE",
+      value: "Vérification impossible",
+      score: "ORANGE",
+      explanation: "Impossible de vérifier la qualification RGE : le numéro SIRET/SIREN est invalide ou incomplet. Pour des travaux de rénovation énergétique, la qualification RGE est recommandée pour bénéficier des aides de l'État."
+    };
+    result.alerte = "⚠️ Qualification RGE : vérification impossible (SIRET invalide). Pour des travaux de rénovation énergétique, vérifiez manuellement sur france-renov.gouv.fr.";
     return result;
   }
 
   try {
     // Search by SIRET first, then by SIREN if not found
-    console.log("Checking RGE qualification for SIRET:", cleanSiret);
+    console.log("Checking RGE qualification for SIRET:", cleanSiret, "- Work type:", categorieTravaux);
     
     // Try with full SIRET
     let response = await fetch(
@@ -246,6 +361,14 @@ async function checkRGEQualification(siret: string): Promise<RGEResult> {
 
     if (!response.ok) {
       console.log("ADEME RGE API error:", response.status);
+      result.status = "INDISPONIBLE";
+      result.indicator = {
+        label: "Qualification RGE",
+        value: "Service indisponible",
+        score: "ORANGE",
+        explanation: "Le service de vérification RGE (ADEME) est temporairement indisponible. Vous pouvez vérifier manuellement la qualification RGE sur france-renov.gouv.fr. La qualification RGE est importante pour les travaux de rénovation énergétique."
+      };
+      result.alerte = "⚠️ Qualification RGE : service de vérification indisponible. Vérifiez manuellement sur france-renov.gouv.fr.";
       return result;
     }
 
@@ -267,15 +390,16 @@ async function checkRGEQualification(siret: string): Promise<RGEResult> {
     }
 
     if (results.length === 0) {
-      // No RGE qualification found
+      // No RGE qualification found - important for energy renovation works
+      result.status = "NON";
       result.score = "ORANGE";
       result.indicator = {
         label: "Qualification RGE",
         value: "Non référencé RGE",
         score: "ORANGE",
-        explanation: "L'entreprise n'est pas référencée dans l'annuaire des professionnels RGE à ce jour. La qualification RGE est obligatoire uniquement pour bénéficier de certaines aides publiques (MaPrimeRénov', CEE, Éco-PTZ). Cela ne préjuge pas de la qualité de l'artisan."
+        explanation: "L'entreprise n'est pas référencée dans l'annuaire des professionnels RGE. Pour des travaux de rénovation énergétique, la qualification RGE est obligatoire pour bénéficier des aides de l'État (MaPrimeRénov', CEE, Éco-PTZ). Cela ne préjuge pas de la qualité de l'artisan."
       };
-      result.alerte = "⚠️ Qualification RGE : Non (artisan non référencé RGE à ce jour). La mention RGE est obligatoire uniquement pour bénéficier des aides de l'État.";
+      result.alerte = "⚠️ Qualification RGE : Non (artisan non référencé RGE à ce jour). Pour des travaux de rénovation énergétique, la qualification RGE est requise pour bénéficier des aides de l'État.";
       
       return result;
     }
@@ -283,27 +407,19 @@ async function checkRGEQualification(siret: string): Promise<RGEResult> {
     // RGE qualification found!
     result.isRGE = true;
     result.score = "VERT";
+    result.status = "OUI";
     
     // Collect all qualifications
     const qualificationsSet = new Set<string>();
-    const domainesSet = new Set<string>();
     
     for (const rge of results) {
-      // Extract qualification name (nom_qualification or libelle_qualification)
       const qualifName = rge.nom_qualification || rge.libelle_qualification || rge.qualification || "";
       if (qualifName) {
         qualificationsSet.add(qualifName);
       }
-      
-      // Extract domain (domaine or type_travaux)
-      const domaine = rge.domaine || rge.type_travaux || rge.code_qualification || "";
-      if (domaine) {
-        domainesSet.add(domaine);
-      }
     }
     
     result.qualifications = Array.from(qualificationsSet);
-    const domaines = Array.from(domainesSet);
     
     // Format display text
     const qualifDisplay = result.qualifications.length > 0 
@@ -314,7 +430,7 @@ async function checkRGEQualification(siret: string): Promise<RGEResult> {
       label: "Qualification RGE",
       value: `Oui (${result.qualifications.length} qualification${result.qualifications.length > 1 ? 's' : ''})`,
       score: "VERT",
-      explanation: `L'entreprise est référencée dans l'annuaire officiel des professionnels RGE (France Rénov' / ADEME). ${qualifDisplay}. Cette qualification permet aux clients de bénéficier des aides de l'État.`
+      explanation: `L'entreprise est référencée dans l'annuaire officiel des professionnels RGE (France Rénov' / ADEME). ${qualifDisplay}. Cette qualification permet aux clients de bénéficier des aides de l'État pour leurs travaux de rénovation énergétique.`
     };
     
     result.point_ok = `🟢 Qualification RGE : Oui (artisan reconnu par France Rénov'). ${result.qualifications.length} qualification${result.qualifications.length > 1 ? 's' : ''} active${result.qualifications.length > 1 ? 's' : ''}.`;
@@ -324,6 +440,14 @@ async function checkRGEQualification(siret: string): Promise<RGEResult> {
     return result;
   } catch (error) {
     console.error("ADEME RGE API error:", error);
+    result.status = "INDISPONIBLE";
+    result.indicator = {
+      label: "Qualification RGE",
+      value: "Erreur de vérification",
+      score: "ORANGE",
+      explanation: "Une erreur s'est produite lors de la vérification RGE. Vous pouvez vérifier manuellement sur france-renov.gouv.fr."
+    };
+    result.alerte = "⚠️ Qualification RGE : erreur lors de la vérification. Vérifiez manuellement sur france-renov.gouv.fr.";
     return result;
   }
 }
@@ -1111,10 +1235,11 @@ CONTRAINTES :
       const siren = parsedAnalysis.siret.replace(/\s/g, "").substring(0, 9);
       
       // Run Pappers, BODACC and RGE checks in parallel
+      // Pass work category and raw text for intelligent RGE relevance detection
       const [pappersResult, bodaccCheck, rgeCheck] = await Promise.all([
         analyzeCompanyWithPappers(parsedAnalysis.siret),
         checkBodaccProcedures(siren),
-        checkRGEQualification(parsedAnalysis.siret),
+        checkRGEQualification(parsedAnalysis.siret, parsedAnalysis.categorie_travaux, analysisContent),
       ]);
       
       companyAnalysis = pappersResult;
