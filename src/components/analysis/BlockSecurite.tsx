@@ -114,14 +114,14 @@ const extractSecuriteData = (
   for (const point of allPoints) {
     const lowerPoint = point.toLowerCase();
     
-    // Assurances
+    // Assurances - updated detection
     if (lowerPoint.includes("décennale") || lowerPoint.includes("decennale")) {
       if (lowerPoint.includes("mentionnée") && !lowerPoint.includes("non")) {
         info.decennale.mentionnee = true;
       }
-      if (lowerPoint.includes("obligatoire") && lowerPoint.includes("non")) {
+      // Mark as critique only for tracking, not for scoring at level 1
+      if (lowerPoint.includes("travaux concernés") || lowerPoint.includes("obligatoire")) {
         info.decennale.critique = true;
-        alertCount++;
       }
     }
     
@@ -181,13 +181,14 @@ const extractSecuriteData = (
     }
   }
   
-  // Handle attestation comparison
+  // ====== LEVEL 2: Handle attestation comparison (can trigger ROUGE) ======
   if (attestationComparison?.decennale) {
     const comp = attestationComparison.decennale;
     if (comp.coherence_globale === "OK") {
       info.decennale.attestationStatus = "verified";
       info.decennale.score = "VERT";
     } else if (comp.coherence_globale === "INCOHERENT") {
+      // ONLY attestation inconsistency triggers ROUGE
       info.decennale.attestationStatus = "incoherent";
       info.decennale.score = "ROUGE";
       alertCount++;
@@ -195,10 +196,15 @@ const extractSecuriteData = (
       info.decennale.attestationStatus = "incomplete";
       info.decennale.score = "ORANGE";
     }
-  } else if (info.decennale.mentionnee) {
-    info.decennale.score = "ORANGE";
-  } else if (info.decennale.critique) {
-    info.decennale.score = "ROUGE";
+  } else {
+    // ====== LEVEL 1: Quote only - NEVER ROUGE ======
+    if (info.decennale.mentionnee) {
+      // Mentioned → VERT
+      info.decennale.score = "VERT";
+    } else {
+      // Not mentioned or partially mentioned → ORANGE (never ROUGE at level 1)
+      info.decennale.score = "ORANGE";
+    }
   }
   
   if (attestationComparison?.rc_pro) {
@@ -211,16 +217,22 @@ const extractSecuriteData = (
       info.rcpro.score = "ROUGE";
     } else {
       info.rcpro.attestationStatus = "incomplete";
+      info.rcpro.score = "ORANGE";
     }
-  } else if (info.rcpro.mentionnee) {
-    info.rcpro.score = "ORANGE";
+  } else {
+    // Level 1: Quote only
+    if (info.rcpro.mentionnee) {
+      info.rcpro.score = "VERT";
+    } else {
+      info.rcpro.score = "ORANGE";
+    }
   }
   
   // Deduplicate modes
   info.paiement.modes = [...new Set(info.paiement.modes)];
   
   // Determine paiement score
-  if (info.paiement.especes || !info.paiement.ibanValid || info.paiement.paiementIntegralAvantTravaux || info.vigilanceReasons.length >= 2) {
+  if (info.paiement.especes || info.paiement.ibanValid === false || info.paiement.paiementIntegralAvantTravaux || info.vigilanceReasons.length >= 2) {
     info.paiement.score = "ROUGE";
   } else if (info.vigilanceReasons.length > 0) {
     info.paiement.score = "ORANGE";
@@ -252,8 +264,8 @@ const extractSecuriteData = (
   if (info.paiement.acomptePourcentage && info.paiement.acomptePourcentage > 30) {
     info.recommendations.push("Limitez l'acompte à 30% maximum du montant total.");
   }
-  if (!info.decennale.attestationStatus && info.decennale.mentionnee) {
-    info.recommendations.push("Demandez l'attestation d'assurance décennale à jour.");
+  if (!info.decennale.attestationStatus && !info.decennale.mentionnee) {
+    info.recommendations.push("Demandez l'attestation d'assurance décennale pour confirmer la couverture.");
   }
   
   return info;
@@ -348,12 +360,12 @@ const BlockSecurite = ({
                   {getScoreIcon(info.decennale.score)}
                 </div>
                 <p className={`text-sm ${getScoreTextClass(info.decennale.score)}`}>
-                  {info.decennale.attestationStatus === "verified" && "Attestation vérifiée"}
-                  {info.decennale.attestationStatus === "incoherent" && "Incohérences détectées"}
-                  {info.decennale.attestationStatus === "incomplete" && "Informations incomplètes"}
+                  {info.decennale.attestationStatus === "verified" && "Attestation vérifiée ✓"}
+                  {info.decennale.attestationStatus === "incoherent" && "Incohérences détectées (attestation)"}
+                  {info.decennale.attestationStatus === "incomplete" && "Attestation incomplète"}
                   {!info.decennale.attestationStatus && info.decennale.mentionnee && "Mentionnée sur le devis"}
-                  {!info.decennale.attestationStatus && !info.decennale.mentionnee && info.decennale.critique && "Non mentionnée (obligatoire)"}
-                  {!info.decennale.attestationStatus && !info.decennale.mentionnee && !info.decennale.critique && "Non mentionnée"}
+                  {!info.decennale.attestationStatus && !info.decennale.mentionnee && info.decennale.critique && "À vérifier (travaux concernés)"}
+                  {!info.decennale.attestationStatus && !info.decennale.mentionnee && !info.decennale.critique && "Non détectée - à vérifier"}
                 </p>
                 
                 {/* Attestation comparison details */}
@@ -385,11 +397,11 @@ const BlockSecurite = ({
                   {getScoreIcon(info.rcpro.score)}
                 </div>
                 <p className={`text-sm ${getScoreTextClass(info.rcpro.score)}`}>
-                  {info.rcpro.attestationStatus === "verified" && "Attestation vérifiée"}
-                  {info.rcpro.attestationStatus === "incoherent" && "Incohérences détectées"}
-                  {info.rcpro.attestationStatus === "incomplete" && "Informations incomplètes"}
+                  {info.rcpro.attestationStatus === "verified" && "Attestation vérifiée ✓"}
+                  {info.rcpro.attestationStatus === "incoherent" && "Incohérences détectées (attestation)"}
+                  {info.rcpro.attestationStatus === "incomplete" && "Attestation incomplète"}
                   {!info.rcpro.attestationStatus && info.rcpro.mentionnee && "Mentionnée sur le devis"}
-                  {!info.rcpro.attestationStatus && !info.rcpro.mentionnee && "Non mentionnée"}
+                  {!info.rcpro.attestationStatus && !info.rcpro.mentionnee && "Non détectée - à vérifier"}
                 </p>
                 
                 {/* Attestation comparison details */}

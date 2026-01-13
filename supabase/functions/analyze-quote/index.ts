@@ -1000,6 +1000,14 @@ CONTRAINTES:
 }
 
 // Analyze assurances and determine scores
+// NEW RULES:
+// Level 1 (quote only): Never ROUGE, only VERT or ORANGE
+// - Décennale clearly identified → VERT
+// - Décennale partially mentioned or AI doubt → ORANGE  
+// - No décennale mention → ORANGE (not ROUGE)
+// Level 2 (attestation provided): Can be ROUGE if inconsistent
+// - Attestation provided and coherent → VERT
+// - Attestation provided but inconsistent (expired, incompatible, different company) → ROUGE
 function analyzeAssurances(
   extraction: AssuranceExtraction,
   categorieTravaux: string | null,
@@ -1007,41 +1015,35 @@ function analyzeAssurances(
 ): AssuranceResult {
   const decennaleCritique = isDecennaleCritical(categorieTravaux, rawText);
   
-  // Décennale scoring
+  // ====== LEVEL 1 SCORING (Quote only - NEVER ROUGE) ======
   let decennaleScore: ScoringColor;
   
-  if (decennaleCritique) {
-    // Décennale is critical for this type of work
-    if (extraction.decennale_mentionnee) {
-      if (extraction.coherence_dates === "OK" && extraction.coherence_activite === "OK") {
-        decennaleScore = "VERT";
-      } else if (extraction.coherence_dates === "INCOHERENT" || extraction.coherence_activite === "INCOHERENT") {
-        decennaleScore = "ROUGE";
-      } else {
-        decennaleScore = "ORANGE";
-      }
+  if (extraction.decennale_mentionnee) {
+    // Décennale is mentioned
+    if (extraction.coherence_dates === "OK" && 
+        (extraction.coherence_activite === "OK" || extraction.coherence_activite === "INDISPONIBLE")) {
+      // Clearly identified → VERT
+      decennaleScore = "VERT";
+    } else if (extraction.coherence_dates === "INCOHERENT" || extraction.coherence_activite === "INCOHERENT") {
+      // Inconsistency detected → ORANGE (not ROUGE at level 1)
+      // ROUGE is only for level 2 (attestation analysis)
+      decennaleScore = "ORANGE";
     } else {
-      decennaleScore = "ROUGE";
-    }
-  } else {
-    // Décennale is not critical
-    if (extraction.decennale_mentionnee) {
-      if (extraction.coherence_dates === "INCOHERENT") {
-        decennaleScore = "ROUGE";
-      } else {
-        decennaleScore = "VERT";
-      }
-    } else {
+      // Partially mentioned or AI doubt → ORANGE
       decennaleScore = "ORANGE";
     }
+  } else {
+    // Décennale not mentioned → ORANGE (never ROUGE at level 1)
+    decennaleScore = "ORANGE";
   }
   
-  // RC Pro scoring
+  // RC Pro scoring - same logic (never ROUGE at level 1)
   let rcproScore: ScoringColor;
   
   if (extraction.rcpro_mentionnee) {
     if (extraction.coherence_dates === "INCOHERENT") {
-      rcproScore = "ROUGE";
+      // Inconsistency at level 1 → ORANGE only
+      rcproScore = "ORANGE";
     } else {
       rcproScore = "VERT";
     }
@@ -1049,11 +1051,9 @@ function analyzeAssurances(
     rcproScore = "ORANGE";
   }
   
-  // Global assurance score (worst of the two)
+  // Global assurance score (worst of the two, but never ROUGE at level 1)
   let globalScore: ScoringColor;
-  if (decennaleScore === "ROUGE" || rcproScore === "ROUGE") {
-    globalScore = "ROUGE";
-  } else if (decennaleScore === "ORANGE" || rcproScore === "ORANGE") {
+  if (decennaleScore === "ORANGE" || rcproScore === "ORANGE") {
     globalScore = "ORANGE";
   } else {
     globalScore = "VERT";
@@ -1076,26 +1076,27 @@ function analyzeAssurances(
       assureur: extraction.assureur || undefined,
     },
     globalScore,
-    recommandation: "📋 Demandez l'attestation d'assurance (PDF) à jour indiquant les dates de validité et l'activité couverte.",
+    recommandation: "📋 Pour confirmer ces informations, demandez l'attestation d'assurance (PDF) à jour indiquant les dates de validité et l'activité couverte.",
   };
   
-  // Generate point_ok or alerte messages
+  // Generate point_ok or alerte messages with new terminology
   if (globalScore === "VERT") {
-    result.point_ok = `🟢 Assurances : ${extraction.decennale_mentionnee ? "Décennale mentionnée" : ""}${extraction.decennale_mentionnee && extraction.rcpro_mentionnee ? " + " : ""}${extraction.rcpro_mentionnee ? "RC Pro mentionnée" : ""} sur le devis.`;
-  } else if (globalScore === "ORANGE") {
-    const parts: string[] = [];
-    if (!extraction.decennale_mentionnee) parts.push("décennale non mentionnée");
-    if (!extraction.rcpro_mentionnee) parts.push("RC Pro non mentionnée");
-    if (extraction.coherence_dates === "INCOMPLET") parts.push("dates incomplètes");
-    result.alerte = `⚠️ Assurances : ${parts.join(", ")}. Demandez l'attestation d'assurance à l'artisan.`;
+    result.point_ok = `✅ Assurances : ${extraction.decennale_mentionnee ? "Décennale mentionnée" : ""}${extraction.decennale_mentionnee && extraction.rcpro_mentionnee ? " + " : ""}${extraction.rcpro_mentionnee ? "RC Pro mentionnée" : ""} sur le devis.`;
   } else {
+    // ORANGE - use softer terminology
     const parts: string[] = [];
-    if (!extraction.decennale_mentionnee && decennaleCritique) {
-      parts.push("décennale non mentionnée (obligatoire pour ce type de travaux)");
+    if (!extraction.decennale_mentionnee) {
+      parts.push(decennaleCritique ? "décennale à vérifier (travaux concernés)" : "décennale non détectée");
+    } else if (extraction.coherence_dates === "INCOMPLET" || extraction.coherence_activite === "DOUTE") {
+      parts.push("décennale partiellement mentionnée");
     }
-    if (extraction.coherence_dates === "INCOHERENT") parts.push("dates incohérentes ou expirées");
-    if (extraction.coherence_activite === "INCOHERENT") parts.push("activités non couvertes");
-    result.alerte = `🔴 Assurances : ${parts.join(", ")}. Vérification impérative de l'attestation d'assurance.`;
+    if (!extraction.rcpro_mentionnee) {
+      parts.push("RC Pro non détectée");
+    }
+    if (extraction.coherence_dates === "INCOMPLET") {
+      parts.push("dates à vérifier");
+    }
+    result.alerte = `⚠️ Assurances : ${parts.join(", ")}. Demandez l'attestation d'assurance pour confirmer la couverture.`;
   }
   
   return result;
