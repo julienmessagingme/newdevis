@@ -141,6 +141,71 @@ function comparePrix(
 
 // ============ END PRICE COMPARISON ============
 
+// ============ QUALIBAT DETECTION (AI-based) ============
+interface QualibatResult {
+  hasQualibat: boolean;
+  score: "VERT" | "ORANGE";
+  indicator?: CompanyIndicator;
+  point_ok?: string;
+  alerte?: string;
+}
+
+function detectQualibatFromText(rawText: string): QualibatResult {
+  const result: QualibatResult = {
+    hasQualibat: false,
+    score: "ORANGE",
+  };
+
+  if (!rawText || rawText.length === 0) {
+    return result;
+  }
+
+  // Normalize text for search
+  const normalizedText = rawText.toLowerCase();
+
+  // Patterns to detect QUALIBAT mentions
+  const qualibatPatterns = [
+    /qualibat/i,
+    /certif[\.\s]*qualibat/i,
+    /qualification\s*qualibat/i,
+    /n°\s*qualibat/i,
+    /numero\s*qualibat/i,
+    /numéro\s*qualibat/i,
+    /qualibat\s*n°/i,
+    /qualibat\s*\d+/i,
+    /\bqb\s*\d+/i, // QB followed by numbers (QUALIBAT reference format)
+  ];
+
+  for (const pattern of qualibatPatterns) {
+    if (pattern.test(rawText)) {
+      result.hasQualibat = true;
+      result.score = "VERT";
+      break;
+    }
+  }
+
+  if (result.hasQualibat) {
+    result.indicator = {
+      label: "Qualification QUALIBAT",
+      value: "Mention détectée sur le devis",
+      score: "VERT",
+      explanation: "Une mention QUALIBAT a été détectée sur le devis. QUALIBAT est un organisme de qualification et certification du bâtiment. Cette certification volontaire atteste des compétences professionnelles de l'entreprise."
+    };
+    result.point_ok = "🟢 Qualification QUALIBAT : mention détectée sur le devis. Certification volontaire attestant des compétences professionnelles.";
+  } else {
+    result.indicator = {
+      label: "Qualification QUALIBAT",
+      value: "Aucune mention détectée",
+      score: "ORANGE",
+      explanation: "Aucune mention QUALIBAT n'a été détectée sur le devis fourni. QUALIBAT est une certification volontaire et non obligatoire. Son absence ne préjuge pas de la qualité de l'artisan."
+    };
+    result.alerte = "⚠️ Qualification QUALIBAT : aucune mention détectée sur le devis fourni. Cette certification est volontaire et non obligatoire.";
+  }
+
+  return result;
+}
+// ============ END QUALIBAT DETECTION ============
+
 // ============ RGE VERIFICATION (ADEME) ============
 interface RGEResult {
   isRGE: boolean;
@@ -973,6 +1038,18 @@ CONTRAINTES :
     let allPointsOk = Array.isArray(parsedAnalysis.points_ok) ? [...parsedAnalysis.points_ok] : [];
     let allAlertes = Array.isArray(parsedAnalysis.alertes) ? [...parsedAnalysis.alertes] : [];
     let allRecommandations = Array.isArray(parsedAnalysis.recommandations) ? [...parsedAnalysis.recommandations] : [];
+
+    // ============ QUALIBAT DETECTION FROM DOCUMENT TEXT ============
+    const qualibatResult = detectQualibatFromText(analysisContent);
+    
+    if (qualibatResult.point_ok) {
+      allPointsOk.push(qualibatResult.point_ok);
+    }
+    if (qualibatResult.alerte) {
+      allAlertes.push(qualibatResult.alerte);
+    }
+    console.log("QUALIBAT detection result:", qualibatResult.hasQualibat ? "FOUND" : "NOT FOUND");
+    // ============ END QUALIBAT DETECTION ============
 
     // ============ PRICE COMPARISON ANALYSIS ============
     let priceComparisonResult: PriceComparisonResult | null = null;

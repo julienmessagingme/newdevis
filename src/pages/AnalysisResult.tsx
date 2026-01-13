@@ -32,6 +32,12 @@ interface RGEQualification {
   explanation: string;
 }
 
+interface QualibatQualification {
+  hasQualibat: boolean;
+  score: "VERT" | "ORANGE";
+  explanation: string;
+}
+
 type Analysis = {
   id: string;
   file_name: string;
@@ -165,6 +171,38 @@ const extractRGEData = (analysis: Analysis): RGEQualification | null => {
 // Filter out RGE-related items from points_ok/alertes to avoid duplicates
 const filterOutRGE = (items: string[]): string[] => {
   return items.filter(item => !item.toLowerCase().includes("qualification rge"));
+};
+
+// Extract QUALIBAT qualification data from points_ok or alertes
+const extractQualibatData = (analysis: Analysis): QualibatQualification | null => {
+  const allPoints = [...(analysis.points_ok || []), ...(analysis.alertes || [])];
+  
+  for (const point of allPoints) {
+    // Pattern for QUALIBAT detected
+    if (point.toLowerCase().includes("qualification qualibat") && point.toLowerCase().includes("mention détectée")) {
+      return {
+        hasQualibat: true,
+        score: "VERT",
+        explanation: point
+      };
+    }
+    
+    // Pattern for QUALIBAT not detected
+    if (point.toLowerCase().includes("qualification qualibat") && point.toLowerCase().includes("aucune mention")) {
+      return {
+        hasQualibat: false,
+        score: "ORANGE",
+        explanation: point
+      };
+    }
+  }
+  
+  return null;
+};
+
+// Filter out QUALIBAT-related items from points_ok/alertes to avoid duplicates
+const filterOutQualibat = (items: string[]): string[] => {
+  return items.filter(item => !item.toLowerCase().includes("qualification qualibat"));
 };
 
 const AnalysisResult = () => {
@@ -420,6 +458,55 @@ const AnalysisResult = () => {
           );
         })()}
 
+        {/* Qualification QUALIBAT - Bloc dédié */}
+        {(() => {
+          const qualibat = extractQualibatData(analysis);
+          if (!qualibat) return null;
+          
+          const getQualibatBgClass = () => {
+            return qualibat.hasQualibat 
+              ? "bg-score-green-bg border-score-green/30" 
+              : "bg-score-orange-bg border-score-orange/30";
+          };
+
+          return (
+            <div className={`border rounded-xl p-6 mb-6 ${getQualibatBgClass()}`}>
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-background/50 rounded-xl flex-shrink-0">
+                  <Shield className="h-6 w-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-3">
+                    <h2 className="font-semibold text-foreground text-lg">Qualification QUALIBAT</h2>
+                    {qualibat.hasQualibat ? (
+                      <CheckCircle2 className="h-6 w-6 text-score-green" />
+                    ) : (
+                      <AlertCircle className="h-6 w-6 text-score-orange" />
+                    )}
+                  </div>
+                  
+                  <div className="mb-3">
+                    <span className={`font-bold text-lg ${qualibat.hasQualibat ? "text-score-green" : "text-score-orange"}`}>
+                      {qualibat.hasQualibat ? "Mention détectée sur le devis" : "Aucune mention détectée sur le devis fourni"}
+                    </span>
+                  </div>
+                  
+                  <p className="text-sm text-muted-foreground">
+                    {qualibat.hasQualibat 
+                      ? "QUALIBAT est un organisme de qualification et certification du bâtiment. Cette certification volontaire atteste des compétences professionnelles de l'entreprise."
+                      : "QUALIBAT est une certification volontaire et non obligatoire. Son absence ne préjuge pas de la qualité de l'artisan."
+                    }
+                  </p>
+                  
+                  <p className="text-xs text-muted-foreground/70 mt-3 italic">
+                    Information complémentaire de confiance basée sur l'analyse du devis.
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Réputation en ligne - Bloc dédié */}
         {(() => {
           const reputation = extractReputationData(analysis);
@@ -506,9 +593,9 @@ const AnalysisResult = () => {
           );
         })()}
 
-        {/* Points OK - Filtered to exclude reputation and RGE items */}
+        {/* Points OK - Filtered to exclude reputation, RGE and QUALIBAT items */}
         {(() => {
-          const filteredPoints = filterOutRGE(filterOutReputation(analysis.points_ok || []));
+          const filteredPoints = filterOutQualibat(filterOutRGE(filterOutReputation(analysis.points_ok || [])));
           if (filteredPoints.length === 0) return null;
           
           return (
@@ -529,9 +616,9 @@ const AnalysisResult = () => {
           );
         })()}
 
-        {/* Alertes - Filtered to exclude reputation and RGE items */}
+        {/* Alertes - Filtered to exclude reputation, RGE and QUALIBAT items */}
         {(() => {
-          const filteredAlertes = filterOutRGE(filterOutReputation(analysis.alertes || []));
+          const filteredAlertes = filterOutQualibat(filterOutRGE(filterOutReputation(analysis.alertes || [])));
           if (filteredAlertes.length === 0) return null;
           
           return (
