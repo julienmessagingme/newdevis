@@ -661,16 +661,59 @@ async function analyzeSiteContext(codePostal: string | null): Promise<SiteContex
 
 // ============ END SITE CONTEXT ANALYSIS ============
 
+// ============ WORK TYPOLOGY INTERFACES ============
+
+interface TravauxItem {
+  categorie: string;
+  libelle: string;
+  quantite: number | null;
+  unite: string;
+  montant_ht: number | null;
+}
+
+interface ArchitecteMOE {
+  detecte: boolean;
+  type: "architecte" | "maitre_oeuvre" | null;
+  nom: string | null;
+  honoraires_ht: number | null;
+  pourcentage_honoraires: number | null;
+  missions: string[];
+}
+
 interface PriceComparisonResult {
+  categorie: string;
+  libelle: string;
   score: "VERT" | "ORANGE" | "ROUGE";
   prixUnitaireDevis: number;
   fourchetteBasse: number;
   fourchetteHaute: number;
   coefficient: number;
   zoneType: string;
+  unite: string;
   explication: string;
   alerte?: string;
   point_ok?: string;
+}
+
+interface MultiPriceComparisonResult {
+  items: PriceComparisonResult[];
+  globalScore: "VERT" | "ORANGE" | "ROUGE";
+  summary: string;
+  alertes: string[];
+  points_ok: string[];
+}
+
+interface ArchitecteAnalysisResult {
+  detecte: boolean;
+  type: "architecte" | "maitre_oeuvre" | null;
+  nom: string | null;
+  honoraires_ht: number | null;
+  pourcentage_honoraires: number | null;
+  missions: string[];
+  score: "VERT" | "ORANGE" | "ROUGE";
+  points_ok: string[];
+  alertes: string[];
+  recommandations: string[];
 }
 
 interface TravauxReferencePrix {
@@ -687,6 +730,8 @@ interface ZoneGeographique {
   coefficient: number;
 }
 
+// ============ END WORK TYPOLOGY INTERFACES ============
+
 // Get zone coefficient from postal code
 function getZoneCoefficient(codePostal: string, zones: ZoneGeographique[]): { coefficient: number; zoneType: string } {
   const prefix = codePostal.substring(0, 2);
@@ -700,18 +745,20 @@ function getZoneCoefficient(codePostal: string, zones: ZoneGeographique[]): { co
   return { coefficient: 0.90, zoneType: "province" };
 }
 
-// Compare quote price with reference
-function comparePrix(
-  categorieTravaux: string,
-  quantite: number,
-  montantHT: number,
+// Compare single work type price with reference
+function comparePrixSingle(
+  travaux: TravauxItem,
   codePostal: string,
   referencePrix: TravauxReferencePrix[],
   zones: ZoneGeographique[]
 ): PriceComparisonResult | null {
+  if (!travaux.quantite || !travaux.montant_ht || travaux.quantite <= 0) {
+    return null;
+  }
+  
   // Find reference price for the category
   const reference = referencePrix.find(r => 
-    r.categorie_travaux.toLowerCase() === categorieTravaux.toLowerCase()
+    r.categorie_travaux.toLowerCase() === travaux.categorie.toLowerCase()
   );
   
   if (!reference) {
@@ -719,7 +766,7 @@ function comparePrix(
   }
   
   // Calculate unit price from quote
-  const prixUnitaireDevis = montantHT / quantite;
+  const prixUnitaireDevis = travaux.montant_ht / travaux.quantite;
   
   // Get zone coefficient
   const { coefficient, zoneType } = getZoneCoefficient(codePostal, zones);
@@ -737,54 +784,219 @@ function comparePrix(
   const zoneLabel = zoneType === "grande_ville" ? "grande ville" : 
                     zoneType === "ville_moyenne" ? "ville moyenne" : "province";
   
+  const categorieLabel = travaux.libelle || travaux.categorie;
+  
   if (prixUnitaireDevis < fourchetteBasse * 0.7) {
-    // More than 30% below minimum = RED (suspiciously low)
     score = "ROUGE";
-    explication = `Le prix unitaire de ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} est anormalement bas. ` +
-      `Pour cette zone (${zoneLabel}), les prix de marché sont entre ${fourchetteBasse.toFixed(2)}€ et ${fourchetteHaute.toFixed(2)}€/${reference.unite}. ` +
-      `Un prix aussi bas peut indiquer des matériaux de qualité inférieure, du travail non déclaré, ou une mauvaise estimation qui pourrait entraîner des suppléments.`;
-    alerte = `🚨 Prix anormalement bas: ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} (fourchette marché: ${fourchetteBasse.toFixed(2)}€-${fourchetteHaute.toFixed(2)}€)`;
+    explication = `Le prix unitaire de ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} pour "${categorieLabel}" est anormalement bas. ` +
+      `Pour cette zone (${zoneLabel}), les prix de marché sont entre ${fourchetteBasse.toFixed(2)}€ et ${fourchetteHaute.toFixed(2)}€/${reference.unite}.`;
+    alerte = `🚨 ${categorieLabel}: prix anormalement bas (${prixUnitaireDevis.toFixed(2)}€/${reference.unite} vs ${fourchetteBasse.toFixed(2)}€-${fourchetteHaute.toFixed(2)}€)`;
   } else if (prixUnitaireDevis < fourchetteBasse) {
-    // Between 70% and 100% of minimum = ORANGE (low)
     score = "ORANGE";
-    explication = `Le prix unitaire de ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} est en dessous de la fourchette de marché. ` +
-      `Pour cette zone (${zoneLabel}), les prix sont généralement entre ${fourchetteBasse.toFixed(2)}€ et ${fourchetteHaute.toFixed(2)}€/${reference.unite}. ` +
-      `Vérifiez les prestations incluses et la qualité des matériaux proposés.`;
-    alerte = `⚠️ Prix bas: ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} (fourchette marché: ${fourchetteBasse.toFixed(2)}€-${fourchetteHaute.toFixed(2)}€)`;
+    explication = `Le prix unitaire de ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} pour "${categorieLabel}" est en dessous de la fourchette de marché.`;
+    alerte = `⚠️ ${categorieLabel}: prix bas (${prixUnitaireDevis.toFixed(2)}€/${reference.unite} vs ${fourchetteBasse.toFixed(2)}€-${fourchetteHaute.toFixed(2)}€)`;
   } else if (prixUnitaireDevis <= fourchetteHaute) {
-    // Within range = GREEN
     score = "VERT";
-    explication = `Le prix unitaire de ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} est dans la fourchette de marché. ` +
-      `Pour cette zone (${zoneLabel}), les prix sont entre ${fourchetteBasse.toFixed(2)}€ et ${fourchetteHaute.toFixed(2)}€/${reference.unite}. Le prix est cohérent.`;
-    point_ok = `✓ Prix cohérent: ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} (fourchette marché: ${fourchetteBasse.toFixed(2)}€-${fourchetteHaute.toFixed(2)}€)`;
+    explication = `Le prix unitaire de ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} pour "${categorieLabel}" est dans la fourchette de marché.`;
+    point_ok = `✓ ${categorieLabel}: prix cohérent (${prixUnitaireDevis.toFixed(2)}€/${reference.unite})`;
   } else if (prixUnitaireDevis <= fourchetteHaute * 1.3) {
-    // Up to 30% above maximum = ORANGE (high)
     score = "ORANGE";
-    explication = `Le prix unitaire de ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} est au-dessus de la fourchette de marché. ` +
-      `Pour cette zone (${zoneLabel}), les prix sont généralement entre ${fourchetteBasse.toFixed(2)}€ et ${fourchetteHaute.toFixed(2)}€/${reference.unite}. ` +
-      `Ce n'est pas anormal si des prestations premium ou des matériaux haut de gamme sont inclus. Demandez des précisions.`;
-    alerte = `⚠️ Prix élevé: ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} (fourchette marché: ${fourchetteBasse.toFixed(2)}€-${fourchetteHaute.toFixed(2)}€)`;
+    explication = `Le prix unitaire de ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} pour "${categorieLabel}" est au-dessus de la fourchette de marché.`;
+    alerte = `⚠️ ${categorieLabel}: prix élevé (${prixUnitaireDevis.toFixed(2)}€/${reference.unite} vs ${fourchetteBasse.toFixed(2)}€-${fourchetteHaute.toFixed(2)}€)`;
   } else {
-    // More than 30% above maximum = RED (excessively high)
     score = "ROUGE";
-    explication = `Le prix unitaire de ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} est très au-dessus du marché. ` +
-      `Pour cette zone (${zoneLabel}), les prix sont entre ${fourchetteBasse.toFixed(2)}€ et ${fourchetteHaute.toFixed(2)}€/${reference.unite}. ` +
-      `Sans justification claire (matériaux exceptionnels, conditions d'accès difficiles), ce prix semble excessif. Demandez un second devis.`;
-    alerte = `🚨 Prix excessif: ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} (fourchette marché: ${fourchetteBasse.toFixed(2)}€-${fourchetteHaute.toFixed(2)}€)`;
+    explication = `Le prix unitaire de ${prixUnitaireDevis.toFixed(2)}€/${reference.unite} pour "${categorieLabel}" est très au-dessus du marché.`;
+    alerte = `🚨 ${categorieLabel}: prix excessif (${prixUnitaireDevis.toFixed(2)}€/${reference.unite} vs ${fourchetteBasse.toFixed(2)}€-${fourchetteHaute.toFixed(2)}€)`;
   }
   
   return {
+    categorie: travaux.categorie,
+    libelle: categorieLabel,
     score,
     prixUnitaireDevis,
     fourchetteBasse,
     fourchetteHaute,
     coefficient,
     zoneType,
+    unite: reference.unite,
     explication,
     alerte,
     point_ok
   };
 }
+
+// Compare multiple work types prices
+function comparePrixMultiple(
+  travauxList: TravauxItem[],
+  codePostal: string,
+  referencePrix: TravauxReferencePrix[],
+  zones: ZoneGeographique[]
+): MultiPriceComparisonResult {
+  const items: PriceComparisonResult[] = [];
+  const alertes: string[] = [];
+  const points_ok: string[] = [];
+  
+  for (const travaux of travauxList) {
+    const result = comparePrixSingle(travaux, codePostal, referencePrix, zones);
+    if (result) {
+      items.push(result);
+      if (result.alerte) alertes.push(result.alerte);
+      if (result.point_ok) points_ok.push(result.point_ok);
+    }
+  }
+  
+  // Calculate global score
+  let globalScore: "VERT" | "ORANGE" | "ROUGE" = "VERT";
+  const redCount = items.filter(i => i.score === "ROUGE").length;
+  const orangeCount = items.filter(i => i.score === "ORANGE").length;
+  
+  if (redCount > 0) {
+    globalScore = "ROUGE";
+  } else if (orangeCount >= 2 || (orangeCount === 1 && items.length <= 2)) {
+    globalScore = "ORANGE";
+  }
+  
+  // Generate summary
+  let summary = "";
+  if (items.length === 0) {
+    summary = "Aucune comparaison de prix n'a pu être effectuée (catégories non référencées).";
+  } else if (items.length === 1) {
+    summary = `Analyse de prix effectuée pour ${items[0].libelle}.`;
+  } else {
+    summary = `Analyse de prix effectuée pour ${items.length} types de travaux.`;
+  }
+  
+  if (redCount > 0) {
+    summary += ` ${redCount} prix hors normes détecté(s).`;
+  } else if (orangeCount > 0) {
+    summary += ` ${orangeCount} prix à surveiller.`;
+  } else if (items.length > 0) {
+    summary += " Tous les prix sont dans les fourchettes de marché.";
+  }
+  
+  return {
+    items,
+    globalScore,
+    summary,
+    alertes,
+    points_ok
+  };
+}
+
+// Legacy single price comparison for backward compatibility
+function comparePrix(
+  categorieTravaux: string,
+  quantite: number,
+  montantHT: number,
+  codePostal: string,
+  referencePrix: TravauxReferencePrix[],
+  zones: ZoneGeographique[]
+): PriceComparisonResult | null {
+  const travaux: TravauxItem = {
+    categorie: categorieTravaux,
+    libelle: categorieTravaux,
+    quantite,
+    unite: "",
+    montant_ht: montantHT
+  };
+  return comparePrixSingle(travaux, codePostal, referencePrix, zones);
+}
+
+// ============ ARCHITECT / MOE ANALYSIS ============
+
+function analyzeArchitecteMOE(architecteData: ArchitecteMOE | null, montantTotalHT: number | null): ArchitecteAnalysisResult {
+  const result: ArchitecteAnalysisResult = {
+    detecte: false,
+    type: null,
+    nom: null,
+    honoraires_ht: null,
+    pourcentage_honoraires: null,
+    missions: [],
+    score: "VERT",
+    points_ok: [],
+    alertes: [],
+    recommandations: []
+  };
+  
+  if (!architecteData || !architecteData.detecte) {
+    return result;
+  }
+  
+  result.detecte = true;
+  result.type = architecteData.type;
+  result.nom = architecteData.nom;
+  result.honoraires_ht = architecteData.honoraires_ht;
+  result.pourcentage_honoraires = architecteData.pourcentage_honoraires;
+  result.missions = architecteData.missions || [];
+  
+  const typeLabel = architecteData.type === "architecte" ? "Architecte" : "Maître d'œuvre";
+  
+  // Positive points
+  if (architecteData.type === "architecte") {
+    result.points_ok.push(`✓ Devis émis par un architecte${architecteData.nom ? ` (${architecteData.nom})` : ""}`);
+    result.points_ok.push("✓ Les architectes sont soumis à un code de déontologie et une assurance professionnelle obligatoire");
+  } else {
+    result.points_ok.push(`✓ Devis émis par un maître d'œuvre${architecteData.nom ? ` (${architecteData.nom})` : ""}`);
+  }
+  
+  // Analyze missions
+  const hasMissionComplete = result.missions.includes("conception") && 
+                             (result.missions.includes("suivi_chantier") || result.missions.includes("coordination"));
+  
+  if (hasMissionComplete) {
+    result.points_ok.push("✓ Mission complète (conception + suivi) : meilleur encadrement du chantier");
+  } else if (result.missions.length > 0) {
+    result.recommandations.push(`Le ${typeLabel.toLowerCase()} propose une mission partielle. Vérifiez que le suivi de chantier est bien inclus ou prévu autrement.`);
+  }
+  
+  // Analyze honoraires
+  if (architecteData.honoraires_ht && montantTotalHT) {
+    const pourcentage = (architecteData.honoraires_ht / montantTotalHT) * 100;
+    result.pourcentage_honoraires = Math.round(pourcentage * 10) / 10;
+    
+    // Standard honoraires: 8-15% for architects, 5-12% for MOE
+    const isArchitecte = architecteData.type === "architecte";
+    const minPct = isArchitecte ? 8 : 5;
+    const maxPct = isArchitecte ? 15 : 12;
+    
+    if (pourcentage < minPct) {
+      result.alertes.push(`⚠️ Honoraires ${typeLabel.toLowerCase()} potentiellement bas (${result.pourcentage_honoraires}%)`);
+      result.score = "ORANGE";
+      result.recommandations.push("Des honoraires trop bas peuvent indiquer une mission réduite. Vérifiez le contenu exact de la prestation.");
+    } else if (pourcentage > maxPct) {
+      result.alertes.push(`⚠️ Honoraires ${typeLabel.toLowerCase()} élevés (${result.pourcentage_honoraires}%)`);
+      result.score = "ORANGE";
+      result.recommandations.push(`Les honoraires semblent élevés. La fourchette habituelle est de ${minPct}-${maxPct}% pour un ${typeLabel.toLowerCase()}.`);
+    } else {
+      result.points_ok.push(`✓ Honoraires ${typeLabel.toLowerCase()} dans les normes (${result.pourcentage_honoraires}%)`);
+    }
+  } else if (architecteData.pourcentage_honoraires) {
+    const isArchitecte = architecteData.type === "architecte";
+    const minPct = isArchitecte ? 8 : 5;
+    const maxPct = isArchitecte ? 15 : 12;
+    
+    if (architecteData.pourcentage_honoraires >= minPct && architecteData.pourcentage_honoraires <= maxPct) {
+      result.points_ok.push(`✓ Honoraires ${typeLabel.toLowerCase()} dans les normes (${architecteData.pourcentage_honoraires}%)`);
+    } else if (architecteData.pourcentage_honoraires < minPct) {
+      result.alertes.push(`⚠️ Honoraires ${typeLabel.toLowerCase()} potentiellement bas (${architecteData.pourcentage_honoraires}%)`);
+      result.score = "ORANGE";
+    } else {
+      result.alertes.push(`⚠️ Honoraires ${typeLabel.toLowerCase()} élevés (${architecteData.pourcentage_honoraires}%)`);
+      result.score = "ORANGE";
+    }
+  }
+  
+  // Specific recommendations
+  if (architecteData.type === "architecte") {
+    result.recommandations.push("Conseil : Vérifiez l'inscription de l'architecte à l'Ordre des Architectes sur architectes.org");
+  } else {
+    result.recommandations.push("Conseil : Demandez les références et l'attestation d'assurance décennale du maître d'œuvre.");
+  }
+  
+  return result;
+}
+
+// ============ END ARCHITECT / MOE ANALYSIS ============
 
 // ============ END PRICE COMPARISON ============
 
@@ -2003,47 +2215,64 @@ serve(async (req) => {
 
     const userPrompt = `Analyse ce document de devis d'artisan. 
 
-IMPORTANT: Extrait également:
+IMPORTANT: Extrait les informations suivantes:
 - Le numéro SIRET ou SIREN de l'entreprise s'il est présent
-- La catégorie principale de travaux (ex: peinture_interieure, carrelage_sol, electricite_renovation, plomberie_sdb, etc.)
-- La quantité totale (en m², unités ou forfait selon la catégorie)
-- Le montant HT total du devis
 - Le code postal du chantier
+- TOUS les types de travaux présents dans le devis (il peut y en avoir plusieurs)
+- Pour chaque type de travaux: la catégorie, la quantité, le montant HT
+- Si le devis provient d'un architecte ou maître d'œuvre
+
+TYPES DE TRAVAUX À IDENTIFIER (catégories standardisées):
+plomberie, electricite, chauffage_pac, chaudiere_gaz, isolation_combles, isolation_murs, toiture_tuiles, toiture_ardoise, etancheite, menuiserie_fenetre, menuiserie_porte, peinture_interieure, peinture_exterieure, maconnerie, renovation_sdb, renovation_cuisine, terrassement, carrelage_sol, carrelage_mural, parquet_stratifie, parquet_massif, placo_cloison, facade_ravalement, renovation_globale, autre
+
+DÉTECTION ARCHITECTE / MAÎTRE D'ŒUVRE:
+Recherche les indices suivants:
+- Mention explicite "architecte", "maître d'œuvre", "MOE", "maîtrise d'œuvre"
+- Inscription à l'Ordre des Architectes
+- Mentions "honoraires", "mission de conception", "suivi de chantier", "coordination"
+- SIRET avec code NAF/APE 7111Z (architecture) ou 7112B (ingénierie)
 
 Retourne un JSON STRICTEMENT STRUCTURÉ avec exactement les champs suivants :
 
-- score (VERT, ORANGE ou ROUGE)
-- resume (résumé clair pour un particulier)
-- points_ok (liste des éléments conformes)
-- alertes (liste des risques ou éléments manquants)
-- recommandations (actions concrètes à conseiller au particulier)
-- siret (numéro SIRET ou SIREN extrait du document, ou null si non trouvé)
-- categorie_travaux (une des catégories: peinture_interieure, carrelage_sol, carrelage_mural, parquet_stratifie, parquet_massif, isolation_combles, isolation_murs, placo_cloison, electricite_renovation, plomberie_sdb, cuisine_pose, toiture_tuiles, facade_ravalement, menuiserie_fenetre, menuiserie_porte, chauffage_pac, chaudiere_gaz, ou null si non identifiable)
-- quantite (nombre total, ex: 50 pour 50m², ou null)
-- montant_ht (montant HT total en euros, ou null)
-- code_postal_chantier (code postal du lieu des travaux, ou null)
-
-FORMAT DE RÉPONSE ATTENDU (OBLIGATOIRE) :
 {
-  "score": "",
-  "resume": "",
-  "points_ok": [],
-  "alertes": [],
-  "recommandations": [],
-  "siret": "",
-  "categorie_travaux": "",
-  "quantite": null,
-  "montant_ht": null,
-  "code_postal_chantier": ""
+  "score": "VERT ou ORANGE ou ROUGE",
+  "resume": "résumé clair pour un particulier",
+  "points_ok": ["liste des éléments conformes"],
+  "alertes": ["liste des risques ou éléments manquants"],
+  "recommandations": ["actions concrètes à conseiller au particulier"],
+  "siret": "numéro SIRET ou SIREN ou null",
+  "code_postal_chantier": "code postal ou null",
+  "types_travaux": [
+    {
+      "categorie": "une des catégories standardisées",
+      "libelle": "description exacte du devis",
+      "quantite": 50,
+      "unite": "m² ou unité ou forfait",
+      "montant_ht": 5000
+    }
+  ],
+  "architecte_moe": {
+    "detecte": true ou false,
+    "type": "architecte ou maitre_oeuvre ou null",
+    "nom": "nom si trouvé ou null",
+    "honoraires_ht": 1500 ou null,
+    "pourcentage_honoraires": 10 ou null,
+    "missions": ["conception", "suivi_chantier", "coordination"]
+  },
+  "montant_total_ht": 10000,
+  "categorie_travaux": "catégorie principale pour rétrocompatibilité",
+  "quantite": 50,
+  "montant_ht": 10000
 }
 
 CONTRAINTES :
-- Le score doit être justifié implicitement par les alertes
-- Ne jamais employer de termes juridiques complexes
+- types_travaux: liste TOUS les types de travaux distincts du devis
+- Pour chaque type, extraire la catégorie standardisée, le libellé original, la quantité, l'unité et le montant HT
+- Si un seul type de travaux, mettre quand même un tableau avec 1 élément
+- architecte_moe.detecte = true UNIQUEMENT si indices clairs d'architecte ou maître d'œuvre
+- Le score doit être justifié par les alertes
 - Rester pédagogique et neutre
-- Ne jamais affirmer qu'il s'agit d'une arnaque
-- L'analyse est informative et non contractuelle
-- NE PAS générer d'alerte concernant la date du devis (ancienneté du devis, devis ancien, date de validité, etc.) - ce n'est pas un critère pertinent pour l'analyse`;
+- NE PAS générer d'alerte sur la date du devis`;
 
     // Use Lovable AI Gateway with Gemini (supports PDF natively)
     const aiResponse = await fetch(LOVABLE_AI_URL, {
@@ -2164,22 +2393,57 @@ CONTRAINTES :
     }
     // ============ END ASSURANCES DETECTION ============
 
-    // ============ PRICE COMPARISON ANALYSIS ============
+    // ============ PRICE COMPARISON ANALYSIS (MULTI-TYPE) ============
     let priceComparisonResult: PriceComparisonResult | null = null;
+    let multiPriceResult: MultiPriceComparisonResult | null = null;
     
-    if (parsedAnalysis.categorie_travaux && parsedAnalysis.quantite && parsedAnalysis.montant_ht && parsedAnalysis.code_postal_chantier) {
-      console.log("Price comparison data found:", {
+    // Fetch reference prices and zones from database
+    const [referencePrixResult, zonesResult] = await Promise.all([
+      supabase.from("travaux_reference_prix").select("*"),
+      supabase.from("zones_geographiques").select("*")
+    ]);
+    
+    // Check if we have multi-type work analysis
+    const typesTravaux: TravauxItem[] = parsedAnalysis.types_travaux && Array.isArray(parsedAnalysis.types_travaux) 
+      ? parsedAnalysis.types_travaux 
+      : [];
+    
+    if (typesTravaux.length > 0 && parsedAnalysis.code_postal_chantier && referencePrixResult.data && zonesResult.data) {
+      console.log("Multi-type price comparison:", {
+        types_count: typesTravaux.length,
+        types: typesTravaux.map(t => t.categorie),
+        code_postal: parsedAnalysis.code_postal_chantier
+      });
+      
+      multiPriceResult = comparePrixMultiple(
+        typesTravaux,
+        parsedAnalysis.code_postal_chantier,
+        referencePrixResult.data as TravauxReferencePrix[],
+        zonesResult.data as ZoneGeographique[]
+      );
+      
+      console.log("Multi-price comparison result:", {
+        items_count: multiPriceResult.items.length,
+        globalScore: multiPriceResult.globalScore,
+        summary: multiPriceResult.summary
+      });
+      
+      // Add multi-price results
+      allPointsOk = [...allPointsOk, ...multiPriceResult.points_ok];
+      allAlertes = [...allAlertes, ...multiPriceResult.alertes];
+      
+      if (multiPriceResult.items.length > 0) {
+        allRecommandations.push(`💰 Analyse des prix: ${multiPriceResult.summary}`);
+      }
+    }
+    // Fallback to single-type analysis for backward compatibility
+    else if (parsedAnalysis.categorie_travaux && parsedAnalysis.quantite && parsedAnalysis.montant_ht && parsedAnalysis.code_postal_chantier) {
+      console.log("Single-type price comparison (fallback):", {
         categorie: parsedAnalysis.categorie_travaux,
         quantite: parsedAnalysis.quantite,
         montant_ht: parsedAnalysis.montant_ht,
         code_postal: parsedAnalysis.code_postal_chantier
       });
-      
-      // Fetch reference prices and zones from database
-      const [referencePrixResult, zonesResult] = await Promise.all([
-        supabase.from("travaux_reference_prix").select("*"),
-        supabase.from("zones_geographiques").select("*")
-      ]);
       
       if (referencePrixResult.data && zonesResult.data) {
         priceComparisonResult = comparePrix(
@@ -2194,7 +2458,6 @@ CONTRAINTES :
         if (priceComparisonResult) {
           console.log("Price comparison result:", priceComparisonResult);
           
-          // Add price analysis to results
           if (priceComparisonResult.point_ok) {
             allPointsOk.push(priceComparisonResult.point_ok);
           }
@@ -2202,7 +2465,6 @@ CONTRAINTES :
             allAlertes.push(priceComparisonResult.alerte);
           }
           
-          // Add explanation to recommendations
           allRecommandations.push(`💰 Analyse des prix: ${priceComparisonResult.explication}`);
         } else {
           console.log("Category not found in reference prices:", parsedAnalysis.categorie_travaux);
@@ -2212,6 +2474,35 @@ CONTRAINTES :
       console.log("Price comparison data incomplete, skipping price analysis");
     }
     // ============ END PRICE COMPARISON ============
+    
+    // ============ ARCHITECT / MOE ANALYSIS ============
+    let architecteResult: ArchitecteAnalysisResult | null = null;
+    
+    if (parsedAnalysis.architecte_moe && parsedAnalysis.architecte_moe.detecte) {
+      console.log("Architect/MOE detected:", {
+        type: parsedAnalysis.architecte_moe.type,
+        nom: parsedAnalysis.architecte_moe.nom,
+        honoraires: parsedAnalysis.architecte_moe.honoraires_ht,
+        missions: parsedAnalysis.architecte_moe.missions
+      });
+      
+      architecteResult = analyzeArchitecteMOE(
+        parsedAnalysis.architecte_moe as ArchitecteMOE,
+        parsedAnalysis.montant_total_ht || parsedAnalysis.montant_ht || null
+      );
+      
+      console.log("Architect/MOE analysis result:", {
+        detecte: architecteResult.detecte,
+        type: architecteResult.type,
+        score: architecteResult.score
+      });
+      
+      // Add architect/MOE results
+      allPointsOk = [...architecteResult.points_ok, ...allPointsOk];
+      allAlertes = [...architecteResult.alertes, ...allAlertes];
+      allRecommandations = [...allRecommandations, ...architecteResult.recommandations];
+    }
+    // ============ END ARCHITECT / MOE ANALYSIS ============
 
     // If SIRET found, analyze company with Pappers, BODACC, RGE and Google Places
     let companyAnalysis: CompanyAnalysis | null = null;
