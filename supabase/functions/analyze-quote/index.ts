@@ -233,6 +233,23 @@ interface PappersCompanyInfo {
     resultat?: number;
     chiffre_affaires?: number;
   };
+  comptes?: Array<{
+    date_cloture: string;
+    date_depot: string;
+    capitaux_propres?: number;
+    resultat?: number;
+    chiffre_affaires?: number;
+  }>;
+}
+
+// Scoring colors for company indicators
+type ScoringColor = "VERT" | "ORANGE" | "ROUGE";
+
+interface CompanyIndicator {
+  label: string;
+  value: string;
+  score: ScoringColor;
+  explanation: string;
 }
 
 interface CompanyAnalysis {
@@ -240,11 +257,13 @@ interface CompanyAnalysis {
   siren?: string;
   nom_entreprise?: string;
   anciennete_years?: number;
-  anciennete_risk?: "faible" | "moyen" | "eleve";
-  bilans_disponibles?: boolean;
+  anciennete_score?: ScoringColor;
+  bilans_count?: number;
+  bilans_score?: ScoringColor;
   capitaux_propres?: number;
-  capitaux_propres_positifs?: boolean;
+  capitaux_propres_score?: ScoringColor;
   procedure_collective?: boolean;
+  indicators: CompanyIndicator[];
   alertes: string[];
   points_ok: string[];
 }
@@ -254,7 +273,7 @@ async function analyzeCompanyWithPappers(siret: string): Promise<CompanyAnalysis
   
   if (!pappersApiKey) {
     console.log("Pappers API key not configured");
-    return { found: false, alertes: [], points_ok: [] };
+    return { found: false, alertes: [], points_ok: [], indicators: [] };
   }
 
   // Extract SIREN from SIRET (first 9 digits)
@@ -262,10 +281,11 @@ async function analyzeCompanyWithPappers(siret: string): Promise<CompanyAnalysis
   
   if (siren.length < 9 || !/^\d{9}$/.test(siren)) {
     console.log("Invalid SIREN format:", siren);
-    return { found: false, alertes: ["Numéro SIREN/SIRET invalide ou non trouvé dans le devis"], points_ok: [] };
+    return { found: false, alertes: ["Numéro SIREN/SIRET invalide ou non trouvé dans le devis"], points_ok: [], indicators: [] };
   }
 
   try {
+    // Fetch company data with financial statements
     const response = await fetch(
       `${PAPPERS_API_URL}/entreprise?siren=${siren}&api_token=${pappersApiKey}`,
       { method: "GET" }
@@ -276,77 +296,183 @@ async function analyzeCompanyWithPappers(siret: string): Promise<CompanyAnalysis
         return { 
           found: false, 
           alertes: ["Entreprise non trouvée dans les registres officiels (SIREN: " + siren + ")"], 
-          points_ok: [] 
+          points_ok: [],
+          indicators: []
         };
       }
       console.error("Pappers API error:", response.status, await response.text());
-      return { found: false, alertes: [], points_ok: [] };
+      return { found: false, alertes: [], points_ok: [], indicators: [] };
     }
 
     const data: PappersCompanyInfo = await response.json();
+    console.log("Pappers API response received for SIREN:", siren);
+    
     const alertes: string[] = [];
     const points_ok: string[] = [];
+    const indicators: CompanyIndicator[] = [];
 
     // Verify company exists and is active
     if (data.date_cessation) {
-      alertes.push(`⚠️ ALERTE: L'entreprise a cessé son activité le ${data.date_cessation}`);
+      alertes.push(`🚨 ALERTE: L'entreprise a cessé son activité le ${data.date_cessation}`);
     } else {
       points_ok.push("✓ Entreprise en activité");
     }
 
-    // Calculate company age
+    // ============ 1. ANCIENNETÉ DE LA SOCIÉTÉ ============
     let ancienneteYears = 0;
-    let ancienneteRisk: "faible" | "moyen" | "eleve" = "eleve";
+    let ancienneteScore: ScoringColor = "ROUGE";
     
     if (data.date_creation) {
       const creationDate = new Date(data.date_creation);
       const now = new Date();
       ancienneteYears = Math.floor((now.getTime() - creationDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
       
+      // Calcul précis en années et mois pour l'affichage
+      const diffMonths = Math.floor((now.getTime() - creationDate.getTime()) / (30.44 * 24 * 60 * 60 * 1000));
+      const years = Math.floor(diffMonths / 12);
+      const months = diffMonths % 12;
+      const ancienneteDisplay = years > 0 
+        ? `${years} an${years > 1 ? 's' : ''}${months > 0 ? ` et ${months} mois` : ''}`
+        : `${months} mois`;
+      
+      // Scoring selon les règles définies
       if (ancienneteYears < 2) {
-        ancienneteRisk = "eleve";
-        alertes.push(`⚠️ Entreprise récente (créée le ${data.date_creation}, moins de 2 ans) - vigilance recommandée`);
+        ancienneteScore = "ROUGE";
+        alertes.push(`🔴 Entreprise récente : ${ancienneteDisplay} d'existence (créée le ${formatDateFR(data.date_creation)}). Une entreprise de moins de 2 ans présente un risque plus élevé.`);
+        indicators.push({
+          label: "Ancienneté de l'entreprise",
+          value: ancienneteDisplay,
+          score: "ROUGE",
+          explanation: "L'entreprise a moins de 2 ans. Il est recommandé d'être vigilant car les jeunes entreprises ont un taux de défaillance plus élevé."
+        });
       } else if (ancienneteYears < 5) {
-        ancienneteRisk = "moyen";
-        points_ok.push(`✓ Entreprise établie depuis ${ancienneteYears} ans (créée le ${data.date_creation})`);
+        ancienneteScore = "ORANGE";
+        points_ok.push(`🟠 Entreprise établie depuis ${ancienneteDisplay} (créée le ${formatDateFR(data.date_creation)})`);
+        indicators.push({
+          label: "Ancienneté de l'entreprise",
+          value: ancienneteDisplay,
+          score: "ORANGE",
+          explanation: "L'entreprise a entre 2 et 5 ans d'existence. Elle a passé la période la plus risquée mais reste relativement jeune."
+        });
       } else {
-        ancienneteRisk = "faible";
-        points_ok.push(`✓ Entreprise bien établie depuis ${ancienneteYears} ans (créée le ${data.date_creation})`);
+        ancienneteScore = "VERT";
+        points_ok.push(`🟢 Entreprise bien établie : ${ancienneteDisplay} d'existence (créée le ${formatDateFR(data.date_creation)})`);
+        indicators.push({
+          label: "Ancienneté de l'entreprise",
+          value: ancienneteDisplay,
+          score: "VERT",
+          explanation: "L'entreprise a plus de 5 ans d'existence. C'est un signe de stabilité et de pérennité."
+        });
       }
+    } else {
+      indicators.push({
+        label: "Ancienneté de l'entreprise",
+        value: "Information non disponible",
+        score: "ORANGE",
+        explanation: "La date de création n'a pas pu être récupérée. Cela ne préjuge pas de la qualité de l'entreprise."
+      });
     }
 
-    // Check for collective procedures (bankruptcy, etc.)
+    // ============ 2. DISPONIBILITÉ DES BILANS ============
+    let bilansCount = 0;
+    let bilansScore: ScoringColor = "ORANGE";
+    
+    // Check for bilans in comptes array (3 last years)
+    if (data.comptes && Array.isArray(data.comptes)) {
+      bilansCount = data.comptes.length;
+    } else if (data.derniers_comptes) {
+      // If only derniers_comptes is available, count as 1
+      bilansCount = 1;
+    }
+    
+    if (bilansCount >= 3) {
+      bilansScore = "VERT";
+      points_ok.push(`🟢 ${bilansCount} bilans comptables disponibles (3 dernières années complètes)`);
+      indicators.push({
+        label: "Disponibilité des bilans",
+        value: `${bilansCount} bilans disponibles`,
+        score: "VERT",
+        explanation: "L'entreprise publie régulièrement ses comptes, signe de transparence financière."
+      });
+    } else if (bilansCount > 0) {
+      bilansScore = "ORANGE";
+      points_ok.push(`🟠 ${bilansCount} bilan${bilansCount > 1 ? 's' : ''} comptable${bilansCount > 1 ? 's' : ''} disponible${bilansCount > 1 ? 's' : ''}`);
+      indicators.push({
+        label: "Disponibilité des bilans",
+        value: `${bilansCount} bilan${bilansCount > 1 ? 's' : ''} disponible${bilansCount > 1 ? 's' : ''}`,
+        score: "ORANGE",
+        explanation: "L'historique comptable est incomplet. Certaines entreprises (micro-entreprises, SCI) ne sont pas tenues de publier leurs comptes."
+      });
+    } else {
+      bilansScore = "ORANGE";
+      alertes.push("🟠 Aucun bilan publié - la vérification de la santé financière est limitée");
+      indicators.push({
+        label: "Disponibilité des bilans",
+        value: "Aucun bilan disponible",
+        score: "ORANGE",
+        explanation: "Aucun bilan n'a été trouvé. Les micro-entreprises et certaines sociétés ne sont pas tenues de déposer leurs comptes. Cela ne signifie pas forcément un problème."
+      });
+    }
+
+    // ============ 3. ANALYSE DES CAPITAUX PROPRES ============
+    let capitauxPropres: number | undefined;
+    let capitauxPropresScore: ScoringColor | undefined;
+    
+    // Get capitaux propres from the most recent bilan
+    if (data.comptes && data.comptes.length > 0 && data.comptes[0].capitaux_propres !== undefined) {
+      capitauxPropres = data.comptes[0].capitaux_propres;
+    } else if (data.derniers_comptes?.capitaux_propres !== undefined) {
+      capitauxPropres = data.derniers_comptes.capitaux_propres;
+    }
+    
+    if (capitauxPropres !== undefined) {
+      const capitauxFormatted = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(capitauxPropres);
+      
+      if (capitauxPropres < 0) {
+        capitauxPropresScore = "ROUGE";
+        alertes.push(`🔴 ALERTE IMPORTANTE : Capitaux propres négatifs (${capitauxFormatted}). L'entreprise présente une situation financière fragile.`);
+        indicators.push({
+          label: "Capitaux propres",
+          value: capitauxFormatted,
+          score: "ROUGE",
+          explanation: "Les capitaux propres négatifs indiquent que l'entreprise a accumulé plus de pertes que d'apports. C'est un signal de fragilité financière important. L'entreprise pourrait avoir des difficultés à honorer ses engagements."
+        });
+      } else {
+        capitauxPropresScore = "VERT";
+        points_ok.push(`🟢 Capitaux propres positifs (${capitauxFormatted})`);
+        indicators.push({
+          label: "Capitaux propres",
+          value: capitauxFormatted,
+          score: "VERT",
+          explanation: "Les capitaux propres sont positifs, ce qui indique une structure financière saine."
+        });
+      }
+    } else if (bilansCount > 0) {
+      // Bilan exists but no capitaux propres data
+      indicators.push({
+        label: "Capitaux propres",
+        value: "Information non disponible",
+        score: "ORANGE",
+        explanation: "Les capitaux propres n'ont pas pu être récupérés. Cette information n'est pas toujours disponible dans les bilans simplifiés."
+      });
+    }
+
+    // ============ 4. PROCÉDURES COLLECTIVES ============
     if (data.procedure_collective) {
-      alertes.push("🚨 ALERTE FORTE: Procédure collective en cours (redressement ou liquidation judiciaire)");
+      alertes.push("🔴 ALERTE FORTE : Procédure collective en cours (redressement ou liquidation judiciaire)");
+      indicators.push({
+        label: "Procédure collective",
+        value: "En cours",
+        score: "ROUGE",
+        explanation: "L'entreprise fait l'objet d'une procédure collective. Cela signifie qu'elle rencontre des difficultés financières importantes. Il est fortement déconseillé de verser un acompte."
+      });
     } else {
       points_ok.push("✓ Aucune procédure collective en cours");
     }
 
-    // Check financial statements
-    let bilansDisponibles = false;
-    let capitauxPropres: number | undefined;
-    let capitauxPropresPositifs: boolean | undefined;
-
-    if (data.derniers_comptes) {
-      bilansDisponibles = true;
-      points_ok.push(`✓ Bilans disponibles (dernier exercice: ${data.derniers_comptes.date_cloture})`);
-      
-      if (data.derniers_comptes.capitaux_propres !== undefined) {
-        capitauxPropres = data.derniers_comptes.capitaux_propres;
-        capitauxPropresPositifs = capitauxPropres > 0;
-        
-        if (capitauxPropresPositifs) {
-          points_ok.push(`✓ Capitaux propres positifs (${capitauxPropres.toLocaleString('fr-FR')} €)`);
-        } else {
-          alertes.push(`⚠️ Capitaux propres négatifs (${capitauxPropres.toLocaleString('fr-FR')} €) - santé financière fragile`);
-        }
-      }
-
-      if (data.derniers_comptes.chiffre_affaires) {
-        points_ok.push(`✓ Chiffre d'affaires déclaré: ${data.derniers_comptes.chiffre_affaires.toLocaleString('fr-FR')} €`);
-      }
-    } else {
-      alertes.push("⚠️ Aucun bilan publié - impossible de vérifier la santé financière");
+    // Add company name if found
+    if (data.nom_entreprise) {
+      points_ok.unshift(`✓ Entreprise identifiée : ${data.nom_entreprise}`);
     }
 
     return {
@@ -354,17 +480,29 @@ async function analyzeCompanyWithPappers(siret: string): Promise<CompanyAnalysis
       siren: data.siren,
       nom_entreprise: data.nom_entreprise,
       anciennete_years: ancienneteYears,
-      anciennete_risk: ancienneteRisk,
-      bilans_disponibles: bilansDisponibles,
+      anciennete_score: ancienneteScore,
+      bilans_count: bilansCount,
+      bilans_score: bilansScore,
       capitaux_propres: capitauxPropres,
-      capitaux_propres_positifs: capitauxPropresPositifs,
+      capitaux_propres_score: capitauxPropresScore,
       procedure_collective: data.procedure_collective,
+      indicators,
       alertes,
       points_ok,
     };
   } catch (error) {
     console.error("Pappers API error:", error);
-    return { found: false, alertes: [], points_ok: [] };
+    return { found: false, alertes: [], points_ok: [], indicators: [] };
+  }
+}
+
+// Helper function to format date in French format
+function formatDateFR(dateStr: string): string {
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  } catch {
+    return dateStr;
   }
 }
 
@@ -675,7 +813,9 @@ CONTRAINTES :
     if (companyAnalysis) {
       if (companyAnalysis.procedure_collective) {
         score = "ROUGE";
-      } else if (companyAnalysis.anciennete_risk === "eleve" || companyAnalysis.capitaux_propres_positifs === false) {
+      } else if (companyAnalysis.anciennete_score === "ROUGE" || companyAnalysis.capitaux_propres_score === "ROUGE") {
+        score = "ROUGE";
+      } else if (companyAnalysis.anciennete_score === "ORANGE" || companyAnalysis.capitaux_propres_score === "ORANGE") {
         if (score === "VERT") score = "ORANGE";
       }
     }
