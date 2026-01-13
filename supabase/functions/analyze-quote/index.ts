@@ -341,8 +341,8 @@ async function getGooglePlacesRating(
     const rating = place.rating;
     const reviewsCount = place.user_ratings_total || 0;
 
-    // No rating available
-    if (rating === undefined || rating === null) {
+    // No rating available or no reviews
+    if (rating === undefined || rating === null || reviewsCount === 0) {
       return {
         found: true,
         name: place.name,
@@ -350,36 +350,30 @@ async function getGooglePlacesRating(
         user_ratings_total: reviewsCount,
         score: "ORANGE",
         indicator: {
-          label: "Avis clients Google",
-          value: "Aucune note disponible",
+          label: "Réputation en ligne",
+          value: "Aucun avis disponible",
           score: "ORANGE",
-          explanation: "L'entreprise est présente sur Google mais n'a pas encore de notes clients."
+          explanation: "L'entreprise n'a pas encore d'avis clients sur Google. Cela ne préjuge pas de sa qualité de service. Les avis Google sont publics et peuvent évoluer dans le temps."
         }
       };
     }
 
-    // Determine score based on rating and number of reviews
-    let score: ScoringColor = "ORANGE";
-    let explanation = "";
+    // Determine score based on rating according to specified thresholds
+    let score: ScoringColor;
+    let explanation: string;
     
-    if (rating >= 4.0 && reviewsCount >= 5) {
+    if (rating > 4.5) {
       score = "VERT";
-      explanation = `L'entreprise a une excellente réputation avec une note de ${rating}/5 basée sur ${reviewsCount} avis clients.`;
-    } else if (rating >= 3.5 && reviewsCount >= 3) {
-      score = "VERT";
-      explanation = `L'entreprise a une bonne réputation avec une note de ${rating}/5 basée sur ${reviewsCount} avis clients.`;
-    } else if (rating >= 3.0) {
+      explanation = `Excellente réputation en ligne avec une note de ${rating}/5 sur Google, basée sur ${reviewsCount} avis clients. Les avis Google sont publics et peuvent évoluer dans le temps.`;
+    } else if (rating >= 4.0) {
       score = "ORANGE";
-      explanation = `L'entreprise a une note moyenne de ${rating}/5 basée sur ${reviewsCount} avis. Il est recommandé de consulter les avis en détail.`;
-    } else if (rating < 3.0) {
-      score = "ROUGE";
-      explanation = `L'entreprise a une note faible de ${rating}/5 basée sur ${reviewsCount} avis. Consultez les avis clients avant de vous engager.`;
+      explanation = `Bonne réputation en ligne avec une note de ${rating}/5 sur Google, basée sur ${reviewsCount} avis clients. Quelques axes d'amélioration possibles. Les avis Google sont publics et peuvent évoluer dans le temps.`;
     } else {
-      score = "ORANGE";
-      explanation = `L'entreprise a ${reviewsCount} avis clients mais les données sont insuffisantes pour une évaluation complète.`;
+      score = "ROUGE";
+      explanation = `Réputation en ligne à surveiller avec une note de ${rating}/5 sur Google, basée sur ${reviewsCount} avis clients. Il est recommandé de consulter les avis en détail avant de vous engager. Les avis Google sont publics et peuvent évoluer dans le temps.`;
     }
 
-    const ratingDisplay = `${rating}/5 (${reviewsCount} avis)`;
+    const ratingDisplay = `${rating}/5 (${reviewsCount} avis Google)`;
 
     return {
       found: true,
@@ -388,7 +382,7 @@ async function getGooglePlacesRating(
       user_ratings_total: reviewsCount,
       score,
       indicator: {
-        label: "Avis clients Google",
+        label: "Réputation en ligne",
         value: ratingDisplay,
         score,
         explanation
@@ -940,19 +934,19 @@ CONTRAINTES :
           
           // Add to points_ok or alertes based on score
           if (googlePlacesResult.score === "VERT") {
-            companyAnalysis.points_ok.push(`🟢 Avis clients Google : ${googlePlacesResult.rating}/5 (${googlePlacesResult.user_ratings_total} avis)`);
+            companyAnalysis.points_ok.push(`🟢 Réputation en ligne : ${googlePlacesResult.rating}/5 sur Google (${googlePlacesResult.user_ratings_total} avis)`);
           } else if (googlePlacesResult.score === "ORANGE") {
-            companyAnalysis.points_ok.push(`🟠 Avis clients Google : ${googlePlacesResult.rating !== undefined ? `${googlePlacesResult.rating}/5` : "Pas de note"} (${googlePlacesResult.user_ratings_total || 0} avis)`);
+            companyAnalysis.points_ok.push(`🟠 Réputation en ligne : ${googlePlacesResult.rating !== undefined ? `${googlePlacesResult.rating}/5 sur Google` : "Aucun avis disponible"} (${googlePlacesResult.user_ratings_total || 0} avis)`);
           } else if (googlePlacesResult.score === "ROUGE") {
-            companyAnalysis.alertes.push(`🔴 Avis clients défavorables sur Google : ${googlePlacesResult.rating}/5 (${googlePlacesResult.user_ratings_total} avis)`);
+            companyAnalysis.alertes.push(`🔴 Réputation en ligne à surveiller : ${googlePlacesResult.rating}/5 sur Google (${googlePlacesResult.user_ratings_total} avis) - Consultez les avis avant de vous engager`);
           }
         } else {
           // Fallback: company not found on Google Places
           companyAnalysis.indicators.push({
-            label: "Avis clients Google",
-            value: "Entreprise non trouvée",
+            label: "Réputation en ligne",
+            value: "Établissement non trouvé sur Google",
             score: "ORANGE",
-            explanation: "L'entreprise n'a pas été trouvée sur Google. Cela ne préjuge pas de sa qualité, certaines entreprises n'ont pas de fiche Google Business."
+            explanation: "L'entreprise n'a pas été trouvée sur Google. Cela ne préjuge pas de sa qualité de service. Certaines entreprises n'ont pas de fiche Google Business. Les avis Google sont publics et peuvent évoluer dans le temps."
           });
         }
       }
