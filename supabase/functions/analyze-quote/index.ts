@@ -9,6 +9,7 @@ const corsHeaders = {
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const PAPPERS_API_URL = "https://api.pappers.fr/v2";
 const BODACC_API_URL = "https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales/records";
+const GOOGLE_PLACES_API_URL = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json";
 
 // ============ PRICE COMPARISON LOGIC ============
 
@@ -227,6 +228,12 @@ interface PappersCompanyInfo {
   effectif?: string;
   code_naf?: string;
   procedure_collective?: boolean;
+  siege?: {
+    adresse_ligne_1?: string;
+    adresse_ligne_2?: string;
+    code_postal?: string;
+    ville?: string;
+  };
   derniers_comptes?: {
     date_cloture: string;
     capitaux_propres?: number;
@@ -256,6 +263,8 @@ interface CompanyAnalysis {
   found: boolean;
   siren?: string;
   nom_entreprise?: string;
+  adresse?: string;
+  ville?: string;
   anciennete_years?: number;
   anciennete_score?: ScoringColor;
   bilans_count?: number;
@@ -263,10 +272,134 @@ interface CompanyAnalysis {
   capitaux_propres?: number;
   capitaux_propres_score?: ScoringColor;
   procedure_collective?: boolean;
+  google_rating?: number;
+  google_reviews_count?: number;
+  google_rating_score?: ScoringColor;
   indicators: CompanyIndicator[];
   alertes: string[];
   points_ok: string[];
 }
+
+// ============ GOOGLE PLACES API ============
+interface GooglePlacesResult {
+  found: boolean;
+  name?: string;
+  rating?: number;
+  user_ratings_total?: number;
+  score?: ScoringColor;
+  indicator?: CompanyIndicator;
+}
+
+async function getGooglePlacesRating(
+  raisonSociale: string,
+  adresse: string,
+  ville: string
+): Promise<GooglePlacesResult> {
+  const googleApiKey = Deno.env.get("GOOGLE_PLACES_API_KEY");
+  
+  if (!googleApiKey) {
+    console.log("Google Places API key not configured");
+    return { found: false };
+  }
+
+  // Build search query combining company name, address and city
+  const searchInput = `${raisonSociale} ${adresse} ${ville}`.trim();
+  
+  if (!searchInput || searchInput.length < 3) {
+    console.log("Insufficient data for Google Places search");
+    return { found: false };
+  }
+
+  try {
+    const params = new URLSearchParams({
+      input: searchInput,
+      inputtype: "textquery",
+      fields: "name,rating,user_ratings_total",
+      key: googleApiKey,
+    });
+
+    console.log("Searching Google Places for:", searchInput);
+    
+    const response = await fetch(`${GOOGLE_PLACES_API_URL}?${params.toString()}`, {
+      method: "GET",
+    });
+
+    if (!response.ok) {
+      console.error("Google Places API error:", response.status);
+      return { found: false };
+    }
+
+    const data = await response.json();
+    console.log("Google Places API response:", JSON.stringify(data));
+
+    if (data.status !== "OK" || !data.candidates || data.candidates.length === 0) {
+      console.log("No results found in Google Places");
+      return { found: false };
+    }
+
+    const place = data.candidates[0];
+    const rating = place.rating;
+    const reviewsCount = place.user_ratings_total || 0;
+
+    // No rating available
+    if (rating === undefined || rating === null) {
+      return {
+        found: true,
+        name: place.name,
+        rating: undefined,
+        user_ratings_total: reviewsCount,
+        score: "ORANGE",
+        indicator: {
+          label: "Avis clients Google",
+          value: "Aucune note disponible",
+          score: "ORANGE",
+          explanation: "L'entreprise est présente sur Google mais n'a pas encore de notes clients."
+        }
+      };
+    }
+
+    // Determine score based on rating and number of reviews
+    let score: ScoringColor = "ORANGE";
+    let explanation = "";
+    
+    if (rating >= 4.0 && reviewsCount >= 5) {
+      score = "VERT";
+      explanation = `L'entreprise a une excellente réputation avec une note de ${rating}/5 basée sur ${reviewsCount} avis clients.`;
+    } else if (rating >= 3.5 && reviewsCount >= 3) {
+      score = "VERT";
+      explanation = `L'entreprise a une bonne réputation avec une note de ${rating}/5 basée sur ${reviewsCount} avis clients.`;
+    } else if (rating >= 3.0) {
+      score = "ORANGE";
+      explanation = `L'entreprise a une note moyenne de ${rating}/5 basée sur ${reviewsCount} avis. Il est recommandé de consulter les avis en détail.`;
+    } else if (rating < 3.0) {
+      score = "ROUGE";
+      explanation = `L'entreprise a une note faible de ${rating}/5 basée sur ${reviewsCount} avis. Consultez les avis clients avant de vous engager.`;
+    } else {
+      score = "ORANGE";
+      explanation = `L'entreprise a ${reviewsCount} avis clients mais les données sont insuffisantes pour une évaluation complète.`;
+    }
+
+    const ratingDisplay = `${rating}/5 (${reviewsCount} avis)`;
+
+    return {
+      found: true,
+      name: place.name,
+      rating,
+      user_ratings_total: reviewsCount,
+      score,
+      indicator: {
+        label: "Avis clients Google",
+        value: ratingDisplay,
+        score,
+        explanation
+      }
+    };
+  } catch (error) {
+    console.error("Google Places API error:", error);
+    return { found: false };
+  }
+}
+// ============ END GOOGLE PLACES API ============
 
 async function analyzeCompanyWithPappers(siret: string): Promise<CompanyAnalysis> {
   const pappersApiKey = Deno.env.get("PAPPERS_API_KEY");
@@ -475,10 +608,16 @@ async function analyzeCompanyWithPappers(siret: string): Promise<CompanyAnalysis
       points_ok.unshift(`✓ Entreprise identifiée : ${data.nom_entreprise}`);
     }
 
+    // Extract address info for Google Places search
+    const adresse = data.siege?.adresse_ligne_1 || "";
+    const ville = data.siege?.ville || "";
+
     return {
       found: true,
       siren: data.siren,
       nom_entreprise: data.nom_entreprise,
+      adresse,
+      ville,
       anciennete_years: ancienneteYears,
       anciennete_score: ancienneteScore,
       bilans_count: bilansCount,
@@ -766,9 +905,10 @@ CONTRAINTES :
     }
     // ============ END PRICE COMPARISON ============
 
-    // If SIRET found, analyze company with Pappers and BODACC
+    // If SIRET found, analyze company with Pappers, BODACC and Google Places
     let companyAnalysis: CompanyAnalysis | null = null;
     let bodaccResult: BodaccResult | null = null;
+    let googlePlacesResult: GooglePlacesResult | null = null;
     
     if (parsedAnalysis.siret) {
       console.log("SIRET found in document:", parsedAnalysis.siret);
@@ -782,6 +922,40 @@ CONTRAINTES :
       
       companyAnalysis = pappersResult;
       bodaccResult = bodaccCheck;
+      
+      // If company found, also fetch Google Places rating
+      if (companyAnalysis.found && companyAnalysis.nom_entreprise) {
+        googlePlacesResult = await getGooglePlacesRating(
+          companyAnalysis.nom_entreprise,
+          companyAnalysis.adresse || "",
+          companyAnalysis.ville || ""
+        );
+        
+        // Add Google Places results to company analysis
+        if (googlePlacesResult.found && googlePlacesResult.indicator) {
+          companyAnalysis.indicators.push(googlePlacesResult.indicator);
+          companyAnalysis.google_rating = googlePlacesResult.rating;
+          companyAnalysis.google_reviews_count = googlePlacesResult.user_ratings_total;
+          companyAnalysis.google_rating_score = googlePlacesResult.score;
+          
+          // Add to points_ok or alertes based on score
+          if (googlePlacesResult.score === "VERT") {
+            companyAnalysis.points_ok.push(`🟢 Avis clients Google : ${googlePlacesResult.rating}/5 (${googlePlacesResult.user_ratings_total} avis)`);
+          } else if (googlePlacesResult.score === "ORANGE") {
+            companyAnalysis.points_ok.push(`🟠 Avis clients Google : ${googlePlacesResult.rating !== undefined ? `${googlePlacesResult.rating}/5` : "Pas de note"} (${googlePlacesResult.user_ratings_total || 0} avis)`);
+          } else if (googlePlacesResult.score === "ROUGE") {
+            companyAnalysis.alertes.push(`🔴 Avis clients défavorables sur Google : ${googlePlacesResult.rating}/5 (${googlePlacesResult.user_ratings_total} avis)`);
+          }
+        } else {
+          // Fallback: company not found on Google Places
+          companyAnalysis.indicators.push({
+            label: "Avis clients Google",
+            value: "Entreprise non trouvée",
+            score: "ORANGE",
+            explanation: "L'entreprise n'a pas été trouvée sur Google. Cela ne préjuge pas de sa qualité, certaines entreprises n'ont pas de fiche Google Business."
+          });
+        }
+      }
       
       if (companyAnalysis.found) {
         // Prepend company analysis results
@@ -833,6 +1007,11 @@ CONTRAINTES :
       } else if (priceComparisonResult.score === "ORANGE" && score === "VERT") {
         score = "ORANGE";
       }
+    }
+    
+    // Google Places rating impact on score (only RED ratings affect score)
+    if (googlePlacesResult?.score === "ROUGE") {
+      if (score === "VERT") score = "ORANGE";
     }
     
     if (!validScores.includes(score)) {
