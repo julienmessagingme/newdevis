@@ -13,7 +13,8 @@ import {
   RefreshCw,
   Star,
   Globe,
-  Award
+  Award,
+  ShieldCheck
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -37,6 +38,19 @@ interface QualibatQualification {
   hasQualibat: boolean;
   score: "VERT" | "ORANGE";
   explanation: string;
+}
+
+interface AssuranceInfo {
+  decennale: {
+    mentionnee: boolean;
+    critique: boolean;
+    score: "VERT" | "ORANGE" | "ROUGE";
+  };
+  rcpro: {
+    mentionnee: boolean;
+    score: "VERT" | "ORANGE" | "ROUGE";
+  };
+  globalScore: "VERT" | "ORANGE" | "ROUGE";
 }
 
 type Analysis = {
@@ -226,6 +240,93 @@ const extractQualibatData = (analysis: Analysis): QualibatQualification | null =
 // Filter out QUALIBAT-related items from points_ok/alertes to avoid duplicates
 const filterOutQualibat = (items: string[]): string[] => {
   return items.filter(item => !item.toLowerCase().includes("qualification qualibat"));
+};
+
+// Extract Assurance data from points_ok or alertes
+const extractAssuranceData = (analysis: Analysis): AssuranceInfo | null => {
+  const allPoints = [...(analysis.points_ok || []), ...(analysis.alertes || [])];
+  
+  let decennaleMentionnee = false;
+  let decennaleCritique = false;
+  let decennaleScore: "VERT" | "ORANGE" | "ROUGE" = "ORANGE";
+  let rcproMentionnee = false;
+  let rcproScore: "VERT" | "ORANGE" | "ROUGE" = "ORANGE";
+  let globalScore: "VERT" | "ORANGE" | "ROUGE" = "ORANGE";
+  
+  for (const point of allPoints) {
+    const lowerPoint = point.toLowerCase();
+    
+    // Check for assurance mentions
+    if (lowerPoint.includes("assurance") || lowerPoint.includes("décennale") || lowerPoint.includes("rc pro")) {
+      // Décennale detection
+      if (lowerPoint.includes("décennale mentionnée") || lowerPoint.includes("decennale mentionnée")) {
+        decennaleMentionnee = true;
+      }
+      if (lowerPoint.includes("décennale") && lowerPoint.includes("non mentionnée")) {
+        decennaleMentionnee = false;
+      }
+      
+      // RC Pro detection
+      if (lowerPoint.includes("rc pro mentionnée") || lowerPoint.includes("rc professionnelle mentionnée")) {
+        rcproMentionnee = true;
+      }
+      
+      // Score detection
+      if (point.includes("🟢") && lowerPoint.includes("assurance")) {
+        globalScore = "VERT";
+        if (lowerPoint.includes("décennale")) decennaleScore = "VERT";
+        if (lowerPoint.includes("rc pro")) rcproScore = "VERT";
+      }
+      if (point.includes("⚠️") && lowerPoint.includes("assurance")) {
+        if (globalScore !== "ROUGE") globalScore = "ORANGE";
+      }
+      if (point.includes("🔴") && lowerPoint.includes("assurance")) {
+        globalScore = "ROUGE";
+        if (lowerPoint.includes("décennale") && lowerPoint.includes("obligatoire")) {
+          decennaleCritique = true;
+          decennaleScore = "ROUGE";
+        }
+      }
+      
+      // Parse structured info if present
+      if (lowerPoint.includes("décennale") && lowerPoint.includes("obligatoire")) {
+        decennaleCritique = true;
+      }
+    }
+  }
+  
+  // If no assurance info found at all, return null
+  const hasAssuranceInfo = allPoints.some(p => 
+    p.toLowerCase().includes("assurance") || 
+    p.toLowerCase().includes("décennale") ||
+    p.toLowerCase().includes("rc pro")
+  );
+  
+  if (!hasAssuranceInfo) return null;
+  
+  return {
+    decennale: {
+      mentionnee: decennaleMentionnee,
+      critique: decennaleCritique,
+      score: decennaleScore,
+    },
+    rcpro: {
+      mentionnee: rcproMentionnee,
+      score: rcproScore,
+    },
+    globalScore,
+  };
+};
+
+// Filter out Assurance-related items from points_ok/alertes to avoid duplicates
+const filterOutAssurance = (items: string[]): string[] => {
+  return items.filter(item => {
+    const lower = item.toLowerCase();
+    return !lower.includes("assurance") && 
+           !lower.includes("décennale") && 
+           !lower.includes("rc pro") &&
+           !lower.includes("attestation d'assurance");
+  });
 };
 
 const AnalysisResult = () => {
@@ -649,9 +750,110 @@ const AnalysisResult = () => {
           );
         })()}
 
-        {/* Points OK - Filtered to exclude reputation, RGE and QUALIBAT items */}
+        {/* Assurances - Bloc dédié */}
         {(() => {
-          const filteredPoints = filterOutQualibat(filterOutRGE(filterOutReputation(analysis.points_ok || [])));
+          const assurance = extractAssuranceData(analysis);
+          if (!assurance) return null;
+          
+          const getAssuranceBgClass = () => {
+            switch (assurance.globalScore) {
+              case "VERT": return "bg-score-green-bg border-score-green/30";
+              case "ORANGE": return "bg-score-orange-bg border-score-orange/30";
+              case "ROUGE": return "bg-score-red-bg border-score-red/30";
+            }
+          };
+
+          const getScoreIcon = (score: "VERT" | "ORANGE" | "ROUGE") => {
+            switch (score) {
+              case "VERT": return <CheckCircle2 className="h-5 w-5 text-score-green" />;
+              case "ORANGE": return <AlertCircle className="h-5 w-5 text-score-orange" />;
+              case "ROUGE": return <XCircle className="h-5 w-5 text-score-red" />;
+            }
+          };
+
+          const getDecennaleStatus = () => {
+            if (assurance.decennale.mentionnee) {
+              return "Mentionnée sur le devis";
+            }
+            return assurance.decennale.critique 
+              ? "Non mentionnée (obligatoire pour ce type de travaux)"
+              : "Non mentionnée sur le devis";
+          };
+
+          const getRcproStatus = () => {
+            return assurance.rcpro.mentionnee 
+              ? "Mentionnée sur le devis" 
+              : "Non mentionnée sur le devis";
+          };
+
+          return (
+            <div className={`border rounded-xl p-6 mb-6 ${getAssuranceBgClass()}`}>
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-background/50 rounded-xl flex-shrink-0">
+                  <ShieldCheck className="h-6 w-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-4">
+                    <h2 className="font-semibold text-foreground text-lg">Assurances</h2>
+                    {getScoreIcon(assurance.globalScore)}
+                  </div>
+                  
+                  {/* Décennale */}
+                  <div className="mb-4 p-3 bg-background/30 rounded-lg">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-medium text-foreground">Garantie décennale</span>
+                      {getScoreIcon(assurance.decennale.score)}
+                    </div>
+                    <span className={`text-sm ${
+                      assurance.decennale.score === "VERT" ? "text-score-green" :
+                      assurance.decennale.score === "ORANGE" ? "text-score-orange" :
+                      "text-score-red"
+                    }`}>
+                      {getDecennaleStatus()}
+                    </span>
+                    {assurance.decennale.critique && !assurance.decennale.mentionnee && (
+                      <p className="text-xs text-score-red mt-1">
+                        La garantie décennale est obligatoire pour les travaux affectant la solidité ou la destination de l'ouvrage.
+                      </p>
+                    )}
+                  </div>
+                  
+                  {/* RC Pro */}
+                  <div className="mb-4 p-3 bg-background/30 rounded-lg">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-medium text-foreground">RC Professionnelle</span>
+                      {getScoreIcon(assurance.rcpro.score)}
+                    </div>
+                    <span className={`text-sm ${
+                      assurance.rcpro.score === "VERT" ? "text-score-green" :
+                      assurance.rcpro.score === "ORANGE" ? "text-score-orange" :
+                      "text-score-red"
+                    }`}>
+                      {getRcproStatus()}
+                    </span>
+                  </div>
+                  
+                  <p className="text-sm text-muted-foreground">
+                    Les mentions d'assurance sur un devis indiquent une cohérence documentaire. 
+                    Pour une vérification complète, demandez l'attestation d'assurance (PDF) à jour.
+                  </p>
+                  
+                  <div className="mt-4 p-3 bg-muted/50 rounded-lg">
+                    <p className="text-xs text-muted-foreground italic">
+                      ℹ️ <strong>Note importante</strong> : L'analyse détecte les mentions d'assurance présentes sur le devis. 
+                      Elle ne constitue pas une vérification de validité des contrats d'assurance. 
+                      Seule l'attestation d'assurance officielle fait foi.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Points OK - Filtered to exclude reputation, RGE, QUALIBAT and Assurance items */}
+        {(() => {
+          const filteredPoints = filterOutAssurance(filterOutQualibat(filterOutRGE(filterOutReputation(analysis.points_ok || []))));
           if (filteredPoints.length === 0) return null;
           
           return (
@@ -672,9 +874,9 @@ const AnalysisResult = () => {
           );
         })()}
 
-        {/* Alertes - Filtered to exclude reputation, RGE and QUALIBAT items */}
+        {/* Alertes - Filtered to exclude reputation, RGE, QUALIBAT and Assurance items */}
         {(() => {
-          const filteredAlertes = filterOutQualibat(filterOutRGE(filterOutReputation(analysis.alertes || [])));
+          const filteredAlertes = filterOutAssurance(filterOutQualibat(filterOutRGE(filterOutReputation(analysis.alertes || []))));
           if (filteredAlertes.length === 0) return null;
           
           return (
