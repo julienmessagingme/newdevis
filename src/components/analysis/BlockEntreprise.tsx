@@ -244,7 +244,7 @@ const BlockEntreprise = ({ pointsOk, alertes }: BlockEntrepriseProps) => {
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-4">
-            <h2 className="font-bold text-foreground text-xl">BLOC 1 — Entreprise & Fiabilité</h2>
+            <h2 className="font-bold text-foreground text-xl">Entreprise & Fiabilité</h2>
             {getScoreIcon(info.score, "h-6 w-6")}
           </div>
           

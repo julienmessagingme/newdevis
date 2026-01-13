@@ -187,7 +187,7 @@ const BlockDevis = ({ pointsOk, alertes }: BlockDevisProps) => {
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-4">
-            <h2 className="font-bold text-foreground text-xl">BLOC 2 — Devis & Cohérence financière</h2>
+            <h2 className="font-bold text-foreground text-xl">Devis & Cohérence financière</h2>
             {getScoreIcon(info.score, "h-6 w-6")}
           </div>
           
