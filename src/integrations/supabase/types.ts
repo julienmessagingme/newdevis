@@ -17,6 +17,12 @@ export type Database = {
       analyses: {
         Row: {
           alertes: Json | null
+          assurance_level2_score: string | null
+          assurance_source: string | null
+          attestation_analysis: Json | null
+          attestation_comparison: Json | null
+          attestation_decennale_url: string | null
+          attestation_rcpro_url: string | null
           created_at: string
           error_message: string | null
           file_name: string
@@ -33,6 +39,12 @@ export type Database = {
         }
         Insert: {
           alertes?: Json | null
+          assurance_level2_score?: string | null
+          assurance_source?: string | null
+          attestation_analysis?: Json | null
+          attestation_comparison?: Json | null
+          attestation_decennale_url?: string | null
+          attestation_rcpro_url?: string | null
           created_at?: string
           error_message?: string | null
           file_name: string
@@ -49,6 +61,12 @@ export type Database = {
         }
         Update: {
           alertes?: Json | null
+          assurance_level2_score?: string | null
+          assurance_source?: string | null
+          attestation_analysis?: Json | null
+          attestation_comparison?: Json | null
+          attestation_decennale_url?: string | null
+          attestation_rcpro_url?: string | null
           created_at?: string
           error_message?: string | null
           file_name?: string

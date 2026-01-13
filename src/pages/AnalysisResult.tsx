@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { 
@@ -14,11 +14,13 @@ import {
   Star,
   Globe,
   Award,
-  ShieldCheck
+  ShieldCheck,
+  FileCheck
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { generatePdfReport } from "@/utils/generatePdfReport";
+import AttestationUpload from "@/components/AttestationUpload";
 
 interface ReputationOnline {
   rating?: number;
@@ -53,6 +55,24 @@ interface AssuranceInfo {
   globalScore: "VERT" | "ORANGE" | "ROUGE";
 }
 
+interface AttestationComparison {
+  nom_entreprise: "OK" | "INCOMPLET" | "INCOHERENT" | "NON_DISPONIBLE";
+  siret_siren: "OK" | "INCOMPLET" | "INCOHERENT" | "NON_DISPONIBLE";
+  adresse: "OK" | "INCOMPLET" | "INCOHERENT" | "NON_DISPONIBLE";
+  periode_validite: "OK" | "INCOMPLET" | "INCOHERENT" | "NON_DISPONIBLE";
+  activite_couverte: "OK" | "INCOMPLET" | "INCOHERENT" | "NON_DISPONIBLE";
+  coherence_globale: "OK" | "INCOMPLET" | "INCOHERENT" | "NON_DISPONIBLE";
+}
+
+interface AttestationAnalysis {
+  type_assurance: "decennale" | "rc_pro" | "autre";
+  nom_entreprise_assuree: string;
+  assureur: string;
+  numero_contrat: string;
+  date_fin_couverture: string;
+  activites_couvertes: string;
+}
+
 type Analysis = {
   id: string;
   file_name: string;
@@ -65,6 +85,19 @@ type Analysis = {
   error_message: string | null;
   created_at: string;
   reputation_online?: ReputationOnline;
+  // Level 2 attestation fields
+  assurance_source?: string;
+  assurance_level2_score?: "VERT" | "ORANGE" | "ROUGE";
+  attestation_analysis?: {
+    decennale?: AttestationAnalysis;
+    rc_pro?: AttestationAnalysis;
+  };
+  attestation_comparison?: {
+    decennale?: AttestationComparison;
+    rc_pro?: AttestationComparison;
+  };
+  // Quote info for attestation comparison
+  raw_text?: string;
 };
 
 const getScoreIcon = (score: string | null, className: string = "h-5 w-5") => {
@@ -335,33 +368,33 @@ const AnalysisResult = () => {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const fetchAnalysis = useCallback(async () => {
+    if (!id) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      navigate("/connexion");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("analyses")
+      .select("*")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single();
+
+    if (error || !data) {
+      toast.error("Analyse non trouvée");
+      navigate("/tableau-de-bord");
+      return;
+    }
+
+    setAnalysis(data as Analysis);
+    setLoading(false);
+  }, [id, navigate]);
+
   useEffect(() => {
-    const fetchAnalysis = async () => {
-      if (!id) return;
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate("/connexion");
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("analyses")
-        .select("*")
-        .eq("id", id)
-        .eq("user_id", user.id)
-        .single();
-
-      if (error || !data) {
-        toast.error("Analyse non trouvée");
-        navigate("/tableau-de-bord");
-        return;
-      }
-
-      setAnalysis(data as Analysis);
-      setLoading(false);
-    };
-
     fetchAnalysis();
 
     // Subscribe to realtime updates
@@ -384,7 +417,37 @@ const AnalysisResult = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [id, navigate]);
+  }, [id, fetchAnalysis]);
+
+  // Extract quote info for attestation comparison
+  const extractQuoteInfo = (analysis: Analysis) => {
+    // Try to extract info from raw_text or points_ok
+    const rawText = analysis.raw_text || "";
+    let nom_entreprise = "";
+    let siret = "";
+    let adresse = "";
+    let categorie_travaux = "";
+
+    // Extract company name from points_ok
+    for (const point of analysis.points_ok || []) {
+      if (point.includes("Entreprise") && point.includes(":")) {
+        const match = point.match(/Entreprise[^:]*:\s*(.+)/i);
+        if (match) nom_entreprise = match[1].trim();
+      }
+      if (point.includes("SIRET") || point.includes("SIREN")) {
+        const match = point.match(/(\d{9,14})/);
+        if (match) siret = match[1];
+      }
+    }
+
+    // Extract SIRET from raw text
+    const siretMatch = rawText.match(/siret[:\s]*(\d[\d\s]{8,13}\d)/i);
+    if (siretMatch && !siret) {
+      siret = siretMatch[1].replace(/\s/g, "");
+    }
+
+    return { nom_entreprise, siret, adresse, categorie_travaux };
+  };
 
   if (loading) {
     return (
@@ -750,13 +813,19 @@ const AnalysisResult = () => {
           );
         })()}
 
-        {/* Assurances - Bloc dédié */}
+        {/* Assurances - Bloc dédié avec Niveau 2 */}
         {(() => {
           const assurance = extractAssuranceData(analysis);
           if (!assurance) return null;
           
+          const hasLevel2 = analysis.assurance_source === "devis+attestation";
+          const level2Score = analysis.assurance_level2_score;
+          
+          // Use Level 2 score if available, otherwise Level 1
+          const displayScore = hasLevel2 && level2Score ? level2Score : assurance.globalScore;
+          
           const getAssuranceBgClass = () => {
-            switch (assurance.globalScore) {
+            switch (displayScore) {
               case "VERT": return "bg-score-green-bg border-score-green/30";
               case "ORANGE": return "bg-score-orange-bg border-score-orange/30";
               case "ROUGE": return "bg-score-red-bg border-score-red/30";
@@ -771,7 +840,32 @@ const AnalysisResult = () => {
             }
           };
 
+          const getComparisonStatusText = (status: string) => {
+            switch (status) {
+              case "OK": return "Cohérent";
+              case "INCOMPLET": return "Incomplet";
+              case "INCOHERENT": return "Incohérent";
+              case "NON_DISPONIBLE": return "Non disponible";
+              default: return status;
+            }
+          };
+
+          const getComparisonStatusClass = (status: string) => {
+            switch (status) {
+              case "OK": return "text-score-green";
+              case "INCOMPLET": return "text-score-orange";
+              case "INCOHERENT": return "text-score-red";
+              default: return "text-muted-foreground";
+            }
+          };
+
           const getDecennaleStatus = () => {
+            if (hasLevel2 && analysis.attestation_comparison?.decennale) {
+              const comp = analysis.attestation_comparison.decennale;
+              if (comp.coherence_globale === "OK") return "Attestation cohérente avec le devis";
+              if (comp.coherence_globale === "INCOHERENT") return "Incohérences détectées";
+              return "Informations incomplètes";
+            }
             if (assurance.decennale.mentionnee) {
               return "Mentionnée sur le devis";
             }
@@ -781,9 +875,35 @@ const AnalysisResult = () => {
           };
 
           const getRcproStatus = () => {
+            if (hasLevel2 && analysis.attestation_comparison?.rc_pro) {
+              const comp = analysis.attestation_comparison.rc_pro;
+              if (comp.coherence_globale === "OK") return "Attestation cohérente avec le devis";
+              if (comp.coherence_globale === "INCOHERENT") return "Incohérences détectées";
+              return "Informations incomplètes";
+            }
             return assurance.rcpro.mentionnee 
               ? "Mentionnée sur le devis" 
               : "Non mentionnée sur le devis";
+          };
+
+          const getDecennaleScore = (): "VERT" | "ORANGE" | "ROUGE" => {
+            if (hasLevel2 && analysis.attestation_comparison?.decennale) {
+              const comp = analysis.attestation_comparison.decennale;
+              if (comp.coherence_globale === "OK") return "VERT";
+              if (comp.coherence_globale === "INCOHERENT") return "ROUGE";
+              return "ORANGE";
+            }
+            return assurance.decennale.score;
+          };
+
+          const getRcproScore = (): "VERT" | "ORANGE" | "ROUGE" => {
+            if (hasLevel2 && analysis.attestation_comparison?.rc_pro) {
+              const comp = analysis.attestation_comparison.rc_pro;
+              if (comp.coherence_globale === "OK") return "VERT";
+              if (comp.coherence_globale === "INCOHERENT") return "ROUGE";
+              return "ORANGE";
+            }
+            return assurance.rcpro.score;
           };
 
           return (
@@ -793,25 +913,69 @@ const AnalysisResult = () => {
                   <ShieldCheck className="h-6 w-6 text-primary" />
                 </div>
                 <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center gap-3 mb-2">
                     <h2 className="font-semibold text-foreground text-lg">Assurances</h2>
-                    {getScoreIcon(assurance.globalScore)}
+                    {getScoreIcon(displayScore)}
+                  </div>
+                  
+                  {/* Source indicator */}
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      hasLevel2 
+                        ? "bg-primary/10 text-primary" 
+                        : "bg-muted text-muted-foreground"
+                    }`}>
+                      {hasLevel2 ? (
+                        <>
+                          <FileCheck className="h-3 w-3 inline mr-1" />
+                          Devis + Attestation
+                        </>
+                      ) : (
+                        "Devis seul"
+                      )}
+                    </span>
                   </div>
                   
                   {/* Décennale */}
                   <div className="mb-4 p-3 bg-background/30 rounded-lg">
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-medium text-foreground">Garantie décennale</span>
-                      {getScoreIcon(assurance.decennale.score)}
+                      {getScoreIcon(getDecennaleScore())}
                     </div>
                     <span className={`text-sm ${
-                      assurance.decennale.score === "VERT" ? "text-score-green" :
-                      assurance.decennale.score === "ORANGE" ? "text-score-orange" :
+                      getDecennaleScore() === "VERT" ? "text-score-green" :
+                      getDecennaleScore() === "ORANGE" ? "text-score-orange" :
                       "text-score-red"
                     }`}>
                       {getDecennaleStatus()}
                     </span>
-                    {assurance.decennale.critique && !assurance.decennale.mentionnee && (
+                    
+                    {/* Level 2 details */}
+                    {hasLevel2 && analysis.attestation_comparison?.decennale && (
+                      <div className="mt-2 pt-2 border-t border-border/50">
+                        <p className="text-xs text-muted-foreground mb-1">Comparaison attestation ↔ devis :</p>
+                        <div className="grid grid-cols-2 gap-1 text-xs">
+                          <span>Entreprise :</span>
+                          <span className={getComparisonStatusClass(analysis.attestation_comparison.decennale.nom_entreprise)}>
+                            {getComparisonStatusText(analysis.attestation_comparison.decennale.nom_entreprise)}
+                          </span>
+                          <span>SIRET :</span>
+                          <span className={getComparisonStatusClass(analysis.attestation_comparison.decennale.siret_siren)}>
+                            {getComparisonStatusText(analysis.attestation_comparison.decennale.siret_siren)}
+                          </span>
+                          <span>Période validité :</span>
+                          <span className={getComparisonStatusClass(analysis.attestation_comparison.decennale.periode_validite)}>
+                            {getComparisonStatusText(analysis.attestation_comparison.decennale.periode_validite)}
+                          </span>
+                          <span>Activité couverte :</span>
+                          <span className={getComparisonStatusClass(analysis.attestation_comparison.decennale.activite_couverte)}>
+                            {getComparisonStatusText(analysis.attestation_comparison.decennale.activite_couverte)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {assurance.decennale.critique && !assurance.decennale.mentionnee && !hasLevel2 && (
                       <p className="text-xs text-score-red mt-1">
                         La garantie décennale est obligatoire pour les travaux affectant la solidité ou la destination de l'ouvrage.
                       </p>
@@ -822,27 +986,65 @@ const AnalysisResult = () => {
                   <div className="mb-4 p-3 bg-background/30 rounded-lg">
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-medium text-foreground">RC Professionnelle</span>
-                      {getScoreIcon(assurance.rcpro.score)}
+                      {getScoreIcon(getRcproScore())}
                     </div>
                     <span className={`text-sm ${
-                      assurance.rcpro.score === "VERT" ? "text-score-green" :
-                      assurance.rcpro.score === "ORANGE" ? "text-score-orange" :
+                      getRcproScore() === "VERT" ? "text-score-green" :
+                      getRcproScore() === "ORANGE" ? "text-score-orange" :
                       "text-score-red"
                     }`}>
                       {getRcproStatus()}
                     </span>
+                    
+                    {/* Level 2 details */}
+                    {hasLevel2 && analysis.attestation_comparison?.rc_pro && (
+                      <div className="mt-2 pt-2 border-t border-border/50">
+                        <p className="text-xs text-muted-foreground mb-1">Comparaison attestation ↔ devis :</p>
+                        <div className="grid grid-cols-2 gap-1 text-xs">
+                          <span>Entreprise :</span>
+                          <span className={getComparisonStatusClass(analysis.attestation_comparison.rc_pro.nom_entreprise)}>
+                            {getComparisonStatusText(analysis.attestation_comparison.rc_pro.nom_entreprise)}
+                          </span>
+                          <span>SIRET :</span>
+                          <span className={getComparisonStatusClass(analysis.attestation_comparison.rc_pro.siret_siren)}>
+                            {getComparisonStatusText(analysis.attestation_comparison.rc_pro.siret_siren)}
+                          </span>
+                          <span>Période validité :</span>
+                          <span className={getComparisonStatusClass(analysis.attestation_comparison.rc_pro.periode_validite)}>
+                            {getComparisonStatusText(analysis.attestation_comparison.rc_pro.periode_validite)}
+                          </span>
+                          <span>Activité couverte :</span>
+                          <span className={getComparisonStatusClass(analysis.attestation_comparison.rc_pro.activite_couverte)}>
+                            {getComparisonStatusText(analysis.attestation_comparison.rc_pro.activite_couverte)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   
-                  <p className="text-sm text-muted-foreground">
-                    Les mentions d'assurance sur un devis indiquent une cohérence documentaire. 
-                    Pour une vérification complète, demandez l'attestation d'assurance (PDF) à jour.
-                  </p>
+                  {/* Upload attestation component - only show if not already uploaded */}
+                  {!hasLevel2 && (
+                    <AttestationUpload 
+                      analysisId={analysis.id}
+                      quoteInfo={extractQuoteInfo(analysis)}
+                      onUploadComplete={fetchAnalysis}
+                    />
+                  )}
+                  
+                  {/* Recommendation */}
+                  {!hasLevel2 && (
+                    <p className="text-sm text-muted-foreground mt-4">
+                      Pour renforcer la vérification, nous vous recommandons de demander à l'artisan son attestation d'assurance à jour (PDF).
+                    </p>
+                  )}
                   
                   <div className="mt-4 p-3 bg-muted/50 rounded-lg">
                     <p className="text-xs text-muted-foreground italic">
-                      ℹ️ <strong>Note importante</strong> : L'analyse détecte les mentions d'assurance présentes sur le devis. 
-                      Elle ne constitue pas une vérification de validité des contrats d'assurance. 
-                      Seule l'attestation d'assurance officielle fait foi.
+                      ℹ️ <strong>Analyse documentaire automatisée</strong> basée sur les documents fournis.
+                      {hasLevel2 
+                        ? " La vérification par attestation prévaut sur l'analyse du devis seul."
+                        : " Les mentions d'assurance sur un devis indiquent une cohérence documentaire. Seule l'attestation d'assurance officielle fait foi."
+                      }
                     </p>
                   </div>
                 </div>

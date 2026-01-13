@@ -1,1 +1,4 @@
 project_id = "mmychjnqqcigysddlpre"
+
+[functions.analyze-attestation]
+verify_jwt = false
