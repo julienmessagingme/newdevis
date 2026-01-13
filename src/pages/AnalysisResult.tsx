@@ -299,11 +299,17 @@ const AnalysisResult = () => {
           
           {/* Score explanation */}
           <div className="mt-6 p-4 bg-background/50 rounded-xl border border-border/50">
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground mb-3">
               <strong className="text-foreground">💡 Comment interpréter ce score ?</strong><br />
-              Ce score est calculé selon une hiérarchie de critères : les <strong>critères critiques</strong> (entreprise non immatriculée, procédure collective, IBAN non valide, paiement en espèces, etc.) entraînent automatiquement un feu rouge. Les <strong>critères majeurs</strong> (prix élevés, acompte important, réputation faible) génèrent des vigilances. Les <strong>critères de confort</strong> (RGE, QUALIBAT, ancienneté) renforcent la confiance.<br />
-              <span className="italic">Ce score est une aide à la décision et non un jugement sur l'artisan.</span>
+              Ce score est calculé selon une hiérarchie de critères : les <strong>critères critiques</strong> entraînent automatiquement un feu rouge, les <strong>critères majeurs</strong> génèrent des vigilances, et les <strong>critères de confort</strong> renforcent la confiance.
             </p>
+            <Link 
+              to="/comprendre-score" 
+              state={{ fromAnalysis: true, analysisId: id }}
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-medium"
+            >
+              En savoir plus sur le scoring →
+            </Link>
           </div>
         </div>
 
