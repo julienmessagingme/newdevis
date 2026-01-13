@@ -12,7 +12,8 @@ import {
   Loader2,
   RefreshCw,
   Star,
-  Globe
+  Globe,
+  Award
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -22,6 +23,12 @@ interface ReputationOnline {
   rating?: number;
   reviews_count?: number;
   score: "VERT" | "ORANGE" | "ROUGE";
+  explanation: string;
+}
+
+interface RGEQualification {
+  isRGE: boolean;
+  score: "VERT" | "ORANGE";
   explanation: string;
 }
 
@@ -126,6 +133,38 @@ const extractReputationData = (analysis: Analysis): ReputationOnline | null => {
 // Filter out reputation-related items from points_ok/alertes to avoid duplicates
 const filterOutReputation = (items: string[]): string[] => {
   return items.filter(item => !item.toLowerCase().includes("réputation en ligne"));
+};
+
+// Extract RGE qualification data from points_ok or alertes
+const extractRGEData = (analysis: Analysis): RGEQualification | null => {
+  const allPoints = [...(analysis.points_ok || []), ...(analysis.alertes || [])];
+  
+  for (const point of allPoints) {
+    // Pattern for RGE = YES
+    if (point.includes("Qualification RGE") && point.includes("Oui")) {
+      return {
+        isRGE: true,
+        score: "VERT",
+        explanation: point
+      };
+    }
+    
+    // Pattern for RGE = NO
+    if (point.includes("Qualification RGE") && point.includes("Non")) {
+      return {
+        isRGE: false,
+        score: "ORANGE",
+        explanation: point
+      };
+    }
+  }
+  
+  return null;
+};
+
+// Filter out RGE-related items from points_ok/alertes to avoid duplicates
+const filterOutRGE = (items: string[]): string[] => {
+  return items.filter(item => !item.toLowerCase().includes("qualification rge"));
 };
 
 const AnalysisResult = () => {
@@ -336,6 +375,51 @@ const AnalysisResult = () => {
           </div>
         )}
 
+        {/* Qualification RGE - Bloc dédié */}
+        {(() => {
+          const rge = extractRGEData(analysis);
+          if (!rge) return null;
+          
+          const getRGEBgClass = () => {
+            return rge.isRGE 
+              ? "bg-score-green-bg border-score-green/30" 
+              : "bg-score-orange-bg border-score-orange/30";
+          };
+
+          return (
+            <div className={`border rounded-xl p-6 mb-6 ${getRGEBgClass()}`}>
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-background/50 rounded-xl flex-shrink-0">
+                  <Award className="h-6 w-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-3">
+                    <h2 className="font-semibold text-foreground text-lg">Qualification RGE</h2>
+                    {rge.isRGE ? (
+                      <CheckCircle2 className="h-6 w-6 text-score-green" />
+                    ) : (
+                      <AlertCircle className="h-6 w-6 text-score-orange" />
+                    )}
+                  </div>
+                  
+                  <div className="mb-3">
+                    <span className={`font-bold text-lg ${rge.isRGE ? "text-score-green" : "text-score-orange"}`}>
+                      {rge.isRGE ? "Oui – Artisan reconnu par France Rénov'" : "Non – Artisan non référencé RGE à ce jour"}
+                    </span>
+                  </div>
+                  
+                  <p className="text-sm text-muted-foreground">
+                    {rge.isRGE 
+                      ? "L'entreprise est référencée dans l'annuaire officiel des professionnels RGE (ADEME / France Rénov'). Cette qualification permet de bénéficier des aides de l'État."
+                      : "La qualification RGE est obligatoire uniquement pour bénéficier de certaines aides publiques (MaPrimeRénov', CEE, Éco-PTZ). Cela ne préjuge pas de la qualité de l'artisan."
+                    }
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Réputation en ligne - Bloc dédié */}
         {(() => {
           const reputation = extractReputationData(analysis);
@@ -422,9 +506,9 @@ const AnalysisResult = () => {
           );
         })()}
 
-        {/* Points OK - Filtered to exclude reputation items */}
+        {/* Points OK - Filtered to exclude reputation and RGE items */}
         {(() => {
-          const filteredPoints = filterOutReputation(analysis.points_ok || []);
+          const filteredPoints = filterOutRGE(filterOutReputation(analysis.points_ok || []));
           if (filteredPoints.length === 0) return null;
           
           return (
@@ -445,9 +529,9 @@ const AnalysisResult = () => {
           );
         })()}
 
-        {/* Alertes - Filtered to exclude reputation items */}
+        {/* Alertes - Filtered to exclude reputation and RGE items */}
         {(() => {
-          const filteredAlertes = filterOutReputation(analysis.alertes || []);
+          const filteredAlertes = filterOutRGE(filterOutReputation(analysis.alertes || []));
           if (filteredAlertes.length === 0) return null;
           
           return (
