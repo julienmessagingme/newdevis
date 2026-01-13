@@ -10,11 +10,20 @@ import {
   XCircle,
   FileText,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Star,
+  Globe
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { generatePdfReport } from "@/utils/generatePdfReport";
+
+interface ReputationOnline {
+  rating?: number;
+  reviews_count?: number;
+  score: "VERT" | "ORANGE" | "ROUGE";
+  explanation: string;
+}
 
 type Analysis = {
   id: string;
@@ -27,6 +36,7 @@ type Analysis = {
   status: string;
   error_message: string | null;
   created_at: string;
+  reputation_online?: ReputationOnline;
 };
 
 const getScoreIcon = (score: string | null, className: string = "h-5 w-5") => {
@@ -63,6 +73,59 @@ const getScoreTextClass = (score: string | null) => {
     case "ROUGE": return "text-score-red";
     default: return "text-muted-foreground";
   }
+};
+
+// Extract reputation data from points_ok or alertes
+const extractReputationData = (analysis: Analysis): ReputationOnline | null => {
+  const allPoints = [...(analysis.points_ok || []), ...(analysis.alertes || [])];
+  
+  for (const point of allPoints) {
+    // Pattern: "Réputation en ligne : X/5 (Y avis Google)"
+    const ratingMatch = point.match(/Réputation en ligne.*?(\d+(?:\.\d+)?)\s*\/\s*5.*?\((\d+)\s*avis/i);
+    if (ratingMatch) {
+      const rating = parseFloat(ratingMatch[1]);
+      const reviewsCount = parseInt(ratingMatch[2], 10);
+      
+      let score: "VERT" | "ORANGE" | "ROUGE";
+      if (rating > 4.5) {
+        score = "VERT";
+      } else if (rating >= 4.0) {
+        score = "ORANGE";
+      } else {
+        score = "ROUGE";
+      }
+      
+      return {
+        rating,
+        reviews_count: reviewsCount,
+        score,
+        explanation: point
+      };
+    }
+    
+    // Pattern for no reviews: "Aucun avis disponible"
+    if (point.includes("Réputation en ligne") && point.includes("Aucun avis disponible")) {
+      return {
+        score: "ORANGE",
+        explanation: point
+      };
+    }
+    
+    // Pattern for not found on Google
+    if (point.includes("Réputation en ligne") && (point.includes("non trouvé") || point.includes("Établissement non trouvé"))) {
+      return {
+        score: "ORANGE",
+        explanation: point
+      };
+    }
+  }
+  
+  return null;
+};
+
+// Filter out reputation-related items from points_ok/alertes to avoid duplicates
+const filterOutReputation = (items: string[]): string[] => {
+  return items.filter(item => !item.toLowerCase().includes("réputation en ligne"));
 };
 
 const AnalysisResult = () => {
@@ -273,41 +336,137 @@ const AnalysisResult = () => {
           </div>
         )}
 
-        {/* Points OK */}
-        {analysis.points_ok && analysis.points_ok.length > 0 && (
-          <div className="bg-card border border-border rounded-xl p-6 mb-6 card-shadow">
-            <h2 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-score-green" />
-              Points conformes
-            </h2>
-            <ul className="space-y-3">
-              {analysis.points_ok.map((point, index) => (
-                <li key={index} className="flex items-start gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-score-green mt-0.5 flex-shrink-0" />
-                  <span className="text-foreground">{point}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {/* Réputation en ligne - Bloc dédié */}
+        {(() => {
+          const reputation = extractReputationData(analysis);
+          if (!reputation) return null;
+          
+          const getReputationIcon = () => {
+            switch (reputation.score) {
+              case "VERT": return <CheckCircle2 className="h-6 w-6 text-score-green" />;
+              case "ORANGE": return <AlertCircle className="h-6 w-6 text-score-orange" />;
+              case "ROUGE": return <XCircle className="h-6 w-6 text-score-red" />;
+            }
+          };
+          
+          const getReputationBgClass = () => {
+            switch (reputation.score) {
+              case "VERT": return "bg-score-green-bg border-score-green/30";
+              case "ORANGE": return "bg-score-orange-bg border-score-orange/30";
+              case "ROUGE": return "bg-score-red-bg border-score-red/30";
+            }
+          };
 
-        {/* Alertes */}
-        {analysis.alertes && analysis.alertes.length > 0 && (
-          <div className="bg-card border border-border rounded-xl p-6 mb-6 card-shadow">
-            <h2 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-score-orange" />
-              Points de vigilance
-            </h2>
-            <ul className="space-y-3">
-              {analysis.alertes.map((alerte, index) => (
-                <li key={index} className="flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-score-orange mt-0.5 flex-shrink-0" />
-                  <span className="text-foreground">{alerte}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+          return (
+            <div className={`border rounded-xl p-6 mb-8 ${getReputationBgClass()}`}>
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-background/50 rounded-xl flex-shrink-0">
+                  <Globe className="h-6 w-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-3">
+                    <h2 className="font-semibold text-foreground text-lg">Réputation en ligne</h2>
+                    {getReputationIcon()}
+                  </div>
+                  
+                  {reputation.rating !== undefined && reputation.reviews_count !== undefined ? (
+                    <div className="mb-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              className={`h-5 w-5 ${
+                                star <= Math.round(reputation.rating!)
+                                  ? "text-yellow-400 fill-yellow-400"
+                                  : "text-muted-foreground/30"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <span className="font-bold text-foreground text-lg">
+                          {reputation.rating}/5
+                        </span>
+                        <span className="text-muted-foreground">
+                          ({reputation.reviews_count} avis Google)
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mb-3">
+                      <span className="text-muted-foreground">
+                        {reputation.explanation.includes("non trouvé") 
+                          ? "Établissement non trouvé sur Google"
+                          : "Aucun avis disponible sur Google"}
+                      </span>
+                    </div>
+                  )}
+                  
+                  <p className="text-sm text-muted-foreground">
+                    {reputation.rating !== undefined && reputation.score === "VERT" && 
+                      "Excellente réputation basée sur les avis clients Google."}
+                    {reputation.rating !== undefined && reputation.score === "ORANGE" && 
+                      "Bonne réputation avec quelques axes d'amélioration possibles."}
+                    {reputation.rating !== undefined && reputation.score === "ROUGE" && 
+                      "Il est recommandé de consulter les avis en détail avant de vous engager."}
+                    {reputation.rating === undefined && 
+                      "L'absence d'avis ne préjuge pas de la qualité de service de l'entreprise."}
+                  </p>
+                  
+                  <p className="text-xs text-muted-foreground/70 mt-3 italic">
+                    Les avis Google sont publics et peuvent évoluer dans le temps.
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Points OK - Filtered to exclude reputation items */}
+        {(() => {
+          const filteredPoints = filterOutReputation(analysis.points_ok || []);
+          if (filteredPoints.length === 0) return null;
+          
+          return (
+            <div className="bg-card border border-border rounded-xl p-6 mb-6 card-shadow">
+              <h2 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-score-green" />
+                Points conformes
+              </h2>
+              <ul className="space-y-3">
+                {filteredPoints.map((point, index) => (
+                  <li key={index} className="flex items-start gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-score-green mt-0.5 flex-shrink-0" />
+                    <span className="text-foreground">{point}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })()}
+
+        {/* Alertes - Filtered to exclude reputation items */}
+        {(() => {
+          const filteredAlertes = filterOutReputation(analysis.alertes || []);
+          if (filteredAlertes.length === 0) return null;
+          
+          return (
+            <div className="bg-card border border-border rounded-xl p-6 mb-6 card-shadow">
+              <h2 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-score-orange" />
+                Points de vigilance
+              </h2>
+              <ul className="space-y-3">
+                {filteredAlertes.map((alerte, index) => (
+                  <li key={index} className="flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-score-orange mt-0.5 flex-shrink-0" />
+                    <span className="text-foreground">{alerte}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })()}
 
         {/* Recommendations */}
         {analysis.recommandations && analysis.recommandations.length > 0 && (
