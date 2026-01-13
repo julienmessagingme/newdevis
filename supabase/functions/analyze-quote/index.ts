@@ -2602,9 +2602,31 @@ CONTRAINTES :
     ]);
     
     // Check if we have multi-type work analysis
-    const typesTravaux: TravauxItem[] = parsedAnalysis.types_travaux && Array.isArray(parsedAnalysis.types_travaux) 
+    let typesTravaux: TravauxItem[] = parsedAnalysis.types_travaux && Array.isArray(parsedAnalysis.types_travaux) 
       ? parsedAnalysis.types_travaux 
       : [];
+    
+    // Structured types_travaux for storage (with price comparison results)
+    interface TypeTravauxEnriched {
+      categorie: string;
+      libelle: string;
+      quantite: number | null;
+      unite: string;
+      montant_ht: number | null;
+      score_prix?: "VERT" | "ORANGE" | "ROUGE";
+      fourchette_min?: number;
+      fourchette_max?: number;
+      zone_type?: string;
+      explication?: string;
+    }
+    let typesTravauxEnriched: TypeTravauxEnriched[] = [];
+    
+    // Get zone info for display
+    let detectedZoneType: string | null = null;
+    if (parsedAnalysis.code_postal_chantier && zonesResult.data) {
+      const zoneInfo = getZoneCoefficient(parsedAnalysis.code_postal_chantier, zonesResult.data as ZoneGeographique[]);
+      detectedZoneType = zoneInfo.zoneType;
+    }
     
     if (typesTravaux.length > 0 && parsedAnalysis.code_postal_chantier && referencePrixResult.data && zonesResult.data) {
       console.log("Multi-type price comparison:", {
@@ -2624,6 +2646,26 @@ CONTRAINTES :
         items_count: multiPriceResult.items.length,
         globalScore: multiPriceResult.globalScore,
         summary: multiPriceResult.summary
+      });
+      
+      // Enrich typesTravaux with price comparison results
+      typesTravauxEnriched = typesTravaux.map(t => {
+        const priceItem = multiPriceResult?.items.find(
+          p => p.categorie.toLowerCase() === t.categorie.toLowerCase()
+        );
+        
+        return {
+          categorie: t.categorie,
+          libelle: t.libelle || t.categorie,
+          quantite: t.quantite,
+          unite: t.unite,
+          montant_ht: t.montant_ht,
+          score_prix: priceItem?.score,
+          fourchette_min: priceItem?.fourchetteBasse,
+          fourchette_max: priceItem?.fourchetteHaute,
+          zone_type: priceItem?.zoneType || detectedZoneType || undefined,
+          explication: priceItem?.explication
+        };
       });
       
       // Add multi-price results
@@ -2656,6 +2698,20 @@ CONTRAINTES :
         if (priceComparisonResult) {
           console.log("Price comparison result:", priceComparisonResult);
           
+          // Create a single-item enriched array for storage
+          typesTravauxEnriched = [{
+            categorie: parsedAnalysis.categorie_travaux,
+            libelle: priceComparisonResult.libelle || parsedAnalysis.categorie_travaux,
+            quantite: parseFloat(parsedAnalysis.quantite),
+            unite: priceComparisonResult.unite,
+            montant_ht: parseFloat(parsedAnalysis.montant_ht),
+            score_prix: priceComparisonResult.score,
+            fourchette_min: priceComparisonResult.fourchetteBasse,
+            fourchette_max: priceComparisonResult.fourchetteHaute,
+            zone_type: priceComparisonResult.zoneType,
+            explication: priceComparisonResult.explication
+          }];
+          
           if (priceComparisonResult.point_ok) {
             allPointsOk.push(priceComparisonResult.point_ok);
           }
@@ -2666,8 +2722,28 @@ CONTRAINTES :
           allRecommandations.push(`💰 Analyse des prix: ${priceComparisonResult.explication}`);
         } else {
           console.log("Category not found in reference prices:", parsedAnalysis.categorie_travaux);
+          // Still store the type even without price comparison
+          typesTravauxEnriched = [{
+            categorie: parsedAnalysis.categorie_travaux,
+            libelle: parsedAnalysis.categorie_travaux,
+            quantite: parseFloat(parsedAnalysis.quantite),
+            unite: "forfait",
+            montant_ht: parseFloat(parsedAnalysis.montant_ht),
+            zone_type: detectedZoneType || undefined
+          }];
         }
       }
+    } else if (typesTravaux.length > 0) {
+      // We have types_travaux but no postal code for price comparison
+      // Store them anyway for display
+      console.log("Types travaux found but no postal code for price comparison");
+      typesTravauxEnriched = typesTravaux.map(t => ({
+        categorie: t.categorie,
+        libelle: t.libelle || t.categorie,
+        quantite: t.quantite,
+        unite: t.unite,
+        montant_ht: t.montant_ht
+      }));
     } else {
       console.log("Price comparison data incomplete, skipping price analysis");
     }
@@ -3057,6 +3133,7 @@ CONTRAINTES :
         alertes: allAlertes,
         recommandations: allRecommandations,
         raw_text: analysisContent,
+        types_travaux: typesTravauxEnriched.length > 0 ? typesTravauxEnriched : null,
       })
       .eq("id", analysisId);
 
