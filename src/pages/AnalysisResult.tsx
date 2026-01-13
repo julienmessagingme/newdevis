@@ -18,13 +18,16 @@ import { generatePdfReport } from "@/utils/generatePdfReport";
 import { 
   BlockEntreprise, 
   BlockDevis, 
+  BlockDevisMultiple,
   BlockSecurite, 
   BlockContexte,
   filterOutEntrepriseItems,
   filterOutDevisItems,
+  filterOutPriceItems,
   filterOutSecuriteItems,
   filterOutContexteItems
 } from "@/components/analysis";
+import type { TravauxItem } from "@/components/analysis";
 
 type Analysis = {
   id: string;
@@ -43,6 +46,7 @@ type Analysis = {
   attestation_comparison?: Record<string, unknown>;
   raw_text?: string;
   site_context?: Record<string, unknown>;
+  types_travaux?: TravauxItem[];
 };
 
 const getScoreIcon = (score: string | null, className: string = "h-5 w-5") => {
@@ -109,7 +113,7 @@ const AnalysisResult = () => {
       return;
     }
 
-    setAnalysis(data as Analysis);
+    setAnalysis(data as unknown as Analysis);
     setLoading(false);
   }, [id, navigate]);
 
@@ -127,7 +131,7 @@ const AnalysisResult = () => {
           filter: `id=eq.${id}`,
         },
         (payload) => {
-          setAnalysis(payload.new as Analysis);
+          setAnalysis(payload.new as unknown as Analysis);
         }
       )
       .subscribe();
@@ -229,19 +233,26 @@ const AnalysisResult = () => {
     );
   }
 
+  // Check if we have structured types_travaux data
+  const hasStructuredTypesTravaux = analysis.types_travaux && analysis.types_travaux.length > 0;
+
   // Filter remaining points after all blocks extract their data
   const remainingPointsOk = filterOutContexteItems(
     filterOutSecuriteItems(
-      filterOutDevisItems(
-        filterOutEntrepriseItems(analysis.points_ok || [])
+      filterOutPriceItems(
+        filterOutDevisItems(
+          filterOutEntrepriseItems(analysis.points_ok || [])
+        )
       )
     )
   );
   
   const remainingAlertes = filterOutContexteItems(
     filterOutSecuriteItems(
-      filterOutDevisItems(
-        filterOutEntrepriseItems(analysis.alertes || [])
+      filterOutPriceItems(
+        filterOutDevisItems(
+          filterOutEntrepriseItems(analysis.alertes || [])
+        )
       )
     )
   );
@@ -328,10 +339,20 @@ const AnalysisResult = () => {
         />
 
         {/* BLOC 2 — Devis & Cohérence financière */}
-        <BlockDevis 
+        {/* Use BlockDevisMultiple if we have structured data or price analysis in points */}
+        <BlockDevisMultiple 
+          typesTravaux={analysis.types_travaux}
           pointsOk={analysis.points_ok || []} 
           alertes={analysis.alertes || []} 
         />
+        
+        {/* Fallback to simple BlockDevis if no multi-type data */}
+        {!hasStructuredTypesTravaux && (
+          <BlockDevis 
+            pointsOk={analysis.points_ok || []} 
+            alertes={analysis.alertes || []} 
+          />
+        )}
 
         {/* BLOC 3 — Sécurité & Conditions de paiement */}
         <BlockSecurite 

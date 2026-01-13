@@ -34,6 +34,7 @@ export type Database = {
           resume: string | null
           score: string | null
           status: string
+          types_travaux: Json | null
           updated_at: string
           user_id: string
         }
@@ -56,6 +57,7 @@ export type Database = {
           resume?: string | null
           score?: string | null
           status?: string
+          types_travaux?: Json | null
           updated_at?: string
           user_id: string
         }
@@ -78,6 +80,7 @@ export type Database = {
           resume?: string | null
           score?: string | null
           status?: string
+          types_travaux?: Json | null
           updated_at?: string
           user_id?: string
         }
