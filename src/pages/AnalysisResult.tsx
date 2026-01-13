@@ -15,7 +15,8 @@ import {
   Globe,
   Award,
   ShieldCheck,
-  FileCheck
+  FileCheck,
+  CreditCard
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -359,6 +360,83 @@ const filterOutAssurance = (items: string[]): string[] => {
            !lower.includes("décennale") && 
            !lower.includes("rc pro") &&
            !lower.includes("attestation d'assurance");
+  });
+};
+
+// Extract IBAN verification data from points_ok or alertes
+interface IBANInfo {
+  hasIBAN: boolean;
+  isValid?: boolean;
+  countryCode?: string;
+  isFrance?: boolean;
+  score: "VERT" | "ORANGE" | "ROUGE";
+  explanation: string;
+}
+
+const extractIBANData = (analysis: Analysis): IBANInfo | null => {
+  const allPoints = [...(analysis.points_ok || []), ...(analysis.alertes || [])];
+  
+  for (const point of allPoints) {
+    const lowerPoint = point.toLowerCase();
+    
+    // Check for IBAN / mode de règlement mentions
+    if (lowerPoint.includes("mode de règlement") || lowerPoint.includes("iban")) {
+      // Valid French IBAN
+      if (lowerPoint.includes("valide") && lowerPoint.includes("france")) {
+        return {
+          hasIBAN: true,
+          isValid: true,
+          countryCode: "FR",
+          isFrance: true,
+          score: "VERT",
+          explanation: point
+        };
+      }
+      
+      // Valid but foreign IBAN
+      if (lowerPoint.includes("valide") && (lowerPoint.includes("hors de france") || lowerPoint.includes("étranger"))) {
+        // Extract country from the point
+        const countryMatch = point.match(/\(([A-Za-zÀ-ÿ\s]+)\)/);
+        const country = countryMatch ? countryMatch[1] : "Étranger";
+        return {
+          hasIBAN: true,
+          isValid: true,
+          isFrance: false,
+          score: "ORANGE",
+          explanation: point
+        };
+      }
+      
+      // Invalid IBAN
+      if (lowerPoint.includes("non valide") || lowerPoint.includes("invalide")) {
+        return {
+          hasIBAN: true,
+          isValid: false,
+          score: "ROUGE",
+          explanation: point
+        };
+      }
+      
+      // No IBAN detected
+      if (lowerPoint.includes("aucun iban")) {
+        return {
+          hasIBAN: false,
+          score: "ORANGE",
+          explanation: point
+        };
+      }
+    }
+  }
+  
+  return null;
+};
+
+// Filter out IBAN-related items from points_ok/alertes to avoid duplicates
+const filterOutIBAN = (items: string[]): string[] => {
+  return items.filter(item => {
+    const lower = item.toLowerCase();
+    return !lower.includes("mode de règlement") && 
+           !lower.includes("iban");
   });
 };
 
@@ -1053,9 +1131,99 @@ const AnalysisResult = () => {
           );
         })()}
 
-        {/* Points OK - Filtered to exclude reputation, RGE, QUALIBAT and Assurance items */}
+        {/* Mode de règlement - IBAN - Bloc dédié */}
         {(() => {
-          const filteredPoints = filterOutAssurance(filterOutQualibat(filterOutRGE(filterOutReputation(analysis.points_ok || []))));
+          const ibanInfo = extractIBANData(analysis);
+          if (!ibanInfo) return null;
+          
+          const getIBANBgClass = () => {
+            switch (ibanInfo.score) {
+              case "VERT": return "bg-score-green-bg border-score-green/30";
+              case "ORANGE": return "bg-score-orange-bg border-score-orange/30";
+              case "ROUGE": return "bg-score-red-bg border-score-red/30";
+            }
+          };
+
+          const getIBANIcon = () => {
+            switch (ibanInfo.score) {
+              case "VERT": return <CheckCircle2 className="h-6 w-6 text-score-green" />;
+              case "ORANGE": return <AlertCircle className="h-6 w-6 text-score-orange" />;
+              case "ROUGE": return <XCircle className="h-6 w-6 text-score-red" />;
+            }
+          };
+
+          const getIBANStatusText = () => {
+            if (!ibanInfo.hasIBAN) {
+              return "Aucun IBAN détecté sur le devis";
+            }
+            if (ibanInfo.isValid === false) {
+              return "IBAN non valide techniquement";
+            }
+            if (ibanInfo.isFrance) {
+              return "IBAN valide - Domicilié en France";
+            }
+            return "IBAN valide - Domicilié à l'étranger";
+          };
+
+          const getIBANExplanation = () => {
+            if (!ibanInfo.hasIBAN) {
+              return "Aucun numéro IBAN n'a été détecté sur le devis. Si un paiement par virement est demandé, vérifiez les coordonnées bancaires directement avec l'artisan.";
+            }
+            if (ibanInfo.isValid === false) {
+              return "L'IBAN mentionné sur le devis n'est pas valide techniquement. Cela peut indiquer une erreur de saisie ou un numéro erroné. Vérifiez ce point avec l'artisan avant tout paiement.";
+            }
+            if (ibanInfo.isFrance) {
+              return "L'IBAN mentionné sur le devis est valide et domicilié en France. Cela correspond à la situation habituelle pour un artisan intervenant en France.";
+            }
+            return "L'IBAN mentionné sur le devis est valide mais domicilié à l'étranger. Pour un artisan intervenant en France, un compte bancaire français est plus habituel. Cela ne préjuge pas de la qualité du prestataire, mais mérite vérification.";
+          };
+
+          return (
+            <div className={`border rounded-xl p-6 mb-6 ${getIBANBgClass()}`}>
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-background/50 rounded-xl flex-shrink-0">
+                  <CreditCard className="h-6 w-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-3">
+                    <h2 className="font-semibold text-foreground text-lg">Mode de règlement</h2>
+                    {getIBANIcon()}
+                  </div>
+                  
+                  <div className="mb-3">
+                    <span className={`font-bold text-lg ${
+                      ibanInfo.score === "VERT" ? "text-score-green" :
+                      ibanInfo.score === "ORANGE" ? "text-score-orange" :
+                      "text-score-red"
+                    }`}>
+                      {getIBANStatusText()}
+                    </span>
+                  </div>
+                  
+                  <p className="text-sm text-muted-foreground">
+                    {getIBANExplanation()}
+                  </p>
+                  
+                  {(ibanInfo.score === "ORANGE" || ibanInfo.score === "ROUGE") && (
+                    <div className="mt-3 p-2 bg-background/50 rounded-lg">
+                      <p className="text-xs text-muted-foreground">
+                        💡 <strong>Recommandation</strong> : Nous vous recommandons de vérifier ce point avec l'artisan avant tout paiement.
+                      </p>
+                    </div>
+                  )}
+                  
+                  <p className="text-xs text-muted-foreground/70 mt-3 italic">
+                    Vérification technique de l'IBAN via l'API OpenIBAN. Cette analyse est purement factuelle et ne constitue pas un jugement.
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Points OK - Filtered to exclude reputation, RGE, QUALIBAT, Assurance and IBAN items */}
+        {(() => {
+          const filteredPoints = filterOutIBAN(filterOutAssurance(filterOutQualibat(filterOutRGE(filterOutReputation(analysis.points_ok || [])))));
           if (filteredPoints.length === 0) return null;
           
           return (
@@ -1076,9 +1244,9 @@ const AnalysisResult = () => {
           );
         })()}
 
-        {/* Alertes - Filtered to exclude reputation, RGE, QUALIBAT and Assurance items */}
+        {/* Alertes - Filtered to exclude reputation, RGE, QUALIBAT, Assurance and IBAN items */}
         {(() => {
-          const filteredAlertes = filterOutAssurance(filterOutQualibat(filterOutRGE(filterOutReputation(analysis.alertes || []))));
+          const filteredAlertes = filterOutIBAN(filterOutAssurance(filterOutQualibat(filterOutRGE(filterOutReputation(analysis.alertes || [])))));
           if (filteredAlertes.length === 0) return null;
           
           return (

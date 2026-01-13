@@ -11,8 +11,205 @@ const PAPPERS_API_URL = "https://api.pappers.fr/v2";
 const BODACC_API_URL = "https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales/records";
 const GOOGLE_PLACES_API_URL = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json";
 const ADEME_RGE_API_URL = "https://data.ademe.fr/data-fair/api/v1/datasets/liste-des-entreprises-rge-2/lines";
+const OPENIBAN_API_URL = "https://openiban.com/validate";
 
-// ============ PRICE COMPARISON LOGIC ============
+// ============ IBAN VERIFICATION LOGIC ============
+
+interface IBANVerificationResult {
+  hasIBAN: boolean;
+  iban?: string;
+  isValid?: boolean;
+  country?: string;
+  countryCode?: string;
+  bankName?: string;
+  score: ScoringColor;
+  indicator?: CompanyIndicator;
+  point_ok?: string;
+  alerte?: string;
+  recommandation?: string;
+}
+
+// Extract IBAN from document text using regex patterns
+function extractIBANFromText(text: string): string | null {
+  if (!text) return null;
+  
+  // Standard IBAN patterns (France: FR + 2 check digits + 23 alphanumeric)
+  // General pattern for any country IBAN
+  const ibanPatterns = [
+    // French IBAN format: FR76 1234 5678 9012 3456 7890 123
+    /\b(FR\s*\d{2}\s*(?:\d{4}\s*){5}\d{3})\b/gi,
+    // General IBAN with spaces
+    /\b([A-Z]{2}\s*\d{2}\s*(?:[A-Z0-9]{4}\s*)+[A-Z0-9]{1,4})\b/gi,
+    // IBAN without spaces
+    /\b([A-Z]{2}\d{2}[A-Z0-9]{10,30})\b/g,
+  ];
+  
+  for (const pattern of ibanPatterns) {
+    const matches = text.match(pattern);
+    if (matches && matches.length > 0) {
+      // Clean and return first match
+      const cleanIBAN = matches[0].replace(/\s/g, "").toUpperCase();
+      // Validate it looks like a real IBAN (2 letters + 2 digits + more)
+      if (/^[A-Z]{2}\d{2}[A-Z0-9]+$/.test(cleanIBAN) && cleanIBAN.length >= 15 && cleanIBAN.length <= 34) {
+        return cleanIBAN;
+      }
+    }
+  }
+  
+  return null;
+}
+
+// Verify IBAN using OpenIBAN API
+async function verifyIBANWithOpenIBAN(iban: string): Promise<{
+  valid: boolean;
+  country?: string;
+  countryCode?: string;
+  bankName?: string;
+  bankBIC?: string;
+}> {
+  try {
+    const response = await fetch(`${OPENIBAN_API_URL}/${iban}?getBIC=true&validateBankCode=true`, {
+      method: "GET",
+      headers: {
+        "Accept": "application/json",
+      },
+    });
+    
+    if (!response.ok) {
+      console.error("OpenIBAN API error:", response.status);
+      return { valid: false };
+    }
+    
+    const data = await response.json();
+    
+    return {
+      valid: data.valid === true,
+      country: data.bankData?.country || undefined,
+      countryCode: data.bankData?.countryCode || iban.substring(0, 2),
+      bankName: data.bankData?.name || undefined,
+      bankBIC: data.bankData?.bic || undefined,
+    };
+  } catch (error) {
+    console.error("OpenIBAN verification error:", error);
+    return { valid: false };
+  }
+}
+
+// Analyze IBAN and determine score
+async function analyzeIBAN(documentText: string): Promise<IBANVerificationResult> {
+  const result: IBANVerificationResult = {
+    hasIBAN: false,
+    score: "ORANGE",
+  };
+  
+  // Extract IBAN from document
+  const iban = extractIBANFromText(documentText);
+  
+  if (!iban) {
+    // No IBAN detected
+    result.indicator = {
+      label: "Mode de règlement",
+      value: "Aucun IBAN détecté",
+      score: "ORANGE",
+      explanation: "Aucun numéro IBAN n'a été détecté sur le devis. Si un paiement par virement est demandé, assurez-vous de vérifier les coordonnées bancaires directement avec l'artisan."
+    };
+    result.alerte = "⚠️ Mode de règlement : aucun IBAN détecté sur le devis.";
+    result.recommandation = "Si un paiement par virement est demandé, vérifiez les coordonnées bancaires directement avec l'artisan.";
+    return result;
+  }
+  
+  result.hasIBAN = true;
+  result.iban = iban;
+  
+  // Verify IBAN with OpenIBAN API
+  console.log("Verifying IBAN with OpenIBAN:", iban.substring(0, 4) + "...");
+  const verification = await verifyIBANWithOpenIBAN(iban);
+  
+  result.isValid = verification.valid;
+  result.country = verification.country;
+  result.countryCode = verification.countryCode || iban.substring(0, 2);
+  result.bankName = verification.bankName;
+  
+  // Format IBAN for display (first 4 + last 4 only for privacy)
+  const maskedIBAN = iban.substring(0, 4) + "..." + iban.substring(iban.length - 4);
+  
+  if (!verification.valid) {
+    // IBAN is not valid
+    result.score = "ROUGE";
+    result.indicator = {
+      label: "Mode de règlement",
+      value: `IBAN non valide (${maskedIBAN})`,
+      score: "ROUGE",
+      explanation: "L'IBAN mentionné sur le devis n'est pas valide techniquement. Cela peut indiquer une erreur de saisie ou un numéro erroné. Vérifiez ce point avec l'artisan avant tout paiement."
+    };
+    result.alerte = `🔴 Mode de règlement : l'IBAN détecté (${maskedIBAN}) n'est pas valide techniquement. Vérifiez ce point avant tout paiement.`;
+    result.recommandation = "Nous vous recommandons de vérifier ce point avec l'artisan avant tout paiement.";
+  } else if (result.countryCode === "FR") {
+    // Valid French IBAN
+    result.score = "VERT";
+    const bankInfo = result.bankName ? ` (${result.bankName})` : "";
+    result.indicator = {
+      label: "Mode de règlement",
+      value: `IBAN valide - France${bankInfo}`,
+      score: "VERT",
+      explanation: `L'IBAN mentionné sur le devis (${maskedIBAN}) est valide et domicilié en France.${bankInfo ? ` Établissement bancaire : ${result.bankName}.` : ""}`
+    };
+    result.point_ok = `✓ Mode de règlement : IBAN valide et domicilié en France${bankInfo}.`;
+  } else {
+    // Valid but foreign IBAN
+    result.score = "ORANGE";
+    const countryName = getCountryName(result.countryCode);
+    result.indicator = {
+      label: "Mode de règlement",
+      value: `IBAN valide - ${countryName}`,
+      score: "ORANGE",
+      explanation: `L'IBAN mentionné sur le devis (${maskedIBAN}) est valide mais domicilié à l'étranger (${countryName}). Pour un artisan intervenant en France, un compte bancaire français est plus habituel. Cela ne préjuge pas de la qualité du prestataire, mais mérite vérification.`
+    };
+    result.alerte = `⚠️ Mode de règlement : l'IBAN détecté est domicilié hors de France (${countryName}). Cela peut être normal mais mérite vérification.`;
+    result.recommandation = "Nous vous recommandons de vérifier ce point avec l'artisan avant tout paiement.";
+  }
+  
+  return result;
+}
+
+// Helper to get country name from ISO code
+function getCountryName(countryCode: string): string {
+  const countries: Record<string, string> = {
+    "FR": "France",
+    "DE": "Allemagne",
+    "BE": "Belgique",
+    "CH": "Suisse",
+    "ES": "Espagne",
+    "IT": "Italie",
+    "PT": "Portugal",
+    "LU": "Luxembourg",
+    "NL": "Pays-Bas",
+    "AT": "Autriche",
+    "GB": "Royaume-Uni",
+    "IE": "Irlande",
+    "PL": "Pologne",
+    "CZ": "République Tchèque",
+    "RO": "Roumanie",
+    "BG": "Bulgarie",
+    "HU": "Hongrie",
+    "SK": "Slovaquie",
+    "HR": "Croatie",
+    "SI": "Slovénie",
+    "GR": "Grèce",
+    "DK": "Danemark",
+    "SE": "Suède",
+    "FI": "Finlande",
+    "NO": "Norvège",
+    "MT": "Malte",
+    "CY": "Chypre",
+    "EE": "Estonie",
+    "LV": "Lettonie",
+    "LT": "Lituanie",
+  };
+  return countries[countryCode] || countryCode;
+}
+
+// ============ END IBAN VERIFICATION ============
 
 interface PriceComparisonResult {
   score: "VERT" | "ORANGE" | "ROUGE";
@@ -1657,6 +1854,28 @@ CONTRAINTES :
       allRecommandations.unshift("Demandez à l'artisan son numéro SIRET pour vérifier son immatriculation");
     }
 
+    // ============ IBAN VERIFICATION ============
+    console.log("Starting IBAN verification...");
+    const ibanResult = await analyzeIBAN(analysisContent);
+    
+    console.log("IBAN verification result:", {
+      hasIBAN: ibanResult.hasIBAN,
+      isValid: ibanResult.isValid,
+      countryCode: ibanResult.countryCode,
+      score: ibanResult.score
+    });
+    
+    if (ibanResult.point_ok) {
+      allPointsOk.push(ibanResult.point_ok);
+    }
+    if (ibanResult.alerte) {
+      allAlertes.push(ibanResult.alerte);
+    }
+    if (ibanResult.recommandation) {
+      allRecommandations.push(ibanResult.recommandation);
+    }
+    // ============ END IBAN VERIFICATION ============
+
     // Recalculate score based on combined alerts
     let score = parsedAnalysis.score?.toUpperCase() || "ORANGE";
     const validScores = ["VERT", "ORANGE", "ROUGE"];
@@ -1696,6 +1915,20 @@ CONTRAINTES :
     // Google Places rating impact on score (only RED ratings affect score)
     if (googlePlacesResult?.score === "ROUGE") {
       if (score === "VERT") score = "ORANGE";
+    }
+    
+    // IBAN impact on score
+    // Invalid IBAN (ROUGE) can influence global score strongly
+    // Foreign IBAN (ORANGE) cannot alone trigger global ROUGE
+    if (ibanResult.score === "ROUGE") {
+      // Invalid IBAN is a strong warning - can make VERT become ORANGE or ORANGE become ROUGE
+      if (score === "VERT") {
+        score = "ORANGE";
+      }
+      // Note: We don't automatically set to ROUGE because invalid IBAN alone shouldn't override everything
+      // But combined with other issues, it's a strong warning
+    } else if (ibanResult.score === "ORANGE" && score === "VERT") {
+      score = "ORANGE";
     }
     
     if (!validScores.includes(score)) {
