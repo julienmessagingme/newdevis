@@ -26,26 +26,100 @@ interface BlockContexteProps {
   pointsOk: string[];
   alertes: string[];
   chantierAddress?: string | null;
+  rawText?: string | null;
 }
 
-// Extract site context from points_ok/alertes if not provided directly
+// Extract address from AI analysis JSON
+const extractAddressFromRawText = (rawText: string | null): string | null => {
+  if (!rawText) return null;
+  
+  try {
+    const parsed = JSON.parse(rawText);
+    
+    // Priority: adresse_chantier > code_postal_chantier > adresse_client
+    if (parsed.adresse_chantier && typeof parsed.adresse_chantier === "string") {
+      return parsed.adresse_chantier;
+    }
+    if (parsed.code_postal_chantier) {
+      return `Code postal: ${parsed.code_postal_chantier}`;
+    }
+    if (parsed.adresse_client && typeof parsed.adresse_client === "string") {
+      return parsed.adresse_client;
+    }
+  } catch {
+    // Try regex extraction as fallback
+    const addressMatch = rawText.match(/adresse_chantier[:\s]*["']([^"']+)["']/i);
+    if (addressMatch) {
+      return addressMatch[1];
+    }
+    
+    const postalMatch = rawText.match(/code_postal_chantier[:\s]*["']?(\d{5})["']?/i);
+    if (postalMatch) {
+      return `Code postal: ${postalMatch[1]}`;
+    }
+  }
+  
+  return null;
+};
+
+// Extract site context from points_ok (from backend analysis)
 const extractSiteContextFromPoints = (pointsOk: string[], alertes: string[]): Partial<SiteContextResult> | null => {
   const allPoints = [...pointsOk, ...alertes];
   
   const risks: Array<{ risk_type: string; level: string; description: string }> = [];
   let postalCode: string | null = null;
   let address: string | null = null;
+  let commune: string | null = null;
+  let seismicZone: string | null = null;
+  let hasDataFromBackend = false;
   
   for (const point of allPoints) {
     const lowerPoint = point.toLowerCase();
     
-    // Check for postal code
+    // Check for backend site context markers (📍 prefix)
+    if (point.startsWith("📍")) {
+      hasDataFromBackend = true;
+      
+      // Extract commune from "Contexte chantier (Commune)"
+      const communeMatch = point.match(/contexte chantier \(([^)]+)\)/i);
+      if (communeMatch) {
+        commune = communeMatch[1];
+      }
+      
+      // Extract risks count and types
+      const risksMatch = point.match(/(\d+) risque\(s\) naturel\(s\).*?:\s*(.+)/i);
+      if (risksMatch) {
+        const riskTypes = risksMatch[2].split(",").map(r => r.trim());
+        for (const riskType of riskTypes) {
+          risks.push({
+            risk_type: riskType,
+            level: "Identifié",
+            description: point
+          });
+        }
+      }
+      
+      // Extract seismic zone
+      if (lowerPoint.includes("zone sismique")) {
+        const seismicMatch = point.match(/zone sismique\s*:\s*(.+)/i);
+        if (seismicMatch) {
+          seismicZone = seismicMatch[1].trim();
+        }
+      }
+      
+      // Check for "no constraints" message
+      if (lowerPoint.includes("aucune contrainte particulière")) {
+        // This means no_data status
+      }
+    }
+    
+    // Legacy: Check for postal code
     const postalMatch = point.match(/(\d{5})/);
-    if (postalMatch) {
+    if (postalMatch && !postalCode) {
       postalCode = postalMatch[1];
     }
     
-    // Check for address mentions
+    // Legacy: Check for address mentions
     if (lowerPoint.includes("adresse") || lowerPoint.includes("chantier")) {
       const addressMatch = point.match(/(?:adresse|chantier)[^:]*:\s*(.+)/i);
       if (addressMatch) {
@@ -53,7 +127,7 @@ const extractSiteContextFromPoints = (pointsOk: string[], alertes: string[]): Pa
       }
     }
     
-    // Check for risk mentions
+    // Legacy: Check for risk mentions
     if (lowerPoint.includes("inondation") || lowerPoint.includes("flood")) {
       const levelMatch = point.match(/niveau\s*:?\s*(\w+)/i) || point.match(/(faible|moyen|élevé|fort)/i);
       risks.push({
@@ -63,7 +137,7 @@ const extractSiteContextFromPoints = (pointsOk: string[], alertes: string[]): Pa
       });
     }
     
-    if (lowerPoint.includes("sism") || lowerPoint.includes("séism")) {
+    if ((lowerPoint.includes("sism") || lowerPoint.includes("séism")) && !point.startsWith("📍")) {
       const levelMatch = point.match(/zone\s*(\d)/i) || point.match(/(faible|moyen|modéré)/i);
       risks.push({
         risk_type: "Sismicité",
@@ -89,50 +163,48 @@ const extractSiteContextFromPoints = (pointsOk: string[], alertes: string[]): Pa
     }
   }
   
+  // Build seismic zone object
+  let seismicZoneObj: { zone: string; level: string } | null = null;
+  if (seismicZone) {
+    seismicZoneObj = {
+      zone: seismicZone,
+      level: seismicZone.includes("1") ? "Très faible" : 
+             seismicZone.includes("2") ? "Faible" :
+             seismicZone.includes("3") ? "Modéré" :
+             seismicZone.includes("4") ? "Moyen" :
+             seismicZone.includes("5") ? "Fort" : "Non déterminé"
+    };
+  }
+  
+  // Determine status
+  let status: "data_found" | "no_data" | "address_incomplete" | "not_searched" = "not_searched";
+  if (hasDataFromBackend) {
+    if (risks.length > 0 || seismicZoneObj) {
+      status = "data_found";
+    } else if (commune) {
+      status = "no_data";
+    }
+  } else if (postalCode || address) {
+    status = risks.length > 0 ? "data_found" : "no_data";
+  }
+  
   return {
     postal_code: postalCode,
-    address,
+    address: address || (commune ? `${commune}` : null),
     risks,
+    seismic_zone: seismicZoneObj,
     error: null,
-    status: risks.length > 0 ? "data_found" : (postalCode || address ? "no_data" : "not_searched")
+    status
   };
-};
-
-// Extract address from raw text or points
-const extractChantierAddress = (pointsOk: string[], alertes: string[], rawText?: string): string | null => {
-  const allPoints = [...pointsOk, ...alertes];
-  
-  // Look for postal code in points
-  for (const point of allPoints) {
-    const postalMatch = point.match(/(\d{5})/);
-    if (postalMatch) {
-      return `Code postal: ${postalMatch[1]}`;
-    }
-  }
-  
-  // Look in raw text for code_postal_chantier
-  if (rawText) {
-    try {
-      const parsed = JSON.parse(rawText);
-      if (parsed.code_postal_chantier) {
-        return `Code postal: ${parsed.code_postal_chantier}`;
-      }
-    } catch {
-      // Not JSON, try regex
-      const postalMatch = rawText.match(/code_postal_chantier[:\s]*["']?(\d{5})["']?/i);
-      if (postalMatch) {
-        return `Code postal: ${postalMatch[1]}`;
-      }
-    }
-  }
-  
-  return null;
 };
 
 // Filter out context-related items
 export const filterOutContexteItems = (items: string[]): string[] => {
   return items.filter(item => {
     const lower = item.toLowerCase();
+    // Filter out items that start with 📍 (backend context markers)
+    if (item.startsWith("📍")) return false;
+    
     return !lower.includes("inondation") && 
            !lower.includes("sism") &&
            !lower.includes("séism") &&
@@ -148,7 +220,7 @@ export const filterOutContexteItems = (items: string[]): string[] => {
 
 const getRiskLevelColor = (level: string) => {
   const lowerLevel = level.toLowerCase();
-  if (lowerLevel.includes("faible") || lowerLevel.includes("zone 1") || lowerLevel.includes("très faible")) {
+  if (lowerLevel.includes("faible") || lowerLevel.includes("zone 1") || lowerLevel.includes("très faible") || lowerLevel.includes("identifié")) {
     return "text-score-green";
   }
   if (lowerLevel.includes("moyen") || lowerLevel.includes("modéré") || lowerLevel.includes("zone 2") || lowerLevel.includes("zone 3")) {
@@ -160,13 +232,14 @@ const getRiskLevelColor = (level: string) => {
   return "text-muted-foreground";
 };
 
-const BlockContexte = ({ siteContext, pointsOk, alertes, chantierAddress }: BlockContexteProps) => {
+const BlockContexte = ({ siteContext, pointsOk, alertes, chantierAddress, rawText }: BlockContexteProps) => {
   // Try to get context from siteContext prop or extract from points
   const extractedContext = extractSiteContextFromPoints(pointsOk, alertes);
   const contextData = siteContext || extractedContext;
   
-  // Try to find an address if not explicitly provided
-  const detectedAddress = chantierAddress || contextData?.address || contextData?.postal_code;
+  // Try to find an address from multiple sources
+  const addressFromRawText = extractAddressFromRawText(rawText || null);
+  const detectedAddress = chantierAddress || contextData?.address || addressFromRawText || contextData?.postal_code;
   
   // Determine display status
   const hasRisks = contextData?.risks && contextData.risks.length > 0;
@@ -177,15 +250,15 @@ const BlockContexte = ({ siteContext, pointsOk, alertes, chantierAddress }: Bloc
   // Determine the display case
   let displayCase: "data_found" | "no_data" | "address_incomplete";
   
-  if (contextData?.status === "address_incomplete" || contextData?.error?.includes("insuffisamment")) {
-    displayCase = "address_incomplete";
-  } else if (hasData) {
+  if (contextData?.status === "data_found" || hasData) {
     displayCase = "data_found";
-  } else if (detectedAddress) {
+  } else if (contextData?.status === "no_data" || (detectedAddress && !hasData)) {
     displayCase = "no_data";
-  } else {
-    // No address detected at all - still show block with address_incomplete message
+  } else if (contextData?.status === "address_incomplete" || !detectedAddress) {
     displayCase = "address_incomplete";
+  } else {
+    // Default based on whether we have an address
+    displayCase = detectedAddress ? "no_data" : "address_incomplete";
   }
   
   return (
@@ -235,7 +308,7 @@ const BlockContexte = ({ siteContext, pointsOk, alertes, chantierAddress }: Bloc
                         <p className={`text-sm font-medium ${getRiskLevelColor(risk.level)}`}>
                           Niveau : {risk.level}
                         </p>
-                        {risk.description && risk.description !== risk.risk_type && (
+                        {risk.description && risk.description !== risk.risk_type && !risk.description.startsWith("📍") && (
                           <p className="text-xs text-muted-foreground mt-1">{risk.description}</p>
                         )}
                       </div>
