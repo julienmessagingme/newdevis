@@ -13,7 +13,20 @@ const GOOGLE_PLACES_API_URL = "https://maps.googleapis.com/maps/api/place/findpl
 const ADEME_RGE_API_URL = "https://data.ademe.fr/data-fair/api/v1/datasets/liste-des-entreprises-rge-2/lines";
 const OPENIBAN_API_URL = "https://openiban.com/validate";
 
-// ============ IBAN VERIFICATION LOGIC ============
+// ============ PAYMENT CONDITIONS ANALYSIS ============
+
+// Payment method types
+type PaymentMethod = "virement" | "cheque" | "carte_bancaire" | "especes" | "non_detecte";
+
+interface PaymentConditionsExtraction {
+  modes_paiement: PaymentMethod[];
+  paiement_integral_avant_travaux: boolean;
+  acompte_pourcentage: number | null;
+  acompte_montant: number | null;
+  montant_total: number | null;
+  iban_detecte: boolean;
+  details_paiement: string;
+}
 
 interface IBANVerificationResult {
   hasIBAN: boolean;
@@ -23,6 +36,13 @@ interface IBANVerificationResult {
   countryCode?: string;
   bankName?: string;
   score: ScoringColor;
+}
+
+interface PaymentConditionsResult {
+  extraction: PaymentConditionsExtraction;
+  iban: IBANVerificationResult;
+  score: ScoringColor;
+  vigilanceCount: number;
   indicator?: CompanyIndicator;
   point_ok?: string;
   alerte?: string;
@@ -95,7 +115,7 @@ async function verifyIBANWithOpenIBAN(iban: string): Promise<{
   }
 }
 
-// Analyze IBAN and determine score
+// Analyze IBAN and return verification result
 async function analyzeIBAN(documentText: string): Promise<IBANVerificationResult> {
   const result: IBANVerificationResult = {
     hasIBAN: false,
@@ -106,15 +126,6 @@ async function analyzeIBAN(documentText: string): Promise<IBANVerificationResult
   const iban = extractIBANFromText(documentText);
   
   if (!iban) {
-    // No IBAN detected
-    result.indicator = {
-      label: "Mode de règlement",
-      value: "Aucun IBAN détecté",
-      score: "ORANGE",
-      explanation: "Aucun numéro IBAN n'a été détecté sur le devis. Si un paiement par virement est demandé, assurez-vous de vérifier les coordonnées bancaires directement avec l'artisan."
-    };
-    result.alerte = "⚠️ Mode de règlement : aucun IBAN détecté sur le devis.";
-    result.recommandation = "Si un paiement par virement est demandé, vérifiez les coordonnées bancaires directement avec l'artisan.";
     return result;
   }
   
@@ -130,43 +141,299 @@ async function analyzeIBAN(documentText: string): Promise<IBANVerificationResult
   result.countryCode = verification.countryCode || iban.substring(0, 2);
   result.bankName = verification.bankName;
   
-  // Format IBAN for display (first 4 + last 4 only for privacy)
-  const maskedIBAN = iban.substring(0, 4) + "..." + iban.substring(iban.length - 4);
-  
   if (!verification.valid) {
-    // IBAN is not valid
     result.score = "ROUGE";
-    result.indicator = {
-      label: "Mode de règlement",
-      value: `IBAN non valide (${maskedIBAN})`,
-      score: "ROUGE",
-      explanation: "L'IBAN mentionné sur le devis n'est pas valide techniquement. Cela peut indiquer une erreur de saisie ou un numéro erroné. Vérifiez ce point avec l'artisan avant tout paiement."
-    };
-    result.alerte = `🔴 Mode de règlement : l'IBAN détecté (${maskedIBAN}) n'est pas valide techniquement. Vérifiez ce point avant tout paiement.`;
-    result.recommandation = "Nous vous recommandons de vérifier ce point avec l'artisan avant tout paiement.";
   } else if (result.countryCode === "FR") {
-    // Valid French IBAN
     result.score = "VERT";
-    const bankInfo = result.bankName ? ` (${result.bankName})` : "";
-    result.indicator = {
-      label: "Mode de règlement",
-      value: `IBAN valide - France${bankInfo}`,
-      score: "VERT",
-      explanation: `L'IBAN mentionné sur le devis (${maskedIBAN}) est valide et domicilié en France.${bankInfo ? ` Établissement bancaire : ${result.bankName}.` : ""}`
-    };
-    result.point_ok = `✓ Mode de règlement : IBAN valide et domicilié en France${bankInfo}.`;
   } else {
-    // Valid but foreign IBAN
     result.score = "ORANGE";
-    const countryName = getCountryName(result.countryCode);
-    result.indicator = {
-      label: "Mode de règlement",
-      value: `IBAN valide - ${countryName}`,
-      score: "ORANGE",
-      explanation: `L'IBAN mentionné sur le devis (${maskedIBAN}) est valide mais domicilié à l'étranger (${countryName}). Pour un artisan intervenant en France, un compte bancaire français est plus habituel. Cela ne préjuge pas de la qualité du prestataire, mais mérite vérification.`
+  }
+  
+  return result;
+}
+
+// Extract payment conditions using AI
+async function extractPaymentConditions(
+  base64Content: string,
+  mimeType: string,
+  lovableApiKey: string
+): Promise<PaymentConditionsExtraction> {
+  const defaultResult: PaymentConditionsExtraction = {
+    modes_paiement: [],
+    paiement_integral_avant_travaux: false,
+    acompte_pourcentage: null,
+    acompte_montant: null,
+    montant_total: null,
+    iban_detecte: false,
+    details_paiement: "",
+  };
+
+  try {
+    const systemPrompt = `Tu es un expert en analyse de devis travaux. Tu extrais uniquement les informations présentes dans le document, sans inventer de données. Réponds uniquement avec un JSON valide.`;
+
+    const userPrompt = `Analyse ce devis et extrais les informations relatives aux CONDITIONS DE PAIEMENT.
+
+IMPORTANT: N'invente AUCUNE information. Si une donnée n'est pas visible, indique null ou vide.
+
+Recherche spécifiquement:
+- Modes de paiement mentionnés (virement, chèque, carte bancaire, espèces/cash/comptant)
+- Si un paiement intégral est demandé AVANT le début des travaux
+- Acompte demandé (en pourcentage du total ou en montant)
+- Montant total du devis
+- Si un IBAN est présent
+- Tout détail sur les conditions de paiement (échéancier, modalités)
+
+Retourne un JSON avec EXACTEMENT ces champs:
+{
+  "modes_paiement": ["virement", "cheque", "carte_bancaire", "especes"],
+  "paiement_integral_avant_travaux": true/false,
+  "acompte_pourcentage": 30,
+  "acompte_montant": 1500,
+  "montant_total": 5000,
+  "iban_detecte": true/false,
+  "details_paiement": "description des conditions trouvées"
+}
+
+CONTRAINTES:
+- modes_paiement: uniquement les valeurs parmi "virement", "cheque", "carte_bancaire", "especes" si explicitement mentionnées
+- paiement_integral_avant_travaux = true SEULEMENT si le document demande explicitement le paiement total avant travaux
+- acompte_pourcentage: pourcentage de l'acompte si mentionné, sinon null
+- acompte_montant: montant de l'acompte en euros si mentionné, sinon null
+- Si les deux sont disponibles (% et montant), renseigne les deux
+- Ne jamais déduire ou calculer le pourcentage si seul le montant est donné (et vice-versa)`;
+
+    const aiResponse = await fetch(LOVABLE_AI_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${lovableApiKey}`,
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: userPrompt },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:${mimeType};base64,${base64Content}`,
+                },
+              },
+            ],
+          },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+
+    if (!aiResponse.ok) {
+      console.error("Payment conditions extraction AI error:", aiResponse.status);
+      return defaultResult;
+    }
+
+    const aiResult = await aiResponse.json();
+    const content = aiResult.choices?.[0]?.message?.content;
+
+    if (!content) {
+      return defaultResult;
+    }
+
+    const parsed = JSON.parse(content);
+    
+    // Validate and normalize payment methods
+    const validMethods: PaymentMethod[] = ["virement", "cheque", "carte_bancaire", "especes"];
+    const normalizedMethods: PaymentMethod[] = [];
+    
+    if (Array.isArray(parsed.modes_paiement)) {
+      for (const method of parsed.modes_paiement) {
+        const normalized = method.toLowerCase().replace(/[^a-z_]/g, "");
+        if (validMethods.includes(normalized as PaymentMethod)) {
+          normalizedMethods.push(normalized as PaymentMethod);
+        }
+      }
+    }
+    
+    return {
+      modes_paiement: normalizedMethods,
+      paiement_integral_avant_travaux: Boolean(parsed.paiement_integral_avant_travaux),
+      acompte_pourcentage: typeof parsed.acompte_pourcentage === "number" ? parsed.acompte_pourcentage : null,
+      acompte_montant: typeof parsed.acompte_montant === "number" ? parsed.acompte_montant : null,
+      montant_total: typeof parsed.montant_total === "number" ? parsed.montant_total : null,
+      iban_detecte: Boolean(parsed.iban_detecte),
+      details_paiement: parsed.details_paiement || "",
     };
-    result.alerte = `⚠️ Mode de règlement : l'IBAN détecté est domicilié hors de France (${countryName}). Cela peut être normal mais mérite vérification.`;
-    result.recommandation = "Nous vous recommandons de vérifier ce point avec l'artisan avant tout paiement.";
+  } catch (error) {
+    console.error("Payment conditions extraction error:", error);
+    return defaultResult;
+  }
+}
+
+// Analyze payment conditions and calculate combined score
+async function analyzePaymentConditions(
+  documentText: string,
+  base64Content: string,
+  mimeType: string,
+  lovableApiKey: string
+): Promise<PaymentConditionsResult> {
+  // Extract payment conditions using AI
+  console.log("Extracting payment conditions...");
+  const extraction = await extractPaymentConditions(base64Content, mimeType, lovableApiKey);
+  
+  // Analyze IBAN
+  console.log("Analyzing IBAN...");
+  const ibanResult = await analyzeIBAN(documentText);
+  
+  // Calculate acompte percentage if only amount is available
+  let acomptePourcentage = extraction.acompte_pourcentage;
+  if (acomptePourcentage === null && extraction.acompte_montant !== null && extraction.montant_total !== null && extraction.montant_total > 0) {
+    acomptePourcentage = Math.round((extraction.acompte_montant / extraction.montant_total) * 100);
+  }
+  
+  // Initialize vigilance counters
+  let vigilanceCount = 0;
+  const vigilanceReasons: string[] = [];
+  const positivePoints: string[] = [];
+  
+  // Check payment methods
+  const hasTraceable = extraction.modes_paiement.some(m => 
+    ["virement", "cheque", "carte_bancaire"].includes(m)
+  );
+  const hasCash = extraction.modes_paiement.includes("especes");
+  
+  if (hasTraceable) {
+    positivePoints.push("Mode de paiement traçable accepté");
+  }
+  
+  if (hasCash) {
+    vigilanceCount++;
+    vigilanceReasons.push("Paiement en espèces demandé");
+  }
+  
+  // Check IBAN
+  if (ibanResult.hasIBAN) {
+    if (ibanResult.isValid === false) {
+      vigilanceCount++;
+      vigilanceReasons.push("IBAN non valide techniquement");
+    } else if (ibanResult.countryCode !== "FR") {
+      vigilanceCount++;
+      vigilanceReasons.push(`IBAN domicilié à l'étranger (${getCountryName(ibanResult.countryCode || "")})`);
+    } else {
+      positivePoints.push("IBAN valide et domicilié en France");
+    }
+  }
+  
+  // Check acompte
+  if (acomptePourcentage !== null) {
+    if (acomptePourcentage <= 30) {
+      positivePoints.push(`Acompte raisonnable (${acomptePourcentage}%)`);
+    } else if (acomptePourcentage > 50) {
+      vigilanceCount++;
+      vigilanceReasons.push(`Acompte élevé (${acomptePourcentage}%)`);
+    } else {
+      vigilanceReasons.push(`Acompte modéré (${acomptePourcentage}%)`);
+    }
+  }
+  
+  // Check full payment before work
+  if (extraction.paiement_integral_avant_travaux) {
+    vigilanceCount++;
+    vigilanceReasons.push("Paiement intégral demandé avant travaux");
+  }
+  
+  // Calculate combined score based on rules
+  let score: ScoringColor;
+  
+  // ROUGE conditions
+  if (
+    (ibanResult.hasIBAN && ibanResult.isValid === false) || // IBAN non valide
+    hasCash || // Espèces
+    extraction.paiement_integral_avant_travaux || // Paiement intégral avant travaux
+    vigilanceCount >= 2 // Au moins 2 critères de vigilance
+  ) {
+    score = "ROUGE";
+  }
+  // ORANGE conditions  
+  else if (
+    (acomptePourcentage !== null && acomptePourcentage > 30 && acomptePourcentage <= 50) || // Acompte 30-50%
+    (ibanResult.hasIBAN && ibanResult.countryCode !== "FR") || // IBAN étranger
+    !ibanResult.hasIBAN // Pas d'IBAN détecté (si virement mentionné)
+  ) {
+    score = "ORANGE";
+  }
+  // VERT conditions
+  else if (
+    hasTraceable && // Mode traçable
+    (acomptePourcentage === null || acomptePourcentage <= 30) && // Acompte <= 30% ou non mentionné
+    (!ibanResult.hasIBAN || (ibanResult.isValid && ibanResult.countryCode === "FR")) // Pas d'IBAN ou IBAN FR valide
+  ) {
+    score = "VERT";
+  }
+  // Default to ORANGE
+  else {
+    score = "ORANGE";
+  }
+  
+  // Build result
+  const result: PaymentConditionsResult = {
+    extraction,
+    iban: ibanResult,
+    score,
+    vigilanceCount,
+  };
+  
+  // Build indicator
+  const modesPaiementText = extraction.modes_paiement.length > 0
+    ? extraction.modes_paiement.map(m => {
+        switch (m) {
+          case "virement": return "Virement";
+          case "cheque": return "Chèque";
+          case "carte_bancaire": return "Carte bancaire";
+          case "especes": return "Espèces";
+          default: return m;
+        }
+      }).join(", ")
+    : "Non précisé";
+  
+  const acompteText = acomptePourcentage !== null 
+    ? `${acomptePourcentage}%`
+    : extraction.acompte_montant !== null 
+      ? `${extraction.acompte_montant}€`
+      : "Non précisé";
+  
+  let ibanStatusText = "Non détecté";
+  if (ibanResult.hasIBAN) {
+    if (ibanResult.isValid === false) {
+      ibanStatusText = "Non valide";
+    } else if (ibanResult.countryCode === "FR") {
+      ibanStatusText = "Valide - France";
+    } else {
+      ibanStatusText = `Valide - ${getCountryName(ibanResult.countryCode || "")}`;
+    }
+  }
+  
+  result.indicator = {
+    label: "Conditions de paiement",
+    value: `${modesPaiementText} • Acompte: ${acompteText} • IBAN: ${ibanStatusText}`,
+    score,
+    explanation: vigilanceReasons.length > 0
+      ? `Points de vigilance: ${vigilanceReasons.join(", ")}.`
+      : positivePoints.length > 0
+        ? `Points positifs: ${positivePoints.join(", ")}.`
+        : "Conditions de paiement non précisées sur le devis."
+  };
+  
+  // Build messages
+  if (score === "VERT") {
+    result.point_ok = `✓ Conditions de paiement : mode traçable${acomptePourcentage !== null ? `, acompte ${acomptePourcentage}%` : ""}${ibanResult.hasIBAN && ibanResult.countryCode === "FR" ? ", IBAN France valide" : ""}.`;
+  } else if (score === "ORANGE") {
+    result.alerte = `⚠️ Conditions de paiement : ${vigilanceReasons.length > 0 ? vigilanceReasons.join(", ") : "informations incomplètes"}. À vérifier avec l'artisan.`;
+    result.recommandation = "Nous vous recommandons de privilégier un mode de paiement traçable et de limiter l'acompte à 30% maximum.";
+  } else {
+    result.alerte = `🔴 Conditions de paiement : ${vigilanceReasons.join(", ")}. Vigilance importante requise.`;
+    result.recommandation = "Nous vous recommandons de privilégier un mode de paiement traçable et de limiter l'acompte à 30% maximum.";
   }
   
   return result;
@@ -209,7 +476,7 @@ function getCountryName(countryCode: string): string {
   return countries[countryCode] || countryCode;
 }
 
-// ============ END IBAN VERIFICATION ============
+// ============ END PAYMENT CONDITIONS ANALYSIS ============
 
 interface PriceComparisonResult {
   score: "VERT" | "ORANGE" | "ROUGE";
@@ -1854,27 +2121,38 @@ CONTRAINTES :
       allRecommandations.unshift("Demandez à l'artisan son numéro SIRET pour vérifier son immatriculation");
     }
 
-    // ============ IBAN VERIFICATION ============
-    console.log("Starting IBAN verification...");
-    const ibanResult = await analyzeIBAN(analysisContent);
+    // ============ PAYMENT CONDITIONS ANALYSIS (Combined: mode, acompte, IBAN) ============
+    console.log("Starting payment conditions analysis...");
+    const paymentConditionsResult = await analyzePaymentConditions(
+      analysisContent,
+      base64,
+      mimeType,
+      lovableApiKey
+    );
     
-    console.log("IBAN verification result:", {
-      hasIBAN: ibanResult.hasIBAN,
-      isValid: ibanResult.isValid,
-      countryCode: ibanResult.countryCode,
-      score: ibanResult.score
+    console.log("Payment conditions result:", {
+      modes: paymentConditionsResult.extraction.modes_paiement,
+      acompte: paymentConditionsResult.extraction.acompte_pourcentage,
+      paiementIntegral: paymentConditionsResult.extraction.paiement_integral_avant_travaux,
+      iban: {
+        hasIBAN: paymentConditionsResult.iban.hasIBAN,
+        isValid: paymentConditionsResult.iban.isValid,
+        countryCode: paymentConditionsResult.iban.countryCode,
+      },
+      score: paymentConditionsResult.score,
+      vigilanceCount: paymentConditionsResult.vigilanceCount
     });
     
-    if (ibanResult.point_ok) {
-      allPointsOk.push(ibanResult.point_ok);
+    if (paymentConditionsResult.point_ok) {
+      allPointsOk.push(paymentConditionsResult.point_ok);
     }
-    if (ibanResult.alerte) {
-      allAlertes.push(ibanResult.alerte);
+    if (paymentConditionsResult.alerte) {
+      allAlertes.push(paymentConditionsResult.alerte);
     }
-    if (ibanResult.recommandation) {
-      allRecommandations.push(ibanResult.recommandation);
+    if (paymentConditionsResult.recommandation) {
+      allRecommandations.push(paymentConditionsResult.recommandation);
     }
-    // ============ END IBAN VERIFICATION ============
+    // ============ END PAYMENT CONDITIONS ANALYSIS ============
 
     // Recalculate score based on combined alerts
     let score = parsedAnalysis.score?.toUpperCase() || "ORANGE";
@@ -1917,17 +2195,17 @@ CONTRAINTES :
       if (score === "VERT") score = "ORANGE";
     }
     
-    // IBAN impact on score
-    // Invalid IBAN (ROUGE) can influence global score strongly
-    // Foreign IBAN (ORANGE) cannot alone trigger global ROUGE
-    if (ibanResult.score === "ROUGE") {
-      // Invalid IBAN is a strong warning - can make VERT become ORANGE or ORANGE become ROUGE
+    // Payment conditions impact on score
+    // ROUGE conditions: IBAN invalide, espèces, paiement intégral avant travaux, ou 2+ critères de vigilance
+    if (paymentConditionsResult.score === "ROUGE") {
       if (score === "VERT") {
         score = "ORANGE";
       }
-      // Note: We don't automatically set to ROUGE because invalid IBAN alone shouldn't override everything
-      // But combined with other issues, it's a strong warning
-    } else if (ibanResult.score === "ORANGE" && score === "VERT") {
+      // Combined with other issues, payment ROUGE can push to global ROUGE
+      if (score === "ORANGE" && paymentConditionsResult.vigilanceCount >= 2) {
+        score = "ROUGE";
+      }
+    } else if (paymentConditionsResult.score === "ORANGE" && score === "VERT") {
       score = "ORANGE";
     }
     
