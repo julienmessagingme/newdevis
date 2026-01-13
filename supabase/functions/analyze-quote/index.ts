@@ -811,10 +811,10 @@ async function verifyQuoteData(
     rge_found: rgeResult.found,
     rge_qualifications: rgeResult.qualifications,
     
-    google_found: googleFinal.found,
-    google_rating: googleFinal.rating,
-    google_reviews_count: googleFinal.reviews_count,
-    google_match_confidence: googleFinal.match_confidence,
+    google_found: googleResult.found,
+    google_rating: googleResult.rating,
+    google_reviews_count: googleResult.reviews_count,
+    google_match_confidence: googleResult.match_confidence,
     
     georisques_queried: georisquesResult.queried,
     georisques_risks: georisquesResult.risks,
