@@ -135,16 +135,16 @@ const extractEntrepriseData = (pointsOk: string[], alertes: string[]): Entrepris
       const rating = parseFloat(ratingMatch[1].replace(',', '.'));
       const reviewsCount = parseInt(ratingMatch[2], 10);
       
-      let score: "VERT" | "ORANGE" | "ROUGE";
+      // IMPORTANT: Reputation NEVER triggers ROUGE
+      // It's informational only - never a critical criterion
+      let score: "VERT" | "ORANGE";
       if (rating >= 4.0) {
         score = "VERT";
         positiveCount++;
-      } else if (rating >= 3.0) {
-        score = "ORANGE";
       } else {
-        // Low rating - still ORANGE, never ROUGE for reputation alone
+        // Any rating < 4.0 is just ORANGE (informational)
+        // Does NOT increment alertCount - reputation is not critical
         score = "ORANGE";
-        alertCount++;
       }
       
       reputation = {
@@ -155,16 +155,16 @@ const extractEntrepriseData = (pointsOk: string[], alertes: string[]): Entrepris
         status: "found"
       };
     } 
-    // Case B: Uncertain match
-    else if (lowerPoint.includes("réputation en ligne") && (lowerPoint.includes("correspondance incertaine") || lowerPoint.includes("incertaine"))) {
+    // Case B: Uncertain match - ALWAYS show but never critical
+    else if (lowerPoint.includes("réputation en ligne") && (lowerPoint.includes("correspondance incertaine") || lowerPoint.includes("incertaine") || lowerPoint.includes("à confirmer"))) {
       reputationSearched = true;
       reputation = {
         score: "ORANGE",
-        explanation: point,
+        explanation: "Note non affichée (correspondance à confirmer)",
         status: "uncertain"
       };
     }
-    // Case C: Not found but searched
+    // Case C: Not found but searched - not a negative factor
     else if (lowerPoint.includes("réputation en ligne") && (lowerPoint.includes("aucun avis") || lowerPoint.includes("non trouvé") || lowerPoint.includes("non disponible"))) {
       reputationSearched = true;
       reputation = {
@@ -175,18 +175,34 @@ const extractEntrepriseData = (pointsOk: string[], alertes: string[]): Entrepris
     }
   }
   
-  // ALWAYS show reputation block - if not found in points, create default
+  // ALWAYS show reputation block if company is identifiable (has SIREN/SIRET)
+  // If not found in points, create default - NEVER critical
   if (!reputation) {
-    reputation = {
-      score: "ORANGE",
-      explanation: "Recherche Google effectuée",
-      status: reputationSearched ? "not_found" : "not_searched"
-    };
+    if (siren_siret) {
+      // Company is identifiable - show reputation section
+      reputation = {
+        score: "ORANGE",
+        explanation: reputationSearched ? "Recherche effectuée" : "Recherche en attente",
+        status: reputationSearched ? "not_found" : "not_searched"
+      };
+    } else {
+      // Company not identifiable - still show section but note it
+      reputation = {
+        score: "ORANGE",
+        explanation: "Entreprise non identifiable avec certitude",
+        status: "not_searched"
+      };
+    }
   }
   
   // Determine overall score
+  // IMPORTANT: Reputation NEVER affects the global score critically
+  // Only procedureCollective triggers ROUGE directly
   let score: "VERT" | "ORANGE" | "ROUGE";
-  if (alertCount >= 2 || procedureCollective) {
+  if (procedureCollective) {
+    score = "ROUGE";
+  } else if (alertCount >= 2) {
+    // Only company-related alerts (not reputation) count
     score = "ROUGE";
   } else if (alertCount > 0 || positiveCount < 3) {
     score = "ORANGE";
@@ -336,10 +352,10 @@ const BlockEntreprise = ({ pointsOk, alertes }: BlockEntrepriseProps) => {
               /* Case B: Uncertain match */
               <div>
                 <p className="text-sm text-score-orange font-medium">
-                  Note Google : non affichée (correspondance incertaine)
+                  Note Google : non affichée (correspondance à confirmer)
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  La recherche Google a été effectuée mais l'établissement trouvé ne correspond peut-être pas exactement à cette entreprise.
+                  La recherche Google a été effectuée mais l'établissement trouvé ne correspond peut-être pas exactement à cette entreprise. Ce critère n'est pas pris en compte dans le score.
                 </p>
               </div>
             ) : (
@@ -350,8 +366,8 @@ const BlockEntreprise = ({ pointsOk, alertes }: BlockEntrepriseProps) => {
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {info.reputation?.status === "not_found" 
-                    ? "La recherche Google a été effectuée mais aucun avis n'a été trouvé pour cet établissement."
-                    : "La recherche d'avis Google a été effectuée."}
+                    ? "La recherche Google a été effectuée mais aucun avis n'a été trouvé pour cet établissement. L'absence de note n'est pas un critère critique."
+                    : "La recherche d'avis Google a été effectuée. L'absence de note n'affecte pas le score."}
                 </p>
               </div>
             )}

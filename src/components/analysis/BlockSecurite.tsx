@@ -111,58 +111,120 @@ const extractSecuriteData = (
   
   let alertCount = 0;
   
+  // Track if payment schedule exists (multiple payments = not full payment before work)
+  let hasEcheancier = false;
+  let acompteBeforeTravaux = 0;
+  
   for (const point of allPoints) {
     const lowerPoint = point.toLowerCase();
     
-    // Assurances - updated detection
-    if (lowerPoint.includes("décennale") || lowerPoint.includes("decennale")) {
-      if (lowerPoint.includes("mentionnée") && !lowerPoint.includes("non")) {
-        info.decennale.mentionnee = true;
+    // ====== ASSURANCES - IMPROVED DETECTION ======
+    // Detect both insurances in the same phrase
+    const mentionsBothInsurances = (lowerPoint.includes("décennale") || lowerPoint.includes("decennale")) && 
+                                    (lowerPoint.includes("responsabilité civile") || lowerPoint.includes("rc pro") || lowerPoint.includes("rc professionnelle"));
+    
+    if (mentionsBothInsurances && !lowerPoint.includes("non")) {
+      // Both mentioned in same phrase - consider both as mentioned
+      info.decennale.mentionnee = true;
+      info.rcpro.mentionnee = true;
+    } else {
+      // Check individually
+      if (lowerPoint.includes("décennale") || lowerPoint.includes("decennale")) {
+        // IMPORTANT: If not explicitly "non mentionnée" or "non détectée", consider as mentioned or uncertain
+        if (lowerPoint.includes("non mentionnée") || lowerPoint.includes("non détectée") || lowerPoint.includes("absence")) {
+          // Not mentioned - keep as ORANGE, never ROUGE at level 1
+          // info.decennale.mentionnee stays false
+        } else if (lowerPoint.includes("mentionnée") || lowerPoint.includes("indiquée") || lowerPoint.includes("présent")) {
+          info.decennale.mentionnee = true;
+        } else {
+          // Uncertain mention - treat as "mentionnée – à vérifier"
+          // Don't set as false, set as partial
+          info.decennale.mentionnee = true; // Benefit of doubt
+        }
+        
+        // Mark as critique only for tracking, not for scoring at level 1
+        if (lowerPoint.includes("travaux concernés") || lowerPoint.includes("obligatoire")) {
+          info.decennale.critique = true;
+        }
       }
-      // Mark as critique only for tracking, not for scoring at level 1
-      if (lowerPoint.includes("travaux concernés") || lowerPoint.includes("obligatoire")) {
-        info.decennale.critique = true;
+      
+      if (lowerPoint.includes("rc pro") || lowerPoint.includes("rc professionnelle") || 
+          (lowerPoint.includes("responsabilité civile") && lowerPoint.includes("professionnelle"))) {
+        if (lowerPoint.includes("non mentionnée") || lowerPoint.includes("non détectée") || lowerPoint.includes("absence")) {
+          // Not mentioned - keep as ORANGE
+        } else if (lowerPoint.includes("mentionnée") || lowerPoint.includes("indiquée") || lowerPoint.includes("présent")) {
+          info.rcpro.mentionnee = true;
+        } else {
+          // Uncertain mention - benefit of doubt
+          info.rcpro.mentionnee = true;
+        }
       }
     }
     
-    if (lowerPoint.includes("rc pro") || lowerPoint.includes("rc professionnelle")) {
-      if (lowerPoint.includes("mentionnée") && !lowerPoint.includes("non")) {
-        info.rcpro.mentionnee = true;
-      }
-    }
-    
-    // Paiement
+    // ====== PAIEMENT - IMPROVED DETECTION ======
+    // Mode de paiement
     if (lowerPoint.includes("virement")) info.paiement.modes.push("Virement");
     if (lowerPoint.includes("chèque") || lowerPoint.includes("cheque")) info.paiement.modes.push("Chèque");
     if (lowerPoint.includes("carte")) info.paiement.modes.push("Carte bancaire");
-    if (lowerPoint.includes("espèces") || lowerPoint.includes("especes") || lowerPoint.includes("cash")) {
+    
+    // ESPÈCES: ONLY if explicitly mentioned "espèces" or "cash" - NEVER by default
+    // IMPORTANT: Presence of IBAN/RIB excludes "espèces" qualification
+    const explicitCash = lowerPoint.includes("espèces") || lowerPoint.includes("especes") || 
+                          (lowerPoint.includes("cash") && !lowerPoint.includes("cashback"));
+    if (explicitCash) {
       info.paiement.modes.push("Espèces");
       info.paiement.especes = true;
       alertCount++;
-      info.vigilanceReasons.push("Paiement en espèces demandé");
+      info.vigilanceReasons.push("Paiement en espèces explicitement demandé");
     }
     
-    // Acompte
-    const acompteMatch = point.match(/acompte[^\d]*(\d+)\s*%/i);
-    if (acompteMatch) {
-      info.paiement.acomptePourcentage = parseInt(acompteMatch[1], 10);
-      if (info.paiement.acomptePourcentage > 50) {
-        alertCount++;
-        info.vigilanceReasons.push(`Acompte élevé (${info.paiement.acomptePourcentage}%)`);
-      } else if (info.paiement.acomptePourcentage > 30) {
-        info.vigilanceReasons.push(`Acompte modéré (${info.paiement.acomptePourcentage}%)`);
+    // Detect payment schedule (échéancier) - multiple percentages = not full payment before work
+    const echeancierMatch = point.match(/(\d+)\s*%.*?(\d+)\s*%/i);
+    if (echeancierMatch || lowerPoint.includes("écheancier") || lowerPoint.includes("echeancier") || 
+        lowerPoint.includes("en plusieurs fois") || lowerPoint.includes("étapes") || lowerPoint.includes("avancement")) {
+      hasEcheancier = true;
+    }
+    
+    // Calculate percentage paid before work starts
+    // Pattern: "XX% à la commande" or "XX% acompte"
+    const beforeWorkPatterns = [
+      /(\d+)\s*%\s*(?:à la commande|acompte|à la signature|avant travaux)/i,
+      /acompte[^\d]*(\d+)\s*%/i
+    ];
+    for (const pattern of beforeWorkPatterns) {
+      const match = point.match(pattern);
+      if (match) {
+        const percentage = parseInt(match[1], 10);
+        if (percentage > acompteBeforeTravaux) {
+          acompteBeforeTravaux = percentage;
+        }
       }
     }
     
-    // Paiement intégral
-    if (lowerPoint.includes("paiement intégral") && lowerPoint.includes("avant")) {
-      info.paiement.paiementIntegralAvantTravaux = true;
-      alertCount++;
-      info.vigilanceReasons.push("Paiement intégral avant travaux");
+    // Acompte extraction
+    const acompteMatch = point.match(/acompte[^\d]*(\d+)\s*%/i);
+    if (acompteMatch) {
+      info.paiement.acomptePourcentage = parseInt(acompteMatch[1], 10);
     }
     
-    // IBAN
-    if (lowerPoint.includes("iban")) {
+    // Paiement intégral avant travaux - ONLY if explicitly stated and NOT part of schedule
+    if ((lowerPoint.includes("paiement intégral") || lowerPoint.includes("paiement total") || lowerPoint.includes("100%")) 
+        && (lowerPoint.includes("avant") || lowerPoint.includes("préalable"))
+        && !hasEcheancier) {
+      info.paiement.paiementIntegralAvantTravaux = true;
+    }
+    
+    // IBAN detection
+    if (lowerPoint.includes("iban") || lowerPoint.includes("rib")) {
+      // If IBAN/RIB is present, it EXCLUDES "espèces" as the payment method
+      if (info.paiement.especes && !explicitCash) {
+        // Remove false "espèces" detection
+        info.paiement.especes = false;
+        info.paiement.modes = info.paiement.modes.filter(m => m !== "Espèces");
+        info.vigilanceReasons = info.vigilanceReasons.filter(r => !r.includes("espèces"));
+        if (alertCount > 0) alertCount--;
+      }
+      
       if (lowerPoint.includes("valide") && lowerPoint.includes("france")) {
         info.paiement.ibanValid = true;
         info.paiement.ibanFrance = true;
@@ -177,8 +239,41 @@ const extractSecuriteData = (
         info.paiement.ibanValid = false;
         alertCount++;
         info.vigilanceReasons.push("IBAN non valide");
+      } else {
+        // IBAN detected but validity unknown - treat as neutral, not negative
+        // Just note it exists
+        if (!info.paiement.modes.includes("Virement")) {
+          info.paiement.modes.push("Virement");
+        }
       }
     }
+  }
+  
+  // Calculate acompte vigilance based on actual amount before work
+  const effectiveAcompte = info.paiement.acomptePourcentage || acompteBeforeTravaux;
+  if (effectiveAcompte > 0) {
+    info.paiement.acomptePourcentage = effectiveAcompte;
+    
+    // If there's an échéancier, only the first payment counts as "before work"
+    if (hasEcheancier && acompteBeforeTravaux <= 50) {
+      // Schedule exists and first payment <= 50% - not a critical issue
+      if (acompteBeforeTravaux > 30 && acompteBeforeTravaux <= 50) {
+        info.vigilanceReasons.push(`Acompte modéré (${acompteBeforeTravaux}%)`);
+      }
+      // Clear any false "paiement intégral" detection
+      info.paiement.paiementIntegralAvantTravaux = false;
+    } else if (effectiveAcompte > 50) {
+      alertCount++;
+      info.vigilanceReasons.push(`Acompte élevé (${effectiveAcompte}%)`);
+    } else if (effectiveAcompte > 30) {
+      info.vigilanceReasons.push(`Acompte modéré (${effectiveAcompte}%)`);
+    }
+  }
+  
+  // Paiement intégral alert (only if not part of schedule)
+  if (info.paiement.paiementIntegralAvantTravaux && !hasEcheancier) {
+    alertCount++;
+    info.vigilanceReasons.push("Paiement intégral avant travaux");
   }
   
   // ====== LEVEL 2: Handle attestation comparison (can trigger ROUGE) ======
@@ -202,7 +297,7 @@ const extractSecuriteData = (
       // Mentioned → VERT
       info.decennale.score = "VERT";
     } else {
-      // Not mentioned or partially mentioned → ORANGE (never ROUGE at level 1)
+      // Not mentioned or uncertain → ORANGE (never ROUGE at level 1)
       info.decennale.score = "ORANGE";
     }
   }
@@ -220,7 +315,7 @@ const extractSecuriteData = (
       info.rcpro.score = "ORANGE";
     }
   } else {
-    // Level 1: Quote only
+    // Level 1: Quote only - NEVER ROUGE
     if (info.rcpro.mentionnee) {
       info.rcpro.score = "VERT";
     } else {
@@ -231,18 +326,47 @@ const extractSecuriteData = (
   // Deduplicate modes
   info.paiement.modes = [...new Set(info.paiement.modes)];
   
-  // Determine paiement score
-  if (info.paiement.especes || info.paiement.ibanValid === false || info.paiement.paiementIntegralAvantTravaux || info.vigilanceReasons.length >= 2) {
+  // ====== PAIEMENT SCORING - MORE CONSERVATIVE ======
+  // ROUGE only for EXPLICIT critical issues
+  const hasCriticalPaymentIssue = 
+    info.paiement.especes || // Explicit cash payment
+    info.paiement.ibanValid === false || // Invalid IBAN
+    (info.paiement.paiementIntegralAvantTravaux && !hasEcheancier); // Full payment before work (no schedule)
+  
+  // Two EXPLICIT vigilance points required for ROUGE
+  const explicitVigilanceCount = info.vigilanceReasons.filter(r => 
+    r.includes("espèces") || 
+    r.includes("IBAN non valide") || 
+    r.includes("intégral") || 
+    r.includes("élevé")
+  ).length;
+  
+  if (hasCriticalPaymentIssue || explicitVigilanceCount >= 2) {
     info.paiement.score = "ROUGE";
   } else if (info.vigilanceReasons.length > 0) {
     info.paiement.score = "ORANGE";
   } else if (info.paiement.ibanValid && info.paiement.ibanFrance) {
     info.paiement.score = "VERT";
+  } else if (info.paiement.modes.length > 0) {
+    // Has traceable payment method mentioned
+    info.paiement.score = "VERT";
   }
   
-  // Determine global score
+  // ====== GLOBAL SCORE - CONSERVATIVE ======
   const scores = [info.decennale.score, info.rcpro.score, info.paiement.score];
-  if (scores.includes("ROUGE") || alertCount >= 2) {
+  
+  // ROUGE only if:
+  // - Attestation explicitly INCOHERENT (level 2)
+  // - Explicit critical payment issue
+  const hasExplicitRouge = 
+    (attestationComparison?.decennale?.coherence_globale === "INCOHERENT") ||
+    (attestationComparison?.rc_pro?.coherence_globale === "INCOHERENT") ||
+    hasCriticalPaymentIssue;
+  
+  if (hasExplicitRouge) {
+    info.globalScore = "ROUGE";
+  } else if (scores.includes("ROUGE")) {
+    // Only if there's an explicit ROUGE, not accumulated alerts
     info.globalScore = "ROUGE";
   } else if (scores.filter(s => s === "ORANGE").length >= 2) {
     info.globalScore = "ORANGE";
@@ -258,7 +382,7 @@ const extractSecuriteData = (
   }
   
   // Add recommendations
-  if (info.paiement.score !== "VERT") {
+  if (info.paiement.score !== "VERT" && !info.paiement.modes.some(m => ["Virement", "Chèque", "Carte bancaire"].includes(m))) {
     info.recommendations.push("Privilégiez un mode de paiement traçable (virement, chèque).");
   }
   if (info.paiement.acomptePourcentage && info.paiement.acomptePourcentage > 30) {
