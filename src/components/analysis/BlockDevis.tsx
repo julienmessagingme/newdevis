@@ -43,6 +43,7 @@ interface DevisInfo {
   acomptePourcentage: number | null;
   score: "VERT" | "ORANGE" | "ROUGE";
   explanations: string[];
+  hasDevisRelatedInfo: boolean;
 }
 
 const extractDevisData = (pointsOk: string[], alertes: string[]): DevisInfo => {
@@ -59,9 +60,22 @@ const extractDevisData = (pointsOk: string[], alertes: string[]): DevisInfo => {
   let positiveCount = 0;
   let alertCount = 0;
   const explanations: string[] = [];
+  let hasDevisRelatedInfo = false;
   
   for (const point of allPoints) {
     const lowerPoint = point.toLowerCase();
+    
+    // Detect if there's any devis-related content
+    if (lowerPoint.includes("prix") || lowerPoint.includes("montant") || 
+        lowerPoint.includes("devis") || lowerPoint.includes("total") ||
+        lowerPoint.includes("ht") || lowerPoint.includes("ttc") ||
+        lowerPoint.includes("calcul") || lowerPoint.includes("cohéren") ||
+        lowerPoint.includes("main d'œuvre") || lowerPoint.includes("main-d'œuvre") ||
+        lowerPoint.includes("main d'oeuvre") || lowerPoint.includes("matéri") ||
+        lowerPoint.includes("fourniture") || lowerPoint.includes("tva") ||
+        lowerPoint.includes("remise") || lowerPoint.includes("tarif")) {
+      hasDevisRelatedInfo = true;
+    }
     
     // Extract prix total
     const prixMatch = point.match(/(?:prix|montant|total)[^\d]*([\d\s,\.]+)\s*€/i);
@@ -101,13 +115,42 @@ const extractDevisData = (pointsOk: string[], alertes: string[]): DevisInfo => {
     
     // Extract main d'oeuvre/matériaux details
     if (lowerPoint.includes("main d'œuvre") || lowerPoint.includes("main-d'œuvre") || lowerPoint.includes("main d'oeuvre")) {
-      detailMoDoeuvre = lowerPoint.includes("détaillé") || lowerPoint.includes("indiqué") || pointsOk.includes(point);
-      if (detailMoDoeuvre) positiveCount++;
+      if (lowerPoint.includes("détaillé") || lowerPoint.includes("indiqué") || lowerPoint.includes("détaille")) {
+        detailMoDoeuvre = true;
+        if (pointsOk.includes(point)) positiveCount++;
+      } else if (lowerPoint.includes("succinct") || lowerPoint.includes("pas détail") || lowerPoint.includes("imprécis")) {
+        detailMoDoeuvre = false;
+        if (alertes.includes(point)) {
+          alertCount++;
+          explanations.push("Le détail de la main d'œuvre n'est pas suffisamment précis.");
+        }
+      }
     }
     
-    if (lowerPoint.includes("matériau") || lowerPoint.includes("fourniture")) {
-      detailMateriaux = lowerPoint.includes("détaillé") || lowerPoint.includes("indiqué") || pointsOk.includes(point);
-      if (detailMateriaux) positiveCount++;
+    if (lowerPoint.includes("matériau") || lowerPoint.includes("fourniture") || lowerPoint.includes("matéri")) {
+      if (lowerPoint.includes("détaillé") || lowerPoint.includes("indiqué") || lowerPoint.includes("référence")) {
+        detailMateriaux = true;
+        if (pointsOk.includes(point)) positiveCount++;
+      } else if (lowerPoint.includes("pas détail") || lowerPoint.includes("imprécis")) {
+        detailMateriaux = false;
+        if (alertes.includes(point)) alertCount++;
+      }
+    }
+    
+    // Detect pricing/calculation issues from alertes
+    if (alertes.includes(point)) {
+      if (lowerPoint.includes("incohéren") && (lowerPoint.includes("prix") || lowerPoint.includes("calcul"))) {
+        alertCount++;
+        if (!explanations.some(e => e.includes("calcul"))) {
+          explanations.push("Des incohérences ont été détectées dans le calcul des prix.");
+        }
+      }
+      if (lowerPoint.includes("structure") && lowerPoint.includes("prix") && lowerPoint.includes("confus")) {
+        alertCount++;
+        if (!explanations.some(e => e.includes("structure"))) {
+          explanations.push("La structure tarifaire du devis manque de clarté.");
+        }
+      }
     }
     
     // Extract TVA
@@ -132,10 +175,12 @@ const extractDevisData = (pointsOk: string[], alertes: string[]): DevisInfo => {
   let score: "VERT" | "ORANGE" | "ROUGE";
   if (alertCount >= 2 || ecart === "tres_elevé") {
     score = "ROUGE";
-  } else if (alertCount > 0 || positiveCount < 2) {
+  } else if (alertCount > 0 || (hasDevisRelatedInfo && positiveCount < 2)) {
     score = "ORANGE";
-  } else {
+  } else if (positiveCount >= 2) {
     score = "VERT";
+  } else {
+    score = "ORANGE";
   }
   
   return {
@@ -148,7 +193,8 @@ const extractDevisData = (pointsOk: string[], alertes: string[]): DevisInfo => {
     tvaApplicable,
     acomptePourcentage,
     score,
-    explanations
+    explanations,
+    hasDevisRelatedInfo
   };
 };
 
@@ -166,6 +212,11 @@ export const filterOutDevisItems = (items: string[]): string[] => {
            !lower.includes("matériau") &&
            !lower.includes("fourniture") &&
            !lower.includes("tva") &&
+           !lower.includes("calcul") &&
+           !lower.includes("structure") && 
+           !lower.includes("tarif") &&
+           !lower.includes("ht") &&
+           !lower.includes("ttc") &&
            !(lower.includes("acompte") && !lower.includes("iban") && !lower.includes("virement"));
   });
 };
@@ -173,9 +224,10 @@ export const filterOutDevisItems = (items: string[]): string[] => {
 const BlockDevis = ({ pointsOk, alertes }: BlockDevisProps) => {
   const info = extractDevisData(pointsOk, alertes);
   
-  // Check if we have any meaningful data
+  // Check if we have any meaningful data or devis-related info in alerts
   const hasData = info.prixTotal || info.comparaisonMarche || info.detailMoDoeuvre !== null || 
-                  info.detailMateriaux !== null || info.tvaApplicable || info.acomptePourcentage !== null;
+                  info.detailMateriaux !== null || info.tvaApplicable || info.acomptePourcentage !== null ||
+                  info.hasDevisRelatedInfo || info.explanations.length > 0;
   
   if (!hasData) return null;
   
