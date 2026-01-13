@@ -478,6 +478,189 @@ function getCountryName(countryCode: string): string {
 
 // ============ END PAYMENT CONDITIONS ANALYSIS ============
 
+// ============ SITE CONTEXT ANALYSIS (Géorisques) ============
+
+const GEORISQUES_API_URL = "https://georisques.gouv.fr/api/v1";
+
+interface GeorisqueRisk {
+  num_risque: string;
+  libelle_risque_long: string;
+}
+
+interface SiteContextResult {
+  code_insee: string | null;
+  commune: string | null;
+  risques_naturels: string[];
+  risques_technologiques: string[];
+  zone_sismique: string | null;
+  has_data: boolean;
+}
+
+// Extract INSEE code from postal code (using API geo.api.gouv.fr)
+async function getInseeCodeFromPostalCode(codePostal: string): Promise<{ code_insee: string; commune: string } | null> {
+  if (!codePostal || codePostal.length < 5) return null;
+  
+  try {
+    const response = await fetch(
+      `https://geo.api.gouv.fr/communes?codePostal=${codePostal}&fields=code,nom&limit=1`,
+      { method: "GET" }
+    );
+    
+    if (!response.ok) {
+      console.error("Geo API error:", response.status);
+      return null;
+    }
+    
+    const data = await response.json();
+    
+    if (Array.isArray(data) && data.length > 0) {
+      return {
+        code_insee: data[0].code,
+        commune: data[0].nom
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Geo API error:", error);
+    return null;
+  }
+}
+
+// Fetch risks from Géorisques API
+async function fetchGeorisquesRisks(codeInsee: string): Promise<{
+  risques_naturels: string[];
+  risques_technologiques: string[];
+}> {
+  const result = {
+    risques_naturels: [] as string[],
+    risques_technologiques: [] as string[],
+  };
+  
+  try {
+    const response = await fetch(
+      `${GEORISQUES_API_URL}/gaspar/risques?code_insee=${codeInsee}`,
+      { method: "GET" }
+    );
+    
+    if (!response.ok) {
+      console.error("Géorisques API error:", response.status);
+      return result;
+    }
+    
+    const data = await response.json();
+    
+    if (data.data && Array.isArray(data.data) && data.data.length > 0) {
+      const risques = data.data[0].risques_detail || [];
+      
+      // Natural risks: codes starting with 1
+      // Technological risks: codes starting with 2
+      for (const risque of risques as GeorisqueRisk[]) {
+        const numRisque = risque.num_risque;
+        const libelle = risque.libelle_risque_long;
+        
+        // Avoid duplicates (some sub-risks are included with main risk)
+        if (numRisque.startsWith("1") && numRisque.length <= 2) {
+          // Main natural risk categories only
+          if (!result.risques_naturels.includes(libelle)) {
+            result.risques_naturels.push(libelle);
+          }
+        } else if (numRisque.startsWith("2") && numRisque.length <= 2) {
+          // Main technological risk categories only
+          if (!result.risques_technologiques.includes(libelle)) {
+            result.risques_technologiques.push(libelle);
+          }
+        }
+      }
+    }
+    
+    return result;
+  } catch (error) {
+    console.error("Géorisques risques error:", error);
+    return result;
+  }
+}
+
+// Fetch seismic zone from Géorisques API
+async function fetchSeismicZone(codeInsee: string): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `${GEORISQUES_API_URL}/zonage_sismique?code_insee=${codeInsee}`,
+      { method: "GET" }
+    );
+    
+    if (!response.ok) {
+      console.error("Géorisques sismicité API error:", response.status);
+      return null;
+    }
+    
+    const data = await response.json();
+    
+    if (data.data && Array.isArray(data.data) && data.data.length > 0) {
+      return data.data[0].zone_sismicite || null;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Géorisques sismicité error:", error);
+    return null;
+  }
+}
+
+// Main function to analyze site context
+async function analyzeSiteContext(codePostal: string | null): Promise<SiteContextResult> {
+  const result: SiteContextResult = {
+    code_insee: null,
+    commune: null,
+    risques_naturels: [],
+    risques_technologiques: [],
+    zone_sismique: null,
+    has_data: false,
+  };
+  
+  if (!codePostal) {
+    console.log("No postal code available for site context analysis");
+    return result;
+  }
+  
+  // Get INSEE code from postal code
+  const inseeInfo = await getInseeCodeFromPostalCode(codePostal);
+  
+  if (!inseeInfo) {
+    console.log("Could not get INSEE code for postal code:", codePostal);
+    return result;
+  }
+  
+  result.code_insee = inseeInfo.code_insee;
+  result.commune = inseeInfo.commune;
+  
+  console.log(`Fetching site context for ${inseeInfo.commune} (${inseeInfo.code_insee})...`);
+  
+  // Fetch risks and seismic zone in parallel
+  const [risquesResult, seismicZone] = await Promise.all([
+    fetchGeorisquesRisks(inseeInfo.code_insee),
+    fetchSeismicZone(inseeInfo.code_insee),
+  ]);
+  
+  result.risques_naturels = risquesResult.risques_naturels;
+  result.risques_technologiques = risquesResult.risques_technologiques;
+  result.zone_sismique = seismicZone;
+  result.has_data = risquesResult.risques_naturels.length > 0 || 
+                    risquesResult.risques_technologiques.length > 0 || 
+                    seismicZone !== null;
+  
+  console.log("Site context result:", {
+    commune: result.commune,
+    risques_naturels: result.risques_naturels.length,
+    risques_technologiques: result.risques_technologiques.length,
+    zone_sismique: result.zone_sismique
+  });
+  
+  return result;
+}
+
+// ============ END SITE CONTEXT ANALYSIS ============
+
 interface PriceComparisonResult {
   score: "VERT" | "ORANGE" | "ROUGE";
   prixUnitaireDevis: number;
