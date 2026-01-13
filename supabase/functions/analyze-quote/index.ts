@@ -2337,64 +2337,197 @@ CONTRAINTES :
     }
     // ============ END PAYMENT CONDITIONS ANALYSIS ============
 
-    // Recalculate score based on combined alerts
-    let score = parsedAnalysis.score?.toUpperCase() || "ORANGE";
+    // ============ HIERARCHICAL SCORING SYSTEM ============
+    // This implements a structured scoring based on criteria hierarchy
+    
+    interface ScoringCriteria {
+      critiques: string[];  // Critical criteria triggering RED
+      majeurs: string[];    // Major criteria (2+ = ORANGE, combined = RED)
+      confort: string[];    // Comfort/bonus criteria (can reinforce confidence)
+    }
+    
+    const criteriaFound: ScoringCriteria = {
+      critiques: [],
+      majeurs: [],
+      confort: []
+    };
+    
+    // ============ CRITICAL CRITERIA (CRITÈRES CRITIQUES) ============
+    // Any single critical = ROUGE
+    
+    // 1. Entreprise non immatriculée
+    if (!parsedAnalysis.siret) {
+      criteriaFound.critiques.push("Entreprise non immatriculée (SIRET absent)");
+    }
+    
+    // 2. Capitaux propres négatifs
+    if (companyAnalysis?.capitaux_propres_score === "ROUGE" && companyAnalysis?.capitaux_propres !== undefined && companyAnalysis.capitaux_propres < 0) {
+      criteriaFound.critiques.push("Capitaux propres négatifs");
+    }
+    
+    // 3. Procédure collective en cours
+    if (companyAnalysis?.procedure_collective || bodaccResult?.hasProcedure) {
+      criteriaFound.critiques.push("Procédure collective en cours");
+    }
+    
+    // 4. IBAN non valide
+    if (paymentConditionsResult.iban.hasIBAN && paymentConditionsResult.iban.isValid === false) {
+      criteriaFound.critiques.push("IBAN non valide");
+    }
+    
+    // 5. Paiement en espèces
+    if (paymentConditionsResult.extraction.modes_paiement.includes("especes")) {
+      criteriaFound.critiques.push("Paiement en espèces demandé");
+    }
+    
+    // 6. Paiement intégral avant travaux
+    if (paymentConditionsResult.extraction.paiement_integral_avant_travaux) {
+      criteriaFound.critiques.push("Paiement intégral demandé avant travaux");
+    }
+    
+    // 7. Assurance incohérente détectée via attestation (niveau 2)
+    // This would be set if attestation comparison shows INCOHERENT
+    // For now, we check if assuranceResult.globalScore is ROUGE due to attestation issues
+    if (assuranceResult.globalScore === "ROUGE") {
+      criteriaFound.critiques.push("Problème d'assurance détecté");
+    }
+    
+    // ============ MAJOR CRITERIA (CRITÈRES MAJEURS) ============
+    // 2+ major = ORANGE, combined with critical = stronger RED
+    
+    // 1. Prix très au-dessus des fourchettes de marché
+    if (priceComparisonResult?.score === "ROUGE") {
+      criteriaFound.majeurs.push("Prix très supérieur au marché");
+    }
+    
+    // 2. Acompte supérieur à 50%
+    const acomptePct = paymentConditionsResult.extraction.acompte_pourcentage;
+    if (acomptePct !== null && acomptePct > 50) {
+      criteriaFound.majeurs.push(`Acompte élevé (${acomptePct}%)`);
+    }
+    
+    // 3. Absence d'assurance sur des travaux à enjeu
+    if (assuranceResult.globalScore === "ORANGE" && assuranceResult.decennale.critique && !assuranceResult.decennale.mentionnee) {
+      criteriaFound.majeurs.push("Assurance décennale absente sur travaux à enjeu");
+    }
+    
+    // 4. Réputation Google inférieure à 4
+    if (googlePlacesResult?.rating !== undefined && googlePlacesResult.rating < 4) {
+      criteriaFound.majeurs.push(`Réputation en ligne faible (${googlePlacesResult.rating}/5)`);
+    }
+    
+    // 5. IBAN valide mais domicilié à l'étranger
+    if (paymentConditionsResult.iban.hasIBAN && paymentConditionsResult.iban.isValid && paymentConditionsResult.iban.countryCode !== "FR") {
+      criteriaFound.majeurs.push(`IBAN étranger (${getCountryName(paymentConditionsResult.iban.countryCode || "")})`);
+    }
+    
+    // 6. Prix au-dessus du marché (ORANGE level)
+    if (priceComparisonResult?.score === "ORANGE") {
+      criteriaFound.majeurs.push("Prix supérieur aux fourchettes de référence");
+    }
+    
+    // 7. Acompte entre 30% et 50%
+    if (acomptePct !== null && acomptePct > 30 && acomptePct <= 50) {
+      criteriaFound.majeurs.push(`Acompte modéré (${acomptePct}%)`);
+    }
+    
+    // 8. Entreprise récente (< 2 ans)
+    if (companyAnalysis?.anciennete_score === "ROUGE") {
+      criteriaFound.majeurs.push("Entreprise très récente (< 2 ans)");
+    }
+    
+    // ============ COMFORT/BONUS CRITERIA (CRITÈRES DE CONFORT) ============
+    // These reinforce confidence but cannot trigger RED alone
+    
+    // 1. Qualification RGE (si pertinente)
+    if (rgeResult?.isRGE) {
+      criteriaFound.confort.push("Qualification RGE vérifiée");
+    }
+    
+    // 2. Mention QUALIBAT
+    if (qualibatResult.hasQualibat) {
+      criteriaFound.confort.push("Certification QUALIBAT mentionnée");
+    }
+    
+    // 3. Ancienneté élevée (> 5 ans)
+    if (companyAnalysis?.anciennete_score === "VERT" && companyAnalysis?.anciennete_years && companyAnalysis.anciennete_years >= 5) {
+      criteriaFound.confort.push(`Entreprise établie (${companyAnalysis.anciennete_years} ans)`);
+    }
+    
+    // 4. Devis très détaillé (good points from AI analysis)
+    const aiPointsOkCount = (parsedAnalysis.points_ok || []).length;
+    if (aiPointsOkCount >= 5) {
+      criteriaFound.confort.push("Devis bien détaillé");
+    }
+    
+    // 5. Excellente réputation Google (> 4.5)
+    if (googlePlacesResult?.rating !== undefined && googlePlacesResult.rating > 4.5) {
+      criteriaFound.confort.push(`Excellente réputation (${googlePlacesResult.rating}/5)`);
+    }
+    
+    // 6. Capitaux propres positifs
+    if (companyAnalysis?.capitaux_propres_score === "VERT") {
+      criteriaFound.confort.push("Situation financière saine");
+    }
+    
+    // 7. IBAN France valide
+    if (paymentConditionsResult.iban.hasIBAN && paymentConditionsResult.iban.isValid && paymentConditionsResult.iban.countryCode === "FR") {
+      criteriaFound.confort.push("IBAN France valide");
+    }
+    
+    // ============ FINAL SCORE CALCULATION ============
+    let score: ScoringColor;
+    let scoreExplanation: string;
+    
     const validScores = ["VERT", "ORANGE", "ROUGE"];
     
-    // Adjust score based on Pappers findings
-    if (companyAnalysis) {
-      if (companyAnalysis.procedure_collective) {
-        score = "ROUGE";
-      } else if (companyAnalysis.anciennete_score === "ROUGE" || companyAnalysis.capitaux_propres_score === "ROUGE") {
-        score = "ROUGE";
-      } else if (companyAnalysis.anciennete_score === "ORANGE" || companyAnalysis.capitaux_propres_score === "ORANGE") {
-        if (score === "VERT") score = "ORANGE";
-      }
-    }
-    
-    // BODACC procedure = automatic RED score
-    if (bodaccResult?.hasProcedure) {
+    // Rule 1: Any critical criteria = ROUGE
+    if (criteriaFound.critiques.length > 0) {
       score = "ROUGE";
+      scoreExplanation = `Critères critiques détectés : ${criteriaFound.critiques.join(", ")}.`;
     }
-    
-    // Price comparison impact on score
-    if (priceComparisonResult) {
-      if (priceComparisonResult.score === "ROUGE") {
+    // Rule 2: Multiple major criteria or combined strong signals = ORANGE or ROUGE
+    else if (criteriaFound.majeurs.length >= 2) {
+      // Check if combined signals warrant ROUGE
+      const hasPricingIssue = criteriaFound.majeurs.some(m => m.includes("Prix"));
+      const hasPaymentIssue = criteriaFound.majeurs.some(m => m.includes("Acompte") || m.includes("IBAN"));
+      const hasAssuranceIssue = criteriaFound.majeurs.some(m => m.includes("Assurance"));
+      
+      // Combination of strong signals on payment, assurance and price = ROUGE
+      if ((hasPricingIssue && hasPaymentIssue) || (hasPaymentIssue && hasAssuranceIssue) || criteriaFound.majeurs.length >= 3) {
         score = "ROUGE";
-      } else if (priceComparisonResult.score === "ORANGE" && score === "VERT") {
+        scoreExplanation = `Combinaison de signaux forts : ${criteriaFound.majeurs.join(", ")}.`;
+      } else {
         score = "ORANGE";
+        scoreExplanation = `Plusieurs points de vigilance : ${criteriaFound.majeurs.join(", ")}.`;
+      }
+    }
+    // Rule 3: Single major criteria = mild vigilance (ORANGE)
+    else if (criteriaFound.majeurs.length === 1) {
+      score = "ORANGE";
+      scoreExplanation = `Point de vigilance : ${criteriaFound.majeurs[0]}.`;
+    }
+    // Rule 4: No critical, max 1 major = VERT
+    else {
+      score = "VERT";
+      if (criteriaFound.confort.length > 0) {
+        scoreExplanation = `Indicateurs positifs : ${criteriaFound.confort.slice(0, 3).join(", ")}.`;
+      } else {
+        scoreExplanation = "Aucun signal de vigilance majeur détecté.";
       }
     }
     
-    // Assurance impact on score
-    if (assuranceResult.globalScore === "ROUGE") {
-      score = "ROUGE";
-    } else if (assuranceResult.globalScore === "ORANGE" && score === "VERT") {
-      score = "ORANGE";
-    }
+    // Log scoring decision
+    console.log("Hierarchical scoring result:", {
+      critiques: criteriaFound.critiques,
+      majeurs: criteriaFound.majeurs,
+      confort: criteriaFound.confort,
+      finalScore: score,
+      explanation: scoreExplanation
+    });
     
-    // Google Places rating impact on score (only RED ratings affect score)
-    if (googlePlacesResult?.score === "ROUGE") {
-      if (score === "VERT") score = "ORANGE";
-    }
-    
-    // Payment conditions impact on score
-    // ROUGE conditions: IBAN invalide, espèces, paiement intégral avant travaux, ou 2+ critères de vigilance
-    if (paymentConditionsResult.score === "ROUGE") {
-      if (score === "VERT") {
-        score = "ORANGE";
-      }
-      // Combined with other issues, payment ROUGE can push to global ROUGE
-      if (score === "ORANGE" && paymentConditionsResult.vigilanceCount >= 2) {
-        score = "ROUGE";
-      }
-    } else if (paymentConditionsResult.score === "ORANGE" && score === "VERT") {
-      score = "ORANGE";
-    }
-    
-    if (!validScores.includes(score)) {
-      score = "ORANGE";
-    }
+    // Add score explanation to recommendations
+    allRecommandations.push(`📊 Scoring: ${scoreExplanation}`);
 
     // Update the analysis with results
     const { error: updateError } = await supabase
