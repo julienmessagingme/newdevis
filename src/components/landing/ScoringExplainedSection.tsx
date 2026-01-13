@@ -1,4 +1,4 @@
-import { CheckCircle2, AlertCircle, XCircle, Building2, FileText, Shield, TrendingUp } from "lucide-react";
+import { CheckCircle2, AlertCircle, XCircle, Building2, FileText, Shield, MapPin } from "lucide-react";
 
 const scoringLevels = [
   {
@@ -36,23 +36,23 @@ const scoringLevels = [
 const analysisBlocks = [
   {
     icon: Building2,
-    title: "Analyse Entreprise",
-    items: ["Vérification SIREN/SIRET", "Ancienneté de la société", "Santé financière", "Procédures collectives"]
+    title: "Entreprise & Fiabilité",
+    items: ["SIREN/SIRET", "Ancienneté de la société", "Santé financière", "Réputation en ligne"]
   },
   {
     icon: FileText,
-    title: "Analyse Devis",
-    items: ["Mentions légales obligatoires", "Cohérence HT/TVA/TTC", "Détail des prestations", "Conditions de paiement"]
+    title: "Devis & Cohérence Financière",
+    items: ["Comparaison prix marché", "Détail main-d'œuvre/matériaux", "TVA applicable", "Acompte demandé"]
   },
   {
     icon: Shield,
-    title: "Analyse Garanties",
-    items: ["Assurance décennale", "Validité des garanties", "Couverture adaptée", "Assureur identifié"]
+    title: "Sécurité & Paiement",
+    items: ["Assurance décennale", "Assurance RC Pro", "Validité de l'IBAN", "Mode de paiement"]
   },
   {
-    icon: TrendingUp,
-    title: "Analyse Prix",
-    items: ["Comparaison marché", "Détection prix anormaux", "Cohérence globale", "Postes suspects"]
+    icon: MapPin,
+    title: "Contexte du Chantier",
+    items: ["Contraintes d'urbanisme", "Risques naturels", "Zone sismique", "Informations géorisques"]
   }
 ];
 
