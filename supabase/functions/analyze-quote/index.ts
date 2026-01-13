@@ -10,6 +10,7 @@ const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const PAPPERS_API_URL = "https://api.pappers.fr/v2";
 const BODACC_API_URL = "https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales/records";
 const GOOGLE_PLACES_API_URL = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json";
+const ADEME_RGE_API_URL = "https://data.ademe.fr/data-fair/api/v1/datasets/liste-des-entreprises-rge-2/lines";
 
 // ============ PRICE COMPARISON LOGIC ============
 
@@ -139,6 +140,129 @@ function comparePrix(
 }
 
 // ============ END PRICE COMPARISON ============
+
+// ============ RGE VERIFICATION (ADEME) ============
+interface RGEResult {
+  isRGE: boolean;
+  qualifications: string[];
+  score: ScoringColor;
+  indicator?: CompanyIndicator;
+  point_ok?: string;
+  alerte?: string;
+}
+
+async function checkRGEQualification(siret: string): Promise<RGEResult> {
+  const result: RGEResult = {
+    isRGE: false,
+    qualifications: [],
+    score: "ORANGE",
+  };
+
+  // Clean SIRET - remove spaces
+  const cleanSiret = siret.replace(/\s/g, "");
+  
+  // Extract SIREN (first 9 digits) for search
+  const siren = cleanSiret.substring(0, 9);
+  
+  if (siren.length < 9 || !/^\d{9}$/.test(siren)) {
+    console.log("Invalid SIREN for RGE check:", siren);
+    return result;
+  }
+
+  try {
+    // Search by SIRET first, then by SIREN if not found
+    console.log("Checking RGE qualification for SIRET:", cleanSiret);
+    
+    // Try with full SIRET
+    let response = await fetch(
+      `${ADEME_RGE_API_URL}?siret=${cleanSiret}&size=100`,
+      { method: "GET" }
+    );
+
+    if (!response.ok) {
+      console.log("ADEME RGE API error:", response.status);
+      return result;
+    }
+
+    let data = await response.json();
+    let results = data.results || [];
+    
+    // If no results with SIRET, try with SIREN
+    if (results.length === 0) {
+      console.log("No RGE found with SIRET, trying with SIREN:", siren);
+      response = await fetch(
+        `${ADEME_RGE_API_URL}?siren=${siren}&size=100`,
+        { method: "GET" }
+      );
+      
+      if (response.ok) {
+        data = await response.json();
+        results = data.results || [];
+      }
+    }
+
+    if (results.length === 0) {
+      // No RGE qualification found
+      result.score = "ORANGE";
+      result.indicator = {
+        label: "Qualification RGE",
+        value: "Non référencé RGE",
+        score: "ORANGE",
+        explanation: "L'entreprise n'est pas référencée dans l'annuaire des professionnels RGE à ce jour. La qualification RGE est obligatoire uniquement pour bénéficier de certaines aides publiques (MaPrimeRénov', CEE, Éco-PTZ). Cela ne préjuge pas de la qualité de l'artisan."
+      };
+      result.alerte = "⚠️ Qualification RGE : Non (artisan non référencé RGE à ce jour). La mention RGE est obligatoire uniquement pour bénéficier des aides de l'État.";
+      
+      return result;
+    }
+
+    // RGE qualification found!
+    result.isRGE = true;
+    result.score = "VERT";
+    
+    // Collect all qualifications
+    const qualificationsSet = new Set<string>();
+    const domainesSet = new Set<string>();
+    
+    for (const rge of results) {
+      // Extract qualification name (nom_qualification or libelle_qualification)
+      const qualifName = rge.nom_qualification || rge.libelle_qualification || rge.qualification || "";
+      if (qualifName) {
+        qualificationsSet.add(qualifName);
+      }
+      
+      // Extract domain (domaine or type_travaux)
+      const domaine = rge.domaine || rge.type_travaux || rge.code_qualification || "";
+      if (domaine) {
+        domainesSet.add(domaine);
+      }
+    }
+    
+    result.qualifications = Array.from(qualificationsSet);
+    const domaines = Array.from(domainesSet);
+    
+    // Format display text
+    const qualifDisplay = result.qualifications.length > 0 
+      ? result.qualifications.slice(0, 3).join(", ") + (result.qualifications.length > 3 ? ` (+${result.qualifications.length - 3} autres)` : "")
+      : "Qualification(s) RGE";
+    
+    result.indicator = {
+      label: "Qualification RGE",
+      value: `Oui (${result.qualifications.length} qualification${result.qualifications.length > 1 ? 's' : ''})`,
+      score: "VERT",
+      explanation: `L'entreprise est référencée dans l'annuaire officiel des professionnels RGE (France Rénov' / ADEME). ${qualifDisplay}. Cette qualification permet aux clients de bénéficier des aides de l'État.`
+    };
+    
+    result.point_ok = `🟢 Qualification RGE : Oui (artisan reconnu par France Rénov'). ${result.qualifications.length} qualification${result.qualifications.length > 1 ? 's' : ''} active${result.qualifications.length > 1 ? 's' : ''}.`;
+    
+    console.log("RGE qualification found:", result.qualifications);
+    
+    return result;
+  } catch (error) {
+    console.error("ADEME RGE API error:", error);
+    return result;
+  }
+}
+// ============ END RGE VERIFICATION ============
 
 interface BodaccResult {
   hasProcedure: boolean;
@@ -899,23 +1023,26 @@ CONTRAINTES :
     }
     // ============ END PRICE COMPARISON ============
 
-    // If SIRET found, analyze company with Pappers, BODACC and Google Places
+    // If SIRET found, analyze company with Pappers, BODACC, RGE and Google Places
     let companyAnalysis: CompanyAnalysis | null = null;
     let bodaccResult: BodaccResult | null = null;
     let googlePlacesResult: GooglePlacesResult | null = null;
+    let rgeResult: RGEResult | null = null;
     
     if (parsedAnalysis.siret) {
       console.log("SIRET found in document:", parsedAnalysis.siret);
       const siren = parsedAnalysis.siret.replace(/\s/g, "").substring(0, 9);
       
-      // Run Pappers and BODACC checks in parallel
-      const [pappersResult, bodaccCheck] = await Promise.all([
+      // Run Pappers, BODACC and RGE checks in parallel
+      const [pappersResult, bodaccCheck, rgeCheck] = await Promise.all([
         analyzeCompanyWithPappers(parsedAnalysis.siret),
         checkBodaccProcedures(siren),
+        checkRGEQualification(parsedAnalysis.siret),
       ]);
       
       companyAnalysis = pappersResult;
       bodaccResult = bodaccCheck;
+      rgeResult = rgeCheck;
       
       // If company found, also fetch Google Places rating
       if (companyAnalysis.found && companyAnalysis.nom_entreprise) {
@@ -968,6 +1095,19 @@ CONTRAINTES :
       if (bodaccResult) {
         allPointsOk = [...bodaccResult.points_ok, ...allPointsOk];
         allAlertes = [...bodaccResult.alertes, ...allAlertes];
+      }
+      
+      // Add RGE qualification results
+      if (rgeResult) {
+        if (rgeResult.indicator && companyAnalysis.found) {
+          companyAnalysis.indicators.push(rgeResult.indicator);
+        }
+        if (rgeResult.point_ok) {
+          allPointsOk.push(rgeResult.point_ok);
+        }
+        if (rgeResult.alerte) {
+          allAlertes.push(rgeResult.alerte);
+        }
       }
     } else {
       allAlertes.unshift("⚠️ Aucun numéro SIRET/SIREN trouvé sur le devis - vérification de l'entreprise impossible");
