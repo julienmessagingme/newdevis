@@ -141,6 +141,321 @@ function comparePrix(
 
 // ============ END PRICE COMPARISON ============
 
+// ============ ASSURANCES DETECTION (AI-based) ============
+
+// Work types where décennale is critical
+const DECENNALE_CRITICAL_WORK_TYPES = [
+  // Roof / structure
+  "toiture", "charpente", "couverture", "toiture_tuiles",
+  // Heavy construction / structure
+  "gros_oeuvre", "structure", "fondation", "maconnerie", "maconnerie_lourde",
+  // Waterproofing
+  "etancheite", "etancheite_facade", "etancheite_toiture",
+  // Facade with waterproofing
+  "facade", "facade_ravalement", "ravalement",
+  // Exterior joinery
+  "menuiserie_exterieure", "menuiserie_fenetre", "fenetre", "porte_exterieure",
+  "baie_vitree", "veranda",
+  // Pool / heavy masonry
+  "piscine", "piscine_maconnee",
+  // Heavy renovation
+  "renovation_lourde", "renovation_globale", "extension", "surelevation",
+];
+
+// Keywords for critical décennale detection in text
+const DECENNALE_CRITICAL_KEYWORDS = [
+  // Roof / structure
+  "toiture", "charpente", "couverture", "tuiles", "ardoises", "toit",
+  // Heavy construction
+  "gros œuvre", "gros oeuvre", "structure porteuse", "fondation", "maçonnerie",
+  "mur porteur", "dalle", "plancher béton",
+  // Waterproofing
+  "étanchéité", "etancheite", "imperméabilisation",
+  // Facade
+  "façade", "facade", "ravalement", "enduit extérieur",
+  // Exterior joinery
+  "fenêtre", "fenetre", "porte extérieure", "baie vitrée", "véranda", "veranda",
+  "menuiserie extérieure", "volet",
+  // Pool
+  "piscine",
+  // Heavy renovation
+  "extension", "surélévation", "surelevation", "agrandissement",
+];
+
+interface AssuranceExtraction {
+  decennale_mentionnee: boolean;
+  rcpro_mentionnee: boolean;
+  assureur: string;
+  numero_contrat: string;
+  date_debut: string;
+  date_fin: string;
+  activites_couvertes: string;
+  coherence_dates: "OK" | "INCOMPLET" | "INCOHERENT";
+  coherence_activite: "OK" | "DOUTE" | "INCOHERENT" | "INDISPONIBLE";
+}
+
+interface AssuranceResult {
+  decennale: {
+    mentionnee: boolean;
+    critique: boolean;
+    score: ScoringColor;
+    assureur?: string;
+    numero_contrat?: string;
+    date_fin?: string;
+    coherence_dates: string;
+    coherence_activite: string;
+  };
+  rcpro: {
+    mentionnee: boolean;
+    score: ScoringColor;
+    assureur?: string;
+  };
+  globalScore: ScoringColor;
+  point_ok?: string;
+  alerte?: string;
+  recommandation?: string;
+}
+
+// Determine if décennale is critical based on work type
+function isDecennaleCritical(categorieTravaux: string | null, rawText: string | null): boolean {
+  // Check by category first
+  if (categorieTravaux) {
+    const normalizedCategory = categorieTravaux.toLowerCase().replace(/[\s-]/g, "_");
+    if (DECENNALE_CRITICAL_WORK_TYPES.some(type => 
+      normalizedCategory.includes(type) || type.includes(normalizedCategory)
+    )) {
+      return true;
+    }
+  }
+  
+  // Check by keywords in document text
+  if (rawText) {
+    const normalizedText = rawText.toLowerCase();
+    for (const keyword of DECENNALE_CRITICAL_KEYWORDS) {
+      if (normalizedText.includes(keyword.toLowerCase())) {
+        return true;
+      }
+    }
+  }
+  
+  return false;
+}
+
+// Extract assurance information using AI
+async function extractAssuranceInfo(
+  base64Content: string,
+  mimeType: string,
+  lovableApiKey: string
+): Promise<AssuranceExtraction> {
+  const defaultResult: AssuranceExtraction = {
+    decennale_mentionnee: false,
+    rcpro_mentionnee: false,
+    assureur: "",
+    numero_contrat: "",
+    date_debut: "",
+    date_fin: "",
+    activites_couvertes: "",
+    coherence_dates: "INCOMPLET",
+    coherence_activite: "INDISPONIBLE",
+  };
+
+  try {
+    const systemPrompt = `Tu es un expert en analyse de devis travaux et en vérification d'assurances professionnelles (décennale, RC Pro). 
+Tu extrais uniquement les informations présentes dans le document, sans inventer de données.
+Réponds uniquement avec un JSON valide.`;
+
+    const userPrompt = `Analyse ce devis et extrais les informations relatives aux ASSURANCES de l'entreprise.
+
+IMPORTANT: N'invente AUCUNE information. Si une donnée n'est pas visible, laisse le champ vide.
+
+Recherche spécifiquement:
+- Mentions d'assurance décennale / garantie décennale
+- Mentions d'assurance responsabilité civile professionnelle (RC Pro)
+- Nom de l'assureur (compagnie d'assurance)
+- Numéro de police/contrat
+- Dates de validité (début et fin)
+- Activités couvertes par l'assurance
+
+Retourne un JSON avec EXACTEMENT ces champs:
+{
+  "decennale_mentionnee": true/false,
+  "rcpro_mentionnee": true/false,
+  "assureur": "nom de l'assureur ou vide",
+  "numero_contrat": "numéro de police ou vide",
+  "date_debut": "date de début ou vide",
+  "date_fin": "date de fin ou vide",
+  "activites_couvertes": "description des activités couvertes ou vide",
+  "coherence_dates": "OK si dates présentes et cohérentes (fin > début, fin dans le futur), INCOMPLET si dates manquantes, INCOHERENT si dates expirées ou incohérentes",
+  "coherence_activite": "OK si activités correspondent aux travaux du devis, DOUTE si information partielle, INCOHERENT si activités ne correspondent pas, INDISPONIBLE si non mentionné"
+}
+
+CONTRAINTES:
+- decennale_mentionnee = true SEULEMENT si le document mentionne explicitement "décennale", "garantie décennale", ou "assurance décennale"
+- rcpro_mentionnee = true SEULEMENT si le document mentionne explicitement "RC Pro", "responsabilité civile professionnelle", ou "RC professionnelle"
+- Ne jamais déduire ou inventer des informations
+- coherence_dates = INCOMPLET si aucune date n'est mentionnée`;
+
+    const aiResponse = await fetch(LOVABLE_AI_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${lovableApiKey}`,
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: userPrompt },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:${mimeType};base64,${base64Content}`,
+                },
+              },
+            ],
+          },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+
+    if (!aiResponse.ok) {
+      console.error("Assurance extraction AI error:", aiResponse.status);
+      return defaultResult;
+    }
+
+    const aiResult = await aiResponse.json();
+    const content = aiResult.choices?.[0]?.message?.content;
+
+    if (!content) {
+      return defaultResult;
+    }
+
+    const parsed = JSON.parse(content);
+    return {
+      decennale_mentionnee: Boolean(parsed.decennale_mentionnee),
+      rcpro_mentionnee: Boolean(parsed.rcpro_mentionnee),
+      assureur: parsed.assureur || "",
+      numero_contrat: parsed.numero_contrat || "",
+      date_debut: parsed.date_debut || "",
+      date_fin: parsed.date_fin || "",
+      activites_couvertes: parsed.activites_couvertes || "",
+      coherence_dates: parsed.coherence_dates || "INCOMPLET",
+      coherence_activite: parsed.coherence_activite || "INDISPONIBLE",
+    };
+  } catch (error) {
+    console.error("Assurance extraction error:", error);
+    return defaultResult;
+  }
+}
+
+// Analyze assurances and determine scores
+function analyzeAssurances(
+  extraction: AssuranceExtraction,
+  categorieTravaux: string | null,
+  rawText: string | null
+): AssuranceResult {
+  const decennaleCritique = isDecennaleCritical(categorieTravaux, rawText);
+  
+  // Décennale scoring
+  let decennaleScore: ScoringColor;
+  
+  if (decennaleCritique) {
+    // Décennale is critical for this type of work
+    if (extraction.decennale_mentionnee) {
+      if (extraction.coherence_dates === "OK" && extraction.coherence_activite === "OK") {
+        decennaleScore = "VERT";
+      } else if (extraction.coherence_dates === "INCOHERENT" || extraction.coherence_activite === "INCOHERENT") {
+        decennaleScore = "ROUGE";
+      } else {
+        decennaleScore = "ORANGE";
+      }
+    } else {
+      decennaleScore = "ROUGE";
+    }
+  } else {
+    // Décennale is not critical
+    if (extraction.decennale_mentionnee) {
+      if (extraction.coherence_dates === "INCOHERENT") {
+        decennaleScore = "ROUGE";
+      } else {
+        decennaleScore = "VERT";
+      }
+    } else {
+      decennaleScore = "ORANGE";
+    }
+  }
+  
+  // RC Pro scoring
+  let rcproScore: ScoringColor;
+  
+  if (extraction.rcpro_mentionnee) {
+    if (extraction.coherence_dates === "INCOHERENT") {
+      rcproScore = "ROUGE";
+    } else {
+      rcproScore = "VERT";
+    }
+  } else {
+    rcproScore = "ORANGE";
+  }
+  
+  // Global assurance score (worst of the two)
+  let globalScore: ScoringColor;
+  if (decennaleScore === "ROUGE" || rcproScore === "ROUGE") {
+    globalScore = "ROUGE";
+  } else if (decennaleScore === "ORANGE" || rcproScore === "ORANGE") {
+    globalScore = "ORANGE";
+  } else {
+    globalScore = "VERT";
+  }
+  
+  const result: AssuranceResult = {
+    decennale: {
+      mentionnee: extraction.decennale_mentionnee,
+      critique: decennaleCritique,
+      score: decennaleScore,
+      assureur: extraction.assureur || undefined,
+      numero_contrat: extraction.numero_contrat || undefined,
+      date_fin: extraction.date_fin || undefined,
+      coherence_dates: extraction.coherence_dates,
+      coherence_activite: extraction.coherence_activite,
+    },
+    rcpro: {
+      mentionnee: extraction.rcpro_mentionnee,
+      score: rcproScore,
+      assureur: extraction.assureur || undefined,
+    },
+    globalScore,
+    recommandation: "📋 Demandez l'attestation d'assurance (PDF) à jour indiquant les dates de validité et l'activité couverte.",
+  };
+  
+  // Generate point_ok or alerte messages
+  if (globalScore === "VERT") {
+    result.point_ok = `🟢 Assurances : ${extraction.decennale_mentionnee ? "Décennale mentionnée" : ""}${extraction.decennale_mentionnee && extraction.rcpro_mentionnee ? " + " : ""}${extraction.rcpro_mentionnee ? "RC Pro mentionnée" : ""} sur le devis.`;
+  } else if (globalScore === "ORANGE") {
+    const parts: string[] = [];
+    if (!extraction.decennale_mentionnee) parts.push("décennale non mentionnée");
+    if (!extraction.rcpro_mentionnee) parts.push("RC Pro non mentionnée");
+    if (extraction.coherence_dates === "INCOMPLET") parts.push("dates incomplètes");
+    result.alerte = `⚠️ Assurances : ${parts.join(", ")}. Demandez l'attestation d'assurance à l'artisan.`;
+  } else {
+    const parts: string[] = [];
+    if (!extraction.decennale_mentionnee && decennaleCritique) {
+      parts.push("décennale non mentionnée (obligatoire pour ce type de travaux)");
+    }
+    if (extraction.coherence_dates === "INCOHERENT") parts.push("dates incohérentes ou expirées");
+    if (extraction.coherence_activite === "INCOHERENT") parts.push("activités non couvertes");
+    result.alerte = `🔴 Assurances : ${parts.join(", ")}. Vérification impérative de l'attestation d'assurance.`;
+  }
+  
+  return result;
+}
+
+// ============ END ASSURANCES DETECTION ============
+
 // ============ QUALIBAT DETECTION (AI-based) ============
 interface QualibatResult {
   hasQualibat: boolean;
@@ -1175,6 +1490,32 @@ CONTRAINTES :
     console.log("QUALIBAT detection result:", qualibatResult.hasQualibat ? "FOUND" : "NOT FOUND");
     // ============ END QUALIBAT DETECTION ============
 
+    // ============ ASSURANCES DETECTION (AI-based) ============
+    console.log("Starting assurance extraction...");
+    const assuranceExtraction = await extractAssuranceInfo(base64, mimeType, lovableApiKey);
+    const assuranceResult = analyzeAssurances(
+      assuranceExtraction,
+      parsedAnalysis.categorie_travaux,
+      analysisContent
+    );
+    
+    console.log("Assurance analysis result:", {
+      decennale: assuranceResult.decennale,
+      rcpro: assuranceResult.rcpro,
+      globalScore: assuranceResult.globalScore
+    });
+    
+    if (assuranceResult.point_ok) {
+      allPointsOk.push(assuranceResult.point_ok);
+    }
+    if (assuranceResult.alerte) {
+      allAlertes.push(assuranceResult.alerte);
+    }
+    if (assuranceResult.recommandation) {
+      allRecommandations.push(assuranceResult.recommandation);
+    }
+    // ============ END ASSURANCES DETECTION ============
+
     // ============ PRICE COMPARISON ANALYSIS ============
     let priceComparisonResult: PriceComparisonResult | null = null;
     
@@ -1343,6 +1684,13 @@ CONTRAINTES :
       } else if (priceComparisonResult.score === "ORANGE" && score === "VERT") {
         score = "ORANGE";
       }
+    }
+    
+    // Assurance impact on score
+    if (assuranceResult.globalScore === "ROUGE") {
+      score = "ROUGE";
+    } else if (assuranceResult.globalScore === "ORANGE" && score === "VERT") {
+      score = "ORANGE";
     }
     
     // Google Places rating impact on score (only RED ratings affect score)
