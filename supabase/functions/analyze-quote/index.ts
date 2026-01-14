@@ -844,14 +844,31 @@ function calculateScore(
   const majeurs: string[] = [];
   const confort: string[] = [];
 
-  // ============ CRITÈRES CRITIQUES (déclenchent ROUGE immédiat si CONFIRMÉ) ============
+  // ============ RÈGLE CENTRALE: COMPANY_VERIFIED ============
+  // company_verified = TRUE dès qu'UNE des conditions est remplie:
+  // - SIRET/SIREN valide et entreprise trouvée via Pappers
+  // - Nom d'entreprise + correspondance Google fiable
+  // - SIRET présent sur le devis (confiance minimale)
+  const company_verified = 
+    verified.company_found || // Pappers a trouvé l'entreprise
+    (extracted.company.siret && extracted.company.siret.length >= 14) || // SIRET présent et valide format
+    (verified.google_found && verified.google_match_confidence === "high"); // Google match fiable
 
-  // 1. Entreprise non immatriculée CONFIRMÉE
-  if (!extracted.company.siret) {
-    // C'est critique seulement si on n'a vraiment pas de SIRET
-    critiques.push("Entreprise non immatriculée (SIRET absent du devis)");
-  } else if (!verified.company_found) {
-    critiques.push("Entreprise non trouvée dans les registres officiels");
+  // ============ CRITÈRES CRITIQUES (déclenchent ROUGE immédiat si CONFIRMÉ) ============
+  // RÈGLE ANTI-FAUX-ROUGE: Un critère critique ne peut être déclenché QUE sur preuve NÉGATIVE EXPLICITE
+
+  // 1. Entreprise non immatriculée - SEULEMENT si vraiment aucune trace
+  // SI company_verified = TRUE → INTERDIT de déclencher ce critère
+  if (!company_verified) {
+    if (!extracted.company.siret && !extracted.company.siren && !extracted.company.name) {
+      // Aucune info entreprise du tout = critique
+      critiques.push("Aucune information d'entreprise sur le devis");
+    } else if (!extracted.company.siret && !extracted.company.siren) {
+      // Nom présent mais pas de SIRET = MAJEUR (pas critique)
+      majeurs.push("SIRET/SIREN absent du devis – demandez le numéro à l'artisan");
+    }
+    // NOTE: Si SIRET présent mais non trouvé Pappers → on NE déclare PAS critique
+    // car l'API peut être temporairement indisponible ou le SIRET récent
   }
 
   // 2. Capitaux propres négatifs CONFIRMÉS
@@ -932,25 +949,30 @@ function calculateScore(
     majeurs.push(`IBAN étranger (${getCountryName(verified.iban_country_code || "")})`);
   }
 
-  // 6. Réputation Google < 4 (informatif, pas critique)
-  if (verified.google_found && verified.google_rating !== null && verified.google_rating < 4) {
-    // NB: On n'ajoute PAS aux critères majeurs - c'est purement informatif
-    // selon les règles anti-faux-rouges
-  }
+  // 6. Réputation Google < 4 (informatif uniquement, jamais critique ni majeur)
+  // L'absence de Google ou note basse n'est JAMAIS un critère négatif
+  // C'est purement informatif
 
-  // 7. Entreprise récente < 2 ans
-  if (verified.anciennete_years !== null && verified.anciennete_years < 2) {
+  // 7. Entreprise récente < 2 ans (SEULEMENT si company_verified et ancienneté connue)
+  if (company_verified && verified.anciennete_years !== null && verified.anciennete_years < 2) {
     majeurs.push("Entreprise récente (< 2 ans d'existence)");
   }
 
   // ============ CRITÈRES DE CONFORT (renforcent la confiance) ============
 
-  // 1. RGE vérifié
+  // Entreprise vérifiée
+  if (company_verified && verified.company_found) {
+    confort.push("Entreprise vérifiée dans les registres officiels");
+  }
+
+  // 1. RGE vérifié (seulement si pertinent)
   if (verified.rge_found) {
     confort.push("Qualification RGE vérifiée");
   } else if (verified.rge_relevant && !verified.rge_found) {
-    majeurs.push("RGE non trouvé pour travaux éligibles");
+    // RGE non trouvé pour travaux éligibles = MAJEUR seulement, pas critique
+    majeurs.push("RGE non trouvé pour travaux éligibles aux aides");
   }
+  // Si RGE non pertinent → pas de pénalité, on ignore
 
   // 2. QUALIBAT mentionné
   if (extracted.labels.mentions_qualibat === "yes") {
@@ -1026,10 +1048,13 @@ function calculateScore(
   }
 
   // Calcul des scores par bloc
+  // RÈGLE: Utiliser company_verified pour éviter les faux rouges
   const blocScores = {
     entreprise: verified.procedure_collective || (verified.capitaux_propres_positifs === false)
       ? "ROUGE" as ScoringColor
-      : (!verified.company_found || (verified.anciennete_years !== null && verified.anciennete_years < 2))
+      // ORANGE seulement si company_verified ET (récent OU pas trouvé Pappers)
+      // mais JAMAIS rouge sur absence de données
+      : (!company_verified || (verified.anciennete_years !== null && verified.anciennete_years < 2))
         ? "ORANGE" as ScoringColor
         : "VERT" as ScoringColor,
     
@@ -1085,6 +1110,12 @@ function renderAnalysisOutput(
 
   // ============ BLOC 1: ENTREPRISE ============
 
+  // RÈGLE CENTRALE: Calculer company_verified pour la cohérence UI/Scoring
+  const company_verified = 
+    verified.company_found || 
+    (extracted.company.siret && extracted.company.siret.length >= 14) ||
+    (verified.google_found && verified.google_match_confidence === "high");
+
   if (verified.company_found) {
     points_ok.push(`✓ Entreprise identifiée : ${verified.company_name}`);
     
@@ -1094,7 +1125,8 @@ function renderAnalysisOutput(
       } else if (verified.anciennete_years >= 2) {
         points_ok.push(`🟠 Entreprise établie depuis ${verified.anciennete_years} ans`);
       } else {
-        alertes.push(`🔴 Entreprise récente : ${verified.anciennete_years} an(s) d'existence. Vigilance recommandée.`);
+        // Entreprise récente = ORANGE, jamais ROUGE
+        alertes.push(`⚠️ Entreprise récente : ${verified.anciennete_years} an(s) d'existence. Vigilance recommandée.`);
       }
     }
 
@@ -1103,27 +1135,37 @@ function renderAnalysisOutput(
     } else if (verified.bilans_disponibles > 0) {
       points_ok.push(`🟠 ${verified.bilans_disponibles} bilan(s) comptable(s) disponible(s)`);
     } else {
-      alertes.push("🟠 Aucun bilan publié - la vérification financière est limitée");
+      // Aucun bilan = info manquante, pas alerte forte
+      points_ok.push("ℹ️ Aucun bilan publié - la vérification financière est limitée");
     }
 
     if (verified.capitaux_propres_positifs === true) {
       const formatted = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(verified.capitaux_propres!);
       points_ok.push(`🟢 Capitaux propres positifs (${formatted})`);
     } else if (verified.capitaux_propres_positifs === false) {
+      // Capitaux négatifs = CRITIQUE CONFIRMÉ
       const formatted = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(verified.capitaux_propres!);
-      alertes.push(`🔴 ALERTE IMPORTANTE : Capitaux propres négatifs (${formatted}). Situation financière fragile.`);
+      alertes.push(`🔴 ALERTE CRITIQUE : Capitaux propres négatifs (${formatted}). Situation financière fragile.`);
     }
 
     if (verified.procedure_collective) {
-      alertes.push("🔴 ALERTE FORTE : Procédure collective en cours (redressement ou liquidation)");
+      alertes.push("🔴 ALERTE CRITIQUE : Procédure collective en cours (redressement ou liquidation)");
     } else {
       points_ok.push("✓ Aucune procédure collective en cours");
     }
   } else if (extracted.company.siret) {
-    alertes.push(`⚠️ Entreprise non trouvée dans les registres (SIRET: ${extracted.company.siret})`);
-  } else {
-    alertes.push("⚠️ Aucun numéro SIRET/SIREN trouvé sur le devis");
+    // SIRET présent mais non trouvé Pappers = INFO, pas critique
+    // L'API peut être temporairement indisponible ou le SIRET très récent
+    points_ok.push(`ℹ️ SIRET présent : ${extracted.company.siret}`);
+    points_ok.push("⚠️ Vérification Pappers non concluante - vous pouvez vérifier sur societe.com");
+  } else if (extracted.company.name) {
+    // Nom présent mais pas de SIRET = demander le SIRET
+    points_ok.push(`ℹ️ Entreprise : ${extracted.company.name}`);
+    alertes.push("⚠️ SIRET non détecté sur le devis – demandez le numéro à l'artisan");
     recommandations.push("Demandez à l'artisan son numéro SIRET pour vérifier son immatriculation");
+  } else {
+    alertes.push("⚠️ Aucune information d'entreprise identifiée sur le devis");
+    recommandations.push("Demandez à l'artisan ses coordonnées complètes et son numéro SIRET");
   }
 
   // Google Places - toujours afficher un statut
