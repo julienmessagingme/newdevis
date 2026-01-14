@@ -1,8 +1,17 @@
+# Robots.txt pour VerifierMonDevis.fr
+# Autoriser l'indexation de toutes les pages publiques
+
 User-agent: Googlebot
 Allow: /
+Disallow: /admin
+Disallow: /tableau-de-bord
+Disallow: /analyse/
 
 User-agent: Bingbot
 Allow: /
+Disallow: /admin
+Disallow: /tableau-de-bord
+Disallow: /analyse/
 
 User-agent: Twitterbot
 Allow: /
@@ -12,3 +21,9 @@ Allow: /
 
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /tableau-de-bord
+Disallow: /analyse/
+
+# Sitemap
+Sitemap: https://verifiermondevis.fr/sitemap.xml

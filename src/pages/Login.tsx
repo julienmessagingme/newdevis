@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Shield, Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import SEOHead from "@/components/SEOHead";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -41,6 +42,11 @@ const Login = () => {
 
   return (
     <div className="min-h-screen bg-background flex">
+      <SEOHead 
+        title="Connexion | VerifierMonDevis.fr"
+        description="Connectez-vous à votre compte VerifierMonDevis.fr pour accéder à vos analyses de devis d'artisans et suivre vos projets de travaux."
+        canonical="https://verifiermondevis.fr/connexion"
+      />
       {/* Left Panel - Form */}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">

@@ -2,10 +2,16 @@ import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import SEOHead from "@/components/SEOHead";
 
 const CGU = () => {
   return (
     <div className="min-h-screen flex flex-col">
+      <SEOHead 
+        title="Conditions Générales d'Utilisation | VerifierMonDevis.fr"
+        description="Consultez les CGU de VerifierMonDevis.fr : nature du service, responsabilités, données utilisées. Service d'analyse indicatif et non contractuel."
+        canonical="https://verifiermondevis.fr/cgu"
+      />
       <Header />
       <main className="flex-1 py-12">
         <div className="container max-w-3xl">

@@ -16,9 +16,9 @@ const HeroSection = () => {
             
 
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-primary-foreground mb-6 leading-tight">
-              Analysez vos devis d'artisans en{" "}
+              Vérifier un devis artisan{" "}
               <span className="relative">
-                quelques clics
+                gratuitement
                 <svg className="absolute -bottom-2 left-0 w-full" viewBox="0 0 200 12" fill="none">
                   <path d="M2 10C50 4 150 4 198 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="text-score-green" />
                 </svg>

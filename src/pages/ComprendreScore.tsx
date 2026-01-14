@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import SEOHead from "@/components/SEOHead";
 import { 
   CheckCircle2, 
   AlertCircle, 
@@ -108,6 +109,11 @@ const ComprendreScore = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
+      <SEOHead 
+        title="Comprendre le score de fiabilité | VerifierMonDevis.fr"
+        description="Découvrez comment interpréter le score Feu Vert, Orange ou Rouge de votre devis artisan. Critères d'analyse, actions conseillées et explications."
+        canonical="https://verifiermondevis.fr/comprendre-score"
+      />
       <Header />
       <main className="flex-1 py-12 md:py-20 bg-background">
         <div className="container max-w-4xl">
