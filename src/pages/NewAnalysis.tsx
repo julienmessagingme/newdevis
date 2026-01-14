@@ -128,8 +128,19 @@ const NewAnalysis = () => {
       });
 
       if (functionError) {
+        const anyErr = functionError as any;
+        const status = anyErr?.context?.status ?? anyErr?.status;
+        const msg = anyErr?.context?.message ?? anyErr?.context?.error ?? functionError.message;
+
         console.error("Function error:", functionError);
-        toast.error("Erreur lors du démarrage de l'analyse. Veuillez réessayer.");
+
+        if (status === 402) {
+          toast.error("Service d'analyse indisponible (crédits IA). Veuillez réessayer plus tard.");
+        } else if (status === 429) {
+          toast.error("Service d'analyse surchargé. Réessayez dans quelques minutes.");
+        } else {
+          toast.error(msg || "Erreur lors du démarrage de l'analyse. Veuillez réessayer.");
+        }
       }
 
       // Navigate to result page

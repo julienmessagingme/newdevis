@@ -6,7 +6,36 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+class PipelineError extends Error {
+  status: number;
+  code: string;
+  publicMessage: string;
+
+  constructor({
+    status,
+    code,
+    publicMessage,
+    cause,
+  }: {
+    status: number;
+    code: string;
+    publicMessage: string;
+    cause?: unknown;
+  }) {
+    super(publicMessage);
+    this.name = "PipelineError";
+    this.status = status;
+    this.code = code;
+    this.publicMessage = publicMessage;
+    // @ts-ignore - supported in modern runtimes
+    this.cause = cause;
+  }
+}
+
+const isPipelineError = (e: unknown): e is PipelineError => e instanceof PipelineError;
+
 // ============ API ENDPOINTS ============
+
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const PAPPERS_API_URL = "https://api.pappers.fr/v2";
 const BODACC_API_URL = "https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales/records";
@@ -443,6 +472,7 @@ EXTRACTION DEMANDÉE:
   "resume": "résumé clair et pédagogique du devis pour un particulier"
 }`;
 
+
   try {
     const aiResponse = await fetch(LOVABLE_AI_URL, {
       method: "POST",
@@ -467,8 +497,33 @@ EXTRACTION DEMANDÉE:
     });
 
     if (!aiResponse.ok) {
-      console.error("Extract AI error:", aiResponse.status);
-      throw new Error("AI extraction failed");
+      const details = await aiResponse.text().catch(() => "");
+      console.error("Extract AI error:", aiResponse.status, details);
+
+      if (aiResponse.status === 402) {
+        throw new PipelineError({
+          status: 402,
+          code: "AI_PAYMENT_REQUIRED",
+          publicMessage:
+            "Le service d'analyse est temporairement indisponible (crédits IA insuffisants). Veuillez réessayer plus tard ou ajouter des crédits.",
+        });
+      }
+
+      if (aiResponse.status === 429) {
+        throw new PipelineError({
+          status: 429,
+          code: "AI_RATE_LIMIT",
+          publicMessage:
+            "Le service d'analyse est temporairement surchargé (trop de demandes). Veuillez réessayer dans quelques minutes.",
+        });
+      }
+
+      throw new PipelineError({
+        status: 502,
+        code: "AI_GATEWAY_ERROR",
+        publicMessage:
+          "Le service d'analyse est temporairement indisponible. Veuillez réessayer plus tard.",
+      });
     }
 
     const aiResult = await aiResponse.json();
@@ -1849,14 +1904,21 @@ serve(async (req) => {
       });
     } catch (error) {
       console.error("Extraction failed:", error);
+
+      const publicMessage = isPipelineError(error)
+        ? error.publicMessage
+        : "Impossible de lire le contenu du fichier";
+      const statusCode = isPipelineError(error) ? error.status : 500;
+      const errorCode = isPipelineError(error) ? error.code : "EXTRACTION_FAILED";
+
       await supabase
         .from("analyses")
-        .update({ status: "error", error_message: "Impossible de lire le contenu du fichier" })
+        .update({ status: "error", error_message: publicMessage })
         .eq("id", analysisId);
 
       return new Response(
-        JSON.stringify({ error: "Extraction failed" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: errorCode, message: publicMessage }),
+        { status: statusCode, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
