@@ -25,9 +25,17 @@ import {
   filterOutDevisItems,
   filterOutPriceItems,
   filterOutSecuriteItems,
-  filterOutContexteItems
+  filterOutContexteItems,
+  DocumentRejectionScreen,
+  AdaptedAnalysisBanner
 } from "@/components/analysis";
 import type { TravauxItem } from "@/components/analysis";
+
+type DocumentDetection = {
+  type: "devis_travaux" | "devis_prestation_technique" | "devis_diagnostic_immobilier" | "facture" | "autre";
+  analysis_mode: "full" | "adapted" | "diagnostic" | "rejected";
+  diagnostic_types?: string[];
+};
 
 type Analysis = {
   id: string;
@@ -47,6 +55,24 @@ type Analysis = {
   raw_text?: string;
   site_context?: Record<string, unknown>;
   types_travaux?: TravauxItem[];
+};
+
+// Helper to parse document detection from raw_text
+const parseDocumentDetection = (rawText?: string): DocumentDetection | null => {
+  if (!rawText) return null;
+  try {
+    const parsed = JSON.parse(rawText);
+    if (parsed?.document_detection) {
+      return {
+        type: parsed.document_detection.type,
+        analysis_mode: parsed.document_detection.analysis_mode,
+        diagnostic_types: parsed.document_detection.diagnostic_types,
+      };
+    }
+  } catch {
+    // rawText might not be JSON
+  }
+  return null;
 };
 
 const getScoreIcon = (score: string | null, className: string = "h-5 w-5") => {
@@ -233,64 +259,56 @@ const AnalysisResult = () => {
     );
   }
 
+  // Parse document detection from raw_text
+  const documentDetection = parseDocumentDetection(analysis.raw_text);
+  
   // Check if document was rejected (facture ou autre)
-  const isRejectedDocument = analysis.status === "completed" && !analysis.score && analysis.resume && (
-    analysis.resume.includes("facture") || 
-    analysis.resume.includes("ne correspond pas") ||
-    analysis.resume.includes("VerifierMonDevis.fr analyse uniquement")
+  const isRejectedDocument = analysis.status === "completed" && (
+    documentDetection?.analysis_mode === "rejected" ||
+    documentDetection?.type === "facture" ||
+    documentDetection?.type === "autre" ||
+    (!analysis.score && analysis.resume && (
+      analysis.resume.includes("facture") || 
+      analysis.resume.includes("ne correspond pas") ||
+      analysis.resume.includes("VerifierMonDevis.fr analyse uniquement")
+    ))
   );
+  
+  // Determine rejection type for proper messaging
+  const getRejectionType = (): "facture" | "autre" => {
+    if (documentDetection?.type === "facture") return "facture";
+    if (analysis.resume?.toLowerCase().includes("facture")) return "facture";
+    return "autre";
+  };
 
   if (isRejectedDocument) {
     return (
-      <div className="min-h-screen bg-background">
-        <header className="sticky top-0 z-50 bg-card border-b border-border">
-          <div className="container flex h-16 items-center justify-between">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Shield className="h-6 w-6 text-primary" />
-              </div>
-              <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
-            </Link>
-          </div>
-        </header>
-        <main className="container py-16 max-w-2xl text-center">
-          <div className="w-20 h-20 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <FileText className="h-10 w-10 text-primary" />
-          </div>
-          <h1 className="text-2xl font-bold text-foreground mb-4">Document non conforme</h1>
-          <div className="bg-card border border-border rounded-xl p-6 mb-6 text-left">
-            <p className="text-muted-foreground mb-4">{analysis.resume}</p>
-            {analysis.recommandations && analysis.recommandations.length > 0 && (
-              <div className="border-t border-border pt-4 mt-4">
-                <h3 className="font-medium text-foreground mb-3 text-sm">💡 Pourquoi cette limitation ?</h3>
-                <ul className="space-y-2">
-                  {analysis.recommandations.map((rec, index) => (
-                    <li key={index} className="text-sm text-muted-foreground flex items-start gap-2">
-                      <span className="text-primary mt-0.5">•</span>
-                      {rec}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/tableau-de-bord">
-              <Button variant="outline">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Retour au tableau de bord
-              </Button>
-            </Link>
-            <Link to="/nouvelle-analyse">
-              <Button>
-                Analyser un devis
-              </Button>
-            </Link>
-          </div>
-        </main>
-      </div>
+      <DocumentRejectionScreen
+        fileName={analysis.file_name}
+        rejectionMessage={analysis.resume || undefined}
+        rejectionType={getRejectionType()}
+      />
     );
   }
+
+  // Check if this is an adapted analysis (diagnostic or prestation technique)
+  const isAdaptedAnalysis = 
+    documentDetection?.analysis_mode === "adapted" || 
+    documentDetection?.analysis_mode === "diagnostic" ||
+    documentDetection?.type === "devis_diagnostic_immobilier" ||
+    documentDetection?.type === "devis_prestation_technique";
+  
+  const getAnalysisMode = (): "diagnostic" | "prestation_technique" | "standard" => {
+    if (documentDetection?.type === "devis_diagnostic_immobilier" || documentDetection?.analysis_mode === "diagnostic") {
+      return "diagnostic";
+    }
+    if (documentDetection?.type === "devis_prestation_technique" || documentDetection?.analysis_mode === "adapted") {
+      return "prestation_technique";
+    }
+    return "standard";
+  };
+
+  const analysisMode = getAnalysisMode();
 
   // Check if we have structured types_travaux data
   const hasStructuredTypesTravaux = analysis.types_travaux && analysis.types_travaux.length > 0;
@@ -382,6 +400,11 @@ const AnalysisResult = () => {
             </Link>
           </div>
         </div>
+
+        {/* Adapted Analysis Banner - for diagnostics and prestations techniques */}
+        {isAdaptedAnalysis && (
+          <AdaptedAnalysisBanner mode={analysisMode} />
+        )}
 
         {/* Resume */}
         {analysis.resume && (
