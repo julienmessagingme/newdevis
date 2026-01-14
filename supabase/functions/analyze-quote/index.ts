@@ -22,19 +22,39 @@ type Confidence = "high" | "medium" | "low";
 
 // Document type detection result
 type DocumentType = 
-  | "devis_travaux"           // Full analysis + standard scoring
+  | "devis_travaux"              // Full analysis + standard scoring
   | "devis_prestation_technique" // Adapted analysis (no market price, no décennale required)
-  | "facture"                 // Rejected - invoice, not a quote
-  | "autre";                  // Rejected - non-conforming document
+  | "devis_diagnostic_immobilier" // Specific analysis for property diagnostics
+  | "facture"                    // Rejected - invoice, not a quote
+  | "autre";                     // Rejected - non-conforming document
 
 interface DocumentDetectionResult {
   type: DocumentType;
   confidence: Confidence;
   indicators: string[];       // What led to this classification
-  analysis_mode: "full" | "adapted" | "rejected";
+  analysis_mode: "full" | "adapted" | "diagnostic" | "rejected";
   rejection_message?: string;
   credibility_message: string;
+  diagnostic_types?: string[]; // For diagnostic immobilier: list of detected diagnostics
 }
+
+// Reference prices for diagnostic immobilier (indicative national ranges)
+const DIAGNOSTIC_REFERENCE_PRICES: Record<string, { min: number; max: number; label: string }> = {
+  "dpe": { min: 100, max: 250, label: "DPE (Diagnostic de Performance Énergétique)" },
+  "amiante": { min: 80, max: 200, label: "Diagnostic Amiante" },
+  "plomb": { min: 100, max: 200, label: "Diagnostic Plomb (CREP)" },
+  "gaz": { min: 100, max: 180, label: "Diagnostic Gaz" },
+  "electricite": { min: 100, max: 180, label: "Diagnostic Électricité" },
+  "erp": { min: 20, max: 50, label: "État des Risques et Pollutions (ERP)" },
+  "carrez": { min: 50, max: 150, label: "Métrage Loi Carrez" },
+  "boutin": { min: 50, max: 100, label: "Surface habitable (Boutin)" },
+  "termites": { min: 80, max: 180, label: "Diagnostic Termites" },
+  "assainissement": { min: 100, max: 200, label: "Diagnostic Assainissement" },
+  "pack_vente": { min: 290, max: 440, label: "Pack Diagnostics Vente" },
+  "pack_location": { min: 190, max: 300, label: "Pack Diagnostics Location" },
+  "dtg": { min: 0, max: 0, label: "DTG (Diagnostic Technique Global)" }, // Not comparable
+  "pppt": { min: 0, max: 0, label: "PPPT (Plan Pluriannuel de Travaux)" }, // Not comparable
+};
 
 // ============ STEP 1: EXTRACT - Structured quote extraction ============
 interface QuoteExtracted {
@@ -214,20 +234,25 @@ async function detectDocumentType(
 1. DEVIS DE TRAVAUX : Document préparatoire proposant des travaux de construction, rénovation, installation (plomberie, électricité, toiture, isolation, peinture, maçonnerie, menuiserie, etc.)
    Indices : "Devis", montants HT/TTC, descriptions de travaux, mentions d'assurance décennale, dates de validité
 
-2. DEVIS DE PRESTATION TECHNIQUE : Document proposant des services intellectuels ou techniques liés au bâtiment (diagnostic immobilier, audit énergétique, étude thermique, expertise, contrôle technique)
-   Indices : "Devis", "Diagnostic", "Audit", "Étude", honoraires, mission intellectuelle
+2. DEVIS DE DIAGNOSTIC IMMOBILIER : Document proposant des diagnostics obligatoires ou facultatifs liés à un bien immobilier
+   Indices : DPE, amiante, plomb, gaz, électricité, ERP, Carrez, Boutin, termites, DTG, PPPT, "diagnostic immobilier", "pack vente", "pack location", certification diagnostiqueur
+   CE TYPE EST PRIORITAIRE si des diagnostics immobiliers sont détectés
 
-3. FACTURE : Document émis APRÈS réalisation de travaux ou prestations
+3. DEVIS DE PRESTATION TECHNIQUE : Document proposant des services intellectuels ou techniques liés au bâtiment (audit énergétique, étude thermique, expertise, contrôle technique) MAIS PAS de diagnostics immobiliers
+   Indices : "Devis", "Audit", "Étude", honoraires, mission intellectuelle
+
+4. FACTURE : Document émis APRÈS réalisation de travaux ou prestations
    Indices : "Facture", numéro de facture, "Net à payer", référence à des travaux passés, date d'échéance de paiement
 
-4. AUTRE : Document qui n'est pas un devis ni une facture (bon de commande, contrat, attestation, courrier, etc.)
+5. AUTRE : Document qui n'est pas un devis ni une facture (bon de commande, contrat, attestation, courrier, etc.)
 
 Réponds UNIQUEMENT avec ce JSON :
 {
-  "type": "devis_travaux | devis_prestation_technique | facture | autre",
+  "type": "devis_travaux | devis_diagnostic_immobilier | devis_prestation_technique | facture | autre",
   "confidence": "high | medium | low",
   "indicators": ["liste des éléments qui ont permis cette classification"],
-  "document_title": "titre du document s'il est visible"
+  "document_title": "titre du document s'il est visible",
+  "diagnostics_detected": ["dpe", "amiante", "plomb", "gaz", "electricite", "erp", "carrez", "boutin", "termites", "dtg", "pppt"] // uniquement si type = devis_diagnostic_immobilier
 }`;
 
   try {
@@ -279,7 +304,7 @@ Réponds UNIQUEMENT avec ce JSON :
 
     const parsed = JSON.parse(content);
     const detectedType: DocumentType = 
-      ["devis_travaux", "devis_prestation_technique", "facture", "autre"].includes(parsed.type) 
+      ["devis_travaux", "devis_diagnostic_immobilier", "devis_prestation_technique", "facture", "autre"].includes(parsed.type) 
         ? parsed.type 
         : "devis_travaux";
 
@@ -289,6 +314,7 @@ Réponds UNIQUEMENT avec ce JSON :
       indicators: Array.isArray(parsed.indicators) ? parsed.indicators : [],
       analysis_mode: "full",
       credibility_message: "L'objectif de VerifierMonDevis.fr est de fournir une analyse pertinente et fiable. Lorsque le document transmis ne correspond pas à un devis de travaux, l'analyse est volontairement limitée ou refusée afin d'éviter toute interprétation incorrecte.",
+      diagnostic_types: Array.isArray(parsed.diagnostics_detected) ? parsed.diagnostics_detected : [],
     };
 
     // Set analysis mode and messages based on document type
@@ -297,10 +323,15 @@ Réponds UNIQUEMENT avec ce JSON :
         result.analysis_mode = "full";
         result.credibility_message = "Document identifié comme un devis de travaux - analyse complète appliquée.";
         break;
+      
+      case "devis_diagnostic_immobilier":
+        result.analysis_mode = "diagnostic";
+        result.credibility_message = "Ce devis concerne des diagnostics immobiliers. L'analyse est adaptée : pas d'exigence d'assurance décennale ni de certification RGE/Qualibat. Les tarifs des diagnostics immobiliers sont libres et peuvent varier selon la taille du bien, sa localisation et le nombre de diagnostics requis. Les comparaisons de prix sont fournies à titre indicatif afin d'aider à situer le devis par rapport aux pratiques courantes.";
+        break;
         
       case "devis_prestation_technique":
         result.analysis_mode = "adapted";
-        result.credibility_message = "Ce devis concerne une prestation technique (diagnostic, audit, étude). L'analyse est adaptée à la nature de la mission : la comparaison aux prix de marché travaux et l'exigence d'assurance décennale ne s'appliquent pas.";
+        result.credibility_message = "Ce devis concerne une prestation technique (audit, étude, expertise). L'analyse est adaptée à la nature de la mission : la comparaison aux prix de marché travaux et l'exigence d'assurance décennale ne s'appliquent pas.";
         break;
         
       case "facture":
@@ -1793,10 +1824,16 @@ serve(async (req) => {
       );
     }
 
-    // Flag for adapted analysis mode (prestation technique)
+    // Flag for adapted analysis modes
     const isAdaptedMode = documentDetection.analysis_mode === "adapted";
+    const isDiagnosticMode = documentDetection.analysis_mode === "diagnostic";
+    const isSpecialMode = isAdaptedMode || isDiagnosticMode;
+    
     if (isAdaptedMode) {
       console.log("Adapted analysis mode for prestation technique");
+    }
+    if (isDiagnosticMode) {
+      console.log("Diagnostic immobilier mode - diagnostics detected:", documentDetection.diagnostic_types);
     }
 
     // ============ STEP 1: EXTRACT ============
@@ -1827,28 +1864,154 @@ serve(async (req) => {
     console.log("--- STEP 2: VERIFY ---");
     const verified = await verifyQuoteData(extracted, supabase);
     
-    // For adapted mode: clear price comparisons (not applicable for prestations techniques)
-    if (isAdaptedMode) {
+    // For adapted/diagnostic mode: clear travaux price comparisons (not applicable)
+    if (isSpecialMode) {
       verified.price_comparisons = [];
-      console.log("Price comparisons cleared for prestation technique");
+      console.log("Travaux price comparisons cleared for special mode");
+    }
+    
+    // For diagnostic mode: perform diagnostic-specific price comparison
+    const diagnosticPriceAnalysis: Array<{
+      diagnostic_type: string;
+      label: string;
+      quote_price: number | null;
+      range_min: number;
+      range_max: number;
+      score: ScoringColor;
+      explanation: string;
+    }> = [];
+    
+    if (isDiagnosticMode && documentDetection.diagnostic_types && documentDetection.diagnostic_types.length > 0) {
+      const totalPrice = extracted.totals.total_ttc || extracted.totals.total_ht;
+      
+      // Check if it's a pack
+      const isPack = documentDetection.diagnostic_types.length >= 3;
+      const hasLocationKeywords = documentDetection.indicators.some(i => 
+        i.toLowerCase().includes("location") || i.toLowerCase().includes("pack location")
+      );
+      
+      if (isPack && totalPrice) {
+        // Compare as pack
+        const packType = hasLocationKeywords ? "pack_location" : "pack_vente";
+        const packRef = DIAGNOSTIC_REFERENCE_PRICES[packType];
+        
+        let packScore: ScoringColor = "VERT";
+        let packExplanation = "";
+        
+        if (totalPrice < packRef.min) {
+          packScore = "VERT";
+          packExplanation = `Prix inférieur à la moyenne (${packRef.min}€ - ${packRef.max}€)`;
+        } else if (totalPrice <= packRef.max) {
+          packScore = "VERT";
+          packExplanation = `Prix dans la fourchette indicative nationale (${packRef.min}€ - ${packRef.max}€)`;
+        } else if (totalPrice <= packRef.max * 1.3) {
+          // ORANGE but NEVER RED for diagnostics
+          packScore = "ORANGE";
+          packExplanation = `Prix au-dessus de la fourchette indicative (${packRef.min}€ - ${packRef.max}€). Les tarifs peuvent varier selon la surface du bien et sa localisation.`;
+        } else {
+          // Still ORANGE, never RED for diagnostic pricing
+          packScore = "ORANGE";
+          packExplanation = `Prix significativement au-dessus de la fourchette indicative (${packRef.min}€ - ${packRef.max}€). Il est recommandé de comparer avec d'autres devis.`;
+        }
+        
+        diagnosticPriceAnalysis.push({
+          diagnostic_type: packType,
+          label: packRef.label,
+          quote_price: totalPrice,
+          range_min: packRef.min,
+          range_max: packRef.max,
+          score: packScore,
+          explanation: packExplanation,
+        });
+      } else {
+        // Individual diagnostics - informative only
+        for (const diagType of documentDetection.diagnostic_types) {
+          const ref = DIAGNOSTIC_REFERENCE_PRICES[diagType.toLowerCase()];
+          if (ref) {
+            if (ref.min === 0 && ref.max === 0) {
+              // DTG/PPPT - not comparable
+              diagnosticPriceAnalysis.push({
+                diagnostic_type: diagType,
+                label: ref.label,
+                quote_price: null,
+                range_min: 0,
+                range_max: 0,
+                score: "VERT",
+                explanation: "Ce type de diagnostic ne dispose pas de fourchette de prix standardisée (prix variable selon le contexte).",
+              });
+            } else {
+              diagnosticPriceAnalysis.push({
+                diagnostic_type: diagType,
+                label: ref.label,
+                quote_price: null, // Individual prices not always extractable
+                range_min: ref.min,
+                range_max: ref.max,
+                score: "VERT", // Always VERT for informative display
+                explanation: `Fourchette indicative nationale : ${ref.min}€ - ${ref.max}€`,
+              });
+            }
+          }
+        }
+      }
+      
+      console.log("Diagnostic price analysis:", diagnosticPriceAnalysis);
     }
 
     // ============ STEP 3: SCORE ============
     console.log("--- STEP 3: SCORE ---");
-    const scoring = calculateScore(extracted, verified, isAdaptedMode);
+    const scoring = calculateScore(extracted, verified, isSpecialMode);
+    
+    // For diagnostic mode: ensure price never triggers RED
+    if (isDiagnosticMode) {
+      // Remove any price-related critical criteria (defensive)
+      scoring.criteres_critiques = scoring.criteres_critiques.filter(c => 
+        !c.toLowerCase().includes("prix") && !c.toLowerCase().includes("tarif")
+      );
+    }
 
     // ============ STEP 4: RENDER ============
     console.log("--- STEP 4: RENDER ---");
-    const output = renderAnalysisOutput(extracted, verified, scoring, isAdaptedMode, documentDetection);
+    const output = renderAnalysisOutput(extracted, verified, scoring, isSpecialMode, documentDetection);
+    
+    // Add diagnostic-specific content
+    if (isDiagnosticMode) {
+      // Add diagnostic mode indicator at the top
+      output.points_ok.unshift(`🏠 ${documentDetection.credibility_message}`);
+      
+      // Add diagnostic price analysis to types_travaux for display
+      if (diagnosticPriceAnalysis.length > 0) {
+        for (const diag of diagnosticPriceAnalysis) {
+          output.types_travaux.push({
+            categorie: "diagnostic_immobilier",
+            libelle: diag.label,
+            quantite: 1,
+            unite: "forfait",
+            montant_ht: diag.quote_price,
+            score_prix: diag.score,
+            fourchette_min: diag.range_min,
+            fourchette_max: diag.range_max,
+            zone_type: "national",
+            explication: diag.explanation,
+          });
+        }
+      }
+      
+      // Add mandatory pedagogical message for diagnostics
+      output.recommandations.push(
+        "💡 Les tarifs des diagnostics immobiliers sont libres et peuvent varier selon la taille du bien, sa localisation et le nombre de diagnostics requis. Les comparaisons de prix sont fournies à titre indicatif afin d'aider à situer le devis par rapport aux pratiques courantes."
+      );
+    }
 
     console.log("=== PIPELINE COMPLETE ===");
     console.log("Final score:", scoring.global_score);
     console.log("Critiques:", scoring.criteres_critiques);
     console.log("Majeurs:", scoring.criteres_majeurs);
+    console.log("Document type:", documentDetection.type);
 
     // Store raw extracted data for debug mode
     const rawDataForDebug = JSON.stringify({
       document_detection: documentDetection,
+      diagnostic_price_analysis: diagnosticPriceAnalysis,
       quote_extracted: extracted,
       quote_verified: verified,
       scoring: scoring,
