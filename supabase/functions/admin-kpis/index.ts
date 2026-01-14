@@ -56,31 +56,15 @@ serve(async (req) => {
       );
     }
 
-    // Fetch all KPIs using admin client
-    const [usageResult, scoringResult, trackingResult, documentsResult, alertsResult] = await Promise.all([
-      // Usage KPIs
-      adminClient.rpc("get_admin_usage_kpis"),
-      // Scoring KPIs
-      adminClient.rpc("get_admin_scoring_kpis"),
-      // Tracking KPIs
-      adminClient.rpc("get_admin_tracking_kpis"),
-      // Document type distribution
-      adminClient.rpc("get_admin_document_kpis"),
-      // Alert frequency
-      adminClient.rpc("get_admin_alerts_kpis"),
-    ]);
-
-    // If RPC functions don't exist, query directly
-    let usage, scoring, tracking, documents, alerts;
-
-    // Fetch usage KPIs directly
+    // Fetch all analyses
     const { data: analysesData } = await adminClient
       .from("analyses")
       .select("id, user_id, status, score, alertes, raw_text, created_at");
 
     const analyses = analysesData || [];
     
-    usage = {
+    // === USAGE KPIs ===
+    const usage = {
       total_users: new Set(analyses.map(a => a.user_id)).size,
       total_analyses: analyses.length,
       completed_analyses: analyses.filter(a => a.status === "completed").length,
@@ -94,11 +78,11 @@ serve(async (req) => {
         : 0,
     };
 
-    // Scoring KPIs
+    // === SCORING KPIs ===
     const completedAnalyses = analyses.filter(a => a.status === "completed");
     const scoredAnalyses = completedAnalyses.filter(a => a.score);
     
-    scoring = {
+    const scoring = {
       score_vert: scoredAnalyses.filter(a => a.score === "VERT").length,
       score_orange: scoredAnalyses.filter(a => a.score === "ORANGE").length,
       score_rouge: scoredAnalyses.filter(a => a.score === "ROUGE").length,
@@ -113,14 +97,13 @@ serve(async (req) => {
         : 0,
     };
 
-    // Calculate alerts frequency
+    // === ALERTS KPIs ===
     const alertsCount: Record<string, number> = {};
     let totalAlerts = 0;
     
     for (const analysis of completedAnalyses) {
       if (analysis.alertes && Array.isArray(analysis.alertes)) {
         for (const alerte of analysis.alertes) {
-          // Extract main category from alert text
           const alertText = String(alerte).toLowerCase();
           let category = "Autre";
           
@@ -146,13 +129,12 @@ serve(async (req) => {
       }
     }
 
-    // Sort alerts by frequency
     const topAlerts = Object.entries(alertsCount)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
       .map(([category, count]) => ({ category, count, percentage: Math.round((count / totalAlerts) * 100) }));
 
-    alerts = {
+    const alerts = {
       total_alerts: totalAlerts,
       avg_alerts_per_analysis: completedAnalyses.length > 0 
         ? Math.round((totalAlerts / completedAnalyses.length) * 10) / 10
@@ -164,7 +146,7 @@ serve(async (req) => {
         : 0,
     };
 
-    // Document type distribution
+    // === DOCUMENT TYPE KPIs ===
     let devisTravaux = 0;
     let devisDiagnostic = 0;
     let devisPrestationTechnique = 0;
@@ -180,16 +162,16 @@ serve(async (req) => {
           else if (docType === "devis_diagnostic_immobilier") devisDiagnostic++;
           else if (docType === "devis_prestation_technique") devisPrestationTechnique++;
           else if (docType === "facture" || docType === "autre") documentsRefuses++;
-          else devisTravaux++; // Default to devis travaux if no detection
+          else devisTravaux++;
         } catch {
-          devisTravaux++; // Default if not JSON
+          devisTravaux++;
         }
       } else {
         devisTravaux++;
       }
     }
 
-    documents = {
+    const documents = {
       devis_travaux: devisTravaux,
       devis_diagnostic: devisDiagnostic,
       devis_prestation_technique: devisPrestationTechnique,
@@ -197,14 +179,14 @@ serve(async (req) => {
       total: analyses.length,
     };
 
-    // Tracking KPIs
+    // === TRACKING KPIs ===
     const { data: trackingData } = await adminClient
       .from("post_signature_tracking")
       .select("*");
 
     const trackings = trackingData || [];
     
-    tracking = {
+    const tracking = {
       total_entries: trackings.length,
       consent_given: trackings.filter(t => t.tracking_consent).length,
       consent_rate: trackings.length > 0
@@ -221,7 +203,7 @@ serve(async (req) => {
       status_delayed: trackings.filter(t => t.work_completion_status === "non_retard").length,
     };
 
-    // Time-based analytics
+    // === TIME-BASED ANALYTICS ===
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const thisWeekStart = new Date(today);
@@ -234,6 +216,96 @@ serve(async (req) => {
       this_month: analyses.filter(a => new Date(a.created_at) >= thisMonthStart).length,
     };
 
+    // === TEMPORAL EVOLUTION DATA (last 30 days) ===
+    const dailyData: Record<string, { date: string; analyses: number; vert: number; orange: number; rouge: number; users: Set<string> }> = {};
+    
+    // Initialize last 30 days
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      dailyData[dateStr] = { date: dateStr, analyses: 0, vert: 0, orange: 0, rouge: 0, users: new Set() };
+    }
+
+    // Fill with actual data
+    for (const analysis of analyses) {
+      const dateStr = new Date(analysis.created_at).toISOString().split('T')[0];
+      if (dailyData[dateStr]) {
+        dailyData[dateStr].analyses++;
+        dailyData[dateStr].users.add(analysis.user_id);
+        
+        if (analysis.score === "VERT") dailyData[dateStr].vert++;
+        else if (analysis.score === "ORANGE") dailyData[dateStr].orange++;
+        else if (analysis.score === "ROUGE") dailyData[dateStr].rouge++;
+      }
+    }
+
+    // Convert to array format for charts
+    const evolutionDaily = Object.values(dailyData).map(d => ({
+      date: d.date,
+      label: new Date(d.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
+      analyses: d.analyses,
+      vert: d.vert,
+      orange: d.orange,
+      rouge: d.rouge,
+      users: d.users.size,
+    }));
+
+    // === WEEKLY EVOLUTION (last 12 weeks) ===
+    const weeklyData: Record<string, { week: string; analyses: number; vert: number; orange: number; rouge: number; users: Set<string> }> = {};
+    
+    // Get week number function
+    const getWeekKey = (date: Date) => {
+      const d = new Date(date);
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+      const week1 = new Date(d.getFullYear(), 0, 4);
+      const weekNum = 1 + Math.round(((d.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+      return `${d.getFullYear()}-S${weekNum.toString().padStart(2, '0')}`;
+    };
+
+    // Initialize last 12 weeks
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - (i * 7));
+      const weekKey = getWeekKey(date);
+      if (!weeklyData[weekKey]) {
+        weeklyData[weekKey] = { week: weekKey, analyses: 0, vert: 0, orange: 0, rouge: 0, users: new Set() };
+      }
+    }
+
+    // Fill with actual data
+    for (const analysis of analyses) {
+      const weekKey = getWeekKey(new Date(analysis.created_at));
+      if (weeklyData[weekKey]) {
+        weeklyData[weekKey].analyses++;
+        weeklyData[weekKey].users.add(analysis.user_id);
+        
+        if (analysis.score === "VERT") weeklyData[weekKey].vert++;
+        else if (analysis.score === "ORANGE") weeklyData[weekKey].orange++;
+        else if (analysis.score === "ROUGE") weeklyData[weekKey].rouge++;
+      }
+    }
+
+    const evolutionWeekly = Object.values(weeklyData)
+      .sort((a, b) => a.week.localeCompare(b.week))
+      .map(d => ({
+        week: d.week,
+        label: d.week.split('-')[1],
+        analyses: d.analyses,
+        vert: d.vert,
+        orange: d.orange,
+        rouge: d.rouge,
+        users: d.users.size,
+      }));
+
+    // === SCORE DISTRIBUTION PIE DATA ===
+    const scoreDistribution = [
+      { name: "FEU VERT", value: scoring.score_vert, color: "hsl(var(--score-green))" },
+      { name: "FEU ORANGE", value: scoring.score_orange, color: "hsl(var(--score-orange))" },
+      { name: "FEU ROUGE", value: scoring.score_rouge, color: "hsl(var(--score-red))" },
+    ].filter(s => s.value > 0);
+
     return new Response(
       JSON.stringify({
         usage,
@@ -242,6 +314,11 @@ serve(async (req) => {
         documents,
         alerts,
         time_analytics: timeAnalytics,
+        charts: {
+          evolution_daily: evolutionDaily,
+          evolution_weekly: evolutionWeekly,
+          score_distribution: scoreDistribution,
+        },
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );

@@ -10,18 +10,16 @@ import {
   AlertCircle,
   XCircle,
   Bell,
-  MessageSquare,
   TrendingUp,
   Calendar,
   Loader2,
   LogOut,
   RefreshCw,
-  PieChart,
   Clock,
-  Building2
+  Building2,
+  LineChart
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -30,6 +28,29 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import {
+  AnalysesEvolutionChart,
+  ScoreEvolutionChart,
+  ScoreDistributionPieChart,
+  UsersEvolutionChart,
+} from "@/components/admin/AdminCharts";
+
+interface EvolutionData {
+  date?: string;
+  week?: string;
+  label: string;
+  analyses: number;
+  vert: number;
+  orange: number;
+  rouge: number;
+  users: number;
+}
+
+interface ScoreDistribution {
+  name: string;
+  value: number;
+  color: string;
+}
 
 interface KPIs {
   usage: {
@@ -79,6 +100,11 @@ interface KPIs {
     today: number;
     this_week: number;
     this_month: number;
+  };
+  charts: {
+    evolution_daily: EvolutionData[];
+    evolution_weekly: EvolutionData[];
+    score_distribution: ScoreDistribution[];
   };
 }
 
@@ -296,6 +322,35 @@ const Admin = () => {
                 <BarChart3 className="h-8 w-8 text-primary/50" />
               </CardContent>
             </Card>
+          </div>
+        </section>
+
+        {/* === SECTION: GRAPHIQUES D'ÉVOLUTION === */}
+        <section className="mb-10">
+          <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
+            <LineChart className="h-5 w-5 text-primary" />
+            Évolution temporelle
+          </h2>
+
+          <div className="grid md:grid-cols-2 gap-6 mb-6">
+            <AnalysesEvolutionChart 
+              evolutionDaily={kpis.charts.evolution_daily} 
+              evolutionWeekly={kpis.charts.evolution_weekly} 
+            />
+            <UsersEvolutionChart 
+              evolutionDaily={kpis.charts.evolution_daily} 
+              evolutionWeekly={kpis.charts.evolution_weekly} 
+            />
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <ScoreEvolutionChart 
+              evolutionDaily={kpis.charts.evolution_daily} 
+              evolutionWeekly={kpis.charts.evolution_weekly} 
+            />
+            <ScoreDistributionPieChart 
+              scoreDistribution={kpis.charts.score_distribution} 
+            />
           </div>
         </section>
 
