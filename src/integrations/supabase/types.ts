@@ -205,6 +205,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       zones_geographiques: {
         Row: {
           coefficient: number
@@ -231,13 +252,58 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      admin_kpis_scoring: {
+        Row: {
+          pct_orange: number | null
+          pct_rouge: number | null
+          pct_vert: number | null
+          score_null: number | null
+          score_orange: number | null
+          score_rouge: number | null
+          score_vert: number | null
+        }
+        Relationships: []
+      }
+      admin_kpis_tracking: {
+        Row: {
+          consent_given: number | null
+          consent_rate: number | null
+          responses_received: number | null
+          signed_quotes: number | null
+          status_completed: number | null
+          status_delayed: number | null
+          status_in_progress: number | null
+          total_tracking_entries: number | null
+          whatsapp_enabled: number | null
+          whatsapp_rate: number | null
+        }
+        Relationships: []
+      }
+      admin_kpis_usage: {
+        Row: {
+          avg_analyses_per_user: number | null
+          completed_analyses: number | null
+          completion_rate: number | null
+          error_analyses: number | null
+          pending_analyses: number | null
+          total_analyses: number | null
+          total_users: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_admin: { Args: never; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -364,6 +430,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+    },
   },
 } as const
