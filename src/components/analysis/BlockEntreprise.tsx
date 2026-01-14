@@ -325,28 +325,44 @@ const BlockEntreprise = ({ pointsOk, alertes }: BlockEntrepriseProps) => {
             
             {/* Case A: Rating found */}
             {info.reputation?.status === "found" && info.reputation.rating !== undefined && info.reputation.reviews_count !== undefined ? (
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star
-                      key={star}
-                      className={`h-4 w-4 ${
-                        star <= Math.round(info.reputation!.rating!)
-                          ? "text-yellow-400 fill-yellow-400"
-                          : "text-muted-foreground/30"
-                      }`}
-                    />
-                  ))}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        className={`h-4 w-4 ${
+                          star <= Math.round(info.reputation!.rating!)
+                            ? "text-yellow-400 fill-yellow-400"
+                            : "text-muted-foreground/30"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="font-bold text-foreground">
+                    {info.reputation.rating.toFixed(1).replace('.', ',')}/5
+                  </span>
+                  <span className="text-muted-foreground text-sm">
+                    ({info.reputation.reviews_count} avis)
+                  </span>
+                  <span className="text-xs text-muted-foreground/70 ml-2">
+                    Source: Google
+                  </span>
                 </div>
-                <span className="font-bold text-foreground">
-                  {info.reputation.rating.toFixed(1).replace('.', ',')}/5
-                </span>
-                <span className="text-muted-foreground text-sm">
-                  ({info.reputation.reviews_count} avis)
-                </span>
-                <span className="text-xs text-muted-foreground/70 ml-2">
-                  Source: Google
-                </span>
+                {/* Explication pédagogique si note < 4/5 (score ORANGE) */}
+                {info.reputation.rating < 4.0 && (
+                  <div className="mt-3 p-3 bg-background/50 rounded-lg border border-score-orange/20">
+                    <p className="text-sm text-foreground mb-2">
+                      La note moyenne observée est inférieure au seuil de confort généralement constaté pour ce type de prestation.
+                    </p>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Cela ne signifie pas que l'artisan n'est pas fiable, mais invite à consulter le détail des avis (leur contenu, leur ancienneté et leur récurrence).
+                    </p>
+                    <p className="text-xs text-muted-foreground/80 italic">
+                      La réputation en ligne est utilisée comme un indicateur complémentaire parmi d'autres critères objectifs.
+                    </p>
+                  </div>
+                )}
               </div>
             ) : info.reputation?.status === "uncertain" ? (
               /* Case B: Uncertain match */
@@ -362,12 +378,12 @@ const BlockEntreprise = ({ pointsOk, alertes }: BlockEntrepriseProps) => {
               /* Case C: Not found or not searched */
               <div>
                 <p className="text-sm text-muted-foreground font-medium">
-                  Note Google : non disponible
+                  Note Google : information non exploitée automatiquement
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {info.reputation?.status === "not_found" 
-                    ? "La recherche Google a été effectuée mais aucun avis n'a été trouvé pour cet établissement. L'absence de note n'est pas un critère critique."
-                    : "La recherche d'avis Google a été effectuée. L'absence de note n'affecte pas le score."}
+                    ? "La recherche d'avis a été effectuée mais aucun résultat exploitable n'a été trouvé pour cet établissement. Cela n'indique pas un problème en soi — de nombreux artisans fiables n'ont pas de présence en ligne."
+                    : "La recherche d'avis a été effectuée. L'absence de données en ligne n'affecte pas le score global."}
                 </p>
               </div>
             )}
