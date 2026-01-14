@@ -1,10 +1,8 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, CheckCircle2, Shield, FileSearch } from "lucide-react";
-
+import { ArrowRight, CheckCircle2, FileSearch } from "lucide-react";
 const HeroSection = () => {
-  return (
-    <section className="hero-gradient relative overflow-hidden">
+  return <section className="hero-gradient relative overflow-hidden">
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-10">
         <div className="absolute top-20 left-10 w-72 h-72 bg-primary-foreground rounded-full blur-3xl" />
@@ -16,10 +14,8 @@ const HeroSection = () => {
           {/* Content */}
           <div className="text-center lg:text-left">
             <div className="inline-flex items-center gap-2 bg-primary-foreground/10 border border-primary-foreground/20 rounded-full px-4 py-2 mb-6">
-              <Shield className="h-4 w-4 text-primary-foreground" />
-              <span className="text-sm font-medium text-primary-foreground">
-                Service 100% gratuit pour les particuliers
-              </span>
+              
+              
             </div>
 
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-primary-foreground mb-6 leading-tight">
@@ -27,7 +23,7 @@ const HeroSection = () => {
               <span className="relative">
                 quelques clics
                 <svg className="absolute -bottom-2 left-0 w-full" viewBox="0 0 200 12" fill="none">
-                  <path d="M2 10C50 4 150 4 198 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="text-score-green"/>
+                  <path d="M2 10C50 4 150 4 198 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="text-score-green" />
                 </svg>
               </span>
             </h1>
@@ -45,11 +41,7 @@ const HeroSection = () => {
                 </Button>
               </Link>
               <Link to="/comment-ca-marche">
-                <Button 
-                  variant="ghost" 
-                  size="xl" 
-                  className="w-full sm:w-auto text-primary-foreground hover:bg-primary-foreground/10"
-                >
+                <Button variant="ghost" size="xl" className="w-full sm:w-auto text-primary-foreground hover:bg-primary-foreground/10">
                   Comment ça marche ?
                 </Button>
               </Link>
@@ -94,7 +86,9 @@ const HeroSection = () => {
                     <span className="text-2xl font-bold text-score-green">FEU VERT</span>
                   </div>
                   <div className="mt-2 h-2 bg-score-green/20 rounded-full overflow-hidden">
-                    <div className="h-full bg-score-green rounded-full" style={{ width: '85%' }} />
+                    <div className="h-full bg-score-green rounded-full" style={{
+                    width: '85%'
+                  }} />
                   </div>
                 </div>
 
@@ -123,8 +117,6 @@ const HeroSection = () => {
           </div>
         </div>
       </div>
-    </section>
-  );
+    </section>;
 };
-
 export default HeroSection;
