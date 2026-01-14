@@ -1,121 +1,167 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { 
   Shield, 
-  Search,
+  Users,
   FileText,
+  BarChart3,
   CheckCircle2,
   AlertCircle,
   XCircle,
-  Clock,
-  Eye,
+  Bell,
   MessageSquare,
-  Settings,
-  Users,
-  BarChart3,
-  LogOut
+  TrendingUp,
+  Calendar,
+  Loader2,
+  LogOut,
+  RefreshCw,
+  PieChart,
+  Clock,
+  Building2
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 
-// Mock data for admin
-const mockAdminAnalyses = [
-  {
-    id: 1,
-    title: "Devis Plomberie - Salle de bain",
-    user: "Jean Dupont",
-    email: "jean.dupont@email.com",
-    company: "Plomberie Martin SARL",
-    date: "06/01/2026",
-    amount: "4 500 €",
-    score: "green",
-    autoScore: 85,
-    status: "completed"
-  },
-  {
-    id: 2,
-    title: "Devis Électricité - Rénovation",
-    user: "Marie Lefebvre",
-    email: "marie.l@email.com",
-    company: "Elec Pro Services",
-    date: "05/01/2026",
-    amount: "8 200 €",
-    score: "orange",
-    autoScore: 62,
-    status: "completed"
-  },
-  {
-    id: 3,
-    title: "Devis Peinture - Appartement",
-    user: "Pierre Martin",
-    email: "p.martin@email.com",
-    company: "Peintures Dubois",
-    date: "04/01/2026",
-    amount: "2 800 €",
-    score: "red",
-    autoScore: 35,
-    status: "review"
-  },
-  {
-    id: 4,
-    title: "Devis Toiture - Maison",
-    user: "Sophie Bernard",
-    email: "s.bernard@email.com",
-    company: "Toitures Express",
-    date: "06/01/2026",
-    amount: "12 500 €",
-    score: "pending",
-    autoScore: null,
-    status: "processing"
-  }
-];
-
-const stats = [
-  { label: "Analyses aujourd'hui", value: "24", icon: FileText, trend: "+12%" },
-  { label: "Score moyen", value: "72", icon: BarChart3, trend: "+3%" },
-  { label: "Utilisateurs actifs", value: "156", icon: Users, trend: "+8%" },
-  { label: "En attente revue", value: "3", icon: Clock, trend: "-2" }
-];
-
-const getScoreIcon = (score: string) => {
-  switch (score) {
-    case "green": return <CheckCircle2 className="h-5 w-5 text-score-green" />;
-    case "orange": return <AlertCircle className="h-5 w-5 text-score-orange" />;
-    case "red": return <XCircle className="h-5 w-5 text-score-red" />;
-    default: return <Clock className="h-5 w-5 text-muted-foreground animate-pulse" />;
-  }
-};
-
-const getStatusBadge = (status: string) => {
-  switch (status) {
-    case "completed":
-      return <span className="px-2 py-1 rounded-full text-xs font-medium bg-score-green-bg text-score-green-foreground">Terminé</span>;
-    case "review":
-      return <span className="px-2 py-1 rounded-full text-xs font-medium bg-score-orange-bg text-score-orange-foreground">À revoir</span>;
-    case "processing":
-      return <span className="px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">En cours</span>;
-    default:
-      return null;
-  }
-};
+interface KPIs {
+  usage: {
+    total_users: number;
+    total_analyses: number;
+    completed_analyses: number;
+    pending_analyses: number;
+    error_analyses: number;
+    completion_rate: number;
+    avg_analyses_per_user: number;
+  };
+  scoring: {
+    score_vert: number;
+    score_orange: number;
+    score_rouge: number;
+    pct_vert: number;
+    pct_orange: number;
+    pct_rouge: number;
+  };
+  tracking: {
+    total_entries: number;
+    consent_given: number;
+    consent_rate: number;
+    whatsapp_enabled: number;
+    whatsapp_rate: number;
+    signed_quotes: number;
+    responses_received: number;
+    status_completed: number;
+    status_in_progress: number;
+    status_delayed: number;
+  };
+  documents: {
+    devis_travaux: number;
+    devis_diagnostic: number;
+    devis_prestation_technique: number;
+    documents_refuses: number;
+    total: number;
+  };
+  alerts: {
+    total_alerts: number;
+    avg_alerts_per_analysis: number;
+    top_alerts: Array<{ category: string; count: number; percentage: number }>;
+    analyses_without_critical: number;
+    pct_without_critical: number;
+  };
+  time_analytics: {
+    today: number;
+    this_week: number;
+    this_month: number;
+  };
+}
 
 const Admin = () => {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState("all");
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [kpis, setKpis] = useState<KPIs | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredAnalyses = mockAdminAnalyses.filter(analysis => {
-    if (activeTab === "review" && analysis.status !== "review") return false;
-    if (activeTab === "processing" && analysis.status !== "processing") return false;
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      return (
-        analysis.title.toLowerCase().includes(query) ||
-        analysis.user.toLowerCase().includes(query) ||
-        analysis.company.toLowerCase().includes(query)
-      );
+  const checkAdminAndFetchKPIs = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        navigate("/connexion");
+        return;
+      }
+
+      // Fetch KPIs from edge function (it handles admin check)
+      const { data, error } = await supabase.functions.invoke("admin-kpis");
+
+      if (error) {
+        if (error.message?.includes("403") || error.message?.includes("Accès réservé")) {
+          setError("Accès réservé aux administrateurs");
+          setIsAdmin(false);
+        } else {
+          throw error;
+        }
+        return;
+      }
+
+      setIsAdmin(true);
+      setKpis(data);
+    } catch (err) {
+      console.error("Error:", err);
+      setError("Erreur lors du chargement des données");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-    return true;
-  });
+  };
+
+  useEffect(() => {
+    checkAdminAndFetchKPIs();
+  }, [navigate]);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    checkAdminAndFetchKPIs();
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!isAdmin || error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center max-w-md p-8">
+          <div className="w-16 h-16 bg-score-red/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <XCircle className="h-8 w-8 text-score-red" />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground mb-4">Accès refusé</h1>
+          <p className="text-muted-foreground mb-6">
+            {error || "Cette page est réservée aux administrateurs de VerifierMonDevis.fr"}
+          </p>
+          <Link to="/">
+            <Button>Retour à l'accueil</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!kpis) return null;
+
+  const totalScored = kpis.scoring.score_vert + kpis.scoring.score_orange + kpis.scoring.score_rouge;
 
   return (
     <div className="min-h-screen bg-background">
@@ -127,14 +173,20 @@ const Admin = () => {
               <Shield className="h-6 w-6 text-primary" />
             </div>
             <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
-            <span className="ml-2 px-2 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded">
+            <span className="ml-2 px-2 py-0.5 bg-primary text-primary-foreground text-xs font-medium rounded">
               Admin
             </span>
           </Link>
 
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon">
-              <Settings className="h-5 w-5" />
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleRefresh}
+              disabled={refreshing}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+              Actualiser
             </Button>
             <Link to="/">
               <Button variant="ghost" size="icon">
@@ -146,113 +198,426 @@ const Admin = () => {
       </header>
 
       <main className="container py-8">
-        {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {stats.map((stat, index) => (
-            <div key={index} className="bg-card border border-border rounded-xl p-4 card-shadow">
-              <div className="flex items-center justify-between mb-2">
-                <stat.icon className="h-5 w-5 text-muted-foreground" />
-                <span className={`text-xs font-medium ${stat.trend.startsWith('+') ? 'text-score-green' : 'text-muted-foreground'}`}>
-                  {stat.trend}
-                </span>
-              </div>
-              <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-              <p className="text-sm text-muted-foreground">{stat.label}</p>
-            </div>
-          ))}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-foreground mb-2">Tableau de bord administrateur</h1>
+          <p className="text-muted-foreground">Suivi d'activité et indicateurs anonymisés</p>
         </div>
 
-        {/* Filters & Search */}
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Rechercher par nom, entreprise, utilisateur..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <div className="flex gap-2">
-            <Button 
-              variant={activeTab === "all" ? "default" : "outline"}
-              onClick={() => setActiveTab("all")}
-            >
-              Tous
-            </Button>
-            <Button 
-              variant={activeTab === "review" ? "default" : "outline"}
-              onClick={() => setActiveTab("review")}
-            >
-              À revoir
-            </Button>
-            <Button 
-              variant={activeTab === "processing" ? "default" : "outline"}
-              onClick={() => setActiveTab("processing")}
-            >
-              En cours
-            </Button>
-          </div>
-        </div>
+        {/* === SECTION 1: KPIs D'USAGE === */}
+        <section className="mb-10">
+          <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
+            <Users className="h-5 w-5 text-primary" />
+            KPIs d'usage
+          </h2>
+          
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Utilisateurs uniques</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-foreground">{kpis.usage.total_users}</p>
+              </CardContent>
+            </Card>
 
-        {/* Analyses Table */}
-        <div className="bg-card border border-border rounded-xl overflow-hidden card-shadow">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border bg-muted/50">
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">Devis</th>
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">Utilisateur</th>
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">Montant</th>
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">Score Auto</th>
-                  <th className="text-left p-4 text-sm font-medium text-muted-foreground">Statut</th>
-                  <th className="text-right p-4 text-sm font-medium text-muted-foreground">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredAnalyses.map((analysis) => (
-                  <tr key={analysis.id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                    <td className="p-4">
-                      <div>
-                        <p className="font-medium text-foreground">{analysis.title}</p>
-                        <p className="text-sm text-muted-foreground">{analysis.company}</p>
-                        <p className="text-xs text-muted-foreground">{analysis.date}</p>
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <p className="font-medium text-foreground">{analysis.user}</p>
-                      <p className="text-sm text-muted-foreground">{analysis.email}</p>
-                    </td>
-                    <td className="p-4">
-                      <p className="font-semibold text-foreground">{analysis.amount}</p>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-2">
-                        {getScoreIcon(analysis.score)}
-                        <span className="font-medium text-foreground">
-                          {analysis.autoScore ?? "-"}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Devis déposés</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-foreground">{kpis.usage.total_analyses}</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Analyses réussies</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-score-green">{kpis.usage.completed_analyses}</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Taux de complétion</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-foreground">{kpis.usage.completion_rate}%</p>
+                <Progress value={kpis.usage.completion_rate} className="mt-2" />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Moyenne / utilisateur</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-foreground">{kpis.usage.avg_analyses_per_user}</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>En erreur</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-score-red">{kpis.usage.error_analyses}</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Time-based analytics */}
+          <div className="grid grid-cols-3 gap-4 mt-4">
+            <Card className="bg-primary/5">
+              <CardContent className="pt-4 flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Aujourd'hui</p>
+                  <p className="text-2xl font-bold text-foreground">{kpis.time_analytics.today}</p>
+                </div>
+                <Calendar className="h-8 w-8 text-primary/50" />
+              </CardContent>
+            </Card>
+            <Card className="bg-primary/5">
+              <CardContent className="pt-4 flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Cette semaine</p>
+                  <p className="text-2xl font-bold text-foreground">{kpis.time_analytics.this_week}</p>
+                </div>
+                <TrendingUp className="h-8 w-8 text-primary/50" />
+              </CardContent>
+            </Card>
+            <Card className="bg-primary/5">
+              <CardContent className="pt-4 flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Ce mois</p>
+                  <p className="text-2xl font-bold text-foreground">{kpis.time_analytics.this_month}</p>
+                </div>
+                <BarChart3 className="h-8 w-8 text-primary/50" />
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
+        {/* === SECTION 2: KPIs DE SCORING === */}
+        <section className="mb-10">
+          <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-primary" />
+            KPIs de scoring
+          </h2>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Score distribution */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Répartition des scores</CardTitle>
+                <CardDescription>Distribution FEU VERT / ORANGE / ROUGE</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 w-32">
+                      <CheckCircle2 className="h-5 w-5 text-score-green" />
+                      <span className="text-sm font-medium">FEU VERT</span>
+                    </div>
+                    <div className="flex-1">
+                      <Progress 
+                        value={kpis.scoring.pct_vert} 
+                        className="h-4"
+                        style={{ 
+                          ["--progress-background" as string]: "hsl(var(--score-green))"
+                        }}
+                      />
+                    </div>
+                    <span className="text-sm font-bold w-20 text-right">
+                      {kpis.scoring.score_vert} ({kpis.scoring.pct_vert}%)
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 w-32">
+                      <AlertCircle className="h-5 w-5 text-score-orange" />
+                      <span className="text-sm font-medium">FEU ORANGE</span>
+                    </div>
+                    <div className="flex-1">
+                      <Progress 
+                        value={kpis.scoring.pct_orange} 
+                        className="h-4"
+                        style={{ 
+                          ["--progress-background" as string]: "hsl(var(--score-orange))"
+                        }}
+                      />
+                    </div>
+                    <span className="text-sm font-bold w-20 text-right">
+                      {kpis.scoring.score_orange} ({kpis.scoring.pct_orange}%)
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 w-32">
+                      <XCircle className="h-5 w-5 text-score-red" />
+                      <span className="text-sm font-medium">FEU ROUGE</span>
+                    </div>
+                    <div className="flex-1">
+                      <Progress 
+                        value={kpis.scoring.pct_rouge} 
+                        className="h-4"
+                        style={{ 
+                          ["--progress-background" as string]: "hsl(var(--score-red))"
+                        }}
+                      />
+                    </div>
+                    <span className="text-sm font-bold w-20 text-right">
+                      {kpis.scoring.score_rouge} ({kpis.scoring.pct_rouge}%)
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-border">
+                  <p className="text-sm text-muted-foreground">
+                    Total analysé : <strong className="text-foreground">{totalScored}</strong> devis
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Alerts analysis */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Principaux critères déclencheurs</CardTitle>
+                <CardDescription>Classement par fréquence d'apparition</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {kpis.alerts.top_alerts.length > 0 ? (
+                    kpis.alerts.top_alerts.map((alert, index) => (
+                      <div key={alert.category} className="flex items-center gap-3">
+                        <span className="text-xs font-bold text-muted-foreground w-6">
+                          #{index + 1}
                         </span>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium">{alert.category}</span>
+                            <span className="text-xs text-muted-foreground">{alert.count}x</span>
+                          </div>
+                          <Progress value={alert.percentage} className="h-2" />
+                        </div>
                       </div>
-                    </td>
-                    <td className="p-4">
-                      {getStatusBadge(analysis.status)}
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="icon">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon">
-                          <MessageSquare className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Aucune donnée disponible</p>
+                  )}
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-border grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Moyenne alertes/devis</p>
+                    <p className="text-lg font-bold text-foreground">{kpis.alerts.avg_alerts_per_analysis}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Sans critère critique</p>
+                    <p className="text-lg font-bold text-score-green">{kpis.alerts.pct_without_critical}%</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </div>
+        </section>
+
+        {/* === SECTION 3: KPIs DOCUMENTS === */}
+        <section className="mb-10">
+          <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
+            <FileText className="h-5 w-5 text-primary" />
+            KPIs documents
+          </h2>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  <CardDescription>Devis travaux</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-foreground">{kpis.documents.devis_travaux}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {kpis.documents.total > 0 
+                    ? Math.round((kpis.documents.devis_travaux / kpis.documents.total) * 100)
+                    : 0}% du total
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <CardDescription>Diagnostics immobiliers</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-foreground">{kpis.documents.devis_diagnostic}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {kpis.documents.total > 0 
+                    ? Math.round((kpis.documents.devis_diagnostic / kpis.documents.total) * 100)
+                    : 0}% du total
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <CardDescription>Prestations techniques</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-foreground">{kpis.documents.devis_prestation_technique}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {kpis.documents.total > 0 
+                    ? Math.round((kpis.documents.devis_prestation_technique / kpis.documents.total) * 100)
+                    : 0}% du total
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-score-red/30">
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <XCircle className="h-4 w-4 text-score-red" />
+                  <CardDescription>Documents refusés</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-score-red">{kpis.documents.documents_refuses}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Factures + non conformes
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
+        {/* === SECTION 4: KPIs BUSINESS & ENGAGEMENT === */}
+        <section className="mb-10">
+          <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
+            <Bell className="h-5 w-5 text-primary" />
+            KPIs business & engagement
+          </h2>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Consent & Communication */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Consentement & communication</CardTitle>
+                <CardDescription>Suivi post-signature</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-accent/50 rounded-lg p-4">
+                    <p className="text-xs text-muted-foreground mb-1">Taux consentement</p>
+                    <p className="text-2xl font-bold text-foreground">{kpis.tracking.consent_rate}%</p>
+                    <p className="text-xs text-muted-foreground">
+                      {kpis.tracking.consent_given} / {kpis.tracking.total_entries}
+                    </p>
+                  </div>
+
+                  <div className="bg-accent/50 rounded-lg p-4">
+                    <p className="text-xs text-muted-foreground mb-1">Activation WhatsApp</p>
+                    <p className="text-2xl font-bold text-foreground">{kpis.tracking.whatsapp_rate}%</p>
+                    <p className="text-xs text-muted-foreground">
+                      {kpis.tracking.whatsapp_enabled} utilisateurs
+                    </p>
+                  </div>
+
+                  <div className="bg-accent/50 rounded-lg p-4">
+                    <p className="text-xs text-muted-foreground mb-1">Devis signés</p>
+                    <p className="text-2xl font-bold text-score-green">{kpis.tracking.signed_quotes}</p>
+                  </div>
+
+                  <div className="bg-accent/50 rounded-lg p-4">
+                    <p className="text-xs text-muted-foreground mb-1">Réponses reçues</p>
+                    <p className="text-2xl font-bold text-foreground">{kpis.tracking.responses_received}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Work Status (declarative) */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Statut des travaux (déclaratif)</CardTitle>
+                <CardDescription>Réponses utilisateurs sur l'avancement</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 flex-1">
+                      <CheckCircle2 className="h-5 w-5 text-score-green" />
+                      <span className="text-sm font-medium">Travaux terminés</span>
+                    </div>
+                    <span className="text-lg font-bold text-score-green">
+                      {kpis.tracking.status_completed}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 flex-1">
+                      <Clock className="h-5 w-5 text-score-orange" />
+                      <span className="text-sm font-medium">En cours</span>
+                    </div>
+                    <span className="text-lg font-bold text-score-orange">
+                      {kpis.tracking.status_in_progress}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 flex-1">
+                      <AlertCircle className="h-5 w-5 text-muted-foreground" />
+                      <span className="text-sm font-medium">Non réalisés / Retard</span>
+                    </div>
+                    <span className="text-lg font-bold text-muted-foreground">
+                      {kpis.tracking.status_delayed}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-6 p-3 bg-muted/50 rounded-lg">
+                  <p className="text-xs text-muted-foreground">
+                    ⚠️ Ces données sont déclaratives et ne permettent pas de conclure 
+                    à un manquement de l'artisan.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
+        {/* === SECTION 5: LEGAL DISCLAIMER === */}
+        <section className="mb-8">
+          <div className="bg-muted/50 border border-border rounded-xl p-6">
+            <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary" />
+              Conformité et anonymisation
+            </h3>
+            <div className="text-sm text-muted-foreground space-y-2">
+              <p>
+                • Toutes les données affichées sont <strong className="text-foreground">agrégées et anonymisées</strong>
+              </p>
+              <p>
+                • Aucun KPI ne permet d'identifier un artisan ou un client individuellement
+              </p>
+              <p>
+                • Les statuts de travaux sont <strong className="text-foreground">déclaratifs</strong> et ne constituent pas un jugement
+              </p>
+              <p>
+                • Ce tableau de bord est réservé à l'administrateur de la plateforme
+              </p>
+            </div>
+          </div>
+        </section>
       </main>
     </div>
   );
