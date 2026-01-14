@@ -88,6 +88,8 @@ interface QuoteExtracted {
 interface QuoteVerified {
   // Pappers company info
   company_found: boolean;
+  // Whether the official lookup succeeded, failed, or explicitly confirmed not found
+  company_lookup_status: "ok" | "not_found" | "error" | "skipped";
   company_name: string | null;
   date_creation: string | null;
   anciennete_years: number | null;
@@ -398,11 +400,21 @@ async function verifyIBAN(iban: string | null): Promise<{
   bankName: string | null;
 }> {
   if (!iban) return { verified: false, valid: null, country: null, countryCode: null, bankName: null };
-  
+
+  // Anti-faux-rouge: un échec API ne doit JAMAIS être interprété comme "IBAN invalide".
   try {
     const response = await fetch(`${OPENIBAN_API_URL}/${iban}?getBIC=true&validateBankCode=true`);
-    if (!response.ok) return { verified: true, valid: false, country: null, countryCode: iban.substring(0, 2), bankName: null };
-    
+
+    if (!response.ok) {
+      return {
+        verified: false,
+        valid: null,
+        country: null,
+        countryCode: iban.substring(0, 2),
+        bankName: null,
+      };
+    }
+
     const data = await response.json();
     return {
       verified: true,
@@ -413,13 +425,20 @@ async function verifyIBAN(iban: string | null): Promise<{
     };
   } catch (error) {
     console.error("IBAN verification error:", error);
-    return { verified: true, valid: null, country: null, countryCode: iban.substring(0, 2), bankName: null };
+    return {
+      verified: false,
+      valid: null,
+      country: null,
+      countryCode: iban.substring(0, 2),
+      bankName: null,
+    };
   }
 }
 
 // 2.2 Verify company with Pappers
 async function verifyCompany(siret: string | null): Promise<{
   found: boolean;
+  lookup_status: "ok" | "not_found" | "error" | "skipped";
   name: string | null;
   date_creation: string | null;
   anciennete_years: number | null;
@@ -431,13 +450,21 @@ async function verifyCompany(siret: string | null): Promise<{
   city: string | null;
 }> {
   const defaultResult = {
-    found: false, name: null, date_creation: null, anciennete_years: null,
-    bilans_count: 0, capitaux_propres: null, capitaux_propres_positifs: null,
-    procedure_collective: false, address: null, city: null,
+    found: false,
+    lookup_status: "skipped" as const,
+    name: null,
+    date_creation: null,
+    anciennete_years: null,
+    bilans_count: 0,
+    capitaux_propres: null,
+    capitaux_propres_positifs: null,
+    procedure_collective: false,
+    address: null,
+    city: null,
   };
 
   if (!siret) return defaultResult;
-  
+
   const pappersApiKey = Deno.env.get("PAPPERS_API_KEY");
   if (!pappersApiKey) {
     console.log("Pappers API key not configured");
@@ -452,19 +479,27 @@ async function verifyCompany(siret: string | null): Promise<{
 
   try {
     const response = await fetch(`${PAPPERS_API_URL}/entreprise?siren=${siren}&api_token=${pappersApiKey}`);
+
+    // 404 = preuve négative explicite: entreprise introuvable dans les registres via l'API
+    if (response.status === 404) {
+      return { ...defaultResult, lookup_status: "not_found" as const };
+    }
+
+    // Autres erreurs = incertitude (réseau, quota, 401, etc.) → ne pas conclure négativement
     if (!response.ok) {
-      if (response.status === 404) return defaultResult;
       console.error("Pappers API error:", response.status);
-      return defaultResult;
+      return { ...defaultResult, lookup_status: "error" as const };
     }
 
     const data = await response.json();
-    
+
     let ancienneteYears: number | null = null;
     if (data.date_creation) {
       const creationDate = new Date(data.date_creation);
       const now = new Date();
-      ancienneteYears = Math.floor((now.getTime() - creationDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+      ancienneteYears = Math.floor(
+        (now.getTime() - creationDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000),
+      );
     }
 
     let bilansCount = 0;
@@ -483,6 +518,7 @@ async function verifyCompany(siret: string | null): Promise<{
 
     return {
       found: true,
+      lookup_status: "ok" as const,
       name: data.nom_entreprise || null,
       date_creation: data.date_creation || null,
       anciennete_years: ancienneteYears,
@@ -495,7 +531,7 @@ async function verifyCompany(siret: string | null): Promise<{
     };
   } catch (error) {
     console.error("Pappers error:", error);
-    return defaultResult;
+    return { ...defaultResult, lookup_status: "error" as const };
   }
 }
 
@@ -517,9 +553,17 @@ async function checkBodacc(siren: string | null): Promise<boolean> {
 
 // 2.4 Check RGE qualification
 const RGE_RELEVANT_KEYWORDS = [
-  "isolation", "isolant", "combles", "pompe à chaleur", "pac", "chaudière",
-  "photovoltaïque", "solaire", "vmc", "ventilation", "rénovation énergétique",
-  "performance énergétique", "maprimerénov",
+  // RGE uniquement si travaux éligibles aux aides (rénovation énergétique)
+  "isolation",
+  "isolant",
+  "combles",
+  "pompe à chaleur",
+  "pac",
+  "photovoltaïque",
+  "solaire",
+  "vmc",
+  "ventilation",
+  "rénovation énergétique",
 ];
 
 async function checkRGE(
@@ -791,6 +835,7 @@ async function verifyQuoteData(
 
   const verified: QuoteVerified = {
     company_found: companyResult.found,
+    company_lookup_status: companyResult.lookup_status,
     company_name: companyResult.name,
     date_creation: companyResult.date_creation,
     anciennete_years: companyResult.anciennete_years,
@@ -1239,7 +1284,8 @@ function renderAnalysisOutput(
   // IBAN
   if (verified.iban_verified) {
     if (verified.iban_valid === false) {
-      alertes.push("🔴 IBAN non valide techniquement - Vérifiez les coordonnées bancaires");
+      // Alignement UI/score: ce n'est PAS un critère critique (ORANGE)
+      alertes.push("⚠️ IBAN techniquement invalide (à vérifier) – attention aux erreurs de saisie");
     } else if (verified.iban_valid === true) {
       if (verified.iban_country_code === "FR") {
         points_ok.push(`✓ IBAN valide et domicilié en France${verified.iban_bank_name ? ` (${verified.iban_bank_name})` : ""}`);
@@ -1247,6 +1293,9 @@ function renderAnalysisOutput(
         alertes.push(`⚠️ IBAN étranger (${getCountryName(verified.iban_country_code || "")}) - Vérifiez la raison`);
       }
     }
+  } else if (extracted.paiement.iban_detected) {
+    // IBAN détecté mais vérification indisponible = ORANGE, jamais ROUGE
+    alertes.push("⚠️ IBAN détecté mais vérification technique indisponible (information à confirmer)");
   } else if (!extracted.paiement.iban_detected && !extracted.paiement.rib_detected) {
     // IBAN non détecté = info manquante, PAS critique
     points_ok.push("ℹ️ IBAN non détecté sur le devis (informations bancaires à demander si virement)");
