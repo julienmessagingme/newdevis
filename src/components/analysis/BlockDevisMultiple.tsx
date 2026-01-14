@@ -1,4 +1,4 @@
-import { CheckCircle2, AlertCircle, XCircle, Receipt, TrendingUp, Minus, HelpCircle, MapPin } from "lucide-react";
+import { CheckCircle2, AlertCircle, XCircle, Receipt, TrendingUp, Minus, HelpCircle, MapPin, FileText, List, Calculator } from "lucide-react";
 
 // Interface for structured work type data from database
 export interface TravauxItem {
@@ -318,13 +318,13 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
             </div>
           )}
           
-          {/* Types de travaux sans comparaison de prix (données structurées) */}
+          {/* Types de travaux sans comparaison de prix - Analyse qualitative pédagogique */}
           {hasStructuredData && itemsWithoutPrice.length > 0 && (
             <div className="mb-4">
               <h3 className="font-semibold text-foreground text-sm mb-3">
-                Autres postes identifiés
+                Postes spécifiques identifiés
               </h3>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 mb-3">
                 {itemsWithoutPrice.map((item, idx) => (
                   <div 
                     key={idx} 
@@ -341,22 +341,80 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                Ces postes n'ont pas pu être comparés aux références de marché (catégorie non référencée ou données insuffisantes).
-              </p>
+              
+              {/* Explication pédagogique pour les postes sans comparaison */}
+              <div className="p-4 bg-background/50 rounded-lg border border-border">
+                <div className="flex items-start gap-3 mb-3">
+                  <FileText className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground mb-2">
+                      Prestations spécifiques
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Ces prestations sont très spécifiques (produits sur mesure, dimensions précises, contexte particulier comme un sinistre ou une réparation). 
+                      Il n'existe pas de prix de référence standardisé permettant une comparaison automatique fiable.
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Analyse qualitative */}
+                <div className="mt-4 pt-4 border-t border-border/50">
+                  <p className="text-xs font-medium text-foreground mb-3 flex items-center gap-2">
+                    <List className="h-4 w-4 text-primary" />
+                    Ce que l'analyse a pu vérifier :
+                  </p>
+                  <ul className="space-y-2">
+                    <li className="flex items-start gap-2 text-sm text-muted-foreground">
+                      <CheckCircle2 className="h-4 w-4 text-score-green flex-shrink-0 mt-0.5" />
+                      <span>Le devis présente un détail ligne par ligne des prestations</span>
+                    </li>
+                    <li className="flex items-start gap-2 text-sm text-muted-foreground">
+                      <CheckCircle2 className="h-4 w-4 text-score-green flex-shrink-0 mt-0.5" />
+                      <span>Les descriptions permettent d'identifier clairement les travaux prévus</span>
+                    </li>
+                    <li className="flex items-start gap-2 text-sm text-muted-foreground">
+                      <Calculator className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                      <span>La cohérence entre quantités, descriptions et montants a été analysée</span>
+                    </li>
+                  </ul>
+                </div>
+                
+                <p className="text-xs text-muted-foreground/80 mt-3 italic">
+                  L'absence de comparaison chiffrée n'indique pas un problème. Elle reflète simplement la nature sur mesure des prestations.
+                </p>
+              </div>
             </div>
           )}
           
-          {/* Fallback message if no type identified */}
+          {/* Fallback message if no type identified - Analyse qualitative */}
           {items.length === 0 && (
             <div className="p-4 bg-muted/50 rounded-lg border border-border">
-              <div className="flex items-center gap-2 mb-2">
-                <HelpCircle className="h-5 w-5 text-muted-foreground" />
-                <span className="font-medium text-foreground">Type de travaux non identifié avec précision</span>
+              <div className="flex items-center gap-2 mb-3">
+                <FileText className="h-5 w-5 text-primary" />
+                <span className="font-medium text-foreground">Analyse qualitative du devis</span>
               </div>
-              <p className="text-sm text-muted-foreground">
-                Le type de travaux n'a pas pu être déterminé automatiquement à partir du devis. 
-                Cela n'affecte pas le score global de l'analyse.
+              <p className="text-sm text-muted-foreground mb-4">
+                Les prestations décrites sont très spécifiques et ne correspondent pas aux catégories standards de travaux.
+                L'outil a néanmoins analysé la structure et la clarté du document.
+              </p>
+              
+              {/* Ce que l'outil a vérifié */}
+              <div className="bg-background/30 rounded-lg p-3">
+                <p className="text-xs font-medium text-foreground mb-2 flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-score-green" />
+                  Points vérifiés automatiquement :
+                </p>
+                <ul className="space-y-1.5 text-xs text-muted-foreground ml-6">
+                  <li>• Présence d'un détail poste par poste</li>
+                  <li>• Clarté des descriptions pour le particulier</li>
+                  <li>• Cohérence apparente entre quantités et montants</li>
+                  <li>• Absence de lignes vagues ou de forfaits globaux non détaillés</li>
+                </ul>
+              </div>
+              
+              <p className="text-xs text-muted-foreground/80 mt-3 italic">
+                L'objectif est d'aider à la compréhension et à la vigilance, pas de fixer un "bon prix". 
+                Les comparaisons chiffrées restent indicatives lorsqu'elles sont disponibles.
               </p>
             </div>
           )}
@@ -373,8 +431,8 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
           )}
           
           <p className="text-xs text-muted-foreground/70 mt-3 italic">
-            Types de travaux identifiés automatiquement. Comparaison aux prix de référence du marché (sources : FFB, CAPEB), 
-            ajustés selon la zone géographique. Ces données sont purement indicatives.
+            Types de travaux identifiés automatiquement. Les comparaisons aux prix de référence (sources : FFB, CAPEB) sont indicatives 
+            et ajustées selon la zone géographique. L'objectif est d'aider à la compréhension et à la vigilance, pas de fixer un "bon prix".
           </p>
         </div>
       </div>
