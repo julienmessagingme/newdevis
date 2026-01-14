@@ -956,39 +956,36 @@ function calculateScore(
 
   // C) Acompte 30-50% (modéré, ORANGE)
   if (depositBeforeWork !== null && depositBeforeWork > 30 && depositBeforeWork <= 50) {
-    majeurs.push(`Acompte modéré (${depositBeforeWork}%)`);
+    majeurs.push(`Acompte à ${depositBeforeWork}% – un acompte ≤ 30% est généralement recommandé`);
   }
 
   // D) Échéancier présent mais % avant travaux incertain
   if (extracted.paiement.has_payment_schedule && depositBeforeWork === null && extracted.acompte.deposit_percent !== null) {
-    majeurs.push("Échéancier détecté : acompte réel avant travaux à confirmer");
+    majeurs.push("Échéancier de paiement détecté – le montant dû avant travaux reste à confirmer");
   }
 
-  // E) IBAN - JAMAIS ROUGE
-  // - IBAN invalide (OpenIBAN confirmé) = ORANGE
-  // - IBAN étranger = ORANGE
-  // - IBAN non détecté = info manquante (pas majeur)
+  // E) IBAN - JAMAIS ROUGE (formulations neutres)
   if (verified.iban_verified && verified.iban_valid === false) {
-    majeurs.push("IBAN techniquement invalide (à vérifier)");
+    majeurs.push("Format IBAN à vérifier – possible erreur de saisie sur le devis");
   }
   if (verified.iban_verified && verified.iban_valid === true && verified.iban_country_code && verified.iban_country_code !== "FR") {
-    majeurs.push(`IBAN étranger (${getCountryName(verified.iban_country_code)})`);
+    majeurs.push(`Coordonnées bancaires : IBAN ${getCountryName(verified.iban_country_code)} (non critique, à confirmer si attendu)`);
   }
 
-  // F) Entreprise : incertitudes API (ORANGE, jamais ROUGE)
+  // F) Entreprise : incertitudes API (formulations neutres, jamais ROUGE)
   if (!company_verified) {
     if (!extracted.company.siret && !extracted.company.siren && !extracted.company.name) {
-      majeurs.push("Informations entreprise manquantes sur le devis");
+      majeurs.push("Coordonnées entreprise non détectées sur le devis – information à demander");
     } else if (verified.company_lookup_status === "error") {
-      majeurs.push("Vérification entreprise indisponible (API)");
+      majeurs.push("Données entreprise non exploitées automatiquement – limitation temporaire des sources publiques");
     } else if (verified.company_lookup_status === "skipped") {
-      majeurs.push("Vérification entreprise non effectuée");
+      majeurs.push("Vérification entreprise non effectuée – SIRET à confirmer manuellement");
     }
   }
 
-  // G) Entreprise récente < 2 ans (si company_verified)
+  // G) Entreprise récente < 2 ans (si company_verified) - formulation neutre
   if (company_verified && verified.anciennete_years !== null && verified.anciennete_years < 2) {
-    majeurs.push("Entreprise récente (< 2 ans)");
+    majeurs.push(`Entreprise créée il y a ${verified.anciennete_years} an(s) – ancienneté à prendre en compte`);
   }
 
   // H) Assurances niveau 1 (devis) - JAMAIS ROUGE
@@ -1149,22 +1146,22 @@ function calculateScore(
       globalScore = "VERT";
       explanation = `Tous les critères de fiabilité sont réunis : ${trustCriteriaMet.join(", ")}.`;
     } else if (allBaseConditionsMet && trustCriteriaCount === 1) {
-      // Presque VERT mais 1 seul critère de confiance
+      // Presque VERT mais 1 seul critère de confiance - message rassurant
       globalScore = "ORANGE";
-      explanation = `Conditions de base remplies, mais un seul critère de confiance renforcée détecté (${trustCriteriaMet[0] || "—"}). Un FEU VERT nécessite 2 critères minimum.`;
+      explanation = `Aucun risque critique détecté. L'ensemble des éléments analysés suggère une entreprise sérieuse. Un critère de confiance renforcée identifié (${trustCriteriaMet[0] || "—"}) – un second permettrait un FEU VERT.`;
     } else if (!allBaseConditionsMet) {
-      // Conditions de base non remplies = ORANGE avec explication
+      // Conditions de base non remplies = ORANGE avec explication pédagogique
       globalScore = "ORANGE";
-      const missingBase: string[] = [];
-      if (!baseCondition1_entreprise) missingBase.push("entreprise à confirmer");
-      if (!baseCondition2_paiement) missingBase.push("paiement traçable à vérifier");
-      if (!baseCondition3_acompte) missingBase.push(`acompte élevé (${effectiveDeposit}%)`);
-      if (!baseCondition4_assurance) missingBase.push("assurance à confirmer");
-      if (!baseCondition5_coherence) missingBase.push("cohérence financière à vérifier");
-      explanation = `Vigilance conseillée : ${missingBase.join(", ")}.`;
+      const pendingChecks: string[] = [];
+      if (!baseCondition1_entreprise) pendingChecks.push("identification complète de l'entreprise");
+      if (!baseCondition2_paiement) pendingChecks.push("confirmation du mode de paiement");
+      if (!baseCondition3_acompte) pendingChecks.push(`niveau d'acompte (${effectiveDeposit}%)`);
+      if (!baseCondition4_assurance) pendingChecks.push("mention d'assurance sur le devis");
+      if (!baseCondition5_coherence) pendingChecks.push("cohérence des montants");
+      explanation = `Aucun risque critique détecté. Certaines vérifications restent recommandées : ${pendingChecks.join(", ")}. Ces points sont des contrôles de confort avant engagement.`;
     } else {
       globalScore = "ORANGE";
-      explanation = "Aucun signal critique, mais informations insuffisantes pour un FEU VERT.";
+      explanation = "Aucun risque critique détecté. L'ensemble des éléments analysés suggère une entreprise sérieuse. Quelques informations complémentaires permettraient un FEU VERT.";
     }
   }
 
@@ -1278,18 +1275,18 @@ function renderAnalysisOutput(
       points_ok.push("✓ Aucune procédure collective en cours");
     }
   } else if (extracted.company.siret) {
-    // SIRET présent mais non trouvé Pappers = INFO, pas critique
-    // L'API peut être temporairement indisponible ou le SIRET très récent
+    // SIRET présent mais non trouvé Pappers = INFO pédagogique, pas critique
     points_ok.push(`ℹ️ SIRET présent : ${extracted.company.siret}`);
-    points_ok.push("⚠️ Vérification Pappers non concluante - vous pouvez vérifier sur societe.com");
+    points_ok.push("ℹ️ Les données financières détaillées de l'entreprise n'ont pas pu être exploitées automatiquement (structure de groupe, établissement secondaire ou données non consolidées). Cela n'indique pas un risque en soi.");
+    recommandations.push("Vous pouvez vérifier les informations sur societe.com ou infogreffe.fr si vous le souhaitez.");
   } else if (extracted.company.name) {
-    // Nom présent mais pas de SIRET = demander le SIRET
+    // Nom présent mais pas de SIRET = demander le SIRET (formulation neutre)
     points_ok.push(`ℹ️ Entreprise : ${extracted.company.name}`);
-    alertes.push("⚠️ SIRET non détecté sur le devis – demandez le numéro à l'artisan");
-    recommandations.push("Demandez à l'artisan son numéro SIRET pour vérifier son immatriculation");
+    alertes.push("ℹ️ SIRET non détecté sur le devis – vous pouvez le demander à l'artisan pour une vérification complète");
+    recommandations.push("Demandez le numéro SIRET à l'artisan pour compléter la vérification.");
   } else {
-    alertes.push("⚠️ Aucune information d'entreprise identifiée sur le devis");
-    recommandations.push("Demandez à l'artisan ses coordonnées complètes et son numéro SIRET");
+    alertes.push("ℹ️ Coordonnées entreprise non identifiées sur le devis – information à demander");
+    recommandations.push("Demandez à l'artisan ses coordonnées complètes et son numéro SIRET.");
   }
 
   // Google Places - toujours afficher un statut
@@ -1436,14 +1433,19 @@ function renderAnalysisOutput(
 
   // ============ RECOMMANDATIONS ============
 
-  recommandations.push(`📊 Scoring: ${scoring.score_explanation}`);
+  recommandations.push(`📊 ${scoring.score_explanation}`);
 
-  if (scoring.criteres_majeurs.length > 0) {
-    recommandations.push("⚠️ Vérifiez les points de vigilance identifiés avant de vous engager.");
+  // Message de synthèse positif pour ORANGE
+  if (scoring.global_score === "ORANGE" && scoring.criteres_critiques.length === 0) {
+    recommandations.push("✅ L'ensemble des éléments analysés suggère une entreprise sérieuse. Les points listés sont des vérifications de confort recommandées avant engagement.");
+  }
+
+  if (scoring.criteres_majeurs.length > 0 && scoring.global_score === "ORANGE") {
+    recommandations.push("ℹ️ Les points ci-dessus sont des recommandations de vérification, pas des signaux d'alerte critiques.");
   }
 
   if (!verified.company_found && extracted.company.siret) {
-    recommandations.push("Vérifiez la situation de l'entreprise sur societe.com ou infogreffe.fr");
+    recommandations.push("Vous pouvez consulter societe.com ou infogreffe.fr pour plus de détails sur l'entreprise.");
   }
 
   if (depositPercent !== null && depositPercent > 30) {
