@@ -1,5 +1,6 @@
 import { CheckCircle2, AlertCircle, XCircle, Receipt } from "lucide-react";
 import MarketComparisonGauge from "./MarketComparisonGauge";
+import PedagogicExplanation from "./PedagogicExplanation";
 
 interface BlockDevisProps {
   pointsOk: string[];
@@ -331,28 +332,39 @@ const BlockDevis = ({ pointsOk, alertes }: BlockDevisProps) => {
             )}
           </div>
           
-          {/* Explanations for ORANGE/ROUGE */}
+          {/* Explanations for ORANGE/ROUGE with pedagogic framing */}
           {info.explanations.length > 0 && (info.score === "ORANGE" || info.score === "ROUGE") && (
-            <div className="mb-4 p-3 bg-background/50 rounded-lg border border-border">
-              <p className="text-sm font-medium text-foreground mb-2">💡 Explications :</p>
+            <PedagogicExplanation type="info" title="Points observés" className="mb-4">
               {info.explanations.map((exp, idx) => (
-                <p key={idx} className="text-sm text-muted-foreground">{exp}</p>
+                <p key={idx} className="mb-1">{exp}</p>
               ))}
-            </div>
+              <p className="text-xs text-muted-foreground/80 mt-2 italic">
+                Ces éléments sont des observations qui invitent à une vérification, non des alertes critiques.
+              </p>
+            </PedagogicExplanation>
           )}
           
-          {/* Score explanation */}
+          {/* Score explanation - harmonized */}
           <div className="mt-4 p-3 bg-muted/50 rounded-lg">
             <p className={`text-sm font-medium ${getScoreTextClass(info.score)}`}>
               {info.score === "VERT" && "✓ Le devis présente une cohérence financière satisfaisante."}
-              {info.score === "ORANGE" && "⚠️ Certains éléments du devis méritent une attention particulière."}
-              {info.score === "ROUGE" && "⚠️ Des écarts significatifs ont été détectés sur ce devis."}
+              {info.score === "ORANGE" && "ℹ️ Certains éléments du devis invitent à une vérification complémentaire."}
+              {info.score === "ROUGE" && "⚠️ Certains écarts nécessitent une attention particulière."}
             </p>
+            {info.score === "ORANGE" && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Aucun élément critique n'a été détecté. Les points signalés sont des invitations à vérifier, non des alertes.
+              </p>
+            )}
           </div>
           
-          <p className="text-xs text-muted-foreground/70 mt-3 italic">
-            Comparaison effectuée avec les prix de référence du marché, ajustés selon la zone géographique. Ces données sont indicatives.
-          </p>
+          {/* Disclaimer - harmonized */}
+          <div className="mt-3 p-2 bg-muted/30 rounded-lg">
+            <p className="text-xs text-muted-foreground/70 italic">
+              ℹ️ Analyse automatisée. Les comparaisons de prix sont indicatives et ajustées selon la zone géographique. 
+              L'objectif est d'aider à la compréhension et à la vigilance, pas de fixer un "bon prix".
+            </p>
+          </div>
         </div>
       </div>
     </div>
