@@ -1,15 +1,13 @@
 import { Link } from "react-router-dom";
 import logo from "@/assets/logo.png";
-
 const Footer = () => {
-  return (
-    <footer className="bg-card border-t border-border">
+  return <footer className="bg-card border-t border-border">
       <div className="container py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Logo & Description */}
           <div className="md:col-span-2">
             <Link to="/" className="flex items-center gap-2 mb-4">
-              <img src={logo} alt="VerifierMonDevis.fr" className="h-12 w-12 object-contain" />
+              <img alt="VerifierMonDevis.fr" className="h-12 w-12 object-contain" src="/lovable-uploads/fb0ec11f-8dad-4b8e-a26d-f64736c37326.png" />
               <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
             </Link>
             <p className="text-muted-foreground text-sm max-w-md">
@@ -67,8 +65,6 @@ const Footer = () => {
           </p>
         </div>
       </div>
-    </footer>
-  );
+    </footer>;
 };
-
 export default Footer;
