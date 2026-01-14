@@ -6,10 +6,16 @@ import ScoringExplainedSection from "@/components/landing/ScoringExplainedSectio
 import RisksSection from "@/components/landing/RisksSection";
 import CTASection from "@/components/landing/CTASection";
 import DisclaimerSection from "@/components/landing/DisclaimerSection";
+import SEOHead from "@/components/SEOHead";
 
 const Index = () => {
   return (
     <div className="min-h-screen flex flex-col">
+      <SEOHead 
+        title="Vérifier un devis artisan gratuitement | VerifierMonDevis.fr"
+        description="Analysez gratuitement votre devis d'artisan en 2 minutes. Score de fiabilité, vérification entreprise, prix marché. Protégez-vous avant de signer."
+        canonical="https://verifiermondevis.fr/"
+      />
       <Header />
       <main className="flex-1">
         <HeroSection />

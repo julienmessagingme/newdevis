@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Shield, Mail, Lock, User, ArrowRight, Loader2, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import SEOHead from "@/components/SEOHead";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -81,6 +82,11 @@ const Register = () => {
 
   return (
     <div className="min-h-screen bg-background flex">
+      <SEOHead 
+        title="Créer un compte gratuit | VerifierMonDevis.fr"
+        description="Inscrivez-vous gratuitement sur VerifierMonDevis.fr. Analysez vos devis d'artisans, vérifiez les entreprises et protégez-vous avant de signer."
+        canonical="https://verifiermondevis.fr/inscription"
+      />
       {/* Left Panel - Form */}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
