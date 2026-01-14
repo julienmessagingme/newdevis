@@ -29,6 +29,7 @@ import {
   DocumentRejectionScreen,
   AdaptedAnalysisBanner
 } from "@/components/analysis";
+import { PostSignatureTrackingSection } from "@/components/tracking";
 import type { TravauxItem } from "@/components/analysis";
 
 type DocumentDetection = {
@@ -191,6 +192,50 @@ const AnalysisResult = () => {
     }
 
     return { nom_entreprise, siret, adresse, categorie_travaux };
+  };
+
+  // Extract work dates from raw_text or points_ok for post-signature tracking
+  const extractWorkDates = (analysis: Analysis) => {
+    const rawText = analysis.raw_text || "";
+    let workStartDate: string | undefined;
+    let workEndDate: string | undefined;
+    let maxExecutionDays: number | undefined;
+
+    // Try to extract from JSON in raw_text
+    try {
+      const parsed = JSON.parse(rawText);
+      if (parsed?.work_dates) {
+        workStartDate = parsed.work_dates.start_date;
+        workEndDate = parsed.work_dates.end_date;
+        maxExecutionDays = parsed.work_dates.max_execution_days;
+      }
+    } catch {
+      // Not JSON, try regex patterns
+      // Date patterns: dd/mm/yyyy, dd-mm-yyyy
+      const datePattern = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g;
+      const allPoints = [...(analysis.points_ok || []), ...(analysis.alertes || [])];
+      
+      for (const point of allPoints) {
+        const lowerPoint = point.toLowerCase();
+        if (lowerPoint.includes("début") || lowerPoint.includes("démarrage") || lowerPoint.includes("commencement")) {
+          const match = point.match(datePattern);
+          if (match) workStartDate = match[0];
+        }
+        if (lowerPoint.includes("fin") || lowerPoint.includes("livraison") || lowerPoint.includes("achèvement")) {
+          const match = point.match(datePattern);
+          if (match) workEndDate = match[0];
+        }
+        // Duration in days
+        const durationMatch = point.match(/(\d+)\s*(jours?|semaines?)/i);
+        if (durationMatch) {
+          const value = parseInt(durationMatch[1]);
+          const unit = durationMatch[2].toLowerCase();
+          maxExecutionDays = unit.includes("semaine") ? value * 7 : value;
+        }
+      }
+    }
+
+    return { workStartDate, workEndDate, maxExecutionDays };
   };
 
   if (loading) {
@@ -489,6 +534,19 @@ const AnalysisResult = () => {
               ))}
             </ul>
           </div>
+        )}
+
+        {/* Post-Signature Tracking Section */}
+        {!isAdaptedAnalysis && (
+          <PostSignatureTrackingSection
+            analysisId={analysis.id}
+            companySiret={extractQuoteInfo(analysis).siret}
+            companyName={extractQuoteInfo(analysis).nom_entreprise}
+            workStartDate={extractWorkDates(analysis).workStartDate}
+            workEndDate={extractWorkDates(analysis).workEndDate}
+            maxExecutionDays={extractWorkDates(analysis).maxExecutionDays}
+            isRejectedDocument={isRejectedDocument}
+          />
         )}
 
         {/* Recommendations */}

@@ -56,7 +56,7 @@ const HeroSection = () => {
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-score-green" />
-                <span>Sans engagement</span>
+                <span>Suivi post-signature</span>
               </div>
             </div>
           </div>
