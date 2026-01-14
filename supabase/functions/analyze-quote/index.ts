@@ -881,6 +881,7 @@ async function verifyQuoteData(
 }
 
 // ============ STEP 3: SCORE ============
+// RÈGLE STRICTE: ROUGE uniquement si ≥1 critère critique AUTORISÉ et CONFIRMÉ
 function calculateScore(
   extracted: QuoteExtracted,
   verified: QuoteVerified
@@ -889,162 +890,158 @@ function calculateScore(
   const majeurs: string[] = [];
   const confort: string[] = [];
 
-  // ============ RÈGLE CENTRALE: COMPANY_VERIFIED ============
-  // company_verified = TRUE dès qu'UNE des conditions est remplie:
-  // - SIRET/SIREN valide et entreprise trouvée via Pappers
-  // - Nom d'entreprise + correspondance Google fiable
-  // - SIRET présent sur le devis (confiance minimale)
-  const company_verified = 
-    verified.company_found || // Pappers a trouvé l'entreprise
-    (extracted.company.siret && extracted.company.siret.length >= 14) || // SIRET présent et valide format
-    (verified.google_found && verified.google_match_confidence === "high"); // Google match fiable
+  // ============ RÈGLE UNIQUE: company_verified ============
+  // TRUE si entreprise identifiée via Pappers OU Google match fiable
+  const company_verified =
+    verified.company_found ||
+    (verified.google_found && verified.google_match_confidence === "high");
 
-  // ============ CRITÈRES CRITIQUES (déclenchent ROUGE immédiat si CONFIRMÉ) ============
-  // RÈGLE ANTI-FAUX-ROUGE: Un critère critique ne peut être déclenché QUE sur preuve NÉGATIVE EXPLICITE
+  // ============ CRITÈRES CRITIQUES AUTORISÉS (SEULS déclencheurs de ROUGE) ============
+  // LISTE BLANCHE STRICTE - tout autre critère est INTERDIT comme déclencheur ROUGE
 
-  // 1. Entreprise non immatriculée - SEULEMENT si vraiment aucune trace
-  // SI company_verified = TRUE → INTERDIT de déclencher ce critère
-  if (!company_verified) {
-    if (!extracted.company.siret && !extracted.company.siren && !extracted.company.name) {
-      // Aucune info entreprise du tout = critique
-      critiques.push("Aucune information d'entreprise sur le devis");
-    } else if (!extracted.company.siret && !extracted.company.siren) {
-      // Nom présent mais pas de SIRET = MAJEUR (pas critique)
-      majeurs.push("SIRET/SIREN absent du devis – demandez le numéro à l'artisan");
-    }
-    // NOTE: Si SIRET présent mais non trouvé Pappers → on NE déclare PAS critique
-    // car l'API peut être temporairement indisponible ou le SIRET récent
+  // 1) Entreprise non immatriculée/radiée (preuve négative explicite via API)
+  if (!company_verified && verified.company_lookup_status === "not_found") {
+    critiques.push("Entreprise introuvable dans les registres officiels");
   }
 
-  // 2. Capitaux propres négatifs CONFIRMÉS
-  if (verified.capitaux_propres_positifs === false && verified.capitaux_propres !== null) {
-    critiques.push(`Capitaux propres négatifs (${new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(verified.capitaux_propres)})`);
-  }
-
-  // 3. Procédure collective CONFIRMÉE
+  // 2) Procédure collective confirmée
   if (verified.procedure_collective) {
     critiques.push("Procédure collective en cours");
   }
 
-  // 4. IBAN invalide CONFIRMÉ par OpenIBAN
-  if (verified.iban_verified && verified.iban_valid === false) {
-    critiques.push("IBAN non valide");
+  // 3) Capitaux propres négatifs confirmés
+  if (verified.capitaux_propres_positifs === false && verified.capitaux_propres !== null) {
+    critiques.push(
+      `Capitaux propres négatifs (${new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(verified.capitaux_propres)})`,
+    );
   }
 
-  // 5. Paiement en espèces EXPLICITEMENT demandé
-  const hasExplicitCash = extracted.paiement.payment_methods_detected
-    .some(m => m.toLowerCase() === "especes");
+  // 4) Paiement en espèces explicitement mentionné
+  const hasExplicitCash = extracted.paiement.payment_methods_detected.some(
+    (m) => m.toLowerCase() === "especes",
+  );
   if (hasExplicitCash) {
     critiques.push("Paiement en espèces explicitement demandé");
   }
 
-  // 6. Paiement intégral avant travaux (seulement si pas d'échéancier)
-  if (!extracted.paiement.has_payment_schedule) {
-    const depositBeforeWork = extracted.acompte.deposit_before_work_percent ?? extracted.acompte.deposit_percent;
-    if (depositBeforeWork !== null && depositBeforeWork >= 100) {
-      critiques.push("Paiement intégral demandé avant travaux");
-    }
+  // 5) Acompte > 50% AVANT travaux (uniquement si échéancier absent ou % confirmé)
+  const depositBeforeWork: number | null =
+    extracted.acompte.deposit_before_work_percent ??
+    (!extracted.paiement.has_payment_schedule ? extracted.acompte.deposit_percent : null);
+
+  if (depositBeforeWork !== null && depositBeforeWork > 50) {
+    critiques.push(`Acompte > 50% demandé avant travaux (${depositBeforeWork}%)`);
   }
 
-  // 7. Incohérence mathématique du devis CONFIRMÉE
+  // 6) Assurance incohérente niveau 2 (après upload attestation) - non implémenté ici
+
+  // ============ CRITÈRES MAJEURS (ORANGE uniquement, jamais ROUGE) ============
+
+  // A) Incohérence des totaux du devis
   if (extracted.totals.totals_incoherence === "yes") {
-    // Incohérence confirmée = critère MAJEUR bloquant FEU VERT, pas critique
-    majeurs.push(`Incohérence des totaux du devis: ${extracted.totals.incoherence_reason || "somme des lignes ≠ total"}`);
+    majeurs.push(
+      `Incohérence des totaux: ${extracted.totals.incoherence_reason || "somme des lignes ≠ total"}`,
+    );
   }
 
-  // ============ CRITÈRES MAJEURS (2+ = ORANGE, combinaisons fortes = ROUGE) ============
-
-  // 1. Prix très au-dessus du marché
-  const priceRouge = verified.price_comparisons.filter(p => p.score === "ROUGE");
+  // B) Prix marché - AUCUN IMPACT SUR ROUGE, purement informatif en ORANGE
+  const priceRouge = verified.price_comparisons.filter((p) => p.score === "ROUGE");
+  const priceOrange = verified.price_comparisons.filter((p) => p.score === "ORANGE");
   if (priceRouge.length > 0) {
-    majeurs.push(`Prix anormaux détectés (${priceRouge.length} poste${priceRouge.length > 1 ? 's' : ''})`);
+    majeurs.push(`Prix très éloignés du marché (${priceRouge.length} poste${priceRouge.length > 1 ? "s" : ""})`);
+  } else if (priceOrange.length > 0) {
+    majeurs.push(`Prix éloignés du marché (${priceOrange.length} poste${priceOrange.length > 1 ? "s" : ""})`);
   }
+  // NOTE: L'impossibilité de comparer = aucun impact (pas ajouté aux majeurs)
 
-  // 2. Prix au-dessus du marché (ORANGE)
-  const priceOrange = verified.price_comparisons.filter(p => p.score === "ORANGE");
-  if (priceOrange.length > 0 && priceRouge.length === 0) {
-    majeurs.push(`Prix élevés détectés (${priceOrange.length} poste${priceOrange.length > 1 ? 's' : ''})`);
-  }
-
-  // 3. Acompte > 50%
-  const depositBeforeWork = extracted.acompte.deposit_before_work_percent ?? extracted.acompte.deposit_percent;
-  if (depositBeforeWork !== null && depositBeforeWork > 50 && depositBeforeWork < 100) {
-    majeurs.push(`Acompte élevé (${depositBeforeWork}%)`);
-  } else if (depositBeforeWork !== null && depositBeforeWork > 30 && depositBeforeWork <= 50) {
+  // C) Acompte 30-50% (modéré, ORANGE)
+  if (depositBeforeWork !== null && depositBeforeWork > 30 && depositBeforeWork <= 50) {
     majeurs.push(`Acompte modéré (${depositBeforeWork}%)`);
   }
 
-  // 4. Assurance non clairement mentionnée sur travaux à enjeu
-  // Détermine si les travaux nécessitent une décennale
+  // D) Échéancier présent mais % avant travaux incertain
+  if (extracted.paiement.has_payment_schedule && depositBeforeWork === null && extracted.acompte.deposit_percent !== null) {
+    majeurs.push("Échéancier détecté : acompte réel avant travaux à confirmer");
+  }
+
+  // E) IBAN - JAMAIS ROUGE
+  // - IBAN invalide (OpenIBAN confirmé) = ORANGE
+  // - IBAN étranger = ORANGE
+  // - IBAN non détecté = info manquante (pas majeur)
+  if (verified.iban_verified && verified.iban_valid === false) {
+    majeurs.push("IBAN techniquement invalide (à vérifier)");
+  }
+  if (verified.iban_verified && verified.iban_valid === true && verified.iban_country_code && verified.iban_country_code !== "FR") {
+    majeurs.push(`IBAN étranger (${getCountryName(verified.iban_country_code)})`);
+  }
+
+  // F) Entreprise : incertitudes API (ORANGE, jamais ROUGE)
+  if (!company_verified) {
+    if (!extracted.company.siret && !extracted.company.siren && !extracted.company.name) {
+      majeurs.push("Informations entreprise manquantes sur le devis");
+    } else if (verified.company_lookup_status === "error") {
+      majeurs.push("Vérification entreprise indisponible (API)");
+    } else if (verified.company_lookup_status === "skipped") {
+      majeurs.push("Vérification entreprise non effectuée");
+    }
+  }
+
+  // G) Entreprise récente < 2 ans (si company_verified)
+  if (company_verified && verified.anciennete_years !== null && verified.anciennete_years < 2) {
+    majeurs.push("Entreprise récente (< 2 ans)");
+  }
+
+  // H) Assurances niveau 1 (devis) - JAMAIS ROUGE
   const DECENNALE_KEYWORDS = [
     "toiture", "charpente", "maçonnerie", "gros oeuvre", "façade", "étanchéité",
     "fenêtre", "menuiserie", "piscine", "extension", "fondation",
   ];
-  const travauxText = extracted.travaux.map(t => `${t.category} ${t.description}`).join(" ").toLowerCase();
-  const needsDecennale = DECENNALE_KEYWORDS.some(kw => travauxText.includes(kw));
-  
-  if (needsDecennale && extracted.assurances.mentions_decennale === "no") {
-    majeurs.push("Assurance décennale non mentionnée sur travaux à enjeu");
-  } else if (needsDecennale && extracted.assurances.mentions_decennale === "uncertain") {
-    majeurs.push("Assurance décennale partiellement mentionnée – à vérifier");
+  const travauxText = extracted.travaux.map((t) => `${t.category} ${t.description}`).join(" ").toLowerCase();
+  const needsDecennale = DECENNALE_KEYWORDS.some((kw) => travauxText.includes(kw));
+
+  if (needsDecennale && extracted.assurances.mentions_decennale !== "yes") {
+    majeurs.push("Assurance décennale à confirmer");
   }
 
-  // 5. IBAN étranger
-  if (verified.iban_verified && verified.iban_valid === true && verified.iban_country_code !== "FR") {
-    majeurs.push(`IBAN étranger (${getCountryName(verified.iban_country_code || "")})`);
-  }
-
-  // 6. Réputation Google < 4 (informatif uniquement, jamais critique ni majeur)
-  // L'absence de Google ou note basse n'est JAMAIS un critère négatif
-  // C'est purement informatif
-
-  // 7. Entreprise récente < 2 ans (SEULEMENT si company_verified et ancienneté connue)
-  if (company_verified && verified.anciennete_years !== null && verified.anciennete_years < 2) {
-    majeurs.push("Entreprise récente (< 2 ans d'existence)");
-  }
-
-  // ============ CRITÈRES DE CONFORT (renforcent la confiance) ============
-
-  // Entreprise vérifiée
-  if (company_verified && verified.company_found) {
-    confort.push("Entreprise vérifiée dans les registres officiels");
-  }
-
-  // 1. RGE vérifié (seulement si pertinent)
-  if (verified.rge_found) {
-    confort.push("Qualification RGE vérifiée");
-  } else if (verified.rge_relevant && !verified.rge_found) {
-    // RGE non trouvé pour travaux éligibles = MAJEUR seulement, pas critique
+  // I) RGE (uniquement si pertinent)
+  if (verified.rge_relevant && !verified.rge_found) {
     majeurs.push("RGE non trouvé pour travaux éligibles aux aides");
   }
-  // Si RGE non pertinent → pas de pénalité, on ignore
 
-  // 2. QUALIBAT mentionné
-  if (extracted.labels.mentions_qualibat === "yes") {
-    confort.push("Certification QUALIBAT mentionnée");
+  // ============ CRITÈRES DE CONFORT (positifs) ============
+
+  if (company_verified && verified.company_found) {
+    confort.push("Entreprise identifiée dans les registres officiels");
   }
 
-  // 3. Entreprise établie > 5 ans
   if (verified.anciennete_years !== null && verified.anciennete_years >= 5) {
     confort.push(`Entreprise établie (${verified.anciennete_years} ans)`);
   }
 
-  // 4. Capitaux propres positifs
   if (verified.capitaux_propres_positifs === true) {
     confort.push("Situation financière saine");
   }
 
-  // 5. IBAN France valide
+  if (verified.google_found && verified.google_rating !== null) {
+    if (verified.google_rating >= 4.5) {
+      confort.push(`Excellente réputation (${verified.google_rating}/5)`);
+    } else if (verified.google_rating >= 4) {
+      confort.push(`Bonne réputation (${verified.google_rating}/5)`);
+    }
+  }
+
   if (verified.iban_verified && verified.iban_valid === true && verified.iban_country_code === "FR") {
     confort.push("IBAN France valide");
   }
 
-  // 6. Excellente réputation Google
-  if (verified.google_found && verified.google_rating !== null && verified.google_rating >= 4.5) {
-    confort.push(`Excellente réputation (${verified.google_rating}/5)`);
+  if (extracted.labels.mentions_qualibat === "yes") {
+    confort.push("Certification QUALIBAT mentionnée");
   }
 
-  // 7. Assurances clairement mentionnées
+  if (verified.rge_found) {
+    confort.push("Qualification RGE vérifiée");
+  }
+
   if (extracted.assurances.mentions_decennale === "yes") {
     confort.push("Assurance décennale mentionnée");
   }
@@ -1053,70 +1050,54 @@ function calculateScore(
   }
 
   // ============ CALCUL DU SCORE FINAL ============
+  // RÈGLE STRICTE: ROUGE uniquement si ≥1 critère critique autorisé confirmé
+  // JAMAIS de ROUGE via "combinaisons de majeurs"
+
   let globalScore: ScoringColor;
   let explanation: string;
 
-  // Règle 1: Tout critère critique CONFIRMÉ = ROUGE
   if (critiques.length > 0) {
     globalScore = "ROUGE";
-    explanation = `Critères critiques détectés : ${critiques.join(", ")}.`;
-  }
-  // Règle 2: Combinaisons de critères majeurs
-  else if (majeurs.length >= 2) {
-    // Vérifier les combinaisons fortes
-    const hasPricing = majeurs.some(m => m.includes("Prix"));
-    const hasPayment = majeurs.some(m => m.includes("Acompte") || m.includes("IBAN"));
-    const hasAssurance = majeurs.some(m => m.includes("Assurance"));
-    
-    // Combinaison prix + paiement OU paiement + assurance OU 3+ majeurs = ROUGE
-    if ((hasPricing && hasPayment) || (hasPayment && hasAssurance) || majeurs.length >= 3) {
-      globalScore = "ROUGE";
-      explanation = `Combinaison de signaux forts : ${majeurs.join(", ")}.`;
-    } else {
-      globalScore = "ORANGE";
-      explanation = `Plusieurs points de vigilance : ${majeurs.join(", ")}.`;
-    }
-  }
-  // Règle 3: Un seul critère majeur = ORANGE
-  else if (majeurs.length === 1) {
+    explanation = `Critères critiques confirmés : ${critiques.join(", ")}.`;
+  } else if (majeurs.length > 0) {
     globalScore = "ORANGE";
-    explanation = `Point de vigilance : ${majeurs[0]}.`;
-  }
-  // Règle 4: Aucun critique, max 1 majeur = VERT
-  else {
+    explanation = `Points de vigilance : ${majeurs.join(", ")}.`;
+  } else {
     globalScore = "VERT";
-    if (confort.length > 0) {
-      explanation = `Indicateurs positifs : ${confort.slice(0, 3).join(", ")}.`;
-    } else {
-      explanation = "Aucun signal de vigilance majeur détecté.";
-    }
+    explanation =
+      confort.length > 0
+        ? `Indicateurs positifs : ${confort.slice(0, 3).join(", ")}.`
+        : "Aucun signal de vigilance détecté.";
   }
 
-  // Calcul des scores par bloc
-  // RÈGLE: Utiliser company_verified pour éviter les faux rouges
+  // Scores par bloc (cohérents avec la règle ROUGE)
   const blocScores = {
-    entreprise: verified.procedure_collective || (verified.capitaux_propres_positifs === false)
-      ? "ROUGE" as ScoringColor
-      // ORANGE seulement si company_verified ET (récent OU pas trouvé Pappers)
-      // mais JAMAIS rouge sur absence de données
-      : (!company_verified || (verified.anciennete_years !== null && verified.anciennete_years < 2))
-        ? "ORANGE" as ScoringColor
-        : "VERT" as ScoringColor,
-    
-    devis: priceRouge.length > 0 || extracted.totals.totals_incoherence === "yes"
-      ? "ROUGE" as ScoringColor
-      : priceOrange.length > 0
-        ? "ORANGE" as ScoringColor
-        : "VERT" as ScoringColor,
-    
-    securite: hasExplicitCash || (verified.iban_valid === false)
-      ? "ROUGE" as ScoringColor
-      : (verified.iban_country_code && verified.iban_country_code !== "FR") || 
-        (depositBeforeWork !== null && depositBeforeWork > 30) ||
-        extracted.assurances.mentions_decennale !== "yes"
-        ? "ORANGE" as ScoringColor
-        : "VERT" as ScoringColor,
-    
+    entreprise:
+      (!company_verified && verified.company_lookup_status === "not_found") ||
+      verified.procedure_collective ||
+      verified.capitaux_propres_positifs === false
+        ? ("ROUGE" as ScoringColor)
+        : !company_verified || (verified.anciennete_years !== null && verified.anciennete_years < 2)
+          ? ("ORANGE" as ScoringColor)
+          : ("VERT" as ScoringColor),
+
+    devis:
+      extracted.totals.totals_incoherence === "yes"
+        ? ("ORANGE" as ScoringColor)
+        : priceRouge.length > 0 || priceOrange.length > 0
+          ? ("ORANGE" as ScoringColor)
+          : ("VERT" as ScoringColor),
+
+    securite:
+      hasExplicitCash || (depositBeforeWork !== null && depositBeforeWork > 50)
+        ? ("ROUGE" as ScoringColor)
+        : (verified.iban_verified && verified.iban_valid === false) ||
+            (verified.iban_verified && verified.iban_valid === true && verified.iban_country_code !== "FR") ||
+            (depositBeforeWork !== null && depositBeforeWork > 30) ||
+            extracted.assurances.mentions_decennale !== "yes"
+          ? ("ORANGE" as ScoringColor)
+          : ("VERT" as ScoringColor),
+
     contexte: "INFORMATIF" as const,
   };
 
