@@ -233,6 +233,65 @@ const AnalysisResult = () => {
     );
   }
 
+  // Check if document was rejected (facture ou autre)
+  const isRejectedDocument = analysis.status === "completed" && !analysis.score && analysis.resume && (
+    analysis.resume.includes("facture") || 
+    analysis.resume.includes("ne correspond pas") ||
+    analysis.resume.includes("VerifierMonDevis.fr analyse uniquement")
+  );
+
+  if (isRejectedDocument) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="sticky top-0 z-50 bg-card border-b border-border">
+          <div className="container flex h-16 items-center justify-between">
+            <Link to="/" className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Shield className="h-6 w-6 text-primary" />
+              </div>
+              <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
+            </Link>
+          </div>
+        </header>
+        <main className="container py-16 max-w-2xl text-center">
+          <div className="w-20 h-20 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <FileText className="h-10 w-10 text-primary" />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground mb-4">Document non conforme</h1>
+          <div className="bg-card border border-border rounded-xl p-6 mb-6 text-left">
+            <p className="text-muted-foreground mb-4">{analysis.resume}</p>
+            {analysis.recommandations && analysis.recommandations.length > 0 && (
+              <div className="border-t border-border pt-4 mt-4">
+                <h3 className="font-medium text-foreground mb-3 text-sm">💡 Pourquoi cette limitation ?</h3>
+                <ul className="space-y-2">
+                  {analysis.recommandations.map((rec, index) => (
+                    <li key={index} className="text-sm text-muted-foreground flex items-start gap-2">
+                      <span className="text-primary mt-0.5">•</span>
+                      {rec}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link to="/tableau-de-bord">
+              <Button variant="outline">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Retour au tableau de bord
+              </Button>
+            </Link>
+            <Link to="/nouvelle-analyse">
+              <Button>
+                Analyser un devis
+              </Button>
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   // Check if we have structured types_travaux data
   const hasStructuredTypesTravaux = analysis.types_travaux && analysis.types_travaux.length > 0;
 

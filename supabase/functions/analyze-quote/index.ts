@@ -20,6 +20,22 @@ const ADRESSE_API_URL = "https://api-adresse.data.gouv.fr/search";
 type ScoringColor = "VERT" | "ORANGE" | "ROUGE";
 type Confidence = "high" | "medium" | "low";
 
+// Document type detection result
+type DocumentType = 
+  | "devis_travaux"           // Full analysis + standard scoring
+  | "devis_prestation_technique" // Adapted analysis (no market price, no décennale required)
+  | "facture"                 // Rejected - invoice, not a quote
+  | "autre";                  // Rejected - non-conforming document
+
+interface DocumentDetectionResult {
+  type: DocumentType;
+  confidence: Confidence;
+  indicators: string[];       // What led to this classification
+  analysis_mode: "full" | "adapted" | "rejected";
+  rejection_message?: string;
+  credibility_message: string;
+}
+
 // ============ STEP 1: EXTRACT - Structured quote extraction ============
 interface QuoteExtracted {
   company: {
@@ -185,11 +201,139 @@ function cleanAddress(rawAddress: string): string {
     .trim();
 }
 
+// ============ STEP 0: DETECT DOCUMENT TYPE ============
+async function detectDocumentType(
+  base64Content: string,
+  mimeType: string,
+  lovableApiKey: string
+): Promise<DocumentDetectionResult> {
+  const systemPrompt = `Tu es un expert en classification de documents commerciaux français. Tu identifies le type de document transmis avec précision.`;
+
+  const userPrompt = `Analyse ce document et détermine son type parmi les catégories suivantes :
+
+1. DEVIS DE TRAVAUX : Document préparatoire proposant des travaux de construction, rénovation, installation (plomberie, électricité, toiture, isolation, peinture, maçonnerie, menuiserie, etc.)
+   Indices : "Devis", montants HT/TTC, descriptions de travaux, mentions d'assurance décennale, dates de validité
+
+2. DEVIS DE PRESTATION TECHNIQUE : Document proposant des services intellectuels ou techniques liés au bâtiment (diagnostic immobilier, audit énergétique, étude thermique, expertise, contrôle technique)
+   Indices : "Devis", "Diagnostic", "Audit", "Étude", honoraires, mission intellectuelle
+
+3. FACTURE : Document émis APRÈS réalisation de travaux ou prestations
+   Indices : "Facture", numéro de facture, "Net à payer", référence à des travaux passés, date d'échéance de paiement
+
+4. AUTRE : Document qui n'est pas un devis ni une facture (bon de commande, contrat, attestation, courrier, etc.)
+
+Réponds UNIQUEMENT avec ce JSON :
+{
+  "type": "devis_travaux | devis_prestation_technique | facture | autre",
+  "confidence": "high | medium | low",
+  "indicators": ["liste des éléments qui ont permis cette classification"],
+  "document_title": "titre du document s'il est visible"
+}`;
+
+  try {
+    const aiResponse = await fetch(LOVABLE_AI_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${lovableApiKey}`,
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: userPrompt },
+              { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Content}` } },
+            ],
+          },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+
+    if (!aiResponse.ok) {
+      console.error("Document detection AI error:", aiResponse.status);
+      // Default to devis_travaux if detection fails to not block the user
+      return {
+        type: "devis_travaux",
+        confidence: "low",
+        indicators: ["Détection automatique non concluante - analyse standard appliquée"],
+        analysis_mode: "full",
+        credibility_message: "L'objectif de VerifierMonDevis.fr est de fournir une analyse pertinente et fiable.",
+      };
+    }
+
+    const aiResult = await aiResponse.json();
+    const content = aiResult.choices?.[0]?.message?.content;
+    if (!content) {
+      return {
+        type: "devis_travaux",
+        confidence: "low",
+        indicators: ["Réponse AI vide - analyse standard appliquée"],
+        analysis_mode: "full",
+        credibility_message: "L'objectif de VerifierMonDevis.fr est de fournir une analyse pertinente et fiable.",
+      };
+    }
+
+    const parsed = JSON.parse(content);
+    const detectedType: DocumentType = 
+      ["devis_travaux", "devis_prestation_technique", "facture", "autre"].includes(parsed.type) 
+        ? parsed.type 
+        : "devis_travaux";
+
+    const result: DocumentDetectionResult = {
+      type: detectedType,
+      confidence: parsed.confidence || "medium",
+      indicators: Array.isArray(parsed.indicators) ? parsed.indicators : [],
+      analysis_mode: "full",
+      credibility_message: "L'objectif de VerifierMonDevis.fr est de fournir une analyse pertinente et fiable. Lorsque le document transmis ne correspond pas à un devis de travaux, l'analyse est volontairement limitée ou refusée afin d'éviter toute interprétation incorrecte.",
+    };
+
+    // Set analysis mode and messages based on document type
+    switch (detectedType) {
+      case "devis_travaux":
+        result.analysis_mode = "full";
+        result.credibility_message = "Document identifié comme un devis de travaux - analyse complète appliquée.";
+        break;
+        
+      case "devis_prestation_technique":
+        result.analysis_mode = "adapted";
+        result.credibility_message = "Ce devis concerne une prestation technique (diagnostic, audit, étude). L'analyse est adaptée à la nature de la mission : la comparaison aux prix de marché travaux et l'exigence d'assurance décennale ne s'appliquent pas.";
+        break;
+        
+      case "facture":
+        result.analysis_mode = "rejected";
+        result.rejection_message = "Le document transmis est une facture. VerifierMonDevis.fr analyse uniquement des devis, c'est-à-dire des documents émis AVANT réalisation des travaux. Une facture correspond à un document de règlement post-travaux.";
+        break;
+        
+      case "autre":
+        result.analysis_mode = "rejected";
+        result.rejection_message = "Le document transmis ne correspond pas à un devis de travaux ou de prestation technique. Veuillez transmettre un devis conforme pour bénéficier de l'analyse.";
+        break;
+    }
+
+    return result;
+  } catch (error) {
+    console.error("Document detection error:", error);
+    // Default to full analysis if detection fails
+    return {
+      type: "devis_travaux",
+      confidence: "low",
+      indicators: ["Erreur de détection - analyse standard appliquée"],
+      analysis_mode: "full",
+      credibility_message: "L'objectif de VerifierMonDevis.fr est de fournir une analyse pertinente et fiable.",
+    };
+  }
+}
+
 // ============ STEP 1: EXTRACT ============
 async function extractQuoteData(
   base64Content: string,
   mimeType: string,
-  lovableApiKey: string
+  lovableApiKey: string,
+  documentType: DocumentType = "devis_travaux"
 ): Promise<QuoteExtracted> {
   const systemPrompt = `Tu es un expert en extraction de données de devis travaux. Tu extrais UNIQUEMENT les informations présentes dans le document, sans inventer de données. Réponds uniquement avec un JSON valide.`;
 
@@ -891,7 +1035,8 @@ async function verifyQuoteData(
 
 function calculateScore(
   extracted: QuoteExtracted,
-  verified: QuoteVerified
+  verified: QuoteVerified,
+  isAdaptedMode: boolean = false // For prestations techniques
 ): ScoringResult {
   const critiques: string[] = [];
   const majeurs: string[] = [];
@@ -960,12 +1105,15 @@ function calculateScore(
 
   // B) Prix marché - PUREMENT INFORMATIF, ne dégrade JAMAIS le score
   // L'impossibilité de comparer n'est JAMAIS négative
-  const priceRouge = verified.price_comparisons.filter((p) => p.score === "ROUGE");
-  const priceOrange = verified.price_comparisons.filter((p) => p.score === "ORANGE");
-  if (priceRouge.length > 0) {
-    majeurs.push(`Prix élevés par rapport au marché (${priceRouge.length} poste${priceRouge.length > 1 ? "s" : ""} à vérifier)`);
-  } else if (priceOrange.length > 0) {
-    majeurs.push(`Prix à comparer au marché (${priceOrange.length} poste${priceOrange.length > 1 ? "s" : ""})`);
+  // NOT APPLICABLE in adapted mode (prestations techniques)
+  if (!isAdaptedMode) {
+    const priceRouge = verified.price_comparisons.filter((p) => p.score === "ROUGE");
+    const priceOrange = verified.price_comparisons.filter((p) => p.score === "ORANGE");
+    if (priceRouge.length > 0) {
+      majeurs.push(`Prix élevés par rapport au marché (${priceRouge.length} poste${priceRouge.length > 1 ? "s" : ""} à vérifier)`);
+    } else if (priceOrange.length > 0) {
+      majeurs.push(`Prix à comparer au marché (${priceOrange.length} poste${priceOrange.length > 1 ? "s" : ""})`);
+    }
   }
 
   // C) Acompte entre 30% et 50% (modéré, ORANGE uniquement)
@@ -1016,19 +1164,20 @@ function calculateScore(
   }
 
   // H) Assurances niveau 1 (devis) - JAMAIS ROUGE
+  // NOT APPLICABLE in adapted mode (prestations techniques - no décennale required)
   const DECENNALE_KEYWORDS = [
     "toiture", "charpente", "maçonnerie", "gros oeuvre", "façade", "étanchéité",
     "fenêtre", "menuiserie", "piscine", "extension", "fondation",
   ];
   const travauxText = extracted.travaux.map((t) => `${t.category} ${t.description}`).join(" ").toLowerCase();
-  const needsDecennale = DECENNALE_KEYWORDS.some((kw) => travauxText.includes(kw));
+  const needsDecennale = !isAdaptedMode && DECENNALE_KEYWORDS.some((kw) => travauxText.includes(kw));
 
   if (needsDecennale && extracted.assurances.mentions_decennale !== "yes") {
     majeurs.push("Assurance décennale à confirmer pour ce type de travaux");
   }
 
-  // I) RGE (uniquement si pertinent)
-  if (verified.rge_relevant && !verified.rge_found) {
+  // I) RGE (uniquement si pertinent) - NOT APPLICABLE in adapted mode
+  if (!isAdaptedMode && verified.rge_relevant && !verified.rge_found) {
     majeurs.push("Qualification RGE non trouvée – à vérifier si éligibilité aux aides souhaitée");
   }
 
@@ -1189,6 +1338,10 @@ function calculateScore(
   // ==============================================================
   // SCORES PAR BLOC (cohérents avec les règles ci-dessus)
   // ==============================================================
+  // Calculate price scores for bloc scoring (only in non-adapted mode)
+  const priceRouge = isAdaptedMode ? [] : verified.price_comparisons.filter((p) => p.score === "ROUGE");
+  const priceOrange = isAdaptedMode ? [] : verified.price_comparisons.filter((p) => p.score === "ORANGE");
+  
   const blocScores = {
     entreprise:
       (!company_verified && verified.company_lookup_status === "not_found") ||
@@ -1202,7 +1355,7 @@ function calculateScore(
     devis:
       extracted.totals.totals_incoherence === "yes"
         ? ("ORANGE" as ScoringColor)
-        : priceRouge.length > 0 || priceOrange.length > 0
+        : !isAdaptedMode && (priceRouge.length > 0 || priceOrange.length > 0)
           ? ("ORANGE" as ScoringColor)
           : ("VERT" as ScoringColor),
 
@@ -1241,7 +1394,9 @@ function calculateScore(
 function renderAnalysisOutput(
   extracted: QuoteExtracted,
   verified: QuoteVerified,
-  scoring: ScoringResult
+  scoring: ScoringResult,
+  isAdaptedMode: boolean = false,
+  documentDetection?: DocumentDetectionResult
 ): {
   points_ok: string[];
   alertes: string[];
@@ -1251,6 +1406,11 @@ function renderAnalysisOutput(
   const points_ok: string[] = [];
   const alertes: string[] = [];
   const recommandations: string[] = [];
+
+  // Add adapted mode message at the top if applicable
+  if (isAdaptedMode && documentDetection) {
+    points_ok.push(`📋 ${documentDetection.credibility_message}`);
+  }
 
   // ============ BLOC 1: ENTREPRISE ============
 
@@ -1587,11 +1747,63 @@ serve(async (req) => {
     console.log("Analysis ID:", analysisId);
     console.log("File:", analysis.file_name);
 
+    // ============ STEP 0: DETECT DOCUMENT TYPE ============
+    console.log("--- STEP 0: DETECT DOCUMENT TYPE ---");
+    const documentDetection = await detectDocumentType(base64, mimeType, lovableApiKey);
+    console.log("Document detection result:", {
+      type: documentDetection.type,
+      confidence: documentDetection.confidence,
+      analysis_mode: documentDetection.analysis_mode,
+      indicators: documentDetection.indicators,
+    });
+
+    // Handle rejected documents (facture or autre)
+    if (documentDetection.analysis_mode === "rejected") {
+      console.log("Document rejected:", documentDetection.rejection_message);
+      
+      await supabase
+        .from("analyses")
+        .update({
+          status: "completed",
+          score: null,
+          resume: documentDetection.rejection_message,
+          points_ok: [],
+          alertes: [],
+          recommandations: [
+            documentDetection.credibility_message,
+            "💡 Pour bénéficier de l'analyse VerifierMonDevis.fr, veuillez transmettre un devis (document émis avant travaux)."
+          ],
+          raw_text: JSON.stringify({
+            document_detection: documentDetection,
+          }),
+          types_travaux: null,
+        })
+        .eq("id", analysisId);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          analysisId,
+          score: null,
+          documentType: documentDetection.type,
+          rejected: true,
+          message: documentDetection.rejection_message,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Flag for adapted analysis mode (prestation technique)
+    const isAdaptedMode = documentDetection.analysis_mode === "adapted";
+    if (isAdaptedMode) {
+      console.log("Adapted analysis mode for prestation technique");
+    }
+
     // ============ STEP 1: EXTRACT ============
     console.log("--- STEP 1: EXTRACT ---");
     let extracted: QuoteExtracted;
     try {
-      extracted = await extractQuoteData(base64, mimeType, lovableApiKey);
+      extracted = await extractQuoteData(base64, mimeType, lovableApiKey, documentDetection.type);
       console.log("Extraction complete:", {
         company: extracted.company.name,
         siret: extracted.company.siret,
@@ -1614,14 +1826,20 @@ serve(async (req) => {
     // ============ STEP 2: VERIFY ============
     console.log("--- STEP 2: VERIFY ---");
     const verified = await verifyQuoteData(extracted, supabase);
+    
+    // For adapted mode: clear price comparisons (not applicable for prestations techniques)
+    if (isAdaptedMode) {
+      verified.price_comparisons = [];
+      console.log("Price comparisons cleared for prestation technique");
+    }
 
     // ============ STEP 3: SCORE ============
     console.log("--- STEP 3: SCORE ---");
-    const scoring = calculateScore(extracted, verified);
+    const scoring = calculateScore(extracted, verified, isAdaptedMode);
 
     // ============ STEP 4: RENDER ============
     console.log("--- STEP 4: RENDER ---");
-    const output = renderAnalysisOutput(extracted, verified, scoring);
+    const output = renderAnalysisOutput(extracted, verified, scoring, isAdaptedMode, documentDetection);
 
     console.log("=== PIPELINE COMPLETE ===");
     console.log("Final score:", scoring.global_score);
@@ -1630,6 +1848,7 @@ serve(async (req) => {
 
     // Store raw extracted data for debug mode
     const rawDataForDebug = JSON.stringify({
+      document_detection: documentDetection,
       quote_extracted: extracted,
       quote_verified: verified,
       scoring: scoring,
