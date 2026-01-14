@@ -6,6 +6,7 @@ import ScoringExplainedSection from "@/components/landing/ScoringExplainedSectio
 import RisksSection from "@/components/landing/RisksSection";
 import CTASection from "@/components/landing/CTASection";
 import DisclaimerSection from "@/components/landing/DisclaimerSection";
+import PostSignatureValueSection from "@/components/landing/PostSignatureValueSection";
 import SEOHead from "@/components/SEOHead";
 
 const Index = () => {
@@ -20,6 +21,7 @@ const Index = () => {
       <main className="flex-1">
         <HeroSection />
         <HowItWorksSection />
+        <PostSignatureValueSection />
         <ScoringExplainedSection />
         <RisksSection />
         <DisclaimerSection />

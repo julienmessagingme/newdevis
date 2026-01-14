@@ -86,6 +86,92 @@ export type Database = {
         }
         Relationships: []
       }
+      post_signature_tracking: {
+        Row: {
+          admin_alert_date: string | null
+          admin_alert_sent: boolean | null
+          admin_alert_type: string | null
+          analysis_id: string
+          communication_channel: string | null
+          company_name: string | null
+          company_siret: string | null
+          consent_date: string | null
+          created_at: string
+          deadline_alert_date: string | null
+          deadline_alert_sent: boolean | null
+          id: string
+          is_signed: boolean
+          max_execution_days: number | null
+          phone_number: string | null
+          signed_date: string | null
+          tracking_consent: boolean
+          updated_at: string
+          user_id: string
+          work_completion_response_date: string | null
+          work_completion_status: string | null
+          work_end_date: string | null
+          work_start_date: string | null
+        }
+        Insert: {
+          admin_alert_date?: string | null
+          admin_alert_sent?: boolean | null
+          admin_alert_type?: string | null
+          analysis_id: string
+          communication_channel?: string | null
+          company_name?: string | null
+          company_siret?: string | null
+          consent_date?: string | null
+          created_at?: string
+          deadline_alert_date?: string | null
+          deadline_alert_sent?: boolean | null
+          id?: string
+          is_signed?: boolean
+          max_execution_days?: number | null
+          phone_number?: string | null
+          signed_date?: string | null
+          tracking_consent?: boolean
+          updated_at?: string
+          user_id: string
+          work_completion_response_date?: string | null
+          work_completion_status?: string | null
+          work_end_date?: string | null
+          work_start_date?: string | null
+        }
+        Update: {
+          admin_alert_date?: string | null
+          admin_alert_sent?: boolean | null
+          admin_alert_type?: string | null
+          analysis_id?: string
+          communication_channel?: string | null
+          company_name?: string | null
+          company_siret?: string | null
+          consent_date?: string | null
+          created_at?: string
+          deadline_alert_date?: string | null
+          deadline_alert_sent?: boolean | null
+          id?: string
+          is_signed?: boolean
+          max_execution_days?: number | null
+          phone_number?: string | null
+          signed_date?: string | null
+          tracking_consent?: boolean
+          updated_at?: string
+          user_id?: string
+          work_completion_response_date?: string | null
+          work_completion_status?: string | null
+          work_end_date?: string | null
+          work_start_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_signature_tracking_analysis_id_fkey"
+            columns: ["analysis_id"]
+            isOneToOne: false
+            referencedRelation: "analyses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       travaux_reference_prix: {
         Row: {
           categorie_travaux: string
