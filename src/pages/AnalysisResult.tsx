@@ -426,6 +426,18 @@ const AnalysisResult = () => {
           </div>
         )}
 
+        {/* Message de synthèse obligatoire */}
+        <div className="bg-primary/5 border border-primary/20 rounded-xl p-5 mb-6">
+          <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+            📊 Comment interpréter ce score ?
+          </h3>
+          <div className="text-xs text-muted-foreground space-y-2">
+            <p>Le score global résulte d'une <strong className="text-foreground">application stricte de règles prédéfinies</strong>.</p>
+            <p>Un score <strong className="text-score-orange">ORANGE</strong> indique des points à vérifier, et <strong className="text-foreground">non une situation problématique</strong>.</p>
+            <p>Un score <strong className="text-score-red">ROUGE</strong> est réservé à des <strong className="text-foreground">situations factuellement critiques</strong> (entreprise radiée, procédure collective, paiement en espèces, acompte &gt; 50%).</p>
+          </div>
+        </div>
+
         {/* Disclaimer */}
         <div className="bg-muted/50 border border-border rounded-xl p-5 mb-8">
           <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">⚠️ Avertissement important</h3>
