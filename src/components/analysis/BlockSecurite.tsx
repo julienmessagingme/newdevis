@@ -1,5 +1,6 @@
 import { CheckCircle2, AlertCircle, XCircle, ShieldCheck, CreditCard, FileCheck } from "lucide-react";
 import AttestationUpload from "@/components/AttestationUpload";
+import PedagogicExplanation from "./PedagogicExplanation";
 
 interface AttestationComparison {
   nom_entreprise: "OK" | "INCOMPLET" | "INCOHERENT" | "NON_DISPONIBLE";
@@ -613,40 +614,55 @@ const BlockSecurite = ({
             )}
           </div>
           
-          {/* Vigilance reasons */}
+          {/* Vigilance reasons with pedagogic explanations */}
           {info.vigilanceReasons.length > 0 && (
-            <div className="mb-3 p-3 bg-background/50 rounded-lg border border-border">
-              <p className="text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">Points de vigilance :</span>{" "}
-                {info.vigilanceReasons.join(", ")}.
+            <PedagogicExplanation type="info" title="Points observés" className="mb-3">
+              <ul className="space-y-1">
+                {info.vigilanceReasons.map((reason, idx) => (
+                  <li key={idx} className="flex items-start gap-2">
+                    <span className="text-muted-foreground">•</span>
+                    <span>{reason}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-muted-foreground/80 mt-2 italic">
+                Ces éléments sont des observations factuelles. Ils invitent à une vérification, non à une inquiétude.
               </p>
-            </div>
+            </PedagogicExplanation>
           )}
           
-          {/* Recommendations */}
+          {/* Recommendations with positive framing */}
           {info.recommendations.length > 0 && (info.globalScore === "ORANGE" || info.globalScore === "ROUGE") && (
-            <div className="mb-4 p-3 bg-background/50 rounded-lg">
-              <p className="text-sm font-medium text-foreground mb-2">💡 Recommandations :</p>
-              <ul className="text-sm text-muted-foreground space-y-1">
+            <PedagogicExplanation type="tip" title="Suggestions" className="mb-4">
+              <ul className="space-y-1">
                 {info.recommendations.map((rec, idx) => (
                   <li key={idx}>• {rec}</li>
                 ))}
               </ul>
-            </div>
+            </PedagogicExplanation>
           )}
           
-          {/* Score explanation */}
+          {/* Score explanation - harmonized */}
           <div className="mt-4 p-3 bg-muted/50 rounded-lg">
             <p className={`text-sm font-medium ${getScoreTextClass(info.globalScore)}`}>
               {info.globalScore === "VERT" && "✓ Les conditions de sécurité et de paiement sont satisfaisantes."}
-              {info.globalScore === "ORANGE" && "⚠️ Certains éléments nécessitent une vigilance particulière."}
-              {info.globalScore === "ROUGE" && "⚠️ Des alertes importantes ont été détectées. Vérification recommandée."}
+              {info.globalScore === "ORANGE" && "ℹ️ Certains éléments invitent à une vérification complémentaire."}
+              {info.globalScore === "ROUGE" && "⚠️ Certains éléments nécessitent une attention particulière avant engagement."}
             </p>
+            {info.globalScore === "ORANGE" && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Aucun élément critique n'a été détecté. Les points signalés sont des invitations à vérifier, non des alertes.
+              </p>
+            )}
           </div>
           
-          <p className="text-xs text-muted-foreground/70 mt-3 italic">
-            Ces éléments sont des indicateurs de vigilance factuels. Vérification IBAN via OpenIBAN. Ce bloc ne porte aucun jugement sur l'artisan.
-          </p>
+          {/* Disclaimer - harmonized */}
+          <div className="mt-3 p-2 bg-muted/30 rounded-lg">
+            <p className="text-xs text-muted-foreground/70 italic">
+              ℹ️ Analyse automatisée à partir des informations du devis. Vérification IBAN via OpenIBAN. 
+              Ces informations constituent une aide à la décision et ne portent aucun jugement sur l'artisan.
+            </p>
+          </div>
         </div>
       </div>
     </div>

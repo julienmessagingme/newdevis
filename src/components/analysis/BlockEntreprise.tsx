@@ -1,4 +1,6 @@
 import { CheckCircle2, AlertCircle, XCircle, Star, Building2, Globe } from "lucide-react";
+import InfoTooltip from "./InfoTooltip";
+import PedagogicExplanation from "./PedagogicExplanation";
 
 interface ReputationOnline {
   rating?: number;
@@ -320,6 +322,10 @@ const BlockEntreprise = ({ pointsOk, alertes }: BlockEntrepriseProps) => {
             <div className="flex items-center gap-3 mb-2">
               <Globe className="h-5 w-5 text-primary" />
               <span className="font-medium text-foreground">Réputation en ligne (Google)</span>
+              <InfoTooltip
+                title="Pourquoi la note Google est prise en compte ?"
+                content="Les avis clients permettent d'identifier des tendances générales (ponctualité, relation client, SAV, communication), sans jamais constituer une preuve à eux seuls. Une note inférieure au seuil de confort invite simplement à consulter le détail des avis pour se faire sa propre opinion."
+              />
               {getScoreIcon(info.reputation?.score || "ORANGE")}
             </div>
             
@@ -351,56 +357,75 @@ const BlockEntreprise = ({ pointsOk, alertes }: BlockEntrepriseProps) => {
                 </div>
                 {/* Explication pédagogique si note < 4/5 (score ORANGE) */}
                 {info.reputation.rating < 4.0 && (
-                  <div className="mt-3 p-3 bg-background/50 rounded-lg border border-score-orange/20">
-                    <p className="text-sm text-foreground mb-2">
+                  <PedagogicExplanation type="info" className="mt-3">
+                    <p className="mb-2">
                       La note moyenne observée est inférieure au seuil de confort généralement constaté pour ce type de prestation.
                     </p>
-                    <p className="text-sm text-muted-foreground mb-2">
-                      Cela ne signifie pas que l'artisan n'est pas fiable, mais invite à consulter le détail des avis (leur contenu, leur ancienneté et leur récurrence).
+                    <p className="mb-2">
+                      <strong>Ce que cela signifie :</strong> Ce critère est un indicateur parmi d'autres. Il ne constitue ni un jugement ni une preuve d'un problème.
+                    </p>
+                    <p className="mb-2">
+                      <strong>Ce que vous pouvez faire :</strong> Consultez le détail des avis (leur contenu, leur ancienneté et leur récurrence) pour vous faire votre propre opinion.
                     </p>
                     <p className="text-xs text-muted-foreground/80 italic">
                       La réputation en ligne est utilisée comme un indicateur complémentaire parmi d'autres critères objectifs.
                     </p>
-                  </div>
+                  </PedagogicExplanation>
+                )}
+                {/* Message positif si note >= 4/5 */}
+                {info.reputation.rating >= 4.0 && (
+                  <p className="text-sm text-score-green mt-2">
+                    ✓ La note Google est au-dessus du seuil de confort habituellement observé.
+                  </p>
                 )}
               </div>
             ) : info.reputation?.status === "uncertain" ? (
               /* Case B: Uncertain match */
-              <div>
-                <p className="text-sm text-score-orange font-medium">
+              <PedagogicExplanation type="info">
+                <p className="font-medium text-foreground mb-1">
                   Note Google : non affichée (correspondance à confirmer)
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  La recherche Google a été effectuée mais l'établissement trouvé ne correspond peut-être pas exactement à cette entreprise. Ce critère n'est pas pris en compte dans le score.
+                <p>
+                  La recherche Google a été effectuée mais l'établissement trouvé ne correspond peut-être pas exactement à cette entreprise. 
+                  Ce critère n'est pas pris en compte dans le score.
                 </p>
-              </div>
+              </PedagogicExplanation>
             ) : (
               /* Case C: Not found or not searched */
-              <div>
-                <p className="text-sm text-muted-foreground font-medium">
+              <PedagogicExplanation type="info">
+                <p className="font-medium text-foreground mb-1">
                   Note Google : information non exploitée automatiquement
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p>
                   {info.reputation?.status === "not_found" 
                     ? "La recherche d'avis a été effectuée mais aucun résultat exploitable n'a été trouvé pour cet établissement. Cela n'indique pas un problème en soi — de nombreux artisans fiables n'ont pas de présence en ligne."
                     : "La recherche d'avis a été effectuée. L'absence de données en ligne n'affecte pas le score global."}
                 </p>
-              </div>
+              </PedagogicExplanation>
             )}
           </div>
           
-          {/* Score explanation */}
+          {/* Score explanation with pedagogic message */}
           <div className="mt-4 p-3 bg-muted/50 rounded-lg">
             <p className={`text-sm font-medium ${getScoreTextClass(info.score)}`}>
               {info.score === "VERT" && "✓ Entreprise avec des indicateurs de fiabilité positifs."}
-              {info.score === "ORANGE" && "⚠️ Certains indicateurs nécessitent une vigilance."}
-              {info.score === "ROUGE" && "⚠️ Plusieurs indicateurs de vigilance détectés."}
+              {info.score === "ORANGE" && "ℹ️ Certains indicateurs invitent à une vérification complémentaire."}
+              {info.score === "ROUGE" && "⚠️ Certains indicateurs nécessitent une attention particulière."}
             </p>
+            {info.score === "ORANGE" && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Aucun élément critique n'a été détecté. Les points signalés sont des invitations à vérifier, non des alertes.
+              </p>
+            )}
           </div>
           
-          <p className="text-xs text-muted-foreground/70 mt-3 italic">
-            Informations issues de sources publiques (Infogreffe, BODACC, Google). Ce bloc ne porte aucun jugement sur l'artisan.
-          </p>
+          {/* Disclaimer - harmonized */}
+          <div className="mt-3 p-2 bg-muted/30 rounded-lg">
+            <p className="text-xs text-muted-foreground/70 italic">
+              ℹ️ Analyse automatisée à partir de sources publiques (Infogreffe, BODACC, Google). 
+              Ces informations constituent une aide à la décision et ne portent aucun jugement sur l'artisan.
+            </p>
+          </div>
         </div>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { CheckCircle2, AlertCircle, XCircle, Receipt, TrendingUp, Minus, HelpCircle, MapPin, FileText, List, Calculator } from "lucide-react";
+import PedagogicExplanation from "./PedagogicExplanation";
 
 // Interface for structured work type data from database
 export interface TravauxItem {
@@ -419,21 +420,29 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
             </div>
           )}
           
-          {/* Score explanation */}
+          {/* Score explanation - harmonized */}
           {globalScore && (
             <div className="mt-4 p-3 bg-muted/50 rounded-lg">
               <p className={`text-sm font-medium ${getScoreTextClass(globalScore)}`}>
                 {globalScore === "VERT" && "✓ Les prix sont cohérents avec les références de marché."}
-                {globalScore === "ORANGE" && "⚠️ Certains prix sont au-dessus des fourchettes de référence."}
-                {globalScore === "ROUGE" && "⚠️ Des écarts de prix significatifs ont été détectés."}
+                {globalScore === "ORANGE" && "ℹ️ Certains prix invitent à une vérification complémentaire."}
+                {globalScore === "ROUGE" && "⚠️ Certains écarts de prix nécessitent une attention particulière."}
               </p>
+              {globalScore === "ORANGE" && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Aucun élément critique n'a été détecté. Les écarts de prix peuvent être justifiés par des spécificités du chantier.
+                </p>
+              )}
             </div>
           )}
           
-          <p className="text-xs text-muted-foreground/70 mt-3 italic">
-            Types de travaux identifiés automatiquement. Les comparaisons aux prix de référence (sources : FFB, CAPEB) sont indicatives 
-            et ajustées selon la zone géographique. L'objectif est d'aider à la compréhension et à la vigilance, pas de fixer un "bon prix".
-          </p>
+          {/* Disclaimer - harmonized */}
+          <div className="mt-3 p-2 bg-muted/30 rounded-lg">
+            <p className="text-xs text-muted-foreground/70 italic">
+              ℹ️ Analyse automatisée. Types de travaux identifiés automatiquement. Les comparaisons aux prix de référence (sources : FFB, CAPEB) sont indicatives 
+              et ajustées selon la zone géographique. L'objectif est d'aider à la compréhension et à la vigilance, pas de fixer un "bon prix".
+            </p>
+          </div>
         </div>
       </div>
     </div>
