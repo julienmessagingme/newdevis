@@ -166,8 +166,9 @@ interface VerificationResult {
 interface ScoringResult {
   score_global: ScoringColor;
   criteres_rouges: string[];   // Critiques confirmés
-  criteres_oranges: string[];  // Vigilance
+  criteres_oranges: string[];  // Vigilance réelle confirmée
   criteres_verts: string[];    // Positifs
+  criteres_informatifs: string[]; // ℹ️ Données manquantes/indisponibles - SANS IMPACT sur le score
   explication: string;
   scores_blocs: {
     entreprise: ScoringColor;
@@ -898,9 +899,13 @@ function calculateScore(extracted: ExtractedData, verified: VerificationResult):
   const rouges: string[] = [];
   const oranges: string[] = [];
   const verts: string[] = [];
+  const informatifs: string[] = []; // ℹ️ Éléments informatifs SANS impact sur le score
 
   // ============================================================
   // 🔴 CRITÈRES ROUGES — LISTE BLANCHE STRICTE (6 cas uniquement)
+  // ============================================================
+  // ⚠️ UN FEU ROUGE NE PEUT ÊTRE DÉCLENCHÉ QUE SI CONFIRMÉ EXPLICITEMENT
+  // ❌ Une donnée manquante/indisponible ne déclenche JAMAIS de ROUGE
   // ============================================================
 
   // 1) Entreprise non immatriculée ou radiée (API officielle CONFIRMÉ)
@@ -940,68 +945,91 @@ function calculateScore(extracted: ExtractedData, verified: VerificationResult):
   // Note: Géré séparément via analyze-attestation
 
   // ============================================================
-  // 🟠 CRITÈRES ORANGE — VIGILANCE (JAMAIS ROUGE)
+  // 🟠 CRITÈRES ORANGE — VIGILANCE RÉELLE CONFIRMÉE UNIQUEMENT
+  // ============================================================
+  // ⚠️ UNIQUEMENT les critères de vigilance RÉELS et CONFIRMÉS
+  // ❌ Les données manquantes/indisponibles sont INFORMATIVES, pas ORANGE
   // ============================================================
 
-  // A) IBAN étranger (≠ invalide)
+  // A) IBAN étranger CONFIRMÉ (≠ invalide, ≠ absent)
   if (verified.iban_verifie && verified.iban_valide === true && verified.iban_code_pays && verified.iban_code_pays !== "FR") {
     oranges.push(`IBAN étranger (${getCountryName(verified.iban_code_pays)}) - à confirmer si attendu`);
   }
 
-  // B) IBAN non détecté ou partiel
-  if (!extracted.entreprise.iban) {
-    oranges.push("Coordonnées bancaires non détectées sur le devis");
-  } else if (verified.iban_verifie && verified.iban_valide === false) {
-    oranges.push("Format IBAN à vérifier (possible erreur de saisie)");
+  // B) IBAN invalide CONFIRMÉ (erreur de format vérifiée)
+  if (verified.iban_verifie && verified.iban_valide === false) {
+    oranges.push("Format IBAN invalide (erreur de saisie probable)");
   }
 
-  // C) Acompte entre 30% et 50%
+  // C) Acompte entre 30% et 50% (donnée présente et confirmée)
   if (acompteAvantTravaux !== null && acompteAvantTravaux > 30 && acompteAvantTravaux <= 50) {
     oranges.push(`Acompte modéré (${acompteAvantTravaux}%) - un acompte ≤ 30% est recommandé`);
   }
 
-  // D) Assurances mentionnées sans attestation
-  if (extracted.entreprise.assurance_decennale_mentionnee === false) {
-    oranges.push("Assurance décennale non détectée sur le devis - demandez l'attestation");
-  } else if (extracted.entreprise.assurance_decennale_mentionnee === null) {
-    oranges.push("Assurance décennale à confirmer - mention partielle ou absente");
-  }
-
-  // E) Note Google < 4
+  // D) Note Google < 4 (trouvée et confirmée, pas absente)
   if (verified.google_trouve && verified.google_note !== null && verified.google_note < 4.0) {
     oranges.push(`Note Google inférieure au seuil de confort (${verified.google_note}/5)`);
   }
 
-  // F) Travaux peu détaillés
-  if (extracted.travaux.length === 0) {
-    oranges.push("Aucun poste de travaux détecté sur le devis");
-  }
-
-  // G) Prix hors fourchette (ORANGE uniquement, jamais ROUGE)
+  // E) Prix hors fourchette CONFIRMÉ (comparaison effectuée)
   const priceIssues = verified.comparaisons_prix.filter(p => p.score === "ORANGE");
   if (priceIssues.length > 0) {
     oranges.push(`${priceIssues.length} poste(s) avec prix au-dessus du marché à vérifier`);
   }
 
-  // H) Certifications absentes mais non obligatoires
-  if (verified.rge_pertinent && !verified.rge_trouve) {
-    oranges.push("Qualification RGE non trouvée - vérifiez l'éligibilité aux aides");
-  }
-
-  // I) Entreprise jeune < 2 ans (si trouvée)
+  // F) Entreprise jeune < 2 ans (CONFIRMÉ via API, pas absent)
   if (verified.entreprise_immatriculee === true && verified.anciennete_annees !== null && verified.anciennete_annees < 2) {
     oranges.push(`Entreprise récente (${verified.anciennete_annees} an${verified.anciennete_annees > 1 ? "s" : ""}) - ancienneté à prendre en compte`);
   }
 
-  // J) Données entreprise non vérifiées (lookup error ou skipped)
+  // ============================================================
+  // ℹ️ ÉLÉMENTS INFORMATIFS — SANS IMPACT SUR LE SCORE
+  // ============================================================
+  // Ces éléments sont affichés pour information mais ne déclenchent
+  // NI FEU ORANGE NI FEU ROUGE
+  // ============================================================
+
+  // IBAN non détecté sur le devis (donnée manquante = informatif)
+  if (!extracted.entreprise.iban) {
+    informatifs.push("ℹ️ Coordonnées bancaires non détectées sur le devis - demandez un RIB à l'artisan");
+  }
+
+  // SIRET non détecté (donnée manquante = informatif)
+  if (!extracted.entreprise.siret) {
+    if (extracted.entreprise.nom) {
+      informatifs.push("ℹ️ SIRET non détecté sur le devis - demandez-le à l'artisan pour vérification");
+    } else {
+      informatifs.push("ℹ️ Coordonnées entreprise non identifiées sur le devis");
+    }
+  }
+
+  // Vérification entreprise non effectuée ou en erreur (API indisponible = informatif)
   if (extracted.entreprise.siret && verified.lookup_status === "error") {
-    oranges.push("Vérification entreprise temporairement indisponible - données à confirmer manuellement");
+    informatifs.push("ℹ️ Vérification entreprise temporairement indisponible - données à confirmer manuellement");
   } else if (extracted.entreprise.siret && verified.lookup_status === "skipped") {
-    oranges.push("Vérification entreprise non effectuée - SIRET à confirmer");
-  } else if (!extracted.entreprise.siret && !extracted.entreprise.nom) {
-    oranges.push("Coordonnées entreprise non identifiées sur le devis");
-  } else if (!extracted.entreprise.siret && extracted.entreprise.nom) {
-    oranges.push("SIRET non détecté sur le devis - demandez-le à l'artisan");
+    informatifs.push("ℹ️ Vérification entreprise non effectuée");
+  }
+
+  // Assurance décennale non mentionnée ou partielle (donnée manquante = informatif)
+  if (extracted.entreprise.assurance_decennale_mentionnee === false) {
+    informatifs.push("ℹ️ Assurance décennale non détectée sur le devis - demandez l'attestation à l'artisan");
+  } else if (extracted.entreprise.assurance_decennale_mentionnee === null) {
+    informatifs.push("ℹ️ Assurance décennale à confirmer - mention partielle ou absente");
+  }
+
+  // Note Google non trouvée (API non concluante = informatif)
+  if (!verified.google_trouve) {
+    informatifs.push("ℹ️ Aucun avis Google trouvé pour cette entreprise");
+  }
+
+  // RGE non trouvé mais pertinent (donnée non trouvée = informatif, pas vigilance)
+  if (verified.rge_pertinent && !verified.rge_trouve) {
+    informatifs.push("ℹ️ Qualification RGE non trouvée - vérifiez l'éligibilité aux aides si applicable");
+  }
+
+  // Travaux peu détaillés (informatif)
+  if (extracted.travaux.length === 0) {
+    informatifs.push("ℹ️ Aucun poste de travaux détaillé détecté sur le devis");
   }
 
   // ============================================================
@@ -1068,12 +1096,11 @@ function calculateScore(extracted: ExtractedData, verified: VerificationResult):
   // ============================================================
   // CALCUL DU SCORE GLOBAL — RÈGLES NON NÉGOCIABLES
   // ============================================================
-  // SI ≥ 1 critère critique → FEU ROUGE
-  // SINON SI ≥ 1 critère de vigilance → FEU ORANGE
-  // SINON → FEU VERT
+  // SI ≥ 1 critère critique CONFIRMÉ → FEU ROUGE
+  // SINON SI ≥ 1 critère de vigilance RÉEL → FEU ORANGE
+  // SINON → FEU VERT (même si éléments informatifs manquants)
   // ❌ Aucune exception
-  // ❌ Aucune interprétation IA
-  // ❌ Aucun réajustement automatique
+  // ❌ Les données manquantes ne déclenchent JAMAIS ORANGE ou ROUGE
   // ============================================================
 
   let score_global: ScoringColor;
@@ -1120,14 +1147,19 @@ function calculateScore(extracted: ExtractedData, verified: VerificationResult):
     score_global,
     rouges,
     oranges,
+    informatifs_count: informatifs.length,
     verts_count: verts.length,
   });
+
+  console.log("Critères rouges:", rouges);
+  console.log("Critères oranges:", oranges);
 
   return {
     score_global,
     criteres_rouges: rouges,
     criteres_oranges: oranges,
     criteres_verts: verts,
+    criteres_informatifs: informatifs,
     explication,
     scores_blocs,
   };
@@ -1199,9 +1231,9 @@ function renderOutput(
     }
   } else if (extracted.entreprise.nom) {
     points_ok.push(`ℹ️ Entreprise : ${extracted.entreprise.nom}`);
-    alertes.push("ℹ️ SIRET non détecté sur le devis. Vous pouvez le demander à l'artisan pour une vérification complète.");
+    points_ok.push("ℹ️ SIRET non détecté sur le devis. Vous pouvez le demander à l'artisan pour une vérification complète.");
   } else {
-    alertes.push("ℹ️ Coordonnées entreprise non identifiées sur le devis.");
+    points_ok.push("ℹ️ Coordonnées entreprise non identifiées sur le devis.");
   }
 
   // Google Places
@@ -1223,7 +1255,7 @@ function renderOutput(
   if (verified.rge_trouve) {
     points_ok.push(`🟢 Qualification RGE vérifiée : ${verified.rge_qualifications.slice(0, 2).join(", ")}`);
   } else if (verified.rge_pertinent) {
-    alertes.push("ℹ️ RGE non trouvé. Si vous souhaitez bénéficier d'aides à la rénovation énergétique, vérifiez l'éligibilité.");
+    points_ok.push("ℹ️ RGE non trouvé. Si vous souhaitez bénéficier d'aides à la rénovation énergétique, vérifiez l'éligibilité.");
   } else {
     points_ok.push("✓ Qualification RGE : non requise pour ce type de travaux");
   }
@@ -1244,7 +1276,7 @@ function renderOutput(
   }
 
   if (extracted.travaux.length === 0) {
-    alertes.push("ℹ️ Aucun poste de travaux détecté. Le détail des prestations pourrait être demandé.");
+    points_ok.push("ℹ️ Aucun poste de travaux détecté. Le détail des prestations pourrait être demandé.");
   }
 
   // ============ BLOC 3: SÉCURITÉ & PAIEMENT ============
@@ -1271,7 +1303,7 @@ function renderOutput(
       alertes.push("ℹ️ Format IBAN à vérifier (possible erreur de saisie sur le devis).");
     }
   } else if (!extracted.entreprise.iban) {
-    alertes.push("ℹ️ Coordonnées bancaires non détectées sur le devis. À demander si paiement par virement.");
+    points_ok.push("ℹ️ Coordonnées bancaires non détectées sur le devis. À demander si paiement par virement.");
   }
 
   // Acompte
@@ -1295,9 +1327,9 @@ function renderOutput(
   if (extracted.entreprise.assurance_decennale_mentionnee === true) {
     points_ok.push("✓ Assurance décennale mentionnée sur le devis");
   } else if (extracted.entreprise.assurance_decennale_mentionnee === false) {
-    alertes.push("ℹ️ Assurance décennale non détectée. Demandez l'attestation d'assurance pour confirmer la couverture.");
+    points_ok.push("ℹ️ Assurance décennale non détectée. Demandez l'attestation d'assurance pour confirmer la couverture.");
   } else {
-    alertes.push("ℹ️ Mention d'assurance décennale partielle ou incertaine. Demandez l'attestation pour confirmation.");
+    points_ok.push("ℹ️ Mention d'assurance décennale partielle ou incertaine. Demandez l'attestation pour confirmation.");
   }
 
   if (extracted.entreprise.assurance_rc_pro_mentionnee === true) {
