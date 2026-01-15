@@ -404,7 +404,43 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON:
     const content = aiResult.choices?.[0]?.message?.content;
     if (!content) throw new Error("Empty AI response");
 
-    const parsed = JSON.parse(content);
+    // Robust JSON parsing with cleanup
+    let parsed: any;
+    try {
+      // First try direct parsing
+      parsed = JSON.parse(content);
+    } catch (parseError) {
+      console.log("Direct JSON parse failed, attempting cleanup...");
+      
+      // Try to extract JSON from markdown code blocks
+      let cleanedContent = content;
+      
+      // Remove markdown code blocks if present
+      const jsonBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (jsonBlockMatch) {
+        cleanedContent = jsonBlockMatch[1].trim();
+      }
+      
+      // Remove any leading/trailing non-JSON characters
+      const jsonStart = cleanedContent.indexOf('{');
+      const jsonEnd = cleanedContent.lastIndexOf('}');
+      if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+        cleanedContent = cleanedContent.substring(jsonStart, jsonEnd + 1);
+      }
+      
+      // Fix common JSON issues
+      // Remove trailing commas before } or ]
+      cleanedContent = cleanedContent.replace(/,(\s*[}\]])/g, '$1');
+      
+      // Try parsing again
+      try {
+        parsed = JSON.parse(cleanedContent);
+        console.log("JSON cleanup successful");
+      } catch (secondError) {
+        console.error("JSON cleanup failed, content sample:", cleanedContent.substring(0, 500));
+        throw new Error(`Failed to parse AI response as JSON: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
+      }
+    }
     
     // Normalize and validate
     const typeDocument = ["devis_travaux", "facture", "diagnostic_immobilier", "autre"].includes(parsed.type_document) 
