@@ -4,18 +4,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { 
-  Shield, 
-  Upload, 
-  FileText, 
-  X, 
+import {
+  Shield,
+  Upload,
+  FileText,
+  X,
   ArrowLeft,
   ArrowRight,
   HelpCircle,
-  Loader2
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+
+type UploadStatus = "idle" | "uploading" | "success" | "error";
 
 const NewAnalysis = () => {
   const navigate = useNavigate();
@@ -27,9 +31,16 @@ const NewAnalysis = () => {
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
 
+  // État upload explicite
+  const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle");
+  const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         toast.error("Veuillez vous connecter");
         navigate("/connexion");
@@ -40,40 +51,78 @@ const NewAnalysis = () => {
     checkAuth();
   }, [navigate]);
 
+  const resetUploadState = () => {
+    setUploadStatus("idle");
+    setUploadedFilePath(null);
+    setUploadError(null);
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       validateAndSetFile(selectedFile);
     }
+    // Reset input pour permettre re-sélection du même fichier
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
-  const validateAndSetFile = (file: File) => {
-    const allowedTypes = [
+  const validateAndSetFile = async (selectedFile: File) => {
+    resetUploadState();
+
+    // Types MIME autorisés explicitement
+    const allowedMimeTypes = [
       "application/pdf",
       "image/jpeg",
       "image/png",
       "image/heic",
-      // Certains navigateurs renvoient un mimetype générique
-      "application/octet-stream",
     ];
 
-    // Si le navigateur ne fournit pas de mimetype, on se rabat sur l'extension
-    const ext = file.name.split(".").pop()?.toLowerCase();
+    // Extensions autorisées
+    const ext = selectedFile.name.split(".").pop()?.toLowerCase();
     const allowedExts = ["pdf", "jpg", "jpeg", "png", "heic"];
 
-    const typeOk = file.type ? allowedTypes.includes(file.type) : true;
-    const extOk = ext ? allowedExts.includes(ext) : false;
-
-    if (!typeOk || !extOk) {
+    // Vérification extension
+    if (!ext || !allowedExts.includes(ext)) {
       toast.error("Format non supporté. Utilisez PDF, JPG ou PNG.");
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
+
+    // Vérification type MIME (si fourni par le navigateur)
+    if (selectedFile.type && !allowedMimeTypes.includes(selectedFile.type)) {
+      toast.error("Format non supporté. Utilisez PDF, JPG ou PNG.");
+      return;
+    }
+
+    // Vérification taille > 0
+    if (!selectedFile.size || selectedFile.size === 0) {
+      toast.error("Le fichier semble vide ou corrompu. Veuillez réessayer.");
+      return;
+    }
+
+    // Vérification taille max
+    if (selectedFile.size > 10 * 1024 * 1024) {
       toast.error("Fichier trop volumineux. Maximum 10 Mo.");
       return;
     }
-    setFile(file);
-    toast.success("Fichier prêt pour l'analyse");
+
+    // Vérification supplémentaire : lire le début du fichier pour s'assurer qu'il est lisible
+    try {
+      const slice = selectedFile.slice(0, 1024);
+      await slice.arrayBuffer();
+    } catch (err) {
+      console.error("File read error:", err);
+      toast.error("Impossible de lire le fichier. Veuillez réessayer.");
+      return;
+    }
+
+    setFile(selectedFile);
+
+    // Lancer l'upload immédiatement
+    if (user) {
+      await uploadFile(selectedFile);
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -97,87 +146,173 @@ const NewAnalysis = () => {
 
   const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const uploadWithRetry = async (bucket: string, filePath: string, file: File) => {
+  const uploadFile = async (fileToUpload: File) => {
+    if (!user) return;
+
+    setUploadStatus("uploading");
+    setUploadError(null);
+
+    const fileExt = fileToUpload.name.split(".").pop()?.toLowerCase() || "pdf";
+    const fileName = `${Date.now()}.${fileExt}`;
+    const filePath = `${user.id}/${fileName}`;
+
+    // Déterminer le content-type
+    let contentType = fileToUpload.type;
+    if (!contentType || contentType === "application/octet-stream") {
+      // Fallback basé sur extension
+      const mimeMap: Record<string, string> = {
+        pdf: "application/pdf",
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+        png: "image/png",
+        heic: "image/heic",
+      };
+      contentType = mimeMap[fileExt] || "application/pdf";
+    }
+
     const attempts = 3;
 
     for (let i = 0; i < attempts; i++) {
-      const { error } = await supabase.storage.from(bucket).upload(filePath, file, {
-        cacheControl: "3600",
-        upsert: false,
-        contentType: file.type || undefined,
-      });
+      try {
+        console.log(`Upload attempt ${i + 1}/${attempts} - File size: ${fileToUpload.size} bytes`);
 
-      if (!error) return;
+        const { data, error } = await supabase.storage.from("devis").upload(filePath, fileToUpload, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType,
+        });
 
-      const msg = String((error as any)?.message ?? "");
-      const status = (error as any)?.statusCode ?? (error as any)?.status;
+        if (error) {
+          const msg = String((error as any)?.message ?? "");
+          const status = (error as any)?.statusCode ?? (error as any)?.status;
 
-      // Retry uniquement sur erreurs réseau (pas de status)
-      const isNetworkError = !status && /failed to fetch/i.test(msg);
+          console.error(`Upload error attempt ${i + 1}:`, error);
 
-      if (!isNetworkError || i === attempts - 1) {
-        throw error;
+          // Erreur réseau → retry
+          const isNetworkError = !status && /failed to fetch/i.test(msg);
+
+          if (isNetworkError && i < attempts - 1) {
+            await wait(800 * (i + 1));
+            continue;
+          }
+
+          // Erreur définitive
+          let errorMessage = "Erreur lors du téléversement";
+
+          if (!status && /failed to fetch/i.test(msg)) {
+            errorMessage =
+              "Connexion impossible au serveur. Vérifiez votre connexion internet, désactivez votre VPN/Adblock, ou réessayez.";
+          } else if (status === 413) {
+            errorMessage = "Fichier trop volumineux pour le serveur.";
+          } else if (status === 403) {
+            errorMessage = "Accès refusé. Veuillez vous reconnecter.";
+          }
+
+          setUploadStatus("error");
+          setUploadError(errorMessage);
+          toast.error(errorMessage);
+          return;
+        }
+
+        // Upload réussi - vérifier que le fichier existe bien
+        const { data: fileInfo } = await supabase.storage.from("devis").list(user.id, {
+          search: fileName,
+        });
+
+        if (!fileInfo || fileInfo.length === 0) {
+          throw new Error("Le fichier n'a pas été trouvé après upload");
+        }
+
+        const uploadedFile = fileInfo.find((f) => f.name === fileName);
+        if (!uploadedFile || !uploadedFile.metadata?.size || uploadedFile.metadata.size === 0) {
+          // Vérification alternative via metadata
+          const checkSize = uploadedFile?.metadata?.size ?? (uploadedFile as any)?.size ?? 0;
+          if (checkSize === 0) {
+            throw new Error("Le fichier uploadé est vide");
+          }
+        }
+
+        console.log("Upload successful:", filePath, "File info:", uploadedFile);
+
+        setUploadStatus("success");
+        setUploadedFilePath(filePath);
+        toast.success("Fichier téléversé avec succès !");
+        return;
+      } catch (err: any) {
+        console.error(`Upload exception attempt ${i + 1}:`, err);
+
+        if (i === attempts - 1) {
+          setUploadStatus("error");
+          setUploadError(err.message || "Erreur inattendue lors du téléversement");
+          toast.error(err.message || "Erreur inattendue lors du téléversement");
+        } else {
+          await wait(800 * (i + 1));
+        }
       }
+    }
+  };
 
-      await wait(600 * (i + 1));
+  const handleRemoveFile = () => {
+    // Si un fichier a été uploadé, on pourrait le supprimer du storage
+    // Mais on garde simple pour l'instant
+    setFile(null);
+    resetUploadState();
+  };
+
+  const handleRetryUpload = async () => {
+    if (file && user) {
+      await uploadFile(file);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file || !user) {
+
+    // Vérifications critiques
+    if (!file) {
       toast.error("Veuillez sélectionner un fichier");
+      return;
+    }
+
+    if (!user) {
+      toast.error("Veuillez vous connecter");
+      navigate("/connexion");
+      return;
+    }
+
+    if (file.size === 0) {
+      toast.error("Le fichier semble vide. Veuillez sélectionner un autre fichier.");
+      return;
+    }
+
+    if (uploadStatus !== "success" || !uploadedFilePath) {
+      toast.error("Le fichier n'a pas été téléversé. Veuillez patienter ou réessayer.");
       return;
     }
 
     setLoading(true);
 
     try {
-      // Generate unique file path
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `${user.id}/${fileName}`;
-
-      // Upload file to storage
-      try {
-        await uploadWithRetry("devis", filePath, file);
-      } catch (uploadError: any) {
-        const msg = String(uploadError?.message ?? "");
-        const status = uploadError?.statusCode ?? uploadError?.status;
-
-        // Cas typique navigateur: CORS / VPN / réseau → "Failed to fetch" (pas de status)
-        if (!status && /failed to fetch/i.test(msg)) {
-          throw new Error(
-            "Téléversement impossible (connexion instable, VPN/Adblock ou restriction navigateur). Réessayez ou changez de réseau."
-          );
-        }
-
-        if (status === 413) {
-          throw new Error("Fichier trop volumineux. Maximum 10 Mo.");
-        }
-
-        throw new Error("Erreur lors du téléversement du fichier");
-      }
-
-      // Create analysis record
+      // Créer l'enregistrement d'analyse
       const { data: analysis, error: insertError } = await supabase
         .from("analyses")
         .insert({
           user_id: user.id,
           file_name: file.name,
-          file_path: filePath,
+          file_path: uploadedFilePath,
           status: "pending",
         })
         .select()
         .single();
 
       if (insertError || !analysis) {
+        console.error("Insert error:", insertError);
         throw new Error("Erreur lors de la création de l'analyse");
       }
 
-      toast.success("Fichier téléchargé ! Analyse en cours...");
+      toast.success("Analyse en cours...");
 
-      // Trigger the analysis
+      // Déclencher l'analyse
       const { error: functionError } = await supabase.functions.invoke("analyze-quote", {
         body: { analysisId: analysis.id },
       });
@@ -190,24 +325,26 @@ const NewAnalysis = () => {
         console.error("Function error:", functionError);
 
         if (status === 402) {
-          toast.error("Service d'analyse indisponible (crédits IA). Veuillez réessayer plus tard.");
+          toast.error("Service d'analyse temporairement indisponible. Réessayez plus tard.");
         } else if (status === 429) {
-          toast.error("Service d'analyse surchargé. Réessayez dans quelques minutes.");
+          toast.error("Service surchargé. Réessayez dans quelques minutes.");
         } else {
-          toast.error(msg || "Erreur lors du démarrage de l'analyse. Veuillez réessayer.");
+          toast.error(msg || "Erreur lors du démarrage de l'analyse.");
         }
+        // On navigue quand même vers la page de résultat pour voir le statut
       }
 
-      // Navigate to result page
       navigate(`/analyse/${analysis.id}`);
-
     } catch (error) {
-      console.error("Error:", error);
+      console.error("Submit error:", error);
       toast.error(error instanceof Error ? error.message : "Une erreur est survenue");
     } finally {
       setLoading(false);
     }
   };
+
+  // Conditions pour activer le bouton
+  const canSubmit = file && file.size > 0 && uploadStatus === "success" && uploadedFilePath && !loading;
 
   return (
     <div className="min-h-screen bg-background">
@@ -225,8 +362,8 @@ const NewAnalysis = () => {
 
       <main className="container py-8 max-w-2xl">
         {/* Back Button */}
-        <Link 
-          to="/tableau-de-bord" 
+        <Link
+          to="/tableau-de-bord"
           className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -246,7 +383,7 @@ const NewAnalysis = () => {
           {/* File Upload */}
           <div className="space-y-4">
             <Label className="text-base font-semibold">Votre devis</Label>
-            
+
             {!file ? (
               <div
                 onClick={() => fileInputRef.current?.click()}
@@ -255,54 +392,88 @@ const NewAnalysis = () => {
                 onDrop={handleDrop}
                 className={`
                   border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-200
-                  ${isDragging 
-                    ? "border-primary bg-primary/5" 
-                    : "border-border hover:border-primary/50 hover:bg-muted/50"
+                  ${
+                    isDragging
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-primary/50 hover:bg-muted/50"
                   }
                 `}
               >
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".pdf,.jpg,.jpeg,.png,.heic"
+                  accept=".pdf,.jpg,.jpeg,.png,.heic,application/pdf,image/jpeg,image/png,image/heic"
                   onChange={handleFileSelect}
                   className="hidden"
                 />
                 <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <Upload className="h-8 w-8 text-primary" />
                 </div>
-                <h3 className="font-semibold text-foreground mb-2">
-                  Glissez votre devis ici
-                </h3>
+                <h3 className="font-semibold text-foreground mb-2">Glissez votre devis ici</h3>
                 <p className="text-sm text-muted-foreground mb-4">
                   ou cliquez pour sélectionner un fichier
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  PDF, JPG ou PNG • Maximum 10 Mo
-                </p>
+                <p className="text-xs text-muted-foreground">PDF, JPG ou PNG • Maximum 10 Mo</p>
               </div>
             ) : (
-              <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
-                    <FileText className="h-6 w-6 text-primary" />
+              <div className="bg-card border border-border rounded-xl p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
+                      <FileText className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">{file.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {(file.size / 1024 / 1024).toFixed(2)} Mo
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium text-foreground">{file.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {(file.size / 1024 / 1024).toFixed(2)} Mo
-                    </p>
-                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleRemoveFile}
+                    disabled={loading || uploadStatus === "uploading"}
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setFile(null)}
-                  disabled={loading}
-                >
-                  <X className="h-5 w-5" />
-                </Button>
+
+                {/* Statut upload */}
+                <div className="mt-3 pt-3 border-t border-border">
+                  {uploadStatus === "uploading" && (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-sm">Téléversement en cours...</span>
+                    </div>
+                  )}
+
+                  {uploadStatus === "success" && (
+                    <div className="flex items-center gap-2 text-green-600">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span className="text-sm">Fichier prêt pour l'analyse</span>
+                    </div>
+                  )}
+
+                  {uploadStatus === "error" && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <span className="text-sm">{uploadError || "Erreur de téléversement"}</span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleRetryUpload}
+                        className="mt-2"
+                      >
+                        Réessayer le téléversement
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -341,11 +512,16 @@ const NewAnalysis = () => {
           </div>
 
           {/* Submit */}
-          <Button type="submit" size="lg" className="w-full" disabled={!file || loading}>
+          <Button type="submit" size="lg" className="w-full" disabled={!canSubmit}>
             {loading ? (
               <>
                 <Loader2 className="h-5 w-5 animate-spin" />
                 Analyse en cours...
+              </>
+            ) : uploadStatus === "uploading" ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Téléversement...
               </>
             ) : (
               <>
@@ -357,8 +533,8 @@ const NewAnalysis = () => {
 
           {/* Info */}
           <p className="text-xs text-center text-muted-foreground">
-            Vos données sont protégées et traitées conformément au RGPD. 
-            L'analyse est informative et ne constitue pas un conseil juridique.
+            Vos données sont protégées et traitées conformément au RGPD. L'analyse est informative
+            et ne constitue pas un conseil juridique.
           </p>
         </form>
       </main>
