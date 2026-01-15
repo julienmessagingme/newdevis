@@ -286,9 +286,9 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
                       )}
                       
                       {/* Fourchette marché */}
-                      {item.fourchette_min !== undefined && item.fourchette_max !== undefined && (
+                      {item.fourchette_min != null && item.fourchette_max != null && item.fourchette_min > 0 && item.fourchette_max > 0 && (
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">Réf. marché/{item.unite}</span>
+                          <span className="text-xs text-muted-foreground">Réf. marché/{item.unite || 'unité'}</span>
                           <span className="text-xs text-muted-foreground">
                             {item.fourchette_min.toFixed(0)}€ - {item.fourchette_max.toFixed(0)}€
                           </span>
