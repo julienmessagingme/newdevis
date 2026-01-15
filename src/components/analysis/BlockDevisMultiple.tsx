@@ -267,6 +267,191 @@ export const filterOutPriceItems = (items: string[]): string[] => {
   });
 };
 
+// Macro-categories for grouping (max 3)
+interface MacroCategory {
+  key: string;
+  label: string;
+  keywords: string[];
+}
+
+const MACRO_CATEGORIES: MacroCategory[] = [
+  { 
+    key: "menuiserie", 
+    label: "Menuiserie & Fermetures", 
+    keywords: ["fenetre", "fenêtre", "porte", "volet", "menuiserie", "fermeture", "store", "vitrage", "chassis"] 
+  },
+  { 
+    key: "plomberie_sanitaire", 
+    label: "Plomberie & Sanitaires", 
+    keywords: ["plomberie", "sanitaire", "sdb", "salle de bain", "wc", "toilette", "robinet", "douche", "baignoire", "chauffe-eau"] 
+  },
+  { 
+    key: "electricite", 
+    label: "Électricité", 
+    keywords: ["electri", "électri", "tableau", "prise", "interrupteur", "cable", "câble"] 
+  },
+  { 
+    key: "chauffage_clim", 
+    label: "Chauffage & Climatisation", 
+    keywords: ["chauffage", "pac", "pompe à chaleur", "climatisation", "clim", "chaudiere", "chaudière", "radiateur"] 
+  },
+  { 
+    key: "isolation_toiture", 
+    label: "Isolation & Toiture", 
+    keywords: ["isolation", "combles", "toiture", "toit", "ardoise", "tuile", "etancheite", "étanchéité"] 
+  },
+  { 
+    key: "revetements", 
+    label: "Revêtements & Finitions", 
+    keywords: ["carrelage", "parquet", "peinture", "faience", "faïence", "sol", "mural", "revetement", "revêtement"] 
+  },
+  { 
+    key: "maconnerie", 
+    label: "Maçonnerie & Gros œuvre", 
+    keywords: ["maconnerie", "maçonnerie", "facade", "façade", "ravalement", "terrassement", "dalle", "fondation"] 
+  },
+  { 
+    key: "cuisine", 
+    label: "Cuisine", 
+    keywords: ["cuisine", "electromenager", "électroménager", "plan de travail"] 
+  },
+  { 
+    key: "pose_main_oeuvre", 
+    label: "Pose & Main-d'œuvre", 
+    keywords: ["pose", "main d'oeuvre", "main-d'oeuvre", "installation", "montage", "dépose"] 
+  },
+  { 
+    key: "autre", 
+    label: "Autres prestations", 
+    keywords: [] 
+  }
+];
+
+// Group items by macro-category
+interface GroupedCategory {
+  category: MacroCategory;
+  items: TravauxItem[];
+  globalPosition: PricePosition;
+}
+
+const groupByMacroCategory = (items: TravauxItem[]): GroupedCategory[] => {
+  const groups: Map<string, TravauxItem[]> = new Map();
+  
+  for (const item of items) {
+    const searchText = `${item.categorie} ${item.libelle || ""}`.toLowerCase();
+    let foundCategory = MACRO_CATEGORIES.find(cat => 
+      cat.keywords.some(kw => searchText.includes(kw))
+    );
+    
+    if (!foundCategory) {
+      foundCategory = MACRO_CATEGORIES.find(cat => cat.key === "autre")!;
+    }
+    
+    if (!groups.has(foundCategory.key)) {
+      groups.set(foundCategory.key, []);
+    }
+    groups.get(foundCategory.key)!.push(item);
+  }
+  
+  // Convert to array and calculate group positions
+  const result: GroupedCategory[] = [];
+  for (const [key, groupItems] of groups) {
+    const category = MACRO_CATEGORIES.find(c => c.key === key)!;
+    
+    // Calculate weighted average position for the group
+    let totalWeight = 0;
+    let weightedPosition = 0;
+    
+    for (const item of groupItems) {
+      const unitPrice = (item.montant_ht && item.quantite && item.quantite > 0) 
+        ? item.montant_ht / item.quantite 
+        : null;
+      const position = calculatePricePosition(unitPrice, item.fourchette_min, item.fourchette_max);
+      
+      if (position !== "unknown") {
+        const posValue = position === "below" ? -1 : position === "low" ? 0 : position === "middle" ? 1 : position === "high" ? 2 : 3;
+        totalWeight++;
+        weightedPosition += posValue;
+      }
+    }
+    
+    let globalPosition: PricePosition = "unknown";
+    if (totalWeight > 0) {
+      const avg = weightedPosition / totalWeight;
+      if (avg < 0.5) globalPosition = "low";
+      else if (avg < 1.5) globalPosition = "middle";
+      else globalPosition = "high";
+    }
+    
+    result.push({ category, items: groupItems, globalPosition });
+  }
+  
+  return result;
+};
+
+// Get global synthesis text
+const getGlobalSynthesis = (groups: GroupedCategory[], zoneType: string | undefined): string => {
+  const validGroups = groups.filter(g => g.globalPosition !== "unknown");
+  if (validGroups.length === 0) {
+    return "Les prix de ce devis n'ont pas pu être comparés à des fourchettes de référence.";
+  }
+  
+  const positions = validGroups.map(g => g.globalPosition);
+  const lowCount = positions.filter(p => p === "low" || p === "below").length;
+  const middleCount = positions.filter(p => p === "middle").length;
+  const highCount = positions.filter(p => p === "high" || p === "above").length;
+  
+  let positionText = "";
+  if (lowCount >= middleCount && lowCount >= highCount) {
+    if (middleCount > 0) {
+      positionText = "dans la partie basse à moyenne";
+    } else {
+      positionText = "dans la partie basse";
+    }
+  } else if (highCount >= middleCount && highCount >= lowCount) {
+    if (middleCount > 0) {
+      positionText = "dans la partie moyenne à haute";
+    } else {
+      positionText = "dans la partie haute";
+    }
+  } else {
+    positionText = "dans la moyenne";
+  }
+  
+  const zoneLabel = zoneType === "grande_ville" 
+    ? "en grande ville" 
+    : zoneType === "ville_moyenne" 
+      ? "en ville moyenne" 
+      : zoneType === "province" 
+        ? "en zone rurale" 
+        : "";
+  
+  return `Globalement, les prix de ce devis se situent ${positionText} des fourchettes habituellement constatées pour ce type de travaux${zoneLabel ? ` ${zoneLabel}` : ""}.`;
+};
+
+// Get contextual explanation for high prices
+const getContextualExplanation = (item: TravauxItem): string | null => {
+  const searchText = `${item.categorie} ${item.libelle || ""}`.toLowerCase();
+  
+  if (searchText.includes("sur mesure") || searchText.includes("surmesure")) {
+    return "Produits sur mesure, ajustés aux dimensions exactes";
+  }
+  if (searchText.includes("motoris") || searchText.includes("électr")) {
+    return "Version motorisée ou équipements électriques inclus";
+  }
+  if (searchText.includes("haut de gamme") || searchText.includes("premium")) {
+    return "Gamme de qualité supérieure";
+  }
+  if (searchText.includes("grande") || searchText.includes("xxl") || searchText.includes("baie")) {
+    return "Dimensions importantes";
+  }
+  if (searchText.includes("difficile") || searchText.includes("complex") || searchText.includes("contraint")) {
+    return "Complexité de pose ou contraintes d'accès";
+  }
+  
+  return null;
+};
+
 const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, codePostal, zoneType }: BlockDevisMultipleProps) => {
   // Use structured data if available, otherwise extract from points
   const items = typesTravaux && typesTravaux.length > 0 
@@ -285,6 +470,10 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
   // Get first zone type if available
   const displayZoneType = zoneType || items.find(i => i.zone_type)?.zone_type;
   
+  // Group items by macro-category
+  const groupedCategories = groupByMacroCategory(itemsWithPrice);
+  const globalSynthesis = getGlobalSynthesis(groupedCategories, displayZoneType);
+  
   return (
     <div className={`border-2 rounded-2xl p-6 mb-6 ${getScoreBgClass(globalScore)}`}>
       <div className="flex items-start gap-4">
@@ -297,24 +486,27 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
             {globalScore && getScoreIcon(globalScore, "h-6 w-6")}
           </div>
           
-          <p className="text-sm text-muted-foreground mb-4">
-            {isMultiType 
-              ? `${items.length} types de travaux identifiés automatiquement sur ce devis.`
-              : "Type de travaux identifié automatiquement."
-            }
-          </p>
-          
-          {/* Types de travaux détectés - summary */}
-          <div className="mb-4 flex flex-wrap gap-2">
-            {items.map((item, idx) => (
-              <span 
-                key={idx}
-                className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary text-xs rounded-full"
-              >
-                {item.libelle || formatCategoryLabel(item.categorie)}
-              </span>
-            ))}
-          </div>
+          {/* PHRASE DE SYNTHÈSE GLOBALE - Obligatoire en tête de bloc */}
+          {itemsWithPrice.length > 0 && (
+            <div className="p-4 bg-primary/5 rounded-xl border border-primary/20 mb-6">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-base font-medium text-foreground leading-relaxed">
+                    {globalSynthesis}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    {isMultiType 
+                      ? `${groupedCategories.length} catégorie${groupedCategories.length > 1 ? "s" : ""} de travaux analysée${groupedCategories.length > 1 ? "s" : ""}.`
+                      : "1 catégorie de travaux analysée."
+                    }
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
           
           {/* Zone géographique */}
           {(codePostal || displayZoneType) && (
@@ -329,147 +521,157 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
           
           {/* Montant total */}
           {montantTotalHT && (
-            <div className="mb-4 p-3 bg-background/50 rounded-lg">
+            <div className="mb-6 p-3 bg-background/50 rounded-lg">
               <p className="text-xs text-muted-foreground mb-1">Montant total HT du devis</p>
               <p className="text-xl font-bold text-foreground">{formatPrice(montantTotalHT)}</p>
             </div>
           )}
-          {/* Types de travaux avec comparaison indicative */}
-          {itemsWithPrice.length > 0 && (
-            <div className="mb-4">
-              <h3 className="font-semibold text-foreground text-sm mb-2">
-                Ce qui a pu être comparé
-              </h3>
-              <p className="text-xs text-muted-foreground mb-3">
-                Les types de travaux ci-dessous ont été comparés à des fourchettes de prix indicatives, ajustées selon votre zone géographique.
-              </p>
-              <div className="grid grid-cols-1 gap-4">
-                {itemsWithPrice.map((item, idx) => {
-                  // Calculate unit price if possible
-                  const unitPrice = (item.montant_ht && item.quantite && item.quantite > 0) 
-                    ? item.montant_ht / item.quantite 
-                    : null;
-                  
-                  const position = calculatePricePosition(
-                    unitPrice, 
-                    item.fourchette_min, 
-                    item.fourchette_max
-                  );
-                  
-                  const hasValidRange = item.fourchette_min != null && 
-                                        item.fourchette_max != null && 
-                                        item.fourchette_min > 0 && 
-                                        item.fourchette_max > 0;
-                  
-                  return (
-                    <div 
-                      key={idx} 
-                      className={`p-4 rounded-xl border-2 ${getScoreBgClass("VERT")}`}
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <h4 className="font-medium text-foreground text-sm">
-                          {item.libelle || formatCategoryLabel(item.categorie)}
-                        </h4>
-                        <CheckCircle2 className="h-5 w-5 text-score-green" />
-                      </div>
-                      
-                      {/* Grid des prix détaillés */}
-                      {hasValidRange && (
-                        <div className="bg-background/50 rounded-lg p-3 mb-3">
-                          <div className="grid grid-cols-3 gap-2 text-center mb-3">
-                            {/* Fourchette basse */}
-                            <div className="p-2 rounded-lg bg-blue-50 border border-blue-100">
-                              <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">
-                                Fourchette basse
-                              </p>
-                              <p className="text-sm font-semibold text-blue-600">
-                                {formatPricePerUnit(item.fourchette_min)}
-                              </p>
-                              <p className="text-[10px] text-muted-foreground">
-                                /{item.unite || 'unité'}
-                              </p>
-                            </div>
-                            
-                            {/* Prix du devis */}
-                            <div className={`p-2 rounded-lg border-2 ${
-                              position === "low" || position === "below" 
-                                ? "bg-blue-100 border-blue-300" 
-                                : position === "middle" 
-                                  ? "bg-gray-100 border-gray-300"
-                                  : "bg-amber-100 border-amber-300"
-                            }`}>
-                              <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">
-                                Prix devis
-                              </p>
-                              <p className={`text-sm font-bold ${getPositionColorClass(position)}`}>
-                                {unitPrice != null ? formatPricePerUnit(unitPrice) : "—"}
-                              </p>
-                              <p className="text-[10px] text-muted-foreground">
-                                /{item.unite || 'unité'}
-                              </p>
-                            </div>
-                            
-                            {/* Fourchette haute */}
-                            <div className="p-2 rounded-lg bg-amber-50 border border-amber-100">
-                              <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">
-                                Fourchette haute
-                              </p>
-                              <p className="text-sm font-semibold text-amber-600">
-                                {formatPricePerUnit(item.fourchette_max)}
-                              </p>
-                              <p className="text-[10px] text-muted-foreground">
-                                /{item.unite || 'unité'}
-                              </p>
-                            </div>
-                          </div>
-                          
-                          {/* Position indicator */}
-                          {position !== "unknown" && (
-                            <div className="flex items-center gap-2 justify-center py-2 px-3 bg-muted/50 rounded-lg">
-                              {getPositionIcon(position, "h-4 w-4")}
-                              <span className={`text-sm font-medium ${getPositionColorClass(position)}`}>
-                                {getPositionLabel(position)}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      
-                      {/* Quantité et montant total */}
-                      <div className="space-y-2 mb-3">
-                        {item.quantite && item.unite && (
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground">Quantité</span>
-                            <span className="text-foreground font-medium">
-                              {item.quantite} {item.unite}
-                            </span>
-                          </div>
-                        )}
-                        {item.montant_ht && (
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground">Montant total HT</span>
-                            <span className="text-foreground font-semibold">
-                              {formatPrice(item.montant_ht)}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Explication pédagogique */}
-                      {position !== "unknown" && (
-                        <div className="p-3 bg-primary/5 rounded-lg border border-primary/10">
-                          <div className="flex items-start gap-2">
-                            <span className="text-lg">💡</span>
-                            <p className="text-xs text-muted-foreground leading-relaxed">
-                              {getPositionExplanation(position)}
-                            </p>
-                          </div>
+          
+          {/* REGROUPEMENT PAR MACRO-TYPE DE TRAVAUX */}
+          {groupedCategories.length > 0 && (
+            <div className="space-y-6">
+              {groupedCategories.map((group, groupIdx) => {
+                const groupPositionLabel = group.globalPosition === "low" 
+                  ? "bas de fourchette" 
+                  : group.globalPosition === "middle" 
+                    ? "milieu de fourchette" 
+                    : group.globalPosition === "high" 
+                      ? "haut de fourchette" 
+                      : "position indéterminée";
+                
+                return (
+                  <div key={groupIdx} className="border-2 rounded-xl p-4 bg-background/30 border-border">
+                    {/* Header du groupe */}
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-semibold text-foreground text-base flex items-center gap-2">
+                        {group.category.label}
+                        <span className="text-xs font-normal text-muted-foreground">
+                          ({group.items.length} poste{group.items.length > 1 ? "s" : ""})
+                        </span>
+                      </h3>
+                      {group.globalPosition !== "unknown" && (
+                        <div className="flex items-center gap-2">
+                          {getPositionIcon(group.globalPosition, "h-4 w-4")}
+                          <span className={`text-sm font-medium ${getPositionColorClass(group.globalPosition)}`}>
+                            {groupPositionLabel}
+                          </span>
                         </div>
                       )}
                     </div>
-                  );
-                })}
-              </div>
+                    
+                    {/* Items du groupe */}
+                    <div className="space-y-3">
+                      {group.items.map((item, idx) => {
+                        const unitPrice = (item.montant_ht && item.quantite && item.quantite > 0) 
+                          ? item.montant_ht / item.quantite 
+                          : null;
+                        
+                        const position = calculatePricePosition(
+                          unitPrice, 
+                          item.fourchette_min, 
+                          item.fourchette_max
+                        );
+                        
+                        const hasValidRange = item.fourchette_min != null && 
+                                              item.fourchette_max != null && 
+                                              item.fourchette_min > 0 && 
+                                              item.fourchette_max > 0;
+                        
+                        const contextualNote = getContextualExplanation(item);
+                        
+                        const positionLabel = position === "low" 
+                          ? "bas de fourchette" 
+                          : position === "middle" 
+                            ? "milieu de fourchette" 
+                            : position === "high" 
+                              ? "haut de fourchette"
+                              : position === "above"
+                                ? "au-dessus de la fourchette"
+                                : position === "below"
+                                  ? "en-dessous de la fourchette"
+                                  : "";
+                        
+                        return (
+                          <div 
+                            key={idx} 
+                            className="p-4 rounded-lg bg-background/50 border border-border/50"
+                          >
+                            <div className="flex items-start justify-between mb-3">
+                              <h4 className="font-medium text-foreground text-sm">
+                                {item.libelle || formatCategoryLabel(item.categorie)}
+                              </h4>
+                            </div>
+                            
+                            {/* Affichage structuré: Fourchette + Prix + Position */}
+                            {hasValidRange && (
+                              <div className="bg-muted/30 rounded-lg p-3 mb-3">
+                                {/* Ligne: Fourchette observée */}
+                                <div className="flex items-center justify-between text-sm mb-2">
+                                  <span className="text-muted-foreground">Fourchette observée</span>
+                                  <span className="font-medium text-foreground">
+                                    {formatPricePerUnit(item.fourchette_min)} → {formatPricePerUnit(item.fourchette_max)} / {item.unite || 'unité'}
+                                  </span>
+                                </div>
+                                
+                                {/* Ligne: Prix du devis */}
+                                <div className="flex items-center justify-between text-sm mb-2">
+                                  <span className="text-muted-foreground">Prix de votre devis</span>
+                                  <span className="font-semibold text-foreground">
+                                    {unitPrice != null ? `${formatPricePerUnit(unitPrice)} / ${item.unite || 'unité'}` : "—"}
+                                  </span>
+                                </div>
+                                
+                                {/* Ligne: Position explicite */}
+                                {position !== "unknown" && (
+                                  <div className="flex items-center justify-between text-sm pt-2 border-t border-border/50">
+                                    <span className="text-muted-foreground">Positionnement</span>
+                                    <div className="flex items-center gap-2">
+                                      {getPositionIcon(position, "h-4 w-4")}
+                                      <span className={`font-medium ${getPositionColorClass(position)}`}>
+                                        {positionLabel}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            
+                            {/* Quantité et montant total */}
+                            <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3">
+                              {item.quantite && item.unite && (
+                                <span>Quantité : {item.quantite} {item.unite}</span>
+                              )}
+                              {item.montant_ht && (
+                                <span>Total HT : {formatPrice(item.montant_ht)}</span>
+                              )}
+                            </div>
+                            
+                            {/* Explication contextuelle si pertinente */}
+                            {contextualNote && (position === "high" || position === "above") && (
+                              <div className="p-2 bg-amber-50 rounded-lg border border-amber-100 mb-2">
+                                <p className="text-xs text-amber-700 flex items-center gap-2">
+                                  <span>📝</span>
+                                  {contextualNote}
+                                </p>
+                              </div>
+                            )}
+                            
+                            {/* Explication pédagogique */}
+                            {position !== "unknown" && (
+                              <div className="p-2 bg-primary/5 rounded-lg border border-primary/10">
+                                <p className="text-xs text-muted-foreground leading-relaxed flex items-start gap-2">
+                                  <span className="text-base">💡</span>
+                                  <span>{getPositionExplanation(position)}</span>
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
           
