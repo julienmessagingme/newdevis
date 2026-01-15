@@ -86,6 +86,45 @@ export type Database = {
         }
         Relationships: []
       }
+      company_cache: {
+        Row: {
+          error_code: string | null
+          error_message: string | null
+          expires_at: string
+          fetched_at: string
+          id: string
+          payload: Json
+          provider: string
+          siren: string
+          siret: string
+          status: string
+        }
+        Insert: {
+          error_code?: string | null
+          error_message?: string | null
+          expires_at?: string
+          fetched_at?: string
+          id?: string
+          payload?: Json
+          provider?: string
+          siren: string
+          siret: string
+          status?: string
+        }
+        Update: {
+          error_code?: string | null
+          error_message?: string | null
+          expires_at?: string
+          fetched_at?: string
+          id?: string
+          payload?: Json
+          provider?: string
+          siren?: string
+          siret?: string
+          status?: string
+        }
+        Relationships: []
+      }
       post_signature_tracking: {
         Row: {
           admin_alert_date: string | null

@@ -101,6 +101,55 @@ interface ExtractedData {
 }
 
 // ============================================================
+// DEBUG ADMIN — Structure pour audit des appels API
+// ============================================================
+
+interface ProviderCallDebug {
+  attempted: boolean;
+  cached: boolean;
+  status: number | null;
+  error: string | null;
+  fetched_at: string | null;
+  expires_at: string | null;
+}
+
+interface DebugInfo {
+  provider_calls: {
+    pappers: ProviderCallDebug;
+  };
+}
+
+// ============================================================
+// COMPANY CACHE — Structure de données
+// ============================================================
+
+interface CompanyPayload {
+  date_creation: string | null;
+  age_years: number | null;
+  is_active: boolean;
+  bilans_count: number;
+  has_3_bilans: boolean;
+  last_bilan_capitaux_propres: number | null;
+  nom: string | null;
+  adresse: string | null;
+  ville: string | null;
+  procedure_collective: boolean;
+}
+
+interface CachedCompanyData {
+  id: string;
+  siret: string;
+  siren: string;
+  provider: string;
+  fetched_at: string;
+  expires_at: string;
+  payload: CompanyPayload;
+  status: "ok" | "error" | "not_found";
+  error_code: string | null;
+  error_message: string | null;
+}
+
+// ============================================================
 // PHASE 2 — VÉRIFICATION (APIs EXTERNES - SANS IA)
 // ============================================================
 
@@ -117,7 +166,7 @@ interface VerificationResult {
   nom_officiel: string | null;
   adresse_officielle: string | null;
   ville_officielle: string | null;
-  lookup_status: "ok" | "not_found" | "error" | "skipped";
+  lookup_status: "ok" | "not_found" | "error" | "skipped" | "no_siret";
   
   // IBAN
   iban_verifie: boolean;
@@ -154,6 +203,9 @@ interface VerificationResult {
     score: ScoringColor;
     explication: string;
   }>;
+  
+  // Debug info for admin
+  debug?: DebugInfo;
 }
 
 // ============================================================
@@ -473,8 +525,8 @@ async function verifyIBAN(iban: string | null): Promise<{
   }
 }
 
-// 2.2 Verify company with Pappers
-async function verifyCompany(siret: string | null): Promise<{
+// 2.2 Verify company with Pappers + Cache
+interface VerifyCompanyResult {
   immatriculee: boolean | null;
   radiee: boolean | null;
   procedure_collective: boolean | null;
@@ -486,9 +538,21 @@ async function verifyCompany(siret: string | null): Promise<{
   nom: string | null;
   adresse: string | null;
   ville: string | null;
-  lookup_status: "ok" | "not_found" | "error" | "skipped";
-}> {
-  const defaultResult = {
+  lookup_status: "ok" | "not_found" | "error" | "skipped" | "no_siret";
+  debug: ProviderCallDebug;
+}
+
+async function verifyCompanyWithCache(siret: string | null, supabase: any): Promise<VerifyCompanyResult> {
+  const defaultDebug: ProviderCallDebug = {
+    attempted: false,
+    cached: false,
+    status: null,
+    error: null,
+    fetched_at: null,
+    expires_at: null,
+  };
+  
+  const defaultResult: VerifyCompanyResult = {
     immatriculee: null,
     radiee: null,
     procedure_collective: null,
@@ -500,46 +564,167 @@ async function verifyCompany(siret: string | null): Promise<{
     nom: null,
     adresse: null,
     ville: null,
-    lookup_status: "skipped" as const,
+    lookup_status: "no_siret",
+    debug: { ...defaultDebug },
   };
 
-  if (!siret) return defaultResult;
-
-  const pappersApiKey = Deno.env.get("PAPPERS_API_KEY");
-  if (!pappersApiKey) {
-    console.log("Pappers API key not configured");
+  // Rule: If SIRET is null, DO NOT call Pappers
+  if (!siret) {
     return defaultResult;
   }
 
-  const siren = siret.replace(/\s/g, "").substring(0, 9);
+  const cleanedSiret = siret.replace(/\s/g, "");
+  const siren = cleanedSiret.substring(0, 9);
+  
   if (siren.length < 9 || !/^\d{9}$/.test(siren)) {
     console.log("Invalid SIREN format:", siren);
-    return defaultResult;
+    return { ...defaultResult, lookup_status: "skipped" };
   }
 
+  // Check PAPPERS_API_KEY - STRICT: fail cleanly if missing, no fallback
+  const pappersApiKey = Deno.env.get("PAPPERS_API_KEY");
+  if (!pappersApiKey) {
+    console.log("PAPPERS_API_KEY not configured - skipping company verification");
+    return { 
+      ...defaultResult, 
+      lookup_status: "skipped",
+      debug: { ...defaultDebug, attempted: false, error: "PAPPERS_API_KEY not configured" }
+    };
+  }
+
+  // Check cache first
+  try {
+    const { data: cachedData, error: cacheError } = await supabase
+      .from("company_cache")
+      .select("*")
+      .eq("siret", cleanedSiret)
+      .gt("expires_at", new Date().toISOString())
+      .maybeSingle();
+
+    if (!cacheError && cachedData) {
+      console.log("Cache HIT for SIRET:", cleanedSiret);
+      const payload = cachedData.payload as CompanyPayload;
+      
+      return {
+        immatriculee: cachedData.status === "ok",
+        radiee: cachedData.status === "ok" ? !payload.is_active : null,
+        procedure_collective: payload.procedure_collective,
+        capitaux_propres: payload.last_bilan_capitaux_propres,
+        capitaux_propres_negatifs: payload.last_bilan_capitaux_propres !== null ? payload.last_bilan_capitaux_propres < 0 : null,
+        date_creation: payload.date_creation,
+        anciennete: payload.age_years,
+        bilans: payload.bilans_count,
+        nom: payload.nom,
+        adresse: payload.adresse,
+        ville: payload.ville,
+        lookup_status: cachedData.status as "ok" | "not_found" | "error",
+        debug: {
+          attempted: true,
+          cached: true,
+          status: cachedData.status === "ok" ? 200 : (cachedData.status === "not_found" ? 404 : 500),
+          error: cachedData.error_message,
+          fetched_at: cachedData.fetched_at,
+          expires_at: cachedData.expires_at,
+        },
+      };
+    }
+  } catch (cacheCheckError) {
+    console.log("Cache check failed, proceeding with API call:", cacheCheckError);
+  }
+
+  // Cache MISS or expired - call Pappers API
+  console.log("Cache MISS for SIRET:", cleanedSiret, "- calling Pappers API");
+  
   try {
     const response = await fetch(`${PAPPERS_API_URL}/entreprise?siren=${siren}&api_token=${pappersApiKey}`);
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
     // 404 = EXPLICIT negative proof: company not found in registers
     if (response.status === 404) {
-      return { ...defaultResult, immatriculee: false, lookup_status: "not_found" };
+      // Store in cache as not_found
+      const notFoundPayload: CompanyPayload = {
+        date_creation: null,
+        age_years: null,
+        is_active: false,
+        bilans_count: 0,
+        has_3_bilans: false,
+        last_bilan_capitaux_propres: null,
+        nom: null,
+        adresse: null,
+        ville: null,
+        procedure_collective: false,
+      };
+      
+      await supabase.from("company_cache").upsert({
+        siret: cleanedSiret,
+        siren: siren,
+        provider: "pappers",
+        fetched_at: now.toISOString(),
+        expires_at: expiresAt.toISOString(),
+        payload: notFoundPayload,
+        status: "not_found",
+        error_code: "NOT_FOUND",
+        error_message: "Entreprise non trouvée dans les registres",
+      }, { onConflict: "siret" });
+
+      return { 
+        ...defaultResult, 
+        immatriculee: false, 
+        lookup_status: "not_found",
+        debug: {
+          attempted: true,
+          cached: false,
+          status: 404,
+          error: null,
+          fetched_at: now.toISOString(),
+          expires_at: expiresAt.toISOString(),
+        }
+      };
     }
 
     // Other errors = uncertainty, no negative conclusion
     if (!response.ok) {
       console.error("Pappers API error:", response.status);
-      return { ...defaultResult, lookup_status: "error" };
+      
+      // Store error in cache with shorter TTL (1 day for errors)
+      const errorExpires = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      await supabase.from("company_cache").upsert({
+        siret: cleanedSiret,
+        siren: siren,
+        provider: "pappers",
+        fetched_at: now.toISOString(),
+        expires_at: errorExpires.toISOString(),
+        payload: {},
+        status: "error",
+        error_code: `HTTP_${response.status}`,
+        error_message: `API returned ${response.status}`,
+      }, { onConflict: "siret" });
+
+      return { 
+        ...defaultResult, 
+        lookup_status: "error",
+        debug: {
+          attempted: true,
+          cached: false,
+          status: response.status,
+          error: `API returned ${response.status}`,
+          fetched_at: now.toISOString(),
+          expires_at: errorExpires.toISOString(),
+        }
+      };
     }
 
     const data = await response.json();
 
+    // Calculate age
     let anciennete: number | null = null;
     if (data.date_creation) {
       const creationDate = new Date(data.date_creation);
-      const now = new Date();
       anciennete = Math.floor((now.getTime() - creationDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
     }
 
+    // Extract bilans info
     let bilans = 0;
     let capitaux: number | null = null;
     if (data.comptes && Array.isArray(data.comptes)) {
@@ -554,10 +739,40 @@ async function verifyCompany(siret: string | null): Promise<{
       }
     }
 
+    const isActive = data.statut !== "Radiée" && data.statut !== "Fermé";
+    const procedureCollective = Boolean(data.procedure_collective);
+
+    // Build payload for cache
+    const payload: CompanyPayload = {
+      date_creation: data.date_creation || null,
+      age_years: anciennete,
+      is_active: isActive,
+      bilans_count: bilans,
+      has_3_bilans: bilans >= 3,
+      last_bilan_capitaux_propres: capitaux,
+      nom: data.nom_entreprise || null,
+      adresse: data.siege?.adresse_ligne_1 || null,
+      ville: data.siege?.ville || null,
+      procedure_collective: procedureCollective,
+    };
+
+    // Store in cache
+    await supabase.from("company_cache").upsert({
+      siret: cleanedSiret,
+      siren: siren,
+      provider: "pappers",
+      fetched_at: now.toISOString(),
+      expires_at: expiresAt.toISOString(),
+      payload: payload,
+      status: "ok",
+      error_code: null,
+      error_message: null,
+    }, { onConflict: "siret" });
+
     return {
       immatriculee: true,
-      radiee: data.statut === "Radiée" || data.statut === "Fermé",
-      procedure_collective: Boolean(data.procedure_collective),
+      radiee: !isActive,
+      procedure_collective: procedureCollective,
       capitaux_propres: capitaux,
       capitaux_propres_negatifs: capitaux !== null ? capitaux < 0 : null,
       date_creation: data.date_creation || null,
@@ -567,10 +782,29 @@ async function verifyCompany(siret: string | null): Promise<{
       adresse: data.siege?.adresse_ligne_1 || null,
       ville: data.siege?.ville || null,
       lookup_status: "ok",
+      debug: {
+        attempted: true,
+        cached: false,
+        status: 200,
+        error: null,
+        fetched_at: now.toISOString(),
+        expires_at: expiresAt.toISOString(),
+      },
     };
   } catch (error) {
     console.error("Pappers error:", error);
-    return { ...defaultResult, lookup_status: "error" };
+    return { 
+      ...defaultResult, 
+      lookup_status: "error",
+      debug: {
+        attempted: true,
+        cached: false,
+        status: null,
+        error: error instanceof Error ? error.message : "Unknown error",
+        fetched_at: new Date().toISOString(),
+        expires_at: null,
+      }
+    };
   }
 }
 
@@ -882,10 +1116,12 @@ async function verifyData(extracted: ExtractedData, supabase: any): Promise<Veri
     supabase.from("zones_geographiques").select("*"),
   ]);
 
-  // Run verifications in parallel (conditional per spec)
-  const [ibanResult, companyResult, bodaccResult, rgeResult, georisquesResult] = await Promise.all([
+  // Company verification with cache - now a separate call to get debug info
+  const companyResult = await verifyCompanyWithCache(extracted.entreprise.siret, supabase);
+
+  // Run other verifications in parallel
+  const [ibanResult, bodaccResult, rgeResult, georisquesResult] = await Promise.all([
     extracted.entreprise.iban ? verifyIBAN(extracted.entreprise.iban) : Promise.resolve({ verifie: false, valide: null, pays: null, code_pays: null, banque: null }),
-    extracted.entreprise.siret ? verifyCompany(extracted.entreprise.siret) : Promise.resolve({ immatriculee: null, radiee: null, procedure_collective: null, capitaux_propres: null, capitaux_propres_negatifs: null, date_creation: null, anciennete: null, bilans: 0, nom: null, adresse: null, ville: null, lookup_status: "skipped" as const }),
     siren ? checkBodacc(siren) : Promise.resolve(false),
     checkRGE(extracted.entreprise.siret, extracted.travaux),
     (extracted.client.adresse_chantier || extracted.client.code_postal) ? getGeorisques(extracted.client.adresse_chantier, extracted.client.code_postal) : Promise.resolve({ consulte: false, risques: [], zone_sismique: null, commune: null }),
@@ -907,6 +1143,13 @@ async function verifyData(extracted: ExtractedData, supabase: any): Promise<Veri
     referencePrixResult.data || [],
     zonesResult.data || [],
   );
+
+  // Build debug info for admin
+  const debugInfo: DebugInfo = {
+    provider_calls: {
+      pappers: companyResult.debug,
+    },
+  };
 
   const verified: VerificationResult = {
     entreprise_immatriculee: companyResult.immatriculee,
@@ -943,6 +1186,9 @@ async function verifyData(extracted: ExtractedData, supabase: any): Promise<Veri
     georisques_commune: georisquesResult.commune,
     
     comparaisons_prix: priceComparisons,
+    
+    // Include debug info for admin
+    debug: debugInfo,
   };
 
   console.log("PHASE 2 COMPLETE - Verification:", {
@@ -951,6 +1197,7 @@ async function verifyData(extracted: ExtractedData, supabase: any): Promise<Veri
     capitaux_negatifs: verified.capitaux_propres_negatifs,
     iban_valide: verified.iban_valide,
     google_note: verified.google_note,
+    pappers_cached: companyResult.debug.cached,
   });
 
   return verified;
@@ -1252,54 +1499,83 @@ function renderOutput(
   const recommandations: string[] = [];
 
   // ============ BLOC 1: ENTREPRISE & FIABILITÉ ============
+  // Règles:
+  // - Si Pappers OK → afficher date création + ancienneté + bilans + capitaux propres
+  // - Si Pappers non tenté (pas de SIRET) → "SIRET non détecté, vérification registre non réalisée" (NEUTRE)
+  // - Si Pappers tenté mais erreur → "Vérification registre indisponible temporairement" (NEUTRE, pas de score dégradé)
 
   if (verified.entreprise_immatriculee === true) {
+    // Pappers OK - afficher toutes les données
     points_ok.push(`✓ Entreprise identifiée : ${verified.nom_officiel || extracted.entreprise.nom}`);
     
+    // Ancienneté avec scoring selon les règles:
+    // < 2 ans → rouge (critère confort, pas critique globale)
+    // 2-5 ans → orange
+    // ≥ 5 ans → vert
     if (verified.anciennete_annees !== null) {
       if (verified.anciennete_annees >= 5) {
         points_ok.push(`🟢 Entreprise établie : ${verified.anciennete_annees} ans d'existence`);
       } else if (verified.anciennete_annees >= 2) {
         points_ok.push(`🟠 Entreprise établie depuis ${verified.anciennete_annees} ans`);
       } else {
-        alertes.push(`ℹ️ Entreprise récente (${verified.anciennete_annees} an(s)). Cet indicateur est basé sur des données publiques et permet d'identifier des tendances générales. Il ne constitue ni une preuve ni un jugement sur l'artisan.`);
+        // < 2 ans = ORANGE (pas rouge critique global, mais vigilance)
+        alertes.push(`🟠 Entreprise récente (${verified.anciennete_annees} an(s)). L'ancienneté est un indicateur parmi d'autres, elle ne préjuge pas de la qualité du travail.`);
       }
     }
 
+    // Bilans: 3 bilans dispo → vert, sinon → orange
     if (verified.bilans_disponibles >= 3) {
       points_ok.push(`🟢 ${verified.bilans_disponibles} bilans comptables disponibles`);
     } else if (verified.bilans_disponibles > 0) {
       points_ok.push(`🟠 ${verified.bilans_disponibles} bilan(s) comptable(s) disponible(s)`);
     } else {
-      points_ok.push("ℹ️ Aucun bilan publié - la vérification financière est limitée");
+      // Aucun bilan = NEUTRE (pas orange)
+      points_ok.push("ℹ️ Aucun bilan publié - la vérification financière n'a pas pu être effectuée");
     }
 
+    // Capitaux propres:
+    // < 0 → critère critique = ROUGE global
+    // ≥ 0 → vert
+    // inconnu → NEUTRE (pas orange)
     if (verified.capitaux_propres !== null && verified.capitaux_propres >= 0) {
       const formatted = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(verified.capitaux_propres);
       points_ok.push(`🟢 Capitaux propres positifs (${formatted})`);
     } else if (verified.capitaux_propres_negatifs === true) {
       const formatted = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(verified.capitaux_propres!);
-      alertes.push(`🔴 Capitaux propres négatifs (${formatted}). Cet indicateur est basé sur les derniers bilans publiés. Il peut indiquer une situation financière tendue.`);
+      alertes.push(`🔴 Capitaux propres négatifs (${formatted}). Cet indicateur est basé sur les derniers bilans publiés et peut indiquer une situation financière tendue.`);
     }
+    // Si capitaux inconnus = rien à afficher (NEUTRE)
 
+    // Procédure collective
     if (verified.procedure_collective === true) {
       alertes.push("🔴 Procédure collective en cours (confirmée via BODACC). Cela indique une situation de redressement ou liquidation judiciaire.");
     } else if (verified.procedure_collective === false) {
       points_ok.push("✓ Aucune procédure collective en cours");
     }
+    
   } else if (verified.entreprise_immatriculee === false) {
+    // Pappers retourné 404 = entreprise explicitement non trouvée
     alertes.push("🔴 Entreprise introuvable dans les registres officiels (confirmé via API). Cet indicateur est basé sur une recherche dans les bases de données publiques.");
-  } else if (extracted.entreprise.siret) {
-    points_ok.push(`ℹ️ SIRET présent : ${extracted.entreprise.siret}`);
-    if (verified.lookup_status === "error") {
-      points_ok.push("ℹ️ Les données entreprise n'ont pas pu être exploitées automatiquement (limitation temporaire). Cela n'indique pas un risque en soi.");
-    } else {
-      points_ok.push("ℹ️ Vous pouvez vérifier les informations sur societe.com ou infogreffe.fr");
+    
+  } else if (verified.lookup_status === "no_siret") {
+    // SIRET non détecté → vérification registre non réalisée (NEUTRE)
+    if (extracted.entreprise.nom) {
+      points_ok.push(`ℹ️ Entreprise : ${extracted.entreprise.nom}`);
     }
-  } else if (extracted.entreprise.nom) {
-    points_ok.push(`ℹ️ Entreprise : ${extracted.entreprise.nom}`);
-    points_ok.push("ℹ️ SIRET non détecté sur le devis. Vous pouvez le demander à l'artisan pour une vérification complète.");
+    points_ok.push("ℹ️ SIRET non détecté sur le devis, vérification registre non réalisée. Vous pouvez le demander à l'artisan.");
+    
+  } else if (verified.lookup_status === "error") {
+    // Pappers tenté mais erreur → message neutre, pas de score dégradé
+    points_ok.push(`ℹ️ SIRET présent : ${extracted.entreprise.siret}`);
+    points_ok.push("ℹ️ Vérification registre indisponible temporairement. Cela n'indique pas un risque en soi.");
+    
+  } else if (extracted.entreprise.siret) {
+    // Skipped pour autre raison
+    points_ok.push(`ℹ️ SIRET présent : ${extracted.entreprise.siret}`);
+    points_ok.push("ℹ️ Vous pouvez vérifier les informations sur societe.com ou infogreffe.fr");
+    
   } else {
+    // Aucune info entreprise
     points_ok.push("ℹ️ Coordonnées entreprise non identifiées sur le devis.");
   }
 
