@@ -1456,9 +1456,16 @@ serve(async (req) => {
       );
     }
 
-    // Convert to base64
+    // Convert to base64 - chunked approach to avoid stack overflow
     const arrayBuffer = await fileData.arrayBuffer();
-    const base64Content = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    const uint8Array = new Uint8Array(arrayBuffer);
+    const chunkSize = 8192;
+    let binaryString = "";
+    for (let i = 0; i < uint8Array.length; i += chunkSize) {
+      const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
+      binaryString += String.fromCharCode(...chunk);
+    }
+    const base64Content = btoa(binaryString);
     
     let mimeType = "application/pdf";
     const fileName = analysis.file_name.toLowerCase();
