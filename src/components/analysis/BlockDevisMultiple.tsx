@@ -51,23 +51,15 @@ const getScoreTextClass = (score: string | null | undefined) => {
   }
 };
 
+// Nouvelles règles: ton neutre, jamais "élevé" ou "très élevé"
 const getAppreciation = (score: string | null | undefined): string => {
   switch (score) {
-    case "VERT": return "Cohérent";
-    case "ORANGE": return "Élevé";
-    case "ROUGE": return "Très élevé";
-    default: return "Non évalué";
+    case "VERT": return "Dans la fourchette";
+    default: return "Comparaison disponible";
   }
 };
 
-const getTrendIcon = (score: string | null | undefined) => {
-  switch (score) {
-    case "VERT": return <Minus className="h-4 w-4 text-score-green" />;
-    case "ORANGE": return <TrendingUp className="h-4 w-4 text-score-orange" />;
-    case "ROUGE": return <TrendingUp className="h-4 w-4 text-score-red" />;
-    default: return null;
-  }
-};
+// Supprimé: getTrendIcon - plus de tendance négative affichée
 
 const formatPrice = (price: number | null | undefined): string => {
   if (price === null || price === undefined) return "—";
@@ -114,10 +106,10 @@ const formatCategoryLabel = (categorie: string): string => {
 
 const getZoneLabel = (zoneType: string | undefined): string => {
   switch (zoneType) {
-    case "grande_ville": return "Grande ville";
-    case "ville_moyenne": return "Ville moyenne";
-    case "province": return "Province";
-    default: return "";
+    case "grande_ville": return "Grande ville (+20%)";
+    case "ville_moyenne": return "Ville moyenne (référence)";
+    case "province": return "Zone rurale (-10%)";
+    default: return "Zone standard";
   }
 };
 
@@ -163,17 +155,13 @@ const extractFromPoints = (pointsOk: string[], alertes: string[]): TravauxItem[]
   return items;
 };
 
-// Calculate global score from items
-const calculateGlobalScore = (items: TravauxItem[]): "VERT" | "ORANGE" | "ROUGE" | null => {
+// Calculate global score - NOUVELLES RÈGLES: jamais dégradation pour les prix
+const calculateGlobalScore = (items: TravauxItem[]): "VERT" | null => {
+  // Per new rules: price analysis NEVER degrades the score
+  // Always return VERT if items exist, null otherwise
   const scoredItems = items.filter(i => i.score_prix);
   if (scoredItems.length === 0) return null;
-  
-  const redCount = scoredItems.filter(i => i.score_prix === "ROUGE").length;
-  const orangeCount = scoredItems.filter(i => i.score_prix === "ORANGE").length;
-  
-  if (redCount > 0) return "ROUGE";
-  if (orangeCount >= 2 || (orangeCount === 1 && scoredItems.length <= 2)) return "ORANGE";
-  return "VERT";
+  return "VERT"; // Always VERT - prices are informative only
 };
 
 // Function to filter out price-related items from points_ok/alertes
@@ -254,13 +242,15 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
               <p className="text-xl font-bold text-foreground">{formatPrice(montantTotalHT)}</p>
             </div>
           )}
-          
-          {/* Types de travaux avec comparaison de prix */}
+          {/* Types de travaux avec comparaison indicative */}
           {itemsWithPrice.length > 0 && (
             <div className="mb-4">
-              <h3 className="font-semibold text-foreground text-sm mb-3">
-                Comparaison aux prix de marché
+              <h3 className="font-semibold text-foreground text-sm mb-2">
+                Ce qui a pu être comparé
               </h3>
+              <p className="text-xs text-muted-foreground mb-3">
+                Les types de travaux ci-dessous ont été comparés à des fourchettes de prix indicatives, ajustées selon votre zone géographique.
+              </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {itemsWithPrice.map((item, idx) => (
                   <div 
@@ -305,10 +295,10 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
                         </div>
                       )}
                       
-                      {/* Appréciation */}
+                      {/* Appréciation - Ton neutre */}
                       <div className="flex items-center gap-1 pt-1">
-                        {getTrendIcon(item.score_prix)}
-                        <span className={`text-xs font-medium ${getScoreTextClass(item.score_prix)}`}>
+                        <CheckCircle2 className="h-4 w-4 text-score-green" />
+                        <span className="text-xs font-medium text-score-green">
                           {getAppreciation(item.score_prix)}
                         </span>
                       </div>
@@ -322,9 +312,12 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
           {/* Types de travaux sans comparaison de prix - Analyse qualitative pédagogique */}
           {hasStructuredData && itemsWithoutPrice.length > 0 && (
             <div className="mb-4">
-              <h3 className="font-semibold text-foreground text-sm mb-3">
-                Postes spécifiques identifiés
+              <h3 className="font-semibold text-foreground text-sm mb-2">
+                Ce qui ne peut pas être comparé
               </h3>
+              <p className="text-xs text-muted-foreground mb-3">
+                Ces prestations sont spécifiques et ne correspondent pas aux catégories standards de travaux.
+              </p>
               <div className="flex flex-wrap gap-2 mb-3">
                 {itemsWithoutPrice.map((item, idx) => (
                   <div 
@@ -343,22 +336,22 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
                 ))}
               </div>
               
-              {/* Explication pédagogique pour les postes sans comparaison */}
+              {/* Explication pédagogique - Pourquoi pas de comparaison */}
               <div className="p-4 bg-background/50 rounded-lg border border-border">
                 <div className="flex items-start gap-3 mb-3">
-                  <FileText className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                  <HelpCircle className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="text-sm font-medium text-foreground mb-2">
-                      Prestations spécifiques
+                      Pourquoi ces postes ne sont pas comparés ?
                     </p>
-                    <p className="text-sm text-muted-foreground">
-                      Ces prestations sont très spécifiques (produits sur mesure, dimensions précises, contexte particulier comme un sinistre ou une réparation). 
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      Ces prestations sont très spécifiques (produits sur mesure, dimensions précises, contexte particulier). 
                       Il n'existe pas de prix de référence standardisé permettant une comparaison automatique fiable.
                     </p>
                   </div>
                 </div>
                 
-                {/* Analyse qualitative */}
+                {/* Ce que l'analyse a vérifié */}
                 <div className="mt-4 pt-4 border-t border-border/50">
                   <p className="text-xs font-medium text-foreground mb-3 flex items-center gap-2">
                     <List className="h-4 w-4 text-primary" />
@@ -367,21 +360,21 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
                   <ul className="space-y-2">
                     <li className="flex items-start gap-2 text-sm text-muted-foreground">
                       <CheckCircle2 className="h-4 w-4 text-score-green flex-shrink-0 mt-0.5" />
-                      <span>Le devis présente un détail ligne par ligne des prestations</span>
+                      <span>Présence d'un détail ligne par ligne des prestations</span>
                     </li>
                     <li className="flex items-start gap-2 text-sm text-muted-foreground">
                       <CheckCircle2 className="h-4 w-4 text-score-green flex-shrink-0 mt-0.5" />
-                      <span>Les descriptions permettent d'identifier clairement les travaux prévus</span>
+                      <span>Clarté des descriptions permettant d'identifier les travaux</span>
                     </li>
                     <li className="flex items-start gap-2 text-sm text-muted-foreground">
                       <Calculator className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
-                      <span>La cohérence entre quantités, descriptions et montants a été analysée</span>
+                      <span>Cohérence entre quantités et montants vérifiée</span>
                     </li>
                   </ul>
                 </div>
                 
                 <p className="text-xs text-muted-foreground/80 mt-3 italic">
-                  L'absence de comparaison chiffrée n'indique pas un problème. Elle reflète simplement la nature sur mesure des prestations.
+                  💡 L'absence de comparaison chiffrée n'indique pas un problème. Elle reflète simplement la nature sur mesure des prestations.
                 </p>
               </div>
             </div>
@@ -420,27 +413,24 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
             </div>
           )}
           
-          {/* Score explanation - harmonized */}
+          {/* Score explanation - pédagogique et neutre */}
           {globalScore && (
             <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-              <p className={`text-sm font-medium ${getScoreTextClass(globalScore)}`}>
-                {globalScore === "VERT" && "✓ Les prix sont cohérents avec les références de marché."}
-                {globalScore === "ORANGE" && "ℹ️ Certains prix invitent à une vérification complémentaire."}
-                {globalScore === "ROUGE" && "⚠️ Certains écarts de prix nécessitent une attention particulière."}
+              <p className="text-sm font-medium text-score-green">
+                ✓ Les fourchettes de prix sont fournies à titre indicatif, sur la base de moyennes constatées.
               </p>
-              {globalScore === "ORANGE" && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  Aucun élément critique n'a été détecté. Les écarts de prix peuvent être justifiés par des spécificités du chantier.
-                </p>
-              )}
+              <p className="text-xs text-muted-foreground mt-2">
+                Ces informations ne constituent ni une expertise, ni une évaluation du travail de l'artisan.
+                Les spécificités du chantier, la qualité des matériaux et le contexte local peuvent justifier des écarts.
+              </p>
             </div>
           )}
           
-          {/* Disclaimer - harmonized */}
-          <div className="mt-3 p-2 bg-muted/30 rounded-lg">
-            <p className="text-xs text-muted-foreground/70 italic">
-              ℹ️ Analyse automatisée. Types de travaux identifiés automatiquement. Les comparaisons aux prix de référence (sources : FFB, CAPEB) sont indicatives 
-              et ajustées selon la zone géographique. L'objectif est d'aider à la compréhension et à la vigilance, pas de fixer un "bon prix".
+          {/* Mention obligatoire - légalement prudente */}
+          <div className="mt-4 p-3 bg-primary/5 rounded-lg border border-primary/10">
+            <p className="text-xs text-muted-foreground italic leading-relaxed">
+              ⚖️ Les fourchettes de prix sont fournies à titre indicatif, sur la base de moyennes constatées, 
+              et ne constituent ni une expertise, ni une évaluation du travail de l'artisan.
             </p>
           </div>
         </div>

@@ -745,6 +745,25 @@ interface ZoneGeographique {
   coefficient: number;
 }
 
+// ============================================================
+// COMPARAISON DE PRIX — RÈGLES PÉDAGOGIQUES ET NEUTRES
+// ============================================================
+// 1. Regrouper les lignes pour identifier jusqu'à 3 types de travaux dominants max
+// 2. Utiliser des fourchettes de prix nationales indicatives
+// 3. Appliquer ajustement géographique (+20% grande ville, 0% moyenne, -10% province)
+// 4. NE JAMAIS conclure qu'un prix est "trop élevé" ou "anormal"
+// 5. NE JAMAIS dégrader le score si la comparaison n'est pas possible
+// ============================================================
+
+function getZoneAdjustmentLabel(zoneType: string): string {
+  switch (zoneType) {
+    case "grande_ville": return "ajusté +20% (grande ville)";
+    case "ville_moyenne": return "zone référence (ville moyenne)";
+    case "province": return "ajusté -10% (zone rurale)";
+    default: return "zone standard";
+  }
+}
+
 function comparePrices(
   travaux: ExtractedData["travaux"],
   postalCode: string | null,
@@ -757,18 +776,66 @@ function comparePrices(
 
   const prefix = postalCode.substring(0, 2);
   const zone = zones.find(z => z.prefixe_postal === prefix);
-  const coefficient = zone?.coefficient || 0.90;
-  const zoneType = zone?.type_zone || "province";
+  const coefficient = zone?.coefficient || 1.0; // Default to neutral
+  const zoneType = zone?.type_zone || "ville_moyenne";
 
+  // Group work items by category and sum amounts
+  const categoryTotals: Map<string, { total: number; quantite: number; items: typeof travaux }> = new Map();
+  
   for (const t of travaux) {
-    if (!t.quantite || !t.montant || t.quantite <= 0) continue;
+    if (!t.montant || t.montant <= 0) continue;
+    
+    const existing = categoryTotals.get(t.categorie) || { total: 0, quantite: 0, items: [] };
+    existing.total += t.montant;
+    existing.quantite += t.quantite || 0;
+    existing.items.push(t);
+    categoryTotals.set(t.categorie, existing);
+  }
 
+  // Sort by total amount descending and take top 3 dominant types
+  const sortedCategories = Array.from(categoryTotals.entries())
+    .sort((a, b) => b[1].total - a[1].total)
+    .slice(0, 3); // MAX 3 TYPES DE TRAVAUX
+
+  for (const [categorie, data] of sortedCategories) {
     const reference = referencePrix.find(r => 
-      r.categorie_travaux.toLowerCase() === t.categorie.toLowerCase()
+      r.categorie_travaux.toLowerCase() === categorie.toLowerCase()
     );
-    if (!reference) continue;
+    
+    // Get the first item's libelle for display
+    const libelle = data.items[0]?.libelle || categorie;
+    
+    if (!reference) {
+      // No reference available - add as info without impacting score
+      comparisons.push({
+        categorie,
+        libelle,
+        prix_unitaire_devis: data.quantite > 0 ? data.total / data.quantite : data.total,
+        fourchette_min: 0,
+        fourchette_max: 0,
+        zone: zoneType,
+        score: "VERT", // No comparison possible = no impact on score
+        explication: "Prestation spécifique - pas de référence standardisée disponible",
+      });
+      continue;
+    }
 
-    const unitPrice = t.montant / t.quantite;
+    // Only compute unit price if we have quantity
+    if (data.quantite <= 0) {
+      comparisons.push({
+        categorie,
+        libelle,
+        prix_unitaire_devis: data.total,
+        fourchette_min: reference.prix_min_national * coefficient,
+        fourchette_max: reference.prix_max_national * coefficient,
+        zone: zoneType,
+        score: "VERT", // Cannot compare without quantity = no impact
+        explication: `Montant total indicatif - quantité non précisée (fourchette marché ${getZoneAdjustmentLabel(zoneType)})`,
+      });
+      continue;
+    }
+
+    const unitPrice = data.total / data.quantite;
     const rangeMin = reference.prix_min_national * coefficient;
     const rangeMax = reference.prix_max_national * coefficient;
 
@@ -777,18 +844,20 @@ function comparePrices(
 
     if (unitPrice <= rangeMax) {
       score = "VERT";
-      explication = "Prix cohérent avec le marché";
-    } else if (unitPrice <= rangeMax * 1.3) {
-      score = "ORANGE";
-      explication = "Prix au-dessus du marché";
+      explication = `Prix unitaire dans la fourchette de marché (${getZoneAdjustmentLabel(zoneType)})`;
+    } else if (unitPrice <= rangeMax * 1.5) {
+      // Above range but within 50% - just informative, neutral tone
+      score = "VERT"; // Changed: No score degradation per new rules
+      explication = `Prix unitaire au-dessus de la fourchette indicative - peut être justifié par les spécificités du chantier (${getZoneAdjustmentLabel(zoneType)})`;
     } else {
-      score = "ORANGE"; // NEVER RED for prices alone per spec
-      explication = `Prix très supérieur au marché (${unitPrice.toFixed(2)}€ vs ${rangeMax.toFixed(2)}€ max)`;
+      // Significantly above - still neutral, never "too high" or "abnormal"
+      score = "VERT"; // Changed: NEVER degrade score for price alone
+      explication = `Prix unitaire significativement supérieur aux moyennes constatées - des spécificités peuvent justifier cet écart (${getZoneAdjustmentLabel(zoneType)})`;
     }
 
     comparisons.push({
-      categorie: t.categorie,
-      libelle: t.libelle || t.categorie,
+      categorie,
+      libelle,
       prix_unitaire_devis: unitPrice,
       fourchette_min: rangeMin,
       fourchette_max: rangeMax,
@@ -971,11 +1040,9 @@ function calculateScore(extracted: ExtractedData, verified: VerificationResult):
     oranges.push(`Note Google inférieure au seuil de confort (${verified.google_note}/5)`);
   }
 
-  // E) Prix hors fourchette CONFIRMÉ (comparaison effectuée)
-  const priceIssues = verified.comparaisons_prix.filter(p => p.score === "ORANGE");
-  if (priceIssues.length > 0) {
-    oranges.push(`${priceIssues.length} poste(s) avec prix au-dessus du marché à vérifier`);
-  }
+  // E) Prix hors fourchette - SUPPRIMÉ per new rules
+  // Les prix ne dégradent JAMAIS le score selon les nouvelles règles pédagogiques
+  // Les écarts de prix sont informatifs uniquement
 
   // F) Entreprise jeune < 2 ans (CONFIRMÉ via API, pas absent)
   if (verified.entreprise_immatriculee === true && verified.anciennete_annees !== null && verified.anciennete_annees < 2) {
@@ -1265,18 +1332,35 @@ function renderOutput(
     points_ok.push("🟢 Qualification QUALIBAT mentionnée sur le devis");
   }
 
-  // ============ BLOC 2: DEVIS & COHÉRENCE ============
+  // ============ BLOC 2: DEVIS & COHÉRENCE FINANCIÈRE ============
+  // Règles: pédagogique, neutre, jamais "trop élevé", expliquer ce qui a pu/pas pu être comparé
 
-  for (const comparison of verified.comparaisons_prix) {
-    if (comparison.score === "VERT") {
-      points_ok.push(`✓ ${comparison.libelle}: prix cohérent (${comparison.prix_unitaire_devis.toFixed(2)}€)`);
-    } else {
-      alertes.push(`ℹ️ ${comparison.libelle}: ${comparison.explication}. Cet indicateur est basé sur des fourchettes de prix indicatives. Il ne constitue pas un jugement définitif.`);
+  if (verified.comparaisons_prix.length > 0) {
+    // Types de travaux identifiés
+    const identifiedTypes = verified.comparaisons_prix.map(c => c.libelle).slice(0, 3);
+    points_ok.push(`✓ Types de travaux identifiés : ${identifiedTypes.join(", ")}`);
+    
+    // Comparisons with pedagogical tone
+    for (const comparison of verified.comparaisons_prix) {
+      if (comparison.fourchette_min > 0 && comparison.fourchette_max > 0) {
+        // Comparison was possible
+        points_ok.push(`📊 ${comparison.libelle} : ${comparison.explication}`);
+      } else {
+        // No reference available - explain why
+        points_ok.push(`ℹ️ ${comparison.libelle} : prestation spécifique sans référence standardisée - comparaison non applicable`);
+      }
     }
   }
 
+  // Work types detected but no price comparison possible
+  if (extracted.travaux.length > 0 && verified.comparaisons_prix.length === 0) {
+    const travauxLabels = extracted.travaux.slice(0, 3).map(t => t.libelle || t.categorie).join(", ");
+    points_ok.push(`ℹ️ Travaux identifiés (${travauxLabels}) - prestations spécifiques sans référence marché standardisée`);
+    points_ok.push("ℹ️ L'absence de comparaison chiffrée n'indique pas un problème - elle reflète la nature sur mesure des prestations");
+  }
+
   if (extracted.travaux.length === 0) {
-    points_ok.push("ℹ️ Aucun poste de travaux détecté. Le détail des prestations pourrait être demandé.");
+    points_ok.push("ℹ️ Aucun poste de travaux détaillé détecté - vous pouvez demander un devis plus détaillé à l'artisan");
   }
 
   // ============ BLOC 3: SÉCURITÉ & PAIEMENT ============
