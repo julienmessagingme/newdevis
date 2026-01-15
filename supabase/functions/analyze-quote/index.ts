@@ -35,7 +35,6 @@ class PipelineError extends Error {
 const isPipelineError = (e: unknown): e is PipelineError => e instanceof PipelineError;
 
 // ============ API ENDPOINTS ============
-
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const PAPPERS_API_URL = "https://api.pappers.fr/v2";
 const BODACC_API_URL = "https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales/records";
@@ -47,169 +46,130 @@ const ADRESSE_API_URL = "https://api-adresse.data.gouv.fr/search";
 
 // ============ TYPE DEFINITIONS ============
 type ScoringColor = "VERT" | "ORANGE" | "ROUGE";
-type Confidence = "high" | "medium" | "low";
+type DocumentType = "devis_travaux" | "facture" | "diagnostic_immobilier" | "autre";
 
-// Document type detection result
-type DocumentType = 
-  | "devis_travaux"              // Full analysis + standard scoring
-  | "devis_prestation_technique" // Adapted analysis (no market price, no décennale required)
-  | "devis_diagnostic_immobilier" // Specific analysis for property diagnostics
-  | "facture"                    // Rejected - invoice, not a quote
-  | "autre";                     // Rejected - non-conforming document
+// ============================================================
+// PHASE 1 — EXTRACTION UNIQUE (UN SEUL APPEL IA)
+// ============================================================
+// Identifie le type de document + extrait TOUTES les données factuelles
+// ❌ INTERDIT de calculer un score
+// ❌ INTERDIT d'interpréter
+// ❌ INTERDIT d'émettre une recommandation
+// ============================================================
 
-interface DocumentDetectionResult {
-  type: DocumentType;
-  confidence: Confidence;
-  indicators: string[];       // What led to this classification
-  analysis_mode: "full" | "adapted" | "diagnostic" | "rejected";
-  rejection_message?: string;
-  credibility_message: string;
-  diagnostic_types?: string[]; // For diagnostic immobilier: list of detected diagnostics
-}
-
-// Reference prices for diagnostic immobilier (indicative national ranges)
-const DIAGNOSTIC_REFERENCE_PRICES: Record<string, { min: number; max: number; label: string }> = {
-  "dpe": { min: 100, max: 250, label: "DPE (Diagnostic de Performance Énergétique)" },
-  "amiante": { min: 80, max: 200, label: "Diagnostic Amiante" },
-  "plomb": { min: 100, max: 200, label: "Diagnostic Plomb (CREP)" },
-  "gaz": { min: 100, max: 180, label: "Diagnostic Gaz" },
-  "electricite": { min: 100, max: 180, label: "Diagnostic Électricité" },
-  "erp": { min: 20, max: 50, label: "État des Risques et Pollutions (ERP)" },
-  "carrez": { min: 50, max: 150, label: "Métrage Loi Carrez" },
-  "boutin": { min: 50, max: 100, label: "Surface habitable (Boutin)" },
-  "termites": { min: 80, max: 180, label: "Diagnostic Termites" },
-  "assainissement": { min: 100, max: 200, label: "Diagnostic Assainissement" },
-  "pack_vente": { min: 290, max: 440, label: "Pack Diagnostics Vente" },
-  "pack_location": { min: 190, max: 300, label: "Pack Diagnostics Location" },
-  "dtg": { min: 0, max: 0, label: "DTG (Diagnostic Technique Global)" }, // Not comparable
-  "pppt": { min: 0, max: 0, label: "PPPT (Plan Pluriannuel de Travaux)" }, // Not comparable
-};
-
-// ============ STEP 1: EXTRACT - Structured quote extraction ============
-interface QuoteExtracted {
-  company: {
-    name: string | null;
+interface ExtractedData {
+  type_document: DocumentType;
+  entreprise: {
+    nom: string | null;
     siret: string | null;
-    siren: string | null;
-    address_company: string | null;
-    confidence: Confidence;
+    adresse: string | null;
+    iban: string | null;
+    assurance_decennale_mentionnee: boolean | null;
+    assurance_rc_pro_mentionnee: boolean | null;
+    certifications_mentionnees: string[];
   };
-  chantier: {
-    address_chantier: string | null;
-    postal_code: string | null;
-    city: string | null;
-    confidence: Confidence;
+  client: {
+    adresse_chantier: string | null;
+    code_postal: string | null;
+    ville: string | null;
   };
   travaux: Array<{
-    category: string;
-    description: string;
-    amount_ht: number | null;
-    quantity: number | null;
-    unit: string | null;
-    confidence: Confidence;
+    libelle: string;
+    categorie: string;
+    montant: number | null;
+    quantite: number | null;
+    unite: string | null;
   }>;
-  totals: {
-    total_ht: number | null;
-    total_tva: number | null;
-    total_ttc: number | null;
-    tva_rate: number | null;
-    totals_incoherence: "yes" | "no" | "uncertain";
-    incoherence_reason: string | null;
-  };
   paiement: {
-    payment_methods_detected: string[];
-    iban_detected: string | null;
-    rib_detected: boolean;
-    payment_schedule_text: string | null;
-    has_payment_schedule: boolean;
+    acompte_pct: number | null;
+    acompte_avant_travaux_pct: number | null;
+    modes: string[];
+    echeancier_detecte: boolean;
   };
-  acompte: {
-    deposit_percent: number | null;
-    deposit_amount: number | null;
-    deposit_before_work_percent: number | null;
+  dates: {
+    date_devis: string | null;
+    date_execution_max: string | null;
   };
-  assurances: {
-    mentions_decennale: "yes" | "no" | "uncertain";
-    mentions_rcpro: "yes" | "no" | "uncertain";
-    insurer_name: string | null;
-    policy_number: string | null;
-    validity_dates_text: string | null;
+  totaux: {
+    ht: number | null;
+    tva: number | null;
+    ttc: number | null;
+    taux_tva: number | null;
   };
-  labels: {
-    mentions_rge: "yes" | "no" | "uncertain";
-    mentions_qualibat: "yes" | "no" | "uncertain";
-  };
-  architecte_moe: {
-    detected: boolean;
-    type: "architecte" | "maitre_oeuvre" | null;
-    name: string | null;
-    honoraires_ht: number | null;
-  };
-  anomalies: string[];
-  resume: string;
+  anomalies_detectees: string[];
+  resume_factuel: string;
 }
 
-// ============ STEP 2: VERIFY - Verification results ============
-interface QuoteVerified {
-  // Pappers company info
-  company_found: boolean;
-  // Whether the official lookup succeeded, failed, or explicitly confirmed not found
-  company_lookup_status: "ok" | "not_found" | "error" | "skipped";
-  company_name: string | null;
-  date_creation: string | null;
-  anciennete_years: number | null;
-  bilans_disponibles: number;
+// ============================================================
+// PHASE 2 — VÉRIFICATION (APIs EXTERNES - SANS IA)
+// ============================================================
+
+interface VerificationResult {
+  // Pappers
+  entreprise_immatriculee: boolean | null; // null = non vérifié, true = trouvé, false = introuvable
+  entreprise_radiee: boolean | null;
+  procedure_collective: boolean | null;
   capitaux_propres: number | null;
-  capitaux_propres_positifs: boolean | null;
-  procedure_collective: boolean;
-  company_address: string | null;
-  company_city: string | null;
+  capitaux_propres_negatifs: boolean | null;
+  date_creation: string | null;
+  anciennete_annees: number | null;
+  bilans_disponibles: number;
+  nom_officiel: string | null;
+  adresse_officielle: string | null;
+  ville_officielle: string | null;
+  lookup_status: "ok" | "not_found" | "error" | "skipped";
   
-  // IBAN verification
-  iban_verified: boolean;
-  iban_valid: boolean | null;
-  iban_country: string | null;
-  iban_country_code: string | null;
-  iban_bank_name: string | null;
+  // IBAN
+  iban_verifie: boolean;
+  iban_valide: boolean | null;
+  iban_pays: string | null;
+  iban_code_pays: string | null;
+  iban_banque: string | null;
   
-  // RGE verification
-  rge_relevant: boolean;
-  rge_found: boolean;
+  // RGE
+  rge_pertinent: boolean;
+  rge_trouve: boolean;
   rge_qualifications: string[];
   
-  // Google Places
-  google_found: boolean;
-  google_rating: number | null;
-  google_reviews_count: number | null;
-  google_match_confidence: Confidence;
+  // Google
+  google_trouve: boolean;
+  google_note: number | null;
+  google_nb_avis: number | null;
+  google_match_fiable: boolean;
   
   // Géorisques
-  georisques_queried: boolean;
-  georisques_risks: string[];
-  georisques_seismic_zone: string | null;
+  georisques_consulte: boolean;
+  georisques_risques: string[];
+  georisques_zone_sismique: string | null;
   georisques_commune: string | null;
   
-  // Price comparison
-  price_comparisons: Array<{
-    category: string;
-    label: string;
-    unit_price_quote: number;
-    range_min: number;
-    range_max: number;
-    zone_type: string;
+  // Prix marché
+  comparaisons_prix: Array<{
+    categorie: string;
+    libelle: string;
+    prix_unitaire_devis: number;
+    fourchette_min: number;
+    fourchette_max: number;
+    zone: string;
     score: ScoringColor;
-    explanation: string;
+    explication: string;
   }>;
 }
 
-// ============ STEP 3: SCORE - Scoring result ============
+// ============================================================
+// PHASE 3 — SCORING DÉTERMINISTE (SANS IA - RÈGLES STRICTES)
+// ============================================================
+// ⚠️ UN FEU ROUGE NE PEUT ÊTRE DÉCLENCHÉ QUE SI AU MOINS UN DES CAS SUIVANTS EST CONFIRMÉ EXPLICITEMENT
+// ❌ TOUT AUTRE CRITÈRE EST INTERDIT COMME DÉCLENCHEUR DE FEU ROUGE
+// ============================================================
+
 interface ScoringResult {
-  global_score: ScoringColor;
-  criteres_critiques: string[];
-  criteres_majeurs: string[];
-  criteres_confort: string[];
-  score_explanation: string;
-  bloc_scores: {
+  score_global: ScoringColor;
+  criteres_rouges: string[];   // Critiques confirmés
+  criteres_oranges: string[];  // Vigilance
+  criteres_verts: string[];    // Positifs
+  explication: string;
+  scores_blocs: {
     entreprise: ScoringColor;
     devis: ScoringColor;
     securite: ScoringColor;
@@ -250,228 +210,90 @@ function cleanAddress(rawAddress: string): string {
     .trim();
 }
 
-// ============ STEP 0: DETECT DOCUMENT TYPE ============
-async function detectDocumentType(
+function extractSiren(siret: string | null): string | null {
+  if (!siret) return null;
+  const cleaned = siret.replace(/\s/g, "");
+  return cleaned.length >= 9 ? cleaned.substring(0, 9) : null;
+}
+
+// ============================================================
+// PHASE 1: EXTRACTION UNIQUE (UN SEUL APPEL IA)
+// ============================================================
+
+async function extractDataFromDocument(
   base64Content: string,
   mimeType: string,
   lovableApiKey: string
-): Promise<DocumentDetectionResult> {
-  const systemPrompt = `Tu es un expert en classification de documents commerciaux français. Tu identifies le type de document transmis avec précision.`;
+): Promise<ExtractedData> {
+  
+  const systemPrompt = `Tu es VerifierMonDevis.fr, un outil d'aide à la décision à destination des particuliers.
 
-  const userPrompt = `Analyse ce document et détermine son type parmi les catégories suivantes :
+Tu n'évalues PAS les artisans.
+Tu ne portes AUCUN jugement de valeur.
+Tu fournis des indicateurs factuels, pédagogiques et vérifiables.
 
-1. DEVIS DE TRAVAUX : Document préparatoire proposant des travaux de construction, rénovation, installation (plomberie, électricité, toiture, isolation, peinture, maçonnerie, menuiserie, etc.)
-   Indices : "Devis", montants HT/TTC, descriptions de travaux, mentions d'assurance décennale, dates de validité
-
-2. DEVIS DE DIAGNOSTIC IMMOBILIER : Document proposant des diagnostics obligatoires ou facultatifs liés à un bien immobilier
-   Indices : DPE, amiante, plomb, gaz, électricité, ERP, Carrez, Boutin, termites, DTG, PPPT, "diagnostic immobilier", "pack vente", "pack location", certification diagnostiqueur
-   CE TYPE EST PRIORITAIRE si des diagnostics immobiliers sont détectés
-
-3. DEVIS DE PRESTATION TECHNIQUE : Document proposant des services intellectuels ou techniques liés au bâtiment (audit énergétique, étude thermique, expertise, contrôle technique) MAIS PAS de diagnostics immobiliers
-   Indices : "Devis", "Audit", "Étude", honoraires, mission intellectuelle
-
-4. FACTURE : Document émis APRÈS réalisation de travaux ou prestations
-   Indices : "Facture", numéro de facture, "Net à payer", référence à des travaux passés, date d'échéance de paiement
-
-5. AUTRE : Document qui n'est pas un devis ni une facture (bon de commande, contrat, attestation, courrier, etc.)
-
-Réponds UNIQUEMENT avec ce JSON :
-{
-  "type": "devis_travaux | devis_diagnostic_immobilier | devis_prestation_technique | facture | autre",
-  "confidence": "high | medium | low",
-  "indicators": ["liste des éléments qui ont permis cette classification"],
-  "document_title": "titre du document s'il est visible",
-  "diagnostics_detected": ["dpe", "amiante", "plomb", "gaz", "electricite", "erp", "carrez", "boutin", "termites", "dtg", "pppt"] // uniquement si type = devis_diagnostic_immobilier
-}`;
-
-  try {
-    const aiResponse = await fetch(LOVABLE_AI_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${lovableApiKey}`,
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: userPrompt },
-              { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Content}` } },
-            ],
-          },
-        ],
-        response_format: { type: "json_object" },
-      }),
-    });
-
-    if (!aiResponse.ok) {
-      console.error("Document detection AI error:", aiResponse.status);
-      // Default to devis_travaux if detection fails to not block the user
-      return {
-        type: "devis_travaux",
-        confidence: "low",
-        indicators: ["Détection automatique non concluante - analyse standard appliquée"],
-        analysis_mode: "full",
-        credibility_message: "L'objectif de VerifierMonDevis.fr est de fournir une analyse pertinente et fiable.",
-      };
-    }
-
-    const aiResult = await aiResponse.json();
-    const content = aiResult.choices?.[0]?.message?.content;
-    if (!content) {
-      return {
-        type: "devis_travaux",
-        confidence: "low",
-        indicators: ["Réponse AI vide - analyse standard appliquée"],
-        analysis_mode: "full",
-        credibility_message: "L'objectif de VerifierMonDevis.fr est de fournir une analyse pertinente et fiable.",
-      };
-    }
-
-    const parsed = JSON.parse(content);
-    const detectedType: DocumentType = 
-      ["devis_travaux", "devis_diagnostic_immobilier", "devis_prestation_technique", "facture", "autre"].includes(parsed.type) 
-        ? parsed.type 
-        : "devis_travaux";
-
-    const result: DocumentDetectionResult = {
-      type: detectedType,
-      confidence: parsed.confidence || "medium",
-      indicators: Array.isArray(parsed.indicators) ? parsed.indicators : [],
-      analysis_mode: "full",
-      credibility_message: "L'objectif de VerifierMonDevis.fr est de fournir une analyse pertinente et fiable. Lorsque le document transmis ne correspond pas à un devis de travaux, l'analyse est volontairement limitée ou refusée afin d'éviter toute interprétation incorrecte.",
-      diagnostic_types: Array.isArray(parsed.diagnostics_detected) ? parsed.diagnostics_detected : [],
-    };
-
-    // Set analysis mode and messages based on document type
-    switch (detectedType) {
-      case "devis_travaux":
-        result.analysis_mode = "full";
-        result.credibility_message = "Document identifié comme un devis de travaux - analyse complète appliquée.";
-        break;
-      
-      case "devis_diagnostic_immobilier":
-        result.analysis_mode = "diagnostic";
-        result.credibility_message = "Ce devis concerne des diagnostics immobiliers. L'analyse est adaptée : pas d'exigence d'assurance décennale ni de certification RGE/Qualibat. Les tarifs des diagnostics immobiliers sont libres et peuvent varier selon la taille du bien, sa localisation et le nombre de diagnostics requis. Les comparaisons de prix sont fournies à titre indicatif afin d'aider à situer le devis par rapport aux pratiques courantes.";
-        break;
-        
-      case "devis_prestation_technique":
-        result.analysis_mode = "adapted";
-        result.credibility_message = "Ce devis concerne une prestation technique (audit, étude, expertise). L'analyse est adaptée à la nature de la mission : la comparaison aux prix de marché travaux et l'exigence d'assurance décennale ne s'appliquent pas.";
-        break;
-        
-      case "facture":
-        result.analysis_mode = "rejected";
-        result.rejection_message = "Le document transmis est une facture. VerifierMonDevis.fr analyse uniquement des devis, c'est-à-dire des documents émis AVANT réalisation des travaux. Une facture correspond à un document de règlement post-travaux.";
-        break;
-        
-      case "autre":
-        result.analysis_mode = "rejected";
-        result.rejection_message = "Le document transmis ne correspond pas à un devis de travaux ou de prestation technique. Veuillez transmettre un devis conforme pour bénéficier de l'analyse.";
-        break;
-    }
-
-    return result;
-  } catch (error) {
-    console.error("Document detection error:", error);
-    // Default to full analysis if detection fails
-    return {
-      type: "devis_travaux",
-      confidence: "low",
-      indicators: ["Erreur de détection - analyse standard appliquée"],
-      analysis_mode: "full",
-      credibility_message: "L'objectif de VerifierMonDevis.fr est de fournir une analyse pertinente et fiable.",
-    };
-  }
-}
-
-// ============ STEP 1: EXTRACT ============
-async function extractQuoteData(
-  base64Content: string,
-  mimeType: string,
-  lovableApiKey: string,
-  documentType: DocumentType = "devis_travaux"
-): Promise<QuoteExtracted> {
-  const systemPrompt = `Tu es un expert en extraction de données de devis travaux. Tu extrais UNIQUEMENT les informations présentes dans le document, sans inventer de données. Réponds uniquement avec un JSON valide.`;
-
-  const userPrompt = `Analyse ce devis et extrait les informations avec précision.
-
-RÈGLES CRITIQUES:
+RÈGLES D'EXTRACTION:
 1. N'invente AUCUNE information. Si une donnée n'est pas visible, retourne null.
-2. Pour le mode de paiement: NE JAMAIS déduire "espèces" par défaut. "espèces" SEULEMENT si les mots "espèces", "cash", "comptant en espèces" sont explicitement présents.
-3. Si un IBAN ou RIB est présent, le mode de paiement principal est virement, pas espèces.
-4. Pour les assurances: si mentionnée = "yes", si doute = "uncertain", si vraiment absente = "no".
+2. Pour le mode de paiement: NE JAMAIS déduire "espèces" par défaut. "espèces" SEULEMENT si les mots "espèces", "cash", "comptant en espèces" sont explicitement présents dans le document.
+3. Si un IBAN ou RIB est présent, le mode de paiement est "virement", pas "espèces".
+4. Pour les assurances: true si clairement mentionnée, false si absente, null si doute.
 
-EXTRACTION DEMANDÉE:
+Tu dois effectuer UNE SEULE extraction complète et structurée.`;
+
+  const userPrompt = `Analyse ce document et extrait TOUTES les données factuelles.
+
+IDENTIFICATION DU DOCUMENT:
+1. DEVIS DE TRAVAUX : "Devis", montants HT/TTC, descriptions de travaux, assurance décennale
+2. DIAGNOSTIC IMMOBILIER : DPE, amiante, plomb, gaz, électricité, ERP, Carrez
+3. FACTURE : "Facture", numéro de facture, "Net à payer", travaux passés
+4. AUTRE : Document non conforme
+
+EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON:
 
 {
-  "company": {
-    "name": "nom de l'entreprise ou null",
-    "siret": "numéro SIRET 14 chiffres ou null",
-    "siren": "numéro SIREN 9 chiffres ou null (extrait du SIRET si besoin)",
-    "address_company": "adresse complète de l'entreprise ou null",
-    "confidence": "high/medium/low"
+  "type_document": "devis_travaux | facture | diagnostic_immobilier | autre",
+  "entreprise": {
+    "nom": "nom exact ou null",
+    "siret": "numéro SIRET 14 chiffres sans espaces ou null",
+    "adresse": "adresse complète ou null",
+    "iban": "IBAN complet ou null",
+    "assurance_decennale_mentionnee": true | false | null,
+    "assurance_rc_pro_mentionnee": true | false | null,
+    "certifications_mentionnees": ["RGE", "QUALIBAT", etc] ou []
   },
-  "chantier": {
-    "address_chantier": "adresse complète du chantier ou null",
-    "postal_code": "code postal 5 chiffres ou null",
-    "city": "ville ou null",
-    "confidence": "high/medium/low"
+  "client": {
+    "adresse_chantier": "adresse complète du chantier ou null",
+    "code_postal": "code postal 5 chiffres ou null",
+    "ville": "ville ou null"
   },
   "travaux": [
     {
-      "category": "plomberie|electricite|chauffage_pac|isolation|toiture|menuiserie|peinture|maconnerie|renovation_sdb|renovation_cuisine|carrelage|parquet|facade|renovation_globale|autre",
-      "description": "description exacte du devis",
-      "amount_ht": 5000,
-      "quantity": 50,
-      "unit": "m²|unité|forfait|ml",
-      "confidence": "high/medium/low"
+      "libelle": "description exacte",
+      "categorie": "plomberie|electricite|chauffage|isolation|toiture|menuiserie|peinture|maconnerie|renovation_sdb|renovation_cuisine|carrelage|parquet|facade|autre",
+      "montant": 5000 ou null,
+      "quantite": 50 ou null,
+      "unite": "m²|unité|forfait|ml" ou null
     }
   ],
-  "totals": {
-    "total_ht": 10000,
-    "total_tva": 2000,
-    "total_ttc": 12000,
-    "tva_rate": 20,
-    "totals_incoherence": "yes si total != somme des lignes, no si cohérent, uncertain si impossible à vérifier",
-    "incoherence_reason": "explication si incohérence détectée ou null"
-  },
   "paiement": {
-    "payment_methods_detected": ["virement", "cheque", "carte_bancaire"] (JAMAIS "especes" sauf si explicitement mentionné),
-    "iban_detected": "FR7612345678901234567890123 ou null",
-    "rib_detected": true/false,
-    "payment_schedule_text": "description de l'échéancier si présent ou null",
-    "has_payment_schedule": true si échéancier en plusieurs versements
+    "acompte_pct": 30 ou null,
+    "acompte_avant_travaux_pct": pourcentage dû AVANT début des travaux ou null,
+    "modes": ["virement", "cheque"] - JAMAIS "especes" sauf si explicitement écrit,
+    "echeancier_detecte": true | false
   },
-  "acompte": {
-    "deposit_percent": 30,
-    "deposit_amount": 3000,
-    "deposit_before_work_percent": pourcentage réellement dû AVANT le début des travaux (si échéancier, c'est le premier versement)
+  "dates": {
+    "date_devis": "YYYY-MM-DD ou null",
+    "date_execution_max": "YYYY-MM-DD ou null"
   },
-  "assurances": {
-    "mentions_decennale": "yes si clairement mentionnée, uncertain si partielle ou doute, no si vraiment absente",
-    "mentions_rcpro": "yes si clairement mentionnée, uncertain si partielle ou doute, no si vraiment absente",
-    "insurer_name": "nom de l'assureur ou null",
-    "policy_number": "numéro de police ou null",
-    "validity_dates_text": "dates de validité ou null"
+  "totaux": {
+    "ht": 10000 ou null,
+    "tva": 2000 ou null,
+    "ttc": 12000 ou null,
+    "taux_tva": 20 ou null
   },
-  "labels": {
-    "mentions_rge": "yes/no/uncertain",
-    "mentions_qualibat": "yes/no/uncertain"
-  },
-  "architecte_moe": {
-    "detected": true/false,
-    "type": "architecte ou maitre_oeuvre ou null",
-    "name": "nom ou null",
-    "honoraires_ht": 1500 ou null
-  },
-  "anomalies": ["liste des incohérences ou anomalies détectées dans le devis"],
-  "resume": "résumé clair et pédagogique du devis pour un particulier"
+  "anomalies_detectees": ["liste des incohérences factuelles détectées"],
+  "resume_factuel": "description factuelle courte du document sans jugement"
 }`;
-
 
   try {
     const aiResponse = await fetch(LOVABLE_AI_URL, {
@@ -504,8 +326,7 @@ EXTRACTION DEMANDÉE:
         throw new PipelineError({
           status: 402,
           code: "AI_PAYMENT_REQUIRED",
-          publicMessage:
-            "Le service d'analyse est temporairement indisponible (crédits IA insuffisants). Veuillez réessayer plus tard ou ajouter des crédits.",
+          publicMessage: "Le service d'analyse est temporairement indisponible (crédits IA insuffisants). Veuillez réessayer plus tard.",
         });
       }
 
@@ -513,16 +334,14 @@ EXTRACTION DEMANDÉE:
         throw new PipelineError({
           status: 429,
           code: "AI_RATE_LIMIT",
-          publicMessage:
-            "Le service d'analyse est temporairement surchargé (trop de demandes). Veuillez réessayer dans quelques minutes.",
+          publicMessage: "Le service d'analyse est temporairement surchargé. Veuillez réessayer dans quelques minutes.",
         });
       }
 
       throw new PipelineError({
         status: 502,
         code: "AI_GATEWAY_ERROR",
-        publicMessage:
-          "Le service d'analyse est temporairement indisponible. Veuillez réessayer plus tard.",
+        publicMessage: "Le service d'analyse est temporairement indisponible. Veuillez réessayer plus tard.",
       });
     }
 
@@ -532,165 +351,155 @@ EXTRACTION DEMANDÉE:
 
     const parsed = JSON.parse(content);
     
-    // Normalize and validate extracted data
-    const extracted: QuoteExtracted = {
-      company: {
-        name: parsed.company?.name || null,
-        siret: parsed.company?.siret?.replace(/\s/g, "") || null,
-        siren: parsed.company?.siren?.replace(/\s/g, "") || null,
-        address_company: parsed.company?.address_company || null,
-        confidence: parsed.company?.confidence || "medium",
+    // Normalize and validate
+    const typeDocument = ["devis_travaux", "facture", "diagnostic_immobilier", "autre"].includes(parsed.type_document) 
+      ? parsed.type_document 
+      : "autre";
+    
+    // CRITICAL: If IBAN is present, remove "especes" from payment modes
+    let modes = Array.isArray(parsed.paiement?.modes) 
+      ? parsed.paiement.modes.filter((m: string) => ["virement", "cheque", "carte_bancaire", "especes"].includes(m?.toLowerCase()))
+      : [];
+    
+    if (parsed.entreprise?.iban) {
+      modes = modes.filter((m: string) => m?.toLowerCase() !== "especes");
+      if (!modes.includes("virement")) {
+        modes.unshift("virement");
+      }
+    }
+
+    const extracted: ExtractedData = {
+      type_document: typeDocument,
+      entreprise: {
+        nom: parsed.entreprise?.nom || null,
+        siret: parsed.entreprise?.siret?.replace(/\s/g, "") || null,
+        adresse: parsed.entreprise?.adresse || null,
+        iban: parsed.entreprise?.iban?.replace(/\s/g, "") || null,
+        assurance_decennale_mentionnee: parsed.entreprise?.assurance_decennale_mentionnee ?? null,
+        assurance_rc_pro_mentionnee: parsed.entreprise?.assurance_rc_pro_mentionnee ?? null,
+        certifications_mentionnees: Array.isArray(parsed.entreprise?.certifications_mentionnees) 
+          ? parsed.entreprise.certifications_mentionnees 
+          : [],
       },
-      chantier: {
-        address_chantier: parsed.chantier?.address_chantier || null,
-        postal_code: parsed.chantier?.postal_code || null,
-        city: parsed.chantier?.city || null,
-        confidence: parsed.chantier?.confidence || "medium",
+      client: {
+        adresse_chantier: parsed.client?.adresse_chantier || null,
+        code_postal: parsed.client?.code_postal || null,
+        ville: parsed.client?.ville || null,
       },
       travaux: Array.isArray(parsed.travaux) ? parsed.travaux.map((t: any) => ({
-        category: t.category || "autre",
-        description: t.description || "",
-        amount_ht: typeof t.amount_ht === "number" ? t.amount_ht : null,
-        quantity: typeof t.quantity === "number" ? t.quantity : null,
-        unit: t.unit || null,
-        confidence: t.confidence || "medium",
+        libelle: t.libelle || "",
+        categorie: t.categorie || "autre",
+        montant: typeof t.montant === "number" ? t.montant : null,
+        quantite: typeof t.quantite === "number" ? t.quantite : null,
+        unite: t.unite || null,
       })) : [],
-      totals: {
-        total_ht: typeof parsed.totals?.total_ht === "number" ? parsed.totals.total_ht : null,
-        total_tva: typeof parsed.totals?.total_tva === "number" ? parsed.totals.total_tva : null,
-        total_ttc: typeof parsed.totals?.total_ttc === "number" ? parsed.totals.total_ttc : null,
-        tva_rate: typeof parsed.totals?.tva_rate === "number" ? parsed.totals.tva_rate : null,
-        totals_incoherence: parsed.totals?.totals_incoherence || "uncertain",
-        incoherence_reason: parsed.totals?.incoherence_reason || null,
-      },
       paiement: {
-        payment_methods_detected: Array.isArray(parsed.paiement?.payment_methods_detected) 
-          ? parsed.paiement.payment_methods_detected.filter((m: string) => 
-              ["virement", "cheque", "carte_bancaire", "especes"].includes(m.toLowerCase())
-            )
-          : [],
-        iban_detected: parsed.paiement?.iban_detected || null,
-        rib_detected: Boolean(parsed.paiement?.rib_detected),
-        payment_schedule_text: parsed.paiement?.payment_schedule_text || null,
-        has_payment_schedule: Boolean(parsed.paiement?.has_payment_schedule),
+        acompte_pct: typeof parsed.paiement?.acompte_pct === "number" ? parsed.paiement.acompte_pct : null,
+        acompte_avant_travaux_pct: typeof parsed.paiement?.acompte_avant_travaux_pct === "number" 
+          ? parsed.paiement.acompte_avant_travaux_pct : null,
+        modes: modes,
+        echeancier_detecte: Boolean(parsed.paiement?.echeancier_detecte),
       },
-      acompte: {
-        deposit_percent: typeof parsed.acompte?.deposit_percent === "number" ? parsed.acompte.deposit_percent : null,
-        deposit_amount: typeof parsed.acompte?.deposit_amount === "number" ? parsed.acompte.deposit_amount : null,
-        deposit_before_work_percent: typeof parsed.acompte?.deposit_before_work_percent === "number" 
-          ? parsed.acompte.deposit_before_work_percent : null,
+      dates: {
+        date_devis: parsed.dates?.date_devis || null,
+        date_execution_max: parsed.dates?.date_execution_max || null,
       },
-      assurances: {
-        mentions_decennale: parsed.assurances?.mentions_decennale || "uncertain",
-        mentions_rcpro: parsed.assurances?.mentions_rcpro || "uncertain",
-        insurer_name: parsed.assurances?.insurer_name || null,
-        policy_number: parsed.assurances?.policy_number || null,
-        validity_dates_text: parsed.assurances?.validity_dates_text || null,
+      totaux: {
+        ht: typeof parsed.totaux?.ht === "number" ? parsed.totaux.ht : null,
+        tva: typeof parsed.totaux?.tva === "number" ? parsed.totaux.tva : null,
+        ttc: typeof parsed.totaux?.ttc === "number" ? parsed.totaux.ttc : null,
+        taux_tva: typeof parsed.totaux?.taux_tva === "number" ? parsed.totaux.taux_tva : null,
       },
-      labels: {
-        mentions_rge: parsed.labels?.mentions_rge || "uncertain",
-        mentions_qualibat: parsed.labels?.mentions_qualibat || "uncertain",
-      },
-      architecte_moe: {
-        detected: Boolean(parsed.architecte_moe?.detected),
-        type: parsed.architecte_moe?.type || null,
-        name: parsed.architecte_moe?.name || null,
-        honoraires_ht: typeof parsed.architecte_moe?.honoraires_ht === "number" ? parsed.architecte_moe.honoraires_ht : null,
-      },
-      anomalies: Array.isArray(parsed.anomalies) ? parsed.anomalies : [],
-      resume: parsed.resume || "Analyse du devis en cours.",
+      anomalies_detectees: Array.isArray(parsed.anomalies_detectees) ? parsed.anomalies_detectees : [],
+      resume_factuel: parsed.resume_factuel || "Analyse du document en cours.",
     };
 
-    // CRITICAL: If IBAN/RIB is present, remove "especes" from payment methods
-    if (extracted.paiement.iban_detected || extracted.paiement.rib_detected) {
-      extracted.paiement.payment_methods_detected = extracted.paiement.payment_methods_detected
-        .filter(m => m.toLowerCase() !== "especes");
-    }
-
-    // Extract SIREN from SIRET if needed
-    if (!extracted.company.siren && extracted.company.siret && extracted.company.siret.length >= 9) {
-      extracted.company.siren = extracted.company.siret.substring(0, 9);
-    }
+    console.log("PHASE 1 COMPLETE - Extracted:", {
+      type: extracted.type_document,
+      entreprise: extracted.entreprise.nom,
+      siret: extracted.entreprise.siret,
+      travaux_count: extracted.travaux.length,
+      total_ttc: extracted.totaux.ttc,
+      modes_paiement: extracted.paiement.modes,
+    });
 
     return extracted;
   } catch (error) {
-    console.error("Extract error:", error);
+    console.error("Extraction error:", error);
     throw error;
   }
 }
 
-// ============ STEP 2: VERIFY ============
+// ============================================================
+// PHASE 2: VÉRIFICATION (APIs EXTERNES - CONDITIONNÉES)
+// ============================================================
+// 👉 Pappers / INSEE → uniquement si SIRET détecté
+// 👉 Google Reviews → uniquement si entreprise identifiable
+// 👉 OpenIBAN → uniquement si IBAN détecté
+// 👉 Géorisques / GPU → uniquement si adresse chantier complète
+// 👉 Interdiction de refaire un appel si donnée déjà connue
+// ============================================================
 
 // 2.1 Verify IBAN with OpenIBAN
 async function verifyIBAN(iban: string | null): Promise<{
-  verified: boolean;
-  valid: boolean | null;
-  country: string | null;
-  countryCode: string | null;
-  bankName: string | null;
+  verifie: boolean;
+  valide: boolean | null;
+  pays: string | null;
+  code_pays: string | null;
+  banque: string | null;
 }> {
-  if (!iban) return { verified: false, valid: null, country: null, countryCode: null, bankName: null };
+  if (!iban) return { verifie: false, valide: null, pays: null, code_pays: null, banque: null };
 
-  // Anti-faux-rouge: un échec API ne doit JAMAIS être interprété comme "IBAN invalide".
   try {
     const response = await fetch(`${OPENIBAN_API_URL}/${iban}?getBIC=true&validateBankCode=true`);
 
     if (!response.ok) {
-      return {
-        verified: false,
-        valid: null,
-        country: null,
-        countryCode: iban.substring(0, 2),
-        bankName: null,
-      };
+      // API failure = no conclusion, NOT invalid
+      return { verifie: false, valide: null, pays: null, code_pays: iban.substring(0, 2), banque: null };
     }
 
     const data = await response.json();
     return {
-      verified: true,
-      valid: data.valid === true,
-      country: data.bankData?.country || null,
-      countryCode: data.bankData?.countryCode || iban.substring(0, 2),
-      bankName: data.bankData?.name || null,
+      verifie: true,
+      valide: data.valid === true,
+      pays: data.bankData?.country || null,
+      code_pays: data.bankData?.countryCode || iban.substring(0, 2),
+      banque: data.bankData?.name || null,
     };
   } catch (error) {
     console.error("IBAN verification error:", error);
-    return {
-      verified: false,
-      valid: null,
-      country: null,
-      countryCode: iban.substring(0, 2),
-      bankName: null,
-    };
+    return { verifie: false, valide: null, pays: null, code_pays: iban.substring(0, 2), banque: null };
   }
 }
 
 // 2.2 Verify company with Pappers
 async function verifyCompany(siret: string | null): Promise<{
-  found: boolean;
-  lookup_status: "ok" | "not_found" | "error" | "skipped";
-  name: string | null;
-  date_creation: string | null;
-  anciennete_years: number | null;
-  bilans_count: number;
+  immatriculee: boolean | null;
+  radiee: boolean | null;
+  procedure_collective: boolean | null;
   capitaux_propres: number | null;
-  capitaux_propres_positifs: boolean | null;
-  procedure_collective: boolean;
-  address: string | null;
-  city: string | null;
+  capitaux_propres_negatifs: boolean | null;
+  date_creation: string | null;
+  anciennete: number | null;
+  bilans: number;
+  nom: string | null;
+  adresse: string | null;
+  ville: string | null;
+  lookup_status: "ok" | "not_found" | "error" | "skipped";
 }> {
   const defaultResult = {
-    found: false,
-    lookup_status: "skipped" as const,
-    name: null,
-    date_creation: null,
-    anciennete_years: null,
-    bilans_count: 0,
+    immatriculee: null,
+    radiee: null,
+    procedure_collective: null,
     capitaux_propres: null,
-    capitaux_propres_positifs: null,
-    procedure_collective: false,
-    address: null,
-    city: null,
+    capitaux_propres_negatifs: null,
+    date_creation: null,
+    anciennete: null,
+    bilans: 0,
+    nom: null,
+    adresse: null,
+    ville: null,
+    lookup_status: "skipped" as const,
   };
 
   if (!siret) return defaultResult;
@@ -710,58 +519,57 @@ async function verifyCompany(siret: string | null): Promise<{
   try {
     const response = await fetch(`${PAPPERS_API_URL}/entreprise?siren=${siren}&api_token=${pappersApiKey}`);
 
-    // 404 = preuve négative explicite: entreprise introuvable dans les registres via l'API
+    // 404 = EXPLICIT negative proof: company not found in registers
     if (response.status === 404) {
-      return { ...defaultResult, lookup_status: "not_found" as const };
+      return { ...defaultResult, immatriculee: false, lookup_status: "not_found" };
     }
 
-    // Autres erreurs = incertitude (réseau, quota, 401, etc.) → ne pas conclure négativement
+    // Other errors = uncertainty, no negative conclusion
     if (!response.ok) {
       console.error("Pappers API error:", response.status);
-      return { ...defaultResult, lookup_status: "error" as const };
+      return { ...defaultResult, lookup_status: "error" };
     }
 
     const data = await response.json();
 
-    let ancienneteYears: number | null = null;
+    let anciennete: number | null = null;
     if (data.date_creation) {
       const creationDate = new Date(data.date_creation);
       const now = new Date();
-      ancienneteYears = Math.floor(
-        (now.getTime() - creationDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000),
-      );
+      anciennete = Math.floor((now.getTime() - creationDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
     }
 
-    let bilansCount = 0;
-    let capitauxPropres: number | null = null;
+    let bilans = 0;
+    let capitaux: number | null = null;
     if (data.comptes && Array.isArray(data.comptes)) {
-      bilansCount = data.comptes.length;
+      bilans = data.comptes.length;
       if (data.comptes.length > 0 && data.comptes[0].capitaux_propres !== undefined) {
-        capitauxPropres = data.comptes[0].capitaux_propres;
+        capitaux = data.comptes[0].capitaux_propres;
       }
     } else if (data.derniers_comptes) {
-      bilansCount = 1;
+      bilans = 1;
       if (data.derniers_comptes.capitaux_propres !== undefined) {
-        capitauxPropres = data.derniers_comptes.capitaux_propres;
+        capitaux = data.derniers_comptes.capitaux_propres;
       }
     }
 
     return {
-      found: true,
-      lookup_status: "ok" as const,
-      name: data.nom_entreprise || null,
-      date_creation: data.date_creation || null,
-      anciennete_years: ancienneteYears,
-      bilans_count: bilansCount,
-      capitaux_propres: capitauxPropres,
-      capitaux_propres_positifs: capitauxPropres !== null ? capitauxPropres >= 0 : null,
+      immatriculee: true,
+      radiee: data.statut === "Radiée" || data.statut === "Fermé",
       procedure_collective: Boolean(data.procedure_collective),
-      address: data.siege?.adresse_ligne_1 || null,
-      city: data.siege?.ville || null,
+      capitaux_propres: capitaux,
+      capitaux_propres_negatifs: capitaux !== null ? capitaux < 0 : null,
+      date_creation: data.date_creation || null,
+      anciennete,
+      bilans,
+      nom: data.nom_entreprise || null,
+      adresse: data.siege?.adresse_ligne_1 || null,
+      ville: data.siege?.ville || null,
+      lookup_status: "ok",
     };
   } catch (error) {
     console.error("Pappers error:", error);
-    return { ...defaultResult, lookup_status: "error" as const };
+    return { ...defaultResult, lookup_status: "error" };
   }
 }
 
@@ -783,48 +591,38 @@ async function checkBodacc(siren: string | null): Promise<boolean> {
 
 // 2.4 Check RGE qualification
 const RGE_RELEVANT_KEYWORDS = [
-  // RGE uniquement si travaux éligibles aux aides (rénovation énergétique)
-  "isolation",
-  "isolant",
-  "combles",
-  "pompe à chaleur",
-  "pac",
-  "photovoltaïque",
-  "solaire",
-  "vmc",
-  "ventilation",
-  "rénovation énergétique",
+  "isolation", "isolant", "combles", "pompe à chaleur", "pac",
+  "photovoltaïque", "solaire", "vmc", "ventilation", "rénovation énergétique",
 ];
 
 async function checkRGE(
   siret: string | null,
-  travaux: QuoteExtracted["travaux"]
-): Promise<{ relevant: boolean; found: boolean; qualifications: string[] }> {
-  // Check if RGE is relevant for the work types
-  const travauxText = travaux.map(t => `${t.category} ${t.description}`).join(" ").toLowerCase();
-  const isRelevant = RGE_RELEVANT_KEYWORDS.some(kw => travauxText.includes(kw.toLowerCase()));
+  travaux: ExtractedData["travaux"]
+): Promise<{ pertinent: boolean; trouve: boolean; qualifications: string[] }> {
+  const travauxText = travaux.map(t => `${t.categorie} ${t.libelle}`).join(" ").toLowerCase();
+  const isPertinent = RGE_RELEVANT_KEYWORDS.some(kw => travauxText.includes(kw.toLowerCase()));
   
-  if (!isRelevant || !siret) {
-    return { relevant: isRelevant, found: false, qualifications: [] };
+  if (!isPertinent || !siret) {
+    return { pertinent: isPertinent, trouve: false, qualifications: [] };
   }
 
   const siren = siret.replace(/\s/g, "").substring(0, 9);
   
   try {
     const response = await fetch(`${ADEME_RGE_API_URL}?q=${siren}&q_fields=siret&size=10`);
-    if (!response.ok) return { relevant: true, found: false, qualifications: [] };
+    if (!response.ok) return { pertinent: true, trouve: false, qualifications: [] };
     
     const data = await response.json();
-    if (data.total === 0 || !data.results) return { relevant: true, found: false, qualifications: [] };
+    if (data.total === 0 || !data.results) return { pertinent: true, trouve: false, qualifications: [] };
 
     const qualifications = data.results
       .filter((r: any) => r.siret?.startsWith(siren))
       .map((r: any) => r.nom_qualification || r.domaine)
       .filter(Boolean);
     
-    return { relevant: true, found: qualifications.length > 0, qualifications };
+    return { pertinent: true, trouve: qualifications.length > 0, qualifications };
   } catch {
-    return { relevant: true, found: false, qualifications: [] };
+    return { pertinent: true, trouve: false, qualifications: [] };
   }
 }
 
@@ -833,17 +631,12 @@ async function getGoogleRating(
   companyName: string | null,
   address: string | null,
   city: string | null
-): Promise<{
-  found: boolean;
-  rating: number | null;
-  reviews_count: number | null;
-  match_confidence: Confidence;
-}> {
+): Promise<{ trouve: boolean; note: number | null; nb_avis: number | null; match_fiable: boolean }> {
   const googleApiKey = Deno.env.get("GOOGLE_PLACES_API_KEY");
-  if (!googleApiKey || !companyName) return { found: false, rating: null, reviews_count: null, match_confidence: "low" };
+  if (!googleApiKey || !companyName) return { trouve: false, note: null, nb_avis: null, match_fiable: false };
 
   const searchInput = `${companyName} ${address || ""} ${city || ""}`.trim();
-  if (searchInput.length < 3) return { found: false, rating: null, reviews_count: null, match_confidence: "low" };
+  if (searchInput.length < 3) return { trouve: false, note: null, nb_avis: null, match_fiable: false };
 
   try {
     const params = new URLSearchParams({
@@ -854,32 +647,27 @@ async function getGoogleRating(
     });
 
     const response = await fetch(`${GOOGLE_PLACES_API_URL}?${params.toString()}`);
-    if (!response.ok) return { found: false, rating: null, reviews_count: null, match_confidence: "low" };
+    if (!response.ok) return { trouve: false, note: null, nb_avis: null, match_fiable: false };
 
     const data = await response.json();
     if (data.status !== "OK" || !data.candidates?.length) {
-      return { found: false, rating: null, reviews_count: null, match_confidence: "low" };
+      return { trouve: false, note: null, nb_avis: null, match_fiable: false };
     }
 
     const place = data.candidates[0];
-    const rating = place.rating;
-    const reviewsCount = place.user_ratings_total || 0;
-
-    // Determine match confidence based on name similarity
     const placeName = (place.name || "").toLowerCase();
     const searchName = companyName.toLowerCase();
-    const matchConfidence: Confidence = placeName.includes(searchName) || searchName.includes(placeName) 
-      ? "high" : "medium";
+    const matchFiable = placeName.includes(searchName) || searchName.includes(placeName);
 
     return {
-      found: true,
-      rating: rating !== undefined ? rating : null,
-      reviews_count: reviewsCount,
-      match_confidence: matchConfidence,
+      trouve: true,
+      note: place.rating !== undefined ? place.rating : null,
+      nb_avis: place.user_ratings_total || 0,
+      match_fiable: matchFiable,
     };
   } catch (error) {
     console.error("Google Places error:", error);
-    return { found: false, rating: null, reviews_count: null, match_confidence: "low" };
+    return { trouve: false, note: null, nb_avis: null, match_fiable: false };
   }
 }
 
@@ -887,19 +675,13 @@ async function getGoogleRating(
 async function getGeorisques(
   address: string | null,
   postalCode: string | null
-): Promise<{
-  queried: boolean;
-  risks: string[];
-  seismic_zone: string | null;
-  commune: string | null;
-}> {
-  const defaultResult = { queried: false, risks: [], seismic_zone: null, commune: null };
+): Promise<{ consulte: boolean; risques: string[]; zone_sismique: string | null; commune: string | null }> {
+  const defaultResult = { consulte: false, risques: [], zone_sismique: null, commune: null };
   
   const addressToGeocode = address || postalCode;
   if (!addressToGeocode) return defaultResult;
 
   try {
-    // Geocode address
     const cleanedAddress = cleanAddress(addressToGeocode);
     if (cleanedAddress.length < 5) return defaultResult;
 
@@ -913,22 +695,21 @@ async function getGeorisques(
     const commune = geocodeData.features[0].properties?.city;
     if (!codeInsee) return defaultResult;
 
-    // Fetch risks and seismic zone in parallel
     const [risksResponse, seismicResponse] = await Promise.all([
       fetch(`${GEORISQUES_API_URL}/gaspar/risques?code_insee=${codeInsee}`),
       fetch(`${GEORISQUES_API_URL}/zonage_sismique?code_insee=${codeInsee}`),
     ]);
 
-    const risks: string[] = [];
-    let seismicZone: string | null = null;
+    const risques: string[] = [];
+    let zoneSismique: string | null = null;
 
     if (risksResponse.ok) {
       const risksData = await risksResponse.json();
       if (risksData.data?.[0]?.risques_detail) {
         for (const risque of risksData.data[0].risques_detail) {
           if (risque.num_risque?.startsWith("1") && risque.num_risque.length <= 2) {
-            if (!risks.includes(risque.libelle_risque_long)) {
-              risks.push(risque.libelle_risque_long);
+            if (!risques.includes(risque.libelle_risque_long)) {
+              risques.push(risque.libelle_risque_long);
             }
           }
         }
@@ -938,11 +719,11 @@ async function getGeorisques(
     if (seismicResponse.ok) {
       const seismicData = await seismicResponse.json();
       if (seismicData.data?.[0]?.zone_sismicite) {
-        seismicZone = seismicData.data[0].zone_sismicite;
+        zoneSismique = seismicData.data[0].zone_sismicite;
       }
     }
 
-    return { queried: true, risks, seismic_zone: seismicZone, commune };
+    return { consulte: true, risques, zone_sismique: zoneSismique, commune };
   } catch (error) {
     console.error("Georisques error:", error);
     return defaultResult;
@@ -964,12 +745,12 @@ interface ZoneGeographique {
 }
 
 function comparePrices(
-  travaux: QuoteExtracted["travaux"],
+  travaux: ExtractedData["travaux"],
   postalCode: string | null,
   referencePrix: TravauxReferencePrix[],
   zones: ZoneGeographique[]
-): QuoteVerified["price_comparisons"] {
-  const comparisons: QuoteVerified["price_comparisons"] = [];
+): VerificationResult["comparaisons_prix"] {
+  const comparisons: VerificationResult["comparaisons_prix"] = [];
   
   if (!postalCode) return comparisons;
 
@@ -979,47 +760,40 @@ function comparePrices(
   const zoneType = zone?.type_zone || "province";
 
   for (const t of travaux) {
-    if (!t.quantity || !t.amount_ht || t.quantity <= 0) continue;
+    if (!t.quantite || !t.montant || t.quantite <= 0) continue;
 
     const reference = referencePrix.find(r => 
-      r.categorie_travaux.toLowerCase() === t.category.toLowerCase()
+      r.categorie_travaux.toLowerCase() === t.categorie.toLowerCase()
     );
     if (!reference) continue;
 
-    const unitPrice = t.amount_ht / t.quantity;
+    const unitPrice = t.montant / t.quantite;
     const rangeMin = reference.prix_min_national * coefficient;
     const rangeMax = reference.prix_max_national * coefficient;
 
     let score: ScoringColor;
-    let explanation: string;
-    const label = t.description || t.category;
+    let explication: string;
 
-    if (unitPrice < rangeMin * 0.7) {
-      score = "ROUGE";
-      explanation = `Prix anormalement bas (${unitPrice.toFixed(2)}€/${reference.unite} vs ${rangeMin.toFixed(2)}€-${rangeMax.toFixed(2)}€)`;
-    } else if (unitPrice < rangeMin) {
-      score = "ORANGE";
-      explanation = `Prix en dessous du marché`;
-    } else if (unitPrice <= rangeMax) {
+    if (unitPrice <= rangeMax) {
       score = "VERT";
-      explanation = `Prix cohérent avec le marché`;
+      explication = "Prix cohérent avec le marché";
     } else if (unitPrice <= rangeMax * 1.3) {
       score = "ORANGE";
-      explanation = `Prix au-dessus du marché`;
+      explication = "Prix au-dessus du marché";
     } else {
-      score = "ROUGE";
-      explanation = `Prix très supérieur au marché (${unitPrice.toFixed(2)}€/${reference.unite} vs ${rangeMax.toFixed(2)}€ max)`;
+      score = "ORANGE"; // NEVER RED for prices alone per spec
+      explication = `Prix très supérieur au marché (${unitPrice.toFixed(2)}€ vs ${rangeMax.toFixed(2)}€ max)`;
     }
 
     comparisons.push({
-      category: t.category,
-      label,
-      unit_price_quote: unitPrice,
-      range_min: rangeMin,
-      range_max: rangeMax,
-      zone_type: zoneType,
+      categorie: t.categorie,
+      libelle: t.libelle || t.categorie,
+      prix_unitaire_devis: unitPrice,
+      fourchette_min: rangeMin,
+      fourchette_max: rangeMax,
+      zone: zoneType,
       score,
-      explanation,
+      explication,
     });
   }
 
@@ -1027,11 +801,10 @@ function comparePrices(
 }
 
 // Main VERIFY function
-async function verifyQuoteData(
-  extracted: QuoteExtracted,
-  supabase: any
-): Promise<QuoteVerified> {
-  console.log("Starting verification phase...");
+async function verifyData(extracted: ExtractedData, supabase: any): Promise<VerificationResult> {
+  console.log("PHASE 2 - Starting verification...");
+
+  const siren = extractSiren(extracted.entreprise.siret);
 
   // Fetch reference data
   const [referencePrixResult, zonesResult] = await Promise.all([
@@ -1039,484 +812,358 @@ async function verifyQuoteData(
     supabase.from("zones_geographiques").select("*"),
   ]);
 
-  // Run verifications in parallel (except Google which needs company name)
+  // Run verifications in parallel (conditional per spec)
   const [ibanResult, companyResult, bodaccResult, rgeResult, georisquesResult] = await Promise.all([
-    verifyIBAN(extracted.paiement.iban_detected),
-    verifyCompany(extracted.company.siret),
-    checkBodacc(extracted.company.siren),
-    checkRGE(extracted.company.siret, extracted.travaux),
-    getGeorisques(extracted.chantier.address_chantier, extracted.chantier.postal_code),
+    extracted.entreprise.iban ? verifyIBAN(extracted.entreprise.iban) : Promise.resolve({ verifie: false, valide: null, pays: null, code_pays: null, banque: null }),
+    extracted.entreprise.siret ? verifyCompany(extracted.entreprise.siret) : Promise.resolve({ immatriculee: null, radiee: null, procedure_collective: null, capitaux_propres: null, capitaux_propres_negatifs: null, date_creation: null, anciennete: null, bilans: 0, nom: null, adresse: null, ville: null, lookup_status: "skipped" as const }),
+    siren ? checkBodacc(siren) : Promise.resolve(false),
+    checkRGE(extracted.entreprise.siret, extracted.travaux),
+    (extracted.client.adresse_chantier || extracted.client.code_postal) ? getGeorisques(extracted.client.adresse_chantier, extracted.client.code_postal) : Promise.resolve({ consulte: false, risques: [], zone_sismique: null, commune: null }),
   ]);
 
-  // Now fetch Google with the verified company name
-  const googleResult = await getGoogleRating(
-    companyResult.name || extracted.company.name,
-    companyResult.address || extracted.company.address_company,
-    companyResult.city || extracted.chantier.city
-  );
+  // Google only if company identifiable
+  const googleResult = extracted.entreprise.nom 
+    ? await getGoogleRating(
+        companyResult.nom || extracted.entreprise.nom,
+        companyResult.adresse || extracted.entreprise.adresse,
+        companyResult.ville || extracted.client.ville
+      )
+    : { trouve: false, note: null, nb_avis: null, match_fiable: false };
 
   // Price comparisons
   const priceComparisons = comparePrices(
     extracted.travaux,
-    extracted.chantier.postal_code,
+    extracted.client.code_postal,
     referencePrixResult.data || [],
     zonesResult.data || [],
   );
 
-  const verified: QuoteVerified = {
-    company_found: companyResult.found,
-    company_lookup_status: companyResult.lookup_status,
-    company_name: companyResult.name,
-    date_creation: companyResult.date_creation,
-    anciennete_years: companyResult.anciennete_years,
-    bilans_disponibles: companyResult.bilans_count,
+  const verified: VerificationResult = {
+    entreprise_immatriculee: companyResult.immatriculee,
+    entreprise_radiee: companyResult.radiee,
+    procedure_collective: companyResult.procedure_collective || bodaccResult || null,
     capitaux_propres: companyResult.capitaux_propres,
-    capitaux_propres_positifs: companyResult.capitaux_propres_positifs,
-    procedure_collective: companyResult.procedure_collective || bodaccResult,
-    company_address: companyResult.address,
-    company_city: companyResult.city,
+    capitaux_propres_negatifs: companyResult.capitaux_propres_negatifs,
+    date_creation: companyResult.date_creation,
+    anciennete_annees: companyResult.anciennete,
+    bilans_disponibles: companyResult.bilans,
+    nom_officiel: companyResult.nom,
+    adresse_officielle: companyResult.adresse,
+    ville_officielle: companyResult.ville,
+    lookup_status: companyResult.lookup_status,
     
-    iban_verified: ibanResult.verified,
-    iban_valid: ibanResult.valid,
-    iban_country: ibanResult.country,
-    iban_country_code: ibanResult.countryCode,
-    iban_bank_name: ibanResult.bankName,
+    iban_verifie: ibanResult.verifie,
+    iban_valide: ibanResult.valide,
+    iban_pays: ibanResult.pays,
+    iban_code_pays: ibanResult.code_pays,
+    iban_banque: ibanResult.banque,
     
-    rge_relevant: rgeResult.relevant,
-    rge_found: rgeResult.found,
+    rge_pertinent: rgeResult.pertinent,
+    rge_trouve: rgeResult.trouve,
     rge_qualifications: rgeResult.qualifications,
     
-    google_found: googleResult.found,
-    google_rating: googleResult.rating,
-    google_reviews_count: googleResult.reviews_count,
-    google_match_confidence: googleResult.match_confidence,
+    google_trouve: googleResult.trouve,
+    google_note: googleResult.note,
+    google_nb_avis: googleResult.nb_avis,
+    google_match_fiable: googleResult.match_fiable,
     
-    georisques_queried: georisquesResult.queried,
-    georisques_risks: georisquesResult.risks,
-    georisques_seismic_zone: georisquesResult.seismic_zone,
+    georisques_consulte: georisquesResult.consulte,
+    georisques_risques: georisquesResult.risques,
+    georisques_zone_sismique: georisquesResult.zone_sismique,
     georisques_commune: georisquesResult.commune,
     
-    price_comparisons: priceComparisons,
+    comparaisons_prix: priceComparisons,
   };
 
-  console.log("Verification complete:", {
-    company_found: verified.company_found,
-    iban_valid: verified.iban_valid,
-    rge_found: verified.rge_found,
-    google_rating: verified.google_rating,
-    price_comparisons_count: verified.price_comparisons.length,
+  console.log("PHASE 2 COMPLETE - Verification:", {
+    immatriculee: verified.entreprise_immatriculee,
+    procedure_collective: verified.procedure_collective,
+    capitaux_negatifs: verified.capitaux_propres_negatifs,
+    iban_valide: verified.iban_valide,
+    google_note: verified.google_note,
   });
 
   return verified;
 }
 
-// ============ STEP 3: SCORE ============
 // ============================================================
-// RÈGLES DE SCORING VERROUILLÉES - AUCUNE EXCEPTION AUTORISÉE
+// PHASE 3: SCORING DÉTERMINISTE (RÈGLES STRICTES - SANS IA)
 // ============================================================
-// FEU ROUGE: UNIQUEMENT si au moins 1 critère critique CONFIRMÉ
-// FEU ORANGE: Au moins 1 critère de vigilance ET aucun ROUGE
-// FEU VERT: Aucun ROUGE, aucun ORANGE (ou conditions strictes remplies)
+// 🔴 CRITÈRES CRITIQUES — FEU ROUGE (LISTE BLANCHE STRICTE)
+// ⚠️ UN FEU ROUGE NE PEUT ÊTRE DÉCLENCHÉ QUE SI AU MOINS UN DES CAS SUIVANTS EST CONFIRMÉ EXPLICITEMENT
+// ❌ TOUT AUTRE CRITÈRE EST INTERDIT COMME DÉCLENCHEUR DE FEU ROUGE
 // ============================================================
 
-function calculateScore(
-  extracted: QuoteExtracted,
-  verified: QuoteVerified,
-  isAdaptedMode: boolean = false // For prestations techniques
-): ScoringResult {
-  const critiques: string[] = [];
-  const majeurs: string[] = [];
-  const confort: string[] = [];
+function calculateScore(extracted: ExtractedData, verified: VerificationResult): ScoringResult {
+  const rouges: string[] = [];
+  const oranges: string[] = [];
+  const verts: string[] = [];
 
-  // ============ RÈGLE UNIQUE: company_verified ============
-  // TRUE si entreprise identifiée via Pappers OU Google match fiable
-  const company_verified =
-    verified.company_found ||
-    (verified.google_found && verified.google_match_confidence === "high");
+  // ============================================================
+  // 🔴 CRITÈRES ROUGES — LISTE BLANCHE STRICTE (6 cas uniquement)
+  // ============================================================
 
-  // ==============================================================
-  // CRITÈRES CRITIQUES AUTORISÉS (LISTE BLANCHE STRICTE)
-  // SEULS CES CRITÈRES PEUVENT DÉCLENCHER UN FEU ROUGE
-  // AUCUN CUMUL DE CRITÈRES ORANGE NE PEUT DÉCLENCHER UN ROUGE
-  // ==============================================================
-
-  // 1) Entreprise non immatriculée ou radiée (CONFIRMÉE via API officielle)
-  // UNIQUEMENT si lookup a retourné "not_found" explicitement
-  if (!company_verified && verified.company_lookup_status === "not_found") {
-    critiques.push("Entreprise introuvable dans les registres officiels (confirmé)");
+  // 1) Entreprise non immatriculée ou radiée (API officielle CONFIRMÉ)
+  if (verified.entreprise_immatriculee === false) {
+    rouges.push("Entreprise non immatriculée ou introuvable dans les registres officiels (confirmé via API)");
+  }
+  if (verified.entreprise_radiee === true) {
+    rouges.push("Entreprise radiée des registres officiels (confirmé via API)");
   }
 
   // 2) Procédure collective en cours CONFIRMÉE
   if (verified.procedure_collective === true) {
-    critiques.push("Procédure collective en cours (confirmée via BODACC)");
+    rouges.push("Procédure collective en cours (redressement ou liquidation, confirmé)");
   }
 
-  // 3) Capitaux propres négatifs CONFIRMÉS (dernier bilan disponible)
-  if (verified.capitaux_propres_positifs === false && verified.capitaux_propres !== null) {
-    critiques.push(
-      `Capitaux propres négatifs (${new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(verified.capitaux_propres)} au dernier bilan)`,
-    );
+  // 3) Capitaux propres négatifs CONFIRMÉS (dernier bilan)
+  if (verified.capitaux_propres_negatifs === true && verified.capitaux_propres !== null) {
+    const formatted = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(verified.capitaux_propres);
+    rouges.push(`Capitaux propres négatifs au dernier bilan (${formatted})`);
   }
 
-  // 4) Paiement en espèces EXPLICITEMENT mentionné dans le devis
-  const hasExplicitCash = extracted.paiement.payment_methods_detected.some(
-    (m) => m.toLowerCase() === "especes",
-  );
+  // 4) Paiement en espèces EXPLICITEMENT mentionné
+  const hasExplicitCash = extracted.paiement.modes.some(m => m.toLowerCase() === "especes");
   if (hasExplicitCash) {
-    critiques.push("Paiement en espèces explicitement demandé sur le devis");
+    rouges.push("Paiement en espèces explicitement demandé sur le devis");
   }
 
-  // 5) Acompte STRICTEMENT > 50% exigé AVANT tout début de travaux
-  const depositBeforeWork: number | null =
-    extracted.acompte.deposit_before_work_percent ??
-    (!extracted.paiement.has_payment_schedule ? extracted.acompte.deposit_percent : null);
-
-  if (depositBeforeWork !== null && depositBeforeWork > 50) {
-    critiques.push(`Acompte supérieur à 50% demandé avant travaux (${depositBeforeWork}%)`);
-  }
-
-  // 6) Assurance incohérente CONFIRMÉE niveau 2 (après upload attestation)
-  // Note: Cette vérification est gérée séparément via analyze-attestation
-
-  // ==============================================================
-  // CRITÈRES ORANGE (VIGILANCE UNIQUEMENT - JAMAIS ROUGE)
-  // ==============================================================
-
-  // A) Incohérence des totaux du devis
-  if (extracted.totals.totals_incoherence === "yes") {
-    majeurs.push(
-      `Incohérence des totaux détectée: ${extracted.totals.incoherence_reason || "vérification recommandée"}`,
-    );
-  }
-
-  // B) Prix marché - PUREMENT INFORMATIF, ne dégrade JAMAIS le score
-  // L'impossibilité de comparer n'est JAMAIS négative
-  // NOT APPLICABLE in adapted mode (prestations techniques)
-  if (!isAdaptedMode) {
-    const priceRouge = verified.price_comparisons.filter((p) => p.score === "ROUGE");
-    const priceOrange = verified.price_comparisons.filter((p) => p.score === "ORANGE");
-    if (priceRouge.length > 0) {
-      majeurs.push(`Prix élevés par rapport au marché (${priceRouge.length} poste${priceRouge.length > 1 ? "s" : ""} à vérifier)`);
-    } else if (priceOrange.length > 0) {
-      majeurs.push(`Prix à comparer au marché (${priceOrange.length} poste${priceOrange.length > 1 ? "s" : ""})`);
-    }
-  }
-
-  // C) Acompte entre 30% et 50% (modéré, ORANGE uniquement)
-  if (depositBeforeWork !== null && depositBeforeWork > 30 && depositBeforeWork <= 50) {
-    majeurs.push(`Acompte de ${depositBeforeWork}% – un acompte ≤ 30% est généralement recommandé`);
-  }
-
-  // D) Échéancier présent mais % avant travaux incertain
-  if (extracted.paiement.has_payment_schedule && depositBeforeWork === null && extracted.acompte.deposit_percent !== null) {
-    majeurs.push("Échéancier de paiement détecté – le montant dû avant travaux reste à confirmer");
-  }
-
-  // E) IBAN - RÈGLES STRICTES (JAMAIS ROUGE)
-  // IBAN étranger ≠ IBAN invalide
-  // IBAN étranger = ORANGE uniquement
-  // IBAN non détecté = ORANGE uniquement
-  // Si OpenIBAN retourne "valide", INTERDIT d'afficher "IBAN non valide"
-  if (verified.iban_verified) {
-    if (verified.iban_valid === true) {
-      // IBAN valide - vérifier si étranger (ORANGE, jamais ROUGE)
-      if (verified.iban_country_code && verified.iban_country_code !== "FR") {
-        majeurs.push(`Coordonnées bancaires : IBAN ${getCountryName(verified.iban_country_code)} (non critique, à confirmer si attendu)`);
-      }
-      // IBAN FR valide = pas d'alerte
-    } else if (verified.iban_valid === false) {
-      // Format IBAN à vérifier (possible erreur de saisie) - ORANGE
-      majeurs.push("Format IBAN à vérifier – possible erreur de saisie sur le devis");
-    }
-  } else if (!extracted.paiement.iban_detected && !extracted.paiement.rib_detected) {
-    // IBAN non détecté sur le devis - ORANGE
-    majeurs.push("Coordonnées bancaires non détectées sur le devis");
-  }
-
-  // F) Entreprise : incertitudes API (formulations neutres, JAMAIS ROUGE)
-  if (!company_verified) {
-    if (!extracted.company.siret && !extracted.company.siren && !extracted.company.name) {
-      majeurs.push("Coordonnées entreprise non détectées sur le devis – information à demander");
-    } else if (verified.company_lookup_status === "error") {
-      majeurs.push("Données entreprise non exploitées automatiquement – limitation temporaire des sources publiques");
-    } else if (verified.company_lookup_status === "skipped") {
-      majeurs.push("Vérification entreprise non effectuée – SIRET à confirmer manuellement");
-    }
-  }
-
-  // G) Entreprise récente < 2 ans (si company_verified) - formulation neutre
-  if (company_verified && verified.anciennete_years !== null && verified.anciennete_years < 2) {
-    majeurs.push(`Entreprise créée récemment (${verified.anciennete_years} an${verified.anciennete_years > 1 ? "s" : ""}) – ancienneté à prendre en compte`);
-  }
-
-  // H) Assurances niveau 1 (devis) - JAMAIS ROUGE
-  // NOT APPLICABLE in adapted mode (prestations techniques - no décennale required)
-  const DECENNALE_KEYWORDS = [
-    "toiture", "charpente", "maçonnerie", "gros oeuvre", "façade", "étanchéité",
-    "fenêtre", "menuiserie", "piscine", "extension", "fondation",
-  ];
-  const travauxText = extracted.travaux.map((t) => `${t.category} ${t.description}`).join(" ").toLowerCase();
-  const needsDecennale = !isAdaptedMode && DECENNALE_KEYWORDS.some((kw) => travauxText.includes(kw));
-
-  if (needsDecennale && extracted.assurances.mentions_decennale !== "yes") {
-    majeurs.push("Assurance décennale à confirmer pour ce type de travaux");
-  }
-
-  // I) RGE (uniquement si pertinent) - NOT APPLICABLE in adapted mode
-  if (!isAdaptedMode && verified.rge_relevant && !verified.rge_found) {
-    majeurs.push("Qualification RGE non trouvée – à vérifier si éligibilité aux aides souhaitée");
-  }
-
-  // J) Google Reviews - RÈGLES STRICTES (JAMAIS ROUGE)
-  // Note > 4.5 → positif, 4.0-4.5 → neutre, < 4.0 → ORANGE, Absence → neutre
-  if (verified.google_found && verified.google_rating !== null) {
-    if (verified.google_rating < 4.0) {
-      majeurs.push(`Note Google inférieure au seuil de confort (${verified.google_rating}/5) – avis à consulter`);
-    }
-  }
-
-  // ==============================================================
-  // CRITÈRES DE CONFORT (POSITIFS)
-  // ==============================================================
-
-  if (company_verified && verified.company_found) {
-    confort.push("Entreprise identifiée dans les registres officiels");
-  }
-
-  if (verified.anciennete_years !== null && verified.anciennete_years >= 5) {
-    confort.push(`Entreprise établie (${verified.anciennete_years} ans d'ancienneté)`);
-  }
-
-  if (verified.capitaux_propres_positifs === true) {
-    confort.push("Situation financière saine (capitaux propres positifs)");
-  }
-
-  if (verified.google_found && verified.google_rating !== null) {
-    if (verified.google_rating >= 4.5) {
-      confort.push(`Excellente réputation en ligne (${verified.google_rating}/5)`);
-    } else if (verified.google_rating >= 4) {
-      confort.push(`Bonne réputation en ligne (${verified.google_rating}/5)`);
-    }
-  }
-
-  if (verified.iban_verified && verified.iban_valid === true && verified.iban_country_code === "FR") {
-    confort.push("IBAN France valide");
-  }
-
-  if (extracted.labels.mentions_qualibat === "yes") {
-    confort.push("Certification QUALIBAT mentionnée");
-  }
-
-  if (verified.rge_found) {
-    confort.push("Qualification RGE vérifiée");
-  }
-
-  if (extracted.assurances.mentions_decennale === "yes") {
-    confort.push("Assurance décennale mentionnée sur le devis");
-  }
-  if (extracted.assurances.mentions_rcpro === "yes") {
-    confort.push("Responsabilité civile professionnelle mentionnée");
-  }
-
-  // ==============================================================
-  // CALCUL DU SCORE FINAL - RÈGLES VERROUILLÉES
-  // ==============================================================
-  // Si ≥1 critère ROUGE → score global = ROUGE
-  // Sinon si ≥1 critère ORANGE → score global = ORANGE
-  // Sinon → score global = VERT
-  // INTERDICTION: Aucun recalcul implicite, aucun "ressenti"
-  // ==============================================================
-
-  let globalScore: ScoringColor;
-  let explanation: string;
-
-  if (critiques.length > 0) {
-    // ==== FEU ROUGE: Au moins 1 critère critique CONFIRMÉ ====
-    globalScore = "ROUGE";
-    explanation = `Situation critique confirmée : ${critiques.join(" | ")}.`;
-  } else if (majeurs.length > 0) {
-    // ==== FEU ORANGE: Au moins 1 critère de vigilance ====
-    globalScore = "ORANGE";
-    explanation = `Points de vigilance identifiés : ${majeurs.slice(0, 3).join(" | ")}${majeurs.length > 3 ? ` (+${majeurs.length - 3} autres)` : ""}.`;
-  } else {
-    // ==== FEU VERT: Aucun ROUGE ni ORANGE ====
-    // Vérification des conditions renforcées pour un VERT "solide"
-    
-    // Conditions de base OBLIGATOIRES
-    const baseCondition1_entreprise = company_verified && verified.company_found && !verified.procedure_collective;
-    
-    const hasTraceablePayment = 
-      extracted.paiement.iban_detected || 
-      extracted.paiement.rib_detected ||
-      extracted.paiement.payment_methods_detected.some(m => 
-        ["virement", "cheque", "carte_bancaire"].includes(m.toLowerCase())
-      );
-    const noExplicitCash = !hasExplicitCash;
-    const baseCondition2_paiement = hasTraceablePayment && noExplicitCash;
-    
-    const effectiveDeposit = extracted.acompte.deposit_before_work_percent ?? extracted.acompte.deposit_percent ?? 0;
-    const baseCondition3_acompte = effectiveDeposit <= 30;
-    
-    const baseCondition4_assurance = 
-      extracted.assurances.mentions_decennale === "yes" || 
-      extracted.assurances.mentions_rcpro === "yes";
-    
-    const baseCondition5_coherence = 
-      extracted.totals.totals_incoherence !== "yes" && 
-      verified.capitaux_propres_positifs !== false;
-    
-    const allBaseConditionsMet = 
-      baseCondition1_entreprise && 
-      baseCondition2_paiement && 
-      baseCondition3_acompte && 
-      baseCondition4_assurance && 
-      baseCondition5_coherence;
-    
-    // Critères de confiance renforcée (au moins 2 requis pour VERT optimal)
-    let trustCriteriaCount = 0;
-    const trustCriteriaMet: string[] = [];
-    
-    if (verified.google_found && verified.google_rating !== null && verified.google_rating >= 4) {
-      trustCriteriaCount++;
-      trustCriteriaMet.push(`Note Google ${verified.google_rating}/5`);
-    }
-    
-    if (verified.anciennete_years !== null && verified.anciennete_years > 5) {
-      trustCriteriaCount++;
-      trustCriteriaMet.push(`${verified.anciennete_years} ans d'ancienneté`);
-    }
-    
-    if (verified.rge_found || extracted.labels.mentions_qualibat === "yes") {
-      trustCriteriaCount++;
-      trustCriteriaMet.push(verified.rge_found ? "RGE vérifié" : "QUALIBAT mentionné");
-    }
-    
-    const detailedPosts = extracted.travaux.filter(t => 
-      t.amount_ht !== null && t.quantity !== null && t.description.length > 10
-    );
-    if (detailedPosts.length >= 3) {
-      trustCriteriaCount++;
-      trustCriteriaMet.push(`Devis détaillé (${detailedPosts.length} postes)`);
-    }
-    
-    const isEUCountry = verified.iban_country_code && [
-      "FR", "DE", "BE", "NL", "LU", "IT", "ES", "PT", "AT", "IE", 
-      "FI", "GR", "EE", "LV", "LT", "SK", "SI", "MT", "CY"
-    ].includes(verified.iban_country_code);
-    if (verified.iban_verified && verified.iban_valid === true && isEUCountry) {
-      trustCriteriaCount++;
-      trustCriteriaMet.push(`IBAN ${verified.iban_country_code} valide`);
-    }
-    
-    const hasSufficientTrustCriteria = trustCriteriaCount >= 2;
-    
-    // Décision finale VERT
-    globalScore = "VERT";
-    if (allBaseConditionsMet && hasSufficientTrustCriteria) {
-      explanation = `Tous les critères de fiabilité sont réunis : ${trustCriteriaMet.join(", ")}.`;
-    } else if (confort.length > 0) {
-      explanation = `Aucun point de vigilance détecté. Éléments positifs : ${confort.slice(0, 3).join(", ")}${confort.length > 3 ? "..." : ""}.`;
-    } else {
-      explanation = "Aucun point critique ni de vigilance détecté sur ce devis.";
-    }
-  }
-
-  // ==============================================================
-  // SCORES PAR BLOC (cohérents avec les règles ci-dessus)
-  // ==============================================================
-  // Calculate price scores for bloc scoring (only in non-adapted mode)
-  const priceRouge = isAdaptedMode ? [] : verified.price_comparisons.filter((p) => p.score === "ROUGE");
-  const priceOrange = isAdaptedMode ? [] : verified.price_comparisons.filter((p) => p.score === "ORANGE");
+  // 5) Acompte STRICTEMENT > 50% AVANT début des travaux
+  const acompteAvantTravaux = extracted.paiement.acompte_avant_travaux_pct ?? 
+    (!extracted.paiement.echeancier_detecte ? extracted.paiement.acompte_pct : null);
   
-  const blocScores = {
-    entreprise:
-      (!company_verified && verified.company_lookup_status === "not_found") ||
-      verified.procedure_collective === true ||
-      verified.capitaux_propres_positifs === false
-        ? ("ROUGE" as ScoringColor)
-        : !company_verified || (verified.anciennete_years !== null && verified.anciennete_years < 2)
-          ? ("ORANGE" as ScoringColor)
-          : ("VERT" as ScoringColor),
+  if (acompteAvantTravaux !== null && acompteAvantTravaux > 50) {
+    rouges.push(`Acompte supérieur à 50% demandé avant travaux (${acompteAvantTravaux}%)`);
+  }
 
-    devis:
-      extracted.totals.totals_incoherence === "yes"
-        ? ("ORANGE" as ScoringColor)
-        : !isAdaptedMode && (priceRouge.length > 0 || priceOrange.length > 0)
-          ? ("ORANGE" as ScoringColor)
-          : ("VERT" as ScoringColor),
+  // 6) Assurance incohérente confirmée niveau 2 (après upload attestation)
+  // Note: Géré séparément via analyze-attestation
 
-    securite:
-      hasExplicitCash || (depositBeforeWork !== null && depositBeforeWork > 50)
-        ? ("ROUGE" as ScoringColor)
-        : (verified.iban_verified && verified.iban_valid === false) ||
-            (verified.iban_verified && verified.iban_valid === true && verified.iban_country_code !== "FR") ||
-            (depositBeforeWork !== null && depositBeforeWork > 30) ||
-            (needsDecennale && extracted.assurances.mentions_decennale !== "yes")
-          ? ("ORANGE" as ScoringColor)
-          : ("VERT" as ScoringColor),
+  // ============================================================
+  // 🟠 CRITÈRES ORANGE — VIGILANCE (JAMAIS ROUGE)
+  // ============================================================
 
+  // A) IBAN étranger (≠ invalide)
+  if (verified.iban_verifie && verified.iban_valide === true && verified.iban_code_pays && verified.iban_code_pays !== "FR") {
+    oranges.push(`IBAN étranger (${getCountryName(verified.iban_code_pays)}) - à confirmer si attendu`);
+  }
+
+  // B) IBAN non détecté ou partiel
+  if (!extracted.entreprise.iban) {
+    oranges.push("Coordonnées bancaires non détectées sur le devis");
+  } else if (verified.iban_verifie && verified.iban_valide === false) {
+    oranges.push("Format IBAN à vérifier (possible erreur de saisie)");
+  }
+
+  // C) Acompte entre 30% et 50%
+  if (acompteAvantTravaux !== null && acompteAvantTravaux > 30 && acompteAvantTravaux <= 50) {
+    oranges.push(`Acompte modéré (${acompteAvantTravaux}%) - un acompte ≤ 30% est recommandé`);
+  }
+
+  // D) Assurances mentionnées sans attestation
+  if (extracted.entreprise.assurance_decennale_mentionnee === false) {
+    oranges.push("Assurance décennale non détectée sur le devis - demandez l'attestation");
+  } else if (extracted.entreprise.assurance_decennale_mentionnee === null) {
+    oranges.push("Assurance décennale à confirmer - mention partielle ou absente");
+  }
+
+  // E) Note Google < 4
+  if (verified.google_trouve && verified.google_note !== null && verified.google_note < 4.0) {
+    oranges.push(`Note Google inférieure au seuil de confort (${verified.google_note}/5)`);
+  }
+
+  // F) Travaux peu détaillés
+  if (extracted.travaux.length === 0) {
+    oranges.push("Aucun poste de travaux détecté sur le devis");
+  }
+
+  // G) Prix hors fourchette (ORANGE uniquement, jamais ROUGE)
+  const priceIssues = verified.comparaisons_prix.filter(p => p.score === "ORANGE");
+  if (priceIssues.length > 0) {
+    oranges.push(`${priceIssues.length} poste(s) avec prix au-dessus du marché à vérifier`);
+  }
+
+  // H) Certifications absentes mais non obligatoires
+  if (verified.rge_pertinent && !verified.rge_trouve) {
+    oranges.push("Qualification RGE non trouvée - vérifiez l'éligibilité aux aides");
+  }
+
+  // I) Entreprise jeune < 2 ans (si trouvée)
+  if (verified.entreprise_immatriculee === true && verified.anciennete_annees !== null && verified.anciennete_annees < 2) {
+    oranges.push(`Entreprise récente (${verified.anciennete_annees} an${verified.anciennete_annees > 1 ? "s" : ""}) - ancienneté à prendre en compte`);
+  }
+
+  // J) Données entreprise non vérifiées (lookup error ou skipped)
+  if (extracted.entreprise.siret && verified.lookup_status === "error") {
+    oranges.push("Vérification entreprise temporairement indisponible - données à confirmer manuellement");
+  } else if (extracted.entreprise.siret && verified.lookup_status === "skipped") {
+    oranges.push("Vérification entreprise non effectuée - SIRET à confirmer");
+  } else if (!extracted.entreprise.siret && !extracted.entreprise.nom) {
+    oranges.push("Coordonnées entreprise non identifiées sur le devis");
+  } else if (!extracted.entreprise.siret && extracted.entreprise.nom) {
+    oranges.push("SIRET non détecté sur le devis - demandez-le à l'artisan");
+  }
+
+  // ============================================================
+  // 🟢 CRITÈRES POSITIFS — FEU VERT
+  // ============================================================
+
+  // SIRET valide
+  if (verified.entreprise_immatriculee === true) {
+    verts.push("Entreprise identifiée dans les registres officiels");
+  }
+
+  // IBAN français valide
+  if (verified.iban_verifie && verified.iban_valide === true && verified.iban_code_pays === "FR") {
+    verts.push("IBAN France valide");
+  }
+
+  // Paiement traçable
+  const hasTraceable = extracted.paiement.modes.some(m => ["virement", "cheque", "carte_bancaire"].includes(m.toLowerCase()));
+  if (hasTraceable && !hasExplicitCash) {
+    verts.push("Mode de paiement traçable");
+  }
+
+  // Acompte ≤ 30%
+  if (acompteAvantTravaux !== null && acompteAvantTravaux <= 30) {
+    verts.push(`Acompte raisonnable (${acompteAvantTravaux}%)`);
+  }
+
+  // Certifications pertinentes
+  if (extracted.entreprise.certifications_mentionnees.some(c => c.toUpperCase().includes("RGE"))) {
+    verts.push("Certification RGE mentionnée");
+  }
+  if (extracted.entreprise.certifications_mentionnees.some(c => c.toUpperCase().includes("QUALIBAT"))) {
+    verts.push("Certification QUALIBAT mentionnée");
+  }
+  if (verified.rge_trouve) {
+    verts.push("Qualification RGE vérifiée");
+  }
+
+  // Note Google ≥ 4.2
+  if (verified.google_trouve && verified.google_note !== null && verified.google_note >= 4.2) {
+    verts.push(`Bonne réputation en ligne (${verified.google_note}/5 sur Google)`);
+  }
+
+  // Ancienneté ≥ 5 ans
+  if (verified.anciennete_annees !== null && verified.anciennete_annees >= 5) {
+    verts.push(`Entreprise établie (${verified.anciennete_annees} ans d'ancienneté)`);
+  }
+
+  // Capitaux propres positifs
+  if (verified.capitaux_propres !== null && verified.capitaux_propres >= 0) {
+    verts.push("Situation financière saine (capitaux propres positifs)");
+  }
+
+  // Assurance décennale mentionnée
+  if (extracted.entreprise.assurance_decennale_mentionnee === true) {
+    verts.push("Assurance décennale mentionnée sur le devis");
+  }
+
+  // RC Pro mentionnée
+  if (extracted.entreprise.assurance_rc_pro_mentionnee === true) {
+    verts.push("RC Pro mentionnée sur le devis");
+  }
+
+  // ============================================================
+  // CALCUL DU SCORE GLOBAL — RÈGLES NON NÉGOCIABLES
+  // ============================================================
+  // SI ≥ 1 critère critique → FEU ROUGE
+  // SINON SI ≥ 1 critère de vigilance → FEU ORANGE
+  // SINON → FEU VERT
+  // ❌ Aucune exception
+  // ❌ Aucune interprétation IA
+  // ❌ Aucun réajustement automatique
+  // ============================================================
+
+  let score_global: ScoringColor;
+  let explication: string;
+
+  if (rouges.length > 0) {
+    score_global = "ROUGE";
+    explication = `${rouges.length} point(s) critique(s) détecté(s) nécessitant une attention particulière avant engagement.`;
+  } else if (oranges.length > 0) {
+    score_global = "ORANGE";
+    explication = `${oranges.length} point(s) de vigilance à vérifier. L'ensemble des éléments analysés ne révèle pas de risque critique.`;
+  } else {
+    score_global = "VERT";
+    explication = verts.length > 0 
+      ? `Aucun point de vigilance. Éléments positifs : ${verts.slice(0, 3).join(", ")}${verts.length > 3 ? "..." : ""}.`
+      : "Aucun point critique ni de vigilance détecté sur ce devis.";
+  }
+
+  // ============================================================
+  // SCORES PAR BLOC
+  // ============================================================
+
+  const scores_blocs = {
+    entreprise: rouges.some(r => r.includes("Entreprise") || r.includes("Procédure") || r.includes("Capitaux"))
+      ? "ROUGE" as ScoringColor
+      : oranges.some(o => o.includes("Entreprise") || o.includes("SIRET") || o.includes("récente") || o.includes("Note Google"))
+        ? "ORANGE" as ScoringColor
+        : "VERT" as ScoringColor,
+    
+    devis: oranges.some(o => o.includes("prix") || o.includes("travaux"))
+      ? "ORANGE" as ScoringColor
+      : "VERT" as ScoringColor,
+    
+    securite: rouges.some(r => r.includes("Acompte") || r.includes("espèces"))
+      ? "ROUGE" as ScoringColor
+      : oranges.some(o => o.includes("IBAN") || o.includes("Acompte") || o.includes("Assurance"))
+        ? "ORANGE" as ScoringColor
+        : "VERT" as ScoringColor,
+    
     contexte: "INFORMATIF" as const,
   };
 
-  console.log("Scoring result (RÈGLES VERROUILLÉES):", {
-    globalScore,
-    critiques,
-    majeurs,
-    confort,
-    explanation,
+  console.log("PHASE 3 COMPLETE - Scoring:", {
+    score_global,
+    rouges,
+    oranges,
+    verts_count: verts.length,
   });
 
   return {
-    global_score: globalScore,
-    criteres_critiques: critiques,
-    criteres_majeurs: majeurs,
-    criteres_confort: confort,
-    score_explanation: explanation,
-    bloc_scores: blocScores,
+    score_global,
+    criteres_rouges: rouges,
+    criteres_oranges: oranges,
+    criteres_verts: verts,
+    explication,
+    scores_blocs,
   };
 }
 
-// ============ STEP 4: RENDER - Build output for UI ============
-function renderAnalysisOutput(
-  extracted: QuoteExtracted,
-  verified: QuoteVerified,
-  scoring: ScoringResult,
-  isAdaptedMode: boolean = false,
-  documentDetection?: DocumentDetectionResult
-): {
-  points_ok: string[];
-  alertes: string[];
-  recommandations: string[];
-  types_travaux: any[];
-} {
+// ============================================================
+// PHASE 4: RENDER (Construction sortie pour UI)
+// ============================================================
+// Chaque point de vigilance avec message explicatif pédagogique
+// ❌ Aucun langage accusatoire
+// ❌ Aucun jugement de probité
+// ❌ Aucune conclusion juridique
+// ============================================================
+
+function renderOutput(
+  extracted: ExtractedData,
+  verified: VerificationResult,
+  scoring: ScoringResult
+): { points_ok: string[]; alertes: string[]; recommandations: string[]; types_travaux: any[] } {
+  
   const points_ok: string[] = [];
   const alertes: string[] = [];
   const recommandations: string[] = [];
 
-  // Add adapted mode message at the top if applicable
-  if (isAdaptedMode && documentDetection) {
-    points_ok.push(`📋 ${documentDetection.credibility_message}`);
-  }
+  // ============ BLOC 1: ENTREPRISE & FIABILITÉ ============
 
-  // ============ BLOC 1: ENTREPRISE ============
-
-  // RÈGLE CENTRALE: Calculer company_verified pour la cohérence UI/Scoring
-  const company_verified = 
-    verified.company_found || 
-    (extracted.company.siret && extracted.company.siret.length >= 14) ||
-    (verified.google_found && verified.google_match_confidence === "high");
-
-  if (verified.company_found) {
-    points_ok.push(`✓ Entreprise identifiée : ${verified.company_name}`);
+  if (verified.entreprise_immatriculee === true) {
+    points_ok.push(`✓ Entreprise identifiée : ${verified.nom_officiel || extracted.entreprise.nom}`);
     
-    if (verified.anciennete_years !== null) {
-      if (verified.anciennete_years >= 5) {
-        points_ok.push(`🟢 Entreprise bien établie : ${verified.anciennete_years} ans d'existence (depuis ${formatDateFR(verified.date_creation || "")})`);
-      } else if (verified.anciennete_years >= 2) {
-        points_ok.push(`🟠 Entreprise établie depuis ${verified.anciennete_years} ans`);
+    if (verified.anciennete_annees !== null) {
+      if (verified.anciennete_annees >= 5) {
+        points_ok.push(`🟢 Entreprise établie : ${verified.anciennete_annees} ans d'existence`);
+      } else if (verified.anciennete_annees >= 2) {
+        points_ok.push(`🟠 Entreprise établie depuis ${verified.anciennete_annees} ans`);
       } else {
-        // Entreprise récente = ORANGE, jamais ROUGE
-        alertes.push(`⚠️ Entreprise récente : ${verified.anciennete_years} an(s) d'existence. Vigilance recommandée.`);
+        alertes.push(`ℹ️ Entreprise récente (${verified.anciennete_annees} an(s)). Cet indicateur est basé sur des données publiques et permet d'identifier des tendances générales. Il ne constitue ni une preuve ni un jugement sur l'artisan.`);
       }
     }
 
@@ -1525,220 +1172,186 @@ function renderAnalysisOutput(
     } else if (verified.bilans_disponibles > 0) {
       points_ok.push(`🟠 ${verified.bilans_disponibles} bilan(s) comptable(s) disponible(s)`);
     } else {
-      // Aucun bilan = info manquante, pas alerte forte
       points_ok.push("ℹ️ Aucun bilan publié - la vérification financière est limitée");
     }
 
-    if (verified.capitaux_propres_positifs === true) {
-      const formatted = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(verified.capitaux_propres!);
+    if (verified.capitaux_propres !== null && verified.capitaux_propres >= 0) {
+      const formatted = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(verified.capitaux_propres);
       points_ok.push(`🟢 Capitaux propres positifs (${formatted})`);
-    } else if (verified.capitaux_propres_positifs === false) {
-      // Capitaux négatifs = CRITIQUE CONFIRMÉ
+    } else if (verified.capitaux_propres_negatifs === true) {
       const formatted = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(verified.capitaux_propres!);
-      alertes.push(`🔴 ALERTE CRITIQUE : Capitaux propres négatifs (${formatted}). Situation financière fragile.`);
+      alertes.push(`🔴 Capitaux propres négatifs (${formatted}). Cet indicateur est basé sur les derniers bilans publiés. Il peut indiquer une situation financière tendue.`);
     }
 
-    if (verified.procedure_collective) {
-      alertes.push("🔴 ALERTE CRITIQUE : Procédure collective en cours (redressement ou liquidation)");
-    } else {
+    if (verified.procedure_collective === true) {
+      alertes.push("🔴 Procédure collective en cours (confirmée via BODACC). Cela indique une situation de redressement ou liquidation judiciaire.");
+    } else if (verified.procedure_collective === false) {
       points_ok.push("✓ Aucune procédure collective en cours");
     }
-  } else if (extracted.company.siret) {
-    // SIRET présent mais non trouvé Pappers = INFO pédagogique, pas critique
-    points_ok.push(`ℹ️ SIRET présent : ${extracted.company.siret}`);
-    points_ok.push("ℹ️ Les données financières détaillées de l'entreprise n'ont pas pu être exploitées automatiquement (structure de groupe, établissement secondaire ou données non consolidées). Cela n'indique pas un risque en soi.");
-    recommandations.push("Vous pouvez vérifier les informations sur societe.com ou infogreffe.fr si vous le souhaitez.");
-  } else if (extracted.company.name) {
-    // Nom présent mais pas de SIRET = demander le SIRET (formulation neutre)
-    points_ok.push(`ℹ️ Entreprise : ${extracted.company.name}`);
-    alertes.push("ℹ️ SIRET non détecté sur le devis – vous pouvez le demander à l'artisan pour une vérification complète");
-    recommandations.push("Demandez le numéro SIRET à l'artisan pour compléter la vérification.");
+  } else if (verified.entreprise_immatriculee === false) {
+    alertes.push("🔴 Entreprise introuvable dans les registres officiels (confirmé via API). Cet indicateur est basé sur une recherche dans les bases de données publiques.");
+  } else if (extracted.entreprise.siret) {
+    points_ok.push(`ℹ️ SIRET présent : ${extracted.entreprise.siret}`);
+    if (verified.lookup_status === "error") {
+      points_ok.push("ℹ️ Les données entreprise n'ont pas pu être exploitées automatiquement (limitation temporaire). Cela n'indique pas un risque en soi.");
+    } else {
+      points_ok.push("ℹ️ Vous pouvez vérifier les informations sur societe.com ou infogreffe.fr");
+    }
+  } else if (extracted.entreprise.nom) {
+    points_ok.push(`ℹ️ Entreprise : ${extracted.entreprise.nom}`);
+    alertes.push("ℹ️ SIRET non détecté sur le devis. Vous pouvez le demander à l'artisan pour une vérification complète.");
   } else {
-    alertes.push("ℹ️ Coordonnées entreprise non identifiées sur le devis – information à demander");
-    recommandations.push("Demandez à l'artisan ses coordonnées complètes et son numéro SIRET.");
+    alertes.push("ℹ️ Coordonnées entreprise non identifiées sur le devis.");
   }
 
-  // Google Places - toujours afficher un statut
-  if (verified.google_found) {
-    if (verified.google_rating !== null) {
-      if (verified.google_rating >= 4.5) {
-        points_ok.push(`🟢 Réputation en ligne : ${verified.google_rating}/5 sur Google (${verified.google_reviews_count} avis)`);
-      } else if (verified.google_rating >= 4) {
-        points_ok.push(`🟠 Réputation en ligne : ${verified.google_rating}/5 sur Google (${verified.google_reviews_count} avis)`);
-      } else {
-        points_ok.push(`🟠 Réputation en ligne : ${verified.google_rating}/5 sur Google (${verified.google_reviews_count} avis) - Consultez les avis`);
-      }
-      
-      if (verified.google_match_confidence !== "high") {
-        points_ok.push("ℹ️ Correspondance Google à confirmer (plusieurs établissements possibles)");
-      }
+  // Google Places
+  if (verified.google_trouve && verified.google_note !== null) {
+    if (verified.google_note >= 4.5) {
+      points_ok.push(`🟢 Réputation en ligne : ${verified.google_note}/5 sur Google (${verified.google_nb_avis} avis)`);
+    } else if (verified.google_note >= 4.0) {
+      points_ok.push(`🟠 Réputation en ligne : ${verified.google_note}/5 sur Google (${verified.google_nb_avis} avis)`);
     } else {
-      points_ok.push("🟠 Réputation en ligne : Aucun avis disponible sur Google");
+      alertes.push(`ℹ️ Note Google inférieure au seuil de confort (${verified.google_note}/5). Cet indicateur est basé sur des données publiques. Consultez les avis pour plus de détails.`);
     }
+  } else if (verified.google_trouve) {
+    points_ok.push("🟠 Réputation en ligne : Aucun avis disponible sur Google");
   } else {
-    points_ok.push("🟠 Réputation en ligne : Établissement non trouvé sur Google (non critique)");
+    points_ok.push("ℹ️ Établissement non trouvé sur Google (non critique)");
   }
 
   // RGE
-  if (verified.rge_found) {
+  if (verified.rge_trouve) {
     points_ok.push(`🟢 Qualification RGE vérifiée : ${verified.rge_qualifications.slice(0, 2).join(", ")}`);
-  } else if (verified.rge_relevant) {
-    alertes.push("⚠️ RGE non trouvé pour ce SIRET - travaux potentiellement éligibles aux aides");
+  } else if (verified.rge_pertinent) {
+    alertes.push("ℹ️ RGE non trouvé. Si vous souhaitez bénéficier d'aides à la rénovation énergétique, vérifiez l'éligibilité.");
   } else {
     points_ok.push("✓ Qualification RGE : non requise pour ce type de travaux");
   }
 
-  // QUALIBAT
-  if (extracted.labels.mentions_qualibat === "yes") {
+  // Certifications
+  if (extracted.entreprise.certifications_mentionnees.some(c => c.toUpperCase().includes("QUALIBAT"))) {
     points_ok.push("🟢 Qualification QUALIBAT mentionnée sur le devis");
   }
 
-  // ============ BLOC 2: DEVIS ============
+  // ============ BLOC 2: DEVIS & COHÉRENCE ============
 
-  // Incohérence des totaux
-  if (extracted.totals.totals_incoherence === "yes") {
-    alertes.push(`🔴 Incohérence détectée dans les totaux du devis: ${extracted.totals.incoherence_reason || "vérifiez la somme des lignes"}`);
-  } else if (extracted.totals.totals_incoherence === "no") {
-    points_ok.push("✓ Totaux du devis cohérents");
-  }
-
-  // Prix par catégorie
-  for (const comparison of verified.price_comparisons) {
+  for (const comparison of verified.comparaisons_prix) {
     if (comparison.score === "VERT") {
-      points_ok.push(`✓ ${comparison.label}: prix cohérent (${comparison.unit_price_quote.toFixed(2)}€)`);
-    } else if (comparison.score === "ORANGE") {
-      alertes.push(`⚠️ ${comparison.label}: ${comparison.explanation}`);
+      points_ok.push(`✓ ${comparison.libelle}: prix cohérent (${comparison.prix_unitaire_devis.toFixed(2)}€)`);
     } else {
-      alertes.push(`🚨 ${comparison.label}: ${comparison.explanation}`);
+      alertes.push(`ℹ️ ${comparison.libelle}: ${comparison.explication}. Cet indicateur est basé sur des fourchettes de prix indicatives. Il ne constitue pas un jugement définitif.`);
     }
   }
 
-  // ============ BLOC 3: SÉCURITÉ ============
+  if (extracted.travaux.length === 0) {
+    alertes.push("ℹ️ Aucun poste de travaux détecté. Le détail des prestations pourrait être demandé.");
+  }
+
+  // ============ BLOC 3: SÉCURITÉ & PAIEMENT ============
 
   // Mode de paiement
-  const paymentMethods = extracted.paiement.payment_methods_detected;
-  const hasTraceable = paymentMethods.some(m => ["virement", "cheque", "carte_bancaire"].includes(m.toLowerCase()));
-  const hasCash = paymentMethods.some(m => m.toLowerCase() === "especes");
+  const hasTraceable = extracted.paiement.modes.some(m => ["virement", "cheque", "carte_bancaire"].includes(m.toLowerCase()));
+  const hasCash = extracted.paiement.modes.some(m => m.toLowerCase() === "especes");
 
   if (hasCash) {
-    alertes.push("🔴 ALERTE: Paiement en espèces explicitement demandé - Privilégiez un mode traçable");
+    alertes.push("🔴 Paiement en espèces explicitement mentionné. Privilégiez un mode de paiement traçable (virement, chèque).");
   } else if (hasTraceable) {
     points_ok.push("✓ Mode de paiement traçable accepté");
   }
 
   // IBAN
-  if (verified.iban_verified) {
-    if (verified.iban_valid === false) {
-      // Alignement UI/score: ce n'est PAS un critère critique (ORANGE)
-      alertes.push("⚠️ IBAN techniquement invalide (à vérifier) – attention aux erreurs de saisie");
-    } else if (verified.iban_valid === true) {
-      if (verified.iban_country_code === "FR") {
-        points_ok.push(`✓ IBAN valide et domicilié en France${verified.iban_bank_name ? ` (${verified.iban_bank_name})` : ""}`);
+  if (verified.iban_verifie) {
+    if (verified.iban_valide === true) {
+      if (verified.iban_code_pays === "FR") {
+        points_ok.push(`✓ IBAN valide et domicilié en France${verified.iban_banque ? ` (${verified.iban_banque})` : ""}`);
       } else {
-        alertes.push(`⚠️ IBAN étranger (${getCountryName(verified.iban_country_code || "")}) - Vérifiez la raison`);
+        alertes.push(`ℹ️ IBAN étranger (${getCountryName(verified.iban_code_pays || "")}) détecté. Cela peut être normal selon le contexte. À vérifier.`);
       }
+    } else if (verified.iban_valide === false) {
+      alertes.push("ℹ️ Format IBAN à vérifier (possible erreur de saisie sur le devis).");
     }
-  } else if (extracted.paiement.iban_detected) {
-    // IBAN détecté mais vérification indisponible = ORANGE, jamais ROUGE
-    alertes.push("⚠️ IBAN détecté mais vérification technique indisponible (information à confirmer)");
-  } else if (!extracted.paiement.iban_detected && !extracted.paiement.rib_detected) {
-    // IBAN non détecté = info manquante, PAS critique
-    points_ok.push("ℹ️ IBAN non détecté sur le devis (informations bancaires à demander si virement)");
+  } else if (!extracted.entreprise.iban) {
+    alertes.push("ℹ️ Coordonnées bancaires non détectées sur le devis. À demander si paiement par virement.");
   }
 
   // Acompte
-  const depositPercent = extracted.acompte.deposit_before_work_percent ?? extracted.acompte.deposit_percent;
-  if (depositPercent !== null) {
-    if (depositPercent <= 30) {
-      points_ok.push(`✓ Acompte raisonnable (${depositPercent}%)`);
-    } else if (depositPercent <= 50) {
-      alertes.push(`⚠️ Acompte modéré (${depositPercent}%) - Préférez un acompte ≤ 30%`);
-    } else if (depositPercent < 100) {
-      alertes.push(`🔴 Acompte élevé (${depositPercent}%) - Risque élevé si problème`);
+  const acompte = extracted.paiement.acompte_avant_travaux_pct ?? extracted.paiement.acompte_pct;
+  if (acompte !== null) {
+    if (acompte <= 30) {
+      points_ok.push(`✓ Acompte raisonnable (${acompte}%)`);
+    } else if (acompte <= 50) {
+      alertes.push(`ℹ️ Acompte modéré (${acompte}%). Un acompte ≤ 30% est généralement recommandé. Cela reste une pratique courante.`);
     } else {
-      alertes.push("🔴 Paiement intégral demandé avant travaux - Risque très élevé");
+      alertes.push(`🔴 Acompte élevé (${acompte}%). Un acompte supérieur à 50% avant travaux représente un risque en cas de problème.`);
     }
   }
 
   // Échéancier
-  if (extracted.paiement.has_payment_schedule) {
-    points_ok.push(`✓ Échéancier de paiement prévu (${extracted.paiement.payment_schedule_text || "paiement en plusieurs fois"})`);
+  if (extracted.paiement.echeancier_detecte) {
+    points_ok.push("✓ Échéancier de paiement prévu");
   }
 
-  // Assurances (Niveau 1 = devis uniquement, jamais ROUGE)
-  if (extracted.assurances.mentions_decennale === "yes") {
-    const details = extracted.assurances.insurer_name ? ` (${extracted.assurances.insurer_name})` : "";
-    points_ok.push(`✓ Assurance décennale mentionnée sur le devis${details}`);
-  } else if (extracted.assurances.mentions_decennale === "uncertain") {
-    alertes.push("⚠️ Assurance décennale : mention partielle – demandez l'attestation pour confirmer");
+  // Assurances
+  if (extracted.entreprise.assurance_decennale_mentionnee === true) {
+    points_ok.push("✓ Assurance décennale mentionnée sur le devis");
+  } else if (extracted.entreprise.assurance_decennale_mentionnee === false) {
+    alertes.push("ℹ️ Assurance décennale non détectée. Demandez l'attestation d'assurance pour confirmer la couverture.");
   } else {
-    alertes.push("⚠️ Assurance décennale non détectée – demandez l'attestation d'assurance");
+    alertes.push("ℹ️ Mention d'assurance décennale partielle ou incertaine. Demandez l'attestation pour confirmation.");
   }
 
-  if (extracted.assurances.mentions_rcpro === "yes") {
+  if (extracted.entreprise.assurance_rc_pro_mentionnee === true) {
     points_ok.push("✓ RC Pro mentionnée sur le devis");
-  } else if (extracted.assurances.mentions_rcpro === "uncertain") {
-    points_ok.push("ℹ️ RC Pro partiellement mentionnée");
   }
 
-  recommandations.push("📋 Pour confirmer les assurances, demandez les attestations d'assurance (PDF) à jour.");
+  // ============ BLOC 4: CONTEXTE CHANTIER ============
 
-  // ============ BLOC 4: CONTEXTE (toujours affiché) ============
-
-  if (verified.georisques_queried) {
-    if (verified.georisques_risks.length > 0) {
-      points_ok.push(`📍 Contexte chantier (${verified.georisques_commune}) : ${verified.georisques_risks.length} risque(s) naturel(s) - ${verified.georisques_risks.slice(0, 3).join(", ")}`);
+  if (verified.georisques_consulte) {
+    if (verified.georisques_risques.length > 0) {
+      points_ok.push(`📍 Contexte chantier (${verified.georisques_commune}) : ${verified.georisques_risques.length} risque(s) naturel(s) - ${verified.georisques_risques.slice(0, 3).join(", ")}`);
     } else {
       points_ok.push(`📍 Contexte chantier (${verified.georisques_commune}) : Aucune contrainte particulière identifiée`);
     }
-    if (verified.georisques_seismic_zone) {
-      points_ok.push(`📍 Zone sismique : ${verified.georisques_seismic_zone}`);
+    if (verified.georisques_zone_sismique) {
+      points_ok.push(`📍 Zone sismique : ${verified.georisques_zone_sismique}`);
     }
-  } else if (extracted.chantier.address_chantier || extracted.chantier.postal_code) {
-    points_ok.push("📍 Contexte chantier : Adresse détectée mais non exploitable pour les risques");
+  } else if (extracted.client.adresse_chantier || extracted.client.code_postal) {
+    points_ok.push("📍 Contexte chantier : Adresse détectée mais consultation Géorisques non effectuée");
   } else {
     points_ok.push("📍 Contexte chantier : Adresse non détectée sur le devis");
   }
 
   // ============ RECOMMANDATIONS ============
 
-  recommandations.push(`📊 ${scoring.score_explanation}`);
+  recommandations.push(`📊 ${scoring.explication}`);
+  recommandations.push("📋 Pour confirmer les assurances, demandez les attestations d'assurance (PDF) à jour.");
 
-  // Message de synthèse positif pour ORANGE
-  if (scoring.global_score === "ORANGE" && scoring.criteres_critiques.length === 0) {
-    recommandations.push("✅ L'ensemble des éléments analysés suggère une entreprise sérieuse. Les points listés sont des vérifications de confort recommandées avant engagement.");
+  if (scoring.score_global === "ORANGE" && scoring.criteres_rouges.length === 0) {
+    recommandations.push("✅ Les points de vigilance listés sont des vérifications de confort recommandées, pas des signaux d'alerte critiques.");
   }
 
-  if (scoring.criteres_majeurs.length > 0 && scoring.global_score === "ORANGE") {
-    recommandations.push("ℹ️ Les points ci-dessus sont des recommandations de vérification, pas des signaux d'alerte critiques.");
-  }
-
-  if (!verified.company_found && extracted.company.siret) {
-    recommandations.push("Vous pouvez consulter societe.com ou infogreffe.fr pour plus de détails sur l'entreprise.");
-  }
-
-  if (depositPercent !== null && depositPercent > 30) {
-    recommandations.push("Limitez l'acompte à 30% maximum du montant total.");
+  if (acompte !== null && acompte > 30) {
+    recommandations.push("💡 Il est recommandé de limiter l'acompte à 30% maximum du montant total.");
   }
 
   // ============ TYPES TRAVAUX ENRICHIS ============
 
   const types_travaux = extracted.travaux.map(t => {
-    const priceComparison = verified.price_comparisons.find(
-      p => p.category.toLowerCase() === t.category.toLowerCase()
+    const priceComparison = verified.comparaisons_prix.find(
+      p => p.categorie.toLowerCase() === t.categorie.toLowerCase()
     );
     
     return {
-      categorie: t.category,
-      libelle: t.description || t.category,
-      quantite: t.quantity,
-      unite: t.unit || "forfait",
-      montant_ht: t.amount_ht,
+      categorie: t.categorie,
+      libelle: t.libelle || t.categorie,
+      quantite: t.quantite,
+      unite: t.unite || "forfait",
+      montant_ht: t.montant,
       score_prix: priceComparison?.score || null,
-      fourchette_min: priceComparison?.range_min || null,
-      fourchette_max: priceComparison?.range_max || null,
-      zone_type: priceComparison?.zone_type || null,
-      explication: priceComparison?.explanation || null,
+      fourchette_min: priceComparison?.fourchette_min || null,
+      fourchette_max: priceComparison?.fourchette_max || null,
+      zone_type: priceComparison?.zone || null,
+      explication: priceComparison?.explication || null,
     };
   });
 
@@ -1794,7 +1407,7 @@ serve(async (req) => {
       .update({ status: "processing" })
       .eq("id", analysisId);
 
-    // Download the PDF file
+    // Download the file
     const { data: fileData, error: downloadError } = await supabase.storage
       .from("devis")
       .download(analysis.file_path);
@@ -1806,25 +1419,17 @@ serve(async (req) => {
         .eq("id", analysisId);
 
       return new Response(
-        JSON.stringify({ error: "Failed to download file" }),
+        JSON.stringify({ error: "File download failed" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Convert file to base64
+    // Convert to base64
     const arrayBuffer = await fileData.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    let binaryString = "";
-    const chunkSize = 8192;
-    for (let i = 0; i < uint8Array.length; i += chunkSize) {
-      const chunk = uint8Array.subarray(i, i + chunkSize);
-      binaryString += String.fromCharCode.apply(null, [...chunk]);
-    }
-    const base64 = btoa(binaryString);
-
-    // Determine MIME type
-    const fileName = analysis.file_name.toLowerCase();
+    const base64Content = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    
     let mimeType = "application/pdf";
+    const fileName = analysis.file_name.toLowerCase();
     if (fileName.endsWith(".png")) mimeType = "image/png";
     else if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg")) mimeType = "image/jpeg";
     else if (fileName.endsWith(".webp")) mimeType = "image/webp";
@@ -1833,81 +1438,58 @@ serve(async (req) => {
     console.log("Analysis ID:", analysisId);
     console.log("File:", analysis.file_name);
 
-    // ============ STEP 0: DETECT DOCUMENT TYPE ============
-    console.log("--- STEP 0: DETECT DOCUMENT TYPE ---");
-    const documentDetection = await detectDocumentType(base64, mimeType, lovableApiKey);
-    console.log("Document detection result:", {
-      type: documentDetection.type,
-      confidence: documentDetection.confidence,
-      analysis_mode: documentDetection.analysis_mode,
-      indicators: documentDetection.indicators,
-    });
-
-    // Handle rejected documents (facture or autre)
-    if (documentDetection.analysis_mode === "rejected") {
-      console.log("Document rejected:", documentDetection.rejection_message);
-      
-      await supabase
-        .from("analyses")
-        .update({
-          status: "completed",
-          score: null,
-          resume: documentDetection.rejection_message,
-          points_ok: [],
-          alertes: [],
-          recommandations: [
-            documentDetection.credibility_message,
-            "💡 Pour bénéficier de l'analyse VerifierMonDevis.fr, veuillez transmettre un devis (document émis avant travaux)."
-          ],
-          raw_text: JSON.stringify({
-            document_detection: documentDetection,
-          }),
-          types_travaux: null,
-        })
-        .eq("id", analysisId);
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          analysisId,
-          score: null,
-          documentType: documentDetection.type,
-          rejected: true,
-          message: documentDetection.rejection_message,
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Flag for adapted analysis modes
-    const isAdaptedMode = documentDetection.analysis_mode === "adapted";
-    const isDiagnosticMode = documentDetection.analysis_mode === "diagnostic";
-    const isSpecialMode = isAdaptedMode || isDiagnosticMode;
+    // ============ PHASE 1: EXTRACTION UNIQUE ============
+    let extracted: ExtractedData;
     
-    if (isAdaptedMode) {
-      console.log("Adapted analysis mode for prestation technique");
-    }
-    if (isDiagnosticMode) {
-      console.log("Diagnostic immobilier mode - diagnostics detected:", documentDetection.diagnostic_types);
-    }
-
-    // ============ STEP 1: EXTRACT ============
-    console.log("--- STEP 1: EXTRACT ---");
-    let extracted: QuoteExtracted;
     try {
-      extracted = await extractQuoteData(base64, mimeType, lovableApiKey, documentDetection.type);
-      console.log("Extraction complete:", {
-        company: extracted.company.name,
-        siret: extracted.company.siret,
-        travaux_count: extracted.travaux.length,
-        total_ttc: extracted.totals.total_ttc,
-      });
+      console.log("--- PHASE 1: EXTRACTION (UN SEUL APPEL IA) ---");
+      extracted = await extractDataFromDocument(base64Content, mimeType, lovableApiKey);
+      
+      // Handle rejected documents
+      if (extracted.type_document === "facture") {
+        await supabase
+          .from("analyses")
+          .update({
+            status: "completed",
+            score: null,
+            resume: "Document non conforme : facture détectée",
+            points_ok: [],
+            alertes: ["Ce document est une facture, pas un devis. VerifierMonDevis.fr analyse uniquement des devis, c'est-à-dire des documents émis AVANT réalisation des travaux."],
+            recommandations: ["Veuillez transmettre un devis pour bénéficier de l'analyse."],
+            raw_text: JSON.stringify({ type_document: "facture", extracted }),
+          })
+          .eq("id", analysisId);
+
+        return new Response(
+          JSON.stringify({ success: true, analysisId, score: null, message: "Document non conforme (facture)" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (extracted.type_document === "autre") {
+        await supabase
+          .from("analyses")
+          .update({
+            status: "completed",
+            score: null,
+            resume: "Document non conforme",
+            points_ok: [],
+            alertes: ["Le document transmis ne correspond pas à un devis de travaux. Veuillez transmettre un devis conforme pour bénéficier de l'analyse."],
+            recommandations: ["VerifierMonDevis.fr analyse les devis de travaux de rénovation, construction, plomberie, électricité, etc."],
+            raw_text: JSON.stringify({ type_document: "autre", extracted }),
+          })
+          .eq("id", analysisId);
+
+        return new Response(
+          JSON.stringify({ success: true, analysisId, score: null, message: "Document non conforme" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
     } catch (error) {
       console.error("Extraction failed:", error);
 
-      const publicMessage = isPipelineError(error)
-        ? error.publicMessage
-        : "Impossible de lire le contenu du fichier";
+      const publicMessage = isPipelineError(error) ? error.publicMessage : "Impossible de lire le contenu du fichier";
       const statusCode = isPipelineError(error) ? error.status : 500;
       const errorCode = isPipelineError(error) ? error.code : "EXTRACTION_FAILED";
 
@@ -1922,161 +1504,29 @@ serve(async (req) => {
       );
     }
 
-    // ============ STEP 2: VERIFY ============
-    console.log("--- STEP 2: VERIFY ---");
-    const verified = await verifyQuoteData(extracted, supabase);
-    
-    // For adapted/diagnostic mode: clear travaux price comparisons (not applicable)
-    if (isSpecialMode) {
-      verified.price_comparisons = [];
-      console.log("Travaux price comparisons cleared for special mode");
-    }
-    
-    // For diagnostic mode: perform diagnostic-specific price comparison
-    const diagnosticPriceAnalysis: Array<{
-      diagnostic_type: string;
-      label: string;
-      quote_price: number | null;
-      range_min: number;
-      range_max: number;
-      score: ScoringColor;
-      explanation: string;
-    }> = [];
-    
-    if (isDiagnosticMode && documentDetection.diagnostic_types && documentDetection.diagnostic_types.length > 0) {
-      const totalPrice = extracted.totals.total_ttc || extracted.totals.total_ht;
-      
-      // Check if it's a pack
-      const isPack = documentDetection.diagnostic_types.length >= 3;
-      const hasLocationKeywords = documentDetection.indicators.some(i => 
-        i.toLowerCase().includes("location") || i.toLowerCase().includes("pack location")
-      );
-      
-      if (isPack && totalPrice) {
-        // Compare as pack
-        const packType = hasLocationKeywords ? "pack_location" : "pack_vente";
-        const packRef = DIAGNOSTIC_REFERENCE_PRICES[packType];
-        
-        let packScore: ScoringColor = "VERT";
-        let packExplanation = "";
-        
-        if (totalPrice < packRef.min) {
-          packScore = "VERT";
-          packExplanation = `Prix inférieur à la moyenne (${packRef.min}€ - ${packRef.max}€)`;
-        } else if (totalPrice <= packRef.max) {
-          packScore = "VERT";
-          packExplanation = `Prix dans la fourchette indicative nationale (${packRef.min}€ - ${packRef.max}€)`;
-        } else if (totalPrice <= packRef.max * 1.3) {
-          // ORANGE but NEVER RED for diagnostics
-          packScore = "ORANGE";
-          packExplanation = `Prix au-dessus de la fourchette indicative (${packRef.min}€ - ${packRef.max}€). Les tarifs peuvent varier selon la surface du bien et sa localisation.`;
-        } else {
-          // Still ORANGE, never RED for diagnostic pricing
-          packScore = "ORANGE";
-          packExplanation = `Prix significativement au-dessus de la fourchette indicative (${packRef.min}€ - ${packRef.max}€). Il est recommandé de comparer avec d'autres devis.`;
-        }
-        
-        diagnosticPriceAnalysis.push({
-          diagnostic_type: packType,
-          label: packRef.label,
-          quote_price: totalPrice,
-          range_min: packRef.min,
-          range_max: packRef.max,
-          score: packScore,
-          explanation: packExplanation,
-        });
-      } else {
-        // Individual diagnostics - informative only
-        for (const diagType of documentDetection.diagnostic_types) {
-          const ref = DIAGNOSTIC_REFERENCE_PRICES[diagType.toLowerCase()];
-          if (ref) {
-            if (ref.min === 0 && ref.max === 0) {
-              // DTG/PPPT - not comparable
-              diagnosticPriceAnalysis.push({
-                diagnostic_type: diagType,
-                label: ref.label,
-                quote_price: null,
-                range_min: 0,
-                range_max: 0,
-                score: "VERT",
-                explanation: "Ce type de diagnostic ne dispose pas de fourchette de prix standardisée (prix variable selon le contexte).",
-              });
-            } else {
-              diagnosticPriceAnalysis.push({
-                diagnostic_type: diagType,
-                label: ref.label,
-                quote_price: null, // Individual prices not always extractable
-                range_min: ref.min,
-                range_max: ref.max,
-                score: "VERT", // Always VERT for informative display
-                explanation: `Fourchette indicative nationale : ${ref.min}€ - ${ref.max}€`,
-              });
-            }
-          }
-        }
-      }
-      
-      console.log("Diagnostic price analysis:", diagnosticPriceAnalysis);
-    }
+    // ============ PHASE 2: VÉRIFICATION (APIs - SANS IA) ============
+    console.log("--- PHASE 2: VÉRIFICATION (APIs conditionnées) ---");
+    const verified = await verifyData(extracted, supabase);
 
-    // ============ STEP 3: SCORE ============
-    console.log("--- STEP 3: SCORE ---");
-    const scoring = calculateScore(extracted, verified, isSpecialMode);
-    
-    // For diagnostic mode: ensure price never triggers RED
-    if (isDiagnosticMode) {
-      // Remove any price-related critical criteria (defensive)
-      scoring.criteres_critiques = scoring.criteres_critiques.filter(c => 
-        !c.toLowerCase().includes("prix") && !c.toLowerCase().includes("tarif")
-      );
-    }
+    // ============ PHASE 3: SCORING DÉTERMINISTE (SANS IA) ============
+    console.log("--- PHASE 3: SCORING DÉTERMINISTE ---");
+    const scoring = calculateScore(extracted, verified);
 
-    // ============ STEP 4: RENDER ============
-    console.log("--- STEP 4: RENDER ---");
-    const output = renderAnalysisOutput(extracted, verified, scoring, isSpecialMode, documentDetection);
-    
-    // Add diagnostic-specific content
-    if (isDiagnosticMode) {
-      // Add diagnostic mode indicator at the top
-      output.points_ok.unshift(`🏠 ${documentDetection.credibility_message}`);
-      
-      // Add diagnostic price analysis to types_travaux for display
-      if (diagnosticPriceAnalysis.length > 0) {
-        for (const diag of diagnosticPriceAnalysis) {
-          output.types_travaux.push({
-            categorie: "diagnostic_immobilier",
-            libelle: diag.label,
-            quantite: 1,
-            unite: "forfait",
-            montant_ht: diag.quote_price,
-            score_prix: diag.score,
-            fourchette_min: diag.range_min,
-            fourchette_max: diag.range_max,
-            zone_type: "national",
-            explication: diag.explanation,
-          });
-        }
-      }
-      
-      // Add mandatory pedagogical message for diagnostics
-      output.recommandations.push(
-        "💡 Les tarifs des diagnostics immobiliers sont libres et peuvent varier selon la taille du bien, sa localisation et le nombre de diagnostics requis. Les comparaisons de prix sont fournies à titre indicatif afin d'aider à situer le devis par rapport aux pratiques courantes."
-      );
-    }
+    // ============ PHASE 4: RENDER ============
+    console.log("--- PHASE 4: RENDER ---");
+    const output = renderOutput(extracted, verified, scoring);
 
     console.log("=== PIPELINE COMPLETE ===");
-    console.log("Final score:", scoring.global_score);
-    console.log("Critiques:", scoring.criteres_critiques);
-    console.log("Majeurs:", scoring.criteres_majeurs);
-    console.log("Document type:", documentDetection.type);
+    console.log("Final score:", scoring.score_global);
+    console.log("Critères rouges:", scoring.criteres_rouges);
+    console.log("Critères oranges:", scoring.criteres_oranges.length);
 
-    // Store raw extracted data for debug mode
+    // Store debug data
     const rawDataForDebug = JSON.stringify({
-      document_detection: documentDetection,
-      diagnostic_price_analysis: diagnosticPriceAnalysis,
-      quote_extracted: extracted,
-      quote_verified: verified,
-      scoring: scoring,
+      type_document: extracted.type_document,
+      extracted,
+      verified,
+      scoring,
     });
 
     // Update the analysis with results
@@ -2084,8 +1534,8 @@ serve(async (req) => {
       .from("analyses")
       .update({
         status: "completed",
-        score: scoring.global_score,
-        resume: extracted.resume,
+        score: scoring.score_global,
+        resume: extracted.resume_factuel,
         points_ok: output.points_ok,
         alertes: output.alertes,
         recommandations: output.recommandations,
@@ -2106,8 +1556,8 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         analysisId,
-        score: scoring.global_score,
-        companyVerified: verified.company_found,
+        score: scoring.score_global,
+        companyVerified: verified.entreprise_immatriculee === true,
         message: "Analyse terminée avec succès",
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
