@@ -107,10 +107,12 @@ interface ExtractedData {
 interface ProviderCallDebug {
   attempted: boolean;
   cached: boolean;
+  cache_hit: boolean;
   status: number | null;
   error: string | null;
   fetched_at: string | null;
   expires_at: string | null;
+  latency_ms: number | null;
 }
 
 interface DebugInfo {
@@ -543,13 +545,16 @@ interface VerifyCompanyResult {
 }
 
 async function verifyCompanyWithCache(siret: string | null, supabase: any): Promise<VerifyCompanyResult> {
+  const startTime = Date.now();
   const defaultDebug: ProviderCallDebug = {
     attempted: false,
     cached: false,
+    cache_hit: false,
     status: null,
     error: null,
     fetched_at: null,
     expires_at: null,
+    latency_ms: null,
   };
   
   const defaultResult: VerifyCompanyResult = {
@@ -588,7 +593,7 @@ async function verifyCompanyWithCache(siret: string | null, supabase: any): Prom
     return { 
       ...defaultResult, 
       lookup_status: "skipped",
-      debug: { ...defaultDebug, attempted: false, error: "PAPPERS_API_KEY not configured" }
+      debug: { ...defaultDebug, attempted: false, error: "PAPPERS_API_KEY not configured", latency_ms: Date.now() - startTime }
     };
   }
 
@@ -621,10 +626,12 @@ async function verifyCompanyWithCache(siret: string | null, supabase: any): Prom
         debug: {
           attempted: true,
           cached: true,
+          cache_hit: true,
           status: cachedData.status === "ok" ? 200 : (cachedData.status === "not_found" ? 404 : 500),
           error: cachedData.error_message,
           fetched_at: cachedData.fetched_at,
           expires_at: cachedData.expires_at,
+          latency_ms: Date.now() - startTime,
         },
       };
     }
@@ -675,10 +682,12 @@ async function verifyCompanyWithCache(siret: string | null, supabase: any): Prom
         debug: {
           attempted: true,
           cached: false,
+          cache_hit: false,
           status: 404,
           error: null,
           fetched_at: now.toISOString(),
           expires_at: expiresAt.toISOString(),
+          latency_ms: Date.now() - startTime,
         }
       };
     }
@@ -707,10 +716,12 @@ async function verifyCompanyWithCache(siret: string | null, supabase: any): Prom
         debug: {
           attempted: true,
           cached: false,
+          cache_hit: false,
           status: response.status,
           error: `API returned ${response.status}`,
           fetched_at: now.toISOString(),
           expires_at: errorExpires.toISOString(),
+          latency_ms: Date.now() - startTime,
         }
       };
     }
@@ -785,10 +796,12 @@ async function verifyCompanyWithCache(siret: string | null, supabase: any): Prom
       debug: {
         attempted: true,
         cached: false,
+        cache_hit: false,
         status: 200,
         error: null,
         fetched_at: now.toISOString(),
         expires_at: expiresAt.toISOString(),
+        latency_ms: Date.now() - startTime,
       },
     };
   } catch (error) {
@@ -799,10 +812,12 @@ async function verifyCompanyWithCache(siret: string | null, supabase: any): Prom
       debug: {
         attempted: true,
         cached: false,
+        cache_hit: false,
         status: null,
         error: error instanceof Error ? error.message : "Unknown error",
         fetched_at: new Date().toISOString(),
         expires_at: null,
+        latency_ms: Date.now() - startTime,
       }
     };
   }
