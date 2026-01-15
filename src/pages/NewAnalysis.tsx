@@ -48,8 +48,23 @@ const NewAnalysis = () => {
   };
 
   const validateAndSetFile = (file: File) => {
-    const allowedTypes = ["application/pdf", "image/jpeg", "image/png", "image/heic"];
-    if (!allowedTypes.includes(file.type)) {
+    const allowedTypes = [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/heic",
+      // Certains navigateurs renvoient un mimetype générique
+      "application/octet-stream",
+    ];
+
+    // Si le navigateur ne fournit pas de mimetype, on se rabat sur l'extension
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    const allowedExts = ["pdf", "jpg", "jpeg", "png", "heic"];
+
+    const typeOk = file.type ? allowedTypes.includes(file.type) : true;
+    const extOk = ext ? allowedExts.includes(ext) : false;
+
+    if (!typeOk || !extOk) {
       toast.error("Format non supporté. Utilisez PDF, JPG ou PNG.");
       return;
     }
@@ -80,6 +95,34 @@ const NewAnalysis = () => {
     }
   };
 
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const uploadWithRetry = async (bucket: string, filePath: string, file: File) => {
+    const attempts = 3;
+
+    for (let i = 0; i < attempts; i++) {
+      const { error } = await supabase.storage.from(bucket).upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type || undefined,
+      });
+
+      if (!error) return;
+
+      const msg = String((error as any)?.message ?? "");
+      const status = (error as any)?.statusCode ?? (error as any)?.status;
+
+      // Retry uniquement sur erreurs réseau (pas de status)
+      const isNetworkError = !status && /failed to fetch/i.test(msg);
+
+      if (!isNetworkError || i === attempts - 1) {
+        throw error;
+      }
+
+      await wait(600 * (i + 1));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file || !user) {
@@ -96,11 +139,23 @@ const NewAnalysis = () => {
       const filePath = `${user.id}/${fileName}`;
 
       // Upload file to storage
-      const { error: uploadError } = await supabase.storage
-        .from("devis")
-        .upload(filePath, file);
+      try {
+        await uploadWithRetry("devis", filePath, file);
+      } catch (uploadError: any) {
+        const msg = String(uploadError?.message ?? "");
+        const status = uploadError?.statusCode ?? uploadError?.status;
 
-      if (uploadError) {
+        // Cas typique navigateur: CORS / VPN / réseau → "Failed to fetch" (pas de status)
+        if (!status && /failed to fetch/i.test(msg)) {
+          throw new Error(
+            "Téléversement impossible (connexion instable, VPN/Adblock ou restriction navigateur). Réessayez ou changez de réseau."
+          );
+        }
+
+        if (status === 413) {
+          throw new Error("Fichier trop volumineux. Maximum 10 Mo.");
+        }
+
         throw new Error("Erreur lors du téléversement du fichier");
       }
 
