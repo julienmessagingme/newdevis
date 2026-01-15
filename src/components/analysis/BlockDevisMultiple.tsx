@@ -1,4 +1,4 @@
-import { CheckCircle2, AlertCircle, XCircle, Receipt, TrendingUp, Minus, HelpCircle, MapPin, FileText, List, Calculator } from "lucide-react";
+import { CheckCircle2, AlertCircle, XCircle, Receipt, TrendingUp, TrendingDown, Minus, HelpCircle, MapPin, FileText, List, Calculator } from "lucide-react";
 import PedagogicExplanation from "./PedagogicExplanation";
 
 // Interface for structured work type data from database
@@ -23,6 +23,9 @@ interface BlockDevisMultipleProps {
   codePostal?: string;
   zoneType?: string;
 }
+
+// Position dans la fourchette
+type PricePosition = "low" | "middle" | "high" | "above" | "below" | "unknown";
 
 const getScoreIcon = (score: string | null | undefined, className: string = "h-4 w-4") => {
   switch (score) {
@@ -51,15 +54,97 @@ const getScoreTextClass = (score: string | null | undefined) => {
   }
 };
 
-// Nouvelles règles: ton neutre, jamais "élevé" ou "très élevé"
-const getAppreciation = (score: string | null | undefined): string => {
-  switch (score) {
-    case "VERT": return "Dans la fourchette";
-    default: return "Comparaison disponible";
+// Calculate price position in range
+const calculatePricePosition = (
+  unitPrice: number | undefined | null, 
+  min: number | undefined | null, 
+  max: number | undefined | null
+): PricePosition => {
+  if (unitPrice == null || min == null || max == null || min <= 0 || max <= 0) {
+    return "unknown";
+  }
+  
+  if (unitPrice < min) {
+    return "below";
+  }
+  
+  if (unitPrice > max) {
+    return "above";
+  }
+  
+  // Calculate position within range (0-100%)
+  const range = max - min;
+  const position = ((unitPrice - min) / range) * 100;
+  
+  if (position <= 33) {
+    return "low";
+  } else if (position <= 66) {
+    return "middle";
+  } else {
+    return "high";
   }
 };
 
-// Supprimé: getTrendIcon - plus de tendance négative affichée
+// Get position label
+const getPositionLabel = (position: PricePosition): string => {
+  switch (position) {
+    case "low": return "Partie basse";
+    case "middle": return "Milieu de fourchette";
+    case "high": return "Partie haute";
+    case "above": return "Au-dessus de la fourchette";
+    case "below": return "En-dessous de la fourchette";
+    default: return "Position indéterminée";
+  }
+};
+
+// Get position icon
+const getPositionIcon = (position: PricePosition, className: string = "h-4 w-4") => {
+  switch (position) {
+    case "low":
+    case "below":
+      return <TrendingDown className={`${className} text-blue-500`} />;
+    case "middle":
+      return <Minus className={`${className} text-gray-500`} />;
+    case "high":
+    case "above":
+      return <TrendingUp className={`${className} text-amber-500`} />;
+    default:
+      return <HelpCircle className={`${className} text-muted-foreground`} />;
+  }
+};
+
+// Get pedagogical message based on position
+const getPositionExplanation = (position: PricePosition): string => {
+  switch (position) {
+    case "low":
+    case "below":
+      return "Le prix se situe dans la partie basse des prix observés. Cela peut indiquer un tarif compétitif ou une prestation standard.";
+    case "middle":
+      return "Le prix se situe dans la moyenne des tarifs observés pour ce type de travaux.";
+    case "high":
+      return "Le prix se situe dans la partie haute des tarifs observés. Cela peut s'expliquer par la complexité du chantier, la qualité des matériaux ou des finitions spécifiques.";
+    case "above":
+      return "Le prix se situe au-dessus de la fourchette indicative. Cela peut s'expliquer par des spécificités du chantier, la qualité des matériaux, ou des prestations complémentaires incluses.";
+    default:
+      return "Comparaison disponible à titre indicatif.";
+  }
+};
+
+// Get position color class
+const getPositionColorClass = (position: PricePosition): string => {
+  switch (position) {
+    case "low":
+    case "below":
+      return "text-blue-600";
+    case "middle":
+      return "text-foreground";
+    case "high":
+    case "above":
+      return "text-amber-600";
+    default:
+      return "text-muted-foreground";
+  }
+};
 
 const formatPrice = (price: number | null | undefined): string => {
   if (price === null || price === undefined) return "—";
@@ -68,6 +153,13 @@ const formatPrice = (price: number | null | undefined): string => {
     currency: 'EUR',
     maximumFractionDigits: 0 
   }).format(price);
+};
+
+const formatPricePerUnit = (price: number | null | undefined): string => {
+  if (price === null || price === undefined) return "—";
+  return new Intl.NumberFormat('fr-FR', { 
+    maximumFractionDigits: 0 
+  }).format(price) + " €";
 };
 
 const formatCategoryLabel = (categorie: string): string => {
@@ -251,60 +343,132 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
               <p className="text-xs text-muted-foreground mb-3">
                 Les types de travaux ci-dessous ont été comparés à des fourchettes de prix indicatives, ajustées selon votre zone géographique.
               </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {itemsWithPrice.map((item, idx) => (
-                  <div 
-                    key={idx} 
-                    className={`p-4 rounded-xl border-2 ${getScoreBgClass(item.score_prix)}`}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <h4 className="font-medium text-foreground text-sm">
-                        {item.libelle || formatCategoryLabel(item.categorie)}
-                      </h4>
-                      {getScoreIcon(item.score_prix, "h-5 w-5")}
-                    </div>
-                    
-                    <div className="space-y-2">
-                      {/* Montant du devis */}
-                      {item.montant_ht && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">Montant devis</span>
-                          <span className="font-semibold text-foreground">
-                            {formatPrice(item.montant_ht)}
-                          </span>
-                        </div>
-                      )}
-                      
-                      {/* Quantité */}
-                      {item.quantite && item.unite && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">Quantité</span>
-                          <span className="text-sm text-foreground">
-                            {item.quantite} {item.unite}
-                          </span>
-                        </div>
-                      )}
-                      
-                      {/* Fourchette marché */}
-                      {item.fourchette_min != null && item.fourchette_max != null && item.fourchette_min > 0 && item.fourchette_max > 0 && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">Réf. marché/{item.unite || 'unité'}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {item.fourchette_min.toFixed(0)}€ - {item.fourchette_max.toFixed(0)}€
-                          </span>
-                        </div>
-                      )}
-                      
-                      {/* Appréciation - Ton neutre */}
-                      <div className="flex items-center gap-1 pt-1">
-                        <CheckCircle2 className="h-4 w-4 text-score-green" />
-                        <span className="text-xs font-medium text-score-green">
-                          {getAppreciation(item.score_prix)}
-                        </span>
+              <div className="grid grid-cols-1 gap-4">
+                {itemsWithPrice.map((item, idx) => {
+                  // Calculate unit price if possible
+                  const unitPrice = (item.montant_ht && item.quantite && item.quantite > 0) 
+                    ? item.montant_ht / item.quantite 
+                    : null;
+                  
+                  const position = calculatePricePosition(
+                    unitPrice, 
+                    item.fourchette_min, 
+                    item.fourchette_max
+                  );
+                  
+                  const hasValidRange = item.fourchette_min != null && 
+                                        item.fourchette_max != null && 
+                                        item.fourchette_min > 0 && 
+                                        item.fourchette_max > 0;
+                  
+                  return (
+                    <div 
+                      key={idx} 
+                      className={`p-4 rounded-xl border-2 ${getScoreBgClass("VERT")}`}
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <h4 className="font-medium text-foreground text-sm">
+                          {item.libelle || formatCategoryLabel(item.categorie)}
+                        </h4>
+                        <CheckCircle2 className="h-5 w-5 text-score-green" />
                       </div>
+                      
+                      {/* Grid des prix détaillés */}
+                      {hasValidRange && (
+                        <div className="bg-background/50 rounded-lg p-3 mb-3">
+                          <div className="grid grid-cols-3 gap-2 text-center mb-3">
+                            {/* Fourchette basse */}
+                            <div className="p-2 rounded-lg bg-blue-50 border border-blue-100">
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">
+                                Fourchette basse
+                              </p>
+                              <p className="text-sm font-semibold text-blue-600">
+                                {formatPricePerUnit(item.fourchette_min)}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">
+                                /{item.unite || 'unité'}
+                              </p>
+                            </div>
+                            
+                            {/* Prix du devis */}
+                            <div className={`p-2 rounded-lg border-2 ${
+                              position === "low" || position === "below" 
+                                ? "bg-blue-100 border-blue-300" 
+                                : position === "middle" 
+                                  ? "bg-gray-100 border-gray-300"
+                                  : "bg-amber-100 border-amber-300"
+                            }`}>
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">
+                                Prix devis
+                              </p>
+                              <p className={`text-sm font-bold ${getPositionColorClass(position)}`}>
+                                {unitPrice != null ? formatPricePerUnit(unitPrice) : "—"}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">
+                                /{item.unite || 'unité'}
+                              </p>
+                            </div>
+                            
+                            {/* Fourchette haute */}
+                            <div className="p-2 rounded-lg bg-amber-50 border border-amber-100">
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">
+                                Fourchette haute
+                              </p>
+                              <p className="text-sm font-semibold text-amber-600">
+                                {formatPricePerUnit(item.fourchette_max)}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">
+                                /{item.unite || 'unité'}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          {/* Position indicator */}
+                          {position !== "unknown" && (
+                            <div className="flex items-center gap-2 justify-center py-2 px-3 bg-muted/50 rounded-lg">
+                              {getPositionIcon(position, "h-4 w-4")}
+                              <span className={`text-sm font-medium ${getPositionColorClass(position)}`}>
+                                {getPositionLabel(position)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Quantité et montant total */}
+                      <div className="space-y-2 mb-3">
+                        {item.quantite && item.unite && (
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Quantité</span>
+                            <span className="text-foreground font-medium">
+                              {item.quantite} {item.unite}
+                            </span>
+                          </div>
+                        )}
+                        {item.montant_ht && (
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Montant total HT</span>
+                            <span className="text-foreground font-semibold">
+                              {formatPrice(item.montant_ht)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Explication pédagogique */}
+                      {position !== "unknown" && (
+                        <div className="p-3 bg-primary/5 rounded-lg border border-primary/10">
+                          <div className="flex items-start gap-2">
+                            <span className="text-lg">💡</span>
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                              {getPositionExplanation(position)}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -413,25 +577,24 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
             </div>
           )}
           
-          {/* Score explanation - pédagogique et neutre */}
-          {globalScore && (
-            <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-              <p className="text-sm font-medium text-score-green">
-                ✓ Les fourchettes de prix sont fournies à titre indicatif, sur la base de moyennes constatées.
-              </p>
-              <p className="text-xs text-muted-foreground mt-2">
-                Ces informations ne constituent ni une expertise, ni une évaluation du travail de l'artisan.
-                Les spécificités du chantier, la qualité des matériaux et le contexte local peuvent justifier des écarts.
-              </p>
-            </div>
-          )}
           
-          {/* Mention obligatoire - légalement prudente */}
-          <div className="mt-4 p-3 bg-primary/5 rounded-lg border border-primary/10">
-            <p className="text-xs text-muted-foreground italic leading-relaxed">
-              ⚖️ Les fourchettes de prix sont fournies à titre indicatif, sur la base de moyennes constatées, 
-              et ne constituent ni une expertise, ni une évaluation du travail de l'artisan.
-            </p>
+          {/* Mention légale obligatoire - affichée une seule fois en bas du bloc */}
+          <div className="mt-6 p-4 bg-muted/30 rounded-xl border border-border">
+            <div className="flex items-start gap-3">
+              <span className="text-lg">⚖️</span>
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Les fourchettes de prix sont fournies à titre indicatif, sur la base de moyennes constatées 
+                  (sources professionnelles).
+                </p>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Elles ne constituent ni une expertise, ni une évaluation du travail de l'artisan.
+                </p>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Les spécificités du chantier, les matériaux choisis et le contexte local peuvent justifier des écarts.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
