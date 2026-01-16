@@ -646,24 +646,31 @@ async function verifyCompanyWithCache(siret: string | null, supabase: any): Prom
       console.log("Cache HIT for SIRET:", cleanedSiret);
       const payload = cachedData.payload as CompanyPayload;
       
+      // CRITICAL: Handle not_found from cache as NEUTRAL (null), not false
+      // Only "ok" status with explicit data confirms immatriculee = true
+      // not_found/error from cache → immatriculee = null (NEUTRAL)
+      const isOk = cachedData.status === "ok";
+      const isNotFound = cachedData.status === "not_found";
+      const isError = cachedData.status === "error";
+      
       return {
-        immatriculee: cachedData.status === "ok",
-        radiee: cachedData.status === "ok" ? !payload.is_active : null,
-        procedure_collective: payload.procedure_collective,
-        capitaux_propres: payload.last_bilan_capitaux_propres,
-        capitaux_propres_negatifs: payload.last_bilan_capitaux_propres !== null ? payload.last_bilan_capitaux_propres < 0 : null,
-        date_creation: payload.date_creation,
-        anciennete: payload.age_years,
-        bilans: payload.bilans_count,
-        nom: payload.nom,
-        adresse: payload.adresse,
-        ville: payload.ville,
+        immatriculee: isOk ? true : null, // CRITICAL: not_found → null, not false
+        radiee: isOk ? !payload.is_active : null, // Only check radiee if we have data
+        procedure_collective: isOk ? payload.procedure_collective : null,
+        capitaux_propres: isOk ? payload.last_bilan_capitaux_propres : null,
+        capitaux_propres_negatifs: isOk && payload.last_bilan_capitaux_propres !== null ? payload.last_bilan_capitaux_propres < 0 : null,
+        date_creation: isOk ? payload.date_creation : null,
+        anciennete: isOk ? payload.age_years : null,
+        bilans: isOk ? payload.bilans_count : 0,
+        nom: isOk ? payload.nom : null,
+        adresse: isOk ? payload.adresse : null,
+        ville: isOk ? payload.ville : null,
         lookup_status: cachedData.status as "ok" | "not_found" | "error",
         debug: {
           attempted: true,
           cached: true,
           cache_hit: true,
-          status: cachedData.status === "ok" ? 200 : (cachedData.status === "not_found" ? 404 : 500),
+          status: isOk ? 200 : (isNotFound ? 404 : 500),
           error: cachedData.error_message,
           fetched_at: cachedData.fetched_at,
           expires_at: cachedData.expires_at,
@@ -683,13 +690,20 @@ async function verifyCompanyWithCache(siret: string | null, supabase: any): Prom
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
-    // 404 = EXPLICIT negative proof: company not found in registers
+    // ============================================================
+    // 404 = NOT FOUND — NEUTRAL (not a confirmed negative)
+    // ============================================================
+    // CRITICAL RULE: 404 does NOT prove the company is not registered
+    // It could be: SIRET typo, API issue, recently created, etc.
+    // ONLY explicit status (radiée, cessation) triggers ROUGE
+    // 404 → lookup_status="not_found" BUT immatriculee=null (NEUTRAL)
+    // ============================================================
     if (response.status === 404) {
-      // Store in cache as not_found
+      // Store in cache as not_found but with NEUTRAL semantics
       const notFoundPayload: CompanyPayload = {
         date_creation: null,
         age_years: null,
-        is_active: false,
+        is_active: true, // Default to true - no evidence of radiée
         bilans_count: 0,
         has_3_bilans: false,
         last_bilan_capitaux_propres: null,
@@ -708,19 +722,21 @@ async function verifyCompanyWithCache(siret: string | null, supabase: any): Prom
         payload: notFoundPayload,
         status: "not_found",
         error_code: "NOT_FOUND",
-        error_message: "Entreprise non trouvée dans les registres",
+        error_message: "Recherche non concluante dans les registres",
       }, { onConflict: "siret" });
 
+      // CRITICAL: immatriculee = null (NOT false) → NEUTRAL, never ROUGE
       return { 
         ...defaultResult, 
-        immatriculee: false, 
+        immatriculee: null, // NULL = not verified, not "confirmed unregistered"
+        radiee: null,       // NULL = unknown, not "confirmed radiée"
         lookup_status: "not_found",
         debug: {
           attempted: true,
           cached: false,
           cache_hit: false,
           status: 404,
-          error: null,
+          error: "NOT_FOUND",
           fetched_at: now.toISOString(),
           expires_at: expiresAt.toISOString(),
           latency_ms: Date.now() - startTime,
@@ -1273,12 +1289,14 @@ function calculateScore(extracted: ExtractedData, verified: VerificationResult):
   // ============================================================
   // ⚠️ UN FEU ROUGE NE PEUT ÊTRE DÉCLENCHÉ QUE SI CONFIRMÉ EXPLICITEMENT
   // ❌ Une donnée manquante/indisponible ne déclenche JAMAIS de ROUGE
+  // ❌ not_found / erreur API / timeout → NEUTRE (informatif)
+  // ✅ ROUGE seulement si statut explicite: radiée, cessation, inactive, dissoute
   // ============================================================
 
-  // 1) Entreprise non immatriculée ou radiée (API officielle CONFIRMÉ)
-  if (verified.entreprise_immatriculee === false) {
-    rouges.push("Entreprise non immatriculée ou introuvable dans les registres officiels (confirmé via API)");
-  }
+  // 1) Entreprise radiée ou cessée (statut API EXPLICITEMENT confirmé)
+  // CRITICAL: entreprise_immatriculee === false was REMOVED as trigger
+  // Only EXPLICIT status (radiee, procedure_collective) triggers ROUGE
+  // not_found, error, timeout → NEVER ROUGE
   if (verified.entreprise_radiee === true) {
     rouges.push("Entreprise radiée des registres officiels (confirmé via API)");
   }
@@ -1604,9 +1622,19 @@ function renderOutput(
       points_ok.push("✓ Aucune procédure collective en cours");
     }
     
-  } else if (verified.entreprise_immatriculee === false) {
-    // Pappers retourné 404 = entreprise explicitement non trouvée
-    alertes.push("🔴 Entreprise introuvable dans les registres officiels (confirmé via API). Cet indicateur est basé sur une recherche dans les bases de données publiques.");
+  } else if (verified.lookup_status === "not_found") {
+    // ============================================================
+    // CRITICAL: not_found = NEUTRAL, NEVER ROUGE
+    // ============================================================
+    // 404 from API does NOT confirm company is unregistered
+    // Could be: typo in SIRET, recently created, API limitation
+    // Message is NEUTRAL and informative only
+    // ============================================================
+    if (extracted.entreprise.nom) {
+      points_ok.push(`ℹ️ Entreprise : ${extracted.entreprise.nom}`);
+    }
+    points_ok.push(`ℹ️ SIRET présent : ${extracted.entreprise.siret}`);
+    points_ok.push("ℹ️ Vérification registre non concluante. Cela n'indique pas un problème en soi — vous pouvez vérifier sur societe.com ou infogreffe.fr.");
     
   } else if (verified.lookup_status === "no_siret") {
     // SIRET non détecté → vérification registre non réalisée (NEUTRE)
