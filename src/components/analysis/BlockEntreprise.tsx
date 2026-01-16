@@ -63,12 +63,32 @@ const extractEntrepriseData = (pointsOk: string[], alertes: string[]): Entrepris
   let reputation: ReputationOnline | null = null;
   let positiveCount = 0;
   let alertCount = 0;
+  let lookupStatus: "ok" | "not_found" | "error" | "skipped" | null = null;
   
   // Track if we found any reputation-related info
   let reputationSearched = false;
   
+  // Helper: Check if point is informational (ℹ️) - these NEVER count as alerts
+  const isInformational = (point: string): boolean => {
+    return point.includes("ℹ️") || 
+           point.toLowerCase().includes("non concluante") ||
+           point.toLowerCase().includes("indisponible temporairement") ||
+           point.toLowerCase().includes("n'indique pas un problème") ||
+           point.toLowerCase().includes("n'indique pas un risque");
+  };
+  
   for (const point of allPoints) {
     const lowerPoint = point.toLowerCase();
+    
+    // CRITICAL: Detect lookup status from messages
+    if (lowerPoint.includes("vérification registre non concluante") || 
+        lowerPoint.includes("recherche non concluante")) {
+      lookupStatus = "not_found";
+    } else if (lowerPoint.includes("vérification registre indisponible")) {
+      lookupStatus = "error";
+    } else if (lowerPoint.includes("entreprise identifiée")) {
+      lookupStatus = "ok";
+    }
     
     // Extract SIREN/SIRET
     if (lowerPoint.includes("siret") || lowerPoint.includes("siren")) {
@@ -76,9 +96,12 @@ const extractEntrepriseData = (pointsOk: string[], alertes: string[]): Entrepris
       if (match) {
         siren_siret = match[1];
       }
-      if (lowerPoint.includes("valide") || pointsOk.includes(point)) {
+      // CRITICAL: Informational points (ℹ️) NEVER count as alerts
+      if (isInformational(point)) {
+        // Neutral - no impact on score
+      } else if (lowerPoint.includes("valide") || pointsOk.includes(point)) {
         positiveCount++;
-      } else if (alertes.includes(point)) {
+      } else if (alertes.includes(point) && !isInformational(point)) {
         alertCount++;
       }
     }
@@ -197,19 +220,46 @@ const extractEntrepriseData = (pointsOk: string[], alertes: string[]): Entrepris
     }
   }
   
-  // Determine overall score
-  // IMPORTANT: Reputation NEVER affects the global score critically
-  // Only procedureCollective triggers ROUGE directly
+  // ============================================================
+  // SCORING RULES FOR ENTREPRISE BLOC
+  // ============================================================
+  // ROUGE: ONLY for CONFIRMED critical issues:
+  //   - procedureCollective === true (confirmed)
+  //   - Capitaux propres négatifs (confirmed from alertes with 🔴)
+  //   - Entreprise radiée (confirmed status, not 404)
+  // ORANGE: Minor vigilance points
+  // VERT: No issues
+  // 
+  // CRITICAL: not_found / error / informational → NEVER ROUGE
+  // ============================================================
+  
+  // Count only REAL critical alerts (🔴 in alertes, not informational)
+  const criticalAlertCount = alertes.filter(a => 
+    a.includes("🔴") && 
+    !isInformational(a) &&
+    (a.toLowerCase().includes("procédure collective") ||
+     a.toLowerCase().includes("capitaux propres négatifs") ||
+     a.toLowerCase().includes("radiée") ||
+     a.toLowerCase().includes("cessation") ||
+     a.toLowerCase().includes("dissoute") ||
+     a.toLowerCase().includes("liquidation"))
+  ).length;
+  
   let score: "VERT" | "ORANGE" | "ROUGE";
-  if (procedureCollective) {
+  if (procedureCollective === true || criticalAlertCount > 0) {
+    // Only explicit critical issues trigger ROUGE
     score = "ROUGE";
-  } else if (alertCount >= 2) {
-    // Only company-related alerts (not reputation) count
-    score = "ROUGE";
-  } else if (alertCount > 0 || positiveCount < 3) {
+  } else if (alertCount > 0 && lookupStatus !== "not_found" && lookupStatus !== "error") {
+    // Minor alerts (not from lookup failures) → ORANGE
     score = "ORANGE";
-  } else {
+  } else if (positiveCount < 2 && lookupStatus !== "ok") {
+    // Not enough positive data, but NOT failure → ORANGE (neutral zone)
+    score = "ORANGE";
+  } else if (positiveCount >= 2) {
     score = "VERT";
+  } else {
+    // Default to ORANGE for neutral/unknown cases, NEVER ROUGE
+    score = "ORANGE";
   }
   
   return {
@@ -241,7 +291,17 @@ export const filterOutEntrepriseItems = (items: string[]): string[] => {
            !lower.includes("redressement") &&
            !lower.includes("liquidation") &&
            !lower.includes("réputation en ligne") &&
-           !lower.includes("avis google");
+           !lower.includes("avis google") &&
+           !lower.includes("entreprise identifiée") &&
+           !lower.includes("entreprise établie") &&
+           !lower.includes("entreprise récente") &&
+           !lower.includes("vérification registre") &&
+           !lower.includes("recherche non concluante") &&
+           !lower.includes("societe.com") &&
+           !lower.includes("infogreffe") &&
+           !lower.includes("établissement non trouvé") &&
+           !lower.includes("qualification rge") &&
+           !lower.includes("qualibat");
   });
 };
 
