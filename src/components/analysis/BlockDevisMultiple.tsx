@@ -198,9 +198,9 @@ const formatCategoryLabel = (categorie: string): string => {
 
 const getZoneLabel = (zoneType: string | undefined): string => {
   switch (zoneType) {
-    case "grande_ville": return "Grande ville (+20%)";
-    case "ville_moyenne": return "Ville moyenne (référence)";
-    case "province": return "Zone rurale (-10%)";
+    case "grande_ville": return "Grande ville";
+    case "ville_moyenne": return "Ville moyenne";
+    case "province": return "Zone rurale";
     default: return "Zone standard";
   }
 };
@@ -278,47 +278,52 @@ const MACRO_CATEGORIES: MacroCategory[] = [
   { 
     key: "menuiserie", 
     label: "Menuiserie & Fermetures", 
-    keywords: ["fenetre", "fenêtre", "porte", "volet", "menuiserie", "fermeture", "store", "vitrage", "chassis"] 
+    keywords: ["fenetre", "fenêtre", "porte", "volet", "menuiserie", "fermeture", "store", "vitrage", "chassis", "baie", "velux", "pergola", "portail", "grille"] 
   },
   { 
     key: "plomberie_sanitaire", 
     label: "Plomberie & Sanitaires", 
-    keywords: ["plomberie", "sanitaire", "sdb", "salle de bain", "wc", "toilette", "robinet", "douche", "baignoire", "chauffe-eau"] 
+    keywords: ["plomberie", "sanitaire", "sdb", "salle de bain", "wc", "toilette", "robinet", "douche", "baignoire", "chauffe-eau", "cumulus", "ballon", "evacuation", "canalisation", "vidange"] 
   },
   { 
     key: "electricite", 
     label: "Électricité", 
-    keywords: ["electri", "électri", "tableau", "prise", "interrupteur", "cable", "câble"] 
+    keywords: ["electri", "électri", "tableau", "prise", "interrupteur", "cable", "câble", "disjoncteur", "domotique", "eclairage", "éclairage", "spot", "luminaire"] 
   },
   { 
     key: "chauffage_clim", 
     label: "Chauffage & Climatisation", 
-    keywords: ["chauffage", "pac", "pompe à chaleur", "climatisation", "clim", "chaudiere", "chaudière", "radiateur"] 
+    keywords: ["chauffage", "pac", "pompe à chaleur", "pompe a chaleur", "climatisation", "clim", "chaudiere", "chaudière", "radiateur", "plancher chauffant", "thermostat", "split", "gainable"] 
   },
   { 
     key: "isolation_toiture", 
     label: "Isolation & Toiture", 
-    keywords: ["isolation", "combles", "toiture", "toit", "ardoise", "tuile", "etancheite", "étanchéité"] 
+    keywords: ["isolation", "combles", "toiture", "toit", "ardoise", "tuile", "etancheite", "étanchéité", "couverture", "charpente", "gouttiere", "gouttière", "zinguerie"] 
   },
   { 
     key: "revetements", 
     label: "Revêtements & Finitions", 
-    keywords: ["carrelage", "parquet", "peinture", "faience", "faïence", "sol", "mural", "revetement", "revêtement"] 
+    keywords: ["carrelage", "parquet", "peinture", "faience", "faïence", "sol", "mural", "revetement", "revêtement", "enduit", "papier peint", "stratifié", "lino", "moquette"] 
   },
   { 
     key: "maconnerie", 
     label: "Maçonnerie & Gros œuvre", 
-    keywords: ["maconnerie", "maçonnerie", "facade", "façade", "ravalement", "terrassement", "dalle", "fondation"] 
+    keywords: ["maconnerie", "maçonnerie", "facade", "façade", "ravalement", "terrassement", "dalle", "fondation", "mur", "cloture", "clôture", "beton", "béton", "agglo", "parpaing"] 
   },
   { 
     key: "cuisine", 
     label: "Cuisine", 
-    keywords: ["cuisine", "electromenager", "électroménager", "plan de travail"] 
+    keywords: ["cuisine", "electromenager", "électroménager", "plan de travail", "credence", "crédence", "evier", "évier", "hotte"] 
+  },
+  { 
+    key: "piscine_exterieur", 
+    label: "Piscine & Extérieur", 
+    keywords: ["piscine", "pompe piscine", "filtration", "liner", "spa", "jacuzzi", "terrasse", "bois composite", "deck", "jardin", "arrosage", "cloture", "clôture"] 
   },
   { 
     key: "pose_main_oeuvre", 
     label: "Pose & Main-d'œuvre", 
-    keywords: ["pose", "main d'oeuvre", "main-d'oeuvre", "installation", "montage", "dépose"] 
+    keywords: ["pose", "main d'oeuvre", "main-d'oeuvre", "installation", "montage", "dépose", "depose"] 
   },
   { 
     key: "autre", 

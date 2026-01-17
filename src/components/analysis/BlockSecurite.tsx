@@ -163,17 +163,32 @@ const extractSecuriteData = (
     }
     
     // ====== PAIEMENT - IMPROVED DETECTION ======
-    // Mode de paiement
-    if (lowerPoint.includes("virement")) info.paiement.modes.push("Virement");
-    if (lowerPoint.includes("chèque") || lowerPoint.includes("cheque")) info.paiement.modes.push("Chèque");
-    if (lowerPoint.includes("carte")) info.paiement.modes.push("Carte bancaire");
+    // Mode de paiement - détection EXPLICITE uniquement
+    // Patterns: "paiement par virement", "règlement par chèque", "CB acceptée", etc.
+    if (lowerPoint.includes("virement") || 
+        (lowerPoint.includes("rib") && !lowerPoint.includes("contrib")) ||
+        (lowerPoint.includes("iban") && !lowerPoint.includes("attrib"))) {
+      if (!info.paiement.modes.includes("Virement")) info.paiement.modes.push("Virement");
+    }
+    if (lowerPoint.includes("chèque") || lowerPoint.includes("cheque")) {
+      if (!info.paiement.modes.includes("Chèque")) info.paiement.modes.push("Chèque");
+    }
+    if (lowerPoint.includes("carte bancaire") || lowerPoint.includes("carte bleue") || 
+        (lowerPoint.includes(" cb ") || lowerPoint.includes(" cb,") || lowerPoint.includes(",cb") || 
+         lowerPoint.startsWith("cb ") || lowerPoint.endsWith(" cb"))) {
+      if (!info.paiement.modes.includes("Carte bancaire")) info.paiement.modes.push("Carte bancaire");
+    }
+    // Détection paiement "à réception" ou "à la livraison"
+    if (lowerPoint.includes("à réception") || lowerPoint.includes("à la livraison") || lowerPoint.includes("a reception")) {
+      if (!info.paiement.modes.includes("À réception")) info.paiement.modes.push("À réception");
+    }
     
     // ESPÈCES: ONLY if explicitly mentioned "espèces" or "cash" - NEVER by default
     // IMPORTANT: Presence of IBAN/RIB excludes "espèces" qualification
     const explicitCash = lowerPoint.includes("espèces") || lowerPoint.includes("especes") || 
                           (lowerPoint.includes("cash") && !lowerPoint.includes("cashback"));
     if (explicitCash) {
-      info.paiement.modes.push("Espèces");
+      if (!info.paiement.modes.includes("Espèces")) info.paiement.modes.push("Espèces");
       info.paiement.especes = true;
       alertCount++;
       info.vigilanceReasons.push("Paiement en espèces explicitement demandé");
