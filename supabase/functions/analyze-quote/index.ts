@@ -289,9 +289,13 @@ Tu fournis des indicateurs factuels, pédagogiques et vérifiables.
 
 RÈGLES D'EXTRACTION:
 1. N'invente AUCUNE information. Si une donnée n'est pas visible, retourne null.
-2. Pour le mode de paiement: NE JAMAIS déduire "espèces" par défaut. "espèces" SEULEMENT si les mots "espèces", "cash", "comptant en espèces" sont explicitement présents dans le document.
-3. Si un IBAN ou RIB est présent, le mode de paiement est "virement", pas "espèces".
-4. Pour les assurances: true si clairement mentionnée, false si absente, null si doute.
+2. Pour le mode de paiement:
+   - "espèces" SEULEMENT si les mots "espèces", "cash", "comptant en espèces" sont explicitement présents.
+   - Si "chèque", "virement", "carte bancaire", "CB", "à réception", "à la livraison" sont mentionnés, les inclure.
+   - Si un IBAN ou RIB est présent, le mode de paiement INCLUT "virement".
+   - Ne jamais déduire "espèces" par défaut.
+3. Pour les assurances: true si clairement mentionnée, false si absente, null si doute.
+4. Pour les travaux: identifier la CATÉGORIE MÉTIER principale même si un produit spécifique/marque est mentionné.
 
 Tu dois effectuer UNE SEULE extraction complète et structurée.`;
 
@@ -323,8 +327,9 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON:
   },
   "travaux": [
     {
-      "libelle": "description exacte",
-      "categorie": "plomberie|electricite|chauffage|isolation|toiture|menuiserie|peinture|maconnerie|renovation_sdb|renovation_cuisine|carrelage|parquet|facade|autre",
+      "libelle": "description exacte du produit/service",
+      "categorie": "plomberie|electricite|chauffage|isolation|toiture|menuiserie|peinture|maconnerie|renovation_sdb|renovation_cuisine|carrelage|parquet|facade|piscine|exterieur|autre",
+      "categorie_metier": "Catégorie métier principale même si produit spécifique (ex: pompe piscine → piscine, volet roulant → menuiserie)",
       "montant": 5000 ou null,
       "quantite": 50 ou null,
       "unite": "m²|unité|forfait|ml" ou null
@@ -333,7 +338,7 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON:
   "paiement": {
     "acompte_pct": 30 ou null,
     "acompte_avant_travaux_pct": pourcentage dû AVANT début des travaux ou null,
-    "modes": ["virement", "cheque"] - JAMAIS "especes" sauf si explicitement écrit,
+    "modes": ["virement", "cheque", "carte_bancaire", "a_reception"] - liste EXPLICITE des modes mentionnés. Inclure "virement" si IBAN/RIB présent. JAMAIS "especes" sauf si explicitement écrit,
     "echeancier_detecte": true | false
   },
   "dates": {
@@ -1057,10 +1062,11 @@ interface ZoneGeographique {
 // ============================================================
 
 function getZoneAdjustmentLabel(zoneType: string): string {
+  // IMPORTANT: Ne pas afficher les coefficients au public, ils restent internes
   switch (zoneType) {
-    case "grande_ville": return "ajusté +20% (grande ville)";
-    case "ville_moyenne": return "zone référence (ville moyenne)";
-    case "province": return "ajusté -10% (zone rurale)";
+    case "grande_ville": return "grande ville";
+    case "ville_moyenne": return "ville moyenne";
+    case "province": return "zone rurale";
     default: return "zone standard";
   }
 }
