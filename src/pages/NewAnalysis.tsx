@@ -1,9 +1,15 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Shield,
   Upload,
@@ -18,6 +24,25 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+
+// Catégories officielles de travaux
+const WORK_TYPE_OPTIONS = [
+  { value: "plomberie", label: "Plomberie" },
+  { value: "electricite", label: "Électricité" },
+  { value: "peinture", label: "Peinture" },
+  { value: "carrelage", label: "Carrelage / Faïence" },
+  { value: "menuiserie", label: "Menuiserie (portes, fenêtres, volets)" },
+  { value: "toiture", label: "Toiture / Couverture" },
+  { value: "isolation", label: "Isolation" },
+  { value: "chauffage", label: "Chauffage / PAC / Chaudière" },
+  { value: "salle_de_bain", label: "Salle de bain (rénovation complète)" },
+  { value: "cuisine", label: "Cuisine" },
+  { value: "maconnerie", label: "Maçonnerie / Gros œuvre" },
+  { value: "terrasse", label: "Terrasse / Extérieur" },
+  { value: "piscine", label: "Piscine / Équipements piscine" },
+  { value: "diagnostic", label: "Diagnostic immobilier" },
+  { value: "autres", label: "Autres travaux (hors référentiel)" },
+];
 
 type UploadStatus = "idle" | "uploading" | "success" | "error";
 
@@ -274,6 +299,11 @@ const NewAnalysis = () => {
       return;
     }
 
+    if (!workType) {
+      toast.error("Veuillez sélectionner un type de travaux");
+      return;
+    }
+
     if (!user) {
       toast.error("Veuillez vous connecter");
       navigate("/connexion");
@@ -343,8 +373,8 @@ const NewAnalysis = () => {
     }
   };
 
-  // Conditions pour activer le bouton
-  const canSubmit = file && file.size > 0 && uploadStatus === "success" && uploadedFilePath && !loading;
+  // Conditions pour activer le bouton - workType est maintenant obligatoire
+  const canSubmit = file && file.size > 0 && uploadStatus === "success" && uploadedFilePath && workType && !loading;
 
   return (
     <div className="min-h-screen bg-background">
@@ -478,21 +508,30 @@ const NewAnalysis = () => {
             )}
           </div>
 
-          {/* Work Type */}
+          {/* Work Type - Menu déroulant obligatoire */}
           <div className="space-y-2">
             <Label htmlFor="workType" className="text-base font-semibold">
-              Type de travaux (optionnel)
+              Type de travaux <span className="text-destructive">*</span>
             </Label>
-            <Input
-              id="workType"
-              placeholder="Ex: Plomberie, Électricité, Peinture, Toiture..."
+            <Select
               value={workType}
-              onChange={(e) => setWorkType(e.target.value)}
+              onValueChange={setWorkType}
               disabled={loading}
-            />
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Sélectionnez le type de travaux" />
+              </SelectTrigger>
+              <SelectContent className="bg-background border border-border z-50">
+                {WORK_TYPE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <HelpCircle className="h-3 w-3" />
-              Aide à affiner la comparaison des prix du marché
+              Requis pour la comparaison des prix du marché
             </p>
           </div>
 
