@@ -1,7 +1,5 @@
-import { useState } from "react";
-import { CheckCircle2, AlertCircle, XCircle, Receipt, TrendingUp, TrendingDown, Minus, HelpCircle, MapPin, FileText, List, Calculator, ChevronDown } from "lucide-react";
+import { CheckCircle2, AlertCircle, XCircle, Receipt, TrendingUp, TrendingDown, Minus, HelpCircle, MapPin, FileText, List, Calculator } from "lucide-react";
 import PedagogicExplanation from "./PedagogicExplanation";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Interface for structured work type data from database
 export interface TravauxItem {
@@ -25,6 +23,7 @@ interface BlockDevisMultipleProps {
   montantTotalHT?: number;
   codePostal?: string;
   zoneType?: string;
+  selectedWorkType?: string; // Type de travaux sélectionné lors de l'upload
 }
 
 // Position dans la fourchette
@@ -295,34 +294,50 @@ const calculateFourchette = (category: OfficialCategory, zoneType: string | unde
   return { min, median, max, unite: category.unite };
 };
 
-// State types - "auto" n'est plus utilisé, comparaison uniquement après sélection utilisateur
-type ComparisonState = "pending" | "user_confirmed" | "hors_categorie";
+// State types - comparaison basée sur le type sélectionné à l'upload
+type ComparisonState = "no_selection" | "confirmed" | "hors_categorie";
 
-const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, codePostal, zoneType }: BlockDevisMultipleProps) => {
+const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, codePostal, zoneType, selectedWorkType }: BlockDevisMultipleProps) => {
   const items = typesTravaux && typesTravaux.length > 0 ? typesTravaux : [];
-  
-  // State for user category selection
-  const [selectedCategoryKey, setSelectedCategoryKey] = useState<string | null>(null);
-  const [userConfirmedCategory, setUserConfirmedCategory] = useState<boolean>(false);
   
   // Get first zone type if available
   const displayZoneType = zoneType || items.find(i => i.zone_type)?.zone_type;
   
-  // Determine comparison state - UNIQUEMENT basé sur la sélection utilisateur
+  // Find active category based on selectedWorkType from props (selected during upload)
   let comparisonState: ComparisonState;
   let activeCategory: OfficialCategory | null = null;
   
-  if (userConfirmedCategory && selectedCategoryKey) {
-    // User has selected a category
-    activeCategory = OFFICIAL_CATEGORIES.find(c => c.key === selectedCategoryKey) || null;
-    if (activeCategory?.key === "autre") {
+  if (selectedWorkType) {
+    // Map the workType from NewAnalysis to our category keys
+    const categoryMapping: Record<string, string> = {
+      "plomberie": "plomberie",
+      "electricite": "electricite",
+      "peinture": "peinture",
+      "carrelage": "carrelage_faience",
+      "menuiserie": "menuiserie",
+      "toiture": "toiture_couverture",
+      "isolation": "isolation",
+      "chauffage": "chauffage_pac",
+      "salle_de_bain": "salle_de_bain",
+      "cuisine": "cuisine",
+      "maconnerie": "maconnerie",
+      "terrasse": "terrasse_exterieur",
+      "piscine": "piscine_equipements",
+      "diagnostic": "diagnostic_immobilier",
+      "autres": "autre"
+    };
+    
+    const mappedKey = categoryMapping[selectedWorkType] || selectedWorkType;
+    activeCategory = OFFICIAL_CATEGORIES.find(c => c.key === mappedKey) || null;
+    
+    if (!activeCategory || activeCategory.key === "autre") {
       comparisonState = "hors_categorie";
     } else {
-      comparisonState = "user_confirmed";
+      comparisonState = "confirmed";
     }
   } else {
-    // Aucune catégorie sélectionnée - afficher le menu de sélection
-    comparisonState = "pending";
+    // Pas de type sélectionné - ne pas afficher de comparaison
+    comparisonState = "no_selection";
   }
   
   // Calculate fourchette if we have an active category
@@ -334,12 +349,6 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
   const pricePosition = fourchette && montantTotalHT
     ? calculatePricePosition(montantTotalHT, fourchette.min, fourchette.max)
     : "unknown";
-  
-  // Handle category selection
-  const handleCategorySelect = (value: string) => {
-    setSelectedCategoryKey(value);
-    setUserConfirmedCategory(true);
-  };
   
   // If no items and no total, don't render
   if (items.length === 0 && !montantTotalHT) return null;
@@ -379,61 +388,28 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
           )}
           
           {/* ======================== */}
-          {/* ÉTAT 1: EN ATTENTE DE SÉLECTION UTILISATEUR */}
+          {/* ÉTAT 1: AUCUN TYPE SÉLECTIONNÉ À L'UPLOAD */}
           {/* ======================== */}
-          {comparisonState === "pending" && (
-            <div className="space-y-4">
-              <div className="p-4 bg-muted/30 rounded-xl border border-border">
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="p-2 bg-primary/10 rounded-lg">
-                    <Calculator className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-base font-medium text-foreground">
-                      Comparaison de prix disponible
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Pour afficher une estimation des prix du marché, sélectionnez le type de travaux correspondant à votre devis.
-                    </p>
-                  </div>
+          {comparisonState === "no_selection" && (
+            <div className="p-4 bg-muted/30 rounded-xl border border-border">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-muted rounded-lg">
+                  <FileText className="h-5 w-5 text-muted-foreground" />
                 </div>
-                
-                {/* Menu déroulant obligatoire */}
-                <div className="space-y-3">
-                  <label className="text-sm font-medium text-foreground">
-                    Type de travaux
-                  </label>
-                  <Select onValueChange={handleCategorySelect}>
-                    <SelectTrigger className="w-full bg-background">
-                      <SelectValue placeholder="Sélectionnez une catégorie..." />
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover z-50">
-                      {OFFICIAL_CATEGORIES.map(cat => (
-                        <SelectItem key={cat.key} value={cat.key}>
-                          {cat.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Aucun type de travaux n'a été renseigné lors de l'envoi du devis. 
+                    La comparaison de prix n'est pas disponible.
+                  </p>
                 </div>
-              </div>
-              
-              {/* Message informatif */}
-              <div className="p-3 bg-primary/5 rounded-lg border border-primary/10">
-                <p className="text-xs text-muted-foreground flex items-center gap-2">
-                  <span>ℹ️</span>
-                  <span>La sélection d'une catégorie permet d'afficher des fourchettes de prix indicatives. Elle n'impacte pas le score global de l'analyse.</span>
-                </p>
               </div>
             </div>
           )}
           
-          {/* ÉTAT 2 (SUPPRIMÉ - plus de détection automatique) */}
-          
           {/* ======================== */}
-          {/* ÉTAT 2: CATÉGORIE CONFIRMÉE PAR L'UTILISATEUR (avec fourchette) */}
+          {/* ÉTAT 2: CATÉGORIE CONFIRMÉE (avec fourchette) */}
           {/* ======================== */}
-          {comparisonState === "user_confirmed" && activeCategory && fourchette && (
+          {comparisonState === "confirmed" && activeCategory && fourchette && (
             <div className="space-y-4">
               <div className="p-4 bg-primary/5 rounded-xl border border-primary/20">
                 <div className="flex items-start gap-3 mb-4">
@@ -442,7 +418,7 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
                   </div>
                   <div>
                     <p className="text-base font-medium text-foreground">
-                      Catégorie sélectionnée : {activeCategory.label}
+                      Type de travaux : {activeCategory.label}
                     </p>
                     <p className="text-sm text-muted-foreground mt-1">
                       Comparaison basée sur les prix moyens du marché pour cette catégorie.
@@ -481,20 +457,6 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
                   )}
                 </div>
               </div>
-              
-              {/* Option pour changer de catégorie */}
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span>Catégorie incorrecte ?</span>
-                <button 
-                  onClick={() => {
-                    setSelectedCategoryKey(null);
-                    setUserConfirmedCategory(false);
-                  }}
-                  className="text-primary hover:underline"
-                >
-                  Modifier
-                </button>
-              </div>
             </div>
           )}
           
@@ -502,32 +464,16 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
           {/* ÉTAT 3: HORS RÉFÉRENTIEL (Autres travaux) */}
           {/* ======================== */}
           {comparisonState === "hors_categorie" && (
-            <div className="space-y-4">
-              <div className="p-4 bg-muted/30 rounded-xl border border-border">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-muted rounded-lg">
-                    <FileText className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                      Nous n'avons pas pu analyser cette catégorie de travaux, car elle ne correspond pas à un référentiel de prix standardisé.
-                    </p>
-                  </div>
+            <div className="p-4 bg-muted/30 rounded-xl border border-border">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-muted rounded-lg">
+                  <FileText className="h-5 w-5 text-muted-foreground" />
                 </div>
-              </div>
-              
-              {/* Option pour changer de catégorie */}
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span>Vous souhaitez essayer une autre catégorie ?</span>
-                <button 
-                  onClick={() => {
-                    setSelectedCategoryKey(null);
-                    setUserConfirmedCategory(false);
-                  }}
-                  className="text-primary hover:underline"
-                >
-                  Modifier
-                </button>
+                <div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Nous n'avons pas pu analyser cette catégorie de travaux, car elle ne correspond pas à un référentiel de prix standardisé.
+                  </p>
+                </div>
               </div>
             </div>
           )}
