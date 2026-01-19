@@ -25,23 +25,23 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-// Catégories officielles de travaux
+// Catégories officielles de travaux - Bible de Prix V1.0
 const WORK_TYPE_OPTIONS = [
+  { value: "carrelage", label: "Carrelage / Faïence" },
+  { value: "menuiserie", label: "Menuiserie & Fermetures" },
   { value: "plomberie", label: "Plomberie" },
   { value: "electricite", label: "Électricité" },
-  { value: "peinture", label: "Peinture" },
-  { value: "carrelage", label: "Carrelage / Faïence" },
-  { value: "menuiserie", label: "Menuiserie (portes, fenêtres, volets)" },
-  { value: "toiture", label: "Toiture / Couverture" },
-  { value: "isolation", label: "Isolation" },
   { value: "chauffage", label: "Chauffage / PAC / Chaudière" },
-  { value: "salle_de_bain", label: "Salle de bain (rénovation complète)" },
-  { value: "cuisine", label: "Cuisine" },
+  { value: "salle_de_bain", label: "Salle de bain – rénovation" },
+  { value: "cuisine", label: "Cuisine – pose / rénovation" },
+  { value: "peinture", label: "Peinture" },
+  { value: "isolation", label: "Isolation" },
+  { value: "toiture", label: "Toiture / Couverture" },
   { value: "maconnerie", label: "Maçonnerie / Gros œuvre" },
-  { value: "terrasse", label: "Terrasse / Extérieur" },
-  { value: "piscine", label: "Piscine / Équipements piscine" },
-  { value: "diagnostic", label: "Diagnostic immobilier" },
-  { value: "autres", label: "Autres travaux (hors référentiel)" },
+  { value: "terrasse", label: "Terrasse / Aménagements extérieurs" },
+  { value: "piscine", label: "Piscine & équipements" },
+  { value: "diagnostic", label: "Diagnostics immobiliers" },
+  { value: "autres", label: "Autre / Hors catégorie" },
 ];
 
 type UploadStatus = "idle" | "uploading" | "success" | "error";
@@ -323,7 +323,7 @@ const NewAnalysis = () => {
     setLoading(true);
 
     try {
-      // Créer l'enregistrement d'analyse
+      // Créer l'enregistrement d'analyse avec le type de travaux
       const { data: analysis, error: insertError } = await supabase
         .from("analyses")
         .insert({
@@ -331,6 +331,7 @@ const NewAnalysis = () => {
           file_name: file.name,
           file_path: uploadedFilePath,
           status: "pending",
+          work_type: workType, // Stocker le type de travaux sélectionné
         })
         .select()
         .single();
