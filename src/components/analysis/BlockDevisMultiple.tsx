@@ -43,94 +43,95 @@ interface OfficialCategory {
   unite: string;
 }
 
+// Catégories officielles - SANS KEYWORDS (détection automatique désactivée)
 const OFFICIAL_CATEGORIES: OfficialCategory[] = [
-  { 
-    key: "menuiserie_fermetures", 
-    label: "Menuiserie & fermetures", 
-    keywords: ["fenetre", "fenêtre", "porte", "volet", "menuiserie", "fermeture", "store", "vitrage", "chassis", "baie", "velux", "pergola", "portail", "grille", "porte-fenetre", "porte fenêtre"],
-    prixMinBase: 250, prixMaxBase: 800, unite: "unité"
-  },
-  { 
-    key: "carrelage_faience", 
-    label: "Carrelage / faïence", 
-    keywords: ["carrelage", "faience", "faïence", "carreau", "mosaïque", "mosaique"],
-    prixMinBase: 40, prixMaxBase: 120, unite: "m²"
-  },
-  { 
-    key: "peinture_revetements", 
-    label: "Peinture & revêtements muraux", 
-    keywords: ["peinture", "papier peint", "enduit", "crepi", "crépi", "revetement mural", "revêtement mural"],
-    prixMinBase: 25, prixMaxBase: 60, unite: "m²"
-  },
   { 
     key: "plomberie", 
     label: "Plomberie", 
-    keywords: ["plomberie", "robinet", "tuyauterie", "canalisation", "evacuation", "évacuation", "vidange", "chauffe-eau", "cumulus", "ballon"],
+    keywords: [],
     prixMinBase: 500, prixMaxBase: 2000, unite: "prestation"
   },
   { 
     key: "electricite", 
     label: "Électricité", 
-    keywords: ["electri", "électri", "tableau", "prise", "interrupteur", "cable", "câble", "disjoncteur", "domotique", "eclairage", "éclairage", "spot", "luminaire"],
+    keywords: [],
     prixMinBase: 80, prixMaxBase: 150, unite: "point"
   },
   { 
-    key: "chauffage_pac", 
-    label: "Chauffage / PAC / chaudière", 
-    keywords: ["chauffage", "pac", "pompe à chaleur", "pompe a chaleur", "climatisation", "clim", "chaudiere", "chaudière", "radiateur", "plancher chauffant", "thermostat", "split", "gainable"],
-    prixMinBase: 3000, prixMaxBase: 15000, unite: "installation"
+    key: "peinture", 
+    label: "Peinture", 
+    keywords: [],
+    prixMinBase: 25, prixMaxBase: 60, unite: "m²"
+  },
+  { 
+    key: "carrelage_faience", 
+    label: "Carrelage / Faïence", 
+    keywords: [],
+    prixMinBase: 40, prixMaxBase: 120, unite: "m²"
+  },
+  { 
+    key: "menuiserie", 
+    label: "Menuiserie (portes, fenêtres, volets)", 
+    keywords: [],
+    prixMinBase: 250, prixMaxBase: 800, unite: "unité"
+  },
+  { 
+    key: "toiture_couverture", 
+    label: "Toiture / Couverture", 
+    keywords: [],
+    prixMinBase: 80, prixMaxBase: 200, unite: "m²"
   },
   { 
     key: "isolation", 
     label: "Isolation", 
-    keywords: ["isolation", "isolant", "combles", "laine", "polystyrene", "polystyrène", "ite", "iti"],
+    keywords: [],
     prixMinBase: 30, prixMaxBase: 100, unite: "m²"
   },
   { 
-    key: "toiture_couverture", 
-    label: "Toiture / couverture", 
-    keywords: ["toiture", "toit", "ardoise", "tuile", "couverture", "charpente", "gouttiere", "gouttière", "zinguerie", "etancheite", "étanchéité"],
-    prixMinBase: 80, prixMaxBase: 200, unite: "m²"
-  },
-  { 
-    key: "maconnerie", 
-    label: "Maçonnerie", 
-    keywords: ["maconnerie", "maçonnerie", "facade", "façade", "ravalement", "terrassement", "dalle", "fondation", "mur", "cloture", "clôture", "beton", "béton", "agglo", "parpaing"],
-    prixMinBase: 100, prixMaxBase: 300, unite: "m²"
+    key: "chauffage_pac", 
+    label: "Chauffage / PAC / Chaudière", 
+    keywords: [],
+    prixMinBase: 3000, prixMaxBase: 15000, unite: "installation"
   },
   { 
     key: "salle_de_bain", 
-    label: "Salle de bain", 
-    keywords: ["salle de bain", "sdb", "douche", "baignoire", "meuble vasque", "wc", "toilette", "sanitaire"],
+    label: "Salle de bain (rénovation complète)", 
+    keywords: [],
     prixMinBase: 4000, prixMaxBase: 15000, unite: "pièce"
   },
   { 
     key: "cuisine", 
     label: "Cuisine", 
-    keywords: ["cuisine", "electromenager", "électroménager", "plan de travail", "credence", "crédence", "evier", "évier", "hotte"],
+    keywords: [],
     prixMinBase: 5000, prixMaxBase: 20000, unite: "pièce"
   },
   { 
-    key: "piscine_equipements", 
-    label: "Piscine & équipements", 
-    keywords: ["piscine", "pompe piscine", "filtration", "liner", "spa", "jacuzzi", "local technique"],
-    prixMinBase: 500, prixMaxBase: 5000, unite: "équipement"
+    key: "maconnerie", 
+    label: "Maçonnerie / Gros œuvre", 
+    keywords: [],
+    prixMinBase: 100, prixMaxBase: 300, unite: "m²"
   },
   { 
     key: "terrasse_exterieur", 
-    label: "Terrasse / aménagement extérieur", 
-    keywords: ["terrasse", "bois composite", "deck", "jardin", "arrosage", "amenagement exterieur", "aménagement extérieur", "cloture", "clôture", "portail"],
+    label: "Terrasse / Extérieur", 
+    keywords: [],
     prixMinBase: 80, prixMaxBase: 250, unite: "m²"
+  },
+  { 
+    key: "piscine_equipements", 
+    label: "Piscine / Équipements piscine", 
+    keywords: [],
+    prixMinBase: 500, prixMaxBase: 5000, unite: "équipement"
   },
   { 
     key: "diagnostic_immobilier", 
     label: "Diagnostic immobilier", 
-    keywords: ["diagnostic", "dpe", "amiante", "plomb", "termite", "electricite", "gaz"],
+    keywords: [],
     prixMinBase: 100, prixMaxBase: 600, unite: "diagnostic"
   },
   { 
     key: "autre", 
-    label: "Autre (hors catégorie)", 
+    label: "Autres travaux (hors référentiel)", 
     keywords: [],
     prixMinBase: 0, prixMaxBase: 0, unite: ""
   }
@@ -279,24 +280,10 @@ export const filterOutPriceItems = (items: string[]): string[] => {
   });
 };
 
-// Detect category from items
-const detectCategory = (items: TravauxItem[]): OfficialCategory | null => {
-  if (items.length === 0) return null;
-  
-  // Build search text from all items
-  const searchText = items
-    .map(item => `${item.categorie || ""} ${item.libelle || ""} ${item.categorie_metier || ""}`)
-    .join(" ")
-    .toLowerCase();
-  
-  // Find matching category
-  for (const cat of OFFICIAL_CATEGORIES) {
-    if (cat.key === "autre") continue; // Skip "autre" for auto-detection
-    if (cat.keywords.some(kw => searchText.includes(kw))) {
-      return cat;
-    }
-  }
-  
+// DÉTECTION AUTOMATIQUE DÉSACTIVÉE
+// La comparaison de prix doit UNIQUEMENT s'appuyer sur la catégorie sélectionnée par l'utilisateur
+const detectCategory = (_items: TravauxItem[]): OfficialCategory | null => {
+  // Toujours retourner null pour forcer la sélection manuelle
   return null;
 };
 
@@ -308,8 +295,8 @@ const calculateFourchette = (category: OfficialCategory, zoneType: string | unde
   return { min, median, max, unite: category.unite };
 };
 
-// State types
-type ComparisonState = "auto" | "user_choice" | "hors_categorie";
+// State types - "auto" n'est plus utilisé, comparaison uniquement après sélection utilisateur
+type ComparisonState = "pending" | "user_confirmed" | "hors_categorie";
 
 const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, codePostal, zoneType }: BlockDevisMultipleProps) => {
   const items = typesTravaux && typesTravaux.length > 0 ? typesTravaux : [];
@@ -321,10 +308,7 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
   // Get first zone type if available
   const displayZoneType = zoneType || items.find(i => i.zone_type)?.zone_type;
   
-  // Detect category automatically
-  const autoDetectedCategory = detectCategory(items);
-  
-  // Determine comparison state
+  // Determine comparison state - UNIQUEMENT basé sur la sélection utilisateur
   let comparisonState: ComparisonState;
   let activeCategory: OfficialCategory | null = null;
   
@@ -334,15 +318,11 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
     if (activeCategory?.key === "autre") {
       comparisonState = "hors_categorie";
     } else {
-      comparisonState = "user_choice";
+      comparisonState = "user_confirmed";
     }
-  } else if (autoDetectedCategory) {
-    // Auto-detected category
-    activeCategory = autoDetectedCategory;
-    comparisonState = "auto";
   } else {
-    // No category detected - show user choice
-    comparisonState = "user_choice";
+    // Aucune catégorie sélectionnée - afficher le menu de sélection
+    comparisonState = "pending";
   }
   
   // Calculate fourchette if we have an active category
@@ -399,103 +379,35 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
           )}
           
           {/* ======================== */}
-          {/* ÉTAT 1: COMPARAISON AUTOMATIQUE */}
+          {/* ÉTAT 1: EN ATTENTE DE SÉLECTION UTILISATEUR */}
           {/* ======================== */}
-          {comparisonState === "auto" && activeCategory && fourchette && (
-            <div className="space-y-4">
-              <div className="p-4 bg-primary/5 rounded-xl border border-primary/20">
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="p-2 bg-primary/10 rounded-lg">
-                    <CheckCircle2 className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-base font-medium text-foreground">
-                      Catégorie détectée : {activeCategory.label}
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Comparaison automatique effectuée sur la base des prix moyens du marché.
-                    </p>
-                  </div>
-                </div>
-                
-                {/* Fourchettes */}
-                <div className="bg-background/50 rounded-lg p-4 space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Fourchette basse</span>
-                    <span className="font-medium text-foreground">{formatPrice(fourchette.min)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Fourchette médiane</span>
-                    <span className="font-medium text-foreground">{formatPrice(fourchette.median)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Fourchette haute</span>
-                    <span className="font-medium text-foreground">{formatPrice(fourchette.max)}</span>
-                  </div>
-                  
-                  {/* Position du devis */}
-                  {montantTotalHT && pricePosition !== "unknown" && (
-                    <div className="pt-3 border-t border-border/50">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Votre devis ({formatPrice(montantTotalHT)})</span>
-                        <div className="flex items-center gap-2">
-                          {getPositionIcon(pricePosition, "h-4 w-4")}
-                          <span className={`font-medium ${getPositionColorClass(pricePosition)}`}>
-                            {getPositionLabel(pricePosition)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {/* Option pour changer de catégorie */}
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span>Catégorie incorrecte ?</span>
-                <button 
-                  onClick={() => {
-                    setSelectedCategoryKey(null);
-                    setUserConfirmedCategory(false);
-                  }}
-                  className="text-primary hover:underline"
-                >
-                  Modifier
-                </button>
-              </div>
-            </div>
-          )}
-          
-          {/* ======================== */}
-          {/* ÉTAT 2: CHOIX UTILISATEUR */}
-          {/* ======================== */}
-          {comparisonState === "user_choice" && !userConfirmedCategory && (
+          {comparisonState === "pending" && (
             <div className="space-y-4">
               <div className="p-4 bg-muted/30 rounded-xl border border-border">
                 <div className="flex items-start gap-3 mb-4">
-                  <div className="p-2 bg-muted rounded-lg">
-                    <HelpCircle className="h-5 w-5 text-muted-foreground" />
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <Calculator className="h-5 w-5 text-primary" />
                   </div>
                   <div>
                     <p className="text-base font-medium text-foreground">
-                      Catégorie de travaux non identifiée automatiquement
+                      Comparaison de prix disponible
                     </p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Pour afficher une comparaison de prix, sélectionnez le type de travaux correspondant.
+                      Pour afficher une estimation des prix du marché, sélectionnez le type de travaux correspondant à votre devis.
                     </p>
                   </div>
                 </div>
                 
-                {/* Menu déroulant */}
+                {/* Menu déroulant obligatoire */}
                 <div className="space-y-3">
                   <label className="text-sm font-medium text-foreground">
-                    À quel type de travaux correspond le mieux ce devis ?
+                    Type de travaux
                   </label>
                   <Select onValueChange={handleCategorySelect}>
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="w-full bg-background">
                       <SelectValue placeholder="Sélectionnez une catégorie..." />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-popover z-50">
                       {OFFICIAL_CATEGORIES.map(cat => (
                         <SelectItem key={cat.key} value={cat.key}>
                           {cat.label}
@@ -510,16 +422,18 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
               <div className="p-3 bg-primary/5 rounded-lg border border-primary/10">
                 <p className="text-xs text-muted-foreground flex items-center gap-2">
                   <span>ℹ️</span>
-                  <span>L'absence de comparaison automatique n'indique pas un problème. Elle reflète simplement que le type de travaux n'a pas pu être identifié automatiquement.</span>
+                  <span>La sélection d'une catégorie permet d'afficher des fourchettes de prix indicatives. Elle n'impacte pas le score global de l'analyse.</span>
                 </p>
               </div>
             </div>
           )}
           
+          {/* ÉTAT 2 (SUPPRIMÉ - plus de détection automatique) */}
+          
           {/* ======================== */}
-          {/* ÉTAT 2bis: APRÈS CHOIX UTILISATEUR (avec fourchette) */}
+          {/* ÉTAT 2: CATÉGORIE CONFIRMÉE PAR L'UTILISATEUR (avec fourchette) */}
           {/* ======================== */}
-          {comparisonState === "user_choice" && userConfirmedCategory && activeCategory && fourchette && (
+          {comparisonState === "user_confirmed" && activeCategory && fourchette && (
             <div className="space-y-4">
               <div className="p-4 bg-primary/5 rounded-xl border border-primary/20">
                 <div className="flex items-start gap-3 mb-4">
@@ -531,7 +445,7 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
                       Catégorie sélectionnée : {activeCategory.label}
                     </p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Comparaison effectuée sur la base des prix moyens du marché.
+                      Comparaison basée sur les prix moyens du marché pour cette catégorie.
                     </p>
                   </div>
                 </div>
@@ -585,7 +499,7 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
           )}
           
           {/* ======================== */}
-          {/* ÉTAT 3: HORS CATÉGORIE (Autre) */}
+          {/* ÉTAT 3: HORS RÉFÉRENTIEL (Autres travaux) */}
           {/* ======================== */}
           {comparisonState === "hors_categorie" && (
             <div className="space-y-4">
@@ -595,14 +509,8 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
                     <FileText className="h-5 w-5 text-muted-foreground" />
                   </div>
                   <div>
-                    <p className="text-base font-medium text-foreground mb-3">
-                      Travaux hors catégorie standard
-                    </p>
                     <p className="text-sm text-muted-foreground leading-relaxed">
-                      Nous n'avons pas pu analyser ce devis par comparaison de prix, car il concerne une catégorie de travaux ne disposant pas de références fiables.
-                    </p>
-                    <p className="text-sm text-muted-foreground leading-relaxed mt-2">
-                      <strong>Cela n'indique ni un problème de prix, ni un risque particulier.</strong>
+                      Nous n'avons pas pu analyser cette catégorie de travaux, car elle ne correspond pas à un référentiel de prix standardisé.
                     </p>
                   </div>
                 </div>
