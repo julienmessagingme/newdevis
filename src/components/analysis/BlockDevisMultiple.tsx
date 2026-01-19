@@ -30,109 +30,95 @@ interface BlockDevisMultipleProps {
 type PricePosition = "low" | "middle" | "high" | "above" | "below" | "unknown";
 
 // ========================
-// CATÉGORIES OFFICIELLES (15)
+// BIBLE DE PRIX V1.0 (OBLIGATOIRE)
+// Fourchettes indicatives constatées en France
 // ========================
 interface OfficialCategory {
   key: string;
   label: string;
-  keywords: string[];
-  // Fourchettes indicatives par m² ou unité (à titre illustratif)
-  prixMinBase: number;
-  prixMaxBase: number;
+  // Fourchettes selon la Bible de Prix V1.0
+  prixBas: number;
+  prixMedian: number;
+  prixHaut: number;
   unite: string;
 }
 
-// Catégories officielles - SANS KEYWORDS (détection automatique désactivée)
+// Catégories officielles avec Bible de Prix V1.0
 const OFFICIAL_CATEGORIES: OfficialCategory[] = [
+  { 
+    key: "carrelage", 
+    label: "Carrelage / Faïence (pose seule)", 
+    prixBas: 35, prixMedian: 55, prixHaut: 80, unite: "€/m²"
+  },
+  { 
+    key: "menuiserie", 
+    label: "Menuiserie & Fermetures", 
+    prixBas: 600, prixMedian: 900, prixHaut: 1300, unite: "forfait / élément"
+  },
   { 
     key: "plomberie", 
     label: "Plomberie", 
-    keywords: [],
-    prixMinBase: 500, prixMaxBase: 2000, unite: "prestation"
+    prixBas: 150, prixMedian: 300, prixHaut: 600, unite: "forfait"
   },
   { 
     key: "electricite", 
     label: "Électricité", 
-    keywords: [],
-    prixMinBase: 80, prixMaxBase: 150, unite: "point"
+    prixBas: 60, prixMedian: 90, prixHaut: 130, unite: "€/m²"
+  },
+  { 
+    key: "chauffage", 
+    label: "Chauffage / PAC / Chaudière", 
+    prixBas: 8000, prixMedian: 11000, prixHaut: 15000, unite: "forfait"
+  },
+  { 
+    key: "salle_de_bain", 
+    label: "Salle de bain – rénovation", 
+    prixBas: 6000, prixMedian: 9000, prixHaut: 14000, unite: "forfait"
+  },
+  { 
+    key: "cuisine", 
+    label: "Cuisine – pose / rénovation", 
+    prixBas: 5000, prixMedian: 8000, prixHaut: 13000, unite: "forfait"
   },
   { 
     key: "peinture", 
     label: "Peinture", 
-    keywords: [],
-    prixMinBase: 25, prixMaxBase: 60, unite: "m²"
-  },
-  { 
-    key: "carrelage_faience", 
-    label: "Carrelage / Faïence", 
-    keywords: [],
-    prixMinBase: 40, prixMaxBase: 120, unite: "m²"
-  },
-  { 
-    key: "menuiserie", 
-    label: "Menuiserie (portes, fenêtres, volets)", 
-    keywords: [],
-    prixMinBase: 250, prixMaxBase: 800, unite: "unité"
-  },
-  { 
-    key: "toiture_couverture", 
-    label: "Toiture / Couverture", 
-    keywords: [],
-    prixMinBase: 80, prixMaxBase: 200, unite: "m²"
+    prixBas: 20, prixMedian: 35, prixHaut: 55, unite: "€/m²"
   },
   { 
     key: "isolation", 
     label: "Isolation", 
-    keywords: [],
-    prixMinBase: 30, prixMaxBase: 100, unite: "m²"
+    prixBas: 25, prixMedian: 45, prixHaut: 70, unite: "€/m²"
   },
   { 
-    key: "chauffage_pac", 
-    label: "Chauffage / PAC / Chaudière", 
-    keywords: [],
-    prixMinBase: 3000, prixMaxBase: 15000, unite: "installation"
-  },
-  { 
-    key: "salle_de_bain", 
-    label: "Salle de bain (rénovation complète)", 
-    keywords: [],
-    prixMinBase: 4000, prixMaxBase: 15000, unite: "pièce"
-  },
-  { 
-    key: "cuisine", 
-    label: "Cuisine", 
-    keywords: [],
-    prixMinBase: 5000, prixMaxBase: 20000, unite: "pièce"
+    key: "toiture", 
+    label: "Toiture / Couverture", 
+    prixBas: 90, prixMedian: 140, prixHaut: 220, unite: "€/m²"
   },
   { 
     key: "maconnerie", 
     label: "Maçonnerie / Gros œuvre", 
-    keywords: [],
-    prixMinBase: 100, prixMaxBase: 300, unite: "m²"
+    prixBas: 2000, prixMedian: 4500, prixHaut: 9000, unite: "forfait"
   },
   { 
-    key: "terrasse_exterieur", 
-    label: "Terrasse / Extérieur", 
-    keywords: [],
-    prixMinBase: 80, prixMaxBase: 250, unite: "m²"
+    key: "terrasse", 
+    label: "Terrasse / Aménagements extérieurs", 
+    prixBas: 40, prixMedian: 70, prixHaut: 120, unite: "€/m²"
   },
   { 
-    key: "piscine_equipements", 
-    label: "Piscine / Équipements piscine", 
-    keywords: [],
-    prixMinBase: 500, prixMaxBase: 5000, unite: "équipement"
+    key: "piscine", 
+    label: "Piscine & équipements", 
+    prixBas: 300, prixMedian: 600, prixHaut: 1200, unite: "forfait"
   },
   { 
-    key: "diagnostic_immobilier", 
-    label: "Diagnostic immobilier", 
-    keywords: [],
-    prixMinBase: 100, prixMaxBase: 600, unite: "diagnostic"
+    key: "diagnostic", 
+    label: "Diagnostics immobiliers", 
+    prixBas: 290, prixMedian: 365, prixHaut: 440, unite: "forfait"
   },
   { 
-    key: "autre", 
-    label: "Autres travaux (hors référentiel)", 
-    keywords: [],
-    prixMinBase: 0, prixMaxBase: 0, unite: ""
+    key: "autres", 
+    label: "Autre / Hors catégorie", 
+    prixBas: 0, prixMedian: 0, prixHaut: 0, unite: ""
   }
 ];
 
@@ -258,13 +244,17 @@ const getZoneLabel = (zoneType: string | undefined): string => {
   }
 };
 
-// Apply zone coefficient
+// Apply zone coefficient - MODIFICATEUR GÉOGRAPHIQUE (OBLIGATOIRE)
+// Grande ville / métropole : +20%
+// Ville moyenne : 0%
+// Zone rurale : -10%
 const applyZoneCoefficient = (price: number, zoneType: string | undefined): number => {
   switch (zoneType) {
     case "grande_ville": return price * 1.20; // +20%
     case "ville_moyenne": return price * 1.00; // 0%
-    case "province": return price * 0.90; // -10%
-    default: return price;
+    case "province": 
+    case "rural": return price * 0.90; // -10%
+    default: return price; // Par défaut, pas d'ajustement
   }
 };
 
@@ -286,11 +276,11 @@ const detectCategory = (_items: TravauxItem[]): OfficialCategory | null => {
   return null;
 };
 
-// Calculate fourchette with zone adjustment
+// Calculate fourchette with zone adjustment using Bible de Prix V1.0
 const calculateFourchette = (category: OfficialCategory, zoneType: string | undefined) => {
-  const min = applyZoneCoefficient(category.prixMinBase, zoneType);
-  const max = applyZoneCoefficient(category.prixMaxBase, zoneType);
-  const median = (min + max) / 2;
+  const min = applyZoneCoefficient(category.prixBas, zoneType);
+  const median = applyZoneCoefficient(category.prixMedian, zoneType);
+  const max = applyZoneCoefficient(category.prixHaut, zoneType);
   return { min, median, max, unite: category.unite };
 };
 
@@ -308,29 +298,10 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
   let activeCategory: OfficialCategory | null = null;
   
   if (selectedWorkType) {
-    // Map the workType from NewAnalysis to our category keys
-    const categoryMapping: Record<string, string> = {
-      "plomberie": "plomberie",
-      "electricite": "electricite",
-      "peinture": "peinture",
-      "carrelage": "carrelage_faience",
-      "menuiserie": "menuiserie",
-      "toiture": "toiture_couverture",
-      "isolation": "isolation",
-      "chauffage": "chauffage_pac",
-      "salle_de_bain": "salle_de_bain",
-      "cuisine": "cuisine",
-      "maconnerie": "maconnerie",
-      "terrasse": "terrasse_exterieur",
-      "piscine": "piscine_equipements",
-      "diagnostic": "diagnostic_immobilier",
-      "autres": "autre"
-    };
+    // Mapping direct - les clés correspondent maintenant à la Bible de Prix V1.0
+    activeCategory = OFFICIAL_CATEGORIES.find(c => c.key === selectedWorkType) || null;
     
-    const mappedKey = categoryMapping[selectedWorkType] || selectedWorkType;
-    activeCategory = OFFICIAL_CATEGORIES.find(c => c.key === mappedKey) || null;
-    
-    if (!activeCategory || activeCategory.key === "autre") {
+    if (!activeCategory || activeCategory.key === "autres") {
       comparisonState = "hors_categorie";
     } else {
       comparisonState = "confirmed";
@@ -341,7 +312,7 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
   }
   
   // Calculate fourchette if we have an active category
-  const fourchette = activeCategory && activeCategory.key !== "autre" 
+  const fourchette = activeCategory && activeCategory.key !== "autres" 
     ? calculateFourchette(activeCategory, displayZoneType)
     : null;
   
@@ -471,7 +442,7 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    Nous n'avons pas pu analyser cette catégorie de travaux, car elle ne correspond pas à un référentiel de prix standardisé.
+                    Nous ne disposons pas de références de prix fiables pour ce type de travaux. Aucune comparaison de marché n'a pu être réalisée.
                   </p>
                 </div>
               </div>

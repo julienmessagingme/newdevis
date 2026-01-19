@@ -56,6 +56,7 @@ type Analysis = {
   raw_text?: string;
   site_context?: Record<string, unknown>;
   types_travaux?: TravauxItem[];
+  work_type?: string; // Type de travaux sélectionné à l'upload
 };
 
 // Helper to parse document detection from raw_text
@@ -471,6 +472,7 @@ const AnalysisResult = () => {
           typesTravaux={analysis.types_travaux}
           pointsOk={analysis.points_ok || []} 
           alertes={analysis.alertes || []} 
+          selectedWorkType={analysis.work_type}
         />
         
         {/* Fallback to simple BlockDevis if no multi-type data */}

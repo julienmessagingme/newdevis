@@ -37,6 +37,7 @@ export type Database = {
           types_travaux: Json | null
           updated_at: string
           user_id: string
+          work_type: string | null
         }
         Insert: {
           alertes?: Json | null
@@ -60,6 +61,7 @@ export type Database = {
           types_travaux?: Json | null
           updated_at?: string
           user_id: string
+          work_type?: string | null
         }
         Update: {
           alertes?: Json | null
@@ -83,6 +85,7 @@ export type Database = {
           types_travaux?: Json | null
           updated_at?: string
           user_id?: string
+          work_type?: string | null
         }
         Relationships: []
       }
