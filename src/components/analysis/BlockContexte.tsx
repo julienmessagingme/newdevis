@@ -1,4 +1,5 @@
-import { MapPin, AlertTriangle, FileWarning, Info, CheckCircle2 } from "lucide-react";
+import { MapPin, AlertTriangle, FileWarning, Info, CheckCircle2, Landmark, HelpCircle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface SiteContextResult {
   postal_code: string | null;
@@ -16,6 +17,10 @@ interface SiteContextResult {
   urbanisme: {
     has_constraints: boolean;
     documents: string[];
+  } | null;
+  patrimoine?: {
+    status: "possible" | "non_detecte" | "inconnu";
+    types: string[];
   } | null;
   error: string | null;
   status?: "data_found" | "no_data" | "address_incomplete" | "not_searched";
@@ -72,6 +77,7 @@ const extractSiteContextFromPoints = (pointsOk: string[], alertes: string[]): Pa
   let commune: string | null = null;
   let seismicZone: string | null = null;
   let hasDataFromBackend = false;
+  let patrimoine: { status: "possible" | "non_detecte" | "inconnu"; types: string[] } | null = null;
   
   for (const point of allPoints) {
     const lowerPoint = point.toLowerCase();
@@ -110,6 +116,20 @@ const extractSiteContextFromPoints = (pointsOk: string[], alertes: string[]): Pa
       // Check for "no constraints" message
       if (lowerPoint.includes("aucune contrainte particulière")) {
         // This means no_data status
+      }
+      
+      // Extract patrimoine / ABF status
+      if (lowerPoint.includes("patrimoine") || lowerPoint.includes("abf")) {
+        if (lowerPoint.includes("possible")) {
+          // Extract types from parentheses if available
+          const typesMatch = point.match(/\(([^)]+)\)/);
+          const types = typesMatch ? typesMatch[1].split(",").map(t => t.trim()) : [];
+          patrimoine = { status: "possible", types };
+        } else if (lowerPoint.includes("non détecté") || lowerPoint.includes("non detecte")) {
+          patrimoine = { status: "non_detecte", types: [] };
+        } else if (lowerPoint.includes("inconnu")) {
+          patrimoine = { status: "inconnu", types: [] };
+        }
       }
     }
     
@@ -193,6 +213,7 @@ const extractSiteContextFromPoints = (pointsOk: string[], alertes: string[]): Pa
     address: address || (commune ? `${commune}` : null),
     risks,
     seismic_zone: seismicZoneObj,
+    patrimoine,
     error: null,
     status
   };
@@ -245,7 +266,8 @@ const BlockContexte = ({ siteContext, pointsOk, alertes, chantierAddress, rawTex
   const hasRisks = contextData?.risks && contextData.risks.length > 0;
   const hasSeismicZone = !!contextData?.seismic_zone;
   const hasUrbanisme = !!contextData?.urbanisme;
-  const hasData = hasRisks || hasSeismicZone || hasUrbanisme;
+  const hasPatrimoine = !!contextData?.patrimoine;
+  const hasData = hasRisks || hasSeismicZone || hasUrbanisme || hasPatrimoine;
   
   // Determine the display case
   let displayCase: "data_found" | "no_data" | "address_incomplete";
@@ -355,6 +377,64 @@ const BlockContexte = ({ siteContext, pointsOk, alertes, chantierAddress, rawTex
                       </p>
                     )}
                   </div>
+                </div>
+              )}
+              
+              {/* Patrimoine / ABF */}
+              {hasPatrimoine && contextData?.patrimoine && (
+                <div className="mb-4">
+                  <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+                    <Landmark className="h-4 w-4 text-primary" />
+                    Patrimoine / ABF
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="text-sm">
+                            <strong>Pourquoi c'est utile ?</strong><br />
+                            Dans certaines zones protégées, les travaux extérieurs (façade, toiture, ouvertures, clôtures, etc.) peuvent nécessiter une consultation patrimoniale. Vérifiez auprès de votre mairie / service urbanisme.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </h3>
+                  
+                  <div className={`p-3 rounded-lg border ${
+                    contextData.patrimoine.status === "possible" 
+                      ? "bg-score-orange-bg border-score-orange/20" 
+                      : contextData.patrimoine.status === "non_detecte"
+                        ? "bg-muted/30 border-border"
+                        : "bg-muted/30 border-border"
+                  }`}>
+                    {contextData.patrimoine.status === "possible" && (
+                      <>
+                        <p className="text-sm text-score-orange font-medium mb-2">
+                          POSSIBLE — le chantier semble situé dans une zone de protection patrimoniale (monument historique / abords ou site patrimonial remarquable).
+                        </p>
+                        {contextData.patrimoine.types.length > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            Types détectés : {contextData.patrimoine.types.join(", ")}
+                          </p>
+                        )}
+                      </>
+                    )}
+                    {contextData.patrimoine.status === "non_detecte" && (
+                      <p className="text-sm text-muted-foreground">
+                        NON DÉTECTÉ — aucune zone patrimoniale n'a été détectée autour de l'adresse du chantier à partir des données publiques disponibles.
+                      </p>
+                    )}
+                    {contextData.patrimoine.status === "inconnu" && (
+                      <p className="text-sm text-muted-foreground">
+                        INCONNU — l'adresse du chantier n'a pas pu être géolocalisée, la vérification n'a pas pu être réalisée.
+                      </p>
+                    )}
+                  </div>
+                  
+                  <p className="text-xs text-muted-foreground mt-2 italic">
+                    Information indicative basée sur des sources publiques. Ne constitue pas un avis juridique. La règle applicable dépend du projet, de la nature des travaux et des décisions de l'autorité compétente.
+                  </p>
                 </div>
               )}
             </>
