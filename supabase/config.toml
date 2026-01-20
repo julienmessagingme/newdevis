@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.test-pappers]
 verify_jwt = false
+
+[functions.pappers-health]
+verify_jwt = false
