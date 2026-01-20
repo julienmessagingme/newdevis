@@ -106,14 +106,15 @@ interface ExtractedData {
 // ============================================================
 
 interface ProviderCallDebug {
-  attempted: boolean;
-  cached: boolean;
-  cache_hit: boolean;
-  status: number | null;
-  error: string | null;
-  fetched_at: string | null;
-  expires_at: string | null;
-  latency_ms: number | null;
+  enabled: boolean;           // API key is configured
+  attempted: boolean;         // Call was attempted
+  cached: boolean;            // Result came from cache
+  cache_hit: boolean;         // Cache was valid and used
+  http_status: number | null; // HTTP status code from API
+  error: string | null;       // Error message if any
+  fetched_at: string | null;  // When data was fetched
+  expires_at: string | null;  // When cache expires
+  latency_ms: number | null;  // Time taken for the call
 }
 
 interface DebugInfo {
@@ -596,10 +597,11 @@ interface VerifyCompanyResult {
 async function verifyCompanyWithCache(siret: string | null, supabase: any): Promise<VerifyCompanyResult> {
   const startTime = Date.now();
   const defaultDebug: ProviderCallDebug = {
+    enabled: false,
     attempted: false,
     cached: false,
     cache_hit: false,
-    status: null,
+    http_status: null,
     error: null,
     fetched_at: null,
     expires_at: null,
@@ -642,7 +644,7 @@ async function verifyCompanyWithCache(siret: string | null, supabase: any): Prom
     return { 
       ...defaultResult, 
       lookup_status: "skipped",
-      debug: { ...defaultDebug, attempted: false, error: "PAPPERS_API_KEY not configured", latency_ms: Date.now() - startTime }
+      debug: { ...defaultDebug, enabled: false, attempted: false, error: "PAPPERS_API_KEY not configured", latency_ms: Date.now() - startTime }
     };
   }
 
@@ -680,10 +682,11 @@ async function verifyCompanyWithCache(siret: string | null, supabase: any): Prom
         ville: isOk ? payload.ville : null,
         lookup_status: cachedData.status as "ok" | "not_found" | "error",
         debug: {
+          enabled: true,
           attempted: true,
           cached: true,
           cache_hit: true,
-          status: isOk ? 200 : (isNotFound ? 404 : 500),
+          http_status: isOk ? 200 : (isNotFound ? 404 : 500),
           error: cachedData.error_message,
           fetched_at: cachedData.fetched_at,
           expires_at: cachedData.expires_at,
@@ -745,10 +748,11 @@ async function verifyCompanyWithCache(siret: string | null, supabase: any): Prom
         radiee: null,       // NULL = unknown, not "confirmed radiée"
         lookup_status: "not_found",
         debug: {
+          enabled: true,
           attempted: true,
           cached: false,
           cache_hit: false,
-          status: 404,
+          http_status: 404,
           error: "NOT_FOUND",
           fetched_at: now.toISOString(),
           expires_at: expiresAt.toISOString(),
@@ -779,10 +783,11 @@ async function verifyCompanyWithCache(siret: string | null, supabase: any): Prom
         ...defaultResult, 
         lookup_status: "error",
         debug: {
+          enabled: true,
           attempted: true,
           cached: false,
           cache_hit: false,
-          status: response.status,
+          http_status: response.status,
           error: `API returned ${response.status}`,
           fetched_at: now.toISOString(),
           expires_at: errorExpires.toISOString(),
@@ -859,10 +864,11 @@ async function verifyCompanyWithCache(siret: string | null, supabase: any): Prom
       ville: data.siege?.ville || null,
       lookup_status: "ok",
       debug: {
+        enabled: true,
         attempted: true,
         cached: false,
         cache_hit: false,
-        status: 200,
+        http_status: 200,
         error: null,
         fetched_at: now.toISOString(),
         expires_at: expiresAt.toISOString(),
@@ -875,10 +881,11 @@ async function verifyCompanyWithCache(siret: string | null, supabase: any): Prom
       ...defaultResult, 
       lookup_status: "error",
       debug: {
+        enabled: true,
         attempted: true,
         cached: false,
         cache_hit: false,
-        status: null,
+        http_status: null,
         error: error instanceof Error ? error.message : "Unknown error",
         fetched_at: new Date().toISOString(),
         expires_at: null,
