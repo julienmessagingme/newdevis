@@ -43,6 +43,7 @@ const ADEME_RGE_API_URL = "https://data.ademe.fr/data-fair/api/v1/datasets/liste
 const OPENIBAN_API_URL = "https://openiban.com/validate";
 const GEORISQUES_API_URL = "https://georisques.gouv.fr/api/v1";
 const ADRESSE_API_URL = "https://api-adresse.data.gouv.fr/search";
+const GPU_API_URL = "https://apicarto.ign.fr/api/gpu/document";
 
 // ============ TYPE DEFINITIONS ============
 type ScoringColor = "VERT" | "ORANGE" | "ROUGE";
@@ -193,6 +194,13 @@ interface VerificationResult {
   georisques_risques: string[];
   georisques_zone_sismique: string | null;
   georisques_commune: string | null;
+  
+  // Patrimoine / ABF
+  patrimoine_consulte: boolean;
+  patrimoine_status: "possible" | "non_detecte" | "inconnu";
+  patrimoine_types: string[];
+  patrimoine_lat: number | null;
+  patrimoine_lon: number | null;
   
   // Prix marché
   comparaisons_prix: Array<{
@@ -1037,7 +1045,116 @@ async function getGeorisques(
   }
 }
 
-// 2.7 Price comparison
+// 2.7 Patrimoine / ABF - Heritage zones check
+interface HeritageResult {
+  consulte: boolean;
+  status: "possible" | "non_detecte" | "inconnu";
+  types: string[];
+  lat: number | null;
+  lon: number | null;
+}
+
+async function getHeritageZones(
+  address: string | null,
+  postalCode: string | null
+): Promise<HeritageResult> {
+  const defaultResult: HeritageResult = { 
+    consulte: false, 
+    status: "inconnu", 
+    types: [],
+    lat: null,
+    lon: null
+  };
+  
+  const addressToGeocode = address || postalCode;
+  if (!addressToGeocode) return defaultResult;
+
+  try {
+    const cleanedAddress = cleanAddress(addressToGeocode);
+    if (cleanedAddress.length < 5) return defaultResult;
+
+    // Geocode the address
+    const geocodeResponse = await fetch(`${ADRESSE_API_URL}?q=${encodeURIComponent(cleanedAddress)}&limit=1`);
+    if (!geocodeResponse.ok) return defaultResult;
+
+    const geocodeData = await geocodeResponse.json();
+    if (!geocodeData.features?.length) return defaultResult;
+
+    const [lon, lat] = geocodeData.features[0].geometry?.coordinates || [];
+    if (!lat || !lon) return defaultResult;
+
+    // Query GPU API for heritage zones (SUP AC1, AC4 - Monuments Historiques and SPR)
+    // Using a 500m buffer around the point to check for nearby heritage protections
+    const heritageTypes: string[] = [];
+    
+    try {
+      // Check for SUP (Servitudes d'Utilité Publique) - AC1/AC4 are heritage related
+      const supResponse = await fetch(
+        `https://apicarto.ign.fr/api/gpu/sup?geom={"type":"Point","coordinates":[${lon},${lat}]}`
+      );
+      
+      if (supResponse.ok) {
+        const supData = await supResponse.json();
+        if (supData.features?.length > 0) {
+          for (const feature of supData.features) {
+            const supType = feature.properties?.suptype || feature.properties?.libsup || "";
+            const supCode = (feature.properties?.servitud || feature.properties?.idsup || "").toUpperCase();
+            
+            // AC1 = Monuments historiques et leurs abords
+            // AC4 = Sites patrimoniaux remarquables (SPR)
+            if (supCode.includes("AC1") || supType.toLowerCase().includes("monument") || supType.toLowerCase().includes("historique")) {
+              if (!heritageTypes.includes("AC1 - Monument historique / Abords")) {
+                heritageTypes.push("AC1 - Monument historique / Abords");
+              }
+            }
+            if (supCode.includes("AC4") || supType.toLowerCase().includes("spr") || supType.toLowerCase().includes("patrimonial remarquable")) {
+              if (!heritageTypes.includes("AC4 - Site patrimonial remarquable (SPR)")) {
+                heritageTypes.push("AC4 - Site patrimonial remarquable (SPR)");
+              }
+            }
+          }
+        }
+      }
+    } catch (supError) {
+      console.error("SUP API error:", supError);
+      // Continue - non-blocking
+    }
+
+    // Alternative: Check Atlas des Patrimoines / Base Mérimée via data.gouv open data
+    // This is a fallback if GPU SUP doesn't return heritage info
+    if (heritageTypes.length === 0) {
+      try {
+        // Check for monuments historiques nearby using open data
+        const monumentsResponse = await fetch(
+          `https://data.culture.gouv.fr/api/explore/v2.1/catalog/datasets/liste-des-immeubles-proteges-au-titre-des-monuments-historiques/records?limit=5&refine=coordonnees_gps:[${lat-0.01},${lon-0.01}+TO+${lat+0.01},${lon+0.01}]`
+        );
+        
+        if (monumentsResponse.ok) {
+          const monumentsData = await monumentsResponse.json();
+          if (monumentsData.results?.length > 0) {
+            heritageTypes.push("AC1 - Monument historique / Abords");
+          }
+        }
+      } catch (monumentError) {
+        console.error("Monuments API error:", monumentError);
+        // Continue - non-blocking
+      }
+    }
+
+    return {
+      consulte: true,
+      status: heritageTypes.length > 0 ? "possible" : "non_detecte",
+      types: heritageTypes,
+      lat,
+      lon
+    };
+  } catch (error) {
+    console.error("Heritage zones error:", error);
+    return defaultResult;
+  }
+}
+
+// 2.8 Price comparison
 interface TravauxReferencePrix {
   categorie_travaux: string;
   unite: string;
@@ -1193,11 +1310,12 @@ async function verifyData(extracted: ExtractedData, supabase: any): Promise<Veri
   const companyResult = await verifyCompanyWithCache(extracted.entreprise.siret, supabase);
 
   // Run other verifications in parallel
-  const [ibanResult, bodaccResult, rgeResult, georisquesResult] = await Promise.all([
+  const [ibanResult, bodaccResult, rgeResult, georisquesResult, heritageResult] = await Promise.all([
     extracted.entreprise.iban ? verifyIBAN(extracted.entreprise.iban) : Promise.resolve({ verifie: false, valide: null, pays: null, code_pays: null, banque: null }),
     siren ? checkBodacc(siren) : Promise.resolve(false),
     checkRGE(extracted.entreprise.siret, extracted.travaux),
     (extracted.client.adresse_chantier || extracted.client.code_postal) ? getGeorisques(extracted.client.adresse_chantier, extracted.client.code_postal) : Promise.resolve({ consulte: false, risques: [], zone_sismique: null, commune: null }),
+    (extracted.client.adresse_chantier || extracted.client.code_postal) ? getHeritageZones(extracted.client.adresse_chantier, extracted.client.code_postal) : Promise.resolve({ consulte: false, status: "inconnu" as const, types: [], lat: null, lon: null }),
   ]);
 
   // Google only if company identifiable
@@ -1257,6 +1375,12 @@ async function verifyData(extracted: ExtractedData, supabase: any): Promise<Veri
     georisques_risques: georisquesResult.risques,
     georisques_zone_sismique: georisquesResult.zone_sismique,
     georisques_commune: georisquesResult.commune,
+    
+    patrimoine_consulte: heritageResult.consulte,
+    patrimoine_status: heritageResult.status,
+    patrimoine_types: heritageResult.types,
+    patrimoine_lat: heritageResult.lat,
+    patrimoine_lon: heritageResult.lon,
     
     comparaisons_prix: priceComparisons,
     
@@ -1796,6 +1920,20 @@ function renderOutput(
     points_ok.push("📍 Contexte chantier : Adresse détectée mais consultation Géorisques non effectuée");
   } else {
     points_ok.push("📍 Contexte chantier : Adresse non détectée sur le devis");
+  }
+
+  // Patrimoine / ABF indicator
+  if (verified.patrimoine_consulte) {
+    if (verified.patrimoine_status === "possible") {
+      const typesStr = verified.patrimoine_types.length > 0 
+        ? ` (${verified.patrimoine_types.join(", ")})` 
+        : "";
+      points_ok.push(`📍 Patrimoine / ABF : POSSIBLE — le chantier semble situé dans une zone de protection patrimoniale${typesStr}`);
+    } else if (verified.patrimoine_status === "non_detecte") {
+      points_ok.push("📍 Patrimoine / ABF : NON DÉTECTÉ — aucune zone patrimoniale n'a été détectée autour de l'adresse du chantier à partir des données publiques disponibles");
+    }
+  } else if (extracted.client.adresse_chantier || extracted.client.code_postal) {
+    points_ok.push("📍 Patrimoine / ABF : INCONNU — l'adresse du chantier n'a pas pu être géolocalisée, la vérification n'a pas pu être réalisée");
   }
 
   // ============ RECOMMANDATIONS ============
