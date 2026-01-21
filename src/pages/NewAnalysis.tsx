@@ -4,13 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Shield,
   Upload,
   FileText,
@@ -24,25 +17,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-
-// Catégories officielles de travaux - Bible de Prix V1.0
-const WORK_TYPE_OPTIONS = [
-  { value: "carrelage", label: "Carrelage / Faïence" },
-  { value: "menuiserie", label: "Menuiserie & Fermetures" },
-  { value: "plomberie", label: "Plomberie" },
-  { value: "electricite", label: "Électricité" },
-  { value: "chauffage", label: "Chauffage / PAC / Chaudière" },
-  { value: "salle_de_bain", label: "Salle de bain – rénovation" },
-  { value: "cuisine", label: "Cuisine – pose / rénovation" },
-  { value: "peinture", label: "Peinture" },
-  { value: "isolation", label: "Isolation" },
-  { value: "toiture", label: "Toiture / Couverture" },
-  { value: "maconnerie", label: "Maçonnerie / Gros œuvre" },
-  { value: "terrasse", label: "Terrasse / Aménagements extérieurs" },
-  { value: "piscine", label: "Piscine & équipements" },
-  { value: "diagnostic", label: "Diagnostics immobiliers" },
-  { value: "autres", label: "Autre / Hors catégorie" },
-];
+import WorkTypeSelector from "@/components/WorkTypeSelector";
+import { parseWorkTypeValue, isHorsCategorie } from "@/lib/workTypeReferentiel";
+// Le référentiel des types de travaux est maintenant dans src/lib/workTypeReferentiel.ts
 
 type UploadStatus = "idle" | "uploading" | "success" | "error";
 
@@ -509,32 +486,12 @@ const NewAnalysis = () => {
             )}
           </div>
 
-          {/* Work Type - Menu déroulant obligatoire */}
-          <div className="space-y-2">
-            <Label htmlFor="workType" className="text-base font-semibold">
-              Type de travaux <span className="text-destructive">*</span>
-            </Label>
-            <Select
-              value={workType}
-              onValueChange={setWorkType}
-              disabled={loading}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Sélectionnez le type de travaux" />
-              </SelectTrigger>
-              <SelectContent className="bg-background border border-border z-50">
-                {WORK_TYPE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <HelpCircle className="h-3 w-3" />
-              Requis pour la comparaison des prix du marché
-            </p>
-          </div>
+          {/* Work Type - Sélecteur hiérarchique catégorie / sous-type */}
+          <WorkTypeSelector
+            value={workType}
+            onChange={setWorkType}
+            disabled={loading}
+          />
 
           {/* Notes */}
           <div className="space-y-2">
