@@ -19,6 +19,7 @@ import {
   BlockEntreprise, 
   BlockDevis, 
   BlockDevisMultiple,
+  BlockPrixMarche,
   BlockSecurite, 
   BlockContexte,
   filterOutEntrepriseItems,
@@ -30,7 +31,7 @@ import {
   AdaptedAnalysisBanner
 } from "@/components/analysis";
 import { PostSignatureTrackingSection } from "@/components/tracking";
-import type { TravauxItem } from "@/components/analysis";
+import type { TravauxItem, CategorieAnalysee } from "@/components/analysis";
 
 type DocumentDetection = {
   type: "devis_travaux" | "devis_prestation_technique" | "devis_diagnostic_immobilier" | "facture" | "autre";
@@ -237,6 +238,33 @@ const AnalysisResult = () => {
     }
 
     return { workStartDate, workEndDate, maxExecutionDays };
+  };
+
+  // Extract postal code and zone info from raw_text
+  const extractLocationInfo = (analysis: Analysis) => {
+    const rawText = analysis.raw_text || "";
+    let codePostal: string | undefined;
+    let zoneType: string | undefined;
+    
+    try {
+      const parsed = JSON.parse(rawText);
+      codePostal = parsed?.client?.code_postal || parsed?.extracted?.client?.code_postal;
+      zoneType = parsed?.zone_type || analysis.types_travaux?.[0]?.zone_type;
+    } catch {
+      // Try regex extraction for postal code
+      const cpMatch = rawText.match(/(?:code\s*postal|cp)[:\s]*(\d{5})/i) || 
+                       rawText.match(/(\d{5})\s*[A-Za-z]/);
+      if (cpMatch) codePostal = cpMatch[1];
+    }
+    
+    return { codePostal, zoneType };
+  };
+
+  // Calculate total HT from types_travaux
+  const calculateTotalHT = (typesTravaux?: TravauxItem[]): number | undefined => {
+    if (!typesTravaux || typesTravaux.length === 0) return undefined;
+    const total = typesTravaux.reduce((sum, t) => sum + (t.montant_ht || 0), 0);
+    return total > 0 ? total : undefined;
   };
 
   if (loading) {
@@ -466,22 +494,19 @@ const AnalysisResult = () => {
           alertes={analysis.alertes || []} 
         />
 
-        {/* BLOC 2 — Devis & Cohérence financière */}
-        {/* Use BlockDevisMultiple if we have structured data or price analysis in points */}
-        <BlockDevisMultiple 
-          typesTravaux={analysis.types_travaux}
-          pointsOk={analysis.points_ok || []} 
-          alertes={analysis.alertes || []} 
-          selectedWorkType={analysis.work_type}
-        />
-        
-        {/* Fallback to simple BlockDevis if no multi-type data */}
-        {!hasStructuredTypesTravaux && (
-          <BlockDevis 
-            pointsOk={analysis.points_ok || []} 
-            alertes={analysis.alertes || []} 
-          />
-        )}
+        {/* BLOC 2 — Analyse Prix & Cohérence Marché */}
+        {(() => {
+          const locationInfo = extractLocationInfo(analysis);
+          return (
+            <BlockPrixMarche 
+              categories={[]} // Will be populated from backend when extraction is updated
+              montantTotalHT={calculateTotalHT(analysis.types_travaux)}
+              zoneType={locationInfo.zoneType || analysis.types_travaux?.[0]?.zone_type}
+              codePostal={locationInfo.codePostal}
+              selectedWorkType={analysis.work_type}
+            />
+          );
+        })()}
 
         {/* BLOC 3 — Sécurité & Conditions de paiement */}
         <BlockSecurite 
