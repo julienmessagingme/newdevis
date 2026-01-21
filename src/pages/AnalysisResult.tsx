@@ -31,7 +31,7 @@ import {
   AdaptedAnalysisBanner
 } from "@/components/analysis";
 import { PostSignatureTrackingSection } from "@/components/tracking";
-import type { TravauxItem, CategorieAnalysee } from "@/components/analysis";
+import type { TravauxItem } from "@/components/analysis";
 
 type DocumentDetection = {
   type: "devis_travaux" | "devis_prestation_technique" | "devis_diagnostic_immobilier" | "facture" | "autre";
@@ -499,7 +499,6 @@ const AnalysisResult = () => {
           const locationInfo = extractLocationInfo(analysis);
           return (
             <BlockPrixMarche 
-              categories={[]} // Will be populated from backend when extraction is updated
               montantTotalHT={calculateTotalHT(analysis.types_travaux)}
               zoneType={locationInfo.zoneType || analysis.types_travaux?.[0]?.zone_type}
               codePostal={locationInfo.codePostal}
