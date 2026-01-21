@@ -128,6 +128,77 @@ export type Database = {
         }
         Relationships: []
       }
+      document_extractions: {
+        Row: {
+          analysis_id: string | null
+          blocks: Json | null
+          cache_hit: boolean
+          created_at: string
+          expires_at: string
+          file_hash: string
+          file_path: string
+          id: string
+          ocr_used: boolean
+          pages_count: number | null
+          pages_used: number | null
+          parsed_data: Json | null
+          provider: string
+          provider_calls: Json | null
+          qty_ref_detected: number | null
+          qty_unit: string | null
+          quality_score: number | null
+          raw_text: string | null
+        }
+        Insert: {
+          analysis_id?: string | null
+          blocks?: Json | null
+          cache_hit?: boolean
+          created_at?: string
+          expires_at?: string
+          file_hash: string
+          file_path: string
+          id?: string
+          ocr_used?: boolean
+          pages_count?: number | null
+          pages_used?: number | null
+          parsed_data?: Json | null
+          provider?: string
+          provider_calls?: Json | null
+          qty_ref_detected?: number | null
+          qty_unit?: string | null
+          quality_score?: number | null
+          raw_text?: string | null
+        }
+        Update: {
+          analysis_id?: string | null
+          blocks?: Json | null
+          cache_hit?: boolean
+          created_at?: string
+          expires_at?: string
+          file_hash?: string
+          file_path?: string
+          id?: string
+          ocr_used?: boolean
+          pages_count?: number | null
+          pages_used?: number | null
+          parsed_data?: Json | null
+          provider?: string
+          provider_calls?: Json | null
+          qty_ref_detected?: number | null
+          qty_unit?: string | null
+          quality_score?: number | null
+          raw_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_extractions_analysis_id_fkey"
+            columns: ["analysis_id"]
+            isOneToOne: false
+            referencedRelation: "analyses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_signature_tracking: {
         Row: {
           admin_alert_date: string | null
