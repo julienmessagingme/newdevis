@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bug, Database, Clock, FileDigit, Layers, Zap } from "lucide-react";
+import { Bug, Database, Clock, FileDigit, Layers, Zap, FileText, Table2 } from "lucide-react";
 
 interface OcrDebugData {
   provider: string;
@@ -14,6 +14,9 @@ interface OcrDebugData {
   file_hash: string;
   provider_calls: ProviderCall[] | null;
   created_at: string;
+  text_length: number | null;
+  contains_table_signals: boolean | null;
+  ocr_reason: string | null;
 }
 
 interface ProviderCall {
@@ -50,7 +53,7 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
         // Fetch extraction data for this analysis
         const { data: extraction, error } = await supabase
           .from("document_extractions")
-          .select("provider, ocr_used, pages_used, pages_count, quality_score, cache_hit, file_hash, provider_calls, created_at")
+          .select("provider, ocr_used, pages_used, pages_count, quality_score, cache_hit, file_hash, provider_calls, created_at, text_length, contains_table_signals, ocr_reason")
           .eq("analysis_id", analysisId)
           .order("created_at", { ascending: false })
           .limit(1)
@@ -82,8 +85,14 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
     0
   ) || 0;
 
-  // Determine OCR reason based on provider_calls
+  // Use stored ocr_reason if available, otherwise derive from provider_calls
   const getOcrReason = (): string => {
+    // Use the stored ocr_reason if available
+    if (debugData?.ocr_reason) {
+      return debugData.ocr_reason;
+    }
+    
+    // Fallback to legacy derivation for older records
     if (!debugData?.provider_calls || debugData.provider_calls.length === 0) {
       return "no_data";
     }
@@ -132,7 +141,7 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
         {!debugData ? (
           <p className="text-xs text-muted-foreground">Aucune donnée d'extraction trouvée pour cette analyse.</p>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
             {/* Provider */}
             <div className="flex items-start gap-2">
               <Zap className="h-3.5 w-3.5 text-muted-foreground mt-0.5" />
@@ -149,7 +158,39 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
               <FileDigit className="h-3.5 w-3.5 text-muted-foreground mt-0.5" />
               <div>
                 <p className="text-muted-foreground">ocr_reason</p>
-                <p className="font-mono text-foreground mt-1">{getOcrReason()}</p>
+                <p className="font-mono text-foreground mt-1 text-[10px]">{getOcrReason()}</p>
+              </div>
+            </div>
+
+            {/* Text Length */}
+            <div className="flex items-start gap-2">
+              <FileText className="h-3.5 w-3.5 text-muted-foreground mt-0.5" />
+              <div>
+                <p className="text-muted-foreground">text_length</p>
+                <p className="font-mono text-foreground mt-1">
+                  {debugData.text_length?.toLocaleString() ?? "-"}
+                  {debugData.text_length !== null && (
+                    <span className={`ml-1 ${debugData.text_length >= 1500 ? "text-emerald-400" : "text-amber-400"}`}>
+                      {debugData.text_length >= 1500 ? "✓" : "< 1500"}
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            {/* Contains Table Signals */}
+            <div className="flex items-start gap-2">
+              <Table2 className="h-3.5 w-3.5 text-muted-foreground mt-0.5" />
+              <div>
+                <p className="text-muted-foreground">contains_table_signals</p>
+                <Badge 
+                  variant="outline" 
+                  className={`mt-1 text-xs ${debugData.contains_table_signals 
+                    ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" 
+                    : "bg-amber-500/20 text-amber-400 border-amber-500/30"}`}
+                >
+                  {debugData.contains_table_signals ? "true" : "false"}
+                </Badge>
               </div>
             </div>
 
@@ -181,12 +222,12 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
             </div>
 
             {/* SHA-256 */}
-            <div className="flex items-start gap-2 col-span-2 md:col-span-1">
+            <div className="flex items-start gap-2">
               <FileDigit className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
               <div className="min-w-0">
                 <p className="text-muted-foreground">extraction_sha256</p>
-                <p className="font-mono text-foreground mt-1 truncate" title={debugData.file_hash}>
-                  {debugData.file_hash?.substring(0, 16)}...
+                <p className="font-mono text-foreground mt-1 truncate text-[10px]" title={debugData.file_hash}>
+                  {debugData.file_hash?.substring(0, 12)}...
                 </p>
               </div>
             </div>

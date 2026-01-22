@@ -17,6 +17,9 @@ interface ExtractionResult {
   provider_calls: ProviderCall[];
   cache_hit: boolean;
   file_hash: string;
+  text_length: number;
+  contains_table_signals: boolean;
+  ocr_reason: string;
 }
 
 interface TextBlock {
@@ -55,7 +58,35 @@ async function computeFileHash(data: Uint8Array): Promise<string> {
 
 // ============ HELPER: PDF TEXT EXTRACTION ============
 
-async function extractPdfText(fileData: Uint8Array): Promise<{ text: string; quality: number }> {
+interface PdfExtractionResult {
+  text: string;
+  quality: number;
+  text_length: number;
+  contains_table_signals: boolean;
+}
+
+// Detect table signals in text (columns like Qté, PU, Total, Désignation, etc.)
+function detectTableSignals(text: string): boolean {
+  const tablePatterns = [
+    // Column headers pattern
+    /\b(?:Qté|Quantité|Qt[eé])\b.*\b(?:PU|Prix\s*unitaire|P\.U\.)\b.*\b(?:Total|Montant)\b/i,
+    /\b(?:Désignation|Description|Libellé)\b.*\b(?:Qté|Quantité)\b/i,
+    // Numeric table patterns (3+ columns of numbers on same line)
+    /\d+[,.]?\d*\s+\d+[,.]?\d*\s+\d+[,.]?\d*\s*€?/,
+    // Unit prices pattern
+    /\d+[,.]?\d{2}\s*€?\s*\/\s*(?:m²|ml|u|h|forfait)/i,
+    // Multiple rows with similar structure
+    /(?:[\d,]+\s*€?\s+){2,}/,
+    // French quote specific headers
+    /(?:Réf|Référence)\s.*(?:Qté|Quantité)\s.*(?:Prix|Montant)/i,
+    // HT/TTC table structure
+    /(?:Montant\s*HT|Total\s*HT)\s.*(?:TVA|Taux)\s.*(?:TTC|Total\s*TTC)/i,
+  ];
+  
+  return tablePatterns.some(pattern => pattern.test(text));
+}
+
+async function extractPdfText(fileData: Uint8Array): Promise<PdfExtractionResult> {
   // Convert to string and look for text streams in PDF
   const decoder = new TextDecoder('utf-8', { fatal: false });
   const pdfString = decoder.decode(fileData);
@@ -98,13 +129,19 @@ async function extractPdfText(fileData: Uint8Array): Promise<{ text: string; qua
   }
   
   const combinedText = (textContent + ' ' + additionalText).replace(/\s+/g, ' ').trim();
+  const textLength = combinedText.length;
+  const containsTableSignals = detectTableSignals(combinedText);
   
   // Calculate quality score
   const hasKeywords = /(?:HT|TVA|TTC|Total|DEVIS|FACTURE)/i.test(combinedText);
-  const charCount = combinedText.length;
-  const quality = charCount >= 800 && hasKeywords ? 0.7 : (charCount >= 400 ? 0.4 : 0.1);
+  const quality = textLength >= 800 && hasKeywords ? 0.7 : (textLength >= 400 ? 0.4 : 0.1);
   
-  return { text: combinedText, quality };
+  return { 
+    text: combinedText, 
+    quality, 
+    text_length: textLength,
+    contains_table_signals: containsTableSignals,
+  };
 }
 
 // ============ HELPER: AWS TEXTRACT OCR ============
@@ -449,12 +486,20 @@ serve(async (req) => {
 
     const providerCalls: ProviderCall[] = [];
     let finalResult: ExtractionResult | null = null;
+    
+    // Track PDF extraction metrics for decision logic
+    let pdfTextLength = 0;
+    let pdfContainsTableSignals = false;
+    let ocrReason = "unknown";
 
     // STEP 1: Try PDF text extraction first (for PDFs only)
     if (mimeType === "application/pdf") {
       const startTime = Date.now();
       try {
         const pdfResult = await extractPdfText(uint8Array);
+        pdfTextLength = pdfResult.text_length;
+        pdfContainsTableSignals = pdfResult.contains_table_signals;
+        
         providerCalls.push({
           provider: "pdf_text",
           latency_ms: Date.now() - startTime,
@@ -462,9 +507,12 @@ serve(async (req) => {
           success: true,
         });
 
-        // Check if text is exploitable (>= 800 chars + keywords)
-        if (pdfResult.quality >= 0.7) {
-          console.log("PDF text extraction successful. Quality:", pdfResult.quality);
+        console.log("PDF text extraction - Length:", pdfTextLength, "Table signals:", pdfContainsTableSignals);
+
+        // STEP 2: Strict rule - stay with pdf_text only if text_length >= 1500 AND contains_table_signals
+        if (pdfTextLength >= 1500 && pdfContainsTableSignals) {
+          console.log("PDF text OK: length >= 1500 AND table signals detected. Staying with pdf_text.");
+          ocrReason = "pdf_text_ok";
           finalResult = {
             raw_text: pdfResult.text,
             blocks: [{ text: pdfResult.text, block_type: "FULL_TEXT" }],
@@ -474,12 +522,24 @@ serve(async (req) => {
             provider_calls: providerCalls,
             cache_hit: false,
             file_hash: fileHash,
+            text_length: pdfTextLength,
+            contains_table_signals: pdfContainsTableSignals,
+            ocr_reason: ocrReason,
           };
         } else {
-          console.log("PDF text quality too low:", pdfResult.quality, "Falling back to OCR.");
+          // Determine reason for OCR fallback
+          if (pdfTextLength < 1500 && !pdfContainsTableSignals) {
+            ocrReason = "pdf_text_short_no_table";
+          } else if (pdfTextLength < 1500) {
+            ocrReason = "pdf_text_short";
+          } else {
+            ocrReason = "pdf_text_no_table_signals";
+          }
+          console.log(`PDF text insufficient: ${ocrReason}. Falling back to Textract.`);
         }
       } catch (error) {
         console.error("PDF text extraction failed:", error);
+        ocrReason = "pdf_text_failed";
         providerCalls.push({
           provider: "pdf_text",
           latency_ms: Date.now() - startTime,
@@ -488,9 +548,12 @@ serve(async (req) => {
           error: error instanceof Error ? error.message : "Unknown error",
         });
       }
+    } else {
+      // For images, go directly to OCR
+      ocrReason = "image_input";
     }
 
-    // STEP 2: Try AWS Textract (if PDF text failed or for images)
+    // STEP 3: Try AWS Textract (if PDF text didn't pass strict criteria or for images)
     if (!finalResult) {
       const awsConfigured = Deno.env.get("AWS_ACCESS_KEY_ID") && Deno.env.get("AWS_SECRET_ACCESS_KEY");
       
@@ -510,6 +573,9 @@ serve(async (req) => {
 
           console.log("Textract extraction successful. Lines:", textractResult.blocks.length);
           
+          const textractTextLength = textractResult.text.length;
+          const textractTableSignals = detectTableSignals(textractResult.text);
+          
           finalResult = {
             raw_text: textractResult.text,
             blocks: textractResult.blocks,
@@ -519,9 +585,13 @@ serve(async (req) => {
             provider_calls: providerCalls,
             cache_hit: false,
             file_hash: fileHash,
+            text_length: textractTextLength,
+            contains_table_signals: textractTableSignals,
+            ocr_reason: ocrReason,
           };
         } catch (error) {
           console.error("Textract failed:", error);
+          ocrReason = "textract_failed";
           providerCalls.push({
             provider: "textract",
             latency_ms: Date.now() - startTime,
@@ -530,10 +600,12 @@ serve(async (req) => {
             error: error instanceof Error ? error.message : "Unknown error",
           });
         }
+      } else {
+        ocrReason = "textract_not_configured";
       }
     }
 
-    // STEP 3: Fallback to Lovable AI OCR
+    // STEP 4: Fallback to Lovable AI OCR ONLY if Textract failed
     if (!finalResult) {
       const startTime = Date.now();
       try {
@@ -556,6 +628,11 @@ serve(async (req) => {
         });
 
         console.log("Lovable AI extraction successful. Lines:", aiResult.blocks.length);
+        
+        const aiTextLength = aiResult.text.length;
+        const aiTableSignals = detectTableSignals(aiResult.text);
+        
+        ocrReason = ocrReason === "textract_failed" ? "textract_failed_lovable_fallback" : "lovable_fallback";
 
         finalResult = {
           raw_text: aiResult.text,
@@ -566,6 +643,9 @@ serve(async (req) => {
           provider_calls: providerCalls,
           cache_hit: false,
           file_hash: fileHash,
+          text_length: aiTextLength,
+          contains_table_signals: aiTableSignals,
+          ocr_reason: ocrReason,
         };
       } catch (error) {
         console.error("Lovable AI OCR failed:", error);
@@ -606,6 +686,9 @@ serve(async (req) => {
         raw_text: finalResult.raw_text,
         blocks: finalResult.blocks,
         provider_calls: providerCalls,
+        text_length: finalResult.text_length,
+        contains_table_signals: finalResult.contains_table_signals,
+        ocr_reason: finalResult.ocr_reason,
       });
 
     console.log("=== EXTRACT-DOCUMENT COMPLETE ===");
