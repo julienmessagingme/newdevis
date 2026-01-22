@@ -7,7 +7,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { AlertCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { AlertCircle, X, Plus, Ruler } from "lucide-react";
 import { 
   CATEGORIES_TRAVAUX, 
   parseWorkTypeValue, 
@@ -20,6 +23,15 @@ interface WorkTypeSelectorProps {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  // Mode multi-select pour la page résultat
+  multiSelect?: boolean;
+  // Surface manuelle si non détectée
+  manualSurface?: number | null;
+  onManualSurfaceChange?: (surface: number | null) => void;
+  // Unité pour la surface (détectée ou forcée)
+  surfaceUnit?: string;
+  // Message quand surface non détectée
+  showSurfaceInput?: boolean;
 }
 
 /**
@@ -31,12 +43,22 @@ interface WorkTypeSelectorProps {
  * RÈGLE ABSOLUE: Tant qu'un sous-type n'est pas sélectionné, 
  * la jauge de prix reste masquée.
  */
-const WorkTypeSelector = ({ value, onChange, disabled }: WorkTypeSelectorProps) => {
+const WorkTypeSelector = ({ 
+  value, 
+  onChange, 
+  disabled,
+  multiSelect = false,
+  manualSurface,
+  onManualSurfaceChange,
+  surfaceUnit = "m²",
+  showSurfaceInput = false,
+}: WorkTypeSelectorProps) => {
   // Parse la valeur initiale
   const parsed = parseWorkTypeValue(value);
   
   const [selectedCategorie, setSelectedCategorie] = useState<string>(parsed?.categorieKey || "");
   const [selectedSousType, setSelectedSousType] = useState<string>(parsed?.sousTypeKey || "");
+  const [surfaceInputValue, setSurfaceInputValue] = useState<string>(manualSurface?.toString() || "");
 
   // Trouver la catégorie sélectionnée
   const categorie = CATEGORIES_TRAVAUX.find(cat => cat.key === selectedCategorie);
@@ -54,6 +76,11 @@ const WorkTypeSelector = ({ value, onChange, disabled }: WorkTypeSelectorProps) 
       setSelectedSousType("");
     }
   }, [value]);
+
+  // Sync manual surface
+  useEffect(() => {
+    setSurfaceInputValue(manualSurface?.toString() || "");
+  }, [manualSurface]);
 
   // Quand on change de catégorie
   const handleCategorieChange = (catKey: string) => {
@@ -79,8 +106,20 @@ const WorkTypeSelector = ({ value, onChange, disabled }: WorkTypeSelectorProps) 
     }
   };
 
+  // Gestion de la surface manuelle
+  const handleSurfaceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setSurfaceInputValue(val);
+    
+    if (onManualSurfaceChange) {
+      const numVal = parseFloat(val.replace(',', '.'));
+      onManualSurfaceChange(isNaN(numVal) || numVal <= 0 ? null : numVal);
+    }
+  };
+
   // Trouver le sous-type sélectionné pour afficher sa description
   const selectedSousTypeInfo = categorie?.sousTypes.find(st => st.key === selectedSousType);
+  const needsM2 = selectedSousTypeInfo?.unite === 'm²';
 
   return (
     <div className="space-y-4">
@@ -145,6 +184,32 @@ const WorkTypeSelector = ({ value, onChange, disabled }: WorkTypeSelectorProps) 
               {selectedSousTypeInfo.description}
             </p>
           )}
+        </div>
+      )}
+
+      {/* Saisie manuelle de surface (si nécessaire pour les catégories m²) */}
+      {showSurfaceInput && needsM2 && selectedSousType && (
+        <div className="space-y-2 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+          <Label className="text-sm font-medium flex items-center gap-2">
+            <Ruler className="h-4 w-4 text-amber-600" />
+            Surface totale ({surfaceUnit})
+          </Label>
+          <p className="text-xs text-muted-foreground mb-2">
+            Aucune surface n'a été détectée automatiquement. 
+            Saisissez la surface totale pour activer la comparaison de prix.
+          </p>
+          <div className="flex items-center gap-2">
+            <Input
+              type="text"
+              inputMode="decimal"
+              placeholder="Ex: 192"
+              value={surfaceInputValue}
+              onChange={handleSurfaceChange}
+              disabled={disabled}
+              className="max-w-[150px]"
+            />
+            <span className="text-sm text-muted-foreground">{surfaceUnit}</span>
+          </div>
         </div>
       )}
 
