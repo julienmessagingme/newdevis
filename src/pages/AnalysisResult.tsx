@@ -31,6 +31,7 @@ import {
   AdaptedAnalysisBanner
 } from "@/components/analysis";
 import { PostSignatureTrackingSection } from "@/components/tracking";
+import { OcrDebugPanel } from "@/components/analysis/OcrDebugPanel";
 import type { TravauxItem } from "@/components/analysis";
 
 type DocumentDetection = {
@@ -603,6 +604,9 @@ const AnalysisResult = () => {
             <p>Un score <strong className="text-score-red">ROUGE</strong> est réservé à des <strong className="text-foreground">situations factuellement critiques</strong> (entreprise radiée, procédure collective, paiement en espèces, acompte &gt; 50%).</p>
           </div>
         </div>
+
+        {/* OCR Debug Panel - Admin Only */}
+        <OcrDebugPanel analysisId={analysis.id} />
 
         {/* Disclaimer */}
         <div className="bg-muted/50 border border-border rounded-xl p-5 mb-8">
