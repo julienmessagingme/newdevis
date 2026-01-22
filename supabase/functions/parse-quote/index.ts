@@ -239,7 +239,94 @@ function findMaxQuantity(lines: ParsedLine[], targetUnit: string): { qty: number
   return { qty: maxQty, unit: maxUnit };
 }
 
+// ============ HELPER: FIND SURFACE TOTALE TAG ============
+
+/**
+ * RÈGLE 1: Chercher une ligne explicitement taggable "surface_totale" (m²)
+ * Patterns: "Surface totale", "Total m²", "Surface : xxx m²", lignes avec m² significatifs
+ */
+function findSurfaceTotaleLine(lines: ParsedLine[]): number | null {
+  // Priority 1: Lines explicitly labeled as surface total
+  const surfaceTotalPatterns = [
+    /surface\s*totale/i,
+    /total\s*(?:surface|m²|m2)/i,
+    /superficie\s*totale/i,
+  ];
+  
+  for (const line of lines) {
+    for (const pattern of surfaceTotalPatterns) {
+      if (pattern.test(line.label) && line.unit === "m²" && line.qty !== null && line.qty > 1) {
+        return line.qty;
+      }
+    }
+  }
+  
+  // Priority 2: Look for the largest m² quantity as surface reference
+  const m2Lines = lines.filter(l => l.unit === "m²" && l.qty !== null && l.qty > 1);
+  if (m2Lines.length > 0) {
+    const maxM2Line = m2Lines.reduce((max, line) => 
+      (line.qty || 0) > (max.qty || 0) ? line : max
+    );
+    return maxM2Line.qty;
+  }
+  
+  return null;
+}
+
+// ============ HELPER: FIND GLOBAL SURFACE FIELD ============
+
+/**
+ * RÈGLE 2: Chercher un champ global (ex: "Surface : 192 m²", "Total m² : ...")
+ */
+function findGlobalSurfaceField(text: string): number | null {
+  const globalPatterns = [
+    /surface\s*(?:totale\s*)?[:=]\s*(\d+[\s,.]?\d*)\s*m²/gi,
+    /total\s*m²\s*[:=]?\s*(\d+[\s,.]?\d*)/gi,
+    /superficie\s*[:=]\s*(\d+[\s,.]?\d*)\s*m²/gi,
+    /(\d+[\s,.]?\d*)\s*m²\s*(?:au\s*)?total/gi,
+    /surface\s*(?:à\s*traiter|concernée)\s*[:=]?\s*(\d+[\s,.]?\d*)\s*m²/gi,
+  ];
+  
+  for (const pattern of globalPatterns) {
+    pattern.lastIndex = 0;
+    const match = pattern.exec(text);
+    if (match) {
+      const qty = parseFloat(match[1].replace(/\s/g, '').replace(',', '.'));
+      if (!isNaN(qty) && qty > 1) {
+        return qty;
+      }
+    }
+  }
+  
+  return null;
+}
+
+// ============ HELPER: SUM UNIT QUANTITIES ============
+
+/**
+ * RÈGLE 3: Pour les catégories en "unité", calculer sum(qty) des lignes correspondantes
+ * uniquement si qty_detected=true pour chaque ligne
+ */
+function sumUnitQuantities(lines: ParsedLine[], targetUnit: string): { sum: number | null; linesWithQty: number; totalLines: number } {
+  const targetLines = lines.filter(l => l.unit === targetUnit);
+  const linesWithQty = targetLines.filter(l => l.qty !== null && l.qty > 0);
+  
+  if (linesWithQty.length === 0) {
+    return { sum: null, linesWithQty: 0, totalLines: targetLines.length };
+  }
+  
+  const sum = linesWithQty.reduce((acc, line) => acc + (line.qty || 0), 0);
+  return { sum, linesWithQty: linesWithQty.length, totalLines: targetLines.length };
+}
+
 // ============ MAIN PARSER ============
+
+interface QtyRefResult {
+  qty_ref: number | null;
+  qty_unit: string | null;
+  qty_source: "surface_totale_line" | "global_field" | "sum_units" | "max_m2" | "max_ml" | "not_found";
+  qty_detected: boolean;
+}
 
 function parseQuote(rawText: string, blocks?: any[]): ParsedQuote {
   const warnings: string[] = [];
@@ -268,27 +355,96 @@ function parseQuote(rawText: string, blocks?: any[]): ParsedQuote {
     warnings.push(`${linesWithoutQty.length} ligne(s) sans quantité détectée.`);
   }
   
-  // Find max quantity for m² (used for price comparison)
-  const maxM2 = findMaxQuantity(lines, "m²");
-  const maxMl = findMaxQuantity(lines, "ml");
+  // ====== RÈGLES STRICTES DE DÉTECTION qty_ref ======
   
-  // Choose the most relevant reference quantity
-  let qty_ref: number | null = null;
-  let qty_unit: string | null = null;
+  let qtyResult: QtyRefResult = {
+    qty_ref: null,
+    qty_unit: null,
+    qty_source: "not_found",
+    qty_detected: false,
+  };
   
-  if (maxM2.qty !== null && maxM2.qty > 1) {
-    qty_ref = maxM2.qty;
-    qty_unit = "m²";
-  } else if (maxMl.qty !== null && maxMl.qty > 1) {
-    qty_ref = maxMl.qty;
-    qty_unit = "ml";
+  // ÉTAPE 1: Chercher une ligne explicitement taggée "surface_totale" (m²)
+  const surfaceTotaleLine = findSurfaceTotaleLine(lines);
+  if (surfaceTotaleLine !== null && surfaceTotaleLine > 1) {
+    qtyResult = {
+      qty_ref: surfaceTotaleLine,
+      qty_unit: "m²",
+      qty_source: "surface_totale_line",
+      qty_detected: true,
+    };
   }
   
-  // RÈGLE: si qty_ref <= 1, on considère qu'il n'y a pas de surface fiable
-  if (qty_ref !== null && qty_ref <= 1) {
+  // ÉTAPE 2: Sinon, chercher un champ global (ex: "Surface : 192 m²")
+  if (qtyResult.qty_ref === null) {
+    const globalSurface = findGlobalSurfaceField(text);
+    if (globalSurface !== null && globalSurface > 1) {
+      qtyResult = {
+        qty_ref: globalSurface,
+        qty_unit: "m²",
+        qty_source: "global_field",
+        qty_detected: true,
+      };
+    }
+  }
+  
+  // ÉTAPE 3a: Chercher le max m² dans les lignes
+  if (qtyResult.qty_ref === null) {
+    const maxM2 = findMaxQuantity(lines, "m²");
+    if (maxM2.qty !== null && maxM2.qty > 1) {
+      qtyResult = {
+        qty_ref: maxM2.qty,
+        qty_unit: "m²",
+        qty_source: "max_m2",
+        qty_detected: true,
+      };
+    }
+  }
+  
+  // ÉTAPE 3b: Sinon chercher le max ml
+  if (qtyResult.qty_ref === null) {
+    const maxMl = findMaxQuantity(lines, "ml");
+    if (maxMl.qty !== null && maxMl.qty > 1) {
+      qtyResult = {
+        qty_ref: maxMl.qty,
+        qty_unit: "ml",
+        qty_source: "max_ml",
+        qty_detected: true,
+      };
+    }
+  }
+  
+  // ÉTAPE 3c: Pour les unités (volets, PAC...), calculer sum(qty) si toutes les lignes ont qty_detected
+  if (qtyResult.qty_ref === null) {
+    const unitSum = sumUnitQuantities(lines, "unité");
+    if (unitSum.sum !== null && unitSum.sum > 0 && unitSum.linesWithQty === unitSum.totalLines) {
+      // Toutes les lignes unité ont une quantité détectée
+      qtyResult = {
+        qty_ref: unitSum.sum,
+        qty_unit: "unité",
+        qty_source: "sum_units",
+        qty_detected: true,
+      };
+    } else if (unitSum.totalLines > 0 && unitSum.linesWithQty < unitSum.totalLines) {
+      // Certaines lignes n'ont pas de quantité - ne pas utiliser cette source
+      warnings.push(`Quantités partielles détectées pour les unités (${unitSum.linesWithQty}/${unitSum.totalLines}).`);
+    }
+  }
+  
+  // RÈGLE ABSOLUE: si qty_ref <= 1 ou non détecté, considérer comme non fiable
+  if (qtyResult.qty_ref !== null && qtyResult.qty_ref <= 1) {
     warnings.push("Surface/quantité de référence détectée <= 1. Considérée comme non fiable.");
-    qty_ref = null;
-    qty_unit = null;
+    qtyResult = {
+      qty_ref: null,
+      qty_unit: null,
+      qty_source: "not_found",
+      qty_detected: false,
+    };
+  }
+  
+  // Si pas de qty_ref trouvé, ajouter un warning explicite
+  if (qtyResult.qty_ref === null) {
+    warnings.push("Aucune quantité de référence fiable détectée. Saisie manuelle requise pour l'analyse de prix.");
   }
   
   return {
@@ -296,8 +452,8 @@ function parseQuote(rawText: string, blocks?: any[]): ParsedQuote {
     payments,
     lines,
     work_categories: [], // Will be populated when user selects categories
-    qty_ref,
-    qty_unit,
+    qty_ref: qtyResult.qty_ref,
+    qty_unit: qtyResult.qty_unit,
     parsing_warnings: warnings,
   };
 }

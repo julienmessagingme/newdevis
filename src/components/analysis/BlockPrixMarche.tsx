@@ -1,11 +1,14 @@
-import { Receipt, MapPin, Clock, TrendingUp, TrendingDown, Minus, HelpCircle, Info, AlertTriangle } from "lucide-react";
+import { useState } from "react";
+import { Receipt, MapPin, Clock, TrendingUp, TrendingDown, Minus, HelpCircle, Info, AlertTriangle, Edit3 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import {
   parseWorkTypeValue,
   getSousTypeByKey,
   isHorsCategorie,
   getZoneCoefficient,
-  calculateAdjustedPriceRange,
   calculateLaborTime,
   calculatePricePosition,
   type SousType,
@@ -20,34 +23,52 @@ interface BlockPrixMarcheProps {
   zoneType?: string;
   codePostal?: string;
   selectedWorkType?: string;
-  quantiteDetectee?: number; // Surface m² max détectée du devis (uniquement pour unités m²)
-  manualSurface?: number | null; // Surface saisie manuellement par l'utilisateur
-  onManualSurfaceChange?: (surface: number | null) => void;
+  quantiteDetectee?: number; // Surface/quantité de référence détectée (m², ml, unité)
+  uniteDetectee?: string; // Unité de la quantité détectée
+  manualQuantity?: number | null; // Quantité saisie manuellement par l'utilisateur
+  onManualQuantityChange?: (quantity: number | null) => void;
 }
 
 // =======================
-// SURFACE DETECTION HELPERS
+// QUANTITY VALIDATION HELPERS
 // =======================
 
 /**
- * RÈGLE CRITIQUE: Pour les catégories en m², on doit avoir une surface fiable.
- * - Interdit d'utiliser "1 unité" ou "1 forfait" comme surface
- * - Interdit de comparer un prix global à un prix unitaire
+ * RÈGLE ABSOLUE: Ne JAMAIS afficher "1 m²" ou "1 unité" si qty_ref est inconnue
+ * - Interdit d'utiliser "1" comme quantité par défaut
+ * - La quantité doit être > 1 pour les surfaces
+ * - Pour les forfaits, quantité = 1 est acceptable
  */
-const isValidM2Surface = (surface: number | undefined, unite: string): boolean => {
-  // Si l'unité n'est pas m², pas de validation requise
-  if (unite !== 'm²') return true;
+const isValidQuantity = (quantity: number | undefined | null, unite: string): boolean => {
+  if (quantity === undefined || quantity === null) return false;
   
-  // Pour m², on doit avoir une surface > 1 (pas de fallback à 1)
-  return surface !== undefined && surface > 1;
+  // Pour les forfaits, 1 est acceptable
+  if (unite === 'forfait') return quantity === 1;
+  
+  // Pour m², ml, et unité, on doit avoir une quantité > 1
+  return quantity > 1;
 };
 
 /**
- * Calcule le prix réel au m² : montant_total / surface_reference
+ * Vérifie si la catégorie nécessite une quantité en unité (volets, PAC, fenêtres...)
  */
-const calculatePrixM2 = (montantTotal: number, surface: number): number => {
-  if (surface <= 0) return 0;
-  return montantTotal / surface;
+const isUnitCategory = (unite: string): boolean => {
+  return unite === 'unité';
+};
+
+/**
+ * Vérifie si la catégorie nécessite une surface (m², ml)
+ */
+const isSurfaceCategory = (unite: string): boolean => {
+  return unite === 'm²' || unite === 'ml';
+};
+
+/**
+ * Calcule le prix réel à l'unité : montant_total / quantité
+ */
+const calculatePrixUnitaire = (montantTotal: number, quantite: number): number => {
+  if (quantite <= 0) return 0;
+  return montantTotal / quantite;
 };
 
 // =======================
@@ -235,7 +256,94 @@ const NoSelectionBlock = () => (
 );
 
 // =======================
-// NO SURFACE COMPONENT (for m² categories without valid surface)
+// NO QUANTITY COMPONENT (for categories requiring quantity input)
+// =======================
+
+interface NoQuantityBlockProps {
+  unite: string;
+  onManualQuantityChange?: (quantity: number | null) => void;
+}
+
+const NoQuantityBlock = ({ unite, onManualQuantityChange }: NoQuantityBlockProps) => {
+  const [inputValue, setInputValue] = useState("");
+  const [isEditing, setIsEditing] = useState(true);
+  
+  const unitLabel = unite === 'm²' ? 'surface (m²)' : 
+                   unite === 'ml' ? 'longueur (ml)' : 
+                   unite === 'unité' ? "nombre d'unités" : 'quantité';
+  
+  const handleSubmit = () => {
+    const value = parseFloat(inputValue.replace(',', '.'));
+    if (!isNaN(value) && value > 0) {
+      onManualQuantityChange?.(value);
+      setIsEditing(false);
+    }
+  };
+  
+  const handleEdit = () => {
+    setIsEditing(true);
+  };
+
+  return (
+    <div className="p-5 bg-amber-500/10 rounded-xl border border-amber-500/20">
+      <div className="flex items-start gap-3">
+        <div className="p-2 bg-amber-500/20 rounded-lg">
+          <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+        </div>
+        <div className="flex-1">
+          <p className="text-sm leading-relaxed mb-4">
+            <strong className="text-foreground">Quantité non détectée dans le devis</strong><br />
+            <span className="text-muted-foreground">
+              Pour afficher la jauge de prix, veuillez indiquer la {unitLabel} concernée par ce devis.
+              Cette information est indispensable pour calculer un prix unitaire fiable.
+            </span>
+          </p>
+          
+          {onManualQuantityChange && isEditing && (
+            <div className="flex items-end gap-3">
+              <div className="flex-1 max-w-xs">
+                <Label htmlFor="manual-qty" className="text-xs text-muted-foreground mb-1 block">
+                  {unitLabel.charAt(0).toUpperCase() + unitLabel.slice(1)}
+                </Label>
+                <Input
+                  id="manual-qty"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder={unite === 'm²' ? "Ex: 45" : unite === 'unité' ? "Ex: 6" : "Ex: 12"}
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  className="bg-background"
+                />
+              </div>
+              <Button 
+                onClick={handleSubmit}
+                size="sm"
+                disabled={!inputValue || isNaN(parseFloat(inputValue.replace(',', '.')))}
+              >
+                Valider
+              </Button>
+            </div>
+          )}
+          
+          {!isEditing && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-foreground">
+                Quantité saisie : <strong>{inputValue} {unite}</strong>
+              </span>
+              <Button variant="ghost" size="sm" onClick={handleEdit}>
+                <Edit3 className="h-3 w-3 mr-1" />
+                Modifier
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// =======================
+// NO SURFACE COMPONENT (legacy - for m² categories without valid surface)
 // =======================
 
 const NoSurfaceBlock = () => (
@@ -282,14 +390,13 @@ const NoReferenceBlock = () => (
 // =======================
 
 /**
- * RÈGLE ABSOLUE: La jauge de prix ne doit JAMAIS être calculée à partir du texte du devis seul.
- * Elle utilise TOUJOURS une catégorie métier choisie par l'utilisateur (format "categorie:soustype").
+ * RÈGLES STRICTES qty_ref:
+ * 1. Chercher une ligne taggée "surface_totale" (m²) dans les lignes
+ * 2. Sinon, chercher un champ global (ex : "Surface : 192 m²")
+ * 3. Sinon, pour les catégories en "unité", prendre sum(qty) seulement si qty_detected=true
+ * 4. Si qty_ref introuvable : afficher "Quantité non trouvée" + forcer saisie manuelle
  * 
- * RÈGLE CRITIQUE pour les catégories en m² :
- * - Extraire la surface m² max détectée dans le devis
- * - prix_m2 = montant_total_HT / surface_reference
- * - Comparer prix_m2 à la fourchette métier
- * - INTERDIT d'utiliser "1 unité" ou "1 forfait" comme surface
+ * INTERDICTION ABSOLUE: Ne jamais afficher "1 m²" ou "1 unité" si qty_ref est inconnue
  */
 const BlockPrixMarche = ({ 
   montantTotalHT, 
@@ -297,8 +404,9 @@ const BlockPrixMarche = ({
   codePostal,
   selectedWorkType,
   quantiteDetectee,
-  manualSurface,
-  onManualSurfaceChange
+  uniteDetectee,
+  manualQuantity,
+  onManualQuantityChange
 }: BlockPrixMarcheProps) => {
   const zoneLabel = getZoneLabel(zoneType);
   
@@ -307,39 +415,41 @@ const BlockPrixMarche = ({
   
   // Récupérer les infos du sous-type
   const sousTypeInfo = parsed ? getSousTypeByKey(parsed.sousTypeKey) : null;
+  const sousType = sousTypeInfo?.sousType;
   
   // Déterminer l'état d'affichage
   const isHorsRef = isHorsCategorie(selectedWorkType);
   const hasValidSelection = parsed !== null && sousTypeInfo !== null;
   const hasMontant = montantTotalHT !== undefined && montantTotalHT > 0;
   
-  // Vérifier si on a une surface valide pour les catégories m²
-  // Priorité: manualSurface > quantiteDetectee
-  const effectiveQuantity = manualSurface ?? quantiteDetectee;
-  const sousType = sousTypeInfo?.sousType;
-  const isM2Category = sousType?.unite === 'm²';
-  const hasValidSurface = isValidM2Surface(effectiveQuantity, sousType?.unite || '');
-  const showManualInput = isM2Category && !hasValidSurface && onManualSurfaceChange;
-  // Calculs uniquement si on a une sélection valide ET une surface valide pour m²
+  // Déterminer la quantité effective selon les règles strictes
+  // Priorité: manualQuantity > quantiteDetectee
+  const effectiveQuantity = manualQuantity ?? quantiteDetectee;
+  const unite = sousType?.unite || 'm²';
+  
+  // Vérifier si on a une quantité valide selon l'unité
+  const hasValidQuantity = isValidQuantity(effectiveQuantity, unite);
+  
+  // Déterminer si on doit demander une saisie manuelle
+  const requiresManualInput = hasValidSelection && hasMontant && !hasValidQuantity && unite !== 'forfait';
+  
+  // Calculs uniquement si on a une sélection valide ET une quantité valide
   let fourchettePrixUnitaire = { min: 0, max: 0 };
   let tempsEstime = { min: 0, max: 0 };
   let positionPct = 50;
   let prixUnitaire = 0;
   let quantite = effectiveQuantity || 1;
   
-  if (hasValidSelection && sousType && hasMontant) {
+  if (hasValidSelection && sousType && hasMontant && hasValidQuantity) {
     // Pour les forfaits, quantité = 1
     if (sousType.unite === 'forfait') {
       quantite = 1;
-    }
-    
-    // Pour les unités, on utilise la quantité détectée ou 1
-    if (sousType.unite === 'unité') {
-      quantite = quantiteDetectee || 1;
+    } else {
+      quantite = effectiveQuantity!;
     }
     
     // Calcul du prix unitaire réel : montant_total / quantité
-    prixUnitaire = calculatePrixM2(montantTotalHT, quantite);
+    prixUnitaire = calculatePrixUnitaire(montantTotalHT!, quantite);
     
     // Fourchette en prix UNITAIRE (pas multiplié par quantité)
     const zoneCoef = getZoneCoefficient(zoneType);
@@ -409,8 +519,14 @@ const BlockPrixMarche = ({
                 Aucun montant n'a été détecté dans le devis. La comparaison de prix n'est pas disponible.
               </p>
             </div>
-          ) : isM2Category && !hasValidSurface ? (
-            // Catégorie m² mais pas de surface fiable détectée
+          ) : requiresManualInput ? (
+            // Quantité non détectée - forcer saisie manuelle
+            <NoQuantityBlock 
+              unite={unite}
+              onManualQuantityChange={onManualQuantityChange}
+            />
+          ) : !hasValidQuantity ? (
+            // Cas legacy: catégorie m² sans surface valide
             <NoSurfaceBlock />
           ) : (
             // Affichage de la jauge
