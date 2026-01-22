@@ -21,6 +21,8 @@ interface BlockPrixMarcheProps {
   codePostal?: string;
   selectedWorkType?: string;
   quantiteDetectee?: number; // Surface m² max détectée du devis (uniquement pour unités m²)
+  manualSurface?: number | null; // Surface saisie manuellement par l'utilisateur
+  onManualSurfaceChange?: (surface: number | null) => void;
 }
 
 // =======================
@@ -294,7 +296,9 @@ const BlockPrixMarche = ({
   zoneType, 
   codePostal,
   selectedWorkType,
-  quantiteDetectee
+  quantiteDetectee,
+  manualSurface,
+  onManualSurfaceChange
 }: BlockPrixMarcheProps) => {
   const zoneLabel = getZoneLabel(zoneType);
   
@@ -310,16 +314,18 @@ const BlockPrixMarche = ({
   const hasMontant = montantTotalHT !== undefined && montantTotalHT > 0;
   
   // Vérifier si on a une surface valide pour les catégories m²
+  // Priorité: manualSurface > quantiteDetectee
+  const effectiveQuantity = manualSurface ?? quantiteDetectee;
   const sousType = sousTypeInfo?.sousType;
   const isM2Category = sousType?.unite === 'm²';
-  const hasValidSurface = isValidM2Surface(quantiteDetectee, sousType?.unite || '');
-  
+  const hasValidSurface = isValidM2Surface(effectiveQuantity, sousType?.unite || '');
+  const showManualInput = isM2Category && !hasValidSurface && onManualSurfaceChange;
   // Calculs uniquement si on a une sélection valide ET une surface valide pour m²
   let fourchettePrixUnitaire = { min: 0, max: 0 };
   let tempsEstime = { min: 0, max: 0 };
   let positionPct = 50;
   let prixUnitaire = 0;
-  let quantite = quantiteDetectee || 1;
+  let quantite = effectiveQuantity || 1;
   
   if (hasValidSelection && sousType && hasMontant) {
     // Pour les forfaits, quantité = 1

@@ -3,6 +3,15 @@ project_id = "mmychjnqqcigysddlpre"
 [functions.analyze-attestation]
 verify_jwt = false
 
+[functions.analyze-quote]
+verify_jwt = false
+
+[functions.extract-document]
+verify_jwt = false
+
+[functions.parse-quote]
+verify_jwt = false
+
 [functions.test-pappers]
 verify_jwt = false
 
