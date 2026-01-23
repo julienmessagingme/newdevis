@@ -150,19 +150,28 @@ const ExtractionBlocker = ({ analysisId, analysisStatus, errorMessage, children 
 
   // Si statut "pending" ou "processing", afficher écran d'attente
   if (analysisStatus === "pending" || analysisStatus === "processing") {
-    return <ExtractionWaitingScreen stage="ocr" />;
+    return <ExtractionWaitingScreen stage={extractionStatus?.stage === "failed" ? "ocr" : (extractionStatus?.stage || "ocr")} />;
   }
 
-  // Si l'analyse est "completed" mais pas d'extraction → forcer attente
-  // L'extraction status ne doit pas être "failed" (géré ci-dessus) ni "complete"
-  if (analysisStatus === "completed" && extractionStatus && !extractionStatus.isComplete) {
-    const stage = extractionStatus.stage;
-    if (stage === "ocr" || stage === "parsing" || stage === "analysis") {
-      return <ExtractionWaitingScreen stage={stage} />;
+  // Si l'analyse est "completed", vérifier si c'est une analyse legacy (pas de document_extractions)
+  if (analysisStatus === "completed") {
+    // Si pas d'extraction du tout (legacy) → afficher le rapport quand même
+    // Les analyses legacy ont raw_text rempli directement sans document_extractions
+    if (!extractionStatus?.hasExtraction) {
+      // Analyse legacy terminée - afficher le rapport normalement
+      return <>{children}</>;
+    }
+    
+    // Si extraction existe mais incomplète → attendre
+    if (!extractionStatus.isComplete) {
+      const stage = extractionStatus.stage;
+      if (stage === "ocr" || stage === "parsing" || stage === "analysis") {
+        return <ExtractionWaitingScreen stage={stage} />;
+      }
     }
   }
 
-  // Extraction complète → afficher le rapport
+  // Extraction complète ou analyse legacy → afficher le rapport
   return <>{children}</>;
 };
 

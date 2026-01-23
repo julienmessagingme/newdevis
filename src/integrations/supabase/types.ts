@@ -135,6 +135,8 @@ export type Database = {
           cache_hit: boolean
           contains_table_signals: boolean | null
           created_at: string
+          error_code: string | null
+          error_details: Json | null
           expires_at: string
           file_hash: string
           file_path: string
@@ -157,6 +159,8 @@ export type Database = {
           quality_score: number | null
           raw_text: string | null
           request_id: string | null
+          started_at: string | null
+          status: string
           text_length: number | null
           text_length_by_page: Json | null
           textract_debug: Json | null
@@ -167,6 +171,8 @@ export type Database = {
           cache_hit?: boolean
           contains_table_signals?: boolean | null
           created_at?: string
+          error_code?: string | null
+          error_details?: Json | null
           expires_at?: string
           file_hash: string
           file_path: string
@@ -189,6 +195,8 @@ export type Database = {
           quality_score?: number | null
           raw_text?: string | null
           request_id?: string | null
+          started_at?: string | null
+          status?: string
           text_length?: number | null
           text_length_by_page?: Json | null
           textract_debug?: Json | null
@@ -199,6 +207,8 @@ export type Database = {
           cache_hit?: boolean
           contains_table_signals?: boolean | null
           created_at?: string
+          error_code?: string | null
+          error_details?: Json | null
           expires_at?: string
           file_hash?: string
           file_path?: string
@@ -221,6 +231,8 @@ export type Database = {
           quality_score?: number | null
           raw_text?: string | null
           request_id?: string | null
+          started_at?: string | null
+          status?: string
           text_length?: number | null
           text_length_by_page?: Json | null
           textract_debug?: Json | null
