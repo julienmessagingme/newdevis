@@ -504,8 +504,7 @@ const BlockSecurite = ({
                   {info.decennale.attestationStatus === "incoherent" && "Incohérences détectées (attestation)"}
                   {info.decennale.attestationStatus === "incomplete" && "Attestation incomplète"}
                   {!info.decennale.attestationStatus && info.decennale.mentionnee && "Mentionnée sur le devis"}
-                  {!info.decennale.attestationStatus && !info.decennale.mentionnee && info.decennale.critique && "À vérifier (travaux concernés)"}
-                  {!info.decennale.attestationStatus && !info.decennale.mentionnee && !info.decennale.critique && "Non détectée - à vérifier"}
+                  {!info.decennale.attestationStatus && !info.decennale.mentionnee && "Non disponible dans le devis transmis"}
                 </p>
                 
                 {/* Attestation comparison details */}
@@ -541,7 +540,7 @@ const BlockSecurite = ({
                   {info.rcpro.attestationStatus === "incoherent" && "Incohérences détectées (attestation)"}
                   {info.rcpro.attestationStatus === "incomplete" && "Attestation incomplète"}
                   {!info.rcpro.attestationStatus && info.rcpro.mentionnee && "Mentionnée sur le devis"}
-                  {!info.rcpro.attestationStatus && !info.rcpro.mentionnee && "Non détectée - à vérifier"}
+                  {!info.rcpro.attestationStatus && !info.rcpro.mentionnee && "Non disponible dans le devis transmis"}
                 </p>
                 
                 {/* Attestation comparison details */}
@@ -587,7 +586,7 @@ const BlockSecurite = ({
               <div className="p-3 bg-background/30 rounded-lg">
                 <p className="text-xs text-muted-foreground mb-1">Mode de paiement</p>
                 <p className={`font-medium ${info.paiement.especes ? "text-score-red" : "text-foreground"}`}>
-                  {info.paiement.modes.length > 0 ? info.paiement.modes.join(", ") : "Non précisé"}
+                  {info.paiement.modes.length > 0 ? info.paiement.modes.join(", ") : "Non disponible dans le devis"}
                 </p>
               </div>
               
@@ -599,7 +598,7 @@ const BlockSecurite = ({
                   info.paiement.acomptePourcentage <= 30 ? "text-score-green" :
                   info.paiement.acomptePourcentage <= 50 ? "text-score-orange" : "text-score-red"
                 }`}>
-                  {info.paiement.acomptePourcentage !== null ? `${info.paiement.acomptePourcentage}%` : "Non précisé"}
+                  {info.paiement.acomptePourcentage !== null ? `${info.paiement.acomptePourcentage}%` : "Non disponible dans le devis"}
                 </p>
               </div>
               
@@ -611,8 +610,8 @@ const BlockSecurite = ({
                   !info.paiement.ibanValid ? "text-score-red" :
                   info.paiement.ibanFrance ? "text-score-green" : "text-score-orange"
                 }`}>
-                  {info.paiement.ibanValid === null && "Non détecté"}
-                  {info.paiement.ibanValid === false && "Non valide"}
+                  {info.paiement.ibanValid === null && "Aucun IBAN n'a été détecté dans le devis"}
+                  {info.paiement.ibanValid === false && "IBAN non valide"}
                   {info.paiement.ibanValid && info.paiement.ibanFrance && "Valide - France"}
                   {info.paiement.ibanValid && !info.paiement.ibanFrance && `Valide - ${info.paiement.ibanCountry || "Étranger"}`}
                 </p>
@@ -629,9 +628,9 @@ const BlockSecurite = ({
             )}
           </div>
           
-          {/* Vigilance reasons with pedagogic explanations */}
+          {/* Vigilance reasons - factual observations */}
           {info.vigilanceReasons.length > 0 && (
-            <PedagogicExplanation type="info" title="Points observés" className="mb-3">
+            <PedagogicExplanation type="info" title="Observations factuelles" className="mb-3">
               <ul className="space-y-1">
                 {info.vigilanceReasons.map((reason, idx) => (
                   <li key={idx} className="flex items-start gap-2">
@@ -641,7 +640,7 @@ const BlockSecurite = ({
                 ))}
               </ul>
               <p className="text-xs text-muted-foreground/80 mt-2 italic">
-                Ces éléments sont des observations factuelles. Ils invitent à une vérification, non à une inquiétude.
+                Ces éléments sont des observations factuelles extraites du devis.
               </p>
             </PedagogicExplanation>
           )}
@@ -657,16 +656,16 @@ const BlockSecurite = ({
             </PedagogicExplanation>
           )}
           
-          {/* Score explanation - harmonized */}
+          {/* Score explanation - factual */}
           <div className="mt-4 p-3 bg-muted/50 rounded-lg">
             <p className={`text-sm font-medium ${getScoreTextClass(info.globalScore)}`}>
               {info.globalScore === "VERT" && "✓ Les conditions de sécurité et de paiement sont satisfaisantes."}
-              {info.globalScore === "ORANGE" && "ℹ️ Certains éléments invitent à une vérification complémentaire."}
-              {info.globalScore === "ROUGE" && "⚠️ Certains éléments nécessitent une attention particulière avant engagement."}
+              {info.globalScore === "ORANGE" && "ℹ️ Certaines informations n'ont pas été trouvées dans le devis transmis."}
+              {info.globalScore === "ROUGE" && "⚠️ Des éléments critiques ont été détectés."}
             </p>
             {info.globalScore === "ORANGE" && (
               <p className="text-xs text-muted-foreground mt-2">
-                Aucun élément critique n'a été détecté. Les points signalés sont des invitations à vérifier, non des alertes.
+                Aucun élément critique n'a été détecté. Les informations manquantes peuvent être ajoutées ci-dessus.
               </p>
             )}
           </div>

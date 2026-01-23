@@ -415,17 +415,17 @@ const BlockEntreprise = ({ pointsOk, alertes }: BlockEntrepriseProps) => {
                     Source: Google
                   </span>
                 </div>
-                {/* Explication pédagogique si note < 4/5 (score ORANGE) */}
+                {/* Explication si note < 4/5 - factual */}
                 {info.reputation.rating < 4.0 && (
                   <PedagogicExplanation type="info" className="mt-3">
                     <p className="mb-2">
-                      La note moyenne observée est inférieure au seuil de confort généralement constaté pour ce type de prestation.
+                      La note moyenne observée est de {info.reputation.rating.toFixed(1).replace('.', ',')}/5.
                     </p>
                     <p className="mb-2">
-                      <strong>Ce que cela signifie :</strong> Ce critère est un indicateur parmi d'autres. Il ne constitue ni un jugement ni une preuve d'un problème.
+                      <strong>Observation :</strong> Cette note est un indicateur parmi d'autres. Elle reflète les retours publics disponibles sur Google.
                     </p>
                     <p className="mb-2">
-                      <strong>Ce que vous pouvez faire :</strong> Consultez le détail des avis (leur contenu, leur ancienneté et leur récurrence) pour vous faire votre propre opinion.
+                      <strong>Détail :</strong> Le contenu des avis, leur ancienneté et leur récurrence donnent plus de contexte que la note seule.
                     </p>
                     <p className="text-xs text-muted-foreground/80 italic">
                       La réputation en ligne est utilisée comme un indicateur complémentaire parmi d'autres critères objectifs.

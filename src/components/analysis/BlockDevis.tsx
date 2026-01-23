@@ -332,28 +332,28 @@ const BlockDevis = ({ pointsOk, alertes }: BlockDevisProps) => {
             )}
           </div>
           
-          {/* Explanations for ORANGE/ROUGE with pedagogic framing */}
+          {/* Explanations for ORANGE/ROUGE - factual */}
           {info.explanations.length > 0 && (info.score === "ORANGE" || info.score === "ROUGE") && (
-            <PedagogicExplanation type="info" title="Points observés" className="mb-4">
+            <PedagogicExplanation type="info" title="Observations factuelles" className="mb-4">
               {info.explanations.map((exp, idx) => (
                 <p key={idx} className="mb-1">{exp}</p>
               ))}
               <p className="text-xs text-muted-foreground/80 mt-2 italic">
-                Ces éléments sont des observations qui invitent à une vérification, non des alertes critiques.
+                Ces éléments sont des observations extraites du devis transmis.
               </p>
             </PedagogicExplanation>
           )}
           
-          {/* Score explanation - harmonized */}
+          {/* Score explanation - factual */}
           <div className="mt-4 p-3 bg-muted/50 rounded-lg">
             <p className={`text-sm font-medium ${getScoreTextClass(info.score)}`}>
               {info.score === "VERT" && "✓ Le devis présente une cohérence financière satisfaisante."}
-              {info.score === "ORANGE" && "ℹ️ Certains éléments du devis invitent à une vérification complémentaire."}
-              {info.score === "ROUGE" && "⚠️ Certains écarts nécessitent une attention particulière."}
+              {info.score === "ORANGE" && "ℹ️ Certaines informations n'ont pas été trouvées dans le devis transmis."}
+              {info.score === "ROUGE" && "⚠️ Des écarts significatifs ont été détectés."}
             </p>
             {info.score === "ORANGE" && (
               <p className="text-xs text-muted-foreground mt-2">
-                Aucun élément critique n'a été détecté. Les points signalés sont des invitations à vérifier, non des alertes.
+                Aucun élément critique n'a été détecté. Vous pouvez compléter les informations manquantes directement.
               </p>
             )}
           </div>

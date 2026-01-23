@@ -28,7 +28,9 @@ import {
   filterOutSecuriteItems,
   filterOutContexteItems,
   DocumentRejectionScreen,
-  AdaptedAnalysisBanner
+  AdaptedAnalysisBanner,
+  ExtractionBlocker,
+  ExtractionIncompleteWarning
 } from "@/components/analysis";
 import { PostSignatureTrackingSection } from "@/components/tracking";
 import { OcrDebugPanel } from "@/components/analysis/OcrDebugPanel";
@@ -410,6 +412,7 @@ const AnalysisResult = () => {
   );
 
   return (
+    <ExtractionBlocker analysisId={analysis.id} analysisStatus={analysis.status}>
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 bg-card border-b border-border">
         <div className="container flex h-16 items-center justify-between">
@@ -443,8 +446,8 @@ const AnalysisResult = () => {
               </h1>
               <p className="text-sm text-muted-foreground mt-3">
                 {analysis.score === "VERT" && "Aucun critère critique ni combinaison de signaux majeurs détectés."}
-                {analysis.score === "ORANGE" && "Plusieurs points de vigilance nécessitent une vérification."}
-                {analysis.score === "ROUGE" && "Critères critiques ou combinaison de signaux forts détectés."}
+                {analysis.score === "ORANGE" && "Certaines informations n'ont pas été trouvées dans le devis transmis."}
+                {analysis.score === "ROUGE" && "Des critères critiques ou une combinaison de signaux forts ont été détectés."}
               </p>
             </div>
             <div className="flex items-center gap-4">
@@ -480,6 +483,9 @@ const AnalysisResult = () => {
         {isAdaptedAnalysis && (
           <AdaptedAnalysisBanner mode={analysisMode} />
         )}
+
+        {/* Admin Warning if extraction incomplete */}
+        <ExtractionIncompleteWarning analysisId={analysis.id} />
 
         {/* Resume */}
         {analysis.resume && (
@@ -600,7 +606,7 @@ const AnalysisResult = () => {
           </h3>
           <div className="text-xs text-muted-foreground space-y-2">
             <p>Le score global résulte d'une <strong className="text-foreground">application stricte de règles prédéfinies</strong>.</p>
-            <p>Un score <strong className="text-score-orange">ORANGE</strong> indique des points à vérifier, et <strong className="text-foreground">non une situation problématique</strong>.</p>
+            <p>Un score <strong className="text-score-orange">ORANGE</strong> indique des informations non trouvées dans le devis. <strong className="text-foreground">Vous pouvez les ajouter directement</strong>.</p>
             <p>Un score <strong className="text-score-red">ROUGE</strong> est réservé à des <strong className="text-foreground">situations factuellement critiques</strong> (entreprise radiée, procédure collective, paiement en espèces, acompte &gt; 50%).</p>
           </div>
         </div>
@@ -625,6 +631,7 @@ const AnalysisResult = () => {
         </div>
       </main>
     </div>
+    </ExtractionBlocker>
   );
 };
 
