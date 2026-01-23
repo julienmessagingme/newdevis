@@ -281,14 +281,79 @@ function extractSiren(siret: string | null): string | null {
 }
 
 // ============================================================
+// HELPER: REPAIR TRUNCATED JSON
+// ============================================================
+
+function repairTruncatedJson(json: string): string {
+  let repaired = json;
+  
+  // Count open/close braces and brackets
+  let openBraces = 0;
+  let openBrackets = 0;
+  let inString = false;
+  let escapeNext = false;
+  
+  for (let i = 0; i < repaired.length; i++) {
+    const char = repaired[i];
+    
+    if (escapeNext) {
+      escapeNext = false;
+      continue;
+    }
+    
+    if (char === '\\') {
+      escapeNext = true;
+      continue;
+    }
+    
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    
+    if (inString) continue;
+    
+    if (char === '{') openBraces++;
+    else if (char === '}') openBraces--;
+    else if (char === '[') openBrackets++;
+    else if (char === ']') openBrackets--;
+  }
+  
+  // If we're in a string, close it
+  if (inString) {
+    repaired += '"';
+  }
+  
+  // Remove trailing comma if present
+  repaired = repaired.replace(/,\s*$/, '');
+  
+  // Close open brackets
+  while (openBrackets > 0) {
+    repaired += ']';
+    openBrackets--;
+  }
+  
+  // Close open braces
+  while (openBraces > 0) {
+    repaired += '}';
+    openBraces--;
+  }
+  
+  return repaired;
+}
+
+// ============================================================
 // PHASE 1: EXTRACTION UNIQUE (UN SEUL APPEL IA)
 // ============================================================
 
 async function extractDataFromDocument(
   base64Content: string,
   mimeType: string,
-  lovableApiKey: string
+  lovableApiKey: string,
+  retryCount: number = 0
 ): Promise<ExtractedData> {
+  
+  const MAX_RETRIES = 2;
   
   const systemPrompt = `Tu es VerifierMonDevis.fr, un outil d'aide à la décision à destination des particuliers.
 
@@ -305,6 +370,8 @@ RÈGLES D'EXTRACTION:
    - Ne jamais déduire "espèces" par défaut.
 3. Pour les assurances: true si clairement mentionnée, false si absente, null si doute.
 4. Pour les travaux: identifier la CATÉGORIE MÉTIER principale même si un produit spécifique/marque est mentionné.
+5. LIMITE les travaux aux 5 PRINCIPAUX postes (par montant décroissant).
+6. Réponds UNIQUEMENT avec un JSON valide et COMPLET. Ne tronque pas la réponse.
 
 Tu dois effectuer UNE SEULE extraction complète et structurée.`;
 
@@ -316,7 +383,7 @@ IDENTIFICATION DU DOCUMENT:
 3. FACTURE : "Facture", numéro de facture, "Net à payer", travaux passés
 4. AUTRE : Document non conforme
 
-EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON:
+EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (max 5 travaux):
 
 {
   "type_document": "devis_travaux | facture | diagnostic_immobilier | autre",
@@ -327,7 +394,7 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON:
     "iban": "IBAN complet ou null",
     "assurance_decennale_mentionnee": true | false | null,
     "assurance_rc_pro_mentionnee": true | false | null,
-    "certifications_mentionnees": ["RGE", "QUALIBAT", etc] ou []
+    "certifications_mentionnees": []
   },
   "client": {
     "adresse_chantier": "adresse complète du chantier ou null",
@@ -336,35 +403,36 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON:
   },
   "travaux": [
     {
-      "libelle": "description exacte du produit/service",
-      "categorie": "plomberie|electricite|chauffage|isolation|toiture|menuiserie|peinture|maconnerie|renovation_sdb|renovation_cuisine|carrelage|parquet|facade|piscine|exterieur|autre",
-      "categorie_metier": "Catégorie métier principale même si produit spécifique (ex: pompe piscine → piscine, volet roulant → menuiserie)",
-      "montant": 5000 ou null,
-      "quantite": 50 ou null,
-      "unite": "m²|unité|forfait|ml" ou null
+      "libelle": "description courte",
+      "categorie": "categorie",
+      "montant": 5000,
+      "quantite": 50,
+      "unite": "m2"
     }
   ],
   "paiement": {
-    "acompte_pct": 30 ou null,
-    "acompte_avant_travaux_pct": pourcentage dû AVANT début des travaux ou null,
-    "modes": ["virement", "cheque", "carte_bancaire", "a_reception"] - liste EXPLICITE des modes mentionnés. Inclure "virement" si IBAN/RIB présent. JAMAIS "especes" sauf si explicitement écrit,
-    "echeancier_detecte": true | false
+    "acompte_pct": 30,
+    "acompte_avant_travaux_pct": null,
+    "modes": ["virement"],
+    "echeancier_detecte": false
   },
   "dates": {
-    "date_devis": "YYYY-MM-DD ou null",
-    "date_execution_max": "YYYY-MM-DD ou null"
+    "date_devis": "YYYY-MM-DD",
+    "date_execution_max": null
   },
   "totaux": {
-    "ht": 10000 ou null,
-    "tva": 2000 ou null,
-    "ttc": 12000 ou null,
-    "taux_tva": 20 ou null
+    "ht": 10000,
+    "tva": 2000,
+    "ttc": 12000,
+    "taux_tva": 20
   },
-  "anomalies_detectees": ["liste des incohérences factuelles détectées"],
-  "resume_factuel": "description factuelle courte du document sans jugement"
+  "anomalies_detectees": [],
+  "resume_factuel": "description factuelle courte"
 }`;
 
   try {
+    console.log(`Extraction attempt ${retryCount + 1}/${MAX_RETRIES + 1}`);
+    
     const aiResponse = await fetch(LOVABLE_AI_URL, {
       method: "POST",
       headers: {
@@ -384,6 +452,7 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON:
           },
         ],
         response_format: { type: "json_object" },
+        max_tokens: 4000, // Limit response size
       }),
     });
 
@@ -426,7 +495,6 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON:
     } catch (parseError) {
       console.log("Direct JSON parse failed, attempting cleanup...");
       
-      // Try to extract JSON from markdown code blocks
       let cleanedContent = content;
       
       // Remove markdown code blocks if present
@@ -446,13 +514,23 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON:
       // Remove trailing commas before } or ]
       cleanedContent = cleanedContent.replace(/,(\s*[}\]])/g, '$1');
       
+      // Try to repair truncated JSON by closing open structures
+      cleanedContent = repairTruncatedJson(cleanedContent);
+      
       // Try parsing again
       try {
         parsed = JSON.parse(cleanedContent);
         console.log("JSON cleanup successful");
       } catch (secondError) {
         console.error("JSON cleanup failed, content sample:", cleanedContent.substring(0, 500));
-        throw new Error(`Failed to parse AI response as JSON: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
+        
+        // Retry with different approach if we haven't exceeded retries
+        if (retryCount < MAX_RETRIES) {
+          console.log(`Retrying extraction (attempt ${retryCount + 2})...`);
+          return extractDataFromDocument(base64Content, mimeType, lovableApiKey, retryCount + 1);
+        }
+        
+        throw new Error(`Failed to parse AI response as JSON after ${MAX_RETRIES + 1} attempts`);
       }
     }
     
