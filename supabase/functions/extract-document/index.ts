@@ -20,6 +20,39 @@ interface ExtractionResult {
   text_length: number;
   contains_table_signals: boolean;
   ocr_reason: string;
+  request_id: string;
+  ocr_debug: OcrDebug;
+  textract_debug: TextractDebug | null;
+  pages_used_list: number[];
+  text_length_by_page: PageTextLength[];
+}
+
+interface OcrDebug {
+  ocr_provider: string;
+  ocr_reason: string;
+  sha256: string;
+  pages_total: number;
+  pages_used: number;
+  pages_used_list: number[];
+  text_length_total: number;
+  text_length_by_page: PageTextLength[];
+  cache_hit: boolean;
+  provider_calls: ProviderCall[];
+}
+
+interface TextractDebug {
+  textract_job_id: string | null;
+  textract_mode: string;
+  textract_pages_returned: number;
+  textract_blocks_count: number;
+  textract_tables_count: number;
+  textract_cells_count: number;
+  textract_warning: string | null;
+}
+
+interface PageTextLength {
+  page: number;
+  length: number;
 }
 
 interface TextBlock {
@@ -46,7 +79,6 @@ interface ProviderCall {
 // ============ HELPER: SHA-256 HASH ============
 
 async function computeFileHash(data: Uint8Array): Promise<string> {
-  // Ensure we're passing an ArrayBuffer, not a SharedArrayBuffer
   const buffer = data.buffer instanceof ArrayBuffer ? data.buffer : new ArrayBuffer(data.byteLength);
   if (!(data.buffer instanceof ArrayBuffer)) {
     new Uint8Array(buffer).set(data);
@@ -68,18 +100,12 @@ interface PdfExtractionResult {
 // Detect table signals in text (columns like Qté, PU, Total, Désignation, etc.)
 function detectTableSignals(text: string): boolean {
   const tablePatterns = [
-    // Column headers pattern
     /\b(?:Qté|Quantité|Qt[eé])\b.*\b(?:PU|Prix\s*unitaire|P\.U\.)\b.*\b(?:Total|Montant)\b/i,
     /\b(?:Désignation|Description|Libellé)\b.*\b(?:Qté|Quantité)\b/i,
-    // Numeric table patterns (3+ columns of numbers on same line)
     /\d+[,.]?\d*\s+\d+[,.]?\d*\s+\d+[,.]?\d*\s*€?/,
-    // Unit prices pattern
     /\d+[,.]?\d{2}\s*€?\s*\/\s*(?:m²|ml|u|h|forfait)/i,
-    // Multiple rows with similar structure
     /(?:[\d,]+\s*€?\s+){2,}/,
-    // French quote specific headers
     /(?:Réf|Référence)\s.*(?:Qté|Quantité)\s.*(?:Prix|Montant)/i,
-    // HT/TTC table structure
     /(?:Montant\s*HT|Total\s*HT)\s.*(?:TVA|Taux)\s.*(?:TTC|Total\s*TTC)/i,
   ];
   
@@ -87,20 +113,15 @@ function detectTableSignals(text: string): boolean {
 }
 
 async function extractPdfText(fileData: Uint8Array): Promise<PdfExtractionResult> {
-  // Convert to string and look for text streams in PDF
   const decoder = new TextDecoder('utf-8', { fatal: false });
   const pdfString = decoder.decode(fileData);
   
-  // Extract text between stream/endstream markers
   const textMatches: string[] = [];
-  
-  // Look for BT...ET blocks (Begin Text / End Text)
   const btEtRegex = /BT\s*([\s\S]*?)\s*ET/g;
   let match;
   
   while ((match = btEtRegex.exec(pdfString)) !== null) {
     const textBlock = match[1];
-    // Extract text from Tj and TJ operators
     const tjRegex = /\(([^)]*)\)\s*T[jJ]/g;
     let tjMatch;
     while ((tjMatch = tjRegex.exec(textBlock)) !== null) {
@@ -108,13 +129,9 @@ async function extractPdfText(fileData: Uint8Array): Promise<PdfExtractionResult
     }
   }
   
-  // Also try to extract FlateDecode streams (common in PDFs)
-  // This is a simplified extraction - complex PDFs may need full parsing
   const textContent = textMatches.join(' ').replace(/\s+/g, ' ').trim();
   
-  // Alternative: look for raw text patterns
   const rawTextPatterns = [
-    // Common invoice/quote patterns
     /(?:DEVIS|FACTURE|TOTAL|HT|TTC|TVA|€|\d+[,\.]\d{2})/gi,
     /(?:SIRET|SIREN)[\s:]*\d{9,14}/gi,
     /[A-Z][a-zéèêëàâäîïôöûü]+(?:\s+[A-Z][a-zéèêëàâäîïôöûü]+)*/g,
@@ -132,7 +149,6 @@ async function extractPdfText(fileData: Uint8Array): Promise<PdfExtractionResult
   const textLength = combinedText.length;
   const containsTableSignals = detectTableSignals(combinedText);
   
-  // Calculate quality score
   const hasKeywords = /(?:HT|TVA|TTC|Total|DEVIS|FACTURE)/i.test(combinedText);
   const quality = textLength >= 800 && hasKeywords ? 0.7 : (textLength >= 400 ? 0.4 : 0.1);
   
@@ -146,11 +162,18 @@ async function extractPdfText(fileData: Uint8Array): Promise<PdfExtractionResult
 
 // ============ HELPER: AWS TEXTRACT OCR ============
 
+interface TextractResult {
+  text: string;
+  blocks: TextBlock[];
+  pages: number;
+  textract_debug: TextractDebug;
+}
+
 async function extractWithTextract(
   fileData: Uint8Array,
   mimeType: string,
   maxPages: number = 2
-): Promise<{ text: string; blocks: TextBlock[]; pages: number }> {
+): Promise<TextractResult> {
   const awsAccessKey = Deno.env.get("AWS_ACCESS_KEY_ID");
   const awsSecretKey = Deno.env.get("AWS_SECRET_ACCESS_KEY");
   const awsRegion = Deno.env.get("AWS_REGION") || "eu-west-1";
@@ -159,7 +182,6 @@ async function extractWithTextract(
     throw new Error("AWS credentials not configured");
   }
   
-  // Textract requires base64 encoded document
   const chunkSize = 8192;
   let binaryString = "";
   for (let i = 0; i < fileData.length; i += chunkSize) {
@@ -168,29 +190,23 @@ async function extractWithTextract(
   }
   const base64Content = btoa(binaryString);
   
-  // Prepare Textract request
   const service = "textract";
   const host = `${service}.${awsRegion}.amazonaws.com`;
   const endpoint = `https://${host}`;
   const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
   const dateStamp = amzDate.substring(0, 8);
   
-  // For images, use DetectDocumentText (synchronous)
-  // For PDFs with multiple pages, would need StartDocumentTextDetection (async)
-  // For simplicity, using synchronous API which works for images and single-page PDFs
   const requestBody = JSON.stringify({
     Document: {
       Bytes: base64Content
     }
   });
   
-  // Create AWS Signature V4
   const canonicalUri = "/";
   const canonicalQuerystring = "";
   const contentType = "application/x-amz-json-1.1";
   const amzTarget = "Textract.DetectDocumentText";
   
-  // Create string to sign
   const payloadHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(requestBody));
   const payloadHashHex = Array.from(new Uint8Array(payloadHash)).map(b => b.toString(16).padStart(2, '0')).join('');
   
@@ -229,13 +245,11 @@ async function extractWithTextract(
     canonicalRequestHashHex
   ].join('\n');
   
-  // Create signing key
   async function hmacSha256(key: ArrayBuffer | Uint8Array, message: string): Promise<ArrayBuffer> {
     let keyBuffer: ArrayBuffer;
     if (key instanceof ArrayBuffer) {
       keyBuffer = key;
     } else {
-      // Convert Uint8Array to a fresh ArrayBuffer to avoid SharedArrayBuffer issues
       keyBuffer = new ArrayBuffer(key.byteLength);
       new Uint8Array(keyBuffer).set(key);
     }
@@ -260,7 +274,6 @@ async function extractWithTextract(
   
   const authorizationHeader = `${algorithm} Credential=${awsAccessKey}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signatureHex}`;
   
-  // Make request
   const response = await fetch(endpoint, {
     method: "POST",
     headers: {
@@ -280,11 +293,23 @@ async function extractWithTextract(
   
   const result = await response.json();
   
-  // Parse Textract response
+  // Parse Textract response with detailed debug
   const blocks: TextBlock[] = [];
   const textLines: string[] = [];
+  let tablesCount = 0;
+  let cellsCount = 0;
+  let totalBlocksCount = 0;
   
   for (const block of (result.Blocks || [])) {
+    totalBlocksCount++;
+    
+    if (block.BlockType === "TABLE") {
+      tablesCount++;
+    }
+    if (block.BlockType === "CELL") {
+      cellsCount++;
+    }
+    
     if (block.BlockType === "LINE" && block.Text) {
       textLines.push(block.Text);
       blocks.push({
@@ -302,10 +327,21 @@ async function extractWithTextract(
     }
   }
   
+  const textractDebug: TextractDebug = {
+    textract_job_id: null, // Synchronous API doesn't return job ID
+    textract_mode: "DetectDocumentText",
+    textract_pages_returned: 1,
+    textract_blocks_count: totalBlocksCount,
+    textract_tables_count: tablesCount,
+    textract_cells_count: cellsCount,
+    textract_warning: tablesCount === 0 ? "⚠️ No tables detected by Textract" : null,
+  };
+  
   return {
     text: textLines.join('\n'),
     blocks,
-    pages: 1 // Synchronous API only does 1 page
+    pages: 1,
+    textract_debug: textractDebug,
   };
 }
 
@@ -380,6 +416,19 @@ Sois exhaustif et préserve la structure.`
   };
 }
 
+// ============ FORCED TEXTRACT MODE COUNTER ============
+// For diagnostic: force Textract for next N documents
+
+let forceTextractCounter = 10; // Force for next 10 documents
+
+function shouldForceTextract(): boolean {
+  if (forceTextractCounter > 0) {
+    forceTextractCounter--;
+    return true;
+  }
+  return false;
+}
+
 // ============ MAIN HANDLER ============
 
 serve(async (req) => {
@@ -387,24 +436,34 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Generate unique request ID for tracing
+  const requestId = crypto.randomUUID();
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body = await req.json();
-    const { analysis_id, file_path, freemium_mode = true } = body;
+    const { analysis_id, file_path, freemium_mode = true, force_textract = false } = body;
 
     if (!analysis_id || !file_path) {
       return new Response(
-        JSON.stringify({ error: "Missing analysis_id or file_path" }),
+        JSON.stringify({ error: "Missing analysis_id or file_path", request_id: requestId }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     console.log("=== EXTRACT-DOCUMENT START ===");
+    console.log("Request ID:", requestId);
     console.log("Analysis ID:", analysis_id);
     console.log("File path:", file_path);
+
+    // Check if we should force Textract (debug mode or explicit request)
+    const shouldForce = force_textract || shouldForceTextract();
+    if (shouldForce) {
+      console.log("🔧 FORCE TEXTRACT MODE ENABLED");
+    }
 
     // Download file
     const { data: fileData, error: downloadError } = await supabase.storage
@@ -413,7 +472,7 @@ serve(async (req) => {
 
     if (downloadError || !fileData) {
       return new Response(
-        JSON.stringify({ error: "File download failed" }),
+        JSON.stringify({ error: "File download failed", request_id: requestId }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -425,55 +484,62 @@ serve(async (req) => {
     const fileHash = await computeFileHash(uint8Array);
     console.log("File hash:", fileHash);
 
-    // Check cache
-    const { data: cached } = await supabase
-      .from("document_extractions")
-      .select("*")
-      .eq("file_hash", fileHash)
-      .gt("expires_at", new Date().toISOString())
-      .single();
+    // Check cache (skip if force_textract)
+    if (!shouldForce) {
+      const { data: cached } = await supabase
+        .from("document_extractions")
+        .select("*")
+        .eq("file_hash", fileHash)
+        .gt("expires_at", new Date().toISOString())
+        .single();
 
-    if (cached) {
-      console.log("Cache hit! Returning cached extraction.");
-      
-      // Link to this analysis if not already
-      if (cached.analysis_id !== analysis_id) {
-        await supabase
-          .from("document_extractions")
-          .insert({
-            file_hash: fileHash + "_" + analysis_id, // Unique per analysis
-            file_path,
-            analysis_id,
-            provider: cached.provider,
-            ocr_used: cached.ocr_used,
-            pages_used: cached.pages_used,
-            pages_count: cached.pages_count,
-            quality_score: cached.quality_score,
+      if (cached) {
+        console.log("Cache hit! Returning cached extraction.");
+        
+        // Link to this analysis if not already
+        if (cached.analysis_id !== analysis_id) {
+          await supabase
+            .from("document_extractions")
+            .insert({
+              file_hash: fileHash + "_" + analysis_id,
+              file_path,
+              analysis_id,
+              provider: cached.provider,
+              ocr_used: cached.ocr_used,
+              pages_used: cached.pages_used,
+              pages_count: cached.pages_count,
+              quality_score: cached.quality_score,
+              cache_hit: true,
+              raw_text: cached.raw_text,
+              blocks: cached.blocks,
+              parsed_data: cached.parsed_data,
+              qty_ref_detected: cached.qty_ref_detected,
+              qty_unit: cached.qty_unit,
+              provider_calls: cached.provider_calls,
+              request_id: requestId,
+              text_length: cached.text_length,
+              contains_table_signals: cached.contains_table_signals,
+              ocr_reason: cached.ocr_reason,
+            });
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
             cache_hit: true,
-            raw_text: cached.raw_text,
-            blocks: cached.blocks,
-            parsed_data: cached.parsed_data,
-            qty_ref_detected: cached.qty_ref_detected,
-            qty_unit: cached.qty_unit,
-            provider_calls: cached.provider_calls,
-          });
+            request_id: requestId,
+            data: {
+              raw_text: cached.raw_text,
+              blocks: cached.blocks,
+              pages_count: cached.pages_count,
+              quality_score: cached.quality_score,
+              provider: cached.provider,
+              file_hash: fileHash,
+            }
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          cache_hit: true,
-          data: {
-            raw_text: cached.raw_text,
-            blocks: cached.blocks,
-            pages_count: cached.pages_count,
-            quality_score: cached.quality_score,
-            provider: cached.provider,
-            file_hash: fileHash,
-          }
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
     }
 
     console.log("Cache miss. Extracting...");
@@ -486,14 +552,17 @@ serve(async (req) => {
 
     const providerCalls: ProviderCall[] = [];
     let finalResult: ExtractionResult | null = null;
+    let textractDebug: TextractDebug | null = null;
     
     // Track PDF extraction metrics for decision logic
     let pdfTextLength = 0;
     let pdfContainsTableSignals = false;
     let ocrReason = "unknown";
+    let pagesUsedList: number[] = [];
+    let textLengthByPage: PageTextLength[] = [];
 
-    // STEP 1: Try PDF text extraction first (for PDFs only)
-    if (mimeType === "application/pdf") {
+    // STEP 1: Try PDF text extraction first (for PDFs only, unless force_textract)
+    if (mimeType === "application/pdf" && !shouldForce) {
       const startTime = Date.now();
       try {
         const pdfResult = await extractPdfText(uint8Array);
@@ -507,12 +576,29 @@ serve(async (req) => {
           success: true,
         });
 
+        textLengthByPage = [{ page: 1, length: pdfTextLength }];
+
         console.log("PDF text extraction - Length:", pdfTextLength, "Table signals:", pdfContainsTableSignals);
 
         // STEP 2: Strict rule - stay with pdf_text only if text_length >= 1500 AND contains_table_signals
         if (pdfTextLength >= 1500 && pdfContainsTableSignals) {
           console.log("PDF text OK: length >= 1500 AND table signals detected. Staying with pdf_text.");
           ocrReason = "pdf_text_ok";
+          pagesUsedList = [1];
+          
+          const ocrDebug: OcrDebug = {
+            ocr_provider: "pdf_text",
+            ocr_reason: ocrReason,
+            sha256: fileHash,
+            pages_total: 1,
+            pages_used: 1,
+            pages_used_list: pagesUsedList,
+            text_length_total: pdfTextLength,
+            text_length_by_page: textLengthByPage,
+            cache_hit: false,
+            provider_calls: providerCalls,
+          };
+          
           finalResult = {
             raw_text: pdfResult.text,
             blocks: [{ text: pdfResult.text, block_type: "FULL_TEXT" }],
@@ -525,6 +611,11 @@ serve(async (req) => {
             text_length: pdfTextLength,
             contains_table_signals: pdfContainsTableSignals,
             ocr_reason: ocrReason,
+            request_id: requestId,
+            ocr_debug: ocrDebug,
+            textract_debug: null,
+            pages_used_list: pagesUsedList,
+            text_length_by_page: textLengthByPage,
           };
         } else {
           // Determine reason for OCR fallback
@@ -548,12 +639,14 @@ serve(async (req) => {
           error: error instanceof Error ? error.message : "Unknown error",
         });
       }
+    } else if (shouldForce) {
+      ocrReason = "forced_textract";
+      console.log("Skipping PDF text extraction (forced_textract mode)");
     } else {
-      // For images, go directly to OCR
       ocrReason = "image_input";
     }
 
-    // STEP 3: Try AWS Textract (if PDF text didn't pass strict criteria or for images)
+    // STEP 3: Try AWS Textract (if PDF text didn't pass strict criteria, for images, or forced)
     if (!finalResult) {
       const awsConfigured = Deno.env.get("AWS_ACCESS_KEY_ID") && Deno.env.get("AWS_SECRET_ACCESS_KEY");
       
@@ -563,6 +656,7 @@ serve(async (req) => {
           // Freemium: max 2 pages
           const maxPages = freemium_mode ? 2 : 10;
           const textractResult = await extractWithTextract(uint8Array, mimeType, maxPages);
+          textractDebug = textractResult.textract_debug;
           
           providerCalls.push({
             provider: "textract",
@@ -572,9 +666,25 @@ serve(async (req) => {
           });
 
           console.log("Textract extraction successful. Lines:", textractResult.blocks.length);
+          console.log("Textract debug:", JSON.stringify(textractDebug));
           
           const textractTextLength = textractResult.text.length;
           const textractTableSignals = detectTableSignals(textractResult.text);
+          pagesUsedList = [1]; // Sync API only does page 1
+          textLengthByPage = [{ page: 1, length: textractTextLength }];
+          
+          const ocrDebug: OcrDebug = {
+            ocr_provider: "textract",
+            ocr_reason: ocrReason,
+            sha256: fileHash,
+            pages_total: textractResult.pages,
+            pages_used: textractResult.pages,
+            pages_used_list: pagesUsedList,
+            text_length_total: textractTextLength,
+            text_length_by_page: textLengthByPage,
+            cache_hit: false,
+            provider_calls: providerCalls,
+          };
           
           finalResult = {
             raw_text: textractResult.text,
@@ -588,6 +698,11 @@ serve(async (req) => {
             text_length: textractTextLength,
             contains_table_signals: textractTableSignals,
             ocr_reason: ocrReason,
+            request_id: requestId,
+            ocr_debug: ocrDebug,
+            textract_debug: textractDebug,
+            pages_used_list: pagesUsedList,
+            text_length_by_page: textLengthByPage,
           };
         } catch (error) {
           console.error("Textract failed:", error);
@@ -631,8 +746,23 @@ serve(async (req) => {
         
         const aiTextLength = aiResult.text.length;
         const aiTableSignals = detectTableSignals(aiResult.text);
+        pagesUsedList = [1];
+        textLengthByPage = [{ page: 1, length: aiTextLength }];
         
         ocrReason = ocrReason === "textract_failed" ? "textract_failed_lovable_fallback" : "lovable_fallback";
+
+        const ocrDebug: OcrDebug = {
+          ocr_provider: "lovable_ai",
+          ocr_reason: ocrReason,
+          sha256: fileHash,
+          pages_total: 1,
+          pages_used: 1,
+          pages_used_list: pagesUsedList,
+          text_length_total: aiTextLength,
+          text_length_by_page: textLengthByPage,
+          cache_hit: false,
+          provider_calls: providerCalls,
+        };
 
         finalResult = {
           raw_text: aiResult.text,
@@ -646,6 +776,11 @@ serve(async (req) => {
           text_length: aiTextLength,
           contains_table_signals: aiTableSignals,
           ocr_reason: ocrReason,
+          request_id: requestId,
+          ocr_debug: ocrDebug,
+          textract_debug: null,
+          pages_used_list: pagesUsedList,
+          text_length_by_page: textLengthByPage,
         };
       } catch (error) {
         console.error("Lovable AI OCR failed:", error);
@@ -664,13 +799,14 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           error: "All extraction methods failed",
+          request_id: requestId,
           provider_calls: providerCalls 
         }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Store in cache
+    // Store in cache with all debug fields
     await supabase
       .from("document_extractions")
       .insert({
@@ -689,9 +825,16 @@ serve(async (req) => {
         text_length: finalResult.text_length,
         contains_table_signals: finalResult.contains_table_signals,
         ocr_reason: finalResult.ocr_reason,
+        request_id: requestId,
+        force_textract: shouldForce,
+        pages_used_list: finalResult.pages_used_list,
+        text_length_by_page: finalResult.text_length_by_page,
+        textract_debug: textractDebug,
+        ocr_debug: finalResult.ocr_debug,
       });
 
     console.log("=== EXTRACT-DOCUMENT COMPLETE ===");
+    console.log("Request ID:", requestId);
     console.log("Provider:", finalResult.provider);
     console.log("Quality:", finalResult.quality_score);
 
@@ -699,6 +842,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         cache_hit: false,
+        request_id: requestId,
         data: finalResult,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -707,7 +851,10 @@ serve(async (req) => {
   } catch (error) {
     console.error("Unexpected error:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : "Unknown error",
+        request_id: requestId 
+      }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

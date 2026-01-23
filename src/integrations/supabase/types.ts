@@ -138,19 +138,28 @@ export type Database = {
           expires_at: string
           file_hash: string
           file_path: string
+          force_textract: boolean | null
           id: string
+          ocr_debug: Json | null
           ocr_reason: string | null
           ocr_used: boolean
           pages_count: number | null
           pages_used: number | null
+          pages_used_list: number[] | null
           parsed_data: Json | null
+          parser_debug: Json | null
+          price_debug: Json | null
           provider: string
           provider_calls: Json | null
+          qty_ref_debug: Json | null
           qty_ref_detected: number | null
           qty_unit: string | null
           quality_score: number | null
           raw_text: string | null
+          request_id: string | null
           text_length: number | null
+          text_length_by_page: Json | null
+          textract_debug: Json | null
         }
         Insert: {
           analysis_id?: string | null
@@ -161,19 +170,28 @@ export type Database = {
           expires_at?: string
           file_hash: string
           file_path: string
+          force_textract?: boolean | null
           id?: string
+          ocr_debug?: Json | null
           ocr_reason?: string | null
           ocr_used?: boolean
           pages_count?: number | null
           pages_used?: number | null
+          pages_used_list?: number[] | null
           parsed_data?: Json | null
+          parser_debug?: Json | null
+          price_debug?: Json | null
           provider?: string
           provider_calls?: Json | null
+          qty_ref_debug?: Json | null
           qty_ref_detected?: number | null
           qty_unit?: string | null
           quality_score?: number | null
           raw_text?: string | null
+          request_id?: string | null
           text_length?: number | null
+          text_length_by_page?: Json | null
+          textract_debug?: Json | null
         }
         Update: {
           analysis_id?: string | null
@@ -184,19 +202,28 @@ export type Database = {
           expires_at?: string
           file_hash?: string
           file_path?: string
+          force_textract?: boolean | null
           id?: string
+          ocr_debug?: Json | null
           ocr_reason?: string | null
           ocr_used?: boolean
           pages_count?: number | null
           pages_used?: number | null
+          pages_used_list?: number[] | null
           parsed_data?: Json | null
+          parser_debug?: Json | null
+          price_debug?: Json | null
           provider?: string
           provider_calls?: Json | null
+          qty_ref_debug?: Json | null
           qty_ref_detected?: number | null
           qty_unit?: string | null
           quality_score?: number | null
           raw_text?: string | null
+          request_id?: string | null
           text_length?: number | null
+          text_length_by_page?: Json | null
+          textract_debug?: Json | null
         }
         Relationships: [
           {
