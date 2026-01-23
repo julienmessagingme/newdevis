@@ -1,7 +1,9 @@
-import { Loader2, RefreshCw, FileText, AlertTriangle } from "lucide-react";
+import { Loader2, RefreshCw, AlertTriangle, XCircle, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 // ============================================================
 // RÈGLE BLOQUANTE: Pas de rapport sans extraction complète
@@ -9,6 +11,9 @@ import { supabase } from "@/integrations/supabase/client";
 // IF document_extractions.debug IS NULL
 // THEN report_status = "processing"
 // AND UI shows "Analyse en cours…"
+// 
+// IF status = "failed"
+// THEN UI shows "Analyse interrompue" avec bouton Relancer
 // ============================================================
 
 interface ExtractionStatus {
@@ -17,13 +22,16 @@ interface ExtractionStatus {
   hasParserDebug: boolean;
   hasQtyRefDebug: boolean;
   isComplete: boolean;
-  stage: "ocr" | "parsing" | "analysis" | "complete";
+  isFailed: boolean;
+  errorMessage: string | null;
+  stage: "ocr" | "parsing" | "analysis" | "complete" | "failed";
   stageLabel: string;
 }
 
 interface ExtractionBlockerProps {
   analysisId: string;
   analysisStatus: string;
+  errorMessage?: string | null;
   children: React.ReactNode;
 }
 
@@ -31,7 +39,8 @@ const STAGE_LABELS = {
   ocr: "Extraction du texte en cours...",
   parsing: "Analyse des lignes du devis...",
   analysis: "Vérification des informations...",
-  complete: "Analyse terminée"
+  complete: "Analyse terminée",
+  failed: "Analyse interrompue"
 };
 
 export const useExtractionStatus = (analysisId: string): ExtractionStatus | null => {
@@ -41,11 +50,34 @@ export const useExtractionStatus = (analysisId: string): ExtractionStatus | null
     if (!analysisId) return;
 
     const checkStatus = async () => {
+      // First check document_extractions
       const { data, error } = await supabase
         .from("document_extractions")
-        .select("ocr_debug, parser_debug, qty_ref_debug, raw_text")
+        .select("ocr_debug, parser_debug, qty_ref_debug, raw_text, ocr_reason")
         .eq("analysis_id", analysisId)
         .maybeSingle();
+
+      // Check for failed status in ocr_debug
+      const ocrDebug = data?.ocr_debug as { error_code?: string; error_message?: string } | null;
+      const isFailed = ocrDebug?.error_code === "OCR_TIMEOUT" || 
+                       ocrDebug?.error_code === "OCR_FAILED" ||
+                       data?.ocr_reason === "OCR_TIMEOUT" ||
+                       data?.ocr_reason === "OCR_FAILED";
+
+      if (isFailed) {
+        setStatus({
+          hasExtraction: true,
+          hasOcrDebug: data?.ocr_debug !== null,
+          hasParserDebug: false,
+          hasQtyRefDebug: false,
+          isComplete: false,
+          isFailed: true,
+          errorMessage: ocrDebug?.error_message || "L'extraction a échoué",
+          stage: "failed",
+          stageLabel: STAGE_LABELS.failed
+        });
+        return;
+      }
 
       if (error || !data) {
         setStatus({
@@ -54,6 +86,8 @@ export const useExtractionStatus = (analysisId: string): ExtractionStatus | null
           hasParserDebug: false,
           hasQtyRefDebug: false,
           isComplete: false,
+          isFailed: false,
+          errorMessage: null,
           stage: "ocr",
           stageLabel: STAGE_LABELS.ocr
         });
@@ -64,7 +98,7 @@ export const useExtractionStatus = (analysisId: string): ExtractionStatus | null
       const hasParserDebug = data.parser_debug !== null;
       const hasQtyRefDebug = data.qty_ref_debug !== null;
 
-      let stage: "ocr" | "parsing" | "analysis" | "complete" = "ocr";
+      let stage: "ocr" | "parsing" | "analysis" | "complete" | "failed" = "ocr";
       if (hasOcrDebug && hasParserDebug && hasQtyRefDebug) {
         stage = "complete";
       } else if (hasOcrDebug && hasParserDebug) {
@@ -79,6 +113,8 @@ export const useExtractionStatus = (analysisId: string): ExtractionStatus | null
         hasParserDebug,
         hasQtyRefDebug,
         isComplete: stage === "complete",
+        isFailed: false,
+        errorMessage: null,
         stage,
         stageLabel: STAGE_LABELS[stage]
       });
@@ -88,19 +124,29 @@ export const useExtractionStatus = (analysisId: string): ExtractionStatus | null
 
     // Poll toutes les 3 secondes si pas encore complet
     const interval = setInterval(() => {
-      if (!status?.isComplete) {
+      if (!status?.isComplete && !status?.isFailed) {
         checkStatus();
       }
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [analysisId, status?.isComplete]);
+  }, [analysisId, status?.isComplete, status?.isFailed]);
 
   return status;
 };
 
-const ExtractionBlocker = ({ analysisId, analysisStatus, children }: ExtractionBlockerProps) => {
+const ExtractionBlocker = ({ analysisId, analysisStatus, errorMessage, children }: ExtractionBlockerProps) => {
   const extractionStatus = useExtractionStatus(analysisId);
+
+  // Si statut "failed" ou "error", afficher écran d'erreur avec option de relance
+  if (analysisStatus === "failed" || analysisStatus === "error" || extractionStatus?.isFailed) {
+    return (
+      <ExtractionFailedScreen 
+        analysisId={analysisId} 
+        errorMessage={errorMessage || extractionStatus?.errorMessage || "Erreur lors de l'analyse"} 
+      />
+    );
+  }
 
   // Si statut "pending" ou "processing", afficher écran d'attente
   if (analysisStatus === "pending" || analysisStatus === "processing") {
@@ -108,12 +154,136 @@ const ExtractionBlocker = ({ analysisId, analysisStatus, children }: ExtractionB
   }
 
   // Si l'analyse est "completed" mais pas d'extraction → forcer attente
+  // L'extraction status ne doit pas être "failed" (géré ci-dessus) ni "complete"
   if (analysisStatus === "completed" && extractionStatus && !extractionStatus.isComplete) {
-    return <ExtractionWaitingScreen stage={extractionStatus.stage} />;
+    const stage = extractionStatus.stage;
+    if (stage === "ocr" || stage === "parsing" || stage === "analysis") {
+      return <ExtractionWaitingScreen stage={stage} />;
+    }
   }
 
   // Extraction complète → afficher le rapport
   return <>{children}</>;
+};
+
+// ============================================================
+// ÉCRAN D'ERREUR - Analyse interrompue avec bouton Relancer
+// ============================================================
+const ExtractionFailedScreen = ({ 
+  analysisId, 
+  errorMessage 
+}: { 
+  analysisId: string; 
+  errorMessage: string;
+}) => {
+  const navigate = useNavigate();
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      // Reset the analysis status to pending
+      const { error: updateError } = await supabase
+        .from("analyses")
+        .update({ status: "pending", error_message: null })
+        .eq("id", analysisId);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Delete the failed extraction to allow a fresh start
+      await supabase
+        .from("document_extractions")
+        .delete()
+        .eq("analysis_id", analysisId);
+
+      // Fetch the analysis to get file info
+      const { data: analysis, error: fetchError } = await supabase
+        .from("analyses")
+        .select("file_path")
+        .eq("id", analysisId)
+        .single();
+
+      if (fetchError || !analysis) {
+        throw new Error("Impossible de récupérer l'analyse");
+      }
+
+      // Trigger the analysis pipeline again
+      const { error: invokeError } = await supabase.functions.invoke("analyze-quote", {
+        body: { analysisId }
+      });
+
+      if (invokeError) {
+        throw invokeError;
+      }
+
+      toast.success("Analyse relancée avec succès");
+      
+      // Force page refresh to reset state
+      window.location.reload();
+
+    } catch (error) {
+      console.error("Retry failed:", error);
+      toast.error("Impossible de relancer l'analyse. Veuillez réessayer.");
+      setIsRetrying(false);
+    }
+  };
+
+  const handleNewAnalysis = () => {
+    navigate("/nouvelle-analyse");
+  };
+
+  return (
+    <div className="min-h-[60vh] flex flex-col items-center justify-center p-8">
+      <div className="w-20 h-20 bg-destructive/10 rounded-2xl flex items-center justify-center mb-6">
+        <XCircle className="h-10 w-10 text-destructive" />
+      </div>
+      
+      <h1 className="text-2xl font-bold text-foreground mb-4">Analyse interrompue</h1>
+      <p className="text-muted-foreground text-center mb-4 max-w-md">
+        Une erreur s'est produite lors de l'extraction du document.
+      </p>
+      
+      <div className="bg-muted/50 rounded-lg px-4 py-2 mb-8 max-w-md">
+        <p className="text-sm text-muted-foreground text-center font-mono">
+          {errorMessage}
+        </p>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3">
+        <Button 
+          onClick={handleRetry} 
+          disabled={isRetrying}
+          className="gap-2"
+        >
+          {isRetrying ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Relance en cours...
+            </>
+          ) : (
+            <>
+              <RotateCcw className="h-4 w-4" />
+              Relancer l'analyse
+            </>
+          )}
+        </Button>
+        
+        <Button 
+          variant="outline" 
+          onClick={handleNewAnalysis}
+          disabled={isRetrying}
+        >
+          Soumettre un autre document
+        </Button>
+      </div>
+
+      <p className="text-xs text-muted-foreground mt-8 text-center max-w-sm">
+        Si le problème persiste, le document peut être de mauvaise qualité (image floue, PDF protégé) ou dans un format non supporté.
+      </p>
+    </div>
+  );
 };
 
 const ExtractionWaitingScreen = ({ stage }: { stage: "ocr" | "parsing" | "analysis" | "complete" }) => {

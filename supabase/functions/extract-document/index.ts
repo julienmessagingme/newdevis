@@ -160,6 +160,32 @@ async function extractPdfText(fileData: Uint8Array): Promise<PdfExtractionResult
   };
 }
 
+// ============ HELPER: TIMEOUT WRAPPER ============
+
+const TEXTRACT_TIMEOUT_MS = 90000; // 90 seconds
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  errorMessage: string
+): Promise<T> {
+  let timeoutId: number;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(errorMessage));
+    }, timeoutMs);
+  });
+  
+  try {
+    const result = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timeoutId!);
+    return result;
+  } catch (error) {
+    clearTimeout(timeoutId!);
+    throw error;
+  }
+}
+
 // ============ HELPER: AWS TEXTRACT OCR ============
 
 interface TextractResult {
@@ -655,7 +681,12 @@ serve(async (req) => {
         try {
           // Freemium: max 2 pages
           const maxPages = freemium_mode ? 2 : 10;
-          const textractResult = await extractWithTextract(uint8Array, mimeType, maxPages);
+          // Add 90s timeout for Textract
+          const textractResult = await withTimeout(
+            extractWithTextract(uint8Array, mimeType, maxPages),
+            TEXTRACT_TIMEOUT_MS,
+            "AWS Textract did not return within 90s"
+          );
           textractDebug = textractResult.textract_debug;
           
           providerCalls.push({
@@ -794,11 +825,67 @@ serve(async (req) => {
       }
     }
 
-    // If all failed
+    // If all failed - record failure in DB
     if (!finalResult) {
+      const errorCode = providerCalls.some(p => p.error?.includes("90s")) ? "OCR_TIMEOUT" : "OCR_FAILED";
+      const errorMessage = providerCalls.some(p => p.error?.includes("90s")) 
+        ? "AWS Textract did not return within 90s" 
+        : "All extraction methods failed";
+      
+      // Store failure in document_extractions for tracking
+      await supabase
+        .from("document_extractions")
+        .insert({
+          file_hash: fileHash,
+          file_path,
+          analysis_id,
+          provider: "failed",
+          ocr_used: false,
+          pages_used: 0,
+          pages_count: 0,
+          quality_score: 0,
+          cache_hit: false,
+          raw_text: null,
+          blocks: null,
+          provider_calls: providerCalls,
+          text_length: 0,
+          contains_table_signals: false,
+          ocr_reason: errorCode,
+          request_id: requestId,
+          force_textract: shouldForce,
+          ocr_debug: {
+            ocr_provider: "failed",
+            ocr_reason: errorCode,
+            sha256: fileHash,
+            error_code: errorCode,
+            error_message: errorMessage,
+            pages_total: 0,
+            pages_used: 0,
+            pages_used_list: [],
+            text_length_total: 0,
+            text_length_by_page: [],
+            cache_hit: false,
+            provider_calls: providerCalls,
+          },
+        });
+      
+      // Update analysis status to failed
+      await supabase
+        .from("analyses")
+        .update({ 
+          status: "failed", 
+          error_message: errorMessage 
+        })
+        .eq("id", analysis_id);
+      
+      console.error(`=== EXTRACT-DOCUMENT FAILED ===`);
+      console.error(`Error code: ${errorCode}`);
+      console.error(`Request ID: ${requestId}`);
+      
       return new Response(
         JSON.stringify({ 
-          error: "All extraction methods failed",
+          error: errorMessage,
+          error_code: errorCode,
           request_id: requestId,
           provider_calls: providerCalls 
         }),
@@ -849,10 +936,35 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error("Unexpected error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const isTimeout = errorMessage.includes("90s");
+    const errorCode = isTimeout ? "OCR_TIMEOUT" : "EXTRACTION_ERROR";
+    
+    console.error(`=== EXTRACT-DOCUMENT ERROR ===`);
+    console.error(`Error: ${errorMessage}`);
+    console.error(`Request ID: ${requestId}`);
+    
+    // Try to update analysis status to failed
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      
+      const body = await req.clone().json().catch(() => ({}));
+      if (body.analysis_id) {
+        await supabase
+          .from("analyses")
+          .update({ status: "failed", error_message: errorMessage })
+          .eq("id", body.analysis_id);
+      }
+    } catch (dbError) {
+      console.error("Failed to update analysis status:", dbError);
+    }
+    
     return new Response(
       JSON.stringify({ 
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: errorMessage,
+        error_code: errorCode,
         request_id: requestId 
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
