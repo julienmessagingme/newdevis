@@ -7,7 +7,258 @@ const corsHeaders = {
 };
 
 // Parser version for tracking
-const PARSER_VERSION = "3.0.0";
+const PARSER_VERSION = "3.1.0";
+
+// ============ JOB TYPE DETECTION ============
+
+interface JobTypeResult {
+  job_type: string;
+  confidence: "high" | "medium" | "low";
+  matched_keywords: string[];
+}
+
+const JOB_TYPE_KEYWORDS: Record<string, string[]> = {
+  volets_roulants: [
+    "volet roulant", "volets roulants", "tablier", "tabliers", 
+    "motorisation volet", "lame volet", "lames volet", "coffre volet",
+    "axe volet", "enrouleur", "manivelle volet"
+  ],
+  menuiserie: [
+    "fenêtre", "fenetre", "porte", "baie vitrée", "baie vitree",
+    "châssis", "chassis", "vitrage", "double vitrage", "triple vitrage",
+    "huisserie", "dormant", "ouvrant"
+  ],
+  plomberie: [
+    "chauffe-eau", "chauffe eau", "cumulus", "ballon eau chaude",
+    "robinet", "mitigeur", "wc", "toilette", "lavabo", "évier",
+    "douche", "baignoire", "siphon", "tuyauterie", "canalisation"
+  ],
+  electricite: [
+    "tableau électrique", "tableau electrique", "disjoncteur",
+    "prise électrique", "prise electrique", "interrupteur",
+    "câblage", "cablage", "éclairage", "eclairage", "spot"
+  ],
+  carrelage: [
+    "carrelage", "faïence", "faience", "carreaux", "pose carrelage",
+    "joint carrelage", "mosaïque", "mosaique"
+  ],
+  peinture: [
+    "peinture", "enduit", "sous-couche", "primaire", "laque",
+    "lasure", "vernis", "crépi", "crepi"
+  ],
+  isolation: [
+    "isolation", "isolant", "laine de verre", "laine de roche",
+    "polystyrène", "polystyrene", "placo", "doublage"
+  ]
+};
+
+function detectJobType(text: string): JobTypeResult {
+  const textLower = text.toLowerCase();
+  const matchCounts: Record<string, string[]> = {};
+  
+  for (const [jobType, keywords] of Object.entries(JOB_TYPE_KEYWORDS)) {
+    matchCounts[jobType] = [];
+    for (const keyword of keywords) {
+      // Count occurrences
+      const regex = new RegExp(keyword, "gi");
+      const matches = textLower.match(regex);
+      if (matches && matches.length > 0) {
+        matchCounts[jobType].push(keyword);
+      }
+    }
+  }
+  
+  // Find job type with most matches
+  let bestJobType = "unknown";
+  let bestMatchCount = 0;
+  let bestKeywords: string[] = [];
+  
+  for (const [jobType, keywords] of Object.entries(matchCounts)) {
+    if (keywords.length > bestMatchCount) {
+      bestMatchCount = keywords.length;
+      bestJobType = jobType;
+      bestKeywords = keywords;
+    }
+  }
+  
+  const confidence = bestMatchCount >= 3 ? "high" : bestMatchCount >= 1 ? "medium" : "low";
+  
+  return {
+    job_type: bestJobType,
+    confidence,
+    matched_keywords: bestKeywords,
+  };
+}
+
+// ============ JOB-SPECIFIC QTY EXTRACTION ============
+
+interface JobQtyResult {
+  qty_ref: number | null;
+  qty_unit: string;
+  qty_source: string;
+  confidence: "high" | "medium" | "low";
+  evidence_line: string | null;
+  all_matches: Array<{ value: number; source: string; line: string }>;
+}
+
+function extractQtyRefForJobType(text: string, lines: ParsedLine[], jobType: string): JobQtyResult | null {
+  if (jobType === "volets_roulants") {
+    return extractQtyForVoletsRoulants(text, lines);
+  }
+  // Add other job types as needed
+  return null;
+}
+
+function extractQtyForVoletsRoulants(text: string, lines: ParsedLine[]): JobQtyResult {
+  const result: JobQtyResult = {
+    qty_ref: null,
+    qty_unit: "unité",
+    qty_source: "not_found",
+    confidence: "low",
+    evidence_line: null,
+    all_matches: [],
+  };
+  
+  const textLower = text.toLowerCase();
+  const textLines = text.split('\n');
+  
+  // RÈGLE 1: Chercher ligne "Pose tablier" avec quantité explicite
+  // Format attendu: "3 Pose tablier volet roulant..." ou "Pose tablier ... Qté: 3"
+  const posePatterns = [
+    /(\d+)\s+(?:pose\s+)?tablier(?:s)?\s+(?:volet|alu|pvc)?/gi,
+    /pose\s+tablier(?:s)?\s+(?:volet|alu|pvc)?.*?(?:qt[ée]|quantit[ée])\s*[:\s]*(\d+)/gi,
+    /pose\s+tablier(?:s)?\s+(?:volet|alu|pvc)?.*?\s(\d+)\s*(?:u|unit[ée]|pce|pi[èe]ce)/gi,
+    /^(\d+)\s+.*pose.*tablier/gim,
+    /pose.*tablier.*?\s+(\d+)\s+\d+[\s,.]?\d*\s*€?\s+\d+[\s,.]?\d*/gim, // Format: description qty PU Total
+  ];
+  
+  for (const pattern of posePatterns) {
+    pattern.lastIndex = 0;
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const qty = parseInt(match[1], 10);
+      if (!isNaN(qty) && qty > 0 && qty <= 50) {
+        // Find the line for evidence
+        const lineStart = text.lastIndexOf('\n', match.index) + 1;
+        const lineEnd = text.indexOf('\n', match.index);
+        const evidenceLine = text.substring(lineStart, lineEnd === -1 ? undefined : lineEnd).substring(0, 80);
+        
+        result.all_matches.push({ 
+          value: qty, 
+          source: "pose_tablier_line", 
+          line: evidenceLine 
+        });
+      }
+    }
+  }
+  
+  // RÈGLE 2: Compter les lignes "Tablier" dans les items
+  // Parse lines that contain "tablier" and extract their quantity
+  const tablierLines: { qty: number; line: string }[] = [];
+  for (const line of lines) {
+    const labelLower = line.label.toLowerCase();
+    if (labelLower.includes("tablier") && !labelLower.includes("pose")) {
+      if (line.qty !== null && line.qty > 0) {
+        tablierLines.push({ qty: line.qty, line: line.label.substring(0, 60) });
+      }
+    }
+  }
+  
+  if (tablierLines.length > 0) {
+    const totalTabliers = tablierLines.reduce((sum, t) => sum + t.qty, 0);
+    result.all_matches.push({
+      value: totalTabliers,
+      source: "tablier_count",
+      line: `Sum of ${tablierLines.length} tablier lines`,
+    });
+  }
+  
+  // RÈGLE 3: Chercher dans le texte brut avec regex
+  const rawPatterns = [
+    /(\d+)\s+tablier(?:s)?\s+(?:volet|alu|pvc)/gi,
+    /tablier(?:s)?\s+(?:volet|alu|pvc).*?x\s*(\d+)/gi,
+  ];
+  
+  for (const pattern of rawPatterns) {
+    pattern.lastIndex = 0;
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const qty = parseInt(match[1], 10);
+      if (!isNaN(qty) && qty > 0 && qty <= 50) {
+        const lineStart = text.lastIndexOf('\n', match.index) + 1;
+        const lineEnd = text.indexOf('\n', match.index);
+        const evidenceLine = text.substring(lineStart, lineEnd === -1 ? undefined : lineEnd).substring(0, 80);
+        
+        // Avoid duplicates
+        if (!result.all_matches.some(m => m.value === qty && m.source === "raw_text_match")) {
+          result.all_matches.push({
+            value: qty,
+            source: "raw_text_match",
+            line: evidenceLine,
+          });
+        }
+      }
+    }
+  }
+  
+  // RÈGLE 4: Mode (valeur la plus fréquente) des lignes avec format Qté PU Total
+  const lineQtyMode = findModeQty(lines.filter(l => l.qty !== null && l.qty > 0 && l.qty <= 30));
+  if (lineQtyMode !== null) {
+    result.all_matches.push({
+      value: lineQtyMode.value,
+      source: "line_items_mode",
+      line: `Mode qty=${lineQtyMode.value} (${lineQtyMode.count} occurrences)`,
+    });
+  }
+  
+  // PRIORISATION: pose_tablier_line > tablier_count > raw_text_match > line_items_mode
+  const priorityOrder = ["pose_tablier_line", "tablier_count", "raw_text_match", "line_items_mode"];
+  
+  for (const source of priorityOrder) {
+    const match = result.all_matches.find(m => m.source === source);
+    if (match) {
+      result.qty_ref = match.value;
+      result.qty_source = match.source;
+      result.evidence_line = match.line;
+      
+      // Confidence based on source
+      result.confidence = source === "pose_tablier_line" ? "high" : 
+                         source === "tablier_count" ? "high" : 
+                         source === "raw_text_match" ? "medium" : "low";
+      break;
+    }
+  }
+  
+  return result;
+}
+
+// Find mode (most frequent value) in quantities
+function findModeQty(lines: ParsedLine[]): { value: number; count: number } | null {
+  const qtyCount: Record<number, number> = {};
+  
+  for (const line of lines) {
+    if (line.qty !== null && line.qty > 0) {
+      qtyCount[line.qty] = (qtyCount[line.qty] || 0) + 1;
+    }
+  }
+  
+  let modeValue: number | null = null;
+  let modeCount = 0;
+  
+  for (const [qtyStr, count] of Object.entries(qtyCount)) {
+    const qty = parseFloat(qtyStr);
+    if (count > modeCount) {
+      modeCount = count;
+      modeValue = qty;
+    }
+  }
+  
+  if (modeValue !== null && modeCount >= 2) {
+    return { value: modeValue, count: modeCount };
+  }
+  
+  return null;
+}
 
 // ============ TYPE DEFINITIONS ============
 
@@ -108,6 +359,11 @@ interface QtyRefDebug {
   qty_ref_failure_reason: string | null;
   product_lines_count: number;
   excluded_lines_count: number;
+  // V3.1 additions
+  job_type: string | null;
+  job_type_confidence: string | null;
+  job_type_keywords: string[] | null;
+  job_specific_matches: Array<{ value: number; source: string; line: string }> | null;
 }
 
 // ============ UNIT NORMALIZATION ============
@@ -140,8 +396,8 @@ function normalizeUnit(raw: string | null): string | null {
 // ============ EXCLUSION RULES ============
 
 const NON_PRODUCT_KEYWORDS = [
-  // Main-d'œuvre / pose
-  "pose", "installation", "dépose", "démontage", "main d'œuvre", "main-d'œuvre", "mo", "heures", 
+  // Main-d'œuvre / pose - NOTE: "pose" will be context-aware
+  "installation", "dépose", "démontage", "main d'œuvre", "main-d'œuvre", "mo", "heures", 
   // Frais & logistique
   "déplacement", "transport", "livraison", "frais", "gestion", "chantier", "mise en service", "mise en œuvre",
   // Administratif
@@ -152,7 +408,18 @@ const NON_PRODUCT_KEYWORDS = [
   "remise", "réduction", "rabais", "avoir",
 ];
 
-function isNonProductLine(label: string, unitNormalized: string | null, totalPrice: number | null): { excluded: boolean; reason: string | null } {
+// Keywords that indicate a product line even if it contains "pose" - for unit counting
+const PRODUCT_WITH_POSE_PATTERNS = [
+  /pose\s+tablier/i,
+  /pose\s+volet/i,
+  /pose\s+fen[êe]tre/i,
+  /pose\s+porte/i,
+  /pose\s+baie/i,
+  /pose\s+motorisation/i,
+  /pose\s+lame/i,
+];
+
+function isNonProductLine(label: string, unitNormalized: string | null, totalPrice: number | null, jobType?: string): { excluded: boolean; reason: string | null } {
   // Rule 1: Forfait units are non-product
   if (unitNormalized === "forfait") {
     return { excluded: true, reason: "unit_is_forfait" };
@@ -163,8 +430,22 @@ function isNonProductLine(label: string, unitNormalized: string | null, totalPri
     return { excluded: true, reason: "negative_amount" };
   }
   
-  // Rule 3: Keywords check (case-insensitive)
   const labelLower = label.toLowerCase();
+  
+  // Rule 3: Check if this is a "pose + product" line that should be counted
+  // For volets_roulants and menuiserie, "pose tablier", "pose volet" etc. are valid products with qty
+  if (labelLower.includes("pose")) {
+    for (const pattern of PRODUCT_WITH_POSE_PATTERNS) {
+      if (pattern.test(labelLower)) {
+        // This is a "pose + specific product" line - NOT excluded, use its qty
+        return { excluded: false, reason: null };
+      }
+    }
+    // Generic "pose" without specific product - excluded
+    return { excluded: true, reason: "keyword:pose" };
+  }
+  
+  // Rule 4: Other keywords check (case-insensitive)
   for (const keyword of NON_PRODUCT_KEYWORDS) {
     if (labelLower.includes(keyword.toLowerCase())) {
       return { excluded: true, reason: `keyword:${keyword}` };
@@ -697,6 +978,10 @@ function parseQuote(rawText: string, blocks?: any[], categoryCode?: string): Par
     is_product: line.is_product,
   }));
   
+  // ====== JOB TYPE DETECTION ======
+  const jobTypeResult = detectJobType(text);
+  console.log("Job type detected:", jobTypeResult.job_type, "confidence:", jobTypeResult.confidence, "keywords:", jobTypeResult.matched_keywords);
+  
   // ====== QTY_REF DETECTION RULES ======
   
   let qtyResult: QtyRefResult = {
@@ -708,6 +993,50 @@ function parseQuote(rawText: string, blocks?: any[], categoryCode?: string): Par
   
   let selectionRule: string | null = null;
   let failureReason: string | null = null;
+  let jobSpecificQtyResult: JobQtyResult | null = null;
+  
+  // ÉTAPE 0: Essayer l'extracteur spécifique au jobType (priorité maximale pour volets, menuiserie, etc.)
+  if (jobTypeResult.job_type !== "unknown" && jobTypeResult.confidence !== "low") {
+    jobSpecificQtyResult = extractQtyRefForJobType(text, lines, jobTypeResult.job_type);
+    
+    if (jobSpecificQtyResult && jobSpecificQtyResult.qty_ref !== null) {
+      qtyRefCandidates.push({
+        value: jobSpecificQtyResult.qty_ref,
+        unit: jobSpecificQtyResult.qty_unit,
+        confidence: jobSpecificQtyResult.confidence === "high" ? 0.95 : 
+                   jobSpecificQtyResult.confidence === "medium" ? 0.75 : 0.5,
+        evidence_line_id: null,
+        source: `job_specific:${jobSpecificQtyResult.qty_source}`,
+        evidence_line: jobSpecificQtyResult.evidence_line || undefined,
+      });
+      
+      // Add all matches as candidates for debug
+      for (const match of jobSpecificQtyResult.all_matches) {
+        if (match.value !== jobSpecificQtyResult.qty_ref) {
+          qtyRefCandidates.push({
+            value: match.value,
+            unit: jobSpecificQtyResult.qty_unit,
+            confidence: match.source === "pose_tablier_line" ? 0.9 : 
+                       match.source === "tablier_count" ? 0.85 : 0.5,
+            evidence_line_id: null,
+            source: `job_specific:${match.source}`,
+            evidence_line: match.line,
+          });
+        }
+      }
+      
+      // Use job-specific result directly if high confidence
+      if (jobSpecificQtyResult.confidence === "high") {
+        qtyResult = {
+          qty_ref: jobSpecificQtyResult.qty_ref,
+          qty_unit: jobSpecificQtyResult.qty_unit,
+          qty_source: `job_specific:${jobSpecificQtyResult.qty_source}`,
+          qty_detected: true,
+        };
+        selectionRule = `Job-specific extractor (${jobTypeResult.job_type}) found qty=${jobSpecificQtyResult.qty_ref} via ${jobSpecificQtyResult.qty_source}`;
+      }
+    }
+  }
   
   // ÉTAPE 1: Chercher une ligne explicitement taggée "surface_totale" (m²)
   const surfaceTotaleResult = findSurfaceTotaleLine(lines);
@@ -896,6 +1225,11 @@ function parseQuote(rawText: string, blocks?: any[], categoryCode?: string): Par
     qty_ref_failure_reason: failureReason,
     product_lines_count: productLines.length,
     excluded_lines_count: excludedLines.length,
+    // V3.1 additions
+    job_type: jobTypeResult.job_type !== "unknown" ? jobTypeResult.job_type : null,
+    job_type_confidence: jobTypeResult.confidence,
+    job_type_keywords: jobTypeResult.matched_keywords.length > 0 ? jobTypeResult.matched_keywords : null,
+    job_specific_matches: jobSpecificQtyResult?.all_matches || null,
   };
   
   const parsed: ParsedQuote = {
