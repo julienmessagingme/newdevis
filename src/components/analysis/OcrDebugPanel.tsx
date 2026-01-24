@@ -371,10 +371,10 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
                     <div>
                       <p className="text-muted-foreground">detected_units_set</p>
                       <p className="font-mono text-foreground mt-1 text-[10px]">
-                        [{parserDebug.detected_units_set.join(', ') || "none"}]
+                        [{parserDebug.detected_units_set?.join(', ') || "none"}]
                       </p>
                     </div>
-                    {parserDebug.qty_parse_errors.length > 0 && (
+                    {parserDebug.qty_parse_errors && parserDebug.qty_parse_errors.length > 0 && (
                       <div className="col-span-full">
                         <p className="text-muted-foreground mb-1">qty_parse_errors ({parserDebug.qty_parse_errors.length})</p>
                         <div className="max-h-20 overflow-y-auto bg-red-500/10 rounded p-2">
@@ -444,7 +444,7 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
                       </div>
                     )}
 
-                    {qtyRefDebug.qty_ref_candidates.length > 0 && (
+                    {qtyRefDebug.qty_ref_candidates && qtyRefDebug.qty_ref_candidates.length > 0 && (
                       <div className="mt-3">
                         <p className="text-[10px] text-muted-foreground mb-2">qty_ref_candidates ({qtyRefDebug.qty_ref_candidates.length})</p>
                         <div className="space-y-1">
