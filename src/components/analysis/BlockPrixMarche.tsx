@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Receipt, MapPin, Clock, TrendingUp, TrendingDown, Minus, HelpCircle, Info, AlertTriangle, Edit3 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Receipt, MapPin, Clock, TrendingUp, TrendingDown, Minus, HelpCircle, Info, AlertTriangle, Edit3, CheckCircle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,54 +18,46 @@ import {
 // TYPES & INTERFACES
 // =======================
 
+interface QtyRefCandidate {
+  value: number;
+  unit: string;
+  confidence: number;
+  source: string;
+  evidence_line?: string;
+}
+
 interface BlockPrixMarcheProps {
   montantTotalHT?: number;
   zoneType?: string;
   codePostal?: string;
   selectedWorkType?: string;
-  quantiteDetectee?: number; // Surface/quantité de référence détectée (m², ml, unité)
-  uniteDetectee?: string; // Unité de la quantité détectée
-  manualQuantity?: number | null; // Quantité saisie manuellement par l'utilisateur
+  quantiteDetectee?: number;
+  uniteDetectee?: string;
+  manualQuantity?: number | null;
   onManualQuantityChange?: (quantity: number | null) => void;
+  qtyRefCandidates?: QtyRefCandidate[];
+  qtyRefSource?: string;
+  qtyRefDetected?: boolean;
 }
 
 // =======================
 // QUANTITY VALIDATION HELPERS
 // =======================
 
-/**
- * RÈGLE ABSOLUE: Ne JAMAIS afficher "1 m²" ou "1 unité" si qty_ref est inconnue
- * - Interdit d'utiliser "1" comme quantité par défaut
- * - La quantité doit être > 1 pour les surfaces
- * - Pour les forfaits, quantité = 1 est acceptable
- */
 const isValidQuantity = (quantity: number | undefined | null, unite: string): boolean => {
   if (quantity === undefined || quantity === null) return false;
-  
-  // Pour les forfaits, 1 est acceptable
   if (unite === 'forfait') return quantity === 1;
-  
-  // Pour m², ml, et unité, on doit avoir une quantité > 1
-  return quantity > 1;
+  return quantity > 0;
 };
 
-/**
- * Vérifie si la catégorie nécessite une quantité en unité (volets, PAC, fenêtres...)
- */
 const isUnitCategory = (unite: string): boolean => {
-  return unite === 'unité';
+  return unite === 'unité' || unite === 'unit';
 };
 
-/**
- * Vérifie si la catégorie nécessite une surface (m², ml)
- */
 const isSurfaceCategory = (unite: string): boolean => {
   return unite === 'm²' || unite === 'ml';
 };
 
-/**
- * Calcule le prix réel à l'unité : montant_total / quantité
- */
 const calculatePrixUnitaire = (montantTotal: number, quantite: number): number => {
   if (quantite <= 0) return 0;
   return montantTotal / quantite;
@@ -114,8 +106,8 @@ interface PriceGaugeProps {
   label: string;
   sousType: SousType;
   montant: number;
-  prixUnitaire: number; // Prix au m² ou à l'unité calculé
-  fourchette: { min: number; max: number }; // Fourchette en prix unitaire
+  prixUnitaire: number;
+  fourchette: { min: number; max: number };
   tempsEstime: { min: number; max: number };
   positionPct: number;
   zoneLabel: string;
@@ -133,11 +125,8 @@ const PriceGauge = ({
   zoneLabel,
   quantite
 }: PriceGaugeProps) => {
-  // Clamp position between 0 and 100 for display, but keep original for label
   const displayPosition = Math.max(0, Math.min(100, positionPct));
-  const isM2 = sousType.unite === 'm²';
   
-  // Format pour afficher le prix unitaire
   const formatPrixUnitaire = (prix: number) => {
     return new Intl.NumberFormat('fr-FR', { 
       style: 'currency', 
@@ -148,7 +137,6 @@ const PriceGauge = ({
   
   return (
     <div className="p-5 bg-background/80 rounded-xl border border-border mb-4">
-      {/* Header with category and surface */}
       <div className="flex items-center justify-between mb-4">
         <h4 className="font-semibold text-foreground text-lg">
           {label}
@@ -164,24 +152,19 @@ const PriceGauge = ({
         </div>
       </div>
       
-      {/* Visual Gauge - affiche fourchette en €/unité */}
       <div className="relative mb-4">
-        {/* Price labels on ends - prix unitaires */}
         <div className="flex justify-between text-sm mb-2">
           <span className="text-muted-foreground">{formatPrixUnitaire(fourchette.min)}</span>
           <span className="text-muted-foreground">{formatPrixUnitaire(fourchette.max)}</span>
         </div>
         
-        {/* Gauge bar */}
         <div className="relative h-8 rounded-full bg-gradient-to-r from-blue-400 via-emerald-400 to-amber-400 overflow-hidden">
-          {/* Grid lines */}
           <div className="absolute inset-0 flex">
             <div className="flex-1 border-r border-white/30" />
             <div className="flex-1 border-r border-white/30" />
             <div className="flex-1" />
           </div>
           
-          {/* Position indicator */}
           <div 
             className="absolute top-1/2 -translate-y-1/2 transition-all duration-500 ease-out z-10"
             style={{ left: `${displayPosition}%` }}
@@ -192,7 +175,6 @@ const PriceGauge = ({
           </div>
         </div>
         
-        {/* Your quote value display - prix unitaire calculé */}
         <div className="mt-3 text-center">
           <span className="text-sm text-muted-foreground">Votre prix : </span>
           <span className="font-bold text-lg text-foreground">{formatPrixUnitaire(prixUnitaire)}</span>
@@ -200,20 +182,17 @@ const PriceGauge = ({
         </div>
       </div>
       
-      {/* Pedagogical text */}
       <div className="space-y-3 pt-3 border-t border-border/50">
-        {/* Price range explanation */}
         <div className="flex items-start gap-2">
           <Info className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
           <p className="text-sm text-muted-foreground">
             <strong className="text-foreground">Fourchette marché estimée</strong><br />
             Entre {formatPrixUnitaire(fourchette.min)} et {formatPrixUnitaire(fourchette.max)}
-            {isM2 && ` pour du ${sousType.label.toLowerCase()}`}
+            {sousType.unite === 'm²' && ` pour du ${sousType.label.toLowerCase()}`}
             {" "}selon les prix moyens observés en France (zone {zoneLabel} incluse).
           </p>
         </div>
         
-        {/* Labor time estimation - calculé depuis le sous-type */}
         <div className="flex items-start gap-2">
           <Clock className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
           <p className="text-sm text-muted-foreground">
@@ -222,7 +201,6 @@ const PriceGauge = ({
           </p>
         </div>
         
-        {/* Position explanation */}
         <p className="text-sm text-muted-foreground italic">
           Votre devis ({formatPrixUnitaire(prixUnitaire)}) se situe {getPositionLabel(positionPct)}
           {positionPct > 66 && ", ce qui peut s'expliquer par la qualité des matériaux, les découpes, la complexité ou la finition."}
@@ -256,33 +234,79 @@ const NoSelectionBlock = () => (
 );
 
 // =======================
-// NO QUANTITY COMPONENT (for categories requiring quantity input)
+// QUANTITY CONFIRMATION COMPONENT (pre-filled)
 // =======================
 
-interface NoQuantityBlockProps {
+interface QuantityConfirmationBlockProps {
   unite: string;
+  suggestedValue: number | null;
+  suggestedSource: string | null;
   onManualQuantityChange?: (quantity: number | null) => void;
 }
 
-const NoQuantityBlock = ({ unite, onManualQuantityChange }: NoQuantityBlockProps) => {
-  const [inputValue, setInputValue] = useState("");
-  const [isEditing, setIsEditing] = useState(true);
+const QuantityConfirmationBlock = ({ 
+  unite, 
+  suggestedValue, 
+  suggestedSource,
+  onManualQuantityChange 
+}: QuantityConfirmationBlockProps) => {
+  const [inputValue, setInputValue] = useState(suggestedValue?.toString() || "");
+  const [isConfirmed, setIsConfirmed] = useState(false);
   
-  const unitLabel = unite === 'm²' ? 'surface (m²)' : 
+  useEffect(() => {
+    if (suggestedValue) {
+      setInputValue(suggestedValue.toString());
+    }
+  }, [suggestedValue]);
+  
+  const unitLabel = unite === 'm²' || unite === 'm2' ? 'surface (m²)' : 
                    unite === 'ml' ? 'longueur (ml)' : 
-                   unite === 'unité' ? "nombre d'unités" : 'quantité';
+                   unite === 'unité' || unite === 'unit' ? "nombre d'équipements" : 'quantité';
   
-  const handleSubmit = () => {
+  const getSourceLabel = (source: string | null): string => {
+    switch (source) {
+      case "count_product_lines": return "estimé à partir du nombre de lignes produit";
+      case "sum_product_units": return "calculé à partir des quantités détectées";
+      case "price_consistency": return "déduit par cohérence PU × Qté = Total";
+      default: return "suggéré";
+    }
+  };
+  
+  const handleConfirm = () => {
     const value = parseFloat(inputValue.replace(',', '.'));
     if (!isNaN(value) && value > 0) {
       onManualQuantityChange?.(value);
-      setIsEditing(false);
+      setIsConfirmed(true);
     }
   };
   
   const handleEdit = () => {
-    setIsEditing(true);
+    setIsConfirmed(false);
+    onManualQuantityChange?.(null);
   };
+
+  if (isConfirmed) {
+    return (
+      <div className="p-5 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-emerald-500/20 rounded-lg">
+            <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <p className="text-sm">
+                <strong className="text-foreground">Quantité confirmée : {inputValue} {unite === 'unit' ? 'unités' : unite}</strong>
+              </p>
+              <Button variant="ghost" size="sm" onClick={handleEdit}>
+                <Edit3 className="h-3 w-3 mr-1" />
+                Modifier
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-5 bg-amber-500/10 rounded-xl border border-amber-500/20">
@@ -292,14 +316,17 @@ const NoQuantityBlock = ({ unite, onManualQuantityChange }: NoQuantityBlockProps
         </div>
         <div className="flex-1">
           <p className="text-sm leading-relaxed mb-4">
-            <strong className="text-foreground">Quantité non détectée dans le devis</strong><br />
+            <strong className="text-foreground">La quantité n'est pas lisible dans le devis transmis.</strong><br />
             <span className="text-muted-foreground">
-              Pour afficher la jauge de prix, veuillez indiquer la {unitLabel} concernée par ce devis.
-              Cette information est indispensable pour calculer un prix unitaire fiable.
+              {suggestedValue ? (
+                <>Une valeur de <strong>{suggestedValue}</strong> a été {getSourceLabel(suggestedSource)}. Confirmez ou corrigez ci-dessous pour afficher la jauge.</>
+              ) : (
+                <>Ajoutez la {unitLabel} concernée pour afficher la jauge de prix.</>
+              )}
             </span>
           </p>
           
-          {onManualQuantityChange && isEditing && (
+          {onManualQuantityChange && (
             <div className="flex items-end gap-3">
               <div className="flex-1 max-w-xs">
                 <Label htmlFor="manual-qty" className="text-xs text-muted-foreground mb-1 block">
@@ -309,30 +336,19 @@ const NoQuantityBlock = ({ unite, onManualQuantityChange }: NoQuantityBlockProps
                   id="manual-qty"
                   type="text"
                   inputMode="decimal"
-                  placeholder={unite === 'm²' ? "Ex: 45" : unite === 'unité' ? "Ex: 6" : "Ex: 12"}
+                  placeholder={unite === 'm²' || unite === 'm2' ? "Ex: 45" : unite === 'unité' || unite === 'unit' ? "Ex: 6" : "Ex: 12"}
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   className="bg-background"
                 />
               </div>
               <Button 
-                onClick={handleSubmit}
+                onClick={handleConfirm}
                 size="sm"
                 disabled={!inputValue || isNaN(parseFloat(inputValue.replace(',', '.')))}
               >
-                Valider
-              </Button>
-            </div>
-          )}
-          
-          {!isEditing && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-foreground">
-                Quantité saisie : <strong>{inputValue} {unite}</strong>
-              </span>
-              <Button variant="ghost" size="sm" onClick={handleEdit}>
-                <Edit3 className="h-3 w-3 mr-1" />
-                Modifier
+                <CheckCircle className="h-4 w-4 mr-1" />
+                Confirmer
               </Button>
             </div>
           )}
@@ -341,29 +357,6 @@ const NoQuantityBlock = ({ unite, onManualQuantityChange }: NoQuantityBlockProps
     </div>
   );
 };
-
-// =======================
-// NO SURFACE COMPONENT (legacy - for m² categories without valid surface)
-// =======================
-
-const NoSurfaceBlock = () => (
-  <div className="p-5 bg-amber-500/10 rounded-xl border border-amber-500/20">
-    <div className="flex items-start gap-3">
-      <div className="p-2 bg-amber-500/20 rounded-lg">
-        <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-      </div>
-      <div>
-        <p className="text-sm leading-relaxed">
-          <strong className="text-foreground">Aucune surface m² fiable n'a été détectée dans le devis.</strong><br />
-          <span className="text-muted-foreground">
-            Pour les travaux au m², la jauge ne peut s'afficher que si une surface de référence est identifiée 
-            (ex : 192 m² de géotextile). Un forfait ou une quantité unitaire ne peut pas servir de base de calcul.
-          </span>
-        </p>
-      </div>
-    </div>
-  </div>
-);
 
 // =======================
 // NO REFERENCE COMPONENT
@@ -389,15 +382,6 @@ const NoReferenceBlock = () => (
 // MAIN COMPONENT
 // =======================
 
-/**
- * RÈGLES STRICTES qty_ref:
- * 1. Chercher une ligne taggée "surface_totale" (m²) dans les lignes
- * 2. Sinon, chercher un champ global (ex : "Surface : 192 m²")
- * 3. Sinon, pour les catégories en "unité", prendre sum(qty) seulement si qty_detected=true
- * 4. Si qty_ref introuvable : afficher "Quantité non trouvée" + forcer saisie manuelle
- * 
- * INTERDICTION ABSOLUE: Ne jamais afficher "1 m²" ou "1 unité" si qty_ref est inconnue
- */
 const BlockPrixMarche = ({ 
   montantTotalHT, 
   zoneType, 
@@ -406,32 +390,45 @@ const BlockPrixMarche = ({
   quantiteDetectee,
   uniteDetectee,
   manualQuantity,
-  onManualQuantityChange
+  onManualQuantityChange,
+  qtyRefCandidates,
+  qtyRefSource,
+  qtyRefDetected
 }: BlockPrixMarcheProps) => {
   const zoneLabel = getZoneLabel(zoneType);
   
-  // Parse le workType pour extraire catégorie et sous-type
   const parsed = parseWorkTypeValue(selectedWorkType || "");
-  
-  // Récupérer les infos du sous-type
   const sousTypeInfo = parsed ? getSousTypeByKey(parsed.sousTypeKey) : null;
   const sousType = sousTypeInfo?.sousType;
   
-  // Déterminer l'état d'affichage
   const isHorsRef = isHorsCategorie(selectedWorkType);
   const hasValidSelection = parsed !== null && sousTypeInfo !== null;
   const hasMontant = montantTotalHT !== undefined && montantTotalHT > 0;
   
-  // Déterminer la quantité effective selon les règles strictes
   // Priorité: manualQuantity > quantiteDetectee
   const effectiveQuantity = manualQuantity ?? quantiteDetectee;
   const unite = sousType?.unite || 'm²';
   
-  // Vérifier si on a une quantité valide selon l'unité
   const hasValidQuantity = isValidQuantity(effectiveQuantity, unite);
   
-  // Déterminer si on doit demander une saisie manuelle
-  const requiresManualInput = hasValidSelection && hasMontant && !hasValidQuantity && unite !== 'forfait';
+  // Find best suggestion from candidates if no auto-detected qty
+  const getBestSuggestion = (): { value: number; source: string } | null => {
+    if (!qtyRefCandidates || qtyRefCandidates.length === 0) return null;
+    
+    // Find highest confidence candidate
+    const sorted = [...qtyRefCandidates].sort((a, b) => b.confidence - a.confidence);
+    const best = sorted[0];
+    
+    if (best && best.value > 0) {
+      return { value: best.value, source: best.source };
+    }
+    return null;
+  };
+  
+  const suggestion = !hasValidQuantity ? getBestSuggestion() : null;
+  
+  // Show confirmation block if no valid qty but we have a suggestion
+  const requiresConfirmation = hasValidSelection && hasMontant && !hasValidQuantity && unite !== 'forfait';
   
   // Calculs uniquement si on a une sélection valide ET une quantité valide
   let fourchettePrixUnitaire = { min: 0, max: 0 };
@@ -441,27 +438,21 @@ const BlockPrixMarche = ({
   let quantite = effectiveQuantity || 1;
   
   if (hasValidSelection && sousType && hasMontant && hasValidQuantity) {
-    // Pour les forfaits, quantité = 1
     if (sousType.unite === 'forfait') {
       quantite = 1;
     } else {
       quantite = effectiveQuantity!;
     }
     
-    // Calcul du prix unitaire réel : montant_total / quantité
     prixUnitaire = calculatePrixUnitaire(montantTotalHT!, quantite);
     
-    // Fourchette en prix UNITAIRE (pas multiplié par quantité)
     const zoneCoef = getZoneCoefficient(zoneType);
     fourchettePrixUnitaire = {
       min: Math.round(sousType.prixMin * zoneCoef),
       max: Math.round(sousType.prixMax * zoneCoef)
     };
     
-    // Temps estimé basé sur la quantité
     tempsEstime = calculateLaborTime(sousType, quantite);
-    
-    // Position basée sur le prix unitaire vs fourchette unitaire
     positionPct = calculatePricePosition(prixUnitaire, fourchettePrixUnitaire);
   }
   
@@ -489,7 +480,6 @@ const BlockPrixMarche = ({
             </TooltipProvider>
           </div>
           
-          {/* Zone indicator */}
           {(codePostal || zoneType) && (
             <div className="flex items-center gap-2 mb-4 text-sm text-muted-foreground">
               <MapPin className="h-4 w-4" />
@@ -497,7 +487,6 @@ const BlockPrixMarche = ({
             </div>
           )}
           
-          {/* Total amount */}
           {hasMontant && (
             <div className="mb-6 p-3 bg-background/50 rounded-lg">
               <p className="text-xs text-muted-foreground mb-1">Montant total HT du devis</p>
@@ -505,31 +494,24 @@ const BlockPrixMarche = ({
             </div>
           )}
           
-          {/* Affichage conditionnel */}
           {isHorsRef ? (
-            // Catégorie "autres" = hors référentiel
             <NoReferenceBlock />
           ) : !hasValidSelection ? (
-            // Pas de sous-type sélectionné
             <NoSelectionBlock />
           ) : !hasMontant ? (
-            // Pas de montant détecté
             <div className="p-5 bg-muted/30 rounded-xl border border-border">
               <p className="text-sm text-muted-foreground">
                 Aucun montant n'a été détecté dans le devis. La comparaison de prix n'est pas disponible.
               </p>
             </div>
-          ) : requiresManualInput ? (
-            // Quantité non détectée - forcer saisie manuelle
-            <NoQuantityBlock 
+          ) : requiresConfirmation ? (
+            <QuantityConfirmationBlock 
               unite={unite}
+              suggestedValue={suggestion?.value || null}
+              suggestedSource={suggestion?.source || null}
               onManualQuantityChange={onManualQuantityChange}
             />
-          ) : !hasValidQuantity ? (
-            // Cas legacy: catégorie m² sans surface valide
-            <NoSurfaceBlock />
           ) : (
-            // Affichage de la jauge
             <PriceGauge
               label={sousTypeInfo!.sousType.label}
               sousType={sousTypeInfo!.sousType}
@@ -543,7 +525,6 @@ const BlockPrixMarche = ({
             />
           )}
           
-          {/* Legal disclaimer */}
           <div className="mt-6 p-4 bg-muted/30 rounded-xl border border-border/50">
             <p className="text-xs text-muted-foreground">
               <strong className="text-foreground">⚠️ Mention obligatoire :</strong> Les fourchettes de prix affichées sont purement indicatives. 

@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 // Parser version for tracking
-const PARSER_VERSION = "2.1.0";
+const PARSER_VERSION = "3.0.0";
 
 // ============ TYPE DEFINITIONS ============
 
@@ -33,11 +33,15 @@ interface ParsedLine {
   label: string;
   qty: number | null;
   unit: string | null;
+  unit_normalized: string | null;
   unit_price_ht: number | null;
   total_ht: number | null;
   qty_raw?: string;
   unit_raw?: string;
-  qty_source?: "column" | "embedded_in_label_price_check" | "embedded_in_label";
+  qty_source?: "column" | "textract_table" | "price_consistency" | "embedded_in_label";
+  is_product: boolean;
+  exclusion_reason?: string;
+  line_index: number;
 }
 
 interface WorkCategory {
@@ -55,9 +59,13 @@ interface ParserDebug {
   line_items_count: number;
   line_items_with_qty_count: number;
   line_items_with_unit_count: number;
+  product_lines_count: number;
+  excluded_lines_count: number;
   detected_units_set: string[];
   qty_parse_errors: string[];
   sample_lines: SampleLine[];
+  excluded_lines: ExcludedLine[];
+  textract_tables_used: boolean;
 }
 
 interface SampleLine {
@@ -65,10 +73,18 @@ interface SampleLine {
   description: string;
   qty_raw: string | null;
   qty_value: number | null;
+  qty_source: string | null;
   unit_raw: string | null;
   unit_normalized: string | null;
   unit_price: number | null;
   total_price: number | null;
+  is_product: boolean;
+}
+
+interface ExcludedLine {
+  line_index: number;
+  description: string;
+  reason: string;
 }
 
 interface QtyRefCandidate {
@@ -77,6 +93,7 @@ interface QtyRefCandidate {
   confidence: number;
   evidence_line_id: number | null;
   source: string;
+  evidence_line?: string;
 }
 
 interface QtyRefDebug {
@@ -89,6 +106,72 @@ interface QtyRefDebug {
   qty_ref_candidates: QtyRefCandidate[];
   qty_ref_selection_rule: string | null;
   qty_ref_failure_reason: string | null;
+  product_lines_count: number;
+  excluded_lines_count: number;
+}
+
+// ============ UNIT NORMALIZATION ============
+
+function normalizeUnit(raw: string | null): string | null {
+  if (!raw) return null;
+  const normalized = raw.toLowerCase().trim();
+  
+  // m², M², m2, M2, m^2 → m2
+  if (/m[²2\^]|mètres?\s*carrés?/i.test(normalized)) return "m2";
+  
+  // ml, ML → ml
+  if (/ml|m\.?l\.?|mètres?\s*linéaires?/i.test(normalized)) return "ml";
+  
+  // u, unité, U → unit
+  if (/^u$|unité|pièce|pce/i.test(normalized)) return "unit";
+  
+  // forfait → forfait
+  if (/forfait|ens(?:emble)?/i.test(normalized)) return "forfait";
+  
+  // h, heure → h
+  if (/^h$|heure/i.test(normalized)) return "h";
+  
+  // jour → jour
+  if (/^j$|jour/i.test(normalized)) return "jour";
+  
+  return null;
+}
+
+// ============ EXCLUSION RULES ============
+
+const NON_PRODUCT_KEYWORDS = [
+  // Main-d'œuvre / pose
+  "pose", "installation", "dépose", "démontage", "main d'œuvre", "main-d'œuvre", "mo", "heures", 
+  // Frais & logistique
+  "déplacement", "transport", "livraison", "frais", "gestion", "chantier", "mise en service", "mise en œuvre",
+  // Administratif
+  "étude", "devis", "dossier", "formalités", "bureau", "ingénierie",
+  // Options non matérielles
+  "garantie", "extension", "maintenance", "contrat", "assistance", "support",
+  // Remises / ajustements
+  "remise", "réduction", "rabais", "avoir",
+];
+
+function isNonProductLine(label: string, unitNormalized: string | null, totalPrice: number | null): { excluded: boolean; reason: string | null } {
+  // Rule 1: Forfait units are non-product
+  if (unitNormalized === "forfait") {
+    return { excluded: true, reason: "unit_is_forfait" };
+  }
+  
+  // Rule 2: Negative amounts are non-product
+  if (totalPrice !== null && totalPrice < 0) {
+    return { excluded: true, reason: "negative_amount" };
+  }
+  
+  // Rule 3: Keywords check (case-insensitive)
+  const labelLower = label.toLowerCase();
+  for (const keyword of NON_PRODUCT_KEYWORDS) {
+    if (labelLower.includes(keyword.toLowerCase())) {
+      return { excluded: true, reason: `keyword:${keyword}` };
+    }
+  }
+  
+  return { excluded: false, reason: null };
 }
 
 // ============ HELPER: UNIT DETECTION ============
@@ -149,12 +232,28 @@ function extractPrice(text: string): number | null {
     if (match) {
       const priceStr = match[1].replace(/[\s\u00a0]/g, '').replace(',', '.');
       const price = parseFloat(priceStr);
-      if (!isNaN(price) && price > 0) {
+      if (!isNaN(price)) {
         return price;
       }
     }
   }
   return null;
+}
+
+function extractAllPrices(text: string): number[] {
+  const prices: number[] = [];
+  for (const pattern of PRICE_PATTERNS) {
+    pattern.lastIndex = 0;
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const priceStr = match[1].replace(/[\s\u00a0]/g, '').replace(',', '.');
+      const price = parseFloat(priceStr);
+      if (!isNaN(price) && price > 0) {
+        prices.push(price);
+      }
+    }
+  }
+  return [...new Set(prices)].sort((a, b) => a - b);
 }
 
 // ============ HELPER: TOTALS EXTRACTION ============
@@ -216,17 +315,69 @@ function extractPayments(text: string): { methods: string[]; deposit_pct: number
   return { methods, deposit_pct, iban };
 }
 
-// ============ HELPER: LINE PARSING ============
+// ============ ARITHMETIC PROOF: PU × q ≈ Total ============
 
-interface ParseLineResult {
-  lines: ParsedLine[];
-  rawLines: string[];
-  qtyParseErrors: string[];
+/**
+ * For each line with unit_price and total_price, try to find an integer q ∈ [1..50]
+ * such that abs(unit_price*q - total_price) / max(total_price,1) < 0.02
+ */
+function tryPriceConsistencyQty(
+  unitPrice: number | null, 
+  totalPrice: number | null
+): { qty: number; source: "price_consistency" } | null {
+  if (!unitPrice || !totalPrice || unitPrice <= 0 || totalPrice <= 0) return null;
+  
+  // Try integer quantities from 1 to 50
+  for (let q = 1; q <= 50; q++) {
+    const expectedTotal = unitPrice * q;
+    const error = Math.abs(expectedTotal - totalPrice) / Math.max(totalPrice, 1);
+    if (error < 0.02) {
+      return { qty: q, source: "price_consistency" };
+    }
+  }
+  
+  return null;
 }
 
-// Helper: Try to extract embedded quantity from label ending (e.g., "Visio 2" → qty=2)
-// Uses price coherence check: abs(total - unit_price * qty) / max(total, 1) < 0.02
-function tryExtractEmbeddedQty(label: string, totalPrice: number, textLine: string): { qty: number; source: "embedded_in_label_price_check" | "embedded_in_label" } | null {
+/**
+ * For lines with 2+ prices, infer qty from price consistency
+ * Assumes smaller price is unit price, larger is total
+ */
+function tryInferQtyFromPrices(
+  textLine: string,
+  totalPrice: number
+): { qty: number; unitPrice: number; source: "price_consistency" } | null {
+  const prices = extractAllPrices(textLine);
+  if (prices.length < 2) return null;
+  
+  const unitPrice = prices[0];
+  const lineTotal = prices[prices.length - 1];
+  
+  // Only if the last price matches the detected total price
+  if (Math.abs(lineTotal - totalPrice) > 0.01) return null;
+  
+  for (let q = 1; q <= 50; q++) {
+    const expectedTotal = unitPrice * q;
+    const error = Math.abs(expectedTotal - lineTotal) / Math.max(lineTotal, 1);
+    if (error < 0.02) {
+      return { qty: q, unitPrice, source: "price_consistency" };
+    }
+  }
+  
+  return null;
+}
+
+// ============ EMBEDDED QTY DETECTION ============
+
+/**
+ * Detect quantity embedded in label (e.g., "Visio 2" → qty=2)
+ * Uses price consistency check when possible
+ */
+function tryExtractEmbeddedQty(
+  label: string, 
+  totalPrice: number, 
+  textLine: string
+): { qty: number; source: "price_consistency" | "embedded_in_label" } | null {
   // Pattern: label ending with an integer (1-3 digits)
   const embeddedQtyPattern = /(.+?)\s+(\d{1,3})$/;
   const match = label.match(embeddedQtyPattern);
@@ -236,44 +387,21 @@ function tryExtractEmbeddedQty(label: string, totalPrice: number, textLine: stri
   const potentialQty = parseInt(match[2], 10);
   if (potentialQty < 1 || potentialQty > 100) return null;
   
-  // Try to find a unit price in the line to validate
-  // Look for patterns like "1 234,56 €" that could be unit price
-  const allPrices: number[] = [];
-  const pricePatterns = [
-    /(\d{1,3}(?:[\s\u00a0]?\d{3})*[,\.]\d{2})\s*€/g,
-    /€\s*(\d{1,3}(?:[\s\u00a0]?\d{3})*[,\.]\d{2})/g,
-  ];
-  
-  for (const pattern of pricePatterns) {
-    pattern.lastIndex = 0;
-    let priceMatch;
-    while ((priceMatch = pattern.exec(textLine)) !== null) {
-      const priceStr = priceMatch[1].replace(/[\s\u00a0]/g, '').replace(',', '.');
-      const price = parseFloat(priceStr);
-      if (!isNaN(price) && price > 0) {
-        allPrices.push(price);
-      }
-    }
-  }
-  
-  // If we have at least 2 prices, assume smaller is unit price and larger is total
-  if (allPrices.length >= 2) {
-    const sortedPrices = [...new Set(allPrices)].sort((a, b) => a - b);
-    const unitPrice = sortedPrices[0];
+  // Try price consistency validation
+  const prices = extractAllPrices(textLine);
+  if (prices.length >= 2) {
+    const unitPrice = prices[0];
     const expectedTotal = unitPrice * potentialQty;
-    const actualTotal = sortedPrices[sortedPrices.length - 1];
+    const actualTotal = prices[prices.length - 1];
     
-    // Price coherence check: error < 2%
     const error = Math.abs(expectedTotal - actualTotal) / Math.max(actualTotal, 1);
     if (error < 0.02) {
-      return { qty: potentialQty, source: "embedded_in_label_price_check" };
+      return { qty: potentialQty, source: "price_consistency" };
     }
   }
   
-  // Fallback: if label clearly ends with a number after a product name (weaker confidence)
-  // Only accept if the number is small (1-10) to avoid false positives
+  // Fallback: weak embedded detection (1-10, product name looks valid)
   if (potentialQty >= 1 && potentialQty <= 10 && match[1].length >= 5) {
-    // Only if the label part before number looks like a product name (contains letters)
     if (/[a-zA-ZÀ-ÿ]{3,}/.test(match[1])) {
       return { qty: potentialQty, source: "embedded_in_label" };
     }
@@ -282,11 +410,23 @@ function tryExtractEmbeddedQty(label: string, totalPrice: number, textLine: stri
   return null;
 }
 
+// ============ LINE PARSING ============
+
+interface ParseLineResult {
+  lines: ParsedLine[];
+  rawLines: string[];
+  qtyParseErrors: string[];
+  excludedLines: ExcludedLine[];
+}
+
 function parseLines(text: string): ParseLineResult {
   const lines: ParsedLine[] = [];
   const rawLines: string[] = [];
   const qtyParseErrors: string[] = [];
+  const excludedLines: ExcludedLine[] = [];
   const textLines = text.split('\n');
+  
+  let lineIndex = 0;
   
   for (const textLine of textLines) {
     if (!textLine.trim() || textLine.trim().length < 10) continue;
@@ -298,6 +438,7 @@ function parseLines(text: string): ParseLineResult {
     rawLines.push(textLine);
     
     const { unit, qty, unit_raw, qty_raw } = detectUnit(textLine);
+    const unitNormalized = normalizeUnit(unit);
     
     let label = textLine
       .replace(/(\d{1,3}(?:[\s\u00a0]?\d{3})*[,\.]\d{2})\s*€?/g, '')
@@ -311,39 +452,69 @@ function parseLines(text: string): ParseLineResult {
     let finalQty = qty;
     let finalUnit = unit;
     let finalQtyRaw = qty_raw;
-    let qtySource: "column" | "embedded_in_label_price_check" | "embedded_in_label" | undefined = qty ? "column" : undefined;
+    let qtySource: ParsedLine["qty_source"] = qty ? "column" : undefined;
     
-    // If no qty detected via column, try embedded detection
+    // If no qty detected via column, try price consistency
+    if (finalQty === null) {
+      const priceConsistencyResult = tryInferQtyFromPrices(textLine, price);
+      if (priceConsistencyResult) {
+        finalQty = priceConsistencyResult.qty;
+        finalUnit = "unité";
+        finalQtyRaw = String(priceConsistencyResult.qty);
+        qtySource = "price_consistency";
+      }
+    }
+    
+    // If still no qty, try embedded detection
     if (finalQty === null) {
       const embeddedResult = tryExtractEmbeddedQty(label, price, textLine);
       if (embeddedResult) {
         finalQty = embeddedResult.qty;
-        finalUnit = "unité"; // Embedded quantities are typically units
+        finalUnit = "unité";
         finalQtyRaw = String(embeddedResult.qty);
-        qtySource = embeddedResult.source;
+        qtySource = embeddedResult.source === "price_consistency" ? "price_consistency" : "embedded_in_label";
       }
     }
     
+    const finalUnitNormalized = normalizeUnit(finalUnit);
+    
+    // Check exclusion rules
+    const exclusion = isNonProductLine(label, finalUnitNormalized, price);
+    const isProduct = !exclusion.excluded && finalQty !== null && finalQty > 0;
+    
+    if (exclusion.excluded) {
+      excludedLines.push({
+        line_index: lineIndex,
+        description: label.substring(0, 80),
+        reason: exclusion.reason || "unknown",
+      });
+    }
+    
     // Track parsing errors
-    if (finalQty === null && /\d/.test(textLine)) {
-      qtyParseErrors.push(`Line "${textLine.substring(0, 50)}...": contains digits but qty not detected`);
+    if (finalQty === null && /\d/.test(textLine) && !exclusion.excluded) {
+      qtyParseErrors.push(`Line ${lineIndex}: "${textLine.substring(0, 50)}...": contains digits but qty not detected`);
     }
     
     const parsedLine: ParsedLine = {
       label,
       qty: finalQty,
       unit: finalUnit,
+      unit_normalized: finalUnitNormalized,
       unit_price_ht: (finalQty && price && finalQty > 0) ? price / finalQty : null,
       total_ht: price,
       qty_raw: finalQtyRaw || undefined,
       unit_raw: unit_raw || undefined,
       qty_source: qtySource,
+      is_product: isProduct,
+      exclusion_reason: exclusion.reason || undefined,
+      line_index: lineIndex,
     };
     
     lines.push(parsedLine);
+    lineIndex++;
   }
   
-  return { lines, rawLines, qtyParseErrors };
+  return { lines, rawLines, qtyParseErrors, excludedLines };
 }
 
 // ============ HELPER: FIND MAX QUANTITY ============
@@ -352,25 +523,28 @@ interface MaxQtyResult {
   qty: number | null;
   unit: string | null;
   lineIndex: number | null;
+  evidenceLine: string | null;
 }
 
-function findMaxQuantity(lines: ParsedLine[], targetUnit: string): MaxQtyResult {
+function findMaxQuantity(lines: ParsedLine[], targetUnitNormalized: string): MaxQtyResult {
   let maxQty: number | null = null;
   let maxUnit: string | null = null;
   let lineIndex: number | null = null;
+  let evidenceLine: string | null = null;
   
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (line.unit === targetUnit && line.qty !== null) {
+    if (line.unit_normalized === targetUnitNormalized && line.qty !== null && line.is_product) {
       if (maxQty === null || line.qty > maxQty) {
         maxQty = line.qty;
         maxUnit = line.unit;
-        lineIndex = i;
+        lineIndex = line.line_index;
+        evidenceLine = line.label.substring(0, 60);
       }
     }
   }
   
-  return { qty: maxQty, unit: maxUnit, lineIndex };
+  return { qty: maxQty, unit: maxUnit, lineIndex, evidenceLine };
 }
 
 // ============ HELPER: FIND SURFACE TOTALE TAG ============
@@ -378,6 +552,7 @@ function findMaxQuantity(lines: ParsedLine[], targetUnit: string): MaxQtyResult 
 interface SurfaceTotaleResult {
   qty: number | null;
   lineIndex: number | null;
+  evidenceLine: string | null;
 }
 
 function findSurfaceTotaleLine(lines: ParsedLine[]): SurfaceTotaleResult {
@@ -390,26 +565,27 @@ function findSurfaceTotaleLine(lines: ParsedLine[]): SurfaceTotaleResult {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     for (const pattern of surfaceTotalPatterns) {
-      if (pattern.test(line.label) && line.unit === "m²" && line.qty !== null && line.qty > 1) {
-        return { qty: line.qty, lineIndex: i };
+      if (pattern.test(line.label) && line.unit_normalized === "m2" && line.qty !== null && line.qty > 1) {
+        return { qty: line.qty, lineIndex: line.line_index, evidenceLine: line.label.substring(0, 60) };
       }
     }
   }
   
-  const m2Lines = lines.map((l, idx) => ({ ...l, idx })).filter(l => l.unit === "m²" && l.qty !== null && l.qty > 1);
+  // Fallback: largest m² line
+  const m2Lines = lines.filter(l => l.unit_normalized === "m2" && l.qty !== null && l.qty > 1 && l.is_product);
   if (m2Lines.length > 0) {
     const maxM2Line = m2Lines.reduce((max, line) => 
       (line.qty || 0) > (max.qty || 0) ? line : max
     );
-    return { qty: maxM2Line.qty, lineIndex: maxM2Line.idx };
+    return { qty: maxM2Line.qty, lineIndex: maxM2Line.line_index, evidenceLine: maxM2Line.label.substring(0, 60) };
   }
   
-  return { qty: null, lineIndex: null };
+  return { qty: null, lineIndex: null, evidenceLine: null };
 }
 
 // ============ HELPER: FIND GLOBAL SURFACE FIELD ============
 
-function findGlobalSurfaceField(text: string): number | null {
+function findGlobalSurfaceField(text: string): { qty: number; evidenceLine: string } | null {
   const globalPatterns = [
     /surface\s*(?:totale\s*)?[:=]\s*(\d+[\s,.]?\d*)\s*m²/gi,
     /total\s*m²\s*[:=]?\s*(\d+[\s,.]?\d*)/gi,
@@ -418,13 +594,16 @@ function findGlobalSurfaceField(text: string): number | null {
     /surface\s*(?:à\s*traiter|concernée)\s*[:=]?\s*(\d+[\s,.]?\d*)\s*m²/gi,
   ];
   
-  for (const pattern of globalPatterns) {
-    pattern.lastIndex = 0;
-    const match = pattern.exec(text);
-    if (match) {
-      const qty = parseFloat(match[1].replace(/\s/g, '').replace(',', '.'));
-      if (!isNaN(qty) && qty > 1) {
-        return qty;
+  const lines = text.split('\n');
+  for (const line of lines) {
+    for (const pattern of globalPatterns) {
+      pattern.lastIndex = 0;
+      const match = pattern.exec(line);
+      if (match) {
+        const qty = parseFloat(match[1].replace(/\s/g, '').replace(',', '.'));
+        if (!isNaN(qty) && qty > 1) {
+          return { qty, evidenceLine: line.substring(0, 60) };
+        }
       }
     }
   }
@@ -432,18 +611,27 @@ function findGlobalSurfaceField(text: string): number | null {
   return null;
 }
 
-// ============ HELPER: SUM UNIT QUANTITIES ============
+// ============ HELPER: SUM PRODUCT QUANTITIES ============
 
-function sumUnitQuantities(lines: ParsedLine[], targetUnit: string): { sum: number | null; linesWithQty: number; totalLines: number } {
-  const targetLines = lines.filter(l => l.unit === targetUnit);
-  const linesWithQty = targetLines.filter(l => l.qty !== null && l.qty > 0);
+interface SumQtyResult {
+  sum: number | null;
+  productLinesWithQty: number;
+  totalProductLines: number;
+  sources: string[];
+}
+
+function sumProductQuantities(lines: ParsedLine[], targetUnitNormalized: string): SumQtyResult {
+  const productLines = lines.filter(l => l.is_product && l.unit_normalized === targetUnitNormalized);
+  const linesWithQty = productLines.filter(l => l.qty !== null && l.qty > 0);
   
   if (linesWithQty.length === 0) {
-    return { sum: null, linesWithQty: 0, totalLines: targetLines.length };
+    return { sum: null, productLinesWithQty: 0, totalProductLines: productLines.length, sources: [] };
   }
   
   const sum = linesWithQty.reduce((acc, line) => acc + (line.qty || 0), 0);
-  return { sum, linesWithQty: linesWithQty.length, totalLines: targetLines.length };
+  const sources = [...new Set(linesWithQty.map(l => l.qty_source || "unknown"))];
+  
+  return { sum, productLinesWithQty: linesWithQty.length, totalProductLines: productLines.length, sources };
 }
 
 // ============ MAIN PARSER ============
@@ -451,7 +639,7 @@ function sumUnitQuantities(lines: ParsedLine[], targetUnit: string): { sum: numb
 interface QtyRefResult {
   qty_ref: number | null;
   qty_unit: string | null;
-  qty_source: "surface_totale_line" | "global_field" | "sum_units" | "max_m2" | "max_ml" | "not_found";
+  qty_source: string;
   qty_detected: boolean;
 }
 
@@ -477,19 +665,23 @@ function parseQuote(rawText: string, blocks?: any[], categoryCode?: string): Par
   const payments = extractPayments(text);
   
   // Parse lines with debug info
-  const { lines, rawLines, qtyParseErrors } = parseLines(text);
+  const { lines, rawLines, qtyParseErrors, excludedLines } = parseLines(text);
   if (lines.length === 0) {
     warnings.push("Aucune ligne de devis détaillée n'a pu être extraite.");
   }
   
+  // Product lines stats
+  const productLines = lines.filter(l => l.is_product);
+  const productLinesWithQty = productLines.filter(l => l.qty !== null && l.qty > 0);
+  
   // Count lines with missing quantities
-  const linesWithoutQty = lines.filter(l => l.qty === null);
+  const linesWithoutQty = lines.filter(l => l.qty === null && !l.exclusion_reason);
   if (linesWithoutQty.length > 0) {
-    warnings.push(`${linesWithoutQty.length} ligne(s) sans quantité détectée.`);
+    warnings.push(`${linesWithoutQty.length} ligne(s) produit sans quantité détectée.`);
   }
   
   // Build detected units set
-  const detectedUnitsSet = [...new Set(lines.filter(l => l.unit).map(l => l.unit!))];
+  const detectedUnitsSet = [...new Set(lines.filter(l => l.unit_normalized).map(l => l.unit_normalized!))];
   
   // Build sample lines (max 10)
   const sampleLines: SampleLine[] = lines.slice(0, 10).map((line, idx) => ({
@@ -497,13 +689,15 @@ function parseQuote(rawText: string, blocks?: any[], categoryCode?: string): Par
     description: line.label,
     qty_raw: line.qty_raw || null,
     qty_value: line.qty,
+    qty_source: line.qty_source || null,
     unit_raw: line.unit_raw || null,
-    unit_normalized: line.unit,
+    unit_normalized: line.unit_normalized,
     unit_price: line.unit_price_ht,
     total_price: line.total_ht,
+    is_product: line.is_product,
   }));
   
-  // ====== RÈGLES STRICTES DE DÉTECTION qty_ref ======
+  // ====== QTY_REF DETECTION RULES ======
   
   let qtyResult: QtyRefResult = {
     qty_ref: null,
@@ -520,14 +714,15 @@ function parseQuote(rawText: string, blocks?: any[], categoryCode?: string): Par
   if (surfaceTotaleResult.qty !== null && surfaceTotaleResult.qty > 1) {
     qtyRefCandidates.push({
       value: surfaceTotaleResult.qty,
-      unit: "m²",
+      unit: "m2",
       confidence: 1.0,
       evidence_line_id: surfaceTotaleResult.lineIndex,
       source: "surface_totale_line",
+      evidence_line: surfaceTotaleResult.evidenceLine || undefined,
     });
     qtyResult = {
       qty_ref: surfaceTotaleResult.qty,
-      qty_unit: "m²",
+      qty_unit: "m2",
       qty_source: "surface_totale_line",
       qty_detected: true,
     };
@@ -537,17 +732,18 @@ function parseQuote(rawText: string, blocks?: any[], categoryCode?: string): Par
   // ÉTAPE 2: Sinon, chercher un champ global (ex: "Surface : 192 m²")
   if (qtyResult.qty_ref === null) {
     const globalSurface = findGlobalSurfaceField(text);
-    if (globalSurface !== null && globalSurface > 1) {
+    if (globalSurface !== null && globalSurface.qty > 1) {
       qtyRefCandidates.push({
-        value: globalSurface,
-        unit: "m²",
+        value: globalSurface.qty,
+        unit: "m2",
         confidence: 0.9,
         evidence_line_id: null,
         source: "global_field",
+        evidence_line: globalSurface.evidenceLine,
       });
       qtyResult = {
-        qty_ref: globalSurface,
-        qty_unit: "m²",
+        qty_ref: globalSurface.qty,
+        qty_unit: "m2",
         qty_source: "global_field",
         qty_detected: true,
       };
@@ -555,24 +751,25 @@ function parseQuote(rawText: string, blocks?: any[], categoryCode?: string): Par
     }
   }
   
-  // ÉTAPE 3a: Chercher le max m² dans les lignes
+  // ÉTAPE 3a: Chercher le max m² dans les lignes PRODUIT
   if (qtyResult.qty_ref === null) {
-    const maxM2 = findMaxQuantity(lines, "m²");
+    const maxM2 = findMaxQuantity(lines, "m2");
     if (maxM2.qty !== null && maxM2.qty > 1) {
       qtyRefCandidates.push({
         value: maxM2.qty,
-        unit: "m²",
+        unit: "m2",
         confidence: 0.7,
         evidence_line_id: maxM2.lineIndex,
         source: "max_m2",
+        evidence_line: maxM2.evidenceLine || undefined,
       });
       qtyResult = {
         qty_ref: maxM2.qty,
-        qty_unit: "m²",
+        qty_unit: "m2",
         qty_source: "max_m2",
         qty_detected: true,
       };
-      selectionRule = "Picked largest m² quantity from line items";
+      selectionRule = "Picked largest m² quantity from product lines";
     }
   }
   
@@ -586,6 +783,7 @@ function parseQuote(rawText: string, blocks?: any[], categoryCode?: string): Par
         confidence: 0.7,
         evidence_line_id: maxMl.lineIndex,
         source: "max_ml",
+        evidence_line: maxMl.evidenceLine || undefined,
       });
       qtyResult = {
         qty_ref: maxMl.qty,
@@ -593,53 +791,58 @@ function parseQuote(rawText: string, blocks?: any[], categoryCode?: string): Par
         qty_source: "max_ml",
         qty_detected: true,
       };
-      selectionRule = "Picked largest ml quantity from line items";
+      selectionRule = "Picked largest ml quantity from product lines";
     }
   }
   
-  // ÉTAPE 3c: Pour les unités (volets, PAC...), calculer sum(qty) si toutes les lignes ont qty_detected
+  // ÉTAPE 3c: Pour les unités, sum des qty PRODUIT si toutes ont qty_detected
   if (qtyResult.qty_ref === null) {
-    const unitSum = sumUnitQuantities(lines, "unité");
-    if (unitSum.sum !== null && unitSum.sum > 0 && unitSum.linesWithQty === unitSum.totalLines) {
+    const unitSum = sumProductQuantities(lines, "unit");
+    if (unitSum.sum !== null && unitSum.sum > 0) {
+      // High confidence if ALL product lines have qty
+      const confidence = unitSum.productLinesWithQty === unitSum.totalProductLines ? 0.85 : 0.5;
       qtyRefCandidates.push({
         value: unitSum.sum,
-        unit: "unité",
-        confidence: 0.8,
+        unit: "unit",
+        confidence,
         evidence_line_id: null,
-        source: "sum_units",
+        source: "sum_product_units",
+        evidence_line: `Sum of ${unitSum.productLinesWithQty} product lines (sources: ${unitSum.sources.join(', ')})`,
       });
-      qtyResult = {
-        qty_ref: unitSum.sum,
-        qty_unit: "unité",
-        qty_source: "sum_units",
-        qty_detected: true,
-      };
-      selectionRule = `Summed all unit quantities (${unitSum.linesWithQty} lines)`;
-    } else if (unitSum.totalLines > 0 && unitSum.linesWithQty < unitSum.totalLines) {
-      warnings.push(`Quantités partielles détectées pour les unités (${unitSum.linesWithQty}/${unitSum.totalLines}).`);
-      failureReason = `Partial unit quantities: only ${unitSum.linesWithQty}/${unitSum.totalLines} lines have detected qty`;
+      
+      // Only auto-select if complete coverage
+      if (unitSum.productLinesWithQty === unitSum.totalProductLines && unitSum.productLinesWithQty > 0) {
+        qtyResult = {
+          qty_ref: unitSum.sum,
+          qty_unit: "unit",
+          qty_source: "sum_product_units",
+          qty_detected: true,
+        };
+        selectionRule = `Summed all product unit quantities (${unitSum.productLinesWithQty} lines, sources: ${unitSum.sources.join(', ')})`;
+      } else if (unitSum.totalProductLines > 0) {
+        warnings.push(`Quantités partielles détectées pour les unités (${unitSum.productLinesWithQty}/${unitSum.totalProductLines}).`);
+        failureReason = `Partial unit quantities: only ${unitSum.productLinesWithQty}/${unitSum.totalProductLines} product lines have detected qty`;
+      }
     }
   }
   
-  // ÉTAPE 3d: Add count_product_lines candidate for unit-based categories (non-auto-validated)
-  // This counts lines that look like product lines (have a price and description)
-  const productLines = lines.filter(l => l.total_ht !== null && l.label.length > 5);
-  if (productLines.length > 0 && productLines.length <= 20) {
-    // Only add as a candidate (low confidence) - requires user confirmation
+  // ÉTAPE 4: count_product_lines candidate (low confidence, requires user confirmation)
+  if (productLines.length > 0 && productLines.length <= 30) {
     qtyRefCandidates.push({
       value: productLines.length,
-      unit: "unité",
-      confidence: 0.3, // Low confidence - just a suggestion
+      unit: "unit",
+      confidence: 0.3,
       evidence_line_id: null,
       source: "count_product_lines",
+      evidence_line: `Count of ${productLines.length} product lines (excludes: ${excludedLines.length} non-product lines)`,
     });
-    // Do NOT auto-select this - it's just a candidate for UI to show
+    // Do NOT auto-select - just a suggestion for UI
   }
   
-  // RÈGLE ABSOLUE: si qty_ref <= 1 ou non détecté, considérer comme non fiable
-  if (qtyResult.qty_ref !== null && qtyResult.qty_ref <= 1) {
+  // RÈGLE ABSOLUE: si qty_ref <= 1, considérer comme non fiable (sauf pour unit où 1 peut être valide)
+  if (qtyResult.qty_ref !== null && qtyResult.qty_ref <= 1 && qtyResult.qty_unit !== "unit") {
     warnings.push("Surface/quantité de référence détectée <= 1. Considérée comme non fiable.");
-    failureReason = `Detected qty_ref (${qtyResult.qty_ref}) is <= 1, considered unreliable`;
+    failureReason = `Detected qty_ref (${qtyResult.qty_ref}) is <= 1 for surface unit, considered unreliable`;
     qtyResult = {
       qty_ref: null,
       qty_unit: null,
@@ -653,41 +856,46 @@ function parseQuote(rawText: string, blocks?: any[], categoryCode?: string): Par
   if (qtyResult.qty_ref === null) {
     warnings.push("Aucune quantité de référence fiable détectée. Saisie manuelle requise pour l'analyse de prix.");
     if (!failureReason) {
-      failureReason = `No qty candidates found. Lines parsed: ${lines.length}, lines with qty: ${lines.filter(l => l.qty !== null).length}, units detected: [${detectedUnitsSet.join(', ')}]`;
+      failureReason = `No auto-validated qty found. Lines: ${lines.length}, products: ${productLines.length}, with_qty: ${productLinesWithQty.length}, units: [${detectedUnitsSet.join(', ')}]`;
     }
   }
   
-  // ====== CRITICAL FIX A: Ensure consistency between detected and value ======
+  // ====== CRITICAL FIX: Ensure consistency between detected and value ======
   // If qty_ref_value is NULL, qty_ref_detected MUST be false
-  const finalQtyDetected = qtyResult.qty_ref !== null && qtyResult.qty_detected;
+  const finalQtyDetected = qtyResult.qty_ref !== null;
   if (qtyResult.qty_ref === null && qtyResult.qty_detected) {
-    // This was the bug: detected=true but value=NULL
-    failureReason = failureReason || "value_null";
+    failureReason = "value_null";
+    qtyResult.qty_detected = false;
   }
   
-  // Build parser debug with qty_source info
-  const linesWithEmbeddedQty = lines.filter(l => l.qty_source === "embedded_in_label_price_check" || l.qty_source === "embedded_in_label");
+  // Build parser debug
   const parserDebug: ParserDebug = {
     parser_version: PARSER_VERSION,
     line_items_count: lines.length,
     line_items_with_qty_count: lines.filter(l => l.qty !== null).length,
     line_items_with_unit_count: lines.filter(l => l.unit !== null).length,
+    product_lines_count: productLines.length,
+    excluded_lines_count: excludedLines.length,
     detected_units_set: detectedUnitsSet,
     qty_parse_errors: qtyParseErrors,
     sample_lines: sampleLines,
+    excluded_lines: excludedLines.slice(0, 10), // Max 10
+    textract_tables_used: false, // Will be set by caller if table data is used
   };
   
-  // Build qty_ref debug - CRITICAL: use finalQtyDetected
+  // Build qty_ref debug
   const qtyRefDebug: QtyRefDebug = {
     category_code: categoryCode || null,
-    expected_unit_type: null, // Will be set by caller based on category
-    qty_ref_detected: finalQtyDetected, // Fixed: use finalQtyDetected
+    expected_unit_type: null,
+    qty_ref_detected: finalQtyDetected,
     qty_ref_type: qtyResult.qty_unit,
     qty_ref_value: qtyResult.qty_ref,
     qty_ref_source: qtyResult.qty_source,
     qty_ref_candidates: qtyRefCandidates,
     qty_ref_selection_rule: selectionRule,
     qty_ref_failure_reason: failureReason,
+    product_lines_count: productLines.length,
+    excluded_lines_count: excludedLines.length,
   };
   
   const parsed: ParsedQuote = {
@@ -710,7 +918,6 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Get request_id from body or generate new one
   let requestId: string | undefined;
 
   try {
@@ -729,7 +936,7 @@ serve(async (req) => {
       );
     }
 
-    console.log("=== PARSE-QUOTE START ===");
+    console.log("=== PARSE-QUOTE V3 START ===");
     console.log("Request ID:", requestId);
     console.log("Analysis ID:", analysis_id);
     console.log("Text length:", raw_text.length);
@@ -738,16 +945,15 @@ serve(async (req) => {
     // Parse the quote with full debug info
     const { parsed, parserDebug, qtyRefDebug } = parseQuote(raw_text, blocks, category_code);
 
-    console.log("Parsing complete:");
-    console.log("- Parser version:", PARSER_VERSION);
-    console.log("- Totals HT:", parsed.totals.ht);
+    console.log("Parsing complete (v3.0.0):");
     console.log("- Lines found:", parsed.lines.length);
+    console.log("- Product lines:", parserDebug.product_lines_count);
+    console.log("- Excluded lines:", parserDebug.excluded_lines_count);
     console.log("- Lines with qty:", parserDebug.line_items_with_qty_count);
     console.log("- Qty ref:", parsed.qty_ref, parsed.qty_unit);
     console.log("- Qty ref source:", qtyRefDebug.qty_ref_source);
     console.log("- Qty candidates:", qtyRefDebug.qty_ref_candidates.length);
-    console.log("- Warnings:", parsed.parsing_warnings);
-
+    
     if (qtyRefDebug.qty_ref_failure_reason) {
       console.log("⚠️ qty_ref_failure_reason:", qtyRefDebug.qty_ref_failure_reason);
     }
@@ -761,6 +967,10 @@ serve(async (req) => {
         qty_unit: parsed.qty_unit,
         parser_debug: parserDebug,
         qty_ref_debug: qtyRefDebug,
+        qtyref_candidates: qtyRefDebug.qty_ref_candidates,
+        qtyref_status: parsed.qty_ref !== null ? "success" : "needs_confirmation",
+        qtyref_failure_reason: qtyRefDebug.qty_ref_failure_reason,
+        parser_status: "success",
       })
       .eq("analysis_id", analysis_id);
 
@@ -768,7 +978,7 @@ serve(async (req) => {
       console.error("Failed to update document_extractions:", updateError);
     }
 
-    console.log("=== PARSE-QUOTE COMPLETE ===");
+    console.log("=== PARSE-QUOTE V3 COMPLETE ===");
 
     return new Response(
       JSON.stringify({
