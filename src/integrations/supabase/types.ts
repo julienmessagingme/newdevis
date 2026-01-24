@@ -322,6 +322,45 @@ export type Database = {
           },
         ]
       }
+      market_price_refs: {
+        Row: {
+          created_at: string
+          id: string
+          item_key: string
+          job_type: string
+          label: string
+          max_unit_price: number
+          min_unit_price: number
+          notes: string | null
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_key: string
+          job_type: string
+          label: string
+          max_unit_price: number
+          min_unit_price: number
+          notes?: string | null
+          unit?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_key?: string
+          job_type?: string
+          label?: string
+          max_unit_price?: number
+          min_unit_price?: number
+          notes?: string | null
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       post_signature_tracking: {
         Row: {
           admin_alert_date: string | null

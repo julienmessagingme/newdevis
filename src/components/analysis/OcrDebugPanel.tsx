@@ -100,6 +100,12 @@ interface QtyRefCandidate {
   source: string;
 }
 
+interface JobSpecificMatch {
+  value: number;
+  source: string;
+  line: string;
+}
+
 interface QtyRefDebug {
   category_code: string | null;
   expected_unit_type: string | null;
@@ -110,6 +116,11 @@ interface QtyRefDebug {
   qty_ref_candidates: QtyRefCandidate[];
   qty_ref_selection_rule: string | null;
   qty_ref_failure_reason: string | null;
+  // V3.1 additions
+  job_type: string | null;
+  job_type_confidence: string | null;
+  job_type_keywords: string[] | null;
+  job_specific_matches: JobSpecificMatch[] | null;
 }
 
 interface OcrDebugPanelProps {
@@ -425,6 +436,34 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
                         <p className="text-muted-foreground">qty_ref_source</p>
                         <Badge variant="outline" className="mt-1 text-[10px]">{qtyRefDebug.qty_ref_source}</Badge>
                       </div>
+                      
+                      {/* V3.1: Job Type Info */}
+                      {qtyRefDebug.job_type && (
+                        <>
+                          <div>
+                            <p className="text-muted-foreground">job_type</p>
+                            <Badge variant="outline" className="mt-1 text-[10px] bg-violet-500/20 text-violet-400 border-violet-500/30">
+                              {qtyRefDebug.job_type}
+                            </Badge>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">job_type_confidence</p>
+                            <Badge variant="outline" className={`mt-1 text-[10px] ${
+                              qtyRefDebug.job_type_confidence === "high" ? "bg-emerald-500/20 text-emerald-400" :
+                              qtyRefDebug.job_type_confidence === "medium" ? "bg-amber-500/20 text-amber-400" :
+                              "bg-muted text-muted-foreground"
+                            }`}>
+                              {qtyRefDebug.job_type_confidence || "-"}
+                            </Badge>
+                          </div>
+                          <div className="col-span-2">
+                            <p className="text-muted-foreground">job_type_keywords</p>
+                            <p className="font-mono text-[10px] text-violet-400 mt-1">
+                              {qtyRefDebug.job_type_keywords?.join(", ") || "-"}
+                            </p>
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     {qtyRefDebug.qty_ref_selection_rule && (
@@ -451,11 +490,32 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
                           {qtyRefDebug.qty_ref_candidates.map((c, i) => (
                             <div key={i} className="flex items-center gap-2 text-[10px] font-mono bg-muted/50 rounded px-2 py-1">
                               <span className="text-foreground font-bold">{c.value} {c.unit}</span>
-                              <Badge variant="outline" className="text-[9px]">{c.source}</Badge>
+                              <Badge variant="outline" className={`text-[9px] ${
+                                c.source.startsWith("job_specific") ? "bg-violet-500/20 text-violet-400" : ""
+                              }`}>{c.source}</Badge>
                               <span className="text-muted-foreground">conf: {(c.confidence * 100).toFixed(0)}%</span>
                               {c.evidence_line_id !== null && (
                                 <span className="text-muted-foreground">line #{c.evidence_line_id}</span>
                               )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* V3.1: Job Specific Matches */}
+                    {qtyRefDebug.job_specific_matches && qtyRefDebug.job_specific_matches.length > 0 && (
+                      <div className="mt-3 p-2 bg-violet-500/10 rounded border border-violet-500/20">
+                        <p className="text-[10px] text-muted-foreground mb-2 flex items-center gap-1">
+                          <Target className="h-3 w-3 text-violet-400" />
+                          job_specific_matches ({qtyRefDebug.job_specific_matches.length})
+                        </p>
+                        <div className="space-y-1">
+                          {qtyRefDebug.job_specific_matches.map((m, i) => (
+                            <div key={i} className="flex items-center gap-2 text-[10px] font-mono bg-violet-500/5 rounded px-2 py-1">
+                              <span className="text-violet-400 font-bold">{m.value}</span>
+                              <Badge variant="outline" className="text-[9px] bg-violet-500/20 text-violet-400">{m.source}</Badge>
+                              <span className="text-muted-foreground truncate" title={m.line}>{m.line.substring(0, 50)}...</span>
                             </div>
                           ))}
                         </div>

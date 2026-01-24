@@ -268,7 +268,15 @@ const QuantityConfirmationBlock = ({
       case "count_product_lines": return "estimé à partir du nombre de lignes produit";
       case "sum_product_units": return "calculé à partir des quantités détectées";
       case "price_consistency": return "déduit par cohérence PU × Qté = Total";
-      default: return "suggéré";
+      case "job_specific:pose_tablier_line": return "détecté via la ligne de pose";
+      case "job_specific:tablier_count": return "calculé à partir des tabliers";
+      case "job_specific:raw_text_match": return "détecté dans le texte du devis";
+      case "job_specific:line_items_mode": return "valeur la plus fréquente";
+      default: 
+        if (source?.startsWith("job_specific:")) {
+          return "détecté automatiquement";
+        }
+        return "suggéré";
     }
   };
   
@@ -354,6 +362,73 @@ const QuantityConfirmationBlock = ({
           )}
         </div>
       </div>
+    </div>
+  );
+};
+
+// =======================
+// QUANTITY EDITABLE HINT (shown after gauge for auto-detected qty)
+// =======================
+
+interface QuantityEditableHintProps {
+  currentValue: number;
+  unite: string;
+  source?: string;
+  onManualQuantityChange: (quantity: number | null) => void;
+}
+
+const QuantityEditableHint = ({ currentValue, unite, source, onManualQuantityChange }: QuantityEditableHintProps) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [inputValue, setInputValue] = useState(currentValue.toString());
+  
+  const getSourceLabel = (src: string | undefined): string => {
+    if (!src) return "détectée automatiquement";
+    if (src.includes("pose_tablier")) return "via la ligne de pose";
+    if (src.includes("tablier_count")) return "via le comptage des tabliers";
+    if (src.includes("job_specific")) return "détectée automatiquement";
+    return "détectée automatiquement";
+  };
+  
+  const handleSave = () => {
+    const value = parseFloat(inputValue.replace(',', '.'));
+    if (!isNaN(value) && value > 0) {
+      onManualQuantityChange(value);
+      setIsEditing(false);
+    }
+  };
+  
+  if (isEditing) {
+    return (
+      <div className="mt-3 p-3 bg-muted/30 rounded-lg border border-border/50 flex items-center gap-3">
+        <span className="text-xs text-muted-foreground">Modifier la quantité :</span>
+        <Input
+          type="text"
+          inputMode="decimal"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          className="w-20 h-8 text-sm"
+        />
+        <span className="text-xs text-muted-foreground">{unite}</span>
+        <Button size="sm" variant="default" onClick={handleSave}>
+          <CheckCircle className="h-3 w-3 mr-1" />
+          OK
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => setIsEditing(false)}>
+          Annuler
+        </Button>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="mt-3 p-3 bg-blue-500/10 rounded-lg border border-blue-500/20 flex items-center justify-between">
+      <p className="text-xs text-muted-foreground">
+        <span className="text-blue-400">ℹ️</span> Quantité {getSourceLabel(source)} : <strong className="text-foreground">{currentValue} {unite}</strong>
+      </p>
+      <Button size="sm" variant="ghost" onClick={() => setIsEditing(true)} className="text-xs">
+        <Edit3 className="h-3 w-3 mr-1" />
+        Modifier
+      </Button>
     </div>
   );
 };
@@ -512,17 +587,29 @@ const BlockPrixMarche = ({
               onManualQuantityChange={onManualQuantityChange}
             />
           ) : (
-            <PriceGauge
-              label={sousTypeInfo!.sousType.label}
-              sousType={sousTypeInfo!.sousType}
-              montant={montantTotalHT!}
-              prixUnitaire={prixUnitaire}
-              fourchette={fourchettePrixUnitaire}
-              tempsEstime={tempsEstime}
-              positionPct={positionPct}
-              zoneLabel={zoneLabel}
-              quantite={quantite}
-            />
+            <>
+              <PriceGauge
+                label={sousTypeInfo!.sousType.label}
+                sousType={sousTypeInfo!.sousType}
+                montant={montantTotalHT!}
+                prixUnitaire={prixUnitaire}
+                fourchette={fourchettePrixUnitaire}
+                tempsEstime={tempsEstime}
+                positionPct={positionPct}
+                zoneLabel={zoneLabel}
+                quantite={quantite}
+              />
+              
+              {/* If quantity was auto-detected (not manually set), show edit option */}
+              {manualQuantity === null && quantiteDetectee && onManualQuantityChange && (
+                <QuantityEditableHint
+                  currentValue={quantiteDetectee}
+                  unite={unite}
+                  source={qtyRefSource}
+                  onManualQuantityChange={onManualQuantityChange}
+                />
+              )}
+            </>
           )}
           
           <div className="mt-6 p-4 bg-muted/30 rounded-xl border border-border/50">
