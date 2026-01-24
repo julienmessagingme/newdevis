@@ -4,13 +4,15 @@ interface SEOHeadProps {
   title: string;
   description: string;
   canonical?: string;
+  ogType?: "website" | "article";
+  ogImage?: string;
 }
 
 /**
  * Composant SEO pour gérer les balises meta dynamiquement
  * Chaque page doit avoir un titre unique et une description orientée utilisateur
  */
-const SEOHead = ({ title, description, canonical }: SEOHeadProps) => {
+const SEOHead = ({ title, description, canonical, ogType = "website", ogImage }: SEOHeadProps) => {
   useEffect(() => {
     // Update document title
     document.title = title;
@@ -27,14 +29,48 @@ const SEOHead = ({ title, description, canonical }: SEOHeadProps) => {
     }
 
     // Update OG tags
-    let ogTitle = document.querySelector('meta[property="og:title"]');
-    if (ogTitle) {
-      ogTitle.setAttribute("content", title);
+    let ogTitleTag = document.querySelector('meta[property="og:title"]');
+    if (ogTitleTag) {
+      ogTitleTag.setAttribute("content", title);
+    } else {
+      ogTitleTag = document.createElement("meta");
+      ogTitleTag.setAttribute("property", "og:title");
+      ogTitleTag.setAttribute("content", title);
+      document.head.appendChild(ogTitleTag);
     }
 
-    let ogDescription = document.querySelector('meta[property="og:description"]');
-    if (ogDescription) {
-      ogDescription.setAttribute("content", description);
+    let ogDescriptionTag = document.querySelector('meta[property="og:description"]');
+    if (ogDescriptionTag) {
+      ogDescriptionTag.setAttribute("content", description);
+    } else {
+      ogDescriptionTag = document.createElement("meta");
+      ogDescriptionTag.setAttribute("property", "og:description");
+      ogDescriptionTag.setAttribute("content", description);
+      document.head.appendChild(ogDescriptionTag);
+    }
+
+    // OG Type
+    let ogTypeTag = document.querySelector('meta[property="og:type"]');
+    if (ogTypeTag) {
+      ogTypeTag.setAttribute("content", ogType);
+    } else {
+      ogTypeTag = document.createElement("meta");
+      ogTypeTag.setAttribute("property", "og:type");
+      ogTypeTag.setAttribute("content", ogType);
+      document.head.appendChild(ogTypeTag);
+    }
+
+    // OG Image
+    if (ogImage) {
+      let ogImageTag = document.querySelector('meta[property="og:image"]');
+      if (ogImageTag) {
+        ogImageTag.setAttribute("content", ogImage);
+      } else {
+        ogImageTag = document.createElement("meta");
+        ogImageTag.setAttribute("property", "og:image");
+        ogImageTag.setAttribute("content", ogImage);
+        document.head.appendChild(ogImageTag);
+      }
     }
 
     // Update canonical if provided
@@ -49,7 +85,7 @@ const SEOHead = ({ title, description, canonical }: SEOHeadProps) => {
         document.head.appendChild(canonicalLink);
       }
     }
-  }, [title, description, canonical]);
+  }, [title, description, canonical, ogType, ogImage]);
 
   return null;
 };
