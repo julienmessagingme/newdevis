@@ -1639,31 +1639,61 @@ serve(async (req) => {
     // Generate request ID for tracing
     const requestId = crypto.randomUUID();
     
-    // ============ STEP 0: CREATE DOCUMENT_EXTRACTIONS RECORD ============
-    // Create immediately to track pipeline status
-    const { data: extractionRecord, error: insertError } = await supabase
+    // ============ STEP 0: GET OR CREATE DOCUMENT_EXTRACTIONS RECORD ============
+    // The trigger auto-creates a row on analyses INSERT. We lookup and update it.
+    let extractionId: string | null = null;
+    
+    // First try to find the record created by the trigger
+    const { data: existingExtraction } = await supabase
       .from("document_extractions")
-      .insert({
-        file_hash: fileHash,
-        file_path: analysis.file_path,
-        analysis_id: analysisId,
-        request_id: requestId,
-        status: "created",
-        started_at: new Date().toISOString(),
-        provider: "pending",
-        ocr_used: false,
-        cache_hit: false,
-      })
-      .select()
+      .select("id")
+      .eq("analysis_id", analysisId)
+      .order("created_at", { ascending: false })
+      .limit(1)
       .single();
     
-    if (insertError) {
-      console.error("Failed to create document_extractions record:", insertError);
-      // Continue anyway - the analysis should still work
+    if (existingExtraction) {
+      extractionId = existingExtraction.id;
+      // Update with hash and request_id
+      await supabase
+        .from("document_extractions")
+        .update({
+          file_hash: fileHash,
+          request_id: requestId,
+          started_at: new Date().toISOString(),
+          provider: "pending",
+          ocr_status: "created",
+        })
+        .eq("id", extractionId);
+      console.log("Updated existing document_extractions record:", extractionId);
+    } else {
+      // Fallback: create manually if trigger didn't fire (shouldn't happen)
+      const { data: newExtraction, error: insertError } = await supabase
+        .from("document_extractions")
+        .insert({
+          file_hash: fileHash,
+          file_path: analysis.file_path,
+          analysis_id: analysisId,
+          request_id: requestId,
+          status: "created",
+          started_at: new Date().toISOString(),
+          provider: "pending",
+          ocr_used: false,
+          cache_hit: false,
+          ocr_status: "created",
+          parser_status: "pending",
+          qtyref_status: "pending",
+        })
+        .select()
+        .single();
+      
+      if (insertError) {
+        console.error("Failed to create document_extractions record:", insertError);
+      } else {
+        extractionId = newExtraction?.id || null;
+        console.log("Created document_extractions record (fallback):", extractionId);
+      }
     }
-    
-    const extractionId = extractionRecord?.id;
-    console.log("Created document_extractions record:", extractionId);
     
     // ============ CIRCUIT BREAKER CHECK ============
     const circuitBreaker = await checkCircuitBreaker(supabase, fileHash);
@@ -1760,36 +1790,45 @@ serve(async (req) => {
       if (extractionId) {
         await supabase
           .from("document_extractions")
-          .update({ status: "extracting" })
+          .update({ status: "extracting", ocr_status: "extracting" })
           .eq("id", extractionId);
       }
       
       extracted = await extractDataFromDocument(base64Content, mimeType, lovableApiKey);
       
-      // Update status to extracted
+      // Update status to extracted with ocr_status = success
       if (extractionId) {
         await supabase
           .from("document_extractions")
           .update({ 
             status: "extracted",
+            ocr_status: "success",
             provider: "lovable_ai",
             ocr_used: true,
             raw_text: JSON.stringify(extracted),
+            text_length: JSON.stringify(extracted).length,
             ocr_debug: {
               ocr_provider: "lovable_ai",
               ocr_reason: "direct_ai_extraction",
               request_id: requestId,
+              pages_total: 1,
+              pages_used: 1,
             },
           })
           .eq("id", extractionId);
       }
       
-      // Handle rejected documents
+      // Handle rejected documents (facture)
       if (extracted.type_document === "facture") {
         if (extractionId) {
           await supabase
             .from("document_extractions")
-            .update({ status: "parsed" })
+            .update({ 
+              status: "parsed",
+              ocr_status: "success",  // Must be success to allow analyses.status=completed
+              parser_status: "success",
+              qtyref_status: "success",
+            })
             .eq("id", extractionId);
         }
         
@@ -1816,7 +1855,12 @@ serve(async (req) => {
         if (extractionId) {
           await supabase
             .from("document_extractions")
-            .update({ status: "parsed" })
+            .update({ 
+              status: "parsed",
+              ocr_status: "success",  // Must be success to allow analyses.status=completed
+              parser_status: "success",
+              qtyref_status: "success",
+            })
             .eq("id", extractionId);
         }
         
@@ -1852,6 +1896,7 @@ serve(async (req) => {
           .from("document_extractions")
           .update({
             status: "failed",
+            ocr_status: "failed",
             error_code: errorCode,
             error_details: { message: publicMessage },
           })
@@ -1875,7 +1920,7 @@ serve(async (req) => {
     if (extractionId) {
       await supabase
         .from("document_extractions")
-        .update({ status: "parsing" })
+        .update({ status: "parsing", parser_status: "parsing" })
         .eq("id", extractionId);
     }
     
@@ -1894,12 +1939,22 @@ serve(async (req) => {
     console.log("Critères rouges:", scoring.criteres_rouges);
     console.log("Critères oranges:", scoring.criteres_oranges.length);
 
-    // Update extraction record to parsed
+    // Update extraction record to parsed with parser_status=success, qtyref_status=success
     if (extractionId) {
+      const detectedUnits = [...new Set(extracted.travaux.map(t => t.unite).filter(Boolean))];
+      const sampleLines = extracted.travaux.slice(0, 5).map(t => ({
+        description: t.libelle,
+        qty: t.quantite,
+        unit: t.unite,
+        total: t.montant,
+      }));
+      
       await supabase
         .from("document_extractions")
         .update({
           status: "parsed",
+          parser_status: "success",
+          qtyref_status: verified.comparaisons_prix.length > 0 ? "success" : "failed",
           parser_debug: {
             version: "1.0",
             travaux_count: extracted.travaux.length,
@@ -1908,7 +1963,12 @@ serve(async (req) => {
           qty_ref_debug: {
             comparisons_count: verified.comparaisons_prix.length,
             rge_checked: verified.rge_pertinent,
+            qty_ref_detected: extracted.travaux.some(t => t.quantite && t.quantite > 0),
           },
+          sample_lines: sampleLines,
+          detected_units_set: detectedUnits as string[],
+          qtyref_candidates: verified.comparaisons_prix.length > 0 ? verified.comparaisons_prix : null,
+          qtyref_failure_reason: verified.comparaisons_prix.length === 0 ? "no_price_comparisons" : null,
         })
         .eq("id", extractionId);
     }

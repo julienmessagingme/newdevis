@@ -135,6 +135,7 @@ export type Database = {
           cache_hit: boolean
           contains_table_signals: boolean | null
           created_at: string
+          detected_units_set: string[] | null
           error_code: string | null
           error_details: Json | null
           expires_at: string
@@ -143,22 +144,29 @@ export type Database = {
           force_textract: boolean | null
           id: string
           ocr_debug: Json | null
+          ocr_provider: string | null
           ocr_reason: string | null
+          ocr_status: string
           ocr_used: boolean
           pages_count: number | null
           pages_used: number | null
           pages_used_list: number[] | null
           parsed_data: Json | null
           parser_debug: Json | null
+          parser_status: string
           price_debug: Json | null
           provider: string
           provider_calls: Json | null
           qty_ref_debug: Json | null
           qty_ref_detected: number | null
           qty_unit: string | null
+          qtyref_candidates: Json | null
+          qtyref_failure_reason: string | null
+          qtyref_status: string
           quality_score: number | null
           raw_text: string | null
           request_id: string | null
+          sample_lines: Json | null
           started_at: string | null
           status: string
           text_length: number | null
@@ -171,6 +179,7 @@ export type Database = {
           cache_hit?: boolean
           contains_table_signals?: boolean | null
           created_at?: string
+          detected_units_set?: string[] | null
           error_code?: string | null
           error_details?: Json | null
           expires_at?: string
@@ -179,22 +188,29 @@ export type Database = {
           force_textract?: boolean | null
           id?: string
           ocr_debug?: Json | null
+          ocr_provider?: string | null
           ocr_reason?: string | null
+          ocr_status?: string
           ocr_used?: boolean
           pages_count?: number | null
           pages_used?: number | null
           pages_used_list?: number[] | null
           parsed_data?: Json | null
           parser_debug?: Json | null
+          parser_status?: string
           price_debug?: Json | null
           provider?: string
           provider_calls?: Json | null
           qty_ref_debug?: Json | null
           qty_ref_detected?: number | null
           qty_unit?: string | null
+          qtyref_candidates?: Json | null
+          qtyref_failure_reason?: string | null
+          qtyref_status?: string
           quality_score?: number | null
           raw_text?: string | null
           request_id?: string | null
+          sample_lines?: Json | null
           started_at?: string | null
           status?: string
           text_length?: number | null
@@ -207,6 +223,7 @@ export type Database = {
           cache_hit?: boolean
           contains_table_signals?: boolean | null
           created_at?: string
+          detected_units_set?: string[] | null
           error_code?: string | null
           error_details?: Json | null
           expires_at?: string
@@ -215,22 +232,29 @@ export type Database = {
           force_textract?: boolean | null
           id?: string
           ocr_debug?: Json | null
+          ocr_provider?: string | null
           ocr_reason?: string | null
+          ocr_status?: string
           ocr_used?: boolean
           pages_count?: number | null
           pages_used?: number | null
           pages_used_list?: number[] | null
           parsed_data?: Json | null
           parser_debug?: Json | null
+          parser_status?: string
           price_debug?: Json | null
           provider?: string
           provider_calls?: Json | null
           qty_ref_debug?: Json | null
           qty_ref_detected?: number | null
           qty_unit?: string | null
+          qtyref_candidates?: Json | null
+          qtyref_failure_reason?: string | null
+          qtyref_status?: string
           quality_score?: number | null
           raw_text?: string | null
           request_id?: string | null
+          sample_lines?: Json | null
           started_at?: string | null
           status?: string
           text_length?: number | null
