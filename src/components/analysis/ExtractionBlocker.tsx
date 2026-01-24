@@ -50,19 +50,24 @@ export const useExtractionStatus = (analysisId: string): ExtractionStatus | null
     if (!analysisId) return;
 
     const checkStatus = async () => {
-      // First check document_extractions
+      // Check document_extractions with new explicit status columns
       const { data, error } = await supabase
         .from("document_extractions")
-        .select("ocr_debug, parser_debug, qty_ref_debug, raw_text, ocr_reason")
+        .select("ocr_status, parser_status, qtyref_status, ocr_debug, parser_debug, qty_ref_debug, raw_text, ocr_reason, error_code, error_details")
         .eq("analysis_id", analysisId)
+        .order("created_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
-      // Check for failed status in ocr_debug
-      const ocrDebug = data?.ocr_debug as { error_code?: string; error_message?: string } | null;
-      const isFailed = ocrDebug?.error_code === "OCR_TIMEOUT" || 
-                       ocrDebug?.error_code === "OCR_FAILED" ||
-                       data?.ocr_reason === "OCR_TIMEOUT" ||
-                       data?.ocr_reason === "OCR_FAILED";
+      // Check for failed status
+      const ocrStatus = data?.ocr_status as string | null;
+      const isFailed = ocrStatus === "failed" || ocrStatus === "timeout" ||
+                       data?.error_code === "OCR_TIMEOUT" || 
+                       data?.error_code === "OCR_FAILED";
+      
+      const errorDetails = data?.error_details as { message?: string } | null;
+      const ocrDebug = data?.ocr_debug as { error_message?: string } | null;
+      const errorMessage = errorDetails?.message || ocrDebug?.error_message || "L'extraction a échoué";
 
       if (isFailed) {
         setStatus({
@@ -72,7 +77,7 @@ export const useExtractionStatus = (analysisId: string): ExtractionStatus | null
           hasQtyRefDebug: false,
           isComplete: false,
           isFailed: true,
-          errorMessage: ocrDebug?.error_message || "L'extraction a échoué",
+          errorMessage,
           stage: "failed",
           stageLabel: STAGE_LABELS.failed
         });
@@ -94,9 +99,18 @@ export const useExtractionStatus = (analysisId: string): ExtractionStatus | null
         return;
       }
 
-      const hasOcrDebug = data.ocr_debug !== null;
-      const hasParserDebug = data.parser_debug !== null;
-      const hasQtyRefDebug = data.qty_ref_debug !== null;
+      // Use explicit status columns for progress tracking
+      const parserStatus = data.parser_status as string | null;
+      const qtyrefStatus = data.qtyref_status as string | null;
+      
+      const hasOcrSuccess = ocrStatus === "success";
+      const hasParserSuccess = parserStatus === "success";
+      const hasQtyRefSuccess = qtyrefStatus === "success" || qtyrefStatus === "failed"; // failed is still "done"
+      
+      // Fallback to checking debug objects for legacy records
+      const hasOcrDebug = data.ocr_debug !== null || hasOcrSuccess;
+      const hasParserDebug = data.parser_debug !== null || hasParserSuccess;
+      const hasQtyRefDebug = data.qty_ref_debug !== null || hasQtyRefSuccess;
 
       let stage: "ocr" | "parsing" | "analysis" | "complete" | "failed" = "ocr";
       if (hasOcrDebug && hasParserDebug && hasQtyRefDebug) {
@@ -122,7 +136,7 @@ export const useExtractionStatus = (analysisId: string): ExtractionStatus | null
 
     checkStatus();
 
-    // Poll toutes les 3 secondes si pas encore complet
+    // Poll every 3 seconds if not complete
     const interval = setInterval(() => {
       if (!status?.isComplete && !status?.isFailed) {
         checkStatus();
