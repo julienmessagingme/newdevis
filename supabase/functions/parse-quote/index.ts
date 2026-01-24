@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 // Parser version for tracking
-const PARSER_VERSION = "2.0.0";
+const PARSER_VERSION = "2.1.0";
 
 // ============ TYPE DEFINITIONS ============
 
@@ -37,6 +37,7 @@ interface ParsedLine {
   total_ht: number | null;
   qty_raw?: string;
   unit_raw?: string;
+  qty_source?: "column" | "embedded_in_label_price_check" | "embedded_in_label";
 }
 
 interface WorkCategory {
@@ -223,6 +224,64 @@ interface ParseLineResult {
   qtyParseErrors: string[];
 }
 
+// Helper: Try to extract embedded quantity from label ending (e.g., "Visio 2" → qty=2)
+// Uses price coherence check: abs(total - unit_price * qty) / max(total, 1) < 0.02
+function tryExtractEmbeddedQty(label: string, totalPrice: number, textLine: string): { qty: number; source: "embedded_in_label_price_check" | "embedded_in_label" } | null {
+  // Pattern: label ending with an integer (1-3 digits)
+  const embeddedQtyPattern = /(.+?)\s+(\d{1,3})$/;
+  const match = label.match(embeddedQtyPattern);
+  
+  if (!match) return null;
+  
+  const potentialQty = parseInt(match[2], 10);
+  if (potentialQty < 1 || potentialQty > 100) return null;
+  
+  // Try to find a unit price in the line to validate
+  // Look for patterns like "1 234,56 €" that could be unit price
+  const allPrices: number[] = [];
+  const pricePatterns = [
+    /(\d{1,3}(?:[\s\u00a0]?\d{3})*[,\.]\d{2})\s*€/g,
+    /€\s*(\d{1,3}(?:[\s\u00a0]?\d{3})*[,\.]\d{2})/g,
+  ];
+  
+  for (const pattern of pricePatterns) {
+    pattern.lastIndex = 0;
+    let priceMatch;
+    while ((priceMatch = pattern.exec(textLine)) !== null) {
+      const priceStr = priceMatch[1].replace(/[\s\u00a0]/g, '').replace(',', '.');
+      const price = parseFloat(priceStr);
+      if (!isNaN(price) && price > 0) {
+        allPrices.push(price);
+      }
+    }
+  }
+  
+  // If we have at least 2 prices, assume smaller is unit price and larger is total
+  if (allPrices.length >= 2) {
+    const sortedPrices = [...new Set(allPrices)].sort((a, b) => a - b);
+    const unitPrice = sortedPrices[0];
+    const expectedTotal = unitPrice * potentialQty;
+    const actualTotal = sortedPrices[sortedPrices.length - 1];
+    
+    // Price coherence check: error < 2%
+    const error = Math.abs(expectedTotal - actualTotal) / Math.max(actualTotal, 1);
+    if (error < 0.02) {
+      return { qty: potentialQty, source: "embedded_in_label_price_check" };
+    }
+  }
+  
+  // Fallback: if label clearly ends with a number after a product name (weaker confidence)
+  // Only accept if the number is small (1-10) to avoid false positives
+  if (potentialQty >= 1 && potentialQty <= 10 && match[1].length >= 5) {
+    // Only if the label part before number looks like a product name (contains letters)
+    if (/[a-zA-ZÀ-ÿ]{3,}/.test(match[1])) {
+      return { qty: potentialQty, source: "embedded_in_label" };
+    }
+  }
+  
+  return null;
+}
+
 function parseLines(text: string): ParseLineResult {
   const lines: ParsedLine[] = [];
   const rawLines: string[] = [];
@@ -249,19 +308,36 @@ function parseLines(text: string): ParseLineResult {
     
     if (label.length < 3) continue;
     
+    let finalQty = qty;
+    let finalUnit = unit;
+    let finalQtyRaw = qty_raw;
+    let qtySource: "column" | "embedded_in_label_price_check" | "embedded_in_label" | undefined = qty ? "column" : undefined;
+    
+    // If no qty detected via column, try embedded detection
+    if (finalQty === null) {
+      const embeddedResult = tryExtractEmbeddedQty(label, price, textLine);
+      if (embeddedResult) {
+        finalQty = embeddedResult.qty;
+        finalUnit = "unité"; // Embedded quantities are typically units
+        finalQtyRaw = String(embeddedResult.qty);
+        qtySource = embeddedResult.source;
+      }
+    }
+    
     // Track parsing errors
-    if (qty === null && /\d/.test(textLine)) {
+    if (finalQty === null && /\d/.test(textLine)) {
       qtyParseErrors.push(`Line "${textLine.substring(0, 50)}...": contains digits but qty not detected`);
     }
     
     const parsedLine: ParsedLine = {
       label,
-      qty: qty,
-      unit: unit,
-      unit_price_ht: (qty && price && qty > 0) ? price / qty : null,
+      qty: finalQty,
+      unit: finalUnit,
+      unit_price_ht: (finalQty && price && finalQty > 0) ? price / finalQty : null,
       total_ht: price,
-      qty_raw: qty_raw || undefined,
+      qty_raw: finalQtyRaw || undefined,
       unit_raw: unit_raw || undefined,
+      qty_source: qtySource,
     };
     
     lines.push(parsedLine);
@@ -545,6 +621,21 @@ function parseQuote(rawText: string, blocks?: any[], categoryCode?: string): Par
     }
   }
   
+  // ÉTAPE 3d: Add count_product_lines candidate for unit-based categories (non-auto-validated)
+  // This counts lines that look like product lines (have a price and description)
+  const productLines = lines.filter(l => l.total_ht !== null && l.label.length > 5);
+  if (productLines.length > 0 && productLines.length <= 20) {
+    // Only add as a candidate (low confidence) - requires user confirmation
+    qtyRefCandidates.push({
+      value: productLines.length,
+      unit: "unité",
+      confidence: 0.3, // Low confidence - just a suggestion
+      evidence_line_id: null,
+      source: "count_product_lines",
+    });
+    // Do NOT auto-select this - it's just a candidate for UI to show
+  }
+  
   // RÈGLE ABSOLUE: si qty_ref <= 1 ou non détecté, considérer comme non fiable
   if (qtyResult.qty_ref !== null && qtyResult.qty_ref <= 1) {
     warnings.push("Surface/quantité de référence détectée <= 1. Considérée comme non fiable.");
@@ -566,7 +657,16 @@ function parseQuote(rawText: string, blocks?: any[], categoryCode?: string): Par
     }
   }
   
-  // Build parser debug
+  // ====== CRITICAL FIX A: Ensure consistency between detected and value ======
+  // If qty_ref_value is NULL, qty_ref_detected MUST be false
+  const finalQtyDetected = qtyResult.qty_ref !== null && qtyResult.qty_detected;
+  if (qtyResult.qty_ref === null && qtyResult.qty_detected) {
+    // This was the bug: detected=true but value=NULL
+    failureReason = failureReason || "value_null";
+  }
+  
+  // Build parser debug with qty_source info
+  const linesWithEmbeddedQty = lines.filter(l => l.qty_source === "embedded_in_label_price_check" || l.qty_source === "embedded_in_label");
   const parserDebug: ParserDebug = {
     parser_version: PARSER_VERSION,
     line_items_count: lines.length,
@@ -577,11 +677,11 @@ function parseQuote(rawText: string, blocks?: any[], categoryCode?: string): Par
     sample_lines: sampleLines,
   };
   
-  // Build qty_ref debug
+  // Build qty_ref debug - CRITICAL: use finalQtyDetected
   const qtyRefDebug: QtyRefDebug = {
     category_code: categoryCode || null,
     expected_unit_type: null, // Will be set by caller based on category
-    qty_ref_detected: qtyResult.qty_detected,
+    qty_ref_detected: finalQtyDetected, // Fixed: use finalQtyDetected
     qty_ref_type: qtyResult.qty_unit,
     qty_ref_value: qtyResult.qty_ref,
     qty_ref_source: qtyResult.qty_source,
