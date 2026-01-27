@@ -47,18 +47,20 @@ const DevisCalculatorSection = () => {
     setResult(null);
 
     try {
+      // Build URL with query parameters for GET request
+      const baseUrl = "https://n8n.messagingme.app/webhook-test/d1cfedb7-0ebb-44ca-bb2b-543ee84b0075";
+      const queryParams = new URLSearchParams({
+        job_type: jobType,
+        surface: surface,
+        zip: zip,
+      }).toString();
+      
       const { data, error: fnError } = await supabase.functions.invoke("test-webhook", {
         body: {
-          url: "https://n8n.messagingme.app/webhook-test/d1cfedb7-0ebb-44ca-bb2b-543ee84b0075",
-          method: "POST",
-          payload: {
-            job_type: jobType,
-            surface: Number(surface),
-            zip: zip,
-          },
+          url: `${baseUrl}?${queryParams}`,
+          method: "GET",
         },
       });
-
       if (fnError) {
         throw new Error(fnError.message || "Erreur lors de l'appel API");
       }
