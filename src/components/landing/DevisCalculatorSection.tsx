@@ -23,10 +23,13 @@ const JOB_TYPES = [
 ];
 
 interface PriceResult {
-  min?: number;
-  max?: number;
-  avg?: number;
-  message?: string;
+  min_total: number;
+  avg_total: number;
+  max_total: number;
+  price_min_unit_ht: number;
+  price_avg_unit_ht: number;
+  price_max_unit_ht: number;
+  surface: number;
 }
 
 const DevisCalculatorSection = () => {
@@ -47,12 +50,10 @@ const DevisCalculatorSection = () => {
     setResult(null);
 
     try {
-      // Build URL with query parameters for GET request
+      // Build URL with job_type only
       const baseUrl = "https://n8n.messagingme.app/webhook-test/d1cfedb7-0ebb-44ca-bb2b-543ee84b0075";
       const queryParams = new URLSearchParams({
         job_type: jobType,
-        surface: surface,
-        zip: zip,
       }).toString();
       
       const { data, error: fnError } = await supabase.functions.invoke("test-webhook", {
@@ -61,6 +62,7 @@ const DevisCalculatorSection = () => {
           method: "GET",
         },
       });
+      
       if (fnError) {
         throw new Error(fnError.message || "Erreur lors de l'appel API");
       }
@@ -72,19 +74,31 @@ const DevisCalculatorSection = () => {
       // Parse the API response
       const apiResponse = data.data;
       
-      if (apiResponse && typeof apiResponse === "object") {
+      if (apiResponse && typeof apiResponse === "object" && 
+          apiResponse.price_min_unit_ht !== undefined &&
+          apiResponse.price_avg_unit_ht !== undefined &&
+          apiResponse.price_max_unit_ht !== undefined) {
+        
+        const surfaceNum = Number(surface);
+        const priceMinUnit = Number(apiResponse.price_min_unit_ht);
+        const priceAvgUnit = Number(apiResponse.price_avg_unit_ht);
+        const priceMaxUnit = Number(apiResponse.price_max_unit_ht);
+        
         setResult({
-          min: apiResponse.min ?? apiResponse.price_min ?? apiResponse.minPrice,
-          max: apiResponse.max ?? apiResponse.price_max ?? apiResponse.maxPrice,
-          avg: apiResponse.avg ?? apiResponse.price_avg ?? apiResponse.avgPrice ?? apiResponse.average,
-          message: apiResponse.message,
+          min_total: priceMinUnit * surfaceNum,
+          avg_total: priceAvgUnit * surfaceNum,
+          max_total: priceMaxUnit * surfaceNum,
+          price_min_unit_ht: priceMinUnit,
+          price_avg_unit_ht: priceAvgUnit,
+          price_max_unit_ht: priceMaxUnit,
+          surface: surfaceNum,
         });
       } else {
-        setResult({ message: String(apiResponse) });
+        throw new Error("Prix indisponible pour ce type de travaux");
       }
     } catch (err) {
       console.error("Devis calculation error:", err);
-      setError(err instanceof Error ? err.message : "Une erreur est survenue");
+      setError(err instanceof Error ? err.message : "Prix indisponible pour ce type de travaux");
     } finally {
       setIsLoading(false);
     }
@@ -204,35 +218,31 @@ const DevisCalculatorSection = () => {
                     {getJobTypeLabel(jobType)}
                   </p>
                   <p>
-                    <span className="font-medium">Surface :</span> {surface} m²
-                  </p>
-                  <p>
-                    <span className="font-medium">Code postal :</span> {zip}
+                    <span className="font-medium">Surface :</span> {result.surface} m²
                   </p>
                 </div>
 
                 {/* Price Range */}
-                {(result.min !== undefined || result.max !== undefined) && (
-                  <div className="pt-2 border-t border-primary/10">
-                    <p className="text-lg font-bold text-foreground">
-                      Fourchette estimée :{" "}
-                      <span className="text-primary">
-                        {result.min?.toLocaleString("fr-FR")} € –{" "}
-                        {result.max?.toLocaleString("fr-FR")} €
-                      </span>
-                    </p>
-                    {result.avg !== undefined && (
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Prix moyen : {result.avg.toLocaleString("fr-FR")} €
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Message if no price but has message */}
-                {result.message && !result.min && !result.max && (
-                  <p className="text-foreground">{result.message}</p>
-                )}
+                <div className="pt-2 border-t border-primary/10 space-y-3">
+                  <p className="text-lg font-bold text-foreground">
+                    Fourchette :{" "}
+                    <span className="text-primary">
+                      {result.min_total.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € à{" "}
+                      {result.max_total.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (HT)
+                    </span>
+                  </p>
+                  
+                  <p className="text-base text-foreground">
+                    Prix moyen estimé :{" "}
+                    <span className="font-semibold text-primary">
+                      {result.avg_total.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (HT)
+                    </span>
+                  </p>
+                  
+                  <p className="text-sm text-muted-foreground">
+                    Détail : {result.surface} m² × {result.price_avg_unit_ht.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/m² HT
+                  </p>
+                </div>
               </div>
             )}
           </CardContent>
