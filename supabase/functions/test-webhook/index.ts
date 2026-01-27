@@ -17,13 +17,19 @@ serve(async (req) => {
     console.log(`Sending ${method} request to: ${url}`);
     console.log('Payload:', JSON.stringify(payload, null, 2));
 
-    const response = await fetch(url, {
+    const fetchOptions: RequestInit = {
       method,
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(payload),
-    });
+    };
+
+    // Only add body for non-GET/HEAD methods
+    if (method !== 'GET' && method !== 'HEAD') {
+      fetchOptions.body = JSON.stringify(payload);
+    }
+
+    const response = await fetch(url, fetchOptions);
 
     const responseText = await response.text();
     let responseData;
