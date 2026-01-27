@@ -51,7 +51,7 @@ const DevisCalculatorSection = () => {
 
     try {
       // Build URL with job_type only
-      const baseUrl = "https://n8n.messagingme.app/webhook-test/d1cfedb7-0ebb-44ca-bb2b-543ee84b0075";
+      const baseUrl = "https://n8n.messagingme.app/webhook/d1cfedb7-0ebb-44ca-bb2b-543ee84b0075";
       const queryParams = new URLSearchParams({
         job_type: jobType,
       }).toString();
