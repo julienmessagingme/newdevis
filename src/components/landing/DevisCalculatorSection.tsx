@@ -50,10 +50,12 @@ const DevisCalculatorSection = () => {
     setResult(null);
 
     try {
-      // Build URL with job_type only
+      // Build URL with all parameters: job_type, surface, zip
       const baseUrl = "https://n8n.messagingme.app/webhook/d1cfedb7-0ebb-44ca-bb2b-543ee84b0075";
       const queryParams = new URLSearchParams({
         job_type: jobType,
+        surface: surface,
+        zip: zip,
       }).toString();
       
       const { data, error: fnError } = await supabase.functions.invoke("test-webhook", {
@@ -71,18 +73,18 @@ const DevisCalculatorSection = () => {
         throw new Error(data?.error || "L'API a retourné une erreur");
       }
 
-      // Parse the API response
+      // Parse the API response with French keys: "prix mini", "prix avg", "prix max"
       const apiResponse = data.data;
       
       if (apiResponse && typeof apiResponse === "object" && 
-          apiResponse.price_min_unit_ht !== undefined &&
-          apiResponse.price_avg_unit_ht !== undefined &&
-          apiResponse.price_max_unit_ht !== undefined) {
+          apiResponse["prix mini"] !== undefined &&
+          apiResponse["prix avg"] !== undefined &&
+          apiResponse["prix max"] !== undefined) {
         
         const surfaceNum = Number(surface);
-        const priceMinUnit = Number(apiResponse.price_min_unit_ht);
-        const priceAvgUnit = Number(apiResponse.price_avg_unit_ht);
-        const priceMaxUnit = Number(apiResponse.price_max_unit_ht);
+        const priceMinUnit = Number(apiResponse["prix mini"]);
+        const priceAvgUnit = Number(apiResponse["prix avg"]);
+        const priceMaxUnit = Number(apiResponse["prix max"]);
         
         setResult({
           min_total: priceMinUnit * surfaceNum,
@@ -94,7 +96,7 @@ const DevisCalculatorSection = () => {
           surface: surfaceNum,
         });
       } else {
-        throw new Error("Prix indisponible pour ce type de travaux");
+        throw new Error("Prix marché indisponible pour ce type de travaux");
       }
     } catch (err) {
       console.error("Devis calculation error:", err);
