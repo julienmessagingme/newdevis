@@ -496,6 +496,7 @@ const AnalysisResult = () => {
               zoneType={locationInfo.zoneType || analysis.types_travaux?.[0]?.zone_type}
               codePostal={locationInfo.codePostal}
               selectedWorkType={analysis.work_type}
+              typesTravaux={analysis.types_travaux} // Ajout pour extraction auto n8n
             />
           );
         })()}

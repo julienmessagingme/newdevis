@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Receipt, MapPin, Clock, TrendingUp, TrendingDown, Minus, HelpCircle, Info, AlertTriangle, Edit3, CheckCircle } from "lucide-react";
+import { Receipt, MapPin, Clock, TrendingUp, TrendingDown, Minus, HelpCircle, Info, AlertTriangle, Edit3, CheckCircle, Loader2, ExternalLink } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import {
   calculatePricePosition,
   type SousType,
 } from "@/lib/workTypeReferentiel";
+import { useMarketPriceAPI, type TravauxItem } from "@/hooks/useMarketPriceAPI";
 
 // =======================
 // TYPES & INTERFACES
@@ -38,7 +39,9 @@ interface BlockPrixMarcheProps {
   qtyRefCandidates?: QtyRefCandidate[];
   qtyRefSource?: string;
   qtyRefDetected?: boolean;
+  typesTravaux?: TravauxItem[]; // Ajout pour extraction auto
 }
+
 
 // =======================
 // QUANTITY VALIDATION HELPERS
@@ -454,7 +457,160 @@ const NoReferenceBlock = () => (
 );
 
 // =======================
-// MAIN COMPONENT
+// N8N MARKET PRICE COMPONENT
+// =======================
+
+interface MarketPriceN8NProps {
+  loading: boolean;
+  error: string | null;
+  result: {
+    prixMini: number;
+    prixAvg: number;
+    prixMax: number;
+    minTotal: number;
+    avgTotal: number;
+    maxTotal: number;
+    surface: number;
+    jobType: string;
+    jobTypeLabel: string;
+  } | null;
+  extractedJobType: string | null;
+  extractedSurface: number | null;
+  montantDevis?: number;
+}
+
+const MarketPriceN8NBlock = ({ loading, error, result, extractedJobType, extractedSurface, montantDevis }: MarketPriceN8NProps) => {
+  const formatCurrency = (value: number) => 
+    new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
+
+  // Calcul de la position du devis par rapport à la fourchette marché
+  const calculatePosition = () => {
+    if (!result || !montantDevis) return null;
+    const { minTotal, maxTotal } = result;
+    if (maxTotal <= minTotal) return 50;
+    const position = ((montantDevis - minTotal) / (maxTotal - minTotal)) * 100;
+    return Math.max(0, Math.min(100, position));
+  };
+
+  const position = calculatePosition();
+
+  const getPositionLabel = (pos: number | null): string => {
+    if (pos === null) return "";
+    if (pos < 0) return "en dessous de la fourchette marché";
+    if (pos <= 33) return "dans la partie basse du marché";
+    if (pos <= 66) return "dans la moyenne du marché";
+    if (pos <= 100) return "dans la partie haute du marché";
+    return "au-dessus de la fourchette marché";
+  };
+
+  if (loading) {
+    return (
+      <div className="p-5 bg-blue-500/10 rounded-xl border border-blue-500/20 mb-4">
+        <div className="flex items-center gap-3">
+          <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+          <span className="text-sm text-muted-foreground">Récupération des prix marché...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !extractedJobType || !extractedSurface) {
+    // Afficher pourquoi on ne peut pas comparer
+    const reason = !extractedJobType 
+      ? "Type de travaux non reconnu pour la comparaison marché"
+      : !extractedSurface 
+        ? "Surface non détectée dans le devis"
+        : error || "Prix marché indisponible";
+
+    return (
+      <div className="p-5 bg-muted/30 rounded-xl border border-border mb-4">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-muted rounded-lg">
+            <Info className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">
+              <strong className="text-foreground">Comparaison marché externe non disponible</strong><br />
+              {reason}
+            </p>
+            {extractedJobType && extractedSurface && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Données détectées : {extractedJobType} • {extractedSurface} m²
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!result) return null;
+
+  return (
+    <div className="p-5 bg-emerald-500/10 rounded-xl border border-emerald-500/20 mb-4">
+      <div className="flex items-start gap-3 mb-4">
+        <div className="p-2 bg-emerald-500/20 rounded-lg">
+          <ExternalLink className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+        </div>
+        <div className="flex-1">
+          <h4 className="font-semibold text-foreground">Prix Marché (source externe)</h4>
+          <p className="text-xs text-muted-foreground">
+            {result.jobTypeLabel} • {result.surface} m²
+          </p>
+        </div>
+      </div>
+
+      {/* Fourchette de prix */}
+      <div className="space-y-3">
+        <div className="p-4 bg-background/60 rounded-lg">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm text-muted-foreground">Fourchette marché :</span>
+            <span className="font-bold text-foreground">
+              {formatCurrency(result.minTotal)} – {formatCurrency(result.maxTotal)} HT
+            </span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">Prix moyen marché :</span>
+            <span className="font-semibold text-primary">
+              {formatCurrency(result.avgTotal)} HT
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Détail : {result.surface} m² × {result.prixAvg} €/m² HT
+          </p>
+        </div>
+
+        {/* Comparaison avec le devis */}
+        {montantDevis && position !== null && (
+          <div className="p-4 bg-background/60 rounded-lg">
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-sm text-muted-foreground">Votre devis :</span>
+              <span className="font-bold text-foreground">{formatCurrency(montantDevis)} HT</span>
+            </div>
+            
+            {/* Gauge visuelle */}
+            <div className="relative h-6 rounded-full bg-gradient-to-r from-blue-400 via-emerald-400 to-amber-400 overflow-hidden mb-2">
+              <div 
+                className="absolute top-1/2 -translate-y-1/2 transition-all duration-500 ease-out z-10"
+                style={{ left: `${position}%` }}
+              >
+                <div className="relative -ml-3 w-6 h-6 rounded-full bg-white border-2 border-foreground shadow-lg flex items-center justify-center">
+                  <div className="w-2 h-2 bg-foreground rounded-full" />
+                </div>
+              </div>
+            </div>
+            
+            <p className="text-sm text-center text-muted-foreground">
+              Votre devis se situe <strong className="text-foreground">{getPositionLabel(position)}</strong>
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+
 // =======================
 
 const BlockPrixMarche = ({ 
@@ -468,7 +624,8 @@ const BlockPrixMarche = ({
   onManualQuantityChange,
   qtyRefCandidates,
   qtyRefSource,
-  qtyRefDetected
+  qtyRefDetected,
+  typesTravaux, // Nouvelle prop pour extraction auto
 }: BlockPrixMarcheProps) => {
   const zoneLabel = getZoneLabel(zoneType);
   
@@ -479,6 +636,20 @@ const BlockPrixMarche = ({
   const isHorsRef = isHorsCategorie(selectedWorkType);
   const hasValidSelection = parsed !== null && sousTypeInfo !== null;
   const hasMontant = montantTotalHT !== undefined && montantTotalHT > 0;
+  
+  // Appel API n8n pour récupérer les prix marché externes
+  const { 
+    loading: marketLoading, 
+    error: marketError, 
+    result: marketResult,
+    extractedJobType,
+    extractedSurface 
+  } = useMarketPriceAPI({
+    typesTravaux,
+    workType: selectedWorkType,
+    codePostal,
+    enabled: hasMontant, // Activer uniquement si on a un montant
+  });
   
   // Priorité: manualQuantity > quantiteDetectee
   const effectiveQuantity = manualQuantity ?? quantiteDetectee;
@@ -568,6 +739,16 @@ const BlockPrixMarche = ({
               <p className="text-xl font-bold text-foreground">{formatPrice(montantTotalHT!)}</p>
             </div>
           )}
+          
+          {/* Bloc prix marché n8n - extraction automatique */}
+          <MarketPriceN8NBlock
+            loading={marketLoading}
+            error={marketError}
+            result={marketResult}
+            extractedJobType={extractedJobType}
+            extractedSurface={extractedSurface}
+            montantDevis={montantTotalHT}
+          />
           
           {isHorsRef ? (
             <NoReferenceBlock />
