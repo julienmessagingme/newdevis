@@ -1,47 +1,9 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-// Mapping des catégories de devis vers les job_types de l'API n8n
-const CATEGORY_TO_JOB_TYPE: Record<string, string> = {
-  // Peinture
-  "peinture": "peinture_murs",
-  "peinture murs": "peinture_murs",
-  "peinture murale": "peinture_murs",
-  "peinture plafond": "peinture_plafond",
-  "peinture_murs": "peinture_murs",
-  "peinture_plafond": "peinture_plafond",
-  
-  // Sols
-  "carrelage": "carrelage_sol",
-  "carrelage sol": "carrelage_sol",
-  "carrelage_sol": "carrelage_sol",
-  "parquet": "parquet_flottant",
-  "parquet flottant": "parquet_flottant",
-  "parquet_flottant": "parquet_flottant",
-  
-  // Terrassement
-  "terrassement": "demolition",
-  "démolition": "demolition",
-  "demolition": "demolition",
-  "terrassement / vrd": "demolition",
-  
-  // Enduit
-  "enduit": "enduit_lissage",
-  "enduit lissage": "enduit_lissage",
-  "enduit_lissage": "enduit_lissage",
-  "lissage": "enduit_lissage",
-};
-
-// Mapping depuis work_type (format "categorie:sous_type")
-const WORK_TYPE_TO_JOB_TYPE: Record<string, string> = {
-  "interieur:peinture_murs": "peinture_murs",
-  "interieur:peinture_plafond": "peinture_plafond",
-  "interieur:carrelage_sol": "carrelage_sol",
-  "interieur:parquet_flottant": "parquet_flottant",
-  "interieur:enduit_lissage": "enduit_lissage",
-  "interieur:demolition": "demolition",
-  "exterieur:terrassement": "demolition",
-};
+// ========================================
+// TYPES
+// ========================================
 
 export interface TravauxItem {
   libelle: string;
@@ -59,119 +21,343 @@ export interface MarketPriceResult {
   minTotal: number;
   avgTotal: number;
   maxTotal: number;
-  surface: number;
+  multiplier: number;
   jobType: string;
   jobTypeLabel: string;
+  unitLabel: string; // "m²" ou "unité"
+  isUnitBased: boolean;
+}
+
+export interface MarketPriceDebug {
+  jobTypeDetected: string | null;
+  jobTypeSource: string;
+  multiplier: number | null;
+  multiplierSource: string;
+  apiUrl: string | null;
+  apiParams: Record<string, string> | null;
+  apiResponse: unknown;
+  error: string | null;
 }
 
 export interface UseMarketPriceAPIParams {
   typesTravaux?: TravauxItem[];
+  rawText?: string;
   workType?: string;
   codePostal?: string;
+  quoteTotalHt?: number;
   enabled?: boolean;
 }
 
+// ========================================
+// JOB TYPE CONFIGURATION
+// ========================================
+
+interface JobTypeConfig {
+  key: string;
+  label: string;
+  isUnitBased: boolean;
+  keywords: string[];
+}
+
+const JOB_TYPE_CONFIGS: JobTypeConfig[] = [
+  // Unit-based (équipements)
+  { key: "tablier_volet_roulant", label: "Tablier volet roulant", isUnitBased: true, keywords: ["tablier", "volet roulant", "lames volet"] },
+  { key: "volet_roulant", label: "Volet roulant", isUnitBased: true, keywords: ["volet roulant", "volet électrique", "motorisation volet"] },
+  { key: "fenetre", label: "Fenêtre", isUnitBased: true, keywords: ["fenêtre", "fenetre", "double vitrage", "menuiserie pvc", "menuiserie alu"] },
+  { key: "porte", label: "Porte", isUnitBased: true, keywords: ["porte d'entrée", "porte entrée", "porte intérieure", "bloc porte"] },
+  { key: "radiateur", label: "Radiateur", isUnitBased: true, keywords: ["radiateur", "convecteur", "chauffage électrique"] },
+  { key: "portail", label: "Portail", isUnitBased: true, keywords: ["portail", "motorisation portail"] },
+  { key: "pompe_chaleur", label: "Pompe à chaleur", isUnitBased: true, keywords: ["pompe à chaleur", "pac", "climatisation"] },
+  { key: "chaudiere", label: "Chaudière", isUnitBased: true, keywords: ["chaudière", "chaudiere"] },
+  { key: "ballon_eau_chaude", label: "Ballon eau chaude", isUnitBased: true, keywords: ["ballon", "chauffe-eau", "cumulus"] },
+  
+  // Surface-based (m²)
+  { key: "peinture_murs", label: "Peinture murs", isUnitBased: false, keywords: ["peinture mur", "peinture murale", "peinture"] },
+  { key: "peinture_plafond", label: "Peinture plafond", isUnitBased: false, keywords: ["peinture plafond"] },
+  { key: "carrelage_sol", label: "Carrelage sol", isUnitBased: false, keywords: ["carrelage", "carrelage sol", "faïence", "ceramique"] },
+  { key: "parquet_flottant", label: "Parquet flottant", isUnitBased: false, keywords: ["parquet", "parquet flottant", "sol stratifié"] },
+  { key: "enduit_lissage", label: "Enduit lissage", isUnitBased: false, keywords: ["enduit", "lissage", "ragréage"] },
+  { key: "demolition", label: "Démolition", isUnitBased: false, keywords: ["démolition", "demolition", "terrassement"] },
+  { key: "isolation", label: "Isolation", isUnitBased: false, keywords: ["isolation", "laine de verre", "isolant"] },
+  { key: "placo", label: "Placo / Cloison", isUnitBased: false, keywords: ["placo", "cloison", "placoplatre", "ba13"] },
+];
+
+// Mapping depuis work_type (format "categorie:sous_type")
+const WORK_TYPE_TO_JOB_TYPE: Record<string, string> = {
+  "interieur:peinture_murs": "peinture_murs",
+  "interieur:peinture_plafond": "peinture_plafond",
+  "interieur:carrelage_sol": "carrelage_sol",
+  "interieur:carrelage_mural": "carrelage_sol",
+  "interieur:parquet_flottant": "parquet_flottant",
+  "interieur:enduit_lissage": "enduit_lissage",
+  "interieur:demolition": "demolition",
+  "exterieur:terrassement": "demolition",
+  "menuiseries:volet_roulant": "volet_roulant",
+  "menuiseries:fenetre": "fenetre",
+  "menuiseries:porte": "porte",
+  "chauffage:radiateur": "radiateur",
+  "chauffage:pompe_chaleur": "pompe_chaleur",
+  "chauffage:chaudiere": "chaudiere",
+};
+
+// ========================================
+// DETECTION FUNCTIONS
+// ========================================
+
 /**
- * Extrait le job_type depuis les données du devis
+ * Détecte le job_type depuis les données du devis
  */
-const extractJobType = (typesTravaux?: TravauxItem[], workType?: string): string | null => {
+const detectJobType = (
+  typesTravaux?: TravauxItem[], 
+  rawText?: string,
+  workType?: string
+): { jobType: string | null; source: string } => {
   // Priorité 1: work_type sélectionné par l'utilisateur
   if (workType) {
     const mapped = WORK_TYPE_TO_JOB_TYPE[workType.toLowerCase()];
-    if (mapped) return mapped;
+    if (mapped) {
+      return { jobType: mapped, source: "work_type_user_selection" };
+    }
   }
   
-  // Priorité 2: catégories des lignes de travaux
+  // Priorité 2: Analyse du texte brut (rawText) pour patterns spécifiques
+  const textToSearch = rawText?.toLowerCase() || "";
+  
+  for (const config of JOB_TYPE_CONFIGS) {
+    for (const keyword of config.keywords) {
+      if (textToSearch.includes(keyword.toLowerCase())) {
+        return { jobType: config.key, source: `keyword_match: "${keyword}"` };
+      }
+    }
+  }
+  
+  // Priorité 3: catégories des lignes de travaux
   if (typesTravaux && typesTravaux.length > 0) {
     for (const travail of typesTravaux) {
-      const categorie = travail.categorie?.toLowerCase();
-      if (categorie) {
-        const mapped = CATEGORY_TO_JOB_TYPE[categorie];
-        if (mapped) return mapped;
-      }
+      const searchText = `${travail.categorie || ""} ${travail.libelle || ""}`.toLowerCase();
       
-      // Chercher dans le libellé
-      const libelle = travail.libelle?.toLowerCase();
-      if (libelle) {
-        for (const [key, value] of Object.entries(CATEGORY_TO_JOB_TYPE)) {
-          if (libelle.includes(key)) return value;
+      for (const config of JOB_TYPE_CONFIGS) {
+        for (const keyword of config.keywords) {
+          if (searchText.includes(keyword.toLowerCase())) {
+            return { jobType: config.key, source: `travaux_ligne: "${travail.libelle}"` };
+          }
         }
       }
     }
   }
   
-  return null;
+  return { jobType: null, source: "not_detected" };
 };
 
 /**
- * Extrait la surface totale (m²) depuis les lignes du devis
+ * Obtient la configuration d'un job_type
  */
-const extractSurface = (typesTravaux?: TravauxItem[]): number | null => {
-  if (!typesTravaux || typesTravaux.length === 0) return null;
+const getJobTypeConfig = (jobType: string): JobTypeConfig | undefined => {
+  return JOB_TYPE_CONFIGS.find(c => c.key === jobType);
+};
+
+/**
+ * Extraction qty pour équipements (volets, etc.)
+ * Règle 1: Lignes de pose/installation
+ * Règle 2: Comptage d'items
+ * Règle 3: Fallback utilisateur
+ */
+const extractQuantityForUnits = (
+  typesTravaux?: TravauxItem[],
+  rawText?: string
+): { qty: number | null; source: string } => {
+  // Règle 1: Chercher lignes de pose/installation
+  const poseKeywords = ["pose", "installation", "dépose", "remplacement", "main d'œuvre", "main d'oeuvre", "montage"];
   
-  // Chercher les lignes avec unité m² ou M²
-  const surfaceLines = typesTravaux.filter(t => 
-    t.unite?.toLowerCase() === 'm²' || 
-    t.unite?.toLowerCase() === 'm2' ||
-    t.unite?.toUpperCase() === 'M²'
-  );
-  
-  if (surfaceLines.length === 0) return null;
-  
-  // Prendre la plus grande surface (souvent la surface principale)
-  const maxSurface = Math.max(...surfaceLines.map(t => t.quantite || 0));
-  
-  // Si pas de quantité individuelle, essayer de sommer
-  if (maxSurface <= 0) {
-    const totalSurface = surfaceLines.reduce((sum, t) => sum + (t.quantite || 0), 0);
-    return totalSurface > 0 ? totalSurface : null;
+  if (typesTravaux && typesTravaux.length > 0) {
+    for (const travail of typesTravaux) {
+      const libelleLower = travail.libelle?.toLowerCase() || "";
+      
+      // Vérifier si c'est une ligne de pose
+      const isPoseLine = poseKeywords.some(kw => libelleLower.includes(kw));
+      
+      if (isPoseLine && travail.quantite && travail.quantite > 0) {
+        return { qty: travail.quantite, source: `règle_1_pose_ligne: "${travail.libelle}"` };
+      }
+    }
   }
   
-  return maxSurface > 0 ? maxSurface : null;
+  // Règle 2: Compter les items individuels dans les lignes
+  if (typesTravaux && typesTravaux.length > 0) {
+    // Compter les lignes qui ressemblent à des items (excluant pose, total, etc.)
+    const excludeKeywords = ["pose", "installation", "total", "sous-total", "remise", "tva", "forfait", "déplacement"];
+    const itemLines = typesTravaux.filter(t => {
+      const libelle = t.libelle?.toLowerCase() || "";
+      return !excludeKeywords.some(kw => libelle.includes(kw)) && t.quantite && t.quantite > 0;
+    });
+    
+    if (itemLines.length > 0) {
+      // Prendre la quantité la plus élevée parmi les lignes d'items
+      const maxQty = Math.max(...itemLines.map(t => t.quantite || 0));
+      if (maxQty > 0 && maxQty <= 50) { // Limite raisonnable
+        return { qty: maxQty, source: `règle_2_max_qty_items: ${maxQty}` };
+      }
+      
+      // Sinon compter le nombre de lignes distinctes
+      if (itemLines.length <= 20) {
+        return { qty: itemLines.length, source: `règle_2_count_items: ${itemLines.length} lignes` };
+      }
+    }
+  }
+  
+  // Règle 2bis: Chercher dans le texte brut des patterns numériques
+  if (rawText) {
+    // Pattern: "3 tabliers", "2 volets", etc.
+    const patterns = [
+      /(\d+)\s*(?:tablier|volet|fenêtre|porte|radiateur)/gi,
+      /(?:qté|quantité|qty)[:\s]*(\d+)/gi,
+    ];
+    
+    for (const pattern of patterns) {
+      const match = pattern.exec(rawText);
+      if (match && match[1]) {
+        const qty = parseInt(match[1], 10);
+        if (qty > 0 && qty <= 50) {
+          return { qty, source: `règle_2_regex: "${match[0]}"` };
+        }
+      }
+    }
+  }
+  
+  // Règle 3: Non détecté - nécessite input utilisateur
+  return { qty: null, source: "règle_3_user_input_required" };
 };
 
 /**
- * Retourne le label français pour un job_type
+ * Extraction surface (m²) pour travaux surfaciques
  */
-const getJobTypeLabel = (jobType: string): string => {
-  const labels: Record<string, string> = {
-    "peinture_murs": "Peinture murs",
-    "peinture_plafond": "Peinture plafond",
-    "carrelage_sol": "Carrelage sol",
-    "parquet_flottant": "Parquet flottant",
-    "demolition": "Démolition",
-    "enduit_lissage": "Enduit lissage",
-  };
-  return labels[jobType] || jobType;
+const extractSurfaceForArea = (
+  typesTravaux?: TravauxItem[],
+  rawText?: string
+): { surface: number | null; source: string } => {
+  // Priorité 1: Lignes avec unité m²
+  if (typesTravaux && typesTravaux.length > 0) {
+    const surfaceLines = typesTravaux.filter(t => 
+      t.unite?.toLowerCase() === 'm²' || 
+      t.unite?.toLowerCase() === 'm2' ||
+      t.unite?.toUpperCase() === 'M²'
+    );
+    
+    if (surfaceLines.length > 0) {
+      // Prendre la plus grande surface (souvent la surface principale)
+      const maxSurface = Math.max(...surfaceLines.map(t => t.quantite || 0));
+      if (maxSurface > 0) {
+        const ligne = surfaceLines.find(t => t.quantite === maxSurface);
+        return { surface: maxSurface, source: `ligne_m²: "${ligne?.libelle}"` };
+      }
+    }
+  }
+  
+  // Priorité 2: Chercher patterns m² dans le texte
+  if (rawText) {
+    const pattern = /(\d+(?:[.,]\d+)?)\s*m[²2]/gi;
+    const matches = [...rawText.matchAll(pattern)];
+    
+    if (matches.length > 0) {
+      // Prendre la plus grande surface trouvée
+      const surfaces = matches.map(m => parseFloat(m[1].replace(',', '.')));
+      const maxSurface = Math.max(...surfaces);
+      if (maxSurface > 0) {
+        return { surface: maxSurface, source: `regex_m²: ${maxSurface}` };
+      }
+    }
+  }
+  
+  // Non détecté
+  return { surface: null, source: "user_input_required" };
 };
 
-/**
- * Hook pour appeler l'API n8n et récupérer les prix marché
- */
+// ========================================
+// MAIN HOOK
+// ========================================
+
 export const useMarketPriceAPI = ({
   typesTravaux,
+  rawText,
   workType,
   codePostal,
+  quoteTotalHt,
   enabled = true,
 }: UseMarketPriceAPIParams) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<MarketPriceResult | null>(null);
-  const [extractedJobType, setExtractedJobType] = useState<string | null>(null);
-  const [extractedSurface, setExtractedSurface] = useState<number | null>(null);
+  const [debug, setDebug] = useState<MarketPriceDebug>({
+    jobTypeDetected: null,
+    jobTypeSource: "",
+    multiplier: null,
+    multiplierSource: "",
+    apiUrl: null,
+    apiParams: null,
+    apiResponse: null,
+    error: null,
+  });
+  const [needsUserInput, setNeedsUserInput] = useState<"qty" | "surface" | null>(null);
 
   useEffect(() => {
-    const jobType = extractJobType(typesTravaux, workType);
-    const surface = extractSurface(typesTravaux);
+    // Detect job_type
+    const { jobType, source: jobTypeSource } = detectJobType(typesTravaux, rawText, workType);
     
-    setExtractedJobType(jobType);
-    setExtractedSurface(surface);
+    const newDebug: MarketPriceDebug = {
+      jobTypeDetected: jobType,
+      jobTypeSource,
+      multiplier: null,
+      multiplierSource: "",
+      apiUrl: null,
+      apiParams: null,
+      apiResponse: null,
+      error: null,
+    };
     
-    // Ne pas appeler l'API si désactivé ou données manquantes
-    if (!enabled || !jobType || !surface || surface <= 0) {
+    if (!enabled || !jobType) {
+      setDebug({ ...newDebug, error: !enabled ? "disabled" : "job_type_not_detected" });
       setResult(null);
       return;
     }
+
+    const config = getJobTypeConfig(jobType);
+    if (!config) {
+      setDebug({ ...newDebug, error: "job_type_config_not_found" });
+      setResult(null);
+      return;
+    }
+
+    // Extract multiplier (qty ou surface)
+    let multiplier: number | null = null;
+    let multiplierSource = "";
+    
+    if (config.isUnitBased) {
+      const { qty, source } = extractQuantityForUnits(typesTravaux, rawText);
+      multiplier = qty;
+      multiplierSource = source;
+      
+      if (!qty) {
+        setNeedsUserInput("qty");
+        setDebug({ ...newDebug, multiplier: null, multiplierSource: source, error: "qty_required_user_input" });
+        setResult(null);
+        return;
+      }
+    } else {
+      const { surface, source } = extractSurfaceForArea(typesTravaux, rawText);
+      multiplier = surface;
+      multiplierSource = source;
+      
+      if (!surface) {
+        setNeedsUserInput("surface");
+        setDebug({ ...newDebug, multiplier: null, multiplierSource: source, error: "surface_required_user_input" });
+        setResult(null);
+        return;
+      }
+    }
+
+    setNeedsUserInput(null);
+    newDebug.multiplier = multiplier;
+    newDebug.multiplierSource = multiplierSource;
 
     const fetchMarketPrice = async () => {
       setLoading(true);
@@ -179,18 +365,26 @@ export const useMarketPriceAPI = ({
       
       try {
         const baseUrl = "https://n8n.messagingme.app/webhook/d1cfedb7-0ebb-44ca-bb2b-543ee84b0075";
-        const queryParams = new URLSearchParams({
+        const params: Record<string, string> = {
           job_type: jobType,
-          surface: surface.toString(),
+          surface: multiplier!.toString(), // API n8n utilise "surface" même pour les unités
           zip: codePostal || "",
-        }).toString();
+        };
+        
+        const queryParams = new URLSearchParams(params).toString();
+        const fullUrl = `${baseUrl}?${queryParams}`;
+        
+        newDebug.apiUrl = fullUrl;
+        newDebug.apiParams = params;
         
         const { data, error: fnError } = await supabase.functions.invoke("test-webhook", {
           body: {
-            url: `${baseUrl}?${queryParams}`,
+            url: fullUrl,
             method: "GET",
           },
         });
+        
+        newDebug.apiResponse = data;
         
         if (fnError) {
           throw new Error(fnError.message || "Erreur lors de l'appel API");
@@ -227,32 +421,38 @@ export const useMarketPriceAPI = ({
             prixMini,
             prixAvg,
             prixMax,
-            minTotal: prixMini * surface,
-            avgTotal: prixAvg * surface,
-            maxTotal: prixMax * surface,
-            surface,
+            minTotal: prixMini * multiplier!,
+            avgTotal: prixAvg * multiplier!,
+            maxTotal: prixMax * multiplier!,
+            multiplier: multiplier!,
             jobType,
-            jobTypeLabel: getJobTypeLabel(jobType),
+            jobTypeLabel: config.label,
+            unitLabel: config.isUnitBased ? "unité" : "m²",
+            isUnitBased: config.isUnitBased,
           });
+          setDebug(newDebug);
         } else {
           throw new Error("Prix marché indisponible pour ce type de travaux");
         }
       } catch (err) {
         console.error("Market price API error:", err);
-        setError(err instanceof Error ? err.message : "Prix marché indisponible");
+        const errorMsg = err instanceof Error ? err.message : "Prix marché indisponible";
+        setError(errorMsg);
+        newDebug.error = errorMsg;
+        setDebug(newDebug);
       } finally {
         setLoading(false);
       }
     };
 
     fetchMarketPrice();
-  }, [typesTravaux, workType, codePostal, enabled]);
+  }, [typesTravaux, rawText, workType, codePostal, enabled]);
 
   return {
     loading,
     error,
     result,
-    extractedJobType,
-    extractedSurface,
+    debug,
+    needsUserInput,
   };
 };
