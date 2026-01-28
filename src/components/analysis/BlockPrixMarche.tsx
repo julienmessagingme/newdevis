@@ -470,16 +470,27 @@ interface MarketPriceN8NProps {
     minTotal: number;
     avgTotal: number;
     maxTotal: number;
-    surface: number;
+    multiplier: number;
     jobType: string;
     jobTypeLabel: string;
+    unitLabel: string;
+    isUnitBased: boolean;
   } | null;
-  extractedJobType: string | null;
-  extractedSurface: number | null;
+  debug?: {
+    jobTypeDetected: string | null;
+    jobTypeSource: string;
+    multiplier: number | null;
+    multiplierSource: string;
+    apiUrl: string | null;
+    apiParams: Record<string, string> | null;
+    apiResponse: unknown;
+    error: string | null;
+  };
+  needsUserInput?: "qty" | "surface" | null;
   montantDevis?: number;
 }
 
-const MarketPriceN8NBlock = ({ loading, error, result, extractedJobType, extractedSurface, montantDevis }: MarketPriceN8NProps) => {
+const MarketPriceN8NBlock = ({ loading, error, result, debug, needsUserInput, montantDevis }: MarketPriceN8NProps) => {
   const formatCurrency = (value: number) => 
     new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value);
 
@@ -514,13 +525,40 @@ const MarketPriceN8NBlock = ({ loading, error, result, extractedJobType, extract
     );
   }
 
-  if (error || !extractedJobType || !extractedSurface) {
+  // Si on a besoin d'input utilisateur pour qty/surface
+  if (needsUserInput) {
+    const inputLabel = needsUserInput === "qty" 
+      ? "Combien d'équipements (unités) ?"
+      : "Quelle surface (m²) ?";
+    
+    return (
+      <div className="p-5 bg-amber-500/10 rounded-xl border border-amber-500/20 mb-4">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-amber-500/20 rounded-lg">
+            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-foreground mb-2">
+              {inputLabel}
+            </p>
+            <p className="text-xs text-muted-foreground mb-3">
+              La quantité n'a pas pu être détectée automatiquement dans le devis.
+              {debug?.jobTypeDetected && (
+                <span className="block mt-1">Type détecté : {debug.jobTypeDetected}</span>
+              )}
+            </p>
+            {/* TODO: Ajouter un champ input pour saisie manuelle */}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !debug?.jobTypeDetected) {
     // Afficher pourquoi on ne peut pas comparer
-    const reason = !extractedJobType 
+    const reason = !debug?.jobTypeDetected 
       ? "Type de travaux non reconnu pour la comparaison marché"
-      : !extractedSurface 
-        ? "Surface non détectée dans le devis"
-        : error || "Prix marché indisponible";
+      : error || "Prix marché indisponible";
 
     return (
       <div className="p-5 bg-muted/30 rounded-xl border border-border mb-4">
@@ -533,9 +571,9 @@ const MarketPriceN8NBlock = ({ loading, error, result, extractedJobType, extract
               <strong className="text-foreground">Comparaison marché externe non disponible</strong><br />
               {reason}
             </p>
-            {extractedJobType && extractedSurface && (
+            {debug?.jobTypeDetected && debug?.multiplier && (
               <p className="text-xs text-muted-foreground mt-2">
-                Données détectées : {extractedJobType} • {extractedSurface} m²
+                Données détectées : {debug.jobTypeDetected} • {debug.multiplier} {result?.unitLabel || 'm²'}
               </p>
             )}
           </div>
@@ -555,7 +593,7 @@ const MarketPriceN8NBlock = ({ loading, error, result, extractedJobType, extract
         <div className="flex-1">
           <h4 className="font-semibold text-foreground">Prix Marché (source externe)</h4>
           <p className="text-xs text-muted-foreground">
-            {result.jobTypeLabel} • {result.surface} m²
+            {result.jobTypeLabel} • {result.multiplier} {result.unitLabel}
           </p>
         </div>
       </div>
@@ -576,7 +614,7 @@ const MarketPriceN8NBlock = ({ loading, error, result, extractedJobType, extract
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            Détail : {result.surface} m² × {result.prixAvg} €/m² HT
+            Détail : {result.multiplier} {result.unitLabel} × {result.prixAvg} €/{result.unitLabel} HT
           </p>
         </div>
 
@@ -642,8 +680,8 @@ const BlockPrixMarche = ({
     loading: marketLoading, 
     error: marketError, 
     result: marketResult,
-    extractedJobType,
-    extractedSurface 
+    debug: marketDebug,
+    needsUserInput: marketNeedsUserInput,
   } = useMarketPriceAPI({
     typesTravaux,
     workType: selectedWorkType,
@@ -745,8 +783,8 @@ const BlockPrixMarche = ({
             loading={marketLoading}
             error={marketError}
             result={marketResult}
-            extractedJobType={extractedJobType}
-            extractedSurface={extractedSurface}
+            debug={marketDebug}
+            needsUserInput={marketNeedsUserInput}
             montantDevis={montantTotalHT}
           />
           
