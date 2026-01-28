@@ -200,18 +200,29 @@ export const useMarketPriceAPI = ({
           throw new Error(data?.error || "L'API a retourné une erreur");
         }
 
-        // Parse response avec clés françaises
+        // Parse response - support both French and English keys
         const apiResponse = data.data;
         
-        if (apiResponse && typeof apiResponse === "object" && 
-            apiResponse["prix mini"] !== undefined &&
-            apiResponse["prix avg"] !== undefined &&
-            apiResponse["prix max"] !== undefined) {
-          
-          const prixMini = Number(apiResponse["prix mini"]);
-          const prixAvg = Number(apiResponse["prix avg"]);
-          const prixMax = Number(apiResponse["prix max"]);
-          
+        let prixMini: number | undefined;
+        let prixAvg: number | undefined;
+        let prixMax: number | undefined;
+        
+        if (apiResponse && typeof apiResponse === "object") {
+          // Try French keys first
+          if (apiResponse["prix mini"] !== undefined) {
+            prixMini = Number(apiResponse["prix mini"]);
+            prixAvg = Number(apiResponse["prix avg"]);
+            prixMax = Number(apiResponse["prix max"]);
+          }
+          // Fallback to English keys
+          else if (apiResponse["price_min_unit_ht"] !== undefined) {
+            prixMini = Number(apiResponse["price_min_unit_ht"]);
+            prixAvg = Number(apiResponse["price_avg_unit_ht"]);
+            prixMax = Number(apiResponse["price_max_unit_ht"]);
+          }
+        }
+        
+        if (prixMini !== undefined && prixAvg !== undefined && prixMax !== undefined) {
           setResult({
             prixMini,
             prixAvg,
