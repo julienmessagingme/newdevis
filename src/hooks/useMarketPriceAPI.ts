@@ -45,6 +45,7 @@ export interface UseMarketPriceAPIParams {
   workType?: string;
   codePostal?: string;
   quoteTotalHt?: number;
+  filePath?: string; // Path to PDF in Supabase storage for multipart upload
   enabled?: boolean;
 }
 
@@ -282,6 +283,7 @@ export const useMarketPriceAPI = ({
   workType,
   codePostal,
   quoteTotalHt,
+  filePath,
   enabled = true,
 }: UseMarketPriceAPIParams) => {
   const [loading, setLoading] = useState(false);
@@ -366,32 +368,48 @@ export const useMarketPriceAPI = ({
       try {
         const apiUrl = "https://n8n.messagingme.app/webhook/d1cfedb7-0ebb-44ca-bb2b-543ee84b0075";
         
-        // Build JSON body with all quote data including full OCR text
-        const payload: Record<string, unknown> = {
+        // Build form data fields
+        const formDataFields: Record<string, unknown> = {
           job_type: jobType,
           zip: codePostal || "",
-          ocr_text: rawText || "",
-          quote_total_ht: quoteTotalHt || null,
         };
         
         // Add surface or qty based on job type
         if (config.isUnitBased) {
-          payload.qty = multiplier;
-          payload.surface = null;
+          formDataFields.qty = multiplier;
         } else {
-          payload.surface = multiplier;
-          payload.qty = null;
+          formDataFields.surface = multiplier;
+        }
+        
+        // Add quote total if available
+        if (quoteTotalHt) {
+          formDataFields.quote_total_ht = quoteTotalHt;
         }
         
         newDebug.apiUrl = apiUrl;
-        newDebug.apiParams = payload as Record<string, string>;
+        newDebug.apiParams = formDataFields as Record<string, string>;
+        
+        // Use multipart/form-data with file if filePath is provided
+        const requestBody: Record<string, unknown> = {
+          url: apiUrl,
+          method: "POST",
+          formDataFields,
+        };
+        
+        // Add filePath for multipart upload
+        if (filePath) {
+          requestBody.filePath = filePath;
+          console.log("Sending PDF via multipart/form-data:", filePath);
+        } else {
+          // Fallback to JSON payload if no file
+          requestBody.payload = {
+            ...formDataFields,
+            ocr_text: rawText || "",
+          };
+        }
         
         const { data, error: fnError } = await supabase.functions.invoke("test-webhook", {
-          body: {
-            url: apiUrl,
-            method: "POST",
-            payload,
-          },
+          body: requestBody,
         });
         
         newDebug.apiResponse = data;
