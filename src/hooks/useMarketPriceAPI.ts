@@ -364,23 +364,33 @@ export const useMarketPriceAPI = ({
       setError(null);
       
       try {
-        const baseUrl = "https://n8n.messagingme.app/webhook/d1cfedb7-0ebb-44ca-bb2b-543ee84b0075";
-        const params: Record<string, string> = {
+        const apiUrl = "https://n8n.messagingme.app/webhook/d1cfedb7-0ebb-44ca-bb2b-543ee84b0075";
+        
+        // Build JSON body with all quote data including full OCR text
+        const payload: Record<string, unknown> = {
           job_type: jobType,
-          surface: multiplier!.toString(), // API n8n utilise "surface" même pour les unités
           zip: codePostal || "",
+          ocr_text: rawText || "",
+          quote_total_ht: quoteTotalHt || null,
         };
         
-        const queryParams = new URLSearchParams(params).toString();
-        const fullUrl = `${baseUrl}?${queryParams}`;
+        // Add surface or qty based on job type
+        if (config.isUnitBased) {
+          payload.qty = multiplier;
+          payload.surface = null;
+        } else {
+          payload.surface = multiplier;
+          payload.qty = null;
+        }
         
-        newDebug.apiUrl = fullUrl;
-        newDebug.apiParams = params;
+        newDebug.apiUrl = apiUrl;
+        newDebug.apiParams = payload as Record<string, string>;
         
         const { data, error: fnError } = await supabase.functions.invoke("test-webhook", {
           body: {
-            url: fullUrl,
-            method: "GET",
+            url: apiUrl,
+            method: "POST",
+            payload,
           },
         });
         
