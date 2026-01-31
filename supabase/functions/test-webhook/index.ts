@@ -41,10 +41,10 @@ serve(async (req) => {
       // Create FormData with the file
       const formData = new FormData();
       
-      // Add the file with field name "data0" (n8n expects this)
-      formData.append('data0', fileData, 'devis.pdf');
+      // Add the file with field name "data00" (n8n expects this)
+      formData.append('data00', fileData, 'devis.pdf');
       
-      console.log('FormData: data0 = devis.pdf (file only, no other fields)');
+      console.log('FormData: data00 = devis.pdf (file only, no other fields)');
       console.log('Sending multipart/form-data with file...');
       
       // Send the request (don't set Content-Type manually, fetch will do it with boundary)
