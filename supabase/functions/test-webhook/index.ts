@@ -41,10 +41,30 @@ serve(async (req) => {
       // Create FormData with the file
       const formData = new FormData();
       
-      // Add the file with field name "data0" (n8n expects this exact name)
-      formData.append('data0', fileData, 'devis.pdf');
+      // IMPORTANT: Field name MUST be "file" (required by n8n)
+      formData.append('file', fileData, 'devis.pdf');
       
-      console.log('FormData: data0 = devis.pdf (file only, no other fields)');
+      // Add metadata fields if provided in formDataFields
+      if (formDataFields) {
+        if (formDataFields.job_type) {
+          formData.append('job_type', String(formDataFields.job_type));
+          console.log('Added job_type:', formDataFields.job_type);
+        }
+        if (formDataFields.zip) {
+          formData.append('zip', String(formDataFields.zip));
+          console.log('Added zip:', formDataFields.zip);
+        }
+        if (formDataFields.surface !== undefined && formDataFields.surface !== null) {
+          formData.append('surface', String(formDataFields.surface));
+          console.log('Added surface:', formDataFields.surface);
+        }
+        if (formDataFields.ocr_text) {
+          formData.append('ocr_text', String(formDataFields.ocr_text));
+          console.log('Added ocr_text: (length:', formDataFields.ocr_text.length, 'chars)');
+        }
+      }
+      
+      console.log('FormData: file = devis.pdf + metadata fields');
       console.log('Sending multipart/form-data with file...');
       
       // Send the request (don't set Content-Type manually, fetch will do it with boundary)
