@@ -422,21 +422,64 @@ export const useMarketPriceAPI = ({
           throw new Error(data?.error || "L'API a retourné une erreur");
         }
 
-        // Parse response - support both French and English keys
+        // Parse response - support n8n structure with lines[] and totals
         const apiResponse = data.data;
+        console.log("n8n API response:", apiResponse);
         
         let prixMini: number | undefined;
         let prixAvg: number | undefined;
         let prixMax: number | undefined;
+        let minTotal: number | undefined;
+        let avgTotal: number | undefined;
+        let maxTotal: number | undefined;
+        let usesTotalsDirectly = false;
         
         if (apiResponse && typeof apiResponse === "object") {
-          // Try French keys first
-          if (apiResponse["prix mini"] !== undefined) {
+          // Structure n8n avec total_min/avg/max et lines[]
+          if (apiResponse.ok === true && apiResponse.total_min !== undefined) {
+            minTotal = Number(apiResponse.total_min);
+            avgTotal = Number(apiResponse.total_avg);
+            maxTotal = Number(apiResponse.total_max);
+            usesTotalsDirectly = true;
+            
+            // Calculate unit prices from lines if available
+            if (Array.isArray(apiResponse.lines) && apiResponse.lines.length > 0) {
+              // Sum up line totals for unit price estimation
+              const validLines = apiResponse.lines.filter((l: { line_total_min?: number }) => l.line_total_min !== undefined);
+              if (validLines.length > 0) {
+                const sumMin = validLines.reduce((acc: number, l: { line_total_min?: number }) => acc + (l.line_total_min || 0), 0);
+                const sumAvg = validLines.reduce((acc: number, l: { line_total_avg?: number }) => acc + (l.line_total_avg || 0), 0);
+                const sumMax = validLines.reduce((acc: number, l: { line_total_max?: number }) => acc + (l.line_total_max || 0), 0);
+                
+                // Derive unit prices from totals (if multiplier is available)
+                if (multiplier && multiplier > 0) {
+                  prixMini = sumMin / multiplier;
+                  prixAvg = sumAvg / multiplier;
+                  prixMax = sumMax / multiplier;
+                } else {
+                  prixMini = sumMin;
+                  prixAvg = sumAvg;
+                  prixMax = sumMax;
+                }
+              }
+            }
+            
+            // Fallback if lines parsing failed - derive from totals
+            if (prixMini === undefined && multiplier && multiplier > 0) {
+              prixMini = minTotal / multiplier;
+              prixAvg = avgTotal / multiplier;
+              prixMax = maxTotal / multiplier;
+            }
+            
+            console.log("n8n parsed totals:", { minTotal, avgTotal, maxTotal, prixMini, prixAvg, prixMax });
+          }
+          // Legacy: Try French keys
+          else if (apiResponse["prix mini"] !== undefined) {
             prixMini = Number(apiResponse["prix mini"]);
             prixAvg = Number(apiResponse["prix avg"]);
             prixMax = Number(apiResponse["prix max"]);
           }
-          // Fallback to English keys
+          // Legacy: Fallback to English keys
           else if (apiResponse["price_min_unit_ht"] !== undefined) {
             prixMini = Number(apiResponse["price_min_unit_ht"]);
             prixAvg = Number(apiResponse["price_avg_unit_ht"]);
@@ -444,14 +487,18 @@ export const useMarketPriceAPI = ({
           }
         }
         
-        if (prixMini !== undefined && prixAvg !== undefined && prixMax !== undefined) {
+        // Check if we have valid data (either unit prices or totals directly from n8n)
+        const hasValidUnitPrices = prixMini !== undefined && prixAvg !== undefined && prixMax !== undefined && prixMini > 0;
+        const hasValidTotals = usesTotalsDirectly && minTotal !== undefined && minTotal > 0;
+        
+        if (hasValidUnitPrices || hasValidTotals) {
           setResult({
-            prixMini,
-            prixAvg,
-            prixMax,
-            minTotal: prixMini * multiplier!,
-            avgTotal: prixAvg * multiplier!,
-            maxTotal: prixMax * multiplier!,
+            prixMini: prixMini || 0,
+            prixAvg: prixAvg || 0,
+            prixMax: prixMax || 0,
+            minTotal: usesTotalsDirectly ? minTotal! : (prixMini! * multiplier!),
+            avgTotal: usesTotalsDirectly ? avgTotal! : (prixAvg! * multiplier!),
+            maxTotal: usesTotalsDirectly ? maxTotal! : (prixMax! * multiplier!),
             multiplier: multiplier!,
             jobType,
             jobTypeLabel: config.label,
@@ -460,6 +507,7 @@ export const useMarketPriceAPI = ({
           });
           setDebug(newDebug);
         } else {
+          console.warn("n8n response has no valid prices:", apiResponse);
           throw new Error("Prix marché indisponible pour ce type de travaux");
         }
       } catch (err) {
