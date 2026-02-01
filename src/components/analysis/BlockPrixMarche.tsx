@@ -13,7 +13,7 @@ import {
   calculatePricePosition,
   type SousType,
 } from "@/lib/workTypeReferentiel";
-import { useMarketPriceAPI, type TravauxItem } from "@/hooks/useMarketPriceAPI";
+import { useMarketPriceAPI, type TravauxItem, type MarketPriceLine } from "@/hooks/useMarketPriceAPI";
 
 // =======================
 // TYPES & INTERFACES
@@ -478,6 +478,8 @@ interface MarketPriceN8NProps {
     isUnitBased: boolean;
     qtyTotal: number | null;
     needsUserQty: boolean;
+    lines: MarketPriceLine[];
+    warnings: string[];
   } | null;
   debug?: {
     jobTypeDetected: string | null;
@@ -492,6 +494,65 @@ interface MarketPriceN8NProps {
   needsUserInput?: "qty" | "surface" | null;
   montantDevis?: number;
 }
+
+// =======================
+// QUANTITY CALCULATION HELPERS
+// =======================
+
+/**
+ * Vérifie si une ligne est une ligne de pose/main d'œuvre (à exclure du comptage qty)
+ */
+const isLaborLine = (labelRaw?: string): boolean => {
+  if (!labelRaw) return false;
+  const laborPatterns = /pose|main d['']œuvre|main d['']oeuvre|installation|dépose|repose/i;
+  return laborPatterns.test(labelRaw);
+};
+
+/**
+ * Calcule displayQty selon les règles :
+ * - Somme des lines[].qty pour lignes où job_type === jobTypeAffiché ET needs_user_qty === false
+ * - Exclure les lignes de pose/main d'œuvre du comptage
+ */
+const calculateDisplayQty = (lines: MarketPriceLine[], jobType: string): number => {
+  return lines
+    .filter(line => {
+      // Filtre 1: job_type doit correspondre
+      if (line.job_type && line.job_type !== jobType) return false;
+      // Filtre 2: needs_user_qty doit être false
+      if (line.needs_user_qty === true) return false;
+      // Filtre 3: Exclure les lignes de pose/main d'œuvre
+      if (isLaborLine(line.label_raw)) return false;
+      // Filtre 4: qty doit être présent et > 0
+      if (!line.qty || line.qty <= 0) return false;
+      return true;
+    })
+    .reduce((sum, line) => sum + (line.qty || 0), 0);
+};
+
+/**
+ * Détermine si le warning quantité doit s'afficher :
+ * - Si warnings.length > 0
+ * - OU si lines.some(l => l.needs_user_qty || l.qty == null)
+ * - SAUF si unit !== m² et qty est présent
+ */
+const shouldShowQtyWarning = (
+  lines: MarketPriceLine[], 
+  warnings: string[], 
+  unitLabel: string,
+  displayQty: number
+): boolean => {
+  // Règle 1: Si warnings de l'API
+  if (warnings.length > 0) return true;
+  
+  // Règle 2: Si certaines lignes ont besoin d'input utilisateur ou qty null
+  const hasProblematicLines = lines.some(l => l.needs_user_qty === true || l.qty == null);
+  if (hasProblematicLines) return true;
+  
+  // Exception: Si unit !== m² et displayQty > 0, ne pas afficher le warning
+  if (unitLabel !== "m²" && displayQty > 0) return false;
+  
+  return false;
+};
 
 const MarketPriceN8NBlock = ({ loading, error, result, debug, needsUserInput, montantDevis }: MarketPriceN8NProps) => {
   const formatCurrency = (value: number) => 
@@ -577,12 +638,21 @@ const MarketPriceN8NBlock = ({ loading, error, result, debug, needsUserInput, mo
   
   // Si on a des totaux valides, on affiche même si qty/surface manquante
 
-  // Utiliser qty_total ou multiplier comme quantité affichée
-  const displayQty = result?.qtyTotal || result?.multiplier || 0;
+  // Calcul de displayQty selon les nouvelles règles :
+  // - Somme des lines[].qty pour lignes où job_type === jobTypeAffiché ET needs_user_qty === false
+  // - Exclure les lignes de pose/main d'œuvre du comptage
+  const displayQty = result ? calculateDisplayQty(result.lines, result.jobType) : 0;
   
   // Règle d'affichage du warning quantité :
-  // showQtyWarning = needs_user_qty === true OU pas de quantité affichable
-  const showQtyWarning = result?.needsUserQty === true || displayQty <= 0;
+  // - Si warnings.length > 0
+  // - OU si lines.some(l => l.needs_user_qty || l.qty == null)
+  // - SAUF si unit !== m² et qty est présent
+  const showQtyWarning = result ? shouldShowQtyWarning(
+    result.lines, 
+    result.warnings, 
+    result.unitLabel, 
+    displayQty
+  ) : false;
 
   return (
     <div className="p-5 bg-emerald-500/10 rounded-xl border border-emerald-500/20 mb-4">
@@ -595,7 +665,7 @@ const MarketPriceN8NBlock = ({ loading, error, result, debug, needsUserInput, mo
           {/* Afficher qty seulement si disponible et pas de warning */}
           <p className="text-xs text-muted-foreground">
             {result.jobTypeLabel}
-            {!showQtyWarning && displayQty > 0 && <> • {displayQty} {result.unitLabel}{displayQty > 1 ? '(s)' : ''}</>}
+            {!showQtyWarning && displayQty > 0 && <> • {displayQty} {result.unitLabel}{displayQty > 1 ? 's' : ''}</>}
           </p>
         </div>
       </div>
@@ -653,7 +723,7 @@ const MarketPriceN8NBlock = ({ loading, error, result, debug, needsUserInput, mo
                 {/* Afficher détail qty uniquement si qtyTotal disponible et pas de warning */}
                 {!showQtyWarning && displayQty > 0 && result.prixAvg > 0 && (
                   <p className="text-xs text-muted-foreground mt-2">
-                    Détail : {displayQty} {result.unitLabel}{displayQty > 1 ? '(s)' : ''} × {formatCurrency(result.prixAvg)}/{result.unitLabel} HT
+                    Détail : {displayQty} {result.unitLabel}{displayQty > 1 ? 's' : ''} × {formatCurrency(result.prixAvg)}/{result.unitLabel} HT
                   </p>
                 )}
               </div>

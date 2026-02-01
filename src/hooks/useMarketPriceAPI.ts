@@ -14,6 +14,18 @@ export interface TravauxItem {
   zone_type?: string;
 }
 
+export interface MarketPriceLine {
+  label: string;
+  label_raw?: string;
+  job_type?: string;
+  qty?: number;
+  unit?: string;
+  unit_price_min?: number;
+  unit_price_avg?: number;
+  unit_price_max?: number;
+  needs_user_qty?: boolean;
+}
+
 export interface MarketPriceResult {
   prixMini: number;
   prixAvg: number;
@@ -29,6 +41,10 @@ export interface MarketPriceResult {
   // Nouveaux champs n8n pour gestion du warning quantité
   qtyTotal: number | null;
   needsUserQty: boolean;
+  // Lignes détaillées pour calcul qty
+  lines: MarketPriceLine[];
+  // Warnings de l'API
+  warnings: string[];
 }
 
 export interface MarketPriceDebug {
@@ -447,15 +463,30 @@ export const useMarketPriceAPI = ({
             const qtyTotal = apiResponse.qty_total !== undefined ? Number(apiResponse.qty_total) : null;
             const needsUserQty = apiResponse.needs_user_qty === true;
             
-            console.log("n8n totaux directs (sans recalcul):", { minTotal, avgTotal, maxTotal, qtyTotal, needsUserQty });
+            // Warnings de l'API
+            const warnings: string[] = Array.isArray(apiResponse.warnings) ? apiResponse.warnings : [];
             
-            // lines[] pour affichage détaillé uniquement
-            const lines = Array.isArray(apiResponse.lines) ? apiResponse.lines : [];
+            console.log("n8n totaux directs (sans recalcul):", { minTotal, avgTotal, maxTotal, qtyTotal, needsUserQty, warnings });
+            
+            // lines[] pour affichage détaillé et calcul qty
+            const lines: MarketPriceLine[] = Array.isArray(apiResponse.lines) 
+              ? apiResponse.lines.map((l: Record<string, unknown>) => ({
+                  label: String(l.label || ""),
+                  label_raw: l.label_raw ? String(l.label_raw) : undefined,
+                  job_type: l.job_type ? String(l.job_type) : undefined,
+                  qty: typeof l.qty === "number" ? l.qty : undefined,
+                  unit: l.unit ? String(l.unit) : undefined,
+                  unit_price_min: typeof l.unit_price_min === "number" ? l.unit_price_min : undefined,
+                  unit_price_avg: typeof l.unit_price_avg === "number" ? l.unit_price_avg : undefined,
+                  unit_price_max: typeof l.unit_price_max === "number" ? l.unit_price_max : undefined,
+                  needs_user_qty: l.needs_user_qty === true,
+                }))
+              : [];
             
             // Fallback: calculer qty_total depuis lines[].qty si non fourni
             let effectiveQtyTotal = qtyTotal;
             if (effectiveQtyTotal === null && lines.length > 0) {
-              const sumQty = lines.reduce((acc: number, l: { qty?: number }) => acc + (l.qty || 0), 0);
+              const sumQty = lines.reduce((acc: number, l: MarketPriceLine) => acc + (l.qty || 0), 0);
               if (sumQty > 0) {
                 effectiveQtyTotal = sumQty;
               }
@@ -469,11 +500,11 @@ export const useMarketPriceAPI = ({
             
             if (lines.length > 0) {
               // Moyenne des prix unitaires des lignes pour affichage
-              const validLines = lines.filter((l: { unit_price_avg?: number }) => l.unit_price_avg !== undefined);
+              const validLines = lines.filter((l: MarketPriceLine) => l.unit_price_avg !== undefined);
               if (validLines.length > 0) {
-                prixMini = validLines.reduce((acc: number, l: { unit_price_min?: number }) => acc + (l.unit_price_min || 0), 0) / validLines.length;
-                prixAvg = validLines.reduce((acc: number, l: { unit_price_avg?: number }) => acc + (l.unit_price_avg || 0), 0) / validLines.length;
-                prixMax = validLines.reduce((acc: number, l: { unit_price_max?: number }) => acc + (l.unit_price_max || 0), 0) / validLines.length;
+                prixMini = validLines.reduce((acc: number, l: MarketPriceLine) => acc + (l.unit_price_min || 0), 0) / validLines.length;
+                prixAvg = validLines.reduce((acc: number, l: MarketPriceLine) => acc + (l.unit_price_avg || 0), 0) / validLines.length;
+                prixMax = validLines.reduce((acc: number, l: MarketPriceLine) => acc + (l.unit_price_max || 0), 0) / validLines.length;
               }
             }
             
@@ -494,6 +525,9 @@ export const useMarketPriceAPI = ({
               // Nouveaux champs pour warning quantité
               qtyTotal: effectiveQtyTotal,
               needsUserQty,
+              // Lignes et warnings
+              lines,
+              warnings,
             });
             setDebug(newDebug);
             return;
@@ -520,6 +554,8 @@ export const useMarketPriceAPI = ({
                 isUnitBased: config.isUnitBased,
                 qtyTotal: multiplier,
                 needsUserQty: false,
+                lines: [],
+                warnings: [],
               });
               setDebug(newDebug);
               return;
