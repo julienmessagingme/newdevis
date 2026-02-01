@@ -299,10 +299,10 @@ const DevisCalculatorSection = () => {
                     </span>
                   </p>
                   
-                  {/* Détail lignes si disponible */}
-                  {result.lines && result.lines.length > 0 && result.unit !== "forfait" && result.lines[0]?.price_avg_unit_ht && (
+                  {/* Détail avec prix unitaire calculé depuis total_avg / qty pour cohérence */}
+                  {result.unit !== "forfait" && result.displayQty > 0 && (
                     <p className="text-sm text-muted-foreground">
-                      Détail : {result.displayQty} {formatUnitLabel(result.unit)} × {result.lines[0].price_avg_unit_ht.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/{formatUnitLabel(result.unit)} HT
+                      Détail : {result.displayQty} {formatUnitLabel(result.unit)} × {(result.total_avg / result.displayQty).toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €/{formatUnitLabel(result.unit)} HT
                     </p>
                   )}
                 </div>
