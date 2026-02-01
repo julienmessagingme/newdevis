@@ -577,12 +577,12 @@ const MarketPriceN8NBlock = ({ loading, error, result, debug, needsUserInput, mo
   
   // Si on a des totaux valides, on affiche même si qty/surface manquante
 
-  // Règle d'affichage du warning quantité :
-  // showQtyWarning = needs_user_qty === true OU qty_total absent/nul
-  const showQtyWarning = result?.needsUserQty === true || !result?.qtyTotal || result.qtyTotal <= 0;
-  
-  // Utiliser qty_total comme quantité affichée
+  // Utiliser qty_total ou multiplier comme quantité affichée
   const displayQty = result?.qtyTotal || result?.multiplier || 0;
+  
+  // Règle d'affichage du warning quantité :
+  // showQtyWarning = needs_user_qty === true OU pas de quantité affichable
+  const showQtyWarning = result?.needsUserQty === true || displayQty <= 0;
 
   return (
     <div className="p-5 bg-emerald-500/10 rounded-xl border border-emerald-500/20 mb-4">
