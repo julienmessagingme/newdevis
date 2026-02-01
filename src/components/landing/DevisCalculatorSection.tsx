@@ -27,7 +27,7 @@ interface N8NResponse {
   total_avg: number;
   total_max: number;
   lines: N8NLine[];
-  warnings: string[];
+  warnings: Array<string | { job_type?: string; reason?: string }>;
 }
 
 interface PriceResult {
@@ -35,7 +35,7 @@ interface PriceResult {
   total_avg: number;
   total_max: number;
   lines: N8NLine[];
-  warnings: string[];
+  warnings: Array<string | { job_type?: string; reason?: string }>;
   displayQty: number;
   unit: string;
   jobTypeLabel: string;
@@ -256,7 +256,12 @@ const DevisCalculatorSection = () => {
                     <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
                     <div className="text-sm text-muted-foreground">
                       {result.warnings.map((warning, idx) => (
-                        <p key={idx}>{warning}</p>
+                        <p key={idx}>
+                          {typeof warning === 'string' 
+                            ? warning 
+                            : (warning as { reason?: string; job_type?: string }).reason || JSON.stringify(warning)
+                          }
+                        </p>
                       ))}
                     </div>
                   </div>
