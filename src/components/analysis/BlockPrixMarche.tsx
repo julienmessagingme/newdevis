@@ -476,6 +476,8 @@ interface MarketPriceN8NProps {
     jobTypeLabel: string;
     unitLabel: string;
     isUnitBased: boolean;
+    qtyTotal: number | null;
+    needsUserQty: boolean;
   } | null;
   debug?: {
     jobTypeDetected: string | null;
@@ -575,7 +577,12 @@ const MarketPriceN8NBlock = ({ loading, error, result, debug, needsUserInput, mo
   
   // Si on a des totaux valides, on affiche même si qty/surface manquante
 
-  if (!result) return null;
+  // Règle d'affichage du warning quantité :
+  // showQtyWarning = needs_user_qty === true OU qty_total absent/nul
+  const showQtyWarning = result?.needsUserQty === true || !result?.qtyTotal || result.qtyTotal <= 0;
+  
+  // Utiliser qty_total comme quantité affichée
+  const displayQty = result?.qtyTotal || result?.multiplier || 0;
 
   return (
     <div className="p-5 bg-emerald-500/10 rounded-xl border border-emerald-500/20 mb-4">
@@ -585,13 +592,26 @@ const MarketPriceN8NBlock = ({ loading, error, result, debug, needsUserInput, mo
         </div>
         <div className="flex-1">
           <h4 className="font-semibold text-foreground">Prix Marché (source externe)</h4>
-          {/* Afficher qty seulement si disponible */}
+          {/* Afficher qty seulement si disponible et pas de warning */}
           <p className="text-xs text-muted-foreground">
             {result.jobTypeLabel}
-            {result.multiplier > 0 && <> • {result.multiplier} {result.unitLabel}</>}
+            {!showQtyWarning && displayQty > 0 && <> • {displayQty} {result.unitLabel}{displayQty > 1 ? '(s)' : ''}</>}
           </p>
         </div>
       </div>
+      
+      {/* Warning quantité - seulement si nécessaire */}
+      {showQtyWarning && (
+        <div className="p-3 bg-amber-500/10 rounded-lg border border-amber-500/20 mb-4">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-muted-foreground">
+              <strong className="text-foreground">La quantité n'est pas lisible dans le devis transmis.</strong><br />
+              L'estimation est basée sur les prix moyens du marché. Pour une comparaison plus précise, renseignez la quantité ci-dessus.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Fourchette de prix - ±25% autour de avg par défaut */}
       <div className="space-y-3">
@@ -630,10 +650,10 @@ const MarketPriceN8NBlock = ({ loading, error, result, debug, needsUserInput, mo
                     {formatCurrency(result.avgTotal)} HT
                   </span>
                 </div>
-                {/* Afficher détail qty uniquement si multiplier et prix unitaire disponibles */}
-                {result.multiplier > 0 && result.prixAvg > 0 && (
+                {/* Afficher détail qty uniquement si qtyTotal disponible et pas de warning */}
+                {!showQtyWarning && displayQty > 0 && result.prixAvg > 0 && (
                   <p className="text-xs text-muted-foreground mt-2">
-                    Détail : {result.multiplier} {result.unitLabel} × {formatCurrency(result.prixAvg)}/{result.unitLabel} HT
+                    Détail : {displayQty} {result.unitLabel}{displayQty > 1 ? '(s)' : ''} × {formatCurrency(result.prixAvg)}/{result.unitLabel} HT
                   </p>
                 )}
               </div>
