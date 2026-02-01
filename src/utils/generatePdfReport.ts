@@ -127,7 +127,7 @@ export const generatePdfReport = (analysis: Analysis) => {
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(34, 197, 94);
-    doc.text("✓ POINTS CONFORMES", margin, yPos);
+    doc.text("POINTS CONFORMES", margin, yPos);
     yPos += 8;
     
     doc.setFontSize(10);
@@ -157,7 +157,7 @@ export const generatePdfReport = (analysis: Analysis) => {
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(249, 115, 22);
-    doc.text("⚠ POINTS DE VIGILANCE", margin, yPos);
+    doc.text("POINTS DE VIGILANCE", margin, yPos);
     yPos += 8;
     
     doc.setFontSize(10);
@@ -187,7 +187,7 @@ export const generatePdfReport = (analysis: Analysis) => {
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(59, 130, 246);
-    doc.text("📋 RECOMMANDATIONS", margin, yPos);
+    doc.text("RECOMMANDATIONS", margin, yPos);
     yPos += 8;
     
     doc.setFontSize(10);
@@ -217,7 +217,7 @@ export const generatePdfReport = (analysis: Analysis) => {
   doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(107, 114, 128);
-  doc.text("🔍 VÉRIFICATIONS EFFECTUÉES", margin, yPos);
+  doc.text("VERIFICATIONS EFFECTUEES", margin, yPos);
   yPos += 8;
   
   doc.setFontSize(10);
