@@ -40,6 +40,7 @@ interface BlockPrixMarcheProps {
   qtyRefSource?: string;
   qtyRefDetected?: boolean;
   typesTravaux?: TravauxItem[]; // Ajout pour extraction auto
+  filePath?: string; // Chemin du PDF pour envoi multipart à n8n
 }
 
 
@@ -664,6 +665,7 @@ const BlockPrixMarche = ({
   qtyRefSource,
   qtyRefDetected,
   typesTravaux, // Nouvelle prop pour extraction auto
+  filePath, // Chemin du PDF pour envoi multipart à n8n
 }: BlockPrixMarcheProps) => {
   const zoneLabel = getZoneLabel(zoneType);
   
@@ -686,6 +688,7 @@ const BlockPrixMarche = ({
     typesTravaux,
     workType: selectedWorkType,
     codePostal,
+    filePath, // Envoi du PDF pour multipart/form-data
     enabled: hasMontant, // Activer uniquement si on a un montant
   });
   

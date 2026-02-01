@@ -45,6 +45,7 @@ type DocumentDetection = {
 type Analysis = {
   id: string;
   file_name: string;
+  file_path: string; // Chemin du fichier dans storage
   score: string | null;
   resume: string | null;
   points_ok: string[];
@@ -496,7 +497,8 @@ const AnalysisResult = () => {
               zoneType={locationInfo.zoneType || analysis.types_travaux?.[0]?.zone_type}
               codePostal={locationInfo.codePostal}
               selectedWorkType={analysis.work_type}
-              typesTravaux={analysis.types_travaux} // Ajout pour extraction auto n8n
+              typesTravaux={analysis.types_travaux}
+              filePath={analysis.file_path} // Envoi du PDF pour n8n multipart
             />
           );
         })()}
