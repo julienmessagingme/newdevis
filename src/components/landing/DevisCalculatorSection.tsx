@@ -50,18 +50,18 @@ const DevisCalculatorSection = () => {
     setResult(null);
 
     try {
-      // Build URL with all parameters: job_type, surface, zip
+      // POST request with JSON body to n8n webhook
       const baseUrl = "https://n8n.messagingme.app/webhook/d1cfedb7-0ebb-44ca-bb2b-543ee84b0075";
-      const queryParams = new URLSearchParams({
-        job_type: jobType,
-        surface: surface,
-        zip: zip,
-      }).toString();
       
       const { data, error: fnError } = await supabase.functions.invoke("test-webhook", {
         body: {
-          url: `${baseUrl}?${queryParams}`,
-          method: "GET",
+          url: baseUrl,
+          method: "POST",
+          payload: {
+            job_type: jobType,
+            surface: Number(surface),
+            zip: zip,
+          },
         },
       });
       
