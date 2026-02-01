@@ -3,17 +3,42 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calculator, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Calculator, Loader2, AlertCircle, CheckCircle2, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import JobTypeSelector, { type JobTypeItem } from "./JobTypeSelector";
+
+// Types pour la réponse n8n
+interface N8NLine {
+  job_type: string;
+  qty: number;
+  unit: string;
+  price_min_unit_ht: number;
+  price_avg_unit_ht: number;
+  price_max_unit_ht: number;
+  line_total_min: number;
+  line_total_avg: number;
+  line_total_max: number;
+}
+
+interface N8NResponse {
+  ok: boolean;
+  currency: string;
+  total_min: number;
+  total_avg: number;
+  total_max: number;
+  lines: N8NLine[];
+  warnings: string[];
+}
 
 interface PriceResult {
   total_min: number;
   total_avg: number;
   total_max: number;
-  price_avg_unit_ht?: number;
-  quantity: number;
+  lines: N8NLine[];
+  warnings: string[];
+  displayQty: number;
   unit: string;
+  jobTypeLabel: string;
 }
 
 const DevisCalculatorSection = () => {
@@ -40,28 +65,26 @@ const DevisCalculatorSection = () => {
     setResult(null);
 
     try {
-      // POST request to n8n webhook
       const baseUrl = "https://n8n.messagingme.app/webhook/d1cfedb7-0ebb-44ca-bb2b-543ee84b0075";
       
-      // Build form data based on unit type
-      const formDataFields: Record<string, unknown> = {
+      // Quantité à envoyer
+      const qtyToSend = isForfait ? 1 : Number(quantity);
+      
+      // Body JSON exact demandé par n8n
+      const jsonPayload = {
         job_type: jobType,
-        zip,
+        qty: qtyToSend,
+        unit: selectedJobData?.unit || "m²",
+        zip: zip,
       };
       
-      if (isForfait) {
-        formDataFields.qty = 1;
-      } else if (isUnitBased) {
-        formDataFields.qty = Number(quantity);
-      } else {
-        formDataFields.surface = Number(quantity);
-      }
+      console.log("Sending to n8n:", jsonPayload);
       
       const { data, error: fnError } = await supabase.functions.invoke("test-webhook", {
         body: {
           url: baseUrl,
           method: "POST",
-          formDataFields,
+          payload: jsonPayload,
         },
       });
       
@@ -73,34 +96,46 @@ const DevisCalculatorSection = () => {
         throw new Error(data?.error || "L'API a retourné une erreur");
       }
 
-      const apiResponse = data.data;
+      const apiResponse = data.data as N8NResponse;
+      console.log("n8n response:", apiResponse);
 
-      // n8n renvoie total_min/total_avg/total_max (totaux déjà calculés)
-      if (apiResponse && typeof apiResponse === "object" && (apiResponse as any).ok === true) {
-        const quantityNum = isForfait ? 1 : Number(quantity);
-        const totalMin = Number((apiResponse as any).total_min);
-        const totalAvg = Number((apiResponse as any).total_avg);
-        const totalMax = Number((apiResponse as any).total_max);
-
-        if (![totalMin, totalAvg, totalMax].every((n) => Number.isFinite(n) && n > 0)) {
-          throw new Error("Prix marché indisponible pour ce type de travaux");
-        }
-
-        // Optionnel : certains retours incluent un prix unitaire moyen
-        const unitAvg = Number((apiResponse as any).price_avg_unit_ht);
-        const hasUnitAvg = Number.isFinite(unitAvg) && unitAvg > 0;
-
-        setResult({
-          total_min: totalMin,
-          total_avg: totalAvg,
-          total_max: totalMax,
-          price_avg_unit_ht: hasUnitAvg ? unitAvg : undefined,
-          quantity: quantityNum,
-          unit: selectedJobData?.unit || "m²",
-        });
-      } else {
+      // Vérifier que la réponse est valide
+      if (!apiResponse || apiResponse.ok !== true) {
         throw new Error("Prix marché indisponible pour ce type de travaux");
       }
+
+      // Récupérer les totaux DIRECTEMENT depuis n8n - AUCUN RECALCUL
+      const totalMin = Number(apiResponse.total_min);
+      const totalAvg = Number(apiResponse.total_avg);
+      const totalMax = Number(apiResponse.total_max);
+
+      if (![totalMin, totalAvg, totalMax].every((n) => Number.isFinite(n) && n > 0)) {
+        throw new Error("Prix marché indisponible pour ce type de travaux");
+      }
+
+      // Récupérer lines[] et warnings[] depuis n8n
+      const lines = Array.isArray(apiResponse.lines) ? apiResponse.lines : [];
+      const warnings = Array.isArray(apiResponse.warnings) ? apiResponse.warnings : [];
+
+      // Calculer displayQty = somme des lines[].qty (ou qty du formulaire si 1 ligne ou pas de lines)
+      let displayQty = qtyToSend;
+      if (lines.length > 0) {
+        const sumQty = lines.reduce((acc, line) => acc + (line.qty || 0), 0);
+        if (sumQty > 0) {
+          displayQty = sumQty;
+        }
+      }
+
+      setResult({
+        total_min: totalMin,
+        total_avg: totalAvg,
+        total_max: totalMax,
+        lines,
+        warnings,
+        displayQty,
+        unit: selectedJobData?.unit || "m²",
+        jobTypeLabel: selectedJobData?.label || jobType,
+      });
     } catch (err) {
       console.error("Devis calculation error:", err);
       setError(err instanceof Error ? err.message : "Prix indisponible pour ce type de travaux");
@@ -215,11 +250,23 @@ const DevisCalculatorSection = () => {
                   <span className="font-semibold">Estimation calculée</span>
                 </div>
 
+                {/* Warnings from n8n - only if warnings.length > 0 */}
+                {result.warnings.length > 0 && (
+                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                    <div className="text-sm text-muted-foreground">
+                      {result.warnings.map((warning, idx) => (
+                        <p key={idx}>{warning}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Recap */}
                 <div className="text-sm text-muted-foreground space-y-1">
                   <p>
                     <span className="font-medium">Type :</span>{" "}
-                    {selectedJobData?.label || jobType}
+                    {result.jobTypeLabel}
                   </p>
                   <p>
                     <span className="font-medium">
@@ -232,11 +279,11 @@ const DevisCalculatorSection = () => {
                     </span>{" "}
                     {result.unit === "forfait" 
                       ? "Forfait" 
-                      : `${result.quantity} ${formatUnitLabel(result.unit)}`}
+                      : `${result.displayQty} ${formatUnitLabel(result.unit)}`}
                   </p>
                 </div>
 
-                {/* Price Range */}
+                {/* Price Range - Valeurs DIRECTES de n8n */}
                 <div className="pt-2 border-t border-primary/10 space-y-3">
                   <p className="text-lg font-bold text-foreground">
                     Fourchette :{" "}
@@ -253,9 +300,10 @@ const DevisCalculatorSection = () => {
                     </span>
                   </p>
                   
-                  {result.price_avg_unit_ht && result.unit !== "forfait" && (
+                  {/* Détail lignes si disponible */}
+                  {result.lines.length > 0 && result.unit !== "forfait" && (
                     <p className="text-sm text-muted-foreground">
-                      Détail : {result.quantity} {formatUnitLabel(result.unit)} × {result.price_avg_unit_ht.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/{formatUnitLabel(result.unit)} HT
+                      Détail : {result.displayQty} {formatUnitLabel(result.unit)} × {result.lines[0].price_avg_unit_ht?.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/{formatUnitLabel(result.unit)} HT
                     </p>
                   )}
                 </div>
