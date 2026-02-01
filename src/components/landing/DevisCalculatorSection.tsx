@@ -117,14 +117,8 @@ const DevisCalculatorSection = () => {
       const lines = Array.isArray(apiResponse.lines) ? apiResponse.lines : [];
       const warnings = Array.isArray(apiResponse.warnings) ? apiResponse.warnings : [];
 
-      // Calculer displayQty = somme des lines[].qty (ou qty du formulaire si 1 ligne ou pas de lines)
-      let displayQty = qtyToSend;
-      if (lines.length > 0) {
-        const sumQty = lines.reduce((acc, line) => acc + (line.qty || 0), 0);
-        if (sumQty > 0) {
-          displayQty = sumQty;
-        }
-      }
+      // displayQty = quantité saisie par l'utilisateur (pas la somme des lines n8n)
+      const displayQty = qtyToSend;
 
       setResult({
         total_min: totalMin,
