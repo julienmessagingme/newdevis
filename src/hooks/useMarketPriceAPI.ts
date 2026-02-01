@@ -104,6 +104,7 @@ const JOB_TYPE_CONFIGS: JobTypeConfig[] = [
 
 // Mapping depuis work_type (format "categorie:sous_type")
 const WORK_TYPE_TO_JOB_TYPE: Record<string, string> = {
+  // Intérieur
   "interieur:peinture_murs": "peinture_murs",
   "interieur:peinture_plafond": "peinture_plafond",
   "interieur:carrelage_sol": "carrelage_sol",
@@ -111,10 +112,17 @@ const WORK_TYPE_TO_JOB_TYPE: Record<string, string> = {
   "interieur:parquet_flottant": "parquet_flottant",
   "interieur:enduit_lissage": "enduit_lissage",
   "interieur:demolition": "demolition",
-  "exterieur:terrassement": "demolition",
+  // Extérieur
+  "exterieur:terrassement": "terrassement",
+  "exterieur:allee_voirie": "allee_voirie",
+  "exterieur:cloture": "cloture",
+  "exterieur:portail": "portail",
+  "exterieur:maconnerie_exterieure": "maconnerie_exterieure",
+  // Menuiseries
   "menuiseries:volet_roulant": "volet_roulant",
   "menuiseries:fenetre": "fenetre",
   "menuiseries:porte": "porte",
+  // Chauffage
   "chauffage:radiateur": "radiateur",
   "chauffage:pompe_chaleur": "pompe_chaleur",
   "chauffage:chaudiere": "chaudiere",
