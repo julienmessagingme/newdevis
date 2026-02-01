@@ -160,10 +160,13 @@ const JobTypeSelector = ({ value, onChange, onJobTypeData }: JobTypeSelectorProp
 
   // Filter all job types by search query
   const filteredAllItems = useMemo(() => {
-    if (!searchQuery.trim()) return allJobTypes;
+    // Filter out items with missing labels first
+    const validItems = allJobTypes.filter(item => item && item.label && item.job_type);
+    
+    if (!searchQuery.trim()) return validItems;
     
     const query = searchQuery.toLowerCase().trim();
-    return allJobTypes.filter(item => 
+    return validItems.filter(item => 
       item.label.toLowerCase().includes(query) ||
       item.job_type.toLowerCase().includes(query)
     );
@@ -172,7 +175,7 @@ const JobTypeSelector = ({ value, onChange, onJobTypeData }: JobTypeSelectorProp
   // Sort all items alphabetically
   const sortedAllItems = useMemo(() => {
     return [...filteredAllItems].sort((a, b) => 
-      a.label.localeCompare(b.label, 'fr')
+      (a.label || "").localeCompare(b.label || "", 'fr')
     );
   }, [filteredAllItems]);
 
