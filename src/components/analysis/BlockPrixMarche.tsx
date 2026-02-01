@@ -593,54 +593,99 @@ const MarketPriceN8NBlock = ({ loading, error, result, debug, needsUserInput, mo
         </div>
       </div>
 
-      {/* Fourchette de prix - TOTAUX DIRECTS n8n */}
+      {/* Fourchette de prix - ±25% autour de avg par défaut */}
       <div className="space-y-3">
-        <div className="p-4 bg-background/60 rounded-lg">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm text-muted-foreground">Fourchette marché :</span>
-            <span className="font-bold text-foreground">
-              {formatCurrency(result.minTotal)} – {formatCurrency(result.maxTotal)} HT
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Prix moyen marché :</span>
-            <span className="font-semibold text-primary">
-              {formatCurrency(result.avgTotal)} HT
-            </span>
-          </div>
-          {/* Afficher détail qty uniquement si multiplier et prix unitaire disponibles */}
-          {result.multiplier > 0 && result.prixAvg > 0 && (
-            <p className="text-xs text-muted-foreground mt-2">
-              Détail : {result.multiplier} {result.unitLabel} × {formatCurrency(result.prixAvg)}/{result.unitLabel} HT
-            </p>
-          )}
-        </div>
-
-        {/* Comparaison avec le devis */}
-        {montantDevis && position !== null && (
-          <div className="p-4 bg-background/60 rounded-lg">
-            <div className="flex justify-between items-center mb-3">
-              <span className="text-sm text-muted-foreground">Votre devis :</span>
-              <span className="font-bold text-foreground">{formatCurrency(montantDevis)} HT</span>
-            </div>
-            
-            {/* Gauge visuelle */}
-            <div className="relative h-6 rounded-full bg-gradient-to-r from-blue-400 via-emerald-400 to-amber-400 overflow-hidden mb-2">
-              <div 
-                className="absolute top-1/2 -translate-y-1/2 transition-all duration-500 ease-out z-10"
-                style={{ left: `${position}%` }}
-              >
-                <div className="relative -ml-3 w-6 h-6 rounded-full bg-white border-2 border-foreground shadow-lg flex items-center justify-center">
-                  <div className="w-2 h-2 bg-foreground rounded-full" />
+        {(() => {
+          // Fourchette réaliste = ±25% autour de total_avg
+          const realisticMin = Math.round(result.avgTotal * 0.75);
+          const realisticMax = Math.round(result.avgTotal * 1.25);
+          
+          // Position recalculée sur fourchette réaliste
+          const realisticPosition = montantDevis 
+            ? Math.max(0, Math.min(100, ((montantDevis - realisticMin) / (realisticMax - realisticMin)) * 100))
+            : null;
+          
+          const getRealisticPositionLabel = (pos: number | null): string => {
+            if (pos === null) return "";
+            if (pos < 0) return "en dessous de la fourchette estimée";
+            if (pos <= 33) return "dans la partie basse de l'estimation";
+            if (pos <= 66) return "dans la moyenne estimée";
+            if (pos <= 100) return "dans la partie haute de l'estimation";
+            return "au-dessus de la fourchette estimée";
+          };
+          
+          return (
+            <>
+              {/* Fourchette réaliste (par défaut) */}
+              <div className="p-4 bg-background/60 rounded-lg">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm text-muted-foreground">Estimation marché :</span>
+                  <span className="font-bold text-foreground">
+                    {formatCurrency(realisticMin)} – {formatCurrency(realisticMax)} HT
+                  </span>
                 </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Prix moyen estimé :</span>
+                  <span className="font-semibold text-primary">
+                    {formatCurrency(result.avgTotal)} HT
+                  </span>
+                </div>
+                {/* Afficher détail qty uniquement si multiplier et prix unitaire disponibles */}
+                {result.multiplier > 0 && result.prixAvg > 0 && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Détail : {result.multiplier} {result.unitLabel} × {formatCurrency(result.prixAvg)}/{result.unitLabel} HT
+                  </p>
+                )}
               </div>
-            </div>
-            
-            <p className="text-sm text-center text-muted-foreground">
-              Votre devis se situe <strong className="text-foreground">{getPositionLabel(position)}</strong>
-            </p>
-          </div>
-        )}
+
+              {/* Comparaison avec le devis - sur fourchette réaliste */}
+              {montantDevis && realisticPosition !== null && (
+                <div className="p-4 bg-background/60 rounded-lg">
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="text-sm text-muted-foreground">Votre devis :</span>
+                    <span className="font-bold text-foreground">{formatCurrency(montantDevis)} HT</span>
+                  </div>
+                  
+                  {/* Gauge visuelle */}
+                  <div className="relative h-6 rounded-full bg-gradient-to-r from-blue-400 via-emerald-400 to-amber-400 overflow-hidden mb-2">
+                    <div 
+                      className="absolute top-1/2 -translate-y-1/2 transition-all duration-500 ease-out z-10"
+                      style={{ left: `${realisticPosition}%` }}
+                    >
+                      <div className="relative -ml-3 w-6 h-6 rounded-full bg-white border-2 border-foreground shadow-lg flex items-center justify-center">
+                        <div className="w-2 h-2 bg-foreground rounded-full" />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <p className="text-sm text-center text-muted-foreground">
+                    Votre devis se situe <strong className="text-foreground">{getRealisticPositionLabel(realisticPosition)}</strong>
+                  </p>
+                </div>
+              )}
+
+              {/* Fourchette extrême (info avancée) */}
+              <details className="group">
+                <summary className="flex items-center gap-2 cursor-pointer text-xs text-muted-foreground hover:text-foreground transition-colors py-2">
+                  <Info className="h-3 w-3" />
+                  <span>Voir la fourchette extrême du marché</span>
+                </summary>
+                <div className="mt-2 p-3 bg-muted/30 rounded-lg border border-border/50">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-muted-foreground">Fourchette extrême :</span>
+                    <span className="font-medium text-foreground">
+                      {formatCurrency(result.minTotal)} – {formatCurrency(result.maxTotal)} HT
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2 italic">
+                    Cette fourchette représente les cas extrêmes observés sur le marché. 
+                    L'estimation ±25% autour du prix moyen est plus représentative.
+                  </p>
+                </div>
+              </details>
+            </>
+          );
+        })()}
       </div>
     </div>
   );
