@@ -251,7 +251,7 @@ const DevisCalculatorSection = () => {
                 </div>
 
                 {/* Warnings from n8n - only if warnings.length > 0 */}
-                {result.warnings.length > 0 && (
+                {result.warnings && result.warnings.length > 0 && (
                   <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-start gap-2">
                     <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
                     <div className="text-sm text-muted-foreground">
@@ -301,9 +301,9 @@ const DevisCalculatorSection = () => {
                   </p>
                   
                   {/* Détail lignes si disponible */}
-                  {result.lines.length > 0 && result.unit !== "forfait" && (
+                  {result.lines && result.lines.length > 0 && result.unit !== "forfait" && result.lines[0]?.price_avg_unit_ht && (
                     <p className="text-sm text-muted-foreground">
-                      Détail : {result.displayQty} {formatUnitLabel(result.unit)} × {result.lines[0].price_avg_unit_ht?.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/{formatUnitLabel(result.unit)} HT
+                      Détail : {result.displayQty} {formatUnitLabel(result.unit)} × {result.lines[0].price_avg_unit_ht.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/{formatUnitLabel(result.unit)} HT
                     </p>
                   )}
                 </div>
