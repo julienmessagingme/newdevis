@@ -9,9 +9,13 @@ const Header = () => {
   const isLandingPage = location.pathname === "/";
   return <header className={`sticky top-0 z-50 w-full border-b ${isLandingPage ? 'bg-primary border-primary/20' : 'bg-card border-border'}`}>
       <div className="container flex h-16 items-center justify-between">
-        <Link to="/" className="flex items-center gap-2">
-          <img alt="VerifierMonDevis.fr" className="h-24 w-24 object-cover border-0 rounded-full opacity-100" src="/lovable-uploads/43051609-677c-4715-b2f7-113906ecb595.png" />
-          <span className={`text-xl font-bold ${isLandingPage ? 'text-primary-foreground' : 'text-foreground'}`}>
+        <Link to="/" className="flex items-center gap-3">
+          <img 
+            alt="VerifierMonDevis.fr" 
+            className="h-14 w-14 object-contain" 
+            src="/lovable-uploads/43051609-677c-4715-b2f7-113906ecb595.png" 
+          />
+          <span className={`text-2xl font-bold ${isLandingPage ? 'text-primary-foreground' : 'text-foreground'}`}>
             VerifierMonDevis.fr
           </span>
         </Link>
