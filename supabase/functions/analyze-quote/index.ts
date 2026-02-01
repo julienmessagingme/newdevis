@@ -998,17 +998,34 @@ async function verifyData(
           result.patrimoine_lat = lat;
           result.patrimoine_lon = lon;
           result.georisques_commune = commune;
+          const codeInsee = geoData.features[0].properties.citycode || "";
           
-          // Georisques API
-          const risquesResponse = await fetch(`${GEORISQUES_API_URL}/resultats_commune?code_insee=${geoData.features[0].properties.citycode || ""}`);
-          if (risquesResponse.ok) {
-            const risquesData = await risquesResponse.json();
-            result.georisques_consulte = true;
-            
-            if (risquesData.risques_naturels) {
-              result.georisques_risques = risquesData.risques_naturels.map((r: any) => r.libelle_risque || r.type).filter(Boolean);
+          // Georisques API - Risques GASPAR
+          if (codeInsee) {
+            try {
+              const risquesResponse = await fetch(`${GEORISQUES_API_URL}/gaspar/risques?code_insee=${codeInsee}`);
+              if (risquesResponse.ok) {
+                const risquesData = await risquesResponse.json();
+                result.georisques_consulte = true;
+                
+                if (risquesData.data && risquesData.data.length > 0 && risquesData.data[0].risques_detail) {
+                  result.georisques_risques = risquesData.data[0].risques_detail
+                    .map((r: any) => r.libelle_risque_long || r.libelle_risque || r.type)
+                    .filter(Boolean);
+                }
+              }
+              
+              // Zone sismique - endpoint séparé
+              const seismeResponse = await fetch(`${GEORISQUES_API_URL}/zonage_sismique?code_insee=${codeInsee}`);
+              if (seismeResponse.ok) {
+                const seismeData = await seismeResponse.json();
+                if (seismeData.data && seismeData.data.length > 0) {
+                  result.georisques_zone_sismique = seismeData.data[0].zone_sismicite || null;
+                }
+              }
+            } catch (georisquesError) {
+              console.error("Georisques API error:", georisquesError);
             }
-            result.georisques_zone_sismique = risquesData.zone_sismique || null;
           }
           
           // GPU API for heritage
