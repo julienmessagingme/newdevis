@@ -509,47 +509,102 @@ const isLaborLine = (labelRaw?: string): boolean => {
 };
 
 /**
- * Calcule displayQty selon les règles :
- * - Somme des lines[].qty pour lignes où job_type === jobTypeAffiché ET needs_user_qty === false
- * - Exclure les lignes de pose/main d'œuvre du comptage
+ * Vérifie si une unité est de type surface/longueur/volume
  */
-const calculateDisplayQty = (lines: MarketPriceLine[], jobType: string): number => {
-  return lines
-    .filter(line => {
-      // Filtre 1: job_type doit correspondre
-      if (line.job_type && line.job_type !== jobType) return false;
-      // Filtre 2: needs_user_qty doit être false
-      if (line.needs_user_qty === true) return false;
-      // Filtre 3: Exclure les lignes de pose/main d'œuvre
-      if (isLaborLine(line.label_raw)) return false;
-      // Filtre 4: qty doit être présent et > 0
-      if (!line.qty || line.qty <= 0) return false;
-      return true;
-    })
-    .reduce((sum, line) => sum + (line.qty || 0), 0);
+const isSurfaceOrVolumeUnit = (unit: string): boolean => {
+  const normalized = unit.toLowerCase().replace(/²/g, '2');
+  return ['m2', 'ml', 'm3', 'unite', 'unité', 'unit'].includes(normalized);
 };
 
 /**
- * Détermine si le warning quantité doit s'afficher :
- * - Si warnings.length > 0
- * - OU si lines.some(l => l.needs_user_qty || l.qty == null)
- * - SAUF si unit !== m² et qty est présent
+ * Calcule qty_ref selon les règles :
+ * - Si unité = m² : somme des quantités des lignes du poste principal (même job_type)
+ * - Si unité = unité : somme des quantités des lignes du poste principal
+ * - Sinon : ne pas calculer (retourne null)
+ * - Exclure les lignes de pose/main d'œuvre du comptage
+ * - Exclure les lignes avec needs_user_qty = true
+ */
+const calculateQtyRef = (
+  lines: MarketPriceLine[], 
+  jobType: string,
+  unitLabel: string
+): number | null => {
+  const normalizedUnit = unitLabel.toLowerCase().replace(/²/g, '2');
+  
+  // Seulement pour m², ml, m3, unité
+  if (!['m2', 'ml', 'm3', 'unite', 'unité', 'unit'].includes(normalizedUnit)) {
+    return null;
+  }
+  
+  const validLines = lines.filter(line => {
+    // Filtre 1: job_type doit correspondre au poste principal
+    if (line.job_type && line.job_type !== jobType) return false;
+    // Filtre 2: needs_user_qty doit être false
+    if (line.needs_user_qty === true) return false;
+    // Filtre 3: Exclure les lignes de pose/main d'œuvre
+    if (isLaborLine(line.label_raw)) return false;
+    // Filtre 4: qty doit être présent et > 0
+    if (!line.qty || line.qty <= 0) return false;
+    return true;
+  });
+  
+  if (validLines.length === 0) return null;
+  
+  return validLines.reduce((sum, line) => sum + (line.qty || 0), 0);
+};
+
+/**
+ * Détermine si le warning quantité doit s'afficher selon les règles strictes :
+ * 
+ * NE JAMAIS afficher l'alerte si :
+ * - qty_ref est présent (> 0), OU
+ * - toutes les lignes affichées ont qty numérique ET needs_user_qty === false
+ * 
+ * AFFICHER l'alerte UNIQUEMENT si :
+ * - warnings contient au moins une entrée avec reason = "missing_or_uncertain_qty", OU
+ * - qty_ref est null ALORS QUE l'unité du poste principal est m²/ml/m³/unité
  */
 const shouldShowQtyWarning = (
   lines: MarketPriceLine[], 
-  warnings: string[], 
+  warnings: Array<string | { reason?: string; message?: string }>,
   unitLabel: string,
-  displayQty: number
+  qtyRef: number | null
 ): boolean => {
-  // Règle 1: Si warnings de l'API
-  if (warnings.length > 0) return true;
+  // Règle 1: Ne JAMAIS afficher si qty_ref est présent
+  if (qtyRef !== null && qtyRef > 0) {
+    return false;
+  }
   
-  // Règle 2: Si certaines lignes ont besoin d'input utilisateur ou qty null
-  const hasProblematicLines = lines.some(l => l.needs_user_qty === true || l.qty == null);
-  if (hasProblematicLines) return true;
+  // Règle 2: Ne JAMAIS afficher si toutes les lignes ont qty numérique ET needs_user_qty === false
+  const allLinesHaveValidQty = lines.length > 0 && lines.every(line => {
+    const hasNumericQty = typeof line.qty === 'number' && line.qty > 0;
+    const noUserInputNeeded = line.needs_user_qty !== true;
+    return hasNumericQty && noUserInputNeeded;
+  });
   
-  // Exception: Si unit !== m² et displayQty > 0, ne pas afficher le warning
-  if (unitLabel !== "m²" && displayQty > 0) return false;
+  if (allLinesHaveValidQty) {
+    return false;
+  }
+  
+  // Règle 3: AFFICHER si warnings contient "missing_or_uncertain_qty"
+  const hasMissingQtyWarning = warnings.some(w => {
+    if (typeof w === 'string') {
+      return w.includes('missing_or_uncertain_qty') || w.includes('quantité');
+    }
+    if (typeof w === 'object' && w !== null) {
+      return w.reason === 'missing_or_uncertain_qty';
+    }
+    return false;
+  });
+  
+  if (hasMissingQtyWarning) {
+    return true;
+  }
+  
+  // Règle 4: AFFICHER si qty_ref est null ET l'unité est m²/ml/m³/unité
+  if (qtyRef === null && isSurfaceOrVolumeUnit(unitLabel)) {
+    return true;
+  }
   
   return false;
 };
@@ -638,20 +693,18 @@ const MarketPriceN8NBlock = ({ loading, error, result, debug, needsUserInput, mo
   
   // Si on a des totaux valides, on affiche même si qty/surface manquante
 
-  // Calcul de displayQty selon les nouvelles règles :
-  // - Somme des lines[].qty pour lignes où job_type === jobTypeAffiché ET needs_user_qty === false
-  // - Exclure les lignes de pose/main d'œuvre du comptage
-  const displayQty = result ? calculateDisplayQty(result.lines, result.jobType) : 0;
+  // Calcul de qty_ref selon les nouvelles règles :
+  // - Si unité = m² : somme des quantités des lignes du poste principal (même job_type)
+  // - Si unité = unité : somme des quantités des lignes du poste principal
+  // - Sinon : null (ne pas afficher de quantité)
+  const qtyRef = result ? calculateQtyRef(result.lines, result.jobType, result.unitLabel) : null;
   
-  // Règle d'affichage du warning quantité :
-  // - Si warnings.length > 0
-  // - OU si lines.some(l => l.needs_user_qty || l.qty == null)
-  // - SAUF si unit !== m² et qty est présent
+  // Règle d'affichage du warning quantité selon les nouvelles règles strictes
   const showQtyWarning = result ? shouldShowQtyWarning(
     result.lines, 
     result.warnings, 
     result.unitLabel, 
-    displayQty
+    qtyRef
   ) : false;
 
   return (
@@ -665,7 +718,7 @@ const MarketPriceN8NBlock = ({ loading, error, result, debug, needsUserInput, mo
           {/* Afficher qty seulement si disponible et pas de warning */}
           <p className="text-xs text-muted-foreground">
             {result.jobTypeLabel}
-            {!showQtyWarning && displayQty > 0 && <> • {displayQty} {result.unitLabel}{displayQty > 1 ? 's' : ''}</>}
+            {!showQtyWarning && qtyRef && qtyRef > 0 && <> • {qtyRef} {result.unitLabel}{qtyRef > 1 ? 's' : ''}</>}
           </p>
         </div>
       </div>
@@ -720,10 +773,10 @@ const MarketPriceN8NBlock = ({ loading, error, result, debug, needsUserInput, mo
                     {formatCurrency(result.avgTotal)} HT
                   </span>
                 </div>
-                {/* Afficher détail qty uniquement si qtyTotal disponible et pas de warning */}
-                {!showQtyWarning && displayQty > 0 && result.prixAvg > 0 && (
+                {/* Afficher détail qty uniquement si qtyRef disponible et pas de warning */}
+                {!showQtyWarning && qtyRef && qtyRef > 0 && result.prixAvg > 0 && (
                   <p className="text-xs text-muted-foreground mt-2">
-                    Détail : {displayQty} {result.unitLabel}{displayQty > 1 ? 's' : ''} × {formatCurrency(result.prixAvg)}/{result.unitLabel} HT
+                    Détail : {qtyRef} {result.unitLabel}{qtyRef > 1 ? 's' : ''} × {formatCurrency(result.prixAvg)}/{result.unitLabel} HT
                   </p>
                 )}
               </div>
