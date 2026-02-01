@@ -329,9 +329,14 @@ export const useMarketPriceAPI = ({
       return;
     }
 
-    // Extract multiplier (qty ou surface) - POUR AFFICHAGE UNIQUEMENT
-    // Règle: n8n renvoie des totaux déjà calculés, on ne recalcule JAMAIS
-    // qty/surface servent uniquement à l'affichage détaillé
+    // ========================================
+    // RÈGLE UI PRIX MARCHÉ
+    // ========================================
+    // qty/surface servent UNIQUEMENT à l'affichage détaillé
+    // n8n renvoie des totaux déjà calculés (total_min/avg/max)
+    // On ne bloque JAMAIS l'affichage si qty/surface manquante
+    // ========================================
+    
     let multiplier: number | null = null;
     let multiplierSource = "";
     
@@ -339,20 +344,13 @@ export const useMarketPriceAPI = ({
       const { qty, source } = extractQuantityForUnits(typesTravaux, rawText);
       multiplier = qty;
       multiplierSource = source;
-      // NE PAS bloquer si qty manquante - n8n calcule les totaux indépendamment
-      if (!qty) {
-        setNeedsUserInput("qty");
-      }
     } else {
       const { surface, source } = extractSurfaceForArea(typesTravaux, rawText);
       multiplier = surface;
       multiplierSource = source;
-      // NE PAS bloquer si surface manquante - n8n calcule les totaux indépendamment
-      if (!surface) {
-        setNeedsUserInput("surface");
-      }
     }
 
+    // NE JAMAIS bloquer - qty/surface pour affichage uniquement
     setNeedsUserInput(null);
     newDebug.multiplier = multiplier;
     newDebug.multiplierSource = multiplierSource;
