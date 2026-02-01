@@ -2,43 +2,35 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calculator, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-
-const JOB_TYPES = [
-  { value: "peinture_murs", label: "Peinture murs" },
-  { value: "peinture_plafond", label: "Peinture plafond" },
-  { value: "carrelage_sol", label: "Carrelage sol" },
-  { value: "parquet_flottant", label: "Parquet flottant" },
-  { value: "demolition", label: "Démolition" },
-  { value: "enduit_lissage", label: "Enduit lissage" },
-];
+import JobTypeSelector, { type JobTypeItem } from "./JobTypeSelector";
 
 interface PriceResult {
   total_min: number;
   total_avg: number;
   total_max: number;
   price_avg_unit_ht?: number;
-  surface: number;
+  quantity: number;
+  unit: string;
 }
 
 const DevisCalculatorSection = () => {
   const [jobType, setJobType] = useState<string>("");
-  const [surface, setSurface] = useState<string>("");
+  const [selectedJobData, setSelectedJobData] = useState<JobTypeItem | null>(null);
+  const [quantity, setQuantity] = useState<string>("");
   const [zip, setZip] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<PriceResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const isFormValid = jobType && surface && zip && Number(surface) > 0;
+  // Determine unit type from selected job
+  const isUnitBased = selectedJobData?.unit === "unité" || selectedJobData?.unit === "unit";
+  const isForfait = selectedJobData?.unit === "forfait";
+  const unitLabel = isForfait ? "forfait" : isUnitBased ? "unité(s)" : "m²";
+  
+  const isFormValid = jobType && (isForfait || (quantity && Number(quantity) > 0)) && zip;
 
   const handleCalculate = async () => {
     if (!isFormValid) return;
@@ -51,16 +43,25 @@ const DevisCalculatorSection = () => {
       // POST request to n8n webhook
       const baseUrl = "https://n8n.messagingme.app/webhook/d1cfedb7-0ebb-44ca-bb2b-543ee84b0075";
       
+      // Build form data based on unit type
+      const formDataFields: Record<string, unknown> = {
+        job_type: jobType,
+        zip,
+      };
+      
+      if (isForfait) {
+        formDataFields.qty = 1;
+      } else if (isUnitBased) {
+        formDataFields.qty = Number(quantity);
+      } else {
+        formDataFields.surface = Number(quantity);
+      }
+      
       const { data, error: fnError } = await supabase.functions.invoke("test-webhook", {
         body: {
           url: baseUrl,
           method: "POST",
-          // n8n attend des champs (form) même sans fichier
-          formDataFields: {
-            job_type: jobType,
-            surface: Number(surface),
-            zip,
-          },
+          formDataFields,
         },
       });
       
@@ -76,7 +77,7 @@ const DevisCalculatorSection = () => {
 
       // n8n renvoie total_min/total_avg/total_max (totaux déjà calculés)
       if (apiResponse && typeof apiResponse === "object" && (apiResponse as any).ok === true) {
-        const surfaceNum = Number(surface);
+        const quantityNum = isForfait ? 1 : Number(quantity);
         const totalMin = Number((apiResponse as any).total_min);
         const totalAvg = Number((apiResponse as any).total_avg);
         const totalMax = Number((apiResponse as any).total_max);
@@ -94,7 +95,8 @@ const DevisCalculatorSection = () => {
           total_avg: totalAvg,
           total_max: totalMax,
           price_avg_unit_ht: hasUnitAvg ? unitAvg : undefined,
-          surface: surfaceNum,
+          quantity: quantityNum,
+          unit: selectedJobData?.unit || "m²",
         });
       } else {
         throw new Error("Prix marché indisponible pour ce type de travaux");
@@ -107,8 +109,10 @@ const DevisCalculatorSection = () => {
     }
   };
 
-  const getJobTypeLabel = (value: string) => {
-    return JOB_TYPES.find((jt) => jt.value === value)?.label || value;
+  const formatUnitLabel = (unit: string) => {
+    if (unit === "forfait") return "forfait";
+    if (unit === "unité" || unit === "unit") return "unité";
+    return "m²";
   };
 
   return (
@@ -130,33 +134,30 @@ const DevisCalculatorSection = () => {
             {/* Job Type Select */}
             <div className="space-y-2">
               <Label htmlFor="job-type">Type de travaux</Label>
-              <Select value={jobType} onValueChange={setJobType}>
-                <SelectTrigger id="job-type" className="bg-background">
-                  <SelectValue placeholder="Sélectionnez un type de travaux" />
-                </SelectTrigger>
-                <SelectContent className="bg-background border shadow-lg z-50">
-                  {JOB_TYPES.map((type) => (
-                    <SelectItem key={type.value} value={type.value}>
-                      {type.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Surface Input */}
-            <div className="space-y-2">
-              <Label htmlFor="surface">Surface (m²)</Label>
-              <Input
-                id="surface"
-                type="number"
-                min="1"
-                placeholder="ex: 45"
-                value={surface}
-                onChange={(e) => setSurface(e.target.value)}
-                className="bg-background"
+              <JobTypeSelector
+                value={jobType}
+                onChange={setJobType}
+                onJobTypeData={setSelectedJobData}
               />
             </div>
+
+            {/* Quantity/Surface Input - hidden for forfait */}
+            {!isForfait && (
+              <div className="space-y-2">
+                <Label htmlFor="quantity">
+                  {isUnitBased ? "Quantité (nombre)" : "Surface (m²)"}
+                </Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  min="1"
+                  placeholder={isUnitBased ? "ex: 3" : "ex: 45"}
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  className="bg-background"
+                />
+              </div>
+            )}
 
             {/* Zip Code Input */}
             <div className="space-y-2">
@@ -218,10 +219,20 @@ const DevisCalculatorSection = () => {
                 <div className="text-sm text-muted-foreground space-y-1">
                   <p>
                     <span className="font-medium">Type :</span>{" "}
-                    {getJobTypeLabel(jobType)}
+                    {selectedJobData?.label || jobType}
                   </p>
                   <p>
-                    <span className="font-medium">Surface :</span> {result.surface} m²
+                    <span className="font-medium">
+                      {result.unit === "forfait" 
+                        ? "Prestation" 
+                        : result.unit === "unité" || result.unit === "unit" 
+                          ? "Quantité" 
+                          : "Surface"}
+                      :
+                    </span>{" "}
+                    {result.unit === "forfait" 
+                      ? "Forfait" 
+                      : `${result.quantity} ${formatUnitLabel(result.unit)}`}
                   </p>
                 </div>
 
@@ -242,13 +253,9 @@ const DevisCalculatorSection = () => {
                     </span>
                   </p>
                   
-                  {result.price_avg_unit_ht ? (
+                  {result.price_avg_unit_ht && result.unit !== "forfait" && (
                     <p className="text-sm text-muted-foreground">
-                      Détail : {result.surface} m² × {result.price_avg_unit_ht.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/m² HT
-                    </p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Détail : surface {result.surface} m²
+                      Détail : {result.quantity} {formatUnitLabel(result.unit)} × {result.price_avg_unit_ht.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/{formatUnitLabel(result.unit)} HT
                     </p>
                   )}
                 </div>
