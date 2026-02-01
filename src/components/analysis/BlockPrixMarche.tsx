@@ -526,37 +526,27 @@ const MarketPriceN8NBlock = ({ loading, error, result, debug, needsUserInput, mo
     );
   }
 
-  // Si on a besoin d'input utilisateur pour qty/surface
-  if (needsUserInput) {
-    const inputLabel = needsUserInput === "qty" 
-      ? "Combien d'équipements (unités) ?"
-      : "Quelle surface (m²) ?";
-    
-    return (
-      <div className="p-5 bg-amber-500/10 rounded-xl border border-amber-500/20 mb-4">
-        <div className="flex items-start gap-3">
-          <div className="p-2 bg-amber-500/20 rounded-lg">
-            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-medium text-foreground mb-2">
-              {inputLabel}
-            </p>
-            <p className="text-xs text-muted-foreground mb-3">
-              La quantité n'a pas pu être détectée automatiquement dans le devis.
-              {debug?.jobTypeDetected && (
-                <span className="block mt-1">Type détecté : {debug.jobTypeDetected}</span>
-              )}
-            </p>
-            {/* TODO: Ajouter un champ input pour saisie manuelle */}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // ========================================
+  // RÈGLE UI PRIX MARCHÉ
+  // ========================================
+  // Si n8n renvoie total_min, total_avg, total_max (nombres > 0) :
+  // - Afficher fourchette = total_min → total_max
+  // - Afficher prix moyen = total_avg
+  // - available = true
+  // - NE JAMAIS recalculer depuis qty/surface
+  // - qty sert uniquement pour affichage détail lignes
+  // ========================================
+  
+  // NE PLUS BLOQUER sur needsUserInput - on affiche les totaux n8n quand même
 
-  if (error || !debug?.jobTypeDetected) {
-    // Afficher pourquoi on ne peut pas comparer
+  // Vérifier si on a des totaux n8n valides (> 0)
+  const hasValidN8NTotals = result && 
+    result.minTotal > 0 && 
+    result.avgTotal > 0 && 
+    result.maxTotal > 0;
+
+  // Si erreur ET pas de totaux valides => afficher erreur
+  if ((error || !debug?.jobTypeDetected) && !hasValidN8NTotals) {
     const reason = !debug?.jobTypeDetected 
       ? "Type de travaux non reconnu pour la comparaison marché"
       : error || "Prix marché indisponible";
@@ -582,6 +572,8 @@ const MarketPriceN8NBlock = ({ loading, error, result, debug, needsUserInput, mo
       </div>
     );
   }
+  
+  // Si on a des totaux valides, on affiche même si qty/surface manquante
 
   if (!result) return null;
 
@@ -593,13 +585,15 @@ const MarketPriceN8NBlock = ({ loading, error, result, debug, needsUserInput, mo
         </div>
         <div className="flex-1">
           <h4 className="font-semibold text-foreground">Prix Marché (source externe)</h4>
+          {/* Afficher qty seulement si disponible */}
           <p className="text-xs text-muted-foreground">
-            {result.jobTypeLabel} • {result.multiplier} {result.unitLabel}
+            {result.jobTypeLabel}
+            {result.multiplier > 0 && <> • {result.multiplier} {result.unitLabel}</>}
           </p>
         </div>
       </div>
 
-      {/* Fourchette de prix */}
+      {/* Fourchette de prix - TOTAUX DIRECTS n8n */}
       <div className="space-y-3">
         <div className="p-4 bg-background/60 rounded-lg">
           <div className="flex justify-between items-center mb-2">
@@ -614,9 +608,12 @@ const MarketPriceN8NBlock = ({ loading, error, result, debug, needsUserInput, mo
               {formatCurrency(result.avgTotal)} HT
             </span>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            Détail : {result.multiplier} {result.unitLabel} × {result.prixAvg} €/{result.unitLabel} HT
-          </p>
+          {/* Afficher détail qty uniquement si multiplier et prix unitaire disponibles */}
+          {result.multiplier > 0 && result.prixAvg > 0 && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Détail : {result.multiplier} {result.unitLabel} × {formatCurrency(result.prixAvg)}/{result.unitLabel} HT
+            </p>
+          )}
         </div>
 
         {/* Comparaison avec le devis */}
