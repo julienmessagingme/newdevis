@@ -94,23 +94,98 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    
-    // Standard JSON or GET request (existing behavior)
-    console.log('Payload:', JSON.stringify(payload, null, 2));
 
-    const fetchOptions: RequestInit = {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    };
+    // No filePath provided.
+    // IMPORTANT: our n8n price engine requires a `file` field (multipart).
+    // To support simple estimations (landing calculator), we attach a tiny dummy PDF
+    // and pass parameters as regular form fields.
 
-    // Only add body for non-GET/HEAD methods
-    if (method !== 'GET' && method !== 'HEAD') {
-      fetchOptions.body = JSON.stringify(payload);
+    const shouldSendMultipartDummy = method === 'POST' && (formDataFields || payload);
+
+    let response: Response;
+
+    if (shouldSendMultipartDummy) {
+      const formData = new FormData();
+
+      // Generate a tiny but valid PDF (with proper xref offsets)
+      const buildMinimalPdfBytes = (): Uint8Array => {
+        const enc = new TextEncoder();
+
+        const parts: string[] = [];
+        const offsets: number[] = [0]; // object 0 is the free object
+        let bytesLen = 0;
+
+        const push = (s: string) => {
+          parts.push(s);
+          bytesLen += enc.encode(s).byteLength;
+        };
+
+        push('%PDF-1.4\n');
+
+        const pushObj = (objNum: number, body: string) => {
+          offsets[objNum] = bytesLen;
+          push(`${objNum} 0 obj\n${body}\nendobj\n`);
+        };
+
+        // 1: catalog
+        pushObj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+        // 2: pages
+        pushObj(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+        // 3: page
+        pushObj(
+          3,
+          '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> >>',
+        );
+        // 4: content stream
+        const stream = 'BT\n/F1 12 Tf\n72 120 Td\n(Estimation) Tj\nET\n';
+        pushObj(4, `<< /Length ${enc.encode(stream).byteLength} >>\nstream\n${stream}endstream`);
+        // 5: font
+        pushObj(5, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+
+        // xref
+        const xrefOffset = bytesLen;
+        push('xref\n');
+        push('0 6\n');
+        push('0000000000 65535 f \n');
+        for (let i = 1; i <= 5; i++) {
+          const off = (offsets[i] ?? 0).toString().padStart(10, '0');
+          push(`${off} 00000 n \n`);
+        }
+        push('trailer\n');
+        push('<< /Size 6 /Root 1 0 R >>\n');
+        push('startxref\n');
+        push(`${xrefOffset}\n`);
+        push('%%EOF\n');
+
+        const raw = enc.encode(parts.join(''));
+        // Force a concrete Uint8Array<ArrayBuffer> to satisfy BlobPart typing
+        return new Uint8Array(raw);
+      };
+
+      const pdfBytes = buildMinimalPdfBytes();
+      // Ensure we pass a concrete ArrayBuffer (avoids TS BlobPart incompatibility with ArrayBufferLike)
+      const pdfArrayBuffer = new ArrayBuffer(pdfBytes.byteLength);
+      new Uint8Array(pdfArrayBuffer).set(pdfBytes);
+      const dummyFile = new File([pdfArrayBuffer], 'devis.pdf', { type: 'application/pdf' });
+      formData.append('file', dummyFile);
+      console.log('No filePath provided: sending multipart/form-data with dummy PDF');
+
+      const fields = (formDataFields && typeof formDataFields === 'object') ? formDataFields : payload;
+      if (fields && typeof fields === 'object') {
+        for (const [k, v] of Object.entries(fields)) {
+          if (v === null || v === undefined) continue;
+          formData.append(k, String(v));
+        }
+      }
+
+      response = await fetch(url, {
+        method: 'POST',
+        body: formData,
+      });
+    } else {
+      // Fallback: regular fetch with no body (GET/HEAD)
+      response = await fetch(url, { method });
     }
-
-    const response = await fetch(url, fetchOptions);
 
     const responseText = await response.text();
     let responseData;

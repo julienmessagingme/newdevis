@@ -23,12 +23,10 @@ const JOB_TYPES = [
 ];
 
 interface PriceResult {
-  min_total: number;
-  avg_total: number;
-  max_total: number;
-  price_min_unit_ht: number;
-  price_avg_unit_ht: number;
-  price_max_unit_ht: number;
+  total_min: number;
+  total_avg: number;
+  total_max: number;
+  price_avg_unit_ht?: number;
   surface: number;
 }
 
@@ -50,17 +48,18 @@ const DevisCalculatorSection = () => {
     setResult(null);
 
     try {
-      // POST request with JSON body to n8n webhook
+      // POST request to n8n webhook
       const baseUrl = "https://n8n.messagingme.app/webhook/d1cfedb7-0ebb-44ca-bb2b-543ee84b0075";
       
       const { data, error: fnError } = await supabase.functions.invoke("test-webhook", {
         body: {
           url: baseUrl,
           method: "POST",
-          payload: {
+          // n8n attend des champs (form) même sans fichier
+          formDataFields: {
             job_type: jobType,
             surface: Number(surface),
-            zip: zip,
+            zip,
           },
         },
       });
@@ -73,26 +72,28 @@ const DevisCalculatorSection = () => {
         throw new Error(data?.error || "L'API a retourné une erreur");
       }
 
-      // Parse the API response with French keys: "prix mini", "prix avg", "prix max"
       const apiResponse = data.data;
-      
-      if (apiResponse && typeof apiResponse === "object" && 
-          apiResponse["prix mini"] !== undefined &&
-          apiResponse["prix avg"] !== undefined &&
-          apiResponse["prix max"] !== undefined) {
-        
+
+      // n8n renvoie total_min/total_avg/total_max (totaux déjà calculés)
+      if (apiResponse && typeof apiResponse === "object" && (apiResponse as any).ok === true) {
         const surfaceNum = Number(surface);
-        const priceMinUnit = Number(apiResponse["prix mini"]);
-        const priceAvgUnit = Number(apiResponse["prix avg"]);
-        const priceMaxUnit = Number(apiResponse["prix max"]);
-        
+        const totalMin = Number((apiResponse as any).total_min);
+        const totalAvg = Number((apiResponse as any).total_avg);
+        const totalMax = Number((apiResponse as any).total_max);
+
+        if (![totalMin, totalAvg, totalMax].every((n) => Number.isFinite(n) && n > 0)) {
+          throw new Error("Prix marché indisponible pour ce type de travaux");
+        }
+
+        // Optionnel : certains retours incluent un prix unitaire moyen
+        const unitAvg = Number((apiResponse as any).price_avg_unit_ht);
+        const hasUnitAvg = Number.isFinite(unitAvg) && unitAvg > 0;
+
         setResult({
-          min_total: priceMinUnit * surfaceNum,
-          avg_total: priceAvgUnit * surfaceNum,
-          max_total: priceMaxUnit * surfaceNum,
-          price_min_unit_ht: priceMinUnit,
-          price_avg_unit_ht: priceAvgUnit,
-          price_max_unit_ht: priceMaxUnit,
+          total_min: totalMin,
+          total_avg: totalAvg,
+          total_max: totalMax,
+          price_avg_unit_ht: hasUnitAvg ? unitAvg : undefined,
           surface: surfaceNum,
         });
       } else {
@@ -229,21 +230,27 @@ const DevisCalculatorSection = () => {
                   <p className="text-lg font-bold text-foreground">
                     Fourchette :{" "}
                     <span className="text-primary">
-                      {result.min_total.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € à{" "}
-                      {result.max_total.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (HT)
+                      {result.total_min.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} € à{" "}
+                      {result.total_max.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} € (HT)
                     </span>
                   </p>
                   
                   <p className="text-base text-foreground">
                     Prix moyen estimé :{" "}
                     <span className="font-semibold text-primary">
-                      {result.avg_total.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € (HT)
+                      {result.total_avg.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} € (HT)
                     </span>
                   </p>
                   
-                  <p className="text-sm text-muted-foreground">
-                    Détail : {result.surface} m² × {result.price_avg_unit_ht.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/m² HT
-                  </p>
+                  {result.price_avg_unit_ht ? (
+                    <p className="text-sm text-muted-foreground">
+                      Détail : {result.surface} m² × {result.price_avg_unit_ht.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/m² HT
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Détail : surface {result.surface} m²
+                    </p>
+                  )}
                 </div>
               </div>
             )}
