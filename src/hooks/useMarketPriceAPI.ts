@@ -26,6 +26,9 @@ export interface MarketPriceResult {
   jobTypeLabel: string;
   unitLabel: string; // "m²" ou "unité"
   isUnitBased: boolean;
+  // Nouveaux champs n8n pour gestion du warning quantité
+  qtyTotal: number | null;
+  needsUserQty: boolean;
 }
 
 export interface MarketPriceDebug {
@@ -440,10 +443,23 @@ export const useMarketPriceAPI = ({
             const avgTotal = Number(apiResponse.total_avg);
             const maxTotal = Number(apiResponse.total_max);
             
-            console.log("n8n totaux directs (sans recalcul):", { minTotal, avgTotal, maxTotal });
+            // Nouveaux champs n8n pour gestion du warning quantité
+            const qtyTotal = apiResponse.qty_total !== undefined ? Number(apiResponse.qty_total) : null;
+            const needsUserQty = apiResponse.needs_user_qty === true;
+            
+            console.log("n8n totaux directs (sans recalcul):", { minTotal, avgTotal, maxTotal, qtyTotal, needsUserQty });
             
             // lines[] pour affichage détaillé uniquement
             const lines = Array.isArray(apiResponse.lines) ? apiResponse.lines : [];
+            
+            // Fallback: calculer qty_total depuis lines[].qty si non fourni
+            let effectiveQtyTotal = qtyTotal;
+            if (effectiveQtyTotal === null && lines.length > 0) {
+              const sumQty = lines.reduce((acc: number, l: { qty?: number }) => acc + (l.qty || 0), 0);
+              if (sumQty > 0) {
+                effectiveQtyTotal = sumQty;
+              }
+            }
             
             // Prix unitaires pour affichage (optionnel, jamais pour recalcul)
             // On les dérive des lignes si disponibles, sinon on laisse à 0
@@ -469,12 +485,15 @@ export const useMarketPriceAPI = ({
               minTotal,
               avgTotal,
               maxTotal,
-              // multiplier pour affichage uniquement
-              multiplier: multiplier || 0,
+              // multiplier pour affichage uniquement (utiliser qtyTotal si dispo)
+              multiplier: effectiveQtyTotal || multiplier || 0,
               jobType,
               jobTypeLabel: config.label,
               unitLabel: config.isUnitBased ? "unité" : "m²",
               isUnitBased: config.isUnitBased,
+              // Nouveaux champs pour warning quantité
+              qtyTotal: effectiveQtyTotal,
+              needsUserQty,
             });
             setDebug(newDebug);
             return;
@@ -499,6 +518,8 @@ export const useMarketPriceAPI = ({
                 jobTypeLabel: config.label,
                 unitLabel: config.isUnitBased ? "unité" : "m²",
                 isUnitBased: config.isUnitBased,
+                qtyTotal: multiplier,
+                needsUserQty: false,
               });
               setDebug(newDebug);
               return;
