@@ -13,21 +13,63 @@ type Analysis = {
   created_at: string;
 };
 
+// Fonction pour nettoyer le texte des emojis et caractères spéciaux
+const sanitizeText = (text: string): string => {
+  if (!text) return "";
+  
+  // Supprimer tous les emojis et caractères spéciaux Unicode
+  return text
+    // Supprimer les emojis courants
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "")
+    .replace(/[\u{2600}-\u{26FF}]/gu, "")
+    .replace(/[\u{2700}-\u{27BF}]/gu, "")
+    .replace(/[\u{1F600}-\u{1F64F}]/gu, "")
+    .replace(/[\u{1F680}-\u{1F6FF}]/gu, "")
+    .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, "")
+    // Remplacer les symboles courants par du texte
+    .replace(/✓/g, "[OK]")
+    .replace(/✔/g, "[OK]")
+    .replace(/❌/g, "[X]")
+    .replace(/⚠️?/g, "[!]")
+    .replace(/ℹ️?/g, "[i]")
+    .replace(/🟢/g, "[+]")
+    .replace(/🟡/g, "[~]")
+    .replace(/🔴/g, "[-]")
+    .replace(/📋/g, "")
+    .replace(/📊/g, "")
+    .replace(/📍/g, "")
+    .replace(/🏠/g, "")
+    .replace(/💰/g, "")
+    .replace(/🔒/g, "")
+    .replace(/🛡️?/g, "")
+    .replace(/📄/g, "")
+    .replace(/📁/g, "")
+    .replace(/✅/g, "[OK]")
+    .replace(/❎/g, "[X]")
+    // Supprimer les caractères de contrôle et autres symboles problématiques
+    .replace(/[\u{FE00}-\u{FE0F}]/gu, "") // Variation selectors
+    .replace(/[\u{200B}-\u{200D}]/gu, "") // Zero-width characters
+    .replace(/[\u{2028}-\u{202F}]/gu, " ") // Line/paragraph separators
+    // Nettoyer les espaces multiples
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
 const getScoreLabel = (score: string | null) => {
   switch (score) {
     case "VERT": return "FEU VERT - Devis fiable";
     case "ORANGE": return "FEU ORANGE - Points de vigilance";
-    case "ROUGE": return "FEU ROUGE - Risques identifiés";
-    default: return "Non déterminé";
+    case "ROUGE": return "FEU ROUGE - Risques identifies";
+    default: return "Non determine";
   }
 };
 
 const getScoreColor = (score: string | null): [number, number, number] => {
   switch (score) {
-    case "VERT": return [34, 197, 94]; // green
-    case "ORANGE": return [249, 115, 22]; // orange
-    case "ROUGE": return [239, 68, 68]; // red
-    default: return [107, 114, 128]; // gray
+    case "VERT": return [34, 197, 94];
+    case "ORANGE": return [249, 115, 22];
+    case "ROUGE": return [239, 68, 68];
+    default: return [107, 114, 128];
   }
 };
 
@@ -40,7 +82,8 @@ export const generatePdfReport = (analysis: Analysis) => {
 
   // Helper function to add wrapped text
   const addWrappedText = (text: string, x: number, y: number, maxWidth: number, lineHeight: number = 6): number => {
-    const lines = doc.splitTextToSize(text, maxWidth);
+    const cleanText = sanitizeText(text);
+    const lines = doc.splitTextToSize(cleanText, maxWidth);
     lines.forEach((line: string, index: number) => {
       if (y + (index * lineHeight) > doc.internal.pageSize.getHeight() - 20) {
         doc.addPage();
@@ -52,7 +95,7 @@ export const generatePdfReport = (analysis: Analysis) => {
   };
 
   // Header
-  doc.setFillColor(59, 130, 246); // primary blue
+  doc.setFillColor(59, 130, 246);
   doc.rect(0, 0, pageWidth, 40, "F");
   
   doc.setTextColor(255, 255, 255);
@@ -82,17 +125,17 @@ export const generatePdfReport = (analysis: Analysis) => {
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text(`Fichier analysé: ${analysis.file_name}`, margin, yPos);
+  doc.text("Fichier analyse: " + sanitizeText(analysis.file_name), margin, yPos);
   yPos += 6;
-  doc.text(`Date d'analyse: ${new Date(analysis.created_at).toLocaleDateString("fr-FR", { 
+  doc.text("Date d'analyse: " + new Date(analysis.created_at).toLocaleDateString("fr-FR", { 
     day: "numeric", 
     month: "long", 
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit"
-  })}`, margin, yPos);
+  }), margin, yPos);
   yPos += 6;
-  doc.text(`Identifiant: ${analysis.id}`, margin, yPos);
+  doc.text("Identifiant: " + analysis.id, margin, yPos);
   
   yPos += 15;
 
@@ -106,7 +149,7 @@ export const generatePdfReport = (analysis: Analysis) => {
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(59, 130, 246);
-    doc.text("RÉSUMÉ DE L'ANALYSE", margin, yPos);
+    doc.text("RESUME DE L'ANALYSE", margin, yPos);
     yPos += 8;
     
     doc.setFontSize(10);
@@ -118,7 +161,6 @@ export const generatePdfReport = (analysis: Analysis) => {
 
   // Points OK Section
   if (analysis.points_ok && analysis.points_ok.length > 0) {
-    // Check if we need a new page
     if (yPos > doc.internal.pageSize.getHeight() - 60) {
       doc.addPage();
       yPos = 20;
@@ -200,7 +242,7 @@ export const generatePdfReport = (analysis: Analysis) => {
         yPos = 20;
       }
       doc.setFont("helvetica", "bold");
-      doc.text(`${index + 1}.`, margin, yPos);
+      doc.text((index + 1) + ".", margin, yPos);
       doc.setFont("helvetica", "normal");
       yPos = addWrappedText(rec, margin + 8, yPos, contentWidth - 8);
       yPos += 4;
@@ -208,7 +250,7 @@ export const generatePdfReport = (analysis: Analysis) => {
     yPos += 8;
   }
 
-  // Vérifications Section (Pappers & BODACC info)
+  // Verifications Section
   if (yPos > doc.internal.pageSize.getHeight() - 60) {
     doc.addPage();
     yPos = 20;
@@ -225,9 +267,9 @@ export const generatePdfReport = (analysis: Analysis) => {
   doc.setTextColor(60, 60, 60);
   
   const verifications = [
-    "• Analyse IA du contenu du devis (mentions légales, conformité)",
-    "• Vérification Pappers : ancienneté de l'entreprise, bilans disponibles, capitaux propres",
-    "• Vérification BODACC : procédures collectives (liquidation, redressement judiciaire)"
+    "- Analyse IA du contenu du devis (mentions legales, conformite)",
+    "- Verification Pappers : anciennete de l'entreprise, bilans disponibles, capitaux propres",
+    "- Verification BODACC : procedures collectives (liquidation, redressement judiciaire)"
   ];
   
   verifications.forEach((v) => {
@@ -244,26 +286,25 @@ export const generatePdfReport = (analysis: Analysis) => {
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     
-    // Footer line
     doc.setDrawColor(200, 200, 200);
     doc.line(margin, doc.internal.pageSize.getHeight() - 15, pageWidth - margin, doc.internal.pageSize.getHeight() - 15);
     
-    // Footer text
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
     doc.text(
-      "Ce rapport est fourni à titre informatif et ne constitue pas un conseil juridique.",
+      "Ce rapport est fourni a titre informatif et ne constitue pas un conseil juridique.",
       margin,
       doc.internal.pageSize.getHeight() - 10
     );
     doc.text(
-      `Page ${i}/${totalPages}`,
+      "Page " + i + "/" + totalPages,
       pageWidth - margin - 20,
       doc.internal.pageSize.getHeight() - 10
     );
   }
 
   // Download
-  const fileName = `rapport-analyse-${analysis.file_name.replace(/\.[^/.]+$/, "")}-${new Date().toISOString().split("T")[0]}.pdf`;
+  const safeFileName = sanitizeText(analysis.file_name).replace(/[^a-zA-Z0-9-_]/g, "_");
+  const fileName = "rapport-analyse-" + safeFileName.replace(/\.[^/.]+$/, "") + "-" + new Date().toISOString().split("T")[0] + ".pdf";
   doc.save(fileName);
 };
