@@ -262,6 +262,12 @@ const DevisCalculatorSection = () => {
             )}
           </CardContent>
         </Card>
+        
+        {/* Disclaimer fixe */}
+        <p className="text-xs text-muted-foreground text-center mt-4 px-4">
+          Estimation basée sur des moyennes observées de main d'œuvre.<br />
+          Les prix ne comprennent pas la fourniture des équipements sauf mention contraire.
+        </p>
       </div>
     </section>
   );
