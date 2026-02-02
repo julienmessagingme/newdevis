@@ -488,17 +488,15 @@ const AnalysisResult = () => {
           alertes={analysis.alertes || []} 
         />
 
-        {/* BLOC 2 — Analyse Prix & Cohérence Marché */}
+        {/* BLOC 2 — Analyse Prix & Cohérence Marché (API-driven) */}
         {(() => {
           const locationInfo = extractLocationInfo(analysis);
           return (
             <BlockPrixMarche 
               montantTotalHT={calculateTotalHT(analysis.types_travaux)}
-              zoneType={locationInfo.zoneType || analysis.types_travaux?.[0]?.zone_type}
               codePostal={locationInfo.codePostal}
               selectedWorkType={analysis.work_type}
-              typesTravaux={analysis.types_travaux}
-              filePath={analysis.file_path} // Envoi du PDF pour n8n multipart
+              filePath={analysis.file_path}
             />
           );
         })()}
