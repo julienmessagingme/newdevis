@@ -6,34 +6,31 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calculator, Loader2, AlertCircle, CheckCircle2, AlertTriangle } from "lucide-react";
 import JobTypeSelector, { type JobTypeItem } from "./JobTypeSelector";
 
-// Types pour la réponse API - on affiche EXACTEMENT ce que l'API renvoie
+// Types STRICTS pour la réponse API - contrat exact
 interface APIResponse {
   ok: boolean;
   errors?: string[];
-  // Pricing (prix unitaires ou forfait)
-  pricing?: {
-    unit_price_min?: number;
-    unit_price_avg?: number;
-    unit_price_max?: number;
-    unit?: string;
-    [key: string]: unknown;
+  currency?: string;
+  input?: {
+    job_type: string;
+    qty: number;
+    zip: string;
+    unit: string;
   };
-  // Totals (totaux calculés)
+  sheet?: {
+    label: string;
+    unit: string;
+    price_min_unit_ht: number;
+    price_avg_unit_ht: number;
+    price_max_unit_ht: number;
+  };
   totals?: {
-    total_min?: number;
-    total_avg?: number;
-    total_max?: number;
-    [key: string]: unknown;
+    total_min_ht: number;
+    total_avg_ht: number;
+    total_max_ht: number;
   };
-  // Explain (texte explicatif fourni par l'API)
   explain?: string;
-  // Warnings
   warnings?: string[];
-  // Metadata
-  label?: string;
-  job_type?: string;
-  qty?: number;
-  unit?: string;
 }
 
 const API_ENDPOINT = "https://n8n.messagingme.app/webhook/Calculette";
@@ -206,55 +203,39 @@ const DevisCalculatorSection = () => {
                   </div>
                 )}
 
-                {/* Label & métadonnées de l'API */}
+                {/* Label & métadonnées de l'API (depuis sheet et input) */}
                 <div className="text-sm text-muted-foreground space-y-1">
-                  {result.label && (
-                    <p><span className="font-medium">Type :</span> {result.label}</p>
+                  {result.sheet?.label && (
+                    <p><span className="font-medium">Type :</span> {result.sheet.label}</p>
                   )}
-                  {result.unit && result.qty !== undefined && (
-                    <p><span className="font-medium">Quantité :</span> {result.qty} {result.unit}</p>
+                  {result.input && (
+                    <p><span className="font-medium">Quantité :</span> {result.input.qty} {result.input.unit}</p>
                   )}
                 </div>
 
-                {/* Totals de l'API */}
+                {/* Totals de l'API - AFFICHAGE STRICT */}
                 {result.totals && (
                   <div className="pt-2 border-t border-primary/10 space-y-2">
                     <p className="text-lg font-bold text-foreground">
                       Fourchette :{" "}
                       <span className="text-primary">
-                        {formatNumber(result.totals.total_min)} € à {formatNumber(result.totals.total_max)} € HT
+                        {formatNumber(result.totals.total_min_ht)} € à {formatNumber(result.totals.total_max_ht)} € HT
                       </span>
                     </p>
                     <p className="text-base text-foreground">
                       Prix moyen estimé :{" "}
                       <span className="font-semibold text-primary">
-                        {formatNumber(result.totals.total_avg)} € HT
+                        {formatNumber(result.totals.total_avg_ht)} € HT
                       </span>
                     </p>
                   </div>
                 )}
 
-                {/* Pricing de l'API (prix unitaires) */}
-                {result.pricing && (
-                  <div className="pt-2 border-t border-primary/10 text-sm text-muted-foreground space-y-1">
-                    <p className="font-medium">Prix unitaires :</p>
-                    <p>
-                      Min : {formatNumber(result.pricing.unit_price_min)} €/{result.pricing.unit || result.unit || "unité"}
-                    </p>
-                    <p>
-                      Moy : {formatNumber(result.pricing.unit_price_avg)} €/{result.pricing.unit || result.unit || "unité"}
-                    </p>
-                    <p>
-                      Max : {formatNumber(result.pricing.unit_price_max)} €/{result.pricing.unit || result.unit || "unité"}
-                    </p>
-                  </div>
-                )}
-
-                {/* Explain de l'API */}
+                {/* Détail pédagogique - explain de l'API */}
                 {result.explain && (
                   <div className="pt-2 border-t border-primary/10">
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                      {result.explain}
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-medium">Détail :</span> {result.explain}
                     </p>
                   </div>
                 )}
