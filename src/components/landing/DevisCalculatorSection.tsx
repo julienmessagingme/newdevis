@@ -4,42 +4,39 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calculator, Loader2, AlertCircle, CheckCircle2, AlertTriangle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import JobTypeSelector, { type JobTypeItem } from "./JobTypeSelector";
 
-// Types pour la réponse n8n
-interface N8NLine {
-  job_type: string;
-  qty: number;
-  unit: string;
-  price_min_unit_ht: number;
-  price_avg_unit_ht: number;
-  price_max_unit_ht: number;
-  line_total_min: number;
-  line_total_avg: number;
-  line_total_max: number;
-}
-
-interface N8NResponse {
+// Types pour la réponse API - on affiche EXACTEMENT ce que l'API renvoie
+interface APIResponse {
   ok: boolean;
-  currency: string;
-  total_min: number;
-  total_avg: number;
-  total_max: number;
-  lines: N8NLine[];
-  warnings: Array<string | { job_type?: string; reason?: string }>;
+  errors?: string[];
+  // Pricing (prix unitaires ou forfait)
+  pricing?: {
+    unit_price_min?: number;
+    unit_price_avg?: number;
+    unit_price_max?: number;
+    unit?: string;
+    [key: string]: unknown;
+  };
+  // Totals (totaux calculés)
+  totals?: {
+    total_min?: number;
+    total_avg?: number;
+    total_max?: number;
+    [key: string]: unknown;
+  };
+  // Explain (texte explicatif fourni par l'API)
+  explain?: string;
+  // Warnings
+  warnings?: string[];
+  // Metadata
+  label?: string;
+  job_type?: string;
+  qty?: number;
+  unit?: string;
 }
 
-interface PriceResult {
-  total_min: number;
-  total_avg: number;
-  total_max: number;
-  lines: N8NLine[];
-  warnings: Array<string | { job_type?: string; reason?: string }>;
-  displayQty: number;
-  unit: string;
-  jobTypeLabel: string;
-}
+const API_ENDPOINT = "https://n8n.messagingme.app/webhook/Calculette";
 
 const DevisCalculatorSection = () => {
   const [jobType, setJobType] = useState<string>("");
@@ -47,15 +44,12 @@ const DevisCalculatorSection = () => {
   const [quantity, setQuantity] = useState<string>("");
   const [zip, setZip] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
-  const [result, setResult] = useState<PriceResult | null>(null);
+  const [result, setResult] = useState<APIResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Determine unit type from selected job
-  const isUnitBased = selectedJobData?.unit === "unité" || selectedJobData?.unit === "unit";
   const isForfait = selectedJobData?.unit === "forfait";
-  const unitLabel = isForfait ? "forfait" : isUnitBased ? "unité(s)" : "m²";
-  
-  const isFormValid = jobType && (isForfait || (quantity && Number(quantity) > 0)) && zip;
+  const isFormValid = jobType && (isForfait || (quantity && Number(quantity) > 0)) && zip.length === 5;
 
   const handleCalculate = async () => {
     if (!isFormValid) return;
@@ -65,83 +59,44 @@ const DevisCalculatorSection = () => {
     setResult(null);
 
     try {
-      const baseUrl = "https://n8n.messagingme.app/webhook/d1cfedb7-0ebb-44ca-bb2b-543ee84b0075";
-      
-      // Quantité à envoyer
-      const qtyToSend = isForfait ? 1 : Number(quantity);
-      
-      // Body JSON exact demandé par n8n
-      const jsonPayload = {
+      // Body JSON strict : job_type, qty, zip
+      const body = {
         job_type: jobType,
-        qty: qtyToSend,
-        unit: selectedJobData?.unit || "m²",
+        qty: isForfait ? 1 : Number(quantity),
         zip: zip,
       };
-      
-      console.log("Sending to n8n:", jsonPayload);
-      
-      const { data, error: fnError } = await supabase.functions.invoke("test-webhook", {
-        body: {
-          url: baseUrl,
-          method: "POST",
-          payload: jsonPayload,
-        },
+
+      console.log("[Calculette] POST →", API_ENDPOINT, body);
+
+      const response = await fetch(API_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       });
-      
-      if (fnError) {
-        throw new Error(fnError.message || "Erreur lors de l'appel API");
+
+      const data: APIResponse = await response.json();
+      console.log("[Calculette] Response ←", data);
+
+      // Si ok=false, afficher les erreurs de l'API
+      if (data.ok === false) {
+        const errorMessages = data.errors?.join(", ") || "Erreur inconnue de l'API";
+        setError(errorMessages);
+        return;
       }
 
-      if (!data?.success) {
-        throw new Error(data?.error || "L'API a retourné une erreur");
-      }
-
-      const apiResponse = data.data as N8NResponse;
-      console.log("n8n response:", apiResponse);
-
-      // Vérifier que la réponse est valide
-      if (!apiResponse || apiResponse.ok !== true) {
-        throw new Error("Prix marché indisponible pour ce type de travaux");
-      }
-
-      // Récupérer les totaux DIRECTEMENT depuis n8n - AUCUN RECALCUL
-      const totalMin = Number(apiResponse.total_min);
-      const totalAvg = Number(apiResponse.total_avg);
-      const totalMax = Number(apiResponse.total_max);
-
-      if (![totalMin, totalAvg, totalMax].every((n) => Number.isFinite(n) && n > 0)) {
-        throw new Error("Prix marché indisponible pour ce type de travaux");
-      }
-
-      // Récupérer lines[] et warnings[] depuis n8n
-      const lines = Array.isArray(apiResponse.lines) ? apiResponse.lines : [];
-      const warnings = Array.isArray(apiResponse.warnings) ? apiResponse.warnings : [];
-
-      // displayQty = quantité saisie par l'utilisateur (pas la somme des lines n8n)
-      const displayQty = qtyToSend;
-
-      setResult({
-        total_min: totalMin,
-        total_avg: totalAvg,
-        total_max: totalMax,
-        lines,
-        warnings,
-        displayQty,
-        unit: selectedJobData?.unit || "m²",
-        jobTypeLabel: selectedJobData?.label || jobType,
-      });
+      // ok=true : stocker la réponse complète pour affichage
+      setResult(data);
     } catch (err) {
-      console.error("Devis calculation error:", err);
-      setError(err instanceof Error ? err.message : "Prix indisponible pour ce type de travaux");
+      console.error("[Calculette] Error:", err);
+      setError(err instanceof Error ? err.message : "Erreur de connexion à l'API");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const formatUnitLabel = (unit: string) => {
-    if (unit === "forfait") return "forfait";
-    if (unit === "unité" || unit === "unit") return "unité";
-    return "m²";
+  const formatNumber = (n: number | undefined) => {
+    if (n === undefined || n === null) return "—";
+    return n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   };
 
   return (
@@ -170,17 +125,15 @@ const DevisCalculatorSection = () => {
               />
             </div>
 
-            {/* Quantity/Surface Input - hidden for forfait */}
+            {/* Quantity Input - hidden for forfait */}
             {!isForfait && (
               <div className="space-y-2">
-                <Label htmlFor="quantity">
-                  {isUnitBased ? "Quantité (nombre)" : "Surface (m²)"}
-                </Label>
+                <Label htmlFor="quantity">Quantité</Label>
                 <Input
                   id="quantity"
                   type="number"
                   min="1"
-                  placeholder={isUnitBased ? "ex: 3" : "ex: 45"}
+                  placeholder="ex: 45"
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
                   className="bg-background"
@@ -222,21 +175,18 @@ const DevisCalculatorSection = () => {
               )}
             </Button>
 
-            {/* Error Display */}
+            {/* Error Display - erreurs API */}
             {error && (
               <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20 flex items-start gap-3">
                 <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
                 <div>
                   <p className="font-medium text-destructive">Erreur</p>
                   <p className="text-sm text-destructive/80">{error}</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Veuillez vérifier vos informations et réessayer.
-                  </p>
                 </div>
               </div>
             )}
 
-            {/* Result Display */}
+            {/* Result Display - AFFICHAGE STRICT de la réponse API */}
             {result && !error && (
               <div className="p-6 rounded-lg bg-primary/5 border border-primary/20 space-y-4">
                 <div className="flex items-center gap-2 text-primary">
@@ -244,68 +194,70 @@ const DevisCalculatorSection = () => {
                   <span className="font-semibold">Estimation calculée</span>
                 </div>
 
-                {/* Warnings from n8n - only if warnings.length > 0 */}
+                {/* Warnings de l'API */}
                 {result.warnings && result.warnings.length > 0 && (
                   <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-start gap-2">
                     <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                    <div className="text-sm text-muted-foreground">
+                    <div className="text-sm text-muted-foreground space-y-1">
                       {result.warnings.map((warning, idx) => (
-                        <p key={idx}>
-                          {typeof warning === 'string' 
-                            ? warning 
-                            : (warning as { reason?: string; job_type?: string }).reason || JSON.stringify(warning)
-                          }
-                        </p>
+                        <p key={idx}>{warning}</p>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Recap */}
+                {/* Label & métadonnées de l'API */}
                 <div className="text-sm text-muted-foreground space-y-1">
-                  <p>
-                    <span className="font-medium">Type :</span>{" "}
-                    {result.jobTypeLabel}
-                  </p>
-                  <p>
-                    <span className="font-medium">
-                      {result.unit === "forfait" 
-                        ? "Prestation" 
-                        : result.unit === "unité" || result.unit === "unit" 
-                          ? "Quantité" 
-                          : "Surface"}
-                      :
-                    </span>{" "}
-                    {result.unit === "forfait" 
-                      ? "Forfait" 
-                      : `${result.displayQty} ${formatUnitLabel(result.unit)}`}
-                  </p>
-                </div>
-
-                {/* Price Range - Valeurs DIRECTES de n8n */}
-                <div className="pt-2 border-t border-primary/10 space-y-3">
-                  <p className="text-lg font-bold text-foreground">
-                    Fourchette :{" "}
-                    <span className="text-primary">
-                      {result.total_min.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} € à{" "}
-                      {result.total_max.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} € (HT)
-                    </span>
-                  </p>
-                  
-                  <p className="text-base text-foreground">
-                    Prix moyen estimé :{" "}
-                    <span className="font-semibold text-primary">
-                      {result.total_avg.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} € (HT)
-                    </span>
-                  </p>
-                  
-                  {/* Détail avec prix unitaire calculé depuis total_avg / qty pour cohérence */}
-                  {result.unit !== "forfait" && result.displayQty > 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      Détail : {result.displayQty} {formatUnitLabel(result.unit)} × {(result.total_avg / result.displayQty).toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €/{formatUnitLabel(result.unit)} HT
-                    </p>
+                  {result.label && (
+                    <p><span className="font-medium">Type :</span> {result.label}</p>
+                  )}
+                  {result.unit && result.qty !== undefined && (
+                    <p><span className="font-medium">Quantité :</span> {result.qty} {result.unit}</p>
                   )}
                 </div>
+
+                {/* Totals de l'API */}
+                {result.totals && (
+                  <div className="pt-2 border-t border-primary/10 space-y-2">
+                    <p className="text-lg font-bold text-foreground">
+                      Fourchette :{" "}
+                      <span className="text-primary">
+                        {formatNumber(result.totals.total_min)} € à {formatNumber(result.totals.total_max)} € HT
+                      </span>
+                    </p>
+                    <p className="text-base text-foreground">
+                      Prix moyen estimé :{" "}
+                      <span className="font-semibold text-primary">
+                        {formatNumber(result.totals.total_avg)} € HT
+                      </span>
+                    </p>
+                  </div>
+                )}
+
+                {/* Pricing de l'API (prix unitaires) */}
+                {result.pricing && (
+                  <div className="pt-2 border-t border-primary/10 text-sm text-muted-foreground space-y-1">
+                    <p className="font-medium">Prix unitaires :</p>
+                    <p>
+                      Min : {formatNumber(result.pricing.unit_price_min)} €/{result.pricing.unit || result.unit || "unité"}
+                    </p>
+                    <p>
+                      Moy : {formatNumber(result.pricing.unit_price_avg)} €/{result.pricing.unit || result.unit || "unité"}
+                    </p>
+                    <p>
+                      Max : {formatNumber(result.pricing.unit_price_max)} €/{result.pricing.unit || result.unit || "unité"}
+                    </p>
+                  </div>
+                )}
+
+                {/* Explain de l'API */}
+                {result.explain && (
+                  <div className="pt-2 border-t border-primary/10">
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                      {result.explain}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
