@@ -10,11 +10,15 @@ const corsHeaders = {
 const PARSER_VERSION = "3.1.0";
 
 // ============ JOB TYPE DETECTION ============
+// RÈGLE STRICTE: Si le libellé ne correspond pas clairement à un job_type existant,
+// retourner job_type: "unknown" avec skip_market: true.
+// Ne JAMAIS "deviner" un job_type proche pour remplir.
 
 interface JobTypeResult {
   job_type: string;
-  confidence: "high" | "medium" | "low";
+  confidence: "high" | "medium" | "low" | "none";
   matched_keywords: string[];
+  skip_market: boolean;
 }
 
 const JOB_TYPE_KEYWORDS: Record<string, string[]> = {
@@ -52,6 +56,9 @@ const JOB_TYPE_KEYWORDS: Record<string, string[]> = {
   ]
 };
 
+// Seuil minimum de correspondances pour accepter un job_type
+const MIN_MATCHES_FOR_VALID_JOB_TYPE = 2;
+
 function detectJobType(text: string): JobTypeResult {
   const textLower = text.toLowerCase();
   const matchCounts: Record<string, string[]> = {};
@@ -81,12 +88,24 @@ function detectJobType(text: string): JobTypeResult {
     }
   }
   
-  const confidence = bestMatchCount >= 3 ? "high" : bestMatchCount >= 1 ? "medium" : "low";
+  // RÈGLE STRICTE: Si pas assez de correspondances claires → unknown + skip_market
+  // Ne jamais deviner un job_type "proche" pour remplir
+  if (bestMatchCount < MIN_MATCHES_FOR_VALID_JOB_TYPE) {
+    return {
+      job_type: "unknown",
+      confidence: "none",
+      matched_keywords: bestKeywords,
+      skip_market: true,
+    };
+  }
+  
+  const confidence = bestMatchCount >= 3 ? "high" : "medium";
   
   return {
     job_type: bestJobType,
     confidence,
     matched_keywords: bestKeywords,
+    skip_market: false,
   };
 }
 
@@ -364,6 +383,8 @@ interface QtyRefDebug {
   job_type_confidence: string | null;
   job_type_keywords: string[] | null;
   job_specific_matches: Array<{ value: number; source: string; line: string }> | null;
+  // V3.2: Skip market lookup if job_type is unknown
+  skip_market: boolean;
 }
 
 // ============ UNIT NORMALIZATION ============
@@ -982,6 +1003,11 @@ function parseQuote(rawText: string, blocks?: any[], categoryCode?: string): Par
   const jobTypeResult = detectJobType(text);
   console.log("Job type detected:", jobTypeResult.job_type, "confidence:", jobTypeResult.confidence, "keywords:", jobTypeResult.matched_keywords);
   
+  // V3.2: Log skip_market decision
+  if (jobTypeResult.skip_market) {
+    console.log("⚠️ skip_market=true: job_type non identifié clairement, pas d'appel API prix marché");
+  }
+  
   // ====== QTY_REF DETECTION RULES ======
   
   let qtyResult: QtyRefResult = {
@@ -996,7 +1022,8 @@ function parseQuote(rawText: string, blocks?: any[], categoryCode?: string): Par
   let jobSpecificQtyResult: JobQtyResult | null = null;
   
   // ÉTAPE 0: Essayer l'extracteur spécifique au jobType (priorité maximale pour volets, menuiserie, etc.)
-  if (jobTypeResult.job_type !== "unknown" && jobTypeResult.confidence !== "low") {
+  // RÈGLE STRICTE: Ne pas utiliser si job_type est "unknown" ou skip_market est true
+  if (jobTypeResult.job_type !== "unknown" && !jobTypeResult.skip_market && jobTypeResult.confidence !== "none") {
     jobSpecificQtyResult = extractQtyRefForJobType(text, lines, jobTypeResult.job_type);
     
     if (jobSpecificQtyResult && jobSpecificQtyResult.qty_ref !== null) {
@@ -1230,6 +1257,8 @@ function parseQuote(rawText: string, blocks?: any[], categoryCode?: string): Par
     job_type_confidence: jobTypeResult.confidence,
     job_type_keywords: jobTypeResult.matched_keywords.length > 0 ? jobTypeResult.matched_keywords : null,
     job_specific_matches: jobSpecificQtyResult?.all_matches || null,
+    // V3.2: Skip market lookup if job_type is unknown (no clear match found)
+    skip_market: jobTypeResult.skip_market,
   };
   
   const parsed: ParsedQuote = {
