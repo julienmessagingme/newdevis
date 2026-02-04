@@ -1,12 +1,24 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import logo from "@/assets/logo.png";
+
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
   const isLandingPage = location.pathname === "/";
+
+  // Charger le widget MessagingMe
+  useEffect(() => {
+    const existingScript = document.querySelector('script[src="https://ai.messagingme.app/widget/f236879w135897.js"]');
+    if (!existingScript) {
+      const script = document.createElement("script");
+      script.src = "https://ai.messagingme.app/widget/f236879w135897.js";
+      script.async = true;
+      document.head.appendChild(script);
+    }
+  }, []);
   return <header className={`sticky top-0 z-50 w-full border-b ${isLandingPage ? 'bg-primary border-primary/20' : 'bg-card border-border'}`}>
       <div className="container flex h-16 items-center justify-between">
         <Link to="/" className="flex items-center gap-3">
