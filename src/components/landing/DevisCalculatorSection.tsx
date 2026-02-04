@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calculator, Loader2, AlertCircle, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Calculator, Loader2, AlertCircle, CheckCircle2, AlertTriangle, MapPin } from "lucide-react";
 import JobTypeSelector, { type JobTypeItem } from "./JobTypeSelector";
+import { getZoneCoefficient, applyZoneCoefficient, getZoneLabel, type ZoneResult } from "@/hooks/useZoneCoefficient";
 
 // Types STRICTS pour la réponse API - contrat exact
 interface APIResponse {
@@ -33,6 +34,17 @@ interface APIResponse {
   warnings?: string[];
 }
 
+// Résultat avec pondération zone appliquée
+interface WeightedResult {
+  apiResponse: APIResponse;
+  zone: ZoneResult;
+  adjustedTotals: {
+    min: number;
+    avg: number;
+    max: number;
+  };
+}
+
 const API_ENDPOINT = "https://n8n.messagingme.app/webhook/Calculette";
 
 const DevisCalculatorSection = () => {
@@ -41,7 +53,7 @@ const DevisCalculatorSection = () => {
   const [quantity, setQuantity] = useState<string>("");
   const [zip, setZip] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
-  const [result, setResult] = useState<APIResponse | null>(null);
+  const [result, setResult] = useState<WeightedResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Determine unit type from selected job
@@ -56,7 +68,11 @@ const DevisCalculatorSection = () => {
     setResult(null);
 
     try {
-      // Body JSON strict : job_type, qty, zip
+      // 1. Récupérer le coefficient de zone basé sur le code postal
+      const zoneResult = await getZoneCoefficient(zip);
+      console.log("[Calculette] Zone détectée:", zoneResult);
+
+      // 2. Appel API n8n
       const body = {
         job_type: jobType,
         qty: isForfait ? 1 : Number(quantity),
@@ -81,8 +97,36 @@ const DevisCalculatorSection = () => {
         return;
       }
 
-      // ok=true : stocker la réponse complète pour affichage
-      setResult(data);
+      // 3. Appliquer le coefficient de zone sur les totaux de l'API
+      if (data.totals) {
+        const adjustedTotals = applyZoneCoefficient(
+          {
+            min: data.totals.total_min_ht,
+            avg: data.totals.total_avg_ht,
+            max: data.totals.total_max_ht,
+          },
+          zoneResult.coefficient
+        );
+
+        console.log("[Calculette] Totaux ajustés:", {
+          original: data.totals,
+          coefficient: zoneResult.coefficient,
+          adjusted: adjustedTotals,
+        });
+
+        setResult({
+          apiResponse: data,
+          zone: zoneResult,
+          adjustedTotals,
+        });
+      } else {
+        // Pas de totaux dans la réponse
+        setResult({
+          apiResponse: data,
+          zone: zoneResult,
+          adjustedTotals: { min: 0, avg: 0, max: 0 },
+        });
+      }
     } catch (err) {
       console.error("[Calculette] Error:", err);
       setError(err instanceof Error ? err.message : "Erreur de connexion à l'API");
@@ -183,7 +227,7 @@ const DevisCalculatorSection = () => {
               </div>
             )}
 
-            {/* Result Display - AFFICHAGE STRICT de la réponse API */}
+            {/* Result Display - AFFICHAGE avec pondération zone */}
             {result && !error && (
               <div className="p-6 rounded-lg bg-primary/5 border border-primary/20 space-y-4">
                 <div className="flex items-center gap-2 text-primary">
@@ -191,12 +235,35 @@ const DevisCalculatorSection = () => {
                   <span className="font-semibold">Estimation calculée</span>
                 </div>
 
+                {/* Zone géographique détectée */}
+                <div className="flex items-center gap-2 text-sm">
+                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">
+                    {getZoneLabel(result.zone.zone)}
+                    {result.zone.coefficient !== 1.0 && (
+                      <span className="ml-1 text-xs">
+                        (coef. {result.zone.coefficient.toFixed(2)})
+                      </span>
+                    )}
+                  </span>
+                </div>
+
+                {/* Warning si zone par défaut */}
+                {result.zone.isDefault && (
+                  <div className="p-3 rounded-lg bg-muted/50 border border-muted flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                    <p className="text-sm text-muted-foreground">
+                      Zone non déterminée, estimation standard appliquée.
+                    </p>
+                  </div>
+                )}
+
                 {/* Warnings de l'API */}
-                {result.warnings && result.warnings.length > 0 && (
+                {result.apiResponse.warnings && result.apiResponse.warnings.length > 0 && (
                   <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-start gap-2">
-                    <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
                     <div className="text-sm text-muted-foreground space-y-1">
-                      {result.warnings.map((warning, idx) => (
+                      {result.apiResponse.warnings.map((warning, idx) => (
                         <p key={idx}>{warning}</p>
                       ))}
                     </div>
@@ -205,37 +272,37 @@ const DevisCalculatorSection = () => {
 
                 {/* Label & métadonnées de l'API (depuis sheet et input) */}
                 <div className="text-sm text-muted-foreground space-y-1">
-                  {result.sheet?.label && (
-                    <p><span className="font-medium">Type :</span> {result.sheet.label}</p>
+                  {result.apiResponse.sheet?.label && (
+                    <p><span className="font-medium">Type :</span> {result.apiResponse.sheet.label}</p>
                   )}
-                  {result.input && (
-                    <p><span className="font-medium">Quantité :</span> {result.input.qty} {result.input.unit}</p>
+                  {result.apiResponse.input && (
+                    <p><span className="font-medium">Quantité :</span> {result.apiResponse.input.qty} {result.apiResponse.input.unit}</p>
                   )}
                 </div>
 
-                {/* Totals de l'API - AFFICHAGE STRICT */}
-                {result.totals && (
+                {/* Totaux PONDÉRÉS par zone */}
+                {result.adjustedTotals && (result.adjustedTotals.min > 0 || result.adjustedTotals.max > 0) && (
                   <div className="pt-2 border-t border-primary/10 space-y-2">
                     <p className="text-lg font-bold text-foreground">
                       Fourchette :{" "}
                       <span className="text-primary">
-                        {formatNumber(result.totals.total_min_ht)} € à {formatNumber(result.totals.total_max_ht)} € HT
+                        {formatNumber(result.adjustedTotals.min)} € à {formatNumber(result.adjustedTotals.max)} € HT
                       </span>
                     </p>
                     <p className="text-base text-foreground">
                       Prix moyen estimé :{" "}
                       <span className="font-semibold text-primary">
-                        {formatNumber(result.totals.total_avg_ht)} € HT
+                        {formatNumber(result.adjustedTotals.avg)} € HT
                       </span>
                     </p>
                   </div>
                 )}
 
                 {/* Détail pédagogique - explain de l'API */}
-                {result.explain && (
+                {result.apiResponse.explain && (
                   <div className="pt-2 border-t border-primary/10">
                     <p className="text-sm text-muted-foreground">
-                      <span className="font-medium">Détail :</span> {result.explain}
+                      <span className="font-medium">Détail :</span> {result.apiResponse.explain}
                     </p>
                   </div>
                 )}
