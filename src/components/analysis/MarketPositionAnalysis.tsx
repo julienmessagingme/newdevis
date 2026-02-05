@@ -1,4 +1,4 @@
-import { TrendingDown, TrendingUp, Minus, AlertCircle, Info } from "lucide-react";
+import { TrendingDown, TrendingUp, Minus, Info } from "lucide-react";
 import PedagogicExplanation from "./PedagogicExplanation";
 
 interface MarketPositionAnalysisProps {
@@ -15,6 +15,101 @@ interface MarketPositionAnalysisProps {
 const formatPrice = (price: number | null | undefined): string => {
   if (price === null || price === undefined) return "—";
   return price.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+};
+
+// Composant de jauge visuelle
+const PositionGauge = ({ 
+  position_ratio, 
+  quote_total_ht,
+  market_min_ht,
+  market_max_ht,
+  market_avg_ht 
+}: {
+  position_ratio: number | null | undefined;
+  quote_total_ht: number | null;
+  market_min_ht: number | null;
+  market_max_ht: number | null;
+  market_avg_ht: number | null;
+}) => {
+  // Calculer la position si non fournie
+  let position = 50; // Défaut au milieu
+  
+  if (position_ratio !== null && position_ratio !== undefined) {
+    position = Math.max(0, Math.min(100, position_ratio * 100));
+  } else if (quote_total_ht && market_min_ht !== null && market_max_ht !== null && market_max_ht > market_min_ht) {
+    const ratio = (quote_total_ht - market_min_ht) / (market_max_ht - market_min_ht);
+    position = Math.max(0, Math.min(100, ratio * 100));
+  }
+
+  // Déterminer la couleur selon la position
+  const getPositionColor = () => {
+    if (position <= 40) return "bg-score-green";
+    if (position <= 65) return "bg-score-orange";
+    return "bg-score-red";
+  };
+
+  // Position du prix moyen sur la jauge (si disponible)
+  const avgPosition = market_avg_ht !== null && market_min_ht !== null && market_max_ht !== null && market_max_ht > market_min_ht
+    ? ((market_avg_ht - market_min_ht) / (market_max_ht - market_min_ht)) * 100
+    : 50;
+
+  return (
+    <div className="mt-4 pt-4 border-t border-border/50">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs text-muted-foreground">Position dans la fourchette</span>
+      </div>
+      
+      {/* Jauge principale */}
+      <div className="relative h-8 rounded-full bg-gradient-to-r from-score-green via-score-orange to-score-red overflow-hidden shadow-inner">
+        {/* Marqueurs de zones */}
+        <div className="absolute inset-0 flex">
+          <div className="flex-1 border-r border-white/20" />
+          <div className="flex-1 border-r border-white/20" />
+          <div className="flex-1" />
+        </div>
+        
+        {/* Indicateur du prix moyen */}
+        <div 
+          className="absolute top-0 bottom-0 w-0.5 bg-white/60"
+          style={{ left: `${avgPosition}%` }}
+        >
+          <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-muted-foreground whitespace-nowrap">
+            Moy.
+          </div>
+        </div>
+        
+        {/* Indicateur de position du devis */}
+        <div 
+          className="absolute top-1/2 -translate-y-1/2 transition-all duration-500 ease-out z-10"
+          style={{ left: `${position}%` }}
+        >
+          <div className={`relative -ml-4 w-8 h-8 rounded-full ${getPositionColor()} border-3 border-white shadow-lg flex items-center justify-center`}>
+            <div className="w-2.5 h-2.5 bg-white rounded-full" />
+          </div>
+          {/* Étiquette du prix */}
+          <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-medium text-foreground whitespace-nowrap bg-background/80 px-1 rounded">
+            Devis
+          </div>
+        </div>
+      </div>
+      
+      {/* Légendes */}
+      <div className="flex justify-between mt-6 text-xs text-muted-foreground">
+        <div className="text-left">
+          <span className="block font-medium text-score-green">Moins cher</span>
+          <span className="text-[10px]">{formatPrice(market_min_ht)}</span>
+        </div>
+        <div className="text-center">
+          <span className="block font-medium text-score-orange">Marché</span>
+          <span className="text-[10px]">{formatPrice(market_avg_ht)}</span>
+        </div>
+        <div className="text-right">
+          <span className="block font-medium text-score-red">Plus cher</span>
+          <span className="text-[10px]">{formatPrice(market_max_ht)}</span>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const MarketPositionAnalysis = ({
@@ -66,7 +161,6 @@ const MarketPositionAnalysis = ({
         type: "vigilance" as const,
       };
     }
-    // Défaut
     return {
       color: "text-muted-foreground",
       bg: "bg-muted/50",
@@ -104,7 +198,6 @@ const MarketPositionAnalysis = ({
       return `Le montant de ${formatPrice(quote_total_ht)} HT est sensiblement supérieur au prix moyen du marché (${ecartPct} % de plus). Il peut être utile de demander des précisions sur les éléments justifiant ce tarif.`;
     }
 
-    // Fallback sans vs_avg_pct
     if (verdict_short) {
       return verdict_short;
     }
@@ -112,12 +205,13 @@ const MarketPositionAnalysis = ({
     return `Le montant de ${formatPrice(quote_total_ht)} HT a été comparé aux références de marché disponibles.`;
   };
 
-  // Vérifier si on a assez de données pour afficher
   const hasMarketData = market_min_ht !== null || market_avg_ht !== null || market_max_ht !== null;
   
   if (!hasMarketData && !quote_total_ht) {
     return null;
   }
+
+  const showGauge = hasMarketData && quote_total_ht !== null;
 
   return (
     <div className="space-y-4">
@@ -127,10 +221,9 @@ const MarketPositionAnalysis = ({
         Analyse du positionnement prix
       </h3>
 
-      {/* Bloc 1 – Résumé clair */}
+      {/* Bloc 1 – Résumé clair + Jauge */}
       <div className={`p-4 rounded-xl border ${style.bg} ${style.border}`}>
         <div className="space-y-3">
-          {/* Prix du devis */}
           {quote_total_ht !== null && (
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Prix du devis</span>
@@ -140,7 +233,6 @@ const MarketPositionAnalysis = ({
             </div>
           )}
 
-          {/* Fourchette de marché */}
           {hasMarketData && (
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Fourchette de marché</span>
@@ -150,7 +242,6 @@ const MarketPositionAnalysis = ({
             </div>
           )}
 
-          {/* Prix moyen */}
           {market_avg_ht !== null && (
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Prix moyen du marché</span>
@@ -160,7 +251,6 @@ const MarketPositionAnalysis = ({
             </div>
           )}
 
-          {/* Verdict */}
           {verdict && (
             <div className="flex items-center justify-between pt-2 border-t border-border/50">
               <span className="text-sm text-muted-foreground">Verdict</span>
@@ -173,6 +263,17 @@ const MarketPositionAnalysis = ({
             </div>
           )}
         </div>
+
+        {/* Jauge visuelle */}
+        {showGauge && (
+          <PositionGauge
+            position_ratio={position_ratio}
+            quote_total_ht={quote_total_ht}
+            market_min_ht={market_min_ht}
+            market_max_ht={market_max_ht}
+            market_avg_ht={market_avg_ht}
+          />
+        )}
       </div>
 
       {/* Bloc 2 – Interprétation */}
