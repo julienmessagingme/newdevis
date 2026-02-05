@@ -1,0 +1,194 @@
+import { TrendingDown, TrendingUp, Minus, AlertCircle, Info } from "lucide-react";
+import PedagogicExplanation from "./PedagogicExplanation";
+
+interface MarketPositionAnalysisProps {
+  quote_total_ht: number | null;
+  market_min_ht: number | null;
+  market_avg_ht: number | null;
+  market_max_ht: number | null;
+  position_ratio?: number | null; // 0 = min, 1 = max
+  vs_avg_pct?: number | null; // ex: -0.42 = 42% en dessous
+  verdict?: string | null; // "bien placé", "dans la norme", "plutôt cher", "cher"
+  verdict_short?: string | null; // phrase courte explicative
+}
+
+const formatPrice = (price: number | null | undefined): string => {
+  if (price === null || price === undefined) return "—";
+  return price.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+};
+
+const MarketPositionAnalysis = ({
+  quote_total_ht,
+  market_min_ht,
+  market_avg_ht,
+  market_max_ht,
+  position_ratio,
+  vs_avg_pct,
+  verdict,
+  verdict_short,
+}: MarketPositionAnalysisProps) => {
+  // Déterminer le style selon le verdict
+  const getVerdictStyle = () => {
+    const v = verdict?.toLowerCase() || "";
+    if (v.includes("bien placé") || v.includes("inférieur")) {
+      return {
+        color: "text-score-green",
+        bg: "bg-score-green-bg",
+        border: "border-score-green/30",
+        icon: <TrendingDown className="h-5 w-5 text-score-green" />,
+        type: "positive" as const,
+      };
+    }
+    if (v.includes("norme") || v.includes("normal") || v.includes("moyen")) {
+      return {
+        color: "text-score-green",
+        bg: "bg-score-green-bg",
+        border: "border-score-green/30",
+        icon: <Minus className="h-5 w-5 text-score-green" />,
+        type: "positive" as const,
+      };
+    }
+    if (v.includes("plutôt cher") || v.includes("élevé")) {
+      return {
+        color: "text-score-orange",
+        bg: "bg-score-orange-bg",
+        border: "border-score-orange/30",
+        icon: <TrendingUp className="h-5 w-5 text-score-orange" />,
+        type: "vigilance" as const,
+      };
+    }
+    if (v.includes("cher") || v.includes("très")) {
+      return {
+        color: "text-score-red",
+        bg: "bg-score-red-bg",
+        border: "border-score-red/30",
+        icon: <TrendingUp className="h-5 w-5 text-score-red" />,
+        type: "vigilance" as const,
+      };
+    }
+    // Défaut
+    return {
+      color: "text-muted-foreground",
+      bg: "bg-muted/50",
+      border: "border-border",
+      icon: <Info className="h-5 w-5 text-muted-foreground" />,
+      type: "info" as const,
+    };
+  };
+
+  const style = getVerdictStyle();
+
+  // Générer l'interprétation
+  const getInterpretation = (): string => {
+    if (!quote_total_ht || !market_avg_ht) {
+      return "Les données disponibles ne permettent pas une comparaison complète avec les prix du marché.";
+    }
+
+    const ecartPct = vs_avg_pct !== null && vs_avg_pct !== undefined 
+      ? Math.abs(vs_avg_pct * 100).toFixed(0) 
+      : null;
+    
+    if (vs_avg_pct !== null && vs_avg_pct !== undefined) {
+      if (vs_avg_pct < -0.25) {
+        return `Le montant de ${formatPrice(quote_total_ht)} HT se situe nettement en dessous du prix moyen observé sur le marché (${ecartPct} % de moins). Cela suggère un devis bien positionné, tout en restant dans des niveaux cohérents pour ce type de prestation.`;
+      }
+      if (vs_avg_pct < -0.10) {
+        return `Le montant de ${formatPrice(quote_total_ht)} HT est légèrement inférieur au prix moyen du marché (${ecartPct} % de moins). Le positionnement tarifaire apparaît compétitif.`;
+      }
+      if (vs_avg_pct <= 0.10) {
+        return `Le montant de ${formatPrice(quote_total_ht)} HT se situe dans la moyenne des prix observés sur le marché. Ce positionnement est cohérent avec les tarifs habituels pour ce type de travaux.`;
+      }
+      if (vs_avg_pct <= 0.25) {
+        return `Le montant de ${formatPrice(quote_total_ht)} HT est légèrement supérieur au prix moyen du marché (${ecartPct} % de plus). Cela reste dans une fourchette acceptable selon les conditions du chantier.`;
+      }
+      return `Le montant de ${formatPrice(quote_total_ht)} HT est sensiblement supérieur au prix moyen du marché (${ecartPct} % de plus). Il peut être utile de demander des précisions sur les éléments justifiant ce tarif.`;
+    }
+
+    // Fallback sans vs_avg_pct
+    if (verdict_short) {
+      return verdict_short;
+    }
+
+    return `Le montant de ${formatPrice(quote_total_ht)} HT a été comparé aux références de marché disponibles.`;
+  };
+
+  // Vérifier si on a assez de données pour afficher
+  const hasMarketData = market_min_ht !== null || market_avg_ht !== null || market_max_ht !== null;
+  
+  if (!hasMarketData && !quote_total_ht) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Titre */}
+      <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+        <Info className="h-5 w-5 text-primary" />
+        Analyse du positionnement prix
+      </h3>
+
+      {/* Bloc 1 – Résumé clair */}
+      <div className={`p-4 rounded-xl border ${style.bg} ${style.border}`}>
+        <div className="space-y-3">
+          {/* Prix du devis */}
+          {quote_total_ht !== null && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Prix du devis</span>
+              <span className="text-lg font-bold text-foreground">
+                {formatPrice(quote_total_ht)} HT
+              </span>
+            </div>
+          )}
+
+          {/* Fourchette de marché */}
+          {hasMarketData && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Fourchette de marché</span>
+              <span className="text-sm font-medium text-foreground">
+                {formatPrice(market_min_ht)} → {formatPrice(market_max_ht)} HT
+              </span>
+            </div>
+          )}
+
+          {/* Prix moyen */}
+          {market_avg_ht !== null && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Prix moyen du marché</span>
+              <span className="text-sm font-medium text-foreground">
+                {formatPrice(market_avg_ht)} HT
+              </span>
+            </div>
+          )}
+
+          {/* Verdict */}
+          {verdict && (
+            <div className="flex items-center justify-between pt-2 border-t border-border/50">
+              <span className="text-sm text-muted-foreground">Verdict</span>
+              <div className="flex items-center gap-2">
+                {style.icon}
+                <span className={`font-semibold ${style.color}`}>
+                  {verdict.charAt(0).toUpperCase() + verdict.slice(1)}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Bloc 2 – Interprétation */}
+      <PedagogicExplanation type={style.type} title="Interprétation">
+        {getInterpretation()}
+      </PedagogicExplanation>
+
+      {/* Bloc 3 – Message de prudence */}
+      <PedagogicExplanation type="info" title="À noter">
+        Cette analyse est indicative et basée sur des moyennes de marché. 
+        Les prix peuvent varier selon le contexte spécifique du chantier : 
+        complexité des travaux, qualité des matériaux, urgence, zone géographique, 
+        ou conditions d'accès au site.
+      </PedagogicExplanation>
+    </div>
+  );
+};
+
+export default MarketPositionAnalysis;
