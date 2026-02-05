@@ -1,28 +1,18 @@
-import { Receipt, MapPin, Info, AlertTriangle, Loader2, ExternalLink } from "lucide-react";
+import { Receipt, MapPin, Info, AlertTriangle, Loader2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMarketPriceAPI, type MarketPriceResult } from "@/hooks/useMarketPriceAPI";
+import MarketPositionAnalysis from "./MarketPositionAnalysis";
 
 // =======================
 // TYPES
 // =======================
 
 interface BlockPrixMarcheProps {
-  montantTotalHT?: number; // Montant du devis extrait localement (peut être TTC!)
+  montantTotalHT?: number;
   codePostal?: string;
   selectedWorkType?: string;
   filePath?: string;
 }
-
-// =======================
-// HELPERS
-// =======================
-
-const formatCurrency = (value: number) => 
-  new Intl.NumberFormat('fr-FR', { 
-    style: 'currency', 
-    currency: 'EUR', 
-    maximumFractionDigits: 0 
-  }).format(value);
 
 // =======================
 // LOADING STATE
@@ -118,7 +108,7 @@ const MissingTotalsBlock = () => (
 );
 
 // =======================
-// MARKET PRICE RESULT BLOCK - STRICT API RENDERING
+// MARKET PRICE RESULT BLOCK - AVEC JAUGE VISUELLE
 // =======================
 
 interface MarketPriceResultBlockProps {
@@ -147,27 +137,37 @@ const MarketPriceResultBlock = ({ result }: MarketPriceResultBlockProps) => {
   // Affichage label + qty si disponibles
   const hasQtyInfo = result.qtyTotal !== null && result.qtyTotal > 0;
 
+  // Calcul du verdict et des métriques pour MarketPositionAnalysis
+  const quoteAmount = result.montantDevisHT;
+  
+  // Calcul position_ratio et vs_avg_pct
+  let positionRatio: number | null = null;
+  let vsAvgPct: number | null = null;
+  let verdict: string | null = null;
+  
+  if (quoteAmount !== null && totalMaxHT > totalMinHT) {
+    positionRatio = (quoteAmount - totalMinHT) / (totalMaxHT - totalMinHT);
+    vsAvgPct = (quoteAmount - totalAvgHT) / totalAvgHT;
+    
+    // Déterminer le verdict
+    if (vsAvgPct < -0.25) {
+      verdict = "Bien placé";
+    } else if (vsAvgPct < -0.10) {
+      verdict = "Inférieur à la moyenne";
+    } else if (vsAvgPct <= 0.10) {
+      verdict = "Dans la norme";
+    } else if (vsAvgPct <= 0.25) {
+      verdict = "Légèrement élevé";
+    } else {
+      verdict = "Plutôt cher";
+    }
+  }
+
   return (
-    <div className="p-5 bg-emerald-500/10 rounded-xl border border-emerald-500/20 mb-4">
-      <div className="flex items-start gap-3 mb-4">
-        <div className="p-2 bg-emerald-500/20 rounded-lg">
-          <ExternalLink className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-        </div>
-        <div className="flex-1">
-          <h4 className="font-semibold text-foreground">Prix Marché (source externe)</h4>
-          {/* Afficher label + qty_total + unit si fournis par l'API */}
-          {hasQtyInfo && (
-            <p className="text-xs text-muted-foreground">
-              {result.label && <span>{result.label} • </span>}
-              {result.qtyTotal} {result.unit || "unité(s)"}
-            </p>
-          )}
-        </div>
-      </div>
-      
+    <div className="space-y-4">
       {/* Warning quantité UNIQUEMENT si qty_total est null/0 */}
       {showQtyWarning && (
-        <div className="p-3 bg-amber-500/10 rounded-lg border border-amber-500/20 mb-4">
+        <div className="p-3 bg-amber-500/10 rounded-lg border border-amber-500/20">
           <div className="flex items-start gap-2">
             <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
             <p className="text-sm text-muted-foreground">
@@ -180,7 +180,7 @@ const MarketPriceResultBlock = ({ result }: MarketPriceResultBlockProps) => {
       
       {/* Warnings de l'API (autres) */}
       {result.warnings.length > 0 && (
-        <div className="p-3 bg-amber-500/10 rounded-lg border border-amber-500/20 mb-4">
+        <div className="p-3 bg-amber-500/10 rounded-lg border border-amber-500/20">
           <div className="flex items-start gap-2">
             <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
             <div className="text-sm text-muted-foreground">
@@ -192,37 +192,27 @@ const MarketPriceResultBlock = ({ result }: MarketPriceResultBlockProps) => {
         </div>
       )}
 
-      {/* Affichage des prix - STRICT API VALUES */}
-      <div className="space-y-3">
-        <div className="p-4 bg-background/60 rounded-lg">
-          {/* Fourchette min-max HT */}
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm text-muted-foreground">Estimation marché :</span>
-            <span className="font-bold text-foreground">
-              {formatCurrency(totalMinHT)} – {formatCurrency(totalMaxHT)} HT
-            </span>
-          </div>
-          {/* Prix moyen HT */}
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Prix moyen estimé :</span>
-            <span className="font-semibold text-primary">
-              {formatCurrency(totalAvgHT)} HT
-            </span>
-          </div>
+      {/* Info prestation si disponible */}
+      {hasQtyInfo && (
+        <div className="p-3 bg-muted/30 rounded-lg border border-border/50">
+          <p className="text-sm text-muted-foreground">
+            <strong className="text-foreground">Prestation détectée :</strong>{" "}
+            {result.label && <span>{result.label} • </span>}
+            {result.qtyTotal} {result.unit || "unité(s)"}
+          </p>
         </div>
+      )}
 
-        {/* Montant du devis - UNIQUEMENT si fourni en HT par l'API */}
-        {result.montantDevisHT !== null && (
-          <div className="p-4 bg-background/60 rounded-lg">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Votre devis :</span>
-              <span className="font-bold text-foreground">
-                {formatCurrency(result.montantDevisHT)} HT
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Composant d'analyse de positionnement avec jauge */}
+      <MarketPositionAnalysis
+        quote_total_ht={quoteAmount}
+        market_min_ht={totalMinHT}
+        market_avg_ht={totalAvgHT}
+        market_max_ht={totalMaxHT}
+        position_ratio={positionRatio}
+        vs_avg_pct={vsAvgPct}
+        verdict={verdict}
+      />
     </div>
   );
 };
