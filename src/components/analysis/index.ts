@@ -9,6 +9,8 @@ export { default as BlockContexte, filterOutContexteItems } from './BlockContext
 export { default as BlockArchitecte, filterOutArchitecteItems } from './BlockArchitecte';
 export { default as InfoTooltip } from './InfoTooltip';
 export { default as PedagogicExplanation } from './PedagogicExplanation';
+export { default as MarketPositionAnalysis } from './MarketPositionAnalysis';
+export { default as MarketComparisonGauge } from './MarketComparisonGauge';
 export { default as DocumentRejectionScreen } from './DocumentRejectionScreen';
 export { default as AdaptedAnalysisBanner } from './AdaptedAnalysisBanner';
 export { default as ExtractionBlocker, ExtractionIncompleteWarning, useExtractionStatus } from './ExtractionBlocker';
