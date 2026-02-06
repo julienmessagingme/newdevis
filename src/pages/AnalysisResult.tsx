@@ -22,6 +22,7 @@ import {
   BlockPrixMarche,
   BlockSecurite, 
   BlockContexte,
+  BlockUrbanisme,
   filterOutEntrepriseItems,
   filterOutDevisItems,
   filterOutPriceItems,
@@ -519,6 +520,9 @@ const AnalysisResult = () => {
           pointsOk={analysis.points_ok || []} 
           alertes={analysis.alertes || []} 
         />
+
+        {/* BLOC 5 — Urbanisme & Formalités CERFA */}
+        <BlockUrbanisme initialWorkType={analysis.work_type} />
 
         {/* Remaining Points OK */}
         {remainingPointsOk.length > 0 && (
