@@ -318,15 +318,7 @@ const BlockPrixMarche = ({
           {/* États de rendu */}
           {renderContent()}
           
-          {/* Disclaimer obligatoire */}
-          <div className="mt-6 p-4 bg-muted/30 rounded-xl border border-border/50">
-            <p className="text-xs text-muted-foreground">
-              <strong className="text-foreground">⚠️ Mention obligatoire :</strong> Les fourchettes de prix affichées sont purement indicatives. 
-              Elles sont basées sur des moyennes observées sur le marché français et ne tiennent pas compte des spécificités de votre projet 
-              (matériaux, contraintes techniques, finitions). Un devis au-dessus ou en dessous de la fourchette n'est pas nécessairement anormal. 
-              Cette analyse ne se substitue pas à un avis professionnel.
-            </p>
-          </div>
+          {/* Note: Le disclaimer obligatoire est maintenant intégré dans MarketPositionAnalysis */}
         </div>
       </div>
     </div>
