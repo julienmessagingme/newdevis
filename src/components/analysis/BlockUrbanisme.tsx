@@ -33,7 +33,7 @@ import InfoTooltip from "./InfoTooltip";
 // TYPES
 // ============================================================
 
-type WorkCategory = "piscine" | "cloture" | "";
+type WorkCategory = "piscine" | "cloture" | "abri_jardin" | "extension" | "";
 type Formalite = "Aucune" | "Déclaration préalable" | "Permis";
 
 interface CerfaLink {
@@ -86,6 +86,20 @@ interface PiscineParams {
 interface ClotureParams {
   zone_protegee: boolean;
   commune_soumet_clotures_dp: boolean;
+}
+
+interface AbriJardinParams {
+  emprise_sol_m2: number;
+  surface_plancher_m2: number;
+  hauteur_m: number;
+  zone_protegee: boolean;
+}
+
+interface ExtensionParams {
+  surface_plancher_m2: number;
+  emprise_sol_m2: number;
+  zone_urbaine_plu: boolean;
+  zone_protegee: boolean;
 }
 
 function computeUrbanismePiscine(params: PiscineParams): UrbanismeResult {
@@ -181,6 +195,139 @@ function computeUrbanismeCloture(params: ClotureParams): UrbanismeResult {
 }
 
 // ============================================================
+// ABRI DE JARDIN RULES
+// R.421-2 a) : dispense si emprise ≤ 5 m² ET hauteur ≤ 12 m (hors zone protégée)
+// R.421-9 : DP si emprise ou surface plancher > 5 m² et ≤ 20 m² ET hauteur ≤ 12 m
+// R.421-11 : en zone protégée, DP dès le 1er m²
+// Au-delà de 20 m² → Permis
+// ============================================================
+
+function computeUrbanismeAbriJardin(params: AbriJardinParams): UrbanismeResult {
+  const { emprise_sol_m2, surface_plancher_m2, hauteur_m, zone_protegee } = params;
+  const surfaceMax = Math.max(emprise_sol_m2, surface_plancher_m2);
+
+  // Zone protégée : DP dès le premier m²
+  if (zone_protegee) {
+    if (surfaceMax > 20) {
+      return {
+        formalite: "Permis",
+        rule_explained: "En zone protégée, un abri de plus de 20 m² nécessite un permis de construire.",
+        article_ref: "R.421-1 du Code de l'urbanisme",
+        cerfas: [CERFA_LINKS.permis_construire],
+        notice: CERFA_LINKS.dp_notice,
+        warnings: ["Zone protégée : consultez l'ABF pour les prescriptions architecturales."],
+      };
+    }
+    return {
+      formalite: "Déclaration préalable",
+      rule_explained: "En zone protégée, une déclaration préalable est requise dès le premier m².",
+      article_ref: "R.421-11 du Code de l'urbanisme",
+      cerfas: [CERFA_LINKS.dp_construction, CERFA_LINKS.fiche_dp],
+      notice: CERFA_LINKS.dp_notice,
+      warnings: ["Zone protégée : vérifiez les prescriptions auprès de l'ABF."],
+    };
+  }
+
+  // Hauteur > 12 m → Permis (cas rare pour un abri)
+  if (hauteur_m > 12) {
+    return {
+      formalite: "Permis",
+      rule_explained: "Une construction de plus de 12 m de hauteur nécessite un permis de construire.",
+      article_ref: "R.421-1 du Code de l'urbanisme",
+      cerfas: [CERFA_LINKS.permis_construire],
+      notice: CERFA_LINKS.dp_notice,
+    };
+  }
+
+  // Surface > 20 m² → Permis
+  if (surfaceMax > 20) {
+    return {
+      formalite: "Permis",
+      rule_explained: "Un abri de jardin de plus de 20 m² (emprise au sol ou surface de plancher) nécessite un permis de construire.",
+      article_ref: "R.421-1 du Code de l'urbanisme",
+      cerfas: [CERFA_LINKS.permis_construire],
+      notice: CERFA_LINKS.dp_notice,
+    };
+  }
+
+  // Surface > 5 m² et ≤ 20 m² → DP
+  if (surfaceMax > 5) {
+    return {
+      formalite: "Déclaration préalable",
+      rule_explained: "Un abri de jardin entre 5 et 20 m² nécessite une déclaration préalable.",
+      article_ref: "R.421-9 du Code de l'urbanisme",
+      cerfas: [CERFA_LINKS.dp_construction, CERFA_LINKS.fiche_dp],
+      notice: CERFA_LINKS.dp_notice,
+    };
+  }
+
+  // Surface ≤ 5 m² et hauteur ≤ 12 m → Aucune
+  return {
+    formalite: "Aucune",
+    rule_explained: "Un abri de jardin de 5 m² ou moins (et hauteur ≤ 12 m) ne nécessite aucune formalité.",
+    article_ref: "R.421-2 a) du Code de l'urbanisme",
+    cerfas: [],
+  };
+}
+
+// ============================================================
+// EXTENSION RULES
+// Seuil de 40 m² en zone urbaine PLU (sinon 20 m²)
+// Si extension porte surface totale > 150 m² → recours architecte obligatoire
+// R.421-14 : DP si surface ≤ seuil
+// Au-delà → Permis
+// ============================================================
+
+function computeUrbanismeExtension(params: ExtensionParams): UrbanismeResult {
+  const { surface_plancher_m2, emprise_sol_m2, zone_urbaine_plu, zone_protegee } = params;
+  const surfaceMax = Math.max(surface_plancher_m2, emprise_sol_m2);
+  const seuil = zone_urbaine_plu ? 40 : 20;
+
+  // Zone protégée : DP ou Permis selon la surface
+  if (zone_protegee) {
+    if (surfaceMax > seuil) {
+      return {
+        formalite: "Permis",
+        rule_explained: `En zone protégée, une extension de plus de ${seuil} m² nécessite un permis de construire.`,
+        article_ref: "R.421-1 du Code de l'urbanisme",
+        cerfas: [CERFA_LINKS.permis_construire],
+        notice: CERFA_LINKS.dp_notice,
+        warnings: ["Zone protégée : consultez l'ABF pour les prescriptions architecturales."],
+      };
+    }
+    return {
+      formalite: "Déclaration préalable",
+      rule_explained: "En zone protégée, toute extension nécessite au minimum une déclaration préalable.",
+      article_ref: "R.421-11 du Code de l'urbanisme",
+      cerfas: [CERFA_LINKS.dp_construction, CERFA_LINKS.fiche_dp],
+      notice: CERFA_LINKS.dp_notice,
+      warnings: ["Zone protégée : vérifiez les prescriptions auprès de l'ABF."],
+    };
+  }
+
+  // Surface > seuil → Permis
+  if (surfaceMax > seuil) {
+    return {
+      formalite: "Permis",
+      rule_explained: `Une extension de plus de ${seuil} m² ${zone_urbaine_plu ? "(zone urbaine PLU)" : ""} nécessite un permis de construire.`,
+      article_ref: "R.421-1 du Code de l'urbanisme",
+      cerfas: [CERFA_LINKS.permis_construire],
+      notice: CERFA_LINKS.dp_notice,
+      warnings: surfaceMax > 40 ? ["Si la surface totale après travaux dépasse 150 m², le recours à un architecte est obligatoire."] : undefined,
+    };
+  }
+
+  // Surface ≤ seuil → DP
+  return {
+    formalite: "Déclaration préalable",
+    rule_explained: `Une extension de ${seuil} m² ou moins ${zone_urbaine_plu ? "(zone urbaine PLU)" : "(hors zone urbaine PLU)"} nécessite une déclaration préalable.`,
+    article_ref: "R.421-14 du Code de l'urbanisme",
+    cerfas: [CERFA_LINKS.dp_construction, CERFA_LINKS.fiche_dp],
+    notice: CERFA_LINKS.dp_notice,
+  };
+}
+
+// ============================================================
 // BADGE COMPONENT
 // ============================================================
 
@@ -218,12 +365,19 @@ interface BlockUrbanismeProps {
   initialWorkType?: string;
 }
 
+function detectInitialCategory(workType?: string): WorkCategory {
+  if (!workType) return "";
+  const lower = workType.toLowerCase();
+  if (lower.includes("piscine")) return "piscine";
+  if (lower.includes("clôture") || lower.includes("cloture")) return "cloture";
+  if (lower.includes("abri") || lower.includes("jardin") || lower.includes("cabanon")) return "abri_jardin";
+  if (lower.includes("extension") || lower.includes("agrandissement") || lower.includes("véranda") || lower.includes("veranda")) return "extension";
+  return "";
+}
+
 export default function BlockUrbanisme({ initialWorkType }: BlockUrbanismeProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [workCategory, setWorkCategory] = useState<WorkCategory>(
-    initialWorkType?.toLowerCase().includes("piscine") ? "piscine" :
-    initialWorkType?.toLowerCase().includes("clôture") || initialWorkType?.toLowerCase().includes("cloture") ? "cloture" : ""
-  );
+  const [workCategory, setWorkCategory] = useState<WorkCategory>(detectInitialCategory(initialWorkType));
 
   // Piscine params
   const [bassinSurface, setBassinSurface] = useState<string>("");
@@ -233,6 +387,18 @@ export default function BlockUrbanisme({ initialWorkType }: BlockUrbanismeProps)
   // Cloture params
   const [zoneProtegeeCloture, setZoneProtegeeCloture] = useState(false);
   const [communeSoumetClotures, setCommuneSoumetClotures] = useState(false);
+
+  // Abri de jardin params
+  const [abriEmprise, setAbriEmprise] = useState<string>("");
+  const [abriSurfacePlancher, setAbriSurfacePlancher] = useState<string>("");
+  const [abriHauteur, setAbriHauteur] = useState<string>("");
+  const [zoneProtegeeAbri, setZoneProtegeeAbri] = useState(false);
+
+  // Extension params
+  const [extensionSurfacePlancher, setExtensionSurfacePlancher] = useState<string>("");
+  const [extensionEmprise, setExtensionEmprise] = useState<string>("");
+  const [zoneUrbainePlu, setZoneUrbainePlu] = useState(false);
+  const [zoneProtegeeExtension, setZoneProtegeeExtension] = useState(false);
 
   // Compute result
   const result = useMemo<UrbanismeResult | null>(() => {
@@ -254,19 +420,45 @@ export default function BlockUrbanisme({ initialWorkType }: BlockUrbanismeProps)
       });
     }
 
-    return null;
-  }, [workCategory, bassinSurface, couvertureHauteur, zoneProtegeePiscine, zoneProtegeeCloture, communeSoumetClotures]);
+    if (workCategory === "abri_jardin") {
+      const emprise = parseFloat(abriEmprise) || 0;
+      const surfacePlancher = parseFloat(abriSurfacePlancher) || 0;
+      const hauteur = parseFloat(abriHauteur) || 0;
+      if (emprise <= 0 && surfacePlancher <= 0) return null;
+      return computeUrbanismeAbriJardin({
+        emprise_sol_m2: emprise,
+        surface_plancher_m2: surfacePlancher,
+        hauteur_m: hauteur,
+        zone_protegee: zoneProtegeeAbri,
+      });
+    }
 
-  // Only show for piscine/cloture work types
-  const shouldShow = workCategory === "piscine" || workCategory === "cloture" || 
-    initialWorkType?.toLowerCase().includes("piscine") || 
-    initialWorkType?.toLowerCase().includes("clôture") ||
-    initialWorkType?.toLowerCase().includes("cloture");
+    if (workCategory === "extension") {
+      const surfacePlancher = parseFloat(extensionSurfacePlancher) || 0;
+      const emprise = parseFloat(extensionEmprise) || 0;
+      if (surfacePlancher <= 0 && emprise <= 0) return null;
+      return computeUrbanismeExtension({
+        surface_plancher_m2: surfacePlancher,
+        emprise_sol_m2: emprise,
+        zone_urbaine_plu: zoneUrbainePlu,
+        zone_protegee: zoneProtegeeExtension,
+      });
+    }
+
+    return null;
+  }, [
+    workCategory, bassinSurface, couvertureHauteur, zoneProtegeePiscine, 
+    zoneProtegeeCloture, communeSoumetClotures,
+    abriEmprise, abriSurfacePlancher, abriHauteur, zoneProtegeeAbri,
+    extensionSurfacePlancher, extensionEmprise, zoneUrbainePlu, zoneProtegeeExtension
+  ]);
+
+  // Show component for supported work types or when manually opened
+  const shouldShow = workCategory !== "" || detectInitialCategory(initialWorkType) !== "";
 
   if (!shouldShow && !isOpen) {
     return null;
   }
-
   return (
     <Card className="mb-6 card-shadow">
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -304,6 +496,8 @@ export default function BlockUrbanisme({ initialWorkType }: BlockUrbanismeProps)
                 <SelectContent>
                   <SelectItem value="piscine">🏊 Piscine</SelectItem>
                   <SelectItem value="cloture">🚧 Clôture</SelectItem>
+                  <SelectItem value="abri_jardin">🏠 Abri de jardin / Cabanon</SelectItem>
+                  <SelectItem value="extension">🏗️ Extension / Véranda</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -379,6 +573,130 @@ export default function BlockUrbanisme({ initialWorkType }: BlockUrbanismeProps)
                     Ma commune soumet les clôtures à déclaration préalable
                     <InfoTooltip title="Réglementation communale" content="Consultez le PLU de votre commune ou contactez le service urbanisme de votre mairie." />
                   </Label>
+                </div>
+              </div>
+            )}
+
+            {/* Abri de jardin Form */}
+            {workCategory === "abri_jardin" && (
+              <div className="space-y-4 p-4 bg-muted/30 rounded-lg border border-border">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="abri-emprise" className="flex items-center gap-1">
+                      Emprise au sol (m²)
+                      <InfoTooltip title="Emprise au sol" content="Projection verticale du volume de la construction, débords et surplombs inclus." />
+                    </Label>
+                    <Input
+                      id="abri-emprise"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      placeholder="Ex: 12"
+                      value={abriEmprise}
+                      onChange={(e) => setAbriEmprise(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="abri-surface-plancher" className="flex items-center gap-1">
+                      Surface de plancher (m²)
+                      <InfoTooltip title="Surface de plancher" content="Somme des surfaces de plancher closes et couvertes, sous une hauteur de plafond supérieure à 1,80 m." />
+                    </Label>
+                    <Input
+                      id="abri-surface-plancher"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      placeholder="Ex: 10"
+                      value={abriSurfacePlancher}
+                      onChange={(e) => setAbriSurfacePlancher(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="abri-hauteur" className="flex items-center gap-1">
+                      Hauteur (m)
+                      <InfoTooltip title="Hauteur" content="Hauteur maximale de la construction depuis le sol naturel jusqu'au point le plus haut." />
+                    </Label>
+                    <Input
+                      id="abri-hauteur"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      placeholder="Ex: 2.5"
+                      value={abriHauteur}
+                      onChange={(e) => setAbriHauteur(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="zone-protegee-abri"
+                    checked={zoneProtegeeAbri}
+                    onCheckedChange={(checked) => setZoneProtegeeAbri(checked === true)}
+                  />
+                  <Label htmlFor="zone-protegee-abri" className="text-sm cursor-pointer">
+                    Site patrimonial / abords monuments historiques / site classé
+                  </Label>
+                </div>
+              </div>
+            )}
+
+            {/* Extension Form */}
+            {workCategory === "extension" && (
+              <div className="space-y-4 p-4 bg-muted/30 rounded-lg border border-border">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="extension-surface-plancher" className="flex items-center gap-1">
+                      Surface de plancher créée (m²)
+                      <InfoTooltip title="Surface de plancher" content="Surface de plancher supplémentaire créée par l'extension." />
+                    </Label>
+                    <Input
+                      id="extension-surface-plancher"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      placeholder="Ex: 25"
+                      value={extensionSurfacePlancher}
+                      onChange={(e) => setExtensionSurfacePlancher(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="extension-emprise" className="flex items-center gap-1">
+                      Emprise au sol créée (m²)
+                      <InfoTooltip title="Emprise au sol" content="Surface au sol supplémentaire créée par l'extension." />
+                    </Label>
+                    <Input
+                      id="extension-emprise"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      placeholder="Ex: 20"
+                      value={extensionEmprise}
+                      onChange={(e) => setExtensionEmprise(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="zone-urbaine-plu"
+                      checked={zoneUrbainePlu}
+                      onCheckedChange={(checked) => setZoneUrbainePlu(checked === true)}
+                    />
+                    <Label htmlFor="zone-urbaine-plu" className="text-sm cursor-pointer flex items-center gap-1">
+                      Zone urbaine d'un PLU (seuil 40 m² au lieu de 20 m²)
+                      <InfoTooltip title="Zone urbaine PLU" content="Si votre terrain est situé en zone urbaine (U) d'un PLU, le seuil de la DP passe de 20 à 40 m²." />
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="zone-protegee-extension"
+                      checked={zoneProtegeeExtension}
+                      onCheckedChange={(checked) => setZoneProtegeeExtension(checked === true)}
+                    />
+                    <Label htmlFor="zone-protegee-extension" className="text-sm cursor-pointer">
+                      Site patrimonial / abords monuments historiques / site classé
+                    </Label>
+                  </div>
                 </div>
               </div>
             )}
