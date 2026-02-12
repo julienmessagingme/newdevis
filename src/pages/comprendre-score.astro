@@ -1,0 +1,14 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import ComprendreScoreApp from '@/components/app/ComprendreScoreApp';
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="Comprendre le score de fiabilité | VerifierMonDevis.fr"
+  description="Découvrez comment interpréter le score Feu Vert, Orange ou Rouge de votre devis artisan. Critères d'analyse, actions conseillées et explications."
+  canonical="https://verifiermondevis.fr/comprendre-score"
+>
+  <ComprendreScoreApp client:only="react" />
+</BaseLayout>

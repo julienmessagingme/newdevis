@@ -29,7 +29,6 @@ export async function getZoneCoefficient(zip: string): Promise<ZoneResult> {
       .single();
 
     if (error || !data) {
-      console.log(`[Zone] Préfixe ${prefix} non trouvé, utilisation zone par défaut`);
       return {
         zone: "ville_moyenne",
         coefficient: DEFAULT_COEFFICIENTS.ville_moyenne,
@@ -39,8 +38,6 @@ export async function getZoneCoefficient(zip: string): Promise<ZoneResult> {
 
     const zone = data.type_zone as ZoneResult["zone"];
     const coefficient = data.coefficient ?? DEFAULT_COEFFICIENTS[zone] ?? 1.0;
-
-    console.log(`[Zone] ${prefix} → ${zone} (coef: ${coefficient})`);
 
     return {
       zone,

@@ -1,4 +1,5 @@
 import jsPDF from "jspdf";
+import { getScoreLabel } from "@/lib/scoreUtils";
 
 type Analysis = {
   id: string;
@@ -53,15 +54,6 @@ const sanitizeText = (text: string): string => {
     // Nettoyer les espaces multiples
     .replace(/\s+/g, " ")
     .trim();
-};
-
-const getScoreLabel = (score: string | null) => {
-  switch (score) {
-    case "VERT": return "FEU VERT - Devis fiable";
-    case "ORANGE": return "FEU ORANGE - Points de vigilance";
-    case "ROUGE": return "FEU ROUGE - Risques identifies";
-    default: return "Non determine";
-  }
 };
 
 const getScoreColor = (score: string | null): [number, number, number] => {

@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, CheckCircle2, FileSearch } from "lucide-react";
 const HeroSection = () => {
@@ -30,17 +29,17 @@ const HeroSection = () => {
             </p>
 
             <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row justify-center lg:justify-start mb-8 sm:mb-10 px-2">
-              <Link to="/inscription" className="w-full sm:w-auto">
+              <a href="/nouvelle-analyse" className="w-full sm:w-auto">
                 <Button variant="hero" size="xl" className="w-full group text-sm sm:text-base">
                   Analyser mon devis gratuitement
                   <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 transition-transform group-hover:translate-x-1" />
                 </Button>
-              </Link>
-              <Link to="/comment-ca-marche" className="w-full sm:w-auto">
+              </a>
+              <a href="/comment-ca-marche" className="w-full sm:w-auto">
                 <Button variant="ghost" size="xl" className="w-full text-primary-foreground hover:bg-primary-foreground/10 text-sm sm:text-base">
                   Comment ça marche ?
                 </Button>
-              </Link>
+              </a>
             </div>
 
             {/* Trust indicators */}

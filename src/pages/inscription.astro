@@ -1,0 +1,14 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import RegisterApp from '@/components/app/RegisterApp';
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="Créer un compte | VerifierMonDevis.fr"
+  description="Créez votre compte gratuit sur VerifierMonDevis.fr pour analyser vos devis d'artisans."
+  canonical="https://verifiermondevis.fr/inscription"
+>
+  <RegisterApp client:only="react" />
+</BaseLayout>

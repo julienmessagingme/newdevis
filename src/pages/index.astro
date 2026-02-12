@@ -1,0 +1,50 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AstroHeader from '@/components/astro/Header.astro';
+import AstroFooter from '@/components/astro/Footer.astro';
+import HeroSection from '@/components/landing/HeroSection';
+import DevisCalculatorSection from '@/components/landing/DevisCalculatorSection';
+import HowItWorksSection from '@/components/landing/HowItWorksSection';
+import PostSignatureValueSection from '@/components/landing/PostSignatureValueSection';
+import ScoringExplainedSection from '@/components/landing/ScoringExplainedSection';
+import RisksSection from '@/components/landing/RisksSection';
+import DisclaimerSection from '@/components/landing/DisclaimerSection';
+import CTASection from '@/components/landing/CTASection';
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "VerifierMonDevis.fr",
+  "description": "Service gratuit d'analyse de devis d'artisans pour les particuliers",
+  "url": "https://verifiermondevis.fr",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Web",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "EUR"
+  }
+};
+---
+
+<BaseLayout
+  title="Vérifier un devis artisan gratuitement | VerifierMonDevis.fr"
+  description="Analysez gratuitement votre devis d'artisan en 2 minutes. Score de fiabilité, vérification entreprise, prix marché. Protégez-vous avant de signer."
+  canonical="https://verifiermondevis.fr/"
+  jsonLd={jsonLd}
+>
+  <div class="min-h-screen flex flex-col">
+    <AstroHeader />
+    <main class="flex-1">
+      <HeroSection client:load />
+      <DevisCalculatorSection client:visible />
+      <HowItWorksSection client:visible />
+      <PostSignatureValueSection client:visible />
+      <ScoringExplainedSection client:visible />
+      <RisksSection client:visible />
+      <DisclaimerSection client:visible />
+      <CTASection client:visible />
+    </main>
+    <AstroFooter />
+  </div>
+</BaseLayout>

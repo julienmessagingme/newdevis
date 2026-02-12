@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Shield, ArrowLeft, FileText, FileWarning, Info, AlertTriangle } from "lucide-react";
 
@@ -90,12 +89,12 @@ const DocumentRejectionScreen = ({
       {/* Header */}
       <header className="sticky top-0 z-50 bg-card border-b border-border">
         <div className="container flex h-16 items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
+          <a href="/" className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-primary/10">
               <Shield className="h-6 w-6 text-primary" />
             </div>
             <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
-          </Link>
+          </a>
         </div>
       </header>
       
@@ -158,17 +157,17 @@ const DocumentRejectionScreen = ({
         
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link to="/tableau-de-bord">
+          <a href="/tableau-de-bord">
             <Button variant="outline" size="lg" className="w-full sm:w-auto">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Retour au tableau de bord
             </Button>
-          </Link>
-          <Link to="/nouvelle-analyse">
+          </a>
+          <a href="/nouvelle-analyse">
             <Button size="lg" className="w-full sm:w-auto">
               {content.ctaText}
             </Button>
-          </Link>
+          </a>
         </div>
       </main>
     </div>

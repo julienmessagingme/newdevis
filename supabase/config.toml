@@ -1,4 +1,4 @@
-project_id = "mmychjnqqcigysddlpre"
+project_id = "vhrhgsqxwvouswjaiczn"
 
 [functions.analyze-attestation]
 verify_jwt = false
@@ -19,4 +19,13 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.test-webhook]
+verify_jwt = false
+
+[functions.generate-blog-article]
+verify_jwt = false
+
+[functions.publish-scheduled-posts]
+verify_jwt = false
+
+[functions.admin-kpis]
 verify_jwt = false

@@ -6,7 +6,7 @@ CREATE TABLE public.document_extractions (
   analysis_id UUID REFERENCES public.analyses(id) ON DELETE CASCADE,
   
   -- Extraction metadata
-  provider TEXT NOT NULL DEFAULT 'pdf_text', -- pdf_text, textract, lovable_ai
+  provider TEXT NOT NULL DEFAULT 'pdf_text', -- pdf_text, textract, gemini_ai
   ocr_used BOOLEAN NOT NULL DEFAULT false,
   pages_used INTEGER DEFAULT 1,
   pages_count INTEGER DEFAULT 1,

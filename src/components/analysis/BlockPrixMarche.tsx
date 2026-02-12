@@ -12,6 +12,7 @@ interface BlockPrixMarcheProps {
   codePostal?: string;
   selectedWorkType?: string;
   filePath?: string;
+  cachedN8NData?: unknown;
 }
 
 // =======================
@@ -221,25 +222,28 @@ const MarketPriceResultBlock = ({ result }: MarketPriceResultBlockProps) => {
 // MAIN COMPONENT
 // =======================
 
-const BlockPrixMarche = ({ 
-  montantTotalHT, 
+const BlockPrixMarche = ({
+  montantTotalHT,
   codePostal,
   selectedWorkType,
   filePath,
+  cachedN8NData,
 }: BlockPrixMarcheProps) => {
-  
+
   const hasMontant = montantTotalHT !== undefined && montantTotalHT > 0;
-  
+
   // Appel API n8n - SEULE source de vérité
-  const { 
-    loading, 
-    error, 
+  // Si cachedN8NData est disponible (depuis analyze-quote), affichage immédiat sans appel live
+  const {
+    loading,
+    error,
     result,
   } = useMarketPriceAPI({
     workType: selectedWorkType,
     codePostal,
     filePath,
     enabled: hasMontant && !!filePath,
+    cachedN8NData,
   });
   
   // Déterminer l'état d'affichage

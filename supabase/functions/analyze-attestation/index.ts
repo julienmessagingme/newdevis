@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const GEMINI_AI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
 type ScoringColor = "VERT" | "ORANGE" | "ROUGE";
 type ComparisonStatus = "OK" | "INCOMPLET" | "INCOHERENT" | "NON_DISPONIBLE";
@@ -43,7 +43,7 @@ interface AttestationAnalysisResult {
 async function extractAttestationInfo(
   base64Content: string,
   mimeType: string,
-  lovableApiKey: string
+  googleApiKey: string
 ): Promise<AttestationExtraction> {
   const defaultResult: AttestationExtraction = {
     type_assurance: "autre",
@@ -93,14 +93,14 @@ Retourne un JSON avec EXACTEMENT ces champs:
   "document_lisible": true | false
 }`;
 
-    const aiResponse = await fetch(LOVABLE_AI_URL, {
+    const aiResponse = await fetch(GEMINI_AI_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${lovableApiKey}`,
+        "Authorization": `Bearer ${googleApiKey}`,
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
           {
@@ -393,14 +393,14 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+    const googleApiKey = Deno.env.get("GOOGLE_AI_API_KEY");
 
     if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error("Missing Supabase configuration");
     }
 
-    if (!lovableApiKey) {
-      throw new Error("Missing LOVABLE_API_KEY");
+    if (!googleApiKey) {
+      throw new Error("Missing GOOGLE_AI_API_KEY");
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -417,7 +417,7 @@ serve(async (req) => {
     console.log(`Analyzing ${attestationType} attestation for analysis ${analysisId}`);
 
     // Extract information from attestation
-    const extraction = await extractAttestationInfo(fileBase64, mimeType, lovableApiKey);
+    const extraction = await extractAttestationInfo(fileBase64, mimeType, googleApiKey);
     
     console.log("Extraction result:", extraction);
 

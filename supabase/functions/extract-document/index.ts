@@ -13,7 +13,7 @@ interface ExtractionResult {
   blocks: TextBlock[];
   pages_count: number;
   quality_score: number;
-  provider: "pdf_text" | "textract" | "lovable_ai";
+  provider: "pdf_text" | "textract" | "gemini_ai";
   provider_calls: ProviderCall[];
   cache_hit: boolean;
   file_hash: string;
@@ -371,25 +371,25 @@ async function extractWithTextract(
   };
 }
 
-// ============ HELPER: LOVABLE AI OCR FALLBACK ============
+// ============ HELPER: GEMINI AI OCR FALLBACK ============
 
-async function extractWithLovableAI(
+async function extractWithGeminiAI(
   base64Content: string,
   mimeType: string
 ): Promise<{ text: string; blocks: TextBlock[] }> {
-  const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
-  if (!lovableApiKey) {
-    throw new Error("LOVABLE_API_KEY not configured");
+  const googleApiKey = Deno.env.get("GOOGLE_AI_API_KEY");
+  if (!googleApiKey) {
+    throw new Error("GOOGLE_AI_API_KEY not configured");
   }
-  
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+
+  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${lovableApiKey}`,
+      "Authorization": `Bearer ${googleApiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
+      model: "gemini-2.5-flash",
       messages: [
         {
           role: "system",
@@ -415,7 +415,7 @@ Sois exhaustif et préserve la structure.`
   });
   
   if (!response.ok) {
-    throw new Error(`Lovable AI error: ${response.status}`);
+    throw new Error(`Gemini AI error: ${response.status}`);
   }
   
   const result = await response.json();
@@ -751,7 +751,7 @@ serve(async (req) => {
       }
     }
 
-    // STEP 4: Fallback to Lovable AI OCR ONLY if Textract failed
+    // STEP 4: Fallback to Gemini AI OCR ONLY if Textract failed
     if (!finalResult) {
       const startTime = Date.now();
       try {
@@ -764,26 +764,26 @@ serve(async (req) => {
         }
         const base64Content = btoa(binaryString);
 
-        const aiResult = await extractWithLovableAI(base64Content, mimeType);
+        const aiResult = await extractWithGeminiAI(base64Content, mimeType);
         
         providerCalls.push({
-          provider: "lovable_ai",
+          provider: "gemini_ai",
           latency_ms: Date.now() - startTime,
           pages_used: 1,
           success: true,
         });
 
-        console.log("Lovable AI extraction successful. Lines:", aiResult.blocks.length);
+        console.log("Gemini AI extraction successful. Lines:", aiResult.blocks.length);
         
         const aiTextLength = aiResult.text.length;
         const aiTableSignals = detectTableSignals(aiResult.text);
         pagesUsedList = [1];
         textLengthByPage = [{ page: 1, length: aiTextLength }];
         
-        ocrReason = ocrReason === "textract_failed" ? "textract_failed_lovable_fallback" : "lovable_fallback";
+        ocrReason = ocrReason === "textract_failed" ? "textract_failed_gemini_fallback" : "gemini_fallback";
 
         const ocrDebug: OcrDebug = {
-          ocr_provider: "lovable_ai",
+          ocr_provider: "gemini_ai",
           ocr_reason: ocrReason,
           sha256: fileHash,
           pages_total: 1,
@@ -800,7 +800,7 @@ serve(async (req) => {
           blocks: aiResult.blocks,
           pages_count: 1,
           quality_score: 0.75,
-          provider: "lovable_ai",
+          provider: "gemini_ai",
           provider_calls: providerCalls,
           cache_hit: false,
           file_hash: fileHash,
@@ -814,9 +814,9 @@ serve(async (req) => {
           text_length_by_page: textLengthByPage,
         };
       } catch (error) {
-        console.error("Lovable AI OCR failed:", error);
+        console.error("Gemini AI OCR failed:", error);
         providerCalls.push({
-          provider: "lovable_ai",
+          provider: "gemini_ai",
           latency_ms: Date.now() - startTime,
           pages_used: 0,
           success: false,

@@ -1,0 +1,14 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import BlogArticleApp from '@/components/app/BlogArticleApp';
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="Article | VerifierMonDevis.fr"
+  description="Article du blog VerifierMonDevis.fr"
+  canonical={`https://verifiermondevis.fr/blog/${Astro.params.slug}`}
+>
+  <BlogArticleApp client:only="react" />
+</BaseLayout>

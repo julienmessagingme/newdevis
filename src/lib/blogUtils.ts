@@ -2,15 +2,8 @@
  * Blog utilities: HTML sanitization, CTA injection, reading time calculation
  */
 
-// Dynamic CTA URL based on environment
+// CTA URL
 export const getCTAUrl = (): string => {
-  if (typeof window === 'undefined') return 'https://verifiermondevis.fr/';
-  
-  const host = window.location.host;
-  if (host.includes('lovable.app') || host.includes('lovableproject.com')) {
-    return 'https://id-preview--2fb8d923-b32c-4438-87ec-b5c9b5873e54.lovable.app/';
-  }
-  
   return 'https://verifiermondevis.fr/';
 };
 

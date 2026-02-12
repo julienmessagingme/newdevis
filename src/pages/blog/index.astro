@@ -1,0 +1,14 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import BlogApp from '@/components/app/BlogApp';
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="Blog - Conseils Devis & Travaux | VerifierMonDevis.fr"
+  description="Conseils pratiques pour analyser vos devis artisan, éviter les arnaques et réussir vos travaux. Guides, checklists et astuces d'experts."
+  canonical="https://verifiermondevis.fr/blog"
+>
+  <BlogApp client:only="react" />
+</BaseLayout>

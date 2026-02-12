@@ -1,0 +1,13 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AdminBlogApp from '@/components/app/AdminBlogApp';
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="Administration Blog | VerifierMonDevis.fr"
+  description="Gestion des articles du blog VerifierMonDevis.fr"
+>
+  <AdminBlogApp client:only="react" />
+</BaseLayout>

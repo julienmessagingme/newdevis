@@ -1,4 +1,5 @@
-import { CheckCircle2, AlertCircle, XCircle, Receipt, TrendingUp, TrendingDown, Minus, HelpCircle, MapPin, FileText, List, Calculator } from "lucide-react";
+import { CheckCircle2, Receipt, TrendingUp, TrendingDown, Minus, HelpCircle, MapPin, FileText, List, Calculator } from "lucide-react";
+import { getScoreIcon, getScoreBgClass } from "@/lib/scoreUtils";
 import PedagogicExplanation from "./PedagogicExplanation";
 
 // Interface for structured work type data from database
@@ -121,24 +122,6 @@ const OFFICIAL_CATEGORIES: OfficialCategory[] = [
     prixBas: 0, prixMedian: 0, prixHaut: 0, unite: ""
   }
 ];
-
-const getScoreIcon = (score: string | null | undefined, className: string = "h-4 w-4") => {
-  switch (score) {
-    case "VERT": return <CheckCircle2 className={`${className} text-score-green`} />;
-    case "ORANGE": return <AlertCircle className={`${className} text-score-orange`} />;
-    case "ROUGE": return <XCircle className={`${className} text-score-red`} />;
-    default: return <HelpCircle className={`${className} text-muted-foreground`} />;
-  }
-};
-
-const getScoreBgClass = (score: string | null | undefined) => {
-  switch (score) {
-    case "VERT": return "bg-score-green-bg border-score-green/30";
-    case "ORANGE": return "bg-score-orange-bg border-score-orange/30";
-    case "ROUGE": return "bg-score-red-bg border-score-red/30";
-    default: return "bg-muted border-border";
-  }
-};
 
 // Calculate price position in range
 const calculatePricePosition = (

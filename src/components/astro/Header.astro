@@ -1,0 +1,89 @@
+---
+const pathname = Astro.url.pathname;
+const isLandingPage = pathname === '/';
+---
+
+<header class={`sticky top-0 z-50 w-full border-b ${isLandingPage ? 'bg-primary border-primary/20' : 'bg-card border-border'}`}>
+  <div class="container flex h-16 items-center justify-between">
+    <a href="/" class="flex items-center gap-3">
+      <img
+        alt="VerifierMonDevis.fr"
+        class="h-14 w-14 object-contain"
+        src="/images/logo-header.png"
+      />
+      <span class={`text-2xl font-bold ${isLandingPage ? 'text-primary-foreground' : 'text-foreground'}`}>
+        VerifierMonDevis.fr
+      </span>
+    </a>
+
+    <!-- Desktop Navigation -->
+    <nav class="hidden md:flex items-center gap-6">
+      <a href="/blog" class={`text-sm font-medium transition-colors hover:opacity-80 ${isLandingPage ? 'text-primary-foreground/80' : 'text-muted-foreground hover:text-foreground'}`}>
+        Blog
+      </a>
+      <a href="/comprendre-score" class={`text-sm font-medium transition-colors hover:opacity-80 ${isLandingPage ? 'text-primary-foreground/80' : 'text-muted-foreground hover:text-foreground'}`}>
+        Comprendre mon score
+      </a>
+      <div class="flex items-center gap-3">
+        <a href="/connexion">
+          <button class={`inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border h-10 px-4 py-2 ${isLandingPage ? 'text-primary-foreground hover:bg-primary-foreground/10 border-transparent' : 'border-input bg-background hover:bg-accent hover:text-accent-foreground'}`}>
+            Connexion
+          </button>
+        </a>
+        <a href="/nouvelle-analyse">
+          <button class={`inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 h-10 px-4 py-2 ${isLandingPage ? 'bg-white text-primary hover:bg-white/90' : 'bg-primary text-primary-foreground hover:bg-primary/90'}`}>
+            Analyser un devis
+          </button>
+        </a>
+      </div>
+    </nav>
+
+    <!-- Mobile Menu Button -->
+    <button class="md:hidden p-2" id="mobile-menu-toggle">
+      <svg class={`h-6 w-6 ${isLandingPage ? 'text-primary-foreground' : 'text-foreground'}`} id="menu-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+      </svg>
+      <svg class={`h-6 w-6 hidden ${isLandingPage ? 'text-primary-foreground' : 'text-foreground'}`} id="close-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </button>
+  </div>
+
+  <!-- Mobile Menu -->
+  <div class={`md:hidden border-t hidden ${isLandingPage ? 'bg-primary border-primary/20' : 'bg-card border-border'}`} id="mobile-menu">
+    <nav class="container py-4 flex flex-col gap-4">
+      <a href="/blog" class={`text-sm font-medium ${isLandingPage ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
+        Blog
+      </a>
+      <a href="/comprendre-score" class={`text-sm font-medium ${isLandingPage ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
+        Comprendre mon score
+      </a>
+      <div class="flex flex-col gap-2 pt-2">
+        <a href="/connexion">
+          <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 w-full">
+            Connexion
+          </button>
+        </a>
+        <a href="/nouvelle-analyse">
+          <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 w-full">
+            Analyser un devis
+          </button>
+        </a>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<script>
+  const toggle = document.getElementById('mobile-menu-toggle');
+  const menu = document.getElementById('mobile-menu');
+  const menuIcon = document.getElementById('menu-icon');
+  const closeIcon = document.getElementById('close-icon');
+
+  toggle?.addEventListener('click', () => {
+    const isOpen = !menu?.classList.contains('hidden');
+    menu?.classList.toggle('hidden');
+    menuIcon?.classList.toggle('hidden');
+    closeIcon?.classList.toggle('hidden');
+  });
+</script>

@@ -142,6 +142,7 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [debugData, setDebugData] = useState<OcrDebugData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     ocr: true,
     textract: false,
@@ -182,7 +183,7 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
           .single();
         
         if (error) {
-          console.log("No extraction data found:", error.message);
+          console.error("No extraction data found:", error.message);
         } else if (extraction) {
           setDebugData({
             ...extraction,
@@ -218,7 +219,7 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
     switch (provider) {
       case "pdf_text": return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
       case "textract": return "bg-amber-500/20 text-amber-400 border-amber-500/30";
-      case "lovable_ai": return "bg-violet-500/20 text-violet-400 border-violet-500/30";
+      case "gemini_ai": return "bg-violet-500/20 text-violet-400 border-violet-500/30";
       default: return "bg-muted text-muted-foreground";
     }
   };
@@ -228,7 +229,17 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
   const textractDebug = debugData?.textract_debug;
 
   return (
-    <Card className="mt-6 border-dashed border-2 border-violet-500/30 bg-violet-500/5">
+    <div className="mt-6">
+      <button
+        onClick={() => setPanelOpen(!panelOpen)}
+        className="flex items-center gap-2 text-[11px] text-violet-400/60 hover:text-violet-400 transition-colors mx-auto"
+      >
+        <Bug className="h-3 w-3" />
+        {panelOpen ? "Masquer debug admin" : "Debug admin"}
+        <ChevronDown className={`h-3 w-3 transition-transform ${panelOpen ? "rotate-180" : ""}`} />
+      </button>
+      {panelOpen && (
+    <Card className="mt-2 border-dashed border-2 border-violet-500/30 bg-violet-500/5">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium flex items-center gap-2 text-violet-400">
           <Bug className="h-4 w-4" />
@@ -589,5 +600,7 @@ export const OcrDebugPanel = ({ analysisId }: OcrDebugPanelProps) => {
         )}
       </CardContent>
     </Card>
+      )}
+    </div>
   );
 };

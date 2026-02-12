@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Shield, Clock, Lock } from "lucide-react";
 
@@ -26,12 +25,12 @@ const CTASection = () => {
             Analysez tous vos devis gratuitement et sans limite. Rejoignez les particuliers qui font confiance à VerifierMonDevis.fr.
           </p>
 
-          <Link to="/inscription">
+          <a href="/nouvelle-analyse">
             <Button variant="hero" size="xl" className="group mb-10">
               Commencer gratuitement
               <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
             </Button>
-          </Link>
+          </a>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-6 text-primary-foreground/70 text-sm">
             <div className="flex items-center gap-2">

@@ -1,8 +1,9 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Upload, FileCheck, Loader2, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
+import { Upload, FileCheck, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { getScoreIcon } from "@/lib/scoreUtils";
 
 interface AttestationUploadProps {
   analysisId: string;
@@ -112,19 +113,6 @@ const AttestationUpload = ({ analysisId, quoteInfo, onUploadComplete }: Attestat
 
     // Reset input
     event.target.value = "";
-  };
-
-  const getScoreIcon = (score?: "VERT" | "ORANGE" | "ROUGE") => {
-    switch (score) {
-      case "VERT":
-        return <CheckCircle2 className="h-5 w-5 text-score-green" />;
-      case "ORANGE":
-        return <AlertCircle className="h-5 w-5 text-score-orange" />;
-      case "ROUGE":
-        return <XCircle className="h-5 w-5 text-score-red" />;
-      default:
-        return null;
-    }
   };
 
   const getScoreLabel = (score?: "VERT" | "ORANGE" | "ROUGE") => {

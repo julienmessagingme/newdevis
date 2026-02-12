@@ -1,0 +1,13 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import NewAnalysisApp from '@/components/app/NewAnalysisApp';
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="Nouvelle analyse | VerifierMonDevis.fr"
+  description="Analysez un nouveau devis d'artisan en quelques minutes."
+>
+  <NewAnalysisApp client:only="react" />
+</BaseLayout>

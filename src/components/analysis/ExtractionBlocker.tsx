@@ -2,7 +2,6 @@ import { Loader2, RefreshCw, AlertTriangle, XCircle, RotateCcw } from "lucide-re
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 // ============================================================
@@ -199,7 +198,6 @@ const ExtractionFailedScreen = ({
   analysisId: string; 
   errorMessage: string;
 }) => {
-  const navigate = useNavigate();
   const [isRetrying, setIsRetrying] = useState(false);
 
   const handleRetry = async () => {
@@ -254,7 +252,7 @@ const ExtractionFailedScreen = ({
   };
 
   const handleNewAnalysis = () => {
-    navigate("/nouvelle-analyse");
+    window.location.href = "/nouvelle-analyse";
   };
 
   return (

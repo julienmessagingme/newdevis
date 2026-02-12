@@ -1,0 +1,14 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import LoginApp from '@/components/app/LoginApp';
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="Connexion | VerifierMonDevis.fr"
+  description="Connectez-vous à votre compte VerifierMonDevis.fr pour analyser vos devis d'artisans."
+  canonical="https://verifiermondevis.fr/connexion"
+>
+  <LoginApp client:only="react" />
+</BaseLayout>

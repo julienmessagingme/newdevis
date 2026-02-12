@@ -1,0 +1,13 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AdminApp from '@/components/app/AdminApp';
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="Administration | VerifierMonDevis.fr"
+  description="Panneau d'administration VerifierMonDevis.fr"
+>
+  <AdminApp client:only="react" />
+</BaseLayout>

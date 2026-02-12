@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { Clock, Tag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { calculateReadingTime, formatArticleDate } from "@/lib/blogUtils";
@@ -25,8 +24,8 @@ const ArticleCard = ({
   const readingTime = calculateReadingTime(contentHtml);
   
   return (
-    <Link 
-      to={`/blog/${slug}`}
+    <a
+      href={`/blog/${slug}`}
       className="group block bg-card rounded-2xl border border-border overflow-hidden hover:shadow-lg hover:border-primary/30 transition-all duration-300"
     >
       {coverImageUrl && (
@@ -70,7 +69,7 @@ const ArticleCard = ({
           </p>
         )}
       </div>
-    </Link>
+    </a>
   );
 };
 

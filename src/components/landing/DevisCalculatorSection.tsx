@@ -70,7 +70,6 @@ const DevisCalculatorSection = () => {
     try {
       // 1. Récupérer le coefficient de zone basé sur le code postal
       const zoneResult = await getZoneCoefficient(zip);
-      console.log("[Calculette] Zone détectée:", zoneResult);
 
       // 2. Appel API n8n
       const body = {
@@ -79,8 +78,6 @@ const DevisCalculatorSection = () => {
         zip: zip,
       };
 
-      console.log("[Calculette] POST →", API_ENDPOINT, body);
-
       const response = await fetch(API_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -88,7 +85,6 @@ const DevisCalculatorSection = () => {
       });
 
       const data: APIResponse = await response.json();
-      console.log("[Calculette] Response ←", data);
 
       // Si ok=false, afficher les erreurs de l'API
       if (data.ok === false) {
@@ -107,12 +103,6 @@ const DevisCalculatorSection = () => {
           },
           zoneResult.coefficient
         );
-
-        console.log("[Calculette] Totaux ajustés:", {
-          original: data.totals,
-          coefficient: zoneResult.coefficient,
-          adjusted: adjustedTotals,
-        });
 
         setResult({
           apiResponse: data,

@@ -9,39 +9,56 @@ import { supabase } from "@/integrations/supabase/client";
 
 /**
  * Réponse brute du webhook n8n
- * Champs obligatoires: ok
+ * N8N renvoie un TABLEAU d'objets. On utilise le premier élément.
  * Champs de prix: total_min_ht, total_avg_ht, total_max_ht (tous en HT)
  */
-export interface N8NApiResponse {
-  ok: boolean;
+export interface N8NApiResponseItem {
+  row_number?: number;
+  job_type?: string;
   comparable?: boolean;
   currency?: string;
   source?: string;
   message?: string;
   suggestion?: string;
-  
-  // Prix en HT - SEULS champs autorisés pour l'affichage
+
+  // Prix unitaires HT
+  price_min_unit_ht?: number | null;
+  price_avg_unit_ht?: number | null;
+  price_max_unit_ht?: number | null;
+
+  // Prix fixes HT
+  fixed_min_ht?: number | null;
+  fixed_avg_ht?: number | null;
+  fixed_max_ht?: number | null;
+
+  // Prix totaux HT - SEULS champs autorisés pour l'affichage
   total_min_ht?: number | null;
   total_avg_ht?: number | null;
   total_max_ht?: number | null;
-  
+
   // Quantité et unité
   qty_total?: number | null;
   unit?: string | null;
   label?: string | null;
-  
+  zip_scope?: string;
+  notes?: string;
+
+  // Analyse du devis
+  analysis?: {
+    devis_ht?: number | null;
+    price_position?: string | null;
+    price_note?: string | null;
+  };
+
   // Warnings de l'API
   warnings?: string[];
-  
-  // Détails supplémentaires (optionnel)
-  details?: {
-    montant_devis_ht?: number | null;
-    [key: string]: unknown;
-  };
-  
+
   // Erreurs
   errors?: string[];
 }
+
+/** La réponse peut être un tableau ou un objet unique */
+export type N8NApiResponse = N8NApiResponseItem[] | N8NApiResponseItem;
 
 /**
  * Résultat transformé pour le composant UI
@@ -98,6 +115,103 @@ export interface UseMarketPriceAPIParams {
   codePostal?: string;
   filePath?: string;
   enabled?: boolean;
+  cachedN8NData?: unknown;
+}
+
+// ========================================
+// PROCESS N8N ITEM - shared logic for cached & live data
+// ========================================
+
+function processN8NItem(
+  rawResponse: N8NApiResponse,
+  debugObj: MarketPriceDebug,
+): { result: MarketPriceResult; debug: MarketPriceDebug } {
+  // N8N renvoie un tableau — on prend le premier élément
+  const item: N8NApiResponseItem | undefined = Array.isArray(rawResponse)
+    ? rawResponse[0]
+    : rawResponse;
+
+  // Validation: réponse vide ou non comparable
+  if (!item || item.comparable === false) {
+    debugObj.valuesRead = {
+      total_min_ht: null,
+      total_avg_ht: null,
+      total_max_ht: null,
+      qty_total: null,
+      unit: null,
+      label: null,
+    };
+    return {
+      result: {
+        ok: false,
+        comparable: false,
+        totalMinHT: null,
+        totalAvgHT: null,
+        totalMaxHT: null,
+        qtyTotal: null,
+        unit: null,
+        label: null,
+        montantDevisHT: null,
+        warnings: Array.isArray(item?.warnings) ? item.warnings : [],
+        message: item?.message || null,
+        suggestion: item?.suggestion || null,
+        source: item?.source || "n8n",
+        currency: item?.currency || "EUR",
+      },
+      debug: debugObj,
+    };
+  }
+
+  // Extraction STRICTE des champs - AUCUNE transformation ou calcul
+  const totalMinHT = item.total_min_ht !== undefined && item.total_min_ht !== null
+    ? Number(item.total_min_ht)
+    : null;
+  const totalAvgHT = item.total_avg_ht !== undefined && item.total_avg_ht !== null
+    ? Number(item.total_avg_ht)
+    : null;
+  const totalMaxHT = item.total_max_ht !== undefined && item.total_max_ht !== null
+    ? Number(item.total_max_ht)
+    : null;
+  const qtyTotal = item.qty_total !== undefined && item.qty_total !== null
+    ? Number(item.qty_total)
+    : null;
+  const unit = item.unit || null;
+  const label = item.label || null;
+
+  // Montant du devis HT depuis analysis.devis_ht (format réel N8N)
+  const montantDevisHT = item.analysis?.devis_ht !== undefined
+    && item.analysis?.devis_ht !== null
+    ? Number(item.analysis.devis_ht)
+    : null;
+
+  debugObj.valuesRead = {
+    total_min_ht: totalMinHT,
+    total_avg_ht: totalAvgHT,
+    total_max_ht: totalMaxHT,
+    qty_total: qtyTotal,
+    unit,
+    label,
+  };
+
+  return {
+    result: {
+      ok: true,
+      comparable: item.comparable ?? true,
+      totalMinHT,
+      totalAvgHT,
+      totalMaxHT,
+      qtyTotal,
+      unit,
+      label,
+      montantDevisHT,
+      warnings: Array.isArray(item.warnings) ? item.warnings : [],
+      message: item.message || null,
+      suggestion: item.suggestion || null,
+      source: item.source || "n8n",
+      currency: item.currency || "EUR",
+    },
+    debug: debugObj,
+  };
 }
 
 // ========================================
@@ -109,29 +223,70 @@ export const useMarketPriceAPI = ({
   codePostal,
   filePath,
   enabled = true,
+  cachedN8NData,
 }: UseMarketPriceAPIParams) => {
-  const [loading, setLoading] = useState(false);
+  // If cachedN8NData is available, start with loading=false (instant display)
+  const hasCachedData = cachedN8NData !== undefined && cachedN8NData !== null;
+  const [loading, setLoading] = useState(!hasCachedData && enabled && !!filePath);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<MarketPriceResult | null>(null);
-  const [debug, setDebug] = useState<MarketPriceDebug>({
-    apiUrl: null,
-    apiParams: null,
-    httpStatus: null,
-    apiResponse: null,
-    valuesRead: null,
-    error: null,
+  const [result, setResult] = useState<MarketPriceResult | null>(() => {
+    // Process cached data synchronously for immediate display
+    if (hasCachedData) {
+      try {
+        const rawResponse = cachedN8NData as N8NApiResponse;
+        const debugObj: MarketPriceDebug = {
+          apiUrl: "cached_from_analyze_quote",
+          apiParams: null,
+          httpStatus: null,
+          apiResponse: rawResponse,
+          valuesRead: null,
+          error: null,
+        };
+        const processed = processN8NItem(rawResponse, debugObj);
+        return processed.result;
+      } catch {
+        // Fall through to null, will trigger live fetch
+        return null;
+      }
+    }
+    return null;
+  });
+  const [debug, setDebug] = useState<MarketPriceDebug>(() => {
+    if (hasCachedData) {
+      try {
+        const rawResponse = cachedN8NData as N8NApiResponse;
+        const debugObj: MarketPriceDebug = {
+          apiUrl: "cached_from_analyze_quote",
+          apiParams: null,
+          httpStatus: null,
+          apiResponse: rawResponse,
+          valuesRead: null,
+          error: null,
+        };
+        const processed = processN8NItem(rawResponse, debugObj);
+        return processed.debug;
+      } catch {
+        return { apiUrl: null, apiParams: null, httpStatus: null, apiResponse: null, valuesRead: null, error: "cached_parse_failed" };
+      }
+    }
+    return { apiUrl: null, apiParams: null, httpStatus: null, apiResponse: null, valuesRead: null, error: null };
   });
 
   useEffect(() => {
+    // Skip live fetch if we have valid cached data
+    if (hasCachedData) {
+      return;
+    }
+
     if (!enabled || !filePath) {
       setResult(null);
-      setDebug({ 
-        apiUrl: null, 
-        apiParams: null, 
+      setDebug({
+        apiUrl: null,
+        apiParams: null,
         httpStatus: null,
-        apiResponse: null, 
+        apiResponse: null,
         valuesRead: null,
-        error: !enabled ? "disabled" : "no_file_path" 
+        error: !enabled ? "disabled" : "no_file_path"
       });
       return;
     }
@@ -139,7 +294,7 @@ export const useMarketPriceAPI = ({
     const fetchMarketPrice = async () => {
       setLoading(true);
       setError(null);
-      
+
       const newDebug: MarketPriceDebug = {
         apiUrl: null,
         apiParams: null,
@@ -148,20 +303,20 @@ export const useMarketPriceAPI = ({
         valuesRead: null,
         error: null,
       };
-      
+
       try {
         const apiUrl = "https://n8n.messagingme.app/webhook/d1cfedb7-0ebb-44ca-bb2b-543ee84b0075";
-        
+
         // Paramètres envoyés à n8n via formDataFields
         const formDataFields: Record<string, unknown> = {
           job_type: workType || "",
           zip: codePostal || "",
           qty: 1, // Défaut, n8n calcule depuis le PDF
         };
-        
+
         newDebug.apiUrl = apiUrl;
         newDebug.apiParams = formDataFields;
-        
+
         // Appel via edge function (multipart/form-data avec PDF)
         const requestBody = {
           url: apiUrl,
@@ -169,19 +324,14 @@ export const useMarketPriceAPI = ({
           formDataFields,
           filePath,
         };
-        
-        // DEV ONLY: Log de la requête
-        if (import.meta.env.DEV) {
-          console.log("[useMarketPriceAPI] Envoi requête n8n:", requestBody);
-        }
-        
+
         const { data, error: fnError } = await supabase.functions.invoke("test-webhook", {
           body: requestBody,
         });
-        
+
         newDebug.httpStatus = data?.status || null;
         newDebug.apiResponse = data?.data || data;
-        
+
         if (fnError) {
           throw new Error(fnError.message || "Erreur lors de l'appel API");
         }
@@ -190,108 +340,12 @@ export const useMarketPriceAPI = ({
           throw new Error(data?.error || "L'API a retourné une erreur");
         }
 
-        const apiResponse = data.data as N8NApiResponse;
-        
-        // DEV ONLY: Log de la réponse
-        if (import.meta.env.DEV) {
-          console.log("[useMarketPriceAPI] HTTP status:", data.status);
-          console.log("[useMarketPriceAPI] Body JSON reçu:", apiResponse);
-        }
-        
-        // Validation: ok doit être true
-        if (apiResponse.ok !== true) {
-          // Non comparable ou erreur
-          setResult({
-            ok: false,
-            comparable: apiResponse.comparable ?? false,
-            totalMinHT: null,
-            totalAvgHT: null,
-            totalMaxHT: null,
-            qtyTotal: null,
-            unit: null,
-            label: null,
-            montantDevisHT: null,
-            warnings: Array.isArray(apiResponse.warnings) ? apiResponse.warnings : [],
-            message: apiResponse.message || null,
-            suggestion: apiResponse.suggestion || null,
-            source: apiResponse.source || "n8n",
-            currency: apiResponse.currency || "EUR",
-          });
-          
-          newDebug.valuesRead = {
-            total_min_ht: null,
-            total_avg_ht: null,
-            total_max_ht: null,
-            qty_total: null,
-            unit: null,
-            label: null,
-          };
-          setDebug(newDebug);
-          return;
-        }
-        
-        // Extraction STRICTE des champs - AUCUNE transformation ou calcul
-        const totalMinHT = apiResponse.total_min_ht !== undefined && apiResponse.total_min_ht !== null 
-          ? Number(apiResponse.total_min_ht) 
-          : null;
-        const totalAvgHT = apiResponse.total_avg_ht !== undefined && apiResponse.total_avg_ht !== null 
-          ? Number(apiResponse.total_avg_ht) 
-          : null;
-        const totalMaxHT = apiResponse.total_max_ht !== undefined && apiResponse.total_max_ht !== null 
-          ? Number(apiResponse.total_max_ht) 
-          : null;
-        const qtyTotal = apiResponse.qty_total !== undefined && apiResponse.qty_total !== null 
-          ? Number(apiResponse.qty_total) 
-          : null;
-        const unit = apiResponse.unit || null;
-        const label = apiResponse.label || null;
-        
-        // Montant du devis HT depuis details (si fourni par l'API)
-        const montantDevisHT = apiResponse.details?.montant_devis_ht !== undefined 
-          && apiResponse.details?.montant_devis_ht !== null
-          ? Number(apiResponse.details.montant_devis_ht)
-          : null;
-        
-        // DEV ONLY: Log des valeurs lues
-        if (import.meta.env.DEV) {
-          console.log("[useMarketPriceAPI] Valeurs lues:", {
-            total_min_ht: totalMinHT,
-            total_avg_ht: totalAvgHT,
-            total_max_ht: totalMaxHT,
-            qty_total: qtyTotal,
-            unit,
-            label,
-          });
-        }
-        
-        newDebug.valuesRead = {
-          total_min_ht: totalMinHT,
-          total_avg_ht: totalAvgHT,
-          total_max_ht: totalMaxHT,
-          qty_total: qtyTotal,
-          unit,
-          label,
-        };
-        
-        // RENDU DIRECT - AUCUN recalcul
-        setResult({
-          ok: true,
-          comparable: apiResponse.comparable ?? true,
-          totalMinHT,
-          totalAvgHT,
-          totalMaxHT,
-          qtyTotal,
-          unit,
-          label,
-          montantDevisHT,
-          warnings: Array.isArray(apiResponse.warnings) ? apiResponse.warnings : [],
-          message: apiResponse.message || null,
-          suggestion: apiResponse.suggestion || null,
-          source: apiResponse.source || "n8n",
-          currency: apiResponse.currency || "EUR",
-        });
-        setDebug(newDebug);
-        
+        const rawResponse = data.data as N8NApiResponse;
+
+        const processed = processN8NItem(rawResponse, newDebug);
+        setResult(processed.result);
+        setDebug(processed.debug);
+
       } catch (err) {
         console.error("[useMarketPriceAPI] Error:", err);
         const errorMsg = err instanceof Error ? err.message : "Prix marché indisponible";
@@ -305,7 +359,7 @@ export const useMarketPriceAPI = ({
     };
 
     fetchMarketPrice();
-  }, [workType, codePostal, filePath, enabled]);
+  }, [workType, codePostal, filePath, enabled, hasCachedData]);
 
   return {
     loading,
