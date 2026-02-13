@@ -45,6 +45,7 @@ export const OPENIBAN_API_URL = "https://openiban.com/validate";
 export const GEORISQUES_API_URL = "https://georisques.gouv.fr/api/v1";
 export const ADRESSE_API_URL = "https://api-adresse.data.gouv.fr/search";
 export const GPU_API_URL = "https://apicarto.ign.fr/api/gpu/document";
+export const RECHERCHE_ENTREPRISES_API_URL = "https://recherche-entreprises.api.gouv.fr/search";
 
 // ============ CIRCUIT BREAKER SETTINGS ============
 

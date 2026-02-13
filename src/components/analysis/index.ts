@@ -5,7 +5,7 @@ export { filterOutDevisItems } from '@/lib/devisUtils';
 export { default as BlockDevisMultiple, filterOutPriceItems } from './BlockDevisMultiple';
 export type { TravauxItem } from './BlockDevisMultiple';
 export { default as BlockPrixMarche } from './BlockPrixMarche';
-export type { MarketPriceResult } from '@/hooks/useMarketPriceAPI';
+export type { MarketPriceTableRow, JobTypeDisplayRow } from '@/hooks/useMarketPriceAPI';
 export { default as BlockSecurite } from './BlockSecurite';
 export { filterOutSecuriteItems } from '@/lib/securiteUtils';
 export { default as BlockContexte } from './BlockContexte';

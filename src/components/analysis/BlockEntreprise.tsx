@@ -3,20 +3,43 @@ import { getScoreIcon, getScoreBgClass, getScoreTextClass } from "@/lib/scoreUti
 import { extractEntrepriseData } from "@/lib/entrepriseUtils";
 import InfoTooltip from "./InfoTooltip";
 import PedagogicExplanation from "./PedagogicExplanation";
+import type { CompanyDisplayData } from "@/components/pages/AnalysisResult";
 
 interface BlockEntrepriseProps {
   pointsOk: string[];
   alertes: string[];
+  companyData?: CompanyDisplayData | null;
 }
 
-const BlockEntreprise = ({ pointsOk, alertes }: BlockEntrepriseProps) => {
+const formatSiret = (siret: string): string => {
+  const clean = siret.replace(/\s/g, "");
+  if (clean.length === 14) {
+    return `${clean.slice(0, 3)} ${clean.slice(3, 6)} ${clean.slice(6, 9)} ${clean.slice(9)}`;
+  }
+  if (clean.length === 9) {
+    return `${clean.slice(0, 3)} ${clean.slice(3, 6)} ${clean.slice(6)}`;
+  }
+  return siret;
+};
+
+const BlockEntreprise = ({ pointsOk, alertes, companyData }: BlockEntrepriseProps) => {
   const info = extractEntrepriseData(pointsOk, alertes);
 
   // Check if we have any meaningful data
   const hasData = info.siren_siret || info.anciennete || info.bilansDisponibles !== null ||
-                  info.capitauxPropres || info.procedureCollective !== null || info.reputation;
+                  info.capitauxPropres || info.procedureCollective !== null || info.reputation || companyData;
 
   if (!hasData) return null;
+
+  // Build structured company info — prefer companyData (from raw_text JSON) over parsed strings
+  const siret = companyData?.siret || info.siren_siret || null;
+  const nomEntreprise = companyData?.nom_officiel || companyData?.nom_devis || null;
+  const adresse = companyData?.adresse_officielle || null;
+  const ville = companyData?.ville_officielle || null;
+  const dateCreation = companyData?.date_creation || null;
+  const ancienneteAnnees = companyData?.anciennete_annees ?? null;
+  const isImmatriculee = companyData?.entreprise_immatriculee ?? null;
+  const lookupStatus = companyData?.lookup_status || null;
 
   return (
     <div className={`border-2 rounded-2xl p-6 mb-6 ${getScoreBgClass(info.score)}`}>
@@ -24,49 +47,104 @@ const BlockEntreprise = ({ pointsOk, alertes }: BlockEntrepriseProps) => {
         <div className="p-3 bg-background/50 rounded-xl flex-shrink-0">
           <Building2 className="h-6 w-6 text-primary" />
         </div>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-4">
             <h2 className="font-bold text-foreground text-xl">Entreprise & Fiabilité</h2>
             {getScoreIcon(info.score, "h-6 w-6")}
           </div>
 
-          <p className="text-sm text-muted-foreground mb-4">
-            Identifier à qui vous avez affaire.
-          </p>
+          {/* Company identification card */}
+          <div className="p-4 bg-background/40 rounded-xl border border-border/30 mb-4">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="min-w-0">
+                {nomEntreprise && (
+                  <p className="font-semibold text-foreground text-lg leading-tight truncate">{nomEntreprise}</p>
+                )}
+                {siret && (
+                  <p className="text-sm text-muted-foreground mt-1 font-mono">
+                    SIRET : {formatSiret(siret)}
+                  </p>
+                )}
+                {!siret && (
+                  <p className="text-sm text-amber-600 mt-1">
+                    SIRET non détecté sur le devis
+                  </p>
+                )}
+              </div>
+              {isImmatriculee === true && lookupStatus === "ok" && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-green-700 bg-green-500/10 whitespace-nowrap flex-shrink-0">
+                  Entreprise active
+                </span>
+              )}
+              {isImmatriculee === false && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-red-700 bg-red-500/10 whitespace-nowrap flex-shrink-0">
+                  Radiée
+                </span>
+              )}
+            </div>
 
-          {/* Info grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            {/* SIREN/SIRET */}
-            {info.siren_siret && (
-              <div className="p-3 bg-background/30 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Immatriculation</p>
-                <p className="font-medium text-foreground">{info.siren_siret}</p>
+            {/* Details grid */}
+            {(adresse || ville || dateCreation || ancienneteAnnees !== null) && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                {(adresse || ville) && (
+                  <div className="text-muted-foreground">
+                    <span className="text-xs uppercase tracking-wide block mb-0.5">Adresse officielle</span>
+                    <span className="text-foreground">{[adresse, ville].filter(Boolean).join(", ")}</span>
+                  </div>
+                )}
+                {ancienneteAnnees !== null && ancienneteAnnees > 0 && (
+                  <div className="text-muted-foreground">
+                    <span className="text-xs uppercase tracking-wide block mb-0.5">Ancienneté</span>
+                    <span className="text-foreground">
+                      {ancienneteAnnees} an{ancienneteAnnees > 1 ? "s" : ""} d'existence
+                      {dateCreation && <span className="text-muted-foreground text-xs ml-1">(créée le {new Date(dateCreation).toLocaleDateString("fr-FR")})</span>}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Ancienneté */}
-            {info.anciennete && (
-              <div className="p-3 bg-background/30 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Ancienneté</p>
-                <p className="font-medium text-foreground">{info.anciennete}</p>
-              </div>
+            {lookupStatus === "not_found" && siret && (
+              <p className="text-xs text-amber-600 mt-2">
+                SIRET non trouvé dans les registres publics. Vous pouvez vérifier sur societe.com ou infogreffe.fr.
+              </p>
             )}
+            {lookupStatus === "no_siret" && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Demandez le SIRET à l'artisan pour une vérification complète.
+              </p>
+            )}
+          </div>
 
+          {/* Financial indicators grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
             {/* Bilans */}
             {info.bilansDisponibles !== null && (
               <div className="p-3 bg-background/30 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Bilans</p>
+                <p className="text-xs text-muted-foreground mb-1">Bilans comptables</p>
                 <p className={`font-medium ${info.bilansDisponibles ? "text-score-green" : "text-score-orange"}`}>
-                  {info.bilansDisponibles ? "Disponibles" : "Non disponibles"}
+                  {companyData && companyData.bilans_disponibles > 0
+                    ? `${companyData.bilans_disponibles} bilan${companyData.bilans_disponibles > 1 ? "s" : ""} disponible${companyData.bilans_disponibles > 1 ? "s" : ""}`
+                    : info.bilansDisponibles ? "Disponibles" : "Non disponibles"
+                  }
                 </p>
               </div>
             )}
 
             {/* Capitaux propres */}
-            {info.capitauxPropres && (
+            {(info.capitauxPropres || (companyData?.capitaux_propres !== null && companyData?.capitaux_propres !== undefined)) && (
               <div className="p-3 bg-background/30 rounded-lg">
                 <p className="text-xs text-muted-foreground mb-1">Capitaux propres</p>
-                <p className="font-medium text-foreground">{info.capitauxPropres}</p>
+                <p className={`font-medium ${
+                  (companyData?.capitaux_propres !== null && companyData?.capitaux_propres !== undefined && companyData.capitaux_propres < 0)
+                    ? "text-score-red"
+                    : "text-foreground"
+                }`}>
+                  {companyData?.capitaux_propres !== null && companyData?.capitaux_propres !== undefined
+                    ? new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(companyData.capitaux_propres)
+                    : info.capitauxPropres
+                  }
+                </p>
               </div>
             )}
 
@@ -186,7 +264,7 @@ const BlockEntreprise = ({ pointsOk, alertes }: BlockEntrepriseProps) => {
           {/* Disclaimer - harmonized */}
           <div className="mt-3 p-2 bg-muted/30 rounded-lg">
             <p className="text-xs text-muted-foreground/70 italic">
-              ℹ️ Analyse automatisée à partir de sources publiques (Infogreffe, BODACC, Google).
+              ℹ️ Analyse automatisée à partir de sources publiques (registres officiels, Google).
               Ces informations constituent une aide à la décision et ne portent aucun jugement sur l'artisan.
             </p>
           </div>

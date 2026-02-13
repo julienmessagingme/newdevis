@@ -7,7 +7,8 @@ import { extractDataFromDocument } from "./extract.ts";
 import { verifyData } from "./verify.ts";
 import { calculateScore } from "./score.ts";
 import { renderOutput } from "./render.ts";
-import { callN8NWebhook } from "./n8n.ts";
+import { lookupMarketPrices, type WorkItemFull, type JobTypePriceResult } from "./market-prices.ts";
+import { summarizeWorkItems } from "./summarize.ts";
 
 // ============ MAIN HANDLER ============
 serve(async (req) => {
@@ -386,9 +387,38 @@ serve(async (req) => {
       );
     }
 
-    // ============ PHASE 2: VÉRIFICATION (APIs - SANS IA) + N8N en parallèle ============
+    // ============ PHASE 1.5: SUMMARIZE WORK ITEMS ============
+    await supabase.from("analyses").update({ error_message: "[2.5/5] Résumé des postes..." }).eq("id", analysisId);
+    console.log("--- PHASE 1.5: SUMMARIZE WORK ITEMS ---");
+
+    const workItemSummaries = await summarizeWorkItems(extracted.travaux, googleApiKey);
+    console.log("[Summarize] Generated", workItemSummaries.length, "summaries");
+
+    // Insert work items into analysis_work_items table
+    if (workItemSummaries.length > 0) {
+      const rows = workItemSummaries.map((item) => ({
+        analysis_id: analysisId,
+        description: item.description,
+        category: item.category,
+        amount_ht: item.amount_ht,
+        quantity: item.quantity,
+        unit: item.unit,
+      }));
+
+      const { error: insertError } = await supabase
+        .from("analysis_work_items")
+        .insert(rows);
+
+      if (insertError) {
+        console.error("[WorkItems] Insert error:", insertError);
+      } else {
+        console.log("[WorkItems] Inserted", rows.length, "work items");
+      }
+    }
+
+    // ============ PHASE 2: VÉRIFICATION (APIs - SANS IA) + PRIX MARCHÉ en parallèle ============
     await supabase.from("analyses").update({ error_message: "[3/5] Vérifications entreprise..." }).eq("id", analysisId);
-    console.log("--- PHASE 2: VÉRIFICATION (APIs conditionnées) + N8N ---");
+    console.log("--- PHASE 2: VÉRIFICATION (APIs conditionnées) + PRIX MARCHÉ ---");
 
     if (extractionId) {
       await supabase
@@ -397,20 +427,24 @@ serve(async (req) => {
         .eq("id", extractionId);
     }
 
-    // Call verifyData and N8N webhook in parallel (skip N8N for anonymous users)
-    const n8nPromise = skipN8N
-      ? Promise.resolve(null)
-      : callN8NWebhook(
-          uint8Array,
-          analysis.file_name,
-          mimeType,
-          analysis.work_type || null,
-          extracted.client.code_postal,
-        );
+    // Build full work item inputs for market price lookup
+    // Use ORIGINAL libelle from PDF (not Gemini summaries) so frontend displays exact devis text
+    const priceWorkItems: WorkItemFull[] = extracted.travaux.map((t) => ({
+      description: t.libelle,
+      category: t.categorie || null,
+      amount_ht: t.montant,
+      quantity: t.quantite,
+      unit: t.unite || null,
+    }));
 
-    const [verifyResult, n8nResult] = await Promise.allSettled([
+    // Call verifyData and market price lookup in parallel
+    const marketPricePromise: Promise<JobTypePriceResult[]> = skipN8N
+      ? Promise.resolve([])
+      : lookupMarketPrices(supabase, priceWorkItems, googleApiKey);
+
+    const [verifyResult, marketPriceResult] = await Promise.allSettled([
       verifyData(extracted, supabase),
-      n8nPromise,
+      marketPricePromise,
     ]);
 
     // If verifyData failed, re-throw (preserve current behavior)
@@ -419,15 +453,59 @@ serve(async (req) => {
     }
     const verified = verifyResult.value;
 
-    // N8N result: use data if fulfilled, null if rejected/skipped
-    const n8nPriceData = n8nResult.status === "fulfilled" ? n8nResult.value : null;
-    if (n8nResult.status === "rejected") {
-      console.warn("[N8N] Promise rejected:", n8nResult.reason);
+    // Market prices: job type results from Gemini + Supabase
+    const jobTypePrices: JobTypePriceResult[] =
+      marketPriceResult.status === "fulfilled"
+        ? marketPriceResult.value
+        : [];
+    if (marketPriceResult.status === "rejected") {
+      console.warn("[MarketPrices] Promise rejected:", marketPriceResult.reason);
     }
     if (skipN8N) {
-      console.log("[N8N] Skipped for anonymous user");
+      console.log("[MarketPrices] Skipped for anonymous user");
     }
-    console.log("[N8N] Price data available:", n8nPriceData !== null);
+    console.log("[MarketPrices] Job types:", jobTypePrices.length,
+      "with prices:", jobTypePrices.filter(jt => jt.prices.length > 0).length);
+
+    // Store market price data and job_type_group per work item
+    if (jobTypePrices.length > 0) {
+      const { data: insertedItems } = await supabase
+        .from("analysis_work_items")
+        .select("id")
+        .eq("analysis_id", analysisId)
+        .order("created_at", { ascending: true });
+
+      if (insertedItems) {
+        for (const jt of jobTypePrices) {
+          for (const idx of jt.workItemIndices) {
+            if (idx < insertedItems.length) {
+              const updateData: Record<string, unknown> = {
+                job_type_group: jt.job_type_label,
+              };
+              if (jt.prices.length > 0) {
+                updateData.n8n_response = jt.prices;
+              }
+              await supabase
+                .from("analysis_work_items")
+                .update(updateData)
+                .eq("id", insertedItems[idx].id);
+            }
+          }
+        }
+        console.log("[MarketPrices] Stored job_type_group and responses for work items");
+      }
+    }
+
+    // Build n8n_price_data for frontend — new hierarchical format per job type
+    const n8nPriceDataForFrontend = jobTypePrices.map((jt) => ({
+      job_type_label: jt.job_type_label,
+      catalog_job_types: jt.catalog_job_types,
+      main_unit: jt.main_unit,
+      main_quantity: jt.main_quantity,
+      devis_lines: jt.devis_lines,
+      devis_total_ht: jt.devis_total_ht,
+      prices: jt.prices,
+    }));
 
     // ============ PHASE 3: SCORING DÉTERMINISTE (SANS IA) ============
     await supabase.from("analyses").update({ error_message: "[4/5] Calcul du score..." }).eq("id", analysisId);
@@ -485,7 +563,7 @@ serve(async (req) => {
       verified,
       scoring,
       document_detection: { type: extracted.type_document, analysis_mode: "full" },
-      n8n_price_data: n8nPriceData,
+      n8n_price_data: n8nPriceDataForFrontend,
     });
 
     // Update the analysis with results

@@ -10,7 +10,8 @@ import {
   FileText,
   Loader2,
   RefreshCw,
-  Lock
+  Lock,
+  FilePlus2
 } from "lucide-react";
 import { getScoreIcon, getScoreLabel, getScoreBgClass, getScoreTextClass } from "@/lib/scoreUtils";
 import { supabase } from "@/integrations/supabase/client";
@@ -68,6 +69,7 @@ type Analysis = {
   site_context?: Record<string, unknown>;
   types_travaux?: TravauxItem[];
   work_type?: string;
+  market_price_overrides?: Record<string, unknown> | null;
 };
 
 // Pure helper functions — extracted outside component
@@ -151,6 +153,50 @@ const extractWorkDates = (analysis: Analysis) => {
   }
 
   return { workStartDate, workEndDate, maxExecutionDays };
+};
+
+export interface CompanyDisplayData {
+  siret: string | null;
+  nom_devis: string | null;
+  nom_officiel: string | null;
+  adresse_officielle: string | null;
+  ville_officielle: string | null;
+  date_creation: string | null;
+  anciennete_annees: number | null;
+  entreprise_immatriculee: boolean | null;
+  entreprise_radiee: boolean | null;
+  procedure_collective: boolean | null;
+  bilans_disponibles: number;
+  capitaux_propres: number | null;
+  lookup_status: string | null;
+}
+
+const extractCompanyData = (analysis: Analysis): CompanyDisplayData | null => {
+  if (!analysis.raw_text) return null;
+  try {
+    const parsed = JSON.parse(analysis.raw_text);
+    const extracted = parsed?.extracted;
+    const verified = parsed?.verified;
+    if (!extracted && !verified) return null;
+
+    return {
+      siret: extracted?.entreprise?.siret || null,
+      nom_devis: extracted?.entreprise?.nom || null,
+      nom_officiel: verified?.nom_officiel || null,
+      adresse_officielle: verified?.adresse_officielle || null,
+      ville_officielle: verified?.ville_officielle || null,
+      date_creation: verified?.date_creation || null,
+      anciennete_annees: verified?.anciennete_annees ?? null,
+      entreprise_immatriculee: verified?.entreprise_immatriculee ?? null,
+      entreprise_radiee: verified?.entreprise_radiee ?? null,
+      procedure_collective: verified?.procedure_collective ?? null,
+      bilans_disponibles: verified?.bilans_disponibles ?? 0,
+      capitaux_propres: verified?.capitaux_propres ?? null,
+      lookup_status: verified?.lookup_status || null,
+    };
+  } catch {
+    return null;
+  }
 };
 
 const extractN8NPriceData = (analysis: Analysis): unknown => {
@@ -273,6 +319,7 @@ const AnalysisResult = () => {
   const workDates = useMemo(() => analysis ? extractWorkDates(analysis) : { workStartDate: undefined, workEndDate: undefined, maxExecutionDays: undefined }, [analysis]);
   const cachedN8NData = useMemo(() => analysis ? extractN8NPriceData(analysis) : undefined, [analysis]);
   const locationInfo = useMemo(() => analysis ? extractLocationInfo(analysis) : { codePostal: undefined, zoneType: undefined }, [analysis]);
+  const companyData = useMemo(() => analysis ? extractCompanyData(analysis) : null, [analysis]);
   const totalHT = useMemo(() => calculateTotalHT(analysis?.types_travaux), [analysis?.types_travaux]);
 
   if (loading || authLoading) {
@@ -437,10 +484,16 @@ const AnalysisResult = () => {
             </div>
             <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
           </a>
-          <Button variant="outline" size="sm" onClick={() => generatePdfReport(analysis)}>
-            <Download className="h-4 w-4 mr-2" />
-            Télécharger le rapport
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => window.location.href = "/nouvelle-analyse"}>
+              <FilePlus2 className="h-4 w-4 mr-2" />
+              Analyser un autre devis
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => generatePdfReport(analysis)}>
+              <Download className="h-4 w-4 mr-2" />
+              Télécharger le rapport
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -522,20 +575,37 @@ const AnalysisResult = () => {
         <BlockEntreprise
           pointsOk={analysis.points_ok || []}
           alertes={analysis.alertes || []}
+          companyData={companyData}
         />
 
-        {/* BLOC 2 — Analyse Prix & Cohérence Marché (API-driven) or Premium Gate */}
+        {/* BLOC 2 — Analyse Prix & Cohérence Marché (API-driven) */}
         {(() => {
-          // Show PremiumGate if user is anonymous OR if N8N was skipped (null = explicitly skipped)
-          const n8nWasSkipped = cachedN8NData === null;
-          const showGate = isAnonymous || (n8nWasSkipped && !isPermanent);
+          const showGate = isAnonymous && !isPermanent;
+          console.log("[AnalysisResult] BLOC 2 decision:", { cachedN8NData, isAnonymous, isPermanent, showGate, filePath: analysis.file_path, workType: analysis.work_type, codePostal: locationInfo.codePostal, totalHT });
 
           if (showGate) {
             return (
-              <PremiumGate
-                onAuthSuccess={handleAuthConversion}
-                convertToPermanent={convertToPermanent}
-              />
+              <div className="relative">
+                {/* Bloc prix grisé / flouté en arrière-plan */}
+                <div className="pointer-events-none select-none blur-sm opacity-50" aria-hidden="true">
+                  <BlockPrixMarche
+                    montantTotalHT={totalHT}
+                    codePostal={locationInfo.codePostal}
+                    selectedWorkType={analysis.work_type}
+                    filePath={analysis.file_path}
+                    cachedN8NData={cachedN8NData}
+                    analysisId={analysis.id}
+                    marketPriceOverrides={analysis.market_price_overrides}
+                  />
+                </div>
+                {/* Gate de conversion superposée */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <PremiumGate
+                    onAuthSuccess={handleAuthConversion}
+                    convertToPermanent={convertToPermanent}
+                  />
+                </div>
+              </div>
             );
           }
           return (
@@ -545,6 +615,8 @@ const AnalysisResult = () => {
               selectedWorkType={analysis.work_type}
               filePath={analysis.file_path}
               cachedN8NData={cachedN8NData}
+              analysisId={analysis.id}
+              marketPriceOverrides={analysis.market_price_overrides}
             />
           );
         })()}

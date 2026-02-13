@@ -105,8 +105,9 @@ RÈGLES D'EXTRACTION:
    - Ne jamais déduire "espèces" par défaut.
 3. Pour les assurances: true si clairement mentionnée, false si absente, null si doute.
 4. Pour les travaux: identifier la CATÉGORIE MÉTIER principale même si un produit spécifique/marque est mentionné.
-5. LIMITE les travaux aux 5 PRINCIPAUX postes (par montant décroissant).
-6. Réponds UNIQUEMENT avec un JSON valide et COMPLET. Ne tronque pas la réponse.
+5. Extrais TOUS les postes de travaux du devis, sans exception. Inclus chaque ligne individuelle (fournitures, main d'œuvre, accessoires, frais divers, transport, etc.).
+6. Pour le champ "libelle" de chaque travail : COPIE MOT POUR MOT le texte exact tel qu'il apparaît sur le devis. NE REFORMULE PAS, NE RÉSUME PAS, NE TRADUIS PAS. Si le devis dit "Fourniture et pose baguette PVC", écris exactement "Fourniture et pose baguette PVC".
+7. Réponds UNIQUEMENT avec un JSON valide et COMPLET. Ne tronque pas la réponse.
 
 Tu dois effectuer UNE SEULE extraction complète et structurée.`;
 
@@ -118,13 +119,13 @@ IDENTIFICATION DU DOCUMENT:
 3. FACTURE : "Facture", numéro de facture, "Net à payer", travaux passés
 4. AUTRE : Document non conforme
 
-EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (max 5 travaux):
+EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes de travaux) :
 
 {
   "type_document": "devis_travaux | facture | diagnostic_immobilier | autre",
   "entreprise": {
     "nom": "nom exact ou null",
-    "siret": "numéro SIRET 14 chiffres sans espaces ou null",
+    "siret": "numéro SIRET 14 chiffres sans espaces ou null — CHERCHE PARTOUT dans le document (en-tête, pied de page, mentions légales, bas du document, tampons)",
     "adresse": "adresse complète ou null",
     "iban": "IBAN complet ou null",
     "assurance_decennale_mentionnee": true | false | null,
@@ -138,7 +139,7 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (max 5 travaux):
   },
   "travaux": [
     {
-      "libelle": "description courte",
+      "libelle": "TEXTE EXACT copié mot pour mot depuis le devis",
       "categorie": "categorie",
       "montant": 5000,
       "quantite": 50,
@@ -187,7 +188,7 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (max 5 travaux):
           },
         ],
         response_format: { type: "json_object" },
-        max_tokens: 4000,
+        max_tokens: 32768,
       }),
     });
 
@@ -291,7 +292,7 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (max 5 travaux):
         ville: parsed.client?.ville || null,
       },
       travaux: Array.isArray(parsed.travaux)
-        ? parsed.travaux.slice(0, 5).map((t: any) => ({
+        ? parsed.travaux.map((t: any) => ({
             libelle: t.libelle || "",
             categorie: t.categorie || "autre",
             montant: typeof t.montant === "number" ? t.montant : null,

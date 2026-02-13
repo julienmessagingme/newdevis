@@ -9,6 +9,7 @@ import {
   GEORISQUES_API_URL,
   ADRESSE_API_URL,
   GPU_API_URL,
+  RECHERCHE_ENTREPRISES_API_URL,
 } from "./utils.ts";
 
 // ============================================================
@@ -218,7 +219,100 @@ export async function verifyData(
           result.debug!.provider_calls.pappers.latency_ms = Date.now() - startTime;
         }
       } else {
-        result.debug!.provider_calls.pappers.error = "API key not configured";
+        // No Pappers key → use free government API as fallback
+        console.log("[Verify] No Pappers key, using recherche-entreprises.api.gouv.fr for SIRET:", siret);
+        const startTimeFree = Date.now();
+        try {
+          const freeApiUrl = `${RECHERCHE_ENTREPRISES_API_URL}?q=${siret}&page=1&per_page=1`;
+          const freeResponse = await fetch(freeApiUrl);
+
+          result.debug!.provider_calls.pappers.http_status = freeResponse.status;
+          result.debug!.provider_calls.pappers.latency_ms = Date.now() - startTimeFree;
+          result.debug!.provider_calls.pappers.fetched_at = new Date().toISOString();
+          result.debug!.provider_calls.pappers.expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+          if (freeResponse.ok) {
+            const freeData = await freeResponse.json();
+            const entreprise = freeData.results?.[0];
+
+            if (entreprise) {
+              const dateCreation = entreprise.date_creation || null;
+              let ageYears: number | null = null;
+              if (dateCreation) {
+                const created = new Date(dateCreation);
+                ageYears = Math.floor((Date.now() - created.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+              }
+
+              // Extract financial data if available
+              const finances = entreprise.finances || {};
+              const capitauxPropres = finances.capitaux_propres ?? null;
+
+              const isActive = entreprise.etat_administratif === "A";
+              const siege = entreprise.siege || {};
+
+              const payload: CompanyPayload = {
+                date_creation: dateCreation,
+                age_years: ageYears,
+                is_active: isActive,
+                bilans_count: capitauxPropres !== null ? 1 : 0,
+                has_3_bilans: false,
+                last_bilan_capitaux_propres: capitauxPropres,
+                nom: entreprise.nom_complet || entreprise.nom_raison_sociale || null,
+                adresse: siege.adresse || siege.libelle_voie ? `${siege.numero_voie || ""} ${siege.type_voie || ""} ${siege.libelle_voie || ""}`.trim() : null,
+                ville: siege.libelle_commune || siege.commune || null,
+                procedure_collective: entreprise.est_en_procedure_collective === true,
+              };
+
+              // Cache the result
+              await supabase.from("company_cache").upsert({
+                siret,
+                siren,
+                provider: "recherche-entreprises",
+                payload,
+                status: "ok",
+                fetched_at: new Date().toISOString(),
+                expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+              }, { onConflict: "siret" });
+
+              result.entreprise_immatriculee = payload.is_active;
+              result.entreprise_radiee = !payload.is_active;
+              result.procedure_collective = payload.procedure_collective;
+              result.date_creation = payload.date_creation;
+              result.anciennete_annees = payload.age_years;
+              result.bilans_disponibles = payload.bilans_count;
+              result.capitaux_propres = payload.last_bilan_capitaux_propres;
+              result.capitaux_propres_negatifs = capitauxPropres !== null ? capitauxPropres < 0 : null;
+              result.nom_officiel = payload.nom;
+              result.adresse_officielle = payload.adresse;
+              result.ville_officielle = payload.ville;
+              result.lookup_status = "ok";
+
+              console.log("[Verify] Free API found:", payload.nom, "| active:", payload.is_active, "| age:", payload.age_years, "years");
+            } else {
+              result.lookup_status = "not_found";
+              console.log("[Verify] Free API: no result for SIRET:", siret);
+
+              await supabase.from("company_cache").upsert({
+                siret,
+                siren,
+                provider: "recherche-entreprises",
+                payload: {},
+                status: "not_found",
+                fetched_at: new Date().toISOString(),
+                expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+              }, { onConflict: "siret" });
+            }
+          } else {
+            result.lookup_status = "error";
+            result.debug!.provider_calls.pappers.error = `Free API returned ${freeResponse.status}`;
+            console.warn("[Verify] Free API error:", freeResponse.status);
+          }
+        } catch (error) {
+          result.lookup_status = "error";
+          result.debug!.provider_calls.pappers.error = error instanceof Error ? error.message : "Unknown error";
+          result.debug!.provider_calls.pappers.latency_ms = Date.now() - startTimeFree;
+          console.error("[Verify] Free API exception:", error);
+        }
       }
     }
   } else {
@@ -370,9 +464,8 @@ export async function verifyData(
     }
   }
 
-  // 6. Price comparisons
+  // 6. Price comparisons (zone coefficient only — reference pricing removed)
   if (extracted.travaux.length > 0 && codePostal) {
-    // Get zone coefficient
     const prefix = codePostal.substring(0, 2);
     const { data: zoneData } = await supabase
       .from("zones_geographiques")
@@ -381,50 +474,20 @@ export async function verifyData(
       .single();
 
     const zoneType = zoneData?.type_zone || "france_moyenne";
-    const coefficient = zoneData?.coefficient || 1.0;
 
     for (const travail of extracted.travaux) {
       if (travail.montant && travail.quantite && travail.quantite > 0) {
         const prixUnitaire = travail.montant / travail.quantite;
 
-        // Get reference prices
-        const { data: refPrix } = await supabase
-          .from("travaux_reference_prix")
-          .select("prix_min_national, prix_max_national, unite")
-          .ilike("categorie_travaux", `%${travail.categorie}%`)
-          .limit(1)
-          .single();
-
-        let score: ScoringColor = "VERT";
-        let explication = "Prestation spécifique - pas de référence standardisée disponible";
-        let fourchetteMin = 0;
-        let fourchetteMax = 0;
-
-        if (refPrix) {
-          fourchetteMin = refPrix.prix_min_national * coefficient;
-          fourchetteMax = refPrix.prix_max_national * coefficient;
-
-          if (prixUnitaire < fourchetteMin * 0.7) {
-            score = "VERT";
-            explication = `Prix unitaire (${prixUnitaire.toFixed(2)}€/${travail.unite || "u"}) inférieur à la fourchette basse`;
-          } else if (prixUnitaire <= fourchetteMax * 1.3) {
-            score = "VERT";
-            explication = `Prix unitaire dans la fourchette de marché`;
-          } else {
-            score = "VERT"; // Price never downgrades score per new rules
-            explication = `Prix unitaire au-dessus de la fourchette haute - à contextualiser`;
-          }
-        }
-
         result.comparaisons_prix.push({
           categorie: travail.categorie,
           libelle: travail.libelle,
           prix_unitaire_devis: prixUnitaire,
-          fourchette_min: fourchetteMin,
-          fourchette_max: fourchetteMax,
+          fourchette_min: 0,
+          fourchette_max: 0,
           zone: zoneType,
-          score,
-          explication,
+          score: "VERT" as ScoringColor,
+          explication: "Prestation spécifique - pas de référence standardisée disponible",
         });
       }
     }
