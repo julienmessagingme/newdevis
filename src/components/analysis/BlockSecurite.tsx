@@ -1,4 +1,5 @@
-import { ShieldCheck, CreditCard, FileCheck } from "lucide-react";
+import { useState } from "react";
+import { ShieldCheck, CreditCard, FileCheck, ChevronDown } from "lucide-react";
 import { getScoreIcon, getScoreBgClass, getScoreTextClass } from "@/lib/scoreUtils";
 import {
   extractSecuriteData,
@@ -26,6 +27,7 @@ interface BlockSecuriteProps {
     categorie_travaux: string;
   };
   onUploadComplete: () => void;
+  defaultOpen?: boolean;
 }
 
 const BlockSecurite = ({
@@ -36,8 +38,10 @@ const BlockSecurite = ({
   assuranceLevel2Score,
   attestationComparison,
   quoteInfo,
-  onUploadComplete
+  onUploadComplete,
+  defaultOpen = true
 }: BlockSecuriteProps) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
   const info = extractSecuriteData(pointsOk, alertes, attestationComparison, assuranceLevel2Score);
   const hasLevel2 = assuranceSource === "attestation";
 
@@ -48,12 +52,17 @@ const BlockSecurite = ({
           <ShieldCheck className="h-6 w-6 text-primary" />
         </div>
         <div className="flex-1">
-          <div className="flex items-center gap-3 mb-4">
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="w-full flex items-center gap-3 text-left cursor-pointer"
+          >
             <h2 className="font-bold text-foreground text-xl">Sécurité & Conditions de paiement</h2>
             {getScoreIcon(info.globalScore, "h-6 w-6")}
-          </div>
+            <ChevronDown className={`h-5 w-5 ml-auto text-muted-foreground transition-transform flex-shrink-0 ${isOpen ? "rotate-180" : ""}`} />
+          </button>
 
-          <p className="text-sm text-muted-foreground mb-4">
+          {isOpen && (<>
+          <p className="text-sm text-muted-foreground mb-4 mt-4">
             Évaluer les risques liés au paiement et aux assurances.
           </p>
 
@@ -255,6 +264,7 @@ const BlockSecurite = ({
               Ces informations constituent une aide à la décision et ne portent aucun jugement sur l'artisan.
             </p>
           </div>
+          </>)}
         </div>
       </div>
     </div>

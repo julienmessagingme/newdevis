@@ -1,4 +1,5 @@
-import { Star, Building2, Globe } from "lucide-react";
+import { useState } from "react";
+import { Star, Building2, Globe, ChevronDown } from "lucide-react";
 import { getScoreIcon, getScoreBgClass, getScoreTextClass } from "@/lib/scoreUtils";
 import { extractEntrepriseData } from "@/lib/entrepriseUtils";
 import InfoTooltip from "./InfoTooltip";
@@ -9,6 +10,7 @@ interface BlockEntrepriseProps {
   pointsOk: string[];
   alertes: string[];
   companyData?: CompanyDisplayData | null;
+  defaultOpen?: boolean;
 }
 
 const formatSiret = (siret: string): string => {
@@ -22,12 +24,13 @@ const formatSiret = (siret: string): string => {
   return siret;
 };
 
-const BlockEntreprise = ({ pointsOk, alertes, companyData }: BlockEntrepriseProps) => {
+const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }: BlockEntrepriseProps) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
   const info = extractEntrepriseData(pointsOk, alertes);
 
   // Check if we have any meaningful data
-  const hasData = info.siren_siret || info.anciennete || info.bilansDisponibles !== null ||
-                  info.capitauxPropres || info.procedureCollective !== null || info.reputation || companyData;
+  const hasData = info.siren_siret || info.anciennete || info.financesDisponibles !== null ||
+                  info.chiffreAffaires || info.procedureCollective !== null || info.reputation || companyData;
 
   if (!hasData) return null;
 
@@ -48,11 +51,16 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData }: BlockEntrepriseProp
           <Building2 className="h-6 w-6 text-primary" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 mb-4">
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="w-full flex items-center gap-3 text-left cursor-pointer"
+          >
             <h2 className="font-bold text-foreground text-xl">Entreprise & Fiabilité</h2>
             {getScoreIcon(info.score, "h-6 w-6")}
-          </div>
+            <ChevronDown className={`h-5 w-5 ml-auto text-muted-foreground transition-transform flex-shrink-0 ${isOpen ? "rotate-180" : ""}`} />
+          </button>
 
+          {isOpen && (<>
           {/* Company identification card */}
           <div className="p-4 bg-background/40 rounded-xl border border-border/30 mb-4">
             <div className="flex items-start justify-between gap-3 mb-3">
@@ -117,47 +125,67 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData }: BlockEntrepriseProp
           </div>
 
           {/* Financial indicators grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-            {/* Bilans */}
-            {info.bilansDisponibles !== null && (
-              <div className="p-3 bg-background/30 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Bilans comptables</p>
-                <p className={`font-medium ${info.bilansDisponibles ? "text-score-green" : "text-score-orange"}`}>
-                  {companyData && companyData.bilans_disponibles > 0
-                    ? `${companyData.bilans_disponibles} bilan${companyData.bilans_disponibles > 1 ? "s" : ""} disponible${companyData.bilans_disponibles > 1 ? "s" : ""}`
-                    : info.bilansDisponibles ? "Disponibles" : "Non disponibles"
-                  }
-                </p>
-              </div>
-            )}
+          {(info.chiffreAffaires || info.resultatNet || info.autonomieFinanciere || info.tauxEndettement || info.ratioLiquidite || info.procedureCollective !== null) ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+              {info.chiffreAffaires && (
+                <div className="p-3 bg-background/30 rounded-lg">
+                  <p className="text-xs text-muted-foreground mb-1">Chiffre d'affaires</p>
+                  <p className="font-medium text-foreground">{info.chiffreAffaires}</p>
+                </div>
+              )}
 
-            {/* Capitaux propres */}
-            {(info.capitauxPropres || (companyData?.capitaux_propres !== null && companyData?.capitaux_propres !== undefined)) && (
-              <div className="p-3 bg-background/30 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Capitaux propres</p>
-                <p className={`font-medium ${
-                  (companyData?.capitaux_propres !== null && companyData?.capitaux_propres !== undefined && companyData.capitaux_propres < 0)
-                    ? "text-score-red"
-                    : "text-foreground"
-                }`}>
-                  {companyData?.capitaux_propres !== null && companyData?.capitaux_propres !== undefined
-                    ? new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(companyData.capitaux_propres)
-                    : info.capitauxPropres
-                  }
-                </p>
-              </div>
-            )}
+              {info.resultatNet && (
+                <div className="p-3 bg-background/30 rounded-lg">
+                  <p className="text-xs text-muted-foreground mb-1">Résultat net</p>
+                  <p className={`font-medium ${info.resultatNet === "Négatif" ? "text-score-red" : "text-score-green"}`}>
+                    {info.resultatNet}
+                  </p>
+                </div>
+              )}
 
-            {/* Procédure collective */}
-            {info.procedureCollective !== null && (
-              <div className="p-3 bg-background/30 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Procédure collective</p>
-                <p className={`font-medium ${info.procedureCollective ? "text-score-red" : "text-score-green"}`}>
-                  {info.procedureCollective ? "En cours" : "Aucune"}
-                </p>
-              </div>
-            )}
-          </div>
+              {info.autonomieFinanciere && (
+                <div className="p-3 bg-background/30 rounded-lg">
+                  <p className="text-xs text-muted-foreground mb-1">Autonomie financière</p>
+                  <p className="font-medium text-score-green">{info.autonomieFinanciere}</p>
+                </div>
+              )}
+
+              {info.tauxEndettement && (
+                <div className="p-3 bg-background/30 rounded-lg">
+                  <p className="text-xs text-muted-foreground mb-1">Taux d'endettement</p>
+                  <p className={`font-medium ${parseInt(info.tauxEndettement) > 200 ? "text-score-red" : parseInt(info.tauxEndettement) > 100 ? "text-score-orange" : "text-score-green"}`}>
+                    {info.tauxEndettement}
+                  </p>
+                </div>
+              )}
+
+              {info.ratioLiquidite && (
+                <div className="p-3 bg-background/30 rounded-lg">
+                  <p className="text-xs text-muted-foreground mb-1">Ratio de liquidité</p>
+                  <p className={`font-medium ${parseInt(info.ratioLiquidite) < 80 ? "text-score-orange" : "text-score-green"}`}>
+                    {info.ratioLiquidite}
+                  </p>
+                </div>
+              )}
+
+              {info.procedureCollective !== null && (
+                <div className="p-3 bg-background/30 rounded-lg">
+                  <p className="text-xs text-muted-foreground mb-1">Procédure collective</p>
+                  <p className={`font-medium ${info.procedureCollective ? "text-score-red" : "text-score-green"}`}>
+                    {info.procedureCollective ? "En cours" : "Aucune"}
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="p-3 bg-background/30 rounded-lg mb-4">
+              <p className="text-sm text-muted-foreground">
+                {info.financesDisponibles === false
+                  ? "Aucune donnée financière publiée pour cette entreprise. Cela est courant pour les petites structures (micro-entreprises, auto-entrepreneurs)."
+                  : "Données financières non disponibles. La vérification financière n'a pas pu être effectuée."}
+              </p>
+            </div>
+          )}
 
           {/* Réputation en ligne - ALWAYS VISIBLE */}
           <div className={`p-4 rounded-lg border ${getScoreBgClass(info.reputation?.score || "ORANGE")}`}>
@@ -268,6 +296,7 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData }: BlockEntrepriseProp
               Ces informations constituent une aide à la décision et ne portent aucun jugement sur l'artisan.
             </p>
           </div>
+          </>)}
         </div>
       </div>
     </div>

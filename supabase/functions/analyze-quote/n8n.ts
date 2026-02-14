@@ -1,12 +1,9 @@
 // ============================================================
-// N8N WEBHOOK CALL (prix marché)
+// N8N WEBHOOK CALL (prix marche) — JSON payload, no binary
 // ============================================================
 
 export async function callN8NWebhook(
-  fileBytes: Uint8Array,
-  fileName: string,
-  mimeType: string,
-  workType: string | null,
+  workItems: { description: string }[],
   codePostal: string | null,
 ): Promise<unknown> {
   const n8nUrl = Deno.env.get("N8N_WEBHOOK_URL");
@@ -16,20 +13,20 @@ export async function callN8NWebhook(
   }
 
   try {
-    console.log("[N8N] Calling webhook:", n8nUrl, "file:", fileName, "size:", fileBytes.length);
-    const blob = new Blob([fileBytes], { type: mimeType });
-    const formData = new FormData();
-    formData.append("file", blob, fileName);
-    formData.append("job_type", workType || "");
-    formData.append("zip", codePostal || "");
-    formData.append("qty", "1");
+    const payload = {
+      items: workItems,
+      zip: codePostal || "",
+    };
+
+    console.log("[N8N] Calling webhook:", n8nUrl, "items:", workItems.length, "zip:", codePostal);
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
 
     const response = await fetch(n8nUrl, {
       method: "POST",
-      body: formData,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
       signal: controller.signal,
     });
     clearTimeout(timeout);

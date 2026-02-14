@@ -29,20 +29,41 @@ export function renderOutput(
       }
     }
 
-    if (verified.bilans_disponibles >= 3) {
-      points_ok.push(`🟢 ${verified.bilans_disponibles} bilans comptables disponibles`);
-    } else if (verified.bilans_disponibles > 0) {
-      points_ok.push(`🟠 ${verified.bilans_disponibles} bilan(s) comptable(s) disponible(s)`);
-    } else {
-      points_ok.push("ℹ️ Aucun bilan publié - la vérification financière n'a pas pu être effectuée");
-    }
+    // Financial ratios from data.economie.gouv.fr
+    if (verified.finances.length > 0) {
+      const latest = verified.finances[0];
+      const year = latest.date_cloture ? latest.date_cloture.substring(0, 4) : "?";
+      points_ok.push(`✓ Données financières disponibles (${verified.finances.length} exercice(s), dernier : ${year})`);
 
-    if (verified.capitaux_propres !== null && verified.capitaux_propres >= 0) {
-      const formatted = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(verified.capitaux_propres);
-      points_ok.push(`🟢 Capitaux propres positifs (${formatted})`);
-    } else if (verified.capitaux_propres_negatifs === true) {
-      const formatted = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(verified.capitaux_propres!);
-      alertes.push(`🔴 Capitaux propres négatifs (${formatted}). Cet indicateur est basé sur les derniers bilans publiés et peut indiquer une situation financière tendue.`);
+      if (latest.chiffre_affaires !== null && latest.chiffre_affaires > 0) {
+        const caFormatted = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(latest.chiffre_affaires);
+        points_ok.push(`✓ Chiffre d'affaires : ${caFormatted}`);
+      }
+
+      if (latest.resultat_net !== null && latest.resultat_net > 0) {
+        points_ok.push("🟢 Résultat net positif au dernier exercice");
+      } else if (latest.resultat_net !== null && latest.resultat_net < 0) {
+        const perteFormatted = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(latest.resultat_net);
+        alertes.push(`🔴 Résultat net négatif au dernier exercice (${perteFormatted}). Cela peut indiquer une situation financière tendue.`);
+      }
+
+      if (latest.autonomie_financiere !== null && latest.autonomie_financiere > 30) {
+        points_ok.push(`🟢 Bonne autonomie financière (${latest.autonomie_financiere.toFixed(0)}%)`);
+      }
+
+      if (latest.taux_endettement !== null && latest.taux_endettement > 200) {
+        alertes.push(`🔴 Taux d'endettement très élevé (${latest.taux_endettement.toFixed(0)}%). Cet indicateur peut signaler une fragilité financière.`);
+      } else if (latest.taux_endettement !== null && latest.taux_endettement > 100) {
+        alertes.push(`🟠 Taux d'endettement élevé (${latest.taux_endettement.toFixed(0)}%).`);
+      }
+
+      if (latest.ratio_liquidite !== null && latest.ratio_liquidite < 80) {
+        alertes.push(`🟠 Ratio de liquidité faible (${latest.ratio_liquidite.toFixed(0)}%).`);
+      }
+    } else if (verified.finances_status === "not_found") {
+      points_ok.push("ℹ️ Aucune donnée financière publiée - la vérification financière n'a pas pu être effectuée");
+    } else if (verified.finances_status === "error") {
+      points_ok.push("ℹ️ Vérification financière temporairement indisponible");
     }
 
     if (verified.procedure_collective === true) {

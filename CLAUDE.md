@@ -40,7 +40,7 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 - **`components/admin/`** : Module blog admin complet (`BlogPostList`, `BlogPostEditor`, `BlogDialogs`, `AiGenerationPanel`, `ManualWriteEditor`, `RichTextToolbar`, `ImageManagement`, `blogTypes`)
 - **`components/funnel/`** : Tunnel de conversion (`FunnelStepper`, `PremiumGate`)
 - **`components/analysis/`** : 18 composants dont `DocumentRejectionScreen`, `ExtractionBlocker`, `OcrDebugPanel`
-- **`supabase/functions/analyze-quote/`** : Pipeline modulaire (8 fichiers : `index`, `extract`, `verify`, `score`, `render`, `summarize`, `market-prices`, `utils`, `types`)
+- **`supabase/functions/analyze-quote/`** : Pipeline modulaire (9 fichiers : `index`, `extract`, `verify`, `score`, `render`, `summarize`, `market-prices`, `utils`, `types`)
 - **Hooks** : 6 hooks dont `useAnonymousAuth.ts` (auth anonyme), `useMarketPriceEditor.ts` (édition interactive prix marché)
 
 ## Supabase
@@ -49,8 +49,8 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 - `analyses` — analyses de devis (table principale). Colonne `market_price_overrides` (JSONB) pour les éditions utilisateur sur les prix marché.
 - `analysis_work_items` — lignes de travaux détaillées par analyse. Colonne `job_type_group` (TEXT) pour le rattachement au job type IA.
 - `blog_posts` — articles de blog (avec workflow IA, images cover + mid)
-- `company_cache` — cache vérification entreprise (Pappers ou recherche-entreprises.api.gouv.fr). Purge auto quotidienne via cron.
-- `market_prices` — référentiel prix marché (~220 lignes, remplace N8N+Excel)
+- `company_cache` — cache vérification entreprise (recherche-entreprises.api.gouv.fr). Purge auto quotidienne via cron.
+- `market_prices` — référentiel prix marché (~267 lignes). RLS avec policy `market_prices_public_read` (accès anon + authenticated en lecture). Utilisé côté backend (edge functions via service_role) ET côté frontend (calculatrice homepage via anon key).
 - `post_signature_tracking` — suivi post-signature
 - `user_roles` — rôles (admin/moderator/user)
 - `zones_geographiques` — coefficients géographiques par code postal
@@ -99,9 +99,12 @@ Le backend retourne un format hiérarchique `JobTypePriceResult[]` (stocké dans
 ### Flux backend (`market-prices.ts`)
 
 1. **Chargement** : `lookupMarketPrices()` récupère les ~220 lignes de `market_prices`
-2. **Identification IA** : Gemini identifie les types de travaux, détermine quantité/unité, et affecte chaque ligne du devis à EXACTEMENT UN job type. Chaque prestation distincte = un job type. Il choisit le bon variant fourniture/hors fourniture.
-3. **Construction backend** : pour chaque job type, construit `devis_lines[]` et calcule `devis_total_ht` (somme des montants HT)
-4. **Stockage** : `index.ts` stocke `job_type_group` sur chaque `analysis_work_items`
+2. **Catalogue** : construit un Set de `job_type` valides + une Map `catalogLabels` pour forcer les libellés catalogue (pas ceux de Gemini)
+3. **Identification IA** : Gemini (gemini-2.0-flash) regroupe les postes du devis en 3-7 GRANDS types de travaux. Regroupement large (prépa + fourniture + accessoires + finitions = même groupe). Choisit le bon variant fourniture/hors fourniture.
+4. **Validation serveur** : filtre les `job_types` inventés (pas dans le catalogue), remplace le label Gemini par le label catalogue (`catalogLabels.get(validatedJobTypes[0])`)
+5. **Gestion "Autre"** : les groupes sans match catalogue valide + les lignes orphelines (non assignées par Gemini) → fusionnés dans un groupe "Autre" avec `job_types: []`
+6. **Construction** : pour chaque job type, construit `devis_lines[]` et calcule `devis_total_ht` (somme des montants HT)
+7. **Stockage** : `index.ts` stocke `job_type_group` sur chaque `analysis_work_items`
 
 ### Flux frontend
 
@@ -122,32 +125,60 @@ Le backend retourne un format hiérarchique `JobTypePriceResult[]` (stocké dans
 ### Décisions clés
 
 - Gemini ne fait PAS de calcul de prix — il identifie, groupe et matcher. Toute arithmétique est en JS.
-- **Granularité** : prestations distinctes = job types distincts (carrelage sol ≠ faïence murale). En cas de doute, plus de types plutôt que moins.
+- **Regroupement large** : viser 3-7 groupes. Préparation + fournitures + accessoires + finitions → même groupe que le travail principal. Frais divers → rattachés au groupe principal le plus gros.
 - Chaque ligne du devis = UN SEUL job type (pas de double comptage).
 - Version fourniture/hors fourniture : Gemini en choisit UNE SEULE selon le contenu du devis.
+- **Validation stricte** : les `job_types` retournés par Gemini sont filtrés contre le Set des identifiants catalogue valides. Les inventés sont supprimés. Le label est forcé depuis le catalogue.
 - Les frais fixes (`fixed_min/avg/max_ht`) s'ajoutent une seule fois par job_type, indépendamment de la quantité.
 - **Drag & drop** : HTML5 natif, pas de lib externe. Persisté via bouton Save.
 - **Quantité éditable** : click sur la quantité → input inline. Recalcule prix théorique et verdict.
 
 **Ajouter un prix** : INSERT dans `market_prices` avec les colonnes `job_type, label, unit, price_min_unit_ht, price_avg_unit_ht, price_max_unit_ht, fixed_min_ht, fixed_avg_ht, fixed_max_ht, zip_scope, notes`.
 
+## Calculatrice homepage (`DevisCalculatorSection.tsx`)
+
+Estimateur de prix sur la page d'accueil. Requête directe Supabase sur `market_prices` (plus de webhook N8N).
+
+- **`JobTypeSelector.tsx`** : combobox custom avec recherche accent-insensitive. Charge dynamiquement les types de travaux depuis `market_prices` au mount (déduplique par `job_type`, préfère l'entrée avec `notes === "Base"`). ~233 types disponibles.
+- **Calcul local** : `total = (price_unit × qty) + fixed`, puis `applyZoneCoefficient(total, zip)`.
+- **Unité dynamique** : le champ quantité adapte son label/placeholder selon l'unité du type sélectionné (m², ml, forfait, heure, unité, etc.).
+
 ## Vérification entreprise (`verify.ts`)
 
-Phase 2 du pipeline — 100% appels API déterministes, pas d'IA.
+Phase 2 du pipeline — 100% appels API déterministes, pas d'IA. Aucune API payante.
 
 ### APIs appelées
-1. **Pappers** (`PAPPERS_API_KEY`) → immatriculation, ancienneté, bilans, procédure collective, adresse
-2. **recherche-entreprises.api.gouv.fr** (gratuit, sans clé) → fallback automatique si Pappers non configuré. Fournit : nom, date création, statut actif/cessé, adresse siège, procédure collective. Ne fournit PAS les bilans financiers détaillés.
+1. **recherche-entreprises.api.gouv.fr** (gratuit, sans clé) → identité entreprise : nom, date création, statut actif/cessé, adresse siège, procédure collective. Résultat caché dans `company_cache` (TTL 30 jours, provider: `"recherche-entreprises"`).
+2. **data.economie.gouv.fr** (gratuit, sans clé) → ratios financiers INPI/BCE : chiffre d'affaires, résultat net, taux d'endettement, ratio de liquidité, autonomie financière, marge EBE, capacité de remboursement. Dataset `ratios_inpi_bce`, multi-exercices (jusqu'à 5 ans).
 3. **OpenIBAN** → validation IBAN, pays, banque
 4. **Google Places** (`GOOGLE_PLACES_API_KEY`) → note et avis
 5. **ADEME RGE** → qualifications RGE (si travaux énergie)
 6. **Géorisques** (via api-adresse.data.gouv.fr + georisques.gouv.fr) → risques naturels, zone sismique
 7. **GPU/IGN** → patrimoine protégé
 
-### Fallback Pappers → API gratuite
-- Si `PAPPERS_API_KEY` n'est pas configuré, `verify.ts` appelle `recherche-entreprises.api.gouv.fr/search?q={siret}` automatiquement
-- Résultat caché dans `company_cache` avec `provider: "recherche-entreprises"` (même TTL que Pappers : 30 jours)
-- Endpoint défini dans `utils.ts` (`RECHERCHE_ENTREPRISES_API_URL`)
+### Scoring financier (score.ts)
+- **ROUGE** : procédure collective, taux d'endettement > 200%, pertes > 20% du CA, paiement espèces, acompte > 50%
+- **ORANGE** : endettement 100-200%, liquidité < 80%, note Google < 4.0, entreprise < 2 ans, acompte 30-50%
+- **VERT** : entreprise immatriculée, résultat net positif, autonomie financière > 30%, IBAN FR valide, bonne note Google
+
+## Modèles IA par tâche
+
+| Tâche | Modèle | Pourquoi |
+|---|---|---|
+| Extraction OCR (`extract.ts`) | gemini-2.5-flash | Puissance OCR + raisonnement nécessaires pour parser des documents complexes |
+| Groupement prix marché (`market-prices.ts`) | gemini-2.0-flash | Obéissance aux règles catalogue, pas de créativité — le modèle thinking invente des identifiants |
+| Résumés lignes de travaux (`summarize.ts`) | gemini-2.0-flash | Tâche simple, pas besoin de raisonnement complexe |
+
+**Endpoint** : `generativelanguage.googleapis.com/v1beta/openai/chat/completions` (OpenAI-compatible, Bearer auth)
+
+## Pièges connus
+
+- **Gemini 2.5-flash "thinking" budget** : Ce modèle utilise une partie du `max_tokens` pour son raisonnement interne. Avec `max_tokens: 4096`, le thinking peut consommer ~3000 tokens → JSON de sortie tronqué → parsing échoue → toutes les lignes dans "Autre". Solution : `max_tokens: 32768` pour extract.ts.
+- **Gemini 2.5-flash trop créatif pour le catalogue** : Invente des `job_types` qui n'existent pas dans la table `market_prices`. Solution : utiliser gemini-2.0-flash pour market-prices.ts + validation serveur stricte.
+- **Gemini 2.5-flash réécrit les textes** : Lors de l'extraction, au lieu de copier le libellé mot pour mot, il "résume" ou "reformule". Solution : instruction explicite "COPIE MOT POUR MOT" + template JSON avec "TEXTE EXACT copié mot pour mot depuis le devis".
+- **Prompt "plus de types = mieux"** : L'instruction "en cas de doute, plus de types" a causé la création d'1 groupe par ligne de devis. Solution : cibler explicitement 3-7 groupes avec regroupement large.
+- **Flexbox overflow** : Un `flex-1` sans `min-w-0` permet aux enfants de dépasser le conteneur parent. Toujours ajouter `min-w-0` sur les div flex-1 contenant du texte long.
+- **RLS sur `market_prices`** : Les edge functions utilisent `service_role_key` (bypass RLS), mais le frontend utilise `anon key`. Si on ajoute une requête frontend sur une table sans policy SELECT pour `anon`, la requête retourne un tableau vide sans erreur. Solution : toujours vérifier qu'une policy RLS existe pour `anon` quand on requête depuis le client.
 
 ## Règles importantes
 

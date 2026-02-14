@@ -18,7 +18,6 @@ interface BlogPostListProps {
   onApprove: (post: BlogPost) => void;
   onReject: (post: BlogPost) => void;
   onScheduleOpen: (post: BlogPost) => void;
-  onAiDialogOpen: () => void;
 }
 
 const BlogPostList = ({
@@ -30,43 +29,19 @@ const BlogPostList = ({
   onApprove,
   onReject,
   onScheduleOpen,
-  onAiDialogOpen,
 }: BlogPostListProps) => {
   return (
-    <div className="max-w-5xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Gestion du Blog</h1>
-          <p className="text-muted-foreground">Créez et gérez les articles du blog</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={onAiDialogOpen}>
-            <Sparkles className="mr-2 h-4 w-4" />
-            Générer avec l'IA
-          </Button>
-          <Button onClick={onNewPost}>
-            <Plus className="mr-2 h-4 w-4" />
-            Nouvel article
-          </Button>
-        </div>
-      </div>
-
+    <div>
       {posts.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Aucun article</h2>
             <p className="text-muted-foreground mb-4">Créez votre premier article de blog</p>
-            <div className="flex gap-2 justify-center">
-              <Button variant="outline" onClick={onAiDialogOpen}>
-                <Sparkles className="mr-2 h-4 w-4" />
-                Générer avec l'IA
-              </Button>
-              <Button onClick={onNewPost}>
-                <Plus className="mr-2 h-4 w-4" />
-                Créer un article
-              </Button>
-            </div>
+            <Button onClick={onNewPost}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nouvel article
+            </Button>
           </CardContent>
         </Card>
       ) : (

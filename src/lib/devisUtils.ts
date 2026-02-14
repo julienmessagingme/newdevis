@@ -198,6 +198,9 @@ export const extractDevisData = (pointsOk: string[], alertes: string[]): DevisIn
 export const filterOutDevisItems = (items: string[]): string[] => {
   return items.filter(item => {
     const lower = item.toLowerCase();
+    // Filter out items starting with 📊 (price comparison markers from render.ts)
+    if (item.startsWith("📊")) return false;
+
     return !lower.includes("prix") &&
            !lower.includes("montant") &&
            !lower.includes("marché") &&
@@ -213,6 +216,9 @@ export const filterOutDevisItems = (items: string[]): string[] => {
            !lower.includes("tarif") &&
            !lower.includes("ht") &&
            !lower.includes("ttc") &&
+           !lower.includes("travaux") &&
+           !lower.includes("prestation") &&
+           !lower.includes("comparaison") &&
            !(lower.includes("acompte") && !lower.includes("iban") && !lower.includes("virement"));
   });
 };

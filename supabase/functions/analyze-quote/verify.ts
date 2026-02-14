@@ -1,8 +1,7 @@
-import type { ExtractedData, VerificationResult, CompanyPayload, ScoringColor } from "./types.ts";
+import type { ExtractedData, VerificationResult, CompanyPayload, ScoringColor, FinancialRatios } from "./types.ts";
 import {
   extractSiren,
   getCountryName,
-  PAPPERS_API_URL,
   OPENIBAN_API_URL,
   GOOGLE_PLACES_API_URL,
   ADEME_RGE_API_URL,
@@ -10,6 +9,7 @@ import {
   ADRESSE_API_URL,
   GPU_API_URL,
   RECHERCHE_ENTREPRISES_API_URL,
+  DATA_ECONOMIE_API_URL,
 } from "./utils.ts";
 
 // ============================================================
@@ -25,15 +25,14 @@ export async function verifyData(
     entreprise_immatriculee: null,
     entreprise_radiee: null,
     procedure_collective: null,
-    capitaux_propres: null,
-    capitaux_propres_negatifs: null,
     date_creation: null,
     anciennete_annees: null,
-    bilans_disponibles: 0,
     nom_officiel: null,
     adresse_officielle: null,
     ville_officielle: null,
     lookup_status: "skipped",
+    finances: [],
+    finances_status: "skipped",
     iban_verifie: false,
     iban_valide: null,
     iban_pays: null,
@@ -58,7 +57,18 @@ export async function verifyData(
     comparaisons_prix: [],
     debug: {
       provider_calls: {
-        pappers: {
+        entreprise: {
+          enabled: false,
+          attempted: false,
+          cached: false,
+          cache_hit: false,
+          http_status: null,
+          error: null,
+          fetched_at: null,
+          expires_at: null,
+          latency_ms: null,
+        },
+        finances: {
           enabled: false,
           attempted: false,
           cached: false,
@@ -75,12 +85,12 @@ export async function verifyData(
 
   console.log("PHASE 2 - Starting verification...");
 
-  // 1. PAPPERS - Company verification
+  // 1. RECHERCHE ENTREPRISES API GOUV — Company verification
   const siret = extracted.entreprise.siret;
   const siren = extractSiren(siret);
 
   if (siret && siren) {
-    result.debug!.provider_calls.pappers.enabled = true;
+    result.debug!.provider_calls.entreprise.enabled = true;
 
     // Check cache first
     const { data: cached } = await supabase
@@ -92,8 +102,8 @@ export async function verifyData(
 
     if (cached) {
       console.log("Cache HIT for SIRET:", siret);
-      result.debug!.provider_calls.pappers.cached = true;
-      result.debug!.provider_calls.pappers.cache_hit = true;
+      result.debug!.provider_calls.entreprise.cached = true;
+      result.debug!.provider_calls.entreprise.cache_hit = true;
 
       if (cached.status === "ok") {
         const payload = cached.payload as CompanyPayload;
@@ -102,11 +112,6 @@ export async function verifyData(
         result.procedure_collective = payload.procedure_collective;
         result.date_creation = payload.date_creation;
         result.anciennete_annees = payload.age_years;
-        result.bilans_disponibles = payload.bilans_count;
-        result.capitaux_propres = payload.last_bilan_capitaux_propres;
-        result.capitaux_propres_negatifs = payload.last_bilan_capitaux_propres !== null
-          ? payload.last_bilan_capitaux_propres < 0
-          : null;
         result.nom_officiel = payload.nom;
         result.adresse_officielle = payload.adresse;
         result.ville_officielle = payload.ville;
@@ -115,56 +120,52 @@ export async function verifyData(
         result.lookup_status = "not_found";
       } else {
         result.lookup_status = "error";
-        result.debug!.provider_calls.pappers.error = cached.error_message;
+        result.debug!.provider_calls.entreprise.error = cached.error_message;
       }
     } else {
-      // Call Pappers API
-      result.debug!.provider_calls.pappers.attempted = true;
-      const pappersKey = Deno.env.get("PAPPERS_API_KEY");
+      // Call recherche-entreprises.api.gouv.fr
+      result.debug!.provider_calls.entreprise.attempted = true;
+      const startTime = Date.now();
 
-      if (pappersKey) {
-        const startTime = Date.now();
-        try {
-          const pappersUrl = `${PAPPERS_API_URL}/entreprise?siret=${siret}&api_token=${pappersKey}`;
-          const pappersResponse = await fetch(pappersUrl);
+      try {
+        const apiUrl = `${RECHERCHE_ENTREPRISES_API_URL}?q=${siret}&page=1&per_page=1`;
+        const response = await fetch(apiUrl);
 
-          result.debug!.provider_calls.pappers.http_status = pappersResponse.status;
-          result.debug!.provider_calls.pappers.latency_ms = Date.now() - startTime;
-          result.debug!.provider_calls.pappers.fetched_at = new Date().toISOString();
-          result.debug!.provider_calls.pappers.expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        result.debug!.provider_calls.entreprise.http_status = response.status;
+        result.debug!.provider_calls.entreprise.latency_ms = Date.now() - startTime;
+        result.debug!.provider_calls.entreprise.fetched_at = new Date().toISOString();
+        result.debug!.provider_calls.entreprise.expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-          if (pappersResponse.ok) {
-            const data = await pappersResponse.json();
+        if (response.ok) {
+          const data = await response.json();
+          const entreprise = data.results?.[0];
 
-            const dateCreation = data.date_creation || null;
+          if (entreprise) {
+            const dateCreation = entreprise.date_creation || null;
             let ageYears: number | null = null;
             if (dateCreation) {
               const created = new Date(dateCreation);
               ageYears = Math.floor((Date.now() - created.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
             }
 
-            const bilans = data.finances || [];
-            const lastBilan = bilans[0];
-            const capitauxPropres = lastBilan?.capitaux_propres ?? null;
+            const isActive = entreprise.etat_administratif === "A";
+            const siege = entreprise.siege || {};
 
             const payload: CompanyPayload = {
               date_creation: dateCreation,
               age_years: ageYears,
-              is_active: data.entreprise_cessee !== true,
-              bilans_count: bilans.length,
-              has_3_bilans: bilans.length >= 3,
-              last_bilan_capitaux_propres: capitauxPropres,
-              nom: data.nom_entreprise || data.denomination || null,
-              adresse: data.siege?.adresse_ligne_1 || null,
-              ville: data.siege?.ville || null,
-              procedure_collective: data.procedure_collective === true,
+              is_active: isActive,
+              nom: entreprise.nom_complet || entreprise.nom_raison_sociale || null,
+              adresse: siege.adresse || (siege.libelle_voie ? `${siege.numero_voie || ""} ${siege.type_voie || ""} ${siege.libelle_voie || ""}`.trim() : null),
+              ville: siege.libelle_commune || siege.commune || null,
+              procedure_collective: entreprise.est_en_procedure_collective === true,
             };
 
             // Cache the result
             await supabase.from("company_cache").upsert({
               siret,
               siren,
-              provider: "pappers",
+              provider: "recherche-entreprises",
               payload,
               status: "ok",
               fetched_at: new Date().toISOString(),
@@ -176,143 +177,82 @@ export async function verifyData(
             result.procedure_collective = payload.procedure_collective;
             result.date_creation = payload.date_creation;
             result.anciennete_annees = payload.age_years;
-            result.bilans_disponibles = payload.bilans_count;
-            result.capitaux_propres = payload.last_bilan_capitaux_propres;
-            result.capitaux_propres_negatifs = capitauxPropres !== null ? capitauxPropres < 0 : null;
             result.nom_officiel = payload.nom;
             result.adresse_officielle = payload.adresse;
             result.ville_officielle = payload.ville;
             result.lookup_status = "ok";
 
-          } else if (pappersResponse.status === 404) {
+            console.log("[Verify] API gouv found:", payload.nom, "| active:", payload.is_active, "| age:", payload.age_years, "years");
+          } else {
             result.lookup_status = "not_found";
 
             await supabase.from("company_cache").upsert({
               siret,
               siren,
-              provider: "pappers",
+              provider: "recherche-entreprises",
               payload: {},
               status: "not_found",
               fetched_at: new Date().toISOString(),
-              expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 1 day for not_found
-            }, { onConflict: "siret" });
-
-          } else {
-            result.lookup_status = "error";
-            result.debug!.provider_calls.pappers.error = `API returned ${pappersResponse.status}`;
-
-            await supabase.from("company_cache").upsert({
-              siret,
-              siren,
-              provider: "pappers",
-              payload: {},
-              status: "error",
-              error_code: `HTTP_${pappersResponse.status}`,
-              error_message: `API returned ${pappersResponse.status}`,
-              fetched_at: new Date().toISOString(),
-              expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour for errors
+              expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
             }, { onConflict: "siret" });
           }
-        } catch (error) {
+        } else {
           result.lookup_status = "error";
-          result.debug!.provider_calls.pappers.error = error instanceof Error ? error.message : "Unknown error";
-          result.debug!.provider_calls.pappers.latency_ms = Date.now() - startTime;
+          result.debug!.provider_calls.entreprise.error = `API returned ${response.status}`;
         }
-      } else {
-        // No Pappers key → use free government API as fallback
-        console.log("[Verify] No Pappers key, using recherche-entreprises.api.gouv.fr for SIRET:", siret);
-        const startTimeFree = Date.now();
-        try {
-          const freeApiUrl = `${RECHERCHE_ENTREPRISES_API_URL}?q=${siret}&page=1&per_page=1`;
-          const freeResponse = await fetch(freeApiUrl);
+      } catch (error) {
+        result.lookup_status = "error";
+        result.debug!.provider_calls.entreprise.error = error instanceof Error ? error.message : "Unknown error";
+        result.debug!.provider_calls.entreprise.latency_ms = Date.now() - startTime;
+      }
+    }
 
-          result.debug!.provider_calls.pappers.http_status = freeResponse.status;
-          result.debug!.provider_calls.pappers.latency_ms = Date.now() - startTimeFree;
-          result.debug!.provider_calls.pappers.fetched_at = new Date().toISOString();
-          result.debug!.provider_calls.pappers.expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    // 1b. DATA.ECONOMIE.GOUV.FR — Financial ratios
+    if (siren) {
+      result.debug!.provider_calls.finances.enabled = true;
+      result.debug!.provider_calls.finances.attempted = true;
+      const startTimeFinances = Date.now();
 
-          if (freeResponse.ok) {
-            const freeData = await freeResponse.json();
-            const entreprise = freeData.results?.[0];
+      try {
+        const financesUrl = `${DATA_ECONOMIE_API_URL}?dataset=ratios_inpi_bce&q=siren:${siren}&rows=5&sort=date_cloture_exercice`;
+        const financesResponse = await fetch(financesUrl);
 
-            if (entreprise) {
-              const dateCreation = entreprise.date_creation || null;
-              let ageYears: number | null = null;
-              if (dateCreation) {
-                const created = new Date(dateCreation);
-                ageYears = Math.floor((Date.now() - created.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-              }
+        result.debug!.provider_calls.finances.http_status = financesResponse.status;
+        result.debug!.provider_calls.finances.latency_ms = Date.now() - startTimeFinances;
+        result.debug!.provider_calls.finances.fetched_at = new Date().toISOString();
 
-              // Extract financial data if available
-              const finances = entreprise.finances || {};
-              const capitauxPropres = finances.capitaux_propres ?? null;
+        if (financesResponse.ok) {
+          const financesData = await financesResponse.json();
+          const records = financesData.records || [];
 
-              const isActive = entreprise.etat_administratif === "A";
-              const siege = entreprise.siege || {};
-
-              const payload: CompanyPayload = {
-                date_creation: dateCreation,
-                age_years: ageYears,
-                is_active: isActive,
-                bilans_count: capitauxPropres !== null ? 1 : 0,
-                has_3_bilans: false,
-                last_bilan_capitaux_propres: capitauxPropres,
-                nom: entreprise.nom_complet || entreprise.nom_raison_sociale || null,
-                adresse: siege.adresse || siege.libelle_voie ? `${siege.numero_voie || ""} ${siege.type_voie || ""} ${siege.libelle_voie || ""}`.trim() : null,
-                ville: siege.libelle_commune || siege.commune || null,
-                procedure_collective: entreprise.est_en_procedure_collective === true,
-              };
-
-              // Cache the result
-              await supabase.from("company_cache").upsert({
-                siret,
-                siren,
-                provider: "recherche-entreprises",
-                payload,
-                status: "ok",
-                fetched_at: new Date().toISOString(),
-                expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-              }, { onConflict: "siret" });
-
-              result.entreprise_immatriculee = payload.is_active;
-              result.entreprise_radiee = !payload.is_active;
-              result.procedure_collective = payload.procedure_collective;
-              result.date_creation = payload.date_creation;
-              result.anciennete_annees = payload.age_years;
-              result.bilans_disponibles = payload.bilans_count;
-              result.capitaux_propres = payload.last_bilan_capitaux_propres;
-              result.capitaux_propres_negatifs = capitauxPropres !== null ? capitauxPropres < 0 : null;
-              result.nom_officiel = payload.nom;
-              result.adresse_officielle = payload.adresse;
-              result.ville_officielle = payload.ville;
-              result.lookup_status = "ok";
-
-              console.log("[Verify] Free API found:", payload.nom, "| active:", payload.is_active, "| age:", payload.age_years, "years");
-            } else {
-              result.lookup_status = "not_found";
-              console.log("[Verify] Free API: no result for SIRET:", siret);
-
-              await supabase.from("company_cache").upsert({
-                siret,
-                siren,
-                provider: "recherche-entreprises",
-                payload: {},
-                status: "not_found",
-                fetched_at: new Date().toISOString(),
-                expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-              }, { onConflict: "siret" });
-            }
+          if (records.length > 0) {
+            result.finances = records.map((r: any) => {
+              const f = r.fields || {};
+              return {
+                date_cloture: f.date_cloture_exercice || "",
+                chiffre_affaires: f.chiffre_d_affaires ?? null,
+                resultat_net: f.resultat_net ?? null,
+                taux_endettement: f.taux_d_endettement ?? null,
+                ratio_liquidite: f.ratio_de_liquidite ?? null,
+                autonomie_financiere: f.autonomie_financiere ?? null,
+                capacite_remboursement: f.capacite_de_remboursement ?? null,
+                marge_ebe: f.marge_ebe ?? null,
+              } as FinancialRatios;
+            });
+            result.finances_status = "ok";
+            console.log("[Verify] Financial ratios found:", records.length, "year(s) for SIREN:", siren);
           } else {
-            result.lookup_status = "error";
-            result.debug!.provider_calls.pappers.error = `Free API returned ${freeResponse.status}`;
-            console.warn("[Verify] Free API error:", freeResponse.status);
+            result.finances_status = "not_found";
+            console.log("[Verify] No financial ratios for SIREN:", siren);
           }
-        } catch (error) {
-          result.lookup_status = "error";
-          result.debug!.provider_calls.pappers.error = error instanceof Error ? error.message : "Unknown error";
-          result.debug!.provider_calls.pappers.latency_ms = Date.now() - startTimeFree;
-          console.error("[Verify] Free API exception:", error);
+        } else {
+          result.finances_status = "error";
+          result.debug!.provider_calls.finances.error = `API returned ${financesResponse.status}`;
         }
+      } catch (error) {
+        result.finances_status = "error";
+        result.debug!.provider_calls.finances.error = error instanceof Error ? error.message : "Unknown error";
+        result.debug!.provider_calls.finances.latency_ms = Date.now() - startTimeFinances;
       }
     }
   } else {
@@ -387,7 +327,6 @@ export async function verifyData(
   const codePostal = extracted.client.code_postal;
   if (codePostal) {
     try {
-      // Get coordinates from address
       const adresseQuery = extracted.client.adresse_chantier
         ? `${extracted.client.adresse_chantier} ${codePostal} ${extracted.client.ville || ""}`
         : `${codePostal} ${extracted.client.ville || ""}`;
@@ -419,7 +358,7 @@ export async function verifyData(
                 }
               }
 
-              // Zone sismique - endpoint séparé
+              // Zone sismique
               const seismeResponse = await fetch(`${GEORISQUES_API_URL}/zonage_sismique?code_insee=${codeInsee}`);
               if (seismeResponse.ok) {
                 const seismeData = await seismeResponse.json();
@@ -464,7 +403,7 @@ export async function verifyData(
     }
   }
 
-  // 6. Price comparisons (zone coefficient only — reference pricing removed)
+  // 6. Price comparisons (zone coefficient only)
   if (extracted.travaux.length > 0 && codePostal) {
     const prefix = codePostal.substring(0, 2);
     const { data: zoneData } = await supabase
@@ -496,10 +435,10 @@ export async function verifyData(
   console.log("PHASE 2 COMPLETE - Verification:", {
     immatriculee: result.entreprise_immatriculee,
     procedure_collective: result.procedure_collective,
-    capitaux_negatifs: result.capitaux_propres_negatifs,
+    finances_years: result.finances.length,
     iban_valide: result.iban_valide,
     google_note: result.google_note,
-    pappers_cached: result.debug?.provider_calls.pappers.cache_hit,
+    cached: result.debug?.provider_calls.entreprise.cache_hit,
   });
 
   return result;

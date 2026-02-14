@@ -1,4 +1,5 @@
-import { MapPin, AlertTriangle, FileWarning, Info, CheckCircle2, Landmark, HelpCircle } from "lucide-react";
+import { useState } from "react";
+import { MapPin, AlertTriangle, FileWarning, Info, CheckCircle2, Landmark, HelpCircle, ChevronDown } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   type SiteContextResult,
@@ -13,9 +14,11 @@ interface BlockContexteProps {
   alertes: string[];
   chantierAddress?: string | null;
   rawText?: string | null;
+  defaultOpen?: boolean;
 }
 
-const BlockContexte = ({ siteContext, pointsOk, alertes, chantierAddress, rawText }: BlockContexteProps) => {
+const BlockContexte = ({ siteContext, pointsOk, alertes, chantierAddress, rawText, defaultOpen = true }: BlockContexteProps) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
   // Try to get context from siteContext prop or extract from points
   const extractedContext = extractSiteContextFromPoints(pointsOk, alertes);
   const contextData = siteContext || extractedContext;
@@ -52,15 +55,20 @@ const BlockContexte = ({ siteContext, pointsOk, alertes, chantierAddress, rawTex
           <MapPin className="h-6 w-6 text-primary" />
         </div>
         <div className="flex-1">
-          <div className="flex items-center gap-3 mb-4">
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="w-full flex items-center gap-3 text-left cursor-pointer"
+          >
             <h2 className="font-bold text-foreground text-xl">Contexte du chantier</h2>
             <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">
               <Info className="h-3 w-3 inline mr-1" />
               Informatif
             </span>
-          </div>
+            <ChevronDown className={`h-5 w-5 ml-auto text-muted-foreground transition-transform flex-shrink-0 ${isOpen ? "rotate-180" : ""}`} />
+          </button>
 
-          <p className="text-sm text-muted-foreground mb-4">
+          {isOpen && (<>
+          <p className="text-sm text-muted-foreground mb-4 mt-4">
             Informations sur le contexte réglementaire et environnemental du chantier (sources : Géorisques, Géoportail de l'Urbanisme).
           </p>
 
@@ -250,6 +258,7 @@ const BlockContexte = ({ siteContext, pointsOk, alertes, chantierAddress, rawTex
               ℹ️ Ces informations sont fournies à titre indicatif à partir de sources publiques officielles (Géoportail de l'Urbanisme et Géorisques) et peuvent être utiles pour anticiper certaines contraintes du chantier. Elles n'ont aucun impact sur le score global et ne constituent pas un avis juridique.
             </p>
           </div>
+          </>)}
         </div>
       </div>
     </div>

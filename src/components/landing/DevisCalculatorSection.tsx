@@ -6,37 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calculator, Loader2, AlertCircle, CheckCircle2, AlertTriangle, MapPin } from "lucide-react";
 import JobTypeSelector, { type JobTypeItem } from "./JobTypeSelector";
 import { getZoneCoefficient, applyZoneCoefficient, getZoneLabel, type ZoneResult } from "@/hooks/useZoneCoefficient";
+import { supabase } from "@/integrations/supabase/client";
 
-// Types STRICTS pour la réponse API - contrat exact
-interface APIResponse {
-  ok: boolean;
-  errors?: string[];
-  currency?: string;
-  input?: {
-    job_type: string;
-    qty: number;
-    zip: string;
-    unit: string;
-  };
-  sheet?: {
-    label: string;
-    unit: string;
-    price_min_unit_ht: number;
-    price_avg_unit_ht: number;
-    price_max_unit_ht: number;
-  };
-  totals?: {
-    total_min_ht: number;
-    total_avg_ht: number;
-    total_max_ht: number;
-  };
-  explain?: string;
-  warnings?: string[];
+interface PriceResult {
+  label: string;
+  unit: string;
+  qty: number;
 }
 
-// Résultat avec pondération zone appliquée
 interface WeightedResult {
-  apiResponse: APIResponse;
+  priceResult: PriceResult;
   zone: ZoneResult;
   adjustedTotals: {
     min: number;
@@ -44,8 +23,6 @@ interface WeightedResult {
     max: number;
   };
 }
-
-const API_ENDPOINT = "https://n8n.messagingme.app/webhook/Calculette";
 
 const DevisCalculatorSection = () => {
   const [jobType, setJobType] = useState<string>("");
@@ -57,8 +34,36 @@ const DevisCalculatorSection = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Determine unit type from selected job
-  const isForfait = selectedJobData?.unit === "forfait";
+  const unit = selectedJobData?.unit ?? "";
+  const isForfait = unit === "forfait";
   const isFormValid = jobType && (isForfait || (quantity && Number(quantity) > 0)) && zip.length === 5;
+
+  const getUnitLabel = (u: string) => {
+    switch (u) {
+      case "m2": return "m²";
+      case "m²": return "m²";
+      case "ml": return "mètres linéaires";
+      case "m3": return "m³";
+      case "heure": return "heures";
+      case "unité": return "unités";
+      case "point": return "points";
+      case "mod": return "modules";
+      default: return u;
+    }
+  };
+
+  const getUnitPlaceholder = (u: string) => {
+    switch (u) {
+      case "m2": case "m²": return "ex: 45";
+      case "ml": return "ex: 12";
+      case "m3": return "ex: 3";
+      case "heure": return "ex: 4";
+      case "unité": return "ex: 2";
+      case "point": return "ex: 3";
+      case "mod": return "ex: 2";
+      default: return "ex: 1";
+    }
+  };
 
   const handleCalculate = async () => {
     if (!isFormValid) return;
@@ -71,55 +76,40 @@ const DevisCalculatorSection = () => {
       // 1. Récupérer le coefficient de zone basé sur le code postal
       const zoneResult = await getZoneCoefficient(zip);
 
-      // 2. Appel API n8n
-      const body = {
-        job_type: jobType,
-        qty: isForfait ? 1 : Number(quantity),
-        zip: zip,
-      };
+      // 2. Requêter market_prices depuis Supabase (plusieurs lignes possibles par job_type)
+      const { data: rows, error: dbError } = await supabase
+        .from("market_prices")
+        .select("label, unit, price_min_unit_ht, price_avg_unit_ht, price_max_unit_ht, fixed_min_ht, fixed_avg_ht, fixed_max_ht, notes")
+        .eq("job_type", jobType);
 
-      const response = await fetch(API_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      const data: APIResponse = await response.json();
-
-      // Si ok=false, afficher les erreurs de l'API
-      if (data.ok === false) {
-        const errorMessages = data.errors?.join(", ") || "Erreur inconnue de l'API";
-        setError(errorMessages);
+      if (dbError || !rows || rows.length === 0) {
+        setError("Type de travaux introuvable dans le référentiel de prix.");
         return;
       }
 
-      // 3. Appliquer le coefficient de zone sur les totaux de l'API
-      if (data.totals) {
-        const adjustedTotals = applyZoneCoefficient(
-          {
-            min: data.totals.total_min_ht,
-            avg: data.totals.total_avg_ht,
-            max: data.totals.total_max_ht,
-          },
-          zoneResult.coefficient
-        );
+      // Préférer l'entrée marquée "Base" si plusieurs lignes existent
+      const data = rows.find((r) => r.notes === "Base") ?? rows[0];
 
-        setResult({
-          apiResponse: data,
-          zone: zoneResult,
-          adjustedTotals,
-        });
-      } else {
-        // Pas de totaux dans la réponse
-        setResult({
-          apiResponse: data,
-          zone: zoneResult,
-          adjustedTotals: { min: 0, avg: 0, max: 0 },
-        });
-      }
+      // 3. Calculer les totaux localement
+      const qty = isForfait ? 1 : Number(quantity);
+      const totalMin = data.price_min_unit_ht * qty + data.fixed_min_ht;
+      const totalAvg = data.price_avg_unit_ht * qty + data.fixed_avg_ht;
+      const totalMax = data.price_max_unit_ht * qty + data.fixed_max_ht;
+
+      // 4. Appliquer le coefficient de zone
+      const adjustedTotals = applyZoneCoefficient(
+        { min: totalMin, avg: totalAvg, max: totalMax },
+        zoneResult.coefficient
+      );
+
+      setResult({
+        priceResult: { label: data.label, unit: data.unit, qty },
+        zone: zoneResult,
+        adjustedTotals,
+      });
     } catch (err) {
       console.error("[Calculette] Error:", err);
-      setError(err instanceof Error ? err.message : "Erreur de connexion à l'API");
+      setError(err instanceof Error ? err.message : "Erreur lors du calcul");
     } finally {
       setIsLoading(false);
     }
@@ -157,14 +147,15 @@ const DevisCalculatorSection = () => {
             </div>
 
             {/* Quantity Input - hidden for forfait */}
-            {!isForfait && (
+            {!isForfait && selectedJobData && (
               <div className="space-y-2">
-                <Label htmlFor="quantity">Quantité</Label>
+                <Label htmlFor="quantity">Quantité ({getUnitLabel(unit)})</Label>
                 <Input
                   id="quantity"
                   type="number"
                   min="1"
-                  placeholder="ex: 45"
+                  step={unit === "m2" || unit === "m²" || unit === "ml" || unit === "m3" ? "0.1" : "1"}
+                  placeholder={getUnitPlaceholder(unit)}
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
                   className="bg-background"
@@ -248,26 +239,10 @@ const DevisCalculatorSection = () => {
                   </div>
                 )}
 
-                {/* Warnings de l'API */}
-                {result.apiResponse.warnings && result.apiResponse.warnings.length > 0 && (
-                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-start gap-2">
-                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                    <div className="text-sm text-muted-foreground space-y-1">
-                      {result.apiResponse.warnings.map((warning, idx) => (
-                        <p key={idx}>{warning}</p>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Label & métadonnées de l'API (depuis sheet et input) */}
+                {/* Label & métadonnées */}
                 <div className="text-sm text-muted-foreground space-y-1">
-                  {result.apiResponse.sheet?.label && (
-                    <p><span className="font-medium">Type :</span> {result.apiResponse.sheet.label}</p>
-                  )}
-                  {result.apiResponse.input && (
-                    <p><span className="font-medium">Quantité :</span> {result.apiResponse.input.qty} {result.apiResponse.input.unit}</p>
-                  )}
+                  <p><span className="font-medium">Type :</span> {result.priceResult.label}</p>
+                  <p><span className="font-medium">Quantité :</span> {result.priceResult.qty} {result.priceResult.unit}</p>
                 </div>
 
                 {/* Totaux PONDÉRÉS par zone */}
@@ -288,14 +263,6 @@ const DevisCalculatorSection = () => {
                   </div>
                 )}
 
-                {/* Détail pédagogique - explain de l'API */}
-                {result.apiResponse.explain && (
-                  <div className="pt-2 border-t border-primary/10">
-                    <p className="text-sm text-muted-foreground">
-                      <span className="font-medium">Détail :</span> {result.apiResponse.explain}
-                    </p>
-                  </div>
-                )}
               </div>
             )}
           </CardContent>

@@ -166,8 +166,6 @@ export interface CompanyDisplayData {
   entreprise_immatriculee: boolean | null;
   entreprise_radiee: boolean | null;
   procedure_collective: boolean | null;
-  bilans_disponibles: number;
-  capitaux_propres: number | null;
   lookup_status: string | null;
 }
 
@@ -190,8 +188,6 @@ const extractCompanyData = (analysis: Analysis): CompanyDisplayData | null => {
       entreprise_immatriculee: verified?.entreprise_immatriculee ?? null,
       entreprise_radiee: verified?.entreprise_radiee ?? null,
       procedure_collective: verified?.procedure_collective ?? null,
-      bilans_disponibles: verified?.bilans_disponibles ?? 0,
-      capitaux_propres: verified?.capitaux_propres ?? null,
       lookup_status: verified?.lookup_status || null,
     };
   } catch {
@@ -576,6 +572,7 @@ const AnalysisResult = () => {
           pointsOk={analysis.points_ok || []}
           alertes={analysis.alertes || []}
           companyData={companyData}
+          defaultOpen={true}
         />
 
         {/* BLOC 2 — Analyse Prix & Cohérence Marché (API-driven) */}
@@ -631,6 +628,7 @@ const AnalysisResult = () => {
           attestationComparison={analysis.attestation_comparison as any}
           quoteInfo={quoteInfo}
           onUploadComplete={fetchAnalysis}
+          defaultOpen={false}
         />
 
         {/* BLOC 4 — Contexte du chantier */}
@@ -638,6 +636,7 @@ const AnalysisResult = () => {
           siteContext={analysis.site_context as any}
           pointsOk={analysis.points_ok || []}
           alertes={analysis.alertes || []}
+          defaultOpen={false}
         />
 
         {/* BLOC 5 — Urbanisme & Formalités CERFA */}

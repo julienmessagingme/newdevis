@@ -9,19 +9,20 @@ export interface BlogPost {
   category: string | null;
   tags: string[] | null;
   cover_image_url: string | null;
-  status: string;
+  mid_image_url: string | null;
+  status: string | null;
   seo_title: string | null;
   seo_description: string | null;
   published_at: string | null;
-  created_at: string;
-  updated_at: string;
-  ai_generated?: boolean;
-  ai_prompt?: string | null;
-  ai_model?: string | null;
-  workflow_status?: string;
-  scheduled_at?: string | null;
-  reviewed_by?: string | null;
-  reviewed_at?: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  ai_generated: boolean | null;
+  ai_prompt: string | null;
+  ai_model: string | null;
+  workflow_status: string | null;
+  scheduled_at: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
 }
 
 export const emptyPost: Partial<BlogPost> = {
@@ -32,12 +33,13 @@ export const emptyPost: Partial<BlogPost> = {
   category: "Devis & Conseils",
   tags: [],
   cover_image_url: "",
+  mid_image_url: null,
   status: "draft",
   seo_title: "",
   seo_description: "",
 };
 
-export const workflowBadge = (status: string | undefined) => {
+export const workflowBadge = (status: string | null | undefined) => {
   switch (status) {
     case "ai_draft":
       return <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">Brouillon IA</Badge>;

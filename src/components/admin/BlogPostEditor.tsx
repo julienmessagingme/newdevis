@@ -1,6 +1,6 @@
 import {
   ArrowLeft, Save, Eye, EyeOff, Code, RefreshCw,
-  Sparkles, CheckCircle, XCircle, Clock
+  Sparkles, CheckCircle, XCircle, Clock, PenLine
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { sanitizeArticleHtml, generateSlug } from "@/lib/blogUtils";
 import ArticleContent from "@/components/blog/ArticleContent";
+import RichTextToolbar from "./RichTextToolbar";
+import ImageManagement from "./ImageManagement";
 import { workflowBadge, type BlogPost } from "./blogTypes";
 
 interface BlogPostEditorProps {
@@ -20,6 +22,7 @@ interface BlogPostEditorProps {
   onPostChange: (updater: (prev: Partial<BlogPost> | null) => Partial<BlogPost> | null) => void;
   onRawHtmlChange: (html: string) => void;
   onSave: () => void;
+  onPublish: () => void;
   onBack: () => void;
   onApprove: (post: BlogPost) => void;
   onReject: (post: BlogPost) => void;
@@ -34,6 +37,7 @@ const BlogPostEditor = ({
   onPostChange,
   onRawHtmlChange,
   onSave,
+  onPublish,
   onBack,
   onApprove,
   onReject,
@@ -144,17 +148,27 @@ const BlogPostEditor = ({
                 />
               </div>
 
-              <Tabs defaultValue="html" className="w-full">
+              <Tabs defaultValue="editor" className="w-full">
                 <TabsList>
+                  <TabsTrigger value="editor">
+                    <PenLine className="mr-2 h-4 w-4" />
+                    Éditeur
+                  </TabsTrigger>
                   <TabsTrigger value="html">
                     <Code className="mr-2 h-4 w-4" />
                     HTML
                   </TabsTrigger>
                   <TabsTrigger value="preview">
                     <Eye className="mr-2 h-4 w-4" />
-                    Prévisualisation
+                    Aperçu
                   </TabsTrigger>
                 </TabsList>
+                <TabsContent value="editor">
+                  <RichTextToolbar
+                    value={rawHtmlInput}
+                    onChange={onRawHtmlChange}
+                  />
+                </TabsContent>
                 <TabsContent value="html">
                   <div className="space-y-2">
                     <Label>Contenu HTML (coller le HTML brut)</Label>
@@ -241,6 +255,17 @@ const BlogPostEditor = ({
             </CardContent>
           </Card>
 
+          {/* Image Management */}
+          <ImageManagement
+            coverImageUrl={selectedPost.cover_image_url}
+            midImageUrl={selectedPost.mid_image_url}
+            postId={selectedPost.id}
+            onCoverChange={(url) => onPostChange(prev => ({ ...prev, cover_image_url: url }))}
+            onMidChange={(url) => onPostChange(prev => ({ ...prev, mid_image_url: url }))}
+            articleTitle={selectedPost.title}
+            articleExcerpt={selectedPost.excerpt || undefined}
+          />
+
           <Card>
             <CardHeader>
               <CardTitle>Métadonnées</CardTitle>
@@ -253,16 +278,6 @@ const BlogPostEditor = ({
                   value={selectedPost.category || ""}
                   onChange={(e) => onPostChange(prev => ({ ...prev, category: e.target.value }))}
                   placeholder="Devis & Conseils"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="cover">URL image de couverture</Label>
-                <Input
-                  id="cover"
-                  value={selectedPost.cover_image_url || ""}
-                  onChange={(e) => onPostChange(prev => ({ ...prev, cover_image_url: e.target.value }))}
-                  placeholder="https://..."
                 />
               </div>
 
@@ -318,6 +333,24 @@ const BlogPostEditor = ({
           </Card>
         </div>
       </div>
+
+      {/* Bottom publish bar */}
+      {selectedPost.status !== "published" && selectedPost.id && (
+        <div className="mt-8 p-6 bg-muted/30 border rounded-lg flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Votre article est prêt ? Publiez-le pour qu'il apparaisse sur le blog.
+          </p>
+          <Button
+            size="lg"
+            onClick={onPublish}
+            disabled={isSaving}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            <Eye className="mr-2 h-4 w-4" />
+            Publier l'article
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

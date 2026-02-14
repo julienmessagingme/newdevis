@@ -18,6 +18,7 @@ interface BlockPrixMarcheProps {
   cachedN8NData?: unknown;
   analysisId?: string;
   marketPriceOverrides?: Record<string, unknown> | null;
+  defaultOpen?: boolean;
 }
 
 // =======================
@@ -440,7 +441,9 @@ const BlockPrixMarche = ({
   cachedN8NData,
   analysisId,
   marketPriceOverrides,
+  defaultOpen = true,
 }: BlockPrixMarcheProps) => {
+  const [isBlockOpen, setIsBlockOpen] = useState(defaultOpen);
   const { error, rows, isNewFormat } = useMarketPriceAPI({ cachedN8NData });
 
   const editor = useMarketPriceEditor({
@@ -548,7 +551,10 @@ const BlockPrixMarche = ({
           <Receipt className="h-6 w-6 text-primary" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 mb-2">
+          <button
+            onClick={() => setIsBlockOpen(!isBlockOpen)}
+            className="w-full flex items-center gap-3 text-left cursor-pointer"
+          >
             <h2 className="font-bold text-foreground text-xl">Analyse Prix & Cohérence Marché</h2>
             <TooltipProvider>
               <Tooltip>
@@ -563,16 +569,19 @@ const BlockPrixMarche = ({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-          </div>
+            <ChevronDown className={`h-5 w-5 ml-auto text-muted-foreground transition-transform flex-shrink-0 ${isBlockOpen ? "rotate-180" : ""}`} />
+          </button>
 
+          {isBlockOpen && (<>
           {codePostal && (
-            <div className="flex items-center gap-2 mb-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 mb-4 mt-2 text-sm text-muted-foreground">
               <MapPin className="h-4 w-4" />
               <span>Zone de référence : {codePostal}</span>
             </div>
           )}
 
           {renderContent()}
+          </>)}
         </div>
       </div>
     </div>

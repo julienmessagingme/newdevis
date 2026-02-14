@@ -98,7 +98,13 @@ const Dashboard = () => {
     window.location.href = "/";
   }, []);
 
-  const firstName = useMemo(() => user?.user_metadata?.first_name || "Utilisateur", [user]);
+  const firstName = useMemo(() => {
+    const meta = user?.user_metadata;
+    if (meta?.first_name) return meta.first_name;
+    if (meta?.full_name) return meta.full_name.split(" ")[0];
+    if (user?.email) return user.email.split("@")[0];
+    return "Utilisateur";
+  }, [user]);
 
   if (loading) {
     return (

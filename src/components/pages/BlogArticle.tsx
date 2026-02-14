@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { ArrowLeft, Clock, Tag, Calendar, Share2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -19,11 +19,69 @@ interface BlogPost {
   category: string | null;
   tags: string[] | null;
   cover_image_url: string | null;
+  mid_image_url: string | null;
   seo_title: string | null;
   seo_description: string | null;
   published_at: string | null;
   updated_at: string | null;
 }
+
+/** Split HTML at the middle block-level element */
+const splitHtmlAtMiddle = (html: string): { first: string; second: string } => {
+  // Match top-level block elements: <h2>, <h3>, <p>, <ul>, <ol>, <div>, <blockquote>, <table>, <section>
+  const blockRegex = /(<(?:h[1-6]|p|ul|ol|div|blockquote|table|section|figure)[^>]*>[\s\S]*?<\/(?:h[1-6]|p|ul|ol|div|blockquote|table|section|figure)>)/gi;
+  const blocks: string[] = [];
+  let match;
+  while ((match = blockRegex.exec(html)) !== null) {
+    blocks.push(match[0]);
+  }
+
+  if (blocks.length < 2) {
+    return { first: html, second: "" };
+  }
+
+  const midIndex = Math.ceil(blocks.length / 2);
+  const first = blocks.slice(0, midIndex).join("\n");
+  const second = blocks.slice(midIndex).join("\n");
+  return { first, second };
+};
+
+const MidImageSection = ({ imageUrl, alt, contentHtml }: { imageUrl: string; alt: string; contentHtml: string }) => {
+  const imgRef = React.useRef<HTMLImageElement>(null);
+  const [imgHeight, setImgHeight] = React.useState<number | null>(null);
+
+  const updateHeight = React.useCallback(() => {
+    if (imgRef.current && imgRef.current.clientHeight > 0) {
+      setImgHeight(imgRef.current.clientHeight);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    window.addEventListener("resize", updateHeight);
+    return () => window.removeEventListener("resize", updateHeight);
+  }, [updateHeight]);
+
+  return (
+    <div className="my-10">
+      <div className="grid md:grid-cols-2 gap-8 items-start">
+        <img
+          ref={imgRef}
+          src={imageUrl}
+          alt={alt}
+          className="w-full h-auto rounded-xl shadow-md"
+          loading="lazy"
+          onLoad={updateHeight}
+        />
+        <div
+          className="overflow-hidden"
+          style={imgHeight ? { maxHeight: imgHeight } : undefined}
+        >
+          <ArticleContent html={contentHtml} />
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const BlogArticle = () => {
   const slug = window.location.pathname.split('/').pop();
@@ -251,7 +309,21 @@ const BlogArticle = () => {
                 <BlogCTA variant="top" />
 
                 {/* Article Body */}
-                <ArticleContent html={post.content_html} />
+                {post.mid_image_url ? (() => {
+                  const { first, second } = splitHtmlAtMiddle(post.content_html);
+                  return (
+                    <>
+                      <ArticleContent html={first} />
+                      <MidImageSection
+                        imageUrl={post.mid_image_url}
+                        alt={`Illustration - ${post.title}`}
+                        contentHtml={second}
+                      />
+                    </>
+                  );
+                })() : (
+                  <ArticleContent html={post.content_html} />
+                )}
 
                 {/* Tags */}
                 {post.tags && post.tags.length > 0 && (

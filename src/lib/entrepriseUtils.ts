@@ -13,8 +13,12 @@ export interface ReputationOnline {
 export interface EntrepriseInfo {
   siren_siret: string | null;
   anciennete: string | null;
-  bilansDisponibles: boolean | null;
-  capitauxPropres: string | null;
+  financesDisponibles: boolean | null;
+  resultatNet: string | null;
+  chiffreAffaires: string | null;
+  autonomieFinanciere: string | null;
+  tauxEndettement: string | null;
+  ratioLiquidite: string | null;
   procedureCollective: boolean | null;
   reputation: ReputationOnline | null;
   score: "VERT" | "ORANGE" | "ROUGE";
@@ -38,8 +42,12 @@ export const extractEntrepriseData = (pointsOk: string[], alertes: string[]): En
 
   let siren_siret: string | null = null;
   let anciennete: string | null = null;
-  let bilansDisponibles: boolean | null = null;
-  let capitauxPropres: string | null = null;
+  let financesDisponibles: boolean | null = null;
+  let resultatNet: string | null = null;
+  let chiffreAffaires: string | null = null;
+  let autonomieFinanciere: string | null = null;
+  let tauxEndettement: string | null = null;
+  let ratioLiquidite: string | null = null;
   let procedureCollective: boolean | null = null;
   let reputation: ReputationOnline | null = null;
   let positiveCount = 0;
@@ -92,26 +100,58 @@ export const extractEntrepriseData = (pointsOk: string[], alertes: string[]): En
       }
     }
 
-    // Extract bilans
-    if (lowerPoint.includes("bilan") || lowerPoint.includes("comptes")) {
-      bilansDisponibles = lowerPoint.includes("disponible") || lowerPoint.includes("publiés");
-      if (bilansDisponibles && pointsOk.includes(point)) {
+    // Extract financial data
+    if (lowerPoint.includes("données financières")) {
+      financesDisponibles = lowerPoint.includes("disponible");
+      if (financesDisponibles && pointsOk.includes(point)) {
         positiveCount++;
-      } else if (!bilansDisponibles && alertes.includes(point)) {
+      }
+    }
+
+    if (lowerPoint.includes("chiffre d'affaires") || lowerPoint.includes("chiffre d\u2019affaires")) {
+      const match = point.match(/([\d\s,.]+)\s*€/);
+      if (match) {
+        chiffreAffaires = match[1].trim() + " €";
+      }
+    }
+
+    if (lowerPoint.includes("résultat net")) {
+      if (lowerPoint.includes("négatif") || alertes.includes(point)) {
+        resultatNet = "Négatif";
+        alertCount++;
+      } else if (lowerPoint.includes("positif")) {
+        resultatNet = "Positif";
+        positiveCount++;
+      }
+    }
+
+    if (lowerPoint.includes("autonomie financière")) {
+      const match = point.match(/(\d+(?:[.,]\d+)?)\s*%/);
+      if (match) {
+        autonomieFinanciere = match[1] + "%";
+      }
+      if (pointsOk.includes(point)) {
+        positiveCount++;
+      }
+    }
+
+    if (lowerPoint.includes("endettement")) {
+      const match = point.match(/(\d+(?:[.,]\d+)?)\s*%/);
+      if (match) {
+        tauxEndettement = match[1] + "%";
+      }
+      if (alertes.includes(point)) {
         alertCount++;
       }
     }
 
-    // Extract capitaux propres
-    if (lowerPoint.includes("capitaux propres") || lowerPoint.includes("capital")) {
-      const match = point.match(/([\d\s]+)\s*€/);
+    if (lowerPoint.includes("liquidité")) {
+      const match = point.match(/(\d+(?:[.,]\d+)?)\s*%/);
       if (match) {
-        capitauxPropres = match[1].trim() + " €";
+        ratioLiquidite = match[1] + "%";
       }
-      if (lowerPoint.includes("négatif") || lowerPoint.includes("insuffisant")) {
+      if (alertes.includes(point)) {
         alertCount++;
-      } else if (pointsOk.includes(point)) {
-        positiveCount++;
       }
     }
 
@@ -199,7 +239,9 @@ export const extractEntrepriseData = (pointsOk: string[], alertes: string[]): En
     a.includes("🔴") &&
     !isInformational(a) &&
     (a.toLowerCase().includes("procédure collective") ||
-     a.toLowerCase().includes("capitaux propres négatifs") ||
+     a.toLowerCase().includes("résultat net négatif") ||
+     a.toLowerCase().includes("endettement très élevé") ||
+     a.toLowerCase().includes("pertes importantes") ||
      a.toLowerCase().includes("radiée") ||
      a.toLowerCase().includes("cessation") ||
      a.toLowerCase().includes("dissoute") ||
@@ -222,8 +264,12 @@ export const extractEntrepriseData = (pointsOk: string[], alertes: string[]): En
   return {
     siren_siret,
     anciennete,
-    bilansDisponibles,
-    capitauxPropres,
+    financesDisponibles,
+    resultatNet,
+    chiffreAffaires,
+    autonomieFinanciere,
+    tauxEndettement,
+    ratioLiquidite,
     procedureCollective,
     reputation,
     score
@@ -243,10 +289,12 @@ export const filterOutEntrepriseItems = (items: string[]): string[] => {
            !lower.includes("anciennete") &&
            !lower.includes("créée") &&
            !lower.includes("immatriculée") &&
-           !lower.includes("bilan") &&
-           !lower.includes("comptes publiés") &&
-           !lower.includes("capitaux propres") &&
-           !lower.includes("capital social") &&
+           !lower.includes("données financières") &&
+           !lower.includes("chiffre d'affaires") &&
+           !lower.includes("résultat net") &&
+           !lower.includes("autonomie financière") &&
+           !lower.includes("endettement") &&
+           !lower.includes("liquidité") &&
            !lower.includes("procédure collective") &&
            !lower.includes("redressement") &&
            !lower.includes("liquidation") &&

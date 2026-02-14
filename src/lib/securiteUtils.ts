@@ -337,9 +337,12 @@ export const filterOutSecuriteItems = (items: string[]): string[] => {
            !lower.includes("conditions de paiement") &&
            !lower.includes("mode de paiement") &&
            !lower.includes("mode de règlement") &&
+           !lower.includes("échéancier") &&
+           !lower.includes("echeancier") &&
            !lower.includes("iban") &&
            !lower.includes("virement") &&
            !lower.includes("espèces") &&
+           !lower.includes("bancaires") &&
            !lower.includes("paiement intégral") &&
            !(lower.includes("acompte") && (lower.includes("paiement") || lower.includes("%")));
   });

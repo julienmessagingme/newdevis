@@ -24,9 +24,18 @@ export function calculateScore(
     rouges.push("Procédure collective en cours (redressement ou liquidation, confirmé)");
   }
 
-  if (verified.capitaux_propres_negatifs === true && verified.capitaux_propres !== null) {
-    const formatted = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(verified.capitaux_propres);
-    rouges.push(`Capitaux propres négatifs au dernier bilan (${formatted})`);
+  // Santé financière via ratios data.economie.gouv.fr
+  if (verified.finances.length > 0) {
+    const latest = verified.finances[0];
+    if (latest.taux_endettement !== null && latest.taux_endettement > 200) {
+      rouges.push(`Taux d'endettement très élevé (${latest.taux_endettement.toFixed(0)}%)`);
+    }
+    if (latest.resultat_net !== null && latest.resultat_net < 0 && latest.chiffre_affaires !== null && latest.chiffre_affaires > 0) {
+      const pertesPct = Math.abs(latest.resultat_net / latest.chiffre_affaires * 100);
+      if (pertesPct > 20) {
+        rouges.push(`Pertes importantes au dernier exercice (${pertesPct.toFixed(0)}% du CA)`);
+      }
+    }
   }
 
   const hasExplicitCash = extracted.paiement.modes.some(m => m.toLowerCase() === "especes");
@@ -60,6 +69,16 @@ export function calculateScore(
 
   if (verified.entreprise_immatriculee === true && verified.anciennete_annees !== null && verified.anciennete_annees < 2) {
     oranges.push(`Entreprise récente (${verified.anciennete_annees} an${verified.anciennete_annees > 1 ? "s" : ""}) - ancienneté à prendre en compte`);
+  }
+
+  if (verified.finances.length > 0) {
+    const latest = verified.finances[0];
+    if (latest.taux_endettement !== null && latest.taux_endettement > 100 && latest.taux_endettement <= 200) {
+      oranges.push(`Taux d'endettement élevé (${latest.taux_endettement.toFixed(0)}%)`);
+    }
+    if (latest.ratio_liquidite !== null && latest.ratio_liquidite < 80) {
+      oranges.push(`Ratio de liquidité faible (${latest.ratio_liquidite.toFixed(0)}%)`);
+    }
   }
 
   // INFORMATIF criteria
@@ -135,8 +154,14 @@ export function calculateScore(
     verts.push(`Entreprise établie (${verified.anciennete_annees} ans d'ancienneté)`);
   }
 
-  if (verified.capitaux_propres !== null && verified.capitaux_propres >= 0) {
-    verts.push("Situation financière saine (capitaux propres positifs)");
+  if (verified.finances.length > 0) {
+    const latest = verified.finances[0];
+    if (latest.resultat_net !== null && latest.resultat_net > 0) {
+      verts.push("Résultat net positif au dernier exercice");
+    }
+    if (latest.autonomie_financiere !== null && latest.autonomie_financiere > 30) {
+      verts.push(`Bonne autonomie financière (${latest.autonomie_financiere.toFixed(0)}%)`);
+    }
   }
 
   if (extracted.entreprise.assurance_decennale_mentionnee === true) {
@@ -165,9 +190,9 @@ export function calculateScore(
   }
 
   const scores_blocs = {
-    entreprise: rouges.some(r => r.includes("Entreprise") || r.includes("Procédure") || r.includes("Capitaux"))
+    entreprise: rouges.some(r => r.includes("Entreprise") || r.includes("Procédure") || r.includes("endettement") || r.includes("Pertes"))
       ? "ROUGE" as ScoringColor
-      : oranges.some(o => o.includes("Entreprise") || o.includes("SIRET") || o.includes("récente") || o.includes("Note Google"))
+      : oranges.some(o => o.includes("Entreprise") || o.includes("SIRET") || o.includes("récente") || o.includes("Note Google") || o.includes("endettement") || o.includes("liquidité"))
         ? "ORANGE" as ScoringColor
         : "VERT" as ScoringColor,
 

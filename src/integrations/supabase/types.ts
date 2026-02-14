@@ -89,15 +89,66 @@ export type Database = {
         }
         Relationships: []
       }
+      analysis_work_items: {
+        Row: {
+          amount_ht: number | null
+          analysis_id: string
+          category: string | null
+          created_at: string | null
+          description: string
+          id: string
+          n8n_response: Json | null
+          quantity: number | null
+          unit: string | null
+        }
+        Insert: {
+          amount_ht?: number | null
+          analysis_id: string
+          category?: string | null
+          created_at?: string | null
+          description: string
+          id?: string
+          n8n_response?: Json | null
+          quantity?: number | null
+          unit?: string | null
+        }
+        Update: {
+          amount_ht?: number | null
+          analysis_id?: string
+          category?: string | null
+          created_at?: string | null
+          description?: string
+          id?: string
+          n8n_response?: Json | null
+          quantity?: number | null
+          unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analysis_work_items_analysis_id_fkey"
+            columns: ["analysis_id"]
+            isOneToOne: false
+            referencedRelation: "analyses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       blog_posts: {
         Row: {
+          ai_generated: boolean | null
+          ai_model: string | null
+          ai_prompt: string | null
           category: string | null
           content_html: string
           cover_image_url: string | null
           created_at: string | null
           excerpt: string | null
           id: string
+          mid_image_url: string | null
           published_at: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          scheduled_at: string | null
           seo_description: string | null
           seo_title: string | null
           slug: string
@@ -105,15 +156,23 @@ export type Database = {
           tags: string[] | null
           title: string
           updated_at: string | null
+          workflow_status: string | null
         }
         Insert: {
+          ai_generated?: boolean | null
+          ai_model?: string | null
+          ai_prompt?: string | null
           category?: string | null
           content_html: string
           cover_image_url?: string | null
           created_at?: string | null
           excerpt?: string | null
           id?: string
+          mid_image_url?: string | null
           published_at?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          scheduled_at?: string | null
           seo_description?: string | null
           seo_title?: string | null
           slug: string
@@ -121,15 +180,23 @@ export type Database = {
           tags?: string[] | null
           title: string
           updated_at?: string | null
+          workflow_status?: string | null
         }
         Update: {
+          ai_generated?: boolean | null
+          ai_model?: string | null
+          ai_prompt?: string | null
           category?: string | null
           content_html?: string
           cover_image_url?: string | null
           created_at?: string | null
           excerpt?: string | null
           id?: string
+          mid_image_url?: string | null
           published_at?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          scheduled_at?: string | null
           seo_description?: string | null
           seo_title?: string | null
           slug?: string
@@ -137,6 +204,7 @@ export type Database = {
           tags?: string[] | null
           title?: string
           updated_at?: string | null
+          workflow_status?: string | null
         }
         Relationships: []
       }
@@ -205,7 +273,6 @@ export type Database = {
           parsed_data: Json | null
           parser_debug: Json | null
           parser_status: string
-          price_debug: Json | null
           provider: string
           provider_calls: Json | null
           qty_ref_debug: Json | null
@@ -249,7 +316,6 @@ export type Database = {
           parsed_data?: Json | null
           parser_debug?: Json | null
           parser_status?: string
-          price_debug?: Json | null
           provider?: string
           provider_calls?: Json | null
           qty_ref_debug?: Json | null
@@ -293,7 +359,6 @@ export type Database = {
           parsed_data?: Json | null
           parser_debug?: Json | null
           parser_status?: string
-          price_debug?: Json | null
           provider?: string
           provider_calls?: Json | null
           qty_ref_debug?: Json | null
@@ -322,42 +387,51 @@ export type Database = {
           },
         ]
       }
-      market_price_refs: {
+      market_prices: {
         Row: {
-          created_at: string
-          id: string
-          item_key: string
+          created_at: string | null
+          fixed_avg_ht: number
+          fixed_max_ht: number
+          fixed_min_ht: number
+          id: number
           job_type: string
           label: string
-          max_unit_price: number
-          min_unit_price: number
           notes: string | null
+          price_avg_unit_ht: number
+          price_max_unit_ht: number
+          price_min_unit_ht: number
           unit: string
-          updated_at: string
+          zip_scope: string
         }
         Insert: {
-          created_at?: string
-          id?: string
-          item_key: string
+          created_at?: string | null
+          fixed_avg_ht?: number
+          fixed_max_ht?: number
+          fixed_min_ht?: number
+          id?: number
           job_type: string
           label: string
-          max_unit_price: number
-          min_unit_price: number
           notes?: string | null
+          price_avg_unit_ht?: number
+          price_max_unit_ht?: number
+          price_min_unit_ht?: number
           unit?: string
-          updated_at?: string
+          zip_scope?: string
         }
         Update: {
-          created_at?: string
-          id?: string
-          item_key?: string
+          created_at?: string | null
+          fixed_avg_ht?: number
+          fixed_max_ht?: number
+          fixed_min_ht?: number
+          id?: number
           job_type?: string
           label?: string
-          max_unit_price?: number
-          min_unit_price?: number
           notes?: string | null
+          price_avg_unit_ht?: number
+          price_max_unit_ht?: number
+          price_min_unit_ht?: number
           unit?: string
-          updated_at?: string
+          zip_scope?: string
         }
         Relationships: []
       }
@@ -446,39 +520,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      travaux_reference_prix: {
-        Row: {
-          categorie_travaux: string
-          created_at: string
-          description: string | null
-          id: string
-          prix_max_national: number
-          prix_min_national: number
-          unite: string
-          updated_at: string
-        }
-        Insert: {
-          categorie_travaux: string
-          created_at?: string
-          description?: string | null
-          id?: string
-          prix_max_national: number
-          prix_min_national: number
-          unite?: string
-          updated_at?: string
-        }
-        Update: {
-          categorie_travaux?: string
-          created_at?: string
-          description?: string | null
-          id?: string
-          prix_max_national?: number
-          prix_min_national?: number
-          unite?: string
-          updated_at?: string
-        }
-        Relationships: []
       }
       user_roles: {
         Row: {

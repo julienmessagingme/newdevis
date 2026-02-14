@@ -38,7 +38,6 @@ export const isPipelineError = (e: unknown): e is PipelineError => e instanceof 
 // ============ API ENDPOINTS ============
 
 export const GEMINI_AI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-export const PAPPERS_API_URL = "https://api.pappers.fr/v2";
 export const GOOGLE_PLACES_API_URL = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json";
 export const ADEME_RGE_API_URL = "https://data.ademe.fr/data-fair/api/v1/datasets/liste-des-entreprises-rge-2/lines";
 export const OPENIBAN_API_URL = "https://openiban.com/validate";
@@ -46,6 +45,7 @@ export const GEORISQUES_API_URL = "https://georisques.gouv.fr/api/v1";
 export const ADRESSE_API_URL = "https://api-adresse.data.gouv.fr/search";
 export const GPU_API_URL = "https://apicarto.ign.fr/api/gpu/document";
 export const RECHERCHE_ENTREPRISES_API_URL = "https://recherche-entreprises.api.gouv.fr/search";
+export const DATA_ECONOMIE_API_URL = "https://data.economie.gouv.fr/api/records/1.0/search/";
 
 // ============ CIRCUIT BREAKER SETTINGS ============
 

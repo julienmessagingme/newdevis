@@ -1,13 +1,17 @@
 import { useState, useEffect } from "react";
-import { RefreshCw } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeArticleHtml } from "@/lib/blogUtils";
 import Header from "@/components/layout/Header";
+import { Button } from "@/components/ui/button";
 import { type BlogPost, emptyPost } from "@/components/admin/blogTypes";
 import BlogPostEditor from "@/components/admin/BlogPostEditor";
 import BlogPostList from "@/components/admin/BlogPostList";
-import { DeleteDialog, AiGenerationDialog, ScheduleDialog } from "@/components/admin/BlogDialogs";
+import ManualWriteEditor from "@/components/admin/ManualWriteEditor";
+import AiGenerationPanel from "@/components/admin/AiGenerationPanel";
+import { DeleteDialog, ScheduleDialog } from "@/components/admin/BlogDialogs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const AdminBlog = () => {
   const { toast } = useToast();
@@ -21,13 +25,7 @@ const AdminBlog = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [postToDelete, setPostToDelete] = useState<BlogPost | null>(null);
   const [rawHtmlInput, setRawHtmlInput] = useState("");
-
-  // AI Generation state
-  const [aiDialogOpen, setAiDialogOpen] = useState(false);
-  const [aiTopic, setAiTopic] = useState("");
-  const [aiKeywords, setAiKeywords] = useState("");
-  const [aiTargetLength, setAiTargetLength] = useState("1200");
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [view, setView] = useState<"list" | "create">("list");
 
   // Scheduling state
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
@@ -85,9 +83,7 @@ const AdminBlog = () => {
   };
 
   const handleNewPost = () => {
-    setSelectedPost({ ...emptyPost });
-    setRawHtmlInput("");
-    setIsEditing(true);
+    setView("create");
   };
 
   const handleEditPost = (post: BlogPost) => {
@@ -107,7 +103,7 @@ const AdminBlog = () => {
     try {
       const sanitizedHtml = sanitizeArticleHtml(rawHtmlInput);
 
-      const postData: Record<string, unknown> = {
+      const postData = {
         title: selectedPost.title!,
         slug: selectedPost.slug!,
         excerpt: selectedPost.excerpt || null,
@@ -115,6 +111,7 @@ const AdminBlog = () => {
         category: selectedPost.category || null,
         tags: selectedPost.tags || [],
         cover_image_url: selectedPost.cover_image_url || null,
+        mid_image_url: selectedPost.mid_image_url || null,
         status: selectedPost.status || "draft",
         seo_title: selectedPost.seo_title || null,
         seo_description: selectedPost.seo_description || null,
@@ -134,7 +131,7 @@ const AdminBlog = () => {
       } else {
         const { error } = await supabase
           .from("blog_posts")
-          .insert([postData]);
+          .insert(postData);
 
         if (error) throw error;
         toast({ title: "Succès", description: "Article créé" });
@@ -150,21 +147,73 @@ const AdminBlog = () => {
     }
   };
 
+  const handlePublishPost = async () => {
+    if (!selectedPost?.id) return;
+
+    // Check for cover image
+    if (!selectedPost.cover_image_url) {
+      const confirmed = window.confirm(
+        "Cet article n'a pas d'image de couverture. Voulez-vous quand même le publier ?"
+      );
+      if (!confirmed) return;
+    }
+
+    // Save first, then publish
+    setIsSaving(true);
+    try {
+      const sanitizedHtml = sanitizeArticleHtml(rawHtmlInput);
+
+      const { error } = await supabase
+        .from("blog_posts")
+        .update({
+          title: selectedPost.title,
+          slug: selectedPost.slug,
+          excerpt: selectedPost.excerpt || null,
+          content_html: sanitizedHtml,
+          category: selectedPost.category || null,
+          tags: selectedPost.tags || [],
+          cover_image_url: selectedPost.cover_image_url || null,
+          mid_image_url: selectedPost.mid_image_url || null,
+          seo_title: selectedPost.seo_title || null,
+          seo_description: selectedPost.seo_description || null,
+          status: "published",
+          workflow_status: "published",
+          published_at: selectedPost.published_at || new Date().toISOString(),
+        })
+        .eq("id", selectedPost.id);
+
+      if (error) throw error;
+
+      toast({ title: "Publié", description: "L'article est maintenant en ligne" });
+      await fetchPosts();
+      setIsEditing(false);
+      setSelectedPost(null);
+    } catch (error: any) {
+      toast({ title: "Erreur", description: error.message, variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleToggleStatus = async (post: BlogPost) => {
     const newStatus = post.status === "published" ? "draft" : "published";
-    const updateData: Record<string, unknown> = {
-      status: newStatus,
-      published_at: newStatus === "published" && !post.published_at
-        ? new Date().toISOString()
-        : post.published_at,
-    };
-    if (newStatus === "published") {
-      updateData.workflow_status = "published";
+
+    if (newStatus === "published" && !post.cover_image_url) {
+      const confirmed = window.confirm(
+        "Cet article n'a pas d'image de couverture. Voulez-vous quand même le publier ?"
+      );
+      if (!confirmed) return;
     }
 
     const { error } = await supabase
       .from("blog_posts")
-      .update(updateData)
+      .update({
+        status: newStatus,
+        published_at: newStatus === "published" && !post.published_at
+          ? new Date().toISOString()
+          : post.published_at,
+        ...(newStatus === "published" ? { workflow_status: "published" } : {}),
+      })
       .eq("id", post.id);
 
     if (error) {
@@ -202,55 +251,6 @@ const AdminBlog = () => {
     const sanitized = sanitizeArticleHtml(rawHtmlInput);
     setRawHtmlInput(sanitized);
     toast({ title: "HTML nettoyé", description: "Les règles d'import ont été appliquées" });
-  };
-
-  // AI Generation
-  const handleGenerateAI = async () => {
-    if (!aiTopic.trim()) {
-      toast({ title: "Erreur", description: "Veuillez saisir un sujet", variant: "destructive" });
-      return;
-    }
-
-    setIsGenerating(true);
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Non authentifié");
-
-      const response = await supabase.functions.invoke("generate-blog-article", {
-        body: {
-          topic: aiTopic.trim(),
-          keywords: aiKeywords ? aiKeywords.split(",").map(k => k.trim()).filter(Boolean) : [],
-          targetLength: parseInt(aiTargetLength),
-        },
-      });
-
-      if (response.error) throw response.error;
-
-      const result = response.data;
-      if (!result?.success) {
-        throw new Error(result?.error || "Erreur de génération");
-      }
-
-      toast({
-        title: "Article généré",
-        description: `"${result.post.title}" créé en brouillon IA`,
-      });
-
-      setAiDialogOpen(false);
-      setAiTopic("");
-      setAiKeywords("");
-      setAiTargetLength("1200");
-      await fetchPosts();
-    } catch (error: any) {
-      toast({
-        title: "Erreur de génération",
-        description: error.message || "Impossible de générer l'article",
-        variant: "destructive"
-      });
-    } finally {
-      setIsGenerating(false);
-    }
   };
 
   // Workflow actions
@@ -329,6 +329,24 @@ const AdminBlog = () => {
     setScheduleDialogOpen(true);
   };
 
+  const handleArticleCreated = async (postId: string, _slug: string, openEditor = false) => {
+    await fetchPosts();
+    if (openEditor) {
+      const { data } = await supabase
+        .from("blog_posts")
+        .select("*")
+        .eq("id", postId)
+        .single();
+
+      if (data) {
+        setSelectedPost(data);
+        setRawHtmlInput(data.content_html || "");
+        setIsEditing(true);
+        setView("list");
+      }
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -353,27 +371,67 @@ const AdminBlog = () => {
             onPostChange={setSelectedPost}
             onRawHtmlChange={setRawHtmlInput}
             onSave={handleSavePost}
-            onBack={() => setIsEditing(false)}
+            onPublish={handlePublishPost}
+            onBack={() => { setIsEditing(false); setView("list"); }}
             onApprove={handleApprove}
             onReject={handleReject}
             onScheduleOpen={openScheduleDialog}
             onSanitize={handleApplySanitization}
           />
+        ) : view === "create" ? (
+          <div className="max-w-5xl mx-auto">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h1 className="text-3xl font-bold text-foreground">Nouvel article</h1>
+                <p className="text-muted-foreground">Générez avec l'IA ou rédigez manuellement</p>
+              </div>
+              <Button variant="ghost" onClick={() => setView("list")}>
+                Retour à la liste
+              </Button>
+            </div>
+
+            <Tabs defaultValue="ai">
+              <TabsList className="mb-6">
+                <TabsTrigger value="ai">Génération IA</TabsTrigger>
+                <TabsTrigger value="manual">Rédaction manuelle</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="ai">
+                <AiGenerationPanel onArticleCreated={handleArticleCreated} />
+              </TabsContent>
+
+              <TabsContent value="manual">
+                <ManualWriteEditor onArticleCreated={handleArticleCreated} />
+              </TabsContent>
+            </Tabs>
+          </div>
         ) : (
-          <BlogPostList
-            posts={posts}
-            onNewPost={handleNewPost}
-            onEditPost={handleEditPost}
-            onToggleStatus={handleToggleStatus}
-            onDeletePost={(post) => {
-              setPostToDelete(post);
-              setDeleteDialogOpen(true);
-            }}
-            onApprove={handleApprove}
-            onReject={handleReject}
-            onScheduleOpen={openScheduleDialog}
-            onAiDialogOpen={() => setAiDialogOpen(true)}
-          />
+          <div className="max-w-5xl mx-auto">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h1 className="text-3xl font-bold text-foreground">Gestion du Blog</h1>
+                <p className="text-muted-foreground">Créez et gérez les articles du blog</p>
+              </div>
+              <Button onClick={handleNewPost}>
+                <Plus className="mr-2 h-4 w-4" />
+                Nouvel article
+              </Button>
+            </div>
+
+            <BlogPostList
+              posts={posts}
+              onNewPost={handleNewPost}
+              onEditPost={handleEditPost}
+              onToggleStatus={handleToggleStatus}
+              onDeletePost={(post) => {
+                setPostToDelete(post);
+                setDeleteDialogOpen(true);
+              }}
+              onApprove={handleApprove}
+              onReject={handleReject}
+              onScheduleOpen={openScheduleDialog}
+            />
+          </div>
         )}
       </main>
 
@@ -382,19 +440,6 @@ const AdminBlog = () => {
         onOpenChange={setDeleteDialogOpen}
         post={postToDelete}
         onConfirm={handleDeletePost}
-      />
-
-      <AiGenerationDialog
-        open={aiDialogOpen}
-        onOpenChange={setAiDialogOpen}
-        topic={aiTopic}
-        onTopicChange={setAiTopic}
-        keywords={aiKeywords}
-        onKeywordsChange={setAiKeywords}
-        targetLength={aiTargetLength}
-        onTargetLengthChange={setAiTargetLength}
-        isGenerating={isGenerating}
-        onGenerate={handleGenerateAI}
       />
 
       <ScheduleDialog

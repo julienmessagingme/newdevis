@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const GEMINI_AI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -16,11 +16,13 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const googleApiKey = Deno.env.get("GOOGLE_AI_API_KEY");
+    const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
 
-    if (!googleApiKey) {
+    console.log("Step 1: Checking API key...", !!anthropicApiKey);
+
+    if (!anthropicApiKey) {
       return new Response(
-        JSON.stringify({ error: "Google AI API key not configured" }),
+        JSON.stringify({ error: "Anthropic API key not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -29,6 +31,7 @@ serve(async (req) => {
 
     // Verify admin access
     const authHeader = req.headers.get("Authorization");
+    console.log("Step 2: Auth header present?", !!authHeader);
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: "Authorization required" }),
@@ -39,23 +42,33 @@ serve(async (req) => {
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
+    console.log("Step 3: User?", !!user, "Error?", authError?.message);
+
     if (authError || !user) {
       return new Response(
-        JSON.stringify({ error: "Invalid authentication" }),
+        JSON.stringify({ error: "Invalid authentication", details: authError?.message }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     // Check admin role
-    const { data: isAdmin } = await supabase.rpc("is_admin");
-    if (!isAdmin) {
+    const { data: roleData, error: roleError } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .single();
+
+    console.log("Step 4: Admin role?", !!roleData, "Error?", roleError?.message);
+
+    if (!roleData) {
       return new Response(
-        JSON.stringify({ error: "Admin access required" }),
+        JSON.stringify({ error: "Admin access required", details: roleError?.message }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const { topic, keywords = [], targetLength = 1200 } = await req.json();
+    const { topic, keywords = [], targetLength = 1200, sourceUrls = [] } = await req.json();
 
     if (!topic) {
       return new Response(
@@ -64,7 +77,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Generating blog article: topic="${topic}", keywords=${keywords.join(",")}, length=${targetLength}`);
+    console.log("Step 5: Generating blog article:", topic, "length:", targetLength);
 
     const systemPrompt = `Tu es un rédacteur SEO expert pour VerifierMonDevis.fr, un service gratuit d'analyse de devis d'artisans pour les particuliers.
 
@@ -80,7 +93,7 @@ RÈGLES DE RÉDACTION:
 7. Ne pas inventer de chiffres ou statistiques sans source
 8. Utiliser un vocabulaire simple et compréhensible
 
-FORMAT DE SORTIE (JSON):
+FORMAT DE SORTIE (JSON strict, pas de texte avant ou après):
 {
   "title": "Titre accrocheur et optimisé SEO (60-70 caractères)",
   "slug": "slug-url-en-minuscules-sans-accents",
@@ -92,43 +105,55 @@ FORMAT DE SORTIE (JSON):
   "tags": ["tag1", "tag2", "tag3"]
 }`;
 
-    const userPrompt = `Rédige un article de blog d'environ ${targetLength} mots sur le sujet suivant:
+    let userPrompt = `Rédige un article de blog d'environ ${targetLength} mots sur le sujet suivant:
 
 SUJET: ${topic}
 
-${keywords.length > 0 ? `MOTS-CLÉS SEO À INTÉGRER NATURELLEMENT: ${keywords.join(", ")}` : ""}
+${keywords.length > 0 ? `MOTS-CLÉS SEO À INTÉGRER NATURELLEMENT: ${keywords.join(", ")}` : ""}`;
+
+    if (sourceUrls.length > 0) {
+      userPrompt += `
+
+URLS SOURCES À UTILISER COMME RÉFÉRENCE (inspire-toi du contenu de ces pages pour enrichir l'article):
+${sourceUrls.map((url: string, i: number) => `${i + 1}. ${url}`).join("\n")}`;
+    }
+
+    userPrompt += `
 
 L'article doit être utile pour un particulier qui fait des travaux chez lui.
 Réponds UNIQUEMENT avec le JSON demandé, sans texte avant ou après.`;
 
-    const aiResponse = await fetch(GEMINI_AI_URL, {
+    const aiResponse = await fetch(ANTHROPIC_API_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${googleApiKey}`,
+        "x-api-key": anthropicApiKey,
+        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "gemini-2.5-flash",
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 8000,
         messages: [
-          { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        response_format: { type: "json_object" },
-        max_tokens: 8000,
+        system: systemPrompt,
       }),
     });
 
+    console.log("Step 6: Anthropic response status:", aiResponse.status);
+
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      console.error("Gemini AI error:", aiResponse.status, errorText);
+      console.error("Anthropic API error:", aiResponse.status, errorText);
       return new Response(
-        JSON.stringify({ error: "AI generation failed", details: aiResponse.status }),
+        JSON.stringify({ error: "AI generation failed", details: aiResponse.status, message: errorText.substring(0, 200) }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const aiResult = await aiResponse.json();
-    const content = aiResult.choices?.[0]?.message?.content;
+    const content = aiResult.content?.[0]?.text;
+    console.log("Step 7: Got AI content, length:", content?.length);
 
     if (!content) {
       return new Response(
@@ -139,7 +164,10 @@ Réponds UNIQUEMENT avec le JSON demandé, sans texte avant ou après.`;
 
     let article;
     try {
-      article = JSON.parse(content);
+      // Extract JSON from response (handle possible markdown code blocks)
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("No JSON found in response");
+      article = JSON.parse(jsonMatch[0]);
     } catch {
       console.error("Failed to parse AI response:", content.substring(0, 500));
       return new Response(
@@ -164,8 +192,7 @@ Réponds UNIQUEMENT avec le JSON demandé, sans texte avant ou après.`;
         workflow_status: "ai_draft",
         ai_generated: true,
         ai_prompt: topic,
-        ai_model: "gemini-2.5-flash",
-        author_id: user.id,
+        ai_model: "claude-sonnet-4-20250514",
       })
       .select()
       .single();

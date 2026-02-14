@@ -1,10 +1,6 @@
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { useState, useEffect, useRef } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2, Search, ChevronDown, Check } from "lucide-react";
 
 // ========================================
 // TYPES
@@ -23,94 +19,167 @@ interface JobTypeSelectorProps {
 }
 
 // ========================================
-// 30 TRAVAUX POPULAIRES (liste statique)
+// HELPERS
 // ========================================
 
-const POPULAR_JOB_TYPES: JobTypeItem[] = [
-  // Peinture / murs / finitions
-  { job_type: "peinture_murs", label: "Peinture murs", unit: "m²" },
-  { job_type: "peinture_plafond", label: "Peinture plafond", unit: "m²" },
-  { job_type: "enduit_lissage", label: "Enduit / lissage", unit: "m²" },
-  { job_type: "toile_verre", label: "Pose toile de verre", unit: "m²" },
-  { job_type: "papier_peint", label: "Pose papier peint", unit: "m²" },
-  
-  // Sols
-  { job_type: "carrelage_sol_pose", label: "Pose carrelage sol", unit: "m²" },
-  { job_type: "parquet_flottant", label: "Pose parquet flottant", unit: "m²" },
-  { job_type: "sol_pvc", label: "Pose sol PVC", unit: "m²" },
-  { job_type: "ragreage", label: "Ragréage", unit: "m²" },
-  { job_type: "poncage_parquet", label: "Ponçage parquet", unit: "m²" },
-  
-  // Salle de bain / WC
-  { job_type: "douche", label: "Pose douche", unit: "unité" },
-  { job_type: "wc_remplacement", label: "Remplacement WC", unit: "unité" },
-  { job_type: "wc_suspendu", label: "Pose WC suspendu", unit: "unité" },
-  { job_type: "lavabo", label: "Pose lavabo", unit: "unité" },
-  { job_type: "pose_meuble_sdb", label: "Pose meuble SDB", unit: "unité" },
-  
-  // Électricité
-  { job_type: "prise_pose", label: "Pose prise électrique", unit: "unité" },
-  { job_type: "interrupteur_pose", label: "Pose interrupteur", unit: "unité" },
-  { job_type: "tableau_electrique_remplacement", label: "Remplacement tableau électrique", unit: "forfait" },
-  { job_type: "luminaire", label: "Point lumineux", unit: "unité" },
-  
-  // Plomberie
-  { job_type: "robinet_remplacement", label: "Remplacement robinet", unit: "unité" },
-  { job_type: "remplacement_siphon", label: "Remplacement siphon", unit: "unité" },
-  { job_type: "chauffe_eau_remplacement", label: "Remplacement chauffe-eau", unit: "unité" },
-  
-  // Menuiseries
-  { job_type: "fenetre_pose", label: "Pose fenêtre", unit: "unité" },
-  { job_type: "porte_interieure_pose", label: "Pose porte intérieure", unit: "unité" },
-  { job_type: "volet", label: "Pose volet roulant", unit: "unité" },
-  
-  // Divers très demandés
-  { job_type: "demolition_legere", label: "Démolition légère", unit: "m²" },
-  { job_type: "nettoyage_fin_chantier", label: "Nettoyage fin de chantier", unit: "m²" },
-  { job_type: "protection_chantier", label: "Protection chantier", unit: "forfait" },
-  { job_type: "placo", label: "Pose placo / cloison", unit: "m²" },
-  { job_type: "isolation", label: "Isolation", unit: "m²" },
-];
+const normalize = (str: string) =>
+  str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+const formatUnit = (unit: string) => {
+  if (unit === "m²" || unit === "m2") return "m²";
+  if (unit === "ml") return "ml";
+  if (unit === "m3") return "m³";
+  if (unit === "forfait") return "forfait";
+  if (unit === "heure") return "heure";
+  return "unité";
+};
 
 // ========================================
 // COMPONENT
 // ========================================
 
 const JobTypeSelector = ({ value, onChange, onJobTypeData }: JobTypeSelectorProps) => {
-  
-  const handleChange = (newValue: string) => {
-    onChange(newValue);
-    const selectedItem = POPULAR_JOB_TYPES.find(item => item.job_type === newValue);
-    onJobTypeData?.(selectedItem || null);
+  const [jobTypes, setJobTypes] = useState<JobTypeItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const fetchJobTypes = async () => {
+      const { data, error } = await supabase
+        .from("market_prices")
+        .select("job_type, label, unit, notes")
+        .order("label");
+
+      if (error || !data) {
+        console.error("[JobTypeSelector] Erreur chargement market_prices:", error);
+        setIsLoading(false);
+        return;
+      }
+
+      const seen = new Map<string, JobTypeItem>();
+      for (const row of data) {
+        const existing = seen.get(row.job_type);
+        if (!existing || row.notes === "Base") {
+          seen.set(row.job_type, {
+            job_type: row.job_type,
+            label: row.label,
+            unit: row.unit,
+          });
+        }
+      }
+
+      setJobTypes(
+        Array.from(seen.values()).sort((a, b) => a.label.localeCompare(b.label, "fr"))
+      );
+      setIsLoading(false);
+    };
+
+    fetchJobTypes();
+  }, []);
+
+  // Close on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedItem = jobTypes.find(item => item.job_type === value);
+
+  const filtered = search.length >= 2
+    ? jobTypes.filter(item => normalize(item.label).includes(normalize(search)))
+    : jobTypes;
+
+  const handleSelect = (item: JobTypeItem) => {
+    onChange(item.job_type);
+    onJobTypeData?.(item);
+    setSearch("");
+    setIsOpen(false);
   };
 
-  const formatLabel = (item: JobTypeItem) => {
-    const unitDisplay = item.unit === "m²" || item.unit === "m2" 
-      ? "m²" 
-      : item.unit === "forfait" 
-        ? "forfait" 
-        : "unité";
-    return `${item.label} (${unitDisplay})`;
+  const handleTriggerClick = () => {
+    setIsOpen(!isOpen);
+    if (!isOpen) {
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
   };
 
-  // Get selected item for display
-  const selectedItem = POPULAR_JOB_TYPES.find(item => item.job_type === value);
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 h-10 px-3 text-sm text-muted-foreground border rounded-md bg-background">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Chargement des travaux...
+      </div>
+    );
+  }
 
   return (
-    <Select value={value} onValueChange={handleChange}>
-      <SelectTrigger className="bg-background">
-        <SelectValue placeholder="Sélectionnez un type de travaux">
-          {selectedItem ? formatLabel(selectedItem) : "Sélectionnez un type de travaux"}
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent className="bg-popover border shadow-lg z-50 max-h-[300px]">
-        {POPULAR_JOB_TYPES.map((item) => (
-          <SelectItem key={item.job_type} value={item.job_type}>
-            {formatLabel(item)}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <div ref={containerRef} className="relative">
+      {/* Trigger button */}
+      <button
+        type="button"
+        onClick={handleTriggerClick}
+        className="flex items-center justify-between w-full h-10 px-3 text-sm border rounded-md bg-background hover:bg-accent/50 transition-colors text-left"
+      >
+        <span className={selectedItem ? "text-foreground" : "text-muted-foreground"}>
+          {selectedItem
+            ? `${selectedItem.label} (${formatUnit(selectedItem.unit)})`
+            : "Sélectionnez un type de travaux"}
+        </span>
+        <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+
+      {/* Dropdown */}
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg">
+          {/* Search input */}
+          <div className="flex items-center gap-2 px-3 py-2 border-b">
+            <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Rechercher un type de travaux..."
+              className="w-full text-sm bg-transparent outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+
+          {/* Results list */}
+          <div className="max-h-[250px] overflow-y-auto py-1">
+            {filtered.length === 0 ? (
+              <p className="px-3 py-4 text-sm text-muted-foreground text-center">
+                Aucun résultat pour « {search} »
+              </p>
+            ) : (
+              filtered.map((item) => (
+                <button
+                  key={item.job_type}
+                  type="button"
+                  onClick={() => handleSelect(item)}
+                  className="flex items-center justify-between w-full px-3 py-2 text-sm text-left hover:bg-accent transition-colors"
+                >
+                  <span>
+                    {item.label}{" "}
+                    <span className="text-muted-foreground">({formatUnit(item.unit)})</span>
+                  </span>
+                  {item.job_type === value && (
+                    <Check className="h-4 w-4 text-primary shrink-0" />
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 

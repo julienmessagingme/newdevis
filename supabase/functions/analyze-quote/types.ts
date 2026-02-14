@@ -68,7 +68,8 @@ export interface ProviderCallDebug {
 
 export interface DebugInfo {
   provider_calls: {
-    pappers: ProviderCallDebug;
+    entreprise: ProviderCallDebug;
+    finances: ProviderCallDebug;
   };
 }
 
@@ -80,9 +81,6 @@ export interface CompanyPayload {
   date_creation: string | null;
   age_years: number | null;
   is_active: boolean;
-  bilans_count: number;
-  has_3_bilans: boolean;
-  last_bilan_capitaux_propres: number | null;
   nom: string | null;
   adresse: string | null;
   ville: string | null;
@@ -106,19 +104,29 @@ export interface CachedCompanyData {
 // PHASE 2 — VÉRIFICATION (APIs EXTERNES - SANS IA)
 // ============================================================
 
+export interface FinancialRatios {
+  date_cloture: string;
+  chiffre_affaires: number | null;
+  resultat_net: number | null;
+  taux_endettement: number | null;
+  ratio_liquidite: number | null;
+  autonomie_financiere: number | null;
+  capacite_remboursement: number | null;
+  marge_ebe: number | null;
+}
+
 export interface VerificationResult {
   entreprise_immatriculee: boolean | null;
   entreprise_radiee: boolean | null;
   procedure_collective: boolean | null;
-  capitaux_propres: number | null;
-  capitaux_propres_negatifs: boolean | null;
   date_creation: string | null;
   anciennete_annees: number | null;
-  bilans_disponibles: number;
   nom_officiel: string | null;
   adresse_officielle: string | null;
   ville_officielle: string | null;
   lookup_status: "ok" | "not_found" | "error" | "skipped" | "no_siret";
+  finances: FinancialRatios[];
+  finances_status: "ok" | "not_found" | "error" | "skipped";
 
   iban_verifie: boolean;
   iban_valide: boolean | null;

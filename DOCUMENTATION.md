@@ -114,7 +114,7 @@ Inscription → Upload du devis → Analyse automatique (30-60s)
 │            APIS EXTERNES                     │
 │  Pappers │ ADEME │ Georisques │ OpenIBAN    │
 │  Google Places │ Gemini │ AWS Textract      │
-│  N8N (prix marché)                          │
+│  recherche-entreprises.api.gouv.fr          │
 └─────────────────────────────────────────────┘
 ```
 
@@ -222,6 +222,7 @@ devis-clarity/
 │   │   │   ├── BlogArticleApp.tsx
 │   │   │   └── ComprendreScoreApp.tsx
 │   │   │
+│   │   │
 │   │   ├── pages/                      # Composants React de page (logique + UI)
 │   │   │   ├── Login.tsx               # Formulaire de connexion
 │   │   │   ├── Register.tsx            # Formulaire d'inscription
@@ -301,9 +302,13 @@ devis-clarity/
 │   │   │
 │   │   ├── admin/                      # Composants admin
 │   │   │   ├── AdminCharts.tsx         # Graphiques KPI (Recharts)
-│   │   │   ├── BlogDialogs.tsx         # Modales création/édition articles
-│   │   │   ├── BlogPostEditor.tsx      # Éditeur d'articles blog
+│   │   │   ├── AiGenerationPanel.tsx   # Génération d'articles via Claude API
+│   │   │   ├── BlogDialogs.tsx         # Modales suppression/planification
+│   │   │   ├── BlogPostEditor.tsx      # Éditeur d'articles (rich text + HTML + aperçu)
 │   │   │   ├── BlogPostList.tsx        # Liste des articles admin
+│   │   │   ├── ImageManagement.tsx     # Gestion images (upload + génération IA fal.ai)
+│   │   │   ├── ManualWriteEditor.tsx   # Rédaction manuelle d'articles
+│   │   │   ├── RichTextToolbar.tsx     # Éditeur rich text (contentEditable)
 │   │   │   └── blogTypes.tsx           # Types TypeScript admin blog
 │   │   │
 │   │   ├── tracking/                   # Suivi post-signature
@@ -321,7 +326,8 @@ devis-clarity/
 │   │   └── AttestationUpload.tsx       # Upload attestation assurance
 │   │
 │   ├── hooks/
-│   │   ├── useMarketPriceAPI.ts        # Hook prix marché (N8N)
+│   │   ├── useMarketPriceAPI.ts        # Hook prix marché (lecture + calcul théorique)
+│   │   ├── useMarketPriceEditor.ts    # Hook édition interactive prix marché (DnD, quantités)
 │   │   ├── useZoneCoefficient.ts       # Hook coefficient géographique
 │   │   ├── useAnonymousAuth.ts         # Hook authentification anonyme
 │   │   ├── use-mobile.tsx              # Hook détection mobile
@@ -355,25 +361,24 @@ devis-clarity/
 │   └── index.css                       # Styles globaux + variables Tailwind
 │
 ├── supabase/
-│   └── functions/                      # Edge Functions Deno
+│   └── functions/                      # Edge Functions Deno (8 fonctions)
 │       ├── analyze-quote/              # Orchestrateur principal (modulaire)
 │       │   ├── index.ts               # Point d'entrée, orchestration pipeline
 │       │   ├── extract.ts             # Appels extraction OCR
 │       │   ├── verify.ts              # Vérifications parallèles (Pappers, ADEME, etc.)
 │       │   ├── score.ts               # Algorithme de scoring
 │       │   ├── render.ts             # Génération des alertes/points OK/recommandations
-│       │   ├── n8n.ts                # Intégration webhook N8N (prix marché)
+│       │   ├── summarize.ts          # Résumé des lignes de travaux (gemini-2.0-flash)
+│       │   ├── market-prices.ts     # Groupement par job type + prix marché (gemini-2.0-flash)
 │       │   ├── utils.ts              # Fonctions utilitaires partagées
 │       │   └── types.ts              # Types TypeScript de la pipeline
 │       ├── extract-document/index.ts   # OCR et extraction de texte
 │       ├── parse-quote/index.ts        # Parsing structuré via Gemini
 │       ├── analyze-attestation/index.ts # Analyse attestation assurance
-│       ├── generate-blog-article/index.ts # Génération articles IA
+│       ├── generate-blog-article/index.ts # Génération articles IA (Claude API)
+│       ├── generate-blog-image/index.ts   # Génération images IA (fal.ai)
 │       ├── admin-kpis/index.ts         # API KPIs admin
-│       ├── publish-scheduled-posts/index.ts # Publication programmée blog
-│       ├── pappers-health/index.ts     # Health check API Pappers
-│       ├── test-pappers/index.ts       # Test API Pappers
-│       └── test-webhook/index.ts       # Test webhook N8N
+│       └── publish-scheduled-posts/index.ts # Publication programmée blog (cron)
 │
 ├── public/
 │   ├── images/                         # Assets statiques (logos, etc.)
@@ -459,9 +464,9 @@ const ReactApp = ({ children }) => (
 Ces composants affichent les résultats détaillés sur la page `/analyse/:id` :
 
 **Blocs principaux :**
-- **BlockEntreprise** : Vérification de l'entreprise (SIRET, ancienneté, capital, procédure collective). Utilise les données Pappers. Logique métier dans `lib/entrepriseUtils.ts`.
+- **BlockEntreprise** : Identification entreprise (SIRET formaté, nom officiel, badge "active/radiée"), données financières (bilans, capitaux propres, procédure collective), ancienneté avec date de création, réputation Google. Utilise données Pappers/recherche-entreprises + `raw_text` JSON. Logique métier dans `lib/entrepriseUtils.ts`.
 - **BlockDevis** : Détails du devis (montants HT/TTC, TVA, conditions de paiement, acompte). Logique dans `lib/devisUtils.ts`.
-- **BlockPrixMarche** : Jauge visuelle comparant le prix au marché local. Inclut `MarketComparisonGauge` (SVG) et `MarketPositionAnalysis`.
+- **BlockPrixMarche** : Cartes collapsibles par job type avec lignes détaillées, jauge visuelle (`MarketComparisonGauge` SVG + `MarketPositionAnalysis`), drag & drop de lignes entre job types, quantité éditable.
 - **BlockSecurite** : Assurances (RC Pro, Décennale), certifications RGE. Logique dans `lib/securiteUtils.ts`.
 - **BlockContexte** : Informations géographiques (zone, coefficient, risques naturels). Logique dans `lib/contexteUtils.ts`.
 - **BlockUrbanisme** : Urbanisme (PLU, monuments historiques, servitudes). Logique dans `lib/urbanismeUtils.ts`.
@@ -504,9 +509,13 @@ Les sections de la landing page sont des composants React indépendants, hydrat�
 ### 7.5 Composants admin
 
 - **AdminCharts** : Graphiques KPI avec Recharts (analyses/jour, distribution scores, etc.).
-- **BlogPostList** : Liste des articles blog côté admin avec statut et actions.
-- **BlogPostEditor** : Éditeur complet d'article (titre, contenu HTML, SEO, catégorie, tags, planification).
-- **BlogDialogs** : Modales de création et d'édition d'articles.
+- **BlogPostList** : Liste des articles blog côté admin avec statut, workflow et actions.
+- **BlogPostEditor** : Éditeur complet d'article avec 3 onglets (rich text / HTML / aperçu), sidebar images + métadonnées + SEO, bouton publier.
+- **AiGenerationPanel** : Génération d'articles via Claude API avec pitch, mots-clés, longueur et URLs sources.
+- **ManualWriteEditor** : Rédaction manuelle d'articles avec rich text editor et gestion d'images.
+- **RichTextToolbar** : Éditeur rich text basé sur `contentEditable` + `document.execCommand` (H1/H2/H3, gras, italique, listes, emojis).
+- **ImageManagement** : Gestion images cover + mi-texte (upload fichier ou génération IA via fal.ai).
+- **BlogDialogs** : Modales de suppression et de planification.
 - **blogTypes** : Types TypeScript partagés pour le module admin blog.
 
 ### 7.6 Composants funnel
@@ -543,6 +552,7 @@ Les sections de la landing page sont des composants React indépendants, hydrat�
 | `attestation_analysis` | jsonb | Analyse de l'attestation d'assurance |
 | `attestation_comparison` | jsonb | Comparaison attestation/devis |
 | `assurance_level2_score` | text | Score détaillé assurance |
+| `market_price_overrides` | jsonb | Éditions utilisateur prix marché (quantités, réaffectations) |
 | `created_at` | timestamptz | Date de création |
 
 #### Table `document_extractions` (cache OCR)
@@ -562,21 +572,10 @@ Les sections de la landing page sont des composants React indépendants, hydrat�
 |---|---|---|
 | `siren` | text | Numéro SIREN |
 | `siret` | text | Numéro SIRET |
-| `provider` | text | Source (pappers) |
+| `provider` | text | Source (pappers ou recherche-entreprises) |
 | `payload` | jsonb | Données complètes |
 | `status` | text | Statut de la vérification |
-| `expires_at` | timestamptz | Expiration du cache (7 jours) |
-
-#### Table `market_price_refs` (prix marché)
-
-| Colonne | Type | Description |
-|---|---|---|
-| `job_type` | text | Type de travaux |
-| `item_key` | text | Clé de l'élément |
-| `label` | text | Libellé |
-| `unit` | text | Unité (m², ml, forfait) |
-| `min_unit_price` | numeric | Prix min par unité |
-| `max_unit_price` | numeric | Prix max par unité |
+| `expires_at` | timestamptz | Expiration du cache (30j succès, 1j 404, 1h erreur). Purgé quotidiennement par cron. |
 
 #### Table `zones_geographiques` (coefficients géo)
 
@@ -586,6 +585,18 @@ Les sections de la landing page sont des composants React indépendants, hydrat�
 | `type_zone` | text | petite_ville, ville_moyenne, grande_ville |
 | `coefficient` | numeric | Multiplicateur (0.90 à 1.20) |
 
+#### Table `analysis_work_items` (lignes de travaux)
+
+| Colonne | Type | Description |
+|---|---|---|
+| `analysis_id` | uuid | Référence analyses |
+| `description` | text | Description du poste |
+| `category` | text | Catégorie de travaux |
+| `amount_ht` | numeric | Montant HT |
+| `quantity` | numeric | Quantité |
+| `unit` | text | Unité (m², ml, forfait) |
+| `job_type_group` | text | Rattachement au job type IA |
+
 #### Table `blog_posts`
 
 | Colonne | Type | Description |
@@ -593,9 +604,19 @@ Les sections de la landing page sont des composants React indépendants, hydrat�
 | `slug` | text | URL-friendly identifiant |
 | `title` | text | Titre de l'article |
 | `content_html` | text | Contenu HTML |
+| `excerpt` | text | Extrait/résumé |
 | `category` | text | Catégorie |
 | `tags` | text[] | Tags |
-| `status` | text | draft, published, scheduled |
+| `cover_image_url` | text | Image de couverture |
+| `mid_image_url` | text | Image mi-texte (affichée en 2 colonnes) |
+| `status` | text | draft, published |
+| `workflow_status` | text | manual, ai_draft, ai_reviewed, scheduled, published, rejected |
+| `ai_generated` | boolean | Généré par IA |
+| `ai_model` | text | Modèle IA utilisé |
+| `ai_prompt` | text | Prompt de génération |
+| `scheduled_at` | timestamptz | Date de publication programmée |
+| `reviewed_by` | uuid | Validé par (user_id) |
+| `reviewed_at` | timestamptz | Date de validation |
 | `published_at` | timestamptz | Date de publication |
 | `seo_title` | text | Titre SEO |
 | `seo_description` | text | Description SEO |
@@ -695,7 +716,7 @@ La table `user_roles` associe un rôle à chaque utilisateur. Les pages admin v�
 │                                                       │
 │  ┌─────────────┐  ┌───────────┐  ┌────────────────┐ │
 │  │   Pappers    │  │   IBAN    │  │   Prix marché   │ │
-│  │  (SIRET)     │  │  check    │  │   (N8N)         │ │
+│  │  (SIRET)     │  │  check    │  │ (market_prices) │ │
 │  └─────────────┘  └───────────┘  └────────────────┘ │
 │  ┌─────────────┐  ┌───────────┐  ┌────────────────┐ │
 │  │    ADEME     │  │  Google   │  │   Georisques    │ │
@@ -741,13 +762,13 @@ La edge function `parse-quote` envoie le texte OCR à **Google Gemini** avec un 
 
 | Vérification | API | Données retournées |
 |---|---|---|
-| Entreprise | Pappers | SIRET actif, ancienneté, capital, procédure collective |
+| Entreprise | Pappers / recherche-entreprises.api.gouv.fr | SIRET actif, ancienneté, capital, procédure collective |
 | IBAN | openiban.com | Validité du RIB/IBAN |
 | RGE | ADEME | Certifications énergie renouvelable |
 | Avis | Google Places | Note et nombre d'avis Google |
 | Risques | Georisques | Risques naturels sur la zone |
 | Urbanisme | GPU | Proximité monuments historiques |
-| Prix marché | N8N webhook | Fourchette min/moy/max pour le type de travaux |
+| Prix marché | Table market_prices + Gemini | Groupement par job type, fourchette min/moy/max |
 
 ### Étape 5 : Scoring et résultat
 
@@ -759,7 +780,7 @@ L'algorithme de scoring pondère tous les critères pour produire un verdict fin
 
 ### analyze-quote (orchestrateur)
 
-**Dossier** : `supabase/functions/analyze-quote/` (7 fichiers modulaires)
+**Dossier** : `supabase/functions/analyze-quote/` (9 fichiers modulaires) — `verify_jwt = false`
 
 Point d'entrée principal. Orchestre toute la pipeline d'analyse :
 1. Récupère le fichier depuis Storage
@@ -777,11 +798,12 @@ Point d'entrée principal. Orchestre toute la pipeline d'analyse :
 | `verify.ts` | Vérifications parallèles (Pappers, ADEME, Google Places, Georisques, IBAN) |
 | `score.ts` | Algorithme de calcul du score (VERT/ORANGE/ROUGE) |
 | `render.ts` | Génération des alertes, points OK et recommandations textuelles |
-| `n8n.ts` | Intégration webhook N8N pour les prix du marché |
+| `summarize.ts` | Résumé des lignes de travaux (gemini-2.0-flash) |
+| `market-prices.ts` | Groupement par job type + lookup prix marché (gemini-2.0-flash) |
 | `utils.ts` | Fonctions utilitaires partagées entre modules |
 | `types.ts` | Types TypeScript de la pipeline d'analyse |
 
-### extract-document (OCR)
+### extract-document (OCR) — `verify_jwt = false`
 
 **Fichier** : `supabase/functions/extract-document/index.ts`
 
@@ -790,7 +812,7 @@ Gère l'extraction de texte avec fallback multi-provider :
 - Tente PDF text → Textract → Gemini Vision
 - Stocke le résultat en cache
 
-### parse-quote (IA)
+### parse-quote (IA) — `verify_jwt = false`
 
 **Fichier** : `supabase/functions/parse-quote/index.ts`
 
@@ -799,19 +821,41 @@ Extraction structurée du devis via Google Gemini :
 - Retourne un JSON structuré avec toutes les données du devis
 - Détecte le type de document (devis_travaux, facture, etc.)
 
-### admin-kpis
+### admin-kpis — `verify_jwt = true`
 
 **Fichier** : `supabase/functions/admin-kpis/index.ts`
 
-API pour le dashboard admin : retourne les KPIs depuis les vues SQL.
+API pour le dashboard admin : retourne les KPIs depuis les vues SQL. Requiert authentification admin.
 
-### Autres fonctions
+### generate-blog-article — `verify_jwt = true`
 
-- `analyze-attestation` : Analyse d'attestation d'assurance
-- `generate-blog-article` : Génération d'articles via IA
-- `publish-scheduled-posts` : Publication automatique d'articles programmés
-- `pappers-health` / `test-pappers` : Tests de connectivité
-- `test-webhook` : Test du webhook N8N
+**Fichier** : `supabase/functions/generate-blog-article/index.ts`
+
+Génération d'articles de blog via **Claude API** (`claude-sonnet-4-20250514`) :
+- Accepte : pitch, mots-clés, longueur cible, URLs sources
+- Retourne un article HTML structuré avec titre, slug, extrait, SEO
+- Insert direct dans `blog_posts` en brouillon (`workflow_status: ai_draft`)
+
+### generate-blog-image — `verify_jwt = true`
+
+**Fichier** : `supabase/functions/generate-blog-image/index.ts`
+
+Génération d'images via **fal.ai** (Flux Schnell) :
+- Accepte : postId, type (cover/mid), prompt
+- Génère l'image, l'uploade dans le bucket `blog-images`
+- Met à jour `blog_posts.cover_image_url` ou `mid_image_url`
+
+### publish-scheduled-posts — `verify_jwt = true`
+
+**Fichier** : `supabase/functions/publish-scheduled-posts/index.ts`
+
+Cron (toutes les 15 min) qui publie les articles programmés dont `scheduled_at` est passé.
+
+### analyze-attestation — `verify_jwt = false`
+
+**Fichier** : `supabase/functions/analyze-attestation/index.ts`
+
+Analyse d'attestation d'assurance (décennale, RC Pro) et comparaison avec les données du devis.
 
 ---
 
@@ -874,15 +918,17 @@ API pour le dashboard admin : retourne les KPIs depuis les vues SQL.
 
 | API | Usage | Authentification |
 |---|---|---|
-| **Pappers** | Vérification SIRET/SIREN, santé financière | Clé API |
-| **Google Gemini** | Parsing IA des devis, détection type document | Clé API |
+| **Pappers** | Vérification SIRET/SIREN, santé financière | Clé API (optionnel) |
+| **recherche-entreprises.api.gouv.fr** | Fallback entreprise si Pappers non configuré (nom, statut, adresse, date création) | Public (gratuit) |
+| **Google Gemini** | Extraction OCR (2.5-flash), groupement prix (2.0-flash), résumés (2.0-flash) | Clé API |
+| **Claude API** | Génération d'articles de blog | Clé API (ANTHROPIC_API_KEY) |
+| **fal.ai** | Génération d'images de blog (Flux Schnell) | Clé API (FAL_API_KEY) |
 | **AWS Textract** | OCR de documents scannés | Clé AWS |
 | **ADEME** | Vérification certification RGE | Clé API |
 | **Google Places** | Avis et notes entreprise | Clé API |
 | **Georisques** | Risques naturels par localisation | Public |
 | **GPU** | Urbanisme, monuments historiques | Public |
 | **OpenIBAN** | Validation de RIB/IBAN | Public |
-| **N8N Webhook** | Comparaison prix marché | URL webhook |
 | **API Adresse** | Validation d'adresses françaises | Public |
 
 ---

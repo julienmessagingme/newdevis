@@ -9,15 +9,12 @@ import {
   X,
   ArrowLeft,
   ArrowRight,
-  HelpCircle,
   Loader2,
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import WorkTypeSelector from "@/components/WorkTypeSelector";
-import { parseWorkTypeValue, isHorsCategorie } from "@/lib/workTypeReferentiel";
 import { useAnonymousAuth } from "@/hooks/useAnonymousAuth";
 import FunnelStepper from "@/components/funnel/FunnelStepper";
 import { FILE_VALIDATION, UPLOAD, ANALYSIS } from "@/lib/constants";
@@ -29,7 +26,6 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const NewAnalysis = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [workType, setWorkType] = useState("");
   const [notes, setNotes] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -256,11 +252,6 @@ const NewAnalysis = () => {
       return;
     }
 
-    if (!workType) {
-      toast.error("Veuillez sélectionner un type de travaux");
-      return;
-    }
-
     if (!user) {
       toast.error("Session expirée. Veuillez réessayer.");
       return;
@@ -294,7 +285,6 @@ const NewAnalysis = () => {
           file_name: file.name,
           file_path: uploadedFilePath,
           status: "pending",
-          work_type: workType, // Stocker le type de travaux sélectionné
         })
         .select()
         .single();
@@ -312,7 +302,7 @@ const NewAnalysis = () => {
 
       // Déclencher l'analyse (synchrone, avec timeout)
       const invokePromise = supabase.functions.invoke("analyze-quote", {
-        body: { analysisId: analysis.id, skipN8N: isAnonymous },
+        body: { analysisId: analysis.id, skipN8N: false },
       });
 
       // Timeout — redirige même si la fonction n'a pas fini
@@ -338,8 +328,7 @@ const NewAnalysis = () => {
     }
   };
 
-  // Conditions pour activer le bouton - workType est maintenant obligatoire
-  const canSubmit = file && file.size > 0 && uploadStatus === "success" && uploadedFilePath && workType && !loading;
+  const canSubmit = file && file.size > 0 && uploadStatus === "success" && uploadedFilePath && !loading;
 
   return (
     <div className="min-h-screen bg-background">
@@ -475,13 +464,6 @@ const NewAnalysis = () => {
               </div>
             )}
           </div>
-
-          {/* Work Type - Sélecteur hiérarchique catégorie / sous-type */}
-          <WorkTypeSelector
-            value={workType}
-            onChange={setWorkType}
-            disabled={loading}
-          />
 
           {/* Notes */}
           <div className="space-y-2">
