@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw, XCircle, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeArticleHtml } from "@/lib/blogUtils";
@@ -17,6 +17,7 @@ const AdminBlog = () => {
   const { toast } = useToast();
 
   const [isAdmin, setIsAdmin] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [selectedPost, setSelectedPost] = useState<Partial<BlogPost> | null>(null);
@@ -53,8 +54,8 @@ const AdminBlog = () => {
         .single();
 
       if (!roleData) {
-        toast({ title: "Accès refusé", description: "Vous n'êtes pas administrateur.", variant: "destructive" });
-        window.location.href = "/";
+        setAccessDenied(true);
+        setIsLoading(false);
         return;
       }
 
@@ -62,7 +63,7 @@ const AdminBlog = () => {
       await fetchPosts();
     } catch (error) {
       console.error("Error checking admin:", error);
-      window.location.href = "/";
+      setAccessDenied(true);
     } finally {
       setIsLoading(false);
     }
@@ -355,8 +356,37 @@ const AdminBlog = () => {
     );
   }
 
-  if (!isAdmin) {
-    return null;
+  if (!isAdmin || accessDenied) {
+    const handleLogoutAndReconnect = async () => {
+      await supabase.auth.signOut();
+      window.location.href = "/connexion";
+    };
+
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center max-w-md p-8">
+          <div className="w-16 h-16 bg-score-red/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <XCircle className="h-8 w-8 text-score-red" />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground mb-4">Accès refusé</h1>
+          <p className="text-muted-foreground mb-4">
+            Cette page est réservée aux administrateurs.
+          </p>
+          <p className="text-sm text-muted-foreground mb-6">
+            Vous êtes peut-être connecté avec un compte anonyme. Déconnectez-vous puis reconnectez-vous avec votre compte admin.
+          </p>
+          <div className="flex gap-3 justify-center">
+            <a href="/">
+              <Button variant="outline">Retour à l'accueil</Button>
+            </a>
+            <Button onClick={handleLogoutAndReconnect}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Se connecter en admin
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
