@@ -229,33 +229,31 @@ export const extractEntrepriseData = (pointsOk: string[], alertes: string[]): En
   // ============================================================
   // SCORING RULES
   // ============================================================
-  // ROUGE: ONLY for CONFIRMED critical issues
-  // ORANGE: Minor vigilance points
-  // VERT: No issues
-  // CRITICAL: not_found / error / informational → NEVER ROUGE
+  // ROUGE: procédure collective ou alerte financière critique confirmée
+  // VERT: entreprise identifiée + pas de procédure collective + (bonne réputation Google OU pas de Google)
+  // ORANGE: tout le reste
   // ============================================================
 
-  const criticalAlertCount = alertes.filter(a =>
+  const hasCriticalAlert = alertes.some(a =>
     a.includes("🔴") &&
     !isInformational(a) &&
     (a.toLowerCase().includes("procédure collective") ||
-     a.toLowerCase().includes("résultat net négatif") ||
      a.toLowerCase().includes("endettement très élevé") ||
      a.toLowerCase().includes("pertes importantes") ||
      a.toLowerCase().includes("radiée") ||
      a.toLowerCase().includes("cessation") ||
      a.toLowerCase().includes("dissoute") ||
      a.toLowerCase().includes("liquidation"))
-  ).length;
+  );
+
+  // Réputation Google : considérée bonne si >= 4.0 OU si pas de données Google (pas pénalisant)
+  const googleOk = !reputation || reputation.status !== "found" || (reputation.rating !== undefined && reputation.rating >= 4.0);
 
   let score: "VERT" | "ORANGE" | "ROUGE";
-  if (procedureCollective === true || criticalAlertCount > 0) {
+  if (procedureCollective === true || hasCriticalAlert) {
     score = "ROUGE";
-  } else if (alertCount > 0 && lookupStatus !== "not_found" && lookupStatus !== "error") {
-    score = "ORANGE";
-  } else if (positiveCount < 2 && lookupStatus !== "ok") {
-    score = "ORANGE";
-  } else if (positiveCount >= 2) {
+  } else if (lookupStatus === "ok" && !procedureCollective && googleOk) {
+    // Entreprise identifiée, pas de procédure collective, réputation OK (ou pas de Google)
     score = "VERT";
   } else {
     score = "ORANGE";

@@ -124,8 +124,8 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
             )}
           </div>
 
-          {/* Financial indicators grid — only shown when data is available */}
-          {(info.chiffreAffaires || info.resultatNet || info.autonomieFinanciere || info.tauxEndettement || info.ratioLiquidite || info.procedureCollective !== null) && (
+          {/* Financial indicators */}
+          {(info.chiffreAffaires || info.resultatNet || info.autonomieFinanciere || info.tauxEndettement || info.ratioLiquidite || info.procedureCollective !== null) ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
               {info.chiffreAffaires && (
                 <div className="p-3 bg-background/30 rounded-lg">
@@ -176,6 +176,10 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
                   </p>
                 </div>
               )}
+            </div>
+          ) : (
+            <div className="p-3 bg-background/30 rounded-lg mb-4 text-sm text-muted-foreground">
+              Aucune donnée financière publique disponible pour cette entreprise (micro-entreprise, auto-entrepreneur ou bilan non publié).
             </div>
           )}
 
