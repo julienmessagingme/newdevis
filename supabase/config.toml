@@ -13,13 +13,13 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.generate-blog-article]
-verify_jwt = true
+verify_jwt = false
 
 [functions.publish-scheduled-posts]
-verify_jwt = true
+verify_jwt = false
 
 [functions.admin-kpis]
-verify_jwt = true
+verify_jwt = false
 
 [functions.generate-blog-image]
-verify_jwt = true
+verify_jwt = false

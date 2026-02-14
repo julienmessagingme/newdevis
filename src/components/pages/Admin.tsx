@@ -117,30 +117,40 @@ const Admin = () => {
   const checkAdminAndFetchKPIs = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (!user) {
-        window.location.href = "/connexion";
+        window.location.href = "/connexion?redirect=/admin";
         return;
       }
 
-      // Fetch KPIs from edge function (it handles admin check)
-      const { data, error } = await supabase.functions.invoke("admin-kpis");
+      // Check admin role directly
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
 
-      if (error) {
-        if (error.message?.includes("403") || error.message?.includes("Accès réservé")) {
-          setError("Accès réservé aux administrateurs");
-          setIsAdmin(false);
-        } else {
-          throw error;
-        }
+      if (!roleData) {
+        setError("Accès réservé aux administrateurs");
+        setIsAdmin(false);
+        setLoading(false);
         return;
       }
 
       setIsAdmin(true);
+
+      // Fetch KPIs from edge function
+      const { data, error } = await supabase.functions.invoke("admin-kpis");
+
+      if (error) {
+        throw error;
+      }
+
       setKpis(data);
     } catch (err) {
       console.error("Error:", err);
-      setError("Erreur lors du chargement des données");
+      setError("Erreur lors du chargement des KPIs");
     } finally {
       setLoading(false);
       setRefreshing(false);
