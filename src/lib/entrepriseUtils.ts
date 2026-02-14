@@ -290,6 +290,8 @@ export const filterOutEntrepriseItems = (items: string[]): string[] => {
            !lower.includes("créée") &&
            !lower.includes("immatriculée") &&
            !lower.includes("données financières") &&
+           !lower.includes("donnée financière") &&
+           !lower.includes("vérification financière") &&
            !lower.includes("chiffre d'affaires") &&
            !lower.includes("résultat net") &&
            !lower.includes("autonomie financière") &&

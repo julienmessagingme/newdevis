@@ -124,8 +124,8 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
             )}
           </div>
 
-          {/* Financial indicators grid */}
-          {(info.chiffreAffaires || info.resultatNet || info.autonomieFinanciere || info.tauxEndettement || info.ratioLiquidite || info.procedureCollective !== null) ? (
+          {/* Financial indicators grid — only shown when data is available */}
+          {(info.chiffreAffaires || info.resultatNet || info.autonomieFinanciere || info.tauxEndettement || info.ratioLiquidite || info.procedureCollective !== null) && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
               {info.chiffreAffaires && (
                 <div className="p-3 bg-background/30 rounded-lg">
@@ -176,14 +176,6 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
                   </p>
                 </div>
               )}
-            </div>
-          ) : (
-            <div className="p-3 bg-background/30 rounded-lg mb-4">
-              <p className="text-sm text-muted-foreground">
-                {info.financesDisponibles === false
-                  ? "Aucune donnée financière publiée pour cette entreprise. Cela est courant pour les petites structures (micro-entreprises, auto-entrepreneurs)."
-                  : "Données financières non disponibles. La vérification financière n'a pas pu être effectuée."}
-              </p>
             </div>
           )}
 

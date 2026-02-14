@@ -559,11 +559,20 @@ const AnalysisResult = () => {
         {/* Admin Warning if extraction incomplete */}
         <ExtractionIncompleteWarning analysisId={analysis.id} />
 
-        {/* Resume */}
-        {analysis.resume && (
-          <div className="bg-card border border-border rounded-xl p-6 mb-8 card-shadow">
-            <h2 className="font-semibold text-foreground mb-3">Résumé</h2>
-            <p className="text-muted-foreground">{analysis.resume}</p>
+        {/* Recommandations — en haut, avant les blocs détaillés */}
+        {analysis.recommandations && analysis.recommandations.length > 0 && (
+          <div className="bg-accent/50 border border-border rounded-xl p-6 mb-8">
+            <h2 className="font-semibold text-foreground mb-4">Nos recommandations</h2>
+            <ul className="space-y-3">
+              {analysis.recommandations.map((rec, index) => (
+                <li key={index} className="flex items-start gap-3">
+                  <span className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-medium text-primary">
+                    {index + 1}
+                  </span>
+                  <p className="text-foreground">{rec}</p>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
@@ -572,7 +581,7 @@ const AnalysisResult = () => {
           pointsOk={analysis.points_ok || []}
           alertes={analysis.alertes || []}
           companyData={companyData}
-          defaultOpen={true}
+          defaultOpen={false}
         />
 
         {/* BLOC 2 — Analyse Prix & Cohérence Marché (API-driven) */}
@@ -593,6 +602,8 @@ const AnalysisResult = () => {
                     cachedN8NData={cachedN8NData}
                     analysisId={analysis.id}
                     marketPriceOverrides={analysis.market_price_overrides}
+                    resume={analysis.resume}
+                    defaultOpen={false}
                   />
                 </div>
                 {/* Gate de conversion superposée */}
@@ -614,6 +625,8 @@ const AnalysisResult = () => {
               cachedN8NData={cachedN8NData}
               analysisId={analysis.id}
               marketPriceOverrides={analysis.market_price_overrides}
+              resume={analysis.resume}
+              defaultOpen={false}
             />
           );
         })()}
@@ -689,23 +702,6 @@ const AnalysisResult = () => {
             maxExecutionDays={workDates.maxExecutionDays}
             isRejectedDocument={isRejectedDocument}
           />
-        )}
-
-        {/* Recommendations */}
-        {analysis.recommandations && analysis.recommandations.length > 0 && (
-          <div className="bg-accent/50 border border-border rounded-xl p-6 mb-8">
-            <h2 className="font-semibold text-foreground mb-4">Nos recommandations</h2>
-            <ul className="space-y-3">
-              {analysis.recommandations.map((rec, index) => (
-                <li key={index} className="flex items-start gap-3">
-                  <span className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-medium text-primary">
-                    {index + 1}
-                  </span>
-                  <p className="text-foreground">{rec}</p>
-                </li>
-              ))}
-            </ul>
-          </div>
         )}
 
         {/* Message de synthèse obligatoire */}

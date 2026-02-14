@@ -19,6 +19,7 @@ interface BlockPrixMarcheProps {
   analysisId?: string;
   marketPriceOverrides?: Record<string, unknown> | null;
   defaultOpen?: boolean;
+  resume?: string | null;
 }
 
 // =======================
@@ -442,6 +443,7 @@ const BlockPrixMarche = ({
   analysisId,
   marketPriceOverrides,
   defaultOpen = true,
+  resume,
 }: BlockPrixMarcheProps) => {
   const [isBlockOpen, setIsBlockOpen] = useState(defaultOpen);
   const { error, rows, isNewFormat } = useMarketPriceAPI({ cachedN8NData });
@@ -573,8 +575,15 @@ const BlockPrixMarche = ({
           </button>
 
           {isBlockOpen && (<>
+          {/* Résumé du devis */}
+          {resume && (
+            <div className="mt-3 mb-4 p-4 bg-background/50 rounded-lg border border-border/30">
+              <p className="text-sm text-muted-foreground">{resume}</p>
+            </div>
+          )}
+
           {codePostal && (
-            <div className="flex items-center gap-2 mb-4 mt-2 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 mb-4 text-sm text-muted-foreground">
               <MapPin className="h-4 w-4" />
               <span>Zone de référence : {codePostal}</span>
             </div>
