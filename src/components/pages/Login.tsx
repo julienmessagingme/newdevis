@@ -29,7 +29,9 @@ const Login = () => {
         );
       } else {
         toast.success("Connexion réussie !");
-        window.location.href = "/tableau-de-bord";
+        const params = new URLSearchParams(window.location.search);
+        const redirect = params.get("redirect");
+        window.location.href = redirect || "/tableau-de-bord";
       }
     } catch (error) {
       toast.error("Une erreur est survenue");

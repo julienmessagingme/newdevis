@@ -167,7 +167,7 @@ const Admin = () => {
   if (!isAdmin || error) {
     const handleLogoutAndReconnect = async () => {
       await supabase.auth.signOut();
-      window.location.href = "/connexion";
+      window.location.href = "/connexion?redirect=/admin";
     };
 
     return (
@@ -217,9 +217,15 @@ const Admin = () => {
           </a>
 
           <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <a href="/admin/blog">
+              <Button variant="outline" size="sm">
+                <FileText className="h-4 w-4 mr-2" />
+                Blog
+              </Button>
+            </a>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleRefresh}
               disabled={refreshing}
             >

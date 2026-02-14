@@ -359,7 +359,7 @@ const AdminBlog = () => {
   if (!isAdmin || accessDenied) {
     const handleLogoutAndReconnect = async () => {
       await supabase.auth.signOut();
-      window.location.href = "/connexion";
+      window.location.href = "/connexion?redirect=/admin/blog";
     };
 
     return (
@@ -392,6 +392,12 @@ const AdminBlog = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
+      <div className="bg-card border-b border-border">
+        <div className="container flex h-10 items-center gap-4 text-sm">
+          <a href="/admin" className="text-muted-foreground hover:text-foreground transition-colors">KPIs</a>
+          <span className="font-medium text-foreground">Blog</span>
+        </div>
+      </div>
       <main className="container px-4 py-8">
         {isEditing && selectedPost ? (
           <BlogPostEditor
