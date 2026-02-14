@@ -194,7 +194,8 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
 
     if (!aiResponse.ok) {
       const details = await aiResponse.text().catch(() => "");
-      console.error("Extract AI error:", aiResponse.status, details);
+      const safeDetails = details.replace(/Bearer\s+[a-zA-Z0-9_.-]+/gi, "Bearer ***").substring(0, 500);
+      console.error("Extract AI error:", aiResponse.status, safeDetails);
 
       if (aiResponse.status === 402) {
         throw new PipelineError({

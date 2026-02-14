@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Shield,
@@ -36,11 +36,10 @@ import {
   ExtractionIncompleteWarning
 } from "@/components/analysis";
 import { PostSignatureTrackingSection } from "@/components/tracking";
-import { OcrDebugPanel } from "@/components/analysis/OcrDebugPanel";
+const OcrDebugPanel = lazy(() => import("@/components/analysis/OcrDebugPanel").then(m => ({ default: m.OcrDebugPanel })));
 import type { TravauxItem } from "@/components/analysis";
 import { useAnonymousAuth } from "@/hooks/useAnonymousAuth";
 import FunnelStepper from "@/components/funnel/FunnelStepper";
-import PremiumGate from "@/components/funnel/PremiumGate";
 import { ANALYSIS } from "@/lib/constants";
 
 type DocumentDetection = {
@@ -585,51 +584,20 @@ const AnalysisResult = () => {
         />
 
         {/* BLOC 2 — Analyse Prix & Cohérence Marché (API-driven) */}
-        {(() => {
-          const showGate = isAnonymous && !isPermanent;
-          console.log("[AnalysisResult] BLOC 2 decision:", { cachedN8NData, isAnonymous, isPermanent, showGate, filePath: analysis.file_path, workType: analysis.work_type, codePostal: locationInfo.codePostal, totalHT });
-
-          if (showGate) {
-            return (
-              <div className="relative">
-                {/* Bloc prix grisé / flouté en arrière-plan */}
-                <div className="pointer-events-none select-none blur-sm opacity-50" aria-hidden="true">
-                  <BlockPrixMarche
-                    montantTotalHT={totalHT}
-                    codePostal={locationInfo.codePostal}
-                    selectedWorkType={analysis.work_type}
-                    filePath={analysis.file_path}
-                    cachedN8NData={cachedN8NData}
-                    analysisId={analysis.id}
-                    marketPriceOverrides={analysis.market_price_overrides}
-                    resume={analysis.resume}
-                    defaultOpen={false}
-                  />
-                </div>
-                {/* Gate de conversion superposée */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <PremiumGate
-                    onAuthSuccess={handleAuthConversion}
-                    convertToPermanent={convertToPermanent}
-                  />
-                </div>
-              </div>
-            );
-          }
-          return (
-            <BlockPrixMarche
-              montantTotalHT={totalHT}
-              codePostal={locationInfo.codePostal}
-              selectedWorkType={analysis.work_type}
-              filePath={analysis.file_path}
-              cachedN8NData={cachedN8NData}
-              analysisId={analysis.id}
-              marketPriceOverrides={analysis.market_price_overrides}
-              resume={analysis.resume}
-              defaultOpen={false}
-            />
-          );
-        })()}
+        <BlockPrixMarche
+          montantTotalHT={totalHT}
+          codePostal={locationInfo.codePostal}
+          selectedWorkType={analysis.work_type}
+          filePath={analysis.file_path}
+          cachedN8NData={cachedN8NData}
+          analysisId={analysis.id}
+          marketPriceOverrides={analysis.market_price_overrides}
+          resume={analysis.resume}
+          defaultOpen={false}
+          showGate={isAnonymous && !isPermanent}
+          onAuthSuccess={handleAuthConversion}
+          convertToPermanent={convertToPermanent}
+        />
 
         {/* BLOC 3 — Sécurité & Conditions de paiement */}
         <BlockSecurite
@@ -716,8 +684,12 @@ const AnalysisResult = () => {
           </div>
         </div>
 
-        {/* OCR Debug Panel - Admin Only (hidden for anonymous users) */}
-        {!isAnonymous && <OcrDebugPanel analysisId={analysis.id} />}
+        {/* OCR Debug Panel - Admin Only (lazy-loaded, hidden for anonymous users) */}
+        {!isAnonymous && (
+          <Suspense fallback={null}>
+            <OcrDebugPanel analysisId={analysis.id} />
+          </Suspense>
+        )}
 
         {/* Disclaimer */}
         <div className="bg-muted/50 border border-border rounded-xl p-5 mb-8">

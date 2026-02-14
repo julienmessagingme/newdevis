@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useMarketPriceAPI, type MarketPriceTableRow, type JobTypeDisplayRow } from "@/hooks/useMarketPriceAPI";
 import { useMarketPriceEditor } from "@/hooks/useMarketPriceEditor";
 import MarketPositionAnalysis from "./MarketPositionAnalysis";
+import PremiumGate from "@/components/funnel/PremiumGate";
 
 // =======================
 // TYPES
@@ -20,6 +21,9 @@ interface BlockPrixMarcheProps {
   marketPriceOverrides?: Record<string, unknown> | null;
   defaultOpen?: boolean;
   resume?: string | null;
+  showGate?: boolean;
+  onAuthSuccess?: () => void;
+  convertToPermanent?: (params: { email: string; password: string; firstName: string; lastName: string; phone: string; acceptCommercial?: boolean }) => Promise<unknown>;
 }
 
 // =======================
@@ -444,6 +448,9 @@ const BlockPrixMarche = ({
   marketPriceOverrides,
   defaultOpen = true,
   resume,
+  showGate = false,
+  onAuthSuccess,
+  convertToPermanent,
 }: BlockPrixMarcheProps) => {
   const [isBlockOpen, setIsBlockOpen] = useState(defaultOpen);
   const { error, rows, isNewFormat } = useMarketPriceAPI({ cachedN8NData });
@@ -574,7 +581,7 @@ const BlockPrixMarche = ({
             <ChevronDown className={`h-5 w-5 ml-auto text-muted-foreground transition-transform flex-shrink-0 ${isBlockOpen ? "rotate-180" : ""}`} />
           </button>
 
-          {isBlockOpen && (<>
+          {isBlockOpen && !showGate && (<>
           {/* Résumé du devis */}
           {resume && (
             <div className="mt-3 mb-4 p-4 bg-background/50 rounded-lg border border-border/30">
@@ -591,6 +598,16 @@ const BlockPrixMarche = ({
 
           {renderContent()}
           </>)}
+
+          {/* Gate de conversion — visible uniquement quand le bloc est collapsé */}
+          {!isBlockOpen && showGate && onAuthSuccess && convertToPermanent && (
+            <div className="mt-4">
+              <PremiumGate
+                onAuthSuccess={onAuthSuccess}
+                convertToPermanent={convertToPermanent}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -274,7 +274,8 @@ export async function verifyData(
         result.iban_banque = ibanData.bankData?.name || null;
       }
     } catch (error) {
-      console.error("OpenIBAN error:", error);
+      const safeMsg = error instanceof Error ? error.message : "Unknown error";
+      console.error("OpenIBAN error:", safeMsg);
     }
   }
 
@@ -297,7 +298,8 @@ export async function verifyData(
         }
       }
     } catch (error) {
-      console.error("Google Places error:", error);
+      const safeMsg = error instanceof Error ? error.message : "Unknown error";
+      console.error("Google Places error:", safeMsg);
     }
   }
 
@@ -319,7 +321,8 @@ export async function verifyData(
         }
       }
     } catch (error) {
-      console.error("RGE API error:", error);
+      const safeMsg = error instanceof Error ? error.message : "Unknown error";
+      console.error("RGE API error:", safeMsg);
     }
   }
 
@@ -399,7 +402,8 @@ export async function verifyData(
         }
       }
     } catch (error) {
-      console.error("Géorisques error:", error);
+      const safeMsg = error instanceof Error ? error.message : "Unknown error";
+      console.error("Géorisques error:", safeMsg);
     }
   }
 
