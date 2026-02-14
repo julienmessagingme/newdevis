@@ -77,7 +77,11 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Generating ${type} image for post ${postId}: "${prompt}"`);
+    // Force no-text instruction on every prompt — prefix is stronger than suffix for diffusion models
+    const noTextPrefix = "TEXT-FREE IMAGE ONLY. Absolutely no text, no letters, no words, no numbers, no typography, no watermarks, no labels, no captions, no signage, no writing of any kind.";
+    const finalPrompt = `${noTextPrefix} ${prompt}`;
+
+    console.log(`Generating ${type} image for post ${postId}: "${finalPrompt}"`);
 
     // Call fal.ai to generate image
     const imageSize = type === "cover"
@@ -91,10 +95,10 @@ serve(async (req) => {
         "Authorization": `Key ${falApiKey}`,
       },
       body: JSON.stringify({
-        prompt,
+        prompt: finalPrompt,
         image_size: imageSize,
         num_images: 1,
-        num_inference_steps: 4,
+        num_inference_steps: 8,
       }),
     });
 

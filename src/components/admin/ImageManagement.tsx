@@ -22,7 +22,7 @@ const ImageSection = ({ label, type, imageUrl, postId, onImageChange, defaultPro
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState(defaultPrompt || "");
+  const [aiPrompt, setAiPrompt] = useState("");
   const [mode, setMode] = useState<"upload" | "ai">("upload");
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -55,7 +55,8 @@ const ImageSection = ({ label, type, imageUrl, postId, onImageChange, defaultPro
   };
 
   const handleAiGenerate = async () => {
-    if (!aiPrompt.trim()) {
+    const effectivePrompt = aiPrompt.trim() || defaultPrompt?.trim();
+    if (!effectivePrompt) {
       toast({ title: "Erreur", description: "Veuillez saisir un prompt", variant: "destructive" });
       return;
     }
@@ -68,7 +69,7 @@ const ImageSection = ({ label, type, imageUrl, postId, onImageChange, defaultPro
     setIsGenerating(true);
     try {
       const response = await supabase.functions.invoke("generate-blog-image", {
-        body: { postId, type, prompt: aiPrompt.trim() },
+        body: { postId, type, prompt: effectivePrompt },
       });
 
       if (response.error) {
@@ -183,7 +184,7 @@ const ImageSection = ({ label, type, imageUrl, postId, onImageChange, defaultPro
           <Textarea
             value={aiPrompt}
             onChange={(e) => setAiPrompt(e.target.value)}
-            placeholder={`Décrivez l'image ${type === "cover" ? "de couverture" : "d'illustration"} souhaitée...`}
+            placeholder={defaultPrompt || `Décrivez l'image ${type === "cover" ? "de couverture" : "d'illustration"} souhaitée...`}
             rows={2}
             className="text-sm"
           />
@@ -231,10 +232,10 @@ interface ImageManagementProps {
 const ImageManagement = ({ coverImageUrl, midImageUrl, postId, onCoverChange, onMidChange, articleTitle, articleExcerpt }: ImageManagementProps) => {
   const summary = [articleTitle, articleExcerpt].filter(Boolean).join(" — ");
   const coverPrompt = summary
-    ? `Professional blog cover image for an article about: ${summary}. Clean, modern, high quality illustration.`
+    ? `Professional blog cover image for an article about: ${summary}. Clean, modern, high quality illustration. Absolutely no text, no letters, no words, no typography, no watermarks anywhere in the image.`
     : "";
   const midPrompt = summary
-    ? `Illustration for a blog article about: ${summary}. Informative, clean visual, modern style.`
+    ? `Illustration for a blog article about: ${summary}. Informative, clean visual, modern style. Absolutely no text, no letters, no words, no typography, no watermarks anywhere in the image.`
     : "";
   return (
     <Card>

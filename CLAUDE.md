@@ -1,6 +1,6 @@
 # CLAUDE.md - VerifierMonDevis.fr
 
-Plateforme d'analyse de devis d'artisans. Stack : **Astro 5 + React 18 islands + Supabase + Tailwind/shadcn-ui**. Voir `DOCUMENTATION.md` pour le détail complet.
+Plateforme d'analyse de devis d'artisans. Stack : **Astro 5 + React 18 islands + Supabase + Tailwind/shadcn-ui**. Déployé sur **Vercel** (`@astrojs/vercel` adapter, `output: 'static'`). Voir `DOCUMENTATION.md` pour le détail complet.
 
 ## Pattern critique : Islands Astro + React
 
@@ -27,6 +27,9 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 | `/admin/blog` | `admin/blog.astro` | `AdminBlogApp` → `AdminBlog` |
 | `/blog` | `blog/index.astro` | `BlogApp` → `Blog` |
 | `/blog/:slug` | `blog/[slug].astro` | `BlogArticleApp` → `BlogArticle` |
+| `/mot-de-passe-oublie` | `mot-de-passe-oublie.astro` | `ForgotPasswordApp` → `ForgotPassword` |
+| `/reset-password` | `reset-password.astro` | `ResetPasswordApp` → `ResetPassword` |
+| `/comprendre-votre-score` | `comprendre-votre-score.astro` | `ComprendreScoreApp` → `ComprendreScore` |
 
 ## Ajouter une page
 
@@ -38,8 +41,8 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 
 - **`lib/*Utils.ts`** : Logique métier externalisée par domaine (`entrepriseUtils`, `devisUtils`, `securiteUtils`, `contexteUtils`, `urbanismeUtils`, `architecteUtils`, `blogUtils`, `scoreUtils`). Les composants `analysis/Block*.tsx` importent depuis ces fichiers.
 - **`components/admin/`** : Module blog admin complet (`BlogPostList`, `BlogPostEditor`, `BlogDialogs`, `AiGenerationPanel`, `ManualWriteEditor`, `RichTextToolbar`, `ImageManagement`, `blogTypes`)
-- **`components/funnel/`** : Tunnel de conversion (`FunnelStepper`, `PremiumGate`)
-- **`components/analysis/`** : 18 composants dont `DocumentRejectionScreen`, `ExtractionBlocker`, `OcrDebugPanel`
+- **`components/funnel/`** : Tunnel de conversion (`FunnelStepper`, `PremiumGate`). PremiumGate est intégré dans `BlockPrixMarche` via props (`showGate`, `onAuthSuccess`, `convertToPermanent`) — affiché uniquement quand le bloc est collapsé et l'utilisateur anonyme.
+- **`components/analysis/`** : 18 composants dont `DocumentRejectionScreen`, `ExtractionBlocker`, `OcrDebugPanel` (lazy-loaded via `React.lazy` + `Suspense` dans `AnalysisResult.tsx`)
 - **`supabase/functions/analyze-quote/`** : Pipeline modulaire (9 fichiers : `index`, `extract`, `verify`, `score`, `render`, `summarize`, `market-prices`, `utils`, `types`)
 - **Hooks** : 6 hooks dont `useAnonymousAuth.ts` (auth anonyme), `useMarketPriceEditor.ts` (édition interactive prix marché)
 
@@ -62,10 +65,12 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 | `extract-document` | false | OCR et extraction de texte (interne) |
 | `parse-quote` | false | Parsing structuré via Gemini |
 | `analyze-attestation` | false | Analyse d'attestations d'assurance |
-| `admin-kpis` | **true** | KPIs dashboard admin |
-| `generate-blog-article` | **true** | Génération articles via Claude API |
-| `generate-blog-image` | **true** | Génération images via fal.ai |
-| `publish-scheduled-posts` | **true** | Cron publication blog programmée |
+| `admin-kpis` | false | KPIs dashboard admin (vérifie admin role en interne) |
+| `generate-blog-article` | false | Génération articles via Claude API (vérifie admin role en interne) |
+| `generate-blog-image` | false | Génération images via fal.ai (vérifie admin role en interne) |
+| `publish-scheduled-posts` | false | Cron publication blog programmée |
+
+> **`verify_jwt = false` sur TOUTES les fonctions** : Supabase Auth signe les JWT avec ES256, mais le runtime edge `verify_jwt` ne supporte pas cet algorithme → "Invalid JWT". Chaque fonction admin vérifie le rôle en interne via `user_roles`.
 
 ### Storage (2 buckets)
 - `devis` — fichiers PDF/images uploadés (privé, user-scoped)
@@ -74,6 +79,12 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 ### Crons
 - `purge-expired-company-cache` — quotidien 03h UTC, nettoie les entrées expirées
 - `publish-scheduled-blog-posts` — toutes les 15 min, publie les articles programmés
+
+### Index de performance
+- `idx_analyses_user_status_created` — `analyses(user_id, status, created_at DESC)` — dashboard utilisateur
+- `idx_work_items_job_type_group` — `analysis_work_items(job_type_group)` — regroupement prix marché
+- `idx_extractions_file_hash` — `document_extractions(file_hash)` — déduplication documents
+- `idx_blog_posts_workflow_status` — `blog_posts(workflow_status)` — filtres admin blog
 
 ### Régénérer les types
 ```bash
@@ -179,6 +190,18 @@ Phase 2 du pipeline — 100% appels API déterministes, pas d'IA. Aucune API pay
 - **Prompt "plus de types = mieux"** : L'instruction "en cas de doute, plus de types" a causé la création d'1 groupe par ligne de devis. Solution : cibler explicitement 3-7 groupes avec regroupement large.
 - **Flexbox overflow** : Un `flex-1` sans `min-w-0` permet aux enfants de dépasser le conteneur parent. Toujours ajouter `min-w-0` sur les div flex-1 contenant du texte long.
 - **RLS sur `market_prices`** : Les edge functions utilisent `service_role_key` (bypass RLS), mais le frontend utilise `anon key`. Si on ajoute une requête frontend sur une table sans policy SELECT pour `anon`, la requête retourne un tableau vide sans erreur. Solution : toujours vérifier qu'une policy RLS existe pour `anon` quand on requête depuis le client.
+- **ES256 JWT et `verify_jwt`** : Supabase Auth utilise ES256 pour signer les JWT. Le runtime edge function `verify_jwt` ne le supporte pas → renvoie "Invalid JWT" sur chaque appel. Solution : `verify_jwt = false` dans `config.toml` + déployer avec `--no-verify-jwt`. Chaque fonction admin vérifie le rôle manuellement.
+- **Logs edge functions — fuites de secrets** : Les `catch` blocks peuvent logger des objets Error contenant des clés API ou Bearer tokens dans les headers. Solution : toujours utiliser `error.message` (pas l'objet complet) + masquer les tokens avec regex `Bearer\s+[a-zA-Z0-9_.-]+` → `Bearer ***`.
+- **Astro 5 `output: 'hybrid'` supprimé** : L'option `hybrid` n'existe plus en Astro 5. Utiliser `output: 'static'` avec un adapter — les pages avec `export const prerender = false` seront rendues côté serveur automatiquement.
+- **Variables d'env Vercel côté client** : En Astro sur Vercel, seules les variables préfixées `PUBLIC_` sont exposées au client. `VITE_SUPABASE_URL` ne marche pas → utiliser `PUBLIC_SUPABASE_URL` et `PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+
+## Authentification et navigation admin
+
+- **Login avec redirect** : `Login.tsx` supporte `?redirect=` query param. Après connexion, redirige vers le path spécifié au lieu de `/tableau-de-bord`.
+- **Pages admin protégées** : `Admin.tsx` et `AdminBlog.tsx` vérifient le rôle admin via `user_roles` query (pas via l'edge function). Si accès refusé, proposent un bouton "Se connecter en admin" qui fait `signOut()` + redirect vers `/connexion?redirect=/admin`.
+- **Navigation inter-admin** : Barre de navigation sous le Header avec liens KPIs / Blog.
+- **Reset mot de passe** : `ForgotPassword.tsx` envoie un email via `supabase.auth.resetPasswordForEmail()` avec `redirectTo` vers `/reset-password`. `ResetPassword.tsx` écoute l'event `PASSWORD_RECOVERY` via `onAuthStateChange` puis appelle `supabase.auth.updateUser({ password })`. Configurer l'URL dans Supabase Dashboard > Authentication > URL Configuration > Redirect URLs.
+- **Admins** : `julien@messagingme.fr`, `bridey.johan@gmail.com` (rôle `admin` dans `user_roles`)
 
 ## Règles importantes
 

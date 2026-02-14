@@ -26,62 +26,44 @@ interface BlogPost {
   updated_at: string | null;
 }
 
-/** Split HTML at the middle block-level element */
-const splitHtmlAtMiddle = (html: string): { first: string; second: string } => {
-  // Match top-level block elements: <h2>, <h3>, <p>, <ul>, <ol>, <div>, <blockquote>, <table>, <section>
-  const blockRegex = /(<(?:h[1-6]|p|ul|ol|div|blockquote|table|section|figure)[^>]*>[\s\S]*?<\/(?:h[1-6]|p|ul|ol|div|blockquote|table|section|figure)>)/gi;
+/** Split HTML into 3 parts: before mid-image, beside mid-image (max 3 blocks), after */
+const splitHtmlForMidImage = (html: string): { before: string; beside: string; after: string } => {
+  const blockRegex = /(<(?:h[1-6]|p|ul|ol|div|blockquote|table|section|figure)\b[^>]*>[\s\S]*?<\/(?:h[1-6]|p|ul|ol|div|blockquote|table|section|figure)>)/gi;
   const blocks: string[] = [];
   let match;
   while ((match = blockRegex.exec(html)) !== null) {
     blocks.push(match[0]);
   }
 
-  if (blocks.length < 2) {
-    return { first: html, second: "" };
+  if (blocks.length < 4) {
+    return { before: html, beside: "", after: "" };
   }
 
-  const midIndex = Math.ceil(blocks.length / 2);
-  const first = blocks.slice(0, midIndex).join("\n");
-  const second = blocks.slice(midIndex).join("\n");
-  return { first, second };
+  const midStart = Math.ceil(blocks.length / 2);
+  const midEnd = Math.min(midStart + 3, blocks.length);
+
+  return {
+    before: blocks.slice(0, midStart).join("\n"),
+    beside: blocks.slice(midStart, midEnd).join("\n"),
+    after: blocks.slice(midEnd).join("\n"),
+  };
 };
 
-const MidImageSection = ({ imageUrl, alt, contentHtml }: { imageUrl: string; alt: string; contentHtml: string }) => {
-  const imgRef = React.useRef<HTMLImageElement>(null);
-  const [imgHeight, setImgHeight] = React.useState<number | null>(null);
-
-  const updateHeight = React.useCallback(() => {
-    if (imgRef.current && imgRef.current.clientHeight > 0) {
-      setImgHeight(imgRef.current.clientHeight);
-    }
-  }, []);
-
-  React.useEffect(() => {
-    window.addEventListener("resize", updateHeight);
-    return () => window.removeEventListener("resize", updateHeight);
-  }, [updateHeight]);
-
-  return (
-    <div className="my-10">
-      <div className="grid md:grid-cols-2 gap-8 items-start">
-        <img
-          ref={imgRef}
-          src={imageUrl}
-          alt={alt}
-          className="w-full h-auto rounded-xl shadow-md"
-          loading="lazy"
-          onLoad={updateHeight}
-        />
-        <div
-          className="overflow-hidden"
-          style={imgHeight ? { maxHeight: imgHeight } : undefined}
-        >
-          <ArticleContent html={contentHtml} />
-        </div>
+const MidImageSection = ({ imageUrl, alt, contentHtml }: { imageUrl: string; alt: string; contentHtml: string }) => (
+  <div className="my-10">
+    <div className="grid md:grid-cols-2 gap-8 items-start">
+      <img
+        src={imageUrl}
+        alt={alt}
+        className="w-full h-auto rounded-xl shadow-md"
+        loading="lazy"
+      />
+      <div>
+        <ArticleContent html={contentHtml} />
       </div>
     </div>
-  );
-};
+  </div>
+);
 
 const BlogArticle = () => {
   const slug = window.location.pathname.split('/').pop();
@@ -310,15 +292,18 @@ const BlogArticle = () => {
 
                 {/* Article Body */}
                 {post.mid_image_url ? (() => {
-                  const { first, second } = splitHtmlAtMiddle(post.content_html);
+                  const { before, beside, after } = splitHtmlForMidImage(post.content_html);
                   return (
                     <>
-                      <ArticleContent html={first} />
-                      <MidImageSection
-                        imageUrl={post.mid_image_url}
-                        alt={`Illustration - ${post.title}`}
-                        contentHtml={second}
-                      />
+                      <ArticleContent html={before} />
+                      {beside && (
+                        <MidImageSection
+                          imageUrl={post.mid_image_url}
+                          alt={`Illustration - ${post.title}`}
+                          contentHtml={beside}
+                        />
+                      )}
+                      {after && <ArticleContent html={after} />}
                     </>
                   );
                 })() : (

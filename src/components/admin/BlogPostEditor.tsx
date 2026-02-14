@@ -46,6 +46,53 @@ const BlogPostEditor = ({
 }: BlogPostEditorProps) => {
   const isAiDraft = selectedPost.workflow_status === "ai_draft";
 
+  const generateSeoFields = () => {
+    const title = selectedPost.title || "";
+    const excerpt = selectedPost.excerpt || "";
+
+    // SEO title: title + brand, max 60 chars
+    const brand = " | VerifierMonDevis";
+    let seoTitle = title;
+    if (title.length + brand.length <= 60) {
+      seoTitle = title + brand;
+    } else if (title.length > 60) {
+      seoTitle = title.substring(0, 57) + "...";
+    }
+
+    // SEO description from excerpt, max 155 chars
+    let seoDesc = excerpt || title;
+    if (seoDesc.length > 155) {
+      const cut = seoDesc.lastIndexOf(" ", 152);
+      seoDesc = seoDesc.substring(0, cut > 100 ? cut : 152) + "...";
+    }
+
+    // Extract SEO tags from title + excerpt
+    const stopWords = new Set([
+      "le", "la", "les", "de", "du", "des", "un", "une", "et", "ou", "en",
+      "à", "au", "aux", "pour", "par", "sur", "avec", "dans", "son", "sa",
+      "ses", "ce", "cette", "ces", "qui", "que", "quoi", "dont", "où",
+      "comment", "pourquoi", "votre", "vos", "mon", "nos", "tout", "tous",
+      "bien", "faire", "fait", "peut", "plus", "très", "est", "sont", "pas",
+    ]);
+    const source = `${title} ${excerpt}`.toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z\s-]/g, " ");
+    const words = source.split(/\s+/).filter(w => w.length > 3 && !stopWords.has(w));
+    const uniqueTags = [...new Set(words)].slice(0, 6);
+    const existingTags = (selectedPost.tags || []).map(t => t.toLowerCase());
+    const mergedTags = [
+      ...(selectedPost.tags || []),
+      ...uniqueTags.filter(t => !existingTags.includes(t)),
+    ];
+
+    onPostChange(prev => ({
+      ...prev,
+      seo_title: seoTitle,
+      seo_description: seoDesc,
+      tags: mergedTags,
+    }));
+  };
+
   const handleTitleChange = (title: string) => {
     onPostChange(prev => ({
       ...prev,
@@ -298,7 +345,20 @@ const BlogPostEditor = ({
 
           <Card>
             <CardHeader>
-              <CardTitle>SEO</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>SEO</CardTitle>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={generateSeoFields}
+                  disabled={!selectedPost.title}
+                >
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  Générer
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
