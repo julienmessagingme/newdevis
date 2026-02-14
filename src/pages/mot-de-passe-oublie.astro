@@ -1,0 +1,14 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import ForgotPasswordApp from '@/components/app/ForgotPasswordApp';
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="Mot de passe oublié | VerifierMonDevis.fr"
+  description="Réinitialisez votre mot de passe VerifierMonDevis.fr pour retrouver l'accès à vos analyses de devis."
+  canonical="https://verifiermondevis.fr/mot-de-passe-oublie"
+>
+  <ForgotPasswordApp client:only="react" />
+</BaseLayout>
