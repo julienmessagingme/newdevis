@@ -1,0 +1,163 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AstroHeader from '@/components/astro/Header.astro';
+import AstroFooter from '@/components/astro/Footer.astro';
+---
+
+<BaseLayout
+  title="Contact | VerifierMonDevis.fr"
+  description="Contactez l'équipe VerifierMonDevis.fr : question, suggestion, signalement ou demande de rectification. Réponse sous 48h."
+  canonical="https://verifiermondevis.fr/contact"
+  breadcrumbs={[
+    { name: "Accueil", url: "https://verifiermondevis.fr/" },
+    { name: "Contact", url: "https://verifiermondevis.fr/contact" }
+  ]}
+>
+  <div class="min-h-screen flex flex-col">
+    <AstroHeader />
+    <main class="flex-1 py-12">
+      <div class="container max-w-2xl">
+        <a
+          href="/"
+          class="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8 transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+          </svg>
+          Retour à l'accueil
+        </a>
+
+        <h1 class="text-3xl font-bold text-foreground mb-2">Nous contacter</h1>
+        <p class="text-muted-foreground mb-8">Une question, une suggestion ou un signalement ? Nous vous répondons sous 48h.</p>
+
+        <!-- Contact Form -->
+        <form
+          action="https://api.web3forms.com/submit"
+          method="POST"
+          id="contact-form"
+          class="space-y-6"
+        >
+          <!-- Web3Forms access key — REMPLACER par votre clé depuis https://web3forms.com -->
+          <input type="hidden" name="access_key" value="VOTRE_CLE_WEB3FORMS_ICI" />
+
+          <!-- Anti-bot honeypot -->
+          <input type="checkbox" name="botcheck" class="hidden" style="display:none" />
+
+          <!-- Subject prefix for email -->
+          <input type="hidden" name="subject" value="Nouveau message depuis VerifierMonDevis.fr" />
+          <input type="hidden" name="from_name" value="VerifierMonDevis.fr" />
+          <input type="hidden" name="redirect" value="https://verifiermondevis.fr/contact?success=true" />
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="name" class="block text-sm font-medium text-foreground mb-1.5">Nom *</label>
+              <input
+                type="text"
+                name="name"
+                id="name"
+                required
+                placeholder="Votre nom"
+                class="w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              />
+            </div>
+            <div>
+              <label for="email" class="block text-sm font-medium text-foreground mb-1.5">Email *</label>
+              <input
+                type="email"
+                name="email"
+                id="email"
+                required
+                placeholder="votre@email.fr"
+                class="w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label for="category" class="block text-sm font-medium text-foreground mb-1.5">Objet</label>
+            <select
+              name="category"
+              id="category"
+              class="w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            >
+              <option value="question">Question sur le service</option>
+              <option value="suggestion">Suggestion d'amélioration</option>
+              <option value="bug">Signaler un problème technique</option>
+              <option value="rectification">Demande de rectification (artisan)</option>
+              <option value="rgpd">Exercer mes droits (RGPD)</option>
+              <option value="autre">Autre</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="message" class="block text-sm font-medium text-foreground mb-1.5">Message *</label>
+            <textarea
+              name="message"
+              id="message"
+              required
+              rows="5"
+              placeholder="Décrivez votre demande..."
+              class="w-full px-3 py-2 rounded-md border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 resize-y"
+            ></textarea>
+          </div>
+
+          <button
+            type="submit"
+            class="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-6 text-sm font-medium w-full sm:w-auto"
+          >
+            Envoyer le message
+          </button>
+        </form>
+
+        <!-- Success message -->
+        <div id="success-message" style="display:none" class="mt-8 bg-score-green-bg border border-score-green/20 rounded-xl p-6 text-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-score-green mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p class="text-foreground font-medium mb-1">Message envoyé !</p>
+          <p class="text-sm text-muted-foreground">Merci pour votre message. Nous vous répondrons dans les meilleurs délais.</p>
+        </div>
+
+        <!-- Other contact options -->
+        <div class="mt-12 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="bg-card border border-border rounded-xl p-5">
+            <div class="flex items-center gap-3 mb-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+              </svg>
+              <p class="text-sm font-medium text-foreground">Par email</p>
+            </div>
+            <a href="mailto:contact@verifiermondevis.fr" class="text-sm text-primary hover:underline">
+              contact@verifiermondevis.fr
+            </a>
+          </div>
+
+          <div class="bg-card border border-border rounded-xl p-5">
+            <div class="flex items-center gap-3 mb-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+              </svg>
+              <p class="text-sm font-medium text-foreground">Questions fréquentes</p>
+            </div>
+            <a href="/faq" class="text-sm text-primary hover:underline">
+              Consultez notre FAQ
+            </a>
+          </div>
+        </div>
+      </div>
+    </main>
+    <AstroFooter />
+  </div>
+</BaseLayout>
+
+<script>
+  // Show success message if redirected after form submission
+  if (new URLSearchParams(window.location.search).get('success') === 'true') {
+    var form = document.getElementById('contact-form');
+    var msg = document.getElementById('success-message');
+    if (form) form.style.display = 'none';
+    if (msg) msg.style.display = 'block';
+    // Clean URL
+    history.replaceState({}, '', '/contact');
+  }
+</script>

@@ -43,6 +43,11 @@ const Footer = () => {
                   Qui sommes-nous
                 </a>
               </li>
+              <li>
+                <a href="/contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Contact
+                </a>
+              </li>
             </ul>
           </div>
 
