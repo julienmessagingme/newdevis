@@ -30,7 +30,14 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 | `/mot-de-passe-oublie` | `mot-de-passe-oublie.astro` | `ForgotPasswordApp` → `ForgotPassword` |
 | `/reset-password` | `reset-password.astro` | `ResetPasswordApp` → `ResetPassword` |
 | `/parametres` | `parametres.astro` | `SettingsApp` → `Settings` |
-| `/comprendre-votre-score` | `comprendre-votre-score.astro` | `ComprendreScoreApp` → `ComprendreScore` |
+| `/comprendre-score` | `comprendre-score.astro` | `ComprendreScoreApp` → `ComprendreScore` |
+| `/faq` | `faq.astro` | *(statique Astro — accordéons `<details>`)* |
+| `/qui-sommes-nous` | `qui-sommes-nous.astro` | *(statique Astro)* |
+| `/contact` | `contact.astro` | *(statique Astro — formulaire Web3Forms)* |
+| `/mentions-legales` | `mentions-legales.astro` | *(statique Astro)* |
+| `/confidentialite` | `confidentialite.astro` | *(statique Astro)* |
+| `/cgu` | `cgu.astro` | *(statique Astro)* |
+| `/sitemap-blog.xml` | `sitemap-blog.xml.ts` | *(endpoint SSR — sitemap dynamique blog)* |
 
 ## Ajouter une page
 
@@ -43,20 +50,22 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 - **`lib/*Utils.ts`** : Logique métier externalisée par domaine (`entrepriseUtils`, `devisUtils`, `securiteUtils`, `contexteUtils`, `urbanismeUtils`, `architecteUtils`, `blogUtils`, `scoreUtils`). Les composants `analysis/Block*.tsx` importent depuis ces fichiers.
 - **`components/admin/`** : Module blog admin complet (`BlogPostList`, `BlogPostEditor`, `BlogDialogs`, `AiGenerationPanel`, `ManualWriteEditor`, `RichTextToolbar`, `ImageManagement`, `blogTypes`)
 - **`components/funnel/`** : Tunnel de conversion (`FunnelStepper`, `PremiumGate`). PremiumGate est intégré dans `BlockPrixMarche` via props (`showGate`, `onAuthSuccess`, `convertToPermanent`) — affiché uniquement quand le bloc est collapsé et l'utilisateur anonyme.
-- **`components/analysis/`** : 18 composants dont `DocumentRejectionScreen`, `ExtractionBlocker`, `OcrDebugPanel` (lazy-loaded via `React.lazy` + `Suspense` dans `AnalysisResult.tsx`)
-- **`supabase/functions/analyze-quote/`** : Pipeline modulaire (9 fichiers : `index`, `extract`, `verify`, `score`, `render`, `summarize`, `market-prices`, `utils`, `types`)
+- **`components/analysis/`** : 18 composants dont `DocumentRejectionScreen`, `ExtractionBlocker`, `OcrDebugPanel` (lazy-loaded via `React.lazy` + `Suspense` dans `AnalysisResult.tsx`). `BlockPrixMarche` inclut un `StepIndicator` interne (stepper visuel 2 étapes : Affectation des postes → Analyse des prix).
+- **`supabase/functions/analyze-quote/`** : Pipeline modulaire (10 fichiers : `index`, `extract`, `verify`, `score`, `render`, `summarize`, `market-prices`, `domain-config`, `utils`, `types`)
+- **`utils/generatePdfReport.ts`** : Génération PDF côté client via `jsPDF`. Structuré par blocs (entreprise, devis, sécurité, contexte) en miroir du frontend. Utilise les mêmes utils métier (`entrepriseUtils`, `securiteUtils`, etc.).
+- **`lib/domainConfig.ts`** : Registre frontend des blocs visibles par domaine (`travaux`, `auto`, `dentaire`). Conditionne l'affichage des blocs dans `AnalysisResult`.
 - **Hooks** : 6 hooks dont `useAnonymousAuth.ts` (auth anonyme), `useMarketPriceEditor.ts` (édition interactive prix marché)
 
 ## Supabase
 
 ### Tables (9)
-- `analyses` — analyses de devis (table principale). Colonne `market_price_overrides` (JSONB) pour les éditions utilisateur sur les prix marché. **Limite 10 par utilisateur** : les plus anciennes sont purgées automatiquement par le pipeline.
+- `analyses` — analyses de devis (table principale). Colonne `market_price_overrides` (JSONB) pour les éditions utilisateur sur les prix marché. Colonne `domain` (TEXT, default `'travaux'`) pour le multi-vertical. **Limite 10 par utilisateur** : les plus anciennes sont purgées automatiquement par le pipeline.
 - `analysis_work_items` — lignes de travaux détaillées par analyse. Colonne `job_type_group` (TEXT) pour le rattachement au job type IA.
 - `blog_posts` — articles de blog (avec workflow IA, images cover + mid)
 - `company_cache` — cache vérification entreprise (recherche-entreprises.api.gouv.fr). Purge auto quotidienne via cron.
-- `market_prices` — référentiel prix marché (~267 lignes). RLS avec policy `market_prices_public_read` (accès anon + authenticated en lecture). Utilisé côté backend (edge functions via service_role) ET côté frontend (calculatrice homepage via anon key).
+- `market_prices` — référentiel prix marché (~267 lignes). Colonne `domain` (TEXT, default `'travaux'`). RLS avec policy `market_prices_public_read` (accès anon + authenticated en lecture). Utilisé côté backend (edge functions via service_role) ET côté frontend (calculatrice homepage via anon key).
 - `post_signature_tracking` — suivi post-signature
-- `price_observations` — **données "gold" big data** : snapshot des groupements job type par analyse. Survit à la suppression des analyses (pas de FK CASCADE). Voir section dédiée ci-dessous.
+- `price_observations` — **données "gold" big data** : snapshot des groupements job type par analyse. Colonne `domain` (TEXT, default `'travaux'`). Survit à la suppression des analyses (pas de FK CASCADE). Voir section dédiée ci-dessous.
 - `user_roles` — rôles (admin/moderator/user)
 - `zones_geographiques` — coefficients géographiques par code postal
 
@@ -90,6 +99,9 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 - `idx_price_obs_job_type` — `price_observations(job_type_label)` — agrégation par job type
 - `idx_price_obs_catalog` — `price_observations(catalog_job_types)` GIN — recherche par identifiant catalogue
 - `idx_price_obs_zip` — `price_observations(zip_code)` — filtrage géographique
+- `idx_analyses_domain` — `analyses(domain)` — filtrage multi-vertical
+- `idx_market_prices_domain` — `market_prices(domain)` — filtrage multi-vertical
+- `idx_price_obs_domain` — `price_observations(domain)` — filtrage multi-vertical
 
 ### Régénérer les types
 ```bash
@@ -236,6 +248,59 @@ Phase 2 du pipeline — 100% appels API déterministes, pas d'IA. Aucune API pay
 - **Logs edge functions — fuites de secrets** : Les `catch` blocks peuvent logger des objets Error contenant des clés API ou Bearer tokens dans les headers. Solution : toujours utiliser `error.message` (pas l'objet complet) + masquer les tokens avec regex `Bearer\s+[a-zA-Z0-9_.-]+` → `Bearer ***`.
 - **Astro 5 `output: 'hybrid'` supprimé** : L'option `hybrid` n'existe plus en Astro 5. Utiliser `output: 'static'` avec un adapter — les pages avec `export const prerender = false` seront rendues côté serveur automatiquement.
 - **Variables d'env Vercel côté client** : En Astro sur Vercel, seules les variables préfixées `PUBLIC_` sont exposées au client. `VITE_SUPABASE_URL` ne marche pas → utiliser `PUBLIC_SUPABASE_URL` et `PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+- **React hooks après conditional return (Error #310)** : Dans `AnalysisResult.tsx`, les hooks (`useState`, `useRef`) doivent être déclarés AVANT tout `if (loading) return` ou `if (!data) return`. Sinon React voit un nombre de hooks différent entre les renders → crash production "Too many re-renders" (Error #310).
+
+## SEO et données structurées
+
+### BaseLayout.astro — props SEO
+`BaseLayout.astro` accepte des props SEO optionnelles : `canonical`, `ogType`, `ogImage`, `jsonLd` (objet Schema.org), `breadcrumbs` (tableau `{name, url}`). Toute page qui a besoin de données structurées les passe via ces props.
+
+### JSON-LD par page
+- **Global** (toutes les pages) : `Organization` (logo, email, description)
+- **Global** (si `breadcrumbs` fourni) : `BreadcrumbList` automatique
+- `/faq` : `FAQPage` avec `mainEntity` généré depuis le tableau `faqs`
+- `/qui-sommes-nous` : `AboutPage` avec `Organization` en `mainEntity`
+- `/comprendre-score` : `HowTo` (étapes du scoring)
+- `/blog` : `CollectionPage`
+- `/blog/:slug` : `Article` (titre, auteur, dates, image) — données récupérées côté serveur dans le frontmatter Astro via `supabase.from("blog_posts").select()`
+
+### Sitemaps
+- `public/sitemap.xml` — pages statiques (12 URLs)
+- `src/pages/sitemap-blog.xml.ts` — endpoint SSR dynamique, requête les `blog_posts` publiés dans Supabase
+- `public/robots.txt` référence les deux sitemaps
+
+## Cookie consent RGPD
+
+Bandeau cookie dans `BaseLayout.astro` avec boutons **Accepter / Refuser**. Stockage dans `localStorage('cookie-consent')` : `'accepted'` ou `'rejected'`.
+
+- **Si accepté** : appelle `loadTrackingScripts()` qui injecte GA + Meta Pixel dans le DOM (actuellement commentés, prêts à activer)
+- **Si refusé** : rien n'est chargé, le bandeau ne réapparaît plus
+- **Nouveau visiteur** : le bandeau s'affiche
+
+**À configurer** : remplacer `G-XXXXXXXXXX` (Google Analytics) et `XXXXXXXXXXXXXXX` (Meta Pixel ID) dans `BaseLayout.astro` puis décommenter le code.
+
+## Page Contact (Web3Forms)
+
+`src/pages/contact.astro` — formulaire serverless via Web3Forms (POST vers `api.web3forms.com/submit`). Champs : nom, email, catégorie (select), message. Protection anti-bot par honeypot (`<input type="checkbox" name="botcheck" class="hidden">`). Redirection vers `/contact?success=true` après envoi.
+
+**À configurer** : remplacer `VOTRE_CLE_WEB3FORMS_ICI` par la clé d'accès obtenue sur web3forms.com.
+
+## Architecture multi-verticale (domain)
+
+Préparation pour supporter d'autres domaines que "travaux" (auto, dentaire, etc.) **sans changer le fonctionnement actuel**. Tout est `DEFAULT 'travaux'`, zéro régression.
+
+- **Migration** : `20260215140000_add_domain_columns.sql` — colonne `domain` + index sur `analyses`, `market_prices`, `price_observations`
+- **Backend** : `supabase/functions/analyze-quote/domain-config.ts` — config centralisée par domaine (prompts IA, assurances, certifications, labels). `getDomainConfig(domain)` est appelé par `extract.ts`, `market-prices.ts`, `score.ts`, `render.ts`.
+- **Frontend** : `src/lib/domainConfig.ts` — registre des blocs visibles par domaine. `AnalysisResult` utilise `getVisibleBlocks(domain)` pour conditionner l'affichage.
+- **Type** : `DomainType = 'travaux' | 'auto' | 'dentaire'` défini dans `analyze-quote/types.ts`
+
+## Barre de progression (analyse en cours)
+
+`AnalysisResult.tsx` affiche une barre de progression animée pendant le polling de l'analyse. Le backend émet des messages préfixés `[1/5]`, `[2/5]`, etc. dans `analyses.status_message`. Le frontend parse ces préfixes via `parseStepFromMessage()` et affiche l'étape courante avec icône + pourcentage. Des messages d'attente rotatifs (`WAITING_MESSAGES`) se succèdent toutes les 5 secondes.
+
+## Widget MessagingMe
+
+Script chat widget chargé dans `<head>` de `BaseLayout.astro` : `<script src="https://ai.messagingme.app/widget/f236879w135897.js" async>`. Présent sur toutes les pages.
 
 ## Authentification et navigation admin
 
