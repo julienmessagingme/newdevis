@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Receipt, MapPin, Info, ChevronDown, ChevronUp, GripVertical, CheckCircle2, Pencil, RotateCcw } from "lucide-react";
+import { Receipt, MapPin, Info, ChevronDown, ChevronUp, GripVertical, CheckCircle2, Pencil, RotateCcw, ListChecks, BarChart3 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { useMarketPriceAPI, type MarketPriceTableRow, type JobTypeDisplayRow } from "@/hooks/useMarketPriceAPI";
@@ -320,6 +320,60 @@ const MarketPriceTable = ({ rows }: { rows: MarketPriceTableRow[] }) => (
 );
 
 // =======================
+// STEPPER — visual indicator of the 2-step process
+// =======================
+
+const StepIndicator = ({ currentStep }: { currentStep: 1 | 2 }) => (
+  <div className="flex items-center gap-0 mb-4">
+    {/* Step 1 */}
+    <div className="flex items-center gap-2 flex-1 min-w-0">
+      <div className={`flex items-center justify-center w-7 h-7 rounded-full flex-shrink-0 transition-colors ${
+        currentStep === 1
+          ? "bg-primary text-primary-foreground"
+          : "bg-green-500 text-white"
+      }`}>
+        {currentStep > 1
+          ? <CheckCircle2 className="h-4 w-4" />
+          : <ListChecks className="h-3.5 w-3.5" />
+        }
+      </div>
+      <div className="min-w-0">
+        <p className={`text-xs font-semibold leading-tight ${currentStep === 1 ? "text-foreground" : "text-green-600"}`}>
+          Affectation des postes
+        </p>
+        <p className="text-[10px] text-muted-foreground leading-tight truncate">
+          {currentStep === 1 ? "Vérifiez le classement des lignes" : "Terminé"}
+        </p>
+      </div>
+    </div>
+
+    {/* Connector */}
+    <div className={`w-8 h-0.5 flex-shrink-0 mx-1 transition-colors ${
+      currentStep > 1 ? "bg-green-500" : "bg-border"
+    }`} />
+
+    {/* Step 2 */}
+    <div className="flex items-center gap-2 flex-1 min-w-0">
+      <div className={`flex items-center justify-center w-7 h-7 rounded-full flex-shrink-0 transition-colors ${
+        currentStep === 2
+          ? "bg-primary text-primary-foreground"
+          : "bg-muted text-muted-foreground"
+      }`}>
+        <BarChart3 className="h-3.5 w-3.5" />
+      </div>
+      <div className="min-w-0">
+        <p className={`text-xs font-semibold leading-tight ${currentStep === 2 ? "text-foreground" : "text-muted-foreground"}`}>
+          Analyse des prix
+        </p>
+        <p className="text-[10px] text-muted-foreground leading-tight truncate">
+          {currentStep === 2 ? "Comparaison au marché" : "Après validation"}
+        </p>
+      </div>
+    </div>
+  </div>
+);
+
+// =======================
 // PHASE 1 WRAPPER — scrollable container with auto-scroll on drag
 // =======================
 
@@ -483,15 +537,18 @@ const BlockPrixMarche = ({
       // ---- PHASE 1 : Assignment (not validated yet) ----
       if (!editor.isValidated) {
         return (
-          <AssignmentPhase
-            rows={editor.rows}
-            moveLineToJobType={editor.moveLineToJobType}
-            updateQuantity={editor.updateQuantity}
-            isDirty={editor.isDirty}
-            saving={editor.saving}
-            validate={editor.validate}
-            reset={editor.reset}
-          />
+          <>
+            <StepIndicator currentStep={1} />
+            <AssignmentPhase
+              rows={editor.rows}
+              moveLineToJobType={editor.moveLineToJobType}
+              updateQuantity={editor.updateQuantity}
+              isDirty={editor.isDirty}
+              saving={editor.saving}
+              validate={editor.validate}
+              reset={editor.reset}
+            />
+          </>
         );
       }
 
@@ -503,10 +560,8 @@ const BlockPrixMarche = ({
 
       return (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
-              Affectation validée
-            </p>
+          <StepIndicator currentStep={2} />
+          <div className="flex items-center justify-end">
             <button
               type="button"
               onClick={editor.editAssignment}
