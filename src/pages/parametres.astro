@@ -1,0 +1,13 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import SettingsApp from '@/components/app/SettingsApp';
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="Paramètres du compte | VerifierMonDevis.fr"
+  description="Gérez vos informations personnelles et modifiez votre mot de passe."
+>
+  <SettingsApp client:only="react" />
+</BaseLayout>
