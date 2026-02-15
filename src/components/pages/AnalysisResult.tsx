@@ -353,6 +353,23 @@ const AnalysisResult = () => {
   const totalHT = useMemo(() => calculateTotalHT(analysis?.types_travaux), [analysis?.types_travaux]);
   const visibleBlocks = useMemo(() => getVisibleBlocks(analysis?.domain || "travaux"), [analysis?.domain]);
 
+  // ---- Waiting message rotation (must be before any conditional return) ----
+  const [waitingMsgIdx, setWaitingMsgIdx] = useState(0);
+  const waitingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (analysis?.status === "pending" || analysis?.status === "processing") {
+      waitingIntervalRef.current = setInterval(() => {
+        setWaitingMsgIdx((prev) => (prev + 1) % WAITING_MESSAGES.length);
+      }, 4000);
+    } else if (waitingIntervalRef.current) {
+      clearInterval(waitingIntervalRef.current);
+    }
+    return () => {
+      if (waitingIntervalRef.current) clearInterval(waitingIntervalRef.current);
+    };
+  }, [analysis?.status]);
+
   if (loading || authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -382,23 +399,6 @@ const AnalysisResult = () => {
       </div>
     );
   }
-
-  // ---- Processing / pending state with animated progress ----
-  const [waitingMsgIdx, setWaitingMsgIdx] = useState(0);
-  const waitingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    if (analysis?.status === "pending" || analysis?.status === "processing") {
-      waitingIntervalRef.current = setInterval(() => {
-        setWaitingMsgIdx((prev) => (prev + 1) % WAITING_MESSAGES.length);
-      }, 4000);
-    } else if (waitingIntervalRef.current) {
-      clearInterval(waitingIntervalRef.current);
-    }
-    return () => {
-      if (waitingIntervalRef.current) clearInterval(waitingIntervalRef.current);
-    };
-  }, [analysis?.status]);
 
   if (analysis.status === "pending" || analysis.status === "processing") {
     const currentStepIdx = parseStepFromMessage(analysis.error_message);
