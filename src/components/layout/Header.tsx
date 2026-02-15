@@ -34,7 +34,7 @@ const Header = () => {
           </a>
           <div className="flex items-center gap-3">
             <a href="/connexion">
-              <Button variant={isLandingPage ? "ghost" : "outline"} className={isLandingPage ? 'text-primary-foreground hover:bg-primary-foreground/10' : ''}>
+              <Button variant={isLandingPage ? "ghost" : "outline"} className={isLandingPage ? 'bg-primary-foreground/15 text-primary-foreground border border-primary-foreground/30 hover:bg-primary-foreground/25' : ''}>
                 Connexion
               </Button>
             </a>
