@@ -24,8 +24,8 @@ const HeroSection = () => {
             </h1>
 
             <p className="text-base sm:text-lg md:text-xl text-primary-foreground/80 mb-6 sm:mb-8 max-w-xl mx-auto lg:mx-0 px-2">
-              Téléchargez votre devis et obtenez instantanément un score de fiabilité. 
-              Feu vert, orange ou rouge : sachez si vous pouvez faire confiance à l'artisan.
+              Téléchargez votre devis et obtenez instantanément un score de fiabilité.
+              Feu vert, orange ou rouge : sachez si vous pouvez faire confiance à l'artisan et si les prix proposés sont cohérents.
             </p>
 
             <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row justify-center lg:justify-start mb-8 sm:mb-10 px-2">
