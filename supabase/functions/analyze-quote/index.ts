@@ -507,6 +507,41 @@ serve(async (req) => {
       prices: jt.prices,
     }));
 
+    // ============ SNAPSHOT PRICE OBSERVATIONS (gold data) ============
+    if (jobTypePrices.length > 0 && analysis.user_id) {
+      const zipCode = extracted.client?.code_postal || null;
+      const obsRows = jobTypePrices
+        .filter((jt) => jt.catalog_job_types.length > 0) // skip "Autre" group
+        .map((jt) => ({
+          analysis_id: analysisId,
+          user_id: analysis.user_id,
+          job_type_label: jt.job_type_label,
+          catalog_job_types: jt.catalog_job_types,
+          main_unit: jt.main_unit || "forfait",
+          main_quantity: jt.main_quantity || 1,
+          devis_total_ht: jt.devis_total_ht,
+          line_count: jt.devis_lines.length,
+          devis_lines: jt.devis_lines.map((l) => ({
+            description: l.description,
+            amount_ht: l.amount_ht,
+            quantity: l.quantity,
+            unit: l.unit,
+          })),
+          zip_code: zipCode,
+        }));
+
+      if (obsRows.length > 0) {
+        const { error: obsError } = await supabase
+          .from("price_observations")
+          .insert(obsRows);
+        if (obsError) {
+          console.error("[PriceObservations] Insert error:", obsError.message);
+        } else {
+          console.log("[PriceObservations] Inserted", obsRows.length, "observations");
+        }
+      }
+    }
+
     // ============ PHASE 3: SCORING DÉTERMINISTE (SANS IA) ============
     await supabase.from("analyses").update({ error_message: "[4/5] Calcul du score..." }).eq("id", analysisId);
     console.log("--- PHASE 3: SCORING DÉTERMINISTE ---");
@@ -634,6 +669,34 @@ serve(async (req) => {
         JSON.stringify({ error: "Failed to save analysis results", details: updateError.message }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // ============ PURGE OLD ANALYSES (keep max 10 per user) ============
+    if (analysis.user_id) {
+      try {
+        const { data: oldAnalyses } = await supabase
+          .from("analyses")
+          .select("id, file_path")
+          .eq("user_id", analysis.user_id)
+          .order("created_at", { ascending: false })
+          .range(10, 999);
+
+        if (oldAnalyses && oldAnalyses.length > 0) {
+          const idsToDelete = oldAnalyses.map((a) => a.id);
+          // Delete stored files
+          const filePaths = oldAnalyses.map((a) => a.file_path).filter(Boolean);
+          if (filePaths.length > 0) {
+            await supabase.storage.from("devis").remove(filePaths);
+          }
+          // Delete analyses (CASCADE deletes analysis_work_items + document_extractions)
+          // price_observations survives (no FK)
+          await supabase.from("analyses").delete().in("id", idsToDelete);
+          console.log("[Purge] Deleted", idsToDelete.length, "old analyses for user", analysis.user_id);
+        }
+      } catch (purgeError) {
+        // Non-blocking: don't fail the pipeline if purge fails
+        console.error("[Purge] Error:", purgeError instanceof Error ? purgeError.message : purgeError);
+      }
     }
 
     return new Response(

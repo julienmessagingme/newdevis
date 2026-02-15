@@ -190,6 +190,39 @@ export function useMarketPriceEditor({
         return;
       }
 
+      // Update price_observations with corrected data
+      const correctedData = applyOverrides(rawDataRef.current, toSave);
+      if (Array.isArray(correctedData)) {
+        for (const jt of correctedData) {
+          if (!jt.job_type_label || !jt.catalog_job_types?.length) continue;
+          const lines = (jt.devis_lines || []).map((l: { description: string; amount_ht: number | null; quantity: number | null; unit: string | null }) => ({
+            description: l.description,
+            amount_ht: l.amount_ht,
+            quantity: l.quantity,
+            unit: l.unit,
+          }));
+          let totalHt: number | null = null;
+          let hasAmount = false;
+          for (const l of jt.devis_lines || []) {
+            if (l.amount_ht != null) {
+              totalHt = (totalHt || 0) + l.amount_ht;
+              hasAmount = true;
+            }
+          }
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase.from("price_observations") as any)
+            .update({
+              main_quantity: jt.main_quantity,
+              devis_total_ht: hasAmount ? totalHt : jt.devis_total_ht,
+              line_count: lines.length,
+              devis_lines: lines,
+            })
+            .eq("analysis_id", analysisId)
+            .eq("job_type_label", jt.job_type_label);
+        }
+      }
+
       setOverrides(toSave);
       setLocalValidated(true);
     } finally {
