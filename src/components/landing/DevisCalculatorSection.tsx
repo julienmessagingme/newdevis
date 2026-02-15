@@ -221,11 +221,6 @@ const DevisCalculatorSection = () => {
                   <MapPin className="h-4 w-4 text-muted-foreground" />
                   <span className="text-muted-foreground">
                     {getZoneLabel(result.zone.zone)}
-                    {result.zone.coefficient !== 1.0 && (
-                      <span className="ml-1 text-xs">
-                        (coef. {result.zone.coefficient.toFixed(2)})
-                      </span>
-                    )}
                   </span>
                 </div>
 
