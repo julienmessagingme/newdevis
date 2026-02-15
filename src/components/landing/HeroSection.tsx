@@ -35,7 +35,7 @@ const HeroSection = () => {
                   <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 transition-transform group-hover:translate-x-1" />
                 </Button>
               </a>
-              <a href="/comment-ca-marche" className="w-full sm:w-auto">
+              <a href="#comment-ca-marche" className="w-full sm:w-auto">
                 <Button variant="ghost" size="xl" className="w-full text-primary-foreground hover:bg-primary-foreground/10 text-sm sm:text-base">
                   Comment ça marche ?
                 </Button>

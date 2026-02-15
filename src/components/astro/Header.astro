@@ -8,10 +8,10 @@ const isLandingPage = pathname === '/';
     <a href="/" class="flex items-center gap-3">
       <img
         alt="VerifierMonDevis.fr"
-        class="h-14 w-14 object-contain"
+        class="h-10 w-10 sm:h-14 sm:w-14 object-contain"
         src="/images/logo-header.png"
       />
-      <span class={`text-2xl font-bold ${isLandingPage ? 'text-primary-foreground' : 'text-foreground'}`}>
+      <span class={`text-base sm:text-2xl font-bold ${isLandingPage ? 'text-primary-foreground' : 'text-foreground'}`}>
         VerifierMonDevis.fr
       </span>
     </a>
@@ -50,12 +50,12 @@ const isLandingPage = pathname === '/';
   </div>
 
   <!-- Mobile Menu -->
-  <div class={`md:hidden border-t hidden ${isLandingPage ? 'bg-primary border-primary/20' : 'bg-card border-border'}`} id="mobile-menu">
+  <div class={`md:hidden border-t hidden shadow-lg ${isLandingPage ? 'bg-primary-foreground border-primary/20' : 'bg-card border-border'}`} id="mobile-menu">
     <nav class="container py-4 flex flex-col gap-4">
-      <a href="/blog" class={`text-sm font-medium ${isLandingPage ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
+      <a href="/blog" class={`text-sm font-medium ${isLandingPage ? 'text-primary' : 'text-muted-foreground'}`}>
         Blog
       </a>
-      <a href="/comprendre-score" class={`text-sm font-medium ${isLandingPage ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
+      <a href="/comprendre-score" class={`text-sm font-medium ${isLandingPage ? 'text-primary' : 'text-muted-foreground'}`}>
         Comprendre mon score
       </a>
       <div class="flex flex-col gap-2 pt-2">

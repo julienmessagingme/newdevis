@@ -10,13 +10,13 @@ const Header = () => {
         <a href="/" className="flex items-center gap-3">
           <img
             alt="VerifierMonDevis.fr"
-            className="h-14 w-14 object-contain"
+            className="h-10 w-10 sm:h-14 sm:w-14 object-contain"
             src="/images/logo-header.png"
             width={56}
             height={56}
             loading="lazy"
           />
-          <span className={`text-2xl font-bold ${isLandingPage ? 'text-primary-foreground' : 'text-foreground'}`}>
+          <span className={`text-base sm:text-2xl font-bold ${isLandingPage ? 'text-primary-foreground' : 'text-foreground'}`}>
             VerifierMonDevis.fr
           </span>
         </a>
@@ -50,12 +50,12 @@ const Header = () => {
       </div>
 
       {/* Mobile Menu */}
-      {mobileMenuOpen && <div className={`md:hidden border-t ${isLandingPage ? 'bg-primary border-primary/20' : 'bg-card border-border'}`}>
+      {mobileMenuOpen && <div className={`md:hidden border-t shadow-lg ${isLandingPage ? 'bg-primary-foreground border-primary/20' : 'bg-card border-border'}`}>
           <nav className="container py-4 flex flex-col gap-4">
-            <a href="/blog" className={`text-sm font-medium ${isLandingPage ? 'text-primary-foreground/80' : 'text-muted-foreground'}`} onClick={() => setMobileMenuOpen(false)}>
+            <a href="/blog" className={`text-sm font-medium ${isLandingPage ? 'text-primary' : 'text-muted-foreground'}`} onClick={() => setMobileMenuOpen(false)}>
               Blog
             </a>
-            <a href="/comprendre-score" className={`text-sm font-medium ${isLandingPage ? 'text-primary-foreground/80' : 'text-muted-foreground'}`} onClick={() => setMobileMenuOpen(false)}>
+            <a href="/comprendre-score" className={`text-sm font-medium ${isLandingPage ? 'text-primary' : 'text-muted-foreground'}`} onClick={() => setMobileMenuOpen(false)}>
               Comprendre mon score
             </a>
             <div className="flex flex-col gap-2 pt-2">

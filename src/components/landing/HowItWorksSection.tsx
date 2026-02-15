@@ -23,7 +23,7 @@ const steps = [
 
 const HowItWorksSection = () => {
   return (
-    <section className="py-20 bg-background">
+    <section id="comment-ca-marche" className="py-20 bg-background">
       <div className="container">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">

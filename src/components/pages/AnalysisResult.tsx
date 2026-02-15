@@ -356,7 +356,7 @@ const AnalysisResult = () => {
               <div className="p-2 rounded-lg bg-primary/10">
                 <Shield className="h-6 w-6 text-primary" />
               </div>
-              <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
+              <span className="text-base sm:text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
             </a>
           </div>
         </header>
@@ -477,16 +477,16 @@ const AnalysisResult = () => {
             <div className="p-2 rounded-lg bg-primary/10">
               <Shield className="h-6 w-6 text-primary" />
             </div>
-            <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
+            <span className="text-base sm:text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
           </a>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => window.location.href = "/nouvelle-analyse"}>
-              <FilePlus2 className="h-4 w-4 mr-2" />
-              Analyser un autre devis
+            <Button variant="outline" size="sm" onClick={() => window.location.href = "/nouvelle-analyse"} className="px-2 sm:px-3">
+              <FilePlus2 className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Analyser un autre devis</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => generatePdfReport(analysis)}>
-              <Download className="h-4 w-4 mr-2" />
-              Télécharger le rapport
+            <Button variant="outline" size="sm" onClick={() => generatePdfReport(analysis)} className="px-2 sm:px-3">
+              <Download className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Télécharger le rapport</span>
             </Button>
           </div>
         </div>
