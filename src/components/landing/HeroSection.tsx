@@ -8,7 +8,7 @@ const HeroSection = () => {
         <div className="absolute bottom-20 right-10 w-96 h-96 bg-primary-foreground rounded-full blur-3xl" />
       </div>
 
-      <div className="container relative py-12 px-4 sm:px-6 lg:py-32">
+      <div className="container relative py-12 px-4 sm:px-6 lg:py-20">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           {/* Content */}
           <div className="text-center lg:text-left">
@@ -18,7 +18,7 @@ const HeroSection = () => {
               <span className="relative inline-block">
                 gratuitement
                 <svg className="absolute -bottom-1 sm:-bottom-2 left-0 w-full" viewBox="0 0 200 12" fill="none">
-                  <path d="M2 10C50 4 150 4 198 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="text-score-green" />
+                  <path d="M2 10C50 4 150 4 198 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="text-score-green animate-underline-draw" strokeDasharray="200" strokeDashoffset="200" />
                 </svg>
               </span>
             </h1>
