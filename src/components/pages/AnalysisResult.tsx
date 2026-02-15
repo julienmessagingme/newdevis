@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, lazy, Suspense } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Shield,
@@ -11,7 +11,12 @@ import {
   Loader2,
   RefreshCw,
   Lock,
-  FilePlus2
+  FilePlus2,
+  Search,
+  Building2,
+  BarChart3,
+  ShieldCheck,
+  FileCheck
 } from "lucide-react";
 import { getScoreIcon, getScoreLabel, getScoreBgClass, getScoreTextClass } from "@/lib/scoreUtils";
 import { supabase } from "@/integrations/supabase/client";
@@ -230,6 +235,34 @@ const calculateTotalHT = (typesTravaux?: TravauxItem[]): number | undefined => {
   return total > 0 ? total : undefined;
 };
 
+// ---- Pipeline progress config ----
+const PIPELINE_STEPS = [
+  { key: "[1/5]", label: "Téléchargement du fichier", icon: FileText, pct: 8 },
+  { key: "[2/5]", label: "Extraction IA du document", icon: Search, pct: 30 },
+  { key: "[2.5/5]", label: "Résumé des postes", icon: FileCheck, pct: 45 },
+  { key: "[3/5]", label: "Vérifications entreprise", icon: Building2, pct: 60 },
+  { key: "[4/5]", label: "Calcul du score", icon: BarChart3, pct: 80 },
+  { key: "[5/5]", label: "Génération du rapport", icon: ShieldCheck, pct: 95 },
+];
+
+const WAITING_MESSAGES = [
+  "Nos algorithmes inspectent chaque ligne de votre devis...",
+  "Vérification de l'entreprise auprès des registres officiels...",
+  "Comparaison avec les prix du marché en cours...",
+  "Analyse des garanties et assurances...",
+  "C'est bientôt fini, on y est presque !",
+  "Encore quelques secondes de patience...",
+  "On peaufine les derniers détails du rapport...",
+];
+
+function parseStepFromMessage(msg?: string | null): number {
+  if (!msg) return 0;
+  for (let i = PIPELINE_STEPS.length - 1; i >= 0; i--) {
+    if (msg.startsWith(PIPELINE_STEPS[i].key)) return i;
+  }
+  return 0;
+}
+
 const AnalysisResult = () => {
   const id = window.location.pathname.split('/').pop();
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
@@ -350,7 +383,29 @@ const AnalysisResult = () => {
     );
   }
 
+  // ---- Processing / pending state with animated progress ----
+  const [waitingMsgIdx, setWaitingMsgIdx] = useState(0);
+  const waitingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (analysis?.status === "pending" || analysis?.status === "processing") {
+      waitingIntervalRef.current = setInterval(() => {
+        setWaitingMsgIdx((prev) => (prev + 1) % WAITING_MESSAGES.length);
+      }, 4000);
+    } else if (waitingIntervalRef.current) {
+      clearInterval(waitingIntervalRef.current);
+    }
+    return () => {
+      if (waitingIntervalRef.current) clearInterval(waitingIntervalRef.current);
+    };
+  }, [analysis?.status]);
+
   if (analysis.status === "pending" || analysis.status === "processing") {
+    const currentStepIdx = parseStepFromMessage(analysis.error_message);
+    const currentStep = PIPELINE_STEPS[currentStepIdx];
+    const progressPct = currentStep?.pct ?? 5;
+    const StepIcon = currentStep?.icon ?? Loader2;
+
     return (
       <div className="min-h-screen bg-background">
         <header className="sticky top-0 z-50 bg-card border-b border-border">
@@ -363,19 +418,65 @@ const AnalysisResult = () => {
             </a>
           </div>
         </header>
-        <main className="container py-16 max-w-2xl text-center">
-          <div className="w-20 h-20 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <Loader2 className="h-10 w-10 text-primary animate-spin" />
+        <main className="container py-16 max-w-lg text-center">
+          {/* Animated icon */}
+          <div className="w-20 h-20 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 relative">
+            <StepIcon className="h-10 w-10 text-primary animate-pulse" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground mb-4">Analyse en cours...</h1>
-          <p className="text-muted-foreground mb-4">Notre IA analyse votre devis. Cela peut prendre quelques minutes.</p>
-          {analysis.error_message && analysis.error_message.startsWith("[") && (
-            <p className="text-sm font-medium text-primary mb-4">{analysis.error_message}</p>
-          )}
-          <p className="text-xs text-muted-foreground/60 mb-8">Statut : {analysis.status}</p>
-          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-            <RefreshCw className="h-4 w-4 animate-spin" />
-            La page se mettra à jour automatiquement
+
+          <h1 className="text-2xl font-bold text-foreground mb-2">Analyse en cours</h1>
+
+          {/* Current step label */}
+          <p className="text-base font-medium text-primary mb-6">
+            {currentStep?.label ?? "Initialisation..."}
+          </p>
+
+          {/* Progress bar */}
+          <div className="w-full bg-muted rounded-full h-3 mb-2 overflow-hidden">
+            <div
+              className="h-full bg-primary rounded-full transition-all duration-1000 ease-out"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground mb-8">{progressPct}%</p>
+
+          {/* Pipeline steps */}
+          <div className="flex flex-col gap-2 text-left mb-8">
+            {PIPELINE_STEPS.map((step, i) => {
+              const done = i < currentStepIdx;
+              const active = i === currentStepIdx;
+              const Icon = step.icon;
+              return (
+                <div
+                  key={step.key}
+                  className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-500 ${
+                    active ? "bg-primary/10 text-primary font-medium" : done ? "text-muted-foreground" : "text-muted-foreground/40"
+                  }`}
+                >
+                  {done ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                  ) : active ? (
+                    <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                  ) : (
+                    <Icon className="h-4 w-4 shrink-0" />
+                  )}
+                  <span className="text-sm">{step.label}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Rotating encouragement message */}
+          <p
+            className="text-sm text-muted-foreground italic min-h-[2.5rem] transition-opacity duration-500"
+            key={waitingMsgIdx}
+          >
+            {WAITING_MESSAGES[waitingMsgIdx]}
+          </p>
+
+          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground/50 mt-6">
+            <RefreshCw className="h-3 w-3 animate-spin" />
+            Mise à jour automatique
           </div>
         </main>
       </div>
