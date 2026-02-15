@@ -29,6 +29,7 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 | `/blog/:slug` | `blog/[slug].astro` | `BlogArticleApp` → `BlogArticle` |
 | `/mot-de-passe-oublie` | `mot-de-passe-oublie.astro` | `ForgotPasswordApp` → `ForgotPassword` |
 | `/reset-password` | `reset-password.astro` | `ResetPasswordApp` → `ResetPassword` |
+| `/parametres` | `parametres.astro` | `SettingsApp` → `Settings` |
 | `/comprendre-votre-score` | `comprendre-votre-score.astro` | `ComprendreScoreApp` → `ComprendreScore` |
 
 ## Ajouter une page
@@ -48,13 +49,14 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 
 ## Supabase
 
-### Tables (7)
-- `analyses` — analyses de devis (table principale). Colonne `market_price_overrides` (JSONB) pour les éditions utilisateur sur les prix marché.
+### Tables (9)
+- `analyses` — analyses de devis (table principale). Colonne `market_price_overrides` (JSONB) pour les éditions utilisateur sur les prix marché. **Limite 10 par utilisateur** : les plus anciennes sont purgées automatiquement par le pipeline.
 - `analysis_work_items` — lignes de travaux détaillées par analyse. Colonne `job_type_group` (TEXT) pour le rattachement au job type IA.
 - `blog_posts` — articles de blog (avec workflow IA, images cover + mid)
 - `company_cache` — cache vérification entreprise (recherche-entreprises.api.gouv.fr). Purge auto quotidienne via cron.
 - `market_prices` — référentiel prix marché (~267 lignes). RLS avec policy `market_prices_public_read` (accès anon + authenticated en lecture). Utilisé côté backend (edge functions via service_role) ET côté frontend (calculatrice homepage via anon key).
 - `post_signature_tracking` — suivi post-signature
+- `price_observations` — **données "gold" big data** : snapshot des groupements job type par analyse. Survit à la suppression des analyses (pas de FK CASCADE). Voir section dédiée ci-dessous.
 - `user_roles` — rôles (admin/moderator/user)
 - `zones_geographiques` — coefficients géographiques par code postal
 
@@ -85,6 +87,9 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 - `idx_work_items_job_type_group` — `analysis_work_items(job_type_group)` — regroupement prix marché
 - `idx_extractions_file_hash` — `document_extractions(file_hash)` — déduplication documents
 - `idx_blog_posts_workflow_status` — `blog_posts(workflow_status)` — filtres admin blog
+- `idx_price_obs_job_type` — `price_observations(job_type_label)` — agrégation par job type
+- `idx_price_obs_catalog` — `price_observations(catalog_job_types)` GIN — recherche par identifiant catalogue
+- `idx_price_obs_zip` — `price_observations(zip_code)` — filtrage géographique
 
 ### Régénérer les types
 ```bash
@@ -116,12 +121,14 @@ Le backend retourne un format hiérarchique `JobTypePriceResult[]` (stocké dans
 5. **Gestion "Autre"** : les groupes sans match catalogue valide + les lignes orphelines (non assignées par Gemini) → fusionnés dans un groupe "Autre" avec `job_types: []`
 6. **Construction** : pour chaque job type, construit `devis_lines[]` et calcule `devis_total_ht` (somme des montants HT)
 7. **Stockage** : `index.ts` stocke `job_type_group` sur chaque `analysis_work_items`
+8. **Snapshot** : `index.ts` insère dans `price_observations` (hors groupe "Autre") pour conservation big data
+9. **Purge** : en fin de pipeline, supprime les analyses au-delà de 10 par utilisateur (fichiers storage inclus). Les `price_observations` survivent (pas de FK).
 
 ### Flux frontend
 
 - **`useMarketPriceAPI.ts`** : transforme les données brutes en `JobTypeDisplayRow[]`. Calcule `theoreticalMin/Avg/MaxHT` = Σ(price × mainQuantity + fixed) par prix matché. Verdict basé sur comparaison devisTotalHT vs theoreticalAvgHT.
 - **`BlockPrixMarche.tsx`** : affiche des cartes collapsibles par job type (lignes détaillées + jauge MarketPositionAnalysis). Supporte le drag & drop de lignes entre job types et la modification de quantité.
-- **`useMarketPriceEditor.ts`** : gère l'état mutable (déplacements de lignes, quantités modifiées). Persiste les modifications dans `analyses.market_price_overrides` (JSONB). Quand une ligne est déplacée, seul `devis_total_ht` change (prix théorique inchangé). Quand la quantité change, `theoreticalXxxHT` est recalculé.
+- **`useMarketPriceEditor.ts`** : gère l'état mutable (déplacements de lignes, quantités modifiées). Persiste les modifications dans `analyses.market_price_overrides` (JSONB) **ET met à jour `price_observations`** avec les données corrigées. Quand une ligne est déplacée, seul `devis_total_ht` change (prix théorique inchangé). Quand la quantité change, `theoreticalXxxHT` est recalculé.
 
 ### Format des overrides (`market_price_overrides`)
 
@@ -145,6 +152,41 @@ Le backend retourne un format hiérarchique `JobTypePriceResult[]` (stocké dans
 - **Quantité éditable** : click sur la quantité → input inline. Recalcule prix théorique et verdict.
 
 **Ajouter un prix** : INSERT dans `market_prices` avec les colonnes `job_type, label, unit, price_min_unit_ht, price_avg_unit_ht, price_max_unit_ht, fixed_min_ht, fixed_avg_ht, fixed_max_ht, zip_scope, notes`.
+
+## Price Observations (données big data)
+
+Table `price_observations` — données "gold" pour le benchmarking prix par job type et zone géographique. **Survit à la suppression des analyses** (pas de FK CASCADE).
+
+### Structure
+
+Une ligne par job type par analyse :
+- `job_type_label` (TEXT) — ex: "Pose carrelage sol"
+- `catalog_job_types` (TEXT[]) — identifiants catalogue matchés
+- `main_unit` / `main_quantity` — unité et quantité (après correction utilisateur)
+- `devis_total_ht` (NUMERIC) — somme des montants des lignes du groupe
+- `line_count` (INTEGER) — nombre de lignes dans le groupe
+- `devis_lines` (JSONB) — détail : `[{description, amount_ht, quantity, unit}]`
+- `zip_code` (TEXT) — code postal du chantier
+
+### Alimentation
+
+1. **Pipeline** (`analyze-quote/index.ts`) : INSERT automatique après le groupement IA (hors groupe "Autre")
+2. **Corrections utilisateur** (`useMarketPriceEditor.ts`) : UPDATE quand l'utilisateur valide ses corrections drag-and-drop
+
+### Requête type (prix moyen au m² par job type et zone)
+
+```sql
+SELECT job_type_label, LEFT(zip_code, 2) as dept,
+       AVG(devis_total_ht / NULLIF(main_quantity, 0)) as prix_moyen_unitaire,
+       COUNT(*) as nb_observations
+FROM price_observations
+WHERE 'carrelage_sol' = ANY(catalog_job_types)
+GROUP BY job_type_label, LEFT(zip_code, 2);
+```
+
+### Limite 10 analyses par utilisateur
+
+Le pipeline `analyze-quote` purge automatiquement les analyses au-delà de 10 par utilisateur en fin de traitement. Les fichiers storage associés sont aussi supprimés. Les `price_observations` ne sont pas affectées car il n'y a pas de FK CASCADE — elles s'accumulent indéfiniment pour le benchmarking.
 
 ## Calculatrice homepage (`DevisCalculatorSection.tsx`)
 
@@ -201,6 +243,7 @@ Phase 2 du pipeline — 100% appels API déterministes, pas d'IA. Aucune API pay
 - **Pages admin protégées** : `Admin.tsx` et `AdminBlog.tsx` vérifient le rôle admin via `user_roles` query (pas via l'edge function). Si accès refusé, proposent un bouton "Se connecter en admin" qui fait `signOut()` + redirect vers `/connexion?redirect=/admin`.
 - **Navigation inter-admin** : Barre de navigation sous le Header avec liens KPIs / Blog.
 - **Reset mot de passe** : `ForgotPassword.tsx` envoie un email via `supabase.auth.resetPasswordForEmail()` avec `redirectTo` vers `/reset-password`. `ResetPassword.tsx` écoute l'event `PASSWORD_RECOVERY` via `onAuthStateChange` puis appelle `supabase.auth.updateUser({ password })`. Configurer l'URL dans Supabase Dashboard > Authentication > URL Configuration > Redirect URLs.
+- **Paramètres du compte** : `Settings.tsx` (`/parametres`) permet de modifier prénom, nom, téléphone via `supabase.auth.updateUser({ data })` et de changer le mot de passe. Auth guard redirige vers `/connexion`. Accessible depuis le bouton Settings du dashboard.
 - **Admins** : `julien@messagingme.fr`, `bridey.johan@gmail.com` (rôle `admin` dans `user_roles`)
 
 ## Règles importantes
