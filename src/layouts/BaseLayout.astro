@@ -88,5 +88,37 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
   </head>
   <body>
     <slot />
+
+    <!-- Cookie consent banner -->
+    <div id="cookie-banner" style="display:none" class="fixed bottom-0 left-0 right-0 z-[9999] p-4 sm:p-0">
+      <div class="max-w-xl mx-auto sm:mb-6 bg-card border border-border rounded-xl shadow-lg p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+        <div class="flex-1 min-w-0">
+          <p class="text-sm text-foreground font-medium mb-1">Respect de votre vie privée</p>
+          <p class="text-xs text-muted-foreground">
+            Ce site utilise uniquement des cookies techniques nécessaires au fonctionnement du service. Aucun cookie publicitaire ni de suivi.
+            <a href="/confidentialite" class="text-primary hover:underline ml-1">En savoir plus</a>
+          </p>
+        </div>
+        <button
+          id="cookie-accept"
+          class="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 text-sm font-medium flex-shrink-0"
+        >
+          Compris
+        </button>
+      </div>
+    </div>
+
+    <script>
+      (function() {
+        if (localStorage.getItem('cookie-consent')) return;
+        var banner = document.getElementById('cookie-banner');
+        if (banner) banner.style.display = 'block';
+        var btn = document.getElementById('cookie-accept');
+        if (btn) btn.addEventListener('click', function() {
+          localStorage.setItem('cookie-consent', '1');
+          if (banner) banner.style.display = 'none';
+        });
+      })();
+    </script>
   </body>
 </html>
