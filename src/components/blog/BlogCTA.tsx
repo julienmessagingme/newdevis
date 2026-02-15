@@ -37,7 +37,7 @@ const BlogCTA = ({ variant = "inline" }: BlogCTAProps) => {
   
   if (variant === "bottom") {
     return (
-      <div className="mt-12 p-8 bg-gradient-to-br from-primary/10 to-primary/5 rounded-3xl border border-primary/20">
+      <div className="mt-12 p-5 sm:p-8 bg-gradient-to-br from-primary/10 to-primary/5 rounded-3xl border border-primary/20 overflow-hidden">
         <div className="text-center max-w-xl mx-auto">
           <div className="inline-flex p-4 bg-primary/20 rounded-2xl mb-4">
             <FileCheck className="h-8 w-8 text-primary" />
@@ -49,7 +49,7 @@ const BlogCTA = ({ variant = "inline" }: BlogCTAProps) => {
             Utilisez notre outil gratuit pour vérifier les mentions obligatoires, 
             comparer les prix du marché et vous assurer de la fiabilité de l'artisan.
           </p>
-          <Button size="lg" asChild className="px-8">
+          <Button size="lg" asChild className="w-full sm:w-auto">
             <a href={ctaUrl}>
               Analyser mon devis gratuitement
               <ArrowRight className="ml-2 h-5 w-5" />

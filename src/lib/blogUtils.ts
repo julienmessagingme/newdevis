@@ -4,7 +4,7 @@
 
 // CTA URL
 export const getCTAUrl = (): string => {
-  return 'https://verifiermondevis.fr/';
+  return '/nouvelle-analyse';
 };
 
 /**
