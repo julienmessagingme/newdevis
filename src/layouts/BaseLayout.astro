@@ -91,33 +91,87 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
 
     <!-- Cookie consent banner -->
     <div id="cookie-banner" style="display:none" class="fixed bottom-0 left-0 right-0 z-[9999] p-4 sm:p-0">
-      <div class="max-w-xl mx-auto sm:mb-6 bg-card border border-border rounded-xl shadow-lg p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
-        <div class="flex-1 min-w-0">
-          <p class="text-sm text-foreground font-medium mb-1">Respect de votre vie privée</p>
-          <p class="text-xs text-muted-foreground">
-            Ce site utilise uniquement des cookies techniques nécessaires au fonctionnement du service. Aucun cookie publicitaire ni de suivi.
-            <a href="/confidentialite" class="text-primary hover:underline ml-1">En savoir plus</a>
-          </p>
+      <div class="max-w-2xl mx-auto sm:mb-6 bg-card border border-border rounded-xl shadow-lg p-4 sm:p-5">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+          <div class="flex-1 min-w-0">
+            <p class="text-sm text-foreground font-medium mb-1">Cookies et confidentialité</p>
+            <p class="text-xs text-muted-foreground">
+              Ce site utilise des cookies techniques (nécessaires au fonctionnement) et, avec votre accord, des cookies d'analyse pour améliorer nos services.
+              <a href="/confidentialite" class="text-primary hover:underline ml-1">Politique de confidentialité</a>
+            </p>
+          </div>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <button
+              id="cookie-reject"
+              class="inline-flex items-center justify-center whitespace-nowrap rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 text-sm font-medium"
+            >
+              Refuser
+            </button>
+            <button
+              id="cookie-accept"
+              class="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 text-sm font-medium"
+            >
+              Accepter
+            </button>
+          </div>
         </div>
-        <button
-          id="cookie-accept"
-          class="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 text-sm font-medium flex-shrink-0"
-        >
-          Compris
-        </button>
       </div>
     </div>
 
     <script>
       (function() {
-        if (localStorage.getItem('cookie-consent')) return;
+        var consent = localStorage.getItem('cookie-consent');
+
+        // Load tracking scripts if previously accepted
+        if (consent === 'accepted') {
+          loadTrackingScripts();
+          return;
+        }
+
+        // Don't show banner if already rejected
+        if (consent === 'rejected') return;
+
+        // Show banner for new visitors
         var banner = document.getElementById('cookie-banner');
         if (banner) banner.style.display = 'block';
-        var btn = document.getElementById('cookie-accept');
-        if (btn) btn.addEventListener('click', function() {
-          localStorage.setItem('cookie-consent', '1');
+
+        document.getElementById('cookie-accept')?.addEventListener('click', function() {
+          localStorage.setItem('cookie-consent', 'accepted');
+          if (banner) banner.style.display = 'none';
+          loadTrackingScripts();
+        });
+
+        document.getElementById('cookie-reject')?.addEventListener('click', function() {
+          localStorage.setItem('cookie-consent', 'rejected');
           if (banner) banner.style.display = 'none';
         });
+
+        function loadTrackingScripts() {
+          // === Google Analytics ===
+          // Remplacer G-XXXXXXXXXX par votre ID Google Analytics
+          // var gaId = 'G-XXXXXXXXXX';
+          // var gs = document.createElement('script');
+          // gs.src = 'https://www.googletagmanager.com/gtag/js?id=' + gaId;
+          // gs.async = true;
+          // document.head.appendChild(gs);
+          // gs.onload = function() {
+          //   window.dataLayer = window.dataLayer || [];
+          //   function gtag(){dataLayer.push(arguments);}
+          //   gtag('js', new Date());
+          //   gtag('config', gaId);
+          // };
+
+          // === Meta Pixel (Facebook) ===
+          // Remplacer XXXXXXXXXXXXXXX par votre Pixel ID
+          // !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){
+          //   n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+          //   if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+          //   n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;
+          //   s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}
+          //   (window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+          // fbq('init', 'XXXXXXXXXXXXXXX');
+          // fbq('track', 'PageView');
+        }
       })();
     </script>
   </body>
