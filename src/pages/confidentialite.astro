@@ -1,0 +1,122 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AstroHeader from '@/components/astro/Header.astro';
+import AstroFooter from '@/components/astro/Footer.astro';
+---
+
+<BaseLayout
+  title="Politique de confidentialité | VerifierMonDevis.fr"
+  description="Politique de confidentialité de VerifierMonDevis.fr : données collectées, finalités, durée de conservation, droits des utilisateurs (RGPD)."
+  canonical="https://verifiermondevis.fr/confidentialite"
+  breadcrumbs={[
+    { name: "Accueil", url: "https://verifiermondevis.fr/" },
+    { name: "Confidentialité", url: "https://verifiermondevis.fr/confidentialite" }
+  ]}
+>
+  <div class="min-h-screen flex flex-col">
+    <AstroHeader />
+    <main class="flex-1 py-12">
+      <div class="container max-w-3xl">
+        <a
+          href="/"
+          class="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8 transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+          </svg>
+          Retour à l'accueil
+        </a>
+
+        <h1 class="text-3xl font-bold text-foreground mb-8">Politique de confidentialité</h1>
+
+        <div class="space-y-8">
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">1. Responsable du traitement</h2>
+            <div class="text-muted-foreground space-y-2">
+              <p>Le responsable du traitement des données personnelles est l'éditeur du site VerifierMonDevis.fr.</p>
+              <p><strong class="text-foreground">Contact :</strong> <a href="mailto:contact@verifiermondevis.fr" class="text-primary hover:underline">contact@verifiermondevis.fr</a></p>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">2. Données collectées</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>Nous collectons les données suivantes :</p>
+              <ul class="list-disc pl-5 space-y-2">
+                <li><strong class="text-foreground">Données de compte</strong> : adresse email, nom, prénom, téléphone (lors de l'inscription)</li>
+                <li><strong class="text-foreground">Documents transmis</strong> : devis et attestations d'assurance téléchargés pour analyse</li>
+                <li><strong class="text-foreground">Données d'analyse</strong> : résultats de l'analyse, score, points de vigilance</li>
+                <li><strong class="text-foreground">Données de navigation</strong> : pages visitées, durée de session (via cookies techniques)</li>
+              </ul>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">3. Finalités du traitement</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>Vos données sont utilisées exclusivement pour :</p>
+              <ul class="list-disc pl-5 space-y-2">
+                <li><strong class="text-foreground">Fournir le service</strong> : analyser les devis, générer les rapports, afficher les résultats</li>
+                <li><strong class="text-foreground">Gérer votre compte</strong> : authentification, tableau de bord, historique des analyses</li>
+                <li><strong class="text-foreground">Améliorer le service</strong> : statistiques agrégées et anonymisées sur les prix du marché</li>
+              </ul>
+              <p class="pt-2"><strong class="text-foreground">Nous ne vendons, ne louons et ne partageons jamais vos données personnelles avec des tiers</strong> à des fins commerciales.</p>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">4. Durée de conservation</h2>
+            <div class="text-muted-foreground space-y-3">
+              <ul class="list-disc pl-5 space-y-2">
+                <li><strong class="text-foreground">Documents téléchargés</strong> : supprimés automatiquement lorsque le nombre d'analyses dépasse 10 par utilisateur</li>
+                <li><strong class="text-foreground">Données de compte</strong> : conservées tant que le compte est actif, supprimées sur demande</li>
+                <li><strong class="text-foreground">Données agrégées</strong> : les observations de prix anonymisées sont conservées sans limite pour le benchmarking</li>
+              </ul>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">5. Sous-traitants</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>Nous utilisons les services suivants pour le fonctionnement du site :</p>
+              <ul class="list-disc pl-5 space-y-2">
+                <li><strong class="text-foreground">Supabase</strong> (hébergement base de données et authentification) — données hébergées en Europe</li>
+                <li><strong class="text-foreground">Vercel</strong> (hébergement du site web)</li>
+                <li><strong class="text-foreground">Google Gemini</strong> (analyse IA des documents) — les documents sont envoyés pour extraction uniquement, non conservés par Google</li>
+              </ul>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">6. Vos droits (RGPD)</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>Conformément au Règlement Général sur la Protection des Données (RGPD), vous disposez des droits suivants :</p>
+              <ul class="list-disc pl-5 space-y-2">
+                <li><strong class="text-foreground">Droit d'accès</strong> : obtenir une copie de vos données personnelles</li>
+                <li><strong class="text-foreground">Droit de rectification</strong> : corriger vos données inexactes ou incomplètes</li>
+                <li><strong class="text-foreground">Droit de suppression</strong> : demander la suppression de vos données et de votre compte</li>
+                <li><strong class="text-foreground">Droit à la portabilité</strong> : recevoir vos données dans un format structuré</li>
+                <li><strong class="text-foreground">Droit d'opposition</strong> : vous opposer au traitement de vos données</li>
+              </ul>
+              <p class="pt-2">Pour exercer ces droits, contactez-nous à <a href="mailto:contact@verifiermondevis.fr" class="text-primary hover:underline">contact@verifiermondevis.fr</a>.</p>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">7. Cookies</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>Le site utilise uniquement des <strong class="text-foreground">cookies techniques</strong> nécessaires au fonctionnement du service (authentification, session utilisateur).</p>
+              <p>Aucun cookie publicitaire ou de suivi marketing n'est utilisé.</p>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">8. Modifications</h2>
+            <p class="text-muted-foreground">Nous nous réservons le droit de modifier cette politique de confidentialité. Toute modification sera publiée sur cette page avec une date de mise à jour.</p>
+          </section>
+        </div>
+      </div>
+    </main>
+    <AstroFooter />
+  </div>
+</BaseLayout>

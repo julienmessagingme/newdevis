@@ -1,6 +1,11 @@
 ---
 import '@/index.css';
 
+interface BreadcrumbItem {
+  name: string;
+  url: string;
+}
+
 interface Props {
   title: string;
   description: string;
@@ -8,6 +13,7 @@ interface Props {
   ogType?: string;
   ogImage?: string;
   jsonLd?: object;
+  breadcrumbs?: BreadcrumbItem[];
 }
 
 const {
@@ -17,7 +23,19 @@ const {
   ogType = 'website',
   ogImage = 'https://verifiermondevis.fr/og-image.png',
   jsonLd,
+  breadcrumbs,
 } = Astro.props;
+
+const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": breadcrumbs.map((item, index) => ({
+    "@type": "ListItem",
+    "position": index + 1,
+    "name": item.name,
+    "item": item.url,
+  })),
+} : null;
 ---
 
 <!doctype html>
@@ -50,6 +68,21 @@ const {
     {jsonLd && (
       <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
     )}
+
+    {breadcrumbLd && (
+      <script type="application/ld+json" set:html={JSON.stringify(breadcrumbLd)} />
+    )}
+
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "VerifierMonDevis.fr",
+      "url": "https://verifiermondevis.fr",
+      "logo": "https://verifiermondevis.fr/images/logo-header.png",
+      "email": "contact@verifiermondevis.fr",
+      "description": "Service gratuit d'analyse de devis d'artisans. Score de fiabilité, vérification entreprise, comparaison prix marché.",
+      "sameAs": []
+    })} />
 
     <script src="https://ai.messagingme.app/widget/f236879w135897.js" async="async"></script>
   </head>

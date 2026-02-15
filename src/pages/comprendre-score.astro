@@ -9,6 +9,33 @@ export const prerender = false;
   title="Comprendre le score de fiabilité | VerifierMonDevis.fr"
   description="Découvrez comment interpréter le score Feu Vert, Orange ou Rouge de votre devis artisan. Critères d'analyse, actions conseillées et explications."
   canonical="https://verifiermondevis.fr/comprendre-score"
+  breadcrumbs={[
+    { name: "Accueil", url: "https://verifiermondevis.fr/" },
+    { name: "Comprendre le score", url: "https://verifiermondevis.fr/comprendre-score" }
+  ]}
+  jsonLd={{
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "Comment interpréter le score de fiabilité d'un devis",
+    "description": "Guide pour comprendre le score Feu Vert, Orange ou Rouge attribué à votre devis artisan par VerifierMonDevis.fr.",
+    "step": [
+      {
+        "@type": "HowToStep",
+        "name": "Téléchargez votre devis",
+        "text": "Uploadez votre devis au format PDF ou image sur VerifierMonDevis.fr"
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Analyse automatique",
+        "text": "Notre outil vérifie l'entreprise, les prix, les assurances et les conditions de paiement"
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Interprétez le score",
+        "text": "Feu vert = aucun critère critique. Feu orange = points de vigilance. Feu rouge = situation critique détectée."
+      }
+    ]
+  }}
 >
   <ComprendreScoreApp client:only="react" />
 </BaseLayout>

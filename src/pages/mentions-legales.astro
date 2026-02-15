@@ -1,0 +1,83 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AstroHeader from '@/components/astro/Header.astro';
+import AstroFooter from '@/components/astro/Footer.astro';
+---
+
+<BaseLayout
+  title="Mentions légales | VerifierMonDevis.fr"
+  description="Mentions légales de VerifierMonDevis.fr : éditeur du site, hébergement, propriété intellectuelle et responsabilité."
+  canonical="https://verifiermondevis.fr/mentions-legales"
+  breadcrumbs={[
+    { name: "Accueil", url: "https://verifiermondevis.fr/" },
+    { name: "Mentions légales", url: "https://verifiermondevis.fr/mentions-legales" }
+  ]}
+>
+  <div class="min-h-screen flex flex-col">
+    <AstroHeader />
+    <main class="flex-1 py-12">
+      <div class="container max-w-3xl">
+        <a
+          href="/"
+          class="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8 transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+          </svg>
+          Retour à l'accueil
+        </a>
+
+        <h1 class="text-3xl font-bold text-foreground mb-8">Mentions légales</h1>
+
+        <div class="space-y-8">
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">1. Éditeur du site</h2>
+            <div class="text-muted-foreground space-y-2">
+              <p><strong class="text-foreground">Nom du site :</strong> VerifierMonDevis.fr</p>
+              <p><strong class="text-foreground">URL :</strong> https://verifiermondevis.fr</p>
+              <p><strong class="text-foreground">Contact :</strong> <a href="mailto:contact@verifiermondevis.fr" class="text-primary hover:underline">contact@verifiermondevis.fr</a></p>
+              <p><strong class="text-foreground">Directeur de la publication :</strong> Julien Bridey</p>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">2. Hébergement</h2>
+            <div class="text-muted-foreground space-y-2">
+              <p><strong class="text-foreground">Hébergeur :</strong> Vercel Inc.</p>
+              <p><strong class="text-foreground">Adresse :</strong> 340 S Lemon Ave #4133, Walnut, CA 91789, États-Unis</p>
+              <p><strong class="text-foreground">Site web :</strong> https://vercel.com</p>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">3. Propriété intellectuelle</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>L'ensemble des contenus présents sur le site VerifierMonDevis.fr (textes, graphismes, logo, icônes, images, logiciels) est protégé par les lois relatives à la propriété intellectuelle.</p>
+              <p>Toute reproduction, représentation, modification ou adaptation, totale ou partielle, est interdite sans autorisation écrite préalable.</p>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">4. Responsabilité</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>VerifierMonDevis.fr fournit un service d'<strong class="text-foreground">analyse automatisée et indicative</strong> de devis d'artisans. Les résultats ne constituent en aucun cas un conseil juridique, financier ou technique.</p>
+              <p>L'éditeur ne saurait être tenu responsable des décisions prises sur la base des informations fournies par le service.</p>
+              <p>Les données affichées proviennent de sources publiques (INSEE, BODACC, ADEME, data.economie.gouv.fr) dont l'exactitude ne peut être garantie.</p>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">5. Liens hypertextes</h2>
+            <p class="text-muted-foreground">Le site peut contenir des liens vers des sites tiers. L'éditeur ne peut être tenu responsable du contenu de ces sites externes.</p>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">6. Droit applicable</h2>
+            <p class="text-muted-foreground">Les présentes mentions légales sont soumises au droit français. Tout litige relatif à l'utilisation du site sera soumis à la compétence des tribunaux français.</p>
+          </section>
+        </div>
+      </div>
+    </main>
+    <AstroFooter />
+  </div>
+</BaseLayout>

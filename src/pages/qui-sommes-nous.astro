@@ -8,6 +8,25 @@ import AstroFooter from '@/components/astro/Footer.astro';
   title="Qui sommes-nous ? | VerifierMonDevis.fr"
   description="Découvrez l'équipe derrière VerifierMonDevis.fr, notre mission et pourquoi nous avons créé cet outil gratuit d'analyse de devis artisans."
   canonical="https://verifiermondevis.fr/qui-sommes-nous"
+  breadcrumbs={[
+    { name: "Accueil", url: "https://verifiermondevis.fr/" },
+    { name: "Qui sommes-nous", url: "https://verifiermondevis.fr/qui-sommes-nous" }
+  ]}
+  jsonLd={{
+    "@context": "https://schema.org",
+    "@type": "AboutPage",
+    "name": "Qui sommes-nous — VerifierMonDevis.fr",
+    "url": "https://verifiermondevis.fr/qui-sommes-nous",
+    "mainEntity": {
+      "@type": "Organization",
+      "name": "VerifierMonDevis.fr",
+      "url": "https://verifiermondevis.fr",
+      "email": "contact@verifiermondevis.fr",
+      "description": "Service gratuit d'analyse de devis d'artisans",
+      "logo": "https://verifiermondevis.fr/images/logo-header.png",
+      "foundingDate": "2026"
+    }
+  }}
 >
   <div class="min-h-screen flex flex-col">
     <AstroHeader />
@@ -68,6 +87,23 @@ import AstroFooter from '@/components/astro/Footer.astro';
               <a href="mailto:contact@verifiermondevis.fr" class="text-primary hover:underline">contact@verifiermondevis.fr</a>.
             </p>
           </section>
+        </div>
+
+        <!-- CTA + liens internes -->
+        <div class="mt-12 bg-primary/5 border border-primary/20 rounded-xl p-6 text-center">
+          <p class="text-foreground font-medium mb-2">Prêt à vérifier votre devis ?</p>
+          <p class="text-sm text-muted-foreground mb-4">Analysez gratuitement votre devis d'artisan en 2 minutes.</p>
+          <a href="/nouvelle-analyse" class="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-6 text-sm font-medium">
+            Analyser mon devis
+          </a>
+        </div>
+
+        <div class="mt-6 flex flex-wrap justify-center gap-4 text-sm">
+          <a href="/faq" class="text-primary hover:underline">Questions fréquentes</a>
+          <span class="text-border">|</span>
+          <a href="/comprendre-score" class="text-primary hover:underline">Comprendre le scoring</a>
+          <span class="text-border">|</span>
+          <a href="/blog" class="text-primary hover:underline">Lire notre blog</a>
         </div>
       </div>
     </main>

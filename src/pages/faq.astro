@@ -51,6 +51,10 @@ const faqs = [
   title="Questions fréquentes (FAQ) | VerifierMonDevis.fr"
   description="Réponses aux questions les plus fréquentes sur VerifierMonDevis.fr : fonctionnement, confidentialité, score de fiabilité, prix du marché."
   canonical="https://verifiermondevis.fr/faq"
+  breadcrumbs={[
+    { name: "Accueil", url: "https://verifiermondevis.fr/" },
+    { name: "FAQ", url: "https://verifiermondevis.fr/faq" }
+  ]}
   jsonLd={{
     "@context": "https://schema.org",
     "@type": "FAQPage",
@@ -102,12 +106,23 @@ const faqs = [
           ))}
         </div>
 
+        <!-- CTA + liens internes -->
         <div class="mt-12 bg-primary/5 border border-primary/20 rounded-xl p-6 text-center">
-          <p class="text-foreground font-medium mb-2">Vous avez une autre question ?</p>
-          <p class="text-sm text-muted-foreground mb-4">N'hésitez pas à nous contacter, nous vous répondrons rapidement.</p>
-          <a href="mailto:contact@verifiermondevis.fr" class="inline-flex items-center gap-2 text-primary hover:underline font-medium text-sm">
-            contact@verifiermondevis.fr
+          <p class="text-foreground font-medium mb-2">Prêt à analyser votre devis ?</p>
+          <p class="text-sm text-muted-foreground mb-4">C'est gratuit, confidentiel et ça prend 2 minutes.</p>
+          <a href="/nouvelle-analyse" class="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-6 text-sm font-medium">
+            Analyser mon devis gratuitement
           </a>
+        </div>
+
+        <div class="mt-6 flex flex-wrap justify-center gap-4 text-sm">
+          <a href="/comprendre-score" class="text-primary hover:underline">Comprendre le scoring</a>
+          <span class="text-border">|</span>
+          <a href="/qui-sommes-nous" class="text-primary hover:underline">Qui sommes-nous</a>
+          <span class="text-border">|</span>
+          <a href="/blog" class="text-primary hover:underline">Lire notre blog</a>
+          <span class="text-border">|</span>
+          <a href="mailto:contact@verifiermondevis.fr" class="text-primary hover:underline">Nous contacter</a>
         </div>
       </div>
     </main>
