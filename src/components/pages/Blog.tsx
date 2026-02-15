@@ -94,10 +94,10 @@ const Blog = () => {
                   <BookOpen className="h-4 w-4" />
                   Blog & Conseils
                 </div>
-                <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
+                <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold text-foreground mb-4">
                   Guides et conseils pour vos travaux
                 </h1>
-                <p className="text-lg text-muted-foreground mb-8">
+                <p className="text-base sm:text-lg text-muted-foreground mb-8">
                   Apprenez à décrypter un devis, repérer les arnaques et faire les bons choix 
                   pour vos projets de rénovation.
                 </p>
