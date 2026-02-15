@@ -33,6 +33,16 @@ const Footer = () => {
                   Analyser un devis
                 </a>
               </li>
+              <li>
+                <a href="/faq" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  FAQ
+                </a>
+              </li>
+              <li>
+                <a href="/qui-sommes-nous" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Qui sommes-nous
+                </a>
+              </li>
             </ul>
           </div>
 

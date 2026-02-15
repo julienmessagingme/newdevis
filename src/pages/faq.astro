@@ -1,0 +1,116 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AstroHeader from '@/components/astro/Header.astro';
+import AstroFooter from '@/components/astro/Footer.astro';
+
+const faqs = [
+  {
+    question: "Comment fonctionne l'analyse de mon devis ?",
+    answer: "Téléchargez votre devis (PDF ou photo) et notre outil l'analyse automatiquement en quelques minutes. Il extrait les informations clés, vérifie l'entreprise dans les registres officiels, compare les prix au marché et génère un score de fiabilité (feu vert, orange ou rouge)."
+  },
+  {
+    question: "Est-ce vraiment gratuit ?",
+    answer: "Oui, l'analyse de votre devis est entièrement gratuite. Vous obtenez le score de fiabilité, la vérification de l'entreprise et les recommandations sans aucun frais."
+  },
+  {
+    question: "Mes données sont-elles confidentielles ?",
+    answer: "Absolument. Vos documents ne sont jamais partagés avec des tiers. Ils sont utilisés uniquement pour l'analyse et sont supprimés automatiquement. Nous ne transmettons aucune information aux artisans ou à des plateformes de mise en relation."
+  },
+  {
+    question: "Que signifie le score feu vert, orange ou rouge ?",
+    answer: "Le feu vert indique qu'aucun critère critique n'a été détecté. Le feu orange signale des informations manquantes ou des points de vigilance à vérifier. Le feu rouge est réservé à des situations factuellement critiques (entreprise radiée, procédure collective, paiement en espèces, acompte supérieur à 50%)."
+  },
+  {
+    question: "D'où viennent les données utilisées pour l'analyse ?",
+    answer: "Nous utilisons exclusivement des sources publiques et officielles : registres INSEE/BODACC pour l'identité de l'entreprise, data.economie.gouv.fr pour les données financières, ADEME pour les qualifications RGE, Google Places pour la réputation, et notre propre base de données pour les prix du marché."
+  },
+  {
+    question: "Est-ce que vous notez les artisans ?",
+    answer: "Non. VerifierMonDevis.fr n'attribue aucune note, classement ou appréciation aux artisans. Nous analysons uniquement le devis que vous nous transmettez. Le score porte sur le document, pas sur la personne."
+  },
+  {
+    question: "La comparaison des prix est-elle fiable ?",
+    answer: "Nos fourchettes de prix sont basées sur des données de marché régulièrement mises à jour et ajustées par zone géographique. Elles donnent un ordre de grandeur indicatif. Un prix hors fourchette ne signifie pas forcément un problème — il peut refléter des prestations spécifiques ou un niveau de finition particulier."
+  },
+  {
+    question: "Quels types de devis puis-je analyser ?",
+    answer: "Tous les devis de travaux d'artisans : plomberie, électricité, peinture, maçonnerie, carrelage, menuiserie, toiture, isolation, chauffage, etc. Le devis doit être au format PDF ou image (JPG, PNG)."
+  },
+  {
+    question: "Que faire si mon score est orange ou rouge ?",
+    answer: "Un score orange ou rouge ne signifie pas que l'artisan est malhonnête. Il indique des points à vérifier avant de vous engager. Consultez les recommandations détaillées dans votre rapport et n'hésitez pas à demander des compléments d'information à l'artisan (attestation d'assurance, SIRET, références)."
+  },
+  {
+    question: "Je suis artisan et je conteste une information. Que faire ?",
+    answer: "Si vous êtes professionnel et estimez qu'une information est inexacte, contactez-nous à contact@verifiermondevis.fr. Nous examinerons votre demande et apporterons les corrections nécessaires."
+  },
+];
+---
+
+<BaseLayout
+  title="Questions fréquentes (FAQ) | VerifierMonDevis.fr"
+  description="Réponses aux questions les plus fréquentes sur VerifierMonDevis.fr : fonctionnement, confidentialité, score de fiabilité, prix du marché."
+  canonical="https://verifiermondevis.fr/faq"
+  jsonLd={{
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": faqs.map(faq => ({
+      "@type": "Question",
+      "name": faq.question,
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": faq.answer
+      }
+    }))
+  }}
+>
+  <div class="min-h-screen flex flex-col">
+    <AstroHeader />
+    <main class="flex-1 py-12">
+      <div class="container max-w-3xl">
+        <a
+          href="/"
+          class="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8 transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+          </svg>
+          Retour à l'accueil
+        </a>
+
+        <h1 class="text-3xl font-bold text-foreground mb-2">
+          Questions fréquentes
+        </h1>
+        <p class="text-muted-foreground mb-8">Tout ce que vous devez savoir sur VerifierMonDevis.fr</p>
+
+        <div class="space-y-4">
+          {faqs.map((faq, index) => (
+            <details class="group bg-card border border-border rounded-xl overflow-hidden">
+              <summary class="flex items-center justify-between gap-4 p-5 cursor-pointer list-none hover:bg-muted/30 transition-colors">
+                <span class="font-medium text-foreground text-sm sm:text-base">{faq.question}</span>
+                <svg
+                  class="h-5 w-5 text-muted-foreground flex-shrink-0 transition-transform group-open:rotate-180"
+                  xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </summary>
+              <div class="px-5 pb-5 text-sm text-muted-foreground leading-relaxed border-t border-border/50 pt-4">
+                {faq.answer}
+              </div>
+            </details>
+          ))}
+        </div>
+
+        <div class="mt-12 bg-primary/5 border border-primary/20 rounded-xl p-6 text-center">
+          <p class="text-foreground font-medium mb-2">Vous avez une autre question ?</p>
+          <p class="text-sm text-muted-foreground mb-4">N'hésitez pas à nous contacter, nous vous répondrons rapidement.</p>
+          <a href="mailto:contact@verifiermondevis.fr" class="inline-flex items-center gap-2 text-primary hover:underline font-medium text-sm">
+            contact@verifiermondevis.fr
+          </a>
+        </div>
+      </div>
+    </main>
+    <AstroFooter />
+  </div>
+</BaseLayout>

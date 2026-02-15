@@ -26,8 +26,11 @@ const Header = () => {
           <a href="/blog" className={`text-sm font-medium transition-colors hover:opacity-80 ${isLandingPage ? 'text-primary-foreground/80' : 'text-muted-foreground hover:text-foreground'}`}>
             Blog
           </a>
-          <a href="/comprendre-score" className={`text-sm font-medium transition-colors hover:opacity-80 ${isLandingPage ? 'text-primary-foreground/80' : 'text-muted-foreground hover:text-foreground'}`}>
-            Comprendre mon score
+          <a href="/faq" className={`text-sm font-medium transition-colors hover:opacity-80 ${isLandingPage ? 'text-primary-foreground/80' : 'text-muted-foreground hover:text-foreground'}`}>
+            FAQ
+          </a>
+          <a href="/qui-sommes-nous" className={`text-sm font-medium transition-colors hover:opacity-80 ${isLandingPage ? 'text-primary-foreground/80' : 'text-muted-foreground hover:text-foreground'}`}>
+            Qui sommes-nous
           </a>
           <div className="flex items-center gap-3">
             <a href="/connexion">
@@ -55,8 +58,11 @@ const Header = () => {
             <a href="/blog" className={`text-sm font-medium ${isLandingPage ? 'text-primary' : 'text-muted-foreground'}`} onClick={() => setMobileMenuOpen(false)}>
               Blog
             </a>
-            <a href="/comprendre-score" className={`text-sm font-medium ${isLandingPage ? 'text-primary' : 'text-muted-foreground'}`} onClick={() => setMobileMenuOpen(false)}>
-              Comprendre mon score
+            <a href="/faq" className={`text-sm font-medium ${isLandingPage ? 'text-primary' : 'text-muted-foreground'}`} onClick={() => setMobileMenuOpen(false)}>
+              FAQ
+            </a>
+            <a href="/qui-sommes-nous" className={`text-sm font-medium ${isLandingPage ? 'text-primary' : 'text-muted-foreground'}`} onClick={() => setMobileMenuOpen(false)}>
+              Qui sommes-nous
             </a>
             <div className="flex flex-col gap-2 pt-2">
               <a href="/connexion" onClick={() => setMobileMenuOpen(false)}>

@@ -1,0 +1,76 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AstroHeader from '@/components/astro/Header.astro';
+import AstroFooter from '@/components/astro/Footer.astro';
+---
+
+<BaseLayout
+  title="Qui sommes-nous ? | VerifierMonDevis.fr"
+  description="Découvrez l'équipe derrière VerifierMonDevis.fr, notre mission et pourquoi nous avons créé cet outil gratuit d'analyse de devis artisans."
+  canonical="https://verifiermondevis.fr/qui-sommes-nous"
+>
+  <div class="min-h-screen flex flex-col">
+    <AstroHeader />
+    <main class="flex-1 py-12">
+      <div class="container max-w-3xl">
+        <a
+          href="/"
+          class="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8 transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+          </svg>
+          Retour à l'accueil
+        </a>
+
+        <h1 class="text-3xl font-bold text-foreground mb-8">
+          Qui sommes-nous ?
+        </h1>
+
+        <div class="space-y-8">
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">Notre mission</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>VerifierMonDevis.fr est né d'un constat simple : <strong class="text-foreground">trop de particuliers signent des devis sans avoir les moyens de vérifier leur fiabilité</strong>.</p>
+              <p>Notre mission est de donner à chacun les outils pour prendre une décision éclairée avant de s'engager avec un artisan. Gratuitement, en quelques minutes.</p>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">Ce que nous vérifions</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>Notre outil analyse automatiquement votre devis et croise les informations avec des <strong class="text-foreground">sources publiques officielles</strong> :</p>
+              <ul class="list-disc pl-5 space-y-2">
+                <li><strong class="text-foreground">Identité de l'entreprise</strong> — immatriculation, ancienneté, statut juridique (registres INSEE/BODACC)</li>
+                <li><strong class="text-foreground">Santé financière</strong> — ratios financiers publics (data.economie.gouv.fr)</li>
+                <li><strong class="text-foreground">Prix du marché</strong> — comparaison avec notre base de données de prix de référence</li>
+                <li><strong class="text-foreground">Assurances et garanties</strong> — présence de la décennale, RC Pro</li>
+                <li><strong class="text-foreground">Conditions de paiement</strong> — acompte, modes de paiement, échelonnement</li>
+                <li><strong class="text-foreground">Qualifications</strong> — RGE, QUALIBAT (ADEME)</li>
+              </ul>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">Notre engagement</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p><strong class="text-foreground">Indépendance</strong> — Nous ne sommes affiliés à aucun artisan, réseau d'entreprises ou plateforme de mise en relation. Notre analyse est 100% objective.</p>
+              <p><strong class="text-foreground">Transparence</strong> — Nous n'évaluons pas les artisans eux-mêmes. Nous analysons uniquement le devis que vous nous transmettez, à un instant donné.</p>
+              <p><strong class="text-foreground">Confidentialité</strong> — Vos documents restent confidentiels et ne sont jamais partagés avec des tiers.</p>
+              <p><strong class="text-foreground">Gratuité</strong> — L'analyse de base est entièrement gratuite, sans engagement.</p>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">Nous contacter</h2>
+            <p class="text-muted-foreground">
+              Une question, une suggestion, un signalement ? Écrivez-nous à
+              <a href="mailto:contact@verifiermondevis.fr" class="text-primary hover:underline">contact@verifiermondevis.fr</a>.
+            </p>
+          </section>
+        </div>
+      </div>
+    </main>
+    <AstroFooter />
+  </div>
+</BaseLayout>
