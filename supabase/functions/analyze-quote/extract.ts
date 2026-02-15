@@ -1,4 +1,5 @@
 import type { ExtractedData } from "./types.ts";
+import type { DomainConfig } from "./domain-config.ts";
 import { PipelineError, isPipelineError, repairTruncatedJson, GEMINI_AI_URL } from "./utils.ts";
 
 // ============================================================
@@ -85,31 +86,13 @@ export async function extractDataFromDocument(
   base64Content: string,
   mimeType: string,
   googleApiKey: string,
+  config: DomainConfig,
   retryCount: number = 0
 ): Promise<ExtractedData> {
 
   const MAX_RETRIES = 2;
 
-  const systemPrompt = `Tu es VerifierMonDevis.fr, un outil d'aide à la décision à destination des particuliers.
-
-Tu n'évalues PAS les artisans.
-Tu ne portes AUCUN jugement de valeur.
-Tu fournis des indicateurs factuels, pédagogiques et vérifiables.
-
-RÈGLES D'EXTRACTION:
-1. N'invente AUCUNE information. Si une donnée n'est pas visible, retourne null.
-2. Pour le mode de paiement:
-   - "espèces" SEULEMENT si les mots "espèces", "cash", "comptant en espèces" sont explicitement présents.
-   - Si "chèque", "virement", "carte bancaire", "CB", "à réception", "à la livraison" sont mentionnés, les inclure.
-   - Si un IBAN ou RIB est présent, le mode de paiement INCLUT "virement".
-   - Ne jamais déduire "espèces" par défaut.
-3. Pour les assurances: true si clairement mentionnée, false si absente, null si doute.
-4. Pour les travaux: identifier la CATÉGORIE MÉTIER principale même si un produit spécifique/marque est mentionné.
-5. Extrais TOUS les postes de travaux du devis, sans exception. Inclus chaque ligne individuelle (fournitures, main d'œuvre, accessoires, frais divers, transport, etc.).
-6. Pour le champ "libelle" de chaque travail : COPIE MOT POUR MOT le texte exact tel qu'il apparaît sur le devis. NE REFORMULE PAS, NE RÉSUME PAS, NE TRADUIS PAS. Si le devis dit "Fourniture et pose baguette PVC", écris exactement "Fourniture et pose baguette PVC".
-7. Réponds UNIQUEMENT avec un JSON valide et COMPLET. Ne tronque pas la réponse.
-
-Tu dois effectuer UNE SEULE extraction complète et structurée.`;
+  const systemPrompt = config.extractionSystemPrompt;
 
   const userPrompt = `Analyse ce document et extrait TOUTES les données factuelles.
 
@@ -254,7 +237,7 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
 
         if (retryCount < MAX_RETRIES) {
           console.log(`Retrying extraction (attempt ${retryCount + 2})...`);
-          return extractDataFromDocument(base64Content, mimeType, googleApiKey, retryCount + 1);
+          return extractDataFromDocument(base64Content, mimeType, googleApiKey, config, retryCount + 1);
         }
 
         throw new Error(`Failed to parse AI response as JSON after ${MAX_RETRIES + 1} attempts`);

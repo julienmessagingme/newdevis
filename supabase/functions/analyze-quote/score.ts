@@ -1,4 +1,5 @@
 import type { ExtractedData, VerificationResult, ScoringResult, ScoringColor } from "./types.ts";
+import type { DomainConfig } from "./domain-config.ts";
 import { getCountryName } from "./utils.ts";
 
 // ============================================================
@@ -7,7 +8,8 @@ import { getCountryName } from "./utils.ts";
 
 export function calculateScore(
   extracted: ExtractedData,
-  verified: VerificationResult
+  verified: VerificationResult,
+  config: DomainConfig
 ): ScoringResult {
 
   const rouges: string[] = [];
@@ -100,17 +102,25 @@ export function calculateScore(
     informatifs.push("ℹ️ Vérification entreprise non effectuée");
   }
 
-  if (extracted.entreprise.assurance_decennale_mentionnee === false) {
-    informatifs.push("ℹ️ Assurance décennale non détectée sur le devis - demandez l'attestation à l'artisan");
-  } else if (extracted.entreprise.assurance_decennale_mentionnee === null) {
-    informatifs.push("ℹ️ Assurance décennale à confirmer - mention partielle ou absente");
+  if (config.insuranceChecks.primary === "assurance_decennale") {
+    if (extracted.entreprise.assurance_decennale_mentionnee === false) {
+      informatifs.push(`ℹ️ ${config.insuranceLabels.primary} non détectée sur le devis - demandez l'attestation à l'artisan`);
+    } else if (extracted.entreprise.assurance_decennale_mentionnee === null) {
+      informatifs.push(`ℹ️ ${config.insuranceLabels.primary} à confirmer - mention partielle ou absente`);
+    }
+  } else if (config.insuranceChecks.primary === "assurance_rc_pro") {
+    if (extracted.entreprise.assurance_rc_pro_mentionnee === false) {
+      informatifs.push(`ℹ️ ${config.insuranceLabels.primary} non détectée sur le devis - demandez l'attestation au professionnel`);
+    } else if (extracted.entreprise.assurance_rc_pro_mentionnee === null) {
+      informatifs.push(`ℹ️ ${config.insuranceLabels.primary} à confirmer - mention partielle ou absente`);
+    }
   }
 
   if (!verified.google_trouve) {
     informatifs.push("ℹ️ Aucun avis Google trouvé pour cette entreprise");
   }
 
-  if (verified.rge_pertinent && !verified.rge_trouve) {
+  if (config.certifications.includes("RGE") && verified.rge_pertinent && !verified.rge_trouve) {
     informatifs.push("ℹ️ Qualification RGE non trouvée - vérifiez l'éligibilité aux aides si applicable");
   }
 
@@ -136,13 +146,12 @@ export function calculateScore(
     verts.push(`Acompte raisonnable (${acompteAvantTravaux}%)`);
   }
 
-  if (extracted.entreprise.certifications_mentionnees.some(c => c.toUpperCase().includes("RGE"))) {
-    verts.push("Certification RGE mentionnée");
+  for (const cert of config.certifications) {
+    if (extracted.entreprise.certifications_mentionnees.some(c => c.toUpperCase().includes(cert.toUpperCase()))) {
+      verts.push(`Certification ${cert} mentionnée`);
+    }
   }
-  if (extracted.entreprise.certifications_mentionnees.some(c => c.toUpperCase().includes("QUALIBAT"))) {
-    verts.push("Certification QUALIBAT mentionnée");
-  }
-  if (verified.rge_trouve) {
+  if (config.certifications.includes("RGE") && verified.rge_trouve) {
     verts.push("Qualification RGE vérifiée");
   }
 
@@ -164,12 +173,14 @@ export function calculateScore(
     }
   }
 
-  if (extracted.entreprise.assurance_decennale_mentionnee === true) {
-    verts.push("Assurance décennale mentionnée sur le devis");
+  if (config.insuranceChecks.primary === "assurance_decennale" && extracted.entreprise.assurance_decennale_mentionnee === true) {
+    verts.push(`${config.insuranceLabels.primary} mentionnée sur le devis`);
+  } else if (config.insuranceChecks.primary === "assurance_rc_pro" && extracted.entreprise.assurance_rc_pro_mentionnee === true) {
+    verts.push(`${config.insuranceLabels.primary} mentionnée sur le devis`);
   }
 
-  if (extracted.entreprise.assurance_rc_pro_mentionnee === true) {
-    verts.push("RC Pro mentionnée sur le devis");
+  if (config.insuranceChecks.secondary?.includes("assurance_rc_pro") && extracted.entreprise.assurance_rc_pro_mentionnee === true) {
+    verts.push(`${config.insuranceLabels.secondary || "RC Pro"} mentionnée sur le devis`);
   }
 
   // Calculate global score

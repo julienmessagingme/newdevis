@@ -2,13 +2,14 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { corsHeaders, PipelineError, isPipelineError, computeFileHash, checkCircuitBreaker } from "./utils.ts";
-import type { ExtractedData } from "./types.ts";
+import type { ExtractedData, DomainType } from "./types.ts";
 import { extractDataFromDocument } from "./extract.ts";
 import { verifyData } from "./verify.ts";
 import { calculateScore } from "./score.ts";
 import { renderOutput } from "./render.ts";
 import { lookupMarketPrices, type WorkItemFull, type JobTypePriceResult } from "./market-prices.ts";
 import { summarizeWorkItems } from "./summarize.ts";
+import { getDomainConfig } from "./domain-config.ts";
 
 // ============ MAIN HANDLER ============
 serve(async (req) => {
@@ -67,6 +68,10 @@ serve(async (req) => {
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Load domain config
+    const domainConfig = getDomainConfig((analysis.domain || "travaux") as DomainType);
+    console.log("Domain:", domainConfig.domain);
 
     // Update status to processing
     await supabase
@@ -257,7 +262,7 @@ serve(async (req) => {
           .eq("id", extractionId);
       }
 
-      extracted = await extractDataFromDocument(base64Content, mimeType, googleApiKey);
+      extracted = await extractDataFromDocument(base64Content, mimeType, googleApiKey, domainConfig);
 
       // Update status to extracted with ocr_status = success
       if (extractionId) {
@@ -440,7 +445,7 @@ serve(async (req) => {
     // Call verifyData and market price lookup in parallel
     const marketPricePromise: Promise<JobTypePriceResult[]> = skipN8N
       ? Promise.resolve([])
-      : lookupMarketPrices(supabase, priceWorkItems, googleApiKey);
+      : lookupMarketPrices(supabase, priceWorkItems, googleApiKey, domainConfig);
 
     const [verifyResult, marketPriceResult] = await Promise.allSettled([
       verifyData(extracted, supabase),
@@ -528,6 +533,7 @@ serve(async (req) => {
             unit: l.unit,
           })),
           zip_code: zipCode,
+          domain: domainConfig.domain,
         }));
 
       if (obsRows.length > 0) {
@@ -545,12 +551,12 @@ serve(async (req) => {
     // ============ PHASE 3: SCORING DÉTERMINISTE (SANS IA) ============
     await supabase.from("analyses").update({ error_message: "[4/5] Calcul du score..." }).eq("id", analysisId);
     console.log("--- PHASE 3: SCORING DÉTERMINISTE ---");
-    const scoring = calculateScore(extracted, verified);
+    const scoring = calculateScore(extracted, verified, domainConfig);
 
     // ============ PHASE 4: RENDER ============
     await supabase.from("analyses").update({ error_message: "[5/5] Génération du rapport..." }).eq("id", analysisId);
     console.log("--- PHASE 4: RENDER ---");
-    const output = renderOutput(extracted, verified, scoring);
+    const output = renderOutput(extracted, verified, scoring, domainConfig);
 
     console.log("=== PIPELINE COMPLETE ===");
     console.log("Final score:", scoring.score_global);

@@ -2,6 +2,7 @@
 
 export type ScoringColor = "VERT" | "ORANGE" | "ROUGE";
 export type DocumentType = "devis_travaux" | "facture" | "diagnostic_immobilier" | "autre";
+export type DomainType = "travaux" | "auto" | "dentaire";
 
 // ============================================================
 // PHASE 1 — EXTRACTION UNIQUE (UN SEUL APPEL IA)

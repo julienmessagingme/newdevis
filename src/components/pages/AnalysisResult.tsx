@@ -41,6 +41,7 @@ import type { TravauxItem } from "@/components/analysis";
 import { useAnonymousAuth } from "@/hooks/useAnonymousAuth";
 import FunnelStepper from "@/components/funnel/FunnelStepper";
 import { ANALYSIS } from "@/lib/constants";
+import { getVisibleBlocks } from "@/lib/domainConfig";
 
 type DocumentDetection = {
   type: "devis_travaux" | "devis_prestation_technique" | "devis_diagnostic_immobilier" | "facture" | "autre";
@@ -69,6 +70,7 @@ type Analysis = {
   types_travaux?: TravauxItem[];
   work_type?: string;
   market_price_overrides?: Record<string, unknown> | null;
+  domain?: string;
 };
 
 // Pure helper functions — extracted outside component
@@ -316,6 +318,7 @@ const AnalysisResult = () => {
   const locationInfo = useMemo(() => analysis ? extractLocationInfo(analysis) : { codePostal: undefined, zoneType: undefined }, [analysis]);
   const companyData = useMemo(() => analysis ? extractCompanyData(analysis) : null, [analysis]);
   const totalHT = useMemo(() => calculateTotalHT(analysis?.types_travaux), [analysis?.types_travaux]);
+  const visibleBlocks = useMemo(() => getVisibleBlocks(analysis?.domain || "travaux"), [analysis?.domain]);
 
   if (loading || authLoading) {
     return (
@@ -576,52 +579,62 @@ const AnalysisResult = () => {
         )}
 
         {/* BLOC 1 — Entreprise & Fiabilité */}
-        <BlockEntreprise
-          pointsOk={analysis.points_ok || []}
-          alertes={analysis.alertes || []}
-          companyData={companyData}
-          defaultOpen={false}
-        />
+        {visibleBlocks.includes("entreprise") && (
+          <BlockEntreprise
+            pointsOk={analysis.points_ok || []}
+            alertes={analysis.alertes || []}
+            companyData={companyData}
+            defaultOpen={false}
+          />
+        )}
 
         {/* BLOC 2 — Analyse Prix & Cohérence Marché (API-driven) */}
-        <BlockPrixMarche
-          montantTotalHT={totalHT}
-          codePostal={locationInfo.codePostal}
-          selectedWorkType={analysis.work_type}
-          filePath={analysis.file_path}
-          cachedN8NData={cachedN8NData}
-          analysisId={analysis.id}
-          marketPriceOverrides={analysis.market_price_overrides}
-          resume={analysis.resume}
-          defaultOpen={false}
-          showGate={isAnonymous && !isPermanent}
-          onAuthSuccess={handleAuthConversion}
-          convertToPermanent={convertToPermanent}
-        />
+        {visibleBlocks.includes("prix_marche") && (
+          <BlockPrixMarche
+            montantTotalHT={totalHT}
+            codePostal={locationInfo.codePostal}
+            selectedWorkType={analysis.work_type}
+            filePath={analysis.file_path}
+            cachedN8NData={cachedN8NData}
+            analysisId={analysis.id}
+            marketPriceOverrides={analysis.market_price_overrides}
+            resume={analysis.resume}
+            defaultOpen={false}
+            showGate={isAnonymous && !isPermanent}
+            onAuthSuccess={handleAuthConversion}
+            convertToPermanent={convertToPermanent}
+          />
+        )}
 
         {/* BLOC 3 — Sécurité & Conditions de paiement */}
-        <BlockSecurite
-          pointsOk={analysis.points_ok || []}
-          alertes={analysis.alertes || []}
-          analysisId={analysis.id}
-          assuranceSource={analysis.assurance_source}
-          assuranceLevel2Score={analysis.assurance_level2_score}
-          attestationComparison={analysis.attestation_comparison as any}
-          quoteInfo={quoteInfo}
-          onUploadComplete={fetchAnalysis}
-          defaultOpen={false}
-        />
+        {visibleBlocks.includes("securite") && (
+          <BlockSecurite
+            pointsOk={analysis.points_ok || []}
+            alertes={analysis.alertes || []}
+            analysisId={analysis.id}
+            assuranceSource={analysis.assurance_source}
+            assuranceLevel2Score={analysis.assurance_level2_score}
+            attestationComparison={analysis.attestation_comparison as any}
+            quoteInfo={quoteInfo}
+            onUploadComplete={fetchAnalysis}
+            defaultOpen={false}
+          />
+        )}
 
         {/* BLOC 4 — Contexte du chantier */}
-        <BlockContexte
-          siteContext={analysis.site_context as any}
-          pointsOk={analysis.points_ok || []}
-          alertes={analysis.alertes || []}
-          defaultOpen={false}
-        />
+        {visibleBlocks.includes("contexte") && (
+          <BlockContexte
+            siteContext={analysis.site_context as any}
+            pointsOk={analysis.points_ok || []}
+            alertes={analysis.alertes || []}
+            defaultOpen={false}
+          />
+        )}
 
         {/* BLOC 5 — Urbanisme & Formalités CERFA */}
-        <BlockUrbanisme initialWorkType={analysis.work_type} />
+        {visibleBlocks.includes("urbanisme") && (
+          <BlockUrbanisme initialWorkType={analysis.work_type} />
+        )}
 
         {/* Remaining Points OK */}
         {remainingPointsOk.length > 0 && (

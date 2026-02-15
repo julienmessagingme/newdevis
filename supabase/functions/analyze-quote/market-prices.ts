@@ -1,3 +1,5 @@
+import type { DomainConfig } from "./domain-config.ts";
+
 // ============================================================
 // MARKET PRICES LOOKUP — Hierarchical job type system
 // 1. Fetches market_prices catalog from Supabase
@@ -85,6 +87,7 @@ async function groupWithGemini(
   workItems: WorkItemFull[],
   catalog: string,
   googleApiKey: string,
+  expertPrompt: string,
 ): Promise<GeminiJobType[]> {
   const totalItems = workItems.length;
   const itemsList = workItems
@@ -97,7 +100,7 @@ async function groupWithGemini(
     })
     .join("\n");
 
-  const prompt = `Tu es un expert en travaux de bâtiment et rénovation.
+  const prompt = `${expertPrompt}
 
 POSTES DU DEVIS (${totalItems} postes numérotés de 1 à ${totalItems}) :
 ${itemsList}
@@ -209,17 +212,19 @@ export async function lookupMarketPrices(
   supabase: SupabaseClient,
   workItems: WorkItemFull[],
   googleApiKey: string,
+  config: DomainConfig,
 ): Promise<JobTypePriceResult[]> {
   if (!workItems || workItems.length === 0) {
     return [];
   }
 
-  // 1. Fetch all market prices (~220 rows)
+  // 1. Fetch market prices filtered by domain
   const { data: allPrices, error } = await supabase
     .from("market_prices")
     .select(
       "job_type, label, unit, price_min_unit_ht, price_avg_unit_ht, price_max_unit_ht, fixed_min_ht, fixed_avg_ht, fixed_max_ht, zip_scope, notes",
-    );
+    )
+    .eq("domain", config.domain);
 
   if (error || !allPrices || allPrices.length === 0) {
     console.warn("[MarketPrices] Failed to fetch:", error?.message);
@@ -240,7 +245,7 @@ export async function lookupMarketPrices(
 
   // 3. Ask Gemini to identify job types and assign lines
   const catalog = buildCatalog(allPrices as MarketPriceRow[]);
-  const jobTypes = await groupWithGemini(workItems, catalog, googleApiKey);
+  const jobTypes = await groupWithGemini(workItems, catalog, googleApiKey, config.marketPriceExpertPrompt);
 
   console.log(`[MarketPrices] ${workItems.length} work items, ${jobTypes.length} job types from Gemini`);
 

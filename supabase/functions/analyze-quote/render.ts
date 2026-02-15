@@ -1,4 +1,5 @@
 import type { ExtractedData, VerificationResult, ScoringResult } from "./types.ts";
+import type { DomainConfig } from "./domain-config.ts";
 import { getCountryName } from "./utils.ts";
 
 // ============================================================
@@ -8,7 +9,8 @@ import { getCountryName } from "./utils.ts";
 export function renderOutput(
   extracted: ExtractedData,
   verified: VerificationResult,
-  scoring: ScoringResult
+  scoring: ScoringResult,
+  config: DomainConfig
 ): { points_ok: string[]; alertes: string[]; recommandations: string[]; types_travaux: any[] } {
 
   const points_ok: string[] = [];
@@ -113,16 +115,21 @@ export function renderOutput(
     points_ok.push("ℹ️ Aucun avis Google trouvé - cela ne préjuge pas de la qualité de l'entreprise");
   }
 
-  // RGE
-  if (verified.rge_trouve) {
-    points_ok.push(`🟢 Qualification RGE vérifiée : ${verified.rge_qualifications.slice(0, 2).join(", ")}`);
-  } else if (verified.rge_pertinent) {
-    points_ok.push("ℹ️ Qualification RGE non trouvée. Si vous visez des aides (MaPrimeRénov', CEE...), demandez le certificat RGE à l'artisan.");
+  // RGE (only for domains that track it)
+  if (config.certifications.includes("RGE")) {
+    if (verified.rge_trouve) {
+      points_ok.push(`🟢 Qualification RGE vérifiée : ${verified.rge_qualifications.slice(0, 2).join(", ")}`);
+    } else if (verified.rge_pertinent) {
+      points_ok.push("ℹ️ Qualification RGE non trouvée. Si vous visez des aides (MaPrimeRénov', CEE...), demandez le certificat RGE à l'artisan.");
+    }
   }
 
-  // Certifications
-  if (extracted.entreprise.certifications_mentionnees.some(c => c.toUpperCase().includes("QUALIBAT"))) {
-    points_ok.push("🟢 Qualification QUALIBAT mentionnée sur le devis");
+  // Certifications (domain-specific)
+  for (const cert of config.certifications) {
+    if (cert === "RGE") continue; // already handled above
+    if (extracted.entreprise.certifications_mentionnees.some(c => c.toUpperCase().includes(cert.toUpperCase()))) {
+      points_ok.push(`🟢 Qualification ${cert} mentionnée sur le devis`);
+    }
   }
 
   // BLOC 2: DEVIS
@@ -188,16 +195,26 @@ export function renderOutput(
     points_ok.push("✓ Échéancier de paiement prévu");
   }
 
-  if (extracted.entreprise.assurance_decennale_mentionnee === true) {
-    points_ok.push("✓ Assurance décennale mentionnée sur le devis");
-  } else if (extracted.entreprise.assurance_decennale_mentionnee === false) {
-    points_ok.push("ℹ️ Assurance décennale non détectée. Demandez l'attestation d'assurance pour confirmer la couverture.");
-  } else {
-    points_ok.push("ℹ️ Mention d'assurance décennale partielle ou incertaine. Demandez l'attestation pour confirmation.");
+  if (config.insuranceChecks.primary === "assurance_decennale") {
+    if (extracted.entreprise.assurance_decennale_mentionnee === true) {
+      points_ok.push(`✓ ${config.insuranceLabels.primary} mentionnée sur le devis`);
+    } else if (extracted.entreprise.assurance_decennale_mentionnee === false) {
+      points_ok.push(`ℹ️ ${config.insuranceLabels.primary} non détectée. Demandez l'attestation d'assurance pour confirmer la couverture.`);
+    } else {
+      points_ok.push(`ℹ️ Mention de ${config.insuranceLabels.primary.toLowerCase()} partielle ou incertaine. Demandez l'attestation pour confirmation.`);
+    }
+  } else if (config.insuranceChecks.primary === "assurance_rc_pro") {
+    if (extracted.entreprise.assurance_rc_pro_mentionnee === true) {
+      points_ok.push(`✓ ${config.insuranceLabels.primary} mentionnée sur le devis`);
+    } else if (extracted.entreprise.assurance_rc_pro_mentionnee === false) {
+      points_ok.push(`ℹ️ ${config.insuranceLabels.primary} non détectée. Demandez l'attestation au professionnel.`);
+    } else {
+      points_ok.push(`ℹ️ Mention de ${config.insuranceLabels.primary.toLowerCase()} partielle ou incertaine. Demandez l'attestation pour confirmation.`);
+    }
   }
 
-  if (extracted.entreprise.assurance_rc_pro_mentionnee === true) {
-    points_ok.push("✓ RC Pro mentionnée sur le devis");
+  if (config.insuranceChecks.secondary?.includes("assurance_rc_pro") && extracted.entreprise.assurance_rc_pro_mentionnee === true) {
+    points_ok.push(`✓ ${config.insuranceLabels.secondary || "RC Pro"} mentionnée sur le devis`);
   }
 
   // BLOC 4: CONTEXTE
