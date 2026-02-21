@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "type": "streamable-http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=ttrqyrranludmkklpmvo"
+    }
+  }
+}
