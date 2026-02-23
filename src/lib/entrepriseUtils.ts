@@ -275,6 +275,131 @@ export const extractEntrepriseData = (pointsOk: string[], alertes: string[]): En
 };
 
 // ============================================================
+// FINANCIAL HEALTH — Types and Computation
+// ============================================================
+
+export interface FinancialRatios {
+  date_cloture: string;
+  chiffre_affaires: number | null;
+  resultat_net: number | null;
+  taux_endettement: number | null;
+  ratio_liquidite: number | null;
+  autonomie_financiere: number | null;
+  capacite_remboursement: number | null;
+  marge_ebe: number | null;
+}
+
+export type FinancialHealthStatus = "VERT" | "ORANGE" | "ROUGE" | "NO_DATA";
+
+export interface FinancialHealthData {
+  status: FinancialHealthStatus;
+  dernier_exercice_year: string | null;
+  isStale: boolean;
+  orangeSignals: string[];
+  exercises: FinancialRatios[];   // up to 3, most recent first
+  latestRatios: FinancialRatios | null;
+}
+
+/**
+ * Compute a dedicated financial health sub-score for the "Santé financière (comptes)" row.
+ * Does NOT affect the global block score (info.score from extractEntrepriseData).
+ *
+ * ROUGE  : procédure collective OR entreprise radiée
+ * ORANGE : ancienneté < 2 ans | données >= 2 ans | CA en baisse 2 exercices consécutifs | résultat net passé de positif à négatif
+ * VERT   : sinon
+ * NO_DATA: aucun exercice disponible (micro-entreprise, bilan non publié…)
+ */
+export const computeFinancialHealth = (
+  finances: FinancialRatios[],
+  procedure_collective: boolean | null,
+  anciennete_annees: number | null,
+  entreprise_radiee: boolean | null
+): FinancialHealthData => {
+  const exercises = (finances || []).slice(0, 3); // max 3 exercices affichés
+  const latestRatios = exercises[0] ?? null;
+  const year = latestRatios?.date_cloture
+    ? latestRatios.date_cloture.substring(0, 4)
+    : null;
+
+  // ROUGE : procédure collective ou entreprise radiée
+  if (procedure_collective === true || entreprise_radiee === true) {
+    return {
+      status: "ROUGE",
+      dernier_exercice_year: year,
+      isStale: false,
+      orangeSignals: [],
+      exercises,
+      latestRatios,
+    };
+  }
+
+  // NO_DATA : aucun exercice (micro-entreprise, auto-entrepreneur, bilan non déposé)
+  if (!exercises.length || !latestRatios) {
+    return {
+      status: "NO_DATA",
+      dernier_exercice_year: null,
+      isStale: false,
+      orangeSignals: [],
+      exercises: [],
+      latestRatios: null,
+    };
+  }
+
+  // Vérification ancienneté des données (>= 2 ans = non récentes)
+  let isStale = false;
+  if (latestRatios.date_cloture) {
+    const closureDate = new Date(latestRatios.date_cloture);
+    const twoYearsAgo = new Date();
+    twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+    isStale = closureDate <= twoYearsAgo;
+  }
+
+  const orangeSignals: string[] = [];
+
+  // Signal 1 : données non récentes
+  if (isStale) {
+    orangeSignals.push("stale");
+  }
+
+  // Signal 2 : entreprise récente (< 2 ans)
+  if (anciennete_annees !== null && anciennete_annees < 2) {
+    orangeSignals.push("recent");
+  }
+
+  // Signal 3 : tendance CA en baisse sur 2 exercices consécutifs (besoin de 3 points)
+  if (
+    exercises.length >= 3 &&
+    exercises[0].chiffre_affaires !== null &&
+    exercises[1].chiffre_affaires !== null &&
+    exercises[2].chiffre_affaires !== null &&
+    exercises[0].chiffre_affaires < exercises[1].chiffre_affaires &&
+    exercises[1].chiffre_affaires < exercises[2].chiffre_affaires
+  ) {
+    orangeSignals.push("ca_decline_2y");
+  }
+
+  // Signal 4 : résultat net passé de positif (N-1) à négatif (N)
+  if (
+    latestRatios.resultat_net !== null &&
+    latestRatios.resultat_net < 0 &&
+    exercises.length >= 2 &&
+    exercises[1].resultat_net !== null &&
+    exercises[1].resultat_net >= 0
+  ) {
+    orangeSignals.push("resultat_turned_negative");
+  }
+
+  return {
+    status: orangeSignals.length > 0 ? "ORANGE" : "VERT",
+    dernier_exercice_year: year,
+    isStale,
+    orangeSignals,
+    exercises,
+    latestRatios,
+  };
+};
+
+// ============================================================
 // FILTER FUNCTION
 // ============================================================
 

@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Star, Building2, Globe, ChevronDown } from "lucide-react";
+import { Star, Building2, Globe, ChevronDown, TrendingUp, AlertCircle } from "lucide-react";
 import { getScoreIcon, getScoreBgClass, getScoreTextClass } from "@/lib/scoreUtils";
-import { extractEntrepriseData } from "@/lib/entrepriseUtils";
+import { extractEntrepriseData, computeFinancialHealth } from "@/lib/entrepriseUtils";
+import type { FinancialRatios } from "@/lib/entrepriseUtils";
 import InfoTooltip from "./InfoTooltip";
 import PedagogicExplanation from "./PedagogicExplanation";
 import type { CompanyDisplayData } from "@/components/pages/AnalysisResult";
@@ -12,6 +13,40 @@ interface BlockEntrepriseProps {
   companyData?: CompanyDisplayData | null;
   defaultOpen?: boolean;
 }
+
+// ── Formatage montants ──────────────────────────────────────
+const formatCurrency = (amount: number): string =>
+  new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(amount);
+
+const formatCurrencyCompact = (amount: number): string => {
+  const abs = Math.abs(amount);
+  const sign = amount < 0 ? "−\u202f" : "+\u202f";
+  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1).replace(".", ",")} M€`;
+  if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(0)} k€`;
+  return `${sign}${abs.toFixed(0)} €`;
+};
+
+// ── Carte ratio compacte ────────────────────────────────────
+const RatioCard = ({
+  label,
+  value,
+  colorClass,
+  hint,
+}: {
+  label: string;
+  value: string;
+  colorClass: string;
+  hint?: string;
+}) => (
+  <div className="p-2 bg-background/40 rounded-lg" title={hint}>
+    <p className="text-xs text-muted-foreground leading-tight mb-0.5">{label}</p>
+    <p className={`text-sm font-semibold ${colorClass}`}>{value}</p>
+  </div>
+);
 
 const formatSiret = (siret: string): string => {
   const clean = siret.replace(/\s/g, "");
@@ -26,7 +61,17 @@ const formatSiret = (siret: string): string => {
 
 const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }: BlockEntrepriseProps) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const [financesOpen, setFinancesOpen] = useState(false);
   const info = extractEntrepriseData(pointsOk, alertes);
+
+  // Calcul santé financière à partir des données brutes (verified.finances[])
+  const finances: FinancialRatios[] = companyData?.finances ?? [];
+  const financialHealth = computeFinancialHealth(
+    finances,
+    companyData?.procedure_collective ?? null,
+    companyData?.anciennete_annees ?? null,
+    companyData?.entreprise_radiee ?? null
+  );
 
   // Check if we have any meaningful data
   const hasData = info.siren_siret || info.anciennete || info.financesDisponibles !== null ||
@@ -124,64 +169,206 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
             )}
           </div>
 
-          {/* Financial indicators */}
-          {(info.chiffreAffaires || info.resultatNet || info.autonomieFinanciere || info.tauxEndettement || info.ratioLiquidite || info.procedureCollective !== null) ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-              {info.chiffreAffaires && (
-                <div className="p-3 bg-background/30 rounded-lg">
-                  <p className="text-xs text-muted-foreground mb-1">Chiffre d'affaires</p>
-                  <p className="font-medium text-foreground">{info.chiffreAffaires}</p>
-                </div>
-              )}
+          {/* ── Santé financière (comptes) ─────────────────── */}
+          <div className="mb-4">
+            {/* Ligne compacte cliquable */}
+            <button
+              onClick={() => setFinancesOpen(!financesOpen)}
+              className="w-full flex items-center justify-between gap-3 px-3 py-2.5 bg-background/30 rounded-xl border border-border/20 hover:bg-background/50 transition-colors text-left"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <TrendingUp className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <span className="text-sm font-medium text-foreground">Santé financière (comptes)</span>
+                {financialHealth.dernier_exercice_year && (
+                  <span className="text-xs text-muted-foreground hidden sm:inline">
+                    — Dernier exercice&nbsp;: {financialHealth.dernier_exercice_year}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {financialHealth.status === "NO_DATA" ? (
+                  <span className="text-xs text-muted-foreground">Non disponible</span>
+                ) : (
+                  <>
+                    {getScoreIcon(financialHealth.status, "h-4 w-4")}
+                    <span className={`text-xs font-medium ${getScoreTextClass(financialHealth.status)}`}>
+                      {financialHealth.status === "VERT" && "Indicateurs positifs"}
+                      {financialHealth.status === "ORANGE" && "Signal à vérifier"}
+                      {financialHealth.status === "ROUGE" && "Signal critique"}
+                    </span>
+                  </>
+                )}
+                <ChevronDown
+                  className={`h-4 w-4 text-muted-foreground transition-transform ml-1 ${financesOpen ? "rotate-180" : ""}`}
+                />
+              </div>
+            </button>
 
-              {info.resultatNet && (
-                <div className="p-3 bg-background/30 rounded-lg">
-                  <p className="text-xs text-muted-foreground mb-1">Résultat net</p>
-                  <p className={`font-medium ${info.resultatNet === "Négatif" ? "text-score-red" : "text-score-green"}`}>
-                    {info.resultatNet}
+            {/* Accordion Détails financiers */}
+            {financesOpen && (
+              <div className="mt-1.5 px-4 py-4 bg-background/20 rounded-xl border border-border/20 space-y-4">
+
+                {/* Avertissement données non récentes */}
+                {financialHealth.isStale && (
+                  <div className="flex items-start gap-2 p-3 bg-score-orange-bg rounded-lg border border-score-orange/30">
+                    <AlertCircle className="h-4 w-4 text-score-orange flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-score-orange">
+                      Données non récentes (dernier exercice&nbsp;: {financialHealth.dernier_exercice_year})
+                      — les indicateurs ci-dessous sont à interpréter avec prudence.
+                    </p>
+                  </div>
+                )}
+
+                {/* Tableau évolution sur 3 exercices */}
+                {financialHealth.exercises.length > 0 ? (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                      Évolution sur {financialHealth.exercises.length} exercice{financialHealth.exercises.length > 1 ? "s" : ""}
+                    </p>
+                    <div className="overflow-x-auto -mx-1">
+                      <table className="w-full text-sm border-collapse min-w-[280px]">
+                        <thead>
+                          <tr className="border-b border-border/30">
+                            <th className="text-left py-1.5 px-2 text-xs text-muted-foreground font-medium">Exercice</th>
+                            <th className="text-right py-1.5 px-2 text-xs text-muted-foreground font-medium">Chiffre d'affaires</th>
+                            <th className="text-right py-1.5 px-2 text-xs text-muted-foreground font-medium">Résultat net</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {financialHealth.exercises.map((ex, idx) => (
+                            <tr
+                              key={idx}
+                              className={`border-b border-border/20 ${idx === 0 ? "font-medium" : "opacity-80"}`}
+                            >
+                              <td className="py-1.5 px-2 text-foreground">
+                                {ex.date_cloture ? ex.date_cloture.substring(0, 4) : "—"}
+                                {idx === 0 && (
+                                  <span className="ml-1 text-xs text-muted-foreground font-normal">(dernier)</span>
+                                )}
+                              </td>
+                              <td className="py-1.5 px-2 text-right text-foreground">
+                                {ex.chiffre_affaires !== null ? formatCurrency(ex.chiffre_affaires) : "—"}
+                              </td>
+                              <td className={`py-1.5 px-2 text-right font-medium ${
+                                ex.resultat_net === null
+                                  ? "text-muted-foreground"
+                                  : ex.resultat_net >= 0
+                                  ? "text-score-green"
+                                  : "text-score-red"
+                              }`}>
+                                {ex.resultat_net !== null ? formatCurrencyCompact(ex.resultat_net) : "—"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Aucun compte publié — micro-entreprise, auto-entrepreneur ou bilan non déposé.
                   </p>
-                </div>
-              )}
+                )}
 
-              {info.autonomieFinanciere && (
-                <div className="p-3 bg-background/30 rounded-lg">
-                  <p className="text-xs text-muted-foreground mb-1">Autonomie financière</p>
-                  <p className="font-medium text-score-green">{info.autonomieFinanciere}</p>
-                </div>
-              )}
+                {/* Ratios de la dernière année */}
+                {financialHealth.latestRatios && (
+                  (() => {
+                    const r = financialHealth.latestRatios!;
+                    const hasRatios =
+                      r.taux_endettement !== null ||
+                      r.ratio_liquidite !== null ||
+                      r.autonomie_financiere !== null ||
+                      r.capacite_remboursement !== null ||
+                      r.marge_ebe !== null;
 
-              {info.tauxEndettement && (
-                <div className="p-3 bg-background/30 rounded-lg">
-                  <p className="text-xs text-muted-foreground mb-1">Taux d'endettement</p>
-                  <p className={`font-medium ${parseInt(info.tauxEndettement) > 200 ? "text-score-red" : parseInt(info.tauxEndettement) > 100 ? "text-score-orange" : "text-score-green"}`}>
-                    {info.tauxEndettement}
-                  </p>
-                </div>
-              )}
+                    return hasRatios ? (
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                          Indicateurs {financialHealth.dernier_exercice_year}
+                        </p>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {r.taux_endettement !== null && (
+                            <RatioCard
+                              label="Taux d'endettement"
+                              value={`${r.taux_endettement.toFixed(0)} %`}
+                              colorClass={
+                                r.taux_endettement > 200
+                                  ? "text-score-red"
+                                  : r.taux_endettement > 100
+                                  ? "text-score-orange"
+                                  : "text-score-green"
+                              }
+                              hint="Dettes totales / Capitaux propres. Un taux > 100 % signale un endettement supérieur aux fonds propres."
+                            />
+                          )}
+                          {r.ratio_liquidite !== null && (
+                            <RatioCard
+                              label="Ratio de liquidité"
+                              value={`${r.ratio_liquidite.toFixed(0)} %`}
+                              colorClass={r.ratio_liquidite < 80 ? "text-score-orange" : "text-score-green"}
+                              hint="Actif circulant / Passif à court terme. Un ratio < 80 % peut signaler des tensions de trésorerie."
+                            />
+                          )}
+                          {r.autonomie_financiere !== null && (
+                            <RatioCard
+                              label="Autonomie financière"
+                              value={`${r.autonomie_financiere.toFixed(0)} %`}
+                              colorClass={r.autonomie_financiere > 30 ? "text-score-green" : "text-score-orange"}
+                              hint="Capitaux propres / Total bilan. Un taux > 30 % indique une bonne indépendance financière."
+                            />
+                          )}
+                          {r.capacite_remboursement !== null && (
+                            <RatioCard
+                              label="Capacité de remboursement"
+                              value={`${r.capacite_remboursement.toFixed(1)} ×`}
+                              colorClass={r.capacite_remboursement > 4 ? "text-score-orange" : "text-score-green"}
+                              hint="Dettes financières / EBE. Un ratio > 4 peut indiquer une dette élevée par rapport à la capacité bénéficiaire."
+                            />
+                          )}
+                          {r.marge_ebe !== null && (
+                            <RatioCard
+                              label="Marge EBE"
+                              value={`${r.marge_ebe.toFixed(1)} %`}
+                              colorClass={r.marge_ebe > 0 ? "text-score-green" : "text-score-red"}
+                              hint="EBE / Chiffre d'affaires. Mesure la rentabilité d'exploitation avant charges financières et amortissements."
+                            />
+                          )}
+                        </div>
+                      </div>
+                    ) : null;
+                  })()
+                )}
 
-              {info.ratioLiquidite && (
-                <div className="p-3 bg-background/30 rounded-lg">
-                  <p className="text-xs text-muted-foreground mb-1">Ratio de liquidité</p>
-                  <p className={`font-medium ${parseInt(info.ratioLiquidite) < 80 ? "text-score-orange" : "text-score-green"}`}>
-                    {info.ratioLiquidite}
-                  </p>
-                </div>
-              )}
+                {/* Signaux ORANGE détaillés */}
+                {financialHealth.orangeSignals.length > 0 && (
+                  <div className="space-y-1 pt-1 border-t border-border/20">
+                    <p className="text-xs font-medium text-muted-foreground mb-1.5">Signaux identifiés</p>
+                    {financialHealth.orangeSignals.map((signal, idx) => (
+                      <div key={idx} className="flex items-start gap-2 text-xs text-score-orange">
+                        <span className="flex-shrink-0 mt-px">•</span>
+                        <span>
+                          {signal === "stale" &&
+                            "Données non récentes — les comptes disponibles datent de plus de 2 ans. Indicateur à interpréter avec prudence."}
+                          {signal === "recent" &&
+                            "Entreprise récente — l'historique financier est limité, ce qui rend l'évaluation plus incertaine."}
+                          {signal === "ca_decline_2y" &&
+                            "Chiffre d'affaires en baisse sur 2 exercices consécutifs — signal à surveiller, sans conclure à une fragilité."}
+                          {signal === "resultat_turned_negative" &&
+                            "Résultat net passé de positif à négatif sur le dernier exercice — signal à vérifier dans son contexte."}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
-              {info.procedureCollective !== null && (
-                <div className="p-3 bg-background/30 rounded-lg">
-                  <p className="text-xs text-muted-foreground mb-1">Procédure collective</p>
-                  <p className={`font-medium ${info.procedureCollective ? "text-score-red" : "text-score-green"}`}>
-                    {info.procedureCollective ? "En cours" : "Aucune"}
-                  </p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="p-3 bg-background/30 rounded-lg mb-4 text-sm text-muted-foreground">
-              Aucune donnée financière publique disponible pour cette entreprise (micro-entreprise, auto-entrepreneur ou bilan non publié).
-            </div>
-          )}
+                {/* Disclaimer */}
+                <p className="text-xs text-muted-foreground/60 italic border-t border-border/20 pt-3">
+                  Analyse automatisée à partir des données financières publiques (INPI / BCE via data.economie.gouv.fr, jusqu'à {financialHealth.exercises.length || 0} exercice{financialHealth.exercises.length !== 1 ? "s" : ""} disponible{financialHealth.exercises.length !== 1 ? "s" : ""}).
+                  Ces indicateurs sont fournis à titre informatif et ne constituent pas un jugement sur la santé financière de l'entreprise.
+                </p>
+              </div>
+            )}
+          </div>
 
           {/* Réputation en ligne - ALWAYS VISIBLE */}
           <div className={`p-4 rounded-lg border ${getScoreBgClass(info.reputation?.score || "ORANGE")}`}>

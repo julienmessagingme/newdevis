@@ -173,6 +173,9 @@ export interface CompanyDisplayData {
   entreprise_radiee: boolean | null;
   procedure_collective: boolean | null;
   lookup_status: string | null;
+  // Données financières brutes issues de verified.finances (data.economie.gouv.fr)
+  finances: import("@/lib/entrepriseUtils").FinancialRatios[];
+  finances_status: string;
 }
 
 const extractCompanyData = (analysis: Analysis): CompanyDisplayData | null => {
@@ -195,6 +198,8 @@ const extractCompanyData = (analysis: Analysis): CompanyDisplayData | null => {
       entreprise_radiee: verified?.entreprise_radiee ?? null,
       procedure_collective: verified?.procedure_collective ?? null,
       lookup_status: verified?.lookup_status || null,
+      finances: Array.isArray(verified?.finances) ? verified.finances : [],
+      finances_status: verified?.finances_status || "skipped",
     };
   } catch {
     return null;
@@ -728,6 +733,8 @@ const AnalysisResult = () => {
             siteContext={analysis.site_context as any}
             pointsOk={analysis.points_ok || []}
             alertes={analysis.alertes || []}
+            rawText={analysis.raw_text || null}
+            workType={analysis.work_type || null}
             defaultOpen={false}
           />
         )}
