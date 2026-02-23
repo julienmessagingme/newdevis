@@ -166,7 +166,8 @@ export const extractEntrepriseData = (pointsOk: string[], alertes: string[]): En
     }
 
     // Extract reputation - Case A: Rating found
-    const ratingMatch = point.match(/[rR]éputation en ligne.*?(\d+(?:[.,]\d+)?)\s*\/\s*5.*?\((\d+)\s*avis/i);
+    // Matches both "Réputation en ligne : X/5 (Y avis)" AND "Note Google : X/5 (Y avis)"
+    const ratingMatch = point.match(/(?:réputation en ligne|note google).*?(\d+(?:[.,]\d+)?)\s*\/\s*5.*?\((\d+)\s*avis/i);
     if (ratingMatch) {
       reputationSearched = true;
       const rating = parseFloat(ratingMatch[1].replace(',', '.'));
@@ -198,7 +199,7 @@ export const extractEntrepriseData = (pointsOk: string[], alertes: string[]): En
         status: "uncertain"
       };
     }
-    // Case C: Not found but searched
+    // Case C: Not found via "réputation en ligne" format
     else if (lowerPoint.includes("réputation en ligne") && (lowerPoint.includes("aucun avis") || lowerPoint.includes("non trouvé") || lowerPoint.includes("non disponible"))) {
       reputationSearched = true;
       reputation = {
@@ -206,6 +207,17 @@ export const extractEntrepriseData = (pointsOk: string[], alertes: string[]): En
         explanation: point,
         status: "not_found"
       };
+    }
+    // Case C2: Not found via "Aucun avis Google trouvé" format (render.ts / score.ts)
+    else if (lowerPoint.includes("aucun avis google") && lowerPoint.includes("trouvé")) {
+      reputationSearched = true;
+      if (!reputation) {
+        reputation = {
+          score: "ORANGE",
+          explanation: point,
+          status: "not_found"
+        };
+      }
     }
   }
 

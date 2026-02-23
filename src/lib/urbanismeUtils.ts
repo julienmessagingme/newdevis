@@ -277,3 +277,321 @@ export function detectInitialCategory(workType?: string): WorkCategory {
   if (lower.includes("extension") || lower.includes("agrandissement") || lower.includes("véranda") || lower.includes("veranda")) return "extension";
   return "";
 }
+
+// ============================================================
+// DÉMARCHES URBANISME — Détection et estimation simplifiée
+// ============================================================
+
+export type DetectedCategory =
+  | "extension"
+  | "piscine"
+  | "cloture"
+  | "abri_jardin"
+  | "facade"
+  | "construction_neuve";
+
+export interface TravauxDetection {
+  categories: DetectedCategory[];
+  detected_from: string[];
+}
+
+export interface DemarcheInputs {
+  surface_creee: number | null;
+  surface_actuelle: number | null;
+  surface_totale_apres: number | null;
+  surface_bassin: number | null;
+  hauteur_cloture: number | null;
+}
+
+export interface DemarcheItem {
+  category: DetectedCategory;
+  label: string;
+  probable_demarche:
+    | "DP probable"
+    | "PC probable"
+    | "DP ou PC probable"
+    | "Aucune formalité probable";
+  explanation: string;
+  link_dp?: { label: string; url: string };
+  link_pc?: { label: string; url: string };
+  warnings?: string[];
+}
+
+export interface DemarcheResult {
+  items: DemarcheItem[];
+  disclaimer: string;
+}
+
+export const DEMARCHE_LINKS = {
+  dp: {
+    label: "Déclaration préalable — Service-Public.fr",
+    url: "https://www.service-public.fr/particuliers/vosdroits/R11646",
+  },
+  pc: {
+    label: "Permis de construire — Service-Public.fr",
+    url: "https://www.service-public.fr/particuliers/vosdroits/R11637",
+  },
+} as const;
+
+const DETECTION_KEYWORDS: Record<DetectedCategory, string[]> = {
+  extension: [
+    "extension",
+    "agrandissement",
+    "véranda",
+    "veranda",
+    "surélévation",
+    "surelevation",
+    "annexe",
+  ],
+  piscine: ["piscine", "bassin", "spa", "jacuzzi"],
+  cloture: ["clôture", "cloture", "portail", "grillage", "muret"],
+  abri_jardin: [
+    "abri de jardin",
+    "abri jardin",
+    "abris de jardin",
+    "cabanon",
+    "carport",
+  ],
+  facade: [
+    "ravalement",
+    "façade",
+    "facade",
+    "toiture",
+    "couverture",
+    "ouverture",
+    "velux",
+    "lucarne",
+  ],
+  construction_neuve: [
+    "construction neuve",
+    "maison neuve",
+    "fondations",
+    "fondation",
+    "gros œuvre",
+    "gros oeuvre",
+  ],
+};
+
+export function detectUrbanismeCategories(
+  rawText: string | null,
+  workType: string | null
+): TravauxDetection {
+  const categories = new Set<DetectedCategory>();
+  const detected_from: string[] = [];
+
+  const textParts: string[] = [];
+  if (workType) textParts.push(workType.toLowerCase());
+
+  if (rawText) {
+    try {
+      const parsed: unknown =
+        typeof rawText === "string" ? JSON.parse(rawText) : rawText;
+      if (parsed && typeof parsed === "object") {
+        const p = parsed as Record<string, unknown>;
+        const extracted = p["extracted"] as Record<string, unknown> | undefined;
+        if (extracted) {
+          const travaux = extracted["travaux"] as
+            | Array<Record<string, unknown>>
+            | undefined;
+          if (Array.isArray(travaux)) {
+            for (const t of travaux) {
+              if (t["libelle"] && typeof t["libelle"] === "string")
+                textParts.push((t["libelle"] as string).toLowerCase());
+              if (t["categorie"] && typeof t["categorie"] === "string")
+                textParts.push((t["categorie"] as string).toLowerCase());
+            }
+          }
+          if (
+            extracted["work_type"] &&
+            typeof extracted["work_type"] === "string"
+          ) {
+            textParts.push((extracted["work_type"] as string).toLowerCase());
+          }
+        }
+      }
+    } catch (_) {
+      // rawText is plain text
+      textParts.push(rawText.toLowerCase());
+    }
+  }
+
+  const combinedText = textParts.join(" ");
+
+  for (const [cat, keywords] of Object.entries(DETECTION_KEYWORDS) as [
+    DetectedCategory,
+    string[],
+  ][]) {
+    for (const kw of keywords) {
+      if (combinedText.includes(kw)) {
+        categories.add(cat);
+        detected_from.push(kw);
+        break;
+      }
+    }
+  }
+
+  return {
+    categories: Array.from(categories),
+    detected_from,
+  };
+}
+
+export function computeDemarcheSimple(
+  detection: TravauxDetection,
+  inputs: DemarcheInputs
+): DemarcheResult {
+  const items: DemarcheItem[] = [];
+
+  for (const category of detection.categories) {
+    switch (category) {
+      case "extension": {
+        const sc = inputs.surface_creee;
+        let probable_demarche: DemarcheItem["probable_demarche"];
+        let explanation: string;
+        const warnings: string[] = [];
+
+        if (sc === null) {
+          probable_demarche = "DP ou PC probable";
+          explanation =
+            "Sans connaître la surface créée, la démarche est probablement une DP (≤ 20 m²) ou un PC (> 20 m²) selon la zone PLU.";
+        } else if (sc <= 20) {
+          probable_demarche = "DP probable";
+          explanation = `Pour ${sc} m² créés, une déclaration préalable est probable (seuil standard hors zone urbaine PLU).`;
+        } else {
+          probable_demarche = "PC probable";
+          explanation = `Pour ${sc} m² créés, un permis de construire est probable (> 20 m², ou > 40 m² en zone urbaine PLU).`;
+        }
+
+        if (
+          inputs.surface_totale_apres !== null &&
+          inputs.surface_totale_apres > 150
+        ) {
+          warnings.push(
+            "Surface totale > 150 m² : le recours à un architecte est probablement obligatoire."
+          );
+        }
+
+        items.push({
+          category,
+          label: "Extension / Agrandissement",
+          probable_demarche,
+          explanation,
+          link_dp: DEMARCHE_LINKS.dp,
+          link_pc: DEMARCHE_LINKS.pc,
+          warnings: warnings.length ? warnings : undefined,
+        });
+        break;
+      }
+
+      case "piscine": {
+        const sb = inputs.surface_bassin;
+        let probable_demarche: DemarcheItem["probable_demarche"];
+        let explanation: string;
+
+        if (sb === null) {
+          probable_demarche = "DP ou PC probable";
+          explanation =
+            "Sans connaître la surface du bassin, la démarche est probablement une DP (≤ 100 m²) ou un PC (> 100 m²).";
+        } else if (sb <= 100) {
+          probable_demarche = "DP probable";
+          explanation = `Pour un bassin de ${sb} m², une déclaration préalable est probable.`;
+        } else {
+          probable_demarche = "PC probable";
+          explanation = `Pour un bassin de ${sb} m², un permis de construire est probable (> 100 m²).`;
+        }
+
+        items.push({
+          category,
+          label: "Piscine / Bassin",
+          probable_demarche,
+          explanation,
+          link_dp: DEMARCHE_LINKS.dp,
+          link_pc: DEMARCHE_LINKS.pc,
+        });
+        break;
+      }
+
+      case "cloture": {
+        items.push({
+          category,
+          label: "Clôture / Portail",
+          probable_demarche: "DP probable",
+          explanation:
+            "Une déclaration préalable est souvent requise selon le PLU et les secteurs protégés. Vérifiez auprès de votre mairie.",
+          link_dp: DEMARCHE_LINKS.dp,
+          warnings: [
+            "Les règles varient selon la commune (PLU) et les zones protégées (ABF).",
+          ],
+        });
+        break;
+      }
+
+      case "abri_jardin": {
+        const sc = inputs.surface_creee;
+        let probable_demarche: DemarcheItem["probable_demarche"];
+        let explanation: string;
+
+        if (sc === null) {
+          probable_demarche = "DP ou PC probable";
+          explanation =
+            "Sans connaître la surface, la démarche est probablement une DP (5–20 m²) ou un PC (> 20 m²).";
+        } else if (sc <= 5) {
+          probable_demarche = "Aucune formalité probable";
+          explanation = `Pour ${sc} m², aucune formalité n'est généralement requise (≤ 5 m², hors zone protégée).`;
+        } else if (sc <= 20) {
+          probable_demarche = "DP probable";
+          explanation = `Pour ${sc} m², une déclaration préalable est probable.`;
+        } else {
+          probable_demarche = "PC probable";
+          explanation = `Pour ${sc} m², un permis de construire est probable (> 20 m²).`;
+        }
+
+        items.push({
+          category,
+          label: "Abri de jardin / Carport",
+          probable_demarche,
+          explanation,
+          link_dp: DEMARCHE_LINKS.dp,
+          link_pc: DEMARCHE_LINKS.pc,
+        });
+        break;
+      }
+
+      case "facade": {
+        items.push({
+          category,
+          label: "Façade / Toiture / Ouvertures",
+          probable_demarche: "DP probable",
+          explanation:
+            "Les travaux sur façade, toiture ou ouvertures nécessitent généralement une déclaration préalable.",
+          link_dp: DEMARCHE_LINKS.dp,
+          warnings: [
+            "En secteur sauvegardé ou abords de monument historique, l'accord de l'ABF est probablement requis.",
+          ],
+        });
+        break;
+      }
+
+      case "construction_neuve": {
+        items.push({
+          category,
+          label: "Construction neuve",
+          probable_demarche: "PC probable",
+          explanation:
+            "Une construction neuve nécessite généralement un permis de construire.",
+          link_pc: DEMARCHE_LINKS.pc,
+          warnings: [
+            "Si la surface dépasse 150 m², le recours à un architecte est probablement obligatoire.",
+          ],
+        });
+        break;
+      }
+    }
+  }
+
+  return {
+    items,
+    disclaimer:
+      "Indications automatisées à titre informatif uniquement. Elles ne constituent pas un avis juridique. Les démarches obligatoires dépendent du PLU de votre commune, des secteurs protégés et de la nature exacte des travaux. Vérifiez auprès de votre mairie avant tout dépôt de dossier.",
+  };
+}

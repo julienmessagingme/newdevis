@@ -7,6 +7,7 @@ import {
   extractSiteContextFromPoints,
   getRiskLevelColor,
 } from "@/lib/contexteUtils";
+import UrbanismeAssistant from "@/components/analysis/UrbanismeAssistant";
 
 interface BlockContexteProps {
   siteContext?: SiteContextResult | null;
@@ -14,10 +15,11 @@ interface BlockContexteProps {
   alertes: string[];
   chantierAddress?: string | null;
   rawText?: string | null;
+  workType?: string | null;
   defaultOpen?: boolean;
 }
 
-const BlockContexte = ({ siteContext, pointsOk, alertes, chantierAddress, rawText, defaultOpen = true }: BlockContexteProps) => {
+const BlockContexte = ({ siteContext, pointsOk, alertes, chantierAddress, rawText, workType, defaultOpen = true }: BlockContexteProps) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   // Try to get context from siteContext prop or extract from points
   const extractedContext = extractSiteContextFromPoints(pointsOk, alertes);
@@ -251,6 +253,14 @@ const BlockContexte = ({ siteContext, pointsOk, alertes, chantierAddress, rawTex
               </p>
             </div>
           )}
+
+          {/* Urbanisme & Démarches sub-section */}
+          <UrbanismeAssistant
+            rawText={rawText}
+            workType={workType}
+            commune={contextData?.address || contextData?.postal_code || undefined}
+            patrimoineStatus={contextData?.patrimoine?.status ?? null}
+          />
 
           {/* Disclaimer */}
           <div className="mt-4 p-3 bg-muted/50 rounded-lg">
