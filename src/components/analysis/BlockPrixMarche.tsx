@@ -6,7 +6,6 @@ import { useMarketPriceAPI, type MarketPriceTableRow, type JobTypeDisplayRow } f
 import { useMarketPriceEditor } from "@/hooks/useMarketPriceEditor";
 import MarketPositionAnalysis from "./MarketPositionAnalysis";
 import PremiumGate from "@/components/funnel/PremiumGate";
-import StrategicBadge from "./StrategicBadge";
 
 // =======================
 // TYPES
@@ -22,8 +21,6 @@ interface BlockPrixMarcheProps {
   marketPriceOverrides?: Record<string, unknown> | null;
   defaultOpen?: boolean;
   resume?: string | null;
-  rawText?: string | null;
-  isPremium?: boolean;
   showGate?: boolean;
   onAuthSuccess?: () => void;
   convertToPermanent?: (params: { email: string; password: string; firstName: string; lastName: string; phone: string; acceptCommercial?: boolean }) => Promise<unknown>;
@@ -505,8 +502,6 @@ const BlockPrixMarche = ({
   marketPriceOverrides,
   defaultOpen = true,
   resume,
-  rawText = null,
-  isPremium = false,
   showGate = false,
   onAuthSuccess,
   convertToPermanent,
@@ -641,6 +636,14 @@ const BlockPrixMarche = ({
             <ChevronDown className={`h-5 w-5 ml-auto text-muted-foreground transition-transform flex-shrink-0 ${isBlockOpen ? "rotate-180" : ""}`} />
           </button>
 
+          {/* Lien ancre vers l'Indice Stratégique Immobilier™ */}
+          <a
+            href="#strategic-index"
+            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary mt-1 mb-1 transition-colors"
+          >
+            ↑ Voir l'Indice Stratégique Immobilier™
+          </a>
+
           {isBlockOpen && !showGate && (<>
           {/* Résumé du devis */}
           {resume && (
@@ -657,7 +660,6 @@ const BlockPrixMarche = ({
           )}
 
           {renderContent()}
-          <StrategicBadge rawText={rawText} isPremium={isPremium} />
           </>)}
 
           {/* Gate de conversion — visible uniquement quand le bloc est collapsé */}

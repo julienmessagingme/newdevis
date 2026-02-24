@@ -43,6 +43,7 @@ import {
 import { PostSignatureTrackingSection } from "@/components/tracking";
 const OcrDebugPanel = lazy(() => import("@/components/analysis/OcrDebugPanel").then(m => ({ default: m.OcrDebugPanel })));
 import type { TravauxItem } from "@/components/analysis";
+import StrategicBadge from "@/components/analysis/StrategicBadge";
 import { useAnonymousAuth } from "@/hooks/useAnonymousAuth";
 import FunnelStepper from "@/components/funnel/FunnelStepper";
 import { ANALYSIS } from "@/lib/constants";
@@ -702,6 +703,11 @@ const AnalysisResult = () => {
           </div>
         )}
 
+        {/* INDICE STRATÉGIQUE — résumé décisionnel, visible avant les blocs */}
+        <div id="strategic-index">
+          <StrategicBadge rawText={analysis.raw_text ?? null} isPremium={isAdmin} />
+        </div>
+
         {/* BLOC 1 — Entreprise & Fiabilité */}
         {visibleBlocks.includes("entreprise") && (
           <BlockEntreprise
@@ -723,8 +729,6 @@ const AnalysisResult = () => {
             analysisId={analysis.id}
             marketPriceOverrides={analysis.market_price_overrides}
             resume={analysis.resume}
-            rawText={analysis.raw_text ?? null}
-            isPremium={isAdmin}
             defaultOpen={false}
             showGate={isAnonymous && !isPermanent}
             onAuthSuccess={handleAuthConversion}
