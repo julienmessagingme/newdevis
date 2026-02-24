@@ -121,7 +121,9 @@ import AstroFooter from '@/components/astro/Footer.astro';
 
             <!-- Julien Dumas -->
             <div class="py-12 px-8 text-center sm:border-r border-b sm:border-b-0 border-slate-700">
-              <img src="/images/julien-dumas.png" alt="Julien Dumas" class="qsn-photo mx-auto mb-5" />
+              <div class="qsn-photo-wrap mx-auto mb-5">
+                <img src="/images/julien-dumas.png" alt="Julien Dumas" class="qsn-photo" />
+              </div>
               <h3 class="text-white font-bold text-xl mb-2">Julien Dumas</h3>
               <p class="text-amber-400 text-xs font-semibold uppercase tracking-wider leading-relaxed">
                 Co-fondateur · Assurance &amp;<br />Opérations
@@ -130,7 +132,9 @@ import AstroFooter from '@/components/astro/Footer.astro';
 
             <!-- Johan Bridey -->
             <div class="py-12 px-8 text-center">
-              <img src="/images/johan-bridey.png" alt="Johan Bridey" class="qsn-photo mx-auto mb-5" />
+              <div class="qsn-photo-wrap mx-auto mb-5">
+                <img src="/images/johan-bridey.png" alt="Johan Bridey" class="qsn-photo" />
+              </div>
               <h3 class="text-white font-bold text-xl mb-2">Johan Bridey</h3>
               <p class="text-amber-400 text-xs font-semibold uppercase tracking-wider leading-relaxed">
                 Co-fondateur · Risque &amp; Analyse<br />Financière
@@ -404,22 +408,26 @@ import AstroFooter from '@/components/astro/Footer.astro';
     background-color: #f5ede0;
   }
 
-  /* Conteneur photo / avatar fondateur */
+  /* Conteneur photo — seul anneau doré visible */
   .qsn-photo-wrap {
-    width: 120px;
-    height: 120px;
+    width: 140px;
+    height: 140px;
     border-radius: 50%;
+    border: 3px solid #c9a84c;
     overflow: hidden;
+    /* Léger halo doré externe */
+    box-shadow: 0 0 0 4px rgba(201, 168, 76, 0.18);
   }
 
-  /* Vraie photo (quand disponible) */
+  /* Photo : zoom pour remplir le cercle */
   .qsn-photo {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
+    width: 100%;
+    height: 100%;
     object-fit: cover;
-    object-position: center top;
-    border: 2.5px solid #c9a84c;
+    object-position: center center;
+    display: block;
+    transform: scale(1.55);
+    transform-origin: center center;
   }
 
   /* Checkmark doré dans les bullets */
