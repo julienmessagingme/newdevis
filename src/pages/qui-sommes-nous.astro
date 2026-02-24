@@ -121,8 +121,25 @@ import AstroFooter from '@/components/astro/Footer.astro';
 
             <!-- Julien Dumas -->
             <div class="py-12 px-8 text-center sm:border-r border-b sm:border-b-0 border-slate-700">
-              <div class="w-24 h-24 rounded-full qsn-avatar mx-auto mb-5 flex items-center justify-center">
-                <span class="text-amber-400 font-bold text-2xl">JD</span>
+              <!-- Photo : remplacer le SVG par <img src="/images/julien-dumas.jpg" alt="Julien Dumas" class="qsn-photo" /> -->
+              <div class="qsn-photo-wrap mx-auto mb-5">
+                <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-full h-full">
+                  <defs>
+                    <linearGradient id="grad-jd" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stop-color="#1a3468"/>
+                      <stop offset="100%" stop-color="#0d1e3a"/>
+                    </linearGradient>
+                    <clipPath id="clip-jd"><circle cx="60" cy="60" r="57"/></clipPath>
+                  </defs>
+                  <!-- Fond -->
+                  <circle cx="60" cy="60" r="57" fill="url(#grad-jd)"/>
+                  <!-- Anneau doré -->
+                  <circle cx="60" cy="60" r="57" fill="none" stroke="#c9a84c" stroke-width="2.5"/>
+                  <!-- Silhouette tête -->
+                  <circle cx="60" cy="44" r="19" fill="#c9a84c" opacity="0.9" clip-path="url(#clip-jd)"/>
+                  <!-- Silhouette épaules -->
+                  <path d="M 3 120 C 3 88 26 70 60 70 C 94 70 117 88 117 120 Z" fill="#c9a84c" opacity="0.9" clip-path="url(#clip-jd)"/>
+                </svg>
               </div>
               <h3 class="text-white font-bold text-xl mb-2">Julien Dumas</h3>
               <p class="text-amber-400 text-xs font-semibold uppercase tracking-wider leading-relaxed">
@@ -132,8 +149,21 @@ import AstroFooter from '@/components/astro/Footer.astro';
 
             <!-- Johan Bridey -->
             <div class="py-12 px-8 text-center">
-              <div class="w-24 h-24 rounded-full qsn-avatar mx-auto mb-5 flex items-center justify-center">
-                <span class="text-amber-400 font-bold text-2xl">JB</span>
+              <!-- Photo : remplacer le SVG par <img src="/images/johan-bridey.jpg" alt="Johan Bridey" class="qsn-photo" /> -->
+              <div class="qsn-photo-wrap mx-auto mb-5">
+                <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-full h-full">
+                  <defs>
+                    <linearGradient id="grad-jb" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stop-color="#1a3468"/>
+                      <stop offset="100%" stop-color="#0d1e3a"/>
+                    </linearGradient>
+                    <clipPath id="clip-jb"><circle cx="60" cy="60" r="57"/></clipPath>
+                  </defs>
+                  <circle cx="60" cy="60" r="57" fill="url(#grad-jd)"/>
+                  <circle cx="60" cy="60" r="57" fill="none" stroke="#c9a84c" stroke-width="2.5"/>
+                  <circle cx="60" cy="44" r="19" fill="#c9a84c" opacity="0.9" clip-path="url(#clip-jb)"/>
+                  <path d="M 3 120 C 3 88 26 70 60 70 C 94 70 117 88 117 120 Z" fill="#c9a84c" opacity="0.9" clip-path="url(#clip-jb)"/>
+                </svg>
               </div>
               <h3 class="text-white font-bold text-xl mb-2">Johan Bridey</h3>
               <p class="text-amber-400 text-xs font-semibold uppercase tracking-wider leading-relaxed">
@@ -408,10 +438,22 @@ import AstroFooter from '@/components/astro/Footer.astro';
     background-color: #f5ede0;
   }
 
-  /* Avatar circulaire fondateur */
-  .qsn-avatar {
-    background-color: rgba(201, 168, 76, 0.15);
-    border: 2px solid rgba(201, 168, 76, 0.35);
+  /* Conteneur photo / avatar fondateur */
+  .qsn-photo-wrap {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    overflow: hidden;
+  }
+
+  /* Vraie photo (quand disponible) */
+  .qsn-photo {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    object-fit: cover;
+    object-position: center top;
+    border: 2.5px solid #c9a84c;
   }
 
   /* Checkmark doré dans les bullets */
