@@ -14,7 +14,7 @@ const HeroSection = () => {
           <div className="text-center lg:text-left">
             
             <h1 className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl font-bold text-primary-foreground mb-4 sm:mb-6 leading-tight px-2">
-              Vérifier un devis artisan{" "}
+              Analyser un devis travaux{" "}
               <span className="relative inline-block">
                 gratuitement
                 <svg className="absolute -bottom-1 sm:-bottom-2 left-0 w-full" viewBox="0 0 200 12" fill="none">
