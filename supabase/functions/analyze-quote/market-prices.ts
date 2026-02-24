@@ -249,6 +249,29 @@ export async function lookupMarketPrices(
 
   console.log(`[MarketPrices] ${workItems.length} work items, ${jobTypes.length} job types from Gemini`);
 
+  // 3b. Override main_quantity with actual sum from devis lines when all lines share the same unit.
+  // Fixes cases where Gemini returns main_quantity=1 for groups with multiple unit-based lines
+  // (e.g., 3 volets roulants each with qty=1 → Gemini sometimes says 1 instead of 3).
+  for (const jt of jobTypes) {
+    const lines = jt.work_items.map((idx) => workItems[idx]).filter(Boolean);
+    const linesWithQty = lines.filter(
+      (l) => l !== undefined && l.quantity !== null && l.quantity !== undefined && l.quantity > 0 && l.unit,
+    );
+    if (linesWithQty.length > 1) {
+      const uniqueUnits = new Set(linesWithQty.map((l) => l.unit));
+      if (uniqueUnits.size === 1) {
+        const sumQty = linesWithQty.reduce((sum, l) => sum + (l.quantity || 0), 0);
+        if (sumQty > 0 && sumQty !== jt.main_quantity) {
+          console.log(
+            `[MarketPrices] Auto-correcting main_quantity for "${jt.job_type_label}": Gemini=${jt.main_quantity} → devis lines sum=${sumQty} ${linesWithQty[0].unit}`,
+          );
+          jt.main_quantity = sumQty;
+          jt.main_unit = linesWithQty[0].unit as string;
+        }
+      }
+    }
+  }
+
   // 4. Build results: groups WITH valid catalog match → keep; others → merge into "Autre"
   const results: JobTypePriceResult[] = [];
   const assignedIndices = new Set<number>();

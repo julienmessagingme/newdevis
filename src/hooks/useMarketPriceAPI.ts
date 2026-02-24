@@ -125,8 +125,26 @@ export function processJobTypes(data: unknown): JobTypeDisplayRow[] {
   for (const item of data) {
     const prices: N8NPriceLine[] = item.prices || [];
 
-    const mainQuantity = typeof item.main_quantity === "number" && item.main_quantity > 0
+    // Start with Gemini's main_quantity
+    let mainQuantity = typeof item.main_quantity === "number" && item.main_quantity > 0
       ? item.main_quantity : 1;
+
+    // Auto-recompute from devis lines when multiple lines share the same unit.
+    // Corrects analyses where Gemini returned main_quantity=1 for groups with several unit-based
+    // lines (e.g., 3 volets roulants each with qty=1 → should give mainQuantity=3, not 1).
+    const rawLines: Array<{ quantity?: number | null; unit?: string | null }> = item.devis_lines || [];
+    const linesWithQty = rawLines.filter(
+      (l) => l.quantity !== null && l.quantity !== undefined && (l.quantity as number) > 0 && l.unit,
+    );
+    if (linesWithQty.length > 1) {
+      const uniqueUnits = new Set(linesWithQty.map((l) => l.unit));
+      if (uniqueUnits.size === 1) {
+        const sumQty = linesWithQty.reduce((sum, l) => sum + ((l.quantity as number) || 0), 0);
+        if (sumQty > 0) {
+          mainQuantity = sumQty;
+        }
+      }
+    }
 
     // Calculate theoretical prices (0 if no catalog match)
     let theoreticalMinHT = 0;
