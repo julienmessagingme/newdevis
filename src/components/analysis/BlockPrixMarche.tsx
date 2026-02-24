@@ -23,6 +23,7 @@ interface BlockPrixMarcheProps {
   defaultOpen?: boolean;
   resume?: string | null;
   rawText?: string | null;
+  isPremium?: boolean;
   showGate?: boolean;
   onAuthSuccess?: () => void;
   convertToPermanent?: (params: { email: string; password: string; firstName: string; lastName: string; phone: string; acceptCommercial?: boolean }) => Promise<unknown>;
@@ -505,6 +506,7 @@ const BlockPrixMarche = ({
   defaultOpen = true,
   resume,
   rawText = null,
+  isPremium = false,
   showGate = false,
   onAuthSuccess,
   convertToPermanent,
@@ -655,7 +657,7 @@ const BlockPrixMarche = ({
           )}
 
           {renderContent()}
-          <StrategicBadge rawText={rawText} />
+          <StrategicBadge rawText={rawText} isPremium={isPremium} />
           </>)}
 
           {/* Gate de conversion — visible uniquement quand le bloc est collapsé */}

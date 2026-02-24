@@ -272,6 +272,7 @@ const AnalysisResult = () => {
   const id = window.location.pathname.split('/').pop();
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
   const { user: authUser, isAnonymous: rawIsAnonymous, isPermanent: rawIsPermanent, loading: authLoading, convertToPermanent } = useAnonymousAuth();
 
   // Preview mode: ?preview=gate forces anonymous view for testing
@@ -282,6 +283,19 @@ const AnalysisResult = () => {
   const handleAuthConversion = () => {
     window.location.reload();
   };
+
+  // Check admin role once auth is resolved
+  useEffect(() => {
+    if (authLoading) return;
+    if (!authUser || rawIsAnonymous) return;
+    supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", authUser.id)
+      .eq("role", "admin")
+      .maybeSingle()
+      .then(({ data }) => { if (data) setIsAdmin(true); });
+  }, [authUser, authLoading, rawIsAnonymous]);
 
   const fetchAnalysis = useCallback(async () => {
     if (!id) return;
@@ -710,6 +724,7 @@ const AnalysisResult = () => {
             marketPriceOverrides={analysis.market_price_overrides}
             resume={analysis.resume}
             rawText={analysis.raw_text ?? null}
+            isPremium={isAdmin}
             defaultOpen={false}
             showGate={isAnonymous && !isPermanent}
             onAuthSuccess={handleAuthConversion}
