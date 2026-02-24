@@ -121,9 +121,7 @@ import AstroFooter from '@/components/astro/Footer.astro';
 
             <!-- Julien Dumas -->
             <div class="py-12 px-8 text-center sm:border-r border-b sm:border-b-0 border-slate-700">
-              <div class="w-24 h-24 rounded-full qsn-avatar mx-auto mb-5 flex items-center justify-center">
-                <span class="text-amber-400 font-bold text-2xl">JD</span>
-              </div>
+              <img src="/images/julien-dumas.png" alt="Julien Dumas" class="qsn-photo mx-auto mb-5" />
               <h3 class="text-white font-bold text-xl mb-2">Julien Dumas</h3>
               <p class="text-amber-400 text-xs font-semibold uppercase tracking-wider leading-relaxed">
                 Co-fondateur · Assurance &amp;<br />Opérations
@@ -132,9 +130,7 @@ import AstroFooter from '@/components/astro/Footer.astro';
 
             <!-- Johan Bridey -->
             <div class="py-12 px-8 text-center">
-              <div class="w-24 h-24 rounded-full qsn-avatar mx-auto mb-5 flex items-center justify-center">
-                <span class="text-amber-400 font-bold text-2xl">JB</span>
-              </div>
+              <img src="/images/johan-bridey.png" alt="Johan Bridey" class="qsn-photo mx-auto mb-5" />
               <h3 class="text-white font-bold text-xl mb-2">Johan Bridey</h3>
               <p class="text-amber-400 text-xs font-semibold uppercase tracking-wider leading-relaxed">
                 Co-fondateur · Risque &amp; Analyse<br />Financière
@@ -408,10 +404,22 @@ import AstroFooter from '@/components/astro/Footer.astro';
     background-color: #f5ede0;
   }
 
-  /* Avatar circulaire fondateur */
-  .qsn-avatar {
-    background-color: rgba(201, 168, 76, 0.15);
-    border: 2px solid rgba(201, 168, 76, 0.35);
+  /* Conteneur photo / avatar fondateur */
+  .qsn-photo-wrap {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    overflow: hidden;
+  }
+
+  /* Vraie photo (quand disponible) */
+  .qsn-photo {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    object-fit: cover;
+    object-position: center top;
+    border: 2.5px solid #c9a84c;
   }
 
   /* Checkmark doré dans les bullets */
