@@ -59,11 +59,14 @@ const JobTypeSelector = ({ value, onChange, onJobTypeData }: JobTypeSelectorProp
         return;
       }
 
+      // Déduplique par label+unité (même libellé affiché = une seule entrée)
+      // Priorité aux entrées notes="Base", sinon première rencontrée
       const seen = new Map<string, JobTypeItem>();
       for (const row of data) {
-        const existing = seen.get(row.job_type);
+        const key = `${row.label}||${row.unit}`;
+        const existing = seen.get(key);
         if (!existing || row.notes === "Base") {
-          seen.set(row.job_type, {
+          seen.set(key, {
             job_type: row.job_type,
             label: row.label,
             unit: row.unit,
