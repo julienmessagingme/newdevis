@@ -122,7 +122,7 @@ import AstroFooter from '@/components/astro/Footer.astro';
             <!-- Julien Dumas -->
             <div class="py-12 px-8 text-center sm:border-r border-b sm:border-b-0 border-slate-700">
               <div class="qsn-photo-wrap mx-auto mb-5">
-                <img src="/images/julien-dumas.png" alt="Julien Dumas" class="qsn-photo" style="transform: scale(1.8);" />
+                <img src="/images/julien-dumas.jpg" alt="Julien Dumas" class="qsn-photo" />
               </div>
               <h3 class="text-white font-bold text-xl mb-2">Julien Dumas</h3>
               <p class="text-amber-400 text-xs font-semibold uppercase tracking-wider leading-relaxed">
@@ -133,7 +133,7 @@ import AstroFooter from '@/components/astro/Footer.astro';
             <!-- Johan Bridey -->
             <div class="py-12 px-8 text-center">
               <div class="qsn-photo-wrap mx-auto mb-5">
-                <img src="/images/johan-bridey.png" alt="Johan Bridey" class="qsn-photo" style="transform: scale(1.2);" />
+                <img src="/images/johan-bridey.jpg" alt="Johan Bridey" class="qsn-photo" />
               </div>
               <h3 class="text-white font-bold text-xl mb-2">Johan Bridey</h3>
               <p class="text-amber-400 text-xs font-semibold uppercase tracking-wider leading-relaxed">
@@ -419,14 +419,13 @@ import AstroFooter from '@/components/astro/Footer.astro';
     box-shadow: 0 0 0 4px rgba(201, 168, 76, 0.18);
   }
 
-  /* Photo : base */
+  /* Photo : cadrage portrait */
   .qsn-photo {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    object-position: center center;
+    object-position: center 15%;
     display: block;
-    transform-origin: center center;
   }
 
   /* Checkmark doré dans les bullets */
