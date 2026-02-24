@@ -6,7 +6,7 @@ import AstroFooter from '@/components/astro/Footer.astro';
 
 <BaseLayout
   title="Qui sommes-nous ? | VerifierMonDevis.fr"
-  description="Découvrez l'équipe derrière VerifierMonDevis.fr, notre mission et pourquoi nous avons créé cet outil gratuit d'analyse de devis artisans."
+  description="Julien Dumas (assurance) et Johan Bridey (banque) : deux experts avec 40 ans d'expérience cumulée au service des particuliers face aux devis artisans."
   canonical="https://verifiermondevis.fr/qui-sommes-nous"
   breadcrumbs={[
     { name: "Accueil", url: "https://verifiermondevis.fr/" },
@@ -22,91 +22,392 @@ import AstroFooter from '@/components/astro/Footer.astro';
       "name": "VerifierMonDevis.fr",
       "url": "https://verifiermondevis.fr",
       "email": "contact@verifiermondevis.fr",
-      "description": "Service gratuit d'analyse de devis d'artisans",
+      "description": "Service d'analyse de devis d'artisans fondé par Julien Dumas et Johan Bridey",
       "logo": "https://verifiermondevis.fr/images/logo-header.png",
-      "foundingDate": "2026"
+      "foundingDate": "2026",
+      "founder": [
+        {
+          "@type": "Person",
+          "name": "Julien Dumas",
+          "jobTitle": "Co-fondateur",
+          "description": "20 ans d'expérience en assurance (Groupama Gan Vie, PRO BTP), co-fondateur de Messaging Me"
+        },
+        {
+          "@type": "Person",
+          "name": "Johan Bridey",
+          "jobTitle": "Co-fondateur",
+          "description": "20 ans en banque (CIC, HSBC, CCF), responsable division crédit immobilier Sud-Ouest"
+        }
+      ]
     }
   }}
 >
   <div class="min-h-screen flex flex-col">
     <AstroHeader />
-    <main class="flex-1 py-12">
-      <div class="container max-w-3xl">
-        <a
-          href="/"
-          class="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8 transition-colors"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-          </svg>
-          Retour à l'accueil
-        </a>
+    <main class="flex-1">
 
-        <h1 class="text-3xl font-bold text-foreground mb-8">
-          Qui sommes-nous ?
-        </h1>
-
-        <div class="space-y-8">
-          <section class="bg-card border border-border rounded-xl p-6">
-            <h2 class="text-xl font-semibold text-foreground mb-4">Notre mission</h2>
-            <div class="text-muted-foreground space-y-3">
-              <p>VerifierMonDevis.fr est né d'un constat simple : <strong class="text-foreground">trop de particuliers signent des devis sans avoir les moyens de vérifier leur fiabilité</strong>.</p>
-              <p>Notre mission est de donner à chacun les outils pour prendre une décision éclairée avant de s'engager avec un artisan. Gratuitement, en quelques minutes.</p>
-            </div>
-          </section>
-
-          <section class="bg-card border border-border rounded-xl p-6">
-            <h2 class="text-xl font-semibold text-foreground mb-4">Ce que nous vérifions</h2>
-            <div class="text-muted-foreground space-y-3">
-              <p>Notre outil analyse automatiquement votre devis et croise les informations avec des <strong class="text-foreground">sources publiques officielles</strong> :</p>
-              <ul class="list-disc pl-5 space-y-2">
-                <li><strong class="text-foreground">Identité de l'entreprise</strong> — immatriculation, ancienneté, statut juridique (registres INSEE/BODACC)</li>
-                <li><strong class="text-foreground">Santé financière</strong> — ratios financiers publics (data.economie.gouv.fr)</li>
-                <li><strong class="text-foreground">Prix du marché</strong> — comparaison avec notre base de données de prix de référence</li>
-                <li><strong class="text-foreground">Assurances et garanties</strong> — présence de la décennale, RC Pro</li>
-                <li><strong class="text-foreground">Conditions de paiement</strong> — acompte, modes de paiement, échelonnement</li>
-                <li><strong class="text-foreground">Qualifications</strong> — RGE, QUALIBAT (ADEME)</li>
-              </ul>
-            </div>
-          </section>
-
-          <section class="bg-card border border-border rounded-xl p-6">
-            <h2 class="text-xl font-semibold text-foreground mb-4">Notre engagement</h2>
-            <div class="text-muted-foreground space-y-3">
-              <p><strong class="text-foreground">Indépendance</strong> — Nous ne sommes affiliés à aucun artisan, réseau d'entreprises ou plateforme de mise en relation. Notre analyse est 100% objective.</p>
-              <p><strong class="text-foreground">Transparence</strong> — Nous n'évaluons pas les artisans eux-mêmes. Nous analysons uniquement le devis que vous nous transmettez, à un instant donné.</p>
-              <p><strong class="text-foreground">Confidentialité</strong> — Vos documents restent confidentiels et ne sont jamais partagés avec des tiers.</p>
-              <p><strong class="text-foreground">Gratuité</strong> — L'analyse de base est entièrement gratuite, sans engagement.</p>
-            </div>
-          </section>
-
-          <section class="bg-card border border-border rounded-xl p-6">
-            <h2 class="text-xl font-semibold text-foreground mb-4">Nous contacter</h2>
-            <p class="text-muted-foreground">
-              Une question, une suggestion, un signalement ?
-              <a href="/contact" class="text-primary hover:underline">Écrivez-nous via notre formulaire de contact</a>.
-            </p>
-          </section>
-        </div>
-
-        <!-- CTA + liens internes -->
-        <div class="mt-12 bg-primary/5 border border-primary/20 rounded-xl p-6 text-center">
-          <p class="text-foreground font-medium mb-2">Prêt à vérifier votre devis ?</p>
-          <p class="text-sm text-muted-foreground mb-4">Analysez gratuitement votre devis d'artisan en 2 minutes.</p>
-          <a href="/nouvelle-analyse" class="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-6 text-sm font-medium">
-            Analyser mon devis
+      <!-- ============================================================ -->
+      <!-- HERO                                                          -->
+      <!-- ============================================================ -->
+      <section class="py-16 bg-primary/5 border-b border-border">
+        <div class="container max-w-4xl text-center px-4">
+          <a
+            href="/"
+            class="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8 transition-colors text-sm"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+            </svg>
+            Retour à l'accueil
           </a>
+          <p class="text-sm font-semibold text-primary uppercase tracking-widest mb-4">Qui sommes-nous ?</p>
+          <h1 class="text-3xl sm:text-4xl font-bold text-foreground mb-5 leading-tight">
+            Deux experts au service<br class="hidden sm:block" /> d'une seule cause&nbsp;: la vôtre.
+          </h1>
+          <p class="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+            Assurance, banque, gestion de sinistres, crédit immobilier… Nous avons vu, de l'intérieur, à quel point les particuliers peuvent se retrouver seuls face à des situations complexes.
+          </p>
         </div>
+      </section>
 
-        <div class="mt-6 flex flex-wrap justify-center gap-4 text-sm">
-          <a href="/faq" class="text-primary hover:underline">Questions fréquentes</a>
-          <span class="text-border">|</span>
-          <a href="/comprendre-score" class="text-primary hover:underline">Comprendre le scoring</a>
-          <span class="text-border">|</span>
-          <a href="/blog" class="text-primary hover:underline">Lire notre blog</a>
+      <!-- ============================================================ -->
+      <!-- POURQUOI CE SITE                                              -->
+      <!-- ============================================================ -->
+      <section class="py-14">
+        <div class="container max-w-3xl px-4">
+          <h2 class="text-2xl font-bold text-foreground mb-6">Pourquoi ce site&nbsp;?</h2>
+
+          <blockquote class="border-l-4 border-primary pl-6 py-1 mb-8">
+            <p class="text-lg text-foreground font-medium italic leading-relaxed">
+              «&nbsp;Trop de particuliers signent des devis sans pouvoir en évaluer la cohérence. Ni les prix, ni la solidité de l'entreprise, ni les risques juridiques. On change ça.&nbsp;»
+            </p>
+          </blockquote>
+
+          <div class="text-muted-foreground space-y-4 text-base leading-relaxed">
+            <p>
+              Julien vient de l'assurance (Groupama Gan Vie, PRO BTP). Johan vient de la banque (CIC, HSBC, CCF).
+              L'un a géré des sinistres et vu les dégâts que des artisans peu fiables peuvent causer.
+              L'autre a financé des centaines de projets de rénovation — et rénové lui-même sa propre maison de A à Z.
+            </p>
+            <p>
+              Ensemble, ils ont fondé VerifierMonDevis.fr avec une conviction simple&nbsp;:
+              <strong class="text-foreground">les outils pour évaluer un devis ne devraient pas être réservés aux professionnels.</strong>
+            </p>
+          </div>
         </div>
-      </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- LES FONDATEURS                                                -->
+      <!-- ============================================================ -->
+      <section class="py-14 bg-muted/30 border-y border-border">
+        <div class="container max-w-4xl px-4">
+          <h2 class="text-2xl font-bold text-foreground mb-10 text-center">Les fondateurs</h2>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            <!-- Julien Dumas -->
+            <div class="bg-card border border-border rounded-xl p-6 flex flex-col gap-5">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <span class="text-primary font-bold text-base">JD</span>
+                </div>
+                <div>
+                  <p class="font-bold text-foreground">Julien Dumas</p>
+                  <p class="text-xs font-semibold text-primary uppercase tracking-wide mt-0.5">Co-fondateur · Assurance &amp; Opérations</p>
+                </div>
+              </div>
+
+              <ul class="space-y-2 text-sm text-muted-foreground">
+                <li class="flex items-start gap-2">
+                  <svg class="h-4 w-4 text-primary flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                  20 ans d'expérience en assurance
+                </li>
+                <li class="flex items-start gap-2">
+                  <svg class="h-4 w-4 text-primary flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                  Parcours&nbsp;: Groupama Gan Vie, PRO BTP
+                </li>
+                <li class="flex items-start gap-2">
+                  <svg class="h-4 w-4 text-primary flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                  Co-fondateur de Messaging Me
+                </li>
+                <li class="flex items-start gap-2">
+                  <svg class="h-4 w-4 text-primary flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                  Investisseur immobilier personnel
+                </li>
+              </ul>
+
+              <blockquote class="border-l-2 border-primary/30 pl-4 text-sm text-muted-foreground italic leading-relaxed mt-auto">
+                «&nbsp;J'ai fait carrière dans l'assurance et la gestion de sinistres. J'ai vu de l'intérieur combien les gens étaient démunis face aux réparations, aux expertises contradictoires, aux artisans peu scrupuleux. Ce site, c'est ce que j'aurais voulu avoir à disposition de mes assurés.&nbsp;»
+              </blockquote>
+            </div>
+
+            <!-- Johan Bridey -->
+            <div class="bg-card border border-border rounded-xl p-6 flex flex-col gap-5">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <span class="text-primary font-bold text-base">JB</span>
+                </div>
+                <div>
+                  <p class="font-bold text-foreground">Johan Bridey</p>
+                  <p class="text-xs font-semibold text-primary uppercase tracking-wide mt-0.5">Co-fondateur · Risque &amp; Analyse Financière</p>
+                </div>
+              </div>
+
+              <ul class="space-y-2 text-sm text-muted-foreground">
+                <li class="flex items-start gap-2">
+                  <svg class="h-4 w-4 text-primary flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                  20 ans en banque
+                </li>
+                <li class="flex items-start gap-2">
+                  <svg class="h-4 w-4 text-primary flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                  Parcours&nbsp;: CIC, HSBC, CCF
+                </li>
+                <li class="flex items-start gap-2">
+                  <svg class="h-4 w-4 text-primary flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                  Responsable division crédit immobilier Sud-Ouest
+                </li>
+                <li class="flex items-start gap-2">
+                  <svg class="h-4 w-4 text-primary flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                  A rénové sa propre maison de A à Z
+                </li>
+              </ul>
+
+              <blockquote class="border-l-2 border-primary/30 pl-4 text-sm text-muted-foreground italic leading-relaxed mt-auto">
+                «&nbsp;En 20 ans de banque, j'ai financé des centaines de projets de rénovation. Et en rénovant moi-même ma maison, j'ai compris de l'intérieur ce que c'est de recevoir un devis de 50&nbsp;000&nbsp;€ sans aucun repère pour l'évaluer. Ce site répond à ce manque.&nbsp;»
+              </blockquote>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- CE QUE NOUS PROMETTONS                                        -->
+      <!-- ============================================================ -->
+      <section class="py-14">
+        <div class="container max-w-4xl px-4">
+          <h2 class="text-2xl font-bold text-foreground mb-3 text-center">Ce que nous vous promettons</h2>
+          <p class="text-muted-foreground text-center mb-10 max-w-2xl mx-auto">
+            Ni affiliation commerciale avec des artisans. Ni commissions cachées. Juste deux experts qui ont choisi de mettre leur expérience au service des particuliers.
+          </p>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+
+            <div class="bg-card border border-border rounded-xl p-5">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="p-2 bg-primary/10 rounded-lg flex-shrink-0">
+                  <svg class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                  </svg>
+                </div>
+                <h3 class="font-semibold text-foreground">Analyse indépendante</h3>
+              </div>
+              <p class="text-sm text-muted-foreground leading-relaxed">Aucune affiliation avec des artisans ou des plateformes de mise en relation.</p>
+            </div>
+
+            <div class="bg-card border border-border rounded-xl p-5">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="p-2 bg-primary/10 rounded-lg flex-shrink-0">
+                  <svg class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
+                  </svg>
+                </div>
+                <h3 class="font-semibold text-foreground">Expertise métier réelle</h3>
+              </div>
+              <p class="text-sm text-muted-foreground leading-relaxed">Des professionnels qui ont vécu les problématiques terrain, côté assurance et côté banque.</p>
+            </div>
+
+            <div class="bg-card border border-border rounded-xl p-5">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="p-2 bg-primary/10 rounded-lg flex-shrink-0">
+                  <svg class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                  </svg>
+                </div>
+                <h3 class="font-semibold text-foreground">Sans conflit d'intérêt</h3>
+              </div>
+              <p class="text-sm text-muted-foreground leading-relaxed">Notre seule boussole&nbsp;: votre intérêt. Pas de commission, pas de recommandation rémunérée.</p>
+            </div>
+
+            <div class="bg-card border border-border rounded-xl p-5">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="p-2 bg-primary/10 rounded-lg flex-shrink-0">
+                  <svg class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+                  </svg>
+                </div>
+                <h3 class="font-semibold text-foreground">Rapport clair &amp; actionnable</h3>
+              </div>
+              <p class="text-sm text-muted-foreground leading-relaxed">Des résultats lisibles par tous, avec des indications concrètes sur les points de vigilance.</p>
+            </div>
+
+          </div>
+
+          <!-- CTA -->
+          <div class="mt-10 text-center">
+            <a
+              href="/nouvelle-analyse"
+              class="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 text-sm font-medium"
+            >
+              Soumettre mon devis
+            </a>
+            <div class="mt-5 flex flex-wrap justify-center gap-4 text-sm">
+              <a href="/faq" class="text-primary hover:underline">Questions fréquentes</a>
+              <span class="text-border">|</span>
+              <a href="/comprendre-score" class="text-primary hover:underline">Comprendre le scoring</a>
+              <span class="text-border">|</span>
+              <a href="/blog" class="text-primary hover:underline">Lire notre blog</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- NOUS CONTACTER + FORMULAIRE                                   -->
+      <!-- ============================================================ -->
+      <section class="py-14 bg-muted/30 border-t border-border">
+        <div class="container max-w-2xl px-4">
+          <h2 class="text-2xl font-bold text-foreground mb-2">Nous contacter</h2>
+          <p class="text-muted-foreground mb-8">Une question, une suggestion ou un signalement&nbsp;? Nous vous répondons sous 48h.</p>
+
+          <form
+            action="https://api.web3forms.com/submit"
+            method="POST"
+            id="contact-form"
+            class="space-y-6"
+          >
+            <input type="hidden" name="access_key" value="VOTRE_CLE_WEB3FORMS_ICI" />
+            <input type="checkbox" name="botcheck" class="hidden" style="display:none" />
+            <input type="hidden" name="subject" value="Nouveau message depuis VerifierMonDevis.fr" />
+            <input type="hidden" name="from_name" value="VerifierMonDevis.fr" />
+            <input type="hidden" name="redirect" value="https://verifiermondevis.fr/qui-sommes-nous?success=true" />
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label for="qsn-name" class="block text-sm font-medium text-foreground mb-1.5">Nom *</label>
+                <input
+                  type="text"
+                  name="name"
+                  id="qsn-name"
+                  required
+                  placeholder="Votre nom"
+                  class="w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                />
+              </div>
+              <div>
+                <label for="qsn-email" class="block text-sm font-medium text-foreground mb-1.5">Email *</label>
+                <input
+                  type="email"
+                  name="email"
+                  id="qsn-email"
+                  required
+                  placeholder="votre@email.fr"
+                  class="w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label for="qsn-category" class="block text-sm font-medium text-foreground mb-1.5">Objet</label>
+              <select
+                name="category"
+                id="qsn-category"
+                class="w-full h-10 px-3 rounded-md border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              >
+                <option value="question">Question sur le service</option>
+                <option value="suggestion">Suggestion d'amélioration</option>
+                <option value="bug">Signaler un problème technique</option>
+                <option value="rectification">Demande de rectification (artisan)</option>
+                <option value="rgpd">Exercer mes droits (RGPD)</option>
+                <option value="autre">Autre</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="qsn-message" class="block text-sm font-medium text-foreground mb-1.5">Message *</label>
+              <textarea
+                name="message"
+                id="qsn-message"
+                required
+                rows="5"
+                placeholder="Décrivez votre demande..."
+                class="w-full px-3 py-2 rounded-md border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 resize-y"
+              ></textarea>
+            </div>
+
+            <button
+              type="submit"
+              class="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-6 text-sm font-medium w-full sm:w-auto"
+            >
+              Envoyer le message
+            </button>
+          </form>
+
+          <!-- Message de succès -->
+          <div id="success-message" style="display:none" class="mt-8 bg-score-green-bg border border-score-green/20 rounded-xl p-6 text-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-score-green mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p class="text-foreground font-medium mb-1">Message envoyé !</p>
+            <p class="text-sm text-muted-foreground">Merci pour votre message. Nous vous répondrons dans les meilleurs délais.</p>
+          </div>
+
+          <!-- Autres moyens de contact -->
+          <div class="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="bg-card border border-border rounded-xl p-5">
+              <div class="flex items-center gap-3 mb-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                </svg>
+                <p class="text-sm font-medium text-foreground">Par email</p>
+              </div>
+              <a href="mailto:contact@verifiermondevis.fr" class="text-sm text-primary hover:underline">
+                contact@verifiermondevis.fr
+              </a>
+            </div>
+            <div class="bg-card border border-border rounded-xl p-5">
+              <div class="flex items-center gap-3 mb-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+                </svg>
+                <p class="text-sm font-medium text-foreground">Questions fréquentes</p>
+              </div>
+              <a href="/faq" class="text-sm text-primary hover:underline">Consultez notre FAQ</a>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
     </main>
     <AstroFooter />
   </div>
 </BaseLayout>
+
+<script>
+  // Afficher le message de succès si redirigé après soumission du formulaire
+  if (new URLSearchParams(window.location.search).get('success') === 'true') {
+    var form = document.getElementById('contact-form');
+    var msg = document.getElementById('success-message');
+    if (form) (form as HTMLElement).style.display = 'none';
+    if (msg) (msg as HTMLElement).style.display = 'block';
+    history.replaceState({}, '', '/qui-sommes-nous');
+  }
+</script>
