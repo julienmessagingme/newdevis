@@ -481,24 +481,55 @@ const NewAnalysis = () => {
           </div>
 
           {/* Submit */}
-          <Button type="submit" size="lg" className="w-full" disabled={!canSubmit}>
-            {loading ? (
-              <>
-                <Loader2 className="h-5 w-5 animate-spin" />
-                Analyse en cours...
-              </>
-            ) : uploadStatus === "uploading" ? (
-              <>
-                <Loader2 className="h-5 w-5 animate-spin" />
-                Téléversement...
-              </>
-            ) : (
-              <>
-                Lancer l'analyse
-                <ArrowRight className="h-5 w-5" />
-              </>
-            )}
-          </Button>
+          {loading ? (
+            <div className="w-full rounded-xl overflow-hidden border border-primary/20">
+              <style>{`
+                @keyframes tools-scroll {
+                  0%   { transform: translateX(0); }
+                  100% { transform: translateX(-50%); }
+                }
+                .tools-ticker {
+                  animation: tools-scroll 7s linear infinite;
+                }
+              `}</style>
+
+              {/* Tapis roulant d'outils */}
+              <div className="overflow-hidden bg-primary/10 py-2.5">
+                <div className="tools-ticker flex gap-4 text-2xl whitespace-nowrap w-max">
+                  {["🔨","🪚","🔧","🪛","🔩","📐","📏","🧰","🪣","💡","🔌","🪜","🧱","🔍","📋",
+                    "🔨","🪚","🔧","🪛","🔩","📐","📏","🧰","🪣","💡","🔌","🪜","🧱","🔍","📋"
+                  ].map((tool, i) => (
+                    <span key={i} className="flex-shrink-0">{tool}</span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Texte de statut */}
+              <div className="flex items-center gap-3 py-4 px-5 bg-primary/5">
+                <Loader2 className="h-5 w-5 animate-spin text-primary flex-shrink-0" />
+                <div>
+                  <p className="font-semibold text-foreground text-sm">Analyse en cours, patience !</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Lecture du devis · Vérification entreprise · Calcul du score
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <Button type="submit" size="lg" className="w-full" disabled={!canSubmit}>
+              {uploadStatus === "uploading" ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Téléversement...
+                </>
+              ) : (
+                <>
+                  Lancer l'analyse
+                  <ArrowRight className="h-5 w-5" />
+                </>
+              )}
+            </Button>
+          )}
 
           {/* Info */}
           <p className="text-xs text-center text-muted-foreground">
