@@ -6,6 +6,7 @@ import { useMarketPriceAPI, type MarketPriceTableRow, type JobTypeDisplayRow } f
 import { useMarketPriceEditor } from "@/hooks/useMarketPriceEditor";
 import MarketPositionAnalysis from "./MarketPositionAnalysis";
 import PremiumGate from "@/components/funnel/PremiumGate";
+import StrategicBadge from "./StrategicBadge";
 
 // =======================
 // TYPES
@@ -21,6 +22,7 @@ interface BlockPrixMarcheProps {
   marketPriceOverrides?: Record<string, unknown> | null;
   defaultOpen?: boolean;
   resume?: string | null;
+  rawText?: string | null;
   showGate?: boolean;
   onAuthSuccess?: () => void;
   convertToPermanent?: (params: { email: string; password: string; firstName: string; lastName: string; phone: string; acceptCommercial?: boolean }) => Promise<unknown>;
@@ -502,6 +504,7 @@ const BlockPrixMarche = ({
   marketPriceOverrides,
   defaultOpen = true,
   resume,
+  rawText = null,
   showGate = false,
   onAuthSuccess,
   convertToPermanent,
@@ -652,6 +655,7 @@ const BlockPrixMarche = ({
           )}
 
           {renderContent()}
+          <StrategicBadge rawText={rawText} />
           </>)}
 
           {/* Gate de conversion — visible uniquement quand le bloc est collapsé */}

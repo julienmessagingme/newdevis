@@ -709,6 +709,7 @@ const AnalysisResult = () => {
             analysisId={analysis.id}
             marketPriceOverrides={analysis.market_price_overrides}
             resume={analysis.resume}
+            rawText={analysis.raw_text ?? null}
             defaultOpen={false}
             showGate={isAnonymous && !isPermanent}
             onAuthSuccess={handleAuthConversion}
