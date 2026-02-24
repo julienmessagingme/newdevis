@@ -11,6 +11,107 @@ import { lookupMarketPrices, type WorkItemFull, type JobTypePriceResult } from "
 import { summarizeWorkItems } from "./summarize.ts";
 import { getDomainConfig } from "./domain-config.ts";
 
+// ============ STRATEGIC SCORES — IVP / IPI ============
+
+interface StrategicRow {
+  job_type: string;
+  value_intrinseque: number;
+  liquidite: number;
+  attractivite: number;
+  energie: number;
+  reduction_risque: number;
+  impact_loyer: number;
+  vacance: number;
+  fiscalite: number;
+  capex_risk: number;
+}
+
+interface StrategicItem {
+  job_type: string;
+  weight_ht: number;
+}
+
+function clampN(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n));
+}
+
+function labelFromIvp(score100: number): string {
+  if (score100 >= 90) return "Transformation patrimoniale";
+  if (score100 >= 75) return "Potentiel stratégique";
+  if (score100 >= 60) return "Valorisation significative";
+  if (score100 >= 40) return "Optimisation modérée";
+  return "Impact patrimonial limité";
+}
+
+function computeStrategicScores(items: StrategicItem[], matrix: StrategicRow[]) {
+  const byJobType = new Map(matrix.map((m) => [m.job_type, m]));
+  let totalWeight = 0;
+  let ivpAcc = 0, ipiAcc = 0;
+  let valueAcc = 0, liqAcc = 0, attrAcc = 0, energyAcc = 0, riskRedAcc = 0;
+  let rentAcc = 0, vacAcc = 0, fiscAcc = 0, capexRiskAcc = 0;
+
+  for (const it of items) {
+    const m = byJobType.get(it.job_type);
+    if (!m) continue;
+    const w = it.weight_ht > 0 ? it.weight_ht : 1;
+    totalWeight += w;
+
+    const value = Number(m.value_intrinseque ?? 0);
+    const liq   = Number(m.liquidite        ?? 0);
+    const attr  = Number(m.attractivite     ?? 0);
+    const nrj   = Number(m.energie          ?? 0);
+    const rr    = Number(m.reduction_risque ?? 0);
+    const rent  = Number(m.impact_loyer     ?? 0);
+    const vac   = Number(m.vacance          ?? 0);
+    const fisc  = Number(m.fiscalite        ?? 0);
+    const capex = Number(m.capex_risk       ?? 0);
+
+    const ivp = 0.30 * value + 0.25 * liq + 0.20 * attr + 0.15 * nrj + 0.10 * rr;
+    const ipi = 0.35 * rent  + 0.25 * vac + 0.20 * nrj  + 0.10 * fisc + 0.10 * (5 - capex);
+
+    ivpAcc       += ivp   * w;
+    ipiAcc       += ipi   * w;
+    valueAcc     += value * w;
+    liqAcc       += liq   * w;
+    attrAcc      += attr  * w;
+    energyAcc    += nrj   * w;
+    riskRedAcc   += rr    * w;
+    rentAcc      += rent  * w;
+    vacAcc       += vac   * w;
+    fiscAcc      += fisc  * w;
+    capexRiskAcc += capex * w;
+  }
+
+  if (totalWeight === 0) {
+    return { ivp_score: null, ipi_score: null, label: "Non calculé", breakdown_owner: null, breakdown_investor: null };
+  }
+
+  const ivpScore100 = clampN(Math.round((ivpAcc / totalWeight) * 20), 0, 100);
+  const ipiScore100 = clampN(Math.round((ipiAcc / totalWeight) * 20), 0, 100);
+
+  const s = (v: number) => clampN(Math.round(((v / totalWeight) / 5) * 10), 0, 10);
+
+  return {
+    ivp_score: ivpScore100,
+    ipi_score: ipiScore100,
+    label: labelFromIvp(ivpScore100),
+    breakdown_owner: {
+      value:            s(valueAcc),
+      liquidite:        s(liqAcc),
+      attractivite:     s(attrAcc),
+      energie:          s(energyAcc),
+      reduction_risque: s(riskRedAcc),
+    },
+    breakdown_investor: {
+      impact_loyer: s(rentAcc),
+      vacance:      s(vacAcc),
+      energie:      s(energyAcc),
+      fiscalite:    s(fiscAcc),
+      capex_risk:   clampN(Math.round(((capexRiskAcc / totalWeight) / 5) * 10), 0, 10),
+    },
+  };
+}
+
 // ============ MAIN HANDLER ============
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -512,6 +613,45 @@ serve(async (req) => {
       prices: jt.prices,
     }));
 
+    // ============ STRATEGIC SCORES (IVP/IPI) — non-bloquant ============
+    let strategicScores: ReturnType<typeof computeStrategicScores> | null = null;
+    try {
+      // Construire les items pondérés depuis jobTypePrices
+      const weightedItems: StrategicItem[] = [];
+      for (const jt of jobTypePrices) {
+        if (jt.catalog_job_types.length === 0) continue;
+        const weightPerType = jt.devis_total_ht / jt.catalog_job_types.length;
+        for (const jobType of jt.catalog_job_types) {
+          weightedItems.push({ job_type: jobType, weight_ht: weightPerType });
+        }
+      }
+
+      const uniqueJobTypes = [...new Set(weightedItems.map((i) => i.job_type))];
+      console.log(`[StrategicScores] ${uniqueJobTypes.length} job_type(s) à scorer:`, uniqueJobTypes);
+
+      if (uniqueJobTypes.length > 0) {
+        const { data: matrixRows, error: matrixError } = await supabase
+          .from("strategic_matrix")
+          .select("*")
+          .in("job_type", uniqueJobTypes);
+
+        if (matrixError) {
+          console.warn("[StrategicScores] Erreur requête strategic_matrix:", matrixError.message);
+        } else if (matrixRows && matrixRows.length > 0) {
+          console.log(`[StrategicScores] ${matrixRows.length} ligne(s) trouvée(s) dans strategic_matrix`);
+          strategicScores = computeStrategicScores(weightedItems, matrixRows as StrategicRow[]);
+          console.log(`[StrategicScores] IVP=${strategicScores.ivp_score} IPI=${strategicScores.ipi_score} label="${strategicScores.label}"`);
+        } else {
+          console.log("[StrategicScores] Aucune ligne trouvée dans strategic_matrix pour ces job_types");
+        }
+      } else {
+        console.log("[StrategicScores] Aucun catalog_job_type disponible (skipN8N ou groupe Autre uniquement)");
+      }
+    } catch (strategicError) {
+      console.warn("[StrategicScores] Erreur non-bloquante:", strategicError instanceof Error ? strategicError.message : strategicError);
+      strategicScores = null;
+    }
+
     // ============ SNAPSHOT PRICE OBSERVATIONS (gold data) ============
     if (jobTypePrices.length > 0 && analysis.user_id) {
       const zipCode = extracted.client?.code_postal || null;
@@ -605,6 +745,7 @@ serve(async (req) => {
       scoring,
       document_detection: { type: extracted.type_document, analysis_mode: "full" },
       n8n_price_data: n8nPriceDataForFrontend,
+      strategic_scores: strategicScores,
     });
 
     // Update the analysis with results
