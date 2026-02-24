@@ -423,16 +423,36 @@ const AnalysisResult = () => {
             </a>
           </div>
         </header>
-        <main className="container py-16 max-w-lg text-center">
-          {/* Animated icon */}
-          <div className="w-20 h-20 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 relative">
-            <StepIcon className="h-10 w-10 text-primary animate-pulse" />
+        <main className="container py-12 max-w-lg text-center">
+          <style>{`
+            @keyframes tools-scroll {
+              0%   { transform: translateX(0); }
+              100% { transform: translateX(-50%); }
+            }
+            .tools-ticker { animation: tools-scroll 8s linear infinite; }
+          `}</style>
+
+          {/* Tapis roulant d'outils */}
+          <div className="w-full rounded-xl overflow-hidden border border-primary/20 mb-8">
+            <div className="overflow-hidden bg-primary/10 py-3">
+              <div className="tools-ticker flex gap-5 text-3xl whitespace-nowrap w-max">
+                {["🔨","🪚","🔧","🪛","🔩","📐","📏","🧰","🪣","💡","🔌","🪜","🧱","🔍","📋",
+                  "🔨","🪚","🔧","🪛","🔩","📐","📏","🧰","🪣","💡","🔌","🪜","🧱","🔍","📋"
+                ].map((tool, i) => (
+                  <span key={i} className="flex-shrink-0">{tool}</span>
+                ))}
+              </div>
+            </div>
+            <div className="py-3 px-4 bg-primary/5">
+              <p className="font-semibold text-foreground text-sm">Analyse en cours, patience !</p>
+              <p className="text-xs text-muted-foreground mt-0.5" key={waitingMsgIdx}>
+                {WAITING_MESSAGES[waitingMsgIdx]}
+              </p>
+            </div>
           </div>
 
-          <h1 className="text-2xl font-bold text-foreground mb-2">Analyse en cours</h1>
-
           {/* Current step label */}
-          <p className="text-base font-medium text-primary mb-6">
+          <p className="text-base font-medium text-primary mb-4">
             {currentStep?.label ?? "Initialisation..."}
           </p>
 
@@ -443,10 +463,10 @@ const AnalysisResult = () => {
               style={{ width: `${progressPct}%` }}
             />
           </div>
-          <p className="text-xs text-muted-foreground mb-8">{progressPct}%</p>
+          <p className="text-xs text-muted-foreground mb-6">{progressPct}%</p>
 
           {/* Pipeline steps */}
-          <div className="flex flex-col gap-2 text-left mb-8">
+          <div className="flex flex-col gap-2 text-left mb-6">
             {PIPELINE_STEPS.map((step, i) => {
               const done = i < currentStepIdx;
               const active = i === currentStepIdx;
@@ -471,15 +491,7 @@ const AnalysisResult = () => {
             })}
           </div>
 
-          {/* Rotating encouragement message */}
-          <p
-            className="text-sm text-muted-foreground italic min-h-[2.5rem] transition-opacity duration-500"
-            key={waitingMsgIdx}
-          >
-            {WAITING_MESSAGES[waitingMsgIdx]}
-          </p>
-
-          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground/50 mt-6">
+          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground/50">
             <RefreshCw className="h-3 w-3 animate-spin" />
             Mise à jour automatique
           </div>
