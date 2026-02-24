@@ -3,6 +3,14 @@
 @import '@fontsource/dm-sans/600.css';
 @import '@fontsource/dm-sans/700.css';
 
+@keyframes tools-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.tools-ticker {
+  animation: tools-scroll 8s linear infinite;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

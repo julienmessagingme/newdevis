@@ -424,14 +424,6 @@ const AnalysisResult = () => {
           </div>
         </header>
         <main className="container py-12 max-w-lg text-center">
-          <style>{`
-            @keyframes tools-scroll {
-              0%   { transform: translateX(0); }
-              100% { transform: translateX(-50%); }
-            }
-            .tools-ticker { animation: tools-scroll 8s linear infinite; }
-          `}</style>
-
           {/* Tapis roulant d'outils */}
           <div className="w-full rounded-xl overflow-hidden border border-primary/20 mb-8">
             <div className="overflow-hidden bg-primary/10 py-3">
