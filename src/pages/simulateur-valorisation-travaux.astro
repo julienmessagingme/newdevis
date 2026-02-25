@@ -2,6 +2,7 @@
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import AstroHeader from '@/components/astro/Header.astro';
 import AstroFooter from '@/components/astro/Footer.astro';
+import SimulateurScoresApp from '@/components/app/SimulateurScoresApp';
 
 const jsonLd = {
   "@context": "https://schema.org",
@@ -168,12 +169,12 @@ const jsonLd = {
             <button
               id="btn-estimate"
               type="button"
-              class="w-full flex items-center justify-center gap-2 bg-slate-900 text-white hover:bg-slate-800 font-semibold rounded-xl px-6 py-3 text-sm transition-colors"
+              class="w-full flex items-center justify-center gap-2 bg-slate-900 text-white hover:bg-slate-800 font-semibold rounded-xl px-6 py-3 text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <svg id="btn-estimate-icon" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4.5 19.5l1.5-1.5M19.5 19.5l-1.5-1.5M4.5 4.5l1.5 1.5M19.5 4.5l-1.5 1.5M12 3v1.5M12 19.5V21M3 12h1.5M19.5 12H21" />
               </svg>
-              Analyser le projet
+              <span id="btn-estimate-label">Analyser le projet</span>
             </button>
 
           </div>
@@ -289,8 +290,7 @@ const jsonLd = {
                     <tr class="border-b border-slate-200">
                       <th class="text-left pb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">Travaux</th>
                       <th class="text-right pb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider pr-1">Budget</th>
-                      <th class="text-right pb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider pr-1">Récup. est.</th>
-                      <th class="text-right pb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider hidden sm:table-cell">Taux</th>
+                      <th class="text-right pb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">Récup. est.</th>
                     </tr>
                   </thead>
                   <tbody id="r-detail-tbody">
@@ -300,13 +300,20 @@ const jsonLd = {
                     <tr class="border-t-2 border-slate-300">
                       <td class="pt-3 pb-1 text-sm font-bold text-slate-900">Total</td>
                       <td id="r-total-budget" class="pt-3 pb-1 text-right text-sm font-bold tabular-nums font-mono text-slate-900 pr-1"></td>
-                      <td id="r-total-delta"  class="pt-3 pb-1 text-right text-sm font-bold tabular-nums font-mono text-slate-900 pr-1"></td>
-                      <td id="r-total-rate"   class="pt-3 pb-1 text-right text-xs text-slate-500 hidden sm:table-cell"></td>
+                      <td id="r-total-delta"  class="pt-3 pb-1 text-right text-sm font-bold tabular-nums font-mono text-slate-900"></td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
 
+            </div>
+
+            <!-- ── Indice Stratégique Immobilier™ (island React) ── -->
+            <div id="r-strategic-section" class="border-t border-slate-200 p-6 sm:p-8">
+              <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4">
+                Indice Stratégique Immobilier™
+              </p>
+              <SimulateurScoresApp client:only="react" />
             </div>
 
             <!-- ── CTA + mention légale ── -->
@@ -340,11 +347,11 @@ const jsonLd = {
         <div class="container max-w-2xl">
           <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">Méthodologie</p>
           <p class="text-sm text-slate-600 leading-relaxed mb-3">
-            Chaque poste est associé à un <strong>taux de récupération</strong> (fraction du budget qui se traduit
-            en valeur marchande supplémentaire). Ces taux sont pondérés par budget pour calculer la revalorisation globale.
-            En mode Location, le modèle suppose un <strong>taux de capitalisation stable</strong> : si la valeur du bien
-            augmente de X %, le loyer de marché augmente du même %. Ce modèle est une approximation — en pratique,
-            la sensibilité loyer/valeur dépend du secteur.
+            Chaque poste est évalué via l'<strong>Indice Stratégique Immobilier™</strong> (IVP / IPI) calculé depuis
+            notre référentiel de plus de 300 types de travaux. Le <strong>taux de récupération pondéré</strong>
+            retourné par l'analyse est appliqué uniformément au budget de chaque poste.
+            En mode Location, le modèle suppose un <strong>taux de capitalisation stable</strong> : si la valeur
+            du bien augmente de X&nbsp;%, le loyer de marché augmente du même pourcentage.
           </p>
           <p class="text-sm text-slate-600 leading-relaxed">
             Pour une estimation basée sur les postes exacts de votre devis et les prix du marché dans votre secteur,
@@ -367,42 +374,47 @@ const jsonLd = {
   </div>
 </BaseLayout>
 
-<!-- ══ LOGIQUE SIMULATEUR V3 ══ -->
+<!-- ══ LOGIQUE SIMULATEUR V4 ══ -->
 <script>
   // ── Types ──
   type Objective = 'revente' | 'location';
 
   interface WorkTypeDef {
     label: string;
-    rate:  number; // fraction of budget recovered as value (e.g. 0.85 = 85 %)
   }
 
   interface WorkItemData {
     type:   string;
     label:  string;
     budget: number;
-    rate:   number;
-    delta:  number; // budget × rate
   }
 
-  // ── Référentiel des types de travaux ──
-  // Ordre : structures/extensions → énergie → intérieur → extérieur
+  // ── Référentiel des types de travaux (labels only — taux via API) ──
   const WORK_TYPES: Record<string, WorkTypeDef> = {
-    extension:              { label: "Extension / surélévation",        rate: 0.85 },
-    combles:                { label: "Aménagement des combles",         rate: 0.80 },
-    renovation_energetique: { label: "Rénovation énergétique globale",  rate: 0.80 },
-    isolation:              { label: "Isolation thermique",             rate: 0.70 },
-    toiture:                { label: "Toiture / charpente",             rate: 0.70 },
-    assainissement:         { label: "Assainissement / plomberie",      rate: 0.70 },
-    redistribution:         { label: "Redistribution des espaces",      rate: 0.60 },
-    veranda:                { label: "Véranda / pergola",               rate: 0.60 },
-    electricite:            { label: "Électricité / mise aux normes",   rate: 0.60 },
-    photovoltaique:         { label: "Panneaux photovoltaïques",        rate: 0.60 },
-    cuisine:                { label: "Cuisine",                         rate: 0.50 },
-    salle_bain:             { label: "Salle de bain",                   rate: 0.50 },
-    terrasse:               { label: "Terrasse / extérieurs",           rate: 0.50 },
-    climatisation:          { label: "Climatisation / chauffage",       rate: 0.40 },
-    piscine:                { label: "Piscine",                         rate: 0.40 },
+    extension:              { label: "Extension / surélévation" },
+    combles:                { label: "Aménagement des combles" },
+    renovation_energetique: { label: "Rénovation énergétique globale" },
+    isolation:              { label: "Isolation thermique" },
+    toiture:                { label: "Toiture / charpente" },
+    assainissement:         { label: "Assainissement / plomberie" },
+    redistribution:         { label: "Redistribution des espaces" },
+    veranda:                { label: "Véranda / pergola" },
+    electricite:            { label: "Électricité / mise aux normes" },
+    photovoltaique:         { label: "Panneaux photovoltaïques" },
+    cuisine:                { label: "Cuisine" },
+    salle_bain:             { label: "Salle de bain" },
+    terrasse:               { label: "Terrasse / extérieurs" },
+    climatisation:          { label: "Climatisation / chauffage" },
+    piscine:                { label: "Piscine" },
+  };
+
+  // Taux de récupération de repli (si API indisponible)
+  const FALLBACK_RATES: Record<string, number> = {
+    extension: 0.85, combles: 0.80, renovation_energetique: 0.80,
+    isolation: 0.70, toiture: 0.70, assainissement: 0.70,
+    redistribution: 0.60, veranda: 0.60, electricite: 0.60, photovoltaique: 0.60,
+    cuisine: 0.50, salle_bain: 0.50, terrasse: 0.50,
+    climatisation: 0.40, piscine: 0.40,
   };
 
   // Options HTML pour les selects (généré une seule fois)
@@ -481,7 +493,6 @@ const jsonLd = {
     const container = el('work-items-container');
     const rows = container.querySelectorAll('.work-item-row');
     if (rows.length <= 1) {
-      // Réinitialiser la dernière ligne plutôt que la supprimer
       (row.querySelector('.work-type-select') as HTMLSelectElement).value = '';
       (row.querySelector('.budget-input')     as HTMLInputElement).value  = '';
     } else {
@@ -497,14 +508,7 @@ const jsonLd = {
       const type   = (row.querySelector('.work-type-select') as HTMLSelectElement).value;
       const budget = parseFloat((row.querySelector('.budget-input') as HTMLInputElement).value) || 0;
       if (type && budget > 0 && WORK_TYPES[type]) {
-        const wt = WORK_TYPES[type];
-        items.push({
-          type,
-          label:  wt.label,
-          budget,
-          rate:   wt.rate,
-          delta:  Math.round(budget * wt.rate),
-        });
+        items.push({ type, label: WORK_TYPES[type].label, budget });
       }
     });
     return items;
@@ -533,12 +537,31 @@ const jsonLd = {
       show('rent-field');
     }
 
-    // Masquer les résultats si l'objectif change
     hide('result');
   }
 
+  // ── Helpers bouton ──
+  const BTN_IDLE_HTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4.5 19.5l1.5-1.5M19.5 19.5l-1.5-1.5M4.5 4.5l1.5 1.5M19.5 4.5l-1.5 1.5M12 3v1.5M12 19.5V21M3 12h1.5M19.5 12H21" />
+    </svg>
+    <span>Analyser le projet</span>
+  `;
+  const BTN_LOADING_HTML = `
+    <svg class="h-4 w-4 animate-spin flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+    </svg>
+    <span>Analyse en cours…</span>
+  `;
+
+  function dispatchScoreEvent(detail: object): void {
+    document.dispatchEvent(new CustomEvent('simulateur-scores-update', { detail }));
+  }
+
   // ── Calcul principal ──
-  function estimate(): void {
+  async function estimate(): Promise<void> {
+    const btn       = el<HTMLButtonElement>('btn-estimate');
     const errorEl   = el('form-error');
     const errorText = el('form-error-text');
 
@@ -551,10 +574,52 @@ const jsonLd = {
     }
     hide('form-error');
 
+    // ── Mettre le bouton en mode chargement ──
+    btn.disabled = true;
+    btn.innerHTML = BTN_LOADING_HTML;
+    dispatchScoreEvent({ status: 'loading' });
+
+    // ── Appel API /api/strategic-scores ──
+    let weightedRate: number | null = null;
+    let apiScores: object | null = null;
+
+    try {
+      const resp = await fetch('/api/strategic-scores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: items.map(i => ({ job_type: i.type, amount_ht: i.budget }))
+        }),
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        if (typeof data.weighted_recovery_rate === 'number') {
+          weightedRate = data.weighted_recovery_rate;
+        }
+        apiScores = data;
+        dispatchScoreEvent({ status: 'done', scores: data });
+      } else {
+        dispatchScoreEvent({ status: 'error', error: `HTTP ${resp.status}` });
+      }
+    } catch (err) {
+      dispatchScoreEvent({ status: 'error', error: 'Réseau indisponible' });
+    }
+
+    // ── Fallback si API échouée ──
+    if (weightedRate === null) {
+      const budgetTotal  = items.reduce((s, i) => s + i.budget, 0);
+      const weightedSum  = items.reduce((s, i) => s + (FALLBACK_RATES[i.type] ?? 0.60) * i.budget, 0);
+      weightedRate = budgetTotal > 0 ? weightedSum / budgetTotal : 0.60;
+    }
+
+    // ── Restaurer le bouton ──
+    btn.disabled = false;
+    btn.innerHTML = BTN_IDLE_HTML;
+
     // ── Totaux ──
-    const budgetTotal  = items.reduce((s, i) => s + i.budget, 0);
-    const deltaTotal   = items.reduce((s, i) => s + i.delta,  0);
-    const recoveryRate = deltaTotal / budgetTotal; // taux moyen pondéré
+    const budgetTotal = items.reduce((s, i) => s + i.budget, 0);
+    const deltaTotal  = Math.round(budgetTotal * weightedRate);
 
     // ── Nature dominante (poste avec le plus gros budget) ──
     const dominant = items.reduce((a, b) => a.budget >= b.budget ? a : b);
@@ -566,7 +631,7 @@ const jsonLd = {
     // ── Affichage synthèse ──
     el('r-budget-total').textContent  = formatEuro(budgetTotal);
     el('r-delta-value').textContent   = `+${formatEuro(deltaTotal)}`;
-    el('r-recovery-pct').textContent  = `${Math.round(recoveryRate * 100)}\u202f% récupérables`;
+    el('r-recovery-pct').textContent  = `${Math.round(weightedRate * 100)}\u202f% récupérables`;
     el('r-dominant').textContent      = dominant.label;
 
     if (propertyValue > 100000) {
@@ -581,12 +646,12 @@ const jsonLd = {
     if (propertyValue > 0) {
       const ratio = budgetTotal / propertyValue;
       if (ratio > 0.25) {
-        overcapEl.className  = 'mt-4 rounded-lg border border-orange-200 bg-orange-50 p-3.5 text-sm text-orange-800 leading-relaxed';
-        overcapEl.innerHTML  = `<strong>Risque élevé de surcapitalisation.</strong> Le budget travaux représente ${Math.round(ratio * 100)}\u202f% de la valeur du bien. Le marché local peut ne pas absorber intégralement cette revalorisation. Comparez la valeur cible (${formatEuro(newValue)}) avec les biens comparables du secteur avant de vous engager.`;
+        overcapEl.className = 'mt-4 rounded-lg border border-orange-200 bg-orange-50 p-3.5 text-sm text-orange-800 leading-relaxed';
+        overcapEl.innerHTML = `<strong>Risque élevé de surcapitalisation.</strong> Le budget travaux représente ${Math.round(ratio * 100)}\u202f% de la valeur du bien. Le marché local peut ne pas absorber intégralement cette revalorisation. Comparez la valeur cible (${formatEuro(newValue)}) avec les biens comparables du secteur avant de vous engager.`;
         show('r-overcap');
       } else if (ratio > 0.15) {
-        overcapEl.className  = 'mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-800 leading-relaxed';
-        overcapEl.innerHTML  = `<strong>Attention.</strong> Le budget représente ${Math.round(ratio * 100)}\u202f% de la valeur du bien. Vérifiez que la valeur cible (${formatEuro(newValue)}) reste cohérente avec le plafond de prix de votre secteur.`;
+        overcapEl.className = 'mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-800 leading-relaxed';
+        overcapEl.innerHTML = `<strong>Attention.</strong> Le budget représente ${Math.round(ratio * 100)}\u202f% de la valeur du bien. Vérifiez que la valeur cible (${formatEuro(newValue)}) reste cohérente avec le plafond de prix de votre secteur.`;
         show('r-overcap');
       } else {
         hide('r-overcap');
@@ -597,18 +662,19 @@ const jsonLd = {
 
     // ── Détail par poste ──
     const tbody = el('r-detail-tbody');
-    tbody.innerHTML = items.map(item => `
-      <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-        <td class="py-2.5 pr-2 text-sm text-slate-700">${item.label}</td>
-        <td class="py-2.5 pr-1 text-right tabular-nums font-mono text-sm text-slate-700 whitespace-nowrap">${formatEuro(item.budget)}</td>
-        <td class="py-2.5 pr-1 text-right tabular-nums font-mono text-sm text-slate-700 whitespace-nowrap">+${formatEuro(item.delta)}</td>
-        <td class="py-2.5 text-right text-xs text-slate-400 hidden sm:table-cell">${Math.round(item.rate * 100)}\u202f%</td>
-      </tr>
-    `).join('');
+    tbody.innerHTML = items.map(item => {
+      const delta = Math.round(item.budget * weightedRate!);
+      return `
+        <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+          <td class="py-2.5 pr-2 text-sm text-slate-700">${item.label}</td>
+          <td class="py-2.5 pr-1 text-right tabular-nums font-mono text-sm text-slate-700 whitespace-nowrap">${formatEuro(item.budget)}</td>
+          <td class="py-2.5 text-right tabular-nums font-mono text-sm text-slate-700 whitespace-nowrap">+${formatEuro(delta)}</td>
+        </tr>
+      `;
+    }).join('');
 
     el('r-total-budget').textContent = formatEuro(budgetTotal);
     el('r-total-delta').textContent  = `+${formatEuro(deltaTotal)}`;
-    el('r-total-rate').textContent   = `${Math.round(recoveryRate * 100)}\u202f%`;
 
     // ── Impact locatif ──
     hide('r-location-section');
@@ -622,27 +688,21 @@ const jsonLd = {
       if (propertyValue > 0 && currentRent > 0 && newValue > 0) {
         hide('r-location-missing');
 
-        // Modèle : taux de capitalisation stable
-        // yield0 = loyer_actuel × 12 / valeur_bien
-        // new_rent = new_value × yield0 / 12
-        const yield0     = (currentRent * 12) / propertyValue; // ex. 0.048 = 4,8 %
-        const newRent    = (newValue * yield0) / 12;
-        const deltaRent  = newRent - currentRent;
+        const yield0      = (currentRent * 12) / propertyValue;
+        const newRent     = (newValue * yield0) / 12;
+        const deltaRent   = newRent - currentRent;
         const deltaAnnual = deltaRent * 12;
-        const payback    = deltaRent > 0 ? budgetTotal / deltaAnnual : null;
+        const payback     = deltaRent > 0 ? budgetTotal / deltaAnnual : null;
 
         el('r-yield-current').textContent     = formatPct(yield0 * 100);
-        el('r-yield-after').textContent       = formatPct(yield0 * 100); // stable par hypothèse
+        el('r-yield-after').textContent       = formatPct(yield0 * 100);
         el('r-new-rent').textContent          = `${formatEuro(Math.round(newRent))}/mois`;
         el('r-delta-rent').textContent        = `+${formatEuro(Math.round(deltaRent))}/mois`;
         el('r-delta-rent-annual').textContent = `+${formatEuro(Math.round(deltaAnnual))}/an`;
-        el('r-payback').textContent           = payback !== null
-          ? formatPayback(payback)
-          : '—';
+        el('r-payback').textContent           = payback !== null ? formatPayback(payback) : '—';
 
       } else {
         show('r-location-missing');
-        // Vider les champs pour éviter des résidus
         ['r-yield-current', 'r-yield-after', 'r-new-rent', 'r-delta-rent', 'r-delta-rent-annual', 'r-payback']
           .forEach(id => { el(id).textContent = '—'; });
       }
@@ -658,15 +718,13 @@ const jsonLd = {
 
   // ── Init + Event listeners ──
   function init(): void {
-    // Ligne initiale
     addRow();
 
     el('btn-revente')?.addEventListener('click',  () => setObjective('revente'));
     el('btn-location')?.addEventListener('click', () => setObjective('location'));
     el('add-row-btn')?.addEventListener('click',  addRow);
-    el('btn-estimate')?.addEventListener('click', estimate);
+    el('btn-estimate')?.addEventListener('click', () => { estimate(); });
 
-    // Entrée clavier sur valeur du bien
     el<HTMLInputElement>('property-value')?.addEventListener('keydown', (e) => {
       if ((e as KeyboardEvent).key === 'Enter') estimate();
     });
