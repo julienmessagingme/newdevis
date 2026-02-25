@@ -208,8 +208,8 @@ const jsonLd = {
 
               <!-- Message pédagogique -->
               <div id="result-message-box" class="rounded-xl border p-4 mb-5 transition-colors duration-300">
-                <p class="text-xs font-bold mb-1.5 flex items-center gap-1.5">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <p id="result-message-title-row" class="text-xs font-bold mb-1.5 flex items-center gap-1.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
                   </svg>
                   <span id="result-message-title">Pourquoi ce résultat ?</span>
@@ -490,14 +490,15 @@ const jsonLd = {
     topBar.className = `h-1.5 w-full transition-colors duration-500 ${cfg.topBarColor}`;
 
     // Message
-    const msgBox   = document.getElementById('result-message-box')   as HTMLElement;
-    const msgTitle = document.getElementById('result-message-title') as HTMLElement;
-    const msgText  = document.getElementById('result-message')       as HTMLElement;
-    msgBox.className   = `rounded-xl border p-4 mb-5 transition-colors duration-300 ${cfg.msgBoxBg} ${cfg.msgBoxBorder}`;
-    msgTitle.className = `text-xs font-bold mb-1.5 flex items-center gap-1.5 ${cfg.msgBoxTextColor}`;
-    msgText.className  = `text-sm leading-relaxed ${cfg.msgBoxTextColor}`;
-    msgTitle.querySelector('span')!.textContent = cfg.msgBoxTitle;
-    msgText.textContent = MESSAGES[workType][selectedObjective];
+    const msgBox      = document.getElementById('result-message-box')      as HTMLElement;
+    const msgTitleRow = document.getElementById('result-message-title-row') as HTMLElement;
+    const msgTitleSpan = document.getElementById('result-message-title')    as HTMLElement;
+    const msgText     = document.getElementById('result-message')           as HTMLElement;
+    msgBox.className      = `rounded-xl border p-4 mb-5 transition-colors duration-300 ${cfg.msgBoxBg} ${cfg.msgBoxBorder}`;
+    msgTitleRow.className = `text-xs font-bold mb-1.5 flex items-center gap-1.5 ${cfg.msgBoxTextColor}`;
+    msgTitleSpan.textContent = cfg.msgBoxTitle;
+    msgText.className     = `text-sm leading-relaxed ${cfg.msgBoxTextColor}`;
+    msgText.textContent   = MESSAGES[workType][selectedObjective];
 
     // Afficher le bloc résultat
     const result = document.getElementById('result') as HTMLElement;
