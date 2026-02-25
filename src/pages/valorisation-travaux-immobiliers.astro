@@ -1,0 +1,321 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AstroHeader from '@/components/astro/Header.astro';
+import AstroFooter from '@/components/astro/Footer.astro';
+
+const faqs = [
+  {
+    question: "Est-ce que tous les travaux augmentent la valeur d'un bien ?",
+    answer: "Non. La majorité des travaux de maintenance (toiture, plomberie, électricité) préservent la valeur du bien mais ne l'augmentent pas. Seuls certains travaux — notamment ceux améliorant le DPE, l'espace, la salle de bain ou la cuisine — créent une revalorisation nette. En moyenne, 1 € investi en travaux génère entre 0,40 € et 0,80 € de valeur supplémentaire, selon le type de travaux et la localisation."
+  },
+  {
+    question: "Quels sont les travaux les plus rentables à la revente ?",
+    answer: "Les travaux qui offrent le meilleur retour sur investissement sont : (1) la rénovation énergétique (isolation, pompe à chaleur, fenêtres), car le DPE est devenu un critère déterminant pour les acheteurs ; (2) la rénovation de la salle de bain dans les appartements ; (3) l'optimisation de l'espace (abattement de cloisons, création d'une suite parentale) ; (4) la réfection de la cuisine dans les maisons. Les travaux purement esthétiques (peinture, décoration) ont un impact plus limité et dépendent fortement des goûts des acheteurs."
+  },
+  {
+    question: "Une salle de bain augmente-t-elle le prix d'un appartement ?",
+    answer: "Oui, généralement. Dans un appartement, une salle de bain rénovée peut augmenter la valeur de revente de 2 % à 5 % du prix du bien selon son état initial et sa qualité d'exécution. L'impact est plus fort quand la salle de bain était vétuste ou fonctionnellement inadaptée. En revanche, une rénovation haut de gamme dans un bien d'entrée de gamme sera peu valorisée : les acheteurs calquent leur offre sur le marché du quartier."
+  },
+  {
+    question: "Comment savoir si mes travaux seront valorisés à la revente ?",
+    answer: "Trois facteurs clés : (1) le type de travaux — certains comme la rénovation énergétique ou l'optimisation de l'espace sont mieux valorisés que d'autres ; (2) la localisation — dans un marché tendu, les acheteurs acceptent de payer plus pour un bien rénové ; (3) la qualité d'exécution — un devis bien construit, avec un artisan sérieux, est gage d'un résultat durable. Outil pratique : soumettez votre devis sur VerifierMonDevis.fr pour obtenir une estimation de l'impact de vos travaux sur la valeur patrimoniale."
+  },
+];
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": faqs.map(faq => ({
+    "@type": "Question",
+    "name": faq.question,
+    "acceptedAnswer": {
+      "@type": "Answer",
+      "text": faq.answer
+    }
+  }))
+};
+---
+
+<BaseLayout
+  title="Quels travaux augmentent la valeur d'un bien immobilier ? | Valorisation réelle"
+  description="Tous les travaux ne se retrouvent pas dans le prix de revente. Découvrez comment estimer la part réellement valorisable de vos rénovations avant de signer un devis."
+  canonical="https://verifiermondevis.fr/valorisation-travaux-immobiliers"
+  ogType="article"
+  jsonLd={jsonLd}
+  breadcrumbs={[
+    { name: "Accueil", url: "https://verifiermondevis.fr/" },
+    { name: "Valorisation des travaux", url: "https://verifiermondevis.fr/valorisation-travaux-immobiliers" }
+  ]}
+>
+  <div class="min-h-screen flex flex-col">
+    <AstroHeader />
+
+    <main class="flex-1">
+
+      <!-- ── HERO ── -->
+      <section class="bg-gradient-to-b from-slate-900 to-slate-800 text-white py-16 sm:py-20">
+        <div class="container max-w-4xl">
+          <a
+            href="/"
+            class="inline-flex items-center gap-2 text-slate-400 hover:text-white mb-8 transition-colors text-sm"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+            </svg>
+            Retour à l'accueil
+          </a>
+
+          <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 text-xs font-medium text-slate-300 mb-5">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+            </svg>
+            Guide patrimonial
+          </div>
+
+          <h1 class="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight mb-5">
+            Quels travaux augmentent vraiment<br class="hidden sm:block" />
+            la valeur de votre bien&nbsp;?
+          </h1>
+          <p class="text-lg sm:text-xl text-slate-300 leading-relaxed max-w-2xl mb-8">
+            Contrairement aux idées reçues, tous les travaux ne se retrouvent pas dans le prix
+            de revente. Certains valorisent, d'autres non. Voici comment faire la différence.
+          </p>
+
+          <a
+            href="/nouvelle-analyse"
+            class="inline-flex items-center justify-center gap-2 bg-white text-slate-900 hover:bg-slate-100 font-semibold px-6 py-3 rounded-xl transition-colors text-sm"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+            </svg>
+            Estimer la valorisation de mon devis
+          </a>
+        </div>
+      </section>
+
+      <!-- ── CONTENU PRINCIPAL ── -->
+      <article class="py-12 sm:py-16">
+        <div class="container max-w-3xl prose-vmd">
+
+          <!-- SECTION 1 -->
+          <section class="mb-12">
+            <h2 class="text-2xl font-bold text-slate-900 mb-4">
+              Pourquoi tous les travaux ne créent pas de valeur
+            </h2>
+            <p class="text-slate-600 leading-relaxed mb-4">
+              C'est une erreur classique : on investit 30 000 € dans une rénovation et on s'attend
+              à ce que le bien vaille 30 000 € de plus. En réalité, <strong>le retour moyen se situe
+              entre 40 % et 80 % du montant investi</strong>, selon le type de travaux, la localisation
+              et l'état du marché local.
+            </p>
+            <p class="text-slate-600 leading-relaxed mb-4">
+              Plusieurs raisons expliquent cet écart :
+            </p>
+            <ul class="space-y-2 mb-6">
+              {[
+                "Les acheteurs fixent leur offre en fonction du marché du quartier, pas du coût des travaux.",
+                "Certaines rénovations relèvent de la maintenance : elles préservent la valeur, elles ne l'augmentent pas.",
+                "Les goûts sont subjectifs : une cuisine haut de gamme qui plaît au vendeur peut rebuter un acheteur.",
+                "L'excès de personnalisation nuit à la liquidité et donc à la valeur perçue.",
+              ].map(item => (
+                <li class="flex items-start gap-3 text-slate-600">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                  </svg>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-5">
+              <p class="text-sm text-amber-800 leading-relaxed">
+                <strong>Règle d'or :</strong> comparez toujours le coût des travaux au prix du marché
+                de biens similaires déjà rénovés dans votre quartier. Si le marché plafonne à 4 000 €/m²
+                et que vous investissez pour atteindre 5 000 €/m², la différence ne sera pas récupérée.
+              </p>
+            </div>
+          </section>
+
+          <!-- SECTION 2 -->
+          <section class="mb-12">
+            <h2 class="text-2xl font-bold text-slate-900 mb-4">
+              Les travaux qui créent le plus de valeur
+            </h2>
+            <p class="text-slate-600 leading-relaxed mb-6">
+              Certaines catégories de travaux sont systématiquement bien valorisées par le marché.
+              Voici les plus efficaces, par ordre d'impact décroissant.
+            </p>
+
+            <div class="space-y-5">
+              {[
+                {
+                  title: "🌿 Rénovation énergétique (DPE)",
+                  content: "Isolation des combles, pompe à chaleur, double vitrage, VMC. Depuis 2023, le DPE est devenu un critère d'achat majeur. Un logement classé F ou G se vend avec une décote de 5 % à 15 % selon les marchés. Passer de F à C peut représenter une revalorisation significative, parfois supérieure au coût des travaux.",
+                  retour: "60–90 %",
+                  color: "emerald"
+                },
+                {
+                  title: "🛁 Rénovation de la salle de bain",
+                  content: "Dans un appartement, la salle de bain est l'une des pièces les plus scrutées par les acheteurs. Une salle de bain vétuste est perçue comme une charge. Une rénovation de qualité peut valoriser le bien de 2 % à 5 % selon la surface.",
+                  retour: "50–80 %",
+                  color: "blue"
+                },
+                {
+                  title: "🍳 Rénovation de la cuisine (maisons)",
+                  content: "Plus impactante dans les maisons que dans les appartements, où la cuisine est un lieu de vie central. L'effet est fort quand la cuisine était ancienne ou très personnalisée. Une cuisine sobre et fonctionnelle attire plus d'acheteurs qu'une cuisine très designée.",
+                  retour: "45–75 %",
+                  color: "blue"
+                },
+                {
+                  title: "🏠 Optimisation de l'espace",
+                  content: "Abattement de cloisons, création d'une suite parentale, aménagement des combles. Ces travaux peuvent créer de la surface habitable supplémentaire ou améliorer la fluidité de l'espace, deux éléments très valorisés. Le ratio m² / prix est particulièrement sensible dans les marchés tendus.",
+                  retour: "55–85 %",
+                  color: "blue"
+                },
+                {
+                  title: "🔧 Structure et gros œuvre",
+                  content: "Toiture, façade, réseaux d'eau et électricité. Ces travaux ne valorisent pas directement mais protègent de la décote. Un toit à refaire, des réseaux hors normes ou une façade dégradée peuvent faire fuir les acheteurs ou entraîner une décote bien supérieure au coût des travaux.",
+                  retour: "30–60 %",
+                  color: "amber"
+                },
+              ].map(item => (
+                <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div class="flex items-start justify-between gap-4 flex-wrap">
+                    <h3 class="text-base font-semibold text-slate-800">{item.title}</h3>
+                    <span class="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full whitespace-nowrap">
+                      Retour estimé : {item.retour}
+                    </span>
+                  </div>
+                  <p class="text-sm text-slate-600 leading-relaxed mt-2">{item.content}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <!-- SECTION 3 -->
+          <section class="mb-12">
+            <h2 class="text-2xl font-bold text-slate-900 mb-4">
+              Les travaux à faible retour sur investissement
+            </h2>
+            <p class="text-slate-600 leading-relaxed mb-4">
+              À l'inverse, certaines rénovations sont peu ou pas valorisées à la revente.
+              Elles peuvent améliorer votre confort mais ne se retrouveront pas dans le prix de vente.
+            </p>
+            <ul class="space-y-3">
+              {[
+                { label: "Peinture et décoration intérieure", text: "Impact limité (1–2 %). Les acheteurs repeignent systématiquement selon leurs goûts." },
+                { label: "Piscine (hors Côte d'Azur, grandes propriétés)", text: "Dans la plupart des marchés, une piscine ajoute peu de valeur et peut même freiner des acheteurs (entretien, risques)." },
+                { label: "Domotique et équipements high-tech", text: "Ces équipements se déprécient rapidement et sont difficilement transferables. La plupart des acheteurs n'en tiennent pas compte." },
+                { label: "Finitions très haut de gamme dans un bien standard", text: "Un marbre de Carrare dans un T2 de banlieue ne sera pas valorisé. Le marché fixe une limite haute au prix au m²." },
+                { label: "Extension non conforme ou non déclarée", text: "Risque juridique pour l'acheteur → décote ou refus de financement bancaire." },
+              ].map(item => (
+                <li class="flex items-start gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                  <div>
+                    <p class="text-sm font-semibold text-slate-700">{item.label}</p>
+                    <p class="text-sm text-slate-500 mt-0.5 leading-relaxed">{item.text}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <!-- SECTION 4 : OUTIL -->
+          <section class="mb-12">
+            <h2 class="text-2xl font-bold text-slate-900 mb-4">
+              Comment estimer la valorisation de vos travaux ?
+            </h2>
+            <p class="text-slate-600 leading-relaxed mb-4">
+              VerifierMonDevis.fr intègre un <strong>Indice Stratégique Immobilier™</strong> qui
+              évalue automatiquement l'impact patrimonial de vos travaux à partir du devis soumis.
+              Deux indices sont calculés :
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+              <div class="rounded-xl bg-blue-50 border border-blue-200 p-5">
+                <p class="text-xs font-bold uppercase tracking-widest text-blue-500 mb-1">IVP</p>
+                <p class="font-semibold text-slate-800 mb-2">Indice de Valorisation Patrimoniale</p>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                  Mesure le potentiel de revalorisation à la revente pour un propriétaire occupant.
+                  Prend en compte la qualité perçue, la liquidité, l'attractivité et la performance énergétique.
+                </p>
+              </div>
+              <div class="rounded-xl bg-violet-50 border border-violet-200 p-5">
+                <p class="text-xs font-bold uppercase tracking-widest text-violet-500 mb-1">IPI</p>
+                <p class="font-semibold text-slate-800 mb-2">Indice de Performance Investisseur</p>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                  Mesure l'impact sur la rentabilité locative : potentiel d'augmentation du loyer,
+                  réduction du risque de vacance, avantage fiscal potentiel.
+                </p>
+              </div>
+            </div>
+
+            <div class="bg-slate-900 rounded-xl p-6 text-white text-center">
+              <p class="text-base font-semibold mb-1">Analysez votre devis maintenant</p>
+              <p class="text-sm text-slate-400 mb-4">
+                Obtenez gratuitement votre score de fiabilité + estimation de valorisation
+              </p>
+              <a
+                href="/nouvelle-analyse"
+                class="inline-flex items-center justify-center gap-2 bg-white text-slate-900 hover:bg-slate-100 font-semibold px-5 py-2.5 rounded-xl transition-colors text-sm"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                </svg>
+                Déposer mon devis gratuitement
+              </a>
+            </div>
+          </section>
+
+          <!-- SECTION 5 : FAQ -->
+          <section class="mb-12">
+            <h2 class="text-2xl font-bold text-slate-900 mb-6">
+              Questions fréquentes sur la valorisation des travaux
+            </h2>
+            <div class="space-y-3">
+              {faqs.map(faq => (
+                <details class="group bg-card border border-border rounded-xl overflow-hidden">
+                  <summary class="flex items-center justify-between gap-4 p-5 cursor-pointer list-none hover:bg-muted/30 transition-colors">
+                    <span class="font-medium text-foreground text-sm sm:text-base">{faq.question}</span>
+                    <svg
+                      class="h-5 w-5 text-muted-foreground flex-shrink-0 transition-transform group-open:rotate-180"
+                      xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+                    >
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                    </svg>
+                  </summary>
+                  <div class="px-5 pb-5 text-sm text-muted-foreground leading-relaxed border-t border-border/50 pt-4">
+                    {faq.answer}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </section>
+
+          <!-- MAILLAGE INTERNE -->
+          <section class="border-t border-slate-200 pt-10">
+            <h2 class="text-lg font-bold text-slate-800 mb-4">Aller plus loin</h2>
+            <div class="flex flex-wrap gap-3 text-sm">
+              <a href="/nouvelle-analyse" class="inline-flex items-center gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-lg font-medium transition-colors">
+                Analyser mon devis
+              </a>
+              <a href="/comprendre-score" class="inline-flex items-center gap-1.5 border border-slate-300 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg transition-colors">
+                Comprendre le score de fiabilité
+              </a>
+              <a href="/faq" class="inline-flex items-center gap-1.5 border border-slate-300 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg transition-colors">
+                FAQ
+              </a>
+              <a href="/blog" class="inline-flex items-center gap-1.5 border border-slate-300 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg transition-colors">
+                Blog
+              </a>
+            </div>
+          </section>
+
+        </div>
+      </article>
+    </main>
+
+    <AstroFooter />
+  </div>
+</BaseLayout>

@@ -450,7 +450,7 @@ const StrategicBadge = ({ rawText, isPremium = false }: StrategicBadgeProps) => 
                 <p className="text-xs font-bold text-slate-700 mb-2.5">
                   💡 Comment interpréter ces scores ?
                 </p>
-                <ul className="space-y-2">
+                <ul className="space-y-2 mb-3">
                   {[
                     { bold: "IVP ≥ 70", text: "Les travaux ont un fort potentiel de revalorisation à la revente." },
                     { bold: "IPI ≥ 70", text: "Les travaux sont favorables à la location (loyer, attractivité, vacance)." },
@@ -462,6 +462,15 @@ const StrategicBadge = ({ rawText, isPremium = false }: StrategicBadgeProps) => 
                     </li>
                   ))}
                 </ul>
+                <a
+                  href="/valorisation-travaux-immobiliers"
+                  className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline font-medium transition-colors"
+                >
+                  Comment fonctionne l'estimation de la valorisation ?
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                  </svg>
+                </a>
               </div>
             </>
           )}
