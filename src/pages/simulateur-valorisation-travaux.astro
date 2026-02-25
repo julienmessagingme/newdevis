@@ -1,0 +1,519 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AstroHeader from '@/components/astro/Header.astro';
+import AstroFooter from '@/components/astro/Footer.astro';
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Simulateur de valorisation des travaux immobiliers",
+  "description": "Estimez en quelques secondes l'impact potentiel de vos travaux sur la valeur de votre bien immobilier.",
+  "url": "https://verifiermondevis.fr/simulateur-valorisation-travaux",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Web",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }
+};
+---
+
+<BaseLayout
+  title="Simulateur de valorisation des travaux immobiliers | VerifierMonDevis.fr"
+  description="Estimez en quelques secondes l'impact potentiel de vos travaux sur la valeur de votre bien. Simulateur gratuit, rapide et pédagogique."
+  canonical="https://verifiermondevis.fr/simulateur-valorisation-travaux"
+  ogType="article"
+  jsonLd={jsonLd}
+  breadcrumbs={[
+    { name: "Accueil",              url: "https://verifiermondevis.fr/" },
+    { name: "Valorisation des travaux", url: "https://verifiermondevis.fr/valorisation-travaux-immobiliers" },
+    { name: "Simulateur",           url: "https://verifiermondevis.fr/simulateur-valorisation-travaux" }
+  ]}
+>
+  <div class="min-h-screen flex flex-col">
+    <AstroHeader />
+
+    <main class="flex-1">
+
+      <!-- ══ HERO ══ -->
+      <section class="bg-gradient-to-b from-slate-900 to-slate-800 text-white py-14 sm:py-18">
+        <div class="container max-w-2xl text-center">
+          <a
+            href="/valorisation-travaux-immobiliers"
+            class="inline-flex items-center gap-1.5 text-slate-400 hover:text-white mb-6 transition-colors text-xs"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+            </svg>
+            Guide valorisation des travaux
+          </a>
+
+          <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 text-xs font-medium text-slate-300 mb-5">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+            </svg>
+            Simulateur gratuit
+          </div>
+
+          <h1 class="text-3xl sm:text-4xl font-bold leading-tight mb-4">
+            Simulateur de valorisation<br class="hidden sm:block" />
+            des travaux immobiliers
+          </h1>
+          <p class="text-slate-300 text-base sm:text-lg leading-relaxed max-w-xl mx-auto">
+            Estimez en quelques secondes la part de votre investissement qui se retrouvera
+            dans la valeur de revente ou la rentabilité locative de votre bien.
+          </p>
+        </div>
+      </section>
+
+      <!-- ══ SIMULATEUR ══ -->
+      <section class="py-10 sm:py-14 bg-slate-50">
+        <div class="container max-w-xl">
+
+          <!-- Formulaire -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-md p-6 sm:p-8 mb-6">
+
+            <p class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-5">
+              Renseignez votre projet
+            </p>
+
+            <!-- Budget -->
+            <div class="mb-6">
+              <label for="budget" class="block text-sm font-semibold text-slate-700 mb-2">
+                Budget travaux
+              </label>
+              <div class="relative">
+                <input
+                  id="budget"
+                  type="number"
+                  min="1000"
+                  step="1000"
+                  placeholder="Ex. 25 000"
+                  class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-10 text-slate-900 text-base font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+                />
+                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm pointer-events-none">€</span>
+              </div>
+            </div>
+
+            <!-- Type de travaux -->
+            <div class="mb-6">
+              <label for="work-type" class="block text-sm font-semibold text-slate-700 mb-2">
+                Type principal de travaux
+              </label>
+              <div class="relative">
+                <select
+                  id="work-type"
+                  class="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-10 text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors cursor-pointer"
+                >
+                  <option value="">Sélectionner le type de travaux…</option>
+                  <option value="extension">🏗️ Extension / surélévation</option>
+                  <option value="renovation_complete">🏠 Rénovation complète</option>
+                  <option value="cuisine_sdb">🛁 Cuisine / Salle de bain</option>
+                  <option value="isolation_energie">🌿 Isolation / Rénovation énergétique</option>
+                  <option value="rafraichissement">🎨 Rafraîchissement / Peinture</option>
+                </select>
+                <svg xmlns="http://www.w3.org/2000/svg" class="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </div>
+            </div>
+
+            <!-- Objectif -->
+            <div class="mb-8">
+              <p class="block text-sm font-semibold text-slate-700 mb-2">Votre objectif</p>
+              <div class="grid grid-cols-2 gap-3">
+                <button
+                  id="btn-revente"
+                  type="button"
+                  data-objective="revente"
+                  class="objective-btn objective-active flex flex-col items-center gap-1.5 rounded-xl border-2 border-primary bg-primary/5 px-4 py-3.5 text-sm font-semibold text-primary transition-all"
+                >
+                  <span class="text-xl">🏠</span>
+                  <span>Revente</span>
+                </button>
+                <button
+                  id="btn-location"
+                  type="button"
+                  data-objective="location"
+                  class="objective-btn flex flex-col items-center gap-1.5 rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-semibold text-slate-500 transition-all hover:border-slate-300"
+                >
+                  <span class="text-xl">🔑</span>
+                  <span>Location</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Erreur -->
+            <p id="form-error" class="hidden mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
+              Merci de renseigner un budget et un type de travaux.
+            </p>
+
+            <!-- Submit -->
+            <button
+              id="btn-estimate"
+              type="button"
+              class="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold rounded-xl px-6 py-3.5 text-sm transition-colors shadow-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+              </svg>
+              Estimer l'impact
+            </button>
+          </div>
+
+          <!-- ── RÉSULTAT (masqué par défaut) ── -->
+          <div
+            id="result"
+            class="hidden bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <!-- Barre de couleur en haut -->
+            <div id="result-top-bar" class="h-1.5 w-full bg-emerald-500 transition-colors duration-500"></div>
+
+            <div class="p-6 sm:p-8">
+
+              <!-- Verdict -->
+              <div class="flex items-center gap-3 mb-5">
+                <span id="result-emoji" class="text-3xl leading-none" aria-hidden="true">🟢</span>
+                <div>
+                  <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Impact estimé</p>
+                  <p id="result-verdict" class="text-xl font-black text-slate-900 leading-tight"></p>
+                </div>
+              </div>
+
+              <!-- Montant + barre -->
+              <div class="mb-5 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                <div class="flex items-baseline justify-between gap-2 mb-3 flex-wrap">
+                  <div>
+                    <p class="text-xs text-slate-400 font-medium mb-0.5">Valorisation estimée</p>
+                    <p id="result-range" class="text-2xl font-black tabular-nums text-slate-900 leading-tight"></p>
+                  </div>
+                  <div class="text-right">
+                    <p class="text-xs text-slate-400 font-medium mb-0.5">Retour estimé</p>
+                    <p id="result-pct" class="text-lg font-bold text-slate-700 tabular-nums"></p>
+                  </div>
+                </div>
+                <!-- Barre de retour -->
+                <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div
+                    id="result-bar"
+                    class="h-full rounded-full transition-all duration-700 ease-out bg-emerald-500"
+                    style="width: 0%"
+                  ></div>
+                </div>
+                <div class="flex justify-between text-[10px] text-slate-400 mt-1">
+                  <span>0 %</span>
+                  <span>50 %</span>
+                  <span>100 %</span>
+                </div>
+              </div>
+
+              <!-- Message pédagogique -->
+              <div id="result-message-box" class="rounded-xl border p-4 mb-5 transition-colors duration-300">
+                <p class="text-xs font-bold mb-1.5 flex items-center gap-1.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+                  </svg>
+                  <span id="result-message-title">Pourquoi ce résultat ?</span>
+                </p>
+                <p id="result-message" class="text-sm leading-relaxed"></p>
+              </div>
+
+              <!-- Avertissement indicatif -->
+              <p class="text-xs text-slate-400 italic text-center mb-5 leading-relaxed">
+                Estimation indicative basée sur des moyennes de marché. Le résultat réel dépend
+                de la localisation, du marché local et de la qualité d'exécution des travaux.
+              </p>
+
+              <!-- CTA principal -->
+              <a
+                href="/nouvelle-analyse"
+                class="w-full flex items-center justify-center gap-2 bg-slate-900 text-white hover:bg-slate-800 font-semibold rounded-xl px-6 py-3.5 text-sm transition-colors mb-3"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                </svg>
+                Analyser mon devis pour une estimation détaillée
+              </a>
+              <p class="text-center text-xs text-slate-400">
+                Gratuit · Confidentiel · Résultat en 2 minutes avec votre devis réel
+              </p>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ══ EXPLICATION + MAILLAGE ══ -->
+      <section class="py-10 sm:py-12 border-t border-slate-200">
+        <div class="container max-w-xl">
+
+          <div class="mb-6">
+            <p class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Comment fonctionne ce simulateur ?</p>
+            <p class="text-sm text-slate-600 leading-relaxed mb-3">
+              Ce simulateur applique des fourchettes de retour sur investissement moyennes
+              observées sur le marché immobilier français, par type de travaux et par objectif.
+              Ces chiffres sont des <strong>ordres de grandeur</strong> — ils ne remplacent pas
+              une analyse basée sur votre devis réel.
+            </p>
+            <p class="text-sm text-slate-600 leading-relaxed">
+              Pour une estimation précise et personnalisée, déposez votre devis sur VerifierMonDevis.fr.
+              Notre analyse détaillée inclut une comparaison prix marché + l'Indice Stratégique Immobilier™
+              calculé à partir des postes exacts de votre devis.
+            </p>
+          </div>
+
+          <div class="flex flex-wrap gap-3 text-sm">
+            <a href="/nouvelle-analyse" class="inline-flex items-center gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-lg font-medium transition-colors">
+              Analyser mon devis
+            </a>
+            <a href="/valorisation-travaux-immobiliers" class="inline-flex items-center gap-1.5 border border-slate-300 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg transition-colors">
+              Guide valorisation des travaux
+            </a>
+            <a href="/faq" class="inline-flex items-center gap-1.5 border border-slate-300 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg transition-colors">
+              FAQ
+            </a>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <AstroFooter />
+  </div>
+</BaseLayout>
+
+<!-- ══ LOGIQUE SIMULATEUR (vanilla JS) ══ -->
+<script>
+  // ── Configuration : [min, max] du retour sur investissement par type/objectif ──
+  type WorkType = 'extension' | 'renovation_complete' | 'cuisine_sdb' | 'isolation_energie' | 'rafraichissement';
+  type Objective = 'revente' | 'location';
+
+  interface WorkConfig {
+    min: number;
+    max: number;
+    verdict: string;
+    emoji: string;
+    barColor: string;
+    topBarColor: string;
+    msgBoxBg: string;
+    msgBoxBorder: string;
+    msgBoxTitle: string;
+    msgBoxTextColor: string;
+  }
+
+  const CONFIG: Record<WorkType, Record<Objective, WorkConfig>> = {
+    extension: {
+      revente: {
+        min: 0.80, max: 0.95,
+        verdict: "Forte valorisation",
+        emoji: "🟢",
+        barColor: "bg-emerald-500", topBarColor: "bg-emerald-500",
+        msgBoxBg: "bg-emerald-50", msgBoxBorder: "border-emerald-200",
+        msgBoxTitle: "Pourquoi un fort impact ?", msgBoxTextColor: "text-emerald-800",
+      },
+      location: {
+        min: 0.65, max: 0.80,
+        verdict: "Forte valorisation",
+        emoji: "🟢",
+        barColor: "bg-emerald-500", topBarColor: "bg-emerald-500",
+        msgBoxBg: "bg-emerald-50", msgBoxBorder: "border-emerald-200",
+        msgBoxTitle: "Pourquoi un fort impact ?", msgBoxTextColor: "text-emerald-800",
+      },
+    },
+    renovation_complete: {
+      revente: {
+        min: 0.65, max: 0.85,
+        verdict: "Forte valorisation",
+        emoji: "🟢",
+        barColor: "bg-emerald-500", topBarColor: "bg-emerald-500",
+        msgBoxBg: "bg-emerald-50", msgBoxBorder: "border-emerald-200",
+        msgBoxTitle: "Pourquoi un fort impact ?", msgBoxTextColor: "text-emerald-800",
+      },
+      location: {
+        min: 0.55, max: 0.72,
+        verdict: "Valorisation partielle",
+        emoji: "🟡",
+        barColor: "bg-amber-400", topBarColor: "bg-amber-400",
+        msgBoxBg: "bg-amber-50", msgBoxBorder: "border-amber-200",
+        msgBoxTitle: "Ce qui fait varier l'impact", msgBoxTextColor: "text-amber-800",
+      },
+    },
+    cuisine_sdb: {
+      revente: {
+        min: 0.50, max: 0.75,
+        verdict: "Valorisation partielle",
+        emoji: "🟡",
+        barColor: "bg-amber-400", topBarColor: "bg-amber-400",
+        msgBoxBg: "bg-amber-50", msgBoxBorder: "border-amber-200",
+        msgBoxTitle: "Ce qui fait varier l'impact", msgBoxTextColor: "text-amber-800",
+      },
+      location: {
+        min: 0.40, max: 0.60,
+        verdict: "Valorisation partielle",
+        emoji: "🟡",
+        barColor: "bg-amber-400", topBarColor: "bg-amber-400",
+        msgBoxBg: "bg-amber-50", msgBoxBorder: "border-amber-200",
+        msgBoxTitle: "Ce qui fait varier l'impact", msgBoxTextColor: "text-amber-800",
+      },
+    },
+    isolation_energie: {
+      revente: {
+        min: 0.55, max: 0.80,
+        verdict: "Valorisation partielle à forte",
+        emoji: "🟡",
+        barColor: "bg-amber-400", topBarColor: "bg-amber-400",
+        msgBoxBg: "bg-amber-50", msgBoxBorder: "border-amber-200",
+        msgBoxTitle: "L'effet DPE", msgBoxTextColor: "text-amber-800",
+      },
+      location: {
+        min: 0.55, max: 0.75,
+        verdict: "Valorisation partielle à forte",
+        emoji: "🟡",
+        barColor: "bg-amber-400", topBarColor: "bg-amber-400",
+        msgBoxBg: "bg-amber-50", msgBoxBorder: "border-amber-200",
+        msgBoxTitle: "L'effet DPE", msgBoxTextColor: "text-amber-800",
+      },
+    },
+    rafraichissement: {
+      revente: {
+        min: 0.15, max: 0.35,
+        verdict: "Impact limité",
+        emoji: "🔴",
+        barColor: "bg-red-400", topBarColor: "bg-red-400",
+        msgBoxBg: "bg-red-50", msgBoxBorder: "border-red-200",
+        msgBoxTitle: "Pourquoi l'impact est faible ?", msgBoxTextColor: "text-red-800",
+      },
+      location: {
+        min: 0.10, max: 0.25,
+        verdict: "Impact limité",
+        emoji: "🔴",
+        barColor: "bg-red-400", topBarColor: "bg-red-400",
+        msgBoxBg: "bg-red-50", msgBoxBorder: "border-red-200",
+        msgBoxTitle: "Pourquoi l'impact est faible ?", msgBoxTextColor: "text-red-800",
+      },
+    },
+  };
+
+  // ── Messages pédagogiques ──
+  const MESSAGES: Record<WorkType, Record<Objective, string>> = {
+    extension: {
+      revente: "Une extension crée de la surface habitable — c'est l'un des meilleurs leviers de valorisation. Les acheteurs paient au m², et chaque m² supplémentaire est valorisé au prix du marché local. L'impact est d'autant plus fort que le marché est tendu.",
+      location: "Une extension augmente la surface louable et peut justifier un loyer plus élevé. Dans les marchés où la surface est rare, l'impact sur le loyer peut être supérieur à la fourchette estimée.",
+    },
+    renovation_complete: {
+      revente: "Une rénovation complète rassure les acheteurs et réduit leur perception de risque. Elle permet de se positionner dans la fourchette haute du marché local — à condition que l'investissement reste cohérent avec le plafond de prix du quartier.",
+      location: "Un bien entièrement rénové attire des locataires plus stables et peut justifier un loyer supérieur. Attention au plafond de marché : dans certains secteurs, le loyer ne reflète pas le coût réel d'une rénovation haut de gamme.",
+    },
+    cuisine_sdb: {
+      revente: "La cuisine et la salle de bain sont les deux pièces les plus scrutées lors d'une visite. L'impact est fort si elles étaient vétustes, plus modéré si elles étaient fonctionnelles. Une cuisine sobre et neutre attire davantage d'acheteurs qu'une cuisine très personnalisée.",
+      location: "Une cuisine et une SDB rénovées réduisent la vacance et améliorent l'attractivité du bien. L'impact sur le loyer reste modéré et dépend du segment de marché visé.",
+    },
+    isolation_energie: {
+      revente: "Le DPE est devenu un critère d'achat déterminant depuis 2023. Un logement classé F ou G subit une décote de 5 à 15 % selon les marchés. Passer à la classe C ou D peut générer une revalorisation significative, parfois supérieure au coût des travaux.",
+      location: "Une bonne étiquette énergétique est de plus en plus exigée par les locataires — et imposée par la loi pour les passoires thermiques. L'impact sur la mise en location et le niveau de loyer peut dépasser la fourchette estimée selon votre situation actuelle.",
+    },
+    rafraichissement: {
+      revente: "Le rafraîchissement améliore la première impression lors des visites, mais les acheteurs repeignent systématiquement selon leurs propres goûts. L'impact sur le prix de vente reste faible (1 à 3 %). Ces travaux sont utiles pour votre confort quotidien, pas pour la revente.",
+      location: "L'impact sur le loyer est limité. Les locataires cherchent avant tout la fonctionnalité, le DPE et la localisation. Le rafraîchissement peut réduire la vacance marginalement mais ne justifie pas un loyer significativement plus élevé.",
+    },
+  };
+
+  // ── État ──
+  let selectedObjective: Objective = 'revente';
+
+  // ── Formatage monétaire FR ──
+  function formatEuro(n: number): string {
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'EUR',
+      maximumFractionDigits: 0,
+    }).format(n);
+  }
+
+  // ── Sélection objectif ──
+  function setObjective(obj: Objective) {
+    selectedObjective = obj;
+    const btnRevente  = document.getElementById('btn-revente')  as HTMLButtonElement;
+    const btnLocation = document.getElementById('btn-location') as HTMLButtonElement;
+    const activeClasses   = ['border-primary', 'bg-primary/5', 'text-primary', 'border-2'];
+    const inactiveClasses = ['border-slate-200', 'bg-slate-50', 'text-slate-500'];
+
+    if (obj === 'revente') {
+      activeClasses.forEach(c => btnRevente.classList.add(c));
+      inactiveClasses.forEach(c => btnRevente.classList.remove(c));
+      inactiveClasses.forEach(c => btnLocation.classList.add(c));
+      activeClasses.forEach(c => btnLocation.classList.remove(c));
+    } else {
+      activeClasses.forEach(c => btnLocation.classList.add(c));
+      inactiveClasses.forEach(c => btnLocation.classList.remove(c));
+      inactiveClasses.forEach(c => btnRevente.classList.add(c));
+      activeClasses.forEach(c => btnRevente.classList.remove(c));
+    }
+  }
+
+  // ── Calcul + affichage ──
+  function estimate() {
+    const budgetInput  = document.getElementById('budget')    as HTMLInputElement;
+    const workTypeEl   = document.getElementById('work-type') as HTMLSelectElement;
+    const errorEl      = document.getElementById('form-error') as HTMLElement;
+
+    const budget   = parseInt(budgetInput.value);
+    const workType = workTypeEl.value as WorkType;
+
+    // Validation
+    if (!budget || budget < 1000 || !workType) {
+      errorEl.classList.remove('hidden');
+      budgetInput.focus();
+      return;
+    }
+    errorEl.classList.add('hidden');
+
+    const cfg = CONFIG[workType][selectedObjective];
+    const min = Math.round(budget * cfg.min);
+    const max = Math.round(budget * cfg.max);
+    const avgPct = Math.round(((cfg.min + cfg.max) / 2) * 100);
+
+    // Mise à jour des éléments
+    (document.getElementById('result-emoji')   as HTMLElement).textContent = cfg.emoji;
+    (document.getElementById('result-verdict') as HTMLElement).textContent = cfg.verdict;
+    (document.getElementById('result-range')   as HTMLElement).textContent =
+      `Entre ${formatEuro(min)} et ${formatEuro(max)}`;
+    (document.getElementById('result-pct')     as HTMLElement).textContent =
+      `${Math.round(cfg.min * 100)} – ${Math.round(cfg.max * 100)} %`;
+
+    // Barre de retour
+    const bar = document.getElementById('result-bar') as HTMLElement;
+    bar.className = `h-full rounded-full transition-all duration-700 ease-out ${cfg.barColor}`;
+    setTimeout(() => { bar.style.width = `${Math.min(avgPct, 100)}%`; }, 50);
+
+    // Barre top
+    const topBar = document.getElementById('result-top-bar') as HTMLElement;
+    topBar.className = `h-1.5 w-full transition-colors duration-500 ${cfg.topBarColor}`;
+
+    // Message
+    const msgBox   = document.getElementById('result-message-box')   as HTMLElement;
+    const msgTitle = document.getElementById('result-message-title') as HTMLElement;
+    const msgText  = document.getElementById('result-message')       as HTMLElement;
+    msgBox.className   = `rounded-xl border p-4 mb-5 transition-colors duration-300 ${cfg.msgBoxBg} ${cfg.msgBoxBorder}`;
+    msgTitle.className = `text-xs font-bold mb-1.5 flex items-center gap-1.5 ${cfg.msgBoxTextColor}`;
+    msgText.className  = `text-sm leading-relaxed ${cfg.msgBoxTextColor}`;
+    msgTitle.querySelector('span')!.textContent = cfg.msgBoxTitle;
+    msgText.textContent = MESSAGES[workType][selectedObjective];
+
+    // Afficher le bloc résultat
+    const result = document.getElementById('result') as HTMLElement;
+    result.classList.remove('hidden');
+    setTimeout(() => {
+      result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 100);
+  }
+
+  // ── Listeners ──
+  document.getElementById('btn-revente')?.addEventListener('click',  () => setObjective('revente'));
+  document.getElementById('btn-location')?.addEventListener('click', () => setObjective('location'));
+  document.getElementById('btn-estimate')?.addEventListener('click', estimate);
+
+  // Lancer aussi sur Enter dans le champ budget
+  document.getElementById('budget')?.addEventListener('keydown', (e) => {
+    if ((e as KeyboardEvent).key === 'Enter') estimate();
+  });
+</script>
