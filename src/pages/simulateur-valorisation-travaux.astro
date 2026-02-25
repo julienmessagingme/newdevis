@@ -7,7 +7,7 @@ const jsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
   "name": "Simulateur de valorisation des travaux immobiliers",
-  "description": "Estimez en quelques secondes l'impact potentiel de vos travaux sur la valeur de votre bien immobilier.",
+  "description": "Estimez l'impact de vos travaux sur la valeur de revente ou la rentabilité locative. Simulateur gratuit, sans inscription.",
   "url": "https://verifiermondevis.fr/simulateur-valorisation-travaux",
   "applicationCategory": "UtilitiesApplication",
   "operatingSystem": "Web",
@@ -17,7 +17,7 @@ const jsonLd = {
 
 <BaseLayout
   title="Simulateur de valorisation des travaux immobiliers | VerifierMonDevis.fr"
-  description="Estimez en quelques secondes l'impact potentiel de vos travaux sur la valeur de votre bien. Simulateur gratuit, rapide et pédagogique."
+  description="Estimez l'impact de vos travaux sur la valeur de revente ou le loyer. Calcul basé sur les barèmes du marché immobilier français. Gratuit, sans inscription."
   canonical="https://verifiermondevis.fr/simulateur-valorisation-travaux"
   ogType="article"
   jsonLd={jsonLd}
@@ -57,8 +57,8 @@ const jsonLd = {
             des travaux immobiliers
           </h1>
           <p class="text-slate-300 text-base sm:text-lg leading-relaxed max-w-xl mx-auto">
-            Estimez en quelques secondes la part de votre investissement qui se retrouvera
-            dans la valeur de revente ou la rentabilité locative de votre bien.
+            Estimez l'impact de vos travaux sur la valeur de revente ou la rentabilité locative —
+            calcul basé sur les barèmes du marché, sans inscription.
           </p>
         </div>
       </section>
@@ -140,68 +140,138 @@ const jsonLd = {
               </div>
             </div>
 
-            <!-- 4. Zone de marché -->
-            <div class="mb-5">
-              <label for="location-zone" class="block text-sm font-semibold text-slate-700 mb-2">
-                Zone de marché <span class="text-red-500">*</span>
-              </label>
-              <div class="relative">
-                <select
-                  id="location-zone"
-                  class="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-10 text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors cursor-pointer"
-                >
-                  <option value="">Sélectionner la zone…</option>
-                  <option value="tendue">🏙️ Zone tendue (grande ville / forte demande)</option>
-                  <option value="intermediaire">🏘️ Zone intermédiaire</option>
-                  <option value="detendue">🌾 Zone détendue (marché rural / faible demande)</option>
-                </select>
-                <svg xmlns="http://www.w3.org/2000/svg" class="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                </svg>
+            <!-- ── CHAMPS REVENTE (optionnel : valeur du bien) ── -->
+            <div id="revente-extra">
+              <div class="mb-5">
+                <label for="property-value" class="block text-sm font-semibold text-slate-700 mb-1">
+                  Valeur actuelle estimée du bien
+                  <span class="text-xs font-normal text-slate-400 ml-1">— optionnel</span>
+                </label>
+                <p class="text-xs text-slate-400 mb-2 leading-relaxed">
+                  Si renseignée, nous calculons le gain en pourcentage de la valeur de votre bien.
+                </p>
+                <div class="relative">
+                  <input
+                    id="property-value"
+                    type="number"
+                    min="0"
+                    step="5000"
+                    placeholder="Ex. 200 000"
+                    class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-10 text-slate-900 text-base font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+                  />
+                  <span class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm pointer-events-none">€</span>
+                </div>
               </div>
             </div>
 
-            <!-- 5. Type de bien -->
-            <div class="mb-5">
-              <label for="property-type" class="block text-sm font-semibold text-slate-700 mb-2">
-                Type de bien <span class="text-red-500">*</span>
-              </label>
-              <div class="relative">
-                <select
-                  id="property-type"
-                  class="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-10 text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors cursor-pointer"
-                >
-                  <option value="">Sélectionner le type de bien…</option>
-                  <option value="appartement">🏢 Appartement</option>
-                  <option value="maison">🏡 Maison</option>
-                </select>
-                <svg xmlns="http://www.w3.org/2000/svg" class="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                </svg>
-              </div>
-            </div>
+            <!-- ── CHAMPS LOCATION ── -->
+            <div id="location-extra" class="hidden">
 
-            <!-- 6. Loyer actuel (affiché uniquement en mode Location) -->
-            <div id="rent-field" class="mb-5 hidden">
-              <label for="current-rent" class="block text-sm font-semibold text-slate-700 mb-1">
-                Loyer mensuel actuel (€)
-                <span class="text-xs font-normal text-slate-400 ml-1">– optionnel</span>
-              </label>
-              <p class="text-xs text-slate-400 mb-2 leading-relaxed">
-                Si renseigné, nous estimons le gain de rendement brut annuel.
-              </p>
-              <div class="relative">
-                <input
-                  id="current-rent"
-                  type="number"
-                  min="0"
-                  step="50"
-                  placeholder="Ex. 800"
-                  class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-12 text-slate-900 text-base font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
-                />
-                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-xs pointer-events-none">€/mois</span>
+              <!-- Zone de marché -->
+              <div class="mb-5">
+                <label for="location-zone" class="block text-sm font-semibold text-slate-700 mb-2">
+                  Zone de marché <span class="text-red-500">*</span>
+                </label>
+                <div class="relative">
+                  <select
+                    id="location-zone"
+                    class="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-10 text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors cursor-pointer"
+                  >
+                    <option value="">Sélectionner la zone…</option>
+                    <option value="tendue">🏙️ Zone tendue (Paris, Lyon, Bordeaux…)</option>
+                    <option value="intermediaire">🏘️ Zone intermédiaire (villes moyennes)</option>
+                    <option value="detendue">🌾 Zone détendue (rural, faible demande)</option>
+                  </select>
+                  <svg xmlns="http://www.w3.org/2000/svg" class="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                  </svg>
+                </div>
               </div>
-            </div>
+
+              <!-- Type de bien -->
+              <div class="mb-5">
+                <label for="property-type" class="block text-sm font-semibold text-slate-700 mb-2">
+                  Type de bien <span class="text-red-500">*</span>
+                </label>
+                <div class="relative">
+                  <select
+                    id="property-type"
+                    class="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-10 text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors cursor-pointer"
+                  >
+                    <option value="">Sélectionner le type de bien…</option>
+                    <option value="appartement">🏢 Appartement</option>
+                    <option value="maison">🏡 Maison</option>
+                  </select>
+                  <svg xmlns="http://www.w3.org/2000/svg" class="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                  </svg>
+                </div>
+              </div>
+
+              <!-- Surface actuelle -->
+              <div class="mb-5">
+                <label for="surface-actuelle" class="block text-sm font-semibold text-slate-700 mb-2">
+                  Surface actuelle du bien (m²) <span class="text-red-500">*</span>
+                </label>
+                <div class="relative">
+                  <input
+                    id="surface-actuelle"
+                    type="number"
+                    min="5"
+                    step="1"
+                    placeholder="Ex. 65"
+                    class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-12 text-slate-900 text-base font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+                  />
+                  <span class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-xs pointer-events-none">m²</span>
+                </div>
+              </div>
+
+              <!-- Surface ajoutée -->
+              <div class="mb-5">
+                <label for="surface-ajoutee" class="block text-sm font-semibold text-slate-700 mb-1">
+                  Surface ajoutée par les travaux (m²)
+                  <span class="text-xs font-normal text-slate-400 ml-1">— 0 si aucune extension</span>
+                </label>
+                <p id="surface-hint" class="hidden text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-2 leading-relaxed">
+                  Pour une extension, indiquez la surface habitable créée.
+                </p>
+                <div class="relative">
+                  <input
+                    id="surface-ajoutee"
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="0"
+                    value="0"
+                    class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-12 text-slate-900 text-base font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+                  />
+                  <span class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-xs pointer-events-none">m²</span>
+                </div>
+              </div>
+
+              <!-- Loyer actuel (optionnel) -->
+              <div class="mb-5">
+                <label for="current-rent" class="block text-sm font-semibold text-slate-700 mb-1">
+                  Loyer mensuel actuel (€)
+                  <span class="text-xs font-normal text-slate-400 ml-1">— optionnel</span>
+                </label>
+                <p class="text-xs text-slate-400 mb-2 leading-relaxed">
+                  Si renseigné, nous comparons votre loyer actuel au potentiel estimé après travaux.
+                </p>
+                <div class="relative">
+                  <input
+                    id="current-rent"
+                    type="number"
+                    min="0"
+                    step="50"
+                    placeholder="Ex. 800"
+                    class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-16 text-slate-900 text-base font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+                  />
+                  <span class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-xs pointer-events-none">€/mois</span>
+                </div>
+              </div>
+
+            </div><!-- /location-extra -->
 
             <!-- Message d'erreur -->
             <p id="form-error" class="hidden mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
@@ -237,62 +307,105 @@ const jsonLd = {
               <div class="flex items-center gap-3">
                 <span id="result-emoji" class="text-3xl leading-none" aria-hidden="true">🟢</span>
                 <div>
-                  <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Impact estimé</p>
+                  <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Estimation</p>
                   <p id="result-verdict" class="text-xl font-black text-slate-900 leading-tight"></p>
                 </div>
               </div>
 
-              <!-- Valorisation patrimoniale -->
-              <div class="p-4 rounded-xl bg-slate-50 border border-slate-100">
-                <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Valorisation estimée du bien</p>
-                <div class="flex items-baseline justify-between gap-2 mb-3 flex-wrap">
-                  <p id="result-range" class="text-2xl font-black tabular-nums text-slate-900 leading-tight"></p>
-                  <p id="result-pct" class="text-base font-bold text-slate-500 tabular-nums"></p>
-                </div>
-                <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                  <div
-                    id="result-bar"
-                    class="h-full rounded-full transition-all duration-700 ease-out bg-emerald-500"
-                    style="width: 0%"
-                  ></div>
-                </div>
-                <div class="flex justify-between text-[10px] text-slate-400 mt-1">
-                  <span>0 %</span><span>50 %</span><span>100 %</span>
-                </div>
-              </div>
+              <!-- ── Bloc REVENTE ── -->
+              <div id="result-revente" class="hidden rounded-xl bg-slate-50 border border-slate-200 overflow-hidden">
+                <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400 px-5 pt-4 pb-3 border-b border-slate-200">
+                  Impact sur la valeur de revente
+                </p>
+                <div class="px-5 py-4 space-y-3">
 
-              <!-- Bloc impact locatif (Location seulement) -->
-              <div id="result-rental" class="hidden p-5 rounded-xl bg-blue-50 border border-blue-200">
-                <div class="flex items-center gap-2 mb-4">
-                  <span class="text-lg" aria-hidden="true">📈</span>
-                  <p class="text-sm font-bold text-blue-800">Impact locatif estimé</p>
-                </div>
-
-                <!-- Augmentation loyer -->
-                <div class="flex items-start justify-between gap-3 mb-2">
-                  <div>
-                    <p class="text-xs font-semibold text-blue-700 mb-0.5">Augmentation estimée du loyer</p>
-                    <p class="text-[11px] text-blue-500">Fourchette mensuelle selon le marché local</p>
+                  <!-- Fourchette % du budget -->
+                  <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <p class="text-sm text-slate-600">Récupération du budget en valeur</p>
+                    <p id="result-pct" class="text-base font-black tabular-nums text-slate-900"></p>
                   </div>
-                  <p id="result-rent-range" class="text-base font-black text-blue-900 tabular-nums whitespace-nowrap flex-shrink-0"></p>
-                </div>
 
-                <!-- Gain rendement brut (si loyer actuel renseigné) -->
-                <div id="result-yield-block" class="hidden pt-3 border-t border-blue-200 mt-3">
-                  <div class="flex items-start justify-between gap-3">
-                    <div>
-                      <p class="text-xs font-semibold text-blue-700 mb-0.5">Gain de rendement brut potentiel</p>
-                      <p class="text-[11px] text-blue-500">(augmentation loyer × 12) / budget travaux</p>
+                  <!-- Gain en € -->
+                  <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <p class="text-sm text-slate-600">Gain de valeur estimé</p>
+                    <p id="result-gain-eur" class="text-base font-black tabular-nums text-emerald-700"></p>
+                  </div>
+
+                  <!-- % de la valeur du bien (si fournie) -->
+                  <div id="result-pct-bien-row" class="hidden">
+                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                      <p class="text-sm text-slate-600">Soit environ</p>
+                      <p id="result-pct-bien" class="text-base font-black tabular-nums text-primary"></p>
                     </div>
-                    <p id="result-yield" class="text-base font-black text-blue-900 tabular-nums whitespace-nowrap flex-shrink-0"></p>
                   </div>
-                </div>
 
-                <!-- Contexte zone/type -->
-                <p id="result-rental-context" class="text-[11px] text-blue-500 mt-3 leading-relaxed italic"></p>
+                  <!-- Barre de progression -->
+                  <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden pt-1">
+                    <div
+                      id="result-bar"
+                      class="h-full rounded-full transition-all duration-700 ease-out bg-emerald-500"
+                      style="width: 0%"
+                    ></div>
+                  </div>
+                  <div class="flex justify-between text-[10px] text-slate-400 -mt-1">
+                    <span>0 %</span><span>50 %</span><span>100 %</span>
+                  </div>
+
+                  <!-- Hint si valeur du bien non renseignée -->
+                  <div id="result-no-value-hint" class="hidden pt-2 border-t border-slate-200">
+                    <p class="text-xs text-slate-500 italic leading-relaxed">
+                      💡 Ajoutez la valeur estimée de votre bien (champ optionnel ci-dessus) pour voir ce gain exprimé en % de sa valeur totale.
+                    </p>
+                  </div>
+
+                </div>
               </div>
 
-              <!-- Message pédagogique -->
+              <!-- ── Bloc LOCATION ── -->
+              <div id="result-rental" class="hidden rounded-xl bg-blue-50 border border-blue-200 overflow-hidden">
+                <p class="text-[10px] font-bold uppercase tracking-widest text-blue-500 px-5 pt-4 pb-3 border-b border-blue-200">
+                  Impact locatif estimé
+                </p>
+                <div class="px-5 py-4 space-y-3">
+
+                  <!-- Loyer estimé après travaux -->
+                  <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <p class="text-sm text-blue-700">Loyer estimé après travaux</p>
+                    <p id="result-loyer-apres" class="text-base font-black tabular-nums text-blue-900"></p>
+                  </div>
+
+                  <!-- Hausse de loyer -->
+                  <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <p class="text-sm text-blue-700">Hausse de loyer estimée</p>
+                    <p id="result-hausse" class="text-base font-black tabular-nums text-blue-900"></p>
+                  </div>
+
+                  <!-- Séparateur -->
+                  <div class="border-t border-blue-200 pt-3 space-y-3">
+
+                    <!-- Gain annuel -->
+                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                      <p class="text-sm text-blue-700">Gain annuel estimé</p>
+                      <p id="result-gain-annuel" class="text-sm font-bold tabular-nums text-blue-800"></p>
+                    </div>
+
+                    <!-- Retour sur investissement -->
+                    <div id="result-payback-row" class="hidden">
+                      <div class="flex items-center justify-between gap-2 flex-wrap">
+                        <p class="text-sm text-blue-700">Retour sur investissement</p>
+                        <p id="result-payback" class="text-sm font-bold tabular-nums text-blue-800"></p>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <!-- Contexte -->
+                  <p id="result-rental-context" class="text-[11px] text-blue-500 leading-relaxed italic pt-2 border-t border-blue-200"></p>
+
+                </div>
+              </div>
+
+              <!-- ── Message pédagogique ── -->
               <div id="result-message-box" class="rounded-xl border p-4 transition-colors duration-300">
                 <p id="result-message-title-row" class="text-xs font-bold mb-1.5 flex items-center gap-1.5">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
@@ -305,8 +418,8 @@ const jsonLd = {
 
               <!-- Avertissement -->
               <p class="text-xs text-slate-400 italic text-center leading-relaxed">
-                Les résultats dépendent du marché local et de la qualité d'exécution des travaux.
-                Estimation indicative basée sur des moyennes observées.
+                Estimation indicative basée sur des barèmes de marché moyens —
+                les résultats varient selon la localisation, la qualité d'exécution et l'état initial du bien.
               </p>
 
               <!-- CTA -->
@@ -335,15 +448,14 @@ const jsonLd = {
           <div class="mb-6">
             <p class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Comment fonctionne ce simulateur ?</p>
             <p class="text-sm text-slate-600 leading-relaxed mb-3">
-              Ce simulateur applique des fourchettes de retour sur investissement moyennes
-              observées sur le marché immobilier français, par type de travaux, objectif et zone géographique.
-              Ces chiffres sont des <strong>ordres de grandeur</strong> — ils ne remplacent pas
-              une analyse basée sur votre devis réel.
+              En mode <strong>Revente</strong>, le simulateur applique des fourchettes de récupération
+              du budget en valeur immobilière, issues d'observations du marché français par type de travaux.
+              En mode <strong>Location</strong>, il calcule un loyer de référence au m² selon la zone et
+              le type de bien, puis estime la hausse de loyer, le gain annuel et le retour sur investissement.
             </p>
             <p class="text-sm text-slate-600 leading-relaxed">
-              Pour une estimation précise et personnalisée, déposez votre devis sur VerifierMonDevis.fr.
-              Notre analyse inclut une comparaison prix marché + l'Indice Stratégique Immobilier™
-              calculé à partir des postes exacts de votre devis.
+              Ces estimations sont des ordres de grandeur. Pour une analyse précise basée sur votre devis réel,
+              déposez-le sur VerifierMonDevis.fr : comparaison des prix du marché et Indice Stratégique Immobilier™ inclus.
             </p>
           </div>
           <div class="flex flex-wrap gap-3 text-sm">
@@ -366,103 +478,100 @@ const jsonLd = {
   </div>
 </BaseLayout>
 
-<!-- ══ LOGIQUE SIMULATEUR ══ -->
+<!-- ══ LOGIQUE SIMULATEUR V2 ══ -->
 <script>
   // ── Types ──
   type WorkType     = 'extension' | 'renovation_complete' | 'cuisine_sdb' | 'isolation_energie' | 'rafraichissement';
   type Objective    = 'revente' | 'location';
   type ZoneType     = 'tendue' | 'intermediaire' | 'detendue';
   type PropertyType = 'appartement' | 'maison';
+  type VerdictLevel = 'fort' | 'modere' | 'limite';
 
-  // ── Config valorisation patrimoniale ──
+  // ── Config patrimoniale (% du budget récupéré en valeur) ──
   interface WorkConfig {
-    min: number; max: number;
-    verdict: string; emoji: string;
-    barColor: string; topBarColor: string;
-    msgBoxBg: string; msgBoxBorder: string;
-    msgBoxTitle: string; msgBoxTextColor: string;
+    min: number;         // fraction, ex. 0.80
+    max: number;
+    msgBoxTitle: string;
   }
 
   const CONFIG: Record<WorkType, Record<Objective, WorkConfig>> = {
     extension: {
-      revente:  { min: 0.80, max: 0.95, verdict: "Forte valorisation",          emoji: "🟢", barColor: "bg-emerald-500", topBarColor: "bg-emerald-500", msgBoxBg: "bg-emerald-50", msgBoxBorder: "border-emerald-200", msgBoxTitle: "Pourquoi un fort impact ?",          msgBoxTextColor: "text-emerald-800" },
-      location: { min: 0.65, max: 0.80, verdict: "Forte valorisation",          emoji: "🟢", barColor: "bg-emerald-500", topBarColor: "bg-emerald-500", msgBoxBg: "bg-emerald-50", msgBoxBorder: "border-emerald-200", msgBoxTitle: "Pourquoi un fort impact ?",          msgBoxTextColor: "text-emerald-800" },
+      revente:  { min: 0.80, max: 0.95, msgBoxTitle: "Pourquoi un fort impact ?" },
+      location: { min: 0.65, max: 0.80, msgBoxTitle: "Pourquoi un fort impact ?" },
     },
     renovation_complete: {
-      revente:  { min: 0.65, max: 0.85, verdict: "Forte valorisation",          emoji: "🟢", barColor: "bg-emerald-500", topBarColor: "bg-emerald-500", msgBoxBg: "bg-emerald-50", msgBoxBorder: "border-emerald-200", msgBoxTitle: "Pourquoi un fort impact ?",          msgBoxTextColor: "text-emerald-800" },
-      location: { min: 0.55, max: 0.72, verdict: "Valorisation partielle",      emoji: "🟡", barColor: "bg-amber-400",   topBarColor: "bg-amber-400",   msgBoxBg: "bg-amber-50",   msgBoxBorder: "border-amber-200",   msgBoxTitle: "Ce qui fait varier l'impact",       msgBoxTextColor: "text-amber-800"   },
+      revente:  { min: 0.65, max: 0.85, msgBoxTitle: "Pourquoi un fort impact ?" },
+      location: { min: 0.55, max: 0.72, msgBoxTitle: "Ce qui fait varier l'impact" },
     },
     cuisine_sdb: {
-      revente:  { min: 0.50, max: 0.75, verdict: "Valorisation partielle",      emoji: "🟡", barColor: "bg-amber-400",   topBarColor: "bg-amber-400",   msgBoxBg: "bg-amber-50",   msgBoxBorder: "border-amber-200",   msgBoxTitle: "Ce qui fait varier l'impact",       msgBoxTextColor: "text-amber-800"   },
-      location: { min: 0.40, max: 0.60, verdict: "Valorisation partielle",      emoji: "🟡", barColor: "bg-amber-400",   topBarColor: "bg-amber-400",   msgBoxBg: "bg-amber-50",   msgBoxBorder: "border-amber-200",   msgBoxTitle: "Ce qui fait varier l'impact",       msgBoxTextColor: "text-amber-800"   },
+      revente:  { min: 0.50, max: 0.75, msgBoxTitle: "Ce qui fait varier l'impact" },
+      location: { min: 0.40, max: 0.60, msgBoxTitle: "Ce qui fait varier l'impact" },
     },
     isolation_energie: {
-      revente:  { min: 0.55, max: 0.80, verdict: "Valorisation partielle à forte", emoji: "🟡", barColor: "bg-amber-400", topBarColor: "bg-amber-400", msgBoxBg: "bg-amber-50", msgBoxBorder: "border-amber-200", msgBoxTitle: "L'effet DPE",                          msgBoxTextColor: "text-amber-800"   },
-      location: { min: 0.55, max: 0.75, verdict: "Valorisation partielle à forte", emoji: "🟡", barColor: "bg-amber-400", topBarColor: "bg-amber-400", msgBoxBg: "bg-amber-50", msgBoxBorder: "border-amber-200", msgBoxTitle: "L'effet DPE",                          msgBoxTextColor: "text-amber-800"   },
+      revente:  { min: 0.55, max: 0.80, msgBoxTitle: "L'effet DPE" },
+      location: { min: 0.55, max: 0.75, msgBoxTitle: "L'effet DPE" },
     },
     rafraichissement: {
-      revente:  { min: 0.15, max: 0.35, verdict: "Impact limité",               emoji: "🔴", barColor: "bg-red-400",    topBarColor: "bg-red-400",    msgBoxBg: "bg-red-50",    msgBoxBorder: "border-red-200",    msgBoxTitle: "Pourquoi l'impact est faible ?",    msgBoxTextColor: "text-red-800"     },
-      location: { min: 0.10, max: 0.25, verdict: "Impact limité",               emoji: "🔴", barColor: "bg-red-400",    topBarColor: "bg-red-400",    msgBoxBg: "bg-red-50",    msgBoxBorder: "border-red-200",    msgBoxTitle: "Pourquoi l'impact est faible ?",    msgBoxTextColor: "text-red-800"     },
+      revente:  { min: 0.15, max: 0.35, msgBoxTitle: "Pourquoi l'impact est faible ?" },
+      location: { min: 0.10, max: 0.25, msgBoxTitle: "Pourquoi l'impact est faible ?" },
     },
   };
 
-  // ── Config impact locatif : augmentation loyer par zone ──
-  const RENT_DELTA: Record<WorkType, Record<ZoneType, { min: number; max: number }>> = {
-    extension: {
-      tendue:        { min: 120, max: 250 },
-      intermediaire: { min: 70,  max: 150 },
-      detendue:      { min: 30,  max: 80  },
-    },
-    renovation_complete: {
-      tendue:        { min: 80,  max: 180 },
-      intermediaire: { min: 50,  max: 120 },
-      detendue:      { min: 20,  max: 70  },
-    },
-    cuisine_sdb: {
-      tendue:        { min: 50,  max: 120 },
-      intermediaire: { min: 30,  max: 80  },
-      detendue:      { min: 10,  max: 40  },
-    },
-    isolation_energie: {
-      tendue:        { min: 30,  max: 80  },
-      intermediaire: { min: 20,  max: 50  },
-      detendue:      { min: 0,   max: 30  },
-    },
-    rafraichissement: {
-      tendue:        { min: 0,   max: 20  },
-      intermediaire: { min: 0,   max: 10  },
-      detendue:      { min: 0,   max: 5   },
-    },
+  // ── Niveaux de verdict dérivés du CONFIG ──
+  interface VerdictStyle {
+    label: string; emoji: string;
+    barColor: string; topBarColor: string;
+    msgBoxBg: string; msgBoxBorder: string; msgBoxTextColor: string;
+  }
+
+  const VERDICT_STYLES: Record<VerdictLevel, VerdictStyle> = {
+    fort:   { label: 'Fort',   emoji: '🟢', barColor: 'bg-emerald-500', topBarColor: 'bg-emerald-500', msgBoxBg: 'bg-emerald-50', msgBoxBorder: 'border-emerald-200', msgBoxTextColor: 'text-emerald-800' },
+    modere: { label: 'Modéré', emoji: '🟡', barColor: 'bg-amber-400',   topBarColor: 'bg-amber-400',   msgBoxBg: 'bg-amber-50',   msgBoxBorder: 'border-amber-200',   msgBoxTextColor: 'text-amber-800'   },
+    limite: { label: 'Limité', emoji: '🔴', barColor: 'bg-red-400',     topBarColor: 'bg-red-400',     msgBoxBg: 'bg-red-50',     msgBoxBorder: 'border-red-200',     msgBoxTextColor: 'text-red-800'     },
   };
 
-  // ── Labels lisibles ──
+  function getVerdictLevel(min: number, max: number): VerdictLevel {
+    const avg = (min + max) / 2;
+    if (avg >= 0.60) return 'fort';
+    if (avg >= 0.35) return 'modere';
+    return 'limite';
+  }
+
+  // ── Barème loyer au m² (Location) ──
+  // Source : observatoire des loyers INSEE / OLAP, moyennes 2023-2024
+  const LOYER_M2: Record<ZoneType, Record<PropertyType, { min: number; max: number }>> = {
+    tendue:        { appartement: { min: 22, max: 30 }, maison: { min: 16, max: 24 } },
+    intermediaire: { appartement: { min: 14, max: 20 }, maison: { min: 11, max: 16 } },
+    detendue:      { appartement: { min: 9,  max: 13 }, maison: { min: 7,  max: 11 } },
+  };
+
   const ZONE_LABELS: Record<ZoneType, string> = {
-    tendue:        "zone tendue",
-    intermediaire: "zone intermédiaire",
-    detendue:      "zone détendue",
+    tendue:        'zone tendue',
+    intermediaire: 'zone intermédiaire',
+    detendue:      'zone détendue',
   };
 
   // ── Messages pédagogiques ──
   const MESSAGES: Record<WorkType, Record<Objective, string>> = {
     extension: {
-      revente:  "Une extension crée de la surface habitable — c'est l'un des meilleurs leviers de valorisation. Les acheteurs paient au m², et chaque m² supplémentaire est valorisé au prix du marché local. L'impact est d'autant plus fort que le marché est tendu.",
-      location: "Une extension augmente la surface louable et peut justifier un loyer plus élevé. Dans les marchés où la surface est rare, l'impact sur le loyer peut être supérieur à la fourchette estimée.",
+      revente:  "Une extension crée de la surface habitable — l'un des meilleurs leviers de valorisation. Les acheteurs paient au m², et chaque m² supplémentaire est valorisé au prix du marché local. L'impact est d'autant plus fort que le marché est tendu.",
+      location: "Une extension augmente directement la surface louable. Le loyer supplémentaire est calculé sur les m² créés au barème de votre zone. Dans les marchés où la surface est rare, l'impact locatif peut dépasser la fourchette estimée.",
     },
     renovation_complete: {
       revente:  "Une rénovation complète rassure les acheteurs et réduit leur perception de risque. Elle permet de se positionner dans la fourchette haute du marché local — à condition que l'investissement reste cohérent avec le plafond de prix du quartier.",
-      location: "Un bien entièrement rénové attire des locataires plus stables et peut justifier un loyer supérieur. Attention au plafond de marché : dans certains secteurs, le loyer ne reflète pas le coût réel d'une rénovation haut de gamme.",
+      location: "Un bien entièrement rénové peut prétendre au haut de la fourchette de loyer de sa zone. L'estimation montre l'écart entre bas et haut du barème local. Renseignez votre loyer actuel pour affiner le calcul.",
     },
     cuisine_sdb: {
       revente:  "La cuisine et la salle de bain sont les deux pièces les plus scrutées lors d'une visite. L'impact est fort si elles étaient vétustes, plus modéré si elles étaient fonctionnelles. Une cuisine sobre et neutre attire davantage d'acheteurs.",
-      location: "Une cuisine et une SDB rénovées réduisent la vacance et améliorent l'attractivité du bien. L'impact sur le loyer reste modéré et dépend du segment de marché visé.",
+      location: "Une cuisine et une SDB rénovées réduisent la vacance et permettent de viser le haut de la fourchette locative locale. L'impact est modéré — la surface reste inchangée, c'est la qualité perçue qui évolue.",
     },
     isolation_energie: {
-      revente:  "Le DPE est devenu un critère d'achat déterminant depuis 2023. Un logement classé F ou G subit une décote de 5 à 15 % selon les marchés. Passer à la classe C ou D peut générer une revalorisation significative, parfois supérieure au coût des travaux.",
-      location: "Une bonne étiquette énergétique est de plus en plus exigée par les locataires — et imposée par la loi pour les passoires thermiques. L'impact sur la mise en location et le niveau de loyer peut dépasser la fourchette estimée selon votre situation.",
+      revente:  "Le DPE est devenu un critère d'achat déterminant. Un logement classé F ou G subit une décote de 5 à 15 % selon les marchés. Passer à la classe C ou D peut générer une revalorisation significative, parfois supérieure au coût des travaux.",
+      location: "Une bonne étiquette énergétique est exigée par les locataires et imposée par la loi pour les passoires thermiques. L'impact sur le loyer est modéré — c'est surtout la mise en location qui devient possible et le risque de vacance qui diminue.",
     },
     rafraichissement: {
       revente:  "Le rafraîchissement améliore la première impression lors des visites, mais les acheteurs repeignent selon leurs propres goûts. L'impact sur le prix de vente reste faible (1 à 3 %). Ces travaux sont utiles pour votre confort, pas pour la revente.",
-      location: "L'impact sur le loyer est limité. Les locataires cherchent avant tout la fonctionnalité, le DPE et la localisation. Le rafraîchissement peut réduire la vacance marginalement mais ne justifie pas un loyer significativement plus élevé.",
+      location: "L'impact sur le loyer est très limité. Les locataires cherchent avant tout la fonctionnalité, le DPE et la localisation. Le rafraîchissement peut réduire la vacance marginalement mais ne justifie pas un loyer significativement plus élevé.",
     },
   };
 
@@ -475,11 +584,38 @@ const jsonLd = {
   }
 
   function formatPct(n: number, decimals = 1): string {
-    return n.toFixed(decimals).replace('.', ',');
+    return n.toFixed(decimals).replace('.', ',') + ' %';
   }
 
-  function el<T extends HTMLElement>(id: string): T {
+  function formatPayback(years: number): string {
+    if (years >= 30) return '> 30 ans';
+    if (years >= 10) return `${Math.round(years)} ans`;
+    return `${years.toFixed(1).replace('.', ',')} ans`;
+  }
+
+  function el<T extends HTMLElement = HTMLElement>(id: string): T {
     return document.getElementById(id) as T;
+  }
+
+  function show(id: string) { el(id).classList.remove('hidden'); }
+  function hide(id: string) { el(id).classList.add('hidden'); }
+
+  // ── Visibilité des champs selon l'objectif ──
+  function updateFieldVisibility() {
+    if (selectedObjective === 'revente') {
+      show('revente-extra');
+      hide('location-extra');
+    } else {
+      hide('revente-extra');
+      show('location-extra');
+    }
+    // Hint surface si extension sélectionné
+    const workType = el<HTMLSelectElement>('work-type').value;
+    if (workType === 'extension') {
+      show('surface-hint');
+    } else {
+      hide('surface-hint');
+    }
   }
 
   // ── Toggle objectif ──
@@ -487,137 +623,229 @@ const jsonLd = {
     selectedObjective = obj;
     const btnRevente  = el<HTMLButtonElement>('btn-revente');
     const btnLocation = el<HTMLButtonElement>('btn-location');
-    const rentField   = el('rent-field');
 
-    const active   = ['border-primary', 'bg-primary/5', 'text-primary', 'border-2'];
-    const inactive = ['border-slate-200', 'bg-slate-50', 'text-slate-500'];
+    const activeClasses   = ['border-primary', 'bg-primary/5', 'text-primary'];
+    const inactiveClasses = ['border-slate-200', 'bg-slate-50', 'text-slate-500'];
 
     if (obj === 'revente') {
-      active.forEach(c => btnRevente.classList.add(c));
-      inactive.forEach(c => btnRevente.classList.remove(c));
-      inactive.forEach(c => btnLocation.classList.add(c));
-      active.forEach(c => btnLocation.classList.remove(c));
-      rentField.classList.add('hidden');
+      activeClasses.forEach(c   => btnRevente.classList.add(c));
+      inactiveClasses.forEach(c => btnRevente.classList.remove(c));
+      inactiveClasses.forEach(c => btnLocation.classList.add(c));
+      activeClasses.forEach(c   => btnLocation.classList.remove(c));
     } else {
-      active.forEach(c => btnLocation.classList.add(c));
-      inactive.forEach(c => btnLocation.classList.remove(c));
-      inactive.forEach(c => btnRevente.classList.add(c));
-      active.forEach(c => btnRevente.classList.remove(c));
-      rentField.classList.remove('hidden');
+      activeClasses.forEach(c   => btnLocation.classList.add(c));
+      inactiveClasses.forEach(c => btnLocation.classList.remove(c));
+      inactiveClasses.forEach(c => btnRevente.classList.add(c));
+      activeClasses.forEach(c   => btnRevente.classList.remove(c));
     }
+
+    updateFieldVisibility();
+    // Masquer les résultats si l'objectif change après une estimation
+    hide('result');
   }
 
-  // ── Calcul + affichage ──
+  // ── Calcul principal ──
   function estimate() {
-    const budgetInput    = el<HTMLInputElement>('budget');
-    const workTypeEl     = el<HTMLSelectElement>('work-type');
-    const zoneEl         = el<HTMLSelectElement>('location-zone');
-    const propertyTypeEl = el<HTMLSelectElement>('property-type');
-    const currentRentEl  = el<HTMLInputElement>('current-rent');
-    const errorEl        = el('form-error');
-    const errorTextEl    = el('form-error-text');
+    const budgetEl   = el<HTMLInputElement>('budget');
+    const workTypeEl = el<HTMLSelectElement>('work-type');
+    const errorEl    = el('form-error');
+    const errorText  = el('form-error-text');
 
-    const budget      = parseFloat(budgetInput.value);
-    const workType    = workTypeEl.value    as WorkType;
-    const zone        = zoneEl.value        as ZoneType | '';
-    const propertyType = propertyTypeEl.value as PropertyType | '';
-    const currentRent = parseFloat(currentRentEl.value) || 0;
+    const budget   = parseFloat(budgetEl.value);
+    const workType = workTypeEl.value as WorkType | '';
 
-    // ── Validation ──
+    // Validation de base
     if (!budget || budget < 1000 || !workType) {
-      errorTextEl.textContent = 'Merci de renseigner un budget (min. 1 000 €) et un type de travaux.';
-      errorEl.classList.remove('hidden');
-      budgetInput.focus();
+      errorText.textContent = 'Merci de renseigner un budget (min. 1 000 €) et un type de travaux.';
+      show('form-error');
+      budgetEl.focus();
       return;
     }
-    if (!zone || !propertyType) {
-      errorTextEl.textContent = 'Merci de sélectionner la zone de marché et le type de bien.';
-      errorEl.classList.remove('hidden');
-      zoneEl.focus();
-      return;
-    }
-    errorEl.classList.add('hidden');
+    hide('form-error');
 
-    // ── Valorisation patrimoniale ──
-    const cfg    = CONFIG[workType][selectedObjective];
-    const valMin = Math.round(budget * cfg.min);
-    const valMax = Math.round(budget * cfg.max);
-    const avgPct = Math.round(((cfg.min + cfg.max) / 2) * 100);
+    const cfg   = CONFIG[workType as WorkType][selectedObjective];
+    const level = getVerdictLevel(cfg.min, cfg.max);
+    const style = VERDICT_STYLES[level];
 
-    el('result-emoji').textContent   = cfg.emoji;
-    el('result-verdict').textContent = cfg.verdict;
-    el('result-range').textContent   = `Entre ${formatEuro(valMin)} et ${formatEuro(valMax)}`;
-    el('result-pct').textContent     = `${Math.round(cfg.min * 100)} – ${Math.round(cfg.max * 100)} %`;
-
-    const bar = el('result-bar');
-    bar.className = `h-full rounded-full transition-all duration-700 ease-out ${cfg.barColor}`;
-    setTimeout(() => { bar.style.width = `${Math.min(avgPct, 100)}%`; }, 50);
-
-    el('result-top-bar').className = `h-1.5 w-full transition-colors duration-500 ${cfg.topBarColor}`;
+    // ── Verdict + couleurs ──
+    const objectiveLabel = selectedObjective === 'revente' ? 'revente' : 'locatif';
+    el('result-verdict').textContent  = `Impact ${objectiveLabel} : ${style.label}`;
+    el('result-emoji').textContent    = style.emoji;
+    el('result-top-bar').className    = `h-1.5 w-full transition-colors duration-500 ${style.topBarColor}`;
 
     // ── Message pédagogique ──
-    const msgBox      = el('result-message-box');
-    const msgTitleRow = el('result-message-title-row');
+    const msgBox       = el('result-message-box');
+    const msgTitleRow  = el('result-message-title-row');
     const msgTitleSpan = el('result-message-title');
-    const msgText     = el('result-message');
-    msgBox.className      = `rounded-xl border p-4 transition-colors duration-300 ${cfg.msgBoxBg} ${cfg.msgBoxBorder}`;
-    msgTitleRow.className = `text-xs font-bold mb-1.5 flex items-center gap-1.5 ${cfg.msgBoxTextColor}`;
+    const msgText      = el('result-message');
+    msgBox.className      = `rounded-xl border p-4 transition-colors duration-300 ${style.msgBoxBg} ${style.msgBoxBorder}`;
+    msgTitleRow.className = `text-xs font-bold mb-1.5 flex items-center gap-1.5 ${style.msgBoxTextColor}`;
     msgTitleSpan.textContent = cfg.msgBoxTitle;
-    msgText.className     = `text-sm leading-relaxed ${cfg.msgBoxTextColor}`;
-    msgText.textContent   = MESSAGES[workType][selectedObjective];
+    msgText.className     = `text-sm leading-relaxed ${style.msgBoxTextColor}`;
+    msgText.textContent   = MESSAGES[workType as WorkType][selectedObjective];
 
-    // ── Impact locatif (Location uniquement) ──
-    const rentalBlock  = el('result-rental');
-    const yieldBlock   = el('result-yield-block');
-    const rentalCtx    = el('result-rental-context');
+    // Réinitialiser les deux blocs
+    hide('result-revente');
+    hide('result-rental');
+    hide('result-payback-row');
 
-    if (selectedObjective === 'location') {
-      const delta = RENT_DELTA[workType][zone as ZoneType];
+    // ─────────────────────────────────────────
+    // MODE REVENTE
+    // ─────────────────────────────────────────
+    if (selectedObjective === 'revente') {
+      const gainMin = Math.round(budget * cfg.min);
+      const gainMax = Math.round(budget * cfg.max);
+      const avgPct  = Math.round(((cfg.min + cfg.max) / 2) * 100);
 
-      // Augmentation loyer
-      const rentMin = delta.min;
-      const rentMax = delta.max;
-      el('result-rent-range').textContent = rentMax > 0
-        ? `+${rentMin} à +${rentMax} €/mois`
-        : 'Impact négligeable';
+      el('result-pct').textContent     = `${Math.round(cfg.min * 100)} – ${Math.round(cfg.max * 100)} % du budget`;
+      el('result-gain-eur').textContent = `${formatEuro(gainMin)} à ${formatEuro(gainMax)}`;
 
-      // Contexte
-      const propLabel = propertyType === 'appartement' ? 'appartement' : 'maison';
-      rentalCtx.textContent =
-        `Estimation pour un ${propLabel} en ${ZONE_LABELS[zone as ZoneType]}.`;
+      // Barre de progression
+      const bar = el('result-bar');
+      bar.className = `h-full rounded-full transition-all duration-700 ease-out ${style.barColor}`;
+      setTimeout(() => { bar.style.width = `${Math.min(avgPct, 100)}%`; }, 50);
 
-      // Gain rendement brut (si loyer actuel renseigné et > 0)
-      if (currentRent > 0 && budget > 0 && rentMax > 0) {
-        const avgRentDelta = (rentMin + rentMax) / 2;
-        const yieldGainMin = (rentMin  * 12 / budget) * 100;
-        const yieldGainMax = (rentMax  * 12 / budget) * 100;
-        // Anti-NaN : budget > 0 garanti par validation
-        el('result-yield').textContent =
-          `+${formatPct(yieldGainMin)} à +${formatPct(yieldGainMax)} %`;
-        yieldBlock.classList.remove('hidden');
+      // % de la valeur du bien
+      const propertyValue = parseFloat(el<HTMLInputElement>('property-value').value) || 0;
+      if (propertyValue > 100000) {
+        const pctBienMin = gainMin / propertyValue * 100;
+        const pctBienMax = gainMax / propertyValue * 100;
+        el('result-pct-bien').textContent = `${formatPct(pctBienMin, 1)} à ${formatPct(pctBienMax, 1)} de la valeur du bien`;
+        show('result-pct-bien-row');
+        hide('result-no-value-hint');
       } else {
-        yieldBlock.classList.add('hidden');
+        hide('result-pct-bien-row');
+        show('result-no-value-hint');
       }
 
-      rentalBlock.classList.remove('hidden');
+      show('result-revente');
+
+    // ─────────────────────────────────────────
+    // MODE LOCATION
+    // ─────────────────────────────────────────
     } else {
-      rentalBlock.classList.add('hidden');
-      yieldBlock.classList.add('hidden');
+      const zoneEl         = el<HTMLSelectElement>('location-zone');
+      const propertyTypeEl = el<HTMLSelectElement>('property-type');
+      const surfaceActEl   = el<HTMLInputElement>('surface-actuelle');
+      const surfaceAjEl    = el<HTMLInputElement>('surface-ajoutee');
+      const currentRentEl  = el<HTMLInputElement>('current-rent');
+
+      const zone         = zoneEl.value         as ZoneType | '';
+      const propertyType = propertyTypeEl.value  as PropertyType | '';
+      const surfaceActuelle = parseFloat(surfaceActEl.value) || 0;
+      const surfaceAjoutee  = parseFloat(surfaceAjEl.value)  || 0;
+      const currentRent     = parseFloat(currentRentEl.value) || 0;
+
+      // Validation Location
+      if (!zone || !propertyType) {
+        errorText.textContent = 'Merci de sélectionner la zone de marché et le type de bien.';
+        show('form-error');
+        zoneEl.focus();
+        return;
+      }
+      if (!surfaceActuelle || surfaceActuelle < 5) {
+        errorText.textContent = 'Merci de renseigner la surface actuelle du bien (minimum 5 m²).';
+        show('form-error');
+        surfaceActEl.focus();
+        return;
+      }
+      hide('form-error');
+
+      const lm2          = LOYER_M2[zone as ZoneType][propertyType as PropertyType];
+      const surfaceApres = surfaceActuelle + surfaceAjoutee;
+
+      // Loyer marché après travaux (fourchette)
+      const loyerApresMin = Math.round(surfaceApres * lm2.min);
+      const loyerApresMax = Math.round(surfaceApres * lm2.max);
+
+      // Delta loyer selon les données disponibles
+      let deltaMin: number;
+      let deltaMax: number;
+      let contextLine: string;
+
+      const propLabel  = propertyType === 'appartement' ? 'appartement' : 'maison';
+      const zoneName   = ZONE_LABELS[zone as ZoneType];
+      const bareLabel  = `Barème ${zoneName} : ${lm2.min}–${lm2.max} €/m²`;
+
+      if (currentRent > 0) {
+        // Comparaison loyer actuel → loyer marché après travaux
+        deltaMin = Math.max(0, loyerApresMin - currentRent);
+        deltaMax = Math.max(0, loyerApresMax - currentRent);
+        contextLine = `Comparé à votre loyer actuel de ${formatEuro(currentRent)}/mois. ${bareLabel}.`;
+
+      } else if (surfaceAjoutee > 0) {
+        // Extension : delta = surface ajoutée × barème
+        deltaMin = Math.round(surfaceAjoutee * lm2.min);
+        deltaMax = Math.round(surfaceAjoutee * lm2.max);
+        contextLine = `+${surfaceAjoutee} m² × ${lm2.min}–${lm2.max} €/m² = loyer additionnel. Surface totale après : ${surfaceApres} m².`;
+
+      } else {
+        // Pas d'extension, pas de loyer actuel : écart bas→haut de gamme du barème
+        // (rénovation qui fait passer du bas au haut de la fourchette de marché)
+        deltaMin = 0;
+        deltaMax = Math.round(surfaceActuelle * (lm2.max - lm2.min));
+        contextLine = `Passage du bas au haut du barème ${zoneName} pour un ${propLabel} de ${surfaceActuelle} m². Renseignez votre loyer actuel pour un calcul précis.`;
+      }
+
+      // Affichage loyer après
+      el('result-loyer-apres').textContent = `${loyerApresMin} – ${loyerApresMax} €/mois`;
+
+      // Hausse de loyer
+      if (deltaMax > 0) {
+        el('result-hausse').textContent = deltaMin === 0
+          ? `jusqu'à +${formatEuro(deltaMax)}/mois`
+          : `+${formatEuro(deltaMin)} à +${formatEuro(deltaMax)}/mois`;
+
+        // Gain annuel
+        const gainAMin = deltaMin * 12;
+        const gainAMax = deltaMax * 12;
+        el('result-gain-annuel').textContent = deltaMin === 0
+          ? `jusqu'à +${formatEuro(gainAMax)}/an`
+          : `+${formatEuro(gainAMin)} à +${formatEuro(gainAMax)}/an`;
+
+        // Retour sur investissement (budget / gain annuel)
+        // paybackFastest = budget / gainAMax (optimiste)
+        // paybackSlowest = budget / gainAMin (pessimiste, ∞ si deltaMin = 0)
+        const paybackFastest = budget / gainAMax; // toujours défini car deltaMax > 0
+        if (deltaMin > 0) {
+          const paybackSlowest = budget / gainAMin;
+          el('result-payback').textContent = paybackSlowest <= 30
+            ? `${formatPayback(paybackFastest)} à ${formatPayback(paybackSlowest)}`
+            : `à partir de ${formatPayback(paybackFastest)}`;
+        } else {
+          // deltaMin = 0 → seulement la borne optimiste est calculable
+          el('result-payback').textContent = `${formatPayback(paybackFastest)} (dans le meilleur cas)`;
+        }
+        show('result-payback-row');
+
+      } else {
+        // deltaMax = 0 : cas rare (rafraîchissement zone détendue sans loyer actuel)
+        el('result-hausse').textContent     = 'Impact marginal sur ce marché';
+        el('result-gain-annuel').textContent = 'Renseignez votre loyer actuel pour estimer';
+        hide('result-payback-row');
+      }
+
+      el('result-rental-context').textContent = contextLine;
+      show('result-rental');
     }
 
     // ── Affichage du bloc résultat ──
-    const result = el('result');
-    result.classList.remove('hidden');
+    const resultEl = el('result');
+    resultEl.classList.remove('hidden');
     setTimeout(() => {
-      result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 100);
   }
 
-  // ── Listeners ──
+  // ── Event listeners ──
   el('btn-revente')?.addEventListener('click',  () => setObjective('revente'));
   el('btn-location')?.addEventListener('click', () => setObjective('location'));
   el('btn-estimate')?.addEventListener('click', estimate);
+  el<HTMLInputElement>('work-type')?.addEventListener('change', updateFieldVisibility);
   el<HTMLInputElement>('budget')?.addEventListener('keydown', (e) => {
     if ((e as KeyboardEvent).key === 'Enter') estimate();
   });
+
+  // Init
+  updateFieldVisibility();
 </script>
