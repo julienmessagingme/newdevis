@@ -2,7 +2,6 @@
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import AstroHeader from '@/components/astro/Header.astro';
 import AstroFooter from '@/components/astro/Footer.astro';
-import HeroSection from '@/components/landing/HeroSection';
 import DevisCalculatorSection from '@/components/landing/DevisCalculatorSection';
 import HowItWorksSection from '@/components/landing/HowItWorksSection';
 import PostSignatureValueSection from '@/components/landing/PostSignatureValueSection';
@@ -10,6 +9,7 @@ import ScoringExplainedSection from '@/components/landing/ScoringExplainedSectio
 import RisksSection from '@/components/landing/RisksSection';
 import DisclaimerSection from '@/components/landing/DisclaimerSection';
 import CTASection from '@/components/landing/CTASection';
+// HeroSection inliné ci-dessous pour modification des textes uniquement
 
 const jsonLd = {
   "@context": "https://schema.org",
@@ -36,53 +36,204 @@ const jsonLd = {
   <div class="min-h-screen flex flex-col">
     <AstroHeader />
     <main class="flex-1">
-      <HeroSection client:visible />
 
-      <!-- ══ Deux portes d'entrée ══ -->
-      <section class="py-10 sm:py-14 bg-white border-b border-slate-100">
+      <!-- ══ HERO ══ -->
+      <section class="hero-gradient relative overflow-hidden">
+
+        <!-- Fond décoratif -->
+        <div class="absolute inset-0 opacity-10">
+          <div class="absolute top-20 left-10 w-72 h-72 bg-primary-foreground rounded-full blur-3xl"></div>
+          <div class="absolute bottom-20 right-10 w-96 h-96 bg-primary-foreground rounded-full blur-3xl"></div>
+        </div>
+
+        <div class="container relative py-12 px-4 sm:px-6 lg:py-20">
+          <div class="grid lg:grid-cols-2 gap-12 items-center">
+
+            <!-- Colonne texte -->
+            <div class="text-center lg:text-left">
+
+              <h1 class="text-2xl sm:text-3xl md:text-5xl lg:text-6xl font-bold text-primary-foreground mb-4 sm:mb-6 leading-tight px-2">
+                Analyser un devis travaux
+                <span class="relative inline-block">
+                  avant de signer.
+                  <svg class="absolute -bottom-1 sm:-bottom-2 left-0 w-full" viewBox="0 0 200 12" fill="none">
+                    <path
+                      d="M2 10C50 4 150 4 198 10"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      class="text-score-green animate-underline-draw"
+                      stroke-dasharray="200"
+                      stroke-dashoffset="200"
+                    />
+                  </svg>
+                </span>
+              </h1>
+
+              <p class="text-base sm:text-lg md:text-xl text-primary-foreground/80 mb-6 sm:mb-8 max-w-xl mx-auto lg:mx-0 px-2">
+                Vérifiez les prix, l'entreprise et les points de vigilance.
+                Prenez une décision éclairée avant d'engager votre budget.
+              </p>
+
+              <div class="flex flex-col gap-3 sm:gap-4 sm:flex-row justify-center lg:justify-start mb-8 sm:mb-10 px-2">
+                <a href="/nouvelle-analyse" class="w-full sm:w-auto group">
+                  <button class="inline-flex items-center justify-center gap-2 w-full bg-white text-primary hover:bg-white/90 font-semibold px-6 py-3 sm:px-8 sm:py-4 rounded-xl text-sm sm:text-base transition-colors">
+                    Analyser mon devis gratuitement
+                    <!-- ArrowRight -->
+                    <svg class="h-4 w-4 sm:h-5 sm:w-5 transition-transform group-hover:translate-x-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                  </button>
+                </a>
+                <a href="#comment-ca-marche" class="w-full sm:w-auto">
+                  <button class="inline-flex items-center justify-center w-full text-primary-foreground hover:bg-primary-foreground/10 font-medium px-6 py-3 sm:px-8 sm:py-4 rounded-xl text-sm sm:text-base transition-colors">
+                    Comment ça marche ?
+                  </button>
+                </a>
+              </div>
+
+              <!-- Indicateurs de confiance -->
+              <div class="flex flex-col gap-2 sm:gap-4 sm:flex-row items-center justify-center lg:justify-start text-primary-foreground/70 text-xs sm:text-sm px-2">
+                <div class="flex items-center gap-2">
+                  <!-- CheckCircle2 -->
+                  <svg class="h-4 w-4 text-score-green flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
+                  </svg>
+                  <span>Analyse en 2 minutes</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <svg class="h-4 w-4 text-score-green flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
+                  </svg>
+                  <span>100% confidentiel</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <svg class="h-4 w-4 text-score-green flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
+                  </svg>
+                  <span>Suivi post-signature</span>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Colonne visuelle (desktop uniquement) -->
+            <div class="hidden lg:block relative">
+              <div class="relative animate-float">
+
+                <!-- Carte principale -->
+                <div class="bg-card rounded-2xl shadow-2xl p-6 max-w-md mx-auto">
+                  <div class="flex items-center gap-3 mb-4">
+                    <div class="p-3 bg-primary/10 rounded-xl">
+                      <!-- FileSearch -->
+                      <svg class="h-6 w-6 text-primary" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 22h14a2 2 0 0 0 2-2V7.5L14.5 2H6a2 2 0 0 0-2 2v3"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <circle cx="4.5" cy="16.5" r="2.5"/>
+                        <path d="m7.2 18.8 1.8-1.8"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 class="font-semibold text-foreground">Devis Plomberie</h3>
+                      <p class="text-sm text-muted-foreground">Analysé le 06/01/2026</p>
+                    </div>
+                  </div>
+
+                  <!-- Score -->
+                  <div class="bg-score-green-bg border border-score-green/20 rounded-xl p-4 mb-4">
+                    <div class="flex items-center justify-between">
+                      <span class="text-sm font-medium text-score-green-foreground">Score de fiabilité</span>
+                      <span class="text-2xl font-bold text-score-green">FEU VERT</span>
+                    </div>
+                    <div class="mt-2 h-2 bg-score-green/20 rounded-full overflow-hidden">
+                      <div class="h-full bg-score-green rounded-full" style="width:85%"></div>
+                    </div>
+                  </div>
+
+                  <!-- Critères -->
+                  <div class="space-y-2">
+                    <div class="flex items-center justify-between py-2 border-b border-border">
+                      <span class="text-sm text-muted-foreground">Entreprise vérifiée</span>
+                      <svg class="h-5 w-5 text-score-green" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
+                      </svg>
+                    </div>
+                    <div class="flex items-center justify-between py-2 border-b border-border">
+                      <span class="text-sm text-muted-foreground">Mentions légales</span>
+                      <svg class="h-5 w-5 text-score-green" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
+                      </svg>
+                    </div>
+                    <div class="flex items-center justify-between py-2">
+                      <span class="text-sm text-muted-foreground">Prix cohérent</span>
+                      <svg class="h-5 w-5 text-score-green" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Badge flottant -->
+                <div class="absolute -top-4 -right-4 bg-score-green text-primary-foreground px-4 py-2 rounded-full text-sm font-semibold shadow-lg">
+                  ✓ Conforme
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ Vous préparez des travaux ? ══ -->
+      <section class="py-10 sm:py-12 bg-white border-b border-slate-100">
         <div class="container max-w-3xl">
 
-          <div class="grid sm:grid-cols-2 gap-4">
+          <div class="mb-6">
+            <h2 class="text-xl sm:text-2xl font-bold text-slate-900 mb-2">
+              Vous préparez des travaux ?
+            </h2>
+            <p class="text-sm text-slate-500 leading-relaxed">
+              Avant de demander un devis, estimez le budget et l'impact réel de vos travaux.
+            </p>
+          </div>
 
-            <!-- Carte A : J'ai un devis -->
+          <!-- Deux cartes sobres -->
+          <div class="grid sm:grid-cols-2 gap-3 mb-6">
+
+            <!-- Carte 1 -->
             <a
-              href="/nouvelle-analyse"
-              class="group relative flex flex-col bg-slate-50 border border-slate-200 rounded-2xl p-6 hover:border-primary/40 hover:bg-primary/[0.03] transition-all"
+              href="/simulateur-valorisation-travaux"
+              class="flex flex-col border border-slate-200 rounded-xl p-5 hover:border-slate-300 hover:bg-slate-50/50 transition-colors"
             >
-              <div class="p-2.5 rounded-xl bg-primary/10 w-fit mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
-                </svg>
-              </div>
-              <h2 class="text-base font-bold text-slate-900 mb-1.5">J'ai un devis</h2>
-              <p class="text-sm text-slate-500 leading-relaxed flex-1">
-                Vérifiez si les prix pratiqués sont cohérents avec le marché, contrôlez l'entreprise et obtenez un score de fiabilité.
+              <p class="text-sm font-semibold text-slate-800 mb-1.5">
+                Estimer le prix moyen des travaux
               </p>
-              <span class="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-primary group-hover:gap-2.5 transition-all">
-                Analyser mon devis
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <p class="text-sm text-slate-500 leading-relaxed flex-1">
+                Comparez votre projet aux prix observés sur le marché.
+              </p>
+              <span class="mt-3 text-xs font-medium text-slate-400 inline-flex items-center gap-1">
+                Accéder au simulateur
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                 </svg>
               </span>
             </a>
 
-            <!-- Carte B : Je réfléchis à des travaux -->
+            <!-- Carte 2 -->
             <a
               href="/simulateur-valorisation-travaux"
-              class="group relative flex flex-col bg-slate-50 border border-slate-200 rounded-2xl p-6 hover:border-amber-400/60 hover:bg-amber-50/40 transition-all"
+              class="flex flex-col border border-slate-200 rounded-xl p-5 hover:border-slate-300 hover:bg-slate-50/50 transition-colors"
             >
-              <div class="p-2.5 rounded-xl bg-amber-100 w-fit mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
-                </svg>
-              </div>
-              <h2 class="text-base font-bold text-slate-900 mb-1.5">Je réfléchis à des travaux</h2>
-              <p class="text-sm text-slate-500 leading-relaxed flex-1">
-                Estimez poste par poste la revalorisation attendue et détectez les risques de surcapitalisation avant de vous engager.
+              <p class="text-sm font-semibold text-slate-800 mb-1.5">
+                Estimer l'impact sur la valeur du bien
               </p>
-              <span class="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-amber-700 group-hover:gap-2.5 transition-all">
-                Arbitrer mon projet travaux
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <p class="text-sm text-slate-500 leading-relaxed flex-1">
+                Découvrez si vos travaux seront réellement valorisés à la revente ou en location.
+              </p>
+              <span class="mt-3 text-xs font-medium text-slate-400 inline-flex items-center gap-1">
+                Accéder au simulateur
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                 </svg>
               </span>
@@ -90,14 +241,32 @@ const jsonLd = {
 
           </div>
 
-          <!-- Sous-section : Un même cadre d'analyse -->
-          <div class="mt-6 text-center">
-            <p class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1.5">
-              Un même cadre d'analyse, deux usages.
+          <!-- Encadré : Une seule méthode d'analyse -->
+          <div class="border border-slate-200 rounded-xl p-5 sm:p-6 bg-white">
+            <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">
+              Une seule méthode d'analyse.
             </p>
-            <p class="text-sm text-slate-500 max-w-lg mx-auto leading-relaxed">
-              Que vous ayez un devis en main ou que vous en soyez au stade de la réflexion, notre moteur évalue chaque poste selon les mêmes référentiels de prix marché et les mêmes critères de valorisation patrimoniale.
+            <p class="text-sm text-slate-600 mb-3">
+              Que vous analysiez un devis existant ou que vous prépariez un projet, notre méthode repose sur :
             </p>
+            <ul class="space-y-1.5 text-sm text-slate-600">
+              <li class="flex items-start gap-2">
+                <span class="text-slate-300 mt-0.5 flex-shrink-0" aria-hidden="true">—</span>
+                la cohérence des prix,
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-slate-300 mt-0.5 flex-shrink-0" aria-hidden="true">—</span>
+                la fiabilité de l'entreprise,
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-slate-300 mt-0.5 flex-shrink-0" aria-hidden="true">—</span>
+                la valorisation partielle des travaux,
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-slate-300 mt-0.5 flex-shrink-0" aria-hidden="true">—</span>
+                et l'impact réel sur votre bien.
+              </li>
+            </ul>
           </div>
 
         </div>
