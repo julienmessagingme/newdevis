@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { TrendingUp, Lock, ChevronDown, ChevronUp, Info, Zap } from "lucide-react";
+import { TrendingUp, Lock, ChevronDown, ChevronUp, HelpCircle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // =======================
@@ -35,14 +35,49 @@ function parseStrategicScores(rawText: string | null): StrategicScores | null {
   }
 }
 
-const LABEL_CONFIG: Record<string, { color: string; bg: string; dot: string }> = {
-  "Transformation patrimoniale": { color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200", dot: "bg-emerald-500" },
-  "Potentiel stratégique":       { color: "text-blue-700",    bg: "bg-blue-50 border-blue-200",       dot: "bg-blue-500"    },
-  "Valorisation significative":  { color: "text-violet-700",  bg: "bg-violet-50 border-violet-200",   dot: "bg-violet-500"  },
-  "Optimisation modérée":        { color: "text-amber-700",   bg: "bg-amber-50 border-amber-200",     dot: "bg-amber-500"   },
-  "Impact patrimonial limité":   { color: "text-slate-600",   bg: "bg-slate-50 border-slate-200",     dot: "bg-slate-400"   },
+// ── Verdict humain basé sur IVP uniquement ──
+type HumanVerdict = {
+  emoji: string;
+  label: string;
+  color: string;
+  bg: string;
+  border: string;
 };
-const DEFAULT_CONFIG = { color: "text-slate-600", bg: "bg-slate-50 border-slate-200", dot: "bg-slate-400" };
+
+function getHumanVerdict(ivp: number | null): HumanVerdict {
+  if (ivp === null) {
+    return { emoji: "⚪", label: "Impact non calculé", color: "text-slate-500", bg: "bg-slate-50", border: "border-slate-200" };
+  }
+  if (ivp >= 70) {
+    return { emoji: "🟢", label: "Forte création de valeur", color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200" };
+  }
+  if (ivp >= 40) {
+    return { emoji: "🟡", label: "Valorisation partielle", color: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200" };
+  }
+  return { emoji: "🔴", label: "Faible impact à la revente", color: "text-red-700", bg: "bg-red-50", border: "border-red-200" };
+}
+
+// ── Classification technique (premium) ──
+type ClassInfo = { label: string; color: string; bg: string; border: string };
+
+function getClassification(score: number): ClassInfo {
+  if (score >= 70) return { label: "Fort",   color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200" };
+  if (score >= 40) return { label: "Modéré", color: "text-amber-700",   bg: "bg-amber-50",   border: "border-amber-200"  };
+  return             { label: "Faible",  color: "text-slate-500",   bg: "bg-slate-100",  border: "border-slate-200"  };
+}
+
+// ── Interprétations en langage naturel ──
+function getIvpInterpretation(ivp: number): string {
+  if (ivp >= 70) return "Ces travaux ont un fort potentiel de revalorisation. Ils sont généralement bien perçus par les acheteurs et améliorent la valeur de revente.";
+  if (ivp >= 40) return "Ces travaux améliorent le bien, mais leur impact sur le prix de vente sera probablement partiel. Tout l'investissement ne se retrouvera pas dans la valeur.";
+  return "Ces travaux sont avant tout utiles au confort ou à la maintenance. Leur effet sur la valeur de revente reste limité.";
+}
+
+function getIpiInterpretation(ipi: number): string {
+  if (ipi >= 70) return "Bon potentiel pour la location. Ces travaux peuvent réduire les périodes de vacance et améliorer le loyer perçu.";
+  if (ipi >= 40) return "Impact modéré sur la rentabilité locative. Certains postes peuvent améliorer l'attractivité du bien.";
+  return "Ces travaux ont peu d'effet direct sur les revenus locatifs ou la réduction de la vacance.";
+}
 
 const BREAKDOWN_LABELS: Record<string, string> = {
   value:            "Valeur intrinsèque",
@@ -55,22 +90,6 @@ const BREAKDOWN_LABELS: Record<string, string> = {
   fiscalite:        "Optimisation fiscale",
   capex_risk:       "Risque CAPEX",
 };
-
-type ClassInfo = { label: string; color: string; bg: string; border: string };
-
-function getClassification(score: number): ClassInfo {
-  if (score >= 70) return { label: "Fort",   color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200" };
-  if (score >= 40) return { label: "Modéré", color: "text-amber-700",   bg: "bg-amber-50",   border: "border-amber-200"  };
-  return             { label: "Faible",  color: "text-slate-500",   bg: "bg-slate-100",  border: "border-slate-200"  };
-}
-
-function getVerdict(ivp: number | null, ipi: number | null): string {
-  if (ivp === null || ipi === null) return "Impact à analyser selon le contexte du bien.";
-  if (ivp >= 70 && ipi >= 70) return "Excellent : valeur et rentabilité renforcées simultanément.";
-  if (ivp >= 70 && ipi < 70)  return "Fort impact patrimonial, rendement locatif plus modéré.";
-  if (ivp < 70  && ipi >= 70) return "Bon levier de rendement, impact patrimonial limité.";
-  return "Impact global limité — des marges d'optimisation existent.";
-}
 
 /** Extrait les Top N leviers (hors capex_risk) en fusionnant owner + investor. */
 function getTopLeviers(
@@ -99,34 +118,46 @@ function getTopLeviers(
 
 function ScoreBlock({
   value,
-  label,
+  title,
+  subtitle,
+  interpretation,
   accent,
 }: {
   value: number;
-  label: string;
+  title: string;
+  subtitle: string;
+  interpretation: string;
   accent: "blue" | "violet";
 }) {
-  const cls = getClassification(value);
+  const cls       = getClassification(value);
   const barColor  = accent === "blue" ? "bg-blue-500"   : "bg-violet-500";
   const textColor = accent === "blue" ? "text-blue-700" : "text-violet-700";
   return (
-    <div className="flex-1 min-w-0 p-3.5 rounded-xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors">
-      <div className="flex items-center justify-between mb-2.5">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</span>
+    <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors">
+      {/* Titre + pastille */}
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{title}</p>
+          <p className="text-[10px] text-slate-400 leading-tight">{subtitle}</p>
+        </div>
         <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border ${cls.bg} ${cls.color} ${cls.border}`}>
           {cls.label}
         </span>
       </div>
-      <div className="flex items-end gap-1.5 mb-2.5">
+      {/* Score */}
+      <div className="flex items-end gap-1 mb-2">
         <span className={`text-3xl font-black tabular-nums leading-none ${textColor}`}>{value}</span>
-        <span className="text-xs text-slate-400 mb-1">/100</span>
+        <span className="text-xs text-slate-400 mb-0.5">/100</span>
       </div>
-      <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+      {/* Barre */}
+      <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mb-3">
         <div
           className={`h-full rounded-full transition-all duration-700 ease-out ${barColor}`}
           style={{ width: `${value}%` }}
         />
       </div>
+      {/* Interprétation */}
+      <p className="text-xs text-slate-500 leading-relaxed">{interpretation}</p>
     </div>
   );
 }
@@ -140,7 +171,7 @@ function BreakdownRow({
   value: number;
   isRisk?: boolean;
 }) {
-  const pct = (value / 10) * 100;
+  const pct      = (value / 10) * 100;
   const barColor = isRisk
     ? "bg-red-300"
     : value >= 7 ? "bg-slate-600" : value >= 4 ? "bg-slate-400" : "bg-slate-300";
@@ -168,40 +199,37 @@ const StrategicBadge = ({ rawText, isPremium = false }: StrategicBadgeProps) => 
 
   if (!scores) return null;
 
-  const cfg         = LABEL_CONFIG[scores.label] ?? DEFAULT_CONFIG;
-  const verdict     = getVerdict(scores.ivp_score, scores.ipi_score);
-  const leviers     = getTopLeviers(scores.breakdown_owner, scores.breakdown_investor, 3);
-  const hasScores   = scores.ivp_score !== null && scores.ipi_score !== null;
+  const verdict      = getHumanVerdict(scores.ivp_score);
+  const leviers      = getTopLeviers(scores.breakdown_owner, scores.breakdown_investor, 3);
+  const hasScores    = scores.ivp_score !== null && scores.ipi_score !== null;
   const hasBreakdown = !!(scores.breakdown_owner || scores.breakdown_investor);
 
   return (
     <div className="mb-6 rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
 
       {/* ── HEADER ── */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
-        <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded-lg bg-slate-900 flex-shrink-0">
-            <TrendingUp className="h-3.5 w-3.5 text-white" />
+      <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
+        <div className="flex items-start gap-3">
+          <div className="p-2 rounded-xl bg-slate-900 flex-shrink-0 mt-0.5">
+            <TrendingUp className="h-4 w-4 text-white" />
           </div>
-          <span className="text-sm font-bold text-slate-800 tracking-tight">
-            Indice Stratégique Immobilier™
-          </span>
-          {!isPremium && (
-            <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-              <Lock className="h-2.5 w-2.5" />
-              Aperçu
-            </span>
-          )}
+          <div>
+            <h3 className="text-base font-bold text-slate-800 leading-tight">
+              Impact des travaux sur la valeur du bien
+            </h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">Indice Stratégique Immobilier™</p>
+          </div>
         </div>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger>
-              <Info className="h-3.5 w-3.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer" />
+              <HelpCircle className="h-4 w-4 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer flex-shrink-0 mt-0.5" />
             </TooltipTrigger>
             <TooltipContent className="max-w-xs" side="left">
               <p className="text-xs leading-relaxed">
-                Cet indice résume l'impact réel du devis sur votre valeur patrimoniale (IVP)
-                et votre performance locative (IPI), calculé à partir des types de travaux détectés.
+                Tous les travaux n'ont pas le même effet sur la valeur d'un bien. Cet indicateur estime
+                leur impact réel sur la valeur de revente et la performance locative, calculé à partir
+                des types de travaux détectés dans le devis.
               </p>
             </TooltipContent>
           </Tooltip>
@@ -210,95 +238,73 @@ const StrategicBadge = ({ rawText, isPremium = false }: StrategicBadgeProps) => 
 
       <div className="px-5 pt-4 pb-5 space-y-4">
 
-        {/* ── LABEL + VERDICT ── */}
-        <div className="flex flex-col sm:flex-row sm:items-start gap-3">
-          <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-semibold shrink-0 ${cfg.bg} ${cfg.color}`}>
-            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
-            {scores.label}
+        {/* ── VERDICT HUMAIN + PHRASE PÉDAGOGIQUE ── */}
+        <div className="space-y-2.5">
+          <div className={`inline-flex items-center gap-2.5 px-3.5 py-2 rounded-xl border self-start ${verdict.bg} ${verdict.border}`}>
+            <span className="text-base leading-none">{verdict.emoji}</span>
+            <span className={`text-sm font-bold leading-tight ${verdict.color}`}>{verdict.label}</span>
           </div>
-          <p className="text-sm text-slate-600 leading-snug sm:pt-0.5">
-            <span className="font-bold text-slate-400 text-[10px] uppercase tracking-widest mr-1.5">
-              Verdict
-            </span>
-            {verdict}
+          <p className="text-sm text-slate-500 leading-relaxed">
+            Tous les travaux n'augmentent pas le prix de revente à hauteur du montant investi.
+            Cet indicateur estime la part réellement valorisable.
           </p>
         </div>
 
-        {/* ── SCORES IVP / IPI (premium uniquement) ── */}
-        {isPremium && hasScores && (
-          <div className="flex gap-3">
-            <ScoreBlock value={scores.ivp_score!} label="IVP — Valeur patrimoniale"      accent="blue"   />
-            <ScoreBlock value={scores.ipi_score!} label="IPI — Performance investisseur" accent="violet" />
-          </div>
-        )}
-
         {/* ── LEVIERS CLÉS (toujours visible) ── */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            Leviers clés
-          </span>
-          {leviers.length > 0 ? (
-            <>
-              {leviers.map((l) => (
-                <span
-                  key={l}
-                  className="text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-full transition-colors"
-                >
-                  {l}
-                </span>
-              ))}
-              {!isPremium && (
-                <span className="text-xs text-slate-400 italic">+ risques et conseils…</span>
-              )}
-            </>
-          ) : (
-            <span className="text-xs text-slate-400 italic">
-              Leviers clés disponibles en version premium
+        {leviers.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mr-0.5">
+              Ce qui porte la valeur
             </span>
-          )}
-        </div>
-
-        {/* ── FREE : teaser premium ── */}
-        {!isPremium && (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-            <p className="text-sm text-slate-700 font-medium leading-snug">
-              Débloquez : IVP/IPI détaillés, poste par poste, et recommandations de négociation.
-            </p>
-            <ul className="space-y-1.5">
-              {[
-                "Scores IVP & IPI avec classification Fort / Modéré / Faible",
-                "Leviers stratégiques + risques CAPEX par critère",
-                "Conseils de négociation par poste de travaux",
-              ].map((item) => (
-                <li key={item} className="flex items-start gap-2 text-xs text-slate-500">
-                  <span className="w-1 h-1 rounded-full bg-slate-400 flex-shrink-0 mt-1.5" />
-                  {item}
-                </li>
-              ))}
-            </ul>
-            <div className="pt-0.5">
-              <button
-                type="button"
-                className="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-700 active:bg-slate-800 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors duration-150 shadow-sm"
+            {leviers.map((l) => (
+              <span
+                key={l}
+                className="text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-full transition-colors"
               >
-                <Zap className="h-4 w-4 text-amber-400 flex-shrink-0" />
-                Débloquer l'analyse premium
-              </button>
-              <p className="text-center text-[11px] text-slate-400 mt-1.5 tracking-wide">
-                Instantané · 30 secondes
-              </p>
-            </div>
+                {l}
+              </span>
+            ))}
           </div>
         )}
 
-        {/* ── PREMIUM : micro-copy + toggle breakdown ── */}
-        {isPremium && (
-          <>
-            <p className="text-xs text-slate-400 leading-relaxed border-t border-slate-100 pt-3">
-              Cet indice résume l'impact réel du devis sur votre valeur patrimoniale (IVP)
-              et votre performance locative (IPI), pondéré par le montant HT de chaque poste.
+        {/* ── FREE : CTA simple ── */}
+        {!isPremium && (
+          <div className="pt-1 space-y-2">
+            <button
+              type="button"
+              className="w-full flex items-center justify-center gap-2 border border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-700 text-sm font-semibold px-4 py-2.5 rounded-xl transition-all duration-150"
+            >
+              <Lock className="h-4 w-4 text-slate-500 flex-shrink-0" />
+              Voir l'analyse détaillée (IVP/IPI & rentabilité locative)
+            </button>
+            <p className="text-center text-[11px] text-slate-400 tracking-wide">
+              Scores détaillés · Leviers de valorisation · Rentabilité locative
             </p>
+          </div>
+        )}
 
+        {/* ── PREMIUM : scores + breakdown + encadré ── */}
+        {isPremium && hasScores && (
+          <>
+            {/* IVP + IPI avec interprétation */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-slate-100">
+              <ScoreBlock
+                value={scores.ivp_score!}
+                title="IVP"
+                subtitle="Indice de Valorisation Patrimoniale"
+                interpretation={getIvpInterpretation(scores.ivp_score!)}
+                accent="blue"
+              />
+              <ScoreBlock
+                value={scores.ipi_score!}
+                title="IPI"
+                subtitle="Indice de Performance Investisseur"
+                interpretation={getIpiInterpretation(scores.ipi_score!)}
+                accent="violet"
+              />
+            </div>
+
+            {/* Breakdown détaillé */}
             {hasBreakdown && (
               <>
                 <button
@@ -307,7 +313,7 @@ const StrategicBadge = ({ rawText, isPremium = false }: StrategicBadgeProps) => 
                   className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors"
                 >
                   {showBreakdown
-                    ? <ChevronUp className="h-3.5 w-3.5" />
+                    ? <ChevronUp   className="h-3.5 w-3.5" />
                     : <ChevronDown className="h-3.5 w-3.5" />
                   }
                   {showBreakdown ? "Masquer le détail des critères" : "Voir le détail des critères"}
@@ -353,6 +359,25 @@ const StrategicBadge = ({ rawText, isPremium = false }: StrategicBadgeProps) => 
                 )}
               </>
             )}
+
+            {/* Mini encadré pédagogique */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-bold text-slate-700 mb-2.5">
+                💡 Comment interpréter ces scores ?
+              </p>
+              <ul className="space-y-2">
+                {[
+                  { bold: "IVP ≥ 70", text: "Les travaux ont un fort potentiel de revalorisation à la revente." },
+                  { bold: "IPI ≥ 70", text: "Les travaux sont favorables à la location (loyer, attractivité, vacance)." },
+                  { bold: "Leviers clés", text: "Les critères qui pèsent le plus dans le calcul de ces indices." },
+                ].map(({ bold, text }) => (
+                  <li key={bold} className="flex items-start gap-2 text-xs text-slate-500 leading-relaxed">
+                    <span className="font-semibold text-slate-600 shrink-0">{bold} —</span>
+                    <span>{text}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </>
         )}
       </div>
