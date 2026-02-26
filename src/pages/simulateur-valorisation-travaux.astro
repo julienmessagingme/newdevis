@@ -317,7 +317,7 @@ const jsonLd = {
 
               <!-- DVF encadré (résultats) -->
               <div id="r-dvf-box" class="hidden mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
-                <p class="text-[10px] font-bold uppercase tracking-widest text-blue-500 mb-2">Prix marché officiel · DVF Étalab</p>
+                <p class="text-[10px] font-bold uppercase tracking-widest text-blue-500 mb-2">Prix/m² indicatif · DVF (données publiques)</p>
                 <div class="flex items-end justify-between gap-4 flex-wrap">
                   <div>
                     <p id="r-dvf-price" class="text-2xl font-bold text-slate-900"></p>
@@ -336,7 +336,7 @@ const jsonLd = {
 
               <!-- DVF indisponible -->
               <div id="r-dvf-unavailable" class="hidden mt-3 text-xs text-slate-400 italic">
-                Données DVF indisponibles pour cette commune — diagnostic de surcapitalisation basé sur le référentiel interne.
+                Données DVF non disponibles pour cette commune (bientôt couvert).
               </div>
 
             </div>
@@ -449,7 +449,7 @@ const jsonLd = {
           <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">Méthodologie</p>
           <p class="text-sm text-slate-600 leading-relaxed mb-3">
             Chaque poste est évalué via l'<strong>Indice Stratégique Immobilier™</strong> (IVP / IPI) calculé depuis
-            notre référentiel de plus de 300 types de travaux. Les <strong>données DVF Étalab</strong> (actes notariés)
+            notre référentiel de plus de 300 types de travaux. Les <strong>données DVF</strong> (actes notariés – data.gouv.fr)
             enrichissent le diagnostic de surcapitalisation avec le prix médian réel du secteur.
             En mode Location, le modèle distingue les travaux créant de la surface habitable des rénovations sans surface ajoutée.
           </p>
@@ -532,9 +532,10 @@ const jsonLd = {
     .join('');
 
   // ── État ──
-  let selectedObjective: Objective  = 'revente';
-  let selectedCommune:   CommuneItem | null = null;
-  let cachedDvfResult:   DvfResult   | null = null;
+  let selectedObjective:    Objective   = 'revente';
+  let selectedCommune:      CommuneItem | null = null;
+  let cachedDvfResult:      DvfResult   | null = null;
+  let hasMultipleCommunes:  boolean     = false; // true si plusieurs communes pour ce CP
 
   // ── Formatters ──
   function formatEuro(n: number): string {
@@ -672,8 +673,9 @@ const jsonLd = {
     const loadingLabel = el('commune-loading-label');
 
     // Reset
-    selectedCommune  = null;
-    cachedDvfResult  = null;
+    selectedCommune       = null;
+    cachedDvfResult       = null;
+    hasMultipleCommunes   = false;
     hide('dvf-status-loaded');
     hide('dvf-status-unavailable');
     hide('dvf-loading');
@@ -712,10 +714,12 @@ const jsonLd = {
       });
       communeSel.disabled = false;
 
+      hasMultipleCommunes = communes.length > 1;
+
       if (communes.length === 1) {
         // Auto-sélection
-        communeSel.value = communes[0].codeInsee;
-        selectedCommune  = communes[0];
+        communeSel.value = communes[0]!.codeInsee;
+        selectedCommune  = communes[0]!;
         await fetchDvfForCommune();
       } else {
         show('communes-multi-info');
@@ -806,6 +810,17 @@ const jsonLd = {
       show('form-error');
       return;
     }
+
+    // Commune obligatoire quand le CP correspond à plusieurs communes
+    if (hasMultipleCommunes && !selectedCommune) {
+      el('form-error-text').textContent =
+        'Sélectionnez la commune de votre bien pour accéder aux données DVF marché. ' +
+        '(Effacez le code postal pour continuer sans données DVF.)';
+      show('form-error');
+      el<HTMLSelectElement>('commune-select')?.focus();
+      return;
+    }
+
     hide('form-error');
 
     btn.disabled  = true;
@@ -921,15 +936,15 @@ const jsonLd = {
         const ratio = prixM2Cible / marche;
         if (ratio > 1.20) {
           overcapEl.className = 'mt-4 rounded-lg border border-orange-200 bg-orange-50 p-3.5 text-sm text-orange-800 leading-relaxed';
-          overcapEl.innerHTML = `<strong>Risque élevé de surcapitalisation (DVF Étalab).</strong> Le prix/m² cible est d'environ <strong>${formatEuro(Math.round(prixM2Cible))}/m²</strong>, soit <strong>+${Math.round((ratio - 1) * 100)}&nbsp;%</strong> au-dessus du prix médian du secteur (${formatEuro(marche)}/m²). Le marché local risque de ne pas absorber cette revalorisation.`;
+          overcapEl.innerHTML = `<strong>Risque élevé de surcapitalisation (DVF).</strong> Le prix/m² cible est d'environ <strong>${formatEuro(Math.round(prixM2Cible))}/m²</strong>, soit <strong>+${Math.round((ratio - 1) * 100)}&nbsp;%</strong> au-dessus du prix médian du secteur (${formatEuro(marche)}/m²). Le marché local risque de ne pas absorber cette revalorisation.`;
           show('r-overcap');
         } else if (ratio > 1.10) {
           overcapEl.className = 'mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-800 leading-relaxed';
-          overcapEl.innerHTML = `<strong>Vigilance.</strong> Le prix/m² cible (${formatEuro(Math.round(prixM2Cible))}/m²) dépasse de ${Math.round((ratio - 1) * 100)}&nbsp;% le marché local (${formatEuro(marche)}/m² — DVF Étalab). Comparez avec les biens comparables avant de vous engager.`;
+          overcapEl.innerHTML = `<strong>Vigilance.</strong> Le prix/m² cible (${formatEuro(Math.round(prixM2Cible))}/m²) dépasse de ${Math.round((ratio - 1) * 100)}&nbsp;% le marché local (${formatEuro(marche)}/m² — DVF). Comparez avec les biens comparables avant de vous engager.`;
           show('r-overcap');
         } else {
           overcapEl.className = 'mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3.5 text-sm text-emerald-800 leading-relaxed';
-          overcapEl.innerHTML = `<strong>Prix cohérent avec le marché.</strong> La valeur cible (${formatEuro(Math.round(prixM2Cible))}/m²) reste en ligne avec le prix médian du secteur (${formatEuro(marche)}/m² — DVF Étalab).`;
+          overcapEl.innerHTML = `<strong>Prix cohérent avec le marché.</strong> La valeur cible (${formatEuro(Math.round(prixM2Cible))}/m²) reste en ligne avec le prix médian du secteur (${formatEuro(marche)}/m² — DVF).`;
           show('r-overcap');
         }
       } else if (propertyValue > 0) {
