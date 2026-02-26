@@ -30,7 +30,7 @@ interface DvfYearlyRow {
   prix_m2_p75: number | null;
   nb_ventes:   number | null;
   source:      string | null;
-  updated_at:  string | null;
+  created_at:  string | null; // colonne réelle de la table (pas updated_at)
 }
 
 // ── GET /api/market-prices ────────────────────────────────────
@@ -38,9 +38,8 @@ interface DvfYearlyRow {
 // Fallback               : code_postal + commune + type_bien
 // Retourne la dernière année disponible (order=year.desc&limit=1)
 //
-// Exemple :
-//   /api/market-prices?code_insee=31555&type_bien=maison
-//   /api/market-prices?code_insee=69123&type_bien=appartement
+// Exemples :
+//   /api/market-prices?code_insee=31555&type_bien=appartement
 //   /api/market-prices?code_postal=31000&commune=Toulouse&type_bien=maison
 export const GET: APIRoute = async ({ url }) => {
   const codeInsee  = url.searchParams.get('code_insee')?.trim()  ?? '';
@@ -50,13 +49,20 @@ export const GET: APIRoute = async ({ url }) => {
 
   // ── Validation ─────────────────────────────────────────────
   if (!typeBien || !['maison', 'appartement'].includes(typeBien)) {
-    return json({ error: "type_bien invalide — valeurs acceptées : 'maison' | 'appartement'" }, 400);
+    return json(
+      { error: "type_bien invalide — valeurs acceptées : 'maison' | 'appartement'" },
+      400,
+    );
   }
   if (!codeInsee && !codePostal) {
-    return json({ error: 'code_insee requis (ou code_postal + commune en fallback)' }, 400);
+    return json(
+      { error: 'code_insee requis (ou code_postal + commune en fallback)' },
+      400,
+    );
   }
 
-  // ── Env vars (VITE_ ou PUBLIC_) ────────────────────────────
+  // ── Env vars ───────────────────────────────────────────────
+  // Le projet peut utiliser VITE_ (dev local Astro) ou PUBLIC_ (Vercel)
   const SUPA_URL = (
     import.meta.env.VITE_SUPABASE_URL ??
     import.meta.env.PUBLIC_SUPABASE_URL ?? ''
@@ -67,11 +73,15 @@ export const GET: APIRoute = async ({ url }) => {
   ) as string;
 
   if (!SUPA_URL || !SUPA_KEY) {
-    return json({ error: 'Config Supabase manquante (env vars).' }, 500);
+    return json(
+      { error: 'Config Supabase manquante — vérifiez PUBLIC_SUPABASE_URL et PUBLIC_SUPABASE_PUBLISHABLE_KEY sur Vercel.' },
+      500,
+    );
   }
 
   // ── Build URL REST ─────────────────────────────────────────
-  const SELECT = 'code_insee,commune,code_postal,type_bien,year,prix_m2_p25,prix_m2_p50,prix_m2_p75,nb_ventes,source,updated_at';
+  // Colonnes réelles de dvf_prices_yearly (created_at, pas updated_at)
+  const SELECT = 'code_insee,commune,code_postal,type_bien,year,prix_m2_p25,prix_m2_p50,prix_m2_p75,nb_ventes,source,created_at';
   let restUrl: string;
 
   if (codeInsee) {
@@ -82,6 +92,7 @@ export const GET: APIRoute = async ({ url }) => {
       `&order=year.desc&limit=1` +
       `&select=${SELECT}`;
   } else {
+    // Fallback code_postal + commune (ilike pour tolérer les accents)
     const communeFilter = communeQ
       ? `&commune=ilike.${encodeURIComponent(communeQ + '*')}`
       : '';
@@ -94,25 +105,31 @@ export const GET: APIRoute = async ({ url }) => {
       `&select=${SELECT}`;
   }
 
-  // ── Fetch ──────────────────────────────────────────────────
+  // ── Fetch Supabase REST ─────────────────────────────────────
+  // Accept-Profile: public → force PostgREST à chercher dans le schéma public
+  // (évite l'erreur "Could not find table in schema cache")
   let rows: DvfYearlyRow[];
   try {
     const resp = await fetch(restUrl, {
       headers: {
-        'apikey':        SUPA_KEY,
-        'Authorization': `Bearer ${SUPA_KEY}`,
-        'Accept':        'application/json',
+        'apikey':           SUPA_KEY,
+        'Authorization':    `Bearer ${SUPA_KEY}`,
+        'Accept':           'application/json',
+        'Accept-Profile':   'public',    // ← critique pour le cache de schéma
       },
       signal: AbortSignal.timeout(8_000),
     });
 
     if (!resp.ok) {
       const errText = await resp.text().catch(() => resp.statusText);
+      // Aide au diagnostic : inclure l'URL sans credentials
+      const safeUrl = restUrl.replace(SUPA_KEY, '***');
       return json(
-        { error: `Erreur Supabase ${resp.status}: ${errText}` },
+        { error: `Erreur Supabase ${resp.status}: ${errText}`, url_used: safeUrl },
         resp.status >= 500 ? 500 : 404,
       );
     }
+
     rows = await resp.json() as DvfYearlyRow[];
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -124,7 +141,7 @@ export const GET: APIRoute = async ({ url }) => {
   if (!row) {
     return json({
       dvf_available: false,
-      note: `Aucune donnée DVF ${typeBien} pour ${codeInsee || codePostal} (bientôt couvert).`,
+      note: `Aucune donnée DVF ${typeBien} pour ${codeInsee || codePostal} (pas encore couvert).`,
     }, 404);
   }
 
@@ -138,18 +155,18 @@ export const GET: APIRoute = async ({ url }) => {
   // ── Réponse ────────────────────────────────────────────────
   return json({
     dvf_available: true,
-    code_insee:    row.code_insee,
-    commune:       row.commune,
-    code_postal:   row.code_postal,
-    type_bien:     row.type_bien,
-    year:          row.year,
-    prix_m2_p25:   row.prix_m2_p25 !== null ? Math.round(row.prix_m2_p25) : null,
-    prix_m2_p50:   Math.round(row.prix_m2_p50),
-    prix_m2_p75:   row.prix_m2_p75 !== null ? Math.round(row.prix_m2_p75) : null,
-    nb_ventes:     row.nb_ventes,
-    source:        row.source ?? 'DVF (données publiques)',
-    updated_at:    row.updated_at,
-    fiabilite:     fiabilite(row.nb_ventes),
+    code_insee:  row.code_insee,
+    commune:     row.commune,
+    code_postal: row.code_postal,
+    type_bien:   row.type_bien,
+    year:        row.year,
+    prix_m2_p25: row.prix_m2_p25 !== null ? Math.round(row.prix_m2_p25) : null,
+    prix_m2_p50: Math.round(row.prix_m2_p50),
+    prix_m2_p75: row.prix_m2_p75 !== null ? Math.round(row.prix_m2_p75) : null,
+    nb_ventes:   row.nb_ventes,
+    source:      row.source ?? 'DVF (données publiques)',
+    created_at:  row.created_at,
+    fiabilite:   fiabilite(row.nb_ventes),
   });
 };
 
