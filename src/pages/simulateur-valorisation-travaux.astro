@@ -742,7 +742,7 @@ const jsonLd = {
     cachedDvfResult = null;
 
     if (!selectedCommune) return;
-    if (!typeBien) return; // attendons la sélection du type de bien
+    // typeBien vide → l'API défaut sur "maison", on fetch quand même
 
     show('dvf-loading');
 
