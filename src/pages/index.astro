@@ -8,6 +8,7 @@ import ScoringExplainedSection from '@/components/landing/ScoringExplainedSectio
 import RisksSection from '@/components/landing/RisksSection';
 import DisclaimerSection from '@/components/landing/DisclaimerSection';
 import CTASection from '@/components/landing/CTASection';
+import DevisCalculatorSection from '@/components/landing/DevisCalculatorSection';
 // HeroSection inliné ci-dessous pour modification des textes uniquement
 
 const jsonLd = {
@@ -226,10 +227,10 @@ const jsonLd = {
               </span>
             </a>
 
-            <!-- Carte B : Prix de référence → simulateur (section prix) -->
+            <!-- Carte B : Prix de référence → calculette ci-dessous -->
             <a
-              href="/simulateur-valorisation-travaux"
-              class="group flex flex-col border-2 border-slate-200 rounded-2xl p-5 sm:p-6 hover:border-slate-300 hover:shadow-md transition-all bg-white"
+              href="#calculette-prix"
+              class="group flex flex-col border-2 border-slate-200 rounded-2xl p-5 sm:p-6 hover:border-primary/30 hover:shadow-md transition-all bg-white"
             >
               <!-- Icône List -->
               <div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center mb-4 flex-shrink-0">
@@ -248,8 +249,8 @@ const jsonLd = {
               <p class="text-sm text-slate-500 leading-relaxed flex-1">
                 Consultez les prix observés sur le marché pour chaque type de travaux.
               </p>
-              <span class="mt-4 inline-flex items-center justify-center gap-2 border border-slate-300 group-hover:border-slate-400 text-slate-700 bg-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-                Voir les prix de référence
+              <span class="mt-4 inline-flex items-center justify-center gap-2 bg-primary group-hover:bg-primary/90 text-primary-foreground text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+                Accéder à notre calculette de travaux
                 <svg class="h-4 w-4 transition-transform group-hover:translate-x-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                 </svg>
@@ -260,6 +261,11 @@ const jsonLd = {
 
         </div>
       </section>
+
+      <!-- ══ Calculette prix de travaux ══ -->
+      <div id="calculette-prix" class="scroll-mt-16">
+        <DevisCalculatorSection client:visible />
+      </div>
 
       <!-- ══ Encadré : Une seule méthode d'analyse ══ -->
       <section class="py-8 bg-white border-b border-slate-100">
