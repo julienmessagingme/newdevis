@@ -57,6 +57,7 @@ Inscription → Upload du devis → Analyse automatique (30-60s)
 | shadcn-ui | - | Bibliothèque de composants (Radix UI + Tailwind) |
 | TanStack Query | 5.83.0 | Gestion d'état serveur, cache, fetch |
 | React Hook Form | 7.61.1 | Gestion de formulaires |
+| React Hook Form | 7.61.1 | Gestion de formulaires |
 | Zod | 3.25.76 | Validation de schémas |
 | Sonner | 1.7.4 | Notifications toast |
 | Lucide React | 0.462.0 | Icônes SVG |
@@ -81,7 +82,7 @@ Inscription → Upload du devis → Analyse automatique (30-60s)
 | @vitejs/plugin-react-swc | 3.11 | Compilation React ultra-rapide |
 | ESLint | 9.32.0 | Linting |
 | PostCSS / Autoprefixer | - | Post-processing CSS |
-| @astrojs/node | 9.5.2 | Adapter Node.js pour SSR |
+| @astrojs/vercel | 9.0.4 | Adapter Vercel pour SSR/SSG |
 | @astrojs/sitemap | 3.7.0 | Génération automatique du sitemap |
 
 ---
@@ -199,9 +200,24 @@ devis-clarity/
 │   │   ├── nouvelle-analyse.astro      # Formulaire de nouvelle analyse
 │   │   ├── cgu.astro                   # Conditions générales (statique)
 │   │   ├── comprendre-score.astro      # Explication du système de score
+│   │   ├── contact.astro               # Formulaire de contact (Web3Forms)
+│   │   ├── confidentialite.astro       # Politique de confidentialité
+│   │   ├── faq.astro                   # FAQ (statique, accordéons)
+│   │   ├── mentions-legales.astro      # Mentions légales
+│   │   ├── mot-de-passe-oublie.astro   # Mot de passe oublié
+│   │   ├── parametres.astro            # Paramètres du compte
+│   │   ├── qui-sommes-nous.astro       # Qui sommes-nous
+│   │   ├── reset-password.astro        # Réinitialisation mot de passe
+│   │   ├── simulateur-valorisation-travaux.astro  # Simulateur IVP/IPI
+│   │   ├── valorisation-travaux-immobiliers.astro # Page SEO valorisation
 │   │   ├── 404.astro                   # Page d'erreur (statique)
 │   │   ├── analyse/
 │   │   │   └── [id].astro             # Résultat d'analyse (dynamique)
+│   │   ├── api/
+│   │   │   ├── geo-communes.ts        # API résolution code postal → communes
+│   │   │   ├── market-prices.ts       # API prix immobiliers DVF
+│   │   │   ├── strategic-scores.ts    # API calcul scores IVP/IPI
+│   │   │   └── debug-supabase.ts      # API diagnostic Supabase
 │   │   ├── blog/
 │   │   │   ├── index.astro            # Liste des articles
 │   │   │   └── [slug].astro           # Article individuel
@@ -220,7 +236,11 @@ devis-clarity/
 │   │   │   ├── AdminBlogApp.tsx
 │   │   │   ├── BlogApp.tsx
 │   │   │   ├── BlogArticleApp.tsx
-│   │   │   └── ComprendreScoreApp.tsx
+│   │   │   ├── ComprendreScoreApp.tsx
+│   │   │   ├── ForgotPasswordApp.tsx
+│   │   │   ├── ResetPasswordApp.tsx
+│   │   │   ├── SettingsApp.tsx
+│   │   │   └── SimulateurScoresApp.tsx
 │   │   │
 │   │   │
 │   │   ├── pages/                      # Composants React de page (logique + UI)
@@ -234,6 +254,9 @@ devis-clarity/
 │   │   │   ├── Blog.tsx                # Liste articles blog
 │   │   │   ├── BlogArticle.tsx         # Article de blog
 │   │   │   ├── ComprendreScore.tsx     # Page explicative scoring
+│   │   │   ├── ForgotPassword.tsx     # Mot de passe oublié
+│   │   │   ├── ResetPassword.tsx      # Réinitialisation mot de passe
+│   │   │   ├── Settings.tsx           # Paramètres du compte
 │   │   │   ├── Index.tsx               # (ancien) Landing page React
 │   │   │   ├── CGU.tsx                 # Conditions générales
 │   │   │   └── NotFound.tsx            # Page 404
@@ -274,7 +297,9 @@ devis-clarity/
 │   │   │   ├── OcrDebugPanel.tsx           # Panneau debug OCR (dev)
 │   │   │   ├── InfoTooltip.tsx         # Infobulles pédagogiques
 │   │   │   ├── PedagogicExplanation.tsx # Explications contextuelles
-│   │   │   └── MissingDataActions.tsx  # Actions données manquantes
+│   │   │   ├── MissingDataActions.tsx  # Actions données manquantes
+│   │   │   ├── StrategicBadge.tsx      # Badge scores IVP/IPI
+│   │   │   └── UrbanismeAssistant.tsx  # Assistant urbanisme
 │   │   │
 │   │   ├── landing/                    # Sections de la landing page
 │   │   │   ├── HeroSection.tsx         # Section hero principale
@@ -335,6 +360,8 @@ devis-clarity/
 │   │
 │   ├── lib/
 │   │   ├── utils.ts                    # Utilitaires CSS (cn, clsx)
+│   │   ├── constants.ts                # Constantes partagées
+│   │   ├── domainConfig.ts             # Registre blocs visibles par domaine
 │   │   ├── workTypeReferentiel.ts      # Référentiel 100+ types de travaux
 │   │   ├── scoreUtils.tsx              # Utilitaires score (icônes, badges, couleurs)
 │   │   ├── entrepriseUtils.ts          # Utilitaires bloc entreprise
@@ -413,6 +440,12 @@ Ces pages sont générées au build et servies comme HTML statique :
 |---|---|---|
 | `index.astro` | `/` | Landing page avec hero, calculator, sections |
 | `cgu.astro` | `/cgu` | Conditions générales d'utilisation |
+| `faq.astro` | `/faq` | FAQ (accordéons `<details>`) |
+| `qui-sommes-nous.astro` | `/qui-sommes-nous` | Page "Qui sommes-nous" |
+| `contact.astro` | `/contact` | Formulaire de contact (Web3Forms) |
+| `mentions-legales.astro` | `/mentions-legales` | Mentions légales |
+| `confidentialite.astro` | `/confidentialite` | Politique de confidentialité |
+| `valorisation-travaux-immobiliers.astro` | `/valorisation-travaux-immobiliers` | Page SEO valorisation immobilière |
 | `404.astro` | `/*` | Page d'erreur 404 |
 
 La landing page utilise des composants React avec `client:load` et `client:visible` pour une hydratation progressive.
@@ -433,6 +466,19 @@ Ces pages ont `export const prerender = false` et sont rendues côté serveur ou
 | `blog/[slug].astro` | `/blog/:slug` | Article de blog individuel | Non |
 | `admin/index.astro` | `/admin` | Dashboard administration | Admin |
 | `admin/blog.astro` | `/admin/blog` | Gestion des articles blog | Admin |
+| `mot-de-passe-oublie.astro` | `/mot-de-passe-oublie` | Formulaire mot de passe oublié | Non |
+| `reset-password.astro` | `/reset-password` | Réinitialisation du mot de passe | Non |
+| `parametres.astro` | `/parametres` | Paramètres du compte utilisateur | Oui |
+| `simulateur-valorisation-travaux.astro` | `/simulateur-valorisation-travaux` | Simulateur IVP/IPI valorisation travaux | Non |
+
+### API Routes (Astro SSR)
+
+| Fichier | URL | Description |
+|---|---|---|
+| `api/geo-communes.ts` | `/api/geo-communes` | Résolution code postal → communes (geo.api.gouv.fr) |
+| `api/market-prices.ts` | `/api/market-prices` | Prix immobiliers DVF par commune et type de bien |
+| `api/strategic-scores.ts` | `/api/strategic-scores` | Calcul scores IVP/IPI depuis la matrice stratégique |
+| `api/debug-supabase.ts` | `/api/debug-supabase` | Diagnostic connexion Supabase (dev) |
 
 ### Pages dynamiques avec paramètres
 
@@ -481,6 +527,8 @@ Ces composants affichent les résultats détaillés sur la page `/analyse/:id` :
 - **InfoTooltip** : Infobulles pédagogiques pour chaque critère.
 - **PedagogicExplanation** : Explications contextuelles détaillées.
 - **MissingDataActions** : Actions proposées quand des données sont manquantes.
+- **StrategicBadge** : Badge affichant les scores IVP/IPI (Indice de Valorisation Patrimoniale / Indice de Performance Investisseur) avec breakdown par critère.
+- **UrbanismeAssistant** : Assistant urbanisme interactif.
 
 Chaque bloc utilise des **fonctions de filtre** exportées depuis `analysis/index.ts` :
 ```typescript
@@ -639,6 +687,38 @@ Les sections de la landing page sont des composants React indépendants, hydrat�
 |---|---|---|
 | `user_id` | uuid | Référence auth.users |
 | `role` | text | admin, moderator, user |
+
+#### Table `strategic_matrix` (scores IVP/IPI)
+
+| Colonne | Type | Description |
+|---|---|---|
+| `job_type` | text | Identifiant du type de travaux (clé primaire) |
+| `value_intrinseque` | numeric(4,1) | Score valeur intrinsèque (0-10) |
+| `liquidite` | numeric(4,1) | Score liquidité (0-10) |
+| `attractivite` | numeric(4,1) | Score attractivité (0-10) |
+| `energie` | numeric(4,1) | Score performance énergétique (0-10) |
+| `reduction_risque` | numeric(4,1) | Score réduction de risque (0-10) |
+| `impact_loyer` | numeric(4,1) | Score impact sur le loyer (0-10) |
+| `vacance` | numeric(4,1) | Score réduction vacance (0-10) |
+| `fiscalite` | numeric(4,1) | Score avantage fiscal (0-10) |
+| `capex_risk` | numeric(4,1) | Score risque CAPEX (0-10) |
+| `recovery_rate` | numeric(4,3) | Taux de récupération à la revente (0-1) |
+
+IVP = 0.30×value + 0.25×liquidité + 0.20×attractivité + 0.15×énergie + 0.10×réduction_risque. IPI = 0.35×loyer + 0.25×vacance + 0.20×énergie + 0.10×fiscalité + 0.10×(5-capex).
+
+#### Table `dvf_prices` (prix immobiliers DVF)
+
+| Colonne | Type | Description |
+|---|---|---|
+| `code_insee` | text | Code INSEE commune (clé primaire) |
+| `commune` | text | Nom de la commune |
+| `prix_m2_maison` | numeric | Médiane prix/m² maison (€) |
+| `prix_m2_appartement` | numeric | Médiane prix/m² appartement (€) |
+| `nb_ventes_maison` | int | Nombre de ventes maison retenues |
+| `nb_ventes_appartement` | int | Nombre de ventes appartement retenues |
+| `period` | text | Période de calcul (ex: "12m") |
+
+Source : Demandes de Valeurs Foncières (data.gouv.fr). Données publiques, RLS lecture publique.
 
 ### Vues SQL
 
@@ -821,13 +901,13 @@ Extraction structurée du devis via Google Gemini :
 - Retourne un JSON structuré avec toutes les données du devis
 - Détecte le type de document (devis_travaux, facture, etc.)
 
-### admin-kpis — `verify_jwt = true`
+### admin-kpis — `verify_jwt = false`
 
 **Fichier** : `supabase/functions/admin-kpis/index.ts`
 
-API pour le dashboard admin : retourne les KPIs depuis les vues SQL. Requiert authentification admin.
+API pour le dashboard admin : retourne les KPIs depuis les vues SQL. Vérifie le rôle admin en interne via `user_roles`.
 
-### generate-blog-article — `verify_jwt = true`
+### generate-blog-article — `verify_jwt = false`
 
 **Fichier** : `supabase/functions/generate-blog-article/index.ts`
 
@@ -835,8 +915,9 @@ Génération d'articles de blog via **Claude API** (`claude-sonnet-4-20250514`) 
 - Accepte : pitch, mots-clés, longueur cible, URLs sources
 - Retourne un article HTML structuré avec titre, slug, extrait, SEO
 - Insert direct dans `blog_posts` en brouillon (`workflow_status: ai_draft`)
+- Vérifie le rôle admin en interne via `user_roles`
 
-### generate-blog-image — `verify_jwt = true`
+### generate-blog-image — `verify_jwt = false`
 
 **Fichier** : `supabase/functions/generate-blog-image/index.ts`
 
@@ -844,12 +925,15 @@ Génération d'images via **fal.ai** (Flux Schnell) :
 - Accepte : postId, type (cover/mid), prompt
 - Génère l'image, l'uploade dans le bucket `blog-images`
 - Met à jour `blog_posts.cover_image_url` ou `mid_image_url`
+- Vérifie le rôle admin en interne via `user_roles`
 
-### publish-scheduled-posts — `verify_jwt = true`
+### publish-scheduled-posts — `verify_jwt = false`
 
 **Fichier** : `supabase/functions/publish-scheduled-posts/index.ts`
 
 Cron (toutes les 15 min) qui publie les articles programmés dont `scheduled_at` est passé.
+
+> **Note** : `verify_jwt = false` sur **TOUTES** les edge functions. Supabase Auth signe les JWT avec ES256, incompatible avec le runtime `verify_jwt`. Les fonctions admin vérifient le rôle en interne via la table `user_roles`.
 
 ### analyze-attestation — `verify_jwt = false`
 
@@ -983,11 +1067,13 @@ Breakpoints Tailwind standard : `sm` (640px), `md` (768px), `lg` (1024px), `xl` 
 ### `astro.config.mjs`
 
 ```javascript
+import vercel from '@astrojs/vercel';
+
 export default defineConfig({
   site: 'https://verifiermondevis.fr',
   integrations: [react(), tailwind({ applyBaseStyles: false }), sitemap()],
   output: 'static',                    // SSG par défaut
-  adapter: node({ mode: 'standalone' }), // SSR pour pages dynamiques
+  adapter: vercel(),                   // Adapter Vercel (SSR pour pages prerender=false)
   vite: {
     resolve: { alias: { '@': '/src' } }, // Alias d'import
   },
@@ -1026,17 +1112,12 @@ npm run build
 
 Produit un dossier `dist/` contenant :
 - Pages statiques pré-rendues (HTML)
-- Serveur Node.js pour les pages dynamiques
+- Fonctions serverless Vercel pour les pages dynamiques (`prerender = false`)
 - Assets optimisés (JS, CSS, images)
 
 ### Hébergement
 
-Le projet utilise l'adapter `@astrojs/node` en mode `standalone`. Il peut être déployé sur :
-
-- **Vercel** : Support natif Astro + Node
-- **Netlify** : Via adapter spécifique (remplacer node par netlify)
-- **Render / Railway / Fly.io** : Conteneur Node.js
-- **AWS / GCP / Azure** : Via Docker
+Le projet utilise l'adapter `@astrojs/vercel`. Il est déployé sur **Vercel** avec support natif Astro (pages statiques + fonctions serverless pour les routes dynamiques et API routes).
 
 ### Variables d'environnement en production
 

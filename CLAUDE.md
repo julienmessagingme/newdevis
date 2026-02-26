@@ -37,7 +37,18 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 | `/mentions-legales` | `mentions-legales.astro` | *(statique Astro)* |
 | `/confidentialite` | `confidentialite.astro` | *(statique Astro)* |
 | `/cgu` | `cgu.astro` | *(statique Astro)* |
+| `/simulateur-valorisation-travaux` | `simulateur-valorisation-travaux.astro` | `SimulateurScoresApp` → `SimulateurScores` *(simulateur IVP/IPI)* |
+| `/valorisation-travaux-immobiliers` | `valorisation-travaux-immobiliers.astro` | *(statique Astro — page SEO valorisation)* |
 | `/sitemap-blog.xml` | `sitemap-blog.xml.ts` | *(endpoint SSR — sitemap dynamique blog)* |
+
+### API Routes (Astro SSR)
+
+| Route | Fichier | Rôle |
+|---|---|---|
+| `/api/geo-communes` | `api/geo-communes.ts` | Résolution code postal → communes via geo.api.gouv.fr |
+| `/api/market-prices` | `api/market-prices.ts` | Prix immobiliers DVF par commune (table `dvf_prices_yearly`) |
+| `/api/strategic-scores` | `api/strategic-scores.ts` | Calcul scores IVP/IPI depuis `strategic_matrix` |
+| `/api/debug-supabase` | `api/debug-supabase.ts` | Diagnostic connexion Supabase (dev/debug) |
 
 ## Ajouter une page
 
@@ -47,10 +58,10 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 
 ## Organisation du code
 
-- **`lib/*Utils.ts`** : Logique métier externalisée par domaine (`entrepriseUtils`, `devisUtils`, `securiteUtils`, `contexteUtils`, `urbanismeUtils`, `architecteUtils`, `blogUtils`, `scoreUtils`). Les composants `analysis/Block*.tsx` importent depuis ces fichiers.
+- **`lib/*Utils.ts`** : Logique métier externalisée par domaine (`entrepriseUtils`, `devisUtils`, `securiteUtils`, `contexteUtils`, `urbanismeUtils`, `architecteUtils`, `blogUtils`, `scoreUtils`). `lib/constants.ts` contient les constantes partagées. Les composants `analysis/Block*.tsx` importent depuis ces fichiers.
 - **`components/admin/`** : Module blog admin complet (`BlogPostList`, `BlogPostEditor`, `BlogDialogs`, `AiGenerationPanel`, `ManualWriteEditor`, `RichTextToolbar`, `ImageManagement`, `blogTypes`)
 - **`components/funnel/`** : Tunnel de conversion (`FunnelStepper`, `PremiumGate`). PremiumGate est intégré dans `BlockPrixMarche` via props (`showGate`, `onAuthSuccess`, `convertToPermanent`) — affiché uniquement quand le bloc est collapsé et l'utilisateur anonyme.
-- **`components/analysis/`** : 18 composants dont `DocumentRejectionScreen`, `ExtractionBlocker`, `OcrDebugPanel` (lazy-loaded via `React.lazy` + `Suspense` dans `AnalysisResult.tsx`). `BlockPrixMarche` inclut un `StepIndicator` interne (stepper visuel 2 étapes : Affectation des postes → Analyse des prix).
+- **`components/analysis/`** : 20 composants dont `DocumentRejectionScreen`, `ExtractionBlocker`, `OcrDebugPanel` (lazy-loaded via `React.lazy` + `Suspense` dans `AnalysisResult.tsx`), `StrategicBadge` (affichage scores IVP/IPI), `UrbanismeAssistant` (assistant urbanisme). `BlockPrixMarche` inclut un `StepIndicator` interne (stepper visuel 2 étapes : Affectation des postes → Analyse des prix).
 - **`supabase/functions/analyze-quote/`** : Pipeline modulaire (10 fichiers : `index`, `extract`, `verify`, `score`, `render`, `summarize`, `market-prices`, `domain-config`, `utils`, `types`)
 - **`utils/generatePdfReport.ts`** : Génération PDF côté client via `jsPDF`. Structuré par blocs (entreprise, devis, sécurité, contexte) en miroir du frontend. Utilise les mêmes utils métier (`entrepriseUtils`, `securiteUtils`, etc.).
 - **`lib/domainConfig.ts`** : Registre frontend des blocs visibles par domaine (`travaux`, `auto`, `dentaire`). Conditionne l'affichage des blocs dans `AnalysisResult`.
@@ -58,14 +69,17 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 
 ## Supabase
 
-### Tables (9)
+### Tables (12)
 - `analyses` — analyses de devis (table principale). Colonne `market_price_overrides` (JSONB) pour les éditions utilisateur sur les prix marché. Colonne `domain` (TEXT, default `'travaux'`) pour le multi-vertical. **Limite 10 par utilisateur** : les plus anciennes sont purgées automatiquement par le pipeline.
 - `analysis_work_items` — lignes de travaux détaillées par analyse. Colonne `job_type_group` (TEXT) pour le rattachement au job type IA.
 - `blog_posts` — articles de blog (avec workflow IA, images cover + mid)
 - `company_cache` — cache vérification entreprise (recherche-entreprises.api.gouv.fr). Purge auto quotidienne via cron.
+- `document_extractions` — cache OCR par hash SHA-256 du fichier (provider, parsed_data, quality_score)
+- `dvf_prices` — cache prix immobiliers DVF par commune (code INSEE, prix/m² maison et appartement, nb ventes). Source : data.gouv.fr. RLS lecture publique.
 - `market_prices` — référentiel prix marché (~267 lignes). Colonne `domain` (TEXT, default `'travaux'`). RLS avec policy `market_prices_public_read` (accès anon + authenticated en lecture). Utilisé côté backend (edge functions via service_role) ET côté frontend (calculatrice homepage via anon key).
 - `post_signature_tracking` — suivi post-signature
 - `price_observations` — **données "gold" big data** : snapshot des groupements job type par analyse. Colonne `domain` (TEXT, default `'travaux'`). Survit à la suppression des analyses (pas de FK CASCADE). Voir section dédiée ci-dessous.
+- `strategic_matrix` — matrice IVP (Indice de Valorisation Patrimoniale) / IPI (Indice de Performance Investisseur). Scores 0-10 par critère et par job type (9 critères + recovery_rate). RLS lecture publique. Utilisée par `/api/strategic-scores` et le pipeline `analyze-quote`.
 - `user_roles` — rôles (admin/moderator/user)
 - `zones_geographiques` — coefficients géographiques par code postal
 
@@ -102,6 +116,8 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 - `idx_analyses_domain` — `analyses(domain)` — filtrage multi-vertical
 - `idx_market_prices_domain` — `market_prices(domain)` — filtrage multi-vertical
 - `idx_price_obs_domain` — `price_observations(domain)` — filtrage multi-vertical
+- `idx_strategic_matrix_job_type` — `strategic_matrix(job_type)` — lookup scores IVP/IPI
+- `idx_dvf_prices_code_insee` — `dvf_prices(code_insee)` — lookup prix immobiliers par commune
 
 ### Régénérer les types
 ```bash
