@@ -2,7 +2,6 @@
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import AstroHeader from '@/components/astro/Header.astro';
 import AstroFooter from '@/components/astro/Footer.astro';
-import DevisCalculatorSection from '@/components/landing/DevisCalculatorSection';
 import HowItWorksSection from '@/components/landing/HowItWorksSection';
 import PostSignatureValueSection from '@/components/landing/PostSignatureValueSection';
 import ScoringExplainedSection from '@/components/landing/ScoringExplainedSection';
@@ -198,43 +197,61 @@ const jsonLd = {
             </p>
           </div>
 
-          <!-- Deux cartes sobres -->
-          <div class="grid sm:grid-cols-2 gap-3">
+          <!-- Deux cartes enrichies -->
+          <div class="grid sm:grid-cols-2 gap-4">
 
             <!-- Carte A : Impact valorisation → simulateur dédié -->
             <a
               href="/simulateur-valorisation-travaux"
-              class="flex flex-col border border-slate-200 rounded-xl p-5 hover:border-slate-300 hover:bg-slate-50/50 transition-colors"
+              class="group flex flex-col border-2 border-slate-200 rounded-2xl p-5 sm:p-6 hover:border-primary/30 hover:shadow-md transition-all bg-white"
             >
-              <p class="text-sm font-semibold text-slate-800 mb-1.5">
+              <!-- Icône TrendingUp -->
+              <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-4 flex-shrink-0">
+                <svg class="h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
+                  <polyline points="16 7 22 7 22 13"/>
+                </svg>
+              </div>
+              <p class="text-base font-bold text-slate-900 mb-2 leading-snug">
                 Estimer l'impact sur la valeur du bien
               </p>
               <p class="text-sm text-slate-500 leading-relaxed flex-1">
                 Découvrez si vos travaux seront réellement valorisés à la revente ou en location.
               </p>
-              <span class="mt-3 text-xs font-medium text-slate-400 inline-flex items-center gap-1">
-                Simulateur de valorisation
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <span class="mt-4 inline-flex items-center justify-center gap-2 bg-primary group-hover:bg-primary/90 text-primary-foreground text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+                Lancer le simulateur
+                <svg class="h-4 w-4 transition-transform group-hover:translate-x-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                 </svg>
               </span>
             </a>
 
-            <!-- Carte B : Prix moyen → ancre vers le calculateur ci-dessous -->
+            <!-- Carte B : Prix de référence → simulateur (section prix) -->
             <a
-              href="#simulateur-prix"
-              class="flex flex-col border border-slate-200 rounded-xl p-5 hover:border-slate-300 hover:bg-slate-50/50 transition-colors"
+              href="/simulateur-valorisation-travaux"
+              class="group flex flex-col border-2 border-slate-200 rounded-2xl p-5 sm:p-6 hover:border-slate-300 hover:shadow-md transition-all bg-white"
             >
-              <p class="text-sm font-semibold text-slate-800 mb-1.5">
+              <!-- Icône List -->
+              <div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center mb-4 flex-shrink-0">
+                <svg class="h-5 w-5 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <line x1="8" y1="6" x2="21" y2="6"/>
+                  <line x1="8" y1="12" x2="21" y2="12"/>
+                  <line x1="8" y1="18" x2="21" y2="18"/>
+                  <line x1="3" y1="6" x2="3.01" y2="6"/>
+                  <line x1="3" y1="12" x2="3.01" y2="12"/>
+                  <line x1="3" y1="18" x2="3.01" y2="18"/>
+                </svg>
+              </div>
+              <p class="text-base font-bold text-slate-900 mb-2 leading-snug">
                 Estimer le prix moyen des travaux
               </p>
               <p class="text-sm text-slate-500 leading-relaxed flex-1">
                 Consultez les prix observés sur le marché pour chaque type de travaux.
               </p>
-              <span class="mt-3 text-xs font-medium text-slate-400 inline-flex items-center gap-1">
+              <span class="mt-4 inline-flex items-center justify-center gap-2 border border-slate-300 group-hover:border-slate-400 text-slate-700 bg-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
                 Voir les prix de référence
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                <svg class="h-4 w-4 transition-transform group-hover:translate-x-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                 </svg>
               </span>
             </a>
@@ -243,11 +260,6 @@ const jsonLd = {
 
         </div>
       </section>
-
-      <!-- ══ Simulateur prix (ancre #simulateur-prix) ══ -->
-      <div id="simulateur-prix" class="scroll-mt-16">
-        <DevisCalculatorSection client:visible />
-      </div>
 
       <!-- ══ Encadré : Une seule méthode d'analyse ══ -->
       <section class="py-8 bg-white border-b border-slate-100">
