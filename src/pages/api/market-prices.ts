@@ -21,12 +21,8 @@ function fiabilite(nb: number | null | undefined): NiveauFiabilite {
 }
 
 interface DvfRow {
-  commune:               string;
-  prix_m2_maison:        number | null;
-  prix_m2_appartement:   number | null;
-  nb_ventes_maison:      number | null;
-  nb_ventes_appartement: number | null;
-  period:                string;
+  commune: string;
+  prix_m2: number | null;
 }
 
 // ── GET /api/market-prices?code_insee=...&type_bien=... ──────
@@ -58,7 +54,7 @@ export const GET: APIRoute = async ({ url }) => {
   const restUrl =
     `${SUPA_URL}/rest/v1/dvf_prices` +
     `?code_insee=eq.${encodeURIComponent(codeInsee)}` +
-    `&select=commune,prix_m2_maison,prix_m2_appartement,nb_ventes_maison,nb_ventes_appartement,period` +
+    `&select=commune,prix_m2` +
     `&limit=1`;
 
   let rows: DvfRow[];
@@ -89,22 +85,17 @@ export const GET: APIRoute = async ({ url }) => {
     return json({ dvf_available: false, prix_m2: null, source: 'DVF (données publiques)', zone_label: codeInsee, note: 'Données DVF non disponibles pour cette commune (bientôt couvert).' });
   }
 
-  const isMaison  = typeBien !== 'appartement';
-  const prix_m2   = isMaison ? data.prix_m2_maison     : data.prix_m2_appartement;
-  const nb_ventes = isMaison ? data.nb_ventes_maison   : data.nb_ventes_appartement;
-  const typeLabel = isMaison ? 'maison' : 'appartement';
-
-  if (!prix_m2) {
-    return json({ dvf_available: false, prix_m2: null, source: 'DVF (données publiques)', zone_label: data.commune, note: `Pas de données DVF ${typeLabel} pour ${data.commune}.` });
+  if (!data.prix_m2) {
+    return json({ dvf_available: false, prix_m2: null, source: 'DVF (données publiques)', zone_label: data.commune, note: `Pas de données DVF pour ${data.commune}.` });
   }
 
   return json({
     dvf_available:    true,
-    prix_m2:          Math.round(prix_m2),
+    prix_m2:          Math.round(data.prix_m2),
     source:           'DVF (données publiques)',
     zone_label:       data.commune,
-    niveau_fiabilite: fiabilite(nb_ventes),
-    nb_transactions:  nb_ventes ?? 0,
+    niveau_fiabilite: 'moyen' as NiveauFiabilite,
+    nb_transactions:  null,
   });
 };
 
