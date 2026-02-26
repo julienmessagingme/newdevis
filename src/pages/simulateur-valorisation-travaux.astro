@@ -36,10 +36,8 @@ const jsonLd = {
       <!-- ══ HERO ══ -->
       <section class="bg-gradient-to-b from-slate-900 to-slate-800 text-white py-12 sm:py-16">
         <div class="container max-w-2xl text-center">
-          <a
-            href="/valorisation-travaux-immobiliers"
-            class="inline-flex items-center gap-1.5 text-slate-400 hover:text-white mb-5 transition-colors text-xs"
-          >
+          <a href="/valorisation-travaux-immobiliers"
+             class="inline-flex items-center gap-1.5 text-slate-400 hover:text-white mb-5 transition-colors text-xs">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
             </svg>
@@ -62,103 +60,58 @@ const jsonLd = {
           <!-- ── FORMULAIRE ── -->
           <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8 mb-6">
 
-            <!-- Section : Contexte -->
             <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4">
               Contexte du bien
             </p>
 
             <!-- Ligne 1 : valeur + objectif -->
             <div class="grid sm:grid-cols-2 gap-4 mb-4">
-
-              <!-- Valeur actuelle du bien -->
               <div>
                 <label for="property-value" class="block text-sm font-semibold text-slate-700 mb-1.5">
                   Valeur estimée du bien (€)
                   <span class="text-xs font-normal text-slate-400 ml-1">— recommandé</span>
                 </label>
                 <div class="relative">
-                  <input
-                    id="property-value"
-                    type="number"
-                    min="0"
-                    step="5000"
-                    placeholder="Ex. 220 000"
-                    class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
-                  />
+                  <input id="property-value" type="number" min="0" step="5000" placeholder="Ex. 220 000"
+                    class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors" />
                   <span class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">€</span>
                 </div>
               </div>
-
-              <!-- Objectif -->
               <div>
                 <p class="block text-sm font-semibold text-slate-700 mb-1.5">Objectif</p>
                 <div class="flex gap-2">
-                  <button
-                    id="btn-revente"
-                    type="button"
-                    class="flex-1 flex items-center justify-center gap-2 rounded-xl border-2 border-primary bg-primary/5 px-3 py-2.5 text-sm font-semibold text-primary transition-all"
-                  >
+                  <button id="btn-revente" type="button"
+                    class="flex-1 flex items-center justify-center gap-2 rounded-xl border-2 border-primary bg-primary/5 px-3 py-2.5 text-sm font-semibold text-primary transition-all">
                     <span>🏠</span><span>Revente</span>
                   </button>
-                  <button
-                    id="btn-location"
-                    type="button"
-                    class="flex-1 flex items-center justify-center gap-2 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-500 transition-all hover:border-slate-300"
-                  >
+                  <button id="btn-location" type="button"
+                    class="flex-1 flex items-center justify-center gap-2 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-500 transition-all hover:border-slate-300">
                     <span>🔑</span><span>Location</span>
                   </button>
                 </div>
               </div>
-
             </div>
 
-            <!-- Ligne 2 : surface + code postal + type bien -->
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-
-              <!-- Surface actuelle -->
+            <!-- Ligne 2 : surface + type de bien -->
+            <div class="grid sm:grid-cols-2 gap-3 mb-3">
               <div>
                 <label for="property-surface" class="block text-sm font-semibold text-slate-700 mb-1.5">
-                  Surface (m²)
+                  Surface actuelle (m²)
                   <span class="text-xs font-normal text-slate-400 ml-1">— optionnel</span>
                 </label>
                 <div class="relative">
-                  <input
-                    id="property-surface"
-                    type="number"
-                    min="0"
-                    step="5"
-                    placeholder="Ex. 75"
-                    class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 pr-9 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
-                  />
+                  <input id="property-surface" type="number" min="0" step="5" placeholder="Ex. 75"
+                    class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 pr-9 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors" />
                   <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">m²</span>
                 </div>
               </div>
-
-              <!-- Code postal -->
               <div>
-                <label for="property-zip" class="block text-sm font-semibold text-slate-700 mb-1.5">
-                  Code postal
-                  <span class="text-xs font-normal text-slate-400 ml-1">— DVF</span>
-                </label>
-                <input
-                  id="property-zip"
-                  type="text"
-                  maxlength="5"
-                  placeholder="Ex. 75015"
-                  class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
-                />
-              </div>
-
-              <!-- Type de bien -->
-              <div class="col-span-2 sm:col-span-1">
                 <label for="property-type" class="block text-sm font-semibold text-slate-700 mb-1.5">
                   Type de bien
                 </label>
                 <div class="relative">
-                  <select
-                    id="property-type"
-                    class="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 pl-3 pr-8 py-2.5 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors cursor-pointer"
-                  >
+                  <select id="property-type"
+                    class="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 pl-3 pr-8 py-2.5 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors cursor-pointer">
                     <option value="">Non précisé</option>
                     <option value="appartement">Appartement</option>
                     <option value="maison">Maison</option>
@@ -168,8 +121,63 @@ const jsonLd = {
                   </svg>
                 </div>
               </div>
-
             </div>
+
+            <!-- Ligne 3 : code postal + commune -->
+            <div class="grid sm:grid-cols-2 gap-3 mb-1.5">
+              <div>
+                <label for="property-zip" class="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Code postal
+                  <span class="text-xs font-normal text-slate-400 ml-1">— DVF</span>
+                </label>
+                <input id="property-zip" type="text" maxlength="5" placeholder="Ex. 33000"
+                  class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors" />
+              </div>
+              <div>
+                <label for="commune-select" class="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Commune (DVF)
+                  <span id="commune-loading-label" class="hidden text-xs font-normal text-slate-400 ml-1">— chargement…</span>
+                </label>
+                <div class="relative">
+                  <select id="commune-select" disabled
+                    class="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 pl-3 pr-8 py-2.5 text-slate-900 text-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors cursor-pointer">
+                    <option value="">— entrez un code postal —</option>
+                  </select>
+                  <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <!-- Multi-commune info -->
+            <div id="communes-multi-info" class="hidden mb-1.5 flex items-start gap-1.5 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+              <svg class="h-3.5 w-3.5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/>
+              </svg>
+              <span>Plusieurs communes correspondent à ce code postal — choisissez celle de votre bien.</span>
+            </div>
+
+            <!-- DVF statut (sous la commune) -->
+            <div id="dvf-loading" class="hidden mb-3 flex items-center gap-1.5 text-xs text-slate-400">
+              <svg class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              Chargement des données DVF…
+            </div>
+            <div id="dvf-status-loaded" class="hidden mb-3 flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+              <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
+              </svg>
+              <span id="dvf-status-text"></span>
+            </div>
+            <div id="dvf-status-unavailable" class="hidden mb-3 text-xs text-slate-400 italic px-0.5">
+              <span id="dvf-unavail-text">Données DVF indisponibles pour cette commune.</span>
+            </div>
+
+            <!-- mb séparateur DVF / loyer -->
+            <div class="mb-3"></div>
 
             <!-- Loyer actuel (Location uniquement) -->
             <div id="rent-field" class="hidden mb-4">
@@ -178,14 +186,8 @@ const jsonLd = {
                 <span class="text-xs font-normal text-slate-400 ml-1">— requis pour l'analyse locative</span>
               </label>
               <div class="relative max-w-xs">
-                <input
-                  id="current-rent"
-                  type="number"
-                  min="0"
-                  step="50"
-                  placeholder="Ex. 800"
-                  class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-16 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
-                />
+                <input id="current-rent" type="number" min="0" step="50" placeholder="Ex. 800"
+                  class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-16 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors" />
                 <span class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">€/mois</span>
               </div>
             </div>
@@ -193,45 +195,33 @@ const jsonLd = {
             <!-- Séparateur -->
             <div class="border-t border-slate-100 mb-5"></div>
 
-            <!-- Section : Postes de travaux -->
             <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">
               Postes de travaux
             </p>
 
-            <!-- En-têtes colonnes (desktop) -->
             <div class="hidden sm:grid sm:grid-cols-[1fr_9rem_2.25rem] gap-2 mb-1.5 px-0.5">
               <p class="text-xs text-slate-400">Type de travaux</p>
               <p class="text-xs text-slate-400">Budget (€)</p>
               <p></p>
             </div>
 
-            <!-- Lignes dynamiques -->
             <div id="work-items-container" class="space-y-1 mb-3"></div>
 
-            <!-- Ajouter un poste -->
-            <button
-              id="add-row-btn"
-              type="button"
-              class="flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors py-1 mb-5"
-            >
+            <button id="add-row-btn" type="button"
+              class="flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors py-1 mb-5">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
               </svg>
               Ajouter un poste
             </button>
 
-            <!-- Message d'erreur -->
             <p id="form-error" class="hidden mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
               <span id="form-error-text">Ajoutez au moins un poste de travaux avec un budget.</span>
             </p>
 
-            <!-- Submit -->
-            <button
-              id="btn-estimate"
-              type="button"
-              class="w-full flex items-center justify-center gap-2 bg-slate-900 text-white hover:bg-slate-800 font-semibold rounded-xl px-6 py-3 text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <svg id="btn-estimate-icon" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <button id="btn-estimate" type="button"
+              class="w-full flex items-center justify-center gap-2 bg-slate-900 text-white hover:bg-slate-800 font-semibold rounded-xl px-6 py-3 text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4.5 19.5l1.5-1.5M19.5 19.5l-1.5-1.5M4.5 4.5l1.5 1.5M19.5 4.5l-1.5 1.5M12 3v1.5M12 19.5V21M3 12h1.5M19.5 12H21" />
               </svg>
               <span id="btn-estimate-label">Analyser le projet</span>
@@ -240,53 +230,94 @@ const jsonLd = {
           </div>
 
           <!-- ── RÉSULTAT ── -->
-          <div
-            id="result"
-            class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
-            aria-live="polite"
-            aria-atomic="true"
-          >
+          <div id="result" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+               aria-live="polite" aria-atomic="true">
 
-            <!-- ── Synthèse financière ── -->
+            <!-- ── Synthèse ── -->
             <div class="p-6 sm:p-8">
 
               <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4">
                 Synthèse financière
               </p>
 
-              <div class="divide-y divide-slate-100">
+              <!-- Bloc Synthèse locative (Location seulement) -->
+              <div id="r-location-summary" class="hidden mb-5 rounded-xl bg-emerald-50 border border-emerald-200 p-4">
+                <p class="text-[10px] font-bold uppercase tracking-widest text-emerald-600 mb-3">Synthèse locative</p>
+                <div class="grid grid-cols-3 gap-2 text-center">
+                  <div class="bg-white rounded-lg p-2.5 border border-emerald-100">
+                    <p id="r-ls-surplus-m" class="text-sm sm:text-base font-bold text-slate-900">—</p>
+                    <p class="text-[11px] text-slate-500 mt-0.5">Surplus/mois</p>
+                  </div>
+                  <div class="bg-white rounded-lg p-2.5 border border-emerald-100">
+                    <p id="r-ls-surplus-a" class="text-sm sm:text-base font-bold text-slate-900">—</p>
+                    <p class="text-[11px] text-slate-500 mt-0.5">Surplus/an</p>
+                  </div>
+                  <div class="bg-white rounded-lg p-2.5 border border-emerald-100">
+                    <p id="r-ls-payback" class="text-sm sm:text-base font-bold text-slate-900">—</p>
+                    <p class="text-[11px] text-slate-500 mt-0.5">Amortissement</p>
+                  </div>
+                </div>
+              </div>
 
-                <div class="flex items-center justify-between py-3 gap-4">
+              <!-- Lignes synthèse -->
+              <div>
+                <!-- Budget total (toujours visible) -->
+                <div class="flex items-center justify-between py-3 gap-4 border-b border-slate-100">
                   <span class="text-sm text-slate-600">Budget total travaux</span>
                   <span id="r-budget-total" class="text-sm font-bold tabular-nums font-mono text-slate-900"></span>
                 </div>
 
-                <div class="flex items-center justify-between py-3 gap-4">
-                  <span class="text-sm text-slate-600">Revalorisation estimée</span>
-                  <div class="flex items-baseline gap-2 flex-shrink-0">
-                    <span id="r-delta-value" class="text-sm font-bold tabular-nums font-mono text-slate-900"></span>
-                    <span id="r-recovery-pct" class="text-xs text-slate-400"></span>
+                <!-- Rows Revente uniquement — masquées en Location -->
+                <div id="r-revente-rows">
+                  <div class="flex items-center justify-between py-3 gap-4 border-b border-slate-100">
+                    <span class="text-sm text-slate-600">Revalorisation estimée</span>
+                    <div class="flex items-baseline gap-2 flex-shrink-0">
+                      <span id="r-delta-value" class="text-sm font-bold tabular-nums font-mono text-slate-900"></span>
+                      <span id="r-recovery-pct" class="text-xs text-slate-400"></span>
+                    </div>
+                  </div>
+                  <div id="r-new-value-row" class="hidden flex items-center justify-between py-3 gap-4 border-b border-slate-100">
+                    <span class="text-sm text-slate-600">Valeur estimée après travaux</span>
+                    <span id="r-new-value" class="text-sm font-bold tabular-nums font-mono text-slate-900"></span>
                   </div>
                 </div>
 
-                <div id="r-new-value-row" class="hidden flex items-center justify-between py-3 gap-4">
-                  <span class="text-sm text-slate-600">Valeur estimée après travaux</span>
-                  <span id="r-new-value" class="text-sm font-bold tabular-nums font-mono text-slate-900"></span>
-                </div>
-
+                <!-- Nature dominante (toujours visible) -->
                 <div class="flex items-center justify-between py-3 gap-4">
                   <span class="text-sm text-slate-600">Nature dominante du projet</span>
                   <span id="r-dominant" class="text-sm font-medium text-slate-700 text-right max-w-[55%]"></span>
                 </div>
-
               </div>
+
+              <!-- Accordéon patrimonial (Location seulement) -->
+              <details id="r-patrimoine-accord" class="hidden group mt-3 border border-slate-100 rounded-xl overflow-hidden">
+                <summary class="flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50 cursor-pointer select-none list-none transition-colors">
+                  <svg class="h-3.5 w-3.5 text-slate-400 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
+                  </svg>
+                  Données patrimoniales (revente)
+                </summary>
+                <div class="px-4 pb-3 divide-y divide-slate-100 bg-slate-50/60">
+                  <div class="flex justify-between py-2.5 gap-4">
+                    <span class="text-sm text-slate-500">Revalorisation estimée</span>
+                    <div class="flex items-baseline gap-2">
+                      <span id="r-accord-delta" class="text-sm font-bold tabular-nums font-mono text-slate-700"></span>
+                      <span id="r-accord-pct"   class="text-xs text-slate-400"></span>
+                    </div>
+                  </div>
+                  <div id="r-accord-newval-row" class="hidden flex justify-between py-2.5 gap-4">
+                    <span class="text-sm text-slate-500">Valeur après travaux</span>
+                    <span id="r-accord-newval" class="text-sm font-bold tabular-nums font-mono text-slate-700"></span>
+                  </div>
+                </div>
+              </details>
 
               <!-- Surcapitalisation -->
               <div id="r-overcap" class="hidden mt-4 rounded-lg border p-3.5 text-sm leading-relaxed"></div>
 
-              <!-- Encadré DVF (prix marché officiel) -->
+              <!-- DVF encadré (résultats) -->
               <div id="r-dvf-box" class="hidden mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
-                <p class="text-[10px] font-bold uppercase tracking-widest text-blue-500 mb-2">Prix marché officiel · ETALAB DVF</p>
+                <p class="text-[10px] font-bold uppercase tracking-widest text-blue-500 mb-2">Prix marché officiel · DVF Étalab</p>
                 <div class="flex items-end justify-between gap-4 flex-wrap">
                   <div>
                     <p id="r-dvf-price" class="text-2xl font-bold text-slate-900"></p>
@@ -303,9 +334,9 @@ const jsonLd = {
                 </div>
               </div>
 
-              <!-- Fallback DVF indisponible -->
+              <!-- DVF indisponible -->
               <div id="r-dvf-unavailable" class="hidden mt-3 text-xs text-slate-400 italic">
-                Données officielles DVF indisponibles pour ce code postal — estimation basée sur notre référentiel interne.
+                Données DVF indisponibles pour cette commune — diagnostic de surcapitalisation basé sur le référentiel interne.
               </div>
 
             </div>
@@ -317,7 +348,7 @@ const jsonLd = {
                 Impact locatif
               </p>
 
-              <!-- Alerte surface manquante pour extension/combles -->
+              <!-- Alerte surface manquante -->
               <div id="r-location-surface-warning" class="hidden mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-800 leading-relaxed">
                 <strong>Surface ajoutée manquante.</strong> Votre projet inclut une extension ou un aménagement de combles.
                 Pour estimer l'impact locatif de la surface créée, renseignez le champ&nbsp;«&nbsp;Surface créée (m²)&nbsp;» sur le poste concerné.
@@ -325,12 +356,10 @@ const jsonLd = {
               </div>
 
               <div class="divide-y divide-slate-200">
-
                 <div class="flex items-center justify-between py-3 gap-4">
                   <span class="text-sm text-slate-600">Rendement brut actuel</span>
                   <span id="r-yield-current" class="text-sm font-bold tabular-nums font-mono text-slate-900"></span>
                 </div>
-
                 <div class="flex items-start justify-between py-3 gap-4">
                   <div>
                     <p class="text-sm text-slate-600">Rendement brut après travaux</p>
@@ -338,46 +367,34 @@ const jsonLd = {
                   </div>
                   <span id="r-yield-after" class="text-sm font-bold tabular-nums font-mono text-slate-900 flex-shrink-0"></span>
                 </div>
-
-                <div id="r-new-rent-row" class="flex items-center justify-between py-3 gap-4">
+                <div class="flex items-center justify-between py-3 gap-4">
                   <span class="text-sm text-slate-600">Loyer estimé après travaux</span>
                   <span id="r-new-rent" class="text-sm font-bold tabular-nums font-mono text-slate-900 flex-shrink-0"></span>
                 </div>
-
-                <div id="r-delta-rent-row" class="flex items-center justify-between py-3 gap-4">
+                <div class="flex items-center justify-between py-3 gap-4">
                   <span class="text-sm text-slate-600">Surplus mensuel</span>
                   <span id="r-delta-rent" class="text-sm font-bold tabular-nums font-mono text-slate-900 flex-shrink-0"></span>
                 </div>
-
                 <div class="flex items-center justify-between py-3 gap-4">
                   <span class="text-sm text-slate-600">Surplus annuel</span>
                   <span id="r-delta-rent-annual" class="text-sm font-bold tabular-nums font-mono text-slate-900 flex-shrink-0"></span>
                 </div>
-
                 <div class="flex items-center justify-between py-3 gap-4">
                   <span class="text-sm text-slate-600">Amortissement estimé</span>
                   <span id="r-payback" class="text-sm font-bold tabular-nums font-mono text-slate-900 flex-shrink-0"></span>
                 </div>
-
               </div>
 
-              <!-- Alerte données manquantes (loyer non renseigné) -->
               <div id="r-location-missing" class="hidden mt-4 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-500 italic">
                 Renseignez le loyer actuel pour calculer l'impact locatif.
               </div>
-
-              <!-- Note méthodologique -->
               <div id="r-location-note" class="hidden mt-3 text-xs text-slate-400 italic leading-relaxed"></div>
 
             </div>
 
             <!-- ── Détail par poste ── -->
             <div class="border-t border-slate-200 p-6 sm:p-8">
-
-              <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4">
-                Détail par poste
-              </p>
-
+              <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4">Détail par poste</p>
               <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                   <thead>
@@ -387,9 +404,7 @@ const jsonLd = {
                       <th class="text-right pb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">Récup. est.</th>
                     </tr>
                   </thead>
-                  <tbody id="r-detail-tbody">
-                    <!-- filled by JS -->
-                  </tbody>
+                  <tbody id="r-detail-tbody"></tbody>
                   <tfoot>
                     <tr class="border-t-2 border-slate-300">
                       <td class="pt-3 pb-1 text-sm font-bold text-slate-900">Total</td>
@@ -399,36 +414,28 @@ const jsonLd = {
                   </tfoot>
                 </table>
               </div>
-
             </div>
 
-            <!-- ── Indice Stratégique Immobilier™ (island React) ── -->
+            <!-- ── Indice Stratégique Immobilier™ ── -->
             <div id="r-strategic-section" class="border-t border-slate-200 p-6 sm:p-8">
-              <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4">
-                Indice Stratégique Immobilier™
-              </p>
+              <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4">Indice Stratégique Immobilier™</p>
               <SimulateurScoresApp client:only="react" />
             </div>
 
             <!-- ── CTA + mention légale ── -->
             <div class="border-t border-slate-200 bg-slate-50 p-6 sm:p-8">
-
-              <a
-                href="/nouvelle-analyse"
-                class="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold rounded-xl px-6 py-3 text-sm transition-colors mb-4"
-              >
+              <a href="/nouvelle-analyse"
+                class="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold rounded-xl px-6 py-3 text-sm transition-colors mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                 </svg>
                 Analyser mon devis pour une estimation basée sur mes prix réels
               </a>
-
               <p class="text-xs text-slate-400 italic leading-relaxed">
                 Les taux de récupération sont des ordres de grandeur issus d'observations du marché immobilier français.
                 Ils ne constituent pas une estimation professionnelle. Les résultats varient selon la localisation précise,
-                la qualité d'exécution, l'état initial du bien et les conditions du marché local au moment de la vente ou de la mise en location.
+                la qualité d'exécution, l'état initial du bien et les conditions du marché local.
               </p>
-
             </div>
 
           </div>
@@ -442,18 +449,9 @@ const jsonLd = {
           <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">Méthodologie</p>
           <p class="text-sm text-slate-600 leading-relaxed mb-3">
             Chaque poste est évalué via l'<strong>Indice Stratégique Immobilier™</strong> (IVP / IPI) calculé depuis
-            notre référentiel de plus de 300 types de travaux. Le <strong>taux de récupération pondéré</strong>
-            retourné par l'analyse est appliqué uniformément au budget de chaque poste.
-            En mode Location, le modèle distingue les travaux créant de la surface habitable
-            (extension, combles) des rénovations sans surface ajoutée.
-          </p>
-          <p class="text-sm text-slate-600 leading-relaxed mb-3">
-            Les <strong>prix de marché officiels</strong> (ETALAB DVF) sont récupérés en temps réel
-            à partir des actes notariés publiés, pour renforcer le diagnostic de surcapitalisation.
-          </p>
-          <p class="text-sm text-slate-600 leading-relaxed">
-            Pour une estimation basée sur les postes exacts de votre devis et les prix du marché dans votre secteur,
-            utilisez l'analyse complète.
+            notre référentiel de plus de 300 types de travaux. Les <strong>données DVF Étalab</strong> (actes notariés)
+            enrichissent le diagnostic de surcapitalisation avec le prix médian réel du secteur.
+            En mode Location, le modèle distingue les travaux créant de la surface habitable des rénovations sans surface ajoutée.
           </p>
           <div class="flex flex-wrap gap-3 text-sm mt-5">
             <a href="/nouvelle-analyse" class="inline-flex items-center gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-lg font-medium transition-colors">
@@ -467,12 +465,11 @@ const jsonLd = {
       </section>
 
     </main>
-
     <AstroFooter />
   </div>
 </BaseLayout>
 
-<!-- ══ LOGIQUE SIMULATEUR V5 ══ -->
+<!-- ══ LOGIQUE SIMULATEUR V6 ══ -->
 <script>
   // ── Types ──
   type Objective = 'revente' | 'location';
@@ -483,17 +480,22 @@ const jsonLd = {
     type:         string;
     label:        string;
     budget:       number;
-    surfaceAdded: number | null; // m² ajoutés — uniquement pour SURFACE_TYPES
+    surfaceAdded: number | null;
+  }
+
+  interface CommuneItem {
+    nom:      string;
+    codeInsee: string;
   }
 
   interface DvfResult {
-    available:        true;
-    prix_m2_estime:   number;
+    dvf_available:    true;
+    prix_m2:          number;
     source:           string;
-    niveau_fiabilite: 'bon' | 'moyen' | 'faible';
-    nb_transactions:  number;
-    commune:          string;
-    type_bien:        string;
+    zone_label:       string;
+    note?:            string;
+    niveau_fiabilite?: 'bon' | 'moyen' | 'faible';
+    nb_transactions?:  number;
   }
 
   // ── Référentiel ──
@@ -515,10 +517,8 @@ const jsonLd = {
     piscine:                { label: "Piscine" },
   };
 
-  // Types créant de la surface habitable → loyer calculé en €/m²
   const SURFACE_TYPES = new Set(['extension', 'combles']);
 
-  // Taux de récupération de repli (si API indisponible)
   const FALLBACK_RATES: Record<string, number> = {
     extension: 0.85, combles: 0.80, renovation_energetique: 0.80,
     isolation: 0.70, toiture: 0.70, assainissement: 0.70,
@@ -527,46 +527,42 @@ const jsonLd = {
     climatisation: 0.40, piscine: 0.40,
   };
 
-  // Options HTML pour les selects (généré une seule fois)
   const OPTIONS_HTML: string = Object.entries(WORK_TYPES)
     .map(([k, v]) => `<option value="${k}">${v.label}</option>`)
     .join('');
 
-  // ── Utilitaires ──
-  function formatEuro(n: number): string {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency', currency: 'EUR', maximumFractionDigits: 0,
-    }).format(n);
-  }
+  // ── État ──
+  let selectedObjective: Objective  = 'revente';
+  let selectedCommune:   CommuneItem | null = null;
+  let cachedDvfResult:   DvfResult   | null = null;
 
+  // ── Formatters ──
+  function formatEuro(n: number): string {
+    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
+  }
   function formatPct(n: number, decimals = 1): string {
     return n.toFixed(decimals).replace('.', ',') + '\u202f%';
   }
-
   function formatPayback(years: number): string {
     if (years >= 30) return '> 30 ans';
     if (years >= 10) return `${Math.round(years)}\u00a0ans`;
     return `${years.toFixed(1).replace('.', ',')}\u00a0ans`;
   }
 
+  // ── DOM helpers ──
   function el<T extends HTMLElement = HTMLElement>(id: string): T {
     return document.getElementById(id) as T;
   }
-
   function show(id: string): void { el(id)?.classList.remove('hidden'); }
   function hide(id: string): void { el(id)?.classList.add('hidden');    }
 
-  // ── État ──
-  let selectedObjective: Objective = 'revente';
-
-  // ── Gestion des lignes de travaux ──
+  // ── Lignes de travaux ──
   function addRow(): void {
     const container = el('work-items-container');
     const div = document.createElement('div');
     div.className = 'work-item-row pb-2 mb-1';
 
     div.innerHTML = `
-      <!-- Ligne principale : select + budget + delete -->
       <div class="grid grid-cols-[1fr_7.5rem_2.25rem] sm:grid-cols-[1fr_9rem_2.25rem] gap-2 items-center">
         <div class="relative min-w-0">
           <select class="work-type-select w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 pl-3 pr-7 py-2.5 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors cursor-pointer">
@@ -578,39 +574,29 @@ const jsonLd = {
           </svg>
         </div>
         <div class="relative">
-          <input
-            type="number" min="0" step="500" placeholder="0"
-            class="budget-input w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 pr-6 text-slate-900 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
-          />
+          <input type="number" min="0" step="500" placeholder="0"
+            class="budget-input w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 pr-6 text-slate-900 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors" />
           <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">€</span>
         </div>
-        <button
-          type="button"
-          class="delete-row-btn flex items-center justify-center h-9 w-9 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-          aria-label="Supprimer ce poste"
-        >
+        <button type="button"
+          class="delete-row-btn flex items-center justify-center h-9 w-9 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors" aria-label="Supprimer">
           <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
           </svg>
         </button>
       </div>
-
-      <!-- Champ surface ajoutée (visible uniquement pour SURFACE_TYPES) -->
       <div class="surface-extra hidden mt-1.5 ml-1 flex items-center gap-2 flex-wrap">
         <label class="text-xs text-amber-700 font-medium flex-shrink-0">Surface créée (m²) :</label>
         <div class="relative">
-          <input
-            type="number" min="1" step="1" placeholder="Ex. 25"
-            class="surface-input w-28 rounded-lg border border-amber-300 bg-amber-50/70 px-3 py-1.5 pr-9 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors"
-          />
+          <input type="number" min="1" step="1" placeholder="Ex. 25"
+            class="surface-input w-28 rounded-lg border border-amber-300 bg-amber-50/70 px-3 py-1.5 pr-9 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors" />
           <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">m²</span>
         </div>
         <p class="text-xs text-amber-600 italic">Requis pour l'impact locatif</p>
       </div>
     `;
 
-    // Toggle surface-extra sur changement de type
-    const typeSelect  = div.querySelector<HTMLSelectElement>('.work-type-select')!;
+    const typeSelect   = div.querySelector<HTMLSelectElement>('.work-type-select')!;
     const surfaceExtra = div.querySelector<HTMLElement>('.surface-extra')!;
     typeSelect.addEventListener('change', () => {
       if (SURFACE_TYPES.has(typeSelect.value)) {
@@ -622,8 +608,8 @@ const jsonLd = {
       }
     });
 
-    const deleteBtn = div.querySelector<HTMLButtonElement>('.delete-row-btn')!;
-    deleteBtn.addEventListener('click', () => deleteRow(div));
+    div.querySelector<HTMLButtonElement>('.delete-row-btn')!
+       .addEventListener('click', () => deleteRow(div));
 
     container.appendChild(div);
   }
@@ -634,14 +620,13 @@ const jsonLd = {
     if (rows.length <= 1) {
       (row.querySelector('.work-type-select') as HTMLSelectElement).value = '';
       (row.querySelector('.budget-input')     as HTMLInputElement).value  = '';
-      const surfaceExtra = row.querySelector<HTMLElement>('.surface-extra');
-      if (surfaceExtra) surfaceExtra.classList.add('hidden');
+      const se = row.querySelector<HTMLElement>('.surface-extra');
+      if (se) se.classList.add('hidden');
     } else {
       container.removeChild(row);
     }
   }
 
-  // Collecter les lignes remplies
   function getWorkItems(): WorkItemData[] {
     const rows = document.querySelectorAll<HTMLElement>('.work-item-row');
     const items: WorkItemData[] = [];
@@ -649,10 +634,8 @@ const jsonLd = {
       const type   = (row.querySelector('.work-type-select') as HTMLSelectElement).value;
       const budget = parseFloat((row.querySelector('.budget-input') as HTMLInputElement).value) || 0;
       if (type && budget > 0 && WORK_TYPES[type]) {
-        const surfaceInput = row.querySelector<HTMLInputElement>('.surface-input');
-        const surfaceAdded = SURFACE_TYPES.has(type) && surfaceInput
-          ? (parseFloat(surfaceInput.value) || null)
-          : null;
+        const si = row.querySelector<HTMLInputElement>('.surface-input');
+        const surfaceAdded = SURFACE_TYPES.has(type) && si ? (parseFloat(si.value) || null) : null;
         items.push({ type, label: WORK_TYPES[type].label, budget, surfaceAdded });
       }
     });
@@ -683,6 +666,117 @@ const jsonLd = {
     hide('result');
   }
 
+  // ── Géo : code postal → communes ──
+  async function loadCommunes(cp: string): Promise<void> {
+    const communeSel   = el<HTMLSelectElement>('commune-select');
+    const loadingLabel = el('commune-loading-label');
+
+    // Reset
+    selectedCommune  = null;
+    cachedDvfResult  = null;
+    hide('dvf-status-loaded');
+    hide('dvf-status-unavailable');
+    hide('dvf-loading');
+    hide('communes-multi-info');
+
+    if (!/^\d{5}$/.test(cp)) {
+      communeSel.innerHTML = '<option value="">— entrez un code postal —</option>';
+      communeSel.disabled  = true;
+      return;
+    }
+
+    loadingLabel?.classList.remove('hidden');
+    communeSel.disabled  = true;
+    communeSel.innerHTML = '<option value="">Chargement…</option>';
+
+    try {
+      const resp = await fetch(`/api/geo-communes?code_postal=${cp}`);
+      const data = await resp.json() as { communes: CommuneItem[] };
+      const communes = data.communes ?? [];
+
+      if (communes.length === 0) {
+        communeSel.innerHTML = '<option value="">Aucune commune trouvée</option>';
+        communeSel.disabled  = true;
+        return;
+      }
+
+      // Peupler
+      communeSel.innerHTML = communes.length > 1
+        ? '<option value="">Choisissez une commune…</option>'
+        : '';
+      communes.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value       = c.codeInsee;
+        opt.textContent = c.nom;
+        communeSel.appendChild(opt);
+      });
+      communeSel.disabled = false;
+
+      if (communes.length === 1) {
+        // Auto-sélection
+        communeSel.value = communes[0].codeInsee;
+        selectedCommune  = communes[0];
+        await fetchDvfForCommune();
+      } else {
+        show('communes-multi-info');
+      }
+
+    } catch {
+      communeSel.innerHTML = '<option value="">Erreur de chargement</option>';
+      communeSel.disabled  = true;
+    } finally {
+      loadingLabel?.classList.add('hidden');
+    }
+  }
+
+  // ── DVF : commune + type_bien → prix/m² ──
+  async function fetchDvfForCommune(): Promise<void> {
+    const typeBien = (el<HTMLSelectElement>('property-type').value || '');
+
+    hide('dvf-status-loaded');
+    hide('dvf-status-unavailable');
+    cachedDvfResult = null;
+
+    if (!selectedCommune) return;
+    if (!typeBien) return; // attendons la sélection du type de bien
+
+    show('dvf-loading');
+
+    try {
+      const url = `/api/market-prices?code_insee=${selectedCommune.codeInsee}&type_bien=${encodeURIComponent(typeBien)}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+
+      const data = await resp.json() as {
+        dvf_available: boolean;
+        prix_m2: number | null;
+        source: string;
+        zone_label: string;
+        note?: string;
+        niveau_fiabilite?: 'bon' | 'moyen' | 'faible';
+        nb_transactions?: number;
+      };
+
+      if (data.dvf_available && data.prix_m2) {
+        cachedDvfResult = data as DvfResult;
+        const fiab = data.niveau_fiabilite ? ` · fiabilité ${data.niveau_fiabilite}` : '';
+        el('dvf-status-text').textContent =
+          `${selectedCommune.nom} · ${data.prix_m2.toLocaleString('fr-FR')}\u00a0€/m²${fiab}`;
+        show('dvf-status-loaded');
+      } else {
+        el('dvf-unavail-text').textContent =
+          data.note || 'Données DVF indisponibles pour cette commune.';
+        show('dvf-status-unavailable');
+      }
+
+    } catch {
+      hide('dvf-status-loaded');
+      hide('dvf-status-unavailable');
+    } finally {
+      hide('dvf-loading');
+    }
+  }
+
   // ── HTML bouton ──
   const BTN_IDLE_HTML = `
     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
@@ -704,182 +798,169 @@ const jsonLd = {
 
   // ── Calcul principal ──
   async function estimate(): Promise<void> {
-    const btn       = el<HTMLButtonElement>('btn-estimate');
-    const errorEl   = el('form-error');
-    const errorText = el('form-error-text');
-
+    const btn = el<HTMLButtonElement>('btn-estimate');
     const items = getWorkItems();
 
     if (items.length === 0) {
-      errorText.textContent = 'Ajoutez au moins un poste de travaux avec un budget supérieur à 0.';
+      el('form-error-text').textContent = 'Ajoutez au moins un poste de travaux avec un budget supérieur à 0.';
       show('form-error');
       return;
     }
     hide('form-error');
 
-    btn.disabled = true;
+    btn.disabled  = true;
     btn.innerHTML = BTN_LOADING_HTML;
     dispatchScoreEvent({ status: 'loading' });
 
-    // ── Lancer en parallèle : scores stratégiques + DVF ──
-    const propertyValue   = parseFloat(el<HTMLInputElement>('property-value').value)   || 0;
-    const currentSurface  = parseFloat(el<HTMLInputElement>('property-surface').value) || 0;
-    const zipCode         = (el<HTMLInputElement>('property-zip').value   || '').trim();
-    const typeBien        = (el<HTMLSelectElement>('property-type').value || '');
-
-    // Promesse scores
-    const scoresPromise = fetch('/api/strategic-scores', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: items.map(i => ({ job_type: i.type, amount_ht: i.budget })) }),
-    }).then(r => r.ok ? r.json() : null).catch(() => null);
-
-    // Promesse DVF (uniquement si CP 5 chiffres + type_bien sélectionné)
-    const dvfPromise = (zipCode.length === 5 && typeBien)
-      ? fetch('/api/market-prices', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code_postal: zipCode, type_bien: typeBien }),
-        }).then(r => r.ok ? r.json() : null).catch(() => null)
-      : Promise.resolve(null);
-
-    const [scoresData, dvfRaw] = await Promise.all([scoresPromise, dvfPromise]);
-
-    // ── Traitement scores ──
+    // ── Appel scores stratégiques (seul appel réseau dans estimate) ──
     let weightedRate: number | null = null;
-    if (scoresData && typeof scoresData.weighted_recovery_rate === 'number') {
-      weightedRate = scoresData.weighted_recovery_rate;
-      dispatchScoreEvent({ status: 'done', scores: scoresData });
-    } else {
-      dispatchScoreEvent({ status: 'error', error: 'Scores indisponibles' });
+    try {
+      const resp = await fetch('/api/strategic-scores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: items.map(i => ({ job_type: i.type, amount_ht: i.budget })) }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (typeof data.weighted_recovery_rate === 'number') weightedRate = data.weighted_recovery_rate;
+        dispatchScoreEvent({ status: 'done', scores: data });
+      } else {
+        dispatchScoreEvent({ status: 'error', error: `HTTP ${resp.status}` });
+      }
+    } catch {
+      dispatchScoreEvent({ status: 'error', error: 'Réseau indisponible' });
     }
+
+    // Fallback taux
     if (weightedRate === null) {
       const budgetT = items.reduce((s, i) => s + i.budget, 0);
       const wSum    = items.reduce((s, i) => s + (FALLBACK_RATES[i.type] ?? 0.60) * i.budget, 0);
       weightedRate  = budgetT > 0 ? wSum / budgetT : 0.60;
     }
 
-    // ── Traitement DVF ──
-    const dvfResult: DvfResult | null = (dvfRaw && dvfRaw.available === true) ? dvfRaw as DvfResult : null;
-
-    btn.disabled = false;
+    btn.disabled  = false;
     btn.innerHTML = BTN_IDLE_HTML;
 
+    // DVF pré-chargé lors de la sélection commune
+    const dvfResult = cachedDvfResult;
+
     // ── Calculs communs ──
-    const budgetTotal = items.reduce((s, i) => s + i.budget, 0);
-    const deltaTotal  = Math.round(budgetTotal * weightedRate);
-    const newValue    = propertyValue > 0 ? propertyValue + deltaTotal : 0;
-    const dominant    = items.reduce((a, b) => a.budget >= b.budget ? a : b);
+    const budgetTotal    = items.reduce((s, i) => s + i.budget, 0);
+    const deltaTotal     = Math.round(budgetTotal * weightedRate);
+    const propertyValue  = parseFloat(el<HTMLInputElement>('property-value').value)   || 0;
+    const currentSurface = parseFloat(el<HTMLInputElement>('property-surface').value) || 0;
+    const newValue       = propertyValue > 0 ? propertyValue + deltaTotal : 0;
+    const dominant       = items.reduce((a, b) => a.budget >= b.budget ? a : b);
 
-    // ── Affichage synthèse ──
-    el('r-budget-total').textContent  = formatEuro(budgetTotal);
-    el('r-delta-value').textContent   = `+${formatEuro(deltaTotal)}`;
-    el('r-recovery-pct').textContent  = `${Math.round(weightedRate * 100)}\u202f% récupérables`;
-    el('r-dominant').textContent      = dominant.label;
+    el('r-budget-total').textContent = formatEuro(budgetTotal);
+    el('r-dominant').textContent     = dominant.label;
 
-    if (propertyValue > 100_000) {
-      el('r-new-value').textContent = formatEuro(newValue);
-      show('r-new-value-row');
+    // ── Synthèse : revente vs location ──
+    if (selectedObjective === 'revente') {
+      show('r-revente-rows');
+      hide('r-patrimoine-accord');
+      hide('r-location-summary');
+      el('r-delta-value').textContent  = `+${formatEuro(deltaTotal)}`;
+      el('r-recovery-pct').textContent = `${Math.round(weightedRate * 100)}\u202f% récupérables`;
+      if (propertyValue > 100_000) {
+        el('r-new-value').textContent = formatEuro(newValue);
+        show('r-new-value-row');
+      } else {
+        hide('r-new-value-row');
+      }
     } else {
-      hide('r-new-value-row');
+      // Location : masquer revalorisation, proposer accordéon
+      hide('r-revente-rows');
+      show('r-patrimoine-accord');
+      hide('r-location-summary'); // sera affiché après calcul locatif
+      el('r-accord-delta').textContent = `+${formatEuro(deltaTotal)}`;
+      el('r-accord-pct').textContent   = `${Math.round(weightedRate * 100)}\u202f% récupérables`;
+      if (propertyValue > 100_000) {
+        el('r-accord-newval').textContent = formatEuro(newValue);
+        show('r-accord-newval-row');
+      } else {
+        hide('r-accord-newval-row');
+      }
     }
 
-    // ── DVF encadré ──
+    // ── DVF encadré (résultats) ──
     hide('r-dvf-box');
     hide('r-dvf-unavailable');
-
     if (dvfResult) {
-      el('r-dvf-price').textContent   = `${dvfResult.prix_m2_estime.toLocaleString('fr-FR')}\u00a0€/m²`;
-      el('r-dvf-commune').textContent = dvfResult.commune;
-      el('r-dvf-fiabilite').textContent = {
+      const fiabLabel: Record<string, string> = {
         bon: 'fiabilité bonne', moyen: 'fiabilité moyenne', faible: 'fiabilité faible',
-      }[dvfResult.niveau_fiabilite];
-      el('r-dvf-nb').textContent = String(dvfResult.nb_transactions);
-
-      // Valeur indicative si surface connue
+      };
+      el('r-dvf-price').textContent   = `${dvfResult.prix_m2.toLocaleString('fr-FR')}\u00a0€/m²`;
+      el('r-dvf-commune').textContent = dvfResult.zone_label;
+      el('r-dvf-fiabilite').textContent = dvfResult.niveau_fiabilite
+        ? (fiabLabel[dvfResult.niveau_fiabilite] ?? '')
+        : '';
+      el('r-dvf-nb').textContent = String(dvfResult.nb_transactions ?? '—');
       if (currentSurface > 0) {
-        const valInd = dvfResult.prix_m2_estime * currentSurface;
-        el('r-dvf-val-display').textContent = formatEuro(Math.round(valInd));
+        el('r-dvf-val-display').textContent = formatEuro(Math.round(dvfResult.prix_m2 * currentSurface));
         show('r-dvf-val-indicative');
       } else {
         hide('r-dvf-val-indicative');
       }
       show('r-dvf-box');
-    } else if (zipCode.length === 5 && typeBien) {
-      // CP renseigné mais données indisponibles
+    } else if (selectedCommune) {
       show('r-dvf-unavailable');
     }
 
     // ── Surcapitalisation ──
     const overcapEl = el('r-overcap');
-
-    if (dvfResult && dvfResult.prix_m2_estime > 0) {
-      // Mode DVF : comparaison prix/m² cible vs marché
+    if (dvfResult && dvfResult.prix_m2 > 0) {
       const totalSurfaceAdded = items
         .filter(i => SURFACE_TYPES.has(i.type))
         .reduce((s, i) => s + (i.surfaceAdded ?? 0), 0);
       const finalSurface = (currentSurface + totalSurfaceAdded) || currentSurface;
       const prixM2Cible  = finalSurface > 0 && newValue > 0 ? newValue / finalSurface : null;
-      const marche       = dvfResult.prix_m2_estime;
+      const marche       = dvfResult.prix_m2;
 
       if (prixM2Cible !== null) {
         const ratio = prixM2Cible / marche;
         if (ratio > 1.20) {
           overcapEl.className = 'mt-4 rounded-lg border border-orange-200 bg-orange-50 p-3.5 text-sm text-orange-800 leading-relaxed';
-          overcapEl.innerHTML = `<strong>Risque élevé de surcapitalisation (ETALAB DVF).</strong> Le prix/m² cible après travaux est d'environ <strong>${formatEuro(Math.round(prixM2Cible))}/m²</strong>, soit <strong>+${Math.round((ratio - 1) * 100)}&nbsp;%</strong> au-dessus du prix médian du secteur (${formatEuro(marche)}/m²). Le marché local risque de ne pas absorber cette revalorisation.`;
+          overcapEl.innerHTML = `<strong>Risque élevé de surcapitalisation (DVF Étalab).</strong> Le prix/m² cible est d'environ <strong>${formatEuro(Math.round(prixM2Cible))}/m²</strong>, soit <strong>+${Math.round((ratio - 1) * 100)}&nbsp;%</strong> au-dessus du prix médian du secteur (${formatEuro(marche)}/m²). Le marché local risque de ne pas absorber cette revalorisation.`;
           show('r-overcap');
         } else if (ratio > 1.10) {
           overcapEl.className = 'mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-800 leading-relaxed';
-          overcapEl.innerHTML = `<strong>Vigilance.</strong> Le prix/m² cible (${formatEuro(Math.round(prixM2Cible))}/m²) dépasse de ${Math.round((ratio - 1) * 100)}&nbsp;% le marché local (${formatEuro(marche)}/m² — ETALAB DVF). Comparez avec les biens comparables avant de vous engager.`;
+          overcapEl.innerHTML = `<strong>Vigilance.</strong> Le prix/m² cible (${formatEuro(Math.round(prixM2Cible))}/m²) dépasse de ${Math.round((ratio - 1) * 100)}&nbsp;% le marché local (${formatEuro(marche)}/m² — DVF Étalab). Comparez avec les biens comparables avant de vous engager.`;
           show('r-overcap');
         } else {
           overcapEl.className = 'mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3.5 text-sm text-emerald-800 leading-relaxed';
-          overcapEl.innerHTML = `<strong>Prix cohérent avec le marché.</strong> La valeur cible (${formatEuro(Math.round(prixM2Cible))}/m²) reste en ligne avec le prix médian de votre secteur (${formatEuro(marche)}/m² — ETALAB DVF).`;
+          overcapEl.innerHTML = `<strong>Prix cohérent avec le marché.</strong> La valeur cible (${formatEuro(Math.round(prixM2Cible))}/m²) reste en ligne avec le prix médian du secteur (${formatEuro(marche)}/m² — DVF Étalab).`;
           show('r-overcap');
         }
       } else if (propertyValue > 0) {
-        // Pas de surface, fallback ratio budget/valeur
-        const budgetRatio = budgetTotal / propertyValue;
-        renderOldOvercap(overcapEl, budgetRatio, newValue);
-      } else {
-        hide('r-overcap');
-      }
+        renderOldOvercap(overcapEl, budgetTotal / propertyValue, newValue);
+      } else { hide('r-overcap'); }
+
     } else if (propertyValue > 0) {
-      // Pas de DVF : ratio budget/valeur classique
-      const budgetRatio = budgetTotal / propertyValue;
-      renderOldOvercap(overcapEl, budgetRatio, newValue);
-    } else {
-      hide('r-overcap');
-    }
+      renderOldOvercap(overcapEl, budgetTotal / propertyValue, newValue);
+    } else { hide('r-overcap'); }
 
     // ── Détail par poste ──
-    const tbody = el('r-detail-tbody');
-    tbody.innerHTML = items.map(item => {
+    el('r-detail-tbody').innerHTML = items.map(item => {
       const delta = Math.round(item.budget * weightedRate!);
       const surfaceTag = (SURFACE_TYPES.has(item.type) && item.surfaceAdded)
-        ? `<span class="ml-1 text-xs text-amber-600">(+${item.surfaceAdded}\u00a0m²)</span>`
-        : '';
+        ? `<span class="ml-1 text-xs text-amber-600">(+${item.surfaceAdded}\u00a0m²)</span>` : '';
       return `
         <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
           <td class="py-2.5 pr-2 text-sm text-slate-700">${item.label}${surfaceTag}</td>
           <td class="py-2.5 pr-1 text-right tabular-nums font-mono text-sm text-slate-700 whitespace-nowrap">${formatEuro(item.budget)}</td>
           <td class="py-2.5 text-right tabular-nums font-mono text-sm text-slate-700 whitespace-nowrap">+${formatEuro(delta)}</td>
-        </tr>
-      `;
+        </tr>`;
     }).join('');
-
     el('r-total-budget').textContent = formatEuro(budgetTotal);
     el('r-total-delta').textContent  = `+${formatEuro(deltaTotal)}`;
 
     // ── Impact locatif ──
     hide('r-location-section');
-
     if (selectedObjective === 'location') {
       show('r-location-section');
 
       const currentRent = parseFloat(el<HTMLInputElement>('current-rent').value) || 0;
-
-      // Identifier les postes surface vs non-surface
       const surfaceItems    = items.filter(i => SURFACE_TYPES.has(i.type));
       const nonSurfaceItems = items.filter(i => !SURFACE_TYPES.has(i.type));
       const hasSurfaceWork  = surfaceItems.length > 0;
@@ -890,22 +971,18 @@ const jsonLd = {
       hide('r-location-missing');
       hide('r-location-surface-warning');
       hide('r-location-note');
+      hide('r-location-summary');
 
       if (!currentRent) {
-        // Loyer non renseigné
         show('r-location-missing');
         ['r-yield-current','r-yield-after','r-new-rent','r-delta-rent','r-delta-rent-annual','r-payback']
           .forEach(id => { el(id).textContent = '—'; });
 
       } else if (hasSurfaceWork && !allSurfaceHaveM2) {
-        // Extension présente mais surface ajoutée manquante
         show('r-location-surface-warning');
-
-        // Afficher le rendement actuel si possible
         const hypoEl = el('r-yield-hypothesis');
         if (hypoEl) hypoEl.textContent = 'Calcul incomplet — surface créée manquante';
-
-        const yield0 = (propertyValue > 0) ? (currentRent * 12) / propertyValue : null;
+        const yield0 = propertyValue > 0 ? (currentRent * 12) / propertyValue : null;
         el('r-yield-current').textContent = yield0 !== null ? formatPct(yield0 * 100) : '—';
         el('r-yield-after').textContent   = '—';
         el('r-new-rent').textContent      = '—';
@@ -916,50 +993,40 @@ const jsonLd = {
       } else {
         // Calcul complet
         const hypoEl = el('r-yield-hypothesis');
-
         let deltaRentSurface    = 0;
         let deltaRentNonSurface = 0;
         const notes: string[]   = [];
 
-        // ── Composante surface (extension/combles) ──
+        // Composante surface
         if (hasSurfaceWork && totalSurfaceAdded > 0) {
-          let loyerM2: number | null = null;
-
+          let loyerM2: number;
           if (currentRent > 0 && currentSurface > 0) {
-            // Priorité 1 : loyer/m² connu
             loyerM2 = currentRent / currentSurface;
-            notes.push(`Extension : loyer au m² actuel (${formatEuro(Math.round(loyerM2 * 10) / 10)}/m²/mois)`);
-          } else if (dvfResult && dvfResult.prix_m2_estime > 0) {
-            // Priorité 2 : estimation depuis DVF (rendement brut de marché ~5%)
-            loyerM2 = (dvfResult.prix_m2_estime * 0.05) / 12;
-            notes.push(`Extension : loyer estimé depuis DVF (5% rendement brut · ${dvfResult.commune})`);
+            notes.push(`Extension : loyer au m² actuel (${(loyerM2).toFixed(1).replace('.', ',')}\u00a0€/m²/mois)`);
+          } else if (dvfResult && dvfResult.prix_m2 > 0) {
+            loyerM2 = (dvfResult.prix_m2 * 0.05) / 12;
+            notes.push(`Extension : loyer estimé via DVF (5\u202f% rendement brut · ${dvfResult.zone_label})`);
           } else {
-            // Fallback prudent : 10 €/m²/mois
             loyerM2 = 10;
-            notes.push('Extension : estimation prudente 10 €/m²/mois (loyer actuel + surface non renseignés)');
+            notes.push('Extension : estimation prudente 10\u00a0€/m²/mois');
           }
-
           deltaRentSurface = loyerM2 * totalSurfaceAdded;
         }
 
-        // ── Composante non-surface (capitalisation, plafonnée à +10%) ──
+        // Composante non-surface (capitalisation, plafonnée +10%)
         if (nonSurfaceBudget > 0 && propertyValue > 0) {
-          const nonSurfaceProportion = nonSurfaceBudget / budgetTotal;
-          const nonSurfaceDelta      = deltaTotal * nonSurfaceProportion;
-          const yield0               = (currentRent * 12) / propertyValue;
-          const rentContrib          = (nonSurfaceDelta * yield0) / 12;
-          deltaRentNonSurface        = Math.min(rentContrib, currentRent * 0.10);
-
+          const nonSurfProportion = nonSurfaceBudget / budgetTotal;
+          const nonSurfDelta      = deltaTotal * nonSurfProportion;
+          const yield0            = (currentRent * 12) / propertyValue;
+          const rentContrib       = (nonSurfDelta * yield0) / 12;
+          deltaRentNonSurface     = Math.min(rentContrib, currentRent * 0.10);
           if (hasSurfaceWork) {
-            notes.push(`Rénovation (hors extension) : capitalisation stable, plafonnée à +10%`);
+            notes.push('Rénovation (hors extension) : capitalisation stable, plafonnée à +10\u202f%');
           } else {
-            notes.push(`Hypothèse : taux de capitalisation stable, hausse de loyer plafonnée à +10%`);
-            if (hypoEl) hypoEl.textContent = 'Capitalisation stable · hausse plafonnée à +10 %';
+            notes.push('Hypothèse : capitalisation stable · hausse plafonnée à +10\u202f%');
+            if (hypoEl) hypoEl.textContent = 'Capitalisation stable · hausse plafonnée à +10\u202f%';
           }
-        } else if (nonSurfaceBudget > 0 && propertyValue <= 0) {
-          notes.push('Renseignez la valeur du bien pour calculer l\'impact locatif des travaux sans surface.');
         }
-
         if (hasSurfaceWork && nonSurfaceBudget > 0 && hypoEl) {
           hypoEl.textContent = 'Extension : loyer/m² · Rénovation : capitalisation stable';
         } else if (hasSurfaceWork && hypoEl) {
@@ -970,42 +1037,41 @@ const jsonLd = {
         const newRentTotal   = currentRent + totalDeltaRent;
         const deltaAnnual    = totalDeltaRent * 12;
         const payback        = totalDeltaRent > 0 ? budgetTotal / deltaAnnual : null;
-
-        const yield0   = propertyValue > 0 ? (currentRent * 12) / propertyValue : null;
-        const newYield = (propertyValue + deltaTotal) > 0 ? (newRentTotal * 12) / (propertyValue + deltaTotal) : null;
+        const yield0         = propertyValue > 0 ? (currentRent * 12) / propertyValue : null;
+        const newYield       = (propertyValue + deltaTotal) > 0 ? (newRentTotal * 12) / (propertyValue + deltaTotal) : null;
+        const sign           = totalDeltaRent >= 0 ? '+' : '';
 
         el('r-yield-current').textContent = yield0 !== null ? formatPct(yield0 * 100) : '—';
         el('r-yield-after').textContent   = newYield !== null ? formatPct(newYield * 100) : '—';
         el('r-new-rent').textContent      = `${formatEuro(Math.round(newRentTotal))}/mois`;
-
-        const sign = totalDeltaRent >= 0 ? '+' : '';
         el('r-delta-rent').textContent        = `${sign}${formatEuro(Math.round(totalDeltaRent))}/mois`;
         el('r-delta-rent-annual').textContent = `${sign}${formatEuro(Math.round(deltaAnnual))}/an`;
         el('r-payback').textContent           = payback !== null ? formatPayback(payback) : '—';
 
+        // Synthèse locative (top of results)
+        el('r-ls-surplus-m').textContent = `${sign}${formatEuro(Math.round(totalDeltaRent))}/m`;
+        el('r-ls-surplus-a').textContent = `${sign}${formatEuro(Math.round(deltaAnnual))}/an`;
+        el('r-ls-payback').textContent   = payback !== null ? formatPayback(payback) : '—';
+        show('r-location-summary');
+
         if (notes.length > 0) {
-          const noteEl = el('r-location-note');
-          noteEl.textContent = notes.join(' · ');
+          el('r-location-note').textContent = notes.join(' · ');
           show('r-location-note');
         }
       }
     }
 
-    // ── Afficher le résultat ──
+    // ── Afficher résultat ──
     const resultEl = el('result');
     resultEl.classList.remove('hidden');
     setTimeout(() => resultEl.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
   }
 
-  // ── Helper surcap classique (sans DVF) ──
-  function renderOldOvercap(
-    el_: HTMLElement,
-    ratio: number,
-    newValue: number,
-  ): void {
+  // ── Surcap fallback (sans DVF) ──
+  function renderOldOvercap(el_: HTMLElement, ratio: number, newValue: number): void {
     if (ratio > 0.25) {
       el_.className = 'mt-4 rounded-lg border border-orange-200 bg-orange-50 p-3.5 text-sm text-orange-800 leading-relaxed';
-      el_.innerHTML = `<strong>Risque élevé de surcapitalisation.</strong> Le budget travaux représente ${Math.round(ratio * 100)}\u202f% de la valeur du bien. Le marché local peut ne pas absorber intégralement cette revalorisation.${newValue ? ` Comparez la valeur cible (${formatEuro(newValue)}) avec les biens comparables du secteur.` : ''}`;
+      el_.innerHTML = `<strong>Risque élevé de surcapitalisation.</strong> Le budget travaux représente ${Math.round(ratio * 100)}\u202f% de la valeur du bien.${newValue ? ` Comparez la valeur cible (${formatEuro(newValue)}) avec les biens comparables du secteur.` : ''}`;
       show('r-overcap');
     } else if (ratio > 0.15) {
       el_.className = 'mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-800 leading-relaxed';
@@ -1019,6 +1085,7 @@ const jsonLd = {
   // ── Init ──
   function init(): void {
     addRow();
+
     el('btn-revente')?.addEventListener('click',  () => setObjective('revente'));
     el('btn-location')?.addEventListener('click', () => setObjective('location'));
     el('add-row-btn')?.addEventListener('click',  addRow);
@@ -1026,6 +1093,33 @@ const jsonLd = {
 
     el<HTMLInputElement>('property-value')?.addEventListener('keydown', (e) => {
       if ((e as KeyboardEvent).key === 'Enter') void estimate();
+    });
+
+    // Code postal → chargement des communes
+    el<HTMLInputElement>('property-zip')?.addEventListener('input', (e) => {
+      void loadCommunes((e.target as HTMLInputElement).value.trim());
+    });
+
+    // Sélection commune → fetch DVF
+    el<HTMLSelectElement>('commune-select')?.addEventListener('change', () => {
+      const sel  = el<HTMLSelectElement>('commune-select');
+      const code = sel.value;
+      hide('communes-multi-info');
+      if (!code) {
+        selectedCommune = null;
+        cachedDvfResult = null;
+        hide('dvf-status-loaded');
+        hide('dvf-status-unavailable');
+        return;
+      }
+      const opt = sel.options[sel.selectedIndex];
+      selectedCommune = { nom: opt.text, codeInsee: code };
+      void fetchDvfForCommune();
+    });
+
+    // Changement de type de bien → re-fetch DVF si commune déjà sélectionnée
+    el<HTMLSelectElement>('property-type')?.addEventListener('change', () => {
+      if (selectedCommune) void fetchDvfForCommune();
     });
   }
 
