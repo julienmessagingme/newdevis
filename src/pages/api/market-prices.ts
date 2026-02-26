@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
 
 const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -35,12 +35,6 @@ export const GET: APIRoute = async ({ url }) => {
       note:          'Paramètre code_insee manquant.',
     }, 400);
   }
-
-  // ── Client Supabase (anon key — lecture publique via RLS) ──
-  const supabase = createClient(
-    import.meta.env.PUBLIC_SUPABASE_URL        as string,
-    import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY as string,
-  );
 
   const { data, error } = await supabase
     .from('dvf_prices')
