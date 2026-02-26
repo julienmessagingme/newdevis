@@ -317,14 +317,18 @@ const jsonLd = {
 
               <!-- DVF encadré (résultats) -->
               <div id="r-dvf-box" class="hidden mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
-                <p class="text-[10px] font-bold uppercase tracking-widest text-blue-500 mb-2">Prix/m² indicatif · DVF (données publiques)</p>
-                <div class="flex items-end justify-between gap-4 flex-wrap">
+                <p class="text-[10px] font-bold uppercase tracking-widest text-blue-500 mb-2">Cadre marché DVF (données publiques)</p>
+                <div class="flex items-start justify-between gap-4 flex-wrap">
                   <div>
-                    <p id="r-dvf-price" class="text-2xl font-bold text-slate-900"></p>
-                    <p class="text-xs text-slate-500 mt-0.5">
+                    <div class="flex items-baseline gap-1.5">
+                      <p id="r-dvf-price" class="text-2xl font-bold text-slate-900"></p>
+                      <span class="text-xs text-slate-400">médian</span>
+                    </div>
+                    <p id="r-dvf-range" class="text-xs text-slate-500 mt-0.5"></p>
+                    <p class="text-xs text-slate-400 mt-0.5">
                       <span id="r-dvf-commune"></span> ·
                       <span id="r-dvf-fiabilite"></span> ·
-                      <span id="r-dvf-nb"></span> transactions
+                      <span id="r-dvf-nb"></span>
                     </p>
                   </div>
                   <div id="r-dvf-val-indicative" class="hidden text-right">
@@ -489,13 +493,19 @@ const jsonLd = {
   }
 
   interface DvfResult {
-    dvf_available:    true;
-    prix_m2:          number;
-    source:           string;
-    zone_label:       string;
-    note?:            string;
-    niveau_fiabilite?: 'bon' | 'moyen' | 'faible';
-    nb_transactions?:  number;
+    dvf_available: true;
+    code_insee:    string;
+    commune:       string;
+    code_postal?:  string;
+    type_bien:     string;
+    year:          number;
+    prix_m2_p25:   number | null;
+    prix_m2_p50:   number;
+    prix_m2_p75:   number | null;
+    nb_ventes:     number | null;
+    source:        string;
+    updated_at?:   string;
+    fiabilite?:    'bonne' | 'moyenne' | 'faible';
   }
 
   // ── Référentiel ──
@@ -751,25 +761,21 @@ const jsonLd = {
       const resp = await fetch(url);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
 
-      const data = await resp.json() as {
-        dvf_available: boolean;
-        prix_m2: number | null;
-        source: string;
-        zone_label: string;
-        note?: string;
-        niveau_fiabilite?: 'bon' | 'moyen' | 'faible';
-        nb_transactions?: number;
-      };
+      type DvfApiResp = DvfResult | { dvf_available: false; note?: string };
+      const data = await resp.json() as DvfApiResp;
 
-      if (data.dvf_available && data.prix_m2) {
-        cachedDvfResult = data as DvfResult;
-        const fiab = data.niveau_fiabilite ? ` · fiabilité ${data.niveau_fiabilite}` : '';
+      if (data.dvf_available && 'prix_m2_p50' in data && data.prix_m2_p50) {
+        cachedDvfResult = data;
+        const range = (data.prix_m2_p25 && data.prix_m2_p75)
+          ? ` · ${data.prix_m2_p25.toLocaleString('fr-FR')}–${data.prix_m2_p75.toLocaleString('fr-FR')}\u00a0€/m²`
+          : '';
+        const fiab = data.fiabilite ? ` · ${data.fiabilite}` : '';
         el('dvf-status-text').textContent =
-          `${selectedCommune.nom} · ${data.prix_m2.toLocaleString('fr-FR')}\u00a0€/m²${fiab}`;
+          `${data.commune} · ${data.prix_m2_p50.toLocaleString('fr-FR')}\u00a0€/m²${range}${fiab}`;
         show('dvf-status-loaded');
       } else {
         el('dvf-unavail-text').textContent =
-          data.note || 'Données DVF indisponibles pour cette commune.';
+          ('note' in data && data.note) || 'Données DVF indisponibles pour cette commune.';
         show('dvf-status-unavailable');
       }
 
@@ -903,16 +909,28 @@ const jsonLd = {
     hide('r-dvf-unavailable');
     if (dvfResult) {
       const fiabLabel: Record<string, string> = {
-        bon: 'fiabilité bonne', moyen: 'fiabilité moyenne', faible: 'fiabilité faible',
+        bonne: 'fiabilité bonne', moyenne: 'fiabilité moyenne', faible: 'fiabilité faible',
       };
-      el('r-dvf-price').textContent   = `${dvfResult.prix_m2.toLocaleString('fr-FR')}\u00a0€/m²`;
-      el('r-dvf-commune').textContent = dvfResult.zone_label;
-      el('r-dvf-fiabilite').textContent = dvfResult.niveau_fiabilite
-        ? (fiabLabel[dvfResult.niveau_fiabilite] ?? '')
-        : '';
-      el('r-dvf-nb').textContent = String(dvfResult.nb_transactions ?? '—');
+      el('r-dvf-price').textContent = `${dvfResult.prix_m2_p50.toLocaleString('fr-FR')}\u00a0€/m²`;
+      const rangeEl = el('r-dvf-range');
+      if (rangeEl) {
+        rangeEl.textContent = (dvfResult.prix_m2_p25 && dvfResult.prix_m2_p75)
+          ? `Fourchette P25–P75\u00a0: ${dvfResult.prix_m2_p25.toLocaleString('fr-FR')} – ${dvfResult.prix_m2_p75.toLocaleString('fr-FR')}\u00a0€/m²`
+          : '';
+      }
+      el('r-dvf-commune').textContent   = dvfResult.commune;
+      el('r-dvf-fiabilite').textContent = dvfResult.fiabilite ? (fiabLabel[dvfResult.fiabilite] ?? '') : '';
+      el('r-dvf-nb').textContent = dvfResult.nb_ventes
+        ? `${dvfResult.nb_ventes} ventes · ${dvfResult.year}`
+        : String(dvfResult.year ?? '');
       if (currentSurface > 0) {
-        el('r-dvf-val-display').textContent = formatEuro(Math.round(dvfResult.prix_m2 * currentSurface));
+        if (dvfResult.prix_m2_p25 && dvfResult.prix_m2_p75) {
+          const valMin = formatEuro(Math.round(dvfResult.prix_m2_p25 * currentSurface));
+          const valMax = formatEuro(Math.round(dvfResult.prix_m2_p75 * currentSurface));
+          el('r-dvf-val-display').textContent = `${valMin} – ${valMax}`;
+        } else {
+          el('r-dvf-val-display').textContent = formatEuro(Math.round(dvfResult.prix_m2_p50 * currentSurface));
+        }
         show('r-dvf-val-indicative');
       } else {
         hide('r-dvf-val-indicative');
@@ -924,27 +942,28 @@ const jsonLd = {
 
     // ── Surcapitalisation ──
     const overcapEl = el('r-overcap');
-    if (dvfResult && dvfResult.prix_m2 > 0) {
+    if (dvfResult && dvfResult.prix_m2_p50 > 0) {
       const totalSurfaceAdded = items
         .filter(i => SURFACE_TYPES.has(i.type))
         .reduce((s, i) => s + (i.surfaceAdded ?? 0), 0);
-      const finalSurface = (currentSurface + totalSurfaceAdded) || currentSurface;
-      const prixM2Cible  = finalSurface > 0 && newValue > 0 ? newValue / finalSurface : null;
-      const marche       = dvfResult.prix_m2;
+      const finalSurface  = (currentSurface + totalSurfaceAdded) || currentSurface;
+      const prixM2Cible   = finalSurface > 0 && newValue > 0 ? newValue / finalSurface : null;
+      const marcheMedian  = dvfResult.prix_m2_p50;
+      // Plafond = P75 si disponible, sinon +15% sur la médiane
+      const marchePlafond = dvfResult.prix_m2_p75 ?? Math.round(marcheMedian * 1.15);
 
       if (prixM2Cible !== null) {
-        const ratio = prixM2Cible / marche;
-        if (ratio > 1.20) {
+        if (prixM2Cible > marchePlafond * 1.10) {
           overcapEl.className = 'mt-4 rounded-lg border border-orange-200 bg-orange-50 p-3.5 text-sm text-orange-800 leading-relaxed';
-          overcapEl.innerHTML = `<strong>Risque élevé de surcapitalisation (DVF).</strong> Le prix/m² cible est d'environ <strong>${formatEuro(Math.round(prixM2Cible))}/m²</strong>, soit <strong>+${Math.round((ratio - 1) * 100)}&nbsp;%</strong> au-dessus du prix médian du secteur (${formatEuro(marche)}/m²). Le marché local risque de ne pas absorber cette revalorisation.`;
+          overcapEl.innerHTML = `<strong>Risque élevé de surcapitalisation (DVF).</strong> Le prix/m² cible (<strong>${formatEuro(Math.round(prixM2Cible))}/m²</strong>) dépasse de <strong>+${Math.round((prixM2Cible / marchePlafond - 1) * 100)}&nbsp;%</strong> le 3e quartile marché (P75\u00a0: ${formatEuro(marchePlafond)}/m²). Le marché local risque de ne pas absorber cette valorisation.`;
           show('r-overcap');
-        } else if (ratio > 1.10) {
+        } else if (prixM2Cible > marchePlafond) {
           overcapEl.className = 'mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-800 leading-relaxed';
-          overcapEl.innerHTML = `<strong>Vigilance.</strong> Le prix/m² cible (${formatEuro(Math.round(prixM2Cible))}/m²) dépasse de ${Math.round((ratio - 1) * 100)}&nbsp;% le marché local (${formatEuro(marche)}/m² — DVF). Comparez avec les biens comparables avant de vous engager.`;
+          overcapEl.innerHTML = `<strong>Vigilance.</strong> Le prix/m² cible (${formatEuro(Math.round(prixM2Cible))}/m²) dépasse le 3e quartile marché (P75\u00a0: ${formatEuro(marchePlafond)}/m² — DVF ${dvfResult.year}). Comparez avec des biens comparables avant de vous engager.`;
           show('r-overcap');
         } else {
           overcapEl.className = 'mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3.5 text-sm text-emerald-800 leading-relaxed';
-          overcapEl.innerHTML = `<strong>Prix cohérent avec le marché.</strong> La valeur cible (${formatEuro(Math.round(prixM2Cible))}/m²) reste en ligne avec le prix médian du secteur (${formatEuro(marche)}/m² — DVF).`;
+          overcapEl.innerHTML = `<strong>Prix dans la fourchette marché.</strong> La valeur cible (${formatEuro(Math.round(prixM2Cible))}/m²) s'inscrit dans le cadre DVF ${dvfResult.year} — médian\u00a0: ${formatEuro(marcheMedian)}/m²${dvfResult.prix_m2_p75 ? `, P75\u00a0: ${formatEuro(dvfResult.prix_m2_p75)}/m²` : ''}.`;
           show('r-overcap');
         }
       } else if (propertyValue > 0) {
@@ -1018,9 +1037,9 @@ const jsonLd = {
           if (currentRent > 0 && currentSurface > 0) {
             loyerM2 = currentRent / currentSurface;
             notes.push(`Extension : loyer au m² actuel (${(loyerM2).toFixed(1).replace('.', ',')}\u00a0€/m²/mois)`);
-          } else if (dvfResult && dvfResult.prix_m2 > 0) {
-            loyerM2 = (dvfResult.prix_m2 * 0.05) / 12;
-            notes.push(`Extension : loyer estimé via DVF (5\u202f% rendement brut · ${dvfResult.zone_label})`);
+          } else if (dvfResult && dvfResult.prix_m2_p50 > 0) {
+            loyerM2 = (dvfResult.prix_m2_p50 * 0.05) / 12;
+            notes.push(`Extension : loyer estimé via DVF (5\u202f% rendement brut · ${dvfResult.commune})`);
           } else {
             loyerM2 = 10;
             notes.push('Extension : estimation prudente 10\u00a0€/m²/mois');

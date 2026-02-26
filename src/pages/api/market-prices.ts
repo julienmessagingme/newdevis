@@ -2,62 +2,100 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 
-const CORS: Record<string, string> = {
+const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Content-Type': 'application/json',
 };
 
-function json(data: unknown, status = 200): Response {
+function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: CORS });
 }
 
-type NiveauFiabilite = 'bon' | 'moyen' | 'faible';
+type Fiabilite = 'bonne' | 'moyenne' | 'faible';
 
-function fiabilite(nb: number | null | undefined): NiveauFiabilite {
-  if (!nb || nb < 3)  return 'faible';
-  if (nb >= 30)       return 'bon';
-  if (nb >= 10)       return 'moyen';
-  return 'faible';
+function fiabilite(nb: number | null | undefined): Fiabilite {
+  if (!nb || nb < 20) return 'faible';
+  if (nb >= 50)       return 'bonne';
+  return 'moyenne';
 }
 
-interface DvfRow {
-  commune: string;
-  prix_m2: number | null;
+interface DvfYearlyRow {
+  code_insee:  string;
+  commune:     string;
+  code_postal: string;
+  type_bien:   string;
+  year:        number;
+  prix_m2_p25: number | null;
+  prix_m2_p50: number | null;
+  prix_m2_p75: number | null;
+  nb_ventes:   number | null;
+  source:      string | null;
+  updated_at:  string | null;
 }
 
-// ── GET /api/market-prices?code_insee=...&type_bien=... ──────
+// ── GET /api/market-prices ────────────────────────────────────
+// Paramètres principaux  : code_insee + type_bien
+// Fallback               : code_postal + commune + type_bien
+// Retourne la dernière année disponible (order=year.desc&limit=1)
+//
+// Exemple :
+//   /api/market-prices?code_insee=31555&type_bien=maison
+//   /api/market-prices?code_insee=69123&type_bien=appartement
+//   /api/market-prices?code_postal=31000&commune=Toulouse&type_bien=maison
 export const GET: APIRoute = async ({ url }) => {
-  const codeInsee = url.searchParams.get('code_insee')?.trim() ?? '';
-  const typeBien  = url.searchParams.get('type_bien')?.trim().toLowerCase() ?? '';
+  const codeInsee  = url.searchParams.get('code_insee')?.trim()  ?? '';
+  const typeBien   = url.searchParams.get('type_bien')?.trim().toLowerCase() ?? '';
+  const codePostal = url.searchParams.get('code_postal')?.trim() ?? '';
+  const communeQ   = url.searchParams.get('commune')?.trim()     ?? '';
 
-  if (!codeInsee) {
-    return json({ dvf_available: false, prix_m2: null, source: 'DVF (données publiques)', zone_label: '', note: 'Paramètre code_insee manquant.' }, 400);
+  // ── Validation ─────────────────────────────────────────────
+  if (!typeBien || !['maison', 'appartement'].includes(typeBien)) {
+    return json({ error: "type_bien invalide — valeurs acceptées : 'maison' | 'appartement'" }, 400);
+  }
+  if (!codeInsee && !codePostal) {
+    return json({ error: 'code_insee requis (ou code_postal + commune en fallback)' }, 400);
   }
 
-  // ── Résolution des variables d'env (VITE_ ou PUBLIC_) ──
+  // ── Env vars (VITE_ ou PUBLIC_) ────────────────────────────
   const SUPA_URL = (
     import.meta.env.VITE_SUPABASE_URL ??
-    import.meta.env.PUBLIC_SUPABASE_URL ??
-    ''
+    import.meta.env.PUBLIC_SUPABASE_URL ?? ''
   ) as string;
   const SUPA_KEY = (
     import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ??
-    import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-    ''
+    import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? ''
   ) as string;
 
   if (!SUPA_URL || !SUPA_KEY) {
-    return json({ dvf_available: false, prix_m2: null, source: 'DVF (données publiques)', zone_label: codeInsee, note: 'Config Supabase manquante (env vars).' });
+    return json({ error: 'Config Supabase manquante (env vars).' }, 500);
   }
 
-  // ── Requête REST Supabase directe (pas de lib client) ──
-  const restUrl =
-    `${SUPA_URL}/rest/v1/dvf_prices` +
-    `?code_insee=eq.${encodeURIComponent(codeInsee)}` +
-    `&select=commune,prix_m2` +
-    `&limit=1`;
+  // ── Build URL REST ─────────────────────────────────────────
+  const SELECT = 'code_insee,commune,code_postal,type_bien,year,prix_m2_p25,prix_m2_p50,prix_m2_p75,nb_ventes,source,updated_at';
+  let restUrl: string;
 
-  let rows: DvfRow[];
+  if (codeInsee) {
+    restUrl =
+      `${SUPA_URL}/rest/v1/dvf_prices_yearly` +
+      `?code_insee=eq.${encodeURIComponent(codeInsee)}` +
+      `&type_bien=eq.${encodeURIComponent(typeBien)}` +
+      `&order=year.desc&limit=1` +
+      `&select=${SELECT}`;
+  } else {
+    const communeFilter = communeQ
+      ? `&commune=ilike.${encodeURIComponent(communeQ + '*')}`
+      : '';
+    restUrl =
+      `${SUPA_URL}/rest/v1/dvf_prices_yearly` +
+      `?code_postal=eq.${encodeURIComponent(codePostal)}` +
+      communeFilter +
+      `&type_bien=eq.${encodeURIComponent(typeBien)}` +
+      `&order=year.desc&limit=1` +
+      `&select=${SELECT}`;
+  }
+
+  // ── Fetch ──────────────────────────────────────────────────
+  let rows: DvfYearlyRow[];
   try {
     const resp = await fetch(restUrl, {
       headers: {
@@ -70,32 +108,48 @@ export const GET: APIRoute = async ({ url }) => {
 
     if (!resp.ok) {
       const errText = await resp.text().catch(() => resp.statusText);
-      return json({ dvf_available: false, prix_m2: null, source: 'DVF (données publiques)', zone_label: codeInsee, note: `Erreur Supabase ${resp.status}: ${errText}` });
+      return json(
+        { error: `Erreur Supabase ${resp.status}: ${errText}` },
+        resp.status >= 500 ? 500 : 404,
+      );
     }
-
-    rows = await resp.json() as DvfRow[];
+    rows = await resp.json() as DvfYearlyRow[];
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return json({ dvf_available: false, prix_m2: null, source: 'DVF (données publiques)', zone_label: codeInsee, note: `Erreur réseau: ${msg}` });
+    return json({ error: `Erreur réseau: ${msg}` }, 500);
   }
 
-  const data = rows[0] ?? null;
+  const row = rows[0] ?? null;
 
-  if (!data) {
-    return json({ dvf_available: false, prix_m2: null, source: 'DVF (données publiques)', zone_label: codeInsee, note: 'Données DVF non disponibles pour cette commune (bientôt couvert).' });
+  if (!row) {
+    return json({
+      dvf_available: false,
+      note: `Aucune donnée DVF ${typeBien} pour ${codeInsee || codePostal} (bientôt couvert).`,
+    }, 404);
   }
 
-  if (!data.prix_m2) {
-    return json({ dvf_available: false, prix_m2: null, source: 'DVF (données publiques)', zone_label: data.commune, note: `Pas de données DVF pour ${data.commune}.` });
+  if (!row.prix_m2_p50) {
+    return json({
+      dvf_available: false,
+      note: `Prix médian manquant pour ${row.commune} (${typeBien}).`,
+    }, 404);
   }
 
+  // ── Réponse ────────────────────────────────────────────────
   return json({
-    dvf_available:    true,
-    prix_m2:          Math.round(data.prix_m2),
-    source:           'DVF (données publiques)',
-    zone_label:       data.commune,
-    niveau_fiabilite: 'moyen' as NiveauFiabilite,
-    nb_transactions:  null,
+    dvf_available: true,
+    code_insee:    row.code_insee,
+    commune:       row.commune,
+    code_postal:   row.code_postal,
+    type_bien:     row.type_bien,
+    year:          row.year,
+    prix_m2_p25:   row.prix_m2_p25 !== null ? Math.round(row.prix_m2_p25) : null,
+    prix_m2_p50:   Math.round(row.prix_m2_p50),
+    prix_m2_p75:   row.prix_m2_p75 !== null ? Math.round(row.prix_m2_p75) : null,
+    nb_ventes:     row.nb_ventes,
+    source:        row.source ?? 'DVF (données publiques)',
+    updated_at:    row.updated_at,
+    fiabilite:     fiabilite(row.nb_ventes),
   });
 };
 
