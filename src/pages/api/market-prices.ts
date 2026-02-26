@@ -11,17 +11,79 @@ function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: CORS });
 }
 
-interface DvfMutation {
-  valeur_fonciere:     string | number;
-  surface_reelle_bati: string | number;
+/** Extrait le code département depuis un code INSEE (gère Corse + DOM) */
+function getDeptCode(insee: string): string {
+  if (insee.startsWith('2A') || insee.startsWith('2B')) return insee.slice(0, 2);
+  if (insee.startsWith('97')) return insee.slice(0, 3);
+  return insee.slice(0, 2);
 }
 
-interface DvfResponse {
-  count:   number;
-  results: DvfMutation[];
+function median(arr: number[]): number {
+  const sorted = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 !== 0
+    ? sorted[mid]!
+    : ((sorted[mid - 1]! + sorted[mid]!) / 2);
 }
 
-// ── GET /api/market-prices?code_insee=...&type_bien=... ──
+/** Parse le CSV DVF et retourne la liste des prix/m² filtrés (1 par mutation) */
+function parseDvfCsv(text: string, targetTypeLocal: string): number[] {
+  const lines = text.split('\n');
+  if (lines.length < 2) return [];
+
+  const headers = (lines[0] ?? '').split(',');
+  const idxId      = headers.indexOf('id_mutation');
+  const idxNature  = headers.indexOf('nature_mutation');
+  const idxValeur  = headers.indexOf('valeur_fonciere');
+  const idxSurface = headers.indexOf('surface_reelle_bati');
+  const idxType    = headers.indexOf('type_local');
+
+  if (idxValeur < 0 || idxSurface < 0 || idxType < 0) return [];
+
+  const seen = new Set<string>();
+  const prices: number[] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const line = (lines[i] ?? '').trim();
+    if (!line) continue;
+
+    const cols = line.split(',');
+
+    // Déduplique par id_mutation pour éviter de compter 2× une même vente
+    const mutId = idxId >= 0 ? (cols[idxId] ?? '') : `${i}`;
+    if (mutId && seen.has(mutId)) continue;
+
+    if (cols[idxNature] !== 'Vente') continue;
+    if (cols[idxType] !== targetTypeLocal) continue;
+
+    const valeur  = parseFloat(cols[idxValeur]  ?? '');
+    const surface = parseFloat(cols[idxSurface] ?? '');
+
+    if (!valeur || !surface || surface < 9 || valeur < 15_000) continue;
+
+    const prixM2 = valeur / surface;
+    if (prixM2 < 500 || prixM2 > 30_000) continue;
+
+    if (mutId) seen.add(mutId);
+    prices.push(prixM2);
+  }
+
+  return prices;
+}
+
+/** Tente de télécharger le CSV pour une année donnée, renvoie le texte ou null */
+async function fetchCsv(dept: string, insee: string, year: number): Promise<string | null> {
+  const url = `https://files.data.gouv.fr/geo-dvf/latest/csv/${year}/communes/${dept}/${insee}.csv`;
+  try {
+    const resp = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    if (!resp.ok) return null;
+    return await resp.text();
+  } catch {
+    return null;
+  }
+}
+
+// ── GET /api/market-prices?code_insee=...&type_bien=... ──────────────────────
 export const GET: APIRoute = async ({ url }) => {
   const codeInsee = url.searchParams.get('code_insee')?.trim() ?? '';
   const typeBien  = url.searchParams.get('type_bien')?.trim()  ?? '';
@@ -30,103 +92,78 @@ export const GET: APIRoute = async ({ url }) => {
     return json({
       dvf_available: false,
       prix_m2:       null,
-      source:        'DVF Etalab',
+      source:        'DVF data.gouv.fr',
       zone_label:    '',
       note:          'Paramètres manquants (code_insee + type_bien requis)',
     }, 400);
   }
 
-  const typeLocal = typeBien === 'maison' ? 'Maison' : 'Appartement';
+  // Mapping type_bien → type_local DVF
+  const typeLocalMap: Record<string, string> = {
+    maison:        'Maison',
+    appartement:   'Appartement',
+    villa:         'Maison',
+    pavillon:      'Maison',
+    studio:        'Appartement',
+    loft:          'Appartement',
+  };
+  const targetTypeLocal = typeLocalMap[typeBien.toLowerCase()] ?? 'Maison';
+  const dept = getDeptCode(codeInsee);
 
-  // ── Résolution du nom de commune (non bloquant) ──
-  let communeName = codeInsee;
-  try {
-    const nameResp = await fetch(
-      `https://geo.api.gouv.fr/communes/${codeInsee}?fields=nom`,
-      { signal: AbortSignal.timeout(3000) },
-    );
-    if (nameResp.ok) {
-      const d = await nameResp.json() as { nom?: string };
-      if (d.nom) communeName = d.nom;
-    }
-  } catch { /* non critique */ }
+  // Résolution commune + téléchargement CSV en parallèle
+  const [communeResult, csv2024] = await Promise.all([
+    fetch(`https://geo.api.gouv.fr/communes/${codeInsee}?fields=nom`, {
+      signal: AbortSignal.timeout(4_000),
+    }).then(r => r.ok ? r.json() as Promise<{ nom?: string }> : null).catch(() => null),
+    fetchCsv(dept, codeInsee, 2024),
+  ]);
 
-  // ── DVF ──
-  const dvfUrl =
-    `https://api.dvf.etalab.gouv.fr/geoapi/mutations/` +
-    `?code_commune=${codeInsee}` +
-    `&type_local=${encodeURIComponent(typeLocal)}` +
-    `&date_mutation_min=2021-01-01` +
-    `&fields=valeur_fonciere,surface_reelle_bati` +
-    `&page_size=200`;
+  const communeName: string =
+    (communeResult as { nom?: string } | null)?.nom ?? codeInsee;
 
-  let dvfData: DvfResponse;
-  try {
-    const dvfResp = await fetch(dvfUrl, { signal: AbortSignal.timeout(6000) });
-    if (!dvfResp.ok) {
-      return json({
-        dvf_available: false,
-        prix_m2:       null,
-        source:        'DVF Etalab',
-        zone_label:    communeName,
-        note:          `DVF indisponible pour ${communeName}`,
-      });
-    }
-    dvfData = await dvfResp.json() as DvfResponse;
-  } catch {
+  // Si 2024 absent ou trop court, essai 2023
+  let csvText = csv2024;
+  let annee   = 2024;
+  if (!csvText || csvText.split('\n').length < 5) {
+    csvText = await fetchCsv(dept, codeInsee, 2023);
+    annee   = 2023;
+  }
+
+  if (!csvText) {
     return json({
       dvf_available: false,
       prix_m2:       null,
-      source:        'DVF Etalab',
+      source:        'DVF data.gouv.fr',
       zone_label:    communeName,
-      note:          `DVF indisponible — timeout pour ${communeName}`,
+      note:          `Aucune donnée DVF disponible pour ${communeName}`,
     });
   }
 
-  const results = dvfData.results ?? [];
+  const prices = parseDvfCsv(csvText, targetTypeLocal);
 
-  // Filtrage : surface plausible, prix/m² [500–30 000]
-  const valid = results
-    .map(r => ({
-      price:   typeof r.valeur_fonciere    === 'string' ? parseFloat(r.valeur_fonciere)    : r.valeur_fonciere,
-      surface: typeof r.surface_reelle_bati === 'string' ? parseFloat(r.surface_reelle_bati) : r.surface_reelle_bati,
-    }))
-    .filter(r =>
-      r.surface > 9
-      && r.price > 15_000
-      && r.price / r.surface >= 500
-      && r.price / r.surface <= 30_000
-    );
-
-  if (valid.length < 3) {
+  if (prices.length < 3) {
     return json({
       dvf_available: false,
       prix_m2:       null,
-      source:        'DVF Etalab',
+      source:        'DVF data.gouv.fr',
       zone_label:    communeName,
-      note:          `DVF indisponible — transactions insuffisantes pour ${communeName} (${valid.length} valide(s) sur ${results.length} brutes)`,
+      note:          `Pas assez de transactions ${targetTypeLocal.toLowerCase()} à ${communeName} (${prices.length} trouvée${prices.length > 1 ? 's' : ''})`,
     });
   }
 
-  // Médiane prix/m²
-  const pricesPerM2 = valid.map(r => r.price / r.surface).sort((a, b) => a - b);
-  const mid         = Math.floor(pricesPerM2.length / 2);
-  const median      = pricesPerM2.length % 2 !== 0
-    ? pricesPerM2[mid]
-    : (pricesPerM2[mid - 1] + pricesPerM2[mid]) / 2;
-
+  const prixM2          = Math.round(median(prices));
   const niveau_fiabilite =
-    valid.length >= 30 ? 'bon' :
-    valid.length >= 10 ? 'moyen' :
+    prices.length >= 30 ? 'bon' :
+    prices.length >= 10 ? 'moyen' :
     'faible';
 
   return json({
     dvf_available:    true,
-    prix_m2:          Math.round(median),
-    source:           'DVF Etalab',
+    prix_m2:          prixM2,
+    source:           `DVF data.gouv.fr (${annee})`,
     zone_label:       communeName,
     niveau_fiabilite,
-    nb_transactions:  valid.length,
+    nb_transactions:  prices.length,
   });
 };
 

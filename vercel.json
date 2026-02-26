@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "src/pages/api/market-prices.ts": {
+      "maxDuration": 30
+    }
+  }
+}
