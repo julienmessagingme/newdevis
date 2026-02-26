@@ -199,28 +199,9 @@ const jsonLd = {
           </div>
 
           <!-- Deux cartes sobres -->
-          <div class="grid sm:grid-cols-2 gap-3 mb-6">
+          <div class="grid sm:grid-cols-2 gap-3">
 
-            <!-- Carte 1 -->
-            <a
-              href="/simulateur-valorisation-travaux"
-              class="flex flex-col border border-slate-200 rounded-xl p-5 hover:border-slate-300 hover:bg-slate-50/50 transition-colors"
-            >
-              <p class="text-sm font-semibold text-slate-800 mb-1.5">
-                Estimer le prix moyen des travaux
-              </p>
-              <p class="text-sm text-slate-500 leading-relaxed flex-1">
-                Comparez votre projet aux prix observés sur le marché.
-              </p>
-              <span class="mt-3 text-xs font-medium text-slate-400 inline-flex items-center gap-1">
-                Accéder au simulateur
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                </svg>
-              </span>
-            </a>
-
-            <!-- Carte 2 -->
+            <!-- Carte A : Impact valorisation → simulateur dédié -->
             <a
               href="/simulateur-valorisation-travaux"
               class="flex flex-col border border-slate-200 rounded-xl p-5 hover:border-slate-300 hover:bg-slate-50/50 transition-colors"
@@ -232,17 +213,46 @@ const jsonLd = {
                 Découvrez si vos travaux seront réellement valorisés à la revente ou en location.
               </p>
               <span class="mt-3 text-xs font-medium text-slate-400 inline-flex items-center gap-1">
-                Accéder au simulateur
+                Simulateur de valorisation
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                 </svg>
               </span>
             </a>
 
+            <!-- Carte B : Prix moyen → ancre vers le calculateur ci-dessous -->
+            <a
+              href="#simulateur-prix"
+              class="flex flex-col border border-slate-200 rounded-xl p-5 hover:border-slate-300 hover:bg-slate-50/50 transition-colors"
+            >
+              <p class="text-sm font-semibold text-slate-800 mb-1.5">
+                Estimer le prix moyen des travaux
+              </p>
+              <p class="text-sm text-slate-500 leading-relaxed flex-1">
+                Consultez les prix observés sur le marché pour chaque type de travaux.
+              </p>
+              <span class="mt-3 text-xs font-medium text-slate-400 inline-flex items-center gap-1">
+                Voir les prix de référence
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </span>
+            </a>
+
           </div>
 
-          <!-- Encadré : Une seule méthode d'analyse -->
-          <div class="border border-slate-200 rounded-xl p-5 sm:p-6 bg-white">
+        </div>
+      </section>
+
+      <!-- ══ Simulateur prix (ancre #simulateur-prix) ══ -->
+      <div id="simulateur-prix" class="scroll-mt-16">
+        <DevisCalculatorSection client:visible />
+      </div>
+
+      <!-- ══ Encadré : Une seule méthode d'analyse ══ -->
+      <section class="py-8 bg-white border-b border-slate-100">
+        <div class="container max-w-3xl">
+          <div class="border border-slate-200 rounded-xl p-5 sm:p-6">
             <p class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">
               Une seule méthode d'analyse.
             </p>
@@ -268,11 +278,9 @@ const jsonLd = {
               </li>
             </ul>
           </div>
-
         </div>
       </section>
 
-      <DevisCalculatorSection client:visible />
       <HowItWorksSection client:visible />
       <PostSignatureValueSection client:visible />
       <ScoringExplainedSection client:visible />
