@@ -262,10 +262,24 @@ const jsonLd = {
         </div>
       </section>
 
-      <!-- ══ Calculette prix de travaux ══ -->
-      <div id="calculette-prix" class="scroll-mt-16">
-        <DevisCalculatorSection client:visible />
-      </div>
+      <!-- ══ Teaser calculette (passerelle sobre vers #calculette-prix) ══ -->
+      <section class="py-5 bg-slate-50 border-b border-slate-100">
+        <div class="container max-w-3xl">
+          <div class="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <p class="text-sm font-bold text-slate-800 mb-0.5">Calculette prix travaux</p>
+              <p class="text-sm text-slate-500">Comparez votre projet aux prix observés — accessible en 1 clic.</p>
+            </div>
+            <a href="#calculette-prix" class="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors flex-shrink-0">
+              Accéder maintenant
+              <!-- ArrowDown -->
+              <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3" />
+              </svg>
+            </a>
+          </div>
+        </div>
+      </section>
 
       <!-- ══ Encadré : Une seule méthode d'analyse ══ -->
       <section class="py-8 bg-white border-b border-slate-100">
@@ -300,6 +314,12 @@ const jsonLd = {
       </section>
 
       <HowItWorksSection client:visible />
+
+      <!-- ══ Calculette prix de travaux ══ -->
+      <div id="calculette-prix" class="scroll-mt-16">
+        <DevisCalculatorSection client:visible />
+      </div>
+
       <PostSignatureValueSection client:visible />
       <ScoringExplainedSection client:visible />
 
