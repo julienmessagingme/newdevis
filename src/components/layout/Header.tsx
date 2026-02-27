@@ -14,7 +14,6 @@ const Header = () => {
             src="/images/logo-header.png"
             width={64}
             height={64}
-            loading="lazy"
           />
           <span className="text-base sm:text-2xl font-bold leading-none">
             <span className={isLandingPage ? 'text-primary-foreground' : 'text-foreground'}>VerifierMon</span><span className="text-orange-500">Devis</span><span className={`text-sm sm:text-lg font-semibold ${isLandingPage ? 'text-primary-foreground/70' : 'text-foreground/60'}`}>.fr</span>
@@ -63,6 +62,12 @@ const Header = () => {
             </a>
             <a href="/qui-sommes-nous" className={`text-sm font-medium ${isLandingPage ? 'text-primary' : 'text-muted-foreground'}`} onClick={() => setMobileMenuOpen(false)}>
               Qui sommes-nous
+            </a>
+            <a href="/valorisation-travaux-immobiliers" className={`text-sm font-medium ${isLandingPage ? 'text-primary' : 'text-muted-foreground'}`} onClick={() => setMobileMenuOpen(false)}>
+              Valorisation des travaux
+            </a>
+            <a href="/simulateur-valorisation-travaux" className={`text-sm font-medium ${isLandingPage ? 'text-primary' : 'text-muted-foreground'}`} onClick={() => setMobileMenuOpen(false)}>
+              Arbitrage travaux
             </a>
             <div className="flex flex-col gap-2 pt-2">
               <a href="/connexion" onClick={() => setMobileMenuOpen(false)}>

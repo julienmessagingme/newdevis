@@ -1,41 +1,337 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import ComprendreScoreApp from '@/components/app/ComprendreScoreApp';
+import Header from '@/components/astro/Header.astro';
+import Footer from '@/components/astro/Footer.astro';
 
 export const prerender = false;
+
+const fromAnalysis = Astro.url.searchParams.get("fromAnalysis") === "true";
+const analysisId = Astro.url.searchParams.get("analysisId");
 ---
 
 <BaseLayout
   title="Comprendre le score de fiabilité | VerifierMonDevis.fr"
   description="Découvrez comment interpréter le score Feu Vert, Orange ou Rouge de votre devis artisan. Critères d'analyse, actions conseillées et explications."
-  canonical="https://verifiermondevis.fr/comprendre-score"
+  canonical="https://www.verifiermondevis.fr/comprendre-score"
   breadcrumbs={[
-    { name: "Accueil", url: "https://verifiermondevis.fr/" },
-    { name: "Comprendre le score", url: "https://verifiermondevis.fr/comprendre-score" }
+    { name: "Accueil", url: "https://www.verifiermondevis.fr/" },
+    { name: "Comprendre le score", url: "https://www.verifiermondevis.fr/comprendre-score" }
   ]}
   jsonLd={{
     "@context": "https://schema.org",
-    "@type": "HowTo",
-    "name": "Comment interpréter le score de fiabilité d'un devis",
+    "@type": "Article",
+    "headline": "Comment interpréter le score de fiabilité d'un devis",
     "description": "Guide pour comprendre le score Feu Vert, Orange ou Rouge attribué à votre devis artisan par VerifierMonDevis.fr.",
-    "step": [
-      {
-        "@type": "HowToStep",
-        "name": "Téléchargez votre devis",
-        "text": "Uploadez votre devis au format PDF ou image sur VerifierMonDevis.fr"
-      },
-      {
-        "@type": "HowToStep",
-        "name": "Analyse automatique",
-        "text": "Notre outil vérifie l'entreprise, les prix, les assurances et les conditions de paiement"
-      },
-      {
-        "@type": "HowToStep",
-        "name": "Interprétez le score",
-        "text": "Feu vert = aucun critère critique. Feu orange = points de vigilance. Feu rouge = situation critique détectée."
-      }
-    ]
+    "author": { "@type": "Person", "name": "Julien Dumas" },
+    "publisher": {
+      "@type": "Organization",
+      "name": "VerifierMonDevis.fr",
+      "logo": { "@type": "ImageObject", "url": "https://www.verifiermondevis.fr/images/logo-header.png" }
+    }
   }}
 >
-  <ComprendreScoreApp client:only="react" />
+  <div class="min-h-screen flex flex-col">
+    <Header />
+
+    <main class="flex-1 py-12 md:py-20 bg-background">
+      <div class="container max-w-4xl">
+        <!-- Back button if coming from analysis -->
+        {fromAnalysis && analysisId && (
+          <a
+            href={`/analyse/${analysisId}`}
+            class="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors"
+          >
+            <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+            Revenir à mon analyse
+          </a>
+        )}
+
+        <!-- Title -->
+        <div class="text-center mb-12">
+          <div class="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <svg class="h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+          </div>
+          <h1 class="text-3xl md:text-4xl font-bold text-foreground mb-4">
+            Comment interpréter votre score
+          </h1>
+          <p class="text-lg text-muted-foreground max-w-2xl mx-auto">
+            Ce score est une aide à la décision basée sur le devis transmis et des sources publiques.
+            Il met en avant des indicateurs de vigilance, <strong class="text-foreground">sans jugement sur l'artisan</strong>.
+          </p>
+        </div>
+
+        <!-- Score Cards -->
+        <div class="space-y-6 mb-16">
+          <!-- FEU VERT -->
+          <div class="bg-score-green-bg border-score-green/30 border-2 rounded-2xl p-6 md:p-8">
+            <div class="flex items-start gap-4 mb-6">
+              <svg class="h-10 w-10 text-score-green flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              <div>
+                <h2 class="text-xl md:text-2xl font-bold text-score-green mb-1">
+                  &#x1F7E2; FEU VERT
+                </h2>
+                <p class="text-lg font-medium text-score-green">
+                  Rien de bloquant identifié
+                </p>
+              </div>
+            </div>
+            <div class="grid md:grid-cols-2 gap-6">
+              <div>
+                <h3 class="font-semibold text-foreground mb-3">Ce que cela signifie</h3>
+                <ul class="space-y-2">
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <span class="w-1.5 h-1.5 bg-foreground/50 rounded-full mt-2 flex-shrink-0"></span>
+                    Le devis est globalement cohérent
+                  </li>
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <span class="w-1.5 h-1.5 bg-foreground/50 rounded-full mt-2 flex-shrink-0"></span>
+                    Les informations essentielles sont présentes
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <h3 class="font-semibold text-foreground mb-3">Actions conseillées</h3>
+                <ul class="space-y-2">
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <svg class="h-4 w-4 text-score-green mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    Confirmer dates et planning
+                  </li>
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <svg class="h-4 w-4 text-score-green mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    Lire les conditions de paiement
+                  </li>
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <svg class="h-4 w-4 text-score-green mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    Conserver les échanges par écrit
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- FEU ORANGE -->
+          <div class="bg-score-orange-bg border-score-orange/30 border-2 rounded-2xl p-6 md:p-8">
+            <div class="flex items-start gap-4 mb-6">
+              <svg class="h-10 w-10 text-score-orange flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+              <div>
+                <h2 class="text-xl md:text-2xl font-bold text-score-orange mb-1">
+                  &#x1F7E0; FEU ORANGE
+                </h2>
+                <p class="text-lg font-medium text-score-orange">
+                  À clarifier avant de signer
+                </p>
+              </div>
+            </div>
+            <div class="grid md:grid-cols-2 gap-6">
+              <div>
+                <h3 class="font-semibold text-foreground mb-3">Ce que cela signifie</h3>
+                <ul class="space-y-2">
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <span class="w-1.5 h-1.5 bg-foreground/50 rounded-full mt-2 flex-shrink-0"></span>
+                    Certains points sont incomplets ou à vérifier
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <h3 class="font-semibold text-foreground mb-3">Actions conseillées</h3>
+                <ul class="space-y-2">
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <svg class="h-4 w-4 text-score-orange mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    Demander des détails (main-d'œuvre / matériaux / TVA)
+                  </li>
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <svg class="h-4 w-4 text-score-orange mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    Vérifier acompte et modalités de paiement
+                  </li>
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <svg class="h-4 w-4 text-score-orange mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    Demander attestation décennale/RC Pro si pertinent
+                  </li>
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <svg class="h-4 w-4 text-score-orange mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    Comparer avec un autre devis
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- FEU ROUGE -->
+          <div class="bg-score-red-bg border-score-red/30 border-2 rounded-2xl p-6 md:p-8">
+            <div class="flex items-start gap-4 mb-6">
+              <svg class="h-10 w-10 text-score-red flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+              <div>
+                <h2 class="text-xl md:text-2xl font-bold text-score-red mb-1">
+                  &#x1F534; FEU ROUGE
+                </h2>
+                <p class="text-lg font-medium text-score-red">
+                  Vigilance accrue
+                </p>
+              </div>
+            </div>
+            <div class="grid md:grid-cols-2 gap-6">
+              <div>
+                <h3 class="font-semibold text-foreground mb-3">Ce que cela signifie</h3>
+                <ul class="space-y-2">
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <span class="w-1.5 h-1.5 bg-foreground/50 rounded-full mt-2 flex-shrink-0"></span>
+                    Un ou plusieurs indicateurs forts nécessitent clarification
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <h3 class="font-semibold text-foreground mb-3">Actions conseillées</h3>
+                <ul class="space-y-2">
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <svg class="h-4 w-4 text-score-red mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    Demander des preuves documentaires (attestation, SIRET…)
+                  </li>
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <svg class="h-4 w-4 text-score-red mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    Refuser un paiement non traçable
+                  </li>
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <svg class="h-4 w-4 text-score-red mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    Demander un second avis / second devis
+                  </li>
+                  <li class="flex items-start gap-2 text-foreground/80">
+                    <svg class="h-4 w-4 text-score-red mt-0.5 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    Reporter la décision tant que ce n'est pas clair
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- How Score is Calculated -->
+        <div class="bg-card border border-border rounded-2xl p-6 md:p-8 mb-8 card-shadow">
+          <h2 class="text-2xl font-bold text-foreground mb-6 text-center">
+            Comment le score est calculé
+          </h2>
+          <p class="text-muted-foreground text-center mb-8 max-w-2xl mx-auto">
+            L'analyse repose sur 4 blocs distincts. Chaque bloc évalue un aspect spécifique
+            de votre devis et contribue au score global selon un principe de précaution.
+          </p>
+
+          <div class="grid sm:grid-cols-2 gap-4 mb-8">
+            <!-- Entreprise & Fiabilité -->
+            <div class="bg-muted/50 rounded-xl p-5 border border-border/50">
+              <div class="flex items-start gap-4">
+                <div class="w-12 h-12 bg-accent rounded-xl flex items-center justify-center flex-shrink-0">
+                  <svg class="h-6 w-6 text-primary" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>
+                </div>
+                <div>
+                  <h3 class="font-semibold text-foreground mb-1">Entreprise & Fiabilité</h3>
+                  <p class="text-sm text-muted-foreground">Vérification de l'immatriculation, ancienneté, santé financière et réputation.</p>
+                  <span class="inline-flex items-center gap-1 text-xs text-primary mt-2 font-medium">
+                    <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    Impact sur le score
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Devis & Cohérence Financière -->
+            <div class="bg-muted/50 rounded-xl p-5 border border-border/50">
+              <div class="flex items-start gap-4">
+                <div class="w-12 h-12 bg-accent rounded-xl flex items-center justify-center flex-shrink-0">
+                  <svg class="h-6 w-6 text-primary" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+                </div>
+                <div>
+                  <h3 class="font-semibold text-foreground mb-1">Devis & Cohérence Financière</h3>
+                  <p class="text-sm text-muted-foreground">Comparaison des prix au marché, détail des postes, TVA et acompte.</p>
+                  <span class="inline-flex items-center gap-1 text-xs text-primary mt-2 font-medium">
+                    <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    Impact sur le score
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sécurité & Conditions de paiement -->
+            <div class="bg-muted/50 rounded-xl p-5 border border-border/50">
+              <div class="flex items-start gap-4">
+                <div class="w-12 h-12 bg-accent rounded-xl flex items-center justify-center flex-shrink-0">
+                  <svg class="h-6 w-6 text-primary" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+                </div>
+                <div>
+                  <h3 class="font-semibold text-foreground mb-1">Sécurité & Conditions de paiement</h3>
+                  <p class="text-sm text-muted-foreground">Assurances, validité de l'IBAN, modes de paiement.</p>
+                  <span class="inline-flex items-center gap-1 text-xs text-primary mt-2 font-medium">
+                    <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    Impact sur le score
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Contexte du Chantier -->
+            <div class="bg-muted/50 rounded-xl p-5 border border-border/50">
+              <div class="flex items-start gap-4">
+                <div class="w-12 h-12 bg-accent rounded-xl flex items-center justify-center flex-shrink-0">
+                  <svg class="h-6 w-6 text-primary" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                </div>
+                <div>
+                  <h3 class="font-semibold text-foreground mb-1">Contexte du Chantier</h3>
+                  <p class="text-sm text-muted-foreground">Informations sur les contraintes d'urbanisme et risques naturels.</p>
+                  <span class="inline-flex items-center gap-1 text-xs text-muted-foreground mt-2">
+                    &#x2139;&#xFE0F; Information uniquement
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-accent/50 rounded-xl p-5 border border-border/50">
+            <h3 class="font-semibold text-foreground mb-3">Hiérarchie des critères</h3>
+            <div class="space-y-3 text-sm text-muted-foreground">
+              <p>
+                <strong class="text-score-red">Critères critiques</strong> (entreprise non immatriculée, IBAN invalide, paiement en espèces…)
+                → entraînent automatiquement un <strong class="text-score-red">FEU ROUGE</strong>.
+              </p>
+              <p>
+                <strong class="text-score-orange">Critères majeurs</strong> (prix au-dessus du marché, acompte élevé, réputation faible…)
+                → génèrent des vigilances pouvant mener à un <strong class="text-score-orange">FEU ORANGE</strong>.
+              </p>
+              <p>
+                <strong class="text-score-green">Critères de confort</strong> (RGE, QUALIBAT, ancienneté…)
+                → renforcent la confiance mais ne peuvent jamais déclencher seuls un feu rouge.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Disclaimer -->
+        <div class="bg-muted/50 border border-border rounded-xl p-5 mb-8 text-center">
+          <p class="text-sm text-muted-foreground">
+            <strong class="text-foreground">&#x26A0;&#xFE0F; Avertissement :</strong> Analyse automatisée et indicative, non contractuelle.
+            Basée sur le devis transmis et des sources publiques. Ne remplace pas un avis professionnel.
+          </p>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex flex-col sm:flex-row gap-4 justify-center">
+          {fromAnalysis && analysisId ? (
+            <a href={`/analyse/${analysisId}`} class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8">
+              <svg class="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+              Revenir à mon analyse
+            </a>
+          ) : (
+            <>
+              <a href="/nouvelle-analyse" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8">
+                Analyser un devis
+              </a>
+              <a href="/" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-11 px-8">
+                <svg class="h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+                Retour à l'accueil
+              </a>
+            </>
+          )}
+        </div>
+      </div>
+    </main>
+
+    <Footer />
+  </div>
 </BaseLayout>

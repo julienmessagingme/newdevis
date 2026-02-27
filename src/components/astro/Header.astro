@@ -10,6 +10,8 @@ const isLandingPage = pathname === '/';
         alt="VerifierMonDevis.fr"
         class="h-12 w-12 sm:h-16 sm:w-16 object-contain drop-shadow-md"
         src="/images/logo-header.png"
+        width="64"
+        height="64"
       />
       <span class="text-base sm:text-2xl font-bold leading-none">
         <span class={isLandingPage ? 'text-primary-foreground' : 'text-foreground'}>VerifierMon</span><span class="text-orange-500">Devis</span><span class={`text-sm sm:text-lg font-semibold ${isLandingPage ? 'text-primary-foreground/70' : 'text-foreground/60'}`}>.fr</span>
@@ -48,7 +50,7 @@ const isLandingPage = pathname === '/';
     </nav>
 
     <!-- Mobile Menu Button -->
-    <button class="md:hidden p-2" id="mobile-menu-toggle">
+    <button class="md:hidden p-3" id="mobile-menu-toggle" aria-label="Ouvrir le menu de navigation">
       <svg class={`h-6 w-6 ${isLandingPage ? 'text-primary-foreground' : 'text-foreground'}`} id="menu-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
       </svg>

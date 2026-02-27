@@ -84,7 +84,7 @@ const Register = () => {
       <SEOHead 
         title="Créer un compte gratuit | VerifierMonDevis.fr"
         description="Inscrivez-vous gratuitement sur VerifierMonDevis.fr. Analysez vos devis d'artisans, vérifiez les entreprises et protégez-vous avant de signer."
-        canonical="https://verifiermondevis.fr/inscription"
+        canonical="https://www.verifiermondevis.fr/inscription"
       />
       {/* Left Panel - Form */}
       <div className="flex-1 flex items-center justify-center p-8">

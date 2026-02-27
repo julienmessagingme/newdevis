@@ -111,7 +111,7 @@ const ComprendreScore = () => {
       <SEOHead 
         title="Comprendre le score de fiabilité | VerifierMonDevis.fr"
         description="Découvrez comment interpréter le score Feu Vert, Orange ou Rouge de votre devis artisan. Critères d'analyse, actions conseillées et explications."
-        canonical="https://verifiermondevis.fr/comprendre-score"
+        canonical="https://www.verifiermondevis.fr/comprendre-score"
       />
       <Header />
       <main className="flex-1 py-12 md:py-20 bg-background">

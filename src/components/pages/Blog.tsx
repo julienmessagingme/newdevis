@@ -78,7 +78,7 @@ const Blog = () => {
       <SEOHead
         title="Blog - Conseils Devis & Travaux | VerifierMonDevis.fr"
         description="Conseils pratiques pour analyser vos devis artisan, éviter les arnaques et réussir vos travaux. Guides, checklists et astuces d'experts."
-        canonical="https://verifiermondevis.fr/blog"
+        canonical="https://www.verifiermondevis.fr/blog"
       />
 
       <div className="min-h-screen flex flex-col bg-background">

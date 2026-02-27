@@ -9,7 +9,7 @@ const CGU = () => {
       <SEOHead 
         title="Conditions Générales d'Utilisation | VerifierMonDevis.fr"
         description="Consultez les CGU de VerifierMonDevis.fr : nature du service, responsabilités, données utilisées. Service d'analyse indicatif et non contractuel."
-        canonical="https://verifiermondevis.fr/cgu"
+        canonical="https://www.verifiermondevis.fr/cgu"
       />
       <Header />
       <main className="flex-1 py-12">

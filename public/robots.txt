@@ -34,5 +34,5 @@ Disallow: /reset-password
 Disallow: /mot-de-passe-oublie
 
 # Sitemaps
-Sitemap: https://verifiermondevis.fr/sitemap.xml
-Sitemap: https://verifiermondevis.fr/sitemap-blog.xml
+Sitemap: https://www.verifiermondevis.fr/sitemap.xml
+Sitemap: https://www.verifiermondevis.fr/sitemap-blog.xml

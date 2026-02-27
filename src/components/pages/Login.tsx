@@ -49,7 +49,7 @@ const Login = () => {
       <SEOHead 
         title="Connexion | VerifierMonDevis.fr"
         description="Connectez-vous à votre compte VerifierMonDevis.fr pour accéder à vos analyses de devis d'artisans et suivre vos projets de travaux."
-        canonical="https://verifiermondevis.fr/connexion"
+        canonical="https://www.verifiermondevis.fr/connexion"
       />
       {/* Left Panel - Form */}
       <div className="flex-1 flex items-center justify-center p-8">
