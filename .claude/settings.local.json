@@ -5,7 +5,28 @@
       "Bash(npx astro build:*)",
       "Bash(./node_modules/.bin/astro build:*)",
       "Bash(node node_modules/astro/bin/astro.js:*)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(ls:*)",
+      "Bash(node_modules/.bin/astro build:*)",
+      "Bash(dir node_modules.binastro*)",
+      "Bash(cmd /c \"dir C:\\\\Users\\\\bride\\\\projets\\\\newdevis\\\\node_modules\\\\.bin\\\\astro* 2>&1\")",
+      "Bash(cmd /c \"dir C:\\\\Users\\\\bride\\\\projets\\\\newdevis\\\\node_modules 2>&1 | head -5\")",
+      "WebFetch(domain:api.github.com)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(where:*)",
+      "Bash(cmd /c \"where npm\")",
+      "Bash(curl:*)",
+      "Bash(supabase db diff:*)",
+      "Bash(npx supabase:*)",
+      "Bash(dir:*)",
+      "Bash(./node_modules/.bin/astro.cmd build:*)",
+      "Bash(npx tsc:*)",
+      "WebFetch(domain:api.dvf.etalab.gouv.fr)",
+      "WebFetch(domain:files.data.gouv.fr)",
+      "Bash(npx vercel:*)"
     ]
   }
 }
