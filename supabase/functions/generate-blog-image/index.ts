@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://verifiermondevis.fr",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -104,7 +104,7 @@ serve(async (req) => {
 
     if (!falResponse.ok) {
       const errorText = await falResponse.text();
-      console.error("fal.ai error:", falResponse.status, errorText);
+      console.error("fal.ai error:", falResponse.status);
       return new Response(
         JSON.stringify({ error: "Image generation failed", details: falResponse.status }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -183,9 +183,9 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error("Unexpected error:", error);
+    console.error("Unexpected error:", error instanceof Error ? error.message : "Unknown error");
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ error: "Erreur interne du serveur" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

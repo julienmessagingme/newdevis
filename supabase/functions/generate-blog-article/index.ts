@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://verifiermondevis.fr",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -144,9 +144,9 @@ Réponds UNIQUEMENT avec le JSON demandé, sans texte avant ou après.`;
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      console.error("Anthropic API error:", aiResponse.status, errorText);
+      console.error("Anthropic API error:", aiResponse.status);
       return new Response(
-        JSON.stringify({ error: "AI generation failed", details: aiResponse.status, message: errorText.substring(0, 200) }),
+        JSON.stringify({ error: "AI generation failed", details: aiResponse.status }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -221,9 +221,9 @@ Réponds UNIQUEMENT avec le JSON demandé, sans texte avant ou après.`;
     );
 
   } catch (error) {
-    console.error("Unexpected error:", error);
+    console.error("Unexpected error:", error instanceof Error ? error.message : "Unknown error");
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ error: "Erreur interne du serveur" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

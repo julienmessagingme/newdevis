@@ -52,7 +52,7 @@ export const useExtractionStatus = (analysisId: string): ExtractionStatus | null
       // Check document_extractions with new explicit status columns
       const { data, error } = await supabase
         .from("document_extractions")
-        .select("ocr_status, parser_status, qtyref_status, ocr_debug, parser_debug, qty_ref_debug, raw_text, ocr_reason, error_code, error_details")
+        .select("ocr_status, parser_status, qtyref_status, ocr_debug, parser_debug, qty_ref_debug, ocr_reason, error_code, error_details")
         .eq("analysis_id", analysisId)
         .order("created_at", { ascending: false })
         .limit(1)

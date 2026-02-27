@@ -9,7 +9,7 @@ interface ArticleCardProps {
   category?: string;
   coverImageUrl?: string;
   publishedAt?: string;
-  contentHtml: string;
+  contentHtml?: string;
 }
 
 const ArticleCard = ({
@@ -21,7 +21,10 @@ const ArticleCard = ({
   publishedAt,
   contentHtml,
 }: ArticleCardProps) => {
-  const readingTime = calculateReadingTime(contentHtml);
+  // Use content_html for accurate reading time when available, otherwise estimate from excerpt
+  const readingTime = contentHtml
+    ? calculateReadingTime(contentHtml)
+    : excerpt ? Math.max(1, Math.ceil(excerpt.split(/\s+/).length / 30)) : 3;
   
   return (
     <a

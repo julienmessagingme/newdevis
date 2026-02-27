@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Shield,
   Upload,
   FileText,
   X,
@@ -286,7 +285,7 @@ const NewAnalysis = () => {
           file_path: uploadedFilePath,
           status: "pending",
         })
-        .select()
+        .select("id")
         .single();
 
       if (insertError || !analysis) {
@@ -335,11 +334,17 @@ const NewAnalysis = () => {
       {/* Header */}
       <header className="sticky top-0 z-50 bg-card border-b border-border">
         <div className="container flex h-16 items-center justify-between">
-          <a href="/" className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <Shield className="h-6 w-6 text-primary" />
-            </div>
-            <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
+          <a href="/" className="flex items-center gap-2 sm:gap-3">
+            <img
+              alt="VerifierMonDevis.fr"
+              className="h-12 w-12 sm:h-16 sm:w-16 object-contain drop-shadow-md"
+              src="/images/logo-header.png"
+              width={64}
+              height={64}
+            />
+            <span className="text-base sm:text-2xl font-bold leading-none">
+              <span className="text-foreground">VerifierMon</span><span className="text-orange-500">Devis</span><span className="text-sm sm:text-lg font-semibold text-foreground/60">.fr</span>
+            </span>
           </a>
         </div>
       </header>

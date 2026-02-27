@@ -31,7 +31,11 @@ const Login = () => {
         toast.success("Connexion réussie !");
         const params = new URLSearchParams(window.location.search);
         const redirect = params.get("redirect");
-        window.location.href = redirect || "/tableau-de-bord";
+        // Security: only allow relative paths starting with / (prevent open redirect to external sites)
+        const safeRedirect = redirect && redirect.startsWith("/") && !redirect.startsWith("//")
+          ? redirect
+          : "/tableau-de-bord";
+        window.location.href = safeRedirect;
       }
     } catch (error) {
       toast.error("Une erreur est survenue");
