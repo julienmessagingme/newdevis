@@ -7,17 +7,17 @@ const Header = () => {
 
   return <header className={`sticky top-0 z-50 w-full border-b ${isLandingPage ? 'bg-primary border-primary/20' : 'bg-card border-border'}`}>
       <div className="container flex h-16 items-center justify-between">
-        <a href="/" className="flex items-center gap-3">
+        <a href="/" className="flex items-center gap-2 sm:gap-3">
           <img
             alt="VerifierMonDevis.fr"
-            className="h-10 w-10 sm:h-14 sm:w-14 object-contain"
+            className="h-12 w-12 sm:h-16 sm:w-16 object-contain drop-shadow-md"
             src="/images/logo-header.png"
-            width={56}
-            height={56}
+            width={64}
+            height={64}
             loading="lazy"
           />
-          <span className={`text-base sm:text-2xl font-bold ${isLandingPage ? 'text-primary-foreground' : 'text-foreground'}`}>
-            VerifierMonDevis.fr
+          <span className="text-base sm:text-2xl font-bold leading-none">
+            <span className={isLandingPage ? 'text-primary-foreground' : 'text-foreground'}>VerifierMon</span><span className="text-orange-500">Devis</span><span className={`text-sm sm:text-lg font-semibold ${isLandingPage ? 'text-primary-foreground/70' : 'text-foreground/60'}`}>.fr</span>
           </span>
         </a>
 

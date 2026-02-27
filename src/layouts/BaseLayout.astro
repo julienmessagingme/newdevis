@@ -85,6 +85,14 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
     })} />
 
     <script src="https://ai.messagingme.app/widget/f236879w135897.js" async="async"></script>
+
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-D4T1P3L6XZ"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+    </script>
   </head>
   <body>
     <slot />
@@ -96,7 +104,7 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
           <div class="flex-1 min-w-0">
             <p class="text-sm text-foreground font-medium mb-1">Cookies et confidentialité</p>
             <p class="text-xs text-muted-foreground">
-              Ce site utilise des cookies techniques (nécessaires au fonctionnement) et, avec votre accord, des cookies d'analyse pour améliorer nos services.
+              Ce site utilise des cookies techniques (nécessaires au fonctionnement) et, avec votre accord, des cookies d'analyse <strong>Google Analytics</strong> pour mesurer l'audience et améliorer nos services. Aucun cookie de tracking n'est déposé sans votre accord.
               <a href="/confidentialite" class="text-primary hover:underline ml-1">Politique de confidentialité</a>
             </p>
           </div>
@@ -148,18 +156,9 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
 
         function loadTrackingScripts() {
           // === Google Analytics ===
-          // Remplacer G-XXXXXXXXXX par votre ID Google Analytics
-          // var gaId = 'G-XXXXXXXXXX';
-          // var gs = document.createElement('script');
-          // gs.src = 'https://www.googletagmanager.com/gtag/js?id=' + gaId;
-          // gs.async = true;
-          // document.head.appendChild(gs);
-          // gs.onload = function() {
-          //   window.dataLayer = window.dataLayer || [];
-          //   function gtag(){dataLayer.push(arguments);}
-          //   gtag('js', new Date());
-          //   gtag('config', gaId);
-          // };
+          // Le script gtag.js est déjà chargé dans <head>.
+          // On active simplement le tracking après consentement.
+          gtag('config', 'G-D4T1P3L6XZ');
 
           // === Meta Pixel (Facebook) ===
           // Remplacer XXXXXXXXXXXXXXX par votre Pixel ID

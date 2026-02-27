@@ -5,14 +5,14 @@ const isLandingPage = pathname === '/';
 
 <header class={`sticky top-0 z-50 w-full border-b ${isLandingPage ? 'bg-primary border-primary/20' : 'bg-card border-border'}`}>
   <div class="container flex h-16 items-center justify-between">
-    <a href="/" class="flex items-center gap-3">
+    <a href="/" class="flex items-center gap-2 sm:gap-3">
       <img
         alt="VerifierMonDevis.fr"
-        class="h-10 w-10 sm:h-14 sm:w-14 object-contain"
+        class="h-12 w-12 sm:h-16 sm:w-16 object-contain drop-shadow-md"
         src="/images/logo-header.png"
       />
-      <span class={`text-base sm:text-2xl font-bold ${isLandingPage ? 'text-primary-foreground' : 'text-foreground'}`}>
-        VerifierMonDevis.fr
+      <span class="text-base sm:text-2xl font-bold leading-none">
+        <span class={isLandingPage ? 'text-primary-foreground' : 'text-foreground'}>VerifierMon</span><span class="text-orange-500">Devis</span><span class={`text-sm sm:text-lg font-semibold ${isLandingPage ? 'text-primary-foreground/70' : 'text-foreground/60'}`}>.fr</span>
       </span>
     </a>
 
