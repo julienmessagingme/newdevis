@@ -130,7 +130,12 @@ const NewAnalysis = () => {
   };
 
   const uploadFile = async (fileToUpload: File) => {
-    if (!user) return;
+    if (!user) {
+      console.error("Upload skipped: no user");
+      return;
+    }
+
+    console.log("Upload start:", { userId: user.id, fileName: fileToUpload.name, size: fileToUpload.size, type: fileToUpload.type, isAnonymous });
 
     setUploadStatus("uploading");
     setUploadError(null);
@@ -153,9 +158,22 @@ const NewAnalysis = () => {
       contentType = mimeMap[fileExt] || "application/pdf";
     }
 
+    // Buffer file in memory to avoid Android content:// URI issues
+    let uploadBody: Blob;
+    try {
+      const buffer = await fileToUpload.arrayBuffer();
+      uploadBody = new Blob([buffer], { type: contentType });
+    } catch (bufferErr) {
+      console.error("File buffer error:", bufferErr);
+      setUploadStatus("error");
+      setUploadError("Impossible de lire le fichier. Réessayez ou utilisez un autre fichier.");
+      toast.error("Impossible de lire le fichier. Réessayez ou utilisez un autre fichier.");
+      return;
+    }
+
     for (let i = 0; i < UPLOAD.MAX_RETRIES; i++) {
       try {
-        const { data, error } = await supabase.storage.from("devis").upload(filePath, fileToUpload, {
+        const { data, error } = await supabase.storage.from("devis").upload(filePath, uploadBody, {
           cacheControl: UPLOAD.CACHE_CONTROL_SECONDS,
           upsert: false,
           contentType,
@@ -164,11 +182,13 @@ const NewAnalysis = () => {
         if (error) {
           const msg = String((error as any)?.message ?? "");
           const status = (error as any)?.statusCode ?? (error as any)?.status;
+          const errorName = (error as any)?.name ?? "";
+          const cause = (error as any)?.cause;
 
-          console.error(`Upload error attempt ${i + 1}:`, error);
+          console.error(`Upload error attempt ${i + 1}:`, { msg, status, errorName, cause, error });
 
           // Erreur réseau → retry
-          const isNetworkError = !status && /failed to fetch/i.test(msg);
+          const isNetworkError = !status && /failed to fetch|network|abort|timeout/i.test(msg);
 
           if (isNetworkError && i < UPLOAD.MAX_RETRIES - 1) {
             await wait(UPLOAD.RETRY_BACKOFF_MS * (i + 1));
@@ -178,13 +198,15 @@ const NewAnalysis = () => {
           // Erreur définitive
           let errorMessage = "Erreur lors du téléversement";
 
-          if (!status && /failed to fetch/i.test(msg)) {
+          if (!status && /failed to fetch|network|abort|timeout/i.test(msg)) {
             errorMessage =
-              "Connexion impossible au serveur. Vérifiez votre connexion internet, désactivez votre VPN/Adblock, ou réessayez.";
+              `Connexion impossible (${errorName || "réseau"}${status ? ` ${status}` : ""}). Vérifiez votre connexion internet ou réessayez.`;
           } else if (status === 413) {
             errorMessage = "Fichier trop volumineux pour le serveur.";
-          } else if (status === 403) {
-            errorMessage = "Accès refusé. Veuillez vous reconnecter.";
+          } else if (status === 403 || status === 401) {
+            errorMessage = "Session expirée. Rechargez la page et réessayez.";
+          } else if (status) {
+            errorMessage = `Erreur serveur (${status}). Réessayez.`;
           }
 
           setUploadStatus("error");
