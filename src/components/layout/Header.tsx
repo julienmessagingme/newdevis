@@ -11,7 +11,7 @@ const Header = () => {
           <img
             alt="VerifierMonDevis.fr"
             className="h-12 w-12 sm:h-16 sm:w-16 object-contain drop-shadow-md"
-            src="/images/logo-header.png"
+            src="/images/logo detouré.png"
             width={64}
             height={64}
           />
