@@ -174,7 +174,7 @@ const Admin = () => {
     );
   }
 
-  if (!isAdmin || error) {
+  if (!isAdmin) {
     const handleLogoutAndReconnect = async () => {
       await supabase.auth.signOut();
       window.location.href = "/connexion?redirect=/admin";
@@ -188,7 +188,7 @@ const Admin = () => {
           </div>
           <h1 className="text-2xl font-bold text-foreground mb-4">Accès refusé</h1>
           <p className="text-muted-foreground mb-6">
-            {error || "Cette page est réservée aux administrateurs de VerifierMonDevis.fr"}
+            Cette page est réservée aux administrateurs de VerifierMonDevis.fr
           </p>
           <p className="text-sm text-muted-foreground mb-6">
             Vous êtes peut-être connecté avec un compte anonyme. Déconnectez-vous puis reconnectez-vous avec votre compte admin.
@@ -207,7 +207,25 @@ const Admin = () => {
     );
   }
 
-  if (!kpis) return null;
+  if (!kpis) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center max-w-md p-8">
+          <div className="w-16 h-16 bg-score-orange/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <AlertCircle className="h-8 w-8 text-score-orange" />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground mb-4">Erreur de chargement</h1>
+          <p className="text-muted-foreground mb-6">
+            {error || "Impossible de charger les KPIs administrateur."}
+          </p>
+          <Button onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? "Chargement..." : "Réessayer"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const totalScored = kpis.scoring.score_vert + kpis.scoring.score_orange + kpis.scoring.score_rouge;
 
