@@ -30,7 +30,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://ai.messagingme.app https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https: data: blob:; connect-src 'self' https://vhrhgsqxwvouswjaiczn.supabase.co wss://vhrhgsqxwvouswjaiczn.supabase.co https://vhrhgsqxwvouswjaiczn.functions.supabase.co https://www.google-analytics.com https://api.web3forms.com https://geo.api.gouv.fr https://ai.messagingme.app; frame-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://api.web3forms.com; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://ai.messagingme.app https://ajax.googleapis.com https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https: data: blob:; connect-src 'self' https://vhrhgsqxwvouswjaiczn.supabase.co wss://vhrhgsqxwvouswjaiczn.supabase.co https://vhrhgsqxwvouswjaiczn.functions.supabase.co https://www.google-analytics.com https://api.web3forms.com https://geo.api.gouv.fr https://ai.messagingme.app; frame-src https://ai.messagingme.app; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://api.web3forms.com; object-src 'none'"
         },
         {
           "key": "Strict-Transport-Security",

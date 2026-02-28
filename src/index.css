@@ -16,6 +16,11 @@
 @tailwind utilities;
 
 @layer base {
+  /* Prevent floating chat widgets from causing horizontal scroll on mobile */
+  html {
+    overflow-x: clip;
+  }
+
   :root {
     /* Core brand - Deep blue for trust & expertise */
     --background: 220 20% 97%;
