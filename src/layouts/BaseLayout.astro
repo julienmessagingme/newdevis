@@ -14,6 +14,7 @@ interface Props {
   ogImage?: string;
   jsonLd?: object;
   breadcrumbs?: BreadcrumbItem[];
+  noindex?: boolean;
 }
 
 const {
@@ -21,9 +22,10 @@ const {
   description,
   canonical,
   ogType = 'website',
-  ogImage = 'https://verifiermondevis.fr/og-image.png',
+  ogImage = 'https://www.verifiermondevis.fr/og-image.png',
   jsonLd,
   breadcrumbs,
+  noindex = false,
 } = Astro.props;
 
 const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
@@ -46,10 +48,11 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
     <title>{title}</title>
     <meta name="description" content={description} />
     <meta name="author" content="VerifierMonDevis.fr" />
-    <meta name="robots" content="index, follow" />
+    <meta name="robots" content={noindex ? "noindex, nofollow" : "index, follow"} />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="apple-touch-icon" sizes="192x192" href="/favicon-192.png" />
+    <link rel="preload" href="/_astro/dm-sans-latin-400-normal.CW0RaeGs.woff2" as="font" type="font/woff2" crossorigin />
     {canonical && <link rel="canonical" href={canonical} />}
 
     <meta property="og:title" content={title} />
@@ -76,18 +79,21 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
     <script type="application/ld+json" set:html={JSON.stringify({
       "@context": "https://schema.org",
       "@type": "Organization",
+      "@id": "https://www.verifiermondevis.fr/#organization",
       "name": "VerifierMonDevis.fr",
-      "url": "https://verifiermondevis.fr",
-      "logo": "https://verifiermondevis.fr/images/logo-header.png",
+      "url": "https://www.verifiermondevis.fr",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.verifiermondevis.fr/images/logo-header.png",
+        "width": 128,
+        "height": 128
+      },
       "email": "contact@verifiermondevis.fr",
-      "description": "Service gratuit d'analyse de devis d'artisans. Score de fiabilité, vérification entreprise, comparaison prix marché.",
-      "sameAs": []
+      "description": "Service gratuit d'analyse de devis d'artisans. Score de fiabilité, vérification entreprise, comparaison prix marché."
     })} />
 
     <script src="https://ai.messagingme.app/widget/f236879w135897.js" async="async"></script>
 
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-D4T1P3L6XZ"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
@@ -102,10 +108,10 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
       <div class="max-w-2xl mx-auto sm:mb-6 bg-card border border-border rounded-xl shadow-lg p-4 sm:p-5">
         <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
           <div class="flex-1 min-w-0">
-            <p class="text-sm text-foreground font-medium mb-1">Cookies et confidentialité</p>
+            <p class="text-sm text-foreground font-medium mb-1">Cookies et confidentialit&eacute;</p>
             <p class="text-xs text-muted-foreground">
-              Ce site utilise des cookies techniques (nécessaires au fonctionnement) et, avec votre accord, des cookies d'analyse <strong>Google Analytics</strong> pour mesurer l'audience et améliorer nos services. Aucun cookie de tracking n'est déposé sans votre accord.
-              <a href="/confidentialite" class="text-primary hover:underline ml-1">Politique de confidentialité</a>
+              Ce site utilise des cookies techniques (n&eacute;cessaires au fonctionnement) et, avec votre accord, des cookies d'analyse <strong>Google Analytics</strong> pour mesurer l'audience et am&eacute;liorer nos services. Aucun cookie de tracking n'est d&eacute;pos&eacute; sans votre accord.
+              <a href="/confidentialite" class="text-primary hover:underline ml-1">Politique de confidentialit&eacute;</a>
             </p>
           </div>
           <div class="flex items-center gap-2 flex-shrink-0">
@@ -156,9 +162,13 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
 
         function loadTrackingScripts() {
           // === Google Analytics ===
-          // Le script gtag.js est déjà chargé dans <head>.
-          // On active simplement le tracking après consentement.
-          gtag('config', 'G-D4T1P3L6XZ');
+          var s = document.createElement('script');
+          s.async = true;
+          s.src = 'https://www.googletagmanager.com/gtag/js?id=G-D4T1P3L6XZ';
+          document.head.appendChild(s);
+          s.onload = function() {
+            gtag('config', 'G-D4T1P3L6XZ');
+          };
 
           // === Meta Pixel (Facebook) ===
           // Remplacer XXXXXXXXXXXXXXX par votre Pixel ID

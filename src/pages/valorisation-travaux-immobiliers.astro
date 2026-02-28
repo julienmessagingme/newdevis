@@ -22,18 +22,19 @@ const faqs = [
   },
 ];
 
-// JSON-LD FAQPage — inchangé
 const jsonLd = {
   "@context": "https://schema.org",
-  "@type": "FAQPage",
-  "mainEntity": faqs.map(faq => ({
-    "@type": "Question",
-    "name": faq.question,
-    "acceptedAnswer": {
-      "@type": "Answer",
-      "text": faq.answer
-    }
-  }))
+  "@type": "Article",
+  "headline": "Quels travaux augmentent la valeur d'un bien immobilier ?",
+  "description": "Tous les travaux ne se retrouvent pas dans le prix de revente. Découvrez comment estimer la part réellement valorisable de vos rénovations avant de signer un devis.",
+  "author": { "@type": "Person", "name": "Julien Dumas" },
+  "publisher": {
+    "@type": "Organization",
+    "name": "VerifierMonDevis.fr",
+    "logo": { "@type": "ImageObject", "url": "https://www.verifiermondevis.fr/images/logo-header.png" }
+  },
+  "datePublished": "2026-02-15",
+  "dateModified": "2026-02-25"
 };
 
 // Données du tableau comparatif
@@ -59,12 +60,12 @@ const badgeColors: Record<string, string> = {
 <BaseLayout
   title="Quels travaux augmentent la valeur d'un bien immobilier ? | Valorisation réelle"
   description="Tous les travaux ne se retrouvent pas dans le prix de revente. Découvrez comment estimer la part réellement valorisable de vos rénovations avant de signer un devis."
-  canonical="https://verifiermondevis.fr/valorisation-travaux-immobiliers"
+  canonical="https://www.verifiermondevis.fr/valorisation-travaux-immobiliers"
   ogType="article"
   jsonLd={jsonLd}
   breadcrumbs={[
-    { name: "Accueil", url: "https://verifiermondevis.fr/" },
-    { name: "Valorisation des travaux", url: "https://verifiermondevis.fr/valorisation-travaux-immobiliers" }
+    { name: "Accueil", url: "https://www.verifiermondevis.fr/" },
+    { name: "Valorisation des travaux", url: "https://www.verifiermondevis.fr/valorisation-travaux-immobiliers" }
   ]}
 >
   <div class="min-h-screen flex flex-col">

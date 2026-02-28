@@ -127,9 +127,11 @@ serve(async (req) => {
     analysisId = body.analysisId;
     const skipN8N = body.skipN8N === true;
 
-    if (!analysisId) {
+    // Validate analysisId: required and must be a valid UUID
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!analysisId || !UUID_RE.test(analysisId)) {
       return new Response(
-        JSON.stringify({ error: "analysisId is required" }),
+        JSON.stringify({ error: "analysisId is required and must be a valid UUID" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -251,7 +253,7 @@ serve(async (req) => {
           parser_status: "pending",
           qtyref_status: "pending",
         })
-        .select()
+        .select("id")
         .single();
 
       if (insertError) {
@@ -582,6 +584,8 @@ serve(async (req) => {
         .order("created_at", { ascending: true });
 
       if (insertedItems) {
+        // Batch all work item updates in parallel (avoid N+1)
+        const updatePromises: Promise<unknown>[] = [];
         for (const jt of jobTypePrices) {
           for (const idx of jt.workItemIndices) {
             if (idx < insertedItems.length) {
@@ -591,14 +595,17 @@ serve(async (req) => {
               if (jt.prices.length > 0) {
                 updateData.n8n_response = jt.prices;
               }
-              await supabase
-                .from("analysis_work_items")
-                .update(updateData)
-                .eq("id", insertedItems[idx].id);
+              updatePromises.push(
+                supabase
+                  .from("analysis_work_items")
+                  .update(updateData)
+                  .eq("id", insertedItems[idx].id)
+              );
             }
           }
         }
-        console.log("[MarketPrices] Stored job_type_group and responses for work items");
+        await Promise.all(updatePromises);
+        console.log("[MarketPrices] Stored job_type_group and responses for", updatePromises.length, "work items");
       }
     }
 

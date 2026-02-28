@@ -190,9 +190,10 @@ export function useMarketPriceEditor({
         return;
       }
 
-      // Update price_observations with corrected data
+      // Update price_observations with corrected data (batch in parallel)
       const correctedData = applyOverrides(rawDataRef.current, toSave);
       if (Array.isArray(correctedData)) {
+        const updatePromises: Promise<unknown>[] = [];
         for (const jt of correctedData) {
           if (!jt.job_type_label || !jt.catalog_job_types?.length) continue;
           const lines = (jt.devis_lines || []).map((l: { description: string; amount_ht: number | null; quantity: number | null; unit: string | null }) => ({
@@ -211,16 +212,19 @@ export function useMarketPriceEditor({
           }
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase.from("price_observations") as any)
-            .update({
-              main_quantity: jt.main_quantity,
-              devis_total_ht: hasAmount ? totalHt : jt.devis_total_ht,
-              line_count: lines.length,
-              devis_lines: lines,
-            })
-            .eq("analysis_id", analysisId)
-            .eq("job_type_label", jt.job_type_label);
+          updatePromises.push(
+            (supabase.from("price_observations") as any)
+              .update({
+                main_quantity: jt.main_quantity,
+                devis_total_ht: hasAmount ? totalHt : jt.devis_total_ht,
+                line_count: lines.length,
+                devis_lines: lines,
+              })
+              .eq("analysis_id", analysisId)
+              .eq("job_type_label", jt.job_type_label)
+          );
         }
+        await Promise.all(updatePromises);
       }
 
       setOverrides(toSave);

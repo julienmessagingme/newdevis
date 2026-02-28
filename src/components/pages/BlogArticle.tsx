@@ -179,20 +179,20 @@ const BlogArticle = () => {
     datePublished: post.published_at,
     dateModified: post.updated_at || post.published_at,
     author: {
-      "@type": "Organization",
-      name: "VerifierMonDevis.fr",
+      "@type": "Person",
+      name: "Julien Dumas",
     },
     publisher: {
       "@type": "Organization",
       name: "VerifierMonDevis.fr",
       logo: {
         "@type": "ImageObject",
-        url: "https://verifiermondevis.fr/logo.png",
+        url: "https://www.verifiermondevis.fr/logo.png",
       },
     },
     mainEntityOfPage: {
       "@type": "WebPage",
-      "@id": `https://verifiermondevis.fr/blog/${post.slug}`,
+      "@id": `https://www.verifiermondevis.fr/blog/${post.slug}`,
     },
     ...(post.cover_image_url && { image: post.cover_image_url }),
   };
@@ -202,7 +202,7 @@ const BlogArticle = () => {
       <SEOHead
         title={post.seo_title || post.title}
         description={post.seo_description || post.excerpt || ""}
-        canonical={`https://verifiermondevis.fr/blog/${post.slug}`}
+        canonical={`https://www.verifiermondevis.fr/blog/${post.slug}`}
         ogType="article"
         ogImage={post.cover_image_url || undefined}
       />

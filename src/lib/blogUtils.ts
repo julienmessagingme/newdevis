@@ -1,6 +1,7 @@
 /**
  * Blog utilities: HTML sanitization, CTA injection, reading time calculation
  */
+import DOMPurify from 'dompurify';
 
 // CTA URL
 export const getCTAUrl = (): string => {
@@ -123,31 +124,40 @@ export const ALLOWED_ATTRIBUTES = {
 };
 
 /**
- * Basic HTML sanitization (removes script tags, on* attributes)
+ * HTML sanitization using DOMPurify (allowlist-based, XSS-safe)
  */
 export const sanitizeForRender = (html: string): string => {
   if (!html) return '';
-  
+
+  // Use DOMPurify for proper allowlist-based sanitization
+  if (typeof window !== 'undefined' && DOMPurify) {
+    const sanitized = DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: ALLOWED_TAGS,
+      ALLOWED_ATTR: [
+        'href', 'src', 'alt', 'title', 'class', 'id', 'width', 'height',
+        'target', 'rel', 'loading', 'decoding', 'colspan', 'rowspan',
+      ],
+      ALLOW_DATA_ATTR: false,
+    });
+
+    // Ensure all external links open in new tab with noopener
+    return sanitized.replace(/<a\s+([^>]*href="https?:\/\/[^"]*"[^>]*)>/gi, (match: string, attrs: string) => {
+      if (!attrs.includes('target=')) {
+        return `<a ${attrs} target="_blank" rel="noopener noreferrer">`;
+      }
+      if (!attrs.includes('rel=')) {
+        return match.replace('>', ' rel="noopener noreferrer">');
+      }
+      return match;
+    });
+  }
+
+  // Fallback (SSR): basic regex sanitization
   let sanitized = html;
-  
-  // Remove script tags
   sanitized = sanitized.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
-  
-  // Remove on* event handlers
-  sanitized = sanitized.replace(/\s+on\w+="[^"]*"/gi, '');
-  sanitized = sanitized.replace(/\s+on\w+='[^']*'/gi, '');
-  
-  // Remove javascript: URLs
-  sanitized = sanitized.replace(/href="javascript:[^"]*"/gi, 'href="#"');
-  
-  // Ensure all external links open in new tab
-  sanitized = sanitized.replace(/<a\s+([^>]*href="https?:\/\/[^"]*"[^>]*)>/gi, (match, attrs) => {
-    if (!attrs.includes('target=')) {
-      return `<a ${attrs} target="_blank" rel="noopener noreferrer">`;
-    }
-    return match;
-  });
-  
+  sanitized = sanitized.replace(/\s+on\w+\s*=\s*["'][^"']*["']/gi, '');
+  sanitized = sanitized.replace(/\s+on\w+\s*=\s*[^\s>]+/gi, '');
+  sanitized = sanitized.replace(/href\s*=\s*["']javascript:[^"']*["']/gi, 'href="#"');
   return sanitized;
 };
 

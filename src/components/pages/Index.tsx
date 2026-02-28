@@ -16,7 +16,7 @@ const Index = () => {
       <SEOHead 
         title="Vérifier un devis artisan gratuitement | VerifierMonDevis.fr"
         description="Analysez gratuitement votre devis d'artisan en 2 minutes. Score de fiabilité, vérification entreprise, prix marché. Protégez-vous avant de signer."
-        canonical="https://verifiermondevis.fr/"
+        canonical="https://www.verifiermondevis.fr/"
       />
       <Header />
       <main className="flex-1">

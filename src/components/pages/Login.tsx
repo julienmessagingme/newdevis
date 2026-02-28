@@ -31,7 +31,11 @@ const Login = () => {
         toast.success("Connexion réussie !");
         const params = new URLSearchParams(window.location.search);
         const redirect = params.get("redirect");
-        window.location.href = redirect || "/tableau-de-bord";
+        // Security: only allow relative paths starting with / (prevent open redirect to external sites)
+        const safeRedirect = redirect && redirect.startsWith("/") && !redirect.startsWith("//")
+          ? redirect
+          : "/tableau-de-bord";
+        window.location.href = safeRedirect;
       }
     } catch (error) {
       toast.error("Une erreur est survenue");
@@ -45,7 +49,7 @@ const Login = () => {
       <SEOHead 
         title="Connexion | VerifierMonDevis.fr"
         description="Connectez-vous à votre compte VerifierMonDevis.fr pour accéder à vos analyses de devis d'artisans et suivre vos projets de travaux."
-        canonical="https://verifiermondevis.fr/connexion"
+        canonical="https://www.verifiermondevis.fr/connexion"
       />
       {/* Left Panel - Form */}
       <div className="flex-1 flex items-center justify-center p-8">

@@ -1,87 +1,47 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://verifiermondevis.fr/</loc>
-    <lastmod>2026-02-15</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>1.0</priority>
+    <loc>https://www.verifiermondevis.fr/</loc>
+    <lastmod>2026-02-27</lastmod>
   </url>
   <url>
-    <loc>https://verifiermondevis.fr/blog</loc>
-    <lastmod>2026-02-15</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
+    <loc>https://www.verifiermondevis.fr/blog</loc>
+    <lastmod>2026-02-27</lastmod>
   </url>
   <url>
-    <loc>https://verifiermondevis.fr/faq</loc>
+    <loc>https://www.verifiermondevis.fr/faq</loc>
     <lastmod>2026-02-15</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://verifiermondevis.fr/qui-sommes-nous</loc>
+    <loc>https://www.verifiermondevis.fr/qui-sommes-nous</loc>
     <lastmod>2026-02-15</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://verifiermondevis.fr/comprendre-score</loc>
+    <loc>https://www.verifiermondevis.fr/comprendre-score</loc>
     <lastmod>2026-02-15</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://verifiermondevis.fr/nouvelle-analyse</loc>
+    <loc>https://www.verifiermondevis.fr/contact</loc>
     <lastmod>2026-02-15</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://verifiermondevis.fr/inscription</loc>
+    <loc>https://www.verifiermondevis.fr/cgu</loc>
     <lastmod>2026-02-15</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://verifiermondevis.fr/connexion</loc>
+    <loc>https://www.verifiermondevis.fr/mentions-legales</loc>
     <lastmod>2026-02-15</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://verifiermondevis.fr/cgu</loc>
+    <loc>https://www.verifiermondevis.fr/confidentialite</loc>
     <lastmod>2026-02-15</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://verifiermondevis.fr/mentions-legales</loc>
-    <lastmod>2026-02-15</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://verifiermondevis.fr/confidentialite</loc>
-    <lastmod>2026-02-15</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://verifiermondevis.fr/contact</loc>
-    <lastmod>2026-02-15</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://verifiermondevis.fr/valorisation-travaux-immobiliers</loc>
+    <loc>https://www.verifiermondevis.fr/valorisation-travaux-immobiliers</loc>
     <lastmod>2026-02-25</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://verifiermondevis.fr/simulateur-valorisation-travaux</loc>
+    <loc>https://www.verifiermondevis.fr/simulateur-valorisation-travaux</loc>
     <lastmod>2026-02-25</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
   </url>
 </urlset>

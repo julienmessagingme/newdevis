@@ -72,7 +72,7 @@ const AdminBlog = () => {
   const fetchPosts = async () => {
     const { data, error } = await supabase
       .from("blog_posts")
-      .select("*")
+      .select("id, slug, title, excerpt, category, tags, cover_image_url, status, seo_title, seo_description, published_at, created_at, updated_at, workflow_status, scheduled_at, mid_image_url, ai_generated, ai_model, ai_prompt, reviewed_at, reviewed_by")
       .order("created_at", { ascending: false });
 
     if (error) {

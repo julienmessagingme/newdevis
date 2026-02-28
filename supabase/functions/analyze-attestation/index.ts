@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://verifiermondevis.fr",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -407,9 +407,29 @@ serve(async (req) => {
 
     const { analysisId, attestationType, fileBase64, mimeType, quoteInfo } = await req.json();
 
-    if (!analysisId || !attestationType || !fileBase64 || !mimeType) {
+    // Validate required parameters
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!analysisId || !UUID_RE.test(analysisId) || !attestationType || !fileBase64 || !mimeType) {
       return new Response(
-        JSON.stringify({ error: "Missing required parameters" }),
+        JSON.stringify({ error: "Missing or invalid required parameters" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Limit base64 file size (10 MB binary = ~13.3 MB base64)
+    const MAX_BASE64_LENGTH = Math.ceil((10 * 1024 * 1024 / 3) * 4);
+    if (fileBase64.length > MAX_BASE64_LENGTH) {
+      return new Response(
+        JSON.stringify({ error: "Fichier trop volumineux (max 10 Mo)" }),
+        { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate attestationType
+    const VALID_TYPES = ["decennale", "rc_pro"];
+    if (!VALID_TYPES.includes(attestationType)) {
+      return new Response(
+        JSON.stringify({ error: "Type d'attestation invalide" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

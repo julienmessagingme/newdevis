@@ -145,10 +145,8 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL as string;
-    const supabaseKey = (
-      import.meta.env.SUPABASE_SERVICE_ROLE_KEY ??
-      import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY
-    ) as string;
+    // Security: never use service_role key in frontend API routes — use anon key only
+    const supabaseKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY as string;
 
     const supabase = createClient(supabaseUrl, supabaseKey);
     const uniqueJobTypes = [...new Set(items.map((i) => i.job_type))];

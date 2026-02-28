@@ -14,7 +14,6 @@ interface BlogPost {
   slug: string;
   title: string;
   excerpt: string | null;
-  content_html: string;
   category: string | null;
   cover_image_url: string | null;
   published_at: string | null;
@@ -54,7 +53,7 @@ const Blog = () => {
     try {
       const { data, error } = await supabase
         .from("blog_posts")
-        .select("id, slug, title, excerpt, content_html, category, cover_image_url, published_at")
+        .select("id, slug, title, excerpt, category, cover_image_url, published_at")
         .eq("status", "published")
         .order("published_at", { ascending: false });
 
@@ -79,7 +78,7 @@ const Blog = () => {
       <SEOHead
         title="Blog - Conseils Devis & Travaux | VerifierMonDevis.fr"
         description="Conseils pratiques pour analyser vos devis artisan, éviter les arnaques et réussir vos travaux. Guides, checklists et astuces d'experts."
-        canonical="https://verifiermondevis.fr/blog"
+        canonical="https://www.verifiermondevis.fr/blog"
       />
 
       <div className="min-h-screen flex flex-col bg-background">
@@ -160,7 +159,6 @@ const Blog = () => {
                         category={post.category || undefined}
                         coverImageUrl={post.cover_image_url || undefined}
                         publishedAt={post.published_at || undefined}
-                        contentHtml={post.content_html}
                       />
                     ))}
                   </div>

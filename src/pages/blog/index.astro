@@ -1,30 +1,220 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-import BlogApp from '@/components/app/BlogApp';
+import Header from '@/components/astro/Header.astro';
+import Footer from '@/components/astro/Footer.astro';
+import { supabase } from '@/integrations/supabase/client';
 
 export const prerender = false;
+
+const { data: posts } = await supabase
+  .from("blog_posts")
+  .select("id, slug, title, excerpt, category, cover_image_url, published_at")
+  .eq("status", "published")
+  .order("published_at", { ascending: false });
+
+const allPosts = posts || [];
+
+function formatDate(date: string | null): string {
+  if (!date) return '';
+  return new Date(date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function readingTime(excerpt: string | null): number {
+  if (!excerpt) return 3;
+  return Math.max(1, Math.ceil(excerpt.split(/\s+/).filter((w: string) => w.length > 0).length / 30));
+}
 ---
 
 <BaseLayout
   title="Blog - Conseils Devis & Travaux | VerifierMonDevis.fr"
   description="Conseils pratiques pour analyser vos devis artisan, éviter les arnaques et réussir vos travaux. Guides, checklists et astuces d'experts."
-  canonical="https://verifiermondevis.fr/blog"
+  canonical="https://www.verifiermondevis.fr/blog"
   breadcrumbs={[
-    { name: "Accueil", url: "https://verifiermondevis.fr/" },
-    { name: "Blog", url: "https://verifiermondevis.fr/blog" }
+    { name: "Accueil", url: "https://www.verifiermondevis.fr/" },
+    { name: "Blog", url: "https://www.verifiermondevis.fr/blog" }
   ]}
   jsonLd={{
     "@context": "https://schema.org",
     "@type": "CollectionPage",
     "name": "Blog VerifierMonDevis.fr",
     "description": "Conseils pratiques pour analyser vos devis artisan, éviter les arnaques et réussir vos travaux.",
-    "url": "https://verifiermondevis.fr/blog",
+    "url": "https://www.verifiermondevis.fr/blog",
     "isPartOf": {
       "@type": "WebSite",
       "name": "VerifierMonDevis.fr",
-      "url": "https://verifiermondevis.fr"
+      "url": "https://www.verifiermondevis.fr"
     }
   }}
 >
-  <BlogApp client:only="react" />
+  <div class="min-h-screen flex flex-col bg-background">
+    <Header />
+
+    <main class="flex-1">
+      <!-- Hero Section -->
+      <section class="py-16 md:py-20 bg-gradient-to-b from-primary/5 to-background">
+        <div class="container px-4 md:px-6">
+          <div class="max-w-3xl mx-auto text-center">
+            <div class="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full text-primary text-sm font-medium mb-6">
+              <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+              Blog & Conseils
+            </div>
+            <h1 class="text-2xl sm:text-4xl md:text-5xl font-bold text-foreground mb-4">
+              Guides et conseils pour vos travaux
+            </h1>
+            <p class="text-base sm:text-lg text-muted-foreground mb-8">
+              Apprenez à décrypter un devis, repérer les arnaques et faire les bons choix
+              pour vos projets de rénovation.
+            </p>
+
+            <div class="relative max-w-md mx-auto">
+              <svg class="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <input
+                type="search"
+                id="blog-search"
+                placeholder="Rechercher un article..."
+                class="flex h-12 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 pl-12"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Articles Grid -->
+      <section class="py-12 md:py-16">
+        <div class="container px-4 md:px-6">
+          {allPosts.length === 0 ? (
+            <div class="text-center py-12">
+              <svg class="h-12 w-12 text-muted-foreground mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+              <h2 class="text-xl font-semibold text-foreground mb-2">Aucun article publié</h2>
+              <p class="text-muted-foreground mb-6">Les articles arrivent bientôt !</p>
+            </div>
+          ) : (
+            <>
+              <div id="no-results" class="text-center py-12 hidden">
+                <svg class="h-12 w-12 text-muted-foreground mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+                <h2 class="text-xl font-semibold text-foreground mb-2">Aucun article trouvé</h2>
+                <p class="text-muted-foreground mb-6">Essayez avec d'autres mots-clés</p>
+                <button id="clear-search" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2">
+                  Voir tous les articles
+                </button>
+              </div>
+
+              <div id="articles-grid" class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {allPosts.map((post) => (
+                  <a
+                    href={`/blog/${post.slug}`}
+                    class="article-card group block bg-card rounded-2xl border border-border overflow-hidden hover:shadow-lg hover:border-primary/30 transition-all duration-300"
+                    data-title={post.title.toLowerCase()}
+                    data-excerpt={(post.excerpt || '').toLowerCase()}
+                    data-category={(post.category || '').toLowerCase()}
+                  >
+                    {post.cover_image_url && (
+                      <div class="aspect-video overflow-hidden bg-muted">
+                        <img
+                          src={post.cover_image_url}
+                          alt={post.title}
+                          loading="lazy"
+                          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      </div>
+                    )}
+                    <div class="p-6">
+                      <div class="flex items-center gap-3 mb-3">
+                        {post.category && (
+                          <span class="inline-flex items-center rounded-full border border-transparent px-2.5 py-0.5 text-xs font-semibold bg-secondary text-secondary-foreground">
+                            <svg class="h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
+                            {post.category}
+                          </span>
+                        )}
+                        <div class="flex items-center gap-1 text-xs text-muted-foreground">
+                          <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                          {readingTime(post.excerpt)} min de lecture
+                        </div>
+                      </div>
+                      <h2 class="text-xl font-bold text-foreground group-hover:text-primary transition-colors mb-2 line-clamp-2">
+                        {post.title}
+                      </h2>
+                      {post.excerpt && (
+                        <p class="text-muted-foreground text-sm line-clamp-3 mb-4">
+                          {post.excerpt}
+                        </p>
+                      )}
+                      {post.published_at && (
+                        <p class="text-xs text-muted-foreground">
+                          {formatDate(post.published_at)}
+                        </p>
+                      )}
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+
+      <!-- CTA Section -->
+      <section class="py-12 md:py-16 bg-muted/30">
+        <div class="container px-4 md:px-6">
+          <div class="max-w-2xl mx-auto">
+            <div class="p-5 sm:p-8 bg-gradient-to-br from-primary/10 to-primary/5 rounded-3xl border border-primary/20 overflow-hidden">
+              <div class="text-center max-w-xl mx-auto">
+                <div class="inline-flex p-4 bg-primary/20 rounded-2xl mb-4">
+                  <svg class="h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="m9 15 2 2 4-4"/></svg>
+                </div>
+                <h3 class="text-2xl font-bold text-foreground mb-3">
+                  Prêt à analyser votre devis ?
+                </h3>
+                <p class="text-muted-foreground mb-6">
+                  Utilisez notre outil gratuit pour vérifier les mentions obligatoires,
+                  comparer les prix du marché et vous assurer de la fiabilité de l'artisan.
+                </p>
+                <a href="/nouvelle-analyse" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 w-full sm:w-auto">
+                  Analyser mon devis gratuitement
+                  <svg class="ml-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <Footer />
+  </div>
 </BaseLayout>
+
+<script>
+  const searchInput = document.getElementById('blog-search') as HTMLInputElement;
+  const grid = document.getElementById('articles-grid');
+  const noResults = document.getElementById('no-results');
+  const clearBtn = document.getElementById('clear-search');
+
+  if (searchInput && grid) {
+    const cards = grid.querySelectorAll('.article-card') as NodeListOf<HTMLElement>;
+
+    searchInput.addEventListener('input', () => {
+      const query = searchInput.value.toLowerCase().trim();
+      let visibleCount = 0;
+
+      cards.forEach(card => {
+        const title = card.dataset.title || '';
+        const excerpt = card.dataset.excerpt || '';
+        const category = card.dataset.category || '';
+        const matches = !query || title.includes(query) || excerpt.includes(query) || category.includes(query);
+        card.style.display = matches ? '' : 'none';
+        if (matches) visibleCount++;
+      });
+
+      if (noResults) {
+        noResults.classList.toggle('hidden', visibleCount > 0 || !query);
+      }
+      grid.classList.toggle('hidden', visibleCount === 0 && !!query);
+    });
+
+    clearBtn?.addEventListener('click', () => {
+      searchInput.value = '';
+      searchInput.dispatchEvent(new Event('input'));
+    });
+  }
+</script>
