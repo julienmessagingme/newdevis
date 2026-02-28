@@ -5,7 +5,7 @@ const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isLandingPage = window.location.pathname === "/";
 
-  return <header className={`z-50 w-full border-b ${isLandingPage ? 'md:sticky md:top-0 bg-primary border-primary/20' : 'sticky top-0 bg-card border-border'}`}>
+  return <header className={`sticky top-0 z-50 w-full border-b ${isLandingPage ? 'bg-primary border-primary/20' : 'bg-card border-border'}`}>
       <div className="container flex h-16 items-center justify-between">
         <a href="/" className="flex items-center gap-2 sm:gap-3">
           <img

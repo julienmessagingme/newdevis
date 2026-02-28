@@ -3,7 +3,7 @@ const pathname = Astro.url.pathname;
 const isLandingPage = pathname === '/';
 ---
 
-<header class={`z-50 w-full border-b ${isLandingPage ? 'md:sticky md:top-0 bg-primary border-primary/20' : 'sticky top-0 bg-card border-border'}`}>
+<header class={`sticky top-0 z-50 w-full border-b ${isLandingPage ? 'bg-primary border-primary/20' : 'bg-card border-border'}`}>
   <div class="container flex h-16 items-center justify-between">
     <a href="/" class="flex items-center gap-2 sm:gap-3">
       <img
