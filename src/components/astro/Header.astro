@@ -3,7 +3,7 @@ const pathname = Astro.url.pathname;
 const isLandingPage = pathname === '/';
 ---
 
-<header class={`sticky top-0 z-50 w-full border-b ${isLandingPage ? 'bg-primary border-primary/20' : 'bg-card border-border'}`}>
+<header class={`z-50 w-full border-b ${isLandingPage ? 'md:sticky md:top-0 bg-primary border-primary/20' : 'sticky top-0 bg-card border-border'}`}>
   <div class="container flex h-16 items-center justify-between">
     <a href="/" class="flex items-center gap-2 sm:gap-3">
       <img
@@ -14,7 +14,7 @@ const isLandingPage = pathname === '/';
         height="64"
       />
       <span class="text-base sm:text-2xl font-bold leading-none">
-        <span class={isLandingPage ? 'text-primary-foreground' : 'text-foreground'}>VerifierMon</span><span class="text-orange-500">Devis</span><span class={`text-sm sm:text-lg font-semibold ${isLandingPage ? 'text-primary-foreground/70' : 'text-foreground/60'}`}>.fr</span>
+        <span class={isLandingPage ? 'text-primary-foreground' : 'text-foreground'}>VerifierMon</span><span class="text-orange-500">Devis</span><span class="text-sm sm:text-lg font-semibold text-orange-500">.fr</span>
       </span>
     </a>
 

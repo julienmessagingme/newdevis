@@ -5,7 +5,7 @@ const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isLandingPage = window.location.pathname === "/";
 
-  return <header className={`sticky top-0 z-50 w-full border-b ${isLandingPage ? 'bg-primary border-primary/20' : 'bg-card border-border'}`}>
+  return <header className={`z-50 w-full border-b ${isLandingPage ? 'md:sticky md:top-0 bg-primary border-primary/20' : 'sticky top-0 bg-card border-border'}`}>
       <div className="container flex h-16 items-center justify-between">
         <a href="/" className="flex items-center gap-2 sm:gap-3">
           <img
@@ -16,7 +16,7 @@ const Header = () => {
             height={64}
           />
           <span className="text-base sm:text-2xl font-bold leading-none">
-            <span className={isLandingPage ? 'text-primary-foreground' : 'text-foreground'}>VerifierMon</span><span className="text-orange-500">Devis</span><span className={`text-sm sm:text-lg font-semibold ${isLandingPage ? 'text-primary-foreground/70' : 'text-foreground/60'}`}>.fr</span>
+            <span className={isLandingPage ? 'text-primary-foreground' : 'text-foreground'}>VerifierMon</span><span className="text-orange-500">Devis</span><span className="text-sm sm:text-lg font-semibold text-orange-500">.fr</span>
           </span>
         </a>
 
