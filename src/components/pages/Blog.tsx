@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { Search, BookOpen, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,8 @@ interface BlogPost {
   excerpt: string | null;
   category: string | null;
   cover_image_url: string | null;
-  published_at: string | null;
+  
+  content_html: string | null;
 }
 
 const POSTS_PER_PAGE = 9;
@@ -53,7 +54,7 @@ const Blog = () => {
     try {
       const { data, error } = await supabase
         .from("blog_posts")
-        .select("id, slug, title, excerpt, category, cover_image_url, published_at")
+        .select("id, slug, title, excerpt, category, cover_image_url, published_at, content_html")
         .eq("status", "published")
         .order("published_at", { ascending: false });
 
@@ -158,7 +159,8 @@ const Blog = () => {
                         excerpt={post.excerpt || undefined}
                         category={post.category || undefined}
                         coverImageUrl={post.cover_image_url || undefined}
-                        publishedAt={post.published_at || undefined}
+                        
+                        contentHtml={post.content_html || undefined}
                       />
                     ))}
                   </div>
