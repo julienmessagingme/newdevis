@@ -610,16 +610,16 @@ const BlockPrixMarche = ({
 
   return (
     <div className="border-2 rounded-2xl p-3 sm:p-6 mb-6 bg-primary/5 border-primary/20 overflow-hidden">
-      <div className="flex items-start gap-2 sm:gap-4">
-        <div className="p-2 sm:p-3 bg-background/50 rounded-xl flex-shrink-0 hidden sm:block">
-          <Receipt className="h-6 w-6 text-primary" />
+      <div className="flex items-start gap-3 sm:gap-4">
+        <div className="p-2 sm:p-3 bg-background/50 rounded-xl flex-shrink-0">
+          <Receipt className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
         </div>
         <div className="flex-1 min-w-0">
           <button
             onClick={() => setIsBlockOpen(!isBlockOpen)}
             className="w-full flex items-center gap-3 text-left cursor-pointer"
           >
-            <h2 className="font-bold text-foreground text-base sm:text-xl">Analyse Prix & Cohérence Marché</h2>
+            <h2 className="font-bold text-foreground text-xl">Analyse Prix & Cohérence Marché</h2>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>
