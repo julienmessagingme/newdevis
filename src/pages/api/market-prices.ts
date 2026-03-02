@@ -13,45 +13,56 @@ function json(data: unknown, status = 200) {
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type DvfRow = {
-  code_insee: string;
-  commune: string;
-  prix_m2_maison: number | null;
-  prix_m2_appartement: number | null;
-  nb_ventes_maison: number | null;
+type TypeBien = "maison" | "appartement";
+
+type DvfV2Row = {
+  code_insee:           string;
+  commune:              string;
+  prix_m2_maison:       number | null;
+  prix_m2_appartement:  number | null;
+  nb_ventes_maison:     number | null;
   nb_ventes_appartement: number | null;
-  source: string | null;
-  updated_at?: string | null;
+  source:               string | null;
+  updated_at:           string | null;
 };
 
-type Fiabilite = { niveau: string; nb_ventes: number | null };
+type FiabiliteNiveau =
+  | "tres_faible"
+  | "faible"
+  | "moyenne"
+  | "bonne"
+  | "tres_bonne";
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Fiabilité ────────────────────────────────────────────────────────────────
 
-function computeFiabilite(nbVentes: number | null): Fiabilite {
-  if (nbVentes === null || nbVentes < 0) return { niveau: "inconnue", nb_ventes: null };
-  if (nbVentes < 10)  return { niveau: "tres_faible", nb_ventes: nbVentes };
-  if (nbVentes < 30)  return { niveau: "faible",      nb_ventes: nbVentes };
-  if (nbVentes < 100) return { niveau: "moyenne",     nb_ventes: nbVentes };
-  if (nbVentes < 300) return { niveau: "bonne",       nb_ventes: nbVentes };
-  return               { niveau: "tres_bonne",         nb_ventes: nbVentes };
+function computeFiabilite(
+  nb: number | null
+): { niveau: FiabiliteNiveau; nb_ventes: number | null } {
+  if (nb === null || nb < 0) return { niveau: "tres_faible", nb_ventes: null };
+  if (nb < 10)  return { niveau: "tres_faible", nb_ventes: nb };
+  if (nb < 30)  return { niveau: "faible",      nb_ventes: nb };
+  if (nb < 100) return { niveau: "moyenne",      nb_ventes: nb };
+  if (nb < 300) return { niveau: "bonne",        nb_ventes: nb };
+  return               { niveau: "tres_bonne",   nb_ventes: nb };
 }
 
 // ── Route ────────────────────────────────────────────────────────────────────
 // GET /api/market-prices?code_insee=XXXXX[&type_bien=maison|appartement]
-// Requête directe sur dvf_prices (colonnes prix_m2_maison / prix_m2_appartement)
+// Source unique : dvf_prices_v2
+// type_bien absent → défaut "maison"
 
 export const GET: APIRoute = async ({ url }) => {
-  const codeInsee   = url.searchParams.get("code_insee")?.trim()        ?? "";
-  const typeBienRaw = url.searchParams.get("type_bien")?.toLowerCase().trim() ?? "";
-  const typeBien    = typeBienRaw === "maison" || typeBienRaw === "appartement"
-    ? typeBienRaw
-    : "" as const;
-
+  // ── Validation paramètres ──────────────────────────────────────────────────
+  const codeInsee = url.searchParams.get("code_insee")?.trim() ?? "";
   if (!/^\d{5}$/.test(codeInsee)) {
     return json({ source: "none", data: null, error: "INVALID_CODE_INSEE" }, 400);
   }
 
+  const typeBienRaw = url.searchParams.get("type_bien")?.toLowerCase().trim() ?? "";
+  const typeBien: TypeBien =
+    typeBienRaw === "appartement" ? "appartement" : "maison"; // défaut = maison
+
+  // ── Config Supabase ────────────────────────────────────────────────────────
   const SUPA_URL = (
     import.meta.env.PUBLIC_SUPABASE_URL ??
     import.meta.env.VITE_SUPABASE_URL ??
@@ -68,65 +79,84 @@ export const GET: APIRoute = async ({ url }) => {
     return json({ source: "none", data: null, error: "CONFIG_ERROR" }, 500);
   }
 
-  const reqHeaders = {
-    apikey: SUPA_KEY,
-    Authorization: `Bearer ${SUPA_KEY}`,
-    "Content-Type": "application/json",
-  };
+  // ── Requête dvf_prices_v2 ──────────────────────────────────────────────────
+  const SELECT = [
+    "code_insee",
+    "commune",
+    "prix_m2_maison",
+    "prix_m2_appartement",
+    "nb_ventes_maison",
+    "nb_ventes_appartement",
+    "source",
+    "updated_at",
+  ].join(",");
 
-  const enc    = encodeURIComponent;
-  const SELECT = "code_insee,commune,prix_m2_maison,prix_m2_appartement,nb_ventes_maison,nb_ventes_appartement,source,updated_at";
-  const dvfUrl = `${SUPA_URL}/rest/v1/dvf_prices?code_insee=eq.${enc(codeInsee)}&select=${enc(SELECT)}&limit=1`;
+  const reqUrl =
+    `${SUPA_URL}/rest/v1/dvf_prices_v2` +
+    `?code_insee=eq.${encodeURIComponent(codeInsee)}` +
+    `&select=${encodeURIComponent(SELECT)}` +
+    `&limit=1`;
 
   try {
-    const res = await fetch(dvfUrl, {
-      headers: reqHeaders,
+    const res = await fetch(reqUrl, {
+      headers: {
+        apikey: SUPA_KEY,
+        Authorization: `Bearer ${SUPA_KEY}`,
+        "Content-Type": "application/json",
+      },
       signal: AbortSignal.timeout(5000),
     });
 
     if (!res.ok) {
-      console.warn(`[market-prices] dvf_prices HTTP ${res.status} code_insee=${codeInsee}`);
+      console.warn(
+        `[market-prices] dvf_prices_v2 HTTP ${res.status} code_insee=${codeInsee}`
+      );
       return json({ source: "none", data: null, error: "NO_DATA" });
     }
 
-    const rows = (await res.json().catch(() => null)) as DvfRow[] | null;
-    const row  = Array.isArray(rows) ? (rows[0] ?? null) : null;
+    const rows = (await res.json().catch(() => null)) as DvfV2Row[] | null;
+    const row  = Array.isArray(rows) && rows.length > 0 ? rows[0]! : null;
 
     if (!row) {
       console.warn(`[market-prices] NO_DATA code_insee=${codeInsee}`);
       return json({ source: "none", data: null, error: "NO_DATA" });
     }
 
-    const rawPrix =
-      typeBien === "maison"      ? row.prix_m2_maison :
-      typeBien === "appartement" ? row.prix_m2_appartement :
-      row.prix_m2_maison && row.prix_m2_appartement
-        ? (row.prix_m2_maison + row.prix_m2_appartement) / 2
-        : row.prix_m2_maison ?? row.prix_m2_appartement ?? null;
+    // ── Sélection du prix selon type_bien ──────────────────────────────────
+    const rawPrix: number | null =
+      typeBien === "appartement"
+        ? row.prix_m2_appartement
+        : row.prix_m2_maison;
 
-    const prixM2 = rawPrix && rawPrix > 0 ? Math.round(rawPrix) : null;
-
-    if (!prixM2) {
-      console.warn(`[market-prices] prix null/0 code_insee=${codeInsee} type=${typeBien || "avg"}`);
+    if (!rawPrix || rawPrix <= 0) {
+      console.warn(
+        `[market-prices] prix null/0 code_insee=${codeInsee} type=${typeBien}`
+      );
       return json({ source: "none", data: null, error: "NO_DATA" });
     }
 
-    const nbVentes =
-      typeBien === "maison"      ? row.nb_ventes_maison :
-      typeBien === "appartement" ? row.nb_ventes_appartement :
-      (row.nb_ventes_maison ?? 0) + (row.nb_ventes_appartement ?? 0) || null;
+    const prixM2 = Math.round(rawPrix);
+
+    // ── Fiabilité ──────────────────────────────────────────────────────────
+    const nbVentes: number | null =
+      typeBien === "appartement"
+        ? row.nb_ventes_appartement
+        : row.nb_ventes_maison;
+
+    const fiabilite = computeFiabilite(nbVentes);
 
     console.log(
-      `[market-prices] code_insee=${codeInsee} type=${typeBien || "avg"} prix=${prixM2} nb_ventes=${nbVentes}`
+      `[market-prices] ok code_insee=${codeInsee} type=${typeBien}` +
+      ` prix=${prixM2} nb_ventes=${nbVentes}`
     );
 
     return json({
-      source: "dvf_prices",
+      source: "dvf_prices_v2",
       data: {
         prix_m2:    prixM2,
         commune:    row.commune,
         code_insee: row.code_insee,
-        fiabilite:  computeFiabilite(nbVentes),
+        fiabilite,
         updated_at: row.updated_at ?? null,
       },
     });
@@ -137,3 +167,13 @@ export const GET: APIRoute = async ({ url }) => {
     return json({ source: "none", data: null, error: "NO_DATA" });
   }
 };
+
+export const OPTIONS: APIRoute = async () =>
+  new Response(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    },
+  });

@@ -498,7 +498,7 @@ const jsonLd = {
   }
 
   interface DvfResult {
-    source: "dvf_prices";
+    source: "dvf_prices_v2";
     data: {
       prix_m2:    number;
       commune:    string;
@@ -707,6 +707,7 @@ const jsonLd = {
     // Reset
     selectedCommune       = null;
     cachedDvfResult       = null;
+    cachedDvfTypeBien     = '';
     hasMultipleCommunes   = false;
     hide('dvf-status-loaded');
     hide('dvf-status-unavailable');
@@ -788,15 +789,21 @@ const jsonLd = {
       type DvfApiResp = DvfResult | { source: "none"; data: null; error: string };
       const data = await resp.json() as DvfApiResp;
 
-      if (data.source !== "none" && data.data?.prix_m2) {
+      const prix = data.source !== "none" && data.data?.prix_m2
+        ? Number(data.data.prix_m2)
+        : NaN;
+
+      if (!Number.isNaN(prix) && prix > 0) {
         cachedDvfResult = data as DvfResult;
-        const f = data.data.fiabilite;
+        const f = (data as DvfResult).data.fiabilite;
         const fiabSuffix = f.nb_ventes ? ` · ${f.nb_ventes}\u00a0ventes` : '';
         el('dvf-status-text').textContent =
-          `${data.data.commune} · ${data.data.prix_m2.toLocaleString('fr-FR')}\u00a0€/m²${fiabSuffix}`;
+          `${(data as DvfResult).data.commune} · ${prix.toLocaleString('fr-FR')}\u00a0€/m²${fiabSuffix}`;
         show('dvf-status-loaded');
       } else {
-        el('dvf-unavail-text').textContent = 'Données DVF indisponibles pour cette commune.';
+        cachedDvfResult   = null;
+        cachedDvfTypeBien = '';
+        el('dvf-unavail-text').textContent = 'Prix indisponible pour cette zone.';
         show('dvf-status-unavailable');
       }
 
@@ -930,7 +937,10 @@ const jsonLd = {
     hide('r-dvf-unavailable');
     hide('r-overcap');
 
-    if (dvfResult) {
+    const dvfPrix = dvfResult && Number.isFinite(dvfResult.data.prix_m2) && dvfResult.data.prix_m2 > 0
+      ? dvfResult.data.prix_m2 : null;
+
+    if (dvfResult && dvfPrix !== null) {
       // Surface totale = surface existante + surface créée par les travaux
       const totalSurfaceAdded = items
         .filter(i => SURFACE_TYPES.has(i.type))
@@ -938,13 +948,13 @@ const jsonLd = {
       const surfaceTotale = currentSurface + totalSurfaceAdded;
 
       // Valeur théorique marché = surface totale × prix/m²
-      const valeurTheorique = surfaceTotale > 0 ? Math.round(surfaceTotale * dvfResult.data.prix_m2) : null;
+      const valeurTheorique = surfaceTotale > 0 ? Math.round(surfaceTotale * dvfPrix) : null;
 
       // Valeur estimée après travaux = valeur actuelle + revalorisation
       const prixApres = newValue > 0 ? newValue : null;
 
       // Remplissage du bloc DVF
-      el('r-dvf-prix-m2').textContent = `${dvfResult.data.prix_m2.toLocaleString('fr-FR')}\u00a0€/m²`;
+      el('r-dvf-prix-m2').textContent = `${dvfPrix.toLocaleString('fr-FR')}\u00a0€/m²`;
       // Type de bien label
       el('r-dvf-type-label').textContent =
         cachedDvfTypeBien === 'maison'      ? '(Maison)' :
@@ -953,7 +963,7 @@ const jsonLd = {
       // Jauge fiabilité
       el('r-dvf-fiabilite').innerHTML = renderFiabiliteHtml(dvfResult.data.fiabilite);
       el('r-dvf-commune').textContent = dvfResult.data.commune;
-      el('r-dvf-source').textContent  = 'DVF (données publiques)';
+      el('r-dvf-source').textContent  = 'DVF v2 (données publiques)';
 
       if (surfaceTotale > 0) {
         el('r-dvf-surface-total').textContent = `${surfaceTotale}\u00a0m²`;
@@ -1066,8 +1076,8 @@ const jsonLd = {
           if (currentRent > 0 && currentSurface > 0) {
             loyerM2 = currentRent / currentSurface;
             notes.push(`Extension : loyer au m² actuel (${(loyerM2).toFixed(1).replace('.', ',')}\u00a0€/m²/mois)`);
-          } else if (dvfResult && dvfResult.data.prix_m2 > 0) {
-            loyerM2 = (dvfResult.data.prix_m2 * 0.05) / 12;
+          } else if (dvfPrix !== null) {
+            loyerM2 = (dvfPrix * 0.05) / 12;
             notes.push(`Extension : loyer estimé via DVF (5\u202f% rendement brut · ${dvfResult.data.commune})`);
           } else {
             loyerM2 = 10;
