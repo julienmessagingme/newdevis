@@ -1,9 +1,8 @@
 ---
 const pathname = Astro.url.pathname;
-const isLandingPage = pathname === '/';
 ---
 
-<header class={`sticky top-0 z-50 w-full border-b ${isLandingPage ? 'bg-primary border-primary/20' : 'bg-card border-border'}`}>
+<header class="sticky top-0 z-50 w-full border-b bg-white border-border">
   <div class="container flex h-16 items-center justify-between">
     <a href="/" class="flex items-center gap-2 sm:gap-3">
       <img
@@ -14,35 +13,35 @@ const isLandingPage = pathname === '/';
         height="64"
       />
       <span class="text-base sm:text-2xl font-bold leading-none">
-        <span class={isLandingPage ? 'text-primary-foreground' : 'text-foreground'}>VerifierMon</span><span class="text-orange-500">Devis</span><span class="text-sm sm:text-lg font-semibold text-orange-500">.fr</span>
+        <span class="text-foreground">VerifierMon</span><span class="text-orange-500">Devis</span><span class="text-sm sm:text-lg font-semibold text-orange-500">.fr</span>
       </span>
     </a>
 
     <!-- Desktop Navigation -->
     <nav class="hidden md:flex items-center gap-6">
-      <a href="/blog" class={`text-sm font-medium transition-colors hover:opacity-80 ${isLandingPage ? 'text-primary-foreground/80' : 'text-muted-foreground hover:text-foreground'}`}>
+      <a href="/blog" class="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
         Blog
       </a>
-      <a href="/faq" class={`text-sm font-medium transition-colors hover:opacity-80 ${isLandingPage ? 'text-primary-foreground/80' : 'text-muted-foreground hover:text-foreground'}`}>
+      <a href="/faq" class="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
         FAQ
       </a>
-      <a href="/qui-sommes-nous" class={`text-sm font-medium transition-colors hover:opacity-80 ${isLandingPage ? 'text-primary-foreground/80' : 'text-muted-foreground hover:text-foreground'}`}>
+      <a href="/qui-sommes-nous" class="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
         Qui sommes-nous
       </a>
-      <a href="/valorisation-travaux-immobiliers" class={`text-sm font-medium transition-colors hover:opacity-80 ${isLandingPage ? 'text-primary-foreground/80' : 'text-muted-foreground hover:text-foreground'}`}>
+      <a href="/valorisation-travaux-immobiliers" class="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
         Valorisation des travaux
       </a>
-      <a href="/simulateur-valorisation-travaux" class={`text-sm font-medium transition-colors hover:opacity-80 ${isLandingPage ? 'text-primary-foreground/80' : 'text-muted-foreground hover:text-foreground'}`}>
+      <a href="/simulateur-valorisation-travaux" class="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
         Arbitrage travaux
       </a>
       <div class="flex items-center gap-3">
         <a href="/connexion">
-          <button class={`inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border h-10 px-4 py-2 ${isLandingPage ? 'bg-primary-foreground/15 text-primary-foreground border-primary-foreground/30 hover:bg-primary-foreground/25' : 'border-input bg-background hover:bg-accent hover:text-accent-foreground'}`}>
+          <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2">
             Connexion
           </button>
         </a>
         <a href="/nouvelle-analyse">
-          <button class={`inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 h-10 px-4 py-2 ${isLandingPage ? 'bg-white text-primary hover:bg-white/90' : 'bg-primary text-primary-foreground hover:bg-primary/90'}`}>
+          <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">
             Analyser un devis
           </button>
         </a>
@@ -51,31 +50,31 @@ const isLandingPage = pathname === '/';
 
     <!-- Mobile Menu Button -->
     <button class="md:hidden p-3" id="mobile-menu-toggle" aria-label="Ouvrir le menu de navigation">
-      <svg class={`h-6 w-6 ${isLandingPage ? 'text-primary-foreground' : 'text-foreground'}`} id="menu-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+      <svg class="h-6 w-6 text-foreground" id="menu-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
       </svg>
-      <svg class={`h-6 w-6 hidden ${isLandingPage ? 'text-primary-foreground' : 'text-foreground'}`} id="close-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+      <svg class="h-6 w-6 hidden text-foreground" id="close-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
       </svg>
     </button>
   </div>
 
   <!-- Mobile Menu -->
-  <div class={`md:hidden border-t hidden shadow-lg ${isLandingPage ? 'bg-primary-foreground border-primary/20' : 'bg-card border-border'}`} id="mobile-menu">
+  <div class="md:hidden border-t hidden shadow-lg bg-white border-border" id="mobile-menu">
     <nav class="container py-4 flex flex-col gap-4">
-      <a href="/blog" class={`text-sm font-medium ${isLandingPage ? 'text-primary' : 'text-muted-foreground'}`}>
+      <a href="/blog" class="text-sm font-medium text-muted-foreground">
         Blog
       </a>
-      <a href="/faq" class={`text-sm font-medium ${isLandingPage ? 'text-primary' : 'text-muted-foreground'}`}>
+      <a href="/faq" class="text-sm font-medium text-muted-foreground">
         FAQ
       </a>
-      <a href="/qui-sommes-nous" class={`text-sm font-medium ${isLandingPage ? 'text-primary' : 'text-muted-foreground'}`}>
+      <a href="/qui-sommes-nous" class="text-sm font-medium text-muted-foreground">
         Qui sommes-nous
       </a>
-      <a href="/valorisation-travaux-immobiliers" class={`text-sm font-medium ${isLandingPage ? 'text-primary' : 'text-muted-foreground'}`}>
+      <a href="/valorisation-travaux-immobiliers" class="text-sm font-medium text-muted-foreground">
         Valorisation des travaux
       </a>
-      <a href="/simulateur-valorisation-travaux" class={`text-sm font-medium ${isLandingPage ? 'text-primary' : 'text-muted-foreground'}`}>
+      <a href="/simulateur-valorisation-travaux" class="text-sm font-medium text-muted-foreground">
         Arbitrage travaux
       </a>
       <div class="flex flex-col gap-2 pt-2">
