@@ -305,6 +305,38 @@ const AnalysisResult = () => {
       return;
     }
 
+    // Check for pending ownership transfer (user logged into existing account after anonymous analysis)
+    const pendingRaw = localStorage.getItem("pendingAnalysisTransfer");
+    if (pendingRaw) {
+      try {
+        const pending = JSON.parse(pendingRaw);
+        if (pending.analysisId === id && pending.fromUserId !== user.id) {
+          const session = await supabase.auth.getSession();
+          const token = session.data.session?.access_token;
+          if (token) {
+            const res = await fetch("/api/transfer-analysis", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                analysisId: pending.analysisId,
+                fromUserId: pending.fromUserId,
+              }),
+            });
+            if (res.ok) {
+              console.log("Analysis ownership transferred successfully");
+            }
+          }
+        }
+      } catch {
+        // Ignore parse/transfer errors — will fall through to normal fetch
+      } finally {
+        localStorage.removeItem("pendingAnalysisTransfer");
+      }
+    }
+
     const { data, error } = await supabase
       .from("analyses")
       .select("*")
@@ -721,6 +753,7 @@ const AnalysisResult = () => {
             isPremium={isPermanent || isAdmin}
             onAuthSuccess={handleAuthConversion}
             convertToPermanent={convertToPermanent}
+            currentUserId={authUser?.id}
           />
         </div>
 
@@ -749,6 +782,7 @@ const AnalysisResult = () => {
             showGate={isAnonymous && !isPermanent}
             onAuthSuccess={handleAuthConversion}
             convertToPermanent={convertToPermanent}
+            currentUserId={authUser?.id}
           />
         )}
 

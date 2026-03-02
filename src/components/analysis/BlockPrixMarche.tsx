@@ -24,6 +24,7 @@ interface BlockPrixMarcheProps {
   showGate?: boolean;
   onAuthSuccess?: () => void;
   convertToPermanent?: (params: { email: string; password: string; firstName: string; lastName: string; phone: string; acceptCommercial?: boolean }) => Promise<unknown>;
+  currentUserId?: string;
 }
 
 // =======================
@@ -505,6 +506,7 @@ const BlockPrixMarche = ({
   showGate = false,
   onAuthSuccess,
   convertToPermanent,
+  currentUserId,
 }: BlockPrixMarcheProps) => {
   const [isBlockOpen, setIsBlockOpen] = useState(defaultOpen);
   const { error, rows, isNewFormat } = useMarketPriceAPI({ cachedN8NData });
@@ -669,6 +671,7 @@ const BlockPrixMarche = ({
                 onAuthSuccess={onAuthSuccess}
                 convertToPermanent={convertToPermanent}
                 title="Débloquez l'analyse prix marché"
+                currentUserId={currentUserId}
               />
             </div>
           )}

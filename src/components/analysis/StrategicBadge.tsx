@@ -27,6 +27,7 @@ interface StrategicBadgeProps {
     phone: string;
     acceptCommercial?: boolean;
   }) => Promise<any>;
+  currentUserId?: string;
 }
 
 // =======================
@@ -277,7 +278,7 @@ function BreakdownRow({
 // MAIN COMPONENT
 // =======================
 
-const StrategicBadge = ({ rawText, isPremium = false, onAuthSuccess, convertToPermanent }: StrategicBadgeProps) => {
+const StrategicBadge = ({ rawText, isPremium = false, onAuthSuccess, convertToPermanent, currentUserId }: StrategicBadgeProps) => {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const scores = parseStrategicScores(rawText);
 
@@ -362,6 +363,7 @@ const StrategicBadge = ({ rawText, isPremium = false, onAuthSuccess, convertToPe
                 onAuthSuccess={onAuthSuccess}
                 convertToPermanent={convertToPermanent}
                 title="Débloquez l'analyse complète (IVP/IPI & rentabilité)"
+                currentUserId={currentUserId}
               />
             </div>
           )}

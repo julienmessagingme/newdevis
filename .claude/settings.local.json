@@ -26,7 +26,28 @@
       "Bash(npx tsc:*)",
       "WebFetch(domain:api.dvf.etalab.gouv.fr)",
       "WebFetch(domain:files.data.gouv.fr)",
-      "Bash(npx vercel:*)"
+      "Bash(npx vercel:*)",
+      "Bash(git stash pop:*)",
+      "Bash(git stash:*)",
+      "Bash(grep:*)",
+      "Bash(npm install:*)",
+      "Bash(claude install-skill:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File install.ps1:*)",
+      "WebFetch(domain:verifiermondevis.fr)",
+      "Bash(find:*)",
+      "Bash(lsof:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)",
+      "Bash(git pull)",
+      "Bash(source .env)",
+      "Bash(python3 -m json.tool)",
+      "Bash(SERVICE_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZocmhnc3F4d3ZvdXN3amFpY3puIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDcyNDMyMSwiZXhwIjoyMDg2MzAwMzIxfQ.cDUFACbZMOsJ906kFcwoINHe2sUCnzA1Xri1qEVd-EI\")",
+      "Bash(python -m json.tool)",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "mcp__plugin_playwright_playwright__browser_resize",
+      "mcp__plugin_playwright_playwright__browser_console_messages",
+      "mcp__plugin_playwright_playwright__browser_evaluate",
+      "Bash(git pull --rebase)"
     ]
   }
 }

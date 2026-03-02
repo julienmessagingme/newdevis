@@ -28,12 +28,14 @@ interface PremiumGateProps {
     acceptCommercial?: boolean;
   }) => Promise<any>;
   title?: string;
+  currentUserId?: string;
 }
 
 const PremiumGate = ({
   onAuthSuccess,
   convertToPermanent,
   title = "Débloquez l'analyse complète",
+  currentUserId,
 }: PremiumGateProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [firstName, setFirstName] = useState("");
@@ -272,7 +274,22 @@ const PremiumGate = ({
 
           <p className="text-[10px] text-center text-muted-foreground mt-3">
             Déjà un compte ?{" "}
-            <a href={`/connexion?redirect=${encodeURIComponent(window.location.pathname)}`} className="text-primary hover:underline">
+            <a
+              href={`/connexion?redirect=${encodeURIComponent(window.location.pathname)}`}
+              className="text-primary hover:underline"
+              onClick={(e) => {
+                // Store anonymous session info so AnalysisResult can transfer ownership after login
+                if (currentUserId) {
+                  const analysisId = window.location.pathname.split("/").pop();
+                  if (analysisId) {
+                    localStorage.setItem(
+                      "pendingAnalysisTransfer",
+                      JSON.stringify({ fromUserId: currentUserId, analysisId }),
+                    );
+                  }
+                }
+              }}
+            >
               Se connecter
             </a>
           </p>
