@@ -132,6 +132,125 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
       </div>
     </div>
 
+    <!-- Newsletter popup -->
+    <div id="newsletter-popup" style="display:none" class="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/40">
+      <div class="bg-white border border-border rounded-2xl shadow-2xl max-w-sm w-full p-6 relative">
+        <button id="nl-close" class="absolute right-3 top-3 text-muted-foreground hover:text-foreground transition-colors p-1" aria-label="Fermer">
+          <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+        <div class="text-center mb-4">
+          <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-orange-100 mb-3">
+            <svg class="h-6 w-6 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+            </svg>
+          </div>
+          <h2 class="text-lg font-bold text-foreground">Restez inform&eacute;</h2>
+          <p class="text-sm text-muted-foreground mt-1">Recevez nos conseils pour &eacute;viter les pi&egrave;ges dans vos devis de travaux.</p>
+        </div>
+        <form id="nl-form" class="space-y-3">
+          <input
+            id="nl-email"
+            type="email"
+            required
+            placeholder="votre@email.com"
+            class="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          <button
+            type="submit"
+            id="nl-submit"
+            class="w-full inline-flex items-center justify-center rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 text-sm font-medium transition-colors"
+          >
+            S'inscrire
+          </button>
+        </form>
+        <button id="nl-dismiss" class="w-full text-center text-xs text-muted-foreground hover:text-foreground mt-3 transition-colors">
+          Non merci
+        </button>
+        <div id="nl-success" style="display:none" class="text-center py-4">
+          <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-100 mb-3">
+            <svg class="h-6 w-6 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          </div>
+          <p class="text-sm font-medium text-foreground">Merci pour votre inscription !</p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function() {
+        // ── Newsletter popup (exit intent / 30s mobile) ──
+        if (!localStorage.getItem('newsletter-popup')) {
+          var popup = document.getElementById('newsletter-popup');
+          var form = document.getElementById('nl-form');
+          var shown = false;
+
+          function showPopup() {
+            if (shown || !popup) return;
+            // Don't show if cookie banner is still visible
+            var cookieBanner = document.getElementById('cookie-banner');
+            if (cookieBanner && cookieBanner.style.display !== 'none') return;
+            shown = true;
+            popup.style.display = 'flex';
+          }
+
+          function hidePopup(reason) {
+            if (popup) popup.style.display = 'none';
+            localStorage.setItem('newsletter-popup', reason);
+          }
+
+          // Desktop: exit intent (mouse leaves window from top)
+          document.addEventListener('mouseout', function(e) {
+            if (e.clientY < 0) showPopup();
+          });
+
+          // Mobile fallback: 30 seconds
+          var mobileTimer = setTimeout(function() { showPopup(); }, 30000);
+
+          // Close / dismiss
+          document.getElementById('nl-close')?.addEventListener('click', function() { hidePopup('dismissed'); });
+          document.getElementById('nl-dismiss')?.addEventListener('click', function() { hidePopup('dismissed'); });
+
+          // Click on overlay background to close
+          popup?.addEventListener('click', function(e) {
+            if (e.target === popup) hidePopup('dismissed');
+          });
+
+          // Submit
+          form?.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var emailInput = document.getElementById('nl-email');
+            var email = emailInput?.value?.trim();
+            if (!email) return;
+
+            var submitBtn = document.getElementById('nl-submit');
+            if (submitBtn) { submitBtn.textContent = '...'; submitBtn.disabled = true; }
+
+            fetch('/api/newsletter', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: email, source: 'popup' }),
+            })
+            .then(function() {
+              // Show success state
+              if (form) form.style.display = 'none';
+              var dismiss = document.getElementById('nl-dismiss');
+              if (dismiss) dismiss.style.display = 'none';
+              var success = document.getElementById('nl-success');
+              if (success) success.style.display = 'block';
+              localStorage.setItem('newsletter-popup', 'subscribed');
+              setTimeout(function() { if (popup) popup.style.display = 'none'; }, 2000);
+            })
+            .catch(function() {
+              if (submitBtn) { submitBtn.textContent = 'Réessayer'; submitBtn.disabled = false; }
+            });
+          });
+        }
+      })();
+    </script>
+
     <script>
       (function() {
         var consent = localStorage.getItem('cookie-consent');
