@@ -174,14 +174,14 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
             {/* Ligne compacte cliquable */}
             <button
               onClick={() => setFinancesOpen(!financesOpen)}
-              className="w-full flex items-center justify-between gap-3 px-3 py-2.5 bg-background/30 rounded-xl border border-border/20 hover:bg-background/50 transition-colors text-left"
+              className="w-full flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 bg-background/30 rounded-xl border border-border/20 hover:bg-background/50 transition-colors text-left"
             >
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
                 <TrendingUp className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                <span className="text-sm font-medium text-foreground">Santé financière (comptes)</span>
+                <span className="text-sm font-medium text-foreground">Santé financière</span>
                 {financialHealth.dernier_exercice_year && (
                   <span className="text-xs text-muted-foreground hidden sm:inline">
-                    — Dernier exercice&nbsp;: {financialHealth.dernier_exercice_year}
+                    — {financialHealth.dernier_exercice_year}
                   </span>
                 )}
               </div>
@@ -192,9 +192,9 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
                   <>
                     {getScoreIcon(financialHealth.status, "h-4 w-4")}
                     <span className={`text-xs font-medium ${getScoreTextClass(financialHealth.status)}`}>
-                      {financialHealth.status === "VERT" && "Indicateurs positifs"}
-                      {financialHealth.status === "ORANGE" && "Signal à vérifier"}
-                      {financialHealth.status === "ROUGE" && "Signal critique"}
+                      {financialHealth.status === "VERT" && "Positif"}
+                      {financialHealth.status === "ORANGE" && "À vérifier"}
+                      {financialHealth.status === "ROUGE" && "Critique"}
                     </span>
                   </>
                 )}
@@ -385,7 +385,7 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
             {/* Case A: Rating found */}
             {info.reputation?.status === "found" && info.reputation.rating !== undefined && info.reputation.reviews_count !== undefined ? (
               <div>
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
                   <div className="flex items-center gap-1">
                     {[1, 2, 3, 4, 5].map((star) => (
                       <Star
@@ -404,7 +404,7 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
                   <span className="text-muted-foreground text-sm">
                     ({info.reputation.reviews_count} avis)
                   </span>
-                  <span className="text-xs text-muted-foreground/70 ml-2">
+                  <span className="text-xs text-muted-foreground/70">
                     Source: Google
                   </span>
                 </div>
