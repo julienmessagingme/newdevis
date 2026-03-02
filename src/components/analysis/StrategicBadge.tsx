@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { TrendingUp, Lock, ChevronDown, ChevronUp, HelpCircle, Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import PremiumGate from "@/components/funnel/PremiumGate";
 
 // =======================
 // TYPES
@@ -17,6 +18,15 @@ interface StrategicScores {
 interface StrategicBadgeProps {
   rawText: string | null;
   isPremium?: boolean;
+  onAuthSuccess?: () => void;
+  convertToPermanent?: (params: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+    acceptCommercial?: boolean;
+  }) => Promise<any>;
 }
 
 // =======================
@@ -267,7 +277,7 @@ function BreakdownRow({
 // MAIN COMPONENT
 // =======================
 
-const StrategicBadge = ({ rawText, isPremium = false }: StrategicBadgeProps) => {
+const StrategicBadge = ({ rawText, isPremium = false, onAuthSuccess, convertToPermanent }: StrategicBadgeProps) => {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const scores = parseStrategicScores(rawText);
 
@@ -345,19 +355,14 @@ const StrategicBadge = ({ rawText, isPremium = false }: StrategicBadgeProps) => 
             </div>
           )}
 
-          {/* ── FREE : CTA simple ── */}
-          {!isPremium && (
-            <div className="pt-1 space-y-2">
-              <button
-                type="button"
-                className="w-full flex items-center justify-center gap-2 border border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-700 text-sm font-semibold px-4 py-2.5 rounded-xl transition-all duration-150"
-              >
-                <Lock className="h-4 w-4 text-slate-500 flex-shrink-0" />
-                Voir l'analyse détaillée (IVP/IPI & rentabilité locative)
-              </button>
-              <p className="text-center text-[11px] text-slate-400 tracking-wide">
-                Scores détaillés · Leviers de valorisation · Rentabilité locative
-              </p>
+          {/* ── FREE : PremiumGate collapsible ── */}
+          {!isPremium && onAuthSuccess && convertToPermanent && (
+            <div className="pt-1">
+              <PremiumGate
+                onAuthSuccess={onAuthSuccess}
+                convertToPermanent={convertToPermanent}
+                title="Débloquez l'analyse complète (IVP/IPI & rentabilité)"
+              />
             </div>
           )}
 

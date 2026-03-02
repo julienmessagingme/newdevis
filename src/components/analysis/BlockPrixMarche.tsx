@@ -668,6 +668,7 @@ const BlockPrixMarche = ({
               <PremiumGate
                 onAuthSuccess={onAuthSuccess}
                 convertToPermanent={convertToPermanent}
+                title="Débloquez l'analyse prix marché"
               />
             </div>
           )}

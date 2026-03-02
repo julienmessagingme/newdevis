@@ -705,7 +705,12 @@ const AnalysisResult = () => {
 
         {/* INDICE STRATÉGIQUE — résumé décisionnel, visible avant les blocs */}
         <div id="strategic-index">
-          <StrategicBadge rawText={analysis.raw_text ?? null} isPremium={isAdmin} />
+          <StrategicBadge
+            rawText={analysis.raw_text ?? null}
+            isPremium={isPermanent || isAdmin}
+            onAuthSuccess={handleAuthConversion}
+            convertToPermanent={convertToPermanent}
+          />
         </div>
 
         {/* BLOC 1 — Entreprise & Fiabilité */}
