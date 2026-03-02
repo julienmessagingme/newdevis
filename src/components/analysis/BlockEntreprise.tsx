@@ -107,32 +107,32 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
 
           {isOpen && (<>
           {/* Company identification card */}
-          <div className="p-4 bg-background/40 rounded-xl border border-border/30 mb-4">
-            <div className="flex items-start justify-between gap-3 mb-3">
-              <div className="min-w-0">
+          <div className="p-3 sm:p-4 bg-background/40 rounded-xl border border-border/30 mb-4">
+            <div className="mb-3">
+              <div className="flex flex-wrap items-start justify-between gap-2 mb-1">
                 {nomEntreprise && (
-                  <p className="font-semibold text-foreground text-lg leading-tight truncate">{nomEntreprise}</p>
+                  <p className="font-semibold text-foreground text-base sm:text-lg leading-tight">{nomEntreprise}</p>
                 )}
-                {siret && (
-                  <p className="text-sm text-muted-foreground mt-1 font-mono">
-                    SIRET : {formatSiret(siret)}
-                  </p>
+                {isImmatriculee === true && lookupStatus === "ok" && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-green-700 bg-green-500/10 whitespace-nowrap">
+                    Entreprise active
+                  </span>
                 )}
-                {!siret && (
-                  <p className="text-sm text-amber-600 mt-1">
-                    SIRET non détecté sur le devis
-                  </p>
+                {isImmatriculee === false && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-red-700 bg-red-500/10 whitespace-nowrap">
+                    Radiée
+                  </span>
                 )}
               </div>
-              {isImmatriculee === true && lookupStatus === "ok" && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-green-700 bg-green-500/10 whitespace-nowrap flex-shrink-0">
-                  Entreprise active
-                </span>
+              {siret && (
+                <p className="text-xs sm:text-sm text-muted-foreground font-mono">
+                  SIRET&nbsp;: {formatSiret(siret)}
+                </p>
               )}
-              {isImmatriculee === false && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-red-700 bg-red-500/10 whitespace-nowrap flex-shrink-0">
-                  Radiée
-                </span>
+              {!siret && (
+                <p className="text-xs sm:text-sm text-amber-600">
+                  SIRET non détecté sur le devis
+                </p>
               )}
             </div>
 
