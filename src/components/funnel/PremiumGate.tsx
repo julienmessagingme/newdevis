@@ -272,7 +272,7 @@ const PremiumGate = ({
 
           <p className="text-[10px] text-center text-muted-foreground mt-3">
             Déjà un compte ?{" "}
-            <a href="/connexion" className="text-primary hover:underline">
+            <a href={`/connexion?redirect=${encodeURIComponent(window.location.pathname)}`} className="text-primary hover:underline">
               Se connecter
             </a>
           </p>

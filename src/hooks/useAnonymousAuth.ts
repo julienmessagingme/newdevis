@@ -17,10 +17,12 @@ type ConvertParams = {
   acceptCommercial?: boolean;
 };
 
-// Detect if a user is anonymous: check is_anonymous flag OR absence of email
+// Detect if a user is anonymous: prioritize is_anonymous flag
 function checkIsAnonymous(user: any): boolean {
+  // Explicit flag from Supabase — trust it first
   if (user.is_anonymous === true) return true;
-  // Fallback: anonymous users have no email
+  if (user.is_anonymous === false) return false;
+  // Fallback only if flag is undefined (shouldn't happen)
   if (!user.email) return true;
   return false;
 }
