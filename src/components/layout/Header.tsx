@@ -53,6 +53,12 @@ const Header = () => {
               </div>
             )}
           </div>
+          <a href="/valorisation-travaux-immobiliers" className="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
+            Valorisation des travaux
+          </a>
+          <a href="/simulateur-valorisation-travaux" className="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
+            Arbitrage travaux
+          </a>
           <div className="flex items-center gap-3">
             <a href="/connexion">
               <Button variant="outline">
