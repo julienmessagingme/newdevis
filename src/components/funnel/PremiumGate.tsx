@@ -255,16 +255,16 @@ const PremiumGate = ({
               </div>
             </div>
 
-            <Button type="submit" className="w-full" size="lg" disabled={!acceptTerms || loading}>
+            <Button type="submit" className="w-full text-sm sm:text-base" size="lg" disabled={!acceptTerms || loading}>
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Création du compte...
+                  <span className="truncate">Création du compte...</span>
                 </>
               ) : (
                 <>
-                  Débloquer l'analyse complète
-                  <ArrowRight className="h-4 w-4" />
+                  <span className="truncate">Débloquer l'analyse</span>
+                  <ArrowRight className="h-4 w-4 flex-shrink-0" />
                 </>
               )}
             </Button>
