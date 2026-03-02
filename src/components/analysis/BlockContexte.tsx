@@ -51,10 +51,10 @@ const BlockContexte = ({ siteContext, pointsOk, alertes, chantierAddress, rawTex
   }
 
   return (
-    <div className="bg-card border-2 border-border rounded-2xl p-6 mb-6">
-      <div className="flex items-start gap-4">
-        <div className="p-3 bg-primary/10 rounded-xl flex-shrink-0">
-          <MapPin className="h-6 w-6 text-primary" />
+    <div className="bg-card border-2 border-border rounded-2xl p-3 sm:p-6 mb-6">
+      <div className="flex items-start gap-3 sm:gap-4">
+        <div className="p-2 sm:p-3 bg-primary/10 rounded-xl flex-shrink-0">
+          <MapPin className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
         </div>
         <div className="flex-1">
           <button

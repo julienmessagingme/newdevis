@@ -311,10 +311,10 @@ const BlockDevisMultiple = ({ typesTravaux, pointsOk, alertes, montantTotalHT, c
   const globalScore = items.length > 0 || montantTotalHT ? "VERT" : null;
   
   return (
-    <div className={`border-2 rounded-2xl p-6 mb-6 ${getScoreBgClass(globalScore)}`}>
-      <div className="flex items-start gap-4">
-        <div className="p-3 bg-background/50 rounded-xl flex-shrink-0">
-          <Receipt className="h-6 w-6 text-primary" />
+    <div className={`border-2 rounded-2xl p-3 sm:p-6 mb-6 ${getScoreBgClass(globalScore)}`}>
+      <div className="flex items-start gap-3 sm:gap-4">
+        <div className="p-2 sm:p-3 bg-background/50 rounded-xl flex-shrink-0">
+          <Receipt className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-4">

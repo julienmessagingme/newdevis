@@ -90,10 +90,10 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
   const lookupStatus = companyData?.lookup_status || null;
 
   return (
-    <div className={`border-2 rounded-2xl p-6 mb-6 ${getScoreBgClass(info.score)}`}>
-      <div className="flex items-start gap-4">
-        <div className="p-3 bg-background/50 rounded-xl flex-shrink-0">
-          <Building2 className="h-6 w-6 text-primary" />
+    <div className={`border-2 rounded-2xl p-3 sm:p-6 mb-6 ${getScoreBgClass(info.score)}`}>
+      <div className="flex items-start gap-3 sm:gap-4">
+        <div className="p-2 sm:p-3 bg-background/50 rounded-xl flex-shrink-0">
+          <Building2 className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
         </div>
         <div className="flex-1 min-w-0">
           <button
