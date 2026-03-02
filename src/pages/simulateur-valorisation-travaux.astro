@@ -300,7 +300,7 @@ const jsonLd = {
                 <div class="px-4 pb-3 divide-y divide-slate-100 bg-slate-50/60">
                   <div class="flex justify-between py-2.5 gap-4">
                     <span class="text-sm text-slate-500">Revalorisation estimée</span>
-                    <div class="flex items-baseline gap-2">
+                    <div class="flex flex-col items-end">
                       <span id="r-accord-delta" class="text-sm font-bold tabular-nums font-mono text-slate-700"></span>
                       <span id="r-accord-pct"   class="text-xs text-slate-400"></span>
                     </div>
@@ -326,7 +326,7 @@ const jsonLd = {
 
                   <div class="flex items-center justify-between sm:contents">
                     <span class="text-slate-500">Fiabilité</span>
-                    <div id="r-dvf-fiabilite" class="flex"></div>
+                    <div id="r-dvf-fiabilite" class="flex justify-end"></div>
                   </div>
 
                   <div class="flex items-center justify-between sm:contents">
@@ -599,9 +599,9 @@ const jsonLd = {
       `<div class="w-3 h-2 rounded-sm ${i < cfg.dots ? cfg.color : 'bg-slate-200'}"></div>`
     ).join('');
     const count = fiab.nb_ventes ? `\u00a0(${fiab.nb_ventes}\u00a0ventes)` : '';
-    return `<div class="flex items-center gap-1.5">
-      <div class="flex gap-0.5">${bars}</div>
-      <span class="text-xs text-slate-600 whitespace-nowrap">${cfg.label}${count}</span>
+    return `<div class="flex items-center gap-1.5 flex-wrap justify-end">
+      <div class="flex gap-0.5 flex-shrink-0">${bars}</div>
+      <span class="text-xs text-slate-600">${cfg.label}${count}</span>
     </div>`;
   }
 
