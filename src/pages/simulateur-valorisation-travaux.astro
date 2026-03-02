@@ -561,6 +561,17 @@ const jsonLd = {
     return `${years.toFixed(1).replace('.', ',')}\u00a0ans`;
   }
 
+  // ── Dots fiabilité (badge statut, inline) ──
+  function statusFiabDots(niveau: string): string {
+    const SCORE: Record<string, number> = {
+      tres_bonne: 5, bonne: 4, moyenne: 3, faible: 2, tres_faible: 1,
+    };
+    const score = SCORE[niveau] ?? 0;
+    return Array.from({ length: 5 }, (_, i) =>
+      `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${i < score ? '#3b82f6' : '#bfdbfe'};margin:0 1px;vertical-align:middle"></span>`
+    ).join('');
+  }
+
   // ── Jauge fiabilité DVF ──
   function renderFiabiliteHtml(fiab: { niveau: string; nb_ventes: number | null }): string {
     const CONFIGS: Record<string, { dots: number; color: string; label: string }> = {
@@ -796,9 +807,9 @@ const jsonLd = {
       if (!Number.isNaN(prix) && prix > 0) {
         cachedDvfResult = data as DvfResult;
         const f = (data as DvfResult).data.fiabilite;
-        const fiabSuffix = f.nb_ventes ? ` · ${f.nb_ventes}\u00a0ventes` : '';
-        el('dvf-status-text').textContent =
-          `${(data as DvfResult).data.commune} · ${prix.toLocaleString('fr-FR')}\u00a0€/m²${fiabSuffix}`;
+        const dots = statusFiabDots(f.niveau);
+        el('dvf-status-text').innerHTML =
+          `${(data as DvfResult).data.commune}\u00a0· ${prix.toLocaleString('fr-FR')}\u00a0€/m²\u00a0·\u00a0${dots}`;
         show('dvf-status-loaded');
       } else {
         cachedDvfResult   = null;
