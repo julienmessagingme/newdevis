@@ -319,8 +319,11 @@ const jsonLd = {
               <div id="r-dvf-box" class="hidden mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
                 <p class="text-[10px] font-bold uppercase tracking-widest text-blue-500 mb-3">Analyse marché DVF — données publiques</p>
                 <div class="grid grid-cols-[1fr_auto] gap-x-4 gap-y-2 text-sm mb-3">
-                  <span class="text-slate-500">Prix moyen marché</span>
+                  <span class="text-slate-500">Prix marché <span id="r-dvf-type-label" class="text-xs font-normal text-slate-400"></span></span>
                   <span id="r-dvf-prix-m2" class="font-bold text-slate-900 text-right tabular-nums font-mono"></span>
+
+                  <span class="text-slate-500">Fiabilité</span>
+                  <div id="r-dvf-fiabilite" class="flex justify-end"></div>
 
                   <span id="r-dvf-surface-label" class="text-slate-500">Surface totale</span>
                   <span id="r-dvf-surface-total" class="font-bold text-slate-900 text-right tabular-nums font-mono"></span>
@@ -495,12 +498,14 @@ const jsonLd = {
   }
 
   interface DvfResult {
-    dvf_available: true;
-    code_insee:    string;
-    commune:       string;
-    code_postal?:  string;
-    prix_m2:       number;
-    source:        string;
+    source: "dvf_prices";
+    data: {
+      prix_m2:    number;
+      commune:    string;
+      code_insee: string;
+      fiabilite:  { niveau: string; nb_ventes: number | null };
+      updated_at?: string | null;
+    };
   }
 
   // ── Référentiel ──
@@ -540,6 +545,7 @@ const jsonLd = {
   let selectedObjective:    Objective   = 'revente';
   let selectedCommune:      CommuneItem | null = null;
   let cachedDvfResult:      DvfResult   | null = null;
+  let cachedDvfTypeBien:    string      = '';   // 'maison' | 'appartement' | ''
   let hasMultipleCommunes:  boolean     = false; // true si plusieurs communes pour ce CP
 
   // ── Formatters ──
@@ -553,6 +559,27 @@ const jsonLd = {
     if (years >= 30) return '> 30 ans';
     if (years >= 10) return `${Math.round(years)}\u00a0ans`;
     return `${years.toFixed(1).replace('.', ',')}\u00a0ans`;
+  }
+
+  // ── Jauge fiabilité DVF ──
+  function renderFiabiliteHtml(fiab: { niveau: string; nb_ventes: number | null }): string {
+    const CONFIGS: Record<string, { dots: number; color: string; label: string }> = {
+      tres_bonne:  { dots: 5, color: 'bg-emerald-600', label: 'Très bonne' },
+      bonne:       { dots: 4, color: 'bg-emerald-500', label: 'Bonne'      },
+      moyenne:     { dots: 3, color: 'bg-amber-400',   label: 'Correcte'   },
+      faible:      { dots: 2, color: 'bg-orange-400',  label: 'Faible'     },
+      tres_faible: { dots: 1, color: 'bg-red-400',     label: 'Très faible'},
+      inconnue:    { dots: 0, color: 'bg-slate-300',   label: 'Inconnue'   },
+    };
+    const cfg   = CONFIGS[fiab.niveau] ?? CONFIGS['inconnue']!;
+    const bars  = Array.from({ length: 5 }, (_, i) =>
+      `<div class="w-3 h-2 rounded-sm ${i < cfg.dots ? cfg.color : 'bg-slate-200'}"></div>`
+    ).join('');
+    const count = fiab.nb_ventes ? `\u00a0(${fiab.nb_ventes}\u00a0ventes)` : '';
+    return `<div class="flex items-center gap-1.5">
+      <div class="flex gap-0.5">${bars}</div>
+      <span class="text-xs text-slate-600 whitespace-nowrap">${cfg.label}${count}</span>
+    </div>`;
   }
 
   // ── DOM helpers ──
@@ -697,9 +724,10 @@ const jsonLd = {
     communeSel.innerHTML = '<option value="">Chargement…</option>';
 
     try {
-      const resp = await fetch(`/api/geo-communes?code_postal=${cp}`);
-      const data = await resp.json() as { communes: CommuneItem[] };
-      const communes = data.communes ?? [];
+      const resp = await fetch(`/api/postal-lookup?code_postal=${cp}`);
+      type PostalResp = { data: { commune: string; code_insee: string }[]; error?: string };
+      const data = await resp.json() as PostalResp;
+      const communes = (data.data ?? []).map(c => ({ nom: c.commune, codeInsee: c.code_insee }));
 
       if (communes.length === 0) {
         communeSel.innerHTML = '<option value="">Aucune commune trouvée</option>';
@@ -738,32 +766,37 @@ const jsonLd = {
     }
   }
 
-  // ── DVF : commune → prix/m² (table dvf_prices) ──
+  // ── DVF : commune → prix/m² ──
   async function fetchDvfForCommune(): Promise<void> {
     hide('dvf-status-loaded');
     hide('dvf-status-unavailable');
-    cachedDvfResult = null;
+    cachedDvfResult    = null;
+    cachedDvfTypeBien  = '';
 
     if (!selectedCommune) return;
 
     show('dvf-loading');
 
     try {
-      const url = `/api/market-prices?code_insee=${selectedCommune.codeInsee}`;
+      const typeBien = (el('property-type') as HTMLSelectElement).value;
+      cachedDvfTypeBien  = typeBien;
+      const typeBienParam = typeBien ? `&type_bien=${encodeURIComponent(typeBien)}` : '';
+      const url = `/api/market-prices?code_insee=${selectedCommune.codeInsee}${typeBienParam}`;
       const resp = await fetch(url);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
 
-      type DvfApiResp = DvfResult | { dvf_available: false; note?: string };
+      type DvfApiResp = DvfResult | { source: "none"; data: null; error: string };
       const data = await resp.json() as DvfApiResp;
 
-      if (data.dvf_available && 'prix_m2' in data && data.prix_m2) {
-        cachedDvfResult = data;
+      if (data.source !== "none" && data.data?.prix_m2) {
+        cachedDvfResult = data as DvfResult;
+        const f = data.data.fiabilite;
+        const fiabSuffix = f.nb_ventes ? ` · ${f.nb_ventes}\u00a0ventes` : '';
         el('dvf-status-text').textContent =
-          `${data.commune} · ${data.prix_m2.toLocaleString('fr-FR')}\u00a0€/m²`;
+          `${data.data.commune} · ${data.data.prix_m2.toLocaleString('fr-FR')}\u00a0€/m²${fiabSuffix}`;
         show('dvf-status-loaded');
       } else {
-        el('dvf-unavail-text').textContent =
-          ('note' in data && data.note) || 'Données DVF indisponibles pour cette commune.';
+        el('dvf-unavail-text').textContent = 'Données DVF indisponibles pour cette commune.';
         show('dvf-status-unavailable');
       }
 
@@ -905,15 +938,22 @@ const jsonLd = {
       const surfaceTotale = currentSurface + totalSurfaceAdded;
 
       // Valeur théorique marché = surface totale × prix/m²
-      const valeurTheorique = surfaceTotale > 0 ? Math.round(surfaceTotale * dvfResult.prix_m2) : null;
+      const valeurTheorique = surfaceTotale > 0 ? Math.round(surfaceTotale * dvfResult.data.prix_m2) : null;
 
       // Valeur estimée après travaux = valeur actuelle + revalorisation
       const prixApres = newValue > 0 ? newValue : null;
 
       // Remplissage du bloc DVF
-      el('r-dvf-prix-m2').textContent = `${dvfResult.prix_m2.toLocaleString('fr-FR')}\u00a0€/m²`;
-      el('r-dvf-commune').textContent = dvfResult.commune;
-      el('r-dvf-source').textContent  = dvfResult.source;
+      el('r-dvf-prix-m2').textContent = `${dvfResult.data.prix_m2.toLocaleString('fr-FR')}\u00a0€/m²`;
+      // Type de bien label
+      el('r-dvf-type-label').textContent =
+        cachedDvfTypeBien === 'maison'      ? '(Maison)' :
+        cachedDvfTypeBien === 'appartement' ? '(Appartement)' :
+        '(Maison · Appartement)';
+      // Jauge fiabilité
+      el('r-dvf-fiabilite').innerHTML = renderFiabiliteHtml(dvfResult.data.fiabilite);
+      el('r-dvf-commune').textContent = dvfResult.data.commune;
+      el('r-dvf-source').textContent  = 'DVF (données publiques)';
 
       if (surfaceTotale > 0) {
         el('r-dvf-surface-total').textContent = `${surfaceTotale}\u00a0m²`;
@@ -1026,9 +1066,9 @@ const jsonLd = {
           if (currentRent > 0 && currentSurface > 0) {
             loyerM2 = currentRent / currentSurface;
             notes.push(`Extension : loyer au m² actuel (${(loyerM2).toFixed(1).replace('.', ',')}\u00a0€/m²/mois)`);
-          } else if (dvfResult && dvfResult.prix_m2 > 0) {
-            loyerM2 = (dvfResult.prix_m2 * 0.05) / 12;
-            notes.push(`Extension : loyer estimé via DVF (5\u202f% rendement brut · ${dvfResult.commune})`);
+          } else if (dvfResult && dvfResult.data.prix_m2 > 0) {
+            loyerM2 = (dvfResult.data.prix_m2 * 0.05) / 12;
+            notes.push(`Extension : loyer estimé via DVF (5\u202f% rendement brut · ${dvfResult.data.commune})`);
           } else {
             loyerM2 = 10;
             notes.push('Extension : estimation prudente 10\u00a0€/m²/mois');
@@ -1140,7 +1180,9 @@ const jsonLd = {
       void fetchDvfForCommune();
     });
 
-    // Changement de type de bien → pas de re-fetch DVF (prix_m2 non différencié par type)
+    el('property-type').addEventListener('change', () => {
+      if (selectedCommune) void fetchDvfForCommune();
+    });
   }
 
   init();
