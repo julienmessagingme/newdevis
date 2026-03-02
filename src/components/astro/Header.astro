@@ -19,21 +19,26 @@ const pathname = Astro.url.pathname;
 
     <!-- Desktop Navigation -->
     <nav class="hidden md:flex items-center gap-6">
-      <a href="/blog" class="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
-        Blog
-      </a>
-      <a href="/faq" class="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
-        FAQ
-      </a>
-      <a href="/qui-sommes-nous" class="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
-        Qui sommes-nous
-      </a>
-      <a href="/valorisation-travaux-immobiliers" class="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
-        Valorisation des travaux
-      </a>
-      <a href="/simulateur-valorisation-travaux" class="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
-        Arbitrage travaux
-      </a>
+      <!-- Dropdown "En savoir plus" -->
+      <div class="relative" id="desktop-dropdown">
+        <button class="flex items-center gap-1 text-sm font-medium transition-colors text-muted-foreground hover:text-foreground" id="dropdown-trigger">
+          En savoir plus
+          <svg class="h-3.5 w-3.5 transition-transform" id="dropdown-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
+        </button>
+        <div class="absolute top-full left-0 mt-1 w-48 rounded-lg border bg-white shadow-lg py-1 z-50 hidden" id="dropdown-menu">
+          <a href="/blog" class="block px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-slate-50 transition-colors">
+            Blog
+          </a>
+          <a href="/faq" class="block px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-slate-50 transition-colors">
+            FAQ
+          </a>
+          <a href="/qui-sommes-nous" class="block px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-slate-50 transition-colors">
+            Qui sommes-nous
+          </a>
+        </div>
+      </div>
       <div class="flex items-center gap-3">
         <a href="/connexion">
           <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2">
@@ -62,15 +67,20 @@ const pathname = Astro.url.pathname;
   <!-- Mobile Menu -->
   <div class="md:hidden border-t hidden shadow-lg bg-white border-border" id="mobile-menu">
     <nav class="container py-4 flex flex-col gap-4">
-      <a href="/blog" class="text-sm font-medium text-muted-foreground">
-        Blog
-      </a>
-      <a href="/faq" class="text-sm font-medium text-muted-foreground">
-        FAQ
-      </a>
-      <a href="/qui-sommes-nous" class="text-sm font-medium text-muted-foreground">
-        Qui sommes-nous
-      </a>
+      <!-- Sous-menu "En savoir plus" -->
+      <div>
+        <button class="flex items-center gap-1 text-sm font-medium text-muted-foreground w-full" id="mobile-sub-toggle">
+          En savoir plus
+          <svg class="h-3.5 w-3.5 transition-transform" id="mobile-sub-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
+        </button>
+        <div class="flex flex-col gap-3 pl-4 mt-3 hidden" id="mobile-sub-menu">
+          <a href="/blog" class="text-sm text-muted-foreground">Blog</a>
+          <a href="/faq" class="text-sm text-muted-foreground">FAQ</a>
+          <a href="/qui-sommes-nous" class="text-sm text-muted-foreground">Qui sommes-nous</a>
+        </div>
+      </div>
       <a href="/valorisation-travaux-immobiliers" class="text-sm font-medium text-muted-foreground">
         Valorisation des travaux
       </a>
@@ -100,9 +110,41 @@ const pathname = Astro.url.pathname;
   const closeIcon = document.getElementById('close-icon');
 
   toggle?.addEventListener('click', () => {
-    const isOpen = !menu?.classList.contains('hidden');
     menu?.classList.toggle('hidden');
     menuIcon?.classList.toggle('hidden');
     closeIcon?.classList.toggle('hidden');
+  });
+
+  // Desktop dropdown hover
+  const dropdown = document.getElementById('desktop-dropdown');
+  const dropdownMenu = document.getElementById('dropdown-menu');
+  const dropdownChevron = document.getElementById('dropdown-chevron');
+  let dropdownTimeout: ReturnType<typeof setTimeout>;
+
+  dropdown?.addEventListener('mouseenter', () => {
+    clearTimeout(dropdownTimeout);
+    dropdownMenu?.classList.remove('hidden');
+    dropdownChevron?.style.setProperty('transform', 'rotate(180deg)');
+  });
+  dropdown?.addEventListener('mouseleave', () => {
+    dropdownTimeout = setTimeout(() => {
+      dropdownMenu?.classList.add('hidden');
+      dropdownChevron?.style.setProperty('transform', '');
+    }, 150);
+  });
+
+  // Mobile sub-menu toggle
+  const mobileSubToggle = document.getElementById('mobile-sub-toggle');
+  const mobileSubMenu = document.getElementById('mobile-sub-menu');
+  const mobileSubChevron = document.getElementById('mobile-sub-chevron');
+
+  mobileSubToggle?.addEventListener('click', () => {
+    const isOpen = !mobileSubMenu?.classList.contains('hidden');
+    mobileSubMenu?.classList.toggle('hidden');
+    if (isOpen) {
+      mobileSubChevron?.style.setProperty('transform', '');
+    } else {
+      mobileSubChevron?.style.setProperty('transform', 'rotate(180deg)');
+    }
   });
 </script>

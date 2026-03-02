@@ -1,8 +1,20 @@
 import { Button } from "@/components/ui/button";
-import { Menu, X } from "lucide-react";
-import { useState } from "react";
+import { Menu, X, ChevronDown } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [mobileSubOpen, setMobileSubOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
+  }, []);
+
+  const openDropdown = () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); setDropdownOpen(true); };
+  const closeDropdown = () => { timeoutRef.current = setTimeout(() => setDropdownOpen(false), 150); };
 
   return <header className="sticky top-0 z-50 w-full border-b bg-white border-border">
       <div className="container flex h-16 items-center justify-between">
@@ -21,15 +33,26 @@ const Header = () => {
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center gap-6">
-          <a href="/blog" className="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
-            Blog
-          </a>
-          <a href="/faq" className="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
-            FAQ
-          </a>
-          <a href="/qui-sommes-nous" className="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
-            Qui sommes-nous
-          </a>
+          {/* Dropdown "En savoir plus" */}
+          <div className="relative" ref={dropdownRef} onMouseEnter={openDropdown} onMouseLeave={closeDropdown}>
+            <button className="flex items-center gap-1 text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
+              En savoir plus
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {dropdownOpen && (
+              <div className="absolute top-full left-0 mt-1 w-48 rounded-lg border bg-white shadow-lg py-1 z-50">
+                <a href="/blog" className="block px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-slate-50 transition-colors">
+                  Blog
+                </a>
+                <a href="/faq" className="block px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-slate-50 transition-colors">
+                  FAQ
+                </a>
+                <a href="/qui-sommes-nous" className="block px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-slate-50 transition-colors">
+                  Qui sommes-nous
+                </a>
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-3">
             <a href="/connexion">
               <Button variant="outline">
@@ -53,15 +76,29 @@ const Header = () => {
       {/* Mobile Menu */}
       {mobileMenuOpen && <div className="md:hidden border-t shadow-lg bg-white border-border">
           <nav className="container py-4 flex flex-col gap-4">
-            <a href="/blog" className="text-sm font-medium text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>
-              Blog
-            </a>
-            <a href="/faq" className="text-sm font-medium text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>
-              FAQ
-            </a>
-            <a href="/qui-sommes-nous" className="text-sm font-medium text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>
-              Qui sommes-nous
-            </a>
+            {/* Sous-menu "En savoir plus" */}
+            <div>
+              <button
+                className="flex items-center gap-1 text-sm font-medium text-muted-foreground w-full"
+                onClick={() => setMobileSubOpen(!mobileSubOpen)}
+              >
+                En savoir plus
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${mobileSubOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {mobileSubOpen && (
+                <div className="flex flex-col gap-3 pl-4 mt-3">
+                  <a href="/blog" className="text-sm text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>
+                    Blog
+                  </a>
+                  <a href="/faq" className="text-sm text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>
+                    FAQ
+                  </a>
+                  <a href="/qui-sommes-nous" className="text-sm text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>
+                    Qui sommes-nous
+                  </a>
+                </div>
+              )}
+            </div>
             <a href="/valorisation-travaux-immobiliers" className="text-sm font-medium text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>
               Valorisation des travaux
             </a>
