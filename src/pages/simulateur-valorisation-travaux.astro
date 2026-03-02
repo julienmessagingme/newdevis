@@ -316,28 +316,40 @@ const jsonLd = {
               <div id="r-overcap" class="hidden mt-4 rounded-lg border p-3.5 text-sm leading-relaxed"></div>
 
               <!-- DVF encadré (résultats) -->
-              <div id="r-dvf-box" class="hidden mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
+              <div id="r-dvf-box" class="hidden mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3 sm:p-4">
                 <p class="text-[10px] font-bold uppercase tracking-widest text-blue-500 mb-3">Analyse marché DVF — données publiques</p>
-                <div class="grid grid-cols-[1fr_auto] gap-x-4 gap-y-2 text-sm mb-3">
-                  <span class="text-slate-500">Prix marché <span id="r-dvf-type-label" class="text-xs font-normal text-slate-400"></span></span>
-                  <span id="r-dvf-prix-m2" class="font-bold text-slate-900 text-right tabular-nums font-mono"></span>
+                <div class="space-y-2.5 sm:space-y-0 sm:grid sm:grid-cols-[1fr_auto] sm:gap-x-4 sm:gap-y-2 text-sm mb-3">
+                  <div class="flex items-center justify-between sm:contents">
+                    <span class="text-slate-500">Prix marché <span id="r-dvf-type-label" class="text-xs font-normal text-slate-400"></span></span>
+                    <span id="r-dvf-prix-m2" class="font-bold text-slate-900 tabular-nums font-mono"></span>
+                  </div>
 
-                  <span class="text-slate-500">Fiabilité</span>
-                  <div id="r-dvf-fiabilite" class="flex justify-end"></div>
+                  <div class="flex items-center justify-between sm:contents">
+                    <span class="text-slate-500">Fiabilité</span>
+                    <div id="r-dvf-fiabilite" class="flex"></div>
+                  </div>
 
-                  <span id="r-dvf-surface-label" class="text-slate-500">Surface totale</span>
-                  <span id="r-dvf-surface-total" class="font-bold text-slate-900 text-right tabular-nums font-mono"></span>
+                  <div class="flex items-center justify-between sm:contents">
+                    <span id="r-dvf-surface-label" class="text-slate-500">Surface totale</span>
+                    <span id="r-dvf-surface-total" class="font-bold text-slate-900 tabular-nums font-mono"></span>
+                  </div>
 
-                  <span id="r-dvf-theorique-label" class="text-slate-500">Valeur théorique marché</span>
-                  <span id="r-dvf-valeur-theorique" class="font-bold text-slate-900 text-right tabular-nums font-mono"></span>
+                  <div class="flex items-center justify-between sm:contents">
+                    <span id="r-dvf-theorique-label" class="text-slate-500 min-w-0">Valeur théorique</span>
+                    <span id="r-dvf-valeur-theorique" class="font-bold text-slate-900 tabular-nums font-mono text-right flex-shrink-0"></span>
+                  </div>
 
-                  <span id="r-dvf-apres-label" class="text-slate-500">Valeur estimée après travaux</span>
-                  <span id="r-dvf-valeur-apres" class="font-bold text-slate-900 text-right tabular-nums font-mono"></span>
+                  <div class="flex items-center justify-between sm:contents">
+                    <span id="r-dvf-apres-label" class="text-slate-500 min-w-0">Valeur après travaux</span>
+                    <span id="r-dvf-valeur-apres" class="font-bold text-slate-900 tabular-nums font-mono text-right flex-shrink-0"></span>
+                  </div>
 
-                  <span id="r-dvf-ecart-label" class="text-slate-500">Écart marché</span>
-                  <span id="r-dvf-ecart" class="font-bold text-right tabular-nums font-mono"></span>
+                  <div class="flex items-center justify-between sm:contents">
+                    <span id="r-dvf-ecart-label" class="text-slate-500">Écart marché</span>
+                    <span id="r-dvf-ecart" class="font-bold tabular-nums font-mono text-right flex-shrink-0"></span>
+                  </div>
                 </div>
-                <div id="r-dvf-badge" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold"></div>
+                <div id="r-dvf-badge" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold"></div>
                 <p class="text-[10px] text-slate-400 mt-2">
                   <span id="r-dvf-commune"></span> · <span id="r-dvf-source"></span>
                 </p>
