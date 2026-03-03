@@ -160,7 +160,7 @@ const Blog = () => {
                         category={post.category || undefined}
                         coverImageUrl={post.cover_image_url || undefined}
                         publishedAt={post.published_at || undefined}
-                        readingTime={post.reading_time}
+                        readingTime={post.reading_time ?? undefined}
                       />
                     ))}
                   </div>

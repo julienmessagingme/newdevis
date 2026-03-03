@@ -10,7 +10,7 @@ interface ArticleCardProps {
   coverImageUrl?: string;
   publishedAt?: string;
   contentHtml?: string;
-  readingTime?: number; // valeur pré-calculée (prioritaire)
+  readingTime?: number | null; // valeur pré-calculée (prioritaire)
 }
 
 const ArticleCard = ({
@@ -24,8 +24,10 @@ const ArticleCard = ({
   readingTime: readingTimeProp,
 }: ArticleCardProps) => {
   // Priorité : valeur pré-calculée → content_html → excerpt (fallback)
-  const readingTime = readingTimeProp
-    ?? (contentHtml
+  // readingTimeProp peut être number (DB) ou null/undefined (non dispo)
+  const readingTime = (readingTimeProp != null && readingTimeProp > 0)
+    ? readingTimeProp
+    : (contentHtml
       ? calculateReadingTime(contentHtml)
       : excerpt
         ? Math.max(1, Math.ceil(excerpt.split(/\s+/).length / 30))
