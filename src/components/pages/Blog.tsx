@@ -1,7 +1,6 @@
 ﻿import { useState, useEffect } from "react";
 import { Search, BookOpen, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { calculateReadingTime } from "@/lib/blogUtils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/layout/Header";
@@ -18,8 +17,7 @@ interface BlogPost {
   category: string | null;
   cover_image_url: string | null;
   published_at: string | null;
-  content_html: string | null;
-  reading_time?: number; // calculé côté client après fetch
+  reading_time: number | null; // stocké en base, calculé par trigger Postgres
 }
 
 const POSTS_PER_PAGE = 9;
@@ -56,18 +54,13 @@ const Blog = () => {
     try {
       const { data, error } = await supabase
         .from("blog_posts")
-        .select("id, slug, title, excerpt, category, cover_image_url, published_at, content_html")
+        .select("id, slug, title, excerpt, category, cover_image_url, published_at, reading_time")
         .eq("status", "published")
         .order("published_at", { ascending: false });
 
       if (error) throw error;
-      // Calcul du temps de lecture directement après le fetch, là où content_html est dispo
-      const postsWithTime = (data || []).map(post => ({
-        ...post,
-        reading_time: post.content_html ? calculateReadingTime(post.content_html) : undefined,
-      }));
-      setPosts(postsWithTime);
-      setFilteredPosts(postsWithTime);
+      setPosts(data || []);
+      setFilteredPosts(data || []);
     } catch (error) {
       console.error("Error fetching blog posts:", error);
     } finally {

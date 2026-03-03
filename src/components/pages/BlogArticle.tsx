@@ -24,6 +24,7 @@ interface BlogPost {
   seo_description: string | null;
   published_at: string | null;
   updated_at: string | null;
+  reading_time: number | null;
 }
 
 /** Split HTML into 3 parts: before mid-image, beside mid-image (max 3 blocks), after */
@@ -167,7 +168,8 @@ const BlogArticle = () => {
     );
   }
 
-  const readingTime = calculateReadingTime(post.content_html);
+  // Priorité : valeur stockée en base (calculée par trigger Postgres) → fallback JS
+  const readingTime = post.reading_time ?? calculateReadingTime(post.content_html);
   const ctaUrl = getCTAUrl();
 
   // Schema.org Article markup
