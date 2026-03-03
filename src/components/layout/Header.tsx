@@ -50,6 +50,9 @@ const Header = () => {
                 <a href="/qui-sommes-nous" className="block px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-slate-50 transition-colors">
                   Qui sommes-nous
                 </a>
+                <a href="/contact" className="block px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-slate-50 transition-colors">
+                  Contact
+                </a>
               </div>
             )}
           </div>
@@ -101,6 +104,9 @@ const Header = () => {
                   </a>
                   <a href="/qui-sommes-nous" className="text-sm text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>
                     Qui sommes-nous
+                  </a>
+                  <a href="/contact" className="text-sm text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>
+                    Contact
                   </a>
                 </div>
               )}

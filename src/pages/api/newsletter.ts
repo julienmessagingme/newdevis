@@ -51,6 +51,22 @@ export const POST: APIRoute = async ({ request }) => {
     );
   }
 
+  // Send webhook for newsletter subscription
+  try {
+    await fetch("https://ai.messagingme.app/api/iwh/fa98aca201609862553a50cbdda5b8db", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "newsletter_subscription",
+        email,
+        source: body.source || "popup",
+        subscribed_at: new Date().toISOString(),
+      }),
+    });
+  } catch (e) {
+    console.error('[newsletter] Webhook error:', (e as Error).message);
+  }
+
   return new Response(
     JSON.stringify({ success: true }),
     { status: 200, headers: CORS },

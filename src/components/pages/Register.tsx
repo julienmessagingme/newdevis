@@ -67,6 +67,23 @@ const Register = () => {
           toast.error(error.message);
         }
       } else {
+        // Send webhook for new registration
+        const phoneDigitsFormatted = "+33" + phoneDigits.slice(1);
+        fetch("https://ai.messagingme.app/api/iwh/25a2bb855e30cf49b1fc2aac9697478c", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            event: "user_registered",
+            email,
+            phone: phoneDigitsFormatted,
+            first_name: firstName,
+            last_name: lastName,
+            accept_commercial: acceptCommercial,
+            source: "inscription",
+            registered_at: new Date().toISOString(),
+          }),
+        }).catch(() => {}); // fire & forget
+
         toast.success("Compte créé avec succès !");
         const params = new URLSearchParams(window.location.search);
         const returnTo = params.get("returnTo");
