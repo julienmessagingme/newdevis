@@ -7,20 +7,39 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import SEOHead from "@/components/SEOHead";
 
+const COUNTRY_CODES = [
+  { code: "+33", flag: "🇫🇷", label: "France", maxDigits: 9 },
+  { code: "+32", flag: "🇧🇪", label: "Belgique", maxDigits: 9 },
+  { code: "+41", flag: "🇨🇭", label: "Suisse", maxDigits: 9 },
+  { code: "+352", flag: "🇱🇺", label: "Luxembourg", maxDigits: 9 },
+  { code: "+377", flag: "🇲🇨", label: "Monaco", maxDigits: 8 },
+  { code: "+1", flag: "🇨🇦", label: "Canada", maxDigits: 10 },
+  { code: "+44", flag: "🇬🇧", label: "Royaume-Uni", maxDigits: 10 },
+  { code: "+49", flag: "🇩🇪", label: "Allemagne", maxDigits: 11 },
+  { code: "+34", flag: "🇪🇸", label: "Espagne", maxDigits: 9 },
+  { code: "+39", flag: "🇮🇹", label: "Italie", maxDigits: 10 },
+  { code: "+351", flag: "🇵🇹", label: "Portugal", maxDigits: 9 },
+  { code: "+212", flag: "🇲🇦", label: "Maroc", maxDigits: 9 },
+  { code: "+216", flag: "🇹🇳", label: "Tunisie", maxDigits: 8 },
+  { code: "+213", flag: "🇩🇿", label: "Algérie", maxDigits: 9 },
+];
+
 const Register = () => {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [countryCode, setCountryCode] = useState("+33");
   const [password, setPassword] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [acceptCommercial, setAcceptCommercial] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Format phone number for display (French format)
+  const selectedCountry = COUNTRY_CODES.find(c => c.code === countryCode) || COUNTRY_CODES[0];
+
   const formatPhoneNumber = (value: string) => {
     const cleaned = value.replace(/\D/g, "");
-    const limited = cleaned.slice(0, 10);
+    const limited = cleaned.slice(0, selectedCountry.maxDigits + 1); // +1 for leading 0
     return limited.replace(/(\d{2})(?=\d)/g, "$1 ").trim();
   };
 
@@ -37,10 +56,12 @@ const Register = () => {
       return;
     }
 
-    // Validate phone number (10 digits)
+    // Validate phone number
     const phoneDigits = phone.replace(/\D/g, "");
-    if (phoneDigits.length !== 10) {
-      toast.error("Veuillez entrer un numéro de téléphone valide (10 chiffres)");
+    // Strip leading 0 for international format
+    const phoneLocal = phoneDigits.startsWith("0") ? phoneDigits.slice(1) : phoneDigits;
+    if (phoneLocal.length < 6 || phoneLocal.length > selectedCountry.maxDigits) {
+      toast.error(`Veuillez entrer un numéro de téléphone valide (${selectedCountry.label})`);
       return;
     }
 
@@ -54,7 +75,7 @@ const Register = () => {
           data: {
             first_name: firstName,
             last_name: lastName,
-            phone: phoneDigits,
+            phone: countryCode + phoneLocal,
             accept_commercial_offers: acceptCommercial,
           },
         },
@@ -68,14 +89,14 @@ const Register = () => {
         }
       } else {
         // Send webhook for new registration
-        const phoneDigitsFormatted = "+33" + phoneDigits.slice(1);
+        const phoneFormatted = countryCode + phoneLocal;
         fetch("https://ai.messagingme.app/api/iwh/25a2bb855e30cf49b1fc2aac9697478c", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             event: "user_registered",
             email,
-            phone: phoneDigitsFormatted,
+            phone: phoneFormatted,
             first_name: firstName,
             last_name: lastName,
             accept_commercial: acceptCommercial,
@@ -172,18 +193,32 @@ const Register = () => {
 
             <div className="space-y-2">
               <Label htmlFor="phone">Téléphone portable</Label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="06 12 34 56 78"
-                  value={phone}
-                  onChange={handlePhoneChange}
-                  className="pl-10"
-                  required
+              <div className="flex gap-2">
+                <select
+                  value={countryCode}
+                  onChange={(e) => { setCountryCode(e.target.value); setPhone(""); }}
+                  className="h-10 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 min-w-[100px]"
                   disabled={loading}
-                />
+                >
+                  {COUNTRY_CODES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.flag} {c.code}
+                    </option>
+                  ))}
+                </select>
+                <div className="relative flex-1 min-w-0">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder={countryCode === "+33" ? "06 12 34 56 78" : "612 345 678"}
+                    value={phone}
+                    onChange={handlePhoneChange}
+                    className="pl-10"
+                    required
+                    disabled={loading}
+                  />
+                </div>
               </div>
             </div>
 

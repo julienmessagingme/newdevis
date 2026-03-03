@@ -118,6 +118,17 @@ import AstroFooter from '@/components/astro/Footer.astro';
           <p class="text-sm text-muted-foreground">Merci pour votre message. Nous vous répondrons dans les meilleurs délais.</p>
         </div>
 
+        <!-- Rating thank you message (satisfaction survey) -->
+        <div id="rating-message" style="display:none" class="mt-8 bg-score-green-bg border border-score-green/20 rounded-xl p-6 text-center">
+          <div id="rating-emoji" class="text-5xl mb-3"></div>
+          <p class="text-foreground font-medium mb-1">Merci pour votre avis !</p>
+          <p class="text-sm text-muted-foreground">Votre retour nous aide à améliorer VerifierMonDevis.fr.</p>
+          <p id="rating-extra" style="display:none" class="text-sm text-muted-foreground mt-3">
+            Vous souhaitez nous en dire plus ?
+            <a href="/contact" class="text-primary hover:underline font-medium">Envoyez-nous un message</a>
+          </p>
+        </div>
+
         <!-- Other contact options -->
         <div class="mt-12 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="bg-card border border-border rounded-xl p-5">
@@ -151,13 +162,54 @@ import AstroFooter from '@/components/astro/Footer.astro';
 </BaseLayout>
 
 <script>
-  // Show success message if redirected after form submission
-  if (new URLSearchParams(window.location.search).get('success') === 'true') {
-    var form = document.getElementById('contact-form');
-    var msg = document.getElementById('success-message');
-    if (form) form.style.display = 'none';
-    if (msg) msg.style.display = 'block';
-    // Clean URL
-    history.replaceState({}, '', '/contact');
-  }
+  (function() {
+    var params = new URLSearchParams(window.location.search);
+
+    // Show success message if redirected after form submission
+    if (params.get('success') === 'true') {
+      var form = document.getElementById('contact-form');
+      var msg = document.getElementById('success-message');
+      if (form) form.style.display = 'none';
+      if (msg) msg.style.display = 'block';
+      history.replaceState({}, '', '/contact');
+      return;
+    }
+
+    // Handle satisfaction survey rating from email
+    var rating = params.get('rating');
+    var userEmail = params.get('user');
+    if (rating && userEmail) {
+      var ratingNum = parseInt(rating, 10);
+      if (ratingNum >= 1 && ratingNum <= 5) {
+        var emojis = { 1: '\u{1F621}', 2: '\u{1F615}', 3: '\u{1F610}', 4: '\u{1F60A}', 5: '\u{1F929}' };
+        var labels = { 1: 'Mauvais', 2: 'Moyen', 3: 'Correct', 4: 'Bien', 5: 'Excellent' };
+
+        // Hide form, show rating thank you
+        var form = document.getElementById('contact-form');
+        var ratingMsg = document.getElementById('rating-message');
+        var emojiEl = document.getElementById('rating-emoji');
+        var extraEl = document.getElementById('rating-extra');
+        if (form) form.style.display = 'none';
+        if (emojiEl) emojiEl.textContent = emojis[ratingNum];
+        if (ratingMsg) ratingMsg.style.display = 'block';
+        if (extraEl) extraEl.style.display = 'block';
+
+        // Send rating via Web3Forms
+        var formData = new FormData();
+        formData.append('access_key', '0bdbe892-3eef-4a5e-9915-87d190d6e145');
+        formData.append('subject', 'Enquete satisfaction - Note ' + ratingNum + '/5 (' + labels[ratingNum] + ')');
+        formData.append('from_name', 'VerifierMonDevis.fr - Satisfaction');
+        formData.append('email', userEmail);
+        formData.append('name', userEmail);
+        formData.append('message', 'Note de satisfaction : ' + emojis[ratingNum] + ' ' + ratingNum + '/5 (' + labels[ratingNum] + ')\n\nUtilisateur : ' + userEmail);
+
+        fetch('https://api.web3forms.com/submit', {
+          method: 'POST',
+          body: formData
+        }).catch(function() {});
+
+        history.replaceState({}, '', '/contact');
+      }
+    }
+  })();
 </script>
