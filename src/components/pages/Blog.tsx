@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect } from "react";
 import { Search, BookOpen, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { calculateReadingTime } from "@/lib/blogUtils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/layout/Header";
@@ -18,6 +19,7 @@ interface BlogPost {
   cover_image_url: string | null;
   published_at: string | null;
   content_html: string | null;
+  reading_time?: number; // calculé côté client après fetch
 }
 
 const POSTS_PER_PAGE = 9;
@@ -59,8 +61,13 @@ const Blog = () => {
         .order("published_at", { ascending: false });
 
       if (error) throw error;
-      setPosts(data || []);
-      setFilteredPosts(data || []);
+      // Calcul du temps de lecture directement après le fetch, là où content_html est dispo
+      const postsWithTime = (data || []).map(post => ({
+        ...post,
+        reading_time: post.content_html ? calculateReadingTime(post.content_html) : undefined,
+      }));
+      setPosts(postsWithTime);
+      setFilteredPosts(postsWithTime);
     } catch (error) {
       console.error("Error fetching blog posts:", error);
     } finally {
@@ -160,7 +167,7 @@ const Blog = () => {
                         category={post.category || undefined}
                         coverImageUrl={post.cover_image_url || undefined}
                         publishedAt={post.published_at || undefined}
-                        contentHtml={post.content_html || undefined}
+                        readingTime={post.reading_time}
                       />
                     ))}
                   </div>

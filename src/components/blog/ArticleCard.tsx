@@ -10,6 +10,7 @@ interface ArticleCardProps {
   coverImageUrl?: string;
   publishedAt?: string;
   contentHtml?: string;
+  readingTime?: number; // valeur pré-calculée (prioritaire)
 }
 
 const ArticleCard = ({
@@ -20,12 +21,16 @@ const ArticleCard = ({
   coverImageUrl,
   publishedAt,
   contentHtml,
+  readingTime: readingTimeProp,
 }: ArticleCardProps) => {
-  // Use content_html for accurate reading time when available, otherwise estimate from excerpt
-  const readingTime = contentHtml
-    ? calculateReadingTime(contentHtml)
-    : excerpt ? Math.max(1, Math.ceil(excerpt.split(/\s+/).length / 30)) : 3;
-  
+  // Priorité : valeur pré-calculée → content_html → excerpt (fallback)
+  const readingTime = readingTimeProp
+    ?? (contentHtml
+      ? calculateReadingTime(contentHtml)
+      : excerpt
+        ? Math.max(1, Math.ceil(excerpt.split(/\s+/).length / 30))
+        : 3);
+
   return (
     <a
       href={`/blog/${slug}`}
@@ -33,15 +38,15 @@ const ArticleCard = ({
     >
       {coverImageUrl && (
         <div className="aspect-video overflow-hidden bg-muted">
-          <img 
-            src={coverImageUrl} 
+          <img
+            src={coverImageUrl}
             alt={title}
             loading="lazy"
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
         </div>
       )}
-      
+
       <div className="p-6">
         <div className="flex items-center gap-3 mb-3">
           {category && (
@@ -55,17 +60,17 @@ const ArticleCard = ({
             {readingTime} min de lecture
           </div>
         </div>
-        
+
         <h2 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors mb-2 line-clamp-2">
           {title}
         </h2>
-        
+
         {excerpt && (
           <p className="text-muted-foreground text-sm line-clamp-3 mb-4">
             {excerpt}
           </p>
         )}
-        
+
         {publishedAt && (
           <p className="text-xs text-muted-foreground">
             {formatArticleDate(publishedAt)}
