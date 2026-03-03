@@ -176,6 +176,17 @@ const jsonLd = {
               <span id="dvf-unavail-text">Données DVF indisponibles pour cette commune.</span>
             </div>
 
+            <!-- Loyer marché (Location uniquement) -->
+            <div id="rental-status-loaded" class="hidden mb-3 flex items-center gap-1.5 text-xs text-violet-700 bg-violet-50 border border-violet-200 rounded-lg px-3 py-2">
+              <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/>
+              </svg>
+              <span id="rental-status-text"></span>
+            </div>
+            <div id="rental-status-unavailable" class="hidden mb-3 text-xs text-slate-400 italic px-0.5">
+              Aucune donnée locative disponible pour cette commune.
+            </div>
+
             <!-- mb séparateur DVF / loyer -->
             <div class="mb-3"></div>
 
@@ -392,6 +403,10 @@ const jsonLd = {
                   <span class="text-sm text-slate-600">Loyer estimé après travaux</span>
                   <span id="r-new-rent" class="text-sm font-bold tabular-nums font-mono text-slate-900 flex-shrink-0"></span>
                 </div>
+                <div id="r-loyer-marche-row" class="hidden flex items-center justify-between py-3 gap-4">
+                  <span class="text-sm text-slate-500">Loyer estimé marché <span class="text-xs text-slate-400">(référence)</span></span>
+                  <span id="r-loyer-marche" class="text-sm font-bold tabular-nums font-mono text-violet-700 flex-shrink-0"></span>
+                </div>
                 <div class="flex items-center justify-between py-3 gap-4">
                   <span class="text-sm text-slate-600">Surplus mensuel</span>
                   <span id="r-delta-rent" class="text-sm font-bold tabular-nums font-mono text-slate-900 flex-shrink-0"></span>
@@ -520,6 +535,14 @@ const jsonLd = {
     };
   }
 
+  interface RentalResult {
+    source: "rental_prices_v1";
+    data: {
+      loyer_m2: number;
+      nb_obs:   number;
+    };
+  }
+
   // ── Référentiel ──
   const WORK_TYPES: Record<string, WorkTypeDef> = {
     extension:              { label: "Extension / surélévation" },
@@ -556,9 +579,10 @@ const jsonLd = {
   // ── État ──
   let selectedObjective:    Objective   = 'revente';
   let selectedCommune:      CommuneItem | null = null;
-  let cachedDvfResult:      DvfResult   | null = null;
-  let cachedDvfTypeBien:    string      = '';   // 'maison' | 'appartement' | ''
-  let hasMultipleCommunes:  boolean     = false; // true si plusieurs communes pour ce CP
+  let cachedDvfResult:      DvfResult    | null = null;
+  let cachedDvfTypeBien:    string       = '';   // 'maison' | 'appartement' | ''
+  let cachedRentalResult:   RentalResult | null = null;
+  let hasMultipleCommunes:  boolean      = false; // true si plusieurs communes pour ce CP
 
   // ── Formatters ──
   function formatEuro(n: number): string {
@@ -712,12 +736,16 @@ const jsonLd = {
       inactive.forEach(c => btnL.classList.add(c));
       active.forEach(c   => btnL.classList.remove(c));
       hide('rent-field');
+      hide('rental-status-loaded');
+      hide('rental-status-unavailable');
+      cachedRentalResult = null;
     } else {
       active.forEach(c   => btnL.classList.add(c));
       inactive.forEach(c => btnL.classList.remove(c));
       inactive.forEach(c => btnR.classList.add(c));
       active.forEach(c   => btnR.classList.remove(c));
       show('rent-field');
+      if (selectedCommune) void fetchRentalForCommune();
     }
     hide('result');
   }
@@ -731,10 +759,13 @@ const jsonLd = {
     selectedCommune       = null;
     cachedDvfResult       = null;
     cachedDvfTypeBien     = '';
+    cachedRentalResult    = null;
     hasMultipleCommunes   = false;
     hide('dvf-status-loaded');
     hide('dvf-status-unavailable');
     hide('dvf-loading');
+    hide('rental-status-loaded');
+    hide('rental-status-unavailable');
     hide('communes-multi-info');
 
     if (!/^\d{5}$/.test(cp)) {
@@ -794,8 +825,11 @@ const jsonLd = {
   async function fetchDvfForCommune(): Promise<void> {
     hide('dvf-status-loaded');
     hide('dvf-status-unavailable');
+    hide('rental-status-loaded');
+    hide('rental-status-unavailable');
     cachedDvfResult    = null;
     cachedDvfTypeBien  = '';
+    cachedRentalResult = null;
 
     if (!selectedCommune) return;
 
@@ -833,6 +867,45 @@ const jsonLd = {
       hide('dvf-status-unavailable');
     } finally {
       hide('dvf-loading');
+    }
+
+    // Déclencher le fetch loyer si objectif = Location
+    void fetchRentalForCommune();
+  }
+
+  // ── Loyer marché : commune → loyer/m² ──
+  async function fetchRentalForCommune(): Promise<void> {
+    hide('rental-status-loaded');
+    hide('rental-status-unavailable');
+    cachedRentalResult = null;
+
+    if (!selectedCommune || selectedObjective !== 'location') return;
+
+    try {
+      const typeBien = (el('property-type') as HTMLSelectElement).value;
+      const typeBienParam = typeBien ? `&type_bien=${encodeURIComponent(typeBien)}` : '';
+      const url = `/api/rental-prices?code_insee=${selectedCommune.codeInsee}${typeBienParam}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+
+      type RentalApiResp = RentalResult | { source: "rental_prices_v1"; data: null };
+      const data = await resp.json() as RentalApiResp;
+
+      if (data.data !== null) {
+        cachedRentalResult = data as RentalResult;
+        const loyer = data.data.loyer_m2;
+        const nbObs = data.data.nb_obs;
+        const obsLabel = nbObs > 0 ? `\u00a0· ${nbObs}\u00a0obs.` : '';
+        el('rental-status-text').textContent =
+          `Loyer marché\u00a0: ${loyer.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}\u00a0€/m²${obsLabel}`;
+        show('rental-status-loaded');
+      } else {
+        show('rental-status-unavailable');
+      }
+
+    } catch {
+      hide('rental-status-loaded');
+      hide('rental-status-unavailable');
     }
   }
 
@@ -1054,6 +1127,15 @@ const jsonLd = {
     if (selectedObjective === 'location') {
       show('r-location-section');
 
+      // Loyer marché de référence
+      hide('r-loyer-marche-row');
+      if (cachedRentalResult && currentSurface > 0) {
+        const loyerM2Ref = cachedRentalResult.data.loyer_m2;
+        const loyerMarcheEstime = Math.round(loyerM2Ref * currentSurface);
+        el('r-loyer-marche').textContent = `${formatEuro(loyerMarcheEstime)}/mois`;
+        show('r-loyer-marche-row');
+      }
+
       const currentRent = parseFloat(el<HTMLInputElement>('current-rent').value) || 0;
       const surfaceItems    = items.filter(i => SURFACE_TYPES.has(i.type));
       const nonSurfaceItems = items.filter(i => !SURFACE_TYPES.has(i.type));
@@ -1200,10 +1282,13 @@ const jsonLd = {
       const code = sel.value;
       hide('communes-multi-info');
       if (!code) {
-        selectedCommune = null;
-        cachedDvfResult = null;
+        selectedCommune    = null;
+        cachedDvfResult    = null;
+        cachedRentalResult = null;
         hide('dvf-status-loaded');
         hide('dvf-status-unavailable');
+        hide('rental-status-loaded');
+        hide('rental-status-unavailable');
         return;
       }
       const opt = sel.options[sel.selectedIndex];
