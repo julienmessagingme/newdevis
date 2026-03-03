@@ -818,10 +818,8 @@ const jsonLd = {
 
       if (!Number.isNaN(prix) && prix > 0) {
         cachedDvfResult = data as DvfResult;
-        const f = (data as DvfResult).data.fiabilite;
-        const dots = statusFiabDots(f.niveau);
         el('dvf-status-text').innerHTML =
-          `${(data as DvfResult).data.commune}\u00a0· ${prix.toLocaleString('fr-FR')}\u00a0€/m²\u00a0·\u00a0${dots}`;
+          `${(data as DvfResult).data.commune}\u00a0· ${prix.toLocaleString('fr-FR')}\u00a0€/m² <span style="font-weight:normal;opacity:0.75">prix moyen</span>`;
         show('dvf-status-loaded');
       } else {
         cachedDvfResult   = null;
