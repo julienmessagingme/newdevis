@@ -200,7 +200,7 @@ devis-clarity/
 │   │   ├── nouvelle-analyse.astro      # Formulaire de nouvelle analyse
 │   │   ├── cgu.astro                   # Conditions générales (statique)
 │   │   ├── comprendre-score.astro      # Explication du système de score
-│   │   ├── contact.astro               # Formulaire de contact (Web3Forms)
+│   │   ├── contact.astro               # Formulaire de contact (Web3Forms) + enquête satisfaction
 │   │   ├── confidentialite.astro       # Politique de confidentialité
 │   │   ├── faq.astro                   # FAQ (statique, accordéons)
 │   │   ├── mentions-legales.astro      # Mentions légales
@@ -217,6 +217,7 @@ devis-clarity/
 │   │   │   ├── geo-communes.ts        # API résolution code postal → communes
 │   │   │   ├── market-prices.ts       # API prix immobiliers DVF
 │   │   │   ├── strategic-scores.ts    # API calcul scores IVP/IPI
+│   │   │   ├── newsletter.ts          # API inscription newsletter + webhook MessagingMe
 │   │   │   └── debug-supabase.ts      # API diagnostic Supabase
 │   │   ├── blog/
 │   │   │   ├── index.astro            # Liste des articles
@@ -442,7 +443,7 @@ Ces pages sont générées au build et servies comme HTML statique :
 | `cgu.astro` | `/cgu` | Conditions générales d'utilisation |
 | `faq.astro` | `/faq` | FAQ (accordéons `<details>`) |
 | `qui-sommes-nous.astro` | `/qui-sommes-nous` | Page "Qui sommes-nous" |
-| `contact.astro` | `/contact` | Formulaire de contact (Web3Forms) |
+| `contact.astro` | `/contact` | Formulaire de contact (Web3Forms) + enquête satisfaction |
 | `mentions-legales.astro` | `/mentions-legales` | Mentions légales |
 | `confidentialite.astro` | `/confidentialite` | Politique de confidentialité |
 | `valorisation-travaux-immobiliers.astro` | `/valorisation-travaux-immobiliers` | Page SEO valorisation immobilière |
@@ -478,6 +479,7 @@ Ces pages ont `export const prerender = false` et sont rendues côté serveur ou
 | `api/geo-communes.ts` | `/api/geo-communes` | Résolution code postal → communes (geo.api.gouv.fr) |
 | `api/market-prices.ts` | `/api/market-prices` | Prix immobiliers DVF par commune et type de bien |
 | `api/strategic-scores.ts` | `/api/strategic-scores` | Calcul scores IVP/IPI depuis la matrice stratégique |
+| `api/newsletter.ts` | `/api/newsletter` | Inscription newsletter + webhook MessagingMe |
 | `api/debug-supabase.ts` | `/api/debug-supabase` | Diagnostic connexion Supabase (dev) |
 
 ### Pages dynamiques avec paramètres
@@ -732,11 +734,12 @@ Source : Demandes de Valeurs Foncières (data.gouv.fr). Données publiques, RLS 
 
 ### Flux d'inscription
 
-1. L'utilisateur remplit : prénom, nom, email, téléphone (10 chiffres), mot de passe (min 8 caractères)
+1. L'utilisateur remplit : prénom, nom, email, téléphone (avec sélecteur indicatif pays, +33 par défaut, 14 pays supportés), mot de passe (min 8 caractères)
 2. Acceptation obligatoire des CGU
 3. Option : accepter les offres commerciales
-4. Appel `supabase.auth.signUp()` avec les metadata utilisateur
-5. Redirection vers `/tableau-de-bord`
+4. Appel `supabase.auth.signUp()` avec les metadata utilisateur (téléphone au format international : `+33612345678`)
+5. Webhook fire & forget vers MessagingMe (CRM) avec email, téléphone, nom, prénom, accept_commercial
+6. Redirection vers `/tableau-de-bord`
 
 ### Flux de connexion
 
@@ -1059,6 +1062,41 @@ Animations customs définies dans Tailwind :
 ### Breakpoints
 
 Breakpoints Tailwind standard : `sm` (640px), `md` (768px), `lg` (1024px), `xl` (1280px), `2xl` (1400px)
+
+---
+
+## 14b. Intégrations externes (CRM & Email)
+
+### MessagingMe (CRM)
+
+Widget chat + plateforme d'envoi d'emails marketing/transactionnels.
+
+- **Widget chat** : script chargé dans `BaseLayout.astro` (`<script src="https://ai.messagingme.app/widget/f236879w135897.js" async>`), présent sur toutes les pages.
+- **Webhooks entrants** : les événements utilisateur sont poussés vers MessagingMe via des incoming webhooks (POST JSON).
+
+| Événement | Webhook URL | Déclenché depuis | Payload |
+|---|---|---|---|
+| Inscription | `iwh/25a2bb855e30cf49b1fc2aac9697478c` | `Register.tsx` | email, phone, first_name, last_name, accept_commercial, source, registered_at |
+| Newsletter | `iwh/fa98aca201609862553a50cbdda5b8db` | `/api/newsletter.ts` | email, source, subscribed_at |
+
+### SMTP OVH
+
+- **Adresse** : `contact@verifiermondevis.fr`
+- **Serveur** : `ssl0.ovh.net`, port 587 (STARTTLS)
+- **Usage** : envoi d'emails marketing/transactionnels depuis MessagingMe (enquêtes satisfaction, newsletters)
+
+### Web3Forms
+
+Formulaire de contact serverless (pas de backend nécessaire). POST vers `api.web3forms.com/submit`.
+- **Clé** : `0bdbe892-3eef-4a5e-9915-87d190d6e145`
+- **Formulaire classique** : nom, email, catégorie, message → `/contact?success=true`
+- **Enquête satisfaction** : `/contact?rating=X&user=email` → envoi automatique de la note via Web3Forms + page de remerciement
+
+### Templates email
+
+| Fichier | Usage | Variables |
+|---|---|---|
+| `emails/enquete-satisfaction.html` | Enquête satisfaction (5 smileys cliquables) | `{{first_name}}`, `{{email}}`, `{{unsubscribe_url}}` |
 
 ---
 

@@ -33,7 +33,7 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 | `/comprendre-score` | `comprendre-score.astro` | `ComprendreScoreApp` → `ComprendreScore` |
 | `/faq` | `faq.astro` | *(statique Astro — accordéons `<details>`)* |
 | `/qui-sommes-nous` | `qui-sommes-nous.astro` | *(statique Astro)* |
-| `/contact` | `contact.astro` | *(statique Astro — formulaire Web3Forms)* |
+| `/contact` | `contact.astro` | *(statique Astro — formulaire Web3Forms + enquête satisfaction)* |
 | `/mentions-legales` | `mentions-legales.astro` | *(statique Astro)* |
 | `/confidentialite` | `confidentialite.astro` | *(statique Astro)* |
 | `/cgu` | `cgu.astro` | *(statique Astro)* |
@@ -49,6 +49,7 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 | `/api/market-prices` | `api/market-prices.ts` | Prix immobiliers DVF par commune (table `dvf_prices_yearly`) |
 | `/api/strategic-scores` | `api/strategic-scores.ts` | Calcul scores IVP/IPI depuis `strategic_matrix` |
 | `/api/debug-supabase` | `api/debug-supabase.ts` | Diagnostic connexion Supabase (dev/debug) |
+| `/api/newsletter` | `api/newsletter.ts` | Inscription newsletter + webhook MessagingMe |
 
 ## Ajouter une page
 
@@ -297,9 +298,36 @@ Bandeau cookie dans `BaseLayout.astro` avec boutons **Accepter / Refuser**. Stoc
 
 ## Page Contact (Web3Forms)
 
-`src/pages/contact.astro` — formulaire serverless via Web3Forms (POST vers `api.web3forms.com/submit`). Champs : nom, email, catégorie (select), message. Protection anti-bot par honeypot (`<input type="checkbox" name="botcheck" class="hidden">`). Redirection vers `/contact?success=true` après envoi.
+`src/pages/contact.astro` — formulaire serverless via Web3Forms (POST vers `api.web3forms.com/submit`). Champs : nom, email, catégorie (select), message. Protection anti-bot par honeypot (`<input type="checkbox" name="botcheck" class="hidden">`). Redirection vers `/contact?success=true` après envoi. Clé Web3Forms configurée : `0bdbe892-3eef-4a5e-9915-87d190d6e145`.
 
-**À configurer** : remplacer `VOTRE_CLE_WEB3FORMS_ICI` par la clé d'accès obtenue sur web3forms.com.
+### Enquête de satisfaction
+
+La page contact gère aussi les retours d'enquête de satisfaction par email. Quand un utilisateur clique sur un smiley dans l'email d'enquête, il arrive sur `/contact?rating=X&user=email`. Le script :
+1. Masque le formulaire classique
+2. Affiche un message de remerciement avec l'emoji correspondant
+3. Envoie la note via Web3Forms (sujet : "Enquete satisfaction - Note X/5")
+4. Propose un lien pour laisser un message complémentaire
+
+Le template HTML de l'email d'enquête est dans `emails/enquete-satisfaction.html` (variables : `{{first_name}}`, `{{email}}`, `{{unsubscribe_url}}`).
+
+## Webhooks MessagingMe (CRM)
+
+Intégration avec MessagingMe pour le suivi des utilisateurs. Webhooks entrants (incoming webhooks) déclenchés automatiquement.
+
+### Webhook inscription (`Register.tsx`)
+- **URL** : `https://ai.messagingme.app/api/iwh/25a2bb855e30cf49b1fc2aac9697478c`
+- **Déclenchement** : après `supabase.auth.signUp()` réussi (fire & forget)
+- **Payload** : `{ event, email, phone, first_name, last_name, accept_commercial, source, registered_at }`
+- **Téléphone** : format international (`+33612345678`) — sélecteur de pays avec 14 indicatifs (France par défaut)
+
+### Webhook newsletter (`/api/newsletter.ts`)
+- **URL** : `https://ai.messagingme.app/api/iwh/fa98aca201609862553a50cbdda5b8db`
+- **Déclenchement** : après upsert dans `newsletter_subscriptions` (try/catch, non-bloquant)
+- **Payload** : `{ event, email, source, subscribed_at }`
+
+### Sélecteur indicatif pays (inscription)
+
+`Register.tsx` inclut un sélecteur de pays (`COUNTRY_CODES`, 14 pays) avec drapeaux emoji et indicatifs. Le numéro est validé selon le nombre de chiffres du pays sélectionné. Le format stocké dans Supabase et envoyé au webhook est international (ex: `+33612345678` — le 0 initial est supprimé automatiquement).
 
 ## Architecture multi-verticale (domain)
 
@@ -317,6 +345,14 @@ Préparation pour supporter d'autres domaines que "travaux" (auto, dentaire, etc
 ## Widget MessagingMe
 
 Script chat widget chargé dans `<head>` de `BaseLayout.astro` : `<script src="https://ai.messagingme.app/widget/f236879w135897.js" async>`. Présent sur toutes les pages.
+
+## Email marketing (SMTP OVH + MessagingMe)
+
+- **Adresse expéditeur** : `contact@verifiermondevis.fr` (hébergé OVH)
+- **SMTP** : `ssl0.ovh.net`, port 587 (STARTTLS)
+- **Plateforme d'envoi** : MessagingMe (envoi d'emails marketing/transactionnels via workflows)
+- **Templates email** : `emails/enquete-satisfaction.html` — enquête de satisfaction (5 smileys cliquables)
+- **Webhooks CRM** : inscription + newsletter poussés vers MessagingMe (voir section dédiée)
 
 ## Authentification et navigation admin
 
