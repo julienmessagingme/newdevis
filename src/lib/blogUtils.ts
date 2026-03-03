@@ -10,11 +10,46 @@ export const getCTAUrl = (): string => {
 
 /**
  * Calculate reading time in minutes
+ * - Strips script/style content (not just tags)
+ * - Decodes HTML entities (&nbsp; etc.)
+ * - Accounts for images and section headers
+ * - Uses 183 WPM (standard for French content)
  */
 export const calculateReadingTime = (html: string): number => {
-  const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!html || html.trim().length === 0) return 1;
+
+  // Count structural elements before stripping
+  const imageCount = (html.match(/<img\b/gi) || []).length;
+  const sectionCount = (html.match(/<h[2-4]\b/gi) || []).length;
+
+  // Strip script and style tag contents entirely
+  let text = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ');
+  text = text.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ');
+
+  // Strip remaining HTML tags
+  text = text.replace(/<[^>]+>/g, ' ');
+
+  // Decode common HTML entities
+  text = text
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&[a-z]{2,8};/gi, ' ')  // other named entities
+    .replace(/&#\d+;/g, ' ');        // numeric entities
+
+  // Normalize whitespace and count words
+  text = text.replace(/\s+/g, ' ').trim();
   const words = text.split(' ').filter(w => w.length > 0).length;
-  return Math.max(1, Math.ceil(words / 200));
+
+  // Reading time: 183 WPM + 10s/image + 5s/section header
+  const textMinutes = words / 183;
+  const imageBonus = imageCount * (10 / 60);
+  const structureBonus = sectionCount * (5 / 60);
+
+  return Math.max(1, Math.ceil(textMinutes + imageBonus + structureBonus));
 };
 
 /**

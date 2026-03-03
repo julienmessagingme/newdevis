@@ -16,7 +16,7 @@ interface BlogPost {
   excerpt: string | null;
   category: string | null;
   cover_image_url: string | null;
-  
+  published_at: string | null;
   content_html: string | null;
 }
 
@@ -159,7 +159,7 @@ const Blog = () => {
                         excerpt={post.excerpt || undefined}
                         category={post.category || undefined}
                         coverImageUrl={post.cover_image_url || undefined}
-                        
+                        publishedAt={post.published_at || undefined}
                         contentHtml={post.content_html || undefined}
                       />
                     ))}
