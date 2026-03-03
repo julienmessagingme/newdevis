@@ -273,6 +273,9 @@ const AnalysisResult = () => {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [showTrustpilotModal, setShowTrustpilotModal] = useState(false);
+  const trustpilotRef = useRef<HTMLDivElement>(null);
+  const trustpilotModalRef = useRef<HTMLDivElement>(null);
   const { user: authUser, isAnonymous: rawIsAnonymous, isPermanent: rawIsPermanent, loading: authLoading, convertToPermanent } = useAnonymousAuth();
 
   // Preview mode: ?preview=gate forces anonymous view for testing
@@ -353,6 +356,40 @@ const AnalysisResult = () => {
     setAnalysis(data as unknown as Analysis);
     setLoading(false);
   }, [id, isPermanent]);
+
+  // Helper: tries loadFromElement immediately, retries after 1s if script not yet loaded
+  const initTrustpilotWidget = useCallback((el: HTMLDivElement | null) => {
+    if (!el) return;
+    type TW = { Trustpilot?: { loadFromElement: (el: HTMLElement, force: boolean) => void } };
+    const tryLoad = () => {
+      const tp = (window as unknown as TW).Trustpilot;
+      if (tp) { tp.loadFromElement(el, true); return true; }
+      return false;
+    };
+    if (!tryLoad()) {
+      // Script not yet loaded — retry after 1s then 3s
+      setTimeout(() => { if (!tryLoad()) setTimeout(tryLoad, 2000); }, 1000);
+    }
+  }, []);
+
+  // Initialize inline Trustpilot widget once analysis is loaded
+  useEffect(() => {
+    if (!analysis) return;
+    initTrustpilotWidget(trustpilotRef.current);
+  }, [analysis, initTrustpilotWidget]);
+
+  // Show Trustpilot modal 5s after analysis is loaded (once per page visit)
+  useEffect(() => {
+    if (!analysis || analysis.status !== "completed") return;
+    const timer = setTimeout(() => setShowTrustpilotModal(true), 5000);
+    return () => clearTimeout(timer);
+  }, [analysis]);
+
+  // Initialize modal Trustpilot widget when modal becomes visible
+  useEffect(() => {
+    if (!showTrustpilotModal) return;
+    initTrustpilotWidget(trustpilotModalRef.current);
+  }, [showTrustpilotModal, initTrustpilotWidget]);
 
   useEffect(() => {
     fetchAnalysis();
@@ -896,6 +933,27 @@ const AnalysisResult = () => {
           </div>
         </div>
 
+        {/* Trustpilot Review Collector */}
+        <div className="mb-8 text-center">
+          <p className="text-sm text-muted-foreground mb-3">
+            Votre analyse est prête 🎉 — votre avis nous aide à améliorer le service
+          </p>
+          <div
+            ref={trustpilotRef}
+            className="trustpilot-widget"
+            data-locale="fr-FR"
+            data-template-id="56278e9abfbbba0bdcd568bc"
+            data-businessunit-id="69a6cc3942d8a24e56af1528"
+            data-style-height="52px"
+            data-style-width="100%"
+            data-token="f49b09bf-811e-458a-bfe0-6a1df2cca869"
+          >
+            <a href="https://fr.trustpilot.com/review/verifiermondevis.fr" target="_blank" rel="noopener">
+              Laisser un avis sur Trustpilot
+            </a>
+          </div>
+        </div>
+
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <a href={isPermanent ? "/tableau-de-bord" : "/"}><Button variant="outline" size="lg"><ArrowLeft className="h-4 w-4 mr-2" />{isPermanent ? "Tableau de bord" : "Accueil"}</Button></a>
@@ -903,6 +961,54 @@ const AnalysisResult = () => {
         </div>
       </main>
     </div>
+
+    {/* Trustpilot Review Modal — appears 5s after analysis loads */}
+    {showTrustpilotModal && (
+      <div
+        className="fixed inset-0 z-[9997] flex items-end sm:items-center justify-center p-4 bg-black/40"
+        onClick={() => setShowTrustpilotModal(false)}
+      >
+        <div
+          className="bg-card border border-border rounded-2xl shadow-2xl max-w-sm w-full p-6 relative"
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            onClick={() => setShowTrustpilotModal(false)}
+            className="absolute right-3 top-3 text-muted-foreground hover:text-foreground transition-colors p-1"
+            aria-label="Fermer"
+          >
+            <XCircle className="h-5 w-5" />
+          </button>
+          <div className="text-center mb-4">
+            <div className="text-2xl mb-2">⭐</div>
+            <h3 className="text-lg font-bold text-foreground mb-1">Votre avis compte !</h3>
+            <p className="text-sm text-muted-foreground">
+              Notre service vous a été utile ? Laissez-nous un avis sur Trustpilot — ça prend 30 secondes.
+            </p>
+          </div>
+          <div
+            ref={trustpilotModalRef}
+            className="trustpilot-widget"
+            data-locale="fr-FR"
+            data-template-id="56278e9abfbbba0bdcd568bc"
+            data-businessunit-id="69a6cc3942d8a24e56af1528"
+            data-style-height="52px"
+            data-style-width="100%"
+            data-token="f49b09bf-811e-458a-bfe0-6a1df2cca869"
+          >
+            <a href="https://fr.trustpilot.com/review/verifiermondevis.fr" target="_blank" rel="noopener">
+              Laisser un avis sur Trustpilot
+            </a>
+          </div>
+          <button
+            onClick={() => setShowTrustpilotModal(false)}
+            className="w-full text-center text-xs text-muted-foreground hover:text-foreground mt-3 transition-colors"
+          >
+            Non merci
+          </button>
+        </div>
+      </div>
+    )}
     </ExtractionBlocker>
   );
 };
