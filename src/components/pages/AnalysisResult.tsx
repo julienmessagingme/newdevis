@@ -378,9 +378,10 @@ const AnalysisResult = () => {
     initTrustpilotWidget(trustpilotRef.current);
   }, [analysis, initTrustpilotWidget]);
 
-  // Show Trustpilot modal 5s after analysis is loaded (once per page visit)
+  // Show Trustpilot modal 5s after analysis is loaded (skip if already dismissed)
   useEffect(() => {
     if (!analysis || analysis.status !== "completed") return;
+    if (localStorage.getItem("trustpilot-dismissed")) return;
     const timer = setTimeout(() => setShowTrustpilotModal(true), 5000);
     return () => clearTimeout(timer);
   }, [analysis]);
@@ -966,14 +967,14 @@ const AnalysisResult = () => {
     {showTrustpilotModal && (
       <div
         className="fixed inset-0 z-[9997] flex items-end sm:items-center justify-center p-4 bg-black/40"
-        onClick={() => setShowTrustpilotModal(false)}
+        onClick={() => { localStorage.setItem("trustpilot-dismissed", "1"); setShowTrustpilotModal(false); }}
       >
         <div
           className="bg-card border border-border rounded-2xl shadow-2xl max-w-sm w-full p-6 relative"
           onClick={e => e.stopPropagation()}
         >
           <button
-            onClick={() => setShowTrustpilotModal(false)}
+            onClick={() => { localStorage.setItem("trustpilot-dismissed", "1"); setShowTrustpilotModal(false); }}
             className="absolute right-3 top-3 text-muted-foreground hover:text-foreground transition-colors p-1"
             aria-label="Fermer"
           >
@@ -1001,7 +1002,7 @@ const AnalysisResult = () => {
             </a>
           </div>
           <button
-            onClick={() => setShowTrustpilotModal(false)}
+            onClick={() => { localStorage.setItem("trustpilot-dismissed", "1"); setShowTrustpilotModal(false); }}
             className="w-full text-center text-xs text-muted-foreground hover:text-foreground mt-3 transition-colors"
           >
             Non merci
