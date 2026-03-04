@@ -8,7 +8,7 @@ export const prerender = false;
 
 const { data: posts } = await supabase
   .from("blog_posts")
-  .select("id, slug, title, excerpt, category, cover_image_url, published_at")
+  .select("id, slug, title, excerpt, category, cover_image_url, published_at, reading_time, content_html")
   .eq("status", "published")
   .order("published_at", { ascending: false });
 
@@ -19,9 +19,13 @@ function formatDate(date: string | null): string {
   return new Date(date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-function readingTime(excerpt: string | null): number {
-  if (!excerpt) return 3;
-  return Math.max(1, Math.ceil(excerpt.split(/\s+/).filter((w: string) => w.length > 0).length / 30));
+function readingTime(dbValue: number | null | undefined, contentHtml: string | null | undefined, excerpt: string | null | undefined): number {
+  if (dbValue != null && dbValue > 0) return dbValue;
+  const text = contentHtml
+    ? contentHtml.replace(/<[^>]+>/g, ' ')
+    : (excerpt || '');
+  const words = text.split(/\s+/).filter((w: string) => w.length > 0).length;
+  return Math.max(1, Math.ceil(words / 200));
 }
 ---
 
@@ -128,7 +132,7 @@ function readingTime(excerpt: string | null): number {
                         )}
                         <div class="flex items-center gap-1 text-xs text-muted-foreground">
                           <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                          {readingTime(post.excerpt)} min de lecture
+                          {readingTime(post.reading_time, post.content_html, post.excerpt)} min de lecture
                         </div>
                       </div>
                       <h2 class="text-xl font-bold text-foreground group-hover:text-primary transition-colors mb-2 line-clamp-2">
