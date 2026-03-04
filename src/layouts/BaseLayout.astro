@@ -98,10 +98,19 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
     <script type="text/javascript" src="//widget.trustpilot.com/bootstrap/v5/tp.widget.bootstrap.min.js" async></script>
     <!-- End TrustBox script -->
 
+    <!-- Google Analytics 4 — Consent Mode v2 -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-HJFMR8ST50"></script>
     <script is:inline>
       window.dataLayer = window.dataLayer || [];
-      window.gtag = function(){window.dataLayer.push(arguments);}
-      window.gtag('js', new Date());
+      function gtag(){window.dataLayer.push(arguments);}
+      // Consent par défaut : refusé jusqu'à l'accord de l'utilisateur
+      gtag('consent', 'default', {
+        'analytics_storage': 'denied',
+        'ad_storage': 'denied',
+        'wait_for_update': 500
+      });
+      gtag('js', new Date());
+      gtag('config', 'G-HJFMR8ST50', { 'anonymize_ip': true });
     </script>
   </head>
   <body>
@@ -284,14 +293,11 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
         });
 
         function loadTrackingScripts() {
-          // === Google Analytics ===
-          var s = document.createElement('script');
-          s.async = true;
-          s.src = 'https://www.googletagmanager.com/gtag/js?id=G-HJFMR8ST50';
-          document.head.appendChild(s);
-          s.onload = function() {
-            window.gtag('config', 'G-HJFMR8ST50');
-          };
+          // === Google Analytics — mise à jour consentement ===
+          gtag('consent', 'update', {
+            'analytics_storage': 'granted',
+            'ad_storage': 'granted'
+          });
 
           // === Meta Pixel (Facebook) ===
           // Remplacer XXXXXXXXXXXXXXX par votre Pixel ID
