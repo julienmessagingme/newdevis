@@ -98,10 +98,10 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
     <script type="text/javascript" src="//widget.trustpilot.com/bootstrap/v5/tp.widget.bootstrap.min.js" async></script>
     <!-- End TrustBox script -->
 
-    <script>
+    <script is:inline>
       window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
+      window.gtag = function(){window.dataLayer.push(arguments);}
+      window.gtag('js', new Date());
     </script>
   </head>
   <body>
@@ -290,7 +290,7 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
           s.src = 'https://www.googletagmanager.com/gtag/js?id=G-HJFMR8ST50';
           document.head.appendChild(s);
           s.onload = function() {
-            gtag('config', 'G-HJFMR8ST50');
+            window.gtag('config', 'G-HJFMR8ST50');
           };
 
           // === Meta Pixel (Facebook) ===

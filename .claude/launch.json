@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "dev",
+      "name": "newdevis",
       "runtimeExecutable": "node",
       "runtimeArgs": ["node_modules/astro/astro.js", "dev"],
       "port": 4321
