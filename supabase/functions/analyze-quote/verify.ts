@@ -303,21 +303,23 @@ export async function verifyData(
     }
   }
 
-  // 4. RGE - Qualifications
-  const workCategories = extracted.travaux.map(t => t.categorie.toLowerCase());
-  const rgeRelevantCategories = ["isolation", "chauffage", "pompe à chaleur", "pac", "solaire", "photovoltaique", "renovation_energetique"];
-  result.rge_pertinent = workCategories.some(cat =>
-    rgeRelevantCategories.some(rge => cat.includes(rge) || rge.includes(cat))
-  );
+  // 4. RGE - Qualifications (vérifié systématiquement si SIREN disponible)
+  result.rge_pertinent = !!siren;
 
-  if (result.rge_pertinent && siren) {
+  if (siren) {
     try {
-      const rgeResponse = await fetch(`${ADEME_RGE_API_URL}?q=${siren}&size=5`);
+      const rgeResponse = await fetch(`${ADEME_RGE_API_URL}?q=${siren}&size=10`);
       if (rgeResponse.ok) {
         const rgeData = await rgeResponse.json();
         if (rgeData.results && rgeData.results.length > 0) {
           result.rge_trouve = true;
-          result.rge_qualifications = rgeData.results.map((r: any) => r.nom_qualification || r.qualification).filter(Boolean);
+          result.rge_qualifications = rgeData.results
+            .map((r: any) => ({
+              nom: r.nom_qualification || r.qualification || "",
+              domaine: r.domaine || r.code_qualification || undefined,
+              date_fin: r.date_fin_validite || undefined,
+            }))
+            .filter((q: any) => q.nom);
         }
       }
     } catch (error) {

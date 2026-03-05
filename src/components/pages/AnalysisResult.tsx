@@ -176,6 +176,10 @@ export interface CompanyDisplayData {
   // Données financières brutes issues de verified.finances (data.economie.gouv.fr)
   finances: import("@/lib/entrepriseUtils").FinancialRatios[];
   finances_status: string;
+  // Qualifications RGE (ADEME)
+  rge_pertinent: boolean;
+  rge_trouve: boolean;
+  rge_qualifications: Array<{ nom: string; domaine?: string; date_fin?: string }>;
 }
 
 const extractCompanyData = (analysis: Analysis): CompanyDisplayData | null => {
@@ -200,6 +204,9 @@ const extractCompanyData = (analysis: Analysis): CompanyDisplayData | null => {
       lookup_status: verified?.lookup_status || null,
       finances: Array.isArray(verified?.finances) ? verified.finances : [],
       finances_status: verified?.finances_status || "skipped",
+      rge_pertinent: verified?.rge_pertinent ?? false,
+      rge_trouve: verified?.rge_trouve ?? false,
+      rge_qualifications: Array.isArray(verified?.rge_qualifications) ? verified.rge_qualifications : [],
     };
   } catch {
     return null;

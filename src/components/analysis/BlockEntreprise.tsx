@@ -370,6 +370,41 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
             )}
           </div>
 
+          {/* ── Qualifications RGE ─────────────────────────────── */}
+          {companyData?.rge_pertinent && (
+            <div className="mb-4 p-3 sm:p-4 bg-background/40 rounded-xl border border-border/30">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm font-medium text-foreground">Qualifications RGE</span>
+                <InfoTooltip
+                  title="Qu'est-ce que la qualification RGE ?"
+                  content="Le label RGE (Reconnu Garant de l'Environnement) est attribué par l'État aux artisans qualifiés pour les travaux d'économies d'énergie. Il conditionne l'accès aux aides MaPrimeRénov' et CEE pour le client."
+                />
+              </div>
+
+              {companyData.rge_trouve && companyData.rge_qualifications.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {companyData.rge_qualifications.map((q, i) => (
+                    <div key={i} className="inline-flex flex-col px-2.5 py-1.5 bg-green-500/10 border border-green-500/20 rounded-lg">
+                      <span className="text-xs font-medium text-green-700">{q.nom}</span>
+                      {q.date_fin && (
+                        <span className="text-xs text-muted-foreground">
+                          Valide jusqu'au {new Date(q.date_fin).toLocaleDateString("fr-FR")}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Aucune qualification RGE trouvée pour ce SIRET dans la base ADEME.
+                  <span className="block text-xs mt-0.5 text-muted-foreground/70">
+                    Cela ne remet pas en cause la compétence de l'artisan — tous les corps de métier ne sont pas concernés par cette certification.
+                  </span>
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Réputation en ligne - ALWAYS VISIBLE */}
           <div className={`p-4 rounded-lg border ${getScoreBgClass(info.reputation?.score || "ORANGE")}`}>
             <div className="flex items-center gap-3 mb-2">

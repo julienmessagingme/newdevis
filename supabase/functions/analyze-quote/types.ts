@@ -116,6 +116,12 @@ export interface FinancialRatios {
   marge_ebe: number | null;
 }
 
+export interface RgeQualification {
+  nom: string;
+  domaine?: string;
+  date_fin?: string;
+}
+
 export interface VerificationResult {
   entreprise_immatriculee: boolean | null;
   entreprise_radiee: boolean | null;
@@ -137,7 +143,7 @@ export interface VerificationResult {
 
   rge_pertinent: boolean;
   rge_trouve: boolean;
-  rge_qualifications: string[];
+  rge_qualifications: RgeQualification[];
 
   google_trouve: boolean;
   google_note: number | null;

@@ -121,7 +121,7 @@ export function calculateScore(
   }
 
   if (config.certifications.includes("RGE") && verified.rge_pertinent && !verified.rge_trouve) {
-    informatifs.push("ℹ️ Qualification RGE non trouvée - vérifiez l'éligibilité aux aides si applicable");
+    informatifs.push("ℹ️ Aucune qualification RGE trouvée pour ce SIRET");
   }
 
   if (extracted.travaux.length === 0) {
@@ -152,7 +152,8 @@ export function calculateScore(
     }
   }
   if (config.certifications.includes("RGE") && verified.rge_trouve) {
-    verts.push("Qualification RGE vérifiée");
+    const noms = verified.rge_qualifications.slice(0, 2).map(q => q.nom).join(", ");
+    verts.push(`Qualification RGE vérifiée${noms ? ` : ${noms}` : ""}`);
   }
 
   if (verified.google_trouve && verified.google_note !== null && verified.google_note >= 4.2) {

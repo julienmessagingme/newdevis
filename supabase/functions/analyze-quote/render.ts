@@ -118,7 +118,8 @@ export function renderOutput(
   // RGE (only for domains that track it)
   if (config.certifications.includes("RGE")) {
     if (verified.rge_trouve) {
-      points_ok.push(`🟢 Qualification RGE vérifiée : ${verified.rge_qualifications.slice(0, 2).join(", ")}`);
+      const noms = verified.rge_qualifications.slice(0, 3).map(q => q.nom).join(", ");
+      points_ok.push(`🟢 Qualification RGE vérifiée : ${noms}`);
     } else if (verified.rge_pertinent) {
       points_ok.push("ℹ️ Qualification RGE non trouvée. Si vous visez des aides (MaPrimeRénov', CEE...), demandez le certificat RGE à l'artisan.");
     }
