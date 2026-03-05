@@ -14,23 +14,128 @@ const { data: posts } = await supabase
 
 const allPosts = posts || [];
 
-function formatDate(date: string | null): string {
-  if (!date) return '';
-  return new Date(date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+interface Category {
+  id: string;
+  label: string;
+  icon: string;
+  desc: string;
 }
 
-function readingTime(dbValue: number | null | undefined, contentHtml: string | null | undefined, excerpt: string | null | undefined): number {
+interface Subcategory {
+  id: string;
+  label: string;
+  featured?: boolean; // premier article en mise en avant pleine largeur
+}
+
+const CATEGORIES: Category[] = [
+  { id: 'conseils',       label: 'Conseils pratiques', icon: '✅', desc: 'Protégez-vous, évitez les pièges, agissez au bon moment' },
+  { id: 'prix',           label: 'Prix & budgets',     icon: '💰', desc: 'Comparez les tarifs, anticipez votre budget, évitez les surprises' },
+  { id: 'guides',         label: 'Guides complets',    icon: '📘', desc: 'De A à Z : choisir, financer, valoriser et gérer votre projet' },
+  { id: 'reglementation', label: 'Réglementation',     icon: '📜', desc: 'Vos droits, les obligations légales, ce que dit la loi' },
+];
+
+// Sous-catégories par catégorie (tableau vide = grille plate sans label)
+const CAT_SUBCATEGORIES: Record<string, Subcategory[]> = {
+  'conseils': [
+    { id: 'avant-signer', label: 'Avant de signer' },
+    { id: 'anomalies',    label: 'Détecter les anomalies' },
+    { id: 'litige',       label: 'En cas de litige' },
+  ],
+  'prix': [
+    { id: 'renovation-interieure', label: 'Rénovation intérieure', featured: true },
+    { id: 'travaux-specialises',   label: 'Travaux spécialisés' },
+  ],
+  'guides': [
+    { id: 'choisir-artisan',    label: 'Choisir son artisan' },
+    { id: 'financer-valoriser', label: 'Financer & valoriser' },
+    { id: 'faire-soi-meme',     label: 'Faire soi-même' },
+  ],
+  'reglementation': [],
+};
+
+// Mapping slug → sous-catégorie
+const SUBCATEGORY_MAP: Record<string, string> = {
+  // Conseils — Avant de signer
+  'devis-travaux-le-guide-complet-pour-ne-plus-se-faire-avoir': 'avant-signer',
+  'questions-artisan-avant-signer-devis':                       'avant-signer',
+  'comment-lire-devis-travaux':                                 'avant-signer',
+  // Conseils — Détecter les anomalies
+  'devis-gonfle-signes-alerte': 'anomalies',
+  'analyser-devis-artisan':     'anomalies',
+  // Conseils — En cas de litige
+  'artisan-travaux-inacheves-recours':              'litige',
+  'sinistre-travaux-demarches-arnaques-eviter':     'litige',
+  'reception-travaux-conseils-protection-litiges':  'litige',
+  // Prix — Rénovation intérieure
+  'prix-renovation-salle-de-bain-2026': 'renovation-interieure',
+  'prix-renovation-cuisine-2026':       'renovation-interieure',
+  // Prix — Travaux spécialisés
+  'prix-isolation-thermique-devis-combles-murs-plancher':    'travaux-specialises',
+  'prix-refaire-toiture-2026-tarifs-renovation':             'travaux-specialises',
+  'piscine-prix-conseils-demarches-projet':                  'travaux-specialises',
+  'prix-amenagement-jardin-budget-allee-portail-terrasse':   'travaux-specialises',
+  // Guides — Choisir son artisan
+  'architecte-maitre-oeuvre-conducteur-travaux-qui-choisir': 'choisir-artisan',
+  'qualifications-labels-artisans-batiment-france':           'choisir-artisan',
+  'comment-obtenir-devis-artisans-qualifies':                 'choisir-artisan',
+  'auto-entrepreneur-societe-artisan-devis':                  'choisir-artisan',
+  // Guides — Financer & valoriser
+  'comment-financer-travaux-solutions-particuliers':           'financer-valoriser',
+  'valoriser-bien-immobilier-travaux-rentables':               'financer-valoriser',
+  'marchand-biens-optimiser-budget-travaux-plus-value':        'financer-valoriser',
+  // Guides — Faire soi-même
+  'travaux-soi-meme-ce-quil-faut-savoir':        'faire-soi-meme',
+  'devis-copropriete-verifier-travaux-ag':        'faire-soi-meme',
+};
+
+function getCatId(category: string | null): string {
+  if (!category) return 'guides';
+  const cat = category.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (cat.includes('conseil')) return 'conseils';
+  if (cat.includes('prix') || cat.includes('budget')) return 'prix';
+  if (cat.includes('reglementation') || cat.includes('regl')) return 'reglementation';
+  return 'guides';
+}
+
+const postsByCategory: Record<string, typeof allPosts> = {};
+for (const cat of CATEGORIES) {
+  postsByCategory[cat.id] = allPosts.filter(p => getCatId(p.category) === cat.id);
+}
+
+function formatDate(date: string | null): string {
+  if (!date) return '';
+  return new Date(date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function getReadingTime(dbValue: number | null | undefined, contentHtml: string | null | undefined, excerpt: string | null | undefined): number {
   if (dbValue != null && dbValue > 0) return dbValue;
-  const text = contentHtml
-    ? contentHtml.replace(/<[^>]+>/g, ' ')
-    : (excerpt || '');
+  const text = contentHtml ? contentHtml.replace(/<[^>]+>/g, ' ') : (excerpt || '');
   const words = text.split(/\s+/).filter((w: string) => w.length > 0).length;
   return Math.max(1, Math.ceil(words / 200));
+}
+
+const avgRT = allPosts.length > 0
+  ? Math.round(allPosts.reduce((sum, p) => sum + getReadingTime(p.reading_time, p.content_html, p.excerpt), 0) / allPosts.length)
+  : 5;
+
+const activeCatCount = CATEGORIES.filter(cat => (postsByCategory[cat.id] || []).length > 0).length;
+
+// Pré-calcul du regroupement par sous-catégorie (fait ici pour éviter les annotations
+// TypeScript dans le template JSX, incompatibles avec esbuild)
+const postsBySubcategory: Record<string, Record<string, typeof allPosts>> = {};
+for (const cat of CATEGORIES) {
+  const pbs: Record<string, typeof allPosts> = {};
+  for (const post of postsByCategory[cat.id] || []) {
+    const sub = (post.slug && SUBCATEGORY_MAP[post.slug]) ? SUBCATEGORY_MAP[post.slug] : '_other';
+    if (!pbs[sub]) pbs[sub] = [];
+    pbs[sub].push(post);
+  }
+  postsBySubcategory[cat.id] = pbs;
 }
 ---
 
 <BaseLayout
-  title="Blog - Conseils Devis & Travaux | VerifierMonDevis.fr"
+  title="Guides & Conseils Travaux — VerifierMonDevis.fr"
   description="Conseils pratiques pour analyser vos devis artisan, éviter les arnaques et réussir vos travaux. Guides, checklists et astuces d'experts."
   canonical="https://www.verifiermondevis.fr/blog"
   breadcrumbs={[
@@ -43,182 +148,492 @@ function readingTime(dbValue: number | null | undefined, contentHtml: string | n
     "name": "Blog VerifierMonDevis.fr",
     "description": "Conseils pratiques pour analyser vos devis artisan, éviter les arnaques et réussir vos travaux.",
     "url": "https://www.verifiermondevis.fr/blog",
-    "isPartOf": {
-      "@type": "WebSite",
-      "name": "VerifierMonDevis.fr",
-      "url": "https://www.verifiermondevis.fr"
-    }
+    "isPartOf": { "@type": "WebSite", "name": "VerifierMonDevis.fr", "url": "https://www.verifiermondevis.fr" }
   }}
 >
-  <div class="min-h-screen flex flex-col bg-background">
-    <Header />
+<div class="page-wrap">
+  <Header />
+  <main>
 
-    <main class="flex-1">
-      <!-- Hero Section -->
-      <section class="py-16 md:py-20 bg-gradient-to-b from-primary/5 to-background">
-        <div class="container px-4 md:px-6">
-          <div class="max-w-3xl mx-auto text-center">
-            <div class="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full text-primary text-sm font-medium mb-6">
-              <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
-              Blog & Conseils
-            </div>
-            <h1 class="text-2xl sm:text-4xl md:text-5xl font-bold text-foreground mb-4">
-              Guides et conseils pour vos travaux
-            </h1>
-            <p class="text-base sm:text-lg text-muted-foreground mb-8">
-              Apprenez à décrypter un devis, repérer les arnaques et faire les bons choix
-              pour vos projets de rénovation.
-            </p>
+    <!-- ═══ HERO ═══ -->
+    <div class="b-hero">
+      <div class="b-eyebrow">📚 Base de connaissances</div>
+      <h1>Guides & conseils pour <span>vos travaux</span></h1>
+      <p>Tout ce qu'il faut savoir pour décrypter un devis, repérer les arnaques et faire les bons choix.</p>
+      <div class="b-search">
+        <input type="text" id="blogSearch" placeholder="Rechercher un guide, un conseil, un prix…" autocomplete="off" />
+        <span class="b-search-icon">🔍</span>
+      </div>
+    </div>
 
-            <div class="relative max-w-md mx-auto">
-              <svg class="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-              <input
-                type="search"
-                id="blog-search"
-                placeholder="Rechercher un article..."
-                class="flex h-12 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 pl-12"
-              />
-            </div>
-          </div>
+    <!-- ═══ STAT BAR ═══ -->
+    <div class="b-stats">
+      <div class="b-stat"><strong>{allPosts.length}</strong> articles publiés</div>
+      <div class="b-stat"><strong>{activeCatCount}</strong> catégories</div>
+      <div class="b-stat"><strong>{avgRT} min</strong> de lecture en moyenne</div>
+      <div class="b-stat"><strong>100%</strong> gratuit</div>
+    </div>
+
+    <!-- ═══ CATEGORY TABS ═══ -->
+    <div class="b-cat-nav">
+      <p class="b-cat-nav-label">Filtrer par catégorie</p>
+      <div class="b-tabs" role="tablist">
+        <button class="b-tab active" data-cat="all" role="tab">✦ Tout voir</button>
+        {CATEGORIES.map(cat => (postsByCategory[cat.id] || []).length > 0 && (
+          <button class="b-tab" data-cat={cat.id} role="tab">
+            <span class={`b-dot dot-${cat.id}`}></span>{cat.label}
+          </button>
+        ))}
+      </div>
+    </div>
+
+    <!-- ═══ MAIN ═══ -->
+    <div class="b-main">
+
+      <!-- CTA Banner -->
+      <div class="b-banner">
+        <div class="b-banner-icon">🔍</div>
+        <div class="b-banner-body">
+          <h3>Analysez votre devis en 5 minutes</h3>
+          <p>Notre outil gratuit détecte les anomalies, vérifie la cohérence des prix et identifie les mentions légales manquantes.</p>
         </div>
-      </section>
+        <a href="/nouvelle-analyse" class="b-banner-btn">Tester l'outil →</a>
+      </div>
 
-      <!-- Articles Grid -->
-      <section class="py-12 md:py-16">
-        <div class="container px-4 md:px-6">
-          {allPosts.length === 0 ? (
-            <div class="text-center py-12">
-              <svg class="h-12 w-12 text-muted-foreground mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
-              <h2 class="text-xl font-semibold text-foreground mb-2">Aucun article publié</h2>
-              <p class="text-muted-foreground mb-6">Les articles arrivent bientôt !</p>
-            </div>
-          ) : (
-            <>
-              <div id="no-results" class="text-center py-12 hidden">
-                <svg class="h-12 w-12 text-muted-foreground mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
-                <h2 class="text-xl font-semibold text-foreground mb-2">Aucun article trouvé</h2>
-                <p class="text-muted-foreground mb-6">Essayez avec d'autres mots-clés</p>
-                <button id="clear-search" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2">
-                  Voir tous les articles
-                </button>
+      <!-- No results -->
+      <div id="noResults" class="b-no-results" style="display:none">
+        <p style="font-size:2rem;margin-bottom:12px">🔍</p>
+        <p style="font-weight:700;font-size:1.1rem;margin-bottom:6px">Aucun article trouvé</p>
+        <p style="color:#64748b;font-size:.9rem">Essayez avec d'autres mots-clés</p>
+      </div>
+
+      <!-- ═══ CATEGORY SECTIONS ═══ -->
+      {CATEGORIES.map(cat => {
+        const catPosts = postsByCategory[cat.id] || [];
+        if (catPosts.length === 0) return null;
+
+        const subcats = CAT_SUBCATEGORIES[cat.id] || [];
+        const hasSubcats = subcats.length > 0;
+        const pbs = postsBySubcategory[cat.id] || {};
+
+        return (
+          <section class="b-cat-section visible" id={`cat-${cat.id}`} data-cat={cat.id}>
+
+            <div class="b-cat-header">
+              <div class={`b-cat-icon icon-${cat.id}`}>{cat.icon}</div>
+              <div class="b-cat-header-text">
+                <h2>{cat.label}</h2>
+                <p>{cat.desc}</p>
               </div>
+              <span class="b-cat-count">{catPosts.length} article{catPosts.length > 1 ? 's' : ''}</span>
+            </div>
 
-              <div id="articles-grid" class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {allPosts.map((post) => (
-                  <a
-                    href={`/blog/${post.slug}`}
-                    class="article-card group block bg-card rounded-2xl border border-border overflow-hidden hover:shadow-lg hover:border-primary/30 transition-all duration-300"
-                    data-title={post.title.toLowerCase()}
-                    data-excerpt={(post.excerpt || '').toLowerCase()}
-                    data-category={(post.category || '').toLowerCase()}
-                  >
-                    {post.cover_image_url && (
-                      <div class="aspect-video overflow-hidden bg-muted">
-                        <img
-                          src={post.cover_image_url}
-                          alt={post.title}
-                          loading="lazy"
-                          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                      </div>
-                    )}
-                    <div class="p-6">
-                      <div class="flex items-center gap-3 mb-3">
-                        {post.category && (
-                          <span class="inline-flex items-center rounded-full border border-transparent px-2.5 py-0.5 text-xs font-semibold bg-secondary text-secondary-foreground">
-                            <svg class="h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg>
-                            {post.category}
-                          </span>
-                        )}
-                        <div class="flex items-center gap-1 text-xs text-muted-foreground">
-                          <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                          {readingTime(post.reading_time, post.content_html, post.excerpt)} min de lecture
-                        </div>
-                      </div>
-                      <h2 class="text-xl font-bold text-foreground group-hover:text-primary transition-colors mb-2 line-clamp-2">
-                        {post.title}
-                      </h2>
-                      {post.excerpt && (
-                        <p class="text-muted-foreground text-sm line-clamp-3 mb-4">
-                          {post.excerpt}
-                        </p>
-                      )}
-                      {post.published_at && (
-                        <p class="text-xs text-muted-foreground">
-                          {formatDate(post.published_at)}
-                        </p>
-                      )}
+            {hasSubcats ? (
+              subcats.filter(sub => (pbs[sub.id] || []).length > 0).map(subcat => {
+                const subcatPosts = pbs[subcat.id] || [];
+                const featured = subcat.featured === true && subcatPosts.length >= 2;
+                return (
+                  <div class="b-subcat-section">
+                    <div class="b-subcat-label">{subcat.label}</div>
+                    <div class={`b-grid${featured ? ' b-grid-featured' : ''}`}>
+                      {subcatPosts.map((post, i) => {
+                        const rt = getReadingTime(post.reading_time, post.content_html, post.excerpt);
+                        return (
+                          <a
+                            class="b-card"
+                            href={`/blog/${post.slug}`}
+                            data-title={post.title.toLowerCase()}
+                            data-excerpt={(post.excerpt || '').toLowerCase()}
+                            data-cat={cat.id}
+                          >
+                            <div class="b-card-img">
+                              {post.cover_image_url
+                                ? <img src={post.cover_image_url} alt={post.title} loading="lazy" width="600" height="340" />
+                                : <div class="b-card-placeholder">{cat.icon}</div>
+                              }
+                              <span class={`b-badge badge-${cat.id}`}>{cat.label}</span>
+                              {i === 0 && <span class="b-popular">⭐ Populaire</span>}
+                            </div>
+                            <div class="b-card-body">
+                              <div class="b-card-meta">
+                                <span>🕐 {rt} min</span>
+                                <span>{formatDate(post.published_at)}</span>
+                              </div>
+                              <div class="b-card-title">{post.title}</div>
+                              {post.excerpt && <p class="b-card-excerpt">{post.excerpt}</p>}
+                              <span class="b-card-cta">Lire l'article →</span>
+                            </div>
+                          </a>
+                        );
+                      })}
                     </div>
-                  </a>
-                ))}
+                  </div>
+                );
+              })
+            ) : (
+              <div class="b-grid">
+                {catPosts.map((post, i) => {
+                  const rt = getReadingTime(post.reading_time, post.content_html, post.excerpt);
+                  return (
+                    <a
+                      class="b-card"
+                      href={`/blog/${post.slug}`}
+                      data-title={post.title.toLowerCase()}
+                      data-excerpt={(post.excerpt || '').toLowerCase()}
+                      data-cat={cat.id}
+                    >
+                      <div class="b-card-img">
+                        {post.cover_image_url
+                          ? <img src={post.cover_image_url} alt={post.title} loading="lazy" width="600" height="340" />
+                          : <div class="b-card-placeholder">{cat.icon}</div>
+                        }
+                        <span class={`b-badge badge-${cat.id}`}>{cat.label}</span>
+                        {i === 0 && <span class="b-popular">⭐ Populaire</span>}
+                      </div>
+                      <div class="b-card-body">
+                        <div class="b-card-meta">
+                          <span>🕐 {rt} min</span>
+                          <span>{formatDate(post.published_at)}</span>
+                        </div>
+                        <div class="b-card-title">{post.title}</div>
+                        {post.excerpt && <p class="b-card-excerpt">{post.excerpt}</p>}
+                        <span class="b-card-cta">Lire l'article →</span>
+                      </div>
+                    </a>
+                  );
+                })}
               </div>
-            </>
-          )}
-        </div>
-      </section>
+            )}
 
-      <!-- CTA Section -->
-      <section class="py-12 md:py-16 bg-muted/30">
-        <div class="container px-4 md:px-6">
-          <div class="max-w-2xl mx-auto">
-            <div class="p-5 sm:p-8 bg-gradient-to-br from-primary/10 to-primary/5 rounded-3xl border border-primary/20 overflow-hidden">
-              <div class="text-center max-w-xl mx-auto">
-                <div class="inline-flex p-4 bg-primary/20 rounded-2xl mb-4">
-                  <svg class="h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="m9 15 2 2 4-4"/></svg>
+            {/* Articles sans mapping de sous-catégorie (nouveaux articles) */}
+            {hasSubcats && (pbs['_other'] || []).length > 0 && (
+              <div class="b-subcat-section">
+                <div class="b-grid">
+                  {(pbs['_other'] || []).map((post, i) => {
+                    const rt = getReadingTime(post.reading_time, post.content_html, post.excerpt);
+                    return (
+                      <a
+                        class="b-card"
+                        href={`/blog/${post.slug}`}
+                        data-title={post.title.toLowerCase()}
+                        data-excerpt={(post.excerpt || '').toLowerCase()}
+                        data-cat={cat.id}
+                      >
+                        <div class="b-card-img">
+                          {post.cover_image_url
+                            ? <img src={post.cover_image_url} alt={post.title} loading="lazy" width="600" height="340" />
+                            : <div class="b-card-placeholder">{cat.icon}</div>
+                          }
+                          <span class={`b-badge badge-${cat.id}`}>{cat.label}</span>
+                          {i === 0 && <span class="b-popular">⭐ Populaire</span>}
+                        </div>
+                        <div class="b-card-body">
+                          <div class="b-card-meta">
+                            <span>🕐 {rt} min</span>
+                            <span>{formatDate(post.published_at)}</span>
+                          </div>
+                          <div class="b-card-title">{post.title}</div>
+                          {post.excerpt && <p class="b-card-excerpt">{post.excerpt}</p>}
+                          <span class="b-card-cta">Lire l'article →</span>
+                        </div>
+                      </a>
+                    );
+                  })}
                 </div>
-                <h3 class="text-2xl font-bold text-foreground mb-3">
-                  Prêt à analyser votre devis ?
-                </h3>
-                <p class="text-muted-foreground mb-6">
-                  Utilisez notre outil gratuit pour vérifier les mentions obligatoires,
-                  comparer les prix du marché et vous assurer de la fiabilité de l'artisan.
-                </p>
-                <a href="/nouvelle-analyse" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 w-full sm:w-auto">
-                  Analyser mon devis gratuitement
-                  <svg class="ml-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                </a>
               </div>
-            </div>
-          </div>
-        </div>
-      </section>
-    </main>
+            )}
 
-    <Footer />
-  </div>
+          </section>
+        );
+      })}
+
+    </div><!-- /b-main -->
+  </main>
+  <Footer />
+</div>
 </BaseLayout>
 
+<style is:global>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&display=swap');
+
+  :root {
+    --b-navy:   #0B1F3A;
+    --b-ink:    #0d2444;
+    --b-blue:   #1a56db;
+    --b-blue2:  #3b82f6;
+    --b-sky:    #eff6ff;
+    --b-amber:  #F97316;
+    --b-green:  #16a34a;
+    --b-rose:   #dc2626;
+    --b-sand:   #f8fafc;
+    --b-gray:   #64748b;
+    --b-border: #e2e8f0;
+  }
+
+  .page-wrap { min-height: 100vh; display: flex; flex-direction: column; background: var(--b-sand); }
+  .page-wrap main { flex: 1; }
+
+  /* ── Hero ── */
+  .b-hero {
+    background: var(--b-navy);
+    padding: 72px 40px 56px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .b-hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(26,86,219,0.4) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .b-eyebrow {
+    display: inline-block;
+    font-size: 11px; font-weight: 600;
+    letter-spacing: .15em; text-transform: uppercase;
+    color: var(--b-amber);
+    background: rgba(249,115,22,.12);
+    border: 1px solid rgba(249,115,22,.3);
+    padding: 5px 16px; border-radius: 20px;
+    margin-bottom: 22px; position: relative;
+  }
+  .b-hero h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(28px, 5vw, 52px); font-weight: 800;
+    color: #fff; line-height: 1.1;
+    max-width: 680px; margin: 0 auto 18px; position: relative;
+  }
+  .b-hero h1 span { color: var(--b-blue2); }
+  .b-hero > p {
+    color: rgba(255,255,255,.6); font-size: 16px;
+    max-width: 480px; margin: 0 auto 36px;
+    line-height: 1.65; position: relative;
+  }
+  .b-search { max-width: 520px; margin: 0 auto; position: relative; }
+  .b-search input {
+    width: 100%; padding: 15px 52px 15px 22px;
+    border-radius: 50px; border: 2px solid rgba(255,255,255,.12);
+    background: rgba(255,255,255,.08); color: #fff;
+    font-size: 15px; outline: none; backdrop-filter: blur(10px);
+    transition: border-color .2s;
+  }
+  .b-search input::placeholder { color: rgba(255,255,255,.38); }
+  .b-search input:focus { border-color: var(--b-blue2); }
+  .b-search-icon { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); font-size: 17px; pointer-events: none; }
+
+  /* ── Stat bar ── */
+  .b-stats {
+    background: #fff; border-bottom: 1px solid var(--b-border);
+    padding: 18px 40px;
+    display: flex; justify-content: center; gap: 52px; flex-wrap: wrap;
+  }
+  .b-stat { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--b-gray); }
+  .b-stat strong { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; color: var(--b-ink); }
+
+  /* ── Category nav ── */
+  .b-cat-nav { max-width: 1200px; margin: 0 auto; padding: 36px 40px 0; }
+  .b-cat-nav-label { font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--b-gray); margin-bottom: 14px; }
+  .b-tabs { display: flex; gap: 10px; flex-wrap: wrap; }
+  .b-tab {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 20px; border-radius: 50px;
+    border: 2px solid var(--b-border); background: #fff;
+    font-size: 14px; font-weight: 500; color: var(--b-ink);
+    cursor: pointer; transition: all .2s; line-height: 1;
+  }
+  .b-tab:hover, .b-tab.active { border-color: var(--b-blue); background: var(--b-blue); color: #fff; }
+  .b-dot { width: 8px; height: 8px; border-radius: 50%; opacity: .7; flex-shrink: 0; }
+  .dot-conseils       { background: var(--b-green); }
+  .dot-prix           { background: var(--b-amber); }
+  .dot-guides         { background: var(--b-blue2); }
+  .dot-reglementation { background: var(--b-rose); }
+  .b-tab.active .b-dot { background: #fff; opacity: 1; }
+
+  /* ── Main ── */
+  .b-main { max-width: 1200px; margin: 0 auto; padding: 40px 40px 80px; }
+
+  /* ── Banner ── */
+  .b-banner {
+    background: linear-gradient(135deg, var(--b-navy) 0%, var(--b-ink) 100%);
+    border-radius: 20px; padding: 36px 40px; margin-bottom: 52px;
+    display: flex; align-items: center; gap: 28px;
+    position: relative; overflow: hidden;
+  }
+  .b-banner::before {
+    content: ''; position: absolute; right: -60px; top: -60px;
+    width: 280px; height: 280px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(26,86,219,.45) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .b-banner-icon { font-size: 52px; flex-shrink: 0; position: relative; }
+  .b-banner-body { position: relative; }
+  .b-banner-body h3 { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800; color: #fff; margin-bottom: 6px; }
+  .b-banner-body p { color: rgba(255,255,255,.6); font-size: 14px; line-height: 1.6; max-width: 460px; }
+  .b-banner-btn {
+    margin-left: auto; flex-shrink: 0;
+    background: var(--b-blue); color: #fff;
+    font-size: 14px; font-weight: 700; padding: 13px 26px;
+    border-radius: 50px; text-decoration: none;
+    position: relative; transition: transform .2s, background .2s; white-space: nowrap;
+  }
+  .b-banner-btn:hover { transform: scale(1.05); background: var(--b-blue2); }
+
+  /* ── No results ── */
+  .b-no-results { text-align: center; padding: 60px 24px; color: var(--b-gray); }
+
+  /* ── Category section ── */
+  .b-cat-section { margin-bottom: 64px; display: none; }
+  .b-cat-section.visible { display: block; }
+  .b-cat-header {
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 28px; padding-bottom: 20px;
+    border-bottom: 2px solid var(--b-border); flex-wrap: wrap;
+  }
+  .b-cat-icon {
+    width: 48px; height: 48px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+  }
+  .icon-conseils       { background: rgba(16,185,129,.12); }
+  .icon-prix           { background: rgba(249,115,22,.12); }
+  .icon-guides         { background: rgba(59,130,246,.12); }
+  .icon-reglementation { background: rgba(220,38,38,.12); }
+  .b-cat-header-text h2 { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 800; color: var(--b-ink); }
+  .b-cat-header-text p  { font-size: 13px; color: var(--b-gray); margin-top: 2px; }
+  .b-cat-count {
+    margin-left: auto; font-size: 12px; font-weight: 700;
+    color: var(--b-gray); background: var(--b-border);
+    padding: 4px 12px; border-radius: 20px; white-space: nowrap;
+  }
+
+  /* ── Sous-catégories ── */
+  .b-subcat-section { margin-bottom: 36px; }
+  .b-subcat-label {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 600;
+    letter-spacing: .1em; text-transform: uppercase;
+    color: var(--b-gray); margin-bottom: 16px;
+  }
+  .b-subcat-label::after {
+    content: ''; display: block;
+    width: 40px; height: 1px;
+    background: var(--b-border);
+  }
+
+  /* ── Grid ── */
+  .b-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 20px; }
+  /* Featured : premier article pleine largeur, reste en 2 colonnes */
+  .b-grid-featured { grid-template-columns: 1fr 1fr; }
+  .b-grid-featured .b-card:first-child { grid-column: 1 / -1; flex-direction: row; align-items: center; }
+  .b-grid-featured .b-card:first-child .b-card-img { width: 42%; height: 240px; flex-shrink: 0; }
+
+  /* ── Card ── */
+  .b-card {
+    background: #fff; border-radius: 16px; border: 1px solid var(--b-border);
+    overflow: hidden; display: flex; flex-direction: column;
+    text-decoration: none; color: inherit;
+    transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+    position: relative;
+  }
+  .b-card:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgba(11,31,58,.12); border-color: rgba(26,86,219,.2); }
+  .b-card-img { width: 100%; height: 180px; background: var(--b-sky); overflow: hidden; position: relative; flex-shrink: 0; }
+  .b-card-img img { width: 100%; height: 100%; object-fit: cover; transition: transform .4s ease; display: block; }
+  .b-card:hover .b-card-img img { transform: scale(1.05); }
+  .b-card-placeholder {
+    width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+    font-size: 44px; background: linear-gradient(135deg, var(--b-sky) 0%, #dce8ff 100%);
+  }
+  .b-badge {
+    position: absolute; top: 12px; left: 12px;
+    font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+    padding: 4px 10px; border-radius: 20px;
+    background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.14);
+  }
+  .badge-conseils       { color: var(--b-green); }
+  .badge-prix           { color: var(--b-amber); }
+  .badge-guides         { color: var(--b-blue); }
+  .badge-reglementation { color: var(--b-rose); }
+  .b-popular {
+    position: absolute; top: 12px; right: 12px;
+    background: var(--b-blue); color: #fff;
+    font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    padding: 4px 8px; border-radius: 6px;
+  }
+  .b-card-body { padding: 18px 20px 20px; flex: 1; display: flex; flex-direction: column; }
+  .b-card-meta { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--b-gray); margin-bottom: 8px; }
+  .b-card-title { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; color: var(--b-ink); line-height: 1.35; margin-bottom: 8px; flex: 1; }
+  .b-card-excerpt {
+    font-size: 13px; color: var(--b-gray); line-height: 1.55; margin-bottom: 14px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .b-card-cta { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--b-blue); margin-top: auto; transition: gap .2s; }
+  .b-card:hover .b-card-cta { gap: 10px; }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .b-hero { padding: 56px 20px 44px; }
+    .b-stats { gap: 20px; padding: 14px 20px; }
+    .b-cat-nav { padding: 24px 20px 0; }
+    .b-main { padding: 28px 20px 60px; }
+    .b-banner { flex-direction: column; text-align: center; padding: 28px 24px; }
+    .b-banner-btn { margin-left: 0; }
+    .b-banner-icon { display: none; }
+    .b-grid-featured { grid-template-columns: 1fr; }
+    .b-grid-featured .b-card:first-child { flex-direction: column; }
+    .b-grid-featured .b-card:first-child .b-card-img { width: 100%; height: 180px; }
+  }
+  @media (max-width: 480px) {
+    .b-grid { grid-template-columns: 1fr; }
+    .b-stats { gap: 12px; }
+  }
+</style>
+
 <script>
-  const searchInput = document.getElementById('blog-search') as HTMLInputElement;
-  const grid = document.getElementById('articles-grid');
-  const noResults = document.getElementById('no-results');
-  const clearBtn = document.getElementById('clear-search');
+  const tabs     = document.querySelectorAll<HTMLButtonElement>('.b-tab');
+  const sections = document.querySelectorAll<HTMLElement>('.b-cat-section');
+  const searchEl = document.getElementById('blogSearch') as HTMLInputElement | null;
+  const noRes    = document.getElementById('noResults') as HTMLElement | null;
 
-  if (searchInput && grid) {
-    const cards = grid.querySelectorAll('.article-card') as NodeListOf<HTMLElement>;
-
-    searchInput.addEventListener('input', () => {
-      const query = searchInput.value.toLowerCase().trim();
-      let visibleCount = 0;
-
-      cards.forEach(card => {
-        const title = card.dataset.title || '';
-        const excerpt = card.dataset.excerpt || '';
-        const category = card.dataset.category || '';
-        const matches = !query || title.includes(query) || excerpt.includes(query) || category.includes(query);
-        card.style.display = matches ? '' : 'none';
-        if (matches) visibleCount++;
+  // Category filter
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const cat = tab.dataset.cat || 'all';
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      sections.forEach(s => {
+        s.classList.toggle('visible', cat === 'all' || s.dataset.cat === cat);
       });
-
-      if (noResults) {
-        noResults.classList.toggle('hidden', visibleCount > 0 || !query);
-      }
-      grid.classList.toggle('hidden', visibleCount === 0 && !!query);
+      if (searchEl) searchEl.value = '';
+      document.querySelectorAll<HTMLElement>('.b-card').forEach(c => c.style.display = '');
+      if (noRes) noRes.style.display = 'none';
     });
+  });
 
-    clearBtn?.addEventListener('click', () => {
-      searchInput.value = '';
-      searchInput.dispatchEvent(new Event('input'));
+  // Search
+  if (searchEl) {
+    searchEl.addEventListener('input', () => {
+      const q = searchEl.value.toLowerCase().trim();
+      const cards = document.querySelectorAll<HTMLElement>('.b-card');
+
+      if (!q) {
+        const activeCat = document.querySelector<HTMLElement>('.b-tab.active')?.dataset.cat || 'all';
+        sections.forEach(s => s.classList.toggle('visible', activeCat === 'all' || s.dataset.cat === activeCat));
+        cards.forEach(c => c.style.display = '');
+        if (noRes) noRes.style.display = 'none';
+        return;
+      }
+
+      sections.forEach(s => s.classList.add('visible'));
+      let found = 0;
+      cards.forEach(card => {
+        const match =
+          (card.dataset.title   || '').includes(q) ||
+          (card.dataset.excerpt || '').includes(q) ||
+          (card.dataset.cat     || '').includes(q);
+        card.style.display = match ? '' : 'none';
+        if (match) found++;
+      });
+      if (noRes) noRes.style.display = found === 0 ? 'block' : 'none';
     });
   }
 </script>
