@@ -1439,7 +1439,7 @@ export default function MonChantier() {
             </p>
           </div>
           <a
-            href="/tableau-de-bord"
+            href="/"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/15 text-slate-300 hover:text-white hover:border-white/30 hover:bg-white/5 text-sm transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
