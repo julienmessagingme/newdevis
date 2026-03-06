@@ -1,49 +1,41 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { usePremium } from "@/hooks/usePremium";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
-  LayoutDashboard, FileText, Euro, Award, ClipboardList,
-  Mail, Camera, Loader2, Plus, ChevronRight, Settings,
-  LogOut, AlertCircle, CheckCircle2, Clock, Wrench,
-  TrendingUp, Building2, Sparkles, Download
+  LayoutDashboard, FileText, Euro, Award, Shield, Mail,
+  Camera, Loader2, Plus, Upload, Download, Send,
+  Settings, LogOut, Sparkles, Users, Check,
+  Circle, CheckCircle2, X, TrendingUp,
+  BookOpen, Trash2, Menu,
 } from "lucide-react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
-// ── Types ───────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 type Tab = "dashboard" | "devis" | "budget" | "aides" | "formalites" | "relances" | "journal";
 
 interface Chantier {
   id: string;
   nom: string;
-  adresse: string | null;
-  date_debut: string | null;
-  date_fin: string | null;
   budget: number | null;
   apport: number | null;
   credit: number | null;
   taux_interet: number | null;
 }
-
-interface DevisChantier {
+interface DevisItem {
   id: string;
-  chantier_id: string;
   analyse_id: string | null;
   artisan_nom: string;
+  artisan_email: string | null;
   type_travaux: string;
   montant_ht: number;
   montant_ttc: number;
+  acompte_pct: number | null;
+  acompte_paye: number | null;
   statut: string;
   score_analyse: string | null;
-  date_debut: string | null;
-  date_fin: string | null;
-  assurance_ok: boolean;
-  rc_pro_ok: boolean;
-  mentions_ok: boolean;
   created_at: string;
 }
-
 interface JournalEntry {
   id: string;
   date: string;
@@ -51,10 +43,8 @@ interface JournalEntry {
   artisan_nom: string | null;
   note: string;
   tags: string[];
-  created_at: string;
 }
-
-interface Relance {
+interface RelanceItem {
   id: string;
   artisan_nom: string;
   artisan_email: string;
@@ -63,1203 +53,885 @@ interface Relance {
   envoye_at: string | null;
   created_at: string;
 }
-
-interface AnalyseImport {
+interface Aide {
   id: string;
-  file_name: string;
-  score: string | null;
-  created_at: string;
-  types_travaux: { libelle?: string; montant_ht?: number }[] | null;
+  nom: string;
+  montant: number;
+  statut: "percu" | "en_attente";
+}
+interface FormaliteState {
+  completed: boolean;
+  notes: string;
+  date: string;
+}
+interface BudgetExtra {
+  mensualite: string;
+  duree: string;
+  aides_deduites: string;
+  montant_debloque: string;
 }
 
-// ── Helpers ─────────────────────────────────────────────────
-const formatCurrency = (n: number) =>
-  new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+// ── Constants ──────────────────────────────────────────────────────────────────
+const FORMALITES: { section: string; items: { key: string; label: string }[] }[] = [
+  {
+    section: "Avant les travaux",
+    items: [
+      { key: "assurance_decennale", label: "Assurance décennale artisan" },
+      { key: "rc_pro", label: "RC Pro artisan" },
+      { key: "siret_verifie", label: "SIRET vérifié" },
+      { key: "declaration_prealable", label: "Déclaration préalable de travaux" },
+      { key: "permis_construire", label: "Permis de construire" },
+    ],
+  },
+  {
+    section: "Pendant les travaux",
+    items: [
+      { key: "ordre_service", label: "Ordre de service signé" },
+      { key: "reunions_chantier", label: "Réunions de chantier" },
+      { key: "pv_avancement", label: "PV d'avancement" },
+      { key: "suivi_paiements", label: "Suivi des paiements d'étape" },
+      { key: "photos_chantier", label: "Photos de chantier" },
+    ],
+  },
+  {
+    section: "Après les travaux",
+    items: [
+      { key: "pv_reception", label: "PV de réception" },
+      { key: "levee_reserves", label: "Levée des réserves" },
+      { key: "daact", label: "DAACT (Déclaration d'achèvement)" },
+      { key: "doe", label: "Dossier des Ouvrages Exécutés (DOE)" },
+    ],
+  },
+];
 
-const formatDate = (s: string) =>
-  new Date(s).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
-
-const STATUT_LABELS: Record<string, { label: string; color: string }> = {
-  recu:      { label: "Reçu",      color: "bg-gray-100 text-gray-700" },
-  signe:     { label: "Signé",     color: "bg-blue-100 text-blue-700" },
-  en_cours:  { label: "En cours",  color: "bg-amber-100 text-amber-700" },
-  termine:   { label: "Terminé",   color: "bg-green-100 text-green-700" },
-  litige:    { label: "Litige",    color: "bg-red-100 text-red-700" },
-};
-
-const PHASE_LABELS: Record<string, string> = {
-  preparation: "Préparation",
-  gros_oeuvre: "Gros œuvre",
-  second_oeuvre: "Second œuvre",
-  finitions: "Finitions",
-  reception: "Réception",
-};
-
-const TAG_CONFIG: Record<string, { label: string; color: string }> = {
-  important:  { label: "Important",  color: "bg-amber-100 text-amber-700" },
-  probleme:   { label: "Problème",   color: "bg-red-100 text-red-700" },
-  validation: { label: "Validation", color: "bg-green-100 text-green-700" },
-  info:       { label: "Info",       color: "bg-blue-100 text-blue-700" },
-};
-
-const RELANCE_TEMPLATES: Record<string, { label: string; template: (nom: string, chantier: string) => string }> = {
-  relance_delai: {
+const RELANCE_TEMPLATES = [
+  {
+    type: "relance_delai",
     label: "Relance délai",
-    template: (nom, chantier) =>
-      `Bonjour,\n\nJe me permets de vous contacter concernant le chantier "${chantier}".\n\nLes travaux devaient débuter selon le planning convenu, mais je n'ai pas encore reçu de confirmation de votre part.\n\nPourriez-vous me confirmer la date de démarrage effective ?\n\nCordialement`,
+    template: (_: string) =>
+      `Bonjour,\n\nJe me permets de vous contacter concernant les travaux en cours.\nLes délais initialement prévus semblent dépassés et je souhaiterais connaître la date estimée de fin de chantier.\n\nMerci de bien vouloir me répondre dans les meilleurs délais.\n\nCordialement`,
   },
-  reclamation: {
+  {
+    type: "reclamation",
     label: "Réclamation",
-    template: (nom, chantier) =>
-      `Bonjour,\n\nSuite à l'avancement des travaux sur le chantier "${chantier}", j'ai constaté plusieurs non-conformités par rapport aux prestations prévues au devis.\n\nJe vous demande de procéder aux corrections nécessaires dans les meilleurs délais.\n\nCordialement`,
+    template: (_: string) =>
+      `Bonjour,\n\nJe vous contacte suite à des malfaçons constatées lors des travaux effectués à mon domicile.\nJe vous demande d'intervenir pour corriger ces problèmes dans un délai raisonnable.\n\nCordialement`,
   },
-  demande_facture: {
+  {
+    type: "demande_facture",
     label: "Demande de facture",
-    template: (nom, chantier) =>
-      `Bonjour,\n\nJe n'ai pas encore reçu la facture correspondant aux travaux réalisés sur le chantier "${chantier}".\n\nMerci de me la transmettre dans les plus brefs délais.\n\nCordialement`,
+    template: (_: string) =>
+      `Bonjour,\n\nLes travaux étant terminés, je vous remercie de bien vouloir m'adresser la facture définitive dans les meilleurs délais.\n\nCordialement`,
   },
-  mise_en_demeure: {
+  {
+    type: "mise_en_demeure",
     label: "Mise en demeure",
-    template: (nom, chantier) =>
-      `Objet : Mise en demeure\n\nPar la présente, je vous mets en demeure de respecter vos obligations contractuelles concernant le chantier "${chantier}".\n\nSans réponse de votre part sous 8 jours, je me verrai contraint d'engager les procédures légales nécessaires.\n\nCordialement`,
+    template: (_: string) =>
+      `Bonjour,\n\nMalgré mes relances précédentes, je n'ai pas obtenu satisfaction concernant les travaux commandés.\nJe vous mets en demeure d'intervenir sous 8 jours, faute de quoi je me verrai contraint(e) de faire appel à un médiateur.\n\nCordialement`,
   },
+];
+
+const PHASE_KEYS = ["preparation", "gros_oeuvre", "second_oeuvre", "finitions", "reception"];
+const PHASE_LABELS = ["Préparation", "Gros œuvre", "Second œuvre", "Finitions", "Réception"];
+
+const SCORE_COLORS: Record<string, string> = {
+  VERT: "text-green-400 bg-green-400/10 border-green-400/20",
+  ORANGE: "text-amber-400 bg-amber-400/10 border-amber-400/20",
+  ROUGE: "text-red-400 bg-red-400/10 border-red-400/20",
+};
+const STATUT_LABELS: Record<string, { label: string; color: string }> = {
+  recu: { label: "Reçu", color: "bg-slate-500/20 text-slate-300" },
+  signe: { label: "Signé", color: "bg-blue-500/20 text-blue-300" },
+  en_cours: { label: "En cours", color: "bg-amber-500/20 text-amber-300" },
+  termine: { label: "Terminé", color: "bg-green-500/20 text-green-300" },
+  litige: { label: "Litige", color: "bg-red-500/20 text-red-300" },
 };
 
-const AIDES_LIST = [
-  {
-    nom: "MaPrimeRénov'",
-    desc: "Aide de l'État pour les travaux de rénovation énergétique",
-    max: "90 % du coût",
-    url: "https://www.maprimerenov.gouv.fr/",
-    categories: ["isolation", "chauffage", "fenetres"],
-  },
-  {
-    nom: "CEE (Certificats d'Économie d'Énergie)",
-    desc: "Prime énergie versée par les fournisseurs d'énergie",
-    max: "Variable",
-    url: "https://www.prime-energie.gouv.fr/",
-    categories: ["isolation", "chauffage"],
-  },
-  {
-    nom: "Éco-PTZ",
-    desc: "Prêt à taux zéro pour la rénovation énergétique",
-    max: "50 000 €",
-    url: "https://www.service-public.fr/particuliers/vosdroits/F19905",
-    categories: ["isolation", "chauffage", "fenetres"],
-  },
-  {
-    nom: "TVA à 5,5 % ou 10 %",
-    desc: "Taux réduit de TVA pour les travaux d'amélioration",
-    max: "Réduction TVA",
-    url: "https://www.impots.gouv.fr/particulier/questions/jai-fait-des-travaux-dans-mon-logement",
-    categories: ["renovation"],
-  },
-  {
-    nom: "Aide Action Logement",
-    desc: "Aide pour les salariés du secteur privé",
-    max: "10 000 €",
-    url: "https://www.actionlogement.fr/",
-    categories: ["renovation"],
-  },
-];
+const fmt = (n: number) =>
+  n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
-const FORMALITES_LIST = [
-  { id: "assurance_decennale", label: "Attestation d'assurance décennale reçue", phase: "avant" },
-  { id: "rc_pro", label: "Attestation RC professionnelle reçue", phase: "avant" },
-  { id: "devis_signe", label: "Devis signé avec date de début", phase: "avant" },
-  { id: "ordre_service", label: "Ordre de service envoyé (si applicable)", phase: "avant" },
-  { id: "declaration_mairie", label: "Déclaration préalable en mairie (si applicable)", phase: "avant" },
-  { id: "photos_avant", label: "Photos de l'état initial prises", phase: "pendant" },
-  { id: "suivi_avancement", label: "Journal de chantier tenu régulièrement", phase: "pendant" },
-  { id: "pv_reception", label: "PV de réception signé", phase: "apres" },
-  { id: "reserve_levee", label: "Levée des réserves confirmée par écrit", phase: "apres" },
-  { id: "garantie_parfait", label: "Garantie de parfait achèvement (1 an) notifiée", phase: "apres" },
-  { id: "daact", label: "DAACT déposée en mairie (si permis de construire)", phase: "apres" },
-];
-
-// ── Nav tabs ─────────────────────────────────────────────────
-const TABS: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
-  { id: "dashboard",  label: "Vue d'ensemble", icon: LayoutDashboard },
-  { id: "devis",      label: "Devis",          icon: FileText },
-  { id: "budget",     label: "Budget",         icon: Euro },
-  { id: "aides",      label: "Aides",          icon: Award },
-  { id: "formalites", label: "Formalités",     icon: ClipboardList },
-  { id: "relances",   label: "Relances",       icon: Mail },
-  { id: "journal",    label: "Journal",        icon: Camera },
-];
-
-// ══════════════════════════════════════════════════════════════
-// MAIN COMPONENT
-// ══════════════════════════════════════════════════════════════
-const MonChantier = () => {
-  const { isPremium, isLoading: premiumLoading, trialDaysLeft } = usePremium();
-  const [user, setUser] = useState<SupabaseUser | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [tab, setTab] = useState<Tab>("dashboard");
-  const [chantier, setChantier] = useState<Chantier | null>(null);
-  const [devis, setDevis] = useState<DevisChantier[]>([]);
-  const [journal, setJournal] = useState<JournalEntry[]>([]);
-  const [relances, setRelances] = useState<Relance[]>([]);
-  const [formalites, setFormalites] = useState<Record<string, boolean>>({});
-  const [analyses, setAnalyses] = useState<AnalyseImport[]>([]);
-  const [dataLoading, setDataLoading] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  // ── Auth check ───────────────────────────────────────────────
-  useEffect(() => {
-    const check = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        window.location.href = "/connexion?redirect=/mon-chantier";
-        return;
-      }
-      setUser(user);
-      setAuthLoading(false);
-    };
-    check();
-  }, []);
-
-  // ── Redirect non-premium to sales page ──────────────────────
-  useEffect(() => {
-    if (!premiumLoading && !isPremium && !authLoading && user) {
-      window.location.href = "/premium";
-    }
-  }, [premiumLoading, isPremium, authLoading, user]);
-
-  // ── Load chantier + data ─────────────────────────────────────
-  const loadData = useCallback(async () => {
-    if (!user) return;
-    setDataLoading(true);
-
-    // Get or create chantier
-    let { data: existing } = await supabase
-      .from("chantiers")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (!existing) {
-      const { data: created } = await supabase
-        .from("chantiers")
-        .insert({ user_id: user.id, nom: "Mon projet travaux" })
-        .select()
-        .single();
-      existing = created;
-    }
-
-    if (!existing) { setDataLoading(false); return; }
-    setChantier(existing as Chantier);
-
-    // Load devis
-    const { data: devisData } = await supabase
-      .from("devis_chantier")
-      .select("*")
-      .eq("chantier_id", existing.id)
-      .order("created_at", { ascending: false });
-    setDevis((devisData || []) as DevisChantier[]);
-
-    // Load journal
-    const { data: journalData } = await supabase
-      .from("journal_entries")
-      .select("*")
-      .eq("chantier_id", existing.id)
-      .order("date", { ascending: false });
-    setJournal((journalData || []) as JournalEntry[]);
-
-    // Load relances
-    const { data: relancesData } = await supabase
-      .from("relances")
-      .select("*")
-      .eq("chantier_id", existing.id)
-      .order("created_at", { ascending: false });
-    setRelances((relancesData || []) as Relance[]);
-
-    // Load completed analyses for import
-    const { data: analysesData } = await supabase
-      .from("analyses")
-      .select("id, file_name, score, created_at, types_travaux")
-      .eq("user_id", user.id)
-      .eq("status", "completed")
-      .order("created_at", { ascending: false });
-    setAnalyses((analysesData || []) as AnalyseImport[]);
-
-    // Formalités from localStorage (user-specific)
-    const stored = localStorage.getItem(`formalites_${existing.id}`);
-    if (stored) {
-      try { setFormalites(JSON.parse(stored)); } catch { /* ignore */ }
-    }
-
-    setDataLoading(false);
-  }, [user]);
-
-  useEffect(() => {
-    if (user && isPremium) loadData();
-  }, [user, isPremium, loadData]);
-
-  // ── Import analyses ──────────────────────────────────────────
-  const importFromAnalyses = async () => {
-    if (!chantier || !analyses.length) return;
-    setImporting(true);
-    const alreadyImported = new Set(devis.map(d => d.analyse_id).filter(Boolean));
-    const toImport = analyses.filter(a => !alreadyImported.has(a.id));
-
-    if (!toImport.length) {
-      toast.info("Toutes les analyses ont déjà été importées");
-      setImporting(false);
-      return;
-    }
-
-    const rows = toImport.map(a => {
-      const montant = Array.isArray(a.types_travaux)
-        ? a.types_travaux.reduce((s: number, t) => s + (t.montant_ht || 0), 0)
-        : 0;
-      const type = Array.isArray(a.types_travaux) && a.types_travaux.length
-        ? a.types_travaux[0].libelle || "Travaux"
-        : "Travaux";
-      return {
-        chantier_id: chantier.id,
-        analyse_id: a.id,
-        artisan_nom: a.file_name.replace(/\.[^.]+$/, ""),
-        type_travaux: type,
-        montant_ht: montant,
-        montant_ttc: montant * 1.1,
-        score_analyse: a.score,
-        statut: "recu",
-      };
-    });
-
-    const { error } = await supabase.from("devis_chantier").insert(rows);
-    if (error) {
-      toast.error("Erreur lors de l'import");
-    } else {
-      toast.success(`${rows.length} devis importé${rows.length > 1 ? "s" : ""} 🎉`);
-      await loadData();
-    }
-    setImporting(false);
-  };
-
-  // ── Formalités toggle ────────────────────────────────────────
-  const toggleFormalite = (id: string) => {
-    const updated = { ...formalites, [id]: !formalites[id] };
-    setFormalites(updated);
-    if (chantier) {
-      localStorage.setItem(`formalites_${chantier.id}`, JSON.stringify(updated));
-    }
-  };
-
-  // ── Add journal entry ────────────────────────────────────────
-  const addJournalEntry = async (note: string, phase: string, tags: string[]) => {
-    if (!chantier || !note.trim()) return;
-    const { error } = await supabase.from("journal_entries").insert({
-      chantier_id: chantier.id,
-      note,
-      phase,
-      tags,
-    });
-    if (error) { toast.error("Erreur"); return; }
-    toast.success("Entrée ajoutée");
-    await loadData();
-  };
-
-  // ── Compute KPIs ─────────────────────────────────────────────
-  const totalDevis = devis.reduce((s, d) => s + d.montant_ttc, 0);
-  const devisSignes = devis.filter(d => d.statut === "signe" || d.statut === "en_cours" || d.statut === "termine");
-  const totalEngage = devisSignes.reduce((s, d) => s + d.montant_ttc, 0);
-  const enveloppeTotale = (chantier?.budget || 0) + (chantier?.credit || 0);
-  const budgetRestant = enveloppeTotale - totalEngage;
-  const formalitesDone = FORMALITES_LIST.filter(f => formalites[f.id]).length;
-
-  // ── Loading states ───────────────────────────────────────────
-  if (authLoading || premiumLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!user || !isPremium) return null; // handled by redirects
-
-  // ══════════════════════════════════════════════════════════════
-  // RENDER
-  // ══════════════════════════════════════════════════════════════
+// ── KPICard ────────────────────────────────────────────────────────────────────
+function KPICard({ label, value, sub, icon, iconColor }: {
+  label: string; value: string; sub?: string; icon: React.ReactNode; iconColor: string;
+}) {
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* ── Top header ─────────────────────────────────────────── */}
-      <header className="sticky top-0 z-50 bg-card border-b border-border">
-        <div className="container flex h-16 items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <button
-              className="md:hidden p-1.5 rounded-lg hover:bg-accent"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              aria-label="Menu"
-            >
-              <LayoutDashboard className="h-5 w-5 text-primary" />
-            </button>
-            <a href="/" className="flex items-center gap-2 flex-shrink-0">
-              <img alt="Logo" className="h-9 w-9 object-contain" src="/images/logo detouré.png" width={36} height={36} />
-              <span className="hidden sm:block text-lg font-bold leading-none">
-                <span className="text-foreground">Mon</span><span className="text-primary"> Chantier</span>
-              </span>
-            </a>
-            {trialDaysLeft !== null && (
-              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                <Clock className="h-3 w-3" />
-                Essai : {trialDaysLeft}j restant{trialDaysLeft > 1 ? "s" : ""}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {chantier && (
-              <span className="hidden md:block text-sm font-medium text-muted-foreground truncate max-w-[200px]">
-                {chantier.nom}
-              </span>
-            )}
-            <a href="/tableau-de-bord">
-              <Button variant="ghost" size="icon" title="Tableau de bord">
-                <Building2 className="h-4 w-4" />
-              </Button>
-            </a>
-            <Button variant="ghost" size="icon" onClick={async () => { await supabase.auth.signOut(); window.location.href = "/"; }}>
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* Trial banner mobile */}
-      {trialDaysLeft !== null && (
-        <div className="sm:hidden bg-amber-50 border-b border-amber-200 px-4 py-2 text-xs text-amber-800 text-center">
-          Essai gratuit — {trialDaysLeft} jour{trialDaysLeft > 1 ? "s" : ""} restant{trialDaysLeft > 1 ? "s" : ""}
-        </div>
-      )}
-
-      <div className="flex flex-1 min-h-0">
-        {/* ── Sidebar ──────────────────────────────────────────── */}
-        <aside className={`
-          fixed inset-y-0 left-0 z-40 w-64 bg-card border-r border-border pt-16 flex flex-col
-          transform transition-transform duration-200 md:translate-x-0 md:static md:h-auto md:pt-0
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-        `}>
-          {/* Overlay mobile */}
-          {sidebarOpen && (
-            <div
-              className="fixed inset-0 bg-black/40 z-30 md:hidden"
-              onClick={() => setSidebarOpen(false)}
-            />
-          )}
-          <nav className="flex-1 py-4 px-2 space-y-0.5 relative z-50 bg-card md:bg-transparent">
-            {TABS.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => { setTab(id); setSidebarOpen(false); }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
-                  tab === id
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                }`}
-              >
-                <Icon className="h-4 w-4 flex-shrink-0" />
-                {label}
-              </button>
-            ))}
-          </nav>
-          <div className="px-3 py-3 border-t border-border text-xs text-muted-foreground text-center">
-            Propulsé par{" "}
-            <a href="/" className="text-primary hover:underline font-medium">
-              verifiermondevis.fr
-            </a>
-          </div>
-        </aside>
-
-        {/* ── Main content ─────────────────────────────────────── */}
-        <main className="flex-1 min-w-0 overflow-auto">
-          {dataLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <div className="p-4 sm:p-6 max-w-5xl mx-auto">
-              {/* ── DASHBOARD ─────────────────────────────────── */}
-              {tab === "dashboard" && (
-                <DashboardTab
-                  chantier={chantier}
-                  devis={devis}
-                  totalDevis={totalDevis}
-                  totalEngage={totalEngage}
-                  enveloppeTotale={enveloppeTotale}
-                  budgetRestant={budgetRestant}
-                  formalitesDone={formalitesDone}
-                  journalCount={journal.length}
-                  analyses={analyses}
-                  importing={importing}
-                  onImport={importFromAnalyses}
-                  onSetTab={setTab}
-                />
-              )}
-
-              {/* ── DEVIS ─────────────────────────────────────── */}
-              {tab === "devis" && (
-                <DevisTab
-                  devis={devis}
-                  chantier={chantier}
-                  analyses={analyses}
-                  importing={importing}
-                  onImport={importFromAnalyses}
-                  onRefresh={loadData}
-                />
-              )}
-
-              {/* ── BUDGET ────────────────────────────────────── */}
-              {tab === "budget" && (
-                <BudgetTab
-                  chantier={chantier}
-                  devis={devis}
-                  totalDevis={totalDevis}
-                  totalEngage={totalEngage}
-                  enveloppeTotale={enveloppeTotale}
-                  budgetRestant={budgetRestant}
-                  onRefresh={loadData}
-                />
-              )}
-
-              {/* ── AIDES ─────────────────────────────────────── */}
-              {tab === "aides" && <AidesTab />}
-
-              {/* ── FORMALITÉS ────────────────────────────────── */}
-              {tab === "formalites" && (
-                <FormalitesTab
-                  formalites={formalites}
-                  formalitesDone={formalitesDone}
-                  onToggle={toggleFormalite}
-                />
-              )}
-
-              {/* ── RELANCES ──────────────────────────────────── */}
-              {tab === "relances" && (
-                <RelancesTab
-                  relances={relances}
-                  chantier={chantier}
-                  devis={devis}
-                  onRefresh={loadData}
-                />
-              )}
-
-              {/* ── JOURNAL ───────────────────────────────────── */}
-              {tab === "journal" && (
-                <JournalTab
-                  journal={journal}
-                  onAdd={addJournalEntry}
-                />
-              )}
-            </div>
-          )}
-        </main>
+    <div className="bg-[#162035] border border-white/10 rounded-xl p-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs text-slate-400">{label}</span>
+        <span className={iconColor}>{icon}</span>
       </div>
+      <p className="text-xl font-bold text-white">{value}</p>
+      {sub && <p className="text-xs text-slate-500 mt-0.5">{sub}</p>}
     </div>
   );
-};
+}
 
-// ══════════════════════════════════════════════════════════════
-// TAB: DASHBOARD
-// ══════════════════════════════════════════════════════════════
-const DashboardTab = ({
-  chantier, devis, totalDevis, totalEngage, enveloppeTotale,
-  budgetRestant, formalitesDone, journalCount, analyses, importing,
-  onImport, onSetTab,
-}: {
-  chantier: Chantier | null;
-  devis: DevisChantier[];
-  totalDevis: number;
-  totalEngage: number;
-  enveloppeTotale: number;
-  budgetRestant: number;
-  formalitesDone: number;
-  journalCount: number;
-  analyses: AnalyseImport[];
-  importing: boolean;
-  onImport: () => void;
-  onSetTab: (t: Tab) => void;
-}) => {
-  const nonImported = analyses.filter(a => !devis.some(d => d.analyse_id === a.id));
-  const scoreColor = (s: string | null) =>
-    s === "VERT" ? "text-green-700" : s === "ORANGE" ? "text-orange-600" : s === "ROUGE" ? "text-red-600" : "text-muted-foreground";
+// ── DashboardTab ───────────────────────────────────────────────────────────────
+function DashboardTab({ chantier, devisList, analyses, formalites, relancesList, onImportAll, onImportChoose, onTabChange }: {
+  chantier: Chantier; devisList: DevisItem[]; analyses: any[];
+  formalites: Record<string, FormaliteState>; relancesList: RelanceItem[];
+  onImportAll: () => void; onImportChoose: () => void; onTabChange: (t: Tab) => void;
+}) {
+  const [importDismissed, setImportDismissed] = useState(false);
+
+  const importable = useMemo(
+    () => analyses.filter((a) => !devisList.find((d) => d.analyse_id === a.id)),
+    [analyses, devisList]
+  );
+  const allKeys = FORMALITES.flatMap((s) => s.items.map((i) => i.key));
+  const totalFItems = allKeys.length;
+  const totalCompleted = allKeys.filter((k) => formalites[k]?.completed).length;
+  const totalEngaged = devisList
+    .filter((d) => ["signe", "en_cours", "termine"].includes(d.statut))
+    .reduce((acc, d) => acc + d.montant_ttc, 0);
+  const recentActivity = [...devisList]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 5);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Vue d'ensemble</h1>
-        <p className="text-muted-foreground mt-1">{chantier?.nom || "Mon projet"}</p>
+    <div className="flex-1 p-6 overflow-y-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-white">Bonjour ,</h1>
+        <p className="text-slate-400 mt-1">voici l'état de votre chantier</p>
+        <p className="text-cyan-400 text-sm mt-1">{chantier.nom}</p>
       </div>
 
-      {/* Magic import banner */}
-      {nonImported.length > 0 && (
-        <div className="rounded-2xl bg-gradient-to-r from-primary/10 to-blue-500/10 border border-primary/20 p-5">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="flex items-start gap-3">
-              <Sparkles className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold text-foreground">
-                  {nonImported.length} analyse{nonImported.length > 1 ? "s" : ""} à importer
-                </p>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                  Vos analyses de devis existantes peuvent être ajoutées automatiquement à votre chantier.
-                </p>
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {nonImported.slice(0, 4).map(a => (
-                    <span key={a.id} className={`text-xs font-medium ${scoreColor(a.score)}`}>
-                      {a.file_name.length > 25 ? a.file_name.slice(0, 25) + "…" : a.file_name}
-                    </span>
-                  ))}
-                  {nonImported.length > 4 && <span className="text-xs text-muted-foreground">+{nonImported.length - 4}</span>}
-                </div>
+      {/* Import banner */}
+      {importable.length > 0 && !importDismissed && (
+        <div className="mb-6 rounded-xl p-5 bg-gradient-to-r from-cyan-600 to-teal-600">
+          <div className="flex items-start gap-3">
+            <Sparkles className="h-5 w-5 text-white mt-0.5 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-white">Vos analyses sont prêtes !</p>
+              <p className="text-cyan-100 text-sm mt-1">
+                Nous avons détecté <strong>{importable.length} devis</strong> analysés sur verifiermondevis.fr.
+                Importez-les en un clic pour pré-remplir tous vos onglets.
+              </p>
+              <div className="flex flex-wrap gap-2 mt-3">
+                <button
+                  onClick={onImportAll}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  <Sparkles className="h-4 w-4" /> Importer tout automatiquement
+                </button>
+                <button
+                  onClick={onImportChoose}
+                  className="px-4 py-2 bg-black/20 hover:bg-black/30 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  Choisir les devis à importer
+                </button>
+                <button
+                  onClick={() => setImportDismissed(true)}
+                  className="px-3 py-2 text-cyan-200 text-sm hover:text-white transition-colors"
+                >
+                  Plus tard
+                </button>
               </div>
             </div>
-            <Button size="sm" onClick={onImport} disabled={importing} className="flex-shrink-0">
-              {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Download className="h-4 w-4 mr-1.5" />Importer</>}
-            </Button>
           </div>
         </div>
       )}
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { label: "Total devis", value: formatCurrency(totalDevis), icon: FileText, color: "text-blue-600", bg: "bg-blue-50" },
-          { label: "Engagé", value: formatCurrency(totalEngage), icon: TrendingUp, color: "text-amber-600", bg: "bg-amber-50" },
-          { label: "Budget restant", value: enveloppeTotale > 0 ? formatCurrency(budgetRestant) : "—", icon: Euro, color: budgetRestant < 0 ? "text-red-600" : "text-emerald-600", bg: budgetRestant < 0 ? "bg-red-50" : "bg-emerald-50" },
-          { label: "Formalités", value: `${formalitesDone}/${FORMALITES_LIST.length}`, icon: ClipboardList, color: "text-purple-600", bg: "bg-purple-50" },
-        ].map(({ label, value, icon: Icon, color, bg }) => (
-          <div key={label} className="bg-card border border-border rounded-2xl p-4">
-            <div className={`inline-flex p-2 rounded-lg ${bg} mb-2`}>
-              <Icon className={`h-4 w-4 ${color}`} />
-            </div>
-            <p className="text-xs text-muted-foreground">{label}</p>
-            <p className={`text-xl font-bold ${color}`}>{value}</p>
-          </div>
-        ))}
+      {/* KPIs */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <KPICard
+          label="Budget consommé"
+          value={`${fmt(totalEngaged)} €`}
+          sub={`sur ${fmt(chantier.budget || 0)} €`}
+          icon={<Euro className="h-4 w-4" />}
+          iconColor="text-green-400"
+        />
+        <KPICard
+          label="Aides perçues"
+          value="0 €"
+          sub="0 aide(s)"
+          icon={<Award className="h-4 w-4" />}
+          iconColor="text-purple-400"
+        />
+        <KPICard
+          label="Formalités complètes"
+          value={`${totalCompleted}/${totalFItems}`}
+          sub={`${Math.round((totalCompleted / totalFItems) * 100)}%`}
+          icon={<Shield className="h-4 w-4" />}
+          iconColor="text-blue-400"
+        />
+        <KPICard
+          label="Messages envoyés"
+          value={String(relancesList.filter((r) => r.envoye_at).length)}
+          sub={`${new Set(relancesList.map((r) => r.artisan_nom)).size} artisan(s)`}
+          icon={<Mail className="h-4 w-4" />}
+          iconColor="text-orange-400"
+        />
       </div>
 
-      {/* Quick access */}
-      <div className="grid sm:grid-cols-2 gap-3">
-        {[
-          { tab: "devis" as Tab, label: "Devis & Artisans", sub: `${devis.length} devis enregistré${devis.length > 1 ? "s" : ""}`, icon: FileText },
-          { tab: "journal" as Tab, label: "Journal de chantier", sub: `${journalCount} entrée${journalCount > 1 ? "s" : ""}`, icon: Camera },
-          { tab: "aides" as Tab, label: "Aides disponibles", sub: `${AIDES_LIST.length} aides identifiées`, icon: Award },
-          { tab: "formalites" as Tab, label: "Formalités", sub: `${formalitesDone}/${FORMALITES_LIST.length} complétées`, icon: ClipboardList },
-        ].map(({ tab, label, sub, icon: Icon }) => (
-          <button
-            key={tab}
-            onClick={() => onSetTab(tab)}
-            className="bg-card border border-border rounded-xl p-4 flex items-center gap-3 hover:bg-accent/50 transition-colors text-left"
-          >
-            <Icon className="h-5 w-5 text-primary flex-shrink-0" />
-            <div className="min-w-0 flex-1">
-              <p className="font-medium text-foreground text-sm">{label}</p>
-              <p className="text-xs text-muted-foreground">{sub}</p>
-            </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-          </button>
-        ))}
+      {/* Actions rapides */}
+      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Actions rapides</p>
+      <div className="flex flex-wrap gap-3 mb-6">
+        <button
+          onClick={() => onTabChange("devis")}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+        >
+          <Plus className="h-4 w-4" /> Ajouter un devis
+        </button>
+        <button
+          onClick={() => onTabChange("journal")}
+          className="flex items-center gap-2 px-4 py-2 border border-white/20 hover:bg-white/5 text-white text-sm font-medium rounded-lg transition-colors"
+        >
+          <Camera className="h-4 w-4" /> Ajouter une photo
+        </button>
+        <button
+          onClick={() => onTabChange("relances")}
+          className="flex items-center gap-2 px-4 py-2 border border-white/20 hover:bg-white/5 text-white text-sm font-medium rounded-lg transition-colors"
+        >
+          <Send className="h-4 w-4" /> Envoyer une relance
+        </button>
+      </div>
+
+      {/* Activité récente */}
+      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Activité récente</p>
+      <div className="bg-[#162035] border border-white/10 rounded-xl overflow-hidden">
+        {recentActivity.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <TrendingUp className="h-8 w-8 text-slate-700 mb-3" />
+            <p className="text-slate-500 text-sm">Aucune activité pour le moment.</p>
+            <p className="text-slate-600 text-xs mt-1">Commencez par ajouter un devis !</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-white/5">
+            {recentActivity.map((d) => (
+              <div key={d.id} className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <FileText className="h-4 w-4 text-slate-500 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm text-white font-medium">{d.artisan_nom}</p>
+                    <p className="text-xs text-slate-500">{d.type_travaux}</p>
+                  </div>
+                </div>
+                <span className="text-sm font-bold text-white">{fmt(d.montant_ttc)} €</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
-};
+}
 
-// ══════════════════════════════════════════════════════════════
-// TAB: DEVIS
-// ══════════════════════════════════════════════════════════════
-const DevisTab = ({
-  devis, chantier, analyses, importing, onImport, onRefresh,
-}: {
-  devis: DevisChantier[];
-  chantier: Chantier | null;
-  analyses: AnalyseImport[];
-  importing: boolean;
-  onImport: () => void;
-  onRefresh: () => void;
-}) => {
-  const nonImported = analyses.filter(a => !devis.some(d => d.analyse_id === a.id));
-  const scoreColor = (s: string | null) =>
-    s === "VERT" ? "bg-green-100 text-green-700" : s === "ORANGE" ? "bg-orange-100 text-orange-700" : s === "ROUGE" ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-600";
+// ── DevisTab ───────────────────────────────────────────────────────────────────
+function DevisTab({ chantier, devisList, analyses, onImportAll, onRefresh }: {
+  chantier: Chantier; devisList: DevisItem[]; analyses: any[];
+  onImportAll: () => void; onRefresh: () => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ artisan_nom: "", type_travaux: "", montant_ttc: "", statut: "recu" });
+  const [saving, setSaving] = useState(false);
 
-  const updateStatut = async (id: string, statut: string) => {
-    const { error } = await supabase.from("devis_chantier").update({ statut }).eq("id", id);
-    if (error) { toast.error("Erreur"); return; }
+  const importable = analyses.filter((a) => !devisList.find((d) => d.analyse_id === a.id));
+  const totalTTC = devisList.reduce((acc, d) => acc + d.montant_ttc, 0);
+  const totalPaye = devisList.reduce((acc, d) => acc + (d.acompte_paye || 0), 0);
+  const artisansCount = new Set(devisList.map((d) => d.artisan_nom)).size;
+
+  const handleAdd = async () => {
+    if (!form.artisan_nom || !form.montant_ttc) { toast.error("Artisan et montant requis"); return; }
+    setSaving(true);
+    const ttc = parseFloat(form.montant_ttc) || 0;
+    const { error } = await supabase.from("devis_chantier").insert({
+      chantier_id: chantier.id,
+      artisan_nom: form.artisan_nom,
+      type_travaux: form.type_travaux || "Travaux",
+      montant_ht: ttc / 1.1,
+      montant_ttc: ttc,
+      statut: form.statut,
+    });
+    if (error) toast.error("Erreur lors de l'ajout");
+    else { toast.success("Devis ajouté"); setShowForm(false); setForm({ artisan_nom: "", type_travaux: "", montant_ttc: "", statut: "recu" }); onRefresh(); }
+    setSaving(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    await supabase.from("devis_chantier").delete().eq("id", id);
+    onRefresh();
+  };
+
+  const handleStatut = async (id: string, statut: string) => {
+    await supabase.from("devis_chantier").update({ statut }).eq("id", id);
     onRefresh();
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-foreground">Devis & Artisans</h1>
-        {nonImported.length > 0 && (
-          <Button size="sm" onClick={onImport} disabled={importing} variant="outline">
-            {importing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
-            Importer mes analyses ({nonImported.length})
-          </Button>
-        )}
+    <div className="flex-1 p-6 overflow-y-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <h1 className="text-2xl font-bold text-white">Mes Devis & Factures</h1>
+        <div className="flex items-center gap-2 flex-wrap">
+          {importable.length > 0 && (
+            <button
+              onClick={onImportAll}
+              className="flex items-center gap-1.5 px-3 py-2 border border-blue-500/40 text-blue-400 hover:bg-blue-500/10 text-sm rounded-lg transition-colors"
+            >
+              <Sparkles className="h-4 w-4" /> Importer depuis mes analyses ({importable.length})
+            </button>
+          )}
+          <button className="flex items-center gap-1.5 px-3 py-2 border border-white/20 text-white hover:bg-white/5 text-sm rounded-lg transition-colors">
+            <Download className="h-4 w-4" /> Récapitulatif PDF
+          </button>
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            <Plus className="h-4 w-4" /> Ajouter
+          </button>
+        </div>
       </div>
 
-      {devis.length === 0 ? (
-        <div className="text-center py-16 bg-card border border-border rounded-2xl">
-          <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <p className="font-semibold text-foreground mb-2">Aucun devis</p>
-          <p className="text-sm text-muted-foreground mb-4">
-            Importez vos analyses existantes ou ajoutez un devis manuellement
-          </p>
-          {nonImported.length > 0 && (
-            <Button onClick={onImport} disabled={importing}>
-              <Sparkles className="h-4 w-4 mr-2" />
-              Importer mes {nonImported.length} analyse{nonImported.length > 1 ? "s" : ""}
-            </Button>
-          )}
+      {/* KPIs */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <KPICard label="Total chantier TTC" value={`${fmt(totalTTC)} €`} icon={<Euro className="h-4 w-4" />} iconColor="text-blue-400" />
+        <KPICard label="Total payé" value={`${fmt(totalPaye)} €`} icon={<Check className="h-4 w-4" />} iconColor="text-green-400" />
+        <KPICard label="Reste à payer" value={`${fmt(Math.max(0, totalTTC - totalPaye))} €`} icon={<Euro className="h-4 w-4" />} iconColor="text-orange-400" />
+        <KPICard label="Artisans" value={String(artisansCount)} icon={<Users className="h-4 w-4" />} iconColor="text-purple-400" />
+      </div>
+
+      {/* Drop zone */}
+      {!showForm && (
+        <div
+          onClick={() => setShowForm(true)}
+          className="border-2 border-dashed border-white/15 rounded-xl p-8 text-center mb-4 cursor-pointer hover:border-blue-500/40 hover:bg-blue-500/3 transition-colors"
+        >
+          <Upload className="h-8 w-8 text-slate-600 mx-auto mb-2" />
+          <p className="text-slate-400 text-sm">Glissez-déposez vos devis ou factures ici</p>
+          <p className="text-slate-600 text-xs mt-1">PDF, images — ou cliquez pour saisir manuellement</p>
         </div>
-      ) : (
-        <div className="space-y-3">
-          {devis.map(d => {
-            const st = STATUT_LABELS[d.statut] || { label: d.statut, color: "bg-gray-100 text-gray-700" };
-            return (
-              <div key={d.id} className="bg-card border border-border rounded-xl p-4">
-                <div className="flex flex-col sm:flex-row sm:items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <span className="font-semibold text-foreground">{d.artisan_nom}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${st.color}`}>{st.label}</span>
-                      {d.score_analyse && (
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${scoreColor(d.score_analyse)}`}>
-                          {d.score_analyse}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground">{d.type_travaux}</p>
-                    <div className="flex flex-wrap gap-3 mt-2 text-sm">
-                      <span className="font-medium text-foreground">{formatCurrency(d.montant_ttc)} TTC</span>
-                      {d.date_debut && <span className="text-muted-foreground">Début : {formatDate(d.date_debut)}</span>}
-                      {d.date_fin && <span className="text-muted-foreground">Fin prévue : {formatDate(d.date_fin)}</span>}
-                    </div>
-                    <div className="flex gap-3 mt-2">
-                      <span className={`text-xs flex items-center gap-1 ${d.assurance_ok ? "text-green-600" : "text-muted-foreground"}`}>
-                        {d.assurance_ok ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
-                        Décennale
+      )}
+
+      {/* Form */}
+      {showForm && (
+        <div className="bg-[#162035] border border-white/10 rounded-xl p-4 mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-white font-medium">Nouveau devis</h3>
+            <button onClick={() => setShowForm(false)}><X className="h-4 w-4 text-slate-400" /></button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            {[
+              { key: "artisan_nom", label: "Artisan *", placeholder: "Nom de l'artisan", type: "text" },
+              { key: "type_travaux", label: "Type de travaux", placeholder: "Ex: Carrelage, Plomberie...", type: "text" },
+              { key: "montant_ttc", label: "Montant TTC (€) *", placeholder: "Ex: 5000", type: "number" },
+            ].map(({ key, label, placeholder, type }) => (
+              <div key={key}>
+                <label className="text-xs text-slate-400 mb-1 block">{label}</label>
+                <input
+                  type={type}
+                  value={form[key as keyof typeof form]}
+                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                  placeholder={placeholder}
+                  className="w-full bg-[#1c2a42] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+            ))}
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Statut</label>
+              <select
+                value={form.statut}
+                onChange={(e) => setForm({ ...form, statut: e.target.value })}
+                className="w-full bg-[#1c2a42] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+              >
+                {Object.entries(STATUT_LABELS).map(([k, v]) => (
+                  <option key={k} value={k} className="bg-[#1c2a42]">{v.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleAdd}
+              disabled={saving}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Enregistrer
+            </button>
+            <button onClick={() => setShowForm(false)} className="px-4 py-2 border border-white/20 text-white text-sm rounded-lg hover:bg-white/5">
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* List */}
+      <div className="bg-[#162035] border border-white/10 rounded-xl overflow-hidden">
+        {devisList.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <FileText className="h-8 w-8 text-slate-700 mb-3" />
+            <p className="text-slate-500 text-sm">Aucun devis pour le moment.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-white/5">
+            {devisList.map((d) => (
+              <div key={d.id} className="flex items-center gap-4 px-4 py-3 hover:bg-white/2 transition-colors">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                    <p className="text-sm font-medium text-white">{d.artisan_nom}</p>
+                    {d.score_analyse && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${SCORE_COLORS[d.score_analyse] || ""}`}>
+                        {d.score_analyse}
                       </span>
-                      <span className={`text-xs flex items-center gap-1 ${d.rc_pro_ok ? "text-green-600" : "text-muted-foreground"}`}>
-                        {d.rc_pro_ok ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
-                        RC Pro
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                    )}
                     {d.analyse_id && (
-                      <a href={`/analyse/${d.analyse_id}`} target="_blank" rel="noopener">
-                        <Button variant="outline" size="sm">Voir analyse</Button>
+                      <a href={`/analyse/${d.analyse_id}`} className="text-xs text-cyan-400 hover:underline">
+                        Voir l'analyse →
                       </a>
                     )}
-                    <select
-                      className="text-xs border border-border rounded-lg px-2 py-1.5 bg-background"
-                      value={d.statut}
-                      onChange={e => updateStatut(d.id, e.target.value)}
-                    >
-                      {Object.entries(STATUT_LABELS).map(([v, { label }]) => (
-                        <option key={v} value={v}>{label}</option>
-                      ))}
-                    </select>
                   </div>
+                  <p className="text-xs text-slate-500">{d.type_travaux}</p>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ══════════════════════════════════════════════════════════════
-// TAB: BUDGET
-// ══════════════════════════════════════════════════════════════
-const BudgetTab = ({
-  chantier, devis, totalDevis, totalEngage, enveloppeTotale, budgetRestant, onRefresh,
-}: {
-  chantier: Chantier | null;
-  devis: DevisChantier[];
-  totalDevis: number;
-  totalEngage: number;
-  enveloppeTotale: number;
-  budgetRestant: number;
-  onRefresh: () => void;
-}) => {
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({
-    budget: chantier?.budget?.toString() || "",
-    apport: chantier?.apport?.toString() || "",
-    credit: chantier?.credit?.toString() || "",
-  });
-
-  const save = async () => {
-    if (!chantier) return;
-    const { error } = await supabase.from("chantiers").update({
-      budget: form.budget ? parseFloat(form.budget) : null,
-      apport: form.apport ? parseFloat(form.apport) : null,
-      credit: form.credit ? parseFloat(form.credit) : null,
-    }).eq("id", chantier.id);
-    if (error) { toast.error("Erreur"); return; }
-    toast.success("Budget mis à jour");
-    setEditing(false);
-    onRefresh();
-  };
-
-  const pct = enveloppeTotale > 0 ? Math.min(100, (totalEngage / enveloppeTotale) * 100) : 0;
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-foreground">Budget</h1>
-        <Button variant="outline" size="sm" onClick={() => setEditing(!editing)}>
-          <Settings className="h-4 w-4 mr-2" />
-          {editing ? "Annuler" : "Configurer"}
-        </Button>
-      </div>
-
-      {editing && (
-        <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-          <h3 className="font-semibold text-foreground">Enveloppe budgétaire</h3>
-          <div className="grid sm:grid-cols-3 gap-4">
-            {[
-              { key: "budget", label: "Budget total (€)", placeholder: "ex: 50000" },
-              { key: "apport", label: "Apport personnel (€)", placeholder: "ex: 20000" },
-              { key: "credit", label: "Montant crédit (€)", placeholder: "ex: 30000" },
-            ].map(({ key, label, placeholder }) => (
-              <div key={key}>
-                <label className="text-xs font-medium text-muted-foreground block mb-1">{label}</label>
-                <input
-                  type="number"
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
-                  placeholder={placeholder}
-                  value={form[key as keyof typeof form]}
-                  onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-                />
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <p className="text-sm font-bold text-white">{fmt(d.montant_ttc)} €</p>
+                  <select
+                    value={d.statut}
+                    onChange={(e) => handleStatut(d.id, e.target.value)}
+                    className={`text-xs px-2 py-1 rounded-lg focus:outline-none cursor-pointer border-0 ${STATUT_LABELS[d.statut]?.color || ""}`}
+                  >
+                    {Object.entries(STATUT_LABELS).map(([k, v]) => (
+                      <option key={k} value={k} className="bg-[#162035] text-white">{v.label}</option>
+                    ))}
+                  </select>
+                  <button onClick={() => handleDelete(d.id)} className="text-slate-600 hover:text-red-400 transition-colors">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
-          <Button size="sm" onClick={save}>Enregistrer</Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── BudgetTab ──────────────────────────────────────────────────────────────────
+function BudgetTab({ chantier, devisList, onUpdateChantier }: {
+  chantier: Chantier; devisList: DevisItem[];
+  onUpdateChantier: (u: Partial<Chantier>) => void;
+}) {
+  const storageKey = `chantier_budget_${chantier.id}`;
+  const [extra, setExtra] = useState<BudgetExtra>(() => {
+    try { return JSON.parse(localStorage.getItem(storageKey) || "{}"); } catch { return { mensualite: "", duree: "", aides_deduites: "", montant_debloque: "" }; }
+  });
+  const [main, setMain] = useState({
+    budget: chantier.budget ? String(chantier.budget) : "",
+    apport: chantier.apport ? String(chantier.apport) : "",
+    credit: chantier.credit ? String(chantier.credit) : "",
+    taux_interet: chantier.taux_interet ? String(chantier.taux_interet) : "",
+  });
+
+  const saveMain = useCallback(async () => {
+    const updates = {
+      budget: parseFloat(main.budget) || null,
+      apport: parseFloat(main.apport) || null,
+      credit: parseFloat(main.credit) || null,
+      taux_interet: parseFloat(main.taux_interet) || null,
+    };
+    await supabase.from("chantiers").update(updates).eq("id", chantier.id);
+    onUpdateChantier(updates);
+  }, [main, chantier.id, onUpdateChantier]);
+
+  const updateExtra = (key: keyof BudgetExtra, value: string) => {
+    const updated = { ...extra, [key]: value };
+    setExtra(updated);
+    localStorage.setItem(storageKey, JSON.stringify(updated));
+  };
+
+  const budget = parseFloat(main.budget) || 0;
+  const totalEngaged = devisList.reduce((acc, d) => acc + d.montant_ttc, 0);
+  const pct = budget > 0 ? Math.min(100, Math.round((totalEngaged / budget) * 100)) : 0;
+  const barColor = pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-amber-500" : "bg-blue-500";
+
+  const inputClass = "w-full bg-[#1c2a42] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500";
+
+  return (
+    <div className="flex-1 p-6 overflow-y-auto">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-white">Budget & Financement</h1>
+        <button className="flex items-center gap-1.5 px-3 py-2 border border-white/20 text-white hover:bg-white/5 text-sm rounded-lg transition-colors">
+          <Download className="h-4 w-4" /> Récapitulatif PDF
+        </button>
+      </div>
+
+      {/* Config */}
+      <div className="bg-[#162035] border border-white/10 rounded-xl p-5 mb-4">
+        <h2 className="text-white font-semibold mb-4">Configuration du budget</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">Enveloppe totale (€)</label>
+            <input type="number" value={main.budget} onChange={(e) => setMain({ ...main, budget: e.target.value })} onBlur={saveMain} placeholder="50000" className={inputClass} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">Apport personnel (€)</label>
+            <input type="number" value={main.apport} onChange={(e) => setMain({ ...main, apport: e.target.value })} onBlur={saveMain} className={inputClass} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">Crédit (€)</label>
+            <input type="number" value={main.credit} onChange={(e) => setMain({ ...main, credit: e.target.value })} onBlur={saveMain} className={inputClass} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">Mensualité (€)</label>
+            <input type="number" value={extra.mensualite} onChange={(e) => updateExtra("mensualite", e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">Durée (mois)</label>
+            <input type="number" value={extra.duree} onChange={(e) => updateExtra("duree", e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">Aides déduites (€)</label>
+            <input type="number" value={extra.aides_deduites} onChange={(e) => updateExtra("aides_deduites", e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">Taux d'intérêt annuel (%)</label>
+            <input type="number" value={main.taux_interet} onChange={(e) => setMain({ ...main, taux_interet: e.target.value })} onBlur={saveMain} placeholder="Ex: 3.5" className={inputClass} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">Montant débloqué (€)</label>
+            <input type="number" value={extra.montant_debloque} onChange={(e) => updateExtra("montant_debloque", e.target.value)} placeholder="Montant déjà versé par la banque" className={inputClass} />
+          </div>
+        </div>
+      </div>
+
+      {/* Justificatifs */}
+      <div className="bg-[#162035] border border-white/10 rounded-xl p-5 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-white font-semibold">Justificatifs d'apport personnel</h2>
+          <button className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300">
+            <Plus className="h-4 w-4" /> Ajouter
+          </button>
+        </div>
+        <p className="text-slate-500 text-sm text-center py-3">Aucun justificatif ajouté</p>
+      </div>
+
+      {/* Intérêts intercalaires */}
+      <div className="bg-[#162035] border border-white/10 rounded-xl p-5 mb-4">
+        <h2 className="text-white font-semibold mb-2">Intérêts intercalaires</h2>
+        <p className="text-slate-500 text-sm">
+          {extra.montant_debloque && main.taux_interet
+            ? `≈ ${fmt((parseFloat(extra.montant_debloque) * parseFloat(main.taux_interet)) / 100 / 12)} €/mois estimés`
+            : "Renseignez le montant débloqué pour calculer"}
+        </p>
+      </div>
+
+      {/* Budget consommé */}
+      <div className="bg-[#162035] border border-white/10 rounded-xl p-5">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-white font-semibold">Budget consommé</h2>
+          <span className="text-sm text-slate-400">{pct}%</span>
+        </div>
+        <div className="w-full bg-[#1c2a42] rounded-full h-1.5 mb-2">
+          <div className={`${barColor} h-1.5 rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
+        </div>
+        <div className="flex justify-between text-xs text-slate-500">
+          <span>{fmt(totalEngaged)} € engagés</span>
+          <span>{fmt(budget)} € budget total</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── AidesTab ───────────────────────────────────────────────────────────────────
+function AidesTab({ chantierId }: { chantierId: string }) {
+  const storageKey = `chantier_aides_${chantierId}`;
+  const [aides, setAides] = useState<Aide[]>(() => {
+    try { return JSON.parse(localStorage.getItem(storageKey) || "[]"); } catch { return []; }
+  });
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ nom: "", montant: "", statut: "en_attente" as "percu" | "en_attente" });
+
+  const save = (updated: Aide[]) => {
+    setAides(updated);
+    localStorage.setItem(storageKey, JSON.stringify(updated));
+  };
+
+  const handleAdd = () => {
+    if (!form.nom) { toast.error("Nom de l'aide requis"); return; }
+    save([...aides, { id: crypto.randomUUID(), nom: form.nom, montant: parseFloat(form.montant) || 0, statut: form.statut }]);
+    setForm({ nom: "", montant: "", statut: "en_attente" });
+    setShowForm(false);
+  };
+
+  const totalPercu = aides.filter((a) => a.statut === "percu").reduce((acc, a) => acc + a.montant, 0);
+  const totalAttente = aides.filter((a) => a.statut === "en_attente").reduce((acc, a) => acc + a.montant, 0);
+
+  const inputClass = "w-full bg-[#1c2a42] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500";
+
+  return (
+    <div className="flex-1 p-6 overflow-y-auto">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-white">Aides & Subventions</h1>
+        <button
+          onClick={() => setShowForm(true)}
+          className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+        >
+          <Plus className="h-4 w-4" /> Ajouter une aide
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="bg-[#162035] border border-white/10 rounded-xl p-4">
+          <p className="text-xs text-slate-400 mb-1">Total perçu</p>
+          <p className="text-xl font-bold text-green-400">{fmt(totalPercu)} €</p>
+        </div>
+        <div className="bg-[#162035] border border-white/10 rounded-xl p-4">
+          <p className="text-xs text-slate-400 mb-1">En attente</p>
+          <p className="text-xl font-bold text-orange-400">{fmt(totalAttente)} €</p>
+        </div>
+      </div>
+
+      {showForm && (
+        <div className="bg-[#162035] border border-white/10 rounded-xl p-4 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-white font-medium">Nouvelle aide</h3>
+            <button onClick={() => setShowForm(false)}><X className="h-4 w-4 text-slate-400" /></button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+            <div className="sm:col-span-1">
+              <label className="text-xs text-slate-400 mb-1 block">Nom de l'aide</label>
+              <input value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} placeholder="Ex: MaPrimeRénov'" className={inputClass} />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Montant (€)</label>
+              <input type="number" value={form.montant} onChange={(e) => setForm({ ...form, montant: e.target.value })} placeholder="0" className={inputClass} />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Statut</label>
+              <select value={form.statut} onChange={(e) => setForm({ ...form, statut: e.target.value as any })} className={inputClass}>
+                <option value="en_attente">En attente</option>
+                <option value="percu">Perçu</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleAdd} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg">Enregistrer</button>
+            <button onClick={() => setShowForm(false)} className="px-4 py-2 border border-white/20 text-white text-sm rounded-lg hover:bg-white/5">Annuler</button>
+          </div>
         </div>
       )}
 
-      {/* Enveloppe vs engagé */}
-      <div className="bg-card border border-border rounded-2xl p-5">
-        <div className="flex items-center justify-between mb-3">
-          <p className="font-medium text-foreground">Enveloppe vs engagé</p>
-          <span className={`text-sm font-medium ${budgetRestant < 0 ? "text-red-600" : "text-green-600"}`}>
-            {budgetRestant < 0 ? "Dépassement" : "Restant"} : {formatCurrency(Math.abs(budgetRestant))}
-          </span>
-        </div>
-        {enveloppeTotale > 0 ? (
-          <>
-            <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
-              <div
-                className={`h-3 rounded-full transition-all ${pct > 90 ? "bg-red-500" : pct > 70 ? "bg-amber-500" : "bg-green-500"}`}
-                style={{ width: `${Math.min(pct, 100)}%` }}
-              />
-            </div>
-            <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-              <span>{formatCurrency(totalEngage)} engagé</span>
-              <span>{formatCurrency(enveloppeTotale)} total</span>
-            </div>
-          </>
+      <div className="bg-[#162035] border border-white/10 rounded-xl overflow-hidden">
+        {aides.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Award className="h-8 w-8 text-slate-700 mb-3" />
+            <p className="text-slate-500 text-sm">Aucune aide ajoutée.</p>
+          </div>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            Configurez votre enveloppe budgétaire pour voir le suivi.
-          </p>
+          <div className="divide-y divide-white/5">
+            {aides.map((aide) => (
+              <div key={aide.id} className="flex items-center justify-between px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-white">{aide.nom}</p>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${aide.statut === "percu" ? "bg-green-500/20 text-green-400" : "bg-amber-500/20 text-amber-400"}`}>
+                    {aide.statut === "percu" ? "Perçu" : "En attente"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <p className={`font-bold ${aide.statut === "percu" ? "text-green-400" : "text-amber-400"}`}>{fmt(aide.montant)} €</p>
+                  <button onClick={() => save(aides.filter((a) => a.id !== aide.id))} className="text-slate-600 hover:text-red-400 transition-colors">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
+    </div>
+  );
+}
 
-      {/* Récap devis */}
-      <div className="bg-card border border-border rounded-2xl p-5">
-        <h3 className="font-semibold text-foreground mb-4">Récapitulatif par artisan</h3>
-        {devis.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucun devis enregistré.</p>
-        ) : (
-          <div className="space-y-2">
-            {devis.map(d => {
-              const st = STATUT_LABELS[d.statut] || { label: d.statut, color: "bg-gray-100 text-gray-700" };
+// ── FormalitesTab ──────────────────────────────────────────────────────────────
+function FormalitesTab({ chantierId }: { chantierId: string }) {
+  const storageKey = `chantier_formalites_${chantierId}`;
+  const [states, setStates] = useState<Record<string, FormaliteState>>(() => {
+    try { return JSON.parse(localStorage.getItem(storageKey) || "{}"); } catch { return {}; }
+  });
+
+  const allKeys = FORMALITES.flatMap((s) => s.items.map((i) => i.key));
+  const totalItems = allKeys.length;
+  const totalCompleted = allKeys.filter((k) => states[k]?.completed).length;
+  const pct = Math.round((totalCompleted / totalItems) * 100);
+
+  const update = (key: string, field: keyof FormaliteState, value: any) => {
+    const updated = { ...states, [key]: { ...(states[key] || { completed: false, notes: "", date: "" }), [field]: value } };
+    setStates(updated);
+    localStorage.setItem(storageKey, JSON.stringify(updated));
+  };
+
+  return (
+    <div className="flex-1 p-6 overflow-y-auto">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-white">Formalités & Documents</h1>
+        <span className={`px-3 py-1 rounded-lg text-sm font-semibold ${pct === 100 ? "bg-green-500/20 text-green-400" : pct > 0 ? "bg-amber-500/20 text-amber-400" : "bg-red-500/20 text-red-400"}`}>
+          Conformité : {pct}%
+        </span>
+      </div>
+
+      {/* Progress bar */}
+      <div className="bg-[#162035] border border-white/10 rounded-xl p-4 mb-4">
+        <div className="flex items-center justify-between mb-2 text-sm">
+          <span className="text-slate-300">{totalCompleted}/{totalItems} formalités complètes</span>
+          <span className={pct > 0 ? "text-amber-400" : "text-red-400"}>{pct}%</span>
+        </div>
+        <div className="w-full bg-[#1c2a42] rounded-full h-1.5">
+          <div
+            className={`h-1.5 rounded-full transition-all ${pct === 100 ? "bg-green-500" : pct > 0 ? "bg-amber-500" : "bg-slate-600"}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Sections */}
+      {FORMALITES.map((section) => (
+        <div key={section.section} className="bg-[#162035] border border-white/10 rounded-xl p-5 mb-4">
+          <h2 className="text-white font-semibold mb-4">{section.section}</h2>
+          <div className="space-y-5">
+            {section.items.map((item) => {
+              const state = states[item.key] || { completed: false, notes: "", date: "" };
               return (
-                <div key={d.id} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{d.artisan_nom}</p>
-                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${st.color}`}>{st.label}</span>
+                <div key={item.key}>
+                  <div className="flex items-center gap-3 mb-2">
+                    <button
+                      onClick={() => update(item.key, "completed", !state.completed)}
+                      className="flex-shrink-0 transition-colors"
+                    >
+                      {state.completed
+                        ? <CheckCircle2 className="h-5 w-5 text-blue-400" />
+                        : <Circle className="h-5 w-5 text-slate-600" />
+                      }
+                    </button>
+                    <span className={`text-sm font-medium ${state.completed ? "text-slate-500 line-through" : "text-white"}`}>
+                      {item.label}
+                    </span>
                   </div>
-                  <p className={`text-sm font-semibold ${d.statut === "recu" ? "text-muted-foreground" : "text-foreground"}`}>
-                    {formatCurrency(d.montant_ttc)}
-                  </p>
+                  <div className="ml-8 grid grid-cols-2 gap-2">
+                    <input
+                      value={state.notes}
+                      onChange={(e) => update(item.key, "notes", e.target.value)}
+                      placeholder="Notes"
+                      className="bg-[#1c2a42] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                    />
+                    <input
+                      type="date"
+                      value={state.date}
+                      onChange={(e) => update(item.key, "date", e.target.value)}
+                      className="bg-[#1c2a42] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 [color-scheme:dark]"
+                    />
+                  </div>
                 </div>
               );
             })}
-            <div className="flex items-center justify-between pt-2 font-semibold">
-              <span className="text-sm">Total (tous devis)</span>
-              <span className="text-sm">{formatCurrency(totalDevis)}</span>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// ══════════════════════════════════════════════════════════════
-// TAB: AIDES
-// ══════════════════════════════════════════════════════════════
-const AidesTab = () => (
-  <div className="space-y-6">
-    <div>
-      <h1 className="text-2xl font-bold text-foreground">Aides & Subventions</h1>
-      <p className="text-muted-foreground mt-1">Aides potentiellement disponibles pour votre projet</p>
-    </div>
-    <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
-      <strong>Important :</strong> Vérifiez votre éligibilité auprès des organismes compétents. Les montants varient selon vos revenus, la nature des travaux et votre situation.
-    </div>
-    <div className="space-y-3">
-      {AIDES_LIST.map(aide => (
-        <div key={aide.nom} className="bg-card border border-border rounded-2xl p-5">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <h3 className="font-semibold text-foreground">{aide.nom}</h3>
-                <span className="text-xs font-medium bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
-                  Jusqu'à {aide.max}
-                </span>
-              </div>
-              <p className="text-sm text-muted-foreground">{aide.desc}</p>
-            </div>
-            <a href={aide.url} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" size="sm">
-                En savoir plus
-              </Button>
-            </a>
           </div>
         </div>
       ))}
     </div>
-  </div>
-);
-
-// ══════════════════════════════════════════════════════════════
-// TAB: FORMALITÉS
-// ══════════════════════════════════════════════════════════════
-const FormalitesTab = ({
-  formalites, formalitesDone, onToggle,
-}: {
-  formalites: Record<string, boolean>;
-  formalitesDone: number;
-  onToggle: (id: string) => void;
-}) => {
-  const phases = [
-    { key: "avant", label: "Avant travaux", icon: ClipboardList },
-    { key: "pendant", label: "Pendant travaux", icon: Wrench },
-    { key: "apres", label: "Après travaux", icon: CheckCircle2 },
-  ];
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-foreground">Formalités</h1>
-        <span className="text-sm font-medium text-muted-foreground">
-          {formalitesDone}/{FORMALITES_LIST.length} complétées
-        </span>
-      </div>
-
-      <div className="w-full bg-muted rounded-full h-2">
-        <div
-          className="h-2 rounded-full bg-primary transition-all"
-          style={{ width: `${(formalitesDone / FORMALITES_LIST.length) * 100}%` }}
-        />
-      </div>
-
-      {phases.map(({ key, label, icon: Icon }) => {
-        const items = FORMALITES_LIST.filter(f => f.phase === key);
-        const done = items.filter(f => formalites[f.id]).length;
-        return (
-          <div key={key} className="bg-card border border-border rounded-2xl p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <Icon className="h-5 w-5 text-primary" />
-              <h3 className="font-semibold text-foreground">{label}</h3>
-              <span className="ml-auto text-sm text-muted-foreground">{done}/{items.length}</span>
-            </div>
-            <div className="space-y-3">
-              {items.map(f => (
-                <label key={f.id} className="flex items-start gap-3 cursor-pointer group">
-                  <input
-                    type="checkbox"
-                    checked={!!formalites[f.id]}
-                    onChange={() => onToggle(f.id)}
-                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary accent-primary"
-                  />
-                  <span className={`text-sm transition-colors ${formalites[f.id] ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                    {f.label}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-        );
-      })}
-    </div>
   );
-};
+}
 
-// ══════════════════════════════════════════════════════════════
-// TAB: RELANCES
-// ══════════════════════════════════════════════════════════════
-const RelancesTab = ({
-  relances, chantier, devis, onRefresh,
-}: {
-  relances: Relance[];
-  chantier: Chantier | null;
-  devis: DevisChantier[];
-  onRefresh: () => void;
-}) => {
-  const [type, setType] = useState("relance_delai");
-  const [artisan, setArtisan] = useState("");
-  const [email, setEmail] = useState("");
-  const [contenu, setContenu] = useState("");
-
-  const nomChantier = chantier?.nom || "Mon chantier";
-
-  useEffect(() => {
-    const tpl = RELANCE_TEMPLATES[type];
-    if (tpl) setContenu(tpl.template(artisan || "l'artisan", nomChantier));
-  }, [type, artisan, nomChantier]);
-
-  const save = async () => {
-    if (!chantier || !artisan.trim()) { toast.error("Renseignez le nom de l'artisan"); return; }
-    const { error } = await supabase.from("relances").insert({
-      chantier_id: chantier.id,
-      artisan_nom: artisan,
-      artisan_email: email,
-      type,
-      contenu,
-    });
-    if (error) { toast.error("Erreur"); return; }
-    toast.success("Relance enregistrée");
-    setArtisan(""); setEmail(""); setContenu("");
-    onRefresh();
-  };
-
-  const markSent = async (id: string) => {
-    await supabase.from("relances").update({ envoye_at: new Date().toISOString() }).eq("id", id);
-    toast.success("Marquée comme envoyée");
-    onRefresh();
-  };
-
-  return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-foreground">Relances Artisans</h1>
-
-      {/* Form */}
-      <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-        <h3 className="font-semibold text-foreground">Nouvelle relance</h3>
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1">Type</label>
-            <select
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
-              value={type}
-              onChange={e => setType(e.target.value)}
-            >
-              {Object.entries(RELANCE_TEMPLATES).map(([k, { label }]) => (
-                <option key={k} value={k}>{label}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1">Nom artisan</label>
-            <input
-              type="text"
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
-              placeholder="ex: Plomberie Dupont"
-              value={artisan}
-              onChange={e => setArtisan(e.target.value)}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="text-xs font-medium text-muted-foreground block mb-1">Email artisan (optionnel)</label>
-            <input
-              type="email"
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
-              placeholder="artisan@exemple.fr"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="text-xs font-medium text-muted-foreground block mb-1">Contenu (modifiable)</label>
-            <textarea
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background resize-none"
-              rows={7}
-              value={contenu}
-              onChange={e => setContenu(e.target.value)}
-            />
-          </div>
-        </div>
-        <Button size="sm" onClick={save}>
-          <Plus className="h-4 w-4 mr-2" />
-          Enregistrer la relance
-        </Button>
-      </div>
-
-      {/* List */}
-      {relances.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="font-semibold text-foreground">Historique des relances</h3>
-          {relances.map(r => {
-            const tpl = RELANCE_TEMPLATES[r.type];
-            return (
-              <div key={r.id} className="bg-card border border-border rounded-xl p-4">
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="font-medium text-foreground text-sm">{r.artisan_nom}</span>
-                      <span className="text-xs bg-muted px-2 py-0.5 rounded-full">{tpl?.label || r.type}</span>
-                      {r.envoye_at ? (
-                        <span className="text-xs text-green-600 flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3" />Envoyée le {formatDate(r.envoye_at)}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Clock className="h-3 w-3" />Non envoyée
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">Créée le {formatDate(r.created_at)}</p>
-                  </div>
-                  {!r.envoye_at && (
-                    <Button variant="outline" size="sm" onClick={() => markSent(r.id)}>
-                      Marquer envoyée
-                    </Button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ══════════════════════════════════════════════════════════════
-// TAB: JOURNAL
-// ══════════════════════════════════════════════════════════════
-const JournalTab = ({
-  journal, onAdd,
-}: {
-  journal: JournalEntry[];
-  onAdd: (note: string, phase: string, tags: string[]) => Promise<void>;
-}) => {
-  const [note, setNote] = useState("");
-  const [phase, setPhase] = useState("preparation");
-  const [tags, setTags] = useState<string[]>([]);
+// ── RelancesTab ────────────────────────────────────────────────────────────────
+function RelancesTab({ chantier, devisList, relancesList, onRefresh }: {
+  chantier: Chantier; devisList: DevisItem[]; relancesList: RelanceItem[]; onRefresh: () => void;
+}) {
+  const [selectedArtisan, setSelectedArtisan] = useState("");
+  const [selectedType, setSelectedType] = useState(RELANCE_TEMPLATES[0].type);
+  const [contenu, setContenu] = useState(RELANCE_TEMPLATES[0].template(""));
   const [saving, setSaving] = useState(false);
 
-  const toggleTag = (t: string) =>
-    setTags(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
+  const artisans = [...new Set(devisList.map((d) => d.artisan_nom))];
 
-  const submit = async () => {
-    if (!note.trim()) { toast.error("Rédigez une note"); return; }
+  useEffect(() => {
+    const tpl = RELANCE_TEMPLATES.find((t) => t.type === selectedType);
+    if (tpl) setContenu(tpl.template(selectedArtisan));
+  }, [selectedType, selectedArtisan]);
+
+  const handleSend = async () => {
+    if (!selectedArtisan) { toast.error("Sélectionnez un artisan"); return; }
     setSaving(true);
-    await onAdd(note, phase, tags);
-    setNote(""); setTags([]);
+    const devis = devisList.find((d) => d.artisan_nom === selectedArtisan);
+    const { error } = await supabase.from("relances").insert({
+      chantier_id: chantier.id,
+      artisan_nom: selectedArtisan,
+      artisan_email: devis?.artisan_email || "",
+      type: selectedType,
+      contenu,
+      envoye_at: new Date().toISOString(),
+    });
+    if (error) toast.error("Erreur");
+    else { toast.success("Relance enregistrée"); onRefresh(); }
     setSaving(false);
   };
 
-  return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-foreground">Journal de Chantier</h1>
+  const selectClass = "bg-[#1c2a42] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500";
 
-      {/* Add entry form */}
-      <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
-        <h3 className="font-semibold text-foreground">Nouvelle entrée</h3>
-        <div className="grid sm:grid-cols-2 gap-4">
+  if (artisans.length === 0) {
+    return (
+      <div className="flex-1 p-6 overflow-y-auto">
+        <h1 className="text-2xl font-bold text-white mb-6">Relances & Messages</h1>
+        <div className="bg-[#162035] border border-white/10 rounded-xl flex flex-col items-center justify-center py-16">
+          <Mail className="h-8 w-8 text-slate-700 mb-3" />
+          <p className="text-slate-500 text-sm">Ajoutez d'abord des devis pour voir vos artisans ici.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 p-6 overflow-y-auto">
+      <h1 className="text-2xl font-bold text-white mb-6">Relances & Messages</h1>
+
+      <div className="bg-[#162035] border border-white/10 rounded-xl p-5 mb-4">
+        <h2 className="text-white font-semibold mb-4">Nouvelle relance</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1">Phase</label>
-            <select
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background"
-              value={phase}
-              onChange={e => setPhase(e.target.value)}
-            >
-              {Object.entries(PHASE_LABELS).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
-              ))}
+            <label className="text-xs text-slate-400 mb-1 block">Artisan</label>
+            <select value={selectedArtisan} onChange={(e) => setSelectedArtisan(e.target.value)} className={`w-full ${selectClass}`}>
+              <option value="">Sélectionner un artisan</option>
+              {artisans.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs font-medium text-muted-foreground block mb-1">Tags</label>
-            <div className="flex flex-wrap gap-1.5">
-              {Object.entries(TAG_CONFIG).map(([k, { label, color }]) => (
-                <button
-                  key={k}
-                  onClick={() => toggleTag(k)}
-                  className={`text-xs px-2.5 py-1 rounded-full font-medium transition-all border ${
-                    tags.includes(k)
-                      ? `${color} border-transparent scale-95`
-                      : "bg-muted text-muted-foreground border-border"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="sm:col-span-2">
-            <label className="text-xs font-medium text-muted-foreground block mb-1">Note</label>
-            <textarea
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background resize-none"
-              rows={3}
-              placeholder="Décrivez l'avancement, les observations, les problèmes rencontrés…"
-              value={note}
-              onChange={e => setNote(e.target.value)}
-            />
+            <label className="text-xs text-slate-400 mb-1 block">Type de relance</label>
+            <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)} className={`w-full ${selectClass}`}>
+              {RELANCE_TEMPLATES.map((t) => <option key={t.type} value={t.type}>{t.label}</option>)}
+            </select>
           </div>
         </div>
-        <Button size="sm" onClick={submit} disabled={saving}>
-          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
-          Ajouter au journal
-        </Button>
+        <textarea
+          value={contenu}
+          onChange={(e) => setContenu(e.target.value)}
+          rows={6}
+          className="w-full bg-[#1c2a42] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white resize-none focus:outline-none focus:border-blue-500 mb-3"
+        />
+        <button
+          onClick={handleSend}
+          disabled={saving}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          Enregistrer la relance
+        </button>
       </div>
 
-      {/* Entries */}
-      {journal.length === 0 ? (
-        <div className="text-center py-12 bg-card border border-border rounded-2xl">
-          <Camera className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-          <p className="font-medium text-foreground">Journal vide</p>
-          <p className="text-sm text-muted-foreground mt-1">Commencez à documenter votre chantier ci-dessus</p>
-        </div>
-      ) : (
-        <div className="relative">
-          <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border" />
-          <div className="space-y-4 pl-10">
-            {journal.map(entry => (
-              <div key={entry.id} className="relative">
-                <div className="absolute -left-[34px] top-4 w-3 h-3 rounded-full bg-primary border-2 border-background" />
-                <div className="bg-card border border-border rounded-xl p-4">
-                  <div className="flex items-start justify-between gap-2 mb-2 flex-wrap">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-                        {PHASE_LABELS[entry.phase] || entry.phase}
-                      </span>
-                      {entry.tags.map(t => (
-                        <span key={t} className={`text-xs px-2 py-0.5 rounded-full font-medium ${TAG_CONFIG[t]?.color || "bg-gray-100 text-gray-600"}`}>
-                          {TAG_CONFIG[t]?.label || t}
-                        </span>
-                      ))}
-                    </div>
-                    <span className="text-xs text-muted-foreground flex-shrink-0">{formatDate(entry.date)}</span>
-                  </div>
-                  <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{entry.note}</p>
+      {relancesList.length > 0 && (
+        <div className="bg-[#162035] border border-white/10 rounded-xl overflow-hidden">
+          <div className="px-5 py-3 border-b border-white/10">
+            <h2 className="text-white font-semibold">Historique</h2>
+          </div>
+          <div className="divide-y divide-white/5">
+            {relancesList.map((r) => (
+              <div key={r.id} className="px-4 py-3">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm font-medium text-white">{r.artisan_nom}</p>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${r.envoye_at ? "bg-green-500/20 text-green-400" : "bg-slate-500/20 text-slate-400"}`}>
+                    {r.envoye_at ? "Envoyé" : "Brouillon"}
+                  </span>
                 </div>
+                <p className="text-xs text-slate-500">{RELANCE_TEMPLATES.find((t) => t.type === r.type)?.label || r.type}</p>
               </div>
             ))}
           </div>
@@ -1267,6 +939,486 @@ const JournalTab = ({
       )}
     </div>
   );
-};
+}
 
-export default MonChantier;
+// ── JournalTab ─────────────────────────────────────────────────────────────────
+function JournalTab({ chantier, devisList, journalEntries, onRefresh }: {
+  chantier: Chantier; devisList: DevisItem[]; journalEntries: JournalEntry[]; onRefresh: () => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [filterPhase, setFilterPhase] = useState("");
+  const [filterArtisan, setFilterArtisan] = useState("");
+  const [form, setForm] = useState({
+    date: new Date().toISOString().split("T")[0],
+    phase: "preparation",
+    artisan_nom: "",
+    note: "",
+    tags: [] as string[],
+  });
+  const [saving, setSaving] = useState(false);
+
+  const artisansList = [...new Set(devisList.map((d) => d.artisan_nom))];
+
+  const filtered = journalEntries.filter((e) => {
+    if (filterPhase && e.phase !== filterPhase) return false;
+    if (filterArtisan && e.artisan_nom !== filterArtisan) return false;
+    return true;
+  });
+
+  const handleAdd = async () => {
+    if (!form.note) { toast.error("La note est requise"); return; }
+    setSaving(true);
+    const { error } = await supabase.from("journal_entries").insert({ chantier_id: chantier.id, ...form });
+    if (error) toast.error("Erreur");
+    else {
+      toast.success("Entrée ajoutée");
+      setShowForm(false);
+      setForm({ date: new Date().toISOString().split("T")[0], phase: "preparation", artisan_nom: "", note: "", tags: [] });
+      onRefresh();
+    }
+    setSaving(false);
+  };
+
+  const selectClass = "bg-[#162035] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 flex items-center gap-1";
+
+  return (
+    <div className="flex-1 p-6 overflow-y-auto">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <h1 className="text-2xl font-bold text-white">Journal de Chantier</h1>
+        <div className="flex items-center gap-2">
+          <button className="flex items-center gap-1.5 px-3 py-2 border border-white/20 text-white hover:bg-white/5 text-sm rounded-lg transition-colors">
+            <Download className="h-4 w-4" /> Exporter PDF
+          </button>
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg"
+          >
+            <Plus className="h-4 w-4" /> Ajouter
+          </button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex gap-3 mb-4 flex-wrap">
+        <select
+          value={filterPhase}
+          onChange={(e) => setFilterPhase(e.target.value)}
+          className="bg-[#162035] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+        >
+          <option value="">Toutes les...</option>
+          {PHASE_KEYS.map((k, i) => <option key={k} value={k}>{PHASE_LABELS[i]}</option>)}
+        </select>
+        <select
+          value={filterArtisan}
+          onChange={(e) => setFilterArtisan(e.target.value)}
+          className="bg-[#162035] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+        >
+          <option value="">Tous les artisans</option>
+          {artisansList.map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
+      </div>
+
+      {/* Form */}
+      {showForm && (
+        <div className="bg-[#162035] border border-white/10 rounded-xl p-4 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-white font-medium">Nouvelle entrée</h3>
+            <button onClick={() => setShowForm(false)}><X className="h-4 w-4 text-slate-400" /></button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Date</label>
+              <input
+                type="date"
+                value={form.date}
+                onChange={(e) => setForm({ ...form, date: e.target.value })}
+                className="w-full bg-[#1c2a42] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 [color-scheme:dark]"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Phase</label>
+              <select
+                value={form.phase}
+                onChange={(e) => setForm({ ...form, phase: e.target.value })}
+                className="w-full bg-[#1c2a42] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+              >
+                {PHASE_KEYS.map((k, i) => <option key={k} value={k}>{PHASE_LABELS[i]}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">Artisan (optionnel)</label>
+              <select
+                value={form.artisan_nom}
+                onChange={(e) => setForm({ ...form, artisan_nom: e.target.value })}
+                className="w-full bg-[#1c2a42] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+              >
+                <option value="">Aucun</option>
+                {artisansList.map((a) => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </div>
+          </div>
+          <textarea
+            value={form.note}
+            onChange={(e) => setForm({ ...form, note: e.target.value })}
+            placeholder="Décrivez l'avancement, les problèmes rencontrés..."
+            rows={4}
+            className="w-full bg-[#1c2a42] border border-white/10 rounded-lg px-3 py-2 text-sm text-white resize-none focus:outline-none focus:border-blue-500 mb-3"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={handleAdd}
+              disabled={saving}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+              Enregistrer
+            </button>
+            <button onClick={() => setShowForm(false)} className="px-4 py-2 border border-white/20 text-white text-sm rounded-lg hover:bg-white/5">
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Entries */}
+      <div className="bg-[#162035] border border-white/10 rounded-xl overflow-hidden">
+        {filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Camera className="h-8 w-8 text-slate-700 mb-3" />
+            <p className="text-slate-500 text-sm">Aucune entrée dans le journal.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-white/5">
+            {filtered.map((e) => (
+              <div key={e.id} className="px-4 py-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded-full">
+                        {PHASE_LABELS[PHASE_KEYS.indexOf(e.phase)] || e.phase}
+                      </span>
+                      {e.artisan_nom && <span className="text-xs text-slate-400">{e.artisan_nom}</span>}
+                    </div>
+                    <p className="text-sm text-white whitespace-pre-wrap">{e.note}</p>
+                  </div>
+                  <p className="text-xs text-slate-500 flex-shrink-0">
+                    {new Date(e.date).toLocaleDateString("fr-FR")}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── SyntheseModal ──────────────────────────────────────────────────────────────
+function SyntheseModal({ chantier, devisList, formalites, onClose }: {
+  chantier: Chantier; devisList: DevisItem[];
+  formalites: Record<string, FormaliteState>; onClose: () => void;
+}) {
+  const allKeys = FORMALITES.flatMap((s) => s.items.map((i) => i.key));
+  const totalCompleted = allKeys.filter((k) => formalites[k]?.completed).length;
+  const totalTTC = devisList.reduce((acc, d) => acc + d.montant_ttc, 0);
+  const budget = chantier.budget || 0;
+  const pct = budget > 0 ? Math.min(100, Math.round((totalTTC / budget) * 100)) : 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+      <div className="relative bg-[#162035] border border-white/10 rounded-2xl p-6 w-full max-w-lg z-10 max-h-[80vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg font-bold text-white">Ma Synthèse</h2>
+          <button onClick={onClose}><X className="h-5 w-5 text-slate-400" /></button>
+        </div>
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          {[
+            { label: "Chantier", value: chantier.nom },
+            { label: "Budget total", value: `${fmt(budget)} €` },
+            { label: "Devis", value: `${devisList.length} (${fmt(totalTTC)} € TTC)` },
+            { label: "Formalités", value: `${totalCompleted}/${allKeys.length}` },
+          ].map(({ label, value }) => (
+            <div key={label} className="bg-[#1c2a42] rounded-xl p-4">
+              <p className="text-xs text-slate-400 mb-1">{label}</p>
+              <p className="font-bold text-white text-sm">{value}</p>
+            </div>
+          ))}
+        </div>
+        {budget > 0 && (
+          <div className="bg-[#1c2a42] rounded-xl p-4">
+            <div className="flex justify-between text-xs text-slate-400 mb-2">
+              <span>Budget consommé</span>
+              <span>{pct}%</span>
+            </div>
+            <div className="w-full bg-[#0d1526] rounded-full h-2">
+              <div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── NAV items ──────────────────────────────────────────────────────────────────
+const NAV_ITEMS: { tab: Tab; label: string; icon: React.ReactNode }[] = [
+  { tab: "dashboard",  label: "Tableau de bord",        icon: <LayoutDashboard className="h-4 w-4" /> },
+  { tab: "devis",      label: "Mes Devis & Factures",   icon: <FileText className="h-4 w-4" /> },
+  { tab: "budget",     label: "Budget & Financement",   icon: <Euro className="h-4 w-4" /> },
+  { tab: "aides",      label: "Aides & Subventions",    icon: <Award className="h-4 w-4" /> },
+  { tab: "formalites", label: "Formalités & Documents", icon: <Shield className="h-4 w-4" /> },
+  { tab: "relances",   label: "Relances & Messages",    icon: <Mail className="h-4 w-4" /> },
+  { tab: "journal",    label: "Journal de Chantier",    icon: <Camera className="h-4 w-4" /> },
+];
+
+// ── Main MonChantier ───────────────────────────────────────────────────────────
+export default function MonChantier() {
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [chantier, setChantier] = useState<Chantier | null>(null);
+  const [devisList, setDevisList] = useState<DevisItem[]>([]);
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [relancesList, setRelancesList] = useState<RelanceItem[]>([]);
+  const [analyses, setAnalyses] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showSynthese, setShowSynthese] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const { isPremium, isLoading: premiumLoading } = usePremium();
+
+  // Formalités live from localStorage (re-reads on tab change)
+  const formalites = useMemo<Record<string, FormaliteState>>(() => {
+    if (!chantier) return {};
+    try { return JSON.parse(localStorage.getItem(`chantier_formalites_${chantier.id}`) || "{}"); } catch { return {}; }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chantier, activeTab]);
+
+  const syntheseCount = useMemo(() => {
+    const incomplete = FORMALITES.flatMap((s) => s.items).filter((i) => !formalites[i.key]?.completed).length;
+    return Math.min(9, Math.ceil(incomplete / 3) + devisList.length);
+  }, [devisList, formalites]);
+
+  const loadData = useCallback(async (userId: string, chantierId: string) => {
+    const [d, j, r, a] = await Promise.all([
+      supabase.from("devis_chantier").select("*").eq("chantier_id", chantierId).order("created_at", { ascending: false }),
+      supabase.from("journal_entries").select("*").eq("chantier_id", chantierId).order("date", { ascending: false }),
+      supabase.from("relances").select("*").eq("chantier_id", chantierId).order("created_at", { ascending: false }),
+      supabase.from("analyses").select("id, file_name, score, status, raw_text").eq("user_id", userId).eq("status", "completed"),
+    ]);
+    if (d.data) setDevisList(d.data);
+    if (j.data) setJournalEntries(j.data);
+    if (r.data) setRelancesList(r.data);
+    if (a.data) setAnalyses(a.data);
+  }, []);
+
+  useEffect(() => {
+    const init = async () => {
+      if (premiumLoading) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { window.location.href = "/connexion?redirect=/mon-chantier"; return; }
+      if (!isPremium) { window.location.href = "/premium"; return; }
+      setUser(user);
+
+      let { data: chantiers } = await supabase.from("chantiers").select("*").eq("user_id", user.id).limit(1);
+      let ch = chantiers?.[0];
+      if (!ch) {
+        const { data: newCh } = await supabase.from("chantiers").insert({ user_id: user.id }).select().single();
+        ch = newCh;
+      }
+      if (ch) { setChantier(ch); await loadData(user.id, ch.id); }
+      setLoading(false);
+    };
+    init();
+  }, [isPremium, premiumLoading, loadData]);
+
+  const handleImportAll = useCallback(async () => {
+    if (!chantier || !user) return;
+    const importable = analyses.filter((a) => !devisList.find((d) => d.analyse_id === a.id));
+    if (!importable.length) { toast("Aucun nouveau devis à importer"); return; }
+    const inserts = importable.map((a) => {
+      const raw = a.raw_text || {};
+      const extracted = raw.extracted || raw;
+      const entreprise = extracted.entreprise || {};
+      const ttc = extracted.montant_total_ttc || 0;
+      const ht = extracted.montant_total_ht || ttc / 1.1;
+      const typeTravaux = extracted.types_travaux?.[0]?.libelle || "Travaux";
+      return {
+        chantier_id: chantier.id,
+        analyse_id: a.id,
+        artisan_nom: entreprise.nom || a.file_name.replace(/\.[^.]+$/, ""),
+        artisan_email: entreprise.email || null,
+        artisan_siret: entreprise.siret || null,
+        type_travaux: typeTravaux,
+        montant_ht: ht,
+        tva: extracted.tva || 10,
+        montant_ttc: ttc || ht * 1.1,
+        score_analyse: a.score,
+        statut: "recu",
+      };
+    });
+    const { error } = await supabase.from("devis_chantier").insert(inserts);
+    if (error) toast.error("Erreur lors de l'import");
+    else { toast.success(`${inserts.length} devis importés !`); await loadData(user.id, chantier.id); }
+  }, [chantier, user, analyses, devisList, loadData]);
+
+  const handleUpdateChantier = useCallback((updates: Partial<Chantier>) => {
+    setChantier((prev) => prev ? { ...prev, ...updates } : prev);
+  }, []);
+
+  const refresh = useCallback(() => {
+    if (user && chantier) loadData(user.id, chantier.id);
+  }, [user, chantier, loadData]);
+
+  if (loading || premiumLoading) {
+    return (
+      <div className="min-h-screen bg-[#0d1526] flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
+  if (!chantier) return null;
+
+  return (
+    <div className="min-h-screen bg-[#0d1526] flex">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-30 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* ── Sidebar ── */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 w-52 bg-[#162035] border-r border-white/10 flex flex-col transition-transform duration-200 md:translate-x-0 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        {/* Logo */}
+        <div className="px-4 py-5 border-b border-white/10 flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-sm flex-shrink-0">🏠</div>
+          <div className="min-w-0">
+            <p className="text-white text-sm font-bold leading-none truncate">Mon Chantier</p>
+            <span className="text-[10px] font-bold bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded-full leading-none">
+              PREMIUM
+            </span>
+          </div>
+        </div>
+
+        {/* Nav items */}
+        <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+          {NAV_ITEMS.map(({ tab, label, icon }) => (
+            <button
+              key={tab}
+              onClick={() => { setActiveTab(tab); setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-left ${
+                activeTab === tab
+                  ? "bg-[#1e3255] text-white font-medium"
+                  : "text-slate-400 hover:bg-white/5 hover:text-white"
+              }`}
+            >
+              {icon}
+              <span className="truncate">{label}</span>
+            </button>
+          ))}
+        </nav>
+
+        {/* Bottom */}
+        <div className="px-2 py-3 border-t border-white/10 space-y-0.5">
+          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-400 hover:bg-white/5 hover:text-white transition-colors">
+            <Settings className="h-4 w-4 flex-shrink-0" />
+            Paramètres
+          </button>
+          <button
+            onClick={async () => { await supabase.auth.signOut(); window.location.href = "/"; }}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-400 hover:bg-white/5 hover:text-white transition-colors"
+          >
+            <LogOut className="h-4 w-4 flex-shrink-0" />
+            Déconnexion
+          </button>
+        </div>
+      </aside>
+
+      {/* ── Main ── */}
+      <div className="flex-1 md:ml-52 flex flex-col min-h-screen">
+        {/* Mobile header */}
+        <div className="md:hidden flex items-center gap-3 px-4 py-3 bg-[#162035] border-b border-white/10 sticky top-0 z-20">
+          <button onClick={() => setSidebarOpen(true)}>
+            <Menu className="h-5 w-5 text-white" />
+          </button>
+          <p className="text-white text-sm font-semibold">
+            {NAV_ITEMS.find((n) => n.tab === activeTab)?.label}
+          </p>
+        </div>
+
+        {/* Tab content */}
+        <div className="flex flex-1 overflow-hidden">
+          {activeTab === "dashboard" && (
+            <DashboardTab
+              chantier={chantier}
+              devisList={devisList}
+              analyses={analyses}
+              formalites={formalites}
+              relancesList={relancesList}
+              onImportAll={handleImportAll}
+              onImportChoose={() => setActiveTab("devis")}
+              onTabChange={setActiveTab}
+            />
+          )}
+          {activeTab === "devis" && (
+            <DevisTab
+              chantier={chantier}
+              devisList={devisList}
+              analyses={analyses}
+              onImportAll={handleImportAll}
+              onRefresh={refresh}
+            />
+          )}
+          {activeTab === "budget" && (
+            <BudgetTab chantier={chantier} devisList={devisList} onUpdateChantier={handleUpdateChantier} />
+          )}
+          {activeTab === "aides" && <AidesTab chantierId={chantier.id} />}
+          {activeTab === "formalites" && <FormalitesTab chantierId={chantier.id} />}
+          {activeTab === "relances" && (
+            <RelancesTab chantier={chantier} devisList={devisList} relancesList={relancesList} onRefresh={refresh} />
+          )}
+          {activeTab === "journal" && (
+            <JournalTab chantier={chantier} devisList={devisList} journalEntries={journalEntries} onRefresh={refresh} />
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="py-3 text-center border-t border-white/5">
+          <p className="text-xs text-slate-600">
+            Propulsé par{" "}
+            <a href="/" className="text-cyan-500 hover:underline">verifiermondevis.fr</a>
+          </p>
+        </div>
+      </div>
+
+      {/* ── Ma Synthèse FAB ── */}
+      <button
+        onClick={() => setShowSynthese(true)}
+        className="fixed bottom-6 right-6 z-20 flex items-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-full shadow-xl transition-colors"
+      >
+        <BookOpen className="h-4 w-4" />
+        Ma Synthèse
+        {syntheseCount > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full text-[10px] flex items-center justify-center font-bold">
+            {syntheseCount}
+          </span>
+        )}
+      </button>
+
+      {showSynthese && (
+        <SyntheseModal
+          chantier={chantier}
+          devisList={devisList}
+          formalites={formalites}
+          onClose={() => setShowSynthese(false)}
+        />
+      )}
+    </div>
+  );
+}
