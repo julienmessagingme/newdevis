@@ -177,6 +177,28 @@ const Dashboard = () => {
           </p>
         </div>
 
+        {/* Mon Chantier CTA */}
+        <a href="/mon-chantier" className="block mb-4">
+          <div className="bg-gradient-to-r from-primary/10 to-blue-500/10 border border-primary/30 rounded-2xl p-5 hover:border-primary hover:shadow-sm transition-all duration-200 cursor-pointer group">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-primary/15 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-200 text-2xl">
+                🏗️
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-base font-semibold text-foreground">
+                    Mon Chantier
+                  </h2>
+                  <span className="text-[10px] font-bold bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded-full leading-none">NOUVEAU</span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Devis, budget, aides, journal — gérez votre projet de A à Z
+                </p>
+              </div>
+            </div>
+          </div>
+        </a>
+
         {/* Quick Action */}
         <a href="/nouvelle-analyse" className="block mb-8">
           <div className="bg-card border-2 border-dashed border-primary/30 rounded-2xl p-6 hover:border-primary hover:bg-accent/50 transition-all duration-200 cursor-pointer group">

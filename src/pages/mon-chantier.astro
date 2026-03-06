@@ -1,0 +1,14 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import MonChantierApp from '@/components/app/MonChantierApp';
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="Mon Chantier | VerifierMonDevis.fr"
+  description="Gérez votre chantier de A à Z : devis, budget, aides, formalités, relances et journal."
+  noindex={true}
+>
+  <MonChantierApp client:only="react" />
+</BaseLayout>

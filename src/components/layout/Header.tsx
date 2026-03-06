@@ -63,6 +63,11 @@ const Header = () => {
             Arbitrage travaux
           </a>
           <div className="flex items-center gap-3">
+            <a href="/mon-chantier" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors text-sm font-medium text-primary">
+              <span>🏗️</span>
+              Mon Chantier
+              <span className="text-[10px] font-bold bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded-full leading-none">NOUVEAU</span>
+            </a>
             <a href="/connexion">
               <Button variant="outline">
                 Connexion
@@ -116,6 +121,11 @@ const Header = () => {
             </a>
             <a href="/simulateur-valorisation-travaux" className="text-sm font-medium text-muted-foreground" onClick={() => setMobileMenuOpen(false)}>
               Arbitrage travaux
+            </a>
+            <a href="/mon-chantier" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium">
+              <span>🏗️</span>
+              Mon Chantier
+              <span className="text-[10px] font-bold bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded-full leading-none ml-auto">NOUVEAU</span>
             </a>
             <div className="flex flex-col gap-2 pt-2">
               <a href="/connexion" onClick={() => setMobileMenuOpen(false)}>
