@@ -834,39 +834,71 @@ function FormalitesTab({ chantierId }: { chantierId: string }) {
 }
 
 // ── RelancesTab ────────────────────────────────────────────────────────────────
-function RelancesTab({ chantier, devisList, relancesList, onRefresh }: {
-  chantier: Chantier; devisList: DevisItem[]; relancesList: RelanceItem[]; onRefresh: () => void;
+function RelancesTab({ chantier, devisList, relancesList, user, onRefresh }: {
+  chantier: Chantier; devisList: DevisItem[]; relancesList: RelanceItem[];
+  user: SupabaseUser | null; onRefresh: () => void;
 }) {
   const [selectedArtisan, setSelectedArtisan] = useState("");
   const [selectedType, setSelectedType] = useState(RELANCE_TEMPLATES[0].type);
   const [contenu, setContenu] = useState(RELANCE_TEMPLATES[0].template(""));
+  const [destinataireEmail, setDestinatataireEmail] = useState("");
+  const [senderEmail, setSenderEmail] = useState(user?.email || "");
   const [saving, setSaving] = useState(false);
 
   const artisans = [...new Set(devisList.map((d) => d.artisan_nom))];
 
+  // Auto-fill template when artisan or type changes
   useEffect(() => {
     const tpl = RELANCE_TEMPLATES.find((t) => t.type === selectedType);
     if (tpl) setContenu(tpl.template(selectedArtisan));
   }, [selectedType, selectedArtisan]);
 
+  // Auto-detect artisan email when artisan changes
+  useEffect(() => {
+    const devis = devisList.find((d) => d.artisan_nom === selectedArtisan);
+    setDestinatataireEmail(devis?.artisan_email || "");
+  }, [selectedArtisan, devisList]);
+
   const handleSend = async () => {
     if (!selectedArtisan) { toast.error("Sélectionnez un artisan"); return; }
     setSaving(true);
-    const devis = devisList.find((d) => d.artisan_nom === selectedArtisan);
+    // Open email client with pre-filled content
+    const subject = encodeURIComponent(RELANCE_TEMPLATES.find((t) => t.type === selectedType)?.label || selectedType);
+    const body = encodeURIComponent(contenu);
+    const mailtoUrl = `mailto:${encodeURIComponent(destinataireEmail)}?subject=${subject}&body=${body}`;
+    window.open(mailtoUrl, "_blank");
+    // Save to DB with envoye_at
     const { error } = await supabase.from("relances").insert({
       chantier_id: chantier.id,
       artisan_nom: selectedArtisan,
-      artisan_email: devis?.artisan_email || "",
+      artisan_email: destinataireEmail,
       type: selectedType,
       contenu,
       envoye_at: new Date().toISOString(),
     });
-    if (error) toast.error("Erreur");
-    else { toast.success("Relance enregistrée"); onRefresh(); }
+    if (error) toast.error("Erreur lors de l'enregistrement");
+    else { toast.success("Relance envoyée et enregistrée"); onRefresh(); }
+    setSaving(false);
+  };
+
+  const handleSaveDraft = async () => {
+    if (!selectedArtisan) { toast.error("Sélectionnez un artisan"); return; }
+    setSaving(true);
+    const { error } = await supabase.from("relances").insert({
+      chantier_id: chantier.id,
+      artisan_nom: selectedArtisan,
+      artisan_email: destinataireEmail,
+      type: selectedType,
+      contenu,
+      envoye_at: null,
+    });
+    if (error) toast.error("Erreur lors de l'enregistrement");
+    else { toast.success("Brouillon enregistré"); onRefresh(); }
     setSaving(false);
   };
 
   const selectClass = "bg-[#1c2a42] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500";
+  const inputClass = "w-full bg-[#1c2a42] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500";
 
   if (artisans.length === 0) {
     return (
@@ -901,20 +933,72 @@ function RelancesTab({ chantier, devisList, relancesList, onRefresh }: {
             </select>
           </div>
         </div>
+
+        {/* Destinataire */}
+        <div className="mb-3">
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs text-slate-400">Destinataire (email artisan)</label>
+            {selectedArtisan && destinataireEmail && (
+              <span className="text-[10px] font-medium text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded-full">✓ auto-détecté</span>
+            )}
+            {selectedArtisan && !destinataireEmail && (
+              <span className="text-[10px] font-medium text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded-full">⚠ email inconnu</span>
+            )}
+          </div>
+          <input
+            type="email"
+            value={destinataireEmail}
+            onChange={(e) => setDestinatataireEmail(e.target.value)}
+            placeholder="email@artisan.fr"
+            className={inputClass}
+          />
+          {selectedArtisan && !destinataireEmail && (
+            <p className="text-xs text-amber-400 mt-1">Aucun email trouvé pour cet artisan. Vous pouvez le saisir manuellement.</p>
+          )}
+        </div>
+
+        {/* De la part de */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs text-slate-400">De la part de</label>
+            {senderEmail && (
+              <span className="text-[10px] font-medium text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded-full">✓ auto-rempli</span>
+            )}
+          </div>
+          <input
+            type="email"
+            value={senderEmail}
+            onChange={(e) => setSenderEmail(e.target.value)}
+            placeholder="votre@email.fr"
+            className={inputClass}
+          />
+        </div>
+
         <textarea
           value={contenu}
           onChange={(e) => setContenu(e.target.value)}
           rows={6}
-          className="w-full bg-[#1c2a42] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white resize-none focus:outline-none focus:border-blue-500 mb-3"
+          className="w-full bg-[#1c2a42] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white resize-none focus:outline-none focus:border-blue-500 mb-1"
         />
-        <button
-          onClick={handleSend}
-          disabled={saving}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg disabled:opacity-50"
-        >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          Enregistrer la relance
-        </button>
+        <p className="text-xs text-slate-500 mb-3">→ Le bouton Envoyer ouvrira votre client email (Outlook, Gmail…) avec le message pré-rempli.</p>
+
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={handleSend}
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            Envoyer
+          </button>
+          <button
+            onClick={handleSaveDraft}
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-2 border border-white/20 hover:border-white/40 text-slate-300 text-sm font-medium rounded-lg disabled:opacity-50"
+          >
+            Enregistrer brouillon
+          </button>
+        </div>
       </div>
 
       {relancesList.length > 0 && (
@@ -932,6 +1016,8 @@ function RelancesTab({ chantier, devisList, relancesList, onRefresh }: {
                   </span>
                 </div>
                 <p className="text-xs text-slate-500">{RELANCE_TEMPLATES.find((t) => t.type === r.type)?.label || r.type}</p>
+                {r.artisan_email && <p className="text-xs text-slate-600 mt-0.5">→ {r.artisan_email}</p>}
+                {r.envoye_at && <p className="text-xs text-slate-600 mt-0.5">{new Date(r.envoye_at).toLocaleDateString("fr-FR")}</p>}
               </div>
             ))}
           </div>
@@ -1390,7 +1476,7 @@ export default function MonChantier() {
           {activeTab === "aides" && <AidesTab chantierId={chantier.id} />}
           {activeTab === "formalites" && <FormalitesTab chantierId={chantier.id} />}
           {activeTab === "relances" && (
-            <RelancesTab chantier={chantier} devisList={devisList} relancesList={relancesList} onRefresh={refresh} />
+            <RelancesTab chantier={chantier} devisList={devisList} relancesList={relancesList} user={user} onRefresh={refresh} />
           )}
           {activeTab === "journal" && (
             <JournalTab chantier={chantier} devisList={devisList} journalEntries={journalEntries} onRefresh={refresh} />
