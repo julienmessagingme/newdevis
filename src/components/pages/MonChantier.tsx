@@ -204,7 +204,7 @@ function DashboardTab({ chantier, devisList, analyses, formalites, relancesList,
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-white">Vos analyses sont prêtes !</p>
               <p className="text-cyan-100 text-sm mt-1">
-                Nous avons détecté <strong>{importable.length} devis</strong> analysés sur verifiermondevis.fr.
+                Nous avons détecté <strong>{analyses.length} devis</strong> analysés sur verifiermondevis.fr.
                 Importez-les en un clic pour pré-remplir tous vos onglets.
               </p>
               <div className="flex flex-wrap gap-2 mt-3">
