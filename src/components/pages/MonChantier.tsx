@@ -7,7 +7,7 @@ import {
   Camera, Loader2, Plus, Upload, Download, Send,
   Settings, LogOut, Sparkles, Users, Check,
   Circle, CheckCircle2, X, TrendingUp,
-  BookOpen, Trash2, Menu,
+  BookOpen, Trash2, Menu, ArrowLeft,
 } from "lucide-react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
@@ -1342,14 +1342,23 @@ export default function MonChantier() {
 
       {/* ── Main ── */}
       <div className="flex-1 md:ml-52 flex flex-col min-h-screen">
-        {/* Mobile header */}
-        <div className="md:hidden flex items-center gap-3 px-4 py-3 bg-[#162035] border-b border-white/10 sticky top-0 z-20">
-          <button onClick={() => setSidebarOpen(true)}>
-            <Menu className="h-5 w-5 text-white" />
-          </button>
-          <p className="text-white text-sm font-semibold">
-            {NAV_ITEMS.find((n) => n.tab === activeTab)?.label}
-          </p>
+        {/* Top bar — toujours visible */}
+        <div className="flex items-center justify-between px-4 py-3 bg-[#162035] border-b border-white/10 sticky top-0 z-20">
+          <div className="flex items-center gap-3">
+            <button className="md:hidden" onClick={() => setSidebarOpen(true)}>
+              <Menu className="h-5 w-5 text-white" />
+            </button>
+            <p className="text-white text-sm font-semibold md:hidden">
+              {NAV_ITEMS.find((n) => n.tab === activeTab)?.label}
+            </p>
+          </div>
+          <a
+            href="/tableau-de-bord"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/15 text-slate-300 hover:text-white hover:border-white/30 hover:bg-white/5 text-sm transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Retour au site
+          </a>
         </div>
 
         {/* Tab content */}
