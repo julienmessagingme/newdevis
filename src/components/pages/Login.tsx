@@ -6,6 +6,7 @@ import { Shield, Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import SEOHead from "@/components/SEOHead";
+import { SESSION_ACTIVE_KEY } from "@/hooks/useSessionGuard";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -29,6 +30,9 @@ const Login = () => {
         );
       } else {
         toast.success("Connexion réussie !");
+        // Marquer la session comme active dans sessionStorage (propre à cet onglet)
+        // Ce marqueur est utilisé par useSessionGuard pour détecter les nouvelles sessions
+        sessionStorage.setItem(SESSION_ACTIVE_KEY, "1");
         const params = new URLSearchParams(window.location.search);
         const redirect = params.get("redirect");
         // Security: only allow relative paths starting with / (prevent open redirect to external sites)

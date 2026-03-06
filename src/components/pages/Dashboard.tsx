@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getStatusIcon, getScoreBadge } from "@/lib/scoreUtils";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
+import { useSessionGuard } from "@/hooks/useSessionGuard";
 
 type Analysis = {
   id: string;
@@ -35,6 +36,9 @@ const Dashboard = () => {
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [loading, setLoading] = useState(true);
   const trustpilotRef = useRef<HTMLDivElement>(null);
+
+  // Garde de session : déconnexion après 10 min d'inactivité + détection nouvel onglet/navigateur
+  useSessionGuard("/connexion");
 
   useEffect(() => {
     const checkAuthAndFetch = async () => {

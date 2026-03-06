@@ -54,11 +54,13 @@ const pathname = Astro.url.pathname;
           Mon Chantier
           <span class="text-[10px] font-bold bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded-full leading-none">NOUVEAU</span>
         </a>
-        <a href="/connexion">
+        <!-- Connexion (visiteur) ou Espace NOM (connecté) -->
+        <a id="login-btn-desktop" href="/connexion">
           <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2">
             Connexion
           </button>
         </a>
+        <span id="user-name-desktop" class="hidden text-sm font-medium text-muted-foreground px-3 py-1.5"></span>
         <a href="/nouvelle-analyse">
           <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">
             Analyser un devis
@@ -108,11 +110,13 @@ const pathname = Astro.url.pathname;
         <span class="text-[10px] font-bold bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded-full leading-none ml-auto">NOUVEAU</span>
       </a>
       <div class="flex flex-col gap-2 pt-2">
-        <a href="/connexion">
+        <!-- Connexion (visiteur) ou Espace NOM (connecté) — mobile -->
+        <a id="login-btn-mobile" href="/connexion">
           <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 w-full">
             Connexion
           </button>
         </a>
+        <span id="user-name-mobile" class="hidden text-sm font-medium text-muted-foreground px-2 py-1.5"></span>
         <a href="/nouvelle-analyse">
           <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 w-full">
             Analyser un devis
@@ -124,21 +128,42 @@ const pathname = Astro.url.pathname;
 </header>
 
 <script>
-  // Affiche le lien Mon Chantier uniquement pour les admins
+  // ── Récupère les infos utilisateur depuis la session Supabase en localStorage ──
   const ADMIN_EMAILS = ["julien@messagingme.fr", "bridey.johan@gmail.com"];
   try {
     const keys = Object.keys(localStorage).filter(k => k.includes('auth-token'));
-    let email = "";
+    let user: { email?: string; user_metadata?: { first_name?: string; last_name?: string } } | null = null;
     for (const key of keys) {
       const data = JSON.parse(localStorage.getItem(key) || "{}");
-      email = data?.user?.email || "";
-      if (email) break;
+      if (data?.user) { user = data.user; break; }
     }
-    if (email && ADMIN_EMAILS.includes(email)) {
-      const d = document.getElementById("mon-chantier-desktop");
-      const m = document.getElementById("mon-chantier-mobile");
-      if (d) { d.classList.remove("hidden"); d.classList.add("flex"); }
-      if (m) { m.classList.remove("hidden"); m.classList.add("flex"); }
+    if (user) {
+      // Mon Chantier — admins uniquement
+      if (user.email && ADMIN_EMAILS.includes(user.email)) {
+        const d = document.getElementById("mon-chantier-desktop");
+        const m = document.getElementById("mon-chantier-mobile");
+        if (d) { d.classList.remove("hidden"); d.classList.add("flex"); }
+        if (m) { m.classList.remove("hidden"); m.classList.add("flex"); }
+      }
+
+      // Espace NOM Prenom — tous les utilisateurs connectés
+      const firstName = user.user_metadata?.first_name || "";
+      const lastName = user.user_metadata?.last_name || "";
+      const displayName = [firstName, lastName].filter(Boolean).join(" ")
+        || (user.email ? user.email.split("@")[0] : "");
+
+      if (displayName) {
+        // Desktop
+        const loginD = document.getElementById("login-btn-desktop");
+        const nameD = document.getElementById("user-name-desktop");
+        if (loginD) loginD.classList.add("hidden");
+        if (nameD) { nameD.textContent = `Espace ${displayName}`; nameD.classList.remove("hidden"); }
+        // Mobile
+        const loginM = document.getElementById("login-btn-mobile");
+        const nameM = document.getElementById("user-name-mobile");
+        if (loginM) loginM.classList.add("hidden");
+        if (nameM) { nameM.textContent = `Espace ${displayName}`; nameM.classList.remove("hidden"); }
+      }
     }
   } catch {}
 

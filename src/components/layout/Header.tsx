@@ -10,6 +10,7 @@ const Header = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileSubOpen, setMobileSubOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [userDisplayName, setUserDisplayName] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -22,7 +23,13 @@ const Header = () => {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user?.email && ADMIN_EMAILS.includes(user.email)) setIsAdmin(true);
+      if (user) {
+        if (user.email && ADMIN_EMAILS.includes(user.email)) setIsAdmin(true);
+        const firstName = (user.user_metadata?.first_name as string) || "";
+        const lastName = (user.user_metadata?.last_name as string) || "";
+        const name = [firstName, lastName].filter(Boolean).join(" ");
+        setUserDisplayName(name || user.email?.split("@")[0] || null);
+      }
     });
   }, []);
 
@@ -80,11 +87,17 @@ const Header = () => {
                 <span className="text-[10px] font-bold bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded-full leading-none">NOUVEAU</span>
               </a>
             )}
-            <a href="/connexion">
-              <Button variant="outline">
-                Connexion
-              </Button>
-            </a>
+            {userDisplayName ? (
+              <span className="text-sm font-medium text-muted-foreground px-3 py-1.5">
+                Espace {userDisplayName}
+              </span>
+            ) : (
+              <a href="/connexion">
+                <Button variant="outline">
+                  Connexion
+                </Button>
+              </a>
+            )}
             <a href="/nouvelle-analyse">
               <Button variant="default">
                 Analyser un devis
@@ -142,11 +155,17 @@ const Header = () => {
               </a>
             )}
             <div className="flex flex-col gap-2 pt-2">
-              <a href="/connexion" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="outline" className="w-full">
-                  Connexion
-                </Button>
-              </a>
+              {userDisplayName ? (
+                <span className="text-sm font-medium text-muted-foreground px-2 py-1.5">
+                  Espace {userDisplayName}
+                </span>
+              ) : (
+                <a href="/connexion" onClick={() => setMobileMenuOpen(false)}>
+                  <Button variant="outline" className="w-full">
+                    Connexion
+                  </Button>
+                </a>
+              )}
               <a href="/nouvelle-analyse" onClick={() => setMobileMenuOpen(false)}>
                 <Button className="w-full">
                   Analyser un devis

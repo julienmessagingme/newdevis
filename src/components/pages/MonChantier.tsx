@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { usePremium } from "@/hooks/usePremium";
+import { useSessionGuard } from "@/hooks/useSessionGuard";
 import { toast } from "sonner";
 import {
   LayoutDashboard, FileText, Euro, Award, Shield, Mail,
@@ -1273,6 +1274,9 @@ export default function MonChantier() {
   const [loading, setLoading] = useState(true);
   const { isPremium, isLoading: premiumLoading } = usePremium();
 
+  // Garde de session : déconnexion après 10 min d'inactivité + détection nouvel onglet/navigateur
+  useSessionGuard("/connexion");
+
   // Formalités live from localStorage (re-reads on tab change)
   const formalites = useMemo<Record<string, FormaliteState>>(() => {
     if (!chantier) return {};
@@ -1303,7 +1307,9 @@ export default function MonChantier() {
       if (premiumLoading) return;
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { window.location.href = "/connexion?redirect=/mon-chantier"; return; }
-      if (!isPremium) { window.location.href = "/premium"; return; }
+      // Admins ont accès sans abonnement premium (phase de test)
+      const isAdminUser = ["julien@messagingme.fr", "bridey.johan@gmail.com"].includes(user.email || "");
+      if (!isPremium && !isAdminUser) { window.location.href = "/premium"; return; }
       setUser(user);
 
       let { data: chantiers } = await supabase.from("chantiers").select("*").eq("user_id", user.id).limit(1);
