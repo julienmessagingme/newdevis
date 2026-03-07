@@ -24,6 +24,7 @@ import ChantierCard from "@/components/chantier/dashboard/ChantierCard";
 import AddChantierCard from "@/components/chantier/dashboard/AddChantierCard";
 import BottomGrid from "@/components/chantier/dashboard/BottomGrid";
 import ModalNouveauChantier from "@/components/chantier/dashboard/ModalNouveauChantier";
+import ProjectRoadmapCard from "@/components/chantier/dashboard/ProjectRoadmapCard";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Tab = "dashboard" | "devis" | "budget" | "aides" | "formalites" | "relances" | "journal";
@@ -347,8 +348,14 @@ function DashboardTab({
         />
       </div>
 
+      {/* ── Feuille de route ── */}
+      <ProjectRoadmapCard
+        chantier={chantiersDashboard[0] ?? null}
+        delay={0.2}
+      />
+
       {/* ── Mes Chantiers — grid multi-chantiers ── */}
-      <div className="mb-8">
+      <div className="mb-8 mt-8">
         <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-4">
           Mes Chantiers
         </p>
