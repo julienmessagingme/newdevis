@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import BudgetTab from "@/components/chantier/BudgetTab";
 import { supabase } from "@/integrations/supabase/client";
 import { usePremium } from "@/hooks/usePremium";
 import { useSessionGuard } from "@/hooks/useSessionGuard";
@@ -64,12 +65,6 @@ interface FormaliteState {
   completed: boolean;
   notes: string;
   date: string;
-}
-interface BudgetExtra {
-  mensualite: string;
-  duree: string;
-  aides_deduites: string;
-  montant_debloque: string;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -504,133 +499,6 @@ function DevisTab({ chantier, devisList, analyses, onImportAll, onRefresh }: {
             ))}
           </div>
         )}
-      </div>
-    </div>
-  );
-}
-
-// ── BudgetTab ──────────────────────────────────────────────────────────────────
-function BudgetTab({ chantier, devisList, onUpdateChantier }: {
-  chantier: Chantier; devisList: DevisItem[];
-  onUpdateChantier: (u: Partial<Chantier>) => void;
-}) {
-  const storageKey = `chantier_budget_${chantier.id}`;
-  const [extra, setExtra] = useState<BudgetExtra>(() => {
-    try { return JSON.parse(localStorage.getItem(storageKey) || "{}"); } catch { return { mensualite: "", duree: "", aides_deduites: "", montant_debloque: "" }; }
-  });
-  const [main, setMain] = useState({
-    budget: chantier.budget ? String(chantier.budget) : "",
-    apport: chantier.apport ? String(chantier.apport) : "",
-    credit: chantier.credit ? String(chantier.credit) : "",
-    taux_interet: chantier.taux_interet ? String(chantier.taux_interet) : "",
-  });
-
-  const saveMain = useCallback(async () => {
-    const updates = {
-      budget: parseFloat(main.budget) || null,
-      apport: parseFloat(main.apport) || null,
-      credit: parseFloat(main.credit) || null,
-      taux_interet: parseFloat(main.taux_interet) || null,
-    };
-    await supabase.from("chantiers").update(updates).eq("id", chantier.id);
-    onUpdateChantier(updates);
-  }, [main, chantier.id, onUpdateChantier]);
-
-  const updateExtra = (key: keyof BudgetExtra, value: string) => {
-    const updated = { ...extra, [key]: value };
-    setExtra(updated);
-    localStorage.setItem(storageKey, JSON.stringify(updated));
-  };
-
-  const budget = parseFloat(main.budget) || 0;
-  const totalEngaged = devisList.reduce((acc, d) => acc + d.montant_ttc, 0);
-  const pct = budget > 0 ? Math.min(100, Math.round((totalEngaged / budget) * 100)) : 0;
-  const barColor = pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-amber-500" : "bg-blue-500";
-
-  const inputClass = "w-full bg-[#1c2a42] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500";
-
-  return (
-    <div className="flex-1 p-6 overflow-y-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-white">Budget & Financement</h1>
-        <button className="flex items-center gap-1.5 px-3 py-2 border border-white/20 text-white hover:bg-white/5 text-sm rounded-lg transition-colors">
-          <Download className="h-4 w-4" /> Récapitulatif PDF
-        </button>
-      </div>
-
-      {/* Config */}
-      <div className="bg-[#162035] border border-white/10 rounded-xl p-5 mb-4">
-        <h2 className="text-white font-semibold mb-4">Configuration du budget</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div>
-            <label className="text-xs text-slate-400 mb-1 block">Enveloppe totale (€)</label>
-            <input type="number" value={main.budget} onChange={(e) => setMain({ ...main, budget: e.target.value })} onBlur={saveMain} placeholder="50000" className={inputClass} />
-          </div>
-          <div>
-            <label className="text-xs text-slate-400 mb-1 block">Apport personnel (€)</label>
-            <input type="number" value={main.apport} onChange={(e) => setMain({ ...main, apport: e.target.value })} onBlur={saveMain} className={inputClass} />
-          </div>
-          <div>
-            <label className="text-xs text-slate-400 mb-1 block">Crédit (€)</label>
-            <input type="number" value={main.credit} onChange={(e) => setMain({ ...main, credit: e.target.value })} onBlur={saveMain} className={inputClass} />
-          </div>
-          <div>
-            <label className="text-xs text-slate-400 mb-1 block">Mensualité (€)</label>
-            <input type="number" value={extra.mensualite} onChange={(e) => updateExtra("mensualite", e.target.value)} className={inputClass} />
-          </div>
-          <div>
-            <label className="text-xs text-slate-400 mb-1 block">Durée (mois)</label>
-            <input type="number" value={extra.duree} onChange={(e) => updateExtra("duree", e.target.value)} className={inputClass} />
-          </div>
-          <div>
-            <label className="text-xs text-slate-400 mb-1 block">Aides déduites (€)</label>
-            <input type="number" value={extra.aides_deduites} onChange={(e) => updateExtra("aides_deduites", e.target.value)} className={inputClass} />
-          </div>
-          <div>
-            <label className="text-xs text-slate-400 mb-1 block">Taux d'intérêt annuel (%)</label>
-            <input type="number" value={main.taux_interet} onChange={(e) => setMain({ ...main, taux_interet: e.target.value })} onBlur={saveMain} placeholder="Ex: 3.5" className={inputClass} />
-          </div>
-          <div>
-            <label className="text-xs text-slate-400 mb-1 block">Montant débloqué (€)</label>
-            <input type="number" value={extra.montant_debloque} onChange={(e) => updateExtra("montant_debloque", e.target.value)} placeholder="Montant déjà versé par la banque" className={inputClass} />
-          </div>
-        </div>
-      </div>
-
-      {/* Justificatifs */}
-      <div className="bg-[#162035] border border-white/10 rounded-xl p-5 mb-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-white font-semibold">Justificatifs d'apport personnel</h2>
-          <button className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300">
-            <Plus className="h-4 w-4" /> Ajouter
-          </button>
-        </div>
-        <p className="text-slate-500 text-sm text-center py-3">Aucun justificatif ajouté</p>
-      </div>
-
-      {/* Intérêts intercalaires */}
-      <div className="bg-[#162035] border border-white/10 rounded-xl p-5 mb-4">
-        <h2 className="text-white font-semibold mb-2">Intérêts intercalaires</h2>
-        <p className="text-slate-500 text-sm">
-          {extra.montant_debloque && main.taux_interet
-            ? `≈ ${fmt((parseFloat(extra.montant_debloque) * parseFloat(main.taux_interet)) / 100 / 12)} €/mois estimés`
-            : "Renseignez le montant débloqué pour calculer"}
-        </p>
-      </div>
-
-      {/* Budget consommé */}
-      <div className="bg-[#162035] border border-white/10 rounded-xl p-5">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-white font-semibold">Budget consommé</h2>
-          <span className="text-sm text-slate-400">{pct}%</span>
-        </div>
-        <div className="w-full bg-[#1c2a42] rounded-full h-1.5 mb-2">
-          <div className={`${barColor} h-1.5 rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
-        </div>
-        <div className="flex justify-between text-xs text-slate-500">
-          <span>{fmt(totalEngaged)} € engagés</span>
-          <span>{fmt(budget)} € budget total</span>
-        </div>
       </div>
     </div>
   );
@@ -1477,7 +1345,7 @@ export default function MonChantier() {
             />
           )}
           {activeTab === "budget" && (
-            <BudgetTab chantier={chantier} devisList={devisList} onUpdateChantier={handleUpdateChantier} />
+            <BudgetTab chantier={chantier} user={user} onUpdateChantier={handleUpdateChantier} />
           )}
           {activeTab === "aides" && <AidesTab chantierId={chantier.id} />}
           {activeTab === "formalites" && <FormalitesTab chantierId={chantier.id} />}

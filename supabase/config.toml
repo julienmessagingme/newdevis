@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.system-alerts]
 verify_jwt = false
+
+[functions.read-invoice]
+verify_jwt = false
