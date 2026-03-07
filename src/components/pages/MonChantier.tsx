@@ -1369,7 +1369,7 @@ export default function MonChantier() {
       {/* ── Ma Synthèse FAB ── */}
       <button
         onClick={() => setShowSynthese(true)}
-        className="fixed bottom-6 right-6 z-20 flex items-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-full shadow-xl transition-colors"
+        className="fixed bottom-6 right-20 z-20 flex items-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-full shadow-xl transition-colors"
       >
         <BookOpen className="h-4 w-4" />
         Ma Synthèse
