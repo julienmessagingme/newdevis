@@ -1076,9 +1076,27 @@ function SyntheseModal({ chantier, devisList, formalites, onClose }: {
 }) {
   const allKeys = FORMALITES.flatMap((s) => s.items.map((i) => i.key));
   const totalCompleted = allKeys.filter((k) => formalites[k]?.completed).length;
-  const totalTTC = devisList.reduce((acc, d) => acc + d.montant_ttc, 0);
   const budget = chantier.budget || 0;
-  const pct = budget > 0 ? Math.min(100, Math.round((totalTTC / budget) * 100)) : 0;
+
+  // Montant total payé = somme des factures apport + financement (partielles ou totales)
+  const totalFacturesPaye = useMemo(() => {
+    try {
+      const raw = localStorage.getItem(`chantier_budget_v2_${chantier.id}`);
+      if (!raw) return 0;
+      const state = JSON.parse(raw) as {
+        facturesApport?: Array<{ montantPaye: number }>;
+        facturesFinancement?: Array<{ montantPaye: number }>;
+      };
+      const apport = (state.facturesApport ?? []).reduce((acc, f) => acc + (f.montantPaye || 0), 0);
+      const financement = (state.facturesFinancement ?? []).reduce((acc, f) => acc + (f.montantPaye || 0), 0);
+      return apport + financement;
+    } catch {
+      return 0;
+    }
+  }, [chantier.id]);
+
+  const pct = budget > 0 ? Math.min(100, Math.round((totalFacturesPaye / budget) * 100)) : 0;
+  const barColor = pct >= 90 ? "bg-red-500" : pct >= 75 ? "bg-amber-500" : "bg-blue-500";
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
@@ -1092,7 +1110,7 @@ function SyntheseModal({ chantier, devisList, formalites, onClose }: {
           {[
             { label: "Chantier", value: chantier.nom },
             { label: "Budget total", value: `${fmt(budget)} €` },
-            { label: "Devis", value: `${devisList.length} (${fmt(totalTTC)} € TTC)` },
+            { label: "Factures payées", value: `${fmt(totalFacturesPaye)} €` },
             { label: "Formalités", value: `${totalCompleted}/${allKeys.length}` },
           ].map(({ label, value }) => (
             <div key={label} className="bg-[#1c2a42] rounded-xl p-4">
@@ -1108,7 +1126,7 @@ function SyntheseModal({ chantier, devisList, formalites, onClose }: {
               <span>{pct}%</span>
             </div>
             <div className="w-full bg-[#0d1526] rounded-full h-2">
-              <div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: `${pct}%` }} />
+              <div className={`${barColor} h-2 rounded-full transition-all`} style={{ width: `${pct}%` }} />
             </div>
           </div>
         )}
