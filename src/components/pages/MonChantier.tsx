@@ -9,9 +9,21 @@ import {
   Camera, Loader2, Plus, Upload, Download, Send,
   Settings, LogOut, Sparkles, Users, Check,
   Circle, CheckCircle2, X, TrendingUp,
-  BookOpen, Trash2, Menu, ArrowLeft,
+  BookOpen, Trash2, Menu, ArrowLeft, AlertTriangle,
 } from "lucide-react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
+import {
+  type ChantierDashboard,
+  type ActiviteRecente,
+  type CreateChantierPayload,
+  type PhaseChantier,
+  computeChantierDashboard,
+} from "@/types/chantier-dashboard";
+import KPICardPremium from "@/components/chantier/dashboard/KPICardPremium";
+import ChantierCard from "@/components/chantier/dashboard/ChantierCard";
+import AddChantierCard from "@/components/chantier/dashboard/AddChantierCard";
+import BottomGrid from "@/components/chantier/dashboard/BottomGrid";
+import ModalNouveauChantier from "@/components/chantier/dashboard/ModalNouveauChantier";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Tab = "dashboard" | "devis" | "budget" | "aides" | "formalites" | "relances" | "journal";
@@ -146,7 +158,7 @@ const STATUT_LABELS: Record<string, { label: string; color: string }> = {
 const fmt = (n: number) =>
   n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
-// ── KPICard ────────────────────────────────────────────────────────────────────
+// ── KPICard simple (utilisé par DevisTab et SyntheseModal) ────────────────────
 function KPICard({ label, value, sub, icon, iconColor }: {
   label: string; value: string; sub?: string; icon: React.ReactNode; iconColor: string;
 }) {
@@ -162,46 +174,117 @@ function KPICard({ label, value, sub, icon, iconColor }: {
   );
 }
 
-// ── DashboardTab ───────────────────────────────────────────────────────────────
-function DashboardTab({ chantier, devisList, analyses, formalites, relancesList, onImportAll, onImportChoose, onTabChange }: {
-  chantier: Chantier; devisList: DevisItem[]; analyses: any[];
-  formalites: Record<string, FormaliteState>; relancesList: RelanceItem[];
-  onImportAll: () => void; onImportChoose: () => void; onTabChange: (t: Tab) => void;
+// ── DashboardTab — nouveau tableau de bord multi-chantiers ────────────────────
+function DashboardTab({
+  chantiersDashboard,
+  activite,
+  activiteLoading,
+  analyses,
+  devisList,
+  formalites,
+  relancesList,
+  onImportAll,
+  onImportChoose,
+  onCreateChantier,
+  onUpdateChantier,
+  onDetachDevis,
+  onAddDevis,
+  onTabChange,
+  user,
+}: {
+  chantiersDashboard: ChantierDashboard[];
+  activite: ActiviteRecente[];
+  activiteLoading: boolean;
+  analyses: any[];
+  devisList: DevisItem[];
+  formalites: Record<string, FormaliteState>;
+  relancesList: RelanceItem[];
+  onImportAll: () => void;
+  onImportChoose: () => void;
+  onCreateChantier: (payload: CreateChantierPayload) => Promise<void>;
+  onUpdateChantier: (id: string, updates: { nom?: string; phase?: PhaseChantier }) => void;
+  onDetachDevis: (chantierId: string, devisId: string) => void;
+  onAddDevis: (chantierId: string) => void;
+  onTabChange: (t: Tab) => void;
+  user: SupabaseUser | null;
 }) {
   const [importDismissed, setImportDismissed] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const importable = useMemo(
     () => analyses.filter((a) => !devisList.find((d) => d.analyse_id === a.id)),
     [analyses, devisList]
   );
-  const allKeys = FORMALITES.flatMap((s) => s.items.map((i) => i.key));
-  const totalFItems = allKeys.length;
-  const totalCompleted = allKeys.filter((k) => formalites[k]?.completed).length;
-  const totalEngaged = devisList
-    .filter((d) => ["signe", "en_cours", "termine"].includes(d.statut))
-    .reduce((acc, d) => acc + d.montant_ttc, 0);
-  const recentActivity = [...devisList]
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 5);
+
+  // KPIs globaux calculés depuis tous les chantiers
+  const budgetTotalEstime = chantiersDashboard.reduce((acc, c) => acc + c.budgetEstimatif, 0);
+  const enveloppeValideeTotal = chantiersDashboard.reduce((acc, c) => acc + c.enveloppeValidee, 0);
+
+  const aidesEnCours = useMemo(() => {
+    let total = 0;
+    for (const c of chantiersDashboard) {
+      try {
+        const raw = localStorage.getItem(`chantier_aides_${c.id}`);
+        if (raw) {
+          const aides = JSON.parse(raw) as Array<{ statut: string }>;
+          total += aides.filter((a) => a.statut === "en_attente").length;
+        }
+      } catch { /* ignore */ }
+    }
+    return total;
+  }, [chantiersDashboard]);
+
+  const allFormaliteKeys = FORMALITES.flatMap((s) => s.items.map((i) => i.key));
+  const formalitesCompleted = allFormaliteKeys.filter((k) => formalites[k]?.completed).length;
+  const actionsRequises =
+    allFormaliteKeys.length - formalitesCompleted +
+    chantiersDashboard.filter((c) => c.depassement).length;
 
   return (
-    <div className="flex-1 p-6 overflow-y-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">Bonjour ,</h1>
-        <p className="text-slate-400 mt-1">voici l'état de votre chantier</p>
-        <p className="text-cyan-400 text-sm mt-1">{chantier.nom}</p>
+    <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
+
+      {/* ── Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+        <div>
+          <h1 className="font-display font-bold text-2xl text-white">
+            Bonjour{user?.user_metadata?.first_name ? ` ${user.user_metadata.first_name as string}` : ""} 👋
+          </h1>
+          <p className="text-slate-400 text-sm mt-0.5">
+            {chantiersDashboard.length > 0
+              ? `${chantiersDashboard.length} chantier${chantiersDashboard.length > 1 ? "s" : ""} en cours`
+              : "Créez votre premier chantier"}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onTabChange("devis")}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-2 border border-white/15 hover:bg-white/5 text-slate-300 hover:text-white text-sm font-medium rounded-xl transition-colors"
+          >
+            <Download className="h-4 w-4" />
+            Récap PDF
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Nouveau chantier</span>
+            <span className="sm:hidden">Nouveau</span>
+          </button>
+        </div>
       </div>
 
-      {/* Import banner */}
+      {/* ── Import banner ── */}
       {importable.length > 0 && !importDismissed && (
         <div className="mb-6 rounded-xl p-5 bg-gradient-to-r from-cyan-600 to-teal-600">
           <div className="flex items-start gap-3">
             <Sparkles className="h-5 w-5 text-white mt-0.5 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-white">Vos analyses sont prêtes !</p>
+              <p className="font-semibold text-white">
+                ✨ {importable.length} analyse{importable.length > 1 ? "s" : ""} détectée{importable.length > 1 ? "s" : ""} — voulez-vous les importer ?
+              </p>
               <p className="text-cyan-100 text-sm mt-1">
-                Nous avons détecté <strong>{analyses.length} devis</strong> analysés sur verifiermondevis.fr.
-                Importez-les en un clic pour pré-remplir tous vos onglets.
+                Des devis analysés sur verifiermondevis.fr peuvent être rattachés à vos chantiers automatiquement.
               </p>
               <div className="flex flex-wrap gap-2 mt-3">
                 <button
@@ -228,87 +311,82 @@ function DashboardTab({ chantier, devisList, analyses, formalites, relancesList,
         </div>
       )}
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <KPICard
-          label="Budget consommé"
-          value={`${fmt(totalEngaged)} €`}
-          sub={`sur ${fmt(chantier.budget || 0)} €`}
+      {/* ── KPI Row (4 cards) ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
+        <KPICardPremium
+          label="Budget total estimé"
+          value={`${fmt(budgetTotalEstime)} €`}
+          sub={`${chantiersDashboard.length} chantier${chantiersDashboard.length > 1 ? "s" : ""}`}
           icon={<Euro className="h-4 w-4" />}
-          iconColor="text-green-400"
+          variant="blue"
+          delay={0}
         />
-        <KPICard
-          label="Aides perçues"
-          value="0 €"
-          sub="0 aide(s)"
+        <KPICardPremium
+          label="Enveloppe validée"
+          value={`${fmt(enveloppeValideeTotal)} €`}
+          sub="Devis signés"
+          icon={<CheckCircle2 className="h-4 w-4" />}
+          variant="green"
+          delay={0.05}
+        />
+        <KPICardPremium
+          label="Aides en cours"
+          value={aidesEnCours > 0 ? String(aidesEnCours) : "—"}
+          sub="Demandes actives"
           icon={<Award className="h-4 w-4" />}
-          iconColor="text-purple-400"
+          variant="orange"
+          delay={0.1}
         />
-        <KPICard
-          label="Formalités complètes"
-          value={`${totalCompleted}/${totalFItems}`}
-          sub={`${Math.round((totalCompleted / totalFItems) * 100)}%`}
-          icon={<Shield className="h-4 w-4" />}
-          iconColor="text-blue-400"
-        />
-        <KPICard
-          label="Messages envoyés"
-          value={String(relancesList.filter((r) => r.envoye_at).length)}
-          sub={`${new Set(relancesList.map((r) => r.artisan_nom)).size} artisan(s)`}
-          icon={<Mail className="h-4 w-4" />}
-          iconColor="text-orange-400"
+        <KPICardPremium
+          label="Actions requises"
+          value={String(actionsRequises)}
+          sub="Formalités + alertes"
+          icon={<AlertTriangle className="h-4 w-4" />}
+          variant="gold"
+          delay={0.15}
         />
       </div>
 
-      {/* Actions rapides */}
-      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Actions rapides</p>
-      <div className="flex flex-wrap gap-3 mb-6">
-        <button
-          onClick={() => onTabChange("devis")}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
-        >
-          <Plus className="h-4 w-4" /> Ajouter un devis
-        </button>
-        <button
-          onClick={() => onTabChange("journal")}
-          className="flex items-center gap-2 px-4 py-2 border border-white/20 hover:bg-white/5 text-white text-sm font-medium rounded-lg transition-colors"
-        >
-          <Camera className="h-4 w-4" /> Ajouter une photo
-        </button>
-        <button
-          onClick={() => onTabChange("relances")}
-          className="flex items-center gap-2 px-4 py-2 border border-white/20 hover:bg-white/5 text-white text-sm font-medium rounded-lg transition-colors"
-        >
-          <Send className="h-4 w-4" /> Envoyer une relance
-        </button>
+      {/* ── Mes Chantiers — grid multi-chantiers ── */}
+      <div className="mb-8">
+        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-4">
+          Mes Chantiers
+        </p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+          {chantiersDashboard.map((ch, i) => (
+            <ChantierCard
+              key={ch.id}
+              chantier={ch}
+              delay={0.2 + i * 0.05}
+              onUpdate={onUpdateChantier}
+              onDetachDevis={onDetachDevis}
+              onAddDevis={onAddDevis}
+            />
+          ))}
+          <AddChantierCard
+            onClick={() => setShowCreateModal(true)}
+            delay={0.2 + chantiersDashboard.length * 0.05}
+          />
+        </div>
       </div>
 
-      {/* Activité récente */}
-      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Activité récente</p>
-      <div className="bg-[#162035] border border-white/10 rounded-xl overflow-hidden">
-        {recentActivity.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12">
-            <TrendingUp className="h-8 w-8 text-slate-700 mb-3" />
-            <p className="text-slate-500 text-sm">Aucune activité pour le moment.</p>
-            <p className="text-slate-600 text-xs mt-1">Commencez par ajouter un devis !</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-white/5">
-            {recentActivity.map((d) => (
-              <div key={d.id} className="flex items-center justify-between px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <FileText className="h-4 w-4 text-slate-500 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm text-white font-medium">{d.artisan_nom}</p>
-                    <p className="text-xs text-slate-500">{d.type_travaux}</p>
-                  </div>
-                </div>
-                <span className="text-sm font-bold text-white">{fmt(d.montant_ttc)} €</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* ── Bottom Grid : actions rapides + activité récente ── */}
+      <BottomGrid
+        activite={activite}
+        activiteLoading={activiteLoading}
+        onTabChange={onTabChange}
+        delay={0.35}
+      />
+
+      {/* ── Modal création de chantier ── */}
+      <ModalNouveauChantier
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreate={async (payload) => {
+          await onCreateChantier(payload);
+          setShowCreateModal(false);
+        }}
+      />
     </div>
   );
 }
@@ -1158,6 +1236,9 @@ export default function MonChantier() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showSynthese, setShowSynthese] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [chantiersDashboard, setChantiersDashboard] = useState<ChantierDashboard[]>([]);
+  const [activiteRecente, setActiviteRecente] = useState<ActiviteRecente[]>([]);
+  const [activiteLoading, setActiviteLoading] = useState(true);
   const { isPremium, isLoading: premiumLoading } = usePremium();
 
   // Garde de session : déconnexion après 10 min d'inactivité + détection nouvel onglet/navigateur
@@ -1188,6 +1269,81 @@ export default function MonChantier() {
     if (a.data) setAnalyses(a.data);
   }, []);
 
+  /** Charge tous les chantiers + leurs devis pour le dashboard multi-chantiers */
+  const loadDashboard = useCallback(async (userId: string) => {
+    setActiviteLoading(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+
+    const { data: chantiersRaw } = await db
+      .from("chantiers")
+      .select("id, nom, emoji, budget, phase, created_at, updated_at, user_id")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (!chantiersRaw || chantiersRaw.length === 0) {
+      setChantiersDashboard([]);
+      setActiviteRecente([]);
+      setActiviteLoading(false);
+      return;
+    }
+
+    const chantierIds = (chantiersRaw as Array<{ id: string }>).map((c) => c.id);
+    const { data: devisRaw } = await db
+      .from("devis_chantier")
+      .select("id, chantier_id, artisan_nom, type_travaux, montant_ttc, statut, score_analyse, analyse_id, created_at")
+      .in("chantier_id", chantierIds)
+      .order("created_at", { ascending: false });
+
+    // Construit les ChantierDashboard avec computed fields
+    const computed = (chantiersRaw as Array<{
+      id: string; nom: string; emoji: string; budget: number | null;
+      phase: string; created_at: string; updated_at: string; user_id: string;
+    }>).map((raw) => {
+      const allDevis = (devisRaw ?? []) as Array<{
+        id: string; chantier_id: string; artisan_nom: string; type_travaux: string;
+        montant_ttc: number | null; statut: string; score_analyse: string | null;
+        analyse_id: string | null; created_at: string | null;
+      }>;
+      const devis = allDevis
+        .filter((d) => d.chantier_id === raw.id)
+        .map((d) => ({
+          id: d.id,
+          nom: d.artisan_nom,
+          description: d.type_travaux,
+          montant: d.montant_ttc,
+          statut: d.statut as "recu" | "signe" | "en_cours" | "termine" | "litige",
+          analyseId: d.analyse_id,
+          scoreAnalyse: d.score_analyse,
+        }));
+      return computeChantierDashboard({ ...raw, devis });
+    });
+    setChantiersDashboard(computed);
+
+    // Activité récente : les 5 devis les plus récents
+    type DevisRow = {
+      id: string; artisan_nom: string; chantier_id: string;
+      montant_ttc: number | null; created_at: string | null;
+    };
+    const allDevisFlat = (devisRaw ?? []) as DevisRow[];
+    const sorted = [...allDevisFlat]
+      .sort((a, b) => new Date(b.created_at ?? "").getTime() - new Date(a.created_at ?? "").getTime())
+      .slice(0, 5);
+    type ChantierRow = { id: string; nom: string };
+    const chantiersMap = Object.fromEntries(
+      (chantiersRaw as ChantierRow[]).map((c) => [c.id, c.nom])
+    );
+    setActiviteRecente(sorted.map((d) => ({
+      id: d.id,
+      type: "devis_ajoute" as const,
+      label: d.artisan_nom,
+      souslabel: chantiersMap[d.chantier_id] ?? "Chantier",
+      montant: d.montant_ttc,
+      createdAt: d.created_at ?? new Date().toISOString(),
+    })));
+    setActiviteLoading(false);
+  }, []);
+
   useEffect(() => {
     const init = async () => {
       if (premiumLoading) return;
@@ -1205,10 +1361,12 @@ export default function MonChantier() {
         ch = newCh;
       }
       if (ch) { setChantier(ch); await loadData(user.id, ch.id); }
+      // Charge TOUS les chantiers pour le nouveau dashboard multi-chantiers
+      await loadDashboard(user.id);
       setLoading(false);
     };
     init();
-  }, [isPremium, premiumLoading, loadData]);
+  }, [isPremium, premiumLoading, loadData, loadDashboard]);
 
   const handleImportAll = useCallback(async () => {
     if (!chantier || !user) return;
@@ -1244,9 +1402,61 @@ export default function MonChantier() {
     setChantier((prev) => prev ? { ...prev, ...updates } : prev);
   }, []);
 
+  /** Crée un nouveau chantier et rafraîchit le dashboard */
+  const handleCreateChantier = useCallback(async (payload: CreateChantierPayload) => {
+    if (!user) throw new Error("Non connecté");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+    const { data, error } = await db
+      .from("chantiers")
+      .insert({ user_id: user.id, nom: payload.nom, emoji: payload.emoji, budget: payload.enveloppePrevue, phase: "preparation" })
+      .select()
+      .single();
+    if (error || !data) throw new Error("Erreur lors de la création du chantier");
+    // Si c'est le premier chantier, le définir comme principal pour les autres onglets
+    if (!chantier) { setChantier(data as Chantier); await loadData(user.id, (data as Chantier).id); }
+    await loadDashboard(user.id);
+    toast.success(`Chantier "${payload.nom}" créé !`);
+  }, [user, chantier, loadData, loadDashboard]);
+
+  /** Met à jour nom/phase d'un chantier depuis la ChantierCard */
+  const handleUpdateChantierInDashboard = useCallback(async (
+    id: string,
+    updates: { nom?: string; phase?: PhaseChantier }
+  ) => {
+    if (!user) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+    const dbUpdates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (updates.nom) dbUpdates.nom = updates.nom;
+    if (updates.phase) dbUpdates.phase = updates.phase;
+    await db.from("chantiers").update(dbUpdates).eq("id", id).eq("user_id", user.id);
+    await loadDashboard(user.id);
+  }, [user, loadDashboard]);
+
+  /** Détache (supprime) un devis d'un chantier sans supprimer les données d'analyse */
+  const handleDetachDevis = useCallback(async (chantierId: string, devisId: string) => {
+    if (!user) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+    const { error } = await db
+      .from("devis_chantier")
+      .delete()
+      .eq("id", devisId)
+      .eq("chantier_id", chantierId);
+    if (error) { toast.error("Erreur lors du détachement du devis"); return; }
+    await loadDashboard(user.id);
+    if (chantier?.id === chantierId) await loadData(user.id, chantierId);
+  }, [user, chantier, loadDashboard, loadData]);
+
+  /** Ouvre l'onglet Devis pour ajouter un devis à un chantier */
+  const handleAddDevis = useCallback((_chantierId: string) => {
+    setActiveTab("devis");
+  }, []);
+
   const refresh = useCallback(() => {
-    if (user && chantier) loadData(user.id, chantier.id);
-  }, [user, chantier, loadData]);
+    if (user && chantier) { loadData(user.id, chantier.id); loadDashboard(user.id); }
+  }, [user, chantier, loadData, loadDashboard]);
 
   if (loading || premiumLoading) {
     return (
@@ -1343,14 +1553,21 @@ export default function MonChantier() {
         <div className="flex flex-1 overflow-hidden">
           {activeTab === "dashboard" && (
             <DashboardTab
-              chantier={chantier}
-              devisList={devisList}
+              chantiersDashboard={chantiersDashboard}
+              activite={activiteRecente}
+              activiteLoading={activiteLoading}
               analyses={analyses}
+              devisList={devisList}
               formalites={formalites}
               relancesList={relancesList}
               onImportAll={handleImportAll}
               onImportChoose={() => setActiveTab("devis")}
+              onCreateChantier={handleCreateChantier}
+              onUpdateChantier={handleUpdateChantierInDashboard}
+              onDetachDevis={handleDetachDevis}
+              onAddDevis={handleAddDevis}
               onTabChange={setActiveTab}
+              user={user}
             />
           )}
           {activeTab === "devis" && (
