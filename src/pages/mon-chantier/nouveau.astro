@@ -1,0 +1,13 @@
+---
+export const prerender = false;
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import NouveauChantierApp from '@/components/app/NouveauChantierApp';
+---
+
+<BaseLayout
+  title="Créer mon chantier IA — VerifierMonDevis"
+  description="Décrivez votre projet en quelques mots et obtenez un plan de chantier complet généré par l'IA en 10 secondes."
+  noindex={true}
+>
+  <NouveauChantierApp client:only="react" />
+</BaseLayout>
