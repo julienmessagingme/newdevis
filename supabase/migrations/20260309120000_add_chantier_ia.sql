@@ -1,7 +1,7 @@
 -- Migration : module IA Chantier
 -- Ajoute metadonnees JSON sur chantiers + tables todo_chantier et chantier_updates
 
--- 1. Colonne metadonnees sur chantiers (roadmap, artisans, formalites, aides IA)
+-- 1. Colonnes IA sur chantiers (roadmap, artisans, formalites, aides IA)
 ALTER TABLE chantiers
   ADD COLUMN IF NOT EXISTS metadonnees TEXT,
   ADD COLUMN IF NOT EXISTS type_projet TEXT DEFAULT 'autre',
@@ -10,9 +10,10 @@ ALTER TABLE chantiers
   ADD COLUMN IF NOT EXISTS date_debut_souhaitee TIMESTAMPTZ;
 
 -- 2. Table todo_chantier (checklist IA)
+-- chantiers.id est UUID → chantier_id doit être UUID aussi
 CREATE TABLE IF NOT EXISTS todo_chantier (
-  id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
-  chantier_id TEXT NOT NULL REFERENCES chantiers(id) ON DELETE CASCADE,
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  chantier_id UUID NOT NULL REFERENCES chantiers(id) ON DELETE CASCADE,
   titre       TEXT NOT NULL,
   priorite    TEXT NOT NULL DEFAULT 'normal' CHECK (priorite IN ('urgent', 'important', 'normal')),
   done        BOOLEAN NOT NULL DEFAULT false,
@@ -25,8 +26,8 @@ CREATE INDEX IF NOT EXISTS idx_todo_chantier_ordre ON todo_chantier(chantier_id,
 
 -- 3. Table chantier_updates (log des améliorations IA)
 CREATE TABLE IF NOT EXISTS chantier_updates (
-  id           TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
-  chantier_id  TEXT NOT NULL REFERENCES chantiers(id) ON DELETE CASCADE,
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  chantier_id  UUID NOT NULL REFERENCES chantiers(id) ON DELETE CASCADE,
   modification TEXT NOT NULL,
   changes      TEXT NOT NULL DEFAULT '[]',
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
