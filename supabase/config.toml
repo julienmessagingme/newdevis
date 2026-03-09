@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.read-invoice]
 verify_jwt = false
+
+[functions.chantier-generer]
+verify_jwt = false

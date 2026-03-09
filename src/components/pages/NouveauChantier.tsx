@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
 import { createClient } from '@supabase/supabase-js';
 import ScreenPrompt from '@/components/chantier/nouveau/ScreenPrompt';
@@ -150,7 +150,7 @@ function GeneratingWithToken({
   const [token, setToken] = useState<string | null>(null);
   const [checked, setChecked] = useState(false);
 
-  useState(() => {
+  useEffect(() => {
     getToken().then((t) => {
       if (!t) {
         onError('Session expirée, veuillez vous reconnecter');
@@ -159,7 +159,7 @@ function GeneratingWithToken({
       }
       setChecked(true);
     });
-  });
+  }, [getToken, onError]);
 
   if (!checked) return null;
   if (!token) return null;
@@ -189,9 +189,9 @@ function AmeliorerWithToken({
 }) {
   const [token, setToken] = useState<string | null>(null);
 
-  useState(() => {
+  useEffect(() => {
     getToken().then(setToken);
-  });
+  }, [getToken]);
 
   if (!token) return null;
 

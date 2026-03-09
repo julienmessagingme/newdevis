@@ -1,13 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ChantierIAResult, SseEvent } from '@/types/chantier-ia';
+import type { ChantierIAResult } from '@/types/chantier-ia';
 
 const GEN_STEPS = [
-  { ico: '🧠', name: 'Analyse du projet' },
-  { ico: '🗓️', name: 'Structure & planning' },
-  { ico: '💰', name: 'Budget estimatif' },
-  { ico: '📋', name: 'Formalités & artisans' },
-  { ico: '✅', name: 'Checklist & aides' },
+  { ico: '🧠', name: 'Analyse du projet', doneDetail: 'Projet analysé ✓' },
+  { ico: '🗓️', name: 'Structure & planning', doneDetail: 'Roadmap créée ✓' },
+  { ico: '💰', name: 'Budget estimatif', doneDetail: 'Budget estimé ✓' },
+  { ico: '📋', name: 'Formalités & artisans', doneDetail: 'Formalités et artisans ✓' },
+  { ico: '✅', name: 'Checklist & aides', doneDetail: 'Checklist + aides ✓' },
 ];
+
+const ACTIVE_DETAILS = [
+  'Identification des travaux…',
+  'Construction du plan…',
+  'Estimation budget par poste…',
+  'Formalités + artisans détectés…',
+  'Génération checklist…',
+];
+
+// Timing (ms) at which each step becomes active
+const STEP_DELAYS = [0, 2000, 4500, 7000, 9500];
+// Progress % when each step becomes active
+const STEP_PCTS = [5, 30, 55, 75, 90];
 
 const CIRCUMFERENCE = 2 * Math.PI * 50; // 314.16
 
@@ -48,76 +61,74 @@ export default function ScreenGenerating({ token, requestBody, onResult, onError
     return () => cancelAnimationFrame(animFrameRef.current);
   }, [pct]);
 
-  // SSE reader
+  // Main fetch + fake progress
   useEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
 
     let aborted = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    // Schedule fake step transitions while waiting for the API
+    STEP_DELAYS.forEach((delay, i) => {
+      timers.push(
+        setTimeout(() => {
+          if (aborted) return;
+          setSteps((prev) => {
+            const next = [...prev];
+            // Mark previous step done
+            if (i > 0) next[i - 1] = { status: 'done', detail: GEN_STEPS[i - 1].doneDetail };
+            // Mark current step active
+            next[i] = { status: 'active', detail: ACTIVE_DETAILS[i] };
+            return next;
+          });
+          setPct(STEP_PCTS[i]);
+        }, delay)
+      );
+    });
 
     const run = async () => {
       try {
-        const response = await fetch('/api/chantier/generer', {
+        const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+        const response = await fetch(`${supabaseUrl}/functions/v1/chantier-generer`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`,
+            'apikey': supabaseAnonKey,
           },
           body: requestBody,
         });
 
+        // Cancel fake timers — the real response has arrived
+        timers.forEach((t) => clearTimeout(t));
+        if (aborted) return;
+
         if (!response.ok) {
-          onError('Erreur de connexion au serveur');
+          const errData = await response.json().catch(() => ({}));
+          onError((errData as { error?: string }).error ?? 'Erreur de connexion au serveur');
           return;
         }
 
-        const reader = response.body?.getReader();
-        if (!reader) {
-          onError('Stream non disponible');
+        const data = await response.json() as { result?: ChantierIAResult; error?: string };
+
+        if (data.error || !data.result) {
+          onError(data.error ?? 'Réponse invalide du serveur');
           return;
         }
 
-        const decoder = new TextDecoder();
-        let buffer = '';
+        // Complete all steps instantly
+        setSteps(GEN_STEPS.map((s) => ({ status: 'done', detail: s.doneDetail })));
+        setPct(100);
 
-        while (!aborted) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-
-          const lines = buffer.split('\n');
-          buffer = lines.pop() ?? '';
-
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            const json = line.slice(6).trim();
-            if (!json) continue;
-
-            let event: SseEvent;
-            try {
-              event = JSON.parse(json);
-            } catch {
-              continue;
-            }
-
-            if (event.type === 'step') {
-              setSteps((prev) => {
-                const next = [...prev];
-                next[event.step] = { status: event.status, detail: event.detail };
-                return next;
-              });
-            } else if (event.type === 'progress') {
-              setPct(event.pct);
-            } else if (event.type === 'result') {
-              onResult(event.data);
-              return;
-            } else if (event.type === 'error') {
-              onError(event.message);
-              return;
-            }
-          }
-        }
+        // Short pause so user sees 100% before transition
+        setTimeout(() => {
+          if (!aborted) onResult(data.result!);
+        }, 400);
       } catch (err) {
+        timers.forEach((t) => clearTimeout(t));
         if (!aborted) {
           console.error('[ScreenGenerating] fetch error:', err);
           onError('Erreur réseau, veuillez réessayer');
@@ -129,6 +140,7 @@ export default function ScreenGenerating({ token, requestBody, onResult, onError
 
     return () => {
       aborted = true;
+      timers.forEach((t) => clearTimeout(t));
     };
   }, [token, requestBody, onResult, onError]);
 
@@ -184,7 +196,7 @@ export default function ScreenGenerating({ token, requestBody, onResult, onError
         {/* Titre */}
         <div className="text-center mb-8">
           <h2 className="text-xl font-display font-bold text-white mb-1">Génération en cours…</h2>
-          <p className="text-slate-500 text-sm">Claude analyse votre projet et crée votre plan sur mesure</p>
+          <p className="text-slate-500 text-sm">Gemini analyse votre projet et crée votre plan sur mesure</p>
         </div>
 
         {/* Steps */}
