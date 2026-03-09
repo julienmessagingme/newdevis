@@ -7,7 +7,9 @@ import type { ArtisanIA, FormaliteIA, TacheIA, ChangeItem } from '@/types/chanti
 
 const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
-const anthropicApiKey = import.meta.env.ANTHROPIC_API_KEY;
+const googleApiKey = import.meta.env.GOOGLE_AI_API_KEY;
+
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 
 const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -29,8 +31,8 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify({ error: 'Token invalide' }), { status: 401, headers: CORS });
   }
 
-  if (!anthropicApiKey) {
-    return new Response(JSON.stringify({ error: 'Clé API Anthropic non configurée' }), { status: 500, headers: CORS });
+  if (!googleApiKey) {
+    return new Response(JSON.stringify({ error: 'Clé API Google AI non configurée' }), { status: 500, headers: CORS });
   }
 
   let body: { chantierId: string; modification: string };
@@ -59,18 +61,20 @@ Modification demandée : ${body.modification}
 Contexte actuel : ${chantier.metadonnees ?? '{}'}
   `.trim();
 
-  const apiResponse = await fetch('https://api.anthropic.com/v1/messages', {
+  const apiResponse = await fetch(GEMINI_URL, {
     method: 'POST',
     headers: {
-      'x-api-key': anthropicApiKey,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${googleApiKey}`,
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1500,
-      system: SYSTEM_PROMPT_UPDATE,
-      messages: [{ role: 'user', content: prompt }],
+      model: 'gemini-2.0-flash',
+      temperature: 0.2,
+      max_tokens: 2048,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT_UPDATE },
+        { role: 'user', content: prompt },
+      ],
     }),
   });
 
@@ -79,7 +83,7 @@ Contexte actuel : ${chantier.metadonnees ?? '{}'}
   }
 
   const apiData = await apiResponse.json();
-  const rawText: string = apiData?.content?.[0]?.type === 'text' ? apiData.content[0].text : '{}';
+  const rawText: string = apiData?.choices?.[0]?.message?.content ?? '{}';
   const clean = rawText.replace(/```json|```/g, '').trim();
 
   let updateData: {

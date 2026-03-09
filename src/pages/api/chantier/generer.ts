@@ -7,7 +7,9 @@ import type { ChantierIAResult, SseEvent } from '@/types/chantier-ia';
 
 const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
-const anthropicApiKey = import.meta.env.ANTHROPIC_API_KEY;
+const googleApiKey = import.meta.env.GOOGLE_AI_API_KEY;
+
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 
 const SSE_HEADERS: Record<string, string> = {
   'Content-Type': 'text/event-stream',
@@ -36,8 +38,8 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify({ error: 'Token invalide' }), { status: 401 });
   }
 
-  if (!anthropicApiKey) {
-    return new Response(JSON.stringify({ error: 'Clé API Anthropic non configurée' }), { status: 500 });
+  if (!googleApiKey) {
+    return new Response(JSON.stringify({ error: 'Clé API Google AI non configurée' }), { status: 500 });
   }
 
   let body: { description?: string; mode?: string; guidedForm?: Record<string, unknown> };
@@ -80,25 +82,27 @@ export const POST: APIRoute = async ({ request }) => {
         send({ type: 'step', step: 0, status: 'active', detail: 'Identification des travaux…' });
         send({ type: 'progress', pct: 5 });
 
-        // Appel Anthropic
-        const apiResponse = await fetch('https://api.anthropic.com/v1/messages', {
+        // Appel Gemini 2.0 flash (OpenAI-compatible)
+        const apiResponse = await fetch(GEMINI_URL, {
           method: 'POST',
           headers: {
-            'x-api-key': anthropicApiKey,
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${googleApiKey}`,
           },
           body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 2500,
-            system: SYSTEM_PROMPT_CHANTIER,
-            messages: [{ role: 'user', content: prompt }],
+            model: 'gemini-2.0-flash',
+            temperature: 0.2,
+            max_tokens: 4096,
+            messages: [
+              { role: 'system', content: SYSTEM_PROMPT_CHANTIER },
+              { role: 'user', content: prompt },
+            ],
           }),
         });
 
         if (!apiResponse.ok) {
           const errText = await apiResponse.text();
-          console.error('[api/chantier/generer] Anthropic error:', errText.slice(0, 200));
+          console.error('[api/chantier/generer] Gemini error:', errText.slice(0, 200));
           send({ type: 'error', message: 'Génération échouée, veuillez réessayer' });
           controller.close();
           return;
@@ -129,9 +133,8 @@ export const POST: APIRoute = async ({ request }) => {
         send({ type: 'step', step: 4, status: 'done', detail: 'Checklist + aides ✓' });
         send({ type: 'progress', pct: 100 });
 
-        // Parser la réponse IA
-        const rawText: string =
-          apiData?.content?.[0]?.type === 'text' ? apiData.content[0].text : '';
+        // Parser la réponse IA (format OpenAI-compatible)
+        const rawText: string = apiData?.choices?.[0]?.message?.content ?? '';
         const clean = rawText.replace(/```json|```/g, '').trim();
 
         let parsed: ChantierIAResult;
