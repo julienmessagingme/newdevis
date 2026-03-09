@@ -79,22 +79,6 @@ export const POST: APIRoute = async ({ request }) => {
     }
   }
 
-  // Créer les formalités dans documents_chantier
-  if (formalites?.length) {
-    const { error: formalitesError } = await supabase.from('documents_chantier').insert(
-      formalites.map((f) => ({
-        chantier_id: chantierId,
-        nom: f.nom,
-        type: 'formalite',
-        statut: 'a_completer',
-        url: '',
-      }))
-    );
-    if (formalitesError) {
-      console.error('[api/chantier/sauvegarder] formalites error:', formalitesError.message);
-    }
-  }
-
   return new Response(JSON.stringify({ chantierId, success: true }), { status: 201, headers: CORS });
 };
 
