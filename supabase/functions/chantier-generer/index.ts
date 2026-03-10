@@ -91,6 +91,8 @@ Règles métier France 2026 :
 - Si des précisions client sont fournies (surfaces, matériaux, dimensions), les utiliser directement
 - Si un coefficient de zone géographique est fourni : grande_ville +15-25%, petite_ville -10-15%, ville_moyenne = base
 - Ne jamais inventer la localisation — utiliser uniquement les données fournies
+- Si budget_tranche est fourni (fourchette indicative), l'utiliser comme référence centrale pour calibrer budgetTotal et lignesBudget, mais rester réaliste : si la fourchette est sous-estimée pour le projet décrit, ajuster légèrement vers le haut et le signaler dans la description
+- date_debut fournie = point de départ de la roadmap (calculer les mois en conséquence)
 `;
 
 // deno-lint-ignore no-explicit-any
@@ -111,6 +113,39 @@ function findPostalCode(answers: Record<string, string>): string | undefined {
     if (match) return match[0];
   }
   return undefined;
+}
+
+/** Extrait un nom de ville depuis les réponses (quand pas de code postal 5 chiffres) */
+function findCityName(answers: Record<string, string>): string | undefined {
+  const candidateKeys = ["code_postal", "localisation", "ville"];
+  for (const key of candidateKeys) {
+    const val = answers[key]?.trim();
+    // Nom de ville : texte sans chiffres, au moins 3 caractères
+    if (val && val.length >= 3 && !/\d/.test(val)) return val;
+  }
+  return undefined;
+}
+
+/** Résout un nom de ville en code postal via geo.api.gouv.fr */
+async function resolvePostalCodeFromCity(cityName: string): Promise<string | undefined> {
+  try {
+    const encoded = encodeURIComponent(cityName);
+    const resp = await fetch(
+      `https://geo.api.gouv.fr/communes?nom=${encoded}&fields=codesPostaux,population&limit=5`,
+      { signal: AbortSignal.timeout(3000) },
+    );
+    if (!resp.ok) return undefined;
+    // deno-lint-ignore no-explicit-any
+    const communes: any[] = await resp.json();
+    const sorted = (communes ?? []).sort(
+      // deno-lint-ignore no-explicit-any
+      (a: any, b: any) => (b.population ?? 0) - (a.population ?? 0),
+    );
+    const cp = sorted[0]?.codesPostaux?.[0];
+    return cp ?? undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Récupère le contexte géographique depuis Supabase + geo.api.gouv.fr */
@@ -210,12 +245,30 @@ serve(async (req: Request) => {
     if (relevantAnswers.length > 0) {
       prompt += "\n\nPrécisions apportées par le client :\n";
       prompt += relevantAnswers
-        .map(([k, v]) => `- ${k.replace(/_/g, " ")}: ${v}`)
+        .map(([k, v]) => {
+          // Labels lisibles pour les questions fixes connues
+          if (k === "budget_tranche") {
+            return `- Budget indicatif (fourchette, à affiner avec les devis) : ${v}`;
+          }
+          if (k === "date_debut") {
+            return `- Date de démarrage souhaitée : ${v}`;
+          }
+          if (k === "code_postal") {
+            return `- Localisation du chantier : ${v}`;
+          }
+          return `- ${k.replace(/_/g, " ")} : ${v}`;
+        })
         .join("\n");
     }
 
-    // Enrichissement géographique si code postal détecté
-    const postalCode = findPostalCode(qualificationAnswers);
+    // Enrichissement géographique : code postal direct ou résolution depuis nom de ville
+    let postalCode = findPostalCode(qualificationAnswers);
+    if (!postalCode) {
+      const cityName = findCityName(qualificationAnswers);
+      if (cityName) {
+        postalCode = await resolvePostalCodeFromCity(cityName).catch(() => undefined);
+      }
+    }
     if (postalCode && supabaseUrl && supabaseServiceKey) {
       try {
         const locationCtx = await getLocationContext(postalCode, supabaseUrl, supabaseServiceKey);

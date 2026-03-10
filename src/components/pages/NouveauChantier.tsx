@@ -16,6 +16,78 @@ const supabase = createClient(
 
 type Ecran = 'prompt' | 'qualification' | 'generating' | 'wow' | 'dashboard' | 'ameliorer';
 
+// ── Détection de contexte dans la description libre ──
+
+function hasBudgetInDescription(desc: string): boolean {
+  return (
+    /\b\d[\d\s]*[kK]?\s*[€eE]/.test(desc) ||
+    /\b\d[\d\s.,]+€/.test(desc) ||
+    /budget\s*(de|:|d'environ|\s)/i.test(desc) ||
+    /environ\s+\d/i.test(desc) ||
+    /autour\s+de\s+\d/i.test(desc) ||
+    /entre\s+\d[\d\s]*[kK€].*et\s+\d/i.test(desc) ||
+    /\d+\s*(mille|millions?)\s*(d'?euros?|€)?/i.test(desc)
+  );
+}
+
+function hasDateInDescription(desc: string): boolean {
+  const mois =
+    'janvier|f[eé]vrier|mars|avril|mai|juin|juillet|ao[uû]t|septembre|octobre|novembre|d[eé]cembre';
+  return (
+    new RegExp(`\\b(${mois})\\b`, 'i').test(desc) ||
+    /\b202[5-9]\b/.test(desc) ||
+    /\bdans\s+\d+\s*(mois|semaines?|ans?)\b/i.test(desc) ||
+    /\b(printemps|[eé]t[eé]|automne|hiver)\b/i.test(desc) ||
+    /\bd[eè]s\s+que\s+possible\b/i.test(desc) ||
+    /\bprochainement\b/i.test(desc) ||
+    /\bbient[oô]t\b/i.test(desc)
+  );
+}
+
+/** Construit les questions fixes à injecter AVANT les questions Gemini */
+function buildFixedQuestions(desc: string): FollowUpQuestion[] {
+  const fixed: FollowUpQuestion[] = [];
+
+  if (!hasBudgetInDescription(desc)) {
+    fixed.push({
+      id: 'budget_tranche',
+      label: 'Quel est votre budget approximatif pour ce projet ?',
+      type: 'single_choice',
+      placeholder: null,
+      choices: [
+        'Moins de 5 000 €',
+        '5 000 – 15 000 €',
+        '15 000 – 30 000 €',
+        '30 000 – 60 000 €',
+        'Plus de 60 000 €',
+        'Je ne sais pas encore',
+      ],
+      required: true,
+      reason: 'Calibrage du plan et des estimations budgétaires',
+    });
+  }
+
+  if (!hasDateInDescription(desc)) {
+    fixed.push({
+      id: 'date_debut',
+      label: 'Quand souhaitez-vous démarrer les travaux ?',
+      type: 'single_choice',
+      placeholder: null,
+      choices: [
+        'Dès que possible',
+        'Dans 1 à 3 mois',
+        'Dans 3 à 6 mois',
+        'Dans 6 mois à 1 an',
+        'Je ne sais pas encore',
+      ],
+      required: true,
+      reason: 'Planification de la roadmap et des délais administratifs',
+    });
+  }
+
+  return fixed;
+}
+
 export default function NouveauChantier() {
   const [ecran, setEcran] = useState<Ecran>('prompt');
   const [result, setResult] = useState<ChantierIAResult | null>(null);
@@ -52,46 +124,48 @@ export default function NouveauChantier() {
         return;
       }
 
-      // Mode libre : appel qualifier pour générer des questions contextuelles
+      // Mode libre : questions fixes locales + appel qualifier pour questions contextuelles
       setIsQualifying(true);
       try {
-        const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-        const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-        const res = await fetch(`${supabaseUrl}/functions/v1/chantier-qualifier`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-            apikey: supabaseAnonKey,
-          },
-          body: JSON.stringify({ description }),
-        });
+        const fixedQuestions = buildFixedQuestions(description);
+        // Slots restants pour Gemini (max 5 total)
+        const maxGeminiQuestions = Math.max(0, 5 - fixedQuestions.length);
 
-        if (res.ok) {
-          const data = await res.json();
-          const questions: FollowUpQuestion[] = data.questions ?? [];
-
-          if (questions.length > 0) {
-            setCurrentDescription(description);
-            setQualificationQuestions(questions);
-            setEcran('qualification');
-          } else {
-            // Aucune question → génération directe
-            startTimeRef.current = Date.now();
-            setRequestBody(JSON.stringify({ description, mode }));
-            setEcran('generating');
+        let geminiQuestions: FollowUpQuestion[] = [];
+        if (maxGeminiQuestions > 0) {
+          try {
+            const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+            const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+            const res = await fetch(`${supabaseUrl}/functions/v1/chantier-qualifier`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+                apikey: supabaseAnonKey,
+              },
+              body: JSON.stringify({ description }),
+            });
+            if (res.ok) {
+              const data = await res.json();
+              geminiQuestions = (data.questions ?? []).slice(0, maxGeminiQuestions);
+            }
+          } catch {
+            // Erreur qualifier non bloquante — on continue avec les questions fixes seules
           }
+        }
+
+        const allQuestions = [...fixedQuestions, ...geminiQuestions];
+
+        if (allQuestions.length > 0) {
+          setCurrentDescription(description);
+          setQualificationQuestions(allQuestions);
+          setEcran('qualification');
         } else {
-          // Erreur qualifier → génération directe sans blocage
+          // Aucune question → génération directe
           startTimeRef.current = Date.now();
           setRequestBody(JSON.stringify({ description, mode }));
           setEcran('generating');
         }
-      } catch {
-        // Erreur réseau → génération directe
-        startTimeRef.current = Date.now();
-        setRequestBody(JSON.stringify({ description, mode }));
-        setEcran('generating');
       } finally {
         setIsQualifying(false);
       }

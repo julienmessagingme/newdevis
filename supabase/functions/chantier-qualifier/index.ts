@@ -12,8 +12,8 @@ const CORS_HEADERS = {
 
 const SYSTEM_PROMPT_QUALIFIER = `
 Tu es un expert en travaux de construction et rénovation en France.
-À partir de la description d'un projet de travaux, génère exactement 4 ou 5 questions contextuelles
-pour collecter les informations essentielles manquantes avant de créer un plan personnalisé.
+À partir de la description d'un projet de travaux, génère entre 2 et 4 questions contextuelles
+pour collecter les informations techniques essentielles manquantes avant de créer un plan personnalisé.
 RÈGLE ABSOLUE : Retourner UNIQUEMENT du JSON valide. Commence directement par { et termine par }.
 
 Format JSON strict :
@@ -32,17 +32,18 @@ Format JSON strict :
 }
 
 Règles de génération :
-1. EXACTEMENT 4 ou 5 questions — ni plus, ni moins
-2. Si le code postal ou la ville N'EST PAS mentionné dans la description : ajouter une question id="code_postal", type="text", label="Dans quelle ville ou quel code postal se situe le chantier ?", placeholder="Ex: Paris, 33000, 69001..."
-3. Prioriser par impact : surface/dimensions > type exact de travaux > matériaux/gamme > localisation
-4. Chaque type "single_choice" ou "text_or_choice" : toujours inclure "Je ne sais pas encore" comme DERNIÈRE option
-5. type "text" : pour code postal, dimensions libres (sans liste de choix, placeholder obligatoire)
-6. type "single_choice" : choix exclusifs (2-4 options + "Je ne sais pas encore")
-7. type "text_or_choice" : options prédéfinies ET possibilité de texte libre (2-3 options + "Je ne sais pas encore")
-8. Langage simple, rassurant, non-technique — pour des particuliers non-experts
-9. Maximum 4 options dans choices avant "Je ne sais pas encore"
-10. ids uniques en snake_case descriptif (ex: piscine_surface, terrasse_materiau, code_postal)
-11. Ne pas poser de questions sur le budget ou le financement (déjà gérés ailleurs)
+1. Entre 2 et 4 questions — ni plus, ni moins
+2. NE PAS poser de question sur le budget, le financement, ou la date de démarrage — ces informations sont déjà collectées séparément en amont
+3. Si la localisation (ville, code postal, département) N'EST PAS mentionnée dans la description : ajouter une question id="code_postal", type="text", label="Dans quelle ville ou quel code postal se situe le chantier ?", placeholder="Ex: Paris, Lyon, 33000, 69001..."
+4. Prioriser par impact : surface/dimensions > type exact de travaux > matériaux/gamme > localisation
+5. Chaque type "single_choice" ou "text_or_choice" : toujours inclure "Je ne sais pas encore" comme DERNIÈRE option
+6. type "text" : pour localisation libre, dimensions libres (sans liste de choix, placeholder obligatoire)
+7. type "single_choice" : choix exclusifs (2-4 options + "Je ne sais pas encore")
+8. type "text_or_choice" : options prédéfinies ET possibilité de texte libre (2-3 options + "Je ne sais pas encore")
+9. Langage simple, rassurant, non-technique — pour des particuliers non-experts
+10. Maximum 4 options dans choices avant "Je ne sais pas encore"
+11. ids uniques en snake_case descriptif (ex: piscine_surface, terrasse_materiau, code_postal)
+12. Ne pas poser de question sur un élément déjà mentionné dans la description
 `;
 
 serve(async (req: Request) => {
@@ -128,7 +129,7 @@ serve(async (req: Request) => {
     );
   }
 
-  const questions = (parsed.followUpQuestions ?? []).slice(0, 5);
+  const questions = (parsed.followUpQuestions ?? []).slice(0, 4);
   return new Response(
     JSON.stringify({ questions }),
     { status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } },
