@@ -10,6 +10,8 @@ interface DashboardChantierProps {
   chantierId: string | null;
   onAmeliorer: () => void;
   onNouveau: () => void;
+  /** Appelé après toggle local pour persister en DB. Ne plante pas l'UI si absent ou en erreur. */
+  onToggleTache?: (todoId: string, done: boolean) => void;
 }
 
 const SIDEBAR_LINKS = [
@@ -43,12 +45,18 @@ const PRIORITE_DOTS: Record<string, string> = {
   normal: 'bg-slate-600',
 };
 
-export default function DashboardChantier({ result, chantierId, onAmeliorer, onNouveau }: DashboardChantierProps) {
+export default function DashboardChantier({ result, chantierId, onAmeliorer, onNouveau, onToggleTache }: DashboardChantierProps) {
   const [activeSection, setActiveSection] = useState('apercu');
   const [taches, setTaches] = useState<TacheIA[]>(result.taches ?? []);
 
   const toggleTache = (idx: number) => {
+    // Mise à jour locale immédiate — ne dépend pas de la persistance
     setTaches((prev) => prev.map((t, i) => (i === idx ? { ...t, done: !t.done } : t)));
+    // Persistance optionnelle via prop — uniquement si la tâche a un UUID DB
+    const tache = taches[idx];
+    if (tache?.id && onToggleTache) {
+      onToggleTache(tache.id, !tache.done);
+    }
   };
 
   const budgetTotal = result.budgetTotal || 1;

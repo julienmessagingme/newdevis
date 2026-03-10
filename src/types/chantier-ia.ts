@@ -23,6 +23,7 @@ export interface EtapeRoadmap {
 }
 
 export interface TacheIA {
+  id?: string; // UUID from todo_chantier when loaded from DB
   titre: string;
   priorite: PrioriteTache;
   done: boolean;

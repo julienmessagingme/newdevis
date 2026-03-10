@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Pencil, Plus, X, Check, ExternalLink } from "lucide-react";
+import { Pencil, Plus, X, Check, ExternalLink, Sparkles } from "lucide-react";
 import {
   type ChantierDashboard,
   type DevisRattache,
@@ -362,6 +362,18 @@ export default function ChantierCard({
             )}
           </div>
         )}
+      </div>
+
+      {/* ── Lien plan IA ── */}
+      <div className="mt-3 pt-3 border-t border-white/5">
+        <a
+          href={`/mon-chantier/${chantier.id}`}
+          className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 text-xs font-medium transition-colors group/plan"
+        >
+          <Sparkles className="h-3.5 w-3.5 shrink-0" />
+          <span className="flex-1">Voir le plan IA</span>
+          <ExternalLink className="h-3 w-3 opacity-0 group-hover/plan:opacity-100 transition-opacity shrink-0" />
+        </a>
       </div>
 
       {/* ── Timeline des phases ── */}
