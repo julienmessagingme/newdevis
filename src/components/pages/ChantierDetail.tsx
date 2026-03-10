@@ -25,6 +25,7 @@ export default function ChantierDetail() {
   const [result, setResult] = useState<ChantierIAResult | null>(null);
   const [chantierId, setChantierId] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // false = chantier manuel sans plan IA détaillé
@@ -45,12 +46,14 @@ export default function ChantierDetail() {
     }
 
     (async () => {
-      const t = await getToken();
+      const { data: { session } } = await supabase.auth.getSession();
+      const t = session?.access_token ?? null;
       if (!t) {
         window.location.href = `/connexion?redirect=/mon-chantier/${id}`;
         return;
       }
       setToken(t);
+      setUserId(session!.user.id);
 
       let res: Response;
       try {
@@ -222,6 +225,8 @@ export default function ChantierDetail() {
         onNouveau={() => { window.location.href = '/mon-chantier/nouveau'; }}
         onToggleTache={handleToggleTache}
         onLotStatutChange={handleLotStatutChange}
+        token={token}
+        userId={userId}
       />
     </>
   );

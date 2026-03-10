@@ -6,6 +6,28 @@ export type TypeProjet =
 export type Financement = 'apport' | 'credit' | 'mixte';
 export type PrioriteTache = 'urgent' | 'important' | 'normal';
 export type StatutArtisan = 'a_trouver' | 'a_contacter' | 'ok';
+export type DocumentType =
+  | 'devis' | 'facture' | 'photo'
+  | 'plan' | 'autorisation' | 'assurance' | 'autre';
+
+export interface DocumentChantier {
+  id: string;
+  chantier_id: string;
+  lot_id: string | null;
+  /** Terrain lot 6 : lien vers l'analyse créée depuis ce document */
+  analyse_id: string | null;
+  document_type: DocumentType;
+  source: string;
+  nom: string;
+  nom_fichier: string;
+  bucket_path: string;
+  taille_octets: number | null;
+  mime_type: string | null;
+  created_at: string;
+  updated_at: string;
+  /** URL signée (TTL 1h) — injectée côté serveur au moment du listing */
+  signedUrl?: string | null;
+}
 
 /** Un lot de travaux persisté dans lots_chantier.
  *  Si id commence par 'fallback-', le lot est dérivé de meta.artisans (lecture seule). */

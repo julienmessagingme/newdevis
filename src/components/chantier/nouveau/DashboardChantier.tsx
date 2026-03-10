@@ -2,9 +2,10 @@ import { useState } from 'react';
 import {
   LayoutDashboard, Route, FileText, CheckSquare,
   Wand2, Plus, ExternalLink, ChevronRight, AlertCircle,
-  TrendingUp, Layers, AlertTriangle, Wallet,
+  TrendingUp, Layers, AlertTriangle, Wallet, FolderOpen,
 } from 'lucide-react';
 import type { ChantierIAResult, LotChantier, TacheIA, StatutArtisan } from '@/types/chantier-ia';
+import DocumentsSection from '@/components/chantier/nouveau/DocumentsSection';
 
 interface DashboardChantierProps {
   result: ChantierIAResult;
@@ -15,6 +16,10 @@ interface DashboardChantierProps {
   onToggleTache?: (todoId: string, done: boolean) => void;
   /** Appelé après changement statut lot pour persister en DB. No-op si lot fallback. */
   onLotStatutChange?: (lotId: string, statut: StatutArtisan) => void;
+  /** Token JWT de l'utilisateur — passé à DocumentsSection pour upload direct Storage. */
+  token?: string | null;
+  /** userId de l'utilisateur — passé à DocumentsSection pour le chemin bucket. */
+  userId?: string | null;
 }
 
 const SIDEBAR_LINKS = [
@@ -22,6 +27,7 @@ const SIDEBAR_LINKS = [
   { id: 'alertes',    label: 'Alertes',     icon: AlertTriangle   },
   { id: 'budget',     label: 'Budget',      icon: Wallet          },
   { id: 'lots',       label: 'Lots',        icon: Layers          },
+  { id: 'documents',  label: 'Documents',   icon: FolderOpen      },
   { id: 'roadmap',    label: 'Planning',    icon: Route           },
   { id: 'formalites', label: 'Formalités',  icon: FileText        },
   { id: 'checklist',  label: 'Checklist',   icon: CheckSquare     },
@@ -56,6 +62,8 @@ export default function DashboardChantier({
   onNouveau,
   onToggleTache,
   onLotStatutChange,
+  token,
+  userId,
 }: DashboardChantierProps) {
   const [activeSection, setActiveSection] = useState('apercu');
   const [taches, setTaches] = useState<TacheIA[]>(result.taches ?? []);
@@ -457,6 +465,16 @@ export default function DashboardChantier({
                 })}
               </div>
             )}
+          </section>
+
+          {/* ── ⑥ DOCUMENTS ── */}
+          <section id="section-documents">
+            <DocumentsSection
+              chantierId={chantierId ?? ''}
+              userId={userId ?? ''}
+              token={token ?? ''}
+              lots={result.lots ?? []}
+            />
           </section>
 
           {/* ── PLANNING / ROADMAP ── */}
