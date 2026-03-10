@@ -121,3 +121,25 @@ export type SseEvent =
   | { type: 'progress'; pct: number }
   | { type: 'result'; data: ChantierIAResult }
   | { type: 'error'; message: string };
+
+// ── Qualification flow ─────────────────────────────────────────────────────────
+
+export type QuestionType = 'text' | 'single_choice' | 'text_or_choice';
+
+export interface FollowUpQuestion {
+  id: string;
+  label: string;
+  type: QuestionType;
+  placeholder?: string;
+  choices?: string[];
+  required: boolean;
+  reason: string;
+}
+
+export interface LocationContext {
+  postalCode: string;
+  cityName?: string;
+  department?: string;
+  urbanZoneType?: 'petite_ville' | 'ville_moyenne' | 'grande_ville';
+  pricingCoefficient?: number;
+}

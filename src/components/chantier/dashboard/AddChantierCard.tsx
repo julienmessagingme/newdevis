@@ -1,7 +1,6 @@
 import { Plus, Sparkles } from "lucide-react";
 
 interface AddChantierCardProps {
-  onClick?: () => void;
   delay?: number;
 }
 

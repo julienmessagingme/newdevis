@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
@@ -87,10 +88,69 @@ Règles métier France 2026 :
 - Lignes budget : 3 à 5 postes avec des couleurs distinctes
 - mensualite : calculer si financement=credit ou mixte (taux 4.5% sur dureeCredit mois)
 - Pour financement=apport : omettre mensualite et dureeCredit
+- Si des précisions client sont fournies (surfaces, matériaux, dimensions), les utiliser directement
+- Si un coefficient de zone géographique est fourni : grande_ville +15-25%, petite_ville -10-15%, ville_moyenne = base
+- Ne jamais inventer la localisation — utiliser uniquement les données fournies
 `;
 
 // deno-lint-ignore no-explicit-any
-type BodyType = { description?: string; mode?: string; guidedForm?: Record<string, any> };
+type BodyType = {
+  description?: string;
+  mode?: string;
+  // deno-lint-ignore no-explicit-any
+  guidedForm?: Record<string, any>;
+  qualificationAnswers?: Record<string, string>;
+};
+
+/** Extrait un code postal 5 chiffres depuis les réponses de qualification */
+function findPostalCode(answers: Record<string, string>): string | undefined {
+  const direct = answers["code_postal"]?.trim();
+  if (direct && /^\d{5}$/.test(direct)) return direct;
+  for (const val of Object.values(answers)) {
+    const match = val?.match(/\b\d{5}\b/);
+    if (match) return match[0];
+  }
+  return undefined;
+}
+
+/** Récupère le contexte géographique depuis Supabase + geo.api.gouv.fr */
+async function getLocationContext(postalCode: string, supabaseUrl: string, serviceKey: string) {
+  let urbanZoneType = "ville_moyenne";
+  let pricingCoefficient = 1.0;
+  let cityName: string | undefined;
+
+  try {
+    const client = createClient(supabaseUrl, serviceKey);
+    const prefix = postalCode.slice(0, 2);
+    const { data } = await client
+      .from("zones_geographiques")
+      .select("type_zone, coefficient")
+      .eq("prefixe_postal", prefix)
+      .single();
+    if (data) {
+      urbanZoneType = data.type_zone ?? "ville_moyenne";
+      pricingCoefficient = data.coefficient ?? 1.0;
+    }
+  } catch { /* ignore */ }
+
+  try {
+    const geoResp = await fetch(
+      `https://geo.api.gouv.fr/communes?codePostal=${postalCode}&fields=nom,population&format=json`,
+      { signal: AbortSignal.timeout(3000) },
+    );
+    if (geoResp.ok) {
+      // deno-lint-ignore no-explicit-any
+      const communes: any[] = await geoResp.json();
+      const sorted = (communes ?? []).sort(
+        // deno-lint-ignore no-explicit-any
+        (a: any, b: any) => (b.population ?? 0) - (a.population ?? 0),
+      );
+      cityName = sorted[0]?.nom;
+    }
+  } catch { /* ignore */ }
+
+  return { postalCode, cityName, urbanZoneType, pricingCoefficient };
+}
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -98,6 +158,9 @@ serve(async (req: Request) => {
   }
 
   const googleApiKey = Deno.env.get("GOOGLE_AI_API_KEY");
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
   if (!googleApiKey) {
     return new Response(
       JSON.stringify({ error: "Clé API Google AI non configurée" }),
@@ -115,7 +178,7 @@ serve(async (req: Request) => {
     );
   }
 
-  const { description, mode, guidedForm } = body;
+  const { description, mode, guidedForm, qualificationAnswers } = body;
 
   // Build prompt
   let prompt = description ?? "";
@@ -137,6 +200,32 @@ serve(async (req: Request) => {
       JSON.stringify({ error: "Description du projet requise" }),
       { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } },
     );
+  }
+
+  // Enrichir le prompt avec les réponses de qualification
+  if (qualificationAnswers && Object.keys(qualificationAnswers).length > 0) {
+    const relevantAnswers = Object.entries(qualificationAnswers).filter(
+      ([, v]) => v && v.trim() && v !== "Je ne sais pas encore",
+    );
+    if (relevantAnswers.length > 0) {
+      prompt += "\n\nPrécisions apportées par le client :\n";
+      prompt += relevantAnswers
+        .map(([k, v]) => `- ${k.replace(/_/g, " ")}: ${v}`)
+        .join("\n");
+    }
+
+    // Enrichissement géographique si code postal détecté
+    const postalCode = findPostalCode(qualificationAnswers);
+    if (postalCode && supabaseUrl && supabaseServiceKey) {
+      try {
+        const locationCtx = await getLocationContext(postalCode, supabaseUrl, supabaseServiceKey);
+        const cityLabel = locationCtx.cityName
+          ? `${locationCtx.cityName} (${postalCode})`
+          : postalCode;
+        prompt += `\n\nLocalisation du chantier : ${cityLabel}`;
+        prompt += `\nZone géographique : ${locationCtx.urbanZoneType} (coefficient de prix : ${locationCtx.pricingCoefficient})`;
+      } catch { /* enrichissement non bloquant */ }
+    }
   }
 
   // Call Gemini 2.0 flash

@@ -1,5 +1,8 @@
 project_id = "vhrhgsqxwvouswjaiczn"
 
+[functions.chantier-qualifier]
+verify_jwt = false
+
 [functions.analyze-attestation]
 verify_jwt = false
 

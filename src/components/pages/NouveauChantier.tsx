@@ -6,14 +6,15 @@ import ScreenGenerating from '@/components/chantier/nouveau/ScreenGenerating';
 import ScreenWow from '@/components/chantier/nouveau/ScreenWow';
 import DashboardChantier from '@/components/chantier/nouveau/DashboardChantier';
 import ScreenAmeliorations from '@/components/chantier/nouveau/ScreenAmeliorations';
-import type { ChantierIAResult, ChantierGuideForm } from '@/types/chantier-ia';
+import ScreenQualification from '@/components/chantier/nouveau/ScreenQualification';
+import type { ChantierIAResult, ChantierGuideForm, FollowUpQuestion } from '@/types/chantier-ia';
 
 const supabase = createClient(
   import.meta.env.PUBLIC_SUPABASE_URL,
   import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY,
 );
 
-type Ecran = 'prompt' | 'generating' | 'wow' | 'dashboard' | 'ameliorer';
+type Ecran = 'prompt' | 'qualification' | 'generating' | 'wow' | 'dashboard' | 'ameliorer';
 
 export default function NouveauChantier() {
   const [ecran, setEcran] = useState<Ecran>('prompt');
@@ -22,6 +23,11 @@ export default function NouveauChantier() {
   const [requestBody, setRequestBody] = useState('');
   const startTimeRef = useRef<number>(0);
   const [tempsMs, setTempsMs] = useState(0);
+
+  // Qualification state
+  const [isQualifying, setIsQualifying] = useState(false);
+  const [qualificationQuestions, setQualificationQuestions] = useState<FollowUpQuestion[]>([]);
+  const [currentDescription, setCurrentDescription] = useState('');
 
   const getToken = useCallback(async (): Promise<string | null> => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -37,12 +43,81 @@ export default function NouveauChantier() {
         return;
       }
 
+      // Mode guidé : skip qualification (données structurées déjà collectées)
+      if (mode === 'guide') {
+        startTimeRef.current = Date.now();
+        const body = JSON.stringify({ description, mode, guidedForm });
+        setRequestBody(body);
+        setEcran('generating');
+        return;
+      }
+
+      // Mode libre : appel qualifier pour générer des questions contextuelles
+      setIsQualifying(true);
+      try {
+        const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+        const res = await fetch(`${supabaseUrl}/functions/v1/chantier-qualifier`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            apikey: supabaseAnonKey,
+          },
+          body: JSON.stringify({ description }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const questions: FollowUpQuestion[] = data.questions ?? [];
+
+          if (questions.length > 0) {
+            setCurrentDescription(description);
+            setQualificationQuestions(questions);
+            setEcran('qualification');
+          } else {
+            // Aucune question → génération directe
+            startTimeRef.current = Date.now();
+            setRequestBody(JSON.stringify({ description, mode }));
+            setEcran('generating');
+          }
+        } else {
+          // Erreur qualifier → génération directe sans blocage
+          startTimeRef.current = Date.now();
+          setRequestBody(JSON.stringify({ description, mode }));
+          setEcran('generating');
+        }
+      } catch {
+        // Erreur réseau → génération directe
+        startTimeRef.current = Date.now();
+        setRequestBody(JSON.stringify({ description, mode }));
+        setEcran('generating');
+      } finally {
+        setIsQualifying(false);
+      }
+    },
+    [getToken],
+  );
+
+  const handleQualificationSubmit = useCallback(
+    async (answers: Record<string, string>) => {
+      const token = await getToken();
+      if (!token) {
+        toast.error('Session expirée, veuillez vous reconnecter');
+        window.location.href = '/connexion?redirect=/mon-chantier/nouveau';
+        return;
+      }
+
       startTimeRef.current = Date.now();
-      const body = JSON.stringify({ description, mode, guidedForm });
+      const body = JSON.stringify({
+        description: currentDescription,
+        mode: 'libre',
+        qualificationAnswers: answers,
+      });
       setRequestBody(body);
       setEcran('generating');
     },
-    [getToken],
+    [getToken, currentDescription],
   );
 
   const handleResult = useCallback(
@@ -82,7 +157,18 @@ export default function NouveauChantier() {
 
   // ── Rendu selon l'écran actif ──
   if (ecran === 'prompt') {
-    return <ScreenPrompt onGenerate={handleGenerate} />;
+    return <ScreenPrompt onGenerate={handleGenerate} isLoading={isQualifying} />;
+  }
+
+  if (ecran === 'qualification') {
+    return (
+      <ScreenQualification
+        questions={qualificationQuestions}
+        description={currentDescription}
+        onSubmit={handleQualificationSubmit}
+        onBack={() => setEcran('prompt')}
+      />
+    );
   }
 
   if (ecran === 'generating') {
@@ -131,7 +217,7 @@ export default function NouveauChantier() {
   }
 
   // Fallback — retour au prompt
-  return <ScreenPrompt onGenerate={handleGenerate} />;
+  return <ScreenPrompt onGenerate={handleGenerate} isLoading={isQualifying} />;
 }
 
 // ── Helpers pour résoudre le token de façon async ──

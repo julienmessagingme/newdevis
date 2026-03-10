@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Sparkles, ChevronRight, ChevronLeft, Wand2 } from 'lucide-react';
+import { Sparkles, ChevronRight, ChevronLeft, Wand2, Loader2 } from 'lucide-react';
 import type { ChantierGuideForm, TypeProjet, Financement } from '@/types/chantier-ia';
 
 interface ScreenPromptProps {
   onGenerate: (description: string, mode: 'libre' | 'guide', guidedForm?: ChantierGuideForm) => void;
+  isLoading?: boolean;
 }
 
 const EXEMPLES = [
@@ -49,7 +50,7 @@ const FINANCEMENTS: { key: Financement; label: string; icon: string; desc: strin
 
 const DUREES_CREDIT = ['12 mois', '24 mois', '36 mois', '48 mois', '60 mois', '84 mois', '120 mois'];
 
-export default function ScreenPrompt({ onGenerate }: ScreenPromptProps) {
+export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPromptProps) {
   const [mode, setMode] = useState<'libre' | 'guide'>('libre');
   const [description, setDescription] = useState('');
   const [step, setStep] = useState(0); // étape wizard (0-3)
@@ -90,7 +91,7 @@ export default function ScreenPrompt({ onGenerate }: ScreenPromptProps) {
       <div className="text-center mb-8 animate-fade-up">
         <div className="inline-flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 rounded-full px-4 py-1.5 text-blue-300 text-sm font-medium mb-4">
           <Sparkles className="h-3.5 w-3.5" />
-          Propulsé par Claude AI
+          Propulsé par Gemini AI
         </div>
         <h1 className="text-3xl sm:text-4xl font-display font-bold text-white mb-3">
           Créer mon chantier IA
@@ -132,10 +133,13 @@ export default function ScreenPrompt({ onGenerate }: ScreenPromptProps) {
               <span className="text-xs text-slate-600">{description.length}/500</span>
               <button
                 onClick={handleSubmitLibre}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-all"
+                disabled={isLoading}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-all"
               >
-                <Wand2 className="h-4 w-4" />
-                Créer mon chantier
+                {isLoading
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <Wand2 className="h-4 w-4" />}
+                {isLoading ? 'Analyse en cours…' : 'Créer mon chantier'}
               </button>
             </div>
           </div>
@@ -357,11 +361,13 @@ export default function ScreenPrompt({ onGenerate }: ScreenPromptProps) {
               ) : (
                 <button
                   onClick={handleSubmitGuide}
-                  disabled={!canNextStep()}
+                  disabled={!canNextStep() || isLoading}
                   className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-all"
                 >
-                  <Wand2 className="h-4 w-4" />
-                  Créer mon chantier
+                  {isLoading
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <Wand2 className="h-4 w-4" />}
+                  {isLoading ? 'Analyse en cours…' : 'Créer mon chantier'}
                 </button>
               )}
             </div>

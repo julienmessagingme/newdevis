@@ -371,7 +371,6 @@ function DashboardTab({
             />
           ))}
           <AddChantierCard
-            onClick={() => setShowCreateModal(true)}
             delay={0.2 + chantiersDashboard.length * 0.05}
           />
         </div>
