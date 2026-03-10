@@ -136,11 +136,11 @@ export const GET: APIRoute = async ({ params, request }) => {
   const aides = Array.isArray(meta.aides) ? meta.aides : [];
   const hasRichData = artisans.length > 0 || roadmap.length > 0 || formalites.length > 0;
 
-  // Fallback si metadonnees vide ou corrompu
+  // Fallback si metadonnees vide ou corrompu — isPlanComplet:false signale au frontend
   if (!hasRichData) {
     const result = buildFallbackResult(chantier as Record<string, unknown>, taches);
     return new Response(
-      JSON.stringify({ result, phase: chantier.phase }),
+      JSON.stringify({ result, phase: chantier.phase, isPlanComplet: false }),
       { status: 200, headers: CORS },
     );
   }
@@ -187,8 +187,25 @@ export const GET: APIRoute = async ({ params, request }) => {
     taches,
   };
 
+  // Règle explicite et stable :
+  // • roadmap non vide (colonne vertébrale du plan IA)
+  // • ET au moins un des suivants exploitable : artisans, formalites, lignesBudget, prochaineAction
+  const isPlanComplet =
+    roadmap.length > 0 &&
+    (
+      artisans.length > 0 ||
+      formalites.length > 0 ||
+      (Array.isArray(meta.lignesBudget) && meta.lignesBudget.length > 0) ||
+      (
+        meta.prochaineAction != null &&
+        typeof meta.prochaineAction === 'object' &&
+        typeof meta.prochaineAction.titre === 'string' &&
+        meta.prochaineAction.titre.length > 0
+      )
+    );
+
   return new Response(
-    JSON.stringify({ result, phase: chantier.phase }),
+    JSON.stringify({ result, phase: chantier.phase, isPlanComplet }),
     { status: 200, headers: CORS },
   );
 };

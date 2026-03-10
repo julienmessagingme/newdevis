@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Loader2, AlertCircle, ArrowLeft, Info, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import DashboardChantier from '@/components/chantier/nouveau/DashboardChantier';
 import ScreenAmeliorations from '@/components/chantier/nouveau/ScreenAmeliorations';
@@ -27,6 +27,8 @@ export default function ChantierDetail() {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // false = chantier manuel sans plan IA détaillé
+  const [isPlanComplet, setIsPlanComplet] = useState(true);
 
   const getToken = useCallback(async (): Promise<string | null> => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -37,7 +39,7 @@ export default function ChantierDetail() {
     const id = extractIdFromPath();
 
     if (!id) {
-      setError('Identifiant de chantier manquant dans l'URL.');
+      setError('Identifiant de chantier manquant dans l\'URL.');
       setLoading(false);
       return;
     }
@@ -75,6 +77,7 @@ export default function ChantierDetail() {
 
       const data = await res.json();
       setResult(data.result ?? null);
+      setIsPlanComplet(data.isPlanComplet !== false); // false explicite uniquement
       setChantierId(id);
       setLoading(false);
     })();
@@ -102,12 +105,11 @@ export default function ChantierDetail() {
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         console.error('[ChantierDetail] PATCH todo failed:', err?.error ?? res.status);
-        // Toast discret — l'état local est déjà mis à jour, on informe seulement
-        toast.error('La tâche n'a pas pu être sauvegardée', { duration: 2500 });
+        toast.error('La tâche n\'a pas pu être sauvegardée', { duration: 2500 });
       }
     } catch (e) {
       console.error('[ChantierDetail] PATCH todo network error:', e instanceof Error ? e.message : String(e));
-      toast.error('La tâche n'a pas pu être sauvegardée', { duration: 2500 });
+      toast.error('La tâche n\'a pas pu être sauvegardée', { duration: 2500 });
     }
     // L'état local dans DashboardChantier est déjà mis à jour avant cet appel —
     // une erreur ici ne le révertit pas : UX reste cohérente
@@ -160,12 +162,33 @@ export default function ChantierDetail() {
   // ── Dashboard principal ─────────────────────────────────────────────────────
 
   return (
-    <DashboardChantier
-      result={result}
-      chantierId={chantierId}
-      onAmeliorer={() => setScreen('ameliorer')}
-      onNouveau={() => { window.location.href = '/mon-chantier/nouveau'; }}
-      onToggleTache={handleToggleTache}
-    />
+    <>
+      {/* Banner discret — visible uniquement pour les chantiers sans plan IA détaillé */}
+      {!isPlanComplet && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-[#0d1525]/95 backdrop-blur-sm border-b border-white/[0.07] px-4 py-2.5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <Info className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+            <p className="text-xs text-slate-400 truncate">
+              Ce chantier n'a pas de plan IA — seules les informations de base sont disponibles.
+            </p>
+          </div>
+          <a
+            href="/mon-chantier/nouveau"
+            className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 font-medium whitespace-nowrap transition-colors shrink-0"
+          >
+            <Sparkles className="h-3 w-3" />
+            Créer un plan IA
+          </a>
+        </div>
+      )}
+
+      <DashboardChantier
+        result={result}
+        chantierId={chantierId}
+        onAmeliorer={() => setScreen('ameliorer')}
+        onNouveau={() => { window.location.href = '/mon-chantier/nouveau'; }}
+        onToggleTache={handleToggleTache}
+      />
+    </>
   );
 }

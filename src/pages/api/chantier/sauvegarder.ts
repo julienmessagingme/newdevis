@@ -37,7 +37,19 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const { artisans, aides, formalites, roadmap, taches, ...rest } = result;
-  const metadonnees = JSON.stringify({ artisans, roadmap, formalites, aides });
+  const metadonnees = JSON.stringify({
+    // Tableaux (lot 1)
+    artisans,
+    roadmap,
+    formalites,
+    aides,
+    // Champs scalaires manquants — lot 2
+    lignesBudget:      result.lignesBudget       ?? [],
+    prochaineAction:   result.prochaineAction,
+    description:       result.description        ?? '',
+    dureeEstimeeMois:  result.dureeEstimeeMois    ?? 0,
+    financement:       result.financement         ?? 'apport',
+  });
 
   // Créer le chantier
   const { data: chantier, error: insertError } = await supabase
