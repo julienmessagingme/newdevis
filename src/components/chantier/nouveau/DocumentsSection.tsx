@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
   Upload, Trash2, Download, X, Loader2,
-  Sparkles, AlertCircle, FolderOpen,
+  Sparkles, AlertCircle, FolderOpen, ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { DocumentChantier, DocumentType, LotChantier } from '@/types/chantier-ia';
@@ -82,6 +82,8 @@ export default function DocumentsSection({ chantierId, userId, token, lots }: Pr
   const [isDragging, setIsDragging]         = useState(false);
   const [confirmDeleteId, setConfirmDelete] = useState<string | null>(null);
   const [deleting, setDeleting]             = useState(false);
+  // Lot 6 : lance l'analyse depuis Mon Chantier — verrouille le bouton pendant le lancement
+  const [analyzingId, setAnalyzingId]       = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -241,6 +243,48 @@ export default function DocumentsSection({ chantierId, userId, token, lots }: Pr
       if (data.signedUrl) window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
     } catch {
       toast.error('Impossible de télécharger le document', { duration: 2500 });
+    }
+  };
+
+  // ── Analyser un devis (lot 6) ─────────────────────────────────────────────
+  // Lance le pipeline analyze-quote via l'API route dédiée.
+  // Idempotent côté API (409 si analyse_id déjà défini).
+  // Rollback complet côté serveur si une étape intermédiaire échoue.
+
+  const handleAnalyser = async (doc: DocumentChantier) => {
+    setAnalyzingId(doc.id);
+    try {
+      const res = await fetch(`/api/chantier/${chantierId}/documents/${doc.id}/analyser`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.status === 409) {
+        // Analyse déjà lancée (race condition ou double clic) → redirige vers l'existante
+        const data = await res.json().catch(() => ({}));
+        const existingId = (data as { analysisId?: string }).analysisId;
+        if (existingId) {
+          window.location.href = `/analyse/${existingId}`;
+          return;
+        }
+      }
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      const { analysisId } = data as { analysisId: string };
+
+      // Mise à jour locale immédiate pour afficher le badge "Voir l'analyse"
+      setDocs((prev) => prev.map((d) => d.id === doc.id ? { ...d, analyse_id: analysisId } : d));
+
+      window.location.href = `/analyse/${analysisId}`;
+    } catch (e) {
+      console.error('[DocumentsSection] analyser error:', e instanceof Error ? e.message : String(e));
+      toast.error("Erreur lors du lancement de l'analyse", { duration: 3000 });
+      setAnalyzingId(null); // Réactive le bouton — on ne reset pas en cas de redirect
     }
   };
 
@@ -436,15 +480,34 @@ export default function DocumentsSection({ chantierId, userId, token, lots }: Pr
                       </div>
                     )}
 
-                    {/* CTA analyse devis — terrain lot 6 (passera documentId en query param) */}
+                    {/* CTA analyse devis — lot 6
+                        3 états : à lancer / en cours / déjà analysé */}
                     {doc.document_type === 'devis' && (
-                      <a
-                        href="/nouvelle-analyse"
-                        className="mt-2 inline-flex items-center gap-1.5 text-xs bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-blue-300 rounded-lg px-2.5 py-1.5 font-medium transition-all"
-                      >
-                        <Sparkles className="h-3 w-3" />
-                        Analyser ce devis
-                      </a>
+                      doc.analyse_id ? (
+                        // État : analyse existante — lien vers le résultat
+                        <a
+                          href={`/analyse/${doc.analyse_id}`}
+                          className="mt-2 inline-flex items-center gap-1.5 text-xs bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-300 rounded-lg px-2.5 py-1.5 font-medium transition-all"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Voir l'analyse
+                        </a>
+                      ) : analyzingId === doc.id ? (
+                        // État : lancement en cours — bouton désactivé
+                        <span className="mt-2 inline-flex items-center gap-1.5 text-xs bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-lg px-2.5 py-1.5 font-medium opacity-70 cursor-not-allowed">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Lancement en cours…
+                        </span>
+                      ) : (
+                        // État : pas encore analysé — bouton actif
+                        <button
+                          onClick={() => handleAnalyser(doc)}
+                          className="mt-2 inline-flex items-center gap-1.5 text-xs bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-blue-300 rounded-lg px-2.5 py-1.5 font-medium transition-all"
+                        >
+                          <Sparkles className="h-3 w-3" />
+                          Analyser ce devis
+                        </button>
+                      )
                     )}
 
                     {/* Confirmation suppression inline */}
