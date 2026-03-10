@@ -3,7 +3,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { createClient } from '@supabase/supabase-js';
 import type { UpdateChantierPayload } from '@/types/chantier-dashboard';
-import type { ChantierIAResult, TacheIA } from '@/types/chantier-ia';
+import type { ArtisanIA, ChantierIAResult, LotChantier, TacheIA } from '@/types/chantier-ia';
 
 const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -111,6 +111,17 @@ export const GET: APIRoute = async ({ params, request }) => {
     done: Boolean(t.done),
   }));
 
+  // Lots depuis lots_chantier — chargés avant le fallback check pour couvrir tous les cas
+  const { data: lotsRaw, error: lotsError } = await supabase
+    .from('lots_chantier')
+    .select('id, nom, statut, ordre, emoji, role')
+    .eq('chantier_id', chantierId)
+    .order('ordre', { ascending: true });
+
+  if (lotsError) {
+    console.error(`[api/chantier/${chantierId} GET] lots error:`, lotsError.message);
+  }
+
   // Parsing sécurisé de metadonnees — ne plante jamais
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let meta: Record<string, any> = {};
@@ -136,11 +147,31 @@ export const GET: APIRoute = async ({ params, request }) => {
   const aides = Array.isArray(meta.aides) ? meta.aides : [];
   const hasRichData = artisans.length > 0 || roadmap.length > 0 || formalites.length > 0;
 
+  // Lots : source prioritaire = lots_chantier (nouveaux chantiers)
+  // Fallback lecture seule = meta.artisans avec id 'fallback-{i}' (anciens chantiers)
+  const lots: LotChantier[] = lotsRaw && lotsRaw.length > 0
+    ? lotsRaw.map((l) => ({
+        id: l.id,
+        nom: l.nom,
+        statut: l.statut as LotChantier['statut'],
+        ordre: l.ordre,
+        emoji: l.emoji ?? undefined,
+        role: l.role ?? undefined,
+      }))
+    : (artisans as ArtisanIA[]).map((a, i) => ({
+        id: `fallback-${i}`,
+        nom: a.metier,
+        statut: a.statut as LotChantier['statut'],
+        ordre: i,
+        emoji: a.emoji,
+        role: a.role,
+      }));
+
   // Fallback si metadonnees vide ou corrompu — isPlanComplet:false signale au frontend
   if (!hasRichData) {
     const result = buildFallbackResult(chantier as Record<string, unknown>, taches);
     return new Response(
-      JSON.stringify({ result, phase: chantier.phase, isPlanComplet: false }),
+      JSON.stringify({ result: { ...result, lots }, phase: chantier.phase, isPlanComplet: false }),
       { status: 200, headers: CORS },
     );
   }
@@ -185,6 +216,8 @@ export const GET: APIRoute = async ({ params, request }) => {
     nbFormalites: formalites.length,
     // todo_chantier — source de vérité pour done
     taches,
+    // lots_chantier — source de vérité pour les lots (ou fallback meta.artisans)
+    lots,
   };
 
   // Règle explicite et stable :
@@ -211,9 +244,10 @@ export const GET: APIRoute = async ({ params, request }) => {
 };
 
 // ── PATCH /api/chantier/[id] ───────────────────────────────────────────────────
-// Deux usages selon le body :
-//   { todoId, done }     → toggle persistance d'un todo
-//   { nom?, phase?, … }  → mise à jour des métadonnées du chantier (existant)
+// Trois branches selon le body :
+//   { todoId, done }     → toggle persistance d'un todo (todo_chantier)
+//   { lotId, statut }    → mise à jour statut d'un lot (lots_chantier)
+//   { nom?, phase?, … }  → mise à jour des métadonnées du chantier
 
 export const PATCH: APIRoute = async ({ request, params }) => {
   const chantierId = params.id;
@@ -281,7 +315,49 @@ export const PATCH: APIRoute = async ({ request, params }) => {
     return new Response(JSON.stringify({ success: true }), { status: 200, headers: CORS });
   }
 
-  // ── Branche 2 : mise à jour chantier (nom, emoji, phase, enveloppePrevue) ────
+  // ── Branche 2 : mise à jour statut d'un lot ─────────────────────────────────
+  if ('lotId' in body) {
+    const { lotId, statut } = body;
+    const VALID_STATUTS = ['a_trouver', 'a_contacter', 'ok'];
+
+    if (typeof lotId !== 'string' || !lotId || !VALID_STATUTS.includes(statut)) {
+      return new Response(
+        JSON.stringify({ error: 'lotId (string) et statut valide sont requis' }),
+        { status: 400, headers: CORS },
+      );
+    }
+
+    // Vérifie ownership du chantier (même pattern que le toggle todo)
+    const { data: ownerCheck } = await supabase
+      .from('chantiers')
+      .select('id')
+      .eq('id', chantierId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (!ownerCheck) {
+      return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
+    }
+
+    // eq(chantier_id) garantit que le lot appartient bien à ce chantier
+    const { error: updateError } = await supabase
+      .from('lots_chantier')
+      .update({ statut, updated_at: new Date().toISOString() })
+      .eq('id', lotId)
+      .eq('chantier_id', chantierId);
+
+    if (updateError) {
+      console.error(`[api/chantier/${chantierId} PATCH lot] error:`, updateError.message);
+      return new Response(
+        JSON.stringify({ error: 'Erreur lors de la mise à jour du lot' }),
+        { status: 500, headers: CORS },
+      );
+    }
+
+    return new Response(JSON.stringify({ success: true }), { status: 200, headers: CORS });
+  }
+
+  // ── Branche 3 : mise à jour chantier (nom, emoji, phase, enveloppePrevue) ────
   const updatePayload = body as UpdateChantierPayload;
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
 

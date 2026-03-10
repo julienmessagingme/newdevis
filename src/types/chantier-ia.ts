@@ -7,6 +7,17 @@ export type Financement = 'apport' | 'credit' | 'mixte';
 export type PrioriteTache = 'urgent' | 'important' | 'normal';
 export type StatutArtisan = 'a_trouver' | 'a_contacter' | 'ok';
 
+/** Un lot de travaux persisté dans lots_chantier.
+ *  Si id commence par 'fallback-', le lot est dérivé de meta.artisans (lecture seule). */
+export interface LotChantier {
+  id: string;          // UUID DB, ou 'fallback-{i}' pour anciens chantiers
+  nom: string;
+  statut: StatutArtisan;
+  ordre: number;
+  emoji?: string;
+  role?: string;
+}
+
 export interface LigneBudgetIA {
   label: string;
   montant: number;
@@ -85,6 +96,8 @@ export interface ChantierIAResult {
     detail: string;
     deadline?: string;
   };
+  // Lots de travaux (lots_chantier si disponibles, sinon fallback read-only depuis artisans)
+  lots?: LotChantier[];
   // Métadonnées
   generatedAt: string;
   promptOriginal: string;

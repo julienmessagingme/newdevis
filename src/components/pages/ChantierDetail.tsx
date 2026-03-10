@@ -4,7 +4,7 @@ import { Loader2, AlertCircle, ArrowLeft, Info, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import DashboardChantier from '@/components/chantier/nouveau/DashboardChantier';
 import ScreenAmeliorations from '@/components/chantier/nouveau/ScreenAmeliorations';
-import type { ChantierIAResult } from '@/types/chantier-ia';
+import type { ChantierIAResult, StatutArtisan } from '@/types/chantier-ia';
 
 const supabase = createClient(
   import.meta.env.PUBLIC_SUPABASE_URL,
@@ -115,6 +115,39 @@ export default function ChantierDetail() {
     // une erreur ici ne le révertit pas : UX reste cohérente
   }, [token, chantierId, getToken]);
 
+  /** Persiste le statut d'un lot en DB — fire and forget, même pattern que handleToggleTache.
+   *  Si lotId commence par 'fallback-', le lot est read-only (ancien chantier) : no-op. */
+  const handleLotStatutChange = useCallback(async (lotId: string, statut: StatutArtisan) => {
+    if (lotId.startsWith('fallback-')) return; // lot dérivé de meta.artisans, pas persistable
+
+    const id = chantierId;
+    if (!id) return;
+
+    const t = token ?? await getToken();
+    if (!t) return;
+
+    try {
+      const res = await fetch(`/api/chantier/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${t}`,
+        },
+        body: JSON.stringify({ lotId, statut }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error('[ChantierDetail] PATCH lot failed:', err?.error ?? res.status);
+        toast.error("Le statut n'a pas pu être sauvegardé", { duration: 2500 });
+      }
+    } catch (e) {
+      console.error('[ChantierDetail] PATCH lot error:', e instanceof Error ? e.message : String(e));
+      toast.error("Le statut n'a pas pu être sauvegardé", { duration: 2500 });
+    }
+    // L'état local dans DashboardChantier est déjà mis à jour avant cet appel
+  }, [token, chantierId, getToken]);
+
   const handleUpdate = useCallback((updated: ChantierIAResult) => {
     setResult(updated);
   }, []);
@@ -188,6 +221,7 @@ export default function ChantierDetail() {
         onAmeliorer={() => setScreen('ameliorer')}
         onNouveau={() => { window.location.href = '/mon-chantier/nouveau'; }}
         onToggleTache={handleToggleTache}
+        onLotStatutChange={handleLotStatutChange}
       />
     </>
   );

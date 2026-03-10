@@ -4,7 +4,7 @@ import {
   Wand2, Plus, ExternalLink, ChevronRight, AlertCircle,
   TrendingUp, Layers, AlertTriangle, Wallet,
 } from 'lucide-react';
-import type { ChantierIAResult, TacheIA, StatutArtisan } from '@/types/chantier-ia';
+import type { ChantierIAResult, LotChantier, TacheIA, StatutArtisan } from '@/types/chantier-ia';
 
 interface DashboardChantierProps {
   result: ChantierIAResult;
@@ -13,6 +13,8 @@ interface DashboardChantierProps {
   onNouveau: () => void;
   /** Appelé après toggle local pour persister en DB. Ne plante pas l'UI si absent ou en erreur. */
   onToggleTache?: (todoId: string, done: boolean) => void;
+  /** Appelé après changement statut lot pour persister en DB. No-op si lot fallback. */
+  onLotStatutChange?: (lotId: string, statut: StatutArtisan) => void;
 }
 
 const SIDEBAR_LINKS = [
@@ -53,11 +55,14 @@ export default function DashboardChantier({
   onAmeliorer,
   onNouveau,
   onToggleTache,
+  onLotStatutChange,
 }: DashboardChantierProps) {
   const [activeSection, setActiveSection] = useState('apercu');
   const [taches, setTaches] = useState<TacheIA[]>(result.taches ?? []);
-  const [artisanStatuts, setArtisanStatuts] = useState<Record<number, StatutArtisan>>(
-    () => Object.fromEntries((result.artisans ?? []).map((a, i) => [i, a.statut as StatutArtisan])),
+  // lotStatuts : état local indexé par lot.id (UUID ou 'fallback-{i}')
+  // Initialisé depuis result.lots, recalculé si result change (source de vérité : DB)
+  const [lotStatuts, setLotStatuts] = useState<Record<string, StatutArtisan>>(
+    () => Object.fromEntries((result.lots ?? []).map((l) => [l.id, l.statut])),
   );
 
   const toggleTache = (idx: number) => {
@@ -93,11 +98,14 @@ export default function DashboardChantier({
     .filter((t) => !t.done && t.priorite === 'urgent')
     .forEach((t) => alertes.push({ emoji: '🔴', label: t.titre, section: 'checklist' }));
 
-  const nbATrouver = (result.artisans ?? []).filter((_, i) => artisanStatuts[i] === 'a_trouver').length;
+  // Alertes lots : uniquement les lots persistés (pas les fallbacks read-only)
+  const nbATrouver = (result.lots ?? [])
+    .filter((l) => !l.id.startsWith('fallback-') && (lotStatuts[l.id] ?? l.statut) === 'a_trouver')
+    .length;
   if (nbATrouver > 0) {
     alertes.push({
       emoji: '👷',
-      label: `${nbATrouver} artisan${nbATrouver > 1 ? 's' : ''} à trouver`,
+      label: `${nbATrouver} lot${nbATrouver > 1 ? 's' : ''} sans artisan trouvé`,
       section: 'lots',
     });
   }
@@ -388,7 +396,7 @@ export default function DashboardChantier({
           {/* ── ⑤ LOTS DE TRAVAUX ── */}
           <section id="section-lots">
             <h3 className="text-white font-bold text-lg mb-4">🔨 Lots de travaux</h3>
-            {(result.artisans ?? []).length === 0 ? (
+            {(result.lots ?? []).length === 0 ? (
               <div className="bg-[#0d1525] border border-white/[0.06] rounded-2xl p-6 text-center">
                 <p className="text-slate-500 text-sm mb-3">Aucun lot défini pour l'instant.</p>
                 <button
@@ -400,25 +408,42 @@ export default function DashboardChantier({
               </div>
             ) : (
               <div className="space-y-3">
-                {result.artisans.map((artisan, i) => {
-                  const statut = artisanStatuts[i] ?? (artisan.statut as StatutArtisan);
+                {(result.lots ?? []).map((lot: LotChantier) => {
+                  const statut = lotStatuts[lot.id] ?? lot.statut;
+                  const isFallback = lot.id.startsWith('fallback-');
                   return (
-                    <div key={i} className="bg-[#0d1525] border border-white/[0.06] rounded-2xl p-4">
+                    <div key={lot.id} className="bg-[#0d1525] border border-white/[0.06] rounded-2xl p-4">
                       <div className="flex items-start gap-3">
-                        <span className="text-2xl shrink-0 mt-0.5">{artisan.emoji}</span>
+                        {lot.emoji && <span className="text-2xl shrink-0 mt-0.5">{lot.emoji}</span>}
                         <div className="flex-1 min-w-0">
-                          <p className="text-white text-sm font-medium">{artisan.metier}</p>
-                          <p className="text-slate-500 text-xs mt-0.5 leading-tight">{artisan.role}</p>
-                          {/* Sélecteur de statut — état local */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-white text-sm font-medium">{lot.nom}</p>
+                            {isFallback && (
+                              <span className="text-[10px] text-slate-600 border border-white/[0.06] rounded px-1.5 py-0.5">
+                                lecture seule
+                              </span>
+                            )}
+                          </div>
+                          {lot.role && (
+                            <p className="text-slate-500 text-xs mt-0.5 leading-tight">{lot.role}</p>
+                          )}
+                          {/* Sélecteur de statut — persisté en DB sauf lots fallback */}
                           <div className="flex gap-1.5 mt-3 flex-wrap">
                             {(['a_trouver', 'a_contacter', 'ok'] as StatutArtisan[]).map((s) => (
                               <button
                                 key={s}
-                                onClick={() => setArtisanStatuts((prev) => ({ ...prev, [i]: s }))}
+                                disabled={isFallback}
+                                onClick={() => {
+                                  if (isFallback) return;
+                                  setLotStatuts((prev) => ({ ...prev, [lot.id]: s }));
+                                  onLotStatutChange?.(lot.id, s);
+                                }}
                                 className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition-all ${
-                                  statut === s
-                                    ? STATUT_COLORS[s]
-                                    : 'border-white/[0.06] text-slate-600 hover:text-slate-400 hover:border-white/[0.12]'
+                                  isFallback
+                                    ? 'cursor-default opacity-50 ' + (statut === s ? STATUT_COLORS[s] : 'border-white/[0.06] text-slate-600')
+                                    : statut === s
+                                      ? STATUT_COLORS[s]
+                                      : 'border-white/[0.06] text-slate-600 hover:text-slate-400 hover:border-white/[0.12]'
                                 }`}
                               >
                                 {STATUT_LABELS[s]}

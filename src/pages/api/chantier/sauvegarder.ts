@@ -2,7 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { createClient } from '@supabase/supabase-js';
-import type { ChantierIAResult } from '@/types/chantier-ia';
+import type { ArtisanIA, ChantierIAResult } from '@/types/chantier-ia';
 
 const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -74,6 +74,23 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const chantierId = chantier.id;
+
+  // Créer les lots depuis les artisans IA — même pattern que les todos
+  if (artisans?.length) {
+    const { error: lotsError } = await supabase.from('lots_chantier').insert(
+      (artisans as ArtisanIA[]).map((a, i) => ({
+        chantier_id: chantierId,
+        nom: a.metier,
+        statut: a.statut,
+        ordre: i,
+        emoji: a.emoji ?? null,
+        role: a.role ?? null,
+      })),
+    );
+    if (lotsError) {
+      console.error('[api/chantier/sauvegarder] lots error:', lotsError.message);
+    }
+  }
 
   // Créer les todos
   if (taches?.length) {
