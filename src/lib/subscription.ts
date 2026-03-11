@@ -8,18 +8,19 @@ export interface SubscriptionInfo {
   trialDaysLeft: number | null;
   trialEndsAt: string | null;
   currentPeriodEnd: string | null;
+  lifetimeAnalysisCount: number;
 }
 
 /** Vérifie si l'utilisateur courant a un accès premium actif */
 export async function getPremiumStatus(userId: string): Promise<SubscriptionInfo> {
   const { data, error } = await supabase
     .from("subscriptions")
-    .select("status, trial_ends_at, current_period_end")
+    .select("status, trial_ends_at, current_period_end, lifetime_analysis_count")
     .eq("user_id", userId)
     .maybeSingle();
 
   if (error || !data) {
-    return { isPremium: false, status: "inactive", trialDaysLeft: null, trialEndsAt: null, currentPeriodEnd: null };
+    return { isPremium: false, status: "inactive", trialDaysLeft: null, trialEndsAt: null, currentPeriodEnd: null, lifetimeAnalysisCount: 0 };
   }
 
   const status = data.status as SubscriptionStatus;
@@ -43,6 +44,7 @@ export async function getPremiumStatus(userId: string): Promise<SubscriptionInfo
     trialDaysLeft,
     trialEndsAt: data.trial_ends_at ?? null,
     currentPeriodEnd: data.current_period_end ?? null,
+    lifetimeAnalysisCount: data.lifetime_analysis_count ?? 0,
   };
 }
 

@@ -176,6 +176,15 @@ serve(async (req) => {
     const domainConfig = getDomainConfig((analysis.domain || "travaux") as DomainType);
     console.log("Domain:", domainConfig.domain);
 
+    // Increment lifetime analysis count for the user (Pass Sérénité tracking)
+    if (analysis.user_id) {
+      try {
+        await supabase.rpc("increment_analysis_count", { p_user_id: analysis.user_id });
+      } catch (e) {
+        console.warn("Failed to increment analysis count:", (e as Error).message);
+      }
+    }
+
     // Update status to processing
     await supabase
       .from("analyses")

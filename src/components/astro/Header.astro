@@ -60,7 +60,35 @@ const pathname = Astro.url.pathname;
             Connexion
           </button>
         </a>
-        <span id="user-name-desktop" class="hidden text-sm font-medium text-muted-foreground px-3 py-1.5"></span>
+        <div id="user-dropdown-desktop" class="relative hidden">
+          <button id="user-dropdown-trigger" class="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5">
+            <span id="user-name-desktop"></span>
+            <svg class="h-3.5 w-3.5 transition-transform" id="user-dropdown-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+            </svg>
+          </button>
+          <div class="absolute top-full right-0 mt-1 w-48 rounded-lg border bg-white shadow-lg py-1 z-50 hidden" id="user-dropdown-menu">
+            <a href="/tableau-de-bord" class="block px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-slate-50 transition-colors">
+              Tableau de bord
+            </a>
+            <a href="/parametres" class="block px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-slate-50 transition-colors">
+              Paramètres
+            </a>
+            <a id="pass-serenite-desktop" href="/pass-serenite" class="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-slate-50 transition-colors">
+              Pass Sérénité
+              <svg id="premium-check-desktop" class="h-3.5 w-3.5 text-green-500 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </a>
+            <a id="admin-link-desktop" href="/admin" class="hidden px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-slate-50 transition-colors">
+              Administration
+            </a>
+            <hr class="my-1 border-border" />
+            <button id="signout-btn-desktop" class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
+              Se déconnecter
+            </button>
+          </div>
+        </div>
         <a href="/nouvelle-analyse">
           <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2">
             Analyser un devis
@@ -116,7 +144,26 @@ const pathname = Astro.url.pathname;
             Connexion
           </button>
         </a>
-        <span id="user-name-mobile" class="hidden text-sm font-medium text-muted-foreground px-2 py-1.5"></span>
+        <div id="user-menu-mobile" class="hidden flex-col gap-2">
+          <a href="/tableau-de-bord" class="text-sm font-medium text-muted-foreground px-2 py-1.5 hover:text-foreground transition-colors">
+            Tableau de bord
+          </a>
+          <a href="/parametres" class="text-sm font-medium text-muted-foreground px-2 py-1.5 hover:text-foreground transition-colors">
+            Paramètres
+          </a>
+          <a id="pass-serenite-mobile" href="/pass-serenite" class="flex items-center gap-2 text-sm font-medium text-muted-foreground px-2 py-1.5 hover:text-foreground transition-colors">
+            Pass Sérénité
+            <svg id="premium-check-mobile" class="h-3.5 w-3.5 text-green-500 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </a>
+          <a id="admin-link-mobile" href="/admin" class="hidden text-sm font-medium text-muted-foreground px-2 py-1.5 hover:text-foreground transition-colors">
+            Administration
+          </a>
+          <button id="signout-btn-mobile" class="text-sm font-medium text-red-600 px-2 py-1.5 text-left hover:text-red-700 transition-colors">
+            Se déconnecter
+          </button>
+        </div>
         <a href="/nouvelle-analyse">
           <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 w-full">
             Analyser un devis
@@ -153,17 +200,60 @@ const pathname = Astro.url.pathname;
         || (user.email ? user.email.split("@")[0] : "");
 
       if (displayName) {
-        // Desktop
+        // Desktop — show user dropdown, hide login button
         const loginD = document.getElementById("login-btn-desktop");
+        const userDropdownD = document.getElementById("user-dropdown-desktop");
         const nameD = document.getElementById("user-name-desktop");
         if (loginD) loginD.classList.add("hidden");
-        if (nameD) { nameD.textContent = `Espace ${displayName}`; nameD.classList.remove("hidden"); }
-        // Mobile
+        if (nameD) nameD.textContent = `Espace ${displayName}`;
+        if (userDropdownD) userDropdownD.classList.remove("hidden");
+
+        // Mobile — show user menu, hide login button
         const loginM = document.getElementById("login-btn-mobile");
-        const nameM = document.getElementById("user-name-mobile");
+        const userMenuM = document.getElementById("user-menu-mobile");
         if (loginM) loginM.classList.add("hidden");
-        if (nameM) { nameM.textContent = `Espace ${displayName}`; nameM.classList.remove("hidden"); }
+        if (userMenuM) { userMenuM.classList.remove("hidden"); userMenuM.classList.add("flex"); }
       }
+
+      // Admin links
+      if (user.email && ADMIN_EMAILS.includes(user.email)) {
+        const adminD = document.getElementById("admin-link-desktop");
+        const adminM = document.getElementById("admin-link-mobile");
+        if (adminD) { adminD.classList.remove("hidden"); adminD.classList.add("block"); }
+        if (adminM) { adminM.classList.remove("hidden"); }
+      }
+
+      // Premium check — async query to subscriptions table
+      try {
+        const sbUrl = (import.meta as any).env?.PUBLIC_SUPABASE_URL || "https://vhrhgsqxwvouswjaiczn.supabase.co";
+        const sbKey = (import.meta as any).env?.PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+        // Get access token from localStorage
+        const authKey = Object.keys(localStorage).find(k => k.includes('auth-token'));
+        const authData = authKey ? JSON.parse(localStorage.getItem(authKey) || "{}") : null;
+        const accessToken = authData?.access_token;
+        if (sbUrl && accessToken) {
+          const userId = authData?.user?.id;
+          if (userId) {
+            fetch(`${sbUrl}/rest/v1/subscriptions?user_id=eq.${userId}&select=status`, {
+              headers: {
+                apikey: sbKey || "",
+                Authorization: `Bearer ${accessToken}`,
+              },
+            })
+              .then(r => r.json())
+              .then((rows: any[]) => {
+                if (rows?.[0]?.status === "active") {
+                  const checkD = document.getElementById("premium-check-desktop");
+                  const checkM = document.getElementById("premium-check-mobile");
+                  if (checkD) checkD.classList.remove("hidden");
+                  if (checkM) checkM.classList.remove("hidden");
+                }
+              })
+              .catch(() => {});
+          }
+        }
+      } catch {}
+
     }
   } catch {}
 
@@ -210,4 +300,32 @@ const pathname = Astro.url.pathname;
       mobileSubChevron?.style.setProperty('transform', 'rotate(180deg)');
     }
   });
+
+  // User dropdown hover (desktop)
+  const userDropdown = document.getElementById('user-dropdown-desktop');
+  const userDropdownMenu = document.getElementById('user-dropdown-menu');
+  const userDropdownChevron = document.getElementById('user-dropdown-chevron');
+  let userDropdownTimeout: ReturnType<typeof setTimeout>;
+
+  userDropdown?.addEventListener('mouseenter', () => {
+    clearTimeout(userDropdownTimeout);
+    userDropdownMenu?.classList.remove('hidden');
+    userDropdownChevron?.style.setProperty('transform', 'rotate(180deg)');
+  });
+  userDropdown?.addEventListener('mouseleave', () => {
+    userDropdownTimeout = setTimeout(() => {
+      userDropdownMenu?.classList.add('hidden');
+      userDropdownChevron?.style.setProperty('transform', '');
+    }, 150);
+  });
+
+  // Sign out
+  const handleSignOut = () => {
+    // Clear Supabase session from localStorage
+    Object.keys(localStorage).filter(k => k.includes('auth-token')).forEach(k => localStorage.removeItem(k));
+    sessionStorage.removeItem("vmd_session_active");
+    window.location.href = "/";
+  };
+  document.getElementById('signout-btn-desktop')?.addEventListener('click', handleSignOut);
+  document.getElementById('signout-btn-mobile')?.addEventListener('click', handleSignOut);
 </script>

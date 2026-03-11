@@ -37,6 +37,7 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 | `/mentions-legales` | `mentions-legales.astro` | *(statique Astro)* |
 | `/confidentialite` | `confidentialite.astro` | *(statique Astro)* |
 | `/cgu` | `cgu.astro` | *(statique Astro)* |
+| `/pass-serenite` | `pass-serenite.astro` | `PassSereniteApp` → `PassSerenite` *(page souscription premium)* |
 | `/simulateur-valorisation-travaux` | `simulateur-valorisation-travaux.astro` | `SimulateurScoresApp` → `SimulateurScores` *(simulateur IVP/IPI)* |
 | `/valorisation-travaux-immobiliers` | `valorisation-travaux-immobiliers.astro` | *(statique Astro — page SEO valorisation)* |
 | `/sitemap-blog.xml` | `sitemap-blog.xml.ts` | *(endpoint SSR — sitemap dynamique blog)* |
@@ -50,6 +51,8 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 | `/api/strategic-scores` | `api/strategic-scores.ts` | Calcul scores IVP/IPI depuis `strategic_matrix` |
 | `/api/debug-supabase` | `api/debug-supabase.ts` | Diagnostic connexion Supabase (dev/debug) |
 | `/api/newsletter` | `api/newsletter.ts` | Inscription newsletter + webhook MessagingMe |
+| `/api/create-checkout-session` | `api/create-checkout-session.ts` | Création session Stripe Checkout (Pass Sérénité) |
+| `/api/stripe-webhook` | `api/stripe-webhook.ts` | Webhook Stripe (souscription, annulation, échec paiement) |
 
 ## Ajouter une page
 
@@ -285,6 +288,54 @@ Phase 2 du pipeline — 100% appels API déterministes, pas d'IA. Aucune API pay
 - `public/sitemap.xml` — pages statiques (12 URLs)
 - `src/pages/sitemap-blog.xml.ts` — endpoint SSR dynamique, requête les `blog_posts` publiés dans Supabase
 - `public/robots.txt` référence les deux sitemaps
+
+## Pass Sérénité (abonnement premium Stripe)
+
+Abonnement mensuel à 4,99€ TTC via Stripe Checkout. Donne accès aux analyses illimitées + rapport PDF + tri par type de travaux.
+
+### Modèle freemium
+
+- **Gratuit** : 5 analyses à vie (compteur `lifetime_analysis_count` dans `subscriptions`)
+- **Pass Sérénité** : analyses illimitées, rapport PDF, tri par type de travaux
+- **Gate** : à la 6e analyse, l'analyse tourne mais les résultats sont bloqués par `PassSereniteGate` (redirection vers `/pass-serenite`)
+- **PDF** : verrouillé pour les utilisateurs gratuits (toast avec lien vers `/pass-serenite`)
+
+### Compteur d'analyses
+
+- **Incrémentation** : RPC `increment_analysis_count(p_user_id)` — upsert atomique dans `subscriptions`, appelé par `analyze-quote/index.ts` en début de pipeline
+- **Dashboard** : affiche "X/5 analyses utilisées" ou badge "Pass Sérénité" si abonné
+- **Header** : lien "Pass Sérénité" dans le dropdown utilisateur (entre Paramètres et Administration), avec check vert si abonné
+
+### Stripe
+
+- **Price ID** : `price_1T9rrRF67GfPqM0XxH5rRrDM` (live, abonnement mensuel 4,99€)
+- **Checkout** : `/api/create-checkout-session` crée une session Stripe Checkout, lie le `stripe_customer_id` à l'utilisateur dans `subscriptions`
+- **Webhook** : `/api/stripe-webhook` gère 4 events : `checkout.session.completed` (active la souscription), `customer.subscription.updated` (met à jour le statut), `customer.subscription.deleted` (désactive), `invoice.payment_failed` (marque `past_due`)
+- **Vérification signature** : optionnelle via `STRIPE_WEBHOOK_SECRET` (fallback JSON parse sans secret en dev)
+
+### Variables d'environnement Stripe
+
+| Variable | Où | Usage |
+|---|---|---|
+| `PUBLIC_STRIPE_PUBLISHABLE_KEY` | Vercel + `.env` | Clé publique Stripe (côté client) |
+| `STRIPE_SECRET_KEY` | Vercel uniquement | Clé secrète Stripe (API routes serveur) |
+| `STRIPE_WEBHOOK_SECRET` | Vercel uniquement | Secret de signature webhook (optionnel en dev) |
+
+### Fichiers clés
+
+- `src/components/pages/PassSerenite.tsx` — page de souscription (hero, 4 features, comparaison, CTA)
+- `src/components/funnel/PassSereniteGate.tsx` — gate affichée quand > 5 analyses
+- `src/pages/api/create-checkout-session.ts` — création session Stripe
+- `src/pages/api/stripe-webhook.ts` — webhook handler
+- `src/lib/subscription.ts` — `getSubscriptionInfo()` avec `lifetimeAnalysisCount`
+- `src/hooks/usePremium.ts` — hook React (`isPremium`, `lifetimeAnalysisCount`)
+- `supabase/migrations/20260311120000_add_stripe_pass_serenite.sql` — colonnes Stripe + RPC compteur
+
+### Colonnes ajoutées à `subscriptions`
+
+- `stripe_customer_id` (TEXT) — ID client Stripe
+- `stripe_subscription_id` (TEXT) — ID souscription Stripe
+- `lifetime_analysis_count` (INTEGER, DEFAULT 0) — compteur d'analyses à vie
 
 ## Cookie consent RGPD
 

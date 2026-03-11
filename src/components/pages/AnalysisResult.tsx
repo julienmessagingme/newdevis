@@ -44,7 +44,9 @@ const OcrDebugPanel = lazy(() => import("@/components/analysis/OcrDebugPanel").t
 import type { TravauxItem } from "@/components/analysis";
 import StrategicBadge from "@/components/analysis/StrategicBadge";
 import { useAnonymousAuth } from "@/hooks/useAnonymousAuth";
+import { usePremium } from "@/hooks/usePremium";
 import FunnelStepper from "@/components/funnel/FunnelStepper";
+import PassSereniteGate from "@/components/funnel/PassSereniteGate";
 import { ANALYSIS } from "@/lib/constants";
 import { getVisibleBlocks } from "@/lib/domainConfig";
 
@@ -284,6 +286,7 @@ const AnalysisResult = () => {
   const trustpilotRef = useRef<HTMLDivElement>(null);
   const trustpilotModalRef = useRef<HTMLDivElement>(null);
   const { user: authUser, isAnonymous: rawIsAnonymous, isPermanent: rawIsPermanent, loading: authLoading, convertToPermanent } = useAnonymousAuth();
+  const { isPremium, lifetimeAnalysisCount } = usePremium();
 
   // Preview mode: ?preview=gate forces anonymous view for testing
   const previewGate = new URLSearchParams(window.location.search).get("preview") === "gate";
@@ -680,6 +683,29 @@ const AnalysisResult = () => {
 
   return (
     <ExtractionBlocker analysisId={analysis.id} analysisStatus={analysis.status} errorMessage={analysis.error_message}>
+    {/* Pass Sérénité gate: block results if 6+ analyses and not premium */}
+    {lifetimeAnalysisCount > 5 && !isPremium && !isAnonymous ? (
+      <div className="min-h-screen bg-background">
+        <header className="sticky top-0 z-50 bg-card border-b border-border">
+          <div className="container flex h-16 items-center justify-between">
+            <a href="/" className="flex items-center gap-2 sm:gap-3">
+              <img alt="VerifierMonDevis.fr" className="h-12 w-12 sm:h-16 sm:w-16 object-contain drop-shadow-md" src="/images/logo detouré.png" width={64} height={64} />
+              <span className="text-base sm:text-2xl font-bold leading-none">
+                <span className="text-foreground">VerifierMon</span><span className="text-orange-500">Devis</span><span className="text-sm sm:text-lg font-semibold text-orange-500">.fr</span>
+              </span>
+            </a>
+          </div>
+        </header>
+        <main className="container py-8 max-w-4xl">
+          <a href="/tableau-de-bord" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors">
+            <ArrowLeft className="h-4 w-4" />
+            Retour au tableau de bord
+          </a>
+          <PassSereniteGate analysisCount={lifetimeAnalysisCount} />
+        </main>
+      </div>
+    ) : (
+    <>
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 bg-card border-b border-border">
         <div className="container flex h-16 items-center justify-between">
@@ -700,7 +726,21 @@ const AnalysisResult = () => {
               <FilePlus2 className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Analyser un autre devis</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => generatePdfReport(analysis)} className="px-2 sm:px-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (isPremium) {
+                  generatePdfReport(analysis);
+                } else {
+                  toast.info("Le rapport PDF est disponible avec le Pass Sérénité", {
+                    action: { label: "En savoir plus", onClick: () => { window.location.href = "/pass-serenite"; } },
+                  });
+                }
+              }}
+              className="px-2 sm:px-3"
+            >
+              {!isPremium && <Lock className="h-3.5 w-3.5 sm:mr-1" />}
               <Download className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Télécharger le rapport</span>
             </Button>
@@ -1016,6 +1056,8 @@ const AnalysisResult = () => {
           </button>
         </div>
       </div>
+    )}
+    </>
     )}
     </ExtractionBlocker>
   );

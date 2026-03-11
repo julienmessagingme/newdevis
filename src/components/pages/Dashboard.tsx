@@ -6,13 +6,16 @@ import {
   LogOut,
   User,
   Settings,
-  Loader2
+  Loader2,
+  CheckCircle2,
+  Shield,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getStatusIcon, getScoreBadge } from "@/lib/scoreUtils";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { useSessionGuard } from "@/hooks/useSessionGuard";
+import { usePremium } from "@/hooks/usePremium";
 
 type Analysis = {
   id: string;
@@ -36,6 +39,7 @@ const Dashboard = () => {
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [loading, setLoading] = useState(true);
   const trustpilotRef = useRef<HTMLDivElement>(null);
+  const { isPremium, lifetimeAnalysisCount } = usePremium();
 
   // Garde de session : déconnexion après 10 min d'inactivité + détection nouvel onglet/navigateur
   useSessionGuard("/connexion");
@@ -230,9 +234,18 @@ const Dashboard = () => {
             <h2 className="text-xl font-semibold text-foreground">
               Mes analyses
             </h2>
-            <span className="text-sm text-muted-foreground">
-              {analyses.length} devis analysé{analyses.length > 1 ? "s" : ""}
-            </span>
+            <div className="flex items-center gap-3">
+              {isPremium ? (
+                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-green-600 bg-green-50 px-2.5 py-1 rounded-full">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Pass Sérénité
+                </span>
+              ) : (
+                <span className="text-sm text-muted-foreground">
+                  {lifetimeAnalysisCount}/5 analyses utilisées
+                </span>
+              )}
+            </div>
           </div>
 
           {analyses.length === 0 ? (

@@ -15,6 +15,7 @@ export function usePremium(): UsePremiumReturn {
     trialDaysLeft: null,
     trialEndsAt: null,
     currentPeriodEnd: null,
+    lifetimeAnalysisCount: 0,
   });
 
   const fetch = async () => {

@@ -1,25 +1,41 @@
 import { Button } from "@/components/ui/button";
-import { Menu, X, ChevronDown } from "lucide-react";
+import { Menu, X, ChevronDown, CheckCircle2 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { usePremium } from "@/hooks/usePremium";
 
 const ADMIN_EMAILS = ["julien@messagingme.fr", "bridey.johan@gmail.com"];
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [mobileSubOpen, setMobileSubOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [userDisplayName, setUserDisplayName] = useState<string | null>(null);
+  const { isPremium } = usePremium();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const userTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
-    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (userTimeoutRef.current) clearTimeout(userTimeoutRef.current);
+    };
   }, []);
 
   const openDropdown = () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); setDropdownOpen(true); };
   const closeDropdown = () => { timeoutRef.current = setTimeout(() => setDropdownOpen(false), 150); };
+  const openUserDropdown = () => { if (userTimeoutRef.current) clearTimeout(userTimeoutRef.current); setUserDropdownOpen(true); };
+  const closeUserDropdown = () => { userTimeoutRef.current = setTimeout(() => setUserDropdownOpen(false), 150); };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    sessionStorage.removeItem("vmd_session_active");
+    window.location.href = "/";
+  };
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -88,9 +104,35 @@ const Header = () => {
               </a>
             )}
             {userDisplayName ? (
-              <span className="text-sm font-medium text-muted-foreground px-3 py-1.5">
-                Espace {userDisplayName}
-              </span>
+              <div className="relative" ref={userDropdownRef} onMouseEnter={openUserDropdown} onMouseLeave={closeUserDropdown}>
+                <button className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5">
+                  Espace {userDisplayName}
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${userDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {userDropdownOpen && (
+                  <div className="absolute top-full right-0 mt-1 w-48 rounded-lg border bg-white shadow-lg py-1 z-50">
+                    <a href="/tableau-de-bord" className="block px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-slate-50 transition-colors">
+                      Tableau de bord
+                    </a>
+                    <a href="/parametres" className="block px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-slate-50 transition-colors">
+                      Paramètres
+                    </a>
+                    <a href="/pass-serenite" className="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-slate-50 transition-colors">
+                      Pass Sérénité
+                      {isPremium && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
+                    </a>
+                    {isAdmin && (
+                      <a href="/admin" className="block px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-slate-50 transition-colors">
+                        Administration
+                      </a>
+                    )}
+                    <hr className="my-1 border-border" />
+                    <button onClick={handleSignOut} className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
+                      Se déconnecter
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : (
               <a href="/connexion">
                 <Button variant="outline">
@@ -156,9 +198,26 @@ const Header = () => {
             )}
             <div className="flex flex-col gap-2 pt-2">
               {userDisplayName ? (
-                <span className="text-sm font-medium text-muted-foreground px-2 py-1.5">
-                  Espace {userDisplayName}
-                </span>
+                <>
+                  <a href="/tableau-de-bord" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-muted-foreground px-2 py-1.5 hover:text-foreground transition-colors">
+                    Tableau de bord
+                  </a>
+                  <a href="/parametres" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-muted-foreground px-2 py-1.5 hover:text-foreground transition-colors">
+                    Paramètres
+                  </a>
+                  <a href="/pass-serenite" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2 text-sm font-medium text-muted-foreground px-2 py-1.5 hover:text-foreground transition-colors">
+                    Pass Sérénité
+                    {isPremium && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
+                  </a>
+                  {isAdmin && (
+                    <a href="/admin" onClick={() => setMobileMenuOpen(false)} className="text-sm font-medium text-muted-foreground px-2 py-1.5 hover:text-foreground transition-colors">
+                      Administration
+                    </a>
+                  )}
+                  <button onClick={handleSignOut} className="text-sm font-medium text-red-600 px-2 py-1.5 text-left hover:text-red-700 transition-colors">
+                    Se déconnecter
+                  </button>
+                </>
               ) : (
                 <a href="/connexion" onClick={() => setMobileMenuOpen(false)}>
                   <Button variant="outline" className="w-full">
