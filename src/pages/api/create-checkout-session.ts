@@ -91,9 +91,10 @@ export const POST: APIRoute = async ({ request }) => {
       { status: 200, headers: CORS },
     );
   } catch (e) {
-    console.error('[create-checkout-session] Error:', (e as Error).message);
+    const errMsg = (e as Error).message;
+    console.error('[create-checkout-session] Error:', errMsg);
     return new Response(
-      JSON.stringify({ error: 'Erreur lors de la création de la session' }),
+      JSON.stringify({ error: 'Erreur lors de la création de la session', details: errMsg }),
       { status: 500, headers: CORS },
     );
   }

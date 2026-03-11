@@ -97,7 +97,7 @@ const PassSerenite = () => {
       if (data.url) {
         window.location.href = data.url;
       } else {
-        toast.error(data.error || "Erreur lors de la redirection vers le paiement");
+        toast.error(data.details || data.error || "Erreur lors de la redirection vers le paiement");
         setIsRedirecting(false);
       }
     } catch {
