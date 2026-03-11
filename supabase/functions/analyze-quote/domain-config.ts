@@ -39,6 +39,23 @@ RÈGLES D'EXTRACTION:
 5. Extrais TOUS les postes de travaux du devis, sans exception. Inclus chaque ligne individuelle (fournitures, main d'œuvre, accessoires, frais divers, transport, etc.).
 6. Pour le champ "libelle" de chaque travail : COPIE MOT POUR MOT le texte exact tel qu'il apparaît sur le devis. NE REFORMULE PAS, NE RÉSUME PAS, NE TRADUIS PAS. Si le devis dit "Fourniture et pose baguette PVC", écris exactement "Fourniture et pose baguette PVC".
 7. Réponds UNIQUEMENT avec un JSON valide et COMPLET. Ne tronque pas la réponse.
+8. CAS SPÉCIAL — DEVIS DE MENUISERIES (fenêtres, baies vitrées, portes-fenêtres, volets) :
+   Ces devis sont structurés par PIÈCE (Cuisine, Salon, Chambre...) avec des BLOCS COMPOSÉS.
+   Chaque bloc décrit UNE UNITÉ (ex: "Châssis composé, Dormant rénovation, 2150×2200mm") suivie de sous-éléments techniques (châssis fixes, vitrages, panneaux...) qui n'ont PAS de prix individuel, puis un "Forfait pose" (MO) et un "SOUS-TOTAL".
+
+   POUR CE TYPE DE DEVIS, applique cette stratégie :
+   a) Chaque BLOC = UNE SEULE ligne dans "travaux" (pas une ligne par sous-élément)
+   b) Le "libelle" = le titre du bloc + la pièce. Ex: "CUISINE - Châssis composé, Dormant rénovation, Hauteur 2150 mm, Largeur 2200 mm"
+   c) Le "montant" = le montant du SOUS-TOTAL (fourniture + pose incluse)
+   d) La "quantite" = 1, "unite" = "unité"
+   e) La "categorie" = classifier selon ce qui est écrit dans le bloc :
+      - "Porte-fenêtre X vantaux" (c'est écrit explicitement) → "porte-fenêtre"
+      - "Châssis composé" (assemblage multi-éléments, souvent grande dimension) → "baie vitrée"
+      - "Fenêtre" simple (1 ou 2 vantaux, pas composé) → "fenêtre"
+      - "Coulissant" ou "Baie coulissante" → "baie vitrée"
+      En cas de doute, utilise "menuiserie"
+   f) Le forfait pose (MO) est INCLUS dans le sous-total, ne PAS l'extraire en ligne séparée
+   g) Les lignes hors blocs (gestion déchets, frais divers) restent des lignes séparées normales
 
 Tu dois effectuer UNE SEULE extraction complète et structurée.`,
 

@@ -185,6 +185,20 @@ Le backend retourne un format hiérarchique `JobTypePriceResult[]` (stocké dans
 
 **Ajouter un prix** : INSERT dans `market_prices` avec les colonnes `job_type, label, unit, price_min_unit_ht, price_avg_unit_ht, price_max_unit_ht, fixed_min_ht, fixed_avg_ht, fixed_max_ht, zip_scope, notes`.
 
+### Extraction conditionnelle — Devis menuiseries
+
+Le prompt d'extraction (`domain-config.ts`, règle 8) contient une **logique conditionnelle** pour les devis de menuiseries (fenêtres, baies vitrées, portes-fenêtres). Ces devis ont une structure particulière : blocs composés par pièce avec des sous-éléments techniques sans prix individuel, un forfait pose (MO) séparé, et un SOUS-TOTAL par bloc.
+
+**Stratégie** : Gemini détecte automatiquement ce type de devis et applique une extraction différente :
+- 1 ligne par bloc SOUS-TOTAL (pas 1 ligne par sous-élément)
+- Le libellé inclut la pièce + le titre du bloc avec dimensions
+- Le montant = SOUS-TOTAL (fourniture + pose incluse)
+- Classification basée sur le texte du devis : "Porte-fenêtre" → porte-fenêtre, "Châssis composé" → baie vitrée, "Fenêtre" → fenêtre
+
+**Approche actuelle** : prompt unique (1 seul appel Gemini). Si on constate des interférences sur les devis non-menuiserie, passer en 2 passes (1 appel type-detection + 1 appel extraction spécifique).
+
+**Entrées `market_prices` menuiseries** : `porte_fenetre_pvc_fourniture_pose` (moy 1200€), `porte_fenetre_alu_fourniture_pose` (moy 1800€), `baie_vitree_pvc_fourniture_pose` (moy 2300€), `baie_vitree_alu_fourniture_pose` (moy 3200€), `chassis_compose_pvc_fourniture_pose` (moy 2800€), `evacuation_dechets_menuiserie` (forfait moy 150€).
+
 ## Price Observations (données big data)
 
 Table `price_observations` — données "gold" pour le benchmarking prix par job type et zone géographique. **Survit à la suppression des analyses** (pas de FK CASCADE).
