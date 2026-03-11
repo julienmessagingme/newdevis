@@ -24,10 +24,12 @@ export type Database = {
           attestation_decennale_url: string | null
           attestation_rcpro_url: string | null
           created_at: string
+          domain: string
           error_message: string | null
           file_name: string
           file_path: string
           id: string
+          market_price_overrides: Json | null
           points_ok: Json | null
           raw_text: string | null
           recommandations: Json | null
@@ -48,10 +50,12 @@ export type Database = {
           attestation_decennale_url?: string | null
           attestation_rcpro_url?: string | null
           created_at?: string
+          domain?: string
           error_message?: string | null
           file_name: string
           file_path: string
           id?: string
+          market_price_overrides?: Json | null
           points_ok?: Json | null
           raw_text?: string | null
           recommandations?: Json | null
@@ -72,10 +76,12 @@ export type Database = {
           attestation_decennale_url?: string | null
           attestation_rcpro_url?: string | null
           created_at?: string
+          domain?: string
           error_message?: string | null
           file_name?: string
           file_path?: string
           id?: string
+          market_price_overrides?: Json | null
           points_ok?: Json | null
           raw_text?: string | null
           recommandations?: Json | null
@@ -97,6 +103,7 @@ export type Database = {
           created_at: string | null
           description: string
           id: string
+          job_type_group: string | null
           n8n_response: Json | null
           quantity: number | null
           unit: string | null
@@ -108,6 +115,7 @@ export type Database = {
           created_at?: string | null
           description: string
           id?: string
+          job_type_group?: string | null
           n8n_response?: Json | null
           quantity?: number | null
           unit?: string | null
@@ -119,6 +127,7 @@ export type Database = {
           created_at?: string | null
           description?: string
           id?: string
+          job_type_group?: string | null
           n8n_response?: Json | null
           quantity?: number | null
           unit?: string | null
@@ -146,6 +155,7 @@ export type Database = {
           id: string
           mid_image_url: string | null
           published_at: string | null
+          reading_time: number | null
           reviewed_at: string | null
           reviewed_by: string | null
           scheduled_at: string | null
@@ -170,6 +180,7 @@ export type Database = {
           id?: string
           mid_image_url?: string | null
           published_at?: string | null
+          reading_time?: number | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           scheduled_at?: string | null
@@ -194,6 +205,7 @@ export type Database = {
           id?: string
           mid_image_url?: string | null
           published_at?: string | null
+          reading_time?: number | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           scheduled_at?: string | null
@@ -205,6 +217,104 @@ export type Database = {
           title?: string
           updated_at?: string | null
           workflow_status?: string | null
+        }
+        Relationships: []
+      }
+      chantier_updates: {
+        Row: {
+          changes: string
+          chantier_id: string
+          created_at: string
+          id: string
+          modification: string
+        }
+        Insert: {
+          changes?: string
+          chantier_id: string
+          created_at?: string
+          id?: string
+          modification: string
+        }
+        Update: {
+          changes?: string
+          chantier_id?: string
+          created_at?: string
+          id?: string
+          modification?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chantier_updates_chantier_id_fkey"
+            columns: ["chantier_id"]
+            isOneToOne: false
+            referencedRelation: "chantiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chantiers: {
+        Row: {
+          adresse: string | null
+          apport: number | null
+          budget: number | null
+          created_at: string
+          credit: number | null
+          date_debut: string | null
+          date_debut_souhaitee: string | null
+          date_fin: string | null
+          duree_credit: number | null
+          emoji: string
+          id: string
+          mensualite: number | null
+          metadonnees: string | null
+          nom: string
+          phase: string
+          taux_interet: number | null
+          type_projet: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          adresse?: string | null
+          apport?: number | null
+          budget?: number | null
+          created_at?: string
+          credit?: number | null
+          date_debut?: string | null
+          date_debut_souhaitee?: string | null
+          date_fin?: string | null
+          duree_credit?: number | null
+          emoji?: string
+          id?: string
+          mensualite?: number | null
+          metadonnees?: string | null
+          nom?: string
+          phase?: string
+          taux_interet?: number | null
+          type_projet?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          adresse?: string | null
+          apport?: number | null
+          budget?: number | null
+          created_at?: string
+          credit?: number | null
+          date_debut?: string | null
+          date_debut_souhaitee?: string | null
+          date_fin?: string | null
+          duree_credit?: number | null
+          emoji?: string
+          id?: string
+          mensualite?: number | null
+          metadonnees?: string | null
+          nom?: string
+          phase?: string
+          taux_interet?: number | null
+          type_projet?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -246,6 +356,86 @@ export type Database = {
           status?: string
         }
         Relationships: []
+      }
+      devis_chantier: {
+        Row: {
+          acompte_paye: number | null
+          acompte_pct: number | null
+          analyse_id: string | null
+          artisan_email: string | null
+          artisan_nom: string
+          artisan_phone: string | null
+          artisan_siret: string | null
+          assurance_ok: boolean
+          chantier_id: string
+          created_at: string
+          date_debut: string | null
+          date_fin: string | null
+          id: string
+          mentions_ok: boolean
+          montant_ht: number
+          montant_ttc: number
+          rc_pro_ok: boolean
+          score_analyse: string | null
+          statut: string
+          tva: number
+          type_travaux: string
+        }
+        Insert: {
+          acompte_paye?: number | null
+          acompte_pct?: number | null
+          analyse_id?: string | null
+          artisan_email?: string | null
+          artisan_nom: string
+          artisan_phone?: string | null
+          artisan_siret?: string | null
+          assurance_ok?: boolean
+          chantier_id: string
+          created_at?: string
+          date_debut?: string | null
+          date_fin?: string | null
+          id?: string
+          mentions_ok?: boolean
+          montant_ht?: number
+          montant_ttc?: number
+          rc_pro_ok?: boolean
+          score_analyse?: string | null
+          statut?: string
+          tva?: number
+          type_travaux?: string
+        }
+        Update: {
+          acompte_paye?: number | null
+          acompte_pct?: number | null
+          analyse_id?: string | null
+          artisan_email?: string | null
+          artisan_nom?: string
+          artisan_phone?: string | null
+          artisan_siret?: string | null
+          assurance_ok?: boolean
+          chantier_id?: string
+          created_at?: string
+          date_debut?: string | null
+          date_fin?: string | null
+          id?: string
+          mentions_ok?: boolean
+          montant_ht?: number
+          montant_ttc?: number
+          rc_pro_ok?: boolean
+          score_analyse?: string | null
+          statut?: string
+          tva?: number
+          type_travaux?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "devis_chantier_chantier_id_fkey"
+            columns: ["chantier_id"]
+            isOneToOne: false
+            referencedRelation: "chantiers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       document_extractions: {
         Row: {
@@ -387,51 +577,524 @@ export type Database = {
           },
         ]
       }
+      documents_chantier: {
+        Row: {
+          analyse_id: string | null
+          bucket_path: string
+          chantier_id: string
+          created_at: string
+          date: string | null
+          document_type: string
+          id: string
+          lot_id: string | null
+          mime_type: string | null
+          montant: number | null
+          nom: string
+          nom_fichier: string
+          source: string
+          statut: string
+          taille_octets: number | null
+          type: string
+          url: string
+        }
+        Insert: {
+          analyse_id?: string | null
+          bucket_path: string
+          chantier_id: string
+          created_at?: string
+          date?: string | null
+          document_type?: string
+          id?: string
+          lot_id?: string | null
+          mime_type?: string | null
+          montant?: number | null
+          nom: string
+          nom_fichier: string
+          source?: string
+          statut?: string
+          taille_octets?: number | null
+          type: string
+          url?: string
+        }
+        Update: {
+          analyse_id?: string | null
+          bucket_path?: string
+          chantier_id?: string
+          created_at?: string
+          date?: string | null
+          document_type?: string
+          id?: string
+          lot_id?: string | null
+          mime_type?: string | null
+          montant?: number | null
+          nom?: string
+          nom_fichier?: string
+          source?: string
+          statut?: string
+          taille_octets?: number | null
+          type?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_chantier_analyse_id_fkey"
+            columns: ["analyse_id"]
+            isOneToOne: false
+            referencedRelation: "analyses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_chantier_chantier_id_fkey"
+            columns: ["chantier_id"]
+            isOneToOne: false
+            referencedRelation: "chantiers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_chantier_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: false
+            referencedRelation: "lots_chantier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dvf_prices: {
+        Row: {
+          code_insee: string
+          code_postal: string | null
+          commune: string
+          nb_ventes_appartement: number | null
+          nb_ventes_maison: number | null
+          period: string | null
+          prix_m2: number
+          prix_m2_appartement: number | null
+          prix_m2_maison: number | null
+          source: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          code_insee: string
+          code_postal?: string | null
+          commune: string
+          nb_ventes_appartement?: number | null
+          nb_ventes_maison?: number | null
+          period?: string | null
+          prix_m2: number
+          prix_m2_appartement?: number | null
+          prix_m2_maison?: number | null
+          source?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          code_insee?: string
+          code_postal?: string | null
+          commune?: string
+          nb_ventes_appartement?: number | null
+          nb_ventes_maison?: number | null
+          period?: string | null
+          prix_m2?: number
+          prix_m2_appartement?: number | null
+          prix_m2_maison?: number | null
+          source?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      dvf_prices_v2: {
+        Row: {
+          code_insee: string
+          commune: string
+          nb_ventes_appartement: number | null
+          nb_ventes_maison: number | null
+          prix_m2_appartement: number | null
+          prix_m2_maison: number | null
+          source: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          code_insee: string
+          commune: string
+          nb_ventes_appartement?: number | null
+          nb_ventes_maison?: number | null
+          prix_m2_appartement?: number | null
+          prix_m2_maison?: number | null
+          source?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          code_insee?: string
+          commune?: string
+          nb_ventes_appartement?: number | null
+          nb_ventes_maison?: number | null
+          prix_m2_appartement?: number | null
+          prix_m2_maison?: number | null
+          source?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      dvf_prices_yearly: {
+        Row: {
+          code_insee: string
+          code_postal: string | null
+          commune: string
+          created_at: string | null
+          id: number
+          nb_ventes: number | null
+          prix_m2_p25: number | null
+          prix_m2_p50: number | null
+          prix_m2_p75: number | null
+          source: string | null
+          type_bien: string
+          year: number
+        }
+        Insert: {
+          code_insee: string
+          code_postal?: string | null
+          commune: string
+          created_at?: string | null
+          id?: number
+          nb_ventes?: number | null
+          prix_m2_p25?: number | null
+          prix_m2_p50?: number | null
+          prix_m2_p75?: number | null
+          source?: string | null
+          type_bien: string
+          year: number
+        }
+        Update: {
+          code_insee?: string
+          code_postal?: string | null
+          commune?: string
+          created_at?: string | null
+          id?: number
+          nb_ventes?: number | null
+          prix_m2_p25?: number | null
+          prix_m2_p50?: number | null
+          prix_m2_p75?: number | null
+          source?: string | null
+          type_bien?: string
+          year?: number
+        }
+        Relationships: []
+      }
+      journal_entries: {
+        Row: {
+          artisan_nom: string | null
+          chantier_id: string
+          created_at: string
+          date: string
+          id: string
+          note: string
+          phase: string
+          photos: string[]
+          tags: string[]
+        }
+        Insert: {
+          artisan_nom?: string | null
+          chantier_id: string
+          created_at?: string
+          date?: string
+          id?: string
+          note?: string
+          phase?: string
+          photos?: string[]
+          tags?: string[]
+        }
+        Update: {
+          artisan_nom?: string | null
+          chantier_id?: string
+          created_at?: string
+          date?: string
+          id?: string
+          note?: string
+          phase?: string
+          photos?: string[]
+          tags?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journal_entries_chantier_id_fkey"
+            columns: ["chantier_id"]
+            isOneToOne: false
+            referencedRelation: "chantiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lots_chantier: {
+        Row: {
+          chantier_id: string
+          created_at: string
+          emoji: string | null
+          id: string
+          nom: string
+          ordre: number
+          role: string | null
+          statut: string
+          updated_at: string
+        }
+        Insert: {
+          chantier_id: string
+          created_at?: string
+          emoji?: string | null
+          id?: string
+          nom: string
+          ordre?: number
+          role?: string | null
+          statut?: string
+          updated_at?: string
+        }
+        Update: {
+          chantier_id?: string
+          created_at?: string
+          emoji?: string | null
+          id?: string
+          nom?: string
+          ordre?: number
+          role?: string | null
+          statut?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lots_chantier_chantier_id_fkey"
+            columns: ["chantier_id"]
+            isOneToOne: false
+            referencedRelation: "chantiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       market_prices: {
         Row: {
+          confidence: string | null
           created_at: string | null
+          domain: string
           fixed_avg_ht: number
           fixed_max_ht: number
           fixed_min_ht: number
           id: number
           job_type: string
           label: string
+          last_reviewed_at: string | null
           notes: string | null
           price_avg_unit_ht: number
           price_max_unit_ht: number
           price_min_unit_ht: number
+          ratio_fixed: number | null
+          ratio_unit: number | null
+          sample_size: number | null
+          source: string | null
           unit: string
+          variability_ratio: number | null
           zip_scope: string
         }
         Insert: {
+          confidence?: string | null
           created_at?: string | null
+          domain?: string
           fixed_avg_ht?: number
           fixed_max_ht?: number
           fixed_min_ht?: number
           id?: number
           job_type: string
           label: string
+          last_reviewed_at?: string | null
           notes?: string | null
           price_avg_unit_ht?: number
           price_max_unit_ht?: number
           price_min_unit_ht?: number
+          ratio_fixed?: number | null
+          ratio_unit?: number | null
+          sample_size?: number | null
+          source?: string | null
           unit?: string
+          variability_ratio?: number | null
           zip_scope?: string
         }
         Update: {
+          confidence?: string | null
           created_at?: string | null
+          domain?: string
           fixed_avg_ht?: number
           fixed_max_ht?: number
           fixed_min_ht?: number
           id?: number
           job_type?: string
           label?: string
+          last_reviewed_at?: string | null
           notes?: string | null
           price_avg_unit_ht?: number
           price_max_unit_ht?: number
           price_min_unit_ht?: number
+          ratio_fixed?: number | null
+          ratio_unit?: number | null
+          sample_size?: number | null
+          source?: string | null
           unit?: string
+          variability_ratio?: number | null
           zip_scope?: string
+        }
+        Relationships: []
+      }
+      market_prices_backup: {
+        Row: {
+          confidence: string | null
+          created_at: string | null
+          domain: string | null
+          fixed_avg_ht: number | null
+          fixed_max_ht: number | null
+          fixed_min_ht: number | null
+          id: number | null
+          job_type: string | null
+          label: string | null
+          last_reviewed_at: string | null
+          notes: string | null
+          price_avg_unit_ht: number | null
+          price_max_unit_ht: number | null
+          price_min_unit_ht: number | null
+          sample_size: number | null
+          source: string | null
+          unit: string | null
+          variability_ratio: number | null
+          zip_scope: string | null
+        }
+        Insert: {
+          confidence?: string | null
+          created_at?: string | null
+          domain?: string | null
+          fixed_avg_ht?: number | null
+          fixed_max_ht?: number | null
+          fixed_min_ht?: number | null
+          id?: number | null
+          job_type?: string | null
+          label?: string | null
+          last_reviewed_at?: string | null
+          notes?: string | null
+          price_avg_unit_ht?: number | null
+          price_max_unit_ht?: number | null
+          price_min_unit_ht?: number | null
+          sample_size?: number | null
+          source?: string | null
+          unit?: string | null
+          variability_ratio?: number | null
+          zip_scope?: string | null
+        }
+        Update: {
+          confidence?: string | null
+          created_at?: string | null
+          domain?: string | null
+          fixed_avg_ht?: number | null
+          fixed_max_ht?: number | null
+          fixed_min_ht?: number | null
+          id?: number | null
+          job_type?: string | null
+          label?: string | null
+          last_reviewed_at?: string | null
+          notes?: string | null
+          price_avg_unit_ht?: number | null
+          price_max_unit_ht?: number | null
+          price_min_unit_ht?: number | null
+          sample_size?: number | null
+          source?: string | null
+          unit?: string | null
+          variability_ratio?: number | null
+          zip_scope?: string | null
+        }
+        Relationships: []
+      }
+      "market_prices_duplicate backup": {
+        Row: {
+          confidence: string | null
+          created_at: string | null
+          domain: string
+          fixed_avg_ht: number
+          fixed_max_ht: number
+          fixed_min_ht: number
+          id: number
+          job_type: string
+          label: string
+          last_reviewed_at: string | null
+          notes: string | null
+          price_avg_unit_ht: number
+          price_max_unit_ht: number
+          price_min_unit_ht: number
+          ratio_fixed: number | null
+          ratio_unit: number | null
+          sample_size: number | null
+          source: string | null
+          unit: string
+          variability_ratio: number | null
+          zip_scope: string
+        }
+        Insert: {
+          confidence?: string | null
+          created_at?: string | null
+          domain?: string
+          fixed_avg_ht?: number
+          fixed_max_ht?: number
+          fixed_min_ht?: number
+          id?: number
+          job_type: string
+          label: string
+          last_reviewed_at?: string | null
+          notes?: string | null
+          price_avg_unit_ht?: number
+          price_max_unit_ht?: number
+          price_min_unit_ht?: number
+          ratio_fixed?: number | null
+          ratio_unit?: number | null
+          sample_size?: number | null
+          source?: string | null
+          unit?: string
+          variability_ratio?: number | null
+          zip_scope?: string
+        }
+        Update: {
+          confidence?: string | null
+          created_at?: string | null
+          domain?: string
+          fixed_avg_ht?: number
+          fixed_max_ht?: number
+          fixed_min_ht?: number
+          id?: number
+          job_type?: string
+          label?: string
+          last_reviewed_at?: string | null
+          notes?: string | null
+          price_avg_unit_ht?: number
+          price_max_unit_ht?: number
+          price_min_unit_ht?: number
+          ratio_fixed?: number | null
+          ratio_unit?: number | null
+          sample_size?: number | null
+          source?: string | null
+          unit?: string
+          variability_ratio?: number | null
+          zip_scope?: string
+        }
+        Relationships: []
+      }
+      newsletter_subscriptions: {
+        Row: {
+          email: string
+          id: string
+          source: string | null
+          subscribed_at: string | null
+        }
+        Insert: {
+          email: string
+          id?: string
+          source?: string | null
+          subscribed_at?: string | null
+        }
+        Update: {
+          email?: string
+          id?: string
+          source?: string | null
+          subscribed_at?: string | null
         }
         Relationships: []
       }
@@ -521,6 +1184,289 @@ export type Database = {
           },
         ]
       }
+      postal_insee: {
+        Row: {
+          code_insee: string
+          code_postal: string
+          commune: string
+          id: number
+        }
+        Insert: {
+          code_insee: string
+          code_postal: string
+          commune: string
+          id?: number
+        }
+        Update: {
+          code_insee?: string
+          code_postal?: string
+          commune?: string
+          id?: number
+        }
+        Relationships: []
+      }
+      postal_insee_raw: {
+        Row: {
+          code_insee: string | null
+          code_postal: string | null
+          commune: string | null
+        }
+        Insert: {
+          code_insee?: string | null
+          code_postal?: string | null
+          commune?: string | null
+        }
+        Update: {
+          code_insee?: string | null
+          code_postal?: string | null
+          commune?: string | null
+        }
+        Relationships: []
+      }
+      price_observations: {
+        Row: {
+          analysis_id: string | null
+          catalog_job_types: string[] | null
+          created_at: string
+          devis_lines: Json
+          devis_total_ht: number | null
+          domain: string
+          id: string
+          job_type_label: string
+          line_count: number
+          main_quantity: number
+          main_unit: string
+          user_id: string
+          zip_code: string | null
+        }
+        Insert: {
+          analysis_id?: string | null
+          catalog_job_types?: string[] | null
+          created_at?: string
+          devis_lines?: Json
+          devis_total_ht?: number | null
+          domain?: string
+          id?: string
+          job_type_label: string
+          line_count?: number
+          main_quantity?: number
+          main_unit?: string
+          user_id: string
+          zip_code?: string | null
+        }
+        Update: {
+          analysis_id?: string | null
+          catalog_job_types?: string[] | null
+          created_at?: string
+          devis_lines?: Json
+          devis_total_ht?: number | null
+          domain?: string
+          id?: string
+          job_type_label?: string
+          line_count?: number
+          main_quantity?: number
+          main_unit?: string
+          user_id?: string
+          zip_code?: string | null
+        }
+        Relationships: []
+      }
+      relances: {
+        Row: {
+          artisan_email: string
+          artisan_nom: string
+          chantier_id: string
+          contenu: string
+          created_at: string
+          envoye_at: string | null
+          id: string
+          type: string
+        }
+        Insert: {
+          artisan_email?: string
+          artisan_nom: string
+          chantier_id: string
+          contenu?: string
+          created_at?: string
+          envoye_at?: string | null
+          id?: string
+          type: string
+        }
+        Update: {
+          artisan_email?: string
+          artisan_nom?: string
+          chantier_id?: string
+          contenu?: string
+          created_at?: string
+          envoye_at?: string | null
+          id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "relances_chantier_id_fkey"
+            columns: ["chantier_id"]
+            isOneToOne: false
+            referencedRelation: "chantiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rental_prices_v1: {
+        Row: {
+          code_insee: string
+          commune: string | null
+          loyer_m2_appartement: number | null
+          loyer_m2_maison: number | null
+          nb_obs_appartement: number | null
+          nb_obs_maison: number | null
+          source: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          code_insee: string
+          commune?: string | null
+          loyer_m2_appartement?: number | null
+          loyer_m2_maison?: number | null
+          nb_obs_appartement?: number | null
+          nb_obs_maison?: number | null
+          source?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          code_insee?: string
+          commune?: string | null
+          loyer_m2_appartement?: number | null
+          loyer_m2_maison?: number | null
+          nb_obs_appartement?: number | null
+          nb_obs_maison?: number | null
+          source?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      strategic_matrix: {
+        Row: {
+          attractivite: number | null
+          capex_risk: number | null
+          energie: number | null
+          fiscalite: number | null
+          impact_loyer: number | null
+          job_type: string
+          liquidite: number | null
+          recovery_rate: number
+          reduction_risque: number | null
+          vacance: number | null
+          value_intrinseque: number | null
+        }
+        Insert: {
+          attractivite?: number | null
+          capex_risk?: number | null
+          energie?: number | null
+          fiscalite?: number | null
+          impact_loyer?: number | null
+          job_type: string
+          liquidite?: number | null
+          recovery_rate?: number
+          reduction_risque?: number | null
+          vacance?: number | null
+          value_intrinseque?: number | null
+        }
+        Update: {
+          attractivite?: number | null
+          capex_risk?: number | null
+          energie?: number | null
+          fiscalite?: number | null
+          impact_loyer?: number | null
+          job_type?: string
+          liquidite?: number | null
+          recovery_rate?: number
+          reduction_risque?: number | null
+          vacance?: number | null
+          value_intrinseque?: number | null
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          created_at: string
+          current_period_end: string | null
+          id: string
+          lifetime_analysis_count: number
+          plan: string
+          status: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          trial_ends_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          lifetime_analysis_count?: number
+          plan?: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          lifetime_analysis_count?: number
+          plan?: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      todo_chantier: {
+        Row: {
+          chantier_id: string
+          created_at: string
+          done: boolean
+          id: string
+          ordre: number
+          priorite: string
+          titre: string
+        }
+        Insert: {
+          chantier_id: string
+          created_at?: string
+          done?: boolean
+          id?: string
+          ordre?: number
+          priorite?: string
+          titre: string
+        }
+        Update: {
+          chantier_id?: string
+          created_at?: string
+          done?: boolean
+          id?: string
+          ordre?: number
+          priorite?: string
+          titre?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "todo_chantier_chantier_id_fkey"
+            columns: ["chantier_id"]
+            isOneToOne: false
+            referencedRelation: "chantiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -568,6 +1514,37 @@ export type Database = {
       }
     }
     Views: {
+      admin_kpis_alerts: {
+        Row: {
+          avg_alerts_per_analysis: number | null
+          category: string | null
+          count: number | null
+          percentage: number | null
+          total_alerts: number | null
+        }
+        Relationships: []
+      }
+      admin_kpis_daily_evolution: {
+        Row: {
+          analyses: number | null
+          date: string | null
+          orange: number | null
+          rouge: number | null
+          users: number | null
+          vert: number | null
+        }
+        Relationships: []
+      }
+      admin_kpis_documents: {
+        Row: {
+          devis_diagnostic: number | null
+          devis_prestation_technique: number | null
+          devis_travaux: number | null
+          documents_refuses: number | null
+          total: number | null
+        }
+        Relationships: []
+      }
       admin_kpis_scoring: {
         Row: {
           pct_orange: number | null
@@ -577,6 +1554,14 @@ export type Database = {
           score_orange: number | null
           score_rouge: number | null
           score_vert: number | null
+        }
+        Relationships: []
+      }
+      admin_kpis_time_analytics: {
+        Row: {
+          this_month: number | null
+          this_week: number | null
+          today: number | null
         }
         Relationships: []
       }
@@ -607,6 +1592,18 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_kpis_weekly_evolution: {
+        Row: {
+          analyses: number | null
+          label: string | null
+          orange: number | null
+          rouge: number | null
+          users: number | null
+          vert: number | null
+          week: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       has_role: {
@@ -615,6 +1612,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      increment_analysis_count: {
+        Args: { p_user_id: string }
+        Returns: undefined
       }
       is_admin: { Args: never; Returns: boolean }
     }
