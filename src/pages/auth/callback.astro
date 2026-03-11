@@ -24,21 +24,50 @@ export const prerender = false;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     async function handleCallback() {
+      const params = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+
+      // Extract redirect param BEFORE Supabase processes the URL (it may get lost)
+      const redirect = params.get("redirect") || hashParams.get("redirect") || null;
+      if (redirect) {
+        sessionStorage.setItem("vmd_oauth_redirect", redirect);
+      }
+
+      // 1. Handle PKCE flow: exchange code for session
+      const code = params.get("code");
+      if (code) {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error || !data.session) {
+          console.error("PKCE exchange failed:", error?.message);
+          window.location.href = "/connexion?error=oauth";
+          return;
+        }
+        await handleSession(data.session);
+        return;
+      }
+
+      // 2. Handle implicit flow: tokens in hash fragment
+      const accessToken = hashParams.get("access_token");
+      if (accessToken) {
+        // Supabase auto-detects hash tokens, wait for session
+        await new Promise(r => setTimeout(r, 500));
+      }
+
+      // 3. Fallback: try getSession (may already be set by Supabase client)
       const { data: { session }, error } = await supabase.auth.getSession();
 
       if (error || !session) {
-        // Retry once after a short delay (token exchange may still be in progress)
         await new Promise(r => setTimeout(r, 1500));
         const retry = await supabase.auth.getSession();
         if (retry.error || !retry.data.session) {
           window.location.href = "/connexion?error=oauth";
           return;
         }
-        handleSession(retry.data.session);
+        await handleSession(retry.data.session);
         return;
       }
 
-      handleSession(session);
+      await handleSession(session);
     }
 
     async function handleSession(session: any) {
@@ -72,9 +101,12 @@ export const prerender = false;
       // Set session marker for useSessionGuard
       sessionStorage.setItem("vmd_session_active", "1");
 
-      // Redirect
+      // Redirect: check sessionStorage first (saved before code exchange), then URL params
+      const savedRedirect = sessionStorage.getItem("vmd_oauth_redirect");
+      sessionStorage.removeItem("vmd_oauth_redirect");
       const params = new URLSearchParams(window.location.search);
-      const redirect = params.get("redirect");
+      const redirect = savedRedirect || params.get("redirect");
+
       window.location.href = redirect && redirect.startsWith("/") && !redirect.startsWith("//")
         ? redirect
         : "/tableau-de-bord";
