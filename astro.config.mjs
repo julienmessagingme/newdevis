@@ -20,5 +20,10 @@ export default defineConfig({
     ssr: {
       external: ['stripe'],
     },
+    build: {
+      rollupOptions: {
+        external: ['stripe'],
+      },
+    },
   },
 });
