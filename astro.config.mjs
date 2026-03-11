@@ -17,5 +17,8 @@ export default defineConfig({
         '@': '/src',
       },
     },
+    ssr: {
+      external: ['stripe'],
+    },
   },
 });
