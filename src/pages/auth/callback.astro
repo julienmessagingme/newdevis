@@ -1,0 +1,85 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="Connexion en cours... | VerifierMonDevis.fr"
+  description="Redirection après authentification Google"
+  noindex={true}
+>
+  <div class="min-h-screen flex items-center justify-center">
+    <div class="text-center space-y-4">
+      <div class="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto"></div>
+      <p class="text-muted-foreground">Connexion en cours...</p>
+    </div>
+  </div>
+
+  <script>
+    import { createClient } from "@supabase/supabase-js";
+
+    const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL || "";
+    const supabaseKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    async function handleCallback() {
+      const { data: { session }, error } = await supabase.auth.getSession();
+
+      if (error || !session) {
+        // Retry once after a short delay (token exchange may still be in progress)
+        await new Promise(r => setTimeout(r, 1500));
+        const retry = await supabase.auth.getSession();
+        if (retry.error || !retry.data.session) {
+          window.location.href = "/connexion?error=oauth";
+          return;
+        }
+        handleSession(retry.data.session);
+        return;
+      }
+
+      handleSession(session);
+    }
+
+    async function handleSession(session: any) {
+      const user = session.user;
+
+      // Detect first login: created_at and last_sign_in_at within 30 seconds
+      const created = new Date(user.created_at).getTime();
+      const lastSignIn = new Date(user.last_sign_in_at).getTime();
+      const isNewUser = Math.abs(lastSignIn - created) < 30_000;
+
+      if (isNewUser) {
+        // Fire webhook for new Google signups
+        const meta = user.user_metadata || {};
+        try {
+          await fetch("/api/webhook-registration", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: user.email,
+              phone: "",
+              first_name: meta.full_name?.split(" ")[0] || meta.name || "",
+              last_name: meta.full_name?.split(" ").slice(1).join(" ") || "",
+              accept_commercial: false,
+            }),
+          });
+        } catch {
+          // Non-blocking
+        }
+      }
+
+      // Set session marker for useSessionGuard
+      sessionStorage.setItem("vmd_session_active", "1");
+
+      // Redirect
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get("redirect");
+      window.location.href = redirect && redirect.startsWith("/") && !redirect.startsWith("//")
+        ? redirect
+        : "/tableau-de-bord";
+    }
+
+    handleCallback();
+  </script>
+</BaseLayout>

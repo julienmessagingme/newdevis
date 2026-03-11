@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
+import { Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import SEOHead from "@/components/SEOHead";
+import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import { SESSION_ACTIVE_KEY } from "@/hooks/useSessionGuard";
 
 const Login = () => {
@@ -60,9 +61,7 @@ const Login = () => {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <a href="/" className="inline-flex items-center gap-2 mb-6">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Shield className="h-6 w-6 text-primary" />
-              </div>
+              <img src="/images/logo detouré.png" alt="VerifierMonDevis.fr" className="h-12 w-12 object-contain" />
               <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
             </a>
             <h1 className="text-2xl font-bold text-foreground mb-2">
@@ -71,6 +70,18 @@ const Login = () => {
             <p className="text-muted-foreground">
               Accédez à vos analyses de devis
             </p>
+          </div>
+
+          <div className="mb-6">
+            <GoogleSignInButton redirectAfter={new URLSearchParams(window.location.search).get("redirect") || undefined} />
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">ou</span>
+              </div>
+            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -144,9 +155,7 @@ const Login = () => {
       <div className="hidden lg:flex flex-1 hero-gradient items-center justify-center p-8">
         <div className="max-w-md text-center text-primary-foreground">
           <div className="mb-8">
-            <div className="w-20 h-20 bg-primary-foreground/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <Shield className="h-10 w-10" />
-            </div>
+            <img src="/images/logo detouré.png" alt="VerifierMonDevis.fr" className="h-20 w-20 object-contain mx-auto mb-6 drop-shadow-lg" />
             <h2 className="text-2xl font-bold mb-4">
               Sécurisez vos projets de travaux
             </h2>

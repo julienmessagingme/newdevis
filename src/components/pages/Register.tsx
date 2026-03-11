@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Mail, Lock, User, ArrowRight, Loader2, Phone } from "lucide-react";
+import { Mail, Lock, User, ArrowRight, Loader2, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import SEOHead from "@/components/SEOHead";
+import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 
 const COUNTRY_CODES = [
   { code: "+33", flag: "🇫🇷", label: "France", maxDigits: 9 },
@@ -88,20 +89,17 @@ const Register = () => {
           toast.error(error.message);
         }
       } else {
-        // Send webhook for new registration
+        // Send webhook via server-side API route (avoids CORS issues)
         const phoneFormatted = countryCode + phoneLocal;
-        fetch("https://ai.messagingme.app/api/iwh/25a2bb855e30cf49b1fc2aac9697478c", {
+        fetch("/api/webhook-registration", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            event: "user_registered",
             email,
             phone: phoneFormatted,
             first_name: firstName,
             last_name: lastName,
             accept_commercial: acceptCommercial,
-            source: "inscription",
-            registered_at: new Date().toISOString(),
           }),
         }).catch(() => {}); // fire & forget
 
@@ -129,9 +127,7 @@ const Register = () => {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <a href="/" className="inline-flex items-center gap-2 mb-6">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Shield className="h-6 w-6 text-primary" />
-              </div>
+              <img src="/images/logo detouré.png" alt="VerifierMonDevis.fr" className="h-12 w-12 object-contain" />
               <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
             </a>
             <h1 className="text-2xl font-bold text-foreground mb-2">
@@ -140,6 +136,18 @@ const Register = () => {
             <p className="text-muted-foreground">
               Gratuit pour les particuliers
             </p>
+          </div>
+
+          <div className="mb-6">
+            <GoogleSignInButton />
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">ou</span>
+              </div>
+            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -309,9 +317,7 @@ const Register = () => {
       <div className="hidden lg:flex flex-1 hero-gradient items-center justify-center p-8">
         <div className="max-w-md text-center text-primary-foreground">
           <div className="mb-8">
-            <div className="w-20 h-20 bg-primary-foreground/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <Shield className="h-10 w-10" />
-            </div>
+            <img src="/images/logo detouré.png" alt="VerifierMonDevis.fr" className="h-20 w-20 object-contain mx-auto mb-6 drop-shadow-lg" />
             <h2 className="text-2xl font-bold mb-4">
               Rejoignez des milliers de particuliers
             </h2>
