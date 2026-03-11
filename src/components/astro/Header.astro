@@ -48,6 +48,9 @@ const pathname = Astro.url.pathname;
       <a href="/simulateur-valorisation-travaux" class="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
         Arbitrage travaux
       </a>
+      <a id="pass-serenite-btn-desktop" href="/pass-serenite" class="hidden items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition-all text-sm font-semibold text-white shadow-sm">
+        Pass Sérénité
+      </a>
       <div class="flex items-center gap-3">
         <a id="mon-chantier-desktop" href="/mon-chantier" class="hidden items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors text-sm font-medium text-primary">
           <span>🏗️</span>
@@ -136,6 +139,9 @@ const pathname = Astro.url.pathname;
         <span>🏗️</span>
         Mon Chantier
         <span class="text-[10px] font-bold bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded-full leading-none ml-auto">NOUVEAU</span>
+      </a>
+      <a id="pass-serenite-btn-mobile" href="/pass-serenite" class="hidden items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 text-sm font-semibold text-white shadow-sm">
+        Pass Sérénité
       </a>
       <div class="flex flex-col gap-2 pt-2">
         <!-- Connexion (visiteur) ou Espace NOM (connecté) — mobile -->
@@ -247,12 +253,35 @@ const pathname = Astro.url.pathname;
                   const checkM = document.getElementById("premium-check-mobile");
                   if (checkD) checkD.classList.remove("hidden");
                   if (checkM) checkM.classList.remove("hidden");
+                  // Hide CTA buttons for premium users
+                  const btnD = document.getElementById("pass-serenite-btn-desktop");
+                  const btnM = document.getElementById("pass-serenite-btn-mobile");
+                  if (btnD) btnD.classList.add("hidden");
+                  if (btnM) btnM.classList.add("hidden");
+                } else {
+                  // Show CTA buttons for free users
+                  const btnD = document.getElementById("pass-serenite-btn-desktop");
+                  const btnM = document.getElementById("pass-serenite-btn-mobile");
+                  if (btnD) { btnD.classList.remove("hidden"); btnD.classList.add("flex"); }
+                  if (btnM) { btnM.classList.remove("hidden"); btnM.classList.add("flex"); }
                 }
               })
-              .catch(() => {});
+              .catch(() => {
+                // On error, show CTA buttons (assume free)
+                const btnD = document.getElementById("pass-serenite-btn-desktop");
+                const btnM = document.getElementById("pass-serenite-btn-mobile");
+                if (btnD) { btnD.classList.remove("hidden"); btnD.classList.add("flex"); }
+                if (btnM) { btnM.classList.remove("hidden"); btnM.classList.add("flex"); }
+              });
           }
         }
-      } catch {}
+      } catch {
+        // Fallback: show CTA buttons (assume free)
+        const btnD = document.getElementById("pass-serenite-btn-desktop");
+        const btnM = document.getElementById("pass-serenite-btn-mobile");
+        if (btnD) { btnD.classList.remove("hidden"); btnD.classList.add("flex"); }
+        if (btnM) { btnM.classList.remove("hidden"); btnM.classList.add("flex"); }
+      }
 
     }
   } catch {}

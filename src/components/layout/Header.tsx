@@ -95,6 +95,11 @@ const Header = () => {
           <a href="/simulateur-valorisation-travaux" className="text-sm font-medium transition-colors text-muted-foreground hover:text-foreground">
             Arbitrage travaux
           </a>
+          {!isPremium && userDisplayName && (
+            <a href="/pass-serenite" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition-all text-sm font-semibold text-white shadow-sm">
+              Pass Sérénité
+            </a>
+          )}
           <div className="flex items-center gap-3">
             {isAdmin && (
               <a href="/mon-chantier" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors text-sm font-medium text-primary">
@@ -194,6 +199,11 @@ const Header = () => {
                 <span>🏗️</span>
                 Mon Chantier
                 <span className="text-[10px] font-bold bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded-full leading-none ml-auto">NOUVEAU</span>
+              </a>
+            )}
+            {!isPremium && userDisplayName && (
+              <a href="/pass-serenite" onClick={() => setMobileMenuOpen(false)} className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 text-sm font-semibold text-white shadow-sm">
+                Pass Sérénité
               </a>
             )}
             <div className="flex flex-col gap-2 pt-2">
