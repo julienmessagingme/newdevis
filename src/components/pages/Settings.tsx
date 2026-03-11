@@ -10,9 +10,16 @@ import {
   Mail,
   Lock,
   Loader2,
+  MessageCircle,
+  BellRing,
+  CreditCard,
+  CheckCircle2,
+  ExternalLink,
+  Crown,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { usePremium } from "@/hooks/usePremium";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 const formatPhoneNumber = (value: string) => {
@@ -30,6 +37,15 @@ const Settings = () => {
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
+
+  // Consent preferences
+  const [consentWhatsapp, setConsentWhatsapp] = useState(false);
+  const [consentEmail, setConsentEmail] = useState(false);
+  const [savingConsent, setSavingConsent] = useState(false);
+
+  // Premium
+  const { isPremium, currentPeriodEnd, lifetimeAnalysisCount, isLoading: premiumLoading } = usePremium();
+  const [openingPortal, setOpeningPortal] = useState(false);
 
   // Password form
   const [newPassword, setNewPassword] = useState("");
@@ -51,6 +67,11 @@ const Settings = () => {
       setFirstName(meta?.first_name || "");
       setLastName(meta?.last_name || "");
       setPhone(meta?.phone ? formatPhoneNumber(meta.phone) : "");
+
+      // Consent defaults: if user gave phone at registration, default to true
+      const hasPhone = !!meta?.phone;
+      setConsentWhatsapp(meta?.consent_whatsapp ?? hasPhone);
+      setConsentEmail(meta?.consent_email ?? hasPhone);
 
       setLoading(false);
     };
@@ -92,6 +113,49 @@ const Settings = () => {
       toast.error("Une erreur est survenue");
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const handleSaveConsent = async () => {
+    setSavingConsent(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          consent_whatsapp: consentWhatsapp,
+          consent_email: consentEmail,
+        },
+      });
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("Préférences de communication mises à jour");
+      }
+    } catch {
+      toast.error("Une erreur est survenue");
+    } finally {
+      setSavingConsent(false);
+    }
+  };
+
+  const handleOpenPortal = async () => {
+    if (!user) return;
+    setOpeningPortal(true);
+    try {
+      const res = await fetch("/api/create-portal-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Erreur lors de l'accès au portail");
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      toast.error("Une erreur est survenue");
+    } finally {
+      setOpeningPortal(false);
     }
   };
 
@@ -251,6 +315,160 @@ const Settings = () => {
               )}
             </Button>
           </form>
+        </div>
+
+        {/* Consent Card */}
+        <div className="bg-card border border-border rounded-xl p-6 mb-6">
+          <div className="flex items-center gap-2 mb-1">
+            <BellRing className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold text-foreground">
+              Communications
+            </h2>
+          </div>
+          <p className="text-sm text-muted-foreground mb-5">
+            Autorisez VerifierMonDevis.fr à vous informer sur vos analyses, le suivi de vos devis et nos conseils personnalisés.
+          </p>
+
+          <div className="space-y-4">
+            <label className="flex items-start gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={consentWhatsapp}
+                onChange={(e) => setConsentWhatsapp(e.target.checked)}
+                className="mt-1 h-4 w-4 accent-primary"
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4 text-green-600 shrink-0" />
+                  <span className="text-sm font-medium text-foreground">WhatsApp</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Notifications sur vos analyses, rappels et conseils via WhatsApp
+                </p>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={consentEmail}
+                onChange={(e) => setConsentEmail(e.target.checked)}
+                className="mt-1 h-4 w-4 accent-primary"
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-blue-600 shrink-0" />
+                  <span className="text-sm font-medium text-foreground">Email</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Résultats d'analyses, suivi post-signature et conseils par email
+                </p>
+              </div>
+            </label>
+          </div>
+
+          <p className="text-xs text-muted-foreground mt-4 italic">
+            Ces communications concernent uniquement le service VerifierMonDevis.fr, pas des offres commerciales de tiers. Vous pouvez modifier ces préférences à tout moment.
+          </p>
+
+          <Button
+            onClick={handleSaveConsent}
+            disabled={savingConsent}
+            className="mt-4"
+          >
+            {savingConsent ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Enregistrement...
+              </>
+            ) : (
+              "Enregistrer les préférences"
+            )}
+          </Button>
+        </div>
+
+        {/* Subscription Card */}
+        <div className="bg-card border border-border rounded-xl p-6 mb-6">
+          <div className="flex items-center gap-2 mb-1">
+            <CreditCard className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold text-foreground">
+              Abonnement & Facturation
+            </h2>
+          </div>
+
+          {premiumLoading ? (
+            <div className="flex items-center gap-2 mt-4">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Chargement...</span>
+            </div>
+          ) : isPremium ? (
+            <div className="mt-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-50 text-green-700 text-sm font-medium border border-green-200">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Pass Sérénité actif
+                </span>
+              </div>
+
+              {currentPeriodEnd && (
+                <p className="text-sm text-muted-foreground">
+                  Prochain renouvellement le{" "}
+                  <span className="font-medium text-foreground">
+                    {new Date(currentPeriodEnd).toLocaleDateString("fr-FR", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </span>
+                </p>
+              )}
+
+              <div>
+                <Button
+                  onClick={handleOpenPortal}
+                  disabled={openingPortal}
+                  variant="outline"
+                >
+                  {openingPortal ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Redirection...
+                    </>
+                  ) : (
+                    <>
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Gérer mon abonnement
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Factures, moyen de paiement, annulation
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-sm font-medium border border-slate-200">
+                  Version gratuite
+                </span>
+              </div>
+
+              <p className="text-sm text-muted-foreground">
+                <span className="font-medium text-foreground">
+                  {lifetimeAnalysisCount}/5
+                </span>{" "}
+                analyses utilisées
+              </p>
+
+              <a href="/pass-serenite">
+                <Button variant="outline">
+                  <Crown className="h-4 w-4 mr-2 text-orange-500" />
+                  Découvrir le Pass Sérénité →
+                </Button>
+              </a>
+            </div>
+          )}
         </div>
 
         {/* Password Card */}
