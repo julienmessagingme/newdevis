@@ -209,6 +209,24 @@ const Dashboard = () => {
           </div>
         </a>}
 
+        {/* Pass Sérénité CTA */}
+        {!isPremium && (
+          <a href="/pass-serenite" className="block mb-4">
+            <div className="bg-gradient-to-r from-orange-500/10 to-amber-500/10 border border-orange-300 rounded-2xl p-4 hover:border-orange-400 hover:shadow-sm transition-all duration-200 cursor-pointer group">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl flex items-center justify-center text-white text-lg">⭐</div>
+                  <div>
+                    <h2 className="text-sm font-semibold text-foreground">Pass Sérénité — 4,99€/mois</h2>
+                    <p className="text-xs text-muted-foreground">Analyses illimitées, rapport PDF, tri par travaux</p>
+                  </div>
+                </div>
+                <span className="text-xs font-semibold text-orange-600 bg-orange-100 px-3 py-1 rounded-full whitespace-nowrap">Découvrir →</span>
+              </div>
+            </div>
+          </a>
+        )}
+
         {/* Quick Action */}
         <a href="/nouvelle-analyse" className="block mb-8">
           <div className="bg-card border-2 border-dashed border-primary/30 rounded-2xl p-6 hover:border-primary hover:bg-accent/50 transition-all duration-200 cursor-pointer group">

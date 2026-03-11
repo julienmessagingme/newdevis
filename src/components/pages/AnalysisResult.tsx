@@ -722,6 +722,11 @@ const AnalysisResult = () => {
             </span>
           </a>
           <div className="flex items-center gap-2">
+            {!isPremium && (
+              <a href="/pass-serenite" className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition-all text-sm font-semibold text-white shadow-sm">
+                Pass Sérénité
+              </a>
+            )}
             <Button variant="outline" size="sm" onClick={() => window.location.href = "/nouvelle-analyse"} className="px-2 sm:px-3">
               <FilePlus2 className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Analyser un autre devis</span>
