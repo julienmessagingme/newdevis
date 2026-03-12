@@ -313,7 +313,6 @@ const AnalysisResult = () => {
   const fetchAnalysis = useCallback(async () => {
     if (!id) return;
 
-    // Get user directly from Supabase (not from hook) — more reliable on page load
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return;
@@ -353,7 +352,7 @@ const AnalysisResult = () => {
 
     const { data, error } = await supabase
       .from("analyses")
-      .select("id, file_name, file_path, score, resume, points_ok, alertes, recommandations, status, error_message, created_at, assurance_source, assurance_level2_score, attestation_analysis, attestation_comparison, raw_text, site_context, types_travaux, work_type, market_price_overrides, domain")
+      .select("*")
       .eq("id", id)
       .eq("user_id", user.id)
       .single();
@@ -406,8 +405,7 @@ const AnalysisResult = () => {
   useEffect(() => {
     fetchAnalysis();
 
-    if (!id) return;
-
+    // Realtime subscription pour les mises à jour instantanées
     const channel = supabase
       .channel(`analysis-${id}`)
       .on(
@@ -425,6 +423,7 @@ const AnalysisResult = () => {
       .subscribe();
 
     // Polling de sécurité (fallback si Realtime ne fonctionne pas)
+    // Stops polling once analysis is completed
     const pollInterval = setInterval(() => {
       setAnalysis(current => {
         if (current?.status !== "completed") {

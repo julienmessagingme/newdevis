@@ -34,15 +34,18 @@ const NewAnalysis = () => {
   const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const { user, isAnonymous, isPermanent, loading: authLoading, signInAnonymously } = useAnonymousAuth();
+  const { user, isAnonymous, isPermanent, signInAnonymously } = useAnonymousAuth();
 
   useEffect(() => {
-    // Wait for auth hook to resolve before deciding to sign in anonymously
-    if (authLoading) return;
-    if (!user) {
-      signInAnonymously();
-    }
-  }, [authLoading, user, signInAnonymously]);
+    // Auto sign-in anonymously if not logged in
+    const ensureAuth = async () => {
+      const { data: { user: existing } } = await supabase.auth.getUser();
+      if (!existing) {
+        await signInAnonymously();
+      }
+    };
+    ensureAuth();
+  }, [signInAnonymously]);
 
   const resetUploadState = () => {
     setUploadStatus("idle");
@@ -101,19 +104,11 @@ const NewAnalysis = () => {
 
     setFile(selectedFile);
 
-    // Lancer l'upload immédiatement si user prêt, sinon l'effect ci-dessous s'en charge
+    // Lancer l'upload immédiatement
     if (user) {
       await uploadFile(selectedFile);
     }
   };
-
-  // Retry upload when user becomes available (anonymous sign-in just completed)
-  useEffect(() => {
-    if (user && file && uploadStatus === "idle") {
-      uploadFile(file);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
