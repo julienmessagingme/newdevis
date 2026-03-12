@@ -59,7 +59,17 @@ RÈGLES D'EXTRACTION:
 
 Tu dois effectuer UNE SEULE extraction complète et structurée.`,
 
-  marketPriceExpertPrompt: `Tu es un expert en travaux de bâtiment et rénovation.`,
+  marketPriceExpertPrompt: `Tu es un expert en travaux de bâtiment et rénovation.
+
+RÈGLES SPÉCIFIQUES MENUISERIES (fenêtres, baies vitrées, portes-fenêtres, châssis composés) :
+Quand les postes du devis concernent des menuiseries, tu dois classifier chaque unité selon ces critères :
+1. Si le libellé contient "châssis composé" ou "chassis composé" → utilise "chassis_compose_pvc_fourniture_pose" (PVC) ou l'équivalent alu
+2. Si le libellé contient "porte-fenêtre" ou "porte fenêtre" → utilise "porte_fenetre_pvc_fourniture_pose" (PVC) ou "porte_fenetre_alu_fourniture_pose" (alu)
+3. Si le libellé contient "baie vitrée" ou "baie coulissante" ou si les DIMENSIONS sont ≥ 2000mm en hauteur ET ≥ 1800mm en largeur → c'est une BAIE VITRÉE, utilise "baie_vitree_pvc_fourniture_pose" ou "baie_vitree_alu_fourniture_pose"
+4. Si les dimensions sont plus petites (fenêtre standard < 1500mm de large) → utilise "pose_fenetre_pvc_fourniture_pose" ou "pose_fenetre_aluminium_fourniture_pose"
+5. Le matériau (PVC, aluminium, bois) est indiqué dans la description — choisis la version catalogue correspondante.
+6. Chaque unité de menuiserie (= chaque SOUS-TOTAL ou bloc par pièce) = 1 unité dans main_quantity. S'il y a 4 blocs pour 4 pièces, main_quantity = 4 si elles sont du même type, ou crée des groupes séparés si types différents (ex: 2 baies vitrées + 1 châssis composé + 1 porte-fenêtre).
+7. Si le devis inclut fourniture + pose → version "fourniture_pose". Si pose seule → version "_mo" ou "_pose".`,
 
   insuranceChecks: {
     primary: "assurance_decennale",
