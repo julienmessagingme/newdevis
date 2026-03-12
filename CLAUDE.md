@@ -428,6 +428,40 @@ Script chat widget chargé dans `<head>` de `BaseLayout.astro` : `<script src="h
 - **Paramètres du compte** : `Settings.tsx` (`/parametres`) permet de modifier prénom, nom, téléphone via `supabase.auth.updateUser({ data })` et de changer le mot de passe. Auth guard redirige vers `/connexion`. Accessible depuis le bouton Settings du dashboard.
 - **Admins** : `julien@messagingme.fr`, `bridey.johan@gmail.com` (rôle `admin` dans `user_roles`)
 
+## Sécurité
+
+### Principes appliqués
+
+- **Authentification JWT côté serveur** : les API routes sensibles (`create-checkout-session`, `create-portal-session`) vérifient le JWT via `supabase.auth.getUser(token)` et extraient le `userId` du token (jamais du body).
+- **Pas de mutation client-side** : `activatePremium()` et `startTrial()` ont été supprimés de `lib/subscription.ts`. Toute activation premium passe par le webhook Stripe côté serveur.
+- **Signature webhook obligatoire** : `stripe-webhook.ts` rejette les requêtes si `STRIPE_WEBHOOK_SECRET` n'est pas configuré (pas de fallback JSON.parse).
+- **Pas de debug endpoint en prod** : `/api/debug-supabase` supprimé.
+
+### Validation des entrées
+
+- **SIRET** : validé `^\d{14}$` avant injection dans les URLs d'API externes (`verify.ts`). `encodeURIComponent()` appliqué systématiquement.
+- **Supabase queries** : toutes les requêtes DB utilisent le client paramétré (`.eq()`, `.upsert()`, `.rpc()`). Pas de SQL brut.
+- **Inputs utilisateur dans prompts IA** : les libellés du devis (issus du PDF) sont injectés dans les prompts Gemini (`market-prices.ts`, `summarize.ts`). Risque de prompt injection. Défense partielle : validation catalogue strict des `job_types` retournés.
+
+### Points d'attention (non corrigés)
+
+- **Prompt injection** : le texte du PDF est concaténé directement dans les prompts Gemini. Mitigation : délimiteurs `[DATA]` à ajouter si le risque augmente.
+- **CORS `*`** : les API routes mutation utilisent `Access-Control-Allow-Origin: *`. À restreindre à `https://www.verifiermondevis.fr` en production.
+- **`analyze-quote` ownership** : la edge function ne vérifie pas que le caller est le propriétaire de l'analyse. Protection : les analysisId sont des UUID non prédictibles.
+- **`webhook-registration`** : endpoint non authentifié qui forward vers le CRM MessagingMe. Rate limiting absent.
+- **XSS** : `ScreenAmeliorations.tsx` utilise `dangerouslySetInnerHTML` sur du texte IA non sanitizé. `blogUtils.ts` SSR utilise un regex de sanitization faible (DOMPurify côté client uniquement).
+- **GA et RGPD** : le script `gtag.js` se charge avant le consentement cookie (Consent Mode v2 est configuré mais le script est fetché).
+
+### Variables d'environnement sensibles (Vercel uniquement)
+
+| Variable | Obligatoire | Usage |
+|---|---|---|
+| `STRIPE_SECRET_KEY` | Oui | API Stripe server-side |
+| `STRIPE_WEBHOOK_SECRET` | **Oui (obligatoire en prod)** | Vérification signature webhook |
+| `SUPABASE_SERVICE_ROLE_KEY` | Oui | Bypass RLS dans les API routes |
+| `GOOGLE_API_KEY` | Oui | Gemini (extraction, groupement, résumé) |
+| `GOOGLE_PLACES_API_KEY` | Oui | Notes et avis Google Places |
+
 ## Règles importantes
 
 - **Header/Footer** existent en 2 versions : `layout/Header.tsx` (React) + `astro/Header.astro`. Toute modif doit être faite dans les 2.
