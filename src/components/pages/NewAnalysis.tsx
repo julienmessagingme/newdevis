@@ -34,18 +34,15 @@ const NewAnalysis = () => {
   const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const { user, isAnonymous, isPermanent, signInAnonymously } = useAnonymousAuth();
+  const { user, isAnonymous, isPermanent, loading: authLoading, signInAnonymously } = useAnonymousAuth();
 
   useEffect(() => {
-    // Auto sign-in anonymously if not logged in
-    const ensureAuth = async () => {
-      const { data: { user: existing } } = await supabase.auth.getUser();
-      if (!existing) {
-        await signInAnonymously();
-      }
-    };
-    ensureAuth();
-  }, [signInAnonymously]);
+    // Wait for auth hook to resolve before deciding to sign in anonymously
+    if (authLoading) return;
+    if (!user) {
+      signInAnonymously();
+    }
+  }, [authLoading, user, signInAnonymously]);
 
   const resetUploadState = () => {
     setUploadStatus("idle");
