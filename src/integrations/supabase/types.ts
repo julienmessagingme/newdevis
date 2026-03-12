@@ -380,6 +380,7 @@ export type Database = {
           statut: string
           tva: number
           type_travaux: string
+          user_id: string | null
         }
         Insert: {
           acompte_paye?: number | null
@@ -403,6 +404,7 @@ export type Database = {
           statut?: string
           tva?: number
           type_travaux?: string
+          user_id?: string | null
         }
         Update: {
           acompte_paye?: number | null
@@ -426,6 +428,7 @@ export type Database = {
           statut?: string
           tva?: number
           type_travaux?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -596,6 +599,7 @@ export type Database = {
           taille_octets: number | null
           type: string
           url: string
+          user_id: string | null
         }
         Insert: {
           analyse_id?: string | null
@@ -615,6 +619,7 @@ export type Database = {
           taille_octets?: number | null
           type: string
           url?: string
+          user_id?: string | null
         }
         Update: {
           analyse_id?: string | null
@@ -634,6 +639,7 @@ export type Database = {
           taille_octets?: number | null
           type?: string
           url?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -1438,6 +1444,7 @@ export type Database = {
           ordre: number
           priorite: string
           titre: string
+          user_id: string | null
         }
         Insert: {
           chantier_id: string
@@ -1447,6 +1454,7 @@ export type Database = {
           ordre?: number
           priorite?: string
           titre: string
+          user_id?: string | null
         }
         Update: {
           chantier_id?: string
@@ -1456,6 +1464,7 @@ export type Database = {
           ordre?: number
           priorite?: string
           titre?: string
+          user_id?: string | null
         }
         Relationships: [
           {

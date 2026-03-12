@@ -56,7 +56,8 @@ const Blog = () => {
         .from("blog_posts")
         .select("id, slug, title, excerpt, category, cover_image_url, published_at, reading_time")
         .eq("status", "published")
-        .order("published_at", { ascending: false });
+        .order("published_at", { ascending: false })
+        .limit(200);
 
       if (error) throw error;
       setPosts(data || []);

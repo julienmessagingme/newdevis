@@ -352,7 +352,7 @@ const AnalysisResult = () => {
 
     const { data, error } = await supabase
       .from("analyses")
-      .select("*")
+      .select("id, file_name, file_path, score, resume, points_ok, alertes, recommandations, status, error_message, created_at, assurance_source, assurance_level2_score, attestation_analysis, attestation_comparison, raw_text, site_context, types_travaux, work_type, market_price_overrides, domain")
       .eq("id", id)
       .eq("user_id", user.id)
       .single();

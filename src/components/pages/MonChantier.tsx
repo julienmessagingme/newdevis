@@ -1264,9 +1264,9 @@ export default function MonChantier() {
 
   const loadData = useCallback(async (userId: string, chantierId: string) => {
     const [d, j, r, a] = await Promise.all([
-      supabase.from("devis_chantier").select("*").eq("chantier_id", chantierId).order("created_at", { ascending: false }),
-      supabase.from("journal_entries").select("*").eq("chantier_id", chantierId).order("date", { ascending: false }),
-      supabase.from("relances").select("*").eq("chantier_id", chantierId).order("created_at", { ascending: false }),
+      supabase.from("devis_chantier").select("id, analyse_id, artisan_nom, artisan_email, type_travaux, montant_ht, montant_ttc, acompte_pct, acompte_paye, statut, score_analyse, created_at").eq("chantier_id", chantierId).order("created_at", { ascending: false }),
+      supabase.from("journal_entries").select("id, date, phase, artisan_nom, note, tags").eq("chantier_id", chantierId).order("date", { ascending: false }),
+      supabase.from("relances").select("id, artisan_nom, artisan_email, type, contenu, envoye_at, created_at").eq("chantier_id", chantierId).order("created_at", { ascending: false }),
       supabase.from("analyses").select("id, file_name, score, status, raw_text").eq("user_id", userId).eq("status", "completed"),
     ]);
     if (d.data) setDevisList(d.data);
@@ -1281,9 +1281,10 @@ export default function MonChantier() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any;
 
+    // Single query with PostgREST nested select (replaces 2 separate queries)
     const { data: chantiersRaw } = await db
       .from("chantiers")
-      .select("id, nom, emoji, budget, phase, created_at, updated_at, user_id")
+      .select("id, nom, emoji, budget, phase, created_at, updated_at, user_id, devis_chantier(id, artisan_nom, type_travaux, montant_ttc, statut, score_analyse, analyse_id, created_at)")
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
@@ -1294,50 +1295,43 @@ export default function MonChantier() {
       return;
     }
 
-    const chantierIds = (chantiersRaw as Array<{ id: string }>).map((c) => c.id);
-    const { data: devisRaw } = await db
-      .from("devis_chantier")
-      .select("id, chantier_id, artisan_nom, type_travaux, montant_ttc, statut, score_analyse, analyse_id, created_at")
-      .in("chantier_id", chantierIds)
-      .order("created_at", { ascending: false });
-
     // Construit les ChantierDashboard avec computed fields
-    const computed = (chantiersRaw as Array<{
+    type ChantierWithDevis = {
       id: string; nom: string; emoji: string; budget: number | null;
       phase: string; created_at: string; updated_at: string; user_id: string;
-    }>).map((raw) => {
-      const allDevis = (devisRaw ?? []) as Array<{
-        id: string; chantier_id: string; artisan_nom: string; type_travaux: string;
+      devis_chantier: Array<{
+        id: string; artisan_nom: string; type_travaux: string;
         montant_ttc: number | null; statut: string; score_analyse: string | null;
         analyse_id: string | null; created_at: string | null;
       }>;
-      const devis = allDevis
-        .filter((d) => d.chantier_id === raw.id)
-        .map((d) => ({
-          id: d.id,
-          nom: d.artisan_nom,
-          description: d.type_travaux,
-          montant: d.montant_ttc,
-          statut: d.statut as "recu" | "signe" | "en_cours" | "termine" | "litige",
-          analyseId: d.analyse_id,
-          scoreAnalyse: d.score_analyse,
-        }));
+    };
+    const computed = (chantiersRaw as ChantierWithDevis[]).map((raw) => {
+      const devis = (raw.devis_chantier ?? []).map((d) => ({
+        id: d.id,
+        nom: d.artisan_nom,
+        description: d.type_travaux,
+        montant: d.montant_ttc,
+        statut: d.statut as "recu" | "signe" | "en_cours" | "termine" | "litige",
+        analyseId: d.analyse_id,
+        scoreAnalyse: d.score_analyse,
+      }));
       return computeChantierDashboard({ ...raw, devis });
     });
     setChantiersDashboard(computed);
 
-    // Activité récente : les 5 devis les plus récents
+    // Activité récente : les 5 devis les plus récents (from nested data)
     type DevisRow = {
       id: string; artisan_nom: string; chantier_id: string;
       montant_ttc: number | null; created_at: string | null;
     };
-    const allDevisFlat = (devisRaw ?? []) as DevisRow[];
+    const allDevisFlat: DevisRow[] = (chantiersRaw as ChantierWithDevis[]).flatMap((c) =>
+      (c.devis_chantier ?? []).map((d) => ({ ...d, chantier_id: c.id }))
+    );
     const sorted = [...allDevisFlat]
       .sort((a, b) => new Date(b.created_at ?? "").getTime() - new Date(a.created_at ?? "").getTime())
       .slice(0, 5);
-    type ChantierRow = { id: string; nom: string };
     const chantiersMap = Object.fromEntries(
-      (chantiersRaw as ChantierRow[]).map((c) => [c.id, c.nom])
+      (chantiersRaw as ChantierWithDevis[]).map((c) => [c.id, c.nom])
     );
     setActiviteRecente(sorted.map((d) => ({
       id: d.id,
