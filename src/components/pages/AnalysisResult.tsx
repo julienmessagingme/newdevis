@@ -313,15 +313,11 @@ const AnalysisResult = () => {
   const fetchAnalysis = useCallback(async () => {
     if (!id) return;
 
-    // Wait for auth hook to finish loading — don't call getUser() independently
-    if (authLoading) return;
-    if (!authUser) {
-      // Auth resolved but no user — can't fetch analysis
-      setLoading(false);
+    // Get user directly from Supabase (not from hook) — more reliable on page load
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return;
     }
-
-    const user = authUser;
 
     // Check for pending ownership transfer (user logged into existing account after anonymous analysis)
     const pendingRaw = localStorage.getItem("pendingAnalysisTransfer");
@@ -370,7 +366,7 @@ const AnalysisResult = () => {
 
     setAnalysis(data as unknown as Analysis);
     setLoading(false);
-  }, [id, isPermanent, authUser, authLoading]);
+  }, [id, isPermanent]);
 
   // Helper: tries loadFromElement immediately, retries after 1s if script not yet loaded
   const initTrustpilotWidget = useCallback((el: HTMLDivElement | null) => {
@@ -407,13 +403,9 @@ const AnalysisResult = () => {
     initTrustpilotWidget(trustpilotModalRef.current);
   }, [showTrustpilotModal, initTrustpilotWidget]);
 
-  // Fetch analysis when auth is ready (re-runs when authUser changes)
   useEffect(() => {
     fetchAnalysis();
-  }, [fetchAnalysis]);
 
-  // Realtime subscription + polling (only depends on id, not auth)
-  useEffect(() => {
     if (!id) return;
 
     const channel = supabase

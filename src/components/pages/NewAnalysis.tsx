@@ -101,11 +101,19 @@ const NewAnalysis = () => {
 
     setFile(selectedFile);
 
-    // Lancer l'upload immédiatement
+    // Lancer l'upload immédiatement si user prêt, sinon l'effect ci-dessous s'en charge
     if (user) {
       await uploadFile(selectedFile);
     }
   };
+
+  // Retry upload when user becomes available (anonymous sign-in just completed)
+  useEffect(() => {
+    if (user && file && uploadStatus === "idle") {
+      uploadFile(file);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
