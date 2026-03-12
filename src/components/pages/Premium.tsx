@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { startTrial } from "@/lib/subscription";
+// startTrial removed for security — subscription goes through Stripe only
 import { toast } from "sonner";
 import { Check, X, Sparkles, FileText, Euro, Award, ClipboardList, Mail, Camera } from "lucide-react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -93,14 +93,9 @@ const Premium = () => {
       return;
     }
     setIsStarting(true);
-    const result = await startTrial(user.id);
-    if (result.success) {
-      toast.success("Accès activé ! Bienvenue dans Mon Chantier 🎉");
-      setTimeout(() => { window.location.href = "/mon-chantier"; }, 1200);
-    } else {
-      toast.error("Erreur lors de l'activation. Réessayez.");
-      setIsStarting(false);
-    }
+    // Redirect to Pass Sérénité subscription page
+    window.location.href = "/pass-serenite";
+    return;
   };
 
   const scoreColor = (score: string | null) => {

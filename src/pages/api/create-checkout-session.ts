@@ -23,20 +23,31 @@ export const POST: APIRoute = async ({ request }) => {
     );
   }
 
-  let body: { userId?: string; userEmail?: string };
-  try {
-    body = await request.json();
-  } catch {
+  // Verify caller identity from JWT
+  const authHeader = request.headers.get('authorization');
+  const token = authHeader?.replace('Bearer ', '');
+  if (!token) {
     return new Response(
-      JSON.stringify({ error: 'Corps de requête invalide' }),
-      { status: 400, headers: CORS },
+      JSON.stringify({ error: 'Non authentifié' }),
+      { status: 401, headers: CORS },
     );
   }
 
-  const { userId, userEmail } = body;
-  if (!userId || !userEmail) {
+  const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey);
+  const { data: { user: callerUser }, error: authError } = await supabaseAuth.auth.getUser(token);
+  if (authError || !callerUser) {
     return new Response(
-      JSON.stringify({ error: 'userId et userEmail requis' }),
+      JSON.stringify({ error: 'Token invalide' }),
+      { status: 401, headers: CORS },
+    );
+  }
+
+  // Use the authenticated user's ID and email — ignore body values
+  const userId = callerUser.id;
+  const userEmail = callerUser.email;
+  if (!userEmail) {
+    return new Response(
+      JSON.stringify({ error: 'Email utilisateur manquant' }),
       { status: 400, headers: CORS },
     );
   }

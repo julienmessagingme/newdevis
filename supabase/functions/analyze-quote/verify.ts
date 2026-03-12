@@ -86,8 +86,10 @@ export async function verifyData(
   console.log("PHASE 2 - Starting verification...");
 
   // 1. RECHERCHE ENTREPRISES API GOUV — Company verification
-  const siret = extracted.entreprise.siret;
-  const siren = extractSiren(siret);
+  const rawSiret = extracted.entreprise.siret;
+  // Validate SIRET format (14 digits) to prevent URL injection from AI output
+  const siret = rawSiret && /^\d{14}$/.test(rawSiret.replace(/\s/g, '')) ? rawSiret.replace(/\s/g, '') : null;
+  const siren = siret ? extractSiren(siret) : null;
 
   if (siret && siren) {
     result.debug!.provider_calls.entreprise.enabled = true;
@@ -128,7 +130,7 @@ export async function verifyData(
       const startTime = Date.now();
 
       try {
-        const apiUrl = `${RECHERCHE_ENTREPRISES_API_URL}?q=${siret}&page=1&per_page=1`;
+        const apiUrl = `${RECHERCHE_ENTREPRISES_API_URL}?q=${encodeURIComponent(siret)}&page=1&per_page=1`;
         const response = await fetch(apiUrl);
 
         result.debug!.provider_calls.entreprise.http_status = response.status;
@@ -214,7 +216,7 @@ export async function verifyData(
       const startTimeFinances = Date.now();
 
       try {
-        const financesUrl = `${DATA_ECONOMIE_API_URL}?dataset=ratios_inpi_bce&q=siren:${siren}&rows=5&sort=date_cloture_exercice`;
+        const financesUrl = `${DATA_ECONOMIE_API_URL}?dataset=ratios_inpi_bce&q=siren:${encodeURIComponent(siren)}&rows=5&sort=date_cloture_exercice`;
         const financesResponse = await fetch(financesUrl);
 
         result.debug!.provider_calls.finances.http_status = financesResponse.status;

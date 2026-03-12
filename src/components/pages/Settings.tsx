@@ -141,10 +141,14 @@ const Settings = () => {
     if (!user) return;
     setOpeningPortal(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch("/api/create-portal-session", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id }),
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (!res.ok) {

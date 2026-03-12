@@ -23,20 +23,20 @@ export const POST: APIRoute = async ({ request }) => {
 
   let event: Stripe.Event;
 
-  if (webhookSecret && signature) {
-    try {
-      event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
-    } catch (err) {
-      console.error('[stripe-webhook] Signature verification failed:', (err as Error).message);
-      return new Response('Signature invalide', { status: 400 });
-    }
-  } else {
-    // No webhook secret configured — parse event directly (dev mode)
-    try {
-      event = JSON.parse(rawBody) as Stripe.Event;
-    } catch {
-      return new Response('Corps invalide', { status: 400 });
-    }
+  if (!webhookSecret) {
+    console.error('[stripe-webhook] STRIPE_WEBHOOK_SECRET not configured — rejecting request');
+    return new Response('Webhook secret not configured', { status: 500 });
+  }
+
+  if (!signature) {
+    return new Response('Missing stripe-signature header', { status: 400 });
+  }
+
+  try {
+    event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+  } catch (err) {
+    console.error('[stripe-webhook] Signature verification failed:', (err as Error).message);
+    return new Response('Signature invalide', { status: 400 });
   }
 
   try {

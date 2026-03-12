@@ -21,26 +21,27 @@ export const POST: APIRoute = async ({ request }) => {
     );
   }
 
-  let body: { userId?: string };
-  try {
-    body = await request.json();
-  } catch {
+  // Verify caller identity from JWT
+  const authHeader = request.headers.get('authorization');
+  const token = authHeader?.replace('Bearer ', '');
+  if (!token) {
     return new Response(
-      JSON.stringify({ error: 'Corps de requête invalide' }),
-      { status: 400, headers: CORS },
+      JSON.stringify({ error: 'Non authentifié' }),
+      { status: 401, headers: CORS },
     );
   }
 
-  const { userId } = body;
-  if (!userId) {
-    return new Response(
-      JSON.stringify({ error: 'userId requis' }),
-      { status: 400, headers: CORS },
-    );
-  }
-
-  const stripe = new Stripe(stripeSecretKey);
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const { data: { user: callerUser }, error: authError } = await supabase.auth.getUser(token);
+  if (authError || !callerUser) {
+    return new Response(
+      JSON.stringify({ error: 'Token invalide' }),
+      { status: 401, headers: CORS },
+    );
+  }
+
+  const userId = callerUser.id;
+  const stripe = new Stripe(stripeSecretKey);
 
   try {
     // Retrieve Stripe customer ID from subscriptions

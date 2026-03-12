@@ -48,44 +48,5 @@ export async function getPremiumStatus(userId: string): Promise<SubscriptionInfo
   };
 }
 
-/** Démarre un essai gratuit de 14 jours pour l'utilisateur */
-export async function startTrial(userId: string): Promise<{ success: boolean; error?: string }> {
-  const trialEnd = new Date();
-  trialEnd.setDate(trialEnd.getDate() + 14);
-
-  const { error } = await supabase
-    .from("subscriptions")
-    .upsert(
-      {
-        user_id: userId,
-        status: "trial",
-        plan: "premium_monthly",
-        trial_ends_at: trialEnd.toISOString(),
-      },
-      { onConflict: "user_id" }
-    );
-
-  if (error) return { success: false, error: error.message };
-  return { success: true };
-}
-
-/** Active manuellement un abonnement premium (pour tests / early adopters) */
-export async function activatePremium(userId: string): Promise<{ success: boolean; error?: string }> {
-  const periodEnd = new Date();
-  periodEnd.setMonth(periodEnd.getMonth() + 1);
-
-  const { error } = await supabase
-    .from("subscriptions")
-    .upsert(
-      {
-        user_id: userId,
-        status: "active",
-        plan: "premium_monthly",
-        current_period_end: periodEnd.toISOString(),
-      },
-      { onConflict: "user_id" }
-    );
-
-  if (error) return { success: false, error: error.message };
-  return { success: true };
-}
+// startTrial and activatePremium removed — subscription activation
+// must go through Stripe Checkout only (server-side via webhook).
