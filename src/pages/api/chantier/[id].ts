@@ -54,6 +54,7 @@ function buildFallbackResult(
     },
     generatedAt: String(chantier.created_at ?? ''),
     promptOriginal: '',
+    estimationSignaux: null,
   };
 }
 
@@ -211,6 +212,8 @@ export const GET: APIRoute = async ({ params, request }) => {
     prochaineAction,
     generatedAt: String(chantier.created_at ?? ''),
     promptOriginal: '',
+    // Signaux de fiabilité — lot 8A (null pour les anciens chantiers)
+    estimationSignaux: meta.estimationSignaux ?? null,
     // Calculés
     nbArtisans: artisans.length,
     nbFormalites: formalites.length,
@@ -401,8 +404,73 @@ export const PATCH: APIRoute = async ({ request, params }) => {
   return new Response(JSON.stringify({ chantier: data }), { status: 200, headers: CORS });
 };
 
+// ── DELETE /api/chantier/[id] ──────────────────────────────────────────────────
+// Suppression complète d'un chantier : fichiers storage + ligne DB (cascade).
+
+export const DELETE: APIRoute = async ({ params, request }) => {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer '))
+    return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
+
+  const token = authHeader.slice(7);
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+  if (authError || !user)
+    return new Response(JSON.stringify({ error: 'Token invalide' }), { status: 401, headers: CORS });
+
+  const chantierId = params.id;
+  if (!chantierId)
+    return new Response(JSON.stringify({ error: 'ID manquant' }), { status: 400, headers: CORS });
+
+  // Vérifie ownership
+  const { data: ownerCheck } = await supabase
+    .from('chantiers')
+    .select('id')
+    .eq('id', chantierId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (!ownerCheck)
+    return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
+
+  // Récupère les chemins storage à supprimer
+  const { data: docs } = await supabase
+    .from('documents_chantier')
+    .select('bucket_path')
+    .eq('chantier_id', chantierId);
+
+  // Suppression des fichiers storage (non-bloquant si erreur)
+  const paths = (docs ?? []).map((d) => d.bucket_path).filter(Boolean);
+  if (paths.length > 0) {
+    const { error: storageErr } = await supabase.storage
+      .from('chantier-documents')
+      .remove(paths);
+    if (storageErr) {
+      console.error(`[DELETE /api/chantier/${chantierId}] storage:`, storageErr.message);
+    }
+  }
+
+  // Suppression du chantier — CASCADE supprime todos, lots, documents, devis
+  const { error: deleteErr } = await supabase
+    .from('chantiers')
+    .delete()
+    .eq('id', chantierId)
+    .eq('user_id', user.id);
+
+  if (deleteErr) {
+    console.error(`[DELETE /api/chantier/${chantierId}] db:`, deleteErr.message);
+    return new Response(
+      JSON.stringify({ error: 'Erreur lors de la suppression' }),
+      { status: 500, headers: CORS },
+    );
+  }
+
+  return new Response(JSON.stringify({ success: true }), { status: 200, headers: CORS });
+};
+
 export const OPTIONS: APIRoute = () =>
   new Response(null, {
     status: 204,
-    headers: { ...CORS, 'Access-Control-Allow-Methods': 'GET,PATCH,OPTIONS' },
+    headers: { ...CORS, 'Access-Control-Allow-Methods': 'GET,PATCH,DELETE,OPTIONS' },
   });

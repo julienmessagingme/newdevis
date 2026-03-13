@@ -209,7 +209,7 @@ export default function ChantierDetail() {
             </p>
           </div>
           <a
-            href="/mon-chantier/nouveau"
+            href="/mon-chantier"
             className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 font-medium whitespace-nowrap transition-colors shrink-0"
           >
             <Sparkles className="h-3 w-3" />
@@ -222,7 +222,7 @@ export default function ChantierDetail() {
         result={result}
         chantierId={chantierId}
         onAmeliorer={() => setScreen('ameliorer')}
-        onNouveau={() => { window.location.href = '/mon-chantier/nouveau'; }}
+        onNouveau={() => { window.location.href = '/mon-chantier'; }}
         onToggleTache={handleToggleTache}
         onLotStatutChange={handleLotStatutChange}
         token={token}

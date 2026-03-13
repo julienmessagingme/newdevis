@@ -237,6 +237,9 @@ serve(async (req: Request) => {
     );
   }
 
+  // Flag : devient true si une zone géo a été réellement injectée dans le prompt
+  let locationEnriched = false;
+
   // Enrichir le prompt avec les réponses de qualification
   if (qualificationAnswers && Object.keys(qualificationAnswers).length > 0) {
     const relevantAnswers = Object.entries(qualificationAnswers).filter(
@@ -277,9 +280,51 @@ serve(async (req: Request) => {
           : postalCode;
         prompt += `\n\nLocalisation du chantier : ${cityLabel}`;
         prompt += `\nZone géographique : ${locationCtx.urbanZoneType} (coefficient de prix : ${locationCtx.pricingCoefficient})`;
+        locationEnriched = true; // ← zone réellement utilisée dans le prompt
       } catch { /* enrichissement non bloquant */ }
     }
   }
+
+  // ── Signaux factuels — calculés AVANT l'appel Gemini, aucune IA ──────────────
+  // hasLocalisation : zone enrichie par DB (mode libre) OU code postal dans description (mode guidé)
+  const hasLocalisation =
+    locationEnriched ||
+    (mode === "guide" && /\b\d{5}\b/.test(description ?? ""));
+
+  // hasBudget : fourchette répondue (mode libre) OU budget saisi dans le formulaire (mode guidé)
+  const hasBudget =
+    !!(
+      qualificationAnswers?.budget_tranche &&
+      qualificationAnswers.budget_tranche !== "Je ne sais pas encore"
+    ) ||
+    (mode === "guide" && Number(guidedForm?.budget ?? 0) > 0);
+
+  // hasDate : date répondue (mode libre) OU date choisie dans le formulaire (mode guidé)
+  const hasDate =
+    !!(
+      qualificationAnswers?.date_debut &&
+      qualificationAnswers.date_debut !== "Je ne sais pas encore"
+    ) ||
+    (mode === "guide" && !!(guidedForm?.dateLabelFr));
+
+  // hasSurface : dimensions détectées dans le prompt enrichi (covers toutes les sources)
+  // Formats : 10x4 | 10 x 4 | 8m x 4m | 25 m² | 30m2 | 15 ml
+  const hasSurface =
+    /\d+\s*[xX×]\s*\d+/i.test(prompt) ||
+    /\d+\s*(m²|m2)/i.test(prompt) ||
+    /\d+\s*m\s*[xX×]\s*\d+\s*m/i.test(prompt) ||
+    /\d+\s*ml\b/i.test(prompt);
+
+  // Objet partiel — typeProjetPrecis et nbLignesBudget complétés après parsing Gemini
+  // deno-lint-ignore no-explicit-any
+  const estimationSignaux: Record<string, any> = {
+    hasLocalisation,
+    hasBudget,
+    hasDate,
+    hasSurface,
+    typeProjetPrecis: false,   // complété après parsing
+    nbLignesBudget: 0,         // complété après parsing
+  };
 
   // Call Gemini 2.0 flash
   let apiResponse: Response;
@@ -334,10 +379,17 @@ serve(async (req: Request) => {
     );
   }
 
+  // Compléter les signaux avec les données issues du JSON Gemini
+  estimationSignaux.typeProjetPrecis = parsed.typeProjet !== "autre";
+  estimationSignaux.nbLignesBudget = Array.isArray(parsed.lignesBudget)
+    ? parsed.lignesBudget.length
+    : 0;
+
   const result = {
     ...parsed,
     promptOriginal: prompt,
     generatedAt: new Date().toISOString(),
+    estimationSignaux,
   };
 
   return new Response(

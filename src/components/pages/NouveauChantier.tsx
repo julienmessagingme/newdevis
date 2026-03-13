@@ -92,9 +92,20 @@ export default function NouveauChantier() {
   const [ecran, setEcran] = useState<Ecran>('prompt');
   const [result, setResult] = useState<ChantierIAResult | null>(null);
   const [chantierId, setChantierId] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [requestBody, setRequestBody] = useState('');
   const startTimeRef = useRef<number>(0);
   const [tempsMs, setTempsMs] = useState(0);
+  // Déclenché si l'utilisateur clique "Voir le dashboard" avant que chantierId soit disponible
+  const [pendingRedirect, setPendingRedirect] = useState(false);
+
+  // Dès que chantierId est disponible et qu'un redirect est en attente → navigation vers /mon-chantier/[id]
+  useEffect(() => {
+    if (pendingRedirect && chantierId) {
+      window.location.href = `/mon-chantier/${chantierId}`;
+    }
+  }, [pendingRedirect, chantierId]);
 
   // Qualification state
   const [isQualifying, setIsQualifying] = useState(false);
@@ -111,7 +122,7 @@ export default function NouveauChantier() {
       const token = await getToken();
       if (!token) {
         toast.error('Vous devez être connecté pour créer un chantier');
-        window.location.href = '/connexion?redirect=/mon-chantier/nouveau';
+        window.location.href = '/connexion?redirect=/mon-chantier';
         return;
       }
 
@@ -178,7 +189,7 @@ export default function NouveauChantier() {
       const token = await getToken();
       if (!token) {
         toast.error('Session expirée, veuillez vous reconnecter');
-        window.location.href = '/connexion?redirect=/mon-chantier/nouveau';
+        window.location.href = '/connexion?redirect=/mon-chantier';
         return;
       }
 
@@ -200,13 +211,17 @@ export default function NouveauChantier() {
       setResult(r);
       setEcran('wow');
 
-      // Sauvegarde en background
+      // Sauvegarde en background + stockage token/userId pour le dashboard
       try {
-        const token = await getToken();
-        if (!token) return;
+        const { data: { session } } = await supabase.auth.getSession();
+        const tok = session?.access_token ?? null;
+        const uid = session?.user?.id ?? null;
+        setToken(tok);
+        setUserId(uid);
+        if (!tok) return;
         const res = await fetch('/api/chantier/sauvegarder', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
           body: JSON.stringify({ result: r }),
         });
         if (res.ok) {
@@ -217,7 +232,7 @@ export default function NouveauChantier() {
         // Non-bloquant — la sauvegarde échoue silencieusement
       }
     },
-    [getToken],
+    [],
   );
 
   const handleError = useCallback((msg: string) => {
@@ -261,7 +276,15 @@ export default function NouveauChantier() {
       <ScreenWow
         result={result}
         tempsMs={tempsMs}
-        onDashboard={() => setEcran('dashboard')}
+        onDashboard={() => {
+          // Si chantierId est déjà connu (sauvegarde terminée) → redirection immédiate
+          // Sinon → pendingRedirect attend que chantierId soit disponible
+          if (chantierId) {
+            window.location.href = `/mon-chantier/${chantierId}`;
+          } else {
+            setPendingRedirect(true);
+          }
+        }}
         onAmeliorer={() => setEcran('ameliorer')}
       />
     );
@@ -274,6 +297,8 @@ export default function NouveauChantier() {
         chantierId={chantierId}
         onAmeliorer={() => setEcran('ameliorer')}
         onNouveau={() => setEcran('prompt')}
+        token={token}
+        userId={userId}
       />
     );
   }

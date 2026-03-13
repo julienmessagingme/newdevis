@@ -49,6 +49,8 @@ export const POST: APIRoute = async ({ request }) => {
     description:       result.description        ?? '',
     dureeEstimeeMois:  result.dureeEstimeeMois    ?? 0,
     financement:       result.financement         ?? 'apport',
+    // Signaux de fiabilité — lot 8A
+    estimationSignaux: result.estimationSignaux  ?? null,
   });
 
   // Créer le chantier

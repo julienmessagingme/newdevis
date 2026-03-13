@@ -40,6 +40,22 @@ export interface LotChantier {
   role?: string;
 }
 
+/** Signaux factuels calculés avant l'appel IA — aucun montant, aucune hallucination */
+export interface EstimationSignaux {
+  /** Code postal ou zone géographique connus et utilisés dans la génération */
+  hasLocalisation: boolean;
+  /** Budget cible renseigné (qualification ou formulaire guidé) */
+  hasBudget: boolean;
+  /** Date de démarrage renseignée */
+  hasDate: boolean;
+  /** Surface, dimensions ou mesures détectées dans les inputs */
+  hasSurface: boolean;
+  /** typeProjet différent de 'autre' */
+  typeProjetPrecis: boolean;
+  /** Nombre de lignes de budget générées (richesse du détail) */
+  nbLignesBudget: number;
+}
+
 export interface LigneBudgetIA {
   label: string;
   montant: number;
@@ -123,6 +139,8 @@ export interface ChantierIAResult {
   // Métadonnées
   generatedAt: string;
   promptOriginal: string;
+  /** Signaux de fiabilité — présents pour les chantiers générés avec lot 8A+ */
+  estimationSignaux?: EstimationSignaux | null;
 }
 
 export interface ChantierGuideForm {

@@ -37,7 +37,8 @@ export const GET: APIRoute = async ({ request }) => {
     .from('chantiers')
     .select('id, nom, emoji, budget, phase, created_at, updated_at')
     .eq('user_id', user.id)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(10);
 
   if (chantiersError) {
     console.error('[api/chantier GET] chantiers error:', chantiersError.message);

@@ -2,35 +2,50 @@ import { useState } from 'react';
 import {
   LayoutDashboard, Route, FileText, CheckSquare,
   Wand2, Plus, ExternalLink, ChevronRight, AlertCircle,
-  TrendingUp, Layers, AlertTriangle, Wallet, FolderOpen,
+  TrendingUp, Layers, AlertTriangle, Wallet, FolderOpen, BookOpen,
+  Upload, Search, Zap, Lightbulb,
 } from 'lucide-react';
 import type { ChantierIAResult, LotChantier, TacheIA, StatutArtisan } from '@/types/chantier-ia';
 import DocumentsSection from '@/components/chantier/nouveau/DocumentsSection';
+import BudgetFiabilite from '@/components/chantier/nouveau/BudgetFiabilite';
+import ChantierTimeline from '@/components/chantier/ChantierTimeline';
+import LotGrid from '@/components/chantier/lots/LotGrid';
+import JournalChantier from '@/components/chantier/JournalChantier';
+import BudgetGlobal from '@/components/chantier/BudgetGlobal';
+import SyntheseChantier from '@/components/chantier/SyntheseChantier';
+import NextActionCard from '@/components/chantier/NextActionCard';
+import ConseilsChantier from '@/components/chantier/ConseilsChantier';
 
 interface DashboardChantierProps {
   result: ChantierIAResult;
   chantierId: string | null;
   onAmeliorer: () => void;
   onNouveau: () => void;
-  /** Appelé après toggle local pour persister en DB. Ne plante pas l'UI si absent ou en erreur. */
   onToggleTache?: (todoId: string, done: boolean) => void;
-  /** Appelé après changement statut lot pour persister en DB. No-op si lot fallback. */
   onLotStatutChange?: (lotId: string, statut: StatutArtisan) => void;
-  /** Token JWT de l'utilisateur — passé à DocumentsSection pour upload direct Storage. */
   token?: string | null;
-  /** userId de l'utilisateur — passé à DocumentsSection pour le chemin bucket. */
   userId?: string | null;
 }
 
-const SIDEBAR_LINKS = [
-  { id: 'apercu',     label: 'Aperçu',      icon: LayoutDashboard },
-  { id: 'alertes',    label: 'Alertes',     icon: AlertTriangle   },
-  { id: 'budget',     label: 'Budget',      icon: Wallet          },
-  { id: 'lots',       label: 'Lots',        icon: Layers          },
-  { id: 'documents',  label: 'Documents',   icon: FolderOpen      },
-  { id: 'roadmap',    label: 'Planning',    icon: Route           },
-  { id: 'formalites', label: 'Formalités',  icon: FileText        },
-  { id: 'checklist',  label: 'Checklist',   icon: CheckSquare     },
+// ── Sidebar ──────────────────────────────────────────────────────────────────
+
+const PRIMARY_LINKS = [
+  { id: 'apercu',    label: 'Vue d\'ensemble', icon: LayoutDashboard },
+  { id: 'prochaine', label: 'À faire',          icon: Zap            },
+  { id: 'timeline',  label: 'Planning',          icon: Route          },
+  { id: 'conseils',  label: 'Nos conseils',      icon: Lightbulb      },
+  { id: 'lots',      label: 'Lots',              icon: Layers         },
+  { id: 'budget',    label: 'Budget',            icon: Wallet         },
+  { id: 'documents', label: 'Documents',         icon: FolderOpen     },
+  { id: 'journal',   label: 'Journal',           icon: BookOpen       },
+];
+
+const SECONDARY_LINKS = [
+  { id: 'alertes',    label: 'Alertes',     icon: AlertTriangle },
+  { id: 'artisans',   label: 'Artisans',    icon: Layers        },
+  { id: 'roadmap',    label: 'Roadmap',     icon: Route         },
+  { id: 'formalites', label: 'Formalités',  icon: FileText      },
+  { id: 'checklist',  label: 'Checklist',   icon: CheckSquare   },
 ];
 
 const STATUT_COLORS: Record<string, string> = {
@@ -55,6 +70,45 @@ const PRIORITE_DOTS: Record<string, string> = {
   normal:    'bg-slate-600',
 };
 
+// ── Helper : en-tête de section ───────────────────────────────────────────────
+
+function SectionHeading({
+  icon: Icon,
+  label,
+  color = 'blue',
+  badge,
+}: {
+  icon: React.ElementType;
+  label: string;
+  color?: string;
+  badge?: number;
+}) {
+  const colors: Record<string, string> = {
+    blue:    'bg-blue-500/15 border-blue-500/20 text-blue-400',
+    violet:  'bg-violet-500/15 border-violet-500/20 text-violet-400',
+    amber:   'bg-amber-500/15 border-amber-500/20 text-amber-400',
+    emerald: 'bg-emerald-500/15 border-emerald-500/20 text-emerald-400',
+    slate:   'bg-white/[0.07] border-white/[0.10] text-slate-400',
+    orange:  'bg-orange-500/15 border-orange-500/20 text-orange-400',
+    rose:    'bg-rose-500/15 border-rose-500/20 text-rose-400',
+  };
+  return (
+    <div className="flex items-center gap-2.5 mb-4">
+      <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${colors[color] ?? colors.blue}`}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <h3 className="text-white font-bold text-lg flex-1">{label}</h3>
+      {badge !== undefined && badge > 0 && (
+        <span className="bg-orange-500/20 text-orange-300 border border-orange-500/20 text-xs rounded-full px-2 py-0.5 font-semibold">
+          {badge}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ── Composant principal ───────────────────────────────────────────────────────
+
 export default function DashboardChantier({
   result,
   chantierId,
@@ -67,8 +121,7 @@ export default function DashboardChantier({
 }: DashboardChantierProps) {
   const [activeSection, setActiveSection] = useState('apercu');
   const [taches, setTaches] = useState<TacheIA[]>(result.taches ?? []);
-  // lotStatuts : état local indexé par lot.id (UUID ou 'fallback-{i}')
-  // Initialisé depuis result.lots, recalculé si result change (source de vérité : DB)
+  const [refreshKey, setRefreshKey] = useState(0);
   const [lotStatuts, setLotStatuts] = useState<Record<string, StatutArtisan>>(
     () => Object.fromEntries((result.lots ?? []).map((l) => [l.id, l.statut])),
   );
@@ -76,9 +129,7 @@ export default function DashboardChantier({
   const toggleTache = (idx: number) => {
     setTaches((prev) => prev.map((t, i) => (i === idx ? { ...t, done: !t.done } : t)));
     const tache = taches[idx];
-    if (tache?.id && onToggleTache) {
-      onToggleTache(tache.id, !tache.done);
-    }
+    if (tache?.id && onToggleTache) onToggleTache(tache.id, !tache.done);
   };
 
   const budgetTotal = result.budgetTotal || 1;
@@ -88,7 +139,7 @@ export default function DashboardChantier({
     document.getElementById(`section-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  // ── Métriques progression ────────────────────────────────────────────────────
+  // ── Métriques ──────────────────────────────────────────────────────────────
   const totalTaches    = taches.length;
   const doneTaches     = taches.filter((t) => t.done).length;
   const progressPct    = totalTaches > 0 ? Math.round((doneTaches / totalTaches) * 100) : 0;
@@ -98,7 +149,7 @@ export default function DashboardChantier({
     .filter((a) => a.eligible && a.montant)
     .reduce((s, a) => s + (a.montant ?? 0), 0);
 
-  // ── Alertes dynamiques ──────────────────────────────────────────────────────
+  // ── Alertes dynamiques ─────────────────────────────────────────────────────
   type AlerteItem = { emoji: string; label: string; section: string };
   const alertes: AlerteItem[] = [];
 
@@ -106,7 +157,6 @@ export default function DashboardChantier({
     .filter((t) => !t.done && t.priorite === 'urgent')
     .forEach((t) => alertes.push({ emoji: '🔴', label: t.titre, section: 'checklist' }));
 
-  // Alertes lots : uniquement les lots persistés (pas les fallbacks read-only)
   const nbATrouver = (result.lots ?? [])
     .filter((l) => !l.id.startsWith('fallback-') && (lotStatuts[l.id] ?? l.statut) === 'a_trouver')
     .length;
@@ -114,7 +164,7 @@ export default function DashboardChantier({
     alertes.push({
       emoji: '👷',
       label: `${nbATrouver} lot${nbATrouver > 1 ? 's' : ''} sans artisan trouvé`,
-      section: 'lots',
+      section: 'artisans',
     });
   }
 
@@ -126,9 +176,8 @@ export default function DashboardChantier({
       section: 'formalites',
     });
   }
-
   if (result.prochaineAction?.deadline) {
-    alertes.push({ emoji: '⏰', label: `Deadline : ${result.prochaineAction.deadline}`, section: 'apercu' });
+    alertes.push({ emoji: '⏰', label: `Deadline : ${result.prochaineAction.deadline}`, section: 'prochaine' });
   }
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -139,14 +188,14 @@ export default function DashboardChantier({
       {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
       <aside className="hidden lg:flex flex-col w-56 shrink-0 bg-[#0d1525] border-r border-white/[0.05] p-4 sticky top-0 h-screen overflow-y-auto">
 
-        {/* En-tête projet */}
+        {/* Projet */}
         <div className="mb-4">
           <div className="text-2xl mb-1">{result.emoji}</div>
           <h2 className="text-white font-semibold text-sm leading-tight">{result.nom}</h2>
-          <p className="text-slate-500 text-xs mt-0.5 leading-snug">{result.description}</p>
+          <p className="text-slate-500 text-xs mt-0.5 leading-snug line-clamp-2">{result.description}</p>
         </div>
 
-        {/* Mini-jauge progression */}
+        {/* Mini progression */}
         <div className="mb-4 px-1">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-slate-500 text-xs">Progression</span>
@@ -169,9 +218,30 @@ export default function DashboardChantier({
           )}
         </div>
 
-        {/* Navigation */}
+        {/* Navigation principale */}
+        <nav className="space-y-0.5">
+          {PRIMARY_LINKS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => scrollTo(id)}
+              className={`w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-all ${
+                activeSection === id
+                  ? 'bg-blue-600/20 text-blue-200 font-medium'
+                  : 'text-slate-500 hover:text-white hover:bg-white/[0.04]'
+              }`}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="flex-1 text-left">{label}</span>
+            </button>
+          ))}
+        </nav>
+
+        {/* Séparateur */}
+        <div className="my-3 border-t border-white/[0.05]" />
+
+        {/* Navigation secondaire */}
         <nav className="space-y-0.5 flex-1">
-          {SIDEBAR_LINKS.map(({ id, label, icon: Icon }) => (
+          {SECONDARY_LINKS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => scrollTo(id)}
@@ -224,88 +294,218 @@ export default function DashboardChantier({
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-8">
 
-          {/* ── APERÇU : Progression + Prochaine action ── */}
-          <div id="section-apercu" className="space-y-4">
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* 1. HEADER CHANTIER                                              */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          <section id="section-apercu">
+            <div className="relative overflow-hidden bg-gradient-to-br from-[#0f1d3a] via-[#0d1830] to-[#0d1525] border border-blue-500/20 rounded-2xl p-6">
 
-            {/* ① Carte progression */}
-            <div className="bg-[#0d1525] border border-white/[0.06] rounded-2xl p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-blue-400" />
-                  <span className="text-white font-semibold text-sm">Progression du projet</span>
+              {/* Décor lumineux */}
+              <div className="absolute -top-12 -right-12 w-48 h-48 bg-blue-500/[0.07] rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute bottom-0 left-1/3 w-32 h-24 bg-cyan-500/[0.04] rounded-full blur-2xl pointer-events-none" />
+
+              {/* Nom + budget */}
+              <div className="relative flex items-start gap-4 mb-6">
+                <div className="w-16 h-16 rounded-2xl bg-blue-500/15 border border-blue-500/25 flex items-center justify-center text-4xl shrink-0 select-none">
+                  {result.emoji}
                 </div>
-                <span className="text-2xl font-bold text-blue-300">{progressPct}%</span>
+                <div className="flex-1 min-w-0">
+                  <h1 className="text-white font-bold text-2xl leading-tight truncate">{result.nom}</h1>
+                  <p className="text-slate-400 text-sm mt-1 line-clamp-2 leading-snug">{result.description}</p>
+                </div>
+                <div className="shrink-0 text-right hidden sm:block">
+                  <p className="text-3xl font-bold text-white leading-none">
+                    {result.budgetTotal.toLocaleString('fr-FR')} €
+                  </p>
+                  <p className="text-slate-500 text-xs mt-1">budget estimé TTC</p>
+                </div>
               </div>
-              <div className="h-2.5 bg-white/[0.06] rounded-full overflow-hidden mb-3">
-                <div
-                  className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full transition-all duration-700"
-                  style={{ width: `${progressPct}%` }}
-                />
+
+              {/* Budget mobile */}
+              <div className="relative flex items-center justify-between mb-5 sm:hidden">
+                <span className="text-slate-400 text-sm">Budget estimé</span>
+                <span className="text-white font-bold text-xl">
+                  {result.budgetTotal.toLocaleString('fr-FR')} €
+                </span>
               </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4 text-xs text-slate-500">
-                  <span>✅ {doneTaches}/{totalTaches} tâches terminées</span>
+
+              {/* Barre de progression */}
+              <div className="relative mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="flex items-center gap-1.5 text-slate-400 text-xs font-medium">
+                    <TrendingUp className="h-3.5 w-3.5" />
+                    Progression globale
+                  </span>
+                  <span className="text-white font-bold text-sm">{progressPct}%</span>
+                </div>
+                <div className="h-3 bg-white/[0.06] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full transition-all duration-700"
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between mt-2 text-xs text-slate-600">
+                  <span>{doneTaches}/{totalTaches} tâches complétées</span>
                   {totalSteps > 0 && (
-                    <span className="hidden sm:inline">🗓️ Étape {currentStepIdx + 1}/{totalSteps}</span>
+                    <span className="hidden sm:inline">Étape {currentStepIdx + 1}/{totalSteps}</span>
                   )}
                 </div>
+              </div>
+
+              {/* Boutons d'action rapide */}
+              <div className="relative flex gap-3">
                 <button
-                  onClick={() => scrollTo('checklist')}
-                  className="text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors shrink-0"
+                  onClick={() => scrollTo('documents')}
+                  className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl py-3 text-sm transition-all shadow-lg shadow-blue-500/25"
                 >
-                  Voir la checklist →
+                  <Upload className="h-4 w-4" />
+                  Ajouter un document
+                </button>
+                <button
+                  onClick={() => scrollTo('documents')}
+                  className="flex-1 flex items-center justify-center gap-2 bg-white/[0.07] hover:bg-white/[0.11] border border-white/[0.12] text-slate-200 font-medium rounded-xl py-3 text-sm transition-all"
+                >
+                  <Search className="h-4 w-4" />
+                  Analyser un devis
                 </button>
               </div>
             </div>
+          </section>
 
-            {/* ② Carte prochaine action recommandée */}
-            <div className="bg-amber-500/10 border border-amber-500/25 rounded-2xl p-5">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 text-amber-400 mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-amber-400 text-[10px] font-bold uppercase tracking-widest mb-1.5">
-                    Prochaine action recommandée
-                  </p>
-                  <p className="text-amber-200 font-semibold text-sm leading-snug">
-                    {result.prochaineAction.titre}
-                  </p>
-                  <p className="text-amber-500/80 text-xs mt-1 leading-relaxed">
-                    {result.prochaineAction.detail}
-                  </p>
-                  {result.prochaineAction.deadline && (
-                    <span className="inline-block mt-2 bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-lg px-2 py-0.5 text-xs font-medium">
-                      ⏰ {result.prochaineAction.deadline}
-                    </span>
-                  )}
-                  <div className="flex items-center gap-3 mt-3 flex-wrap">
-                    <button
-                      onClick={() => scrollTo('checklist')}
-                      className="text-xs bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/25 text-amber-300 rounded-lg px-3 py-1.5 font-medium transition-all"
-                    >
-                      Voir les tâches
-                    </button>
-                    <button
-                      onClick={onAmeliorer}
-                      className="text-xs text-amber-500/60 hover:text-amber-400 transition-colors"
-                    >
-                      Modifier avec l'IA →
-                    </button>
-                  </div>
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* 2. PROCHAINE ACTION                                             */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          <section id="section-prochaine">
+            <SectionHeading icon={Zap} label="Prochaine action" color="violet" />
+            <NextActionCard
+              result={result}
+              chantierId={chantierId}
+              token={token}
+              onViewLot={() => scrollTo('lots')}
+            />
+          </section>
+
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* 3. TIMELINE                                                     */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          <section id="section-timeline">
+            <SectionHeading icon={Route} label="Phases du chantier" color="blue" />
+            <ChantierTimeline roadmap={result.roadmap ?? []} />
+          </section>
+
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* 4. NOS CONSEILS                                                 */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          <section id="section-conseils">
+            <ConseilsChantier
+              chantierId={chantierId}
+              token={token}
+              lignesBudget={result.lignesBudget ?? []}
+              roadmap={result.roadmap ?? []}
+            />
+          </section>
+
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* 5. LOTS DE TRAVAUX                                              */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          <section id="section-lots">
+            <SectionHeading icon={Layers} label="Lots de travaux" color="orange" />
+            <LotGrid
+              lignesBudget={result.lignesBudget ?? []}
+              lots={result.lots ?? []}
+              documents={[]}
+              chantierId={chantierId ?? undefined}
+              userId={userId ?? undefined}
+              token={token ?? undefined}
+              onDocumentAdded={() => setRefreshKey((k) => k + 1)}
+            />
+          </section>
+
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* 6. BUDGET GLOBAL                                                */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          <section id="section-budget">
+            <SectionHeading icon={Wallet} label="Budget global" color="emerald" />
+            <BudgetFiabilite result={result} onAmeliorer={onAmeliorer} />
+            <BudgetGlobal
+              key={refreshKey}
+              lignesBudget={result.lignesBudget ?? []}
+              chantierId={chantierId}
+              token={token}
+            />
+            <button
+              onClick={onAmeliorer}
+              className="mt-3 w-full flex items-center justify-center gap-2 border border-white/[0.08] hover:border-blue-500/40 text-slate-400 hover:text-blue-300 rounded-xl px-4 py-2.5 text-sm transition-all group"
+            >
+              <Wand2 className="h-3.5 w-3.5 group-hover:text-blue-300 transition-colors" />
+              Affiner le budget
+            </button>
+          </section>
+
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* 7. DOCUMENTS                                                    */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          <section id="section-documents">
+            <DocumentsSection
+              chantierId={chantierId ?? ''}
+              userId={userId ?? ''}
+              token={token ?? ''}
+              lots={result.lots ?? []}
+            />
+          </section>
+
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* 8. JOURNAL D'ACTIVITÉ                                           */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          <section id="section-journal">
+            <SectionHeading icon={BookOpen} label="Journal d'activité" color="slate" />
+            <JournalChantier key={refreshKey} chantierId={chantierId} token={token} limit={10} />
+          </section>
+
+          {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+          {/* SECTIONS SECONDAIRES                                            */}
+          {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+
+          {/* Notre recommandation (action IA depuis la génération) */}
+          <div className="bg-amber-500/10 border border-amber-500/25 rounded-2xl p-5">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-400 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-amber-400 text-[10px] font-bold uppercase tracking-widest mb-1.5">
+                  Notre recommandation
+                </p>
+                <p className="text-amber-200 font-semibold text-sm leading-snug">
+                  {result.prochaineAction.titre}
+                </p>
+                <p className="text-amber-500/80 text-xs mt-1 leading-relaxed">
+                  {result.prochaineAction.detail}
+                </p>
+                {result.prochaineAction.deadline && (
+                  <span className="inline-block mt-2 bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-lg px-2 py-0.5 text-xs font-medium">
+                    ⏰ {result.prochaineAction.deadline}
+                  </span>
+                )}
+                <div className="flex items-center gap-3 mt-3 flex-wrap">
+                  <button
+                    onClick={() => scrollTo('checklist')}
+                    className="text-xs bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/25 text-amber-300 rounded-lg px-3 py-1.5 font-medium transition-all"
+                  >
+                    Voir les tâches
+                  </button>
+                  <button
+                    onClick={onAmeliorer}
+                    className="text-xs text-amber-500/60 hover:text-amber-400 transition-colors"
+                  >
+                    Affiner →
+                  </button>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* ── ③ ALERTES ── */}
+          {/* Alertes */}
           <section id="section-alertes">
-            <div className="flex items-center gap-2 mb-4">
-              <h3 className="text-white font-bold text-lg">⚡ Alertes</h3>
-              {alertes.length > 0 && (
-                <span className="bg-orange-500/20 text-orange-300 border border-orange-500/20 text-xs rounded-full px-2 py-0.5 font-semibold">
-                  {alertes.length}
-                </span>
-              )}
-            </div>
+            <SectionHeading icon={AlertTriangle} label="Alertes" color="orange" badge={alertes.length} />
             {alertes.length === 0 ? (
               <div className="bg-emerald-500/[0.07] border border-emerald-500/20 rounded-2xl p-5 flex items-center gap-3">
                 <span className="text-xl shrink-0">🎉</span>
@@ -332,78 +532,9 @@ export default function DashboardChantier({
             )}
           </section>
 
-          {/* ── ④ BUDGET GLOBAL ── */}
-          <section id="section-budget">
-            <h3 className="text-white font-bold text-lg mb-4">💰 Budget global</h3>
-            <div className="bg-[#0d1525] border border-white/[0.06] rounded-2xl p-5">
-              {/* Total */}
-              <div className="flex items-baseline gap-2 mb-5">
-                <span className="text-3xl font-bold text-white">
-                  {result.budgetTotal.toLocaleString('fr-FR')} €
-                </span>
-                <span className="text-slate-500 text-sm">TTC estimé</span>
-              </div>
-
-              {/* Barres proportionnelles */}
-              <div className="space-y-3">
-                {result.lignesBudget?.map((ligne, i) => {
-                  const pct = Math.round((ligne.montant / budgetTotal) * 100);
-                  return (
-                    <div key={i}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-slate-300 text-sm">{ligne.label}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-white font-medium text-sm">
-                            {ligne.montant.toLocaleString('fr-FR')} €
-                          </span>
-                          <span className="text-slate-600 text-xs">{pct}%</span>
-                        </div>
-                      </div>
-                      <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-700"
-                          style={{ width: `${pct}%`, backgroundColor: ligne.couleur }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Financement crédit */}
-              {result.mensualite && (
-                <div className="mt-5 pt-4 border-t border-white/[0.06] flex items-center justify-between">
-                  <span className="text-slate-500 text-sm">Mensualité crédit</span>
-                  <span className="text-blue-300 font-semibold">
-                    {result.mensualite.toLocaleString('fr-FR')} €/mois · {result.dureeCredit} mois
-                  </span>
-                </div>
-              )}
-
-              {/* Économies potentielles via aides */}
-              {aidesTotales > 0 && (
-                <div className="mt-4 pt-4 border-t border-white/[0.06] flex items-center justify-between">
-                  <span className="text-slate-500 text-sm">Économie potentielle (aides)</span>
-                  <span className="text-emerald-400 font-semibold">
-                    ~{aidesTotales.toLocaleString('fr-FR')} €
-                  </span>
-                </div>
-              )}
-
-              {/* Action : ajuster le budget */}
-              <button
-                onClick={onAmeliorer}
-                className="mt-5 w-full flex items-center justify-center gap-2 border border-white/[0.08] hover:border-blue-500/40 text-slate-400 hover:text-blue-300 rounded-xl px-4 py-2.5 text-sm transition-all group"
-              >
-                <Wand2 className="h-3.5 w-3.5 group-hover:text-blue-300 transition-colors" />
-                Ajuster le budget avec l'IA
-              </button>
-            </div>
-          </section>
-
-          {/* ── ⑤ LOTS DE TRAVAUX ── */}
-          <section id="section-lots">
-            <h3 className="text-white font-bold text-lg mb-4">🔨 Lots de travaux</h3>
+          {/* Artisans / statuts */}
+          <section id="section-artisans">
+            <SectionHeading icon={Layers} label="Artisans par lot" color="slate" />
             {(result.lots ?? []).length === 0 ? (
               <div className="bg-[#0d1525] border border-white/[0.06] rounded-2xl p-6 text-center">
                 <p className="text-slate-500 text-sm mb-3">Aucun lot défini pour l'instant.</p>
@@ -411,13 +542,13 @@ export default function DashboardChantier({
                   onClick={onAmeliorer}
                   className="text-xs text-blue-400 hover:text-blue-300 transition-colors font-medium"
                 >
-                  Ajouter des artisans avec l'IA →
+                  Ajouter des artisans →
                 </button>
               </div>
             ) : (
               <div className="space-y-3">
                 {(result.lots ?? []).map((lot: LotChantier) => {
-                  const statut = lotStatuts[lot.id] ?? lot.statut;
+                  const statut    = lotStatuts[lot.id] ?? lot.statut;
                   const isFallback = lot.id.startsWith('fallback-');
                   return (
                     <div key={lot.id} className="bg-[#0d1525] border border-white/[0.06] rounded-2xl p-4">
@@ -435,7 +566,6 @@ export default function DashboardChantier({
                           {lot.role && (
                             <p className="text-slate-500 text-xs mt-0.5 leading-tight">{lot.role}</p>
                           )}
-                          {/* Sélecteur de statut — persisté en DB sauf lots fallback */}
                           <div className="flex gap-1.5 mt-3 flex-wrap">
                             {(['a_trouver', 'a_contacter', 'ok'] as StatutArtisan[]).map((s) => (
                               <button
@@ -467,19 +597,12 @@ export default function DashboardChantier({
             )}
           </section>
 
-          {/* ── ⑥ DOCUMENTS ── */}
-          <section id="section-documents">
-            <DocumentsSection
-              chantierId={chantierId ?? ''}
-              userId={userId ?? ''}
-              token={token ?? ''}
-              lots={result.lots ?? []}
-            />
-          </section>
+          {/* Synthèse */}
+          <SyntheseChantier result={result} chantierId={chantierId} token={token} />
 
-          {/* ── PLANNING / ROADMAP ── */}
+          {/* Roadmap détaillée */}
           <section id="section-roadmap">
-            <h3 className="text-white font-bold text-lg mb-4">🗓️ Planning prévisionnel</h3>
+            <SectionHeading icon={Route} label="Roadmap détaillée" color="blue" />
             <div className="bg-[#0d1525] border border-white/[0.06] rounded-2xl p-5">
               <div className="space-y-4">
                 {result.roadmap?.map((etape, i) => (
@@ -521,9 +644,9 @@ export default function DashboardChantier({
             </div>
           </section>
 
-          {/* ── FORMALITÉS ── */}
+          {/* Formalités */}
           <section id="section-formalites">
-            <h3 className="text-white font-bold text-lg mb-4">📋 Formalités administratives</h3>
+            <SectionHeading icon={FileText} label="Formalités administratives" color="blue" />
             <div className="space-y-3">
               {result.formalites?.map((f, i) => (
                 <div key={i} className="flex items-start gap-3 bg-[#0d1525] border border-white/[0.06] rounded-2xl p-4">
@@ -547,9 +670,9 @@ export default function DashboardChantier({
             </div>
           </section>
 
-          {/* ── CHECKLIST ── */}
+          {/* Checklist */}
           <section id="section-checklist">
-            <h3 className="text-white font-bold text-lg mb-4">✅ Checklist prioritaire</h3>
+            <SectionHeading icon={CheckSquare} label="Checklist prioritaire" color="emerald" />
             <div className="bg-[#0d1525] border border-white/[0.06] rounded-2xl divide-y divide-white/[0.04]">
               {taches.map((t, i) => (
                 <button
@@ -582,10 +705,10 @@ export default function DashboardChantier({
             </div>
           </section>
 
-          {/* ── AIDES DISPONIBLES ── */}
+          {/* Aides */}
           {result.aides?.some((a) => a.eligible) && (
             <section>
-              <h3 className="text-white font-bold text-lg mb-4">🎁 Aides disponibles</h3>
+              <SectionHeading icon={Wallet} label="Aides disponibles" color="emerald" />
               <div className="space-y-3">
                 {result.aides.map((aide, i) => (
                   <div
@@ -619,18 +742,18 @@ export default function DashboardChantier({
             </section>
           )}
 
-          {/* ── CTA AMÉLIORER ── */}
+          {/* CTA */}
           <div className="bg-gradient-to-r from-blue-600/10 to-cyan-600/10 border border-blue-500/20 rounded-2xl p-6 text-center">
             <p className="text-white font-semibold mb-1">Ce plan vous convient presque ?</p>
             <p className="text-slate-400 text-sm mb-4">
-              Ajoutez un spa, modifiez le budget, changez les dates — l'IA adapte votre plan en direct.
+              Ajoutez un spa, modifiez le budget, changez les dates — votre plan s'adapte en direct.
             </p>
             <button
               onClick={onAmeliorer}
               className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl px-6 py-2.5 text-sm transition-all"
             >
               <Wand2 className="h-4 w-4" />
-              Améliorer avec l'IA
+              Améliorer mon plan
             </button>
           </div>
 
