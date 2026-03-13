@@ -142,7 +142,20 @@ export default function DashboardChantier({
   // ── Métriques ──────────────────────────────────────────────────────────────
   const totalTaches    = taches.length;
   const doneTaches     = taches.filter((t) => t.done).length;
-  const progressPct    = totalTaches > 0 ? Math.round((doneTaches / totalTaches) * 100) : 0;
+
+  // Progression basée sur la phase réelle du chantier (0/10/25/50/100%)
+  const PHASE_STEPS: { keys: string[]; pct: number; label: string }[] = [
+    { keys: ['reception', 'livraison'],                    pct: 100, label: 'Réception' },
+    { keys: ['travaux', 'finitions', 'chantier'],          pct: 50,  label: 'Travaux en cours' },
+    { keys: ['autorisations', 'administratif'],            pct: 25,  label: 'Autorisations' },
+    { keys: ['devis', 'chiffrage'],                        pct: 10,  label: 'Devis' },
+    { keys: ['preparation', 'conception', 'projet'],       pct: 0,   label: 'Projet' },
+  ];
+  const _roadmapPhase = ((result.roadmap ?? []).find((e) => e.isCurrent)?.phase ?? '').toLowerCase();
+  const _phaseMatch   = PHASE_STEPS.find((s) => s.keys.some((k) => _roadmapPhase.includes(k)));
+  const progressPct      = _phaseMatch?.pct   ?? 0;
+  const currentPhaseLabel = _phaseMatch?.label ?? 'Projet';
+
   const currentStepIdx = Math.max(0, (result.roadmap ?? []).findIndex((e) => e.isCurrent));
   const totalSteps     = result.roadmap?.length ?? 0;
   const aidesTotales   = (result.aides ?? [])
@@ -198,7 +211,7 @@ export default function DashboardChantier({
         {/* Mini progression */}
         <div className="mb-4 px-1">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-slate-500 text-xs">Progression</span>
+            <span className="text-slate-500 text-xs">{currentPhaseLabel}</span>
             <span className="text-slate-300 text-xs font-semibold">{progressPct}%</span>
           </div>
           <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
@@ -334,18 +347,21 @@ export default function DashboardChantier({
                 <div className="flex items-center justify-between mb-2">
                   <span className="flex items-center gap-1.5 text-slate-400 text-xs font-medium">
                     <TrendingUp className="h-3.5 w-3.5" />
-                    Progression globale
+                    Avancement du projet
                   </span>
                   <span className="text-white font-bold text-sm">{progressPct}%</span>
                 </div>
                 <div className="h-3 bg-white/[0.06] rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full transition-all duration-700"
-                    style={{ width: `${progressPct}%` }}
+                    style={{ width: `${progressPct > 0 ? progressPct : 2}%` }}
                   />
                 </div>
-                <div className="flex items-center justify-between mt-2 text-xs text-slate-600">
-                  <span>{doneTaches}/{totalTaches} tâches complétées</span>
+                <div className="flex items-center justify-between mt-2 text-xs text-slate-500">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400/60 inline-block" />
+                    Phase&nbsp;:&nbsp;<span className="text-slate-300 font-medium">{currentPhaseLabel}</span>
+                  </span>
                   {totalSteps > 0 && (
                     <span className="hidden sm:inline">Étape {currentStepIdx + 1}/{totalSteps}</span>
                   )}
