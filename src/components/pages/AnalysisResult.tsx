@@ -252,7 +252,7 @@ const calculateTotalHT = (typesTravaux?: TravauxItem[]): number | undefined => {
 // ---- Pipeline progress config ----
 const PIPELINE_STEPS = [
   { key: "[1/5]", label: "Téléchargement du fichier", icon: FileText, pct: 8 },
-  { key: "[2/5]", label: "Extraction IA du document", icon: Search, pct: 30 },
+  { key: "[2/5]", label: "Extraction du document", icon: Search, pct: 30 },
   { key: "[2.5/5]", label: "Résumé des postes", icon: FileCheck, pct: 45 },
   { key: "[3/5]", label: "Vérifications entreprise", icon: Building2, pct: 60 },
   { key: "[4/5]", label: "Calcul du score", icon: BarChart3, pct: 80 },

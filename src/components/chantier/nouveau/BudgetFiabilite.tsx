@@ -213,7 +213,7 @@ export default function BudgetFiabilite({ result, onAmeliorer }: BudgetFiabilite
             onClick={onAmeliorer}
             className="text-xs text-blue-400 hover:text-blue-300 font-medium shrink-0 transition-colors"
           >
-            Affiner avec l'IA →
+            Affiner →
           </button>
         )}
       </div>

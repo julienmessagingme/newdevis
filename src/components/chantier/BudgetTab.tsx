@@ -231,10 +231,10 @@ function ApportTab({
             dateFacture: donnees.date || f.dateFacture,
             luParIA: true,
           }));
-          toast.success("Facture lue par l'IA ✓");
+          toast.success("Facture analysée ✓");
         } else {
           setForm((f) => ({ ...f, luParIA: false }));
-          toast.warning("Lecture IA impossible — veuillez saisir manuellement");
+          toast.warning("Lecture automatique impossible — veuillez saisir manuellement");
         }
         setUploading(false);
       },
@@ -532,10 +532,10 @@ function FinancementTab({
             dateFacture: donnees.date || f.dateFacture,
             luParIA: true,
           }));
-          toast.success("Facture lue par l'IA ✓");
+          toast.success("Facture analysée ✓");
         } else {
           setForm((f) => ({ ...f, luParIA: false }));
-          toast.warning("Lecture IA impossible — veuillez saisir manuellement");
+          toast.warning("Lecture automatique impossible — veuillez saisir manuellement");
         }
         setUploading(false);
       },

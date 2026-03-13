@@ -205,7 +205,7 @@ export default function ChantierDetail() {
           <div className="flex items-center gap-2 min-w-0">
             <Info className="h-3.5 w-3.5 text-slate-500 shrink-0" />
             <p className="text-xs text-slate-400 truncate">
-              Ce chantier n'a pas de plan IA — seules les informations de base sont disponibles.
+              Ce chantier n'a pas de plan détaillé — seules les informations de base sont disponibles.
             </p>
           </div>
           <a
@@ -213,7 +213,7 @@ export default function ChantierDetail() {
             className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 font-medium whitespace-nowrap transition-colors shrink-0"
           >
             <Sparkles className="h-3 w-3" />
-            Créer un plan IA
+            Créer un plan
           </a>
         </div>
       )}

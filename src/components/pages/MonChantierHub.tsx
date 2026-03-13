@@ -158,7 +158,7 @@ function ChantierHubCard({
       {/* ── CTA ── */}
       <div className="flex items-center gap-1.5 text-xs text-blue-400/70 group-hover:text-blue-300 transition-colors font-medium">
         <Sparkles className="h-3 w-3 shrink-0" />
-        Voir le plan IA
+        Voir le plan
       </div>
     </a>
   );
@@ -255,14 +255,14 @@ export default function MonChantierHub() {
           </h1>
           <p className="text-slate-500 text-sm mb-8 leading-relaxed">
             Décrivez votre projet en quelques mots et obtenez un plan complet
-            généré par l'IA en 10 secondes.
+            généré en quelques secondes.
           </p>
           <a
             href="/mon-chantier/nouveau"
             className="inline-flex items-center gap-2 px-6 py-3 bg-blue-500 hover:bg-blue-400 text-white font-semibold rounded-xl transition-colors no-underline"
           >
             <Plus className="h-4 w-4" />
-            Créer mon premier chantier IA
+            Créer mon premier chantier
           </a>
         </div>
       </div>
