@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Sparkles, ArrowRight, Loader2, Plus, Trash2 } from 'lucide-react';
+import { Sparkles, ArrowRight, Loader2, Plus, Trash2, HardHat } from 'lucide-react';
 import { toast } from 'sonner';
 import AddChantierCard from '@/components/chantier/dashboard/AddChantierCard';
 import { PHASE_LABELS, type PhaseChantier } from '@/types/chantier-dashboard';
@@ -80,42 +80,58 @@ function ChantierHubCard({
   return (
     <a
       href={`/mon-chantier/${chantier.id}`}
-      className="group flex flex-col gap-4 bg-[#162035] border border-white/10 hover:border-blue-500/40
-        hover:bg-[#1a2640] rounded-2xl p-5 transition-all cursor-pointer no-underline animate-fade-up relative"
+      className="group flex flex-col gap-4 bg-[#0f1d36]/80 border border-white/[0.08] hover:border-blue-500/40
+        hover:bg-[#0f1d36] rounded-2xl p-5 transition-all cursor-pointer no-underline animate-fade-up relative overflow-hidden backdrop-blur-sm"
       style={{ animationDelay: `${delay}s`, animationFillMode: 'both' }}
     >
-      {/* ── Zone suppression (coin haut droit) ── */}
-      <div className="absolute top-3 right-3" onClick={(e) => e.stopPropagation()}>
-        {confirmDelete ? (
-          <div className="flex items-center gap-1.5">
+      {/* Subtle card glow on hover */}
+      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-500/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+
+      {/* ── Bouton corbeille (coin haut droit) ── */}
+      <div className="absolute top-3 right-3 z-10" onClick={(e) => e.stopPropagation()}>
+        <button
+          onClick={handleDeleteClick}
+          className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+          title="Supprimer ce chantier"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {/* ── Overlay de confirmation (pleine carte) ── */}
+      {confirmDelete && (
+        <div
+          className="absolute inset-0 rounded-2xl bg-[#0a1020]/95 backdrop-blur-sm flex flex-col items-center justify-center gap-4 z-20"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="w-10 h-10 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+            <Trash2 className="h-4.5 w-4.5 text-red-400" />
+          </div>
+          <p className="text-sm text-slate-200 font-medium px-4 text-center leading-snug">
+            Supprimer&nbsp;<span className="text-white font-semibold">«&nbsp;{chantier.nom}&nbsp;»</span>&nbsp;?
+          </p>
+          <p className="text-xs text-slate-500 -mt-2">Cette action est irréversible.</p>
+          <div className="flex items-center gap-2">
             <button
               onClick={handleConfirmDelete}
               disabled={deleting}
-              className="inline-flex items-center gap-1 text-[11px] font-semibold bg-red-500/20 border border-red-500/30 text-red-300 hover:bg-red-500/30 rounded-lg px-2.5 py-1 transition-all disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold bg-red-500/20 border border-red-500/30 text-red-300 hover:bg-red-500/30 rounded-xl px-4 py-2 transition-all disabled:opacity-50"
             >
               {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-              {deleting ? 'Suppression…' : 'Confirmer'}
+              {deleting ? 'Suppression…' : 'Supprimer'}
             </button>
             <button
               onClick={handleCancelDelete}
-              className="text-[11px] text-slate-500 hover:text-slate-300 px-2 py-1 transition-colors"
+              className="text-xs text-slate-400 hover:text-slate-200 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl px-4 py-2 transition-all font-medium"
             >
               Annuler
             </button>
           </div>
-        ) : (
-          <button
-            onClick={handleDeleteClick}
-            className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
-            title="Supprimer ce chantier"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ── Header ── */}
-      <div className="flex items-start gap-3 pr-6">
+      <div className="flex items-start gap-3 pr-8">
         <div className="w-11 h-11 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-xl flex-shrink-0 select-none">
           {chantier.emoji}
         </div>
@@ -163,6 +179,47 @@ function ChantierHubCard({
     </a>
   );
 }
+
+// ── Fond décoratif blueprint ───────────────────────────────────────────────────
+
+const PageBackground = () => (
+  <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+    {/* Base dark navy */}
+    <div className="absolute inset-0 bg-[#050d1a]" />
+    {/* Blueprint grid */}
+    <div
+      className="absolute inset-0 opacity-100"
+      style={{
+        backgroundImage:
+          'linear-gradient(rgba(59,130,246,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.06) 1px, transparent 1px)',
+        backgroundSize: '48px 48px',
+      }}
+    />
+    {/* Finer grid overlay */}
+    <div
+      className="absolute inset-0 opacity-100"
+      style={{
+        backgroundImage:
+          'linear-gradient(rgba(59,130,246,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.03) 1px, transparent 1px)',
+        backgroundSize: '12px 12px',
+      }}
+    />
+    {/* Top-left glow */}
+    <div className="absolute -top-48 -left-48 w-[600px] h-[600px] rounded-full bg-blue-600/10 blur-[120px]" />
+    {/* Bottom-right glow */}
+    <div className="absolute -bottom-48 -right-48 w-[500px] h-[500px] rounded-full bg-indigo-700/10 blur-[120px]" />
+    {/* Decorative construction elements */}
+    <div className="absolute top-12 right-16 opacity-[0.04] select-none pointer-events-none">
+      <HardHat className="w-48 h-48 text-amber-400" strokeWidth={0.6} />
+    </div>
+    <div
+      className="absolute bottom-16 left-12 opacity-[0.025] select-none pointer-events-none"
+      style={{ transform: 'rotate(-15deg)' }}
+    >
+      <HardHat className="w-80 h-80 text-blue-300" strokeWidth={0.4} />
+    </div>
+  </div>
+);
 
 // ── Hub principal ──────────────────────────────────────────────────────────────
 
@@ -216,89 +273,110 @@ export default function MonChantierHub() {
   // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
-          <p className="text-sm text-slate-500">Chargement de vos chantiers…</p>
+      <>
+        <PageBackground />
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+            <p className="text-sm text-slate-500">Chargement de vos chantiers…</p>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   // ── Error ─────────────────────────────────────────────────────────────────
   if (error) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
-        <div className="text-center max-sm:max-w-sm">
-          <p className="text-red-400 text-sm mb-4">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 text-sm bg-white/5 border border-white/10 hover:border-white/20 text-slate-300 rounded-xl transition-colors"
-          >
-            Réessayer
-          </button>
+      <>
+        <PageBackground />
+        <div className="min-h-screen flex items-center justify-center px-4">
+          <div className="text-center max-sm:max-w-sm">
+            <p className="text-red-400 text-sm mb-4">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 text-sm bg-white/5 border border-white/10 hover:border-white/20 text-slate-300 rounded-xl transition-colors"
+            >
+              Réessayer
+            </button>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   // ── Empty state ────────────────────────────────────────────────────────────
   if (chantiers.length === 0) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
-        <div className="text-center max-w-md animate-fade-up">
-          <div className="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mx-auto mb-6 text-2xl">
-            🏗️
+      <>
+        <PageBackground />
+        <div className="min-h-screen flex items-center justify-center px-4">
+          <div className="text-center max-w-md animate-fade-up">
+            <div className="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mx-auto mb-6 text-2xl">
+              🏗️
+            </div>
+            <h1 className="font-display font-bold text-white text-2xl mb-2">
+              Aucun chantier pour l'instant
+            </h1>
+            <p className="text-slate-400 text-sm mb-8 leading-relaxed">
+              Décrivez votre projet en quelques mots et obtenez un plan complet
+              généré en quelques secondes.
+            </p>
+            <a
+              href="/mon-chantier/nouveau"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-500 hover:bg-blue-400 text-white font-semibold rounded-xl transition-colors no-underline shadow-lg shadow-blue-500/20"
+            >
+              <Plus className="h-4 w-4" />
+              Créer mon premier chantier
+            </a>
           </div>
-          <h1 className="font-display font-bold text-white text-2xl mb-2">
-            Aucun chantier pour l'instant
-          </h1>
-          <p className="text-slate-500 text-sm mb-8 leading-relaxed">
-            Décrivez votre projet en quelques mots et obtenez un plan complet
-            généré en quelques secondes.
-          </p>
-          <a
-            href="/mon-chantier/nouveau"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-500 hover:bg-blue-400 text-white font-semibold rounded-xl transition-colors no-underline"
-          >
-            <Plus className="h-4 w-4" />
-            Créer mon premier chantier
-          </a>
         </div>
-      </div>
+      </>
     );
   }
 
   // ── Grid ──────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-background py-8 px-4">
-      <div className="max-w-5xl mx-auto">
+    <>
+      <PageBackground />
+      <div className="min-h-screen py-10 px-4">
+        <div className="max-w-5xl mx-auto">
 
-        {/* Header */}
-        <div className="mb-8 animate-fade-up">
-          <h1 className="font-display font-bold text-white text-2xl md:text-3xl mb-1">
-            Mes chantiers
-          </h1>
-          <p className="text-slate-500 text-sm">
-            {chantiers.length} chantier{chantiers.length > 1 ? 's' : ''} en cours
-          </p>
-        </div>
+          {/* Header */}
+          <div className="mb-8 animate-fade-up">
+            {/* Breadcrumb-style label */}
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-6 h-6 rounded-lg bg-amber-500/15 border border-amber-500/20 flex items-center justify-center">
+                <HardHat className="h-3.5 w-3.5 text-amber-400" />
+              </div>
+              <span className="text-xs font-semibold text-amber-400/80 uppercase tracking-wider">
+                Mon espace chantier
+              </span>
+            </div>
+            <h1 className="font-display font-bold text-white text-2xl md:text-3xl mb-1">
+              Mes chantiers
+            </h1>
+            <p className="text-slate-400 text-sm">
+              {chantiers.length} chantier{chantiers.length > 1 ? 's' : ''} en cours
+            </p>
+          </div>
 
-        {/* Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {chantiers.map((c, i) => (
-            <ChantierHubCard
-              key={c.id}
-              chantier={c}
-              token={token ?? ''}
-              delay={i * 0.05}
-              onDelete={handleDelete}
-            />
-          ))}
-          {/* Add card toujours visible */}
-          <AddChantierCard delay={chantiers.length * 0.05} />
+          {/* Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {chantiers.map((c, i) => (
+              <ChantierHubCard
+                key={c.id}
+                chantier={c}
+                token={token ?? ''}
+                delay={i * 0.05}
+                onDelete={handleDelete}
+              />
+            ))}
+            {/* Add card toujours visible */}
+            <AddChantierCard delay={chantiers.length * 0.05} />
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
