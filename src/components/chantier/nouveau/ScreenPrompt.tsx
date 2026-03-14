@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sparkles, ChevronRight, ChevronLeft, Wand2, Loader2 } from 'lucide-react';
+import { Sparkles, ChevronRight, ChevronLeft, Wand2, Loader2, ArrowLeft } from 'lucide-react';
 import type { ChantierGuideForm, TypeProjet, Financement } from '@/types/chantier-ia';
 
 interface ScreenPromptProps {
@@ -87,6 +87,17 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
 
   return (
     <div className="min-h-screen bg-[#0a0f1e] flex flex-col items-center justify-center px-4 py-12">
+      {/* Back link */}
+      <div className="absolute top-5 left-5">
+        <a
+          href="/mon-chantier"
+          className="inline-flex items-center gap-1.5 text-slate-400 hover:text-white text-sm transition-colors group"
+        >
+          <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
+          Mes chantiers
+        </a>
+      </div>
+
       {/* Header */}
       <div className="text-center mb-8 animate-fade-up">
         <div className="inline-flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 rounded-full px-4 py-1.5 text-blue-300 text-sm font-medium mb-4">
