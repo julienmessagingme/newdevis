@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- Fond bleu arrondi — identique au logo header du site (#1a56db) -->
-  <rect width="32" height="32" rx="7" fill="#1a56db"/>
-  <!-- Loupe : cercle blanc -->
-  <circle cx="13.5" cy="13.5" r="6" fill="none" stroke="white" stroke-width="2.8" stroke-linecap="round"/>
-  <!-- Loupe : manche -->
-  <line x1="18.2" y1="18.2" x2="23.5" y2="23.5" stroke="white" stroke-width="2.8" stroke-linecap="round"/>
-</svg>

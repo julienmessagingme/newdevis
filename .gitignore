@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Vercel build output (regénéré automatiquement — ne pas committer)
+.vercel/output/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
