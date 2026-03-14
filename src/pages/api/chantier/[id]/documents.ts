@@ -126,6 +126,9 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   // ── Upload vers Supabase Storage via service_role (bypass RLS) ───────────
   const fileBuffer = await file.arrayBuffer();
+  // Utiliser byteLength du buffer comme source de vérité (file.size peut valoir 0 côté serveur Node.js)
+  const actualSize = fileBuffer.byteLength > 0 ? fileBuffer.byteLength : (file.size > 0 ? file.size : null);
+
   const { error: uploadErr } = await supabase.storage
     .from(BUCKET)
     .upload(bucketPath, fileBuffer, {
@@ -161,7 +164,7 @@ export const POST: APIRoute = async ({ params, request }) => {
       nom,
       nom_fichier:   file.name,
       bucket_path:   bucketPath,
-      taille_octets: file.size,
+      taille_octets: actualSize,   // null si taille inconnue (évite CHECK taille > 0)
       mime_type:     file.type || null,
     })
     .select()
@@ -170,8 +173,10 @@ export const POST: APIRoute = async ({ params, request }) => {
   if (insertError || !doc) {
     // Rollback storage
     await supabase.storage.from(BUCKET).remove([bucketPath]);
-    console.error('[api/documents] POST insert error:', insertError?.message);
-    return new Response(JSON.stringify({ error: 'Erreur lors de l\'enregistrement' }), { status: 500, headers: CORS });
+    const errMsg = insertError?.message ?? 'insert failed';
+    console.error('[api/documents] POST insert error:', errMsg);
+    // Retourner le message exact pour faciliter le diagnostic
+    return new Response(JSON.stringify({ error: `Erreur DB : ${errMsg}` }), { status: 500, headers: CORS });
   }
 
   const { data: s } = await supabase.storage.from(BUCKET).createSignedUrl(bucketPath, SIGNED_TTL);

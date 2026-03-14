@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   LayoutDashboard, Route, FileText, CheckSquare,
-  Wand2, Plus, ExternalLink, ChevronRight, AlertCircle,
+  Wand2, ExternalLink, ChevronRight, AlertCircle,
   TrendingUp, Layers, AlertTriangle, Wallet, FolderOpen, BookOpen,
-  Upload, Search, Zap, Lightbulb, CreditCard,
+  Upload, Sparkles, Zap, Lightbulb, CreditCard,
 } from 'lucide-react';
 import type { ChantierIAResult, LotChantier, TacheIA, StatutArtisan } from '@/types/chantier-ia';
 import DocumentsSection from '@/components/chantier/nouveau/DocumentsSection';
@@ -112,6 +112,13 @@ function SectionHeading({
 
 // ── Composant principal ───────────────────────────────────────────────────────
 
+// Toutes les sections dans l'ordre de la page (primary + secondary)
+const ALL_SECTION_IDS = [
+  'apercu', 'prochaine', 'timeline', 'conseils', 'lots',
+  'budget', 'financement', 'documents', 'journal',
+  'alertes', 'artisans', 'roadmap', 'formalites', 'checklist',
+];
+
 export default function DashboardChantier({
   result,
   chantierId,
@@ -128,6 +135,10 @@ export default function DashboardChantier({
   const [lotStatuts, setLotStatuts] = useState<Record<string, StatutArtisan>>(
     () => Object.fromEntries((result.lots ?? []).map((l) => [l.id, l.statut])),
   );
+  /** Déclenche le mode upload dans DocumentsSection ('document' | 'devis' | null) */
+  const [uploadTrigger, setUploadTrigger] = useState<'document' | 'devis' | null>(null);
+  /** Bloque le scrollspy quand l'utilisateur a cliqué un lien nav (évite le flash) */
+  const scrollspyPausedRef = useRef(false);
 
   const toggleTache = (idx: number) => {
     setTaches((prev) => prev.map((t, i) => (i === idx ? { ...t, done: !t.done } : t)));
@@ -139,8 +150,34 @@ export default function DashboardChantier({
 
   const scrollTo = (id: string) => {
     setActiveSection(id);
+    scrollspyPausedRef.current = true;
     document.getElementById(`section-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Réactiver le scrollspy après la fin de l'animation (~600ms)
+    setTimeout(() => { scrollspyPausedRef.current = false; }, 700);
   };
+
+  // ── Scrollspy — synchronise activeSection avec le scroll ─────────────────
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (scrollspyPausedRef.current) return;
+        // Prendre la section la plus haute dans le viewport
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible.length > 0) {
+          const id = visible[0].target.id.replace('section-', '');
+          setActiveSection(id);
+        }
+      },
+      { rootMargin: '-15% 0% -75% 0%', threshold: 0 },
+    );
+    ALL_SECTION_IDS.forEach((id) => {
+      const el = document.getElementById(`section-${id}`);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, []);
 
   // ── Métriques ──────────────────────────────────────────────────────────────
   const totalTaches    = taches.length;
@@ -373,18 +410,20 @@ export default function DashboardChantier({
 
               {/* Boutons d'action rapide */}
               <div className="relative flex gap-3">
+                {/* CTA 1 — Ajouter un document (photo, plan, facture…) */}
                 <button
-                  onClick={() => scrollTo('documents')}
+                  onClick={() => { scrollTo('documents'); setUploadTrigger('document'); }}
                   className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl py-3 text-sm transition-all shadow-lg shadow-blue-500/25"
                 >
                   <Upload className="h-4 w-4" />
                   Ajouter un document
                 </button>
+                {/* CTA 2 — Analyser un devis (IA) — couleur violet pour différencier */}
                 <button
-                  onClick={() => scrollTo('documents')}
-                  className="flex-1 flex items-center justify-center gap-2 bg-white/[0.07] hover:bg-white/[0.11] border border-white/[0.12] text-slate-200 font-medium rounded-xl py-3 text-sm transition-all"
+                  onClick={() => { scrollTo('documents'); setUploadTrigger('devis'); }}
+                  className="flex-1 flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-xl py-3 text-sm transition-all shadow-lg shadow-violet-500/20"
                 >
-                  <Search className="h-4 w-4" />
+                  <Sparkles className="h-4 w-4" />
                   Analyser un devis
                 </button>
               </div>
@@ -473,11 +512,14 @@ export default function DashboardChantier({
           {/* 8. DOCUMENTS                                                    */}
           {/* ═══════════════════════════════════════════════════════════════ */}
           <section id="section-documents">
+            <SectionHeading icon={FolderOpen} label="Documents du chantier" color="slate" />
             <DocumentsSection
               chantierId={chantierId ?? ''}
               userId={userId ?? ''}
               token={token ?? ''}
               lots={result.lots ?? []}
+              uploadTrigger={uploadTrigger}
+              onTriggerConsumed={() => setUploadTrigger(null)}
             />
           </section>
 
@@ -492,43 +534,6 @@ export default function DashboardChantier({
           {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
           {/* SECTIONS SECONDAIRES                                            */}
           {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-
-          {/* Notre recommandation (action IA depuis la génération) */}
-          <div className="bg-amber-500/10 border border-amber-500/25 rounded-2xl p-5">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-amber-400 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-amber-400 text-[10px] font-bold uppercase tracking-widest mb-1.5">
-                  Notre recommandation
-                </p>
-                <p className="text-amber-200 font-semibold text-sm leading-snug">
-                  {result.prochaineAction.titre}
-                </p>
-                <p className="text-amber-500/80 text-xs mt-1 leading-relaxed">
-                  {result.prochaineAction.detail}
-                </p>
-                {result.prochaineAction.deadline && (
-                  <span className="inline-block mt-2 bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-lg px-2 py-0.5 text-xs font-medium">
-                    ⏰ {result.prochaineAction.deadline}
-                  </span>
-                )}
-                <div className="flex items-center gap-3 mt-3 flex-wrap">
-                  <button
-                    onClick={() => scrollTo('checklist')}
-                    className="text-xs bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/25 text-amber-300 rounded-lg px-3 py-1.5 font-medium transition-all"
-                  >
-                    Voir les tâches
-                  </button>
-                  <button
-                    onClick={onAmeliorer}
-                    className="text-xs text-amber-500/60 hover:text-amber-400 transition-colors"
-                  >
-                    Affiner →
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
 
           {/* Alertes */}
           <section id="section-alertes">

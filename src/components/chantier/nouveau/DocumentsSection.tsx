@@ -50,12 +50,15 @@ function typeInfo(type: DocumentType) {
 
 interface Props {
   chantierId: string;
-  userId: string;   // extrait de la session dans ChantierDetail, sert à construire le bucket path
+  userId: string;
   token: string;
   lots: LotChantier[];
+  /** Déclenché depuis le parent pour pré-ouvrir le picker dans un mode précis */
+  uploadTrigger?: 'document' | 'devis' | null;
+  onTriggerConsumed?: () => void;
 }
 
-export default function DocumentsSection({ chantierId, userId, token, lots }: Props) {
+export default function DocumentsSection({ chantierId, userId, token, lots, uploadTrigger, onTriggerConsumed }: Props) {
   const [docs, setDocs] = useState<DocumentChantier[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -65,15 +68,30 @@ export default function DocumentsSection({ chantierId, userId, token, lots }: Pr
   const [uploadNom, setUploadNom]       = useState('');
   const [uploadLotId, setUploadLotId]   = useState('');
   const [uploading, setUploading]       = useState(false);
+  /** Mode "analyser un devis" : affiche une bannière explicative */
+  const [analysisMode, setAnalysisMode] = useState(false);
 
   // UI
   const [isDragging, setIsDragging]         = useState(false);
   const [confirmDeleteId, setConfirmDelete] = useState<string | null>(null);
   const [deleting, setDeleting]             = useState(false);
-  // Lot 6 : lance l'analyse depuis Mon Chantier — verrouille le bouton pendant le lancement
   const [analyzingId, setAnalyzingId]       = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Réagir au trigger depuis le parent ────────────────────────────────────
+  useEffect(() => {
+    if (!uploadTrigger) return;
+    // Pré-sélectionner le type document
+    setUploadType(uploadTrigger === 'devis' ? 'devis' : 'autre');
+    setAnalysisMode(uploadTrigger === 'devis');
+    // Consommer le trigger côté parent immédiatement (évite les re-triggers)
+    onTriggerConsumed?.();
+    // Laisser le scroll se terminer avant d'ouvrir le picker
+    const timer = setTimeout(() => fileInputRef.current?.click(), 350);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uploadTrigger]);
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
 
@@ -113,6 +131,7 @@ export default function DocumentsSection({ chantierId, userId, token, lots }: Pr
     setUploadNom('');
     setUploadType('autre');
     setUploadLotId('');
+    setAnalysisMode(false);
   };
 
   // ── Upload ────────────────────────────────────────────────────────────────
@@ -275,6 +294,22 @@ export default function DocumentsSection({ chantierId, userId, token, lots }: Pr
   return (
     <div className="space-y-4">
 
+      {/* ── Bannière mode "Analyser un devis" ── */}
+      {analysisMode && !pendingFile && (
+        <div className="flex items-start gap-3 bg-violet-500/10 border border-violet-500/25 rounded-2xl px-4 py-3">
+          <Sparkles className="h-4 w-4 text-violet-400 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-violet-200 text-sm font-semibold">Analyser un devis avec l'IA</p>
+            <p className="text-violet-400/70 text-xs mt-0.5 leading-snug">
+              Déposez votre devis PDF ci-dessous. Notre IA vérifiera les prix, détectera les anomalies et vous donnera un score de confiance.
+            </p>
+          </div>
+          <button onClick={() => setAnalysisMode(false)} className="text-violet-600 hover:text-violet-400 transition-colors shrink-0">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* ── Drop zone (masquée quand un fichier est sélectionné) ── */}
       {!pendingFile && (
         <div
@@ -283,19 +318,33 @@ export default function DocumentsSection({ chantierId, userId, token, lots }: Pr
           onDrop={(e) => { e.preventDefault(); setIsDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFileSelect(f); }}
           onClick={() => fileInputRef.current?.click()}
           className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
-            isDragging
-              ? 'border-blue-500/60 bg-blue-500/[0.08]'
-              : 'border-white/[0.10] bg-white/[0.02] hover:border-white/[0.18] hover:bg-white/[0.04]'
+            analysisMode
+              ? isDragging
+                ? 'border-violet-500/70 bg-violet-500/[0.10]'
+                : 'border-violet-500/40 bg-violet-500/[0.05] hover:border-violet-500/60 hover:bg-violet-500/[0.08]'
+              : isDragging
+                ? 'border-blue-500/60 bg-blue-500/[0.08]'
+                : 'border-white/[0.10] bg-white/[0.02] hover:border-white/[0.18] hover:bg-white/[0.04]'
           }`}
         >
-          <Upload className="h-5 w-5 text-slate-500 mx-auto mb-2" />
-          <p className="text-slate-300 text-sm font-medium">Déposer un fichier ici</p>
-          <p className="text-slate-600 text-xs mt-0.5">ou cliquer pour parcourir · PDF, images, documents — max 10 Mo</p>
+          {analysisMode
+            ? <Sparkles className="h-5 w-5 text-violet-400 mx-auto mb-2" />
+            : <Upload className="h-5 w-5 text-slate-500 mx-auto mb-2" />
+          }
+          <p className={`text-sm font-medium ${analysisMode ? 'text-violet-200' : 'text-slate-300'}`}>
+            {analysisMode ? 'Déposer votre devis ici' : 'Déposer un fichier ici'}
+          </p>
+          <p className="text-slate-600 text-xs mt-0.5">
+            {analysisMode
+              ? 'PDF uniquement · Devis artisan — max 10 Mo'
+              : 'ou cliquer pour parcourir · PDF, images, documents — max 10 Mo'
+            }
+          </p>
           <input
             ref={fileInputRef}
             type="file"
             className="sr-only"
-            accept={ACCEPTED_TYPES}
+            accept={analysisMode ? '.pdf' : ACCEPTED_TYPES}
             onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileSelect(f); e.target.value = ''; }}
           />
         </div>
@@ -303,11 +352,20 @@ export default function DocumentsSection({ chantierId, userId, token, lots }: Pr
 
       {/* ── Formulaire upload inline ── */}
       {pendingFile && (
-        <div className="bg-[#0d1525] border border-blue-500/25 rounded-2xl p-4">
+        <div className={`border rounded-2xl p-4 ${analysisMode ? 'bg-[#0d1525] border-violet-500/25' : 'bg-[#0d1525] border-blue-500/25'}`}>
+          {/* Bannière analyse en haut du formulaire */}
+          {analysisMode && (
+            <div className="flex items-center gap-2 mb-3 pb-3 border-b border-white/[0.06]">
+              <Sparkles className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+              <p className="text-violet-300 text-xs font-medium">
+                Ce devis sera analysé automatiquement après l'enregistrement
+              </p>
+            </div>
+          )}
           {/* Fichier sélectionné */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 min-w-0">
-              <Upload className="h-4 w-4 text-blue-400 shrink-0" />
+              <Upload className={`h-4 w-4 shrink-0 ${analysisMode ? 'text-violet-400' : 'text-blue-400'}`} />
               <span className="text-sm text-slate-300 truncate">{pendingFile.name}</span>
               <span className="text-xs text-slate-600 shrink-0">{formatBytes(pendingFile.size)}</span>
             </div>
@@ -370,10 +428,17 @@ export default function DocumentsSection({ chantierId, userId, token, lots }: Pr
             <button
               onClick={handleUpload}
               disabled={!uploadNom.trim() || uploading || !chantierId || !token}
-              className="flex items-center gap-1.5 text-xs bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg px-3 py-1.5 transition-all"
+              className={`flex items-center gap-1.5 text-xs disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg px-3 py-1.5 transition-all ${
+                analysisMode
+                  ? 'bg-violet-600 hover:bg-violet-500'
+                  : 'bg-blue-600 hover:bg-blue-500'
+              }`}
             >
-              {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-              {uploading ? 'Envoi en cours…' : 'Enregistrer'}
+              {uploading
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : analysisMode ? <Sparkles className="h-3.5 w-3.5" /> : <Upload className="h-3.5 w-3.5" />
+              }
+              {uploading ? 'Envoi en cours…' : analysisMode ? 'Enregistrer & Analyser' : 'Enregistrer'}
             </button>
           </div>
         </div>
