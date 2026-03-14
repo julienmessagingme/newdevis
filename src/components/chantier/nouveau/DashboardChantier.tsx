@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Route, FileText, CheckSquare,
   Wand2, ExternalLink, ChevronRight, AlertCircle,
   TrendingUp, Layers, AlertTriangle, Wallet, FolderOpen, BookOpen,
-  Upload, Sparkles, Zap, Lightbulb, CreditCard,
+  Upload, Sparkles, Zap, Lightbulb, CreditCard, Plus,
 } from 'lucide-react';
 import type { ChantierIAResult, LotChantier, TacheIA, StatutArtisan } from '@/types/chantier-ia';
 import DocumentsSection from '@/components/chantier/nouveau/DocumentsSection';
