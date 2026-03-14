@@ -270,7 +270,7 @@ export default function ScreenAmeliorations({
           </div>
 
           {/* Input */}
-          <div className="px-4 sm:px-6 py-4 bg-[#0d1525] border-t border-white/[0.05]">
+          <div className="px-4 sm:px-6 py-4 pr-20 sm:pr-6 bg-[#0d1525] border-t border-white/[0.05]">
             <div className="flex items-center gap-3">
               <input
                 ref={inputRef}

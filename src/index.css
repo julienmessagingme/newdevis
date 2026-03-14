@@ -25,6 +25,13 @@
     overflow-x: clip;
   }
 
+  /* Remonter le widget MessagingMe pour ne pas masquer les éléments d'action */
+  #messagingme-widget-container,
+  [id*="messagingme"],
+  [class*="messagingme-widget"] {
+    bottom: 80px !important;
+  }
+
   :root {
     /* Core brand - Deep blue for trust & expertise */
     --background: 220 20% 97%;
