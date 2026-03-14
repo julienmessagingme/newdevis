@@ -179,7 +179,7 @@ export default function DocumentsSection({ chantierId, userId, token, lots }: Pr
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error('[DocumentsSection] upload error:', msg);
-      toast.error(`Erreur upload : ${msg}`, { duration: 8000 });
+      toast.error('Erreur lors de l\'ajout du document', { duration: 3000 });
     } finally {
       setUploading(false);
     }
