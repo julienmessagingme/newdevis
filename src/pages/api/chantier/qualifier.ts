@@ -31,7 +31,7 @@ Format JSON strict :
       "placeholder": null,
       "choices": ["Option A", "Option B", "Option C", "Je ne sais pas encore"],
       "required": true,
-      "reason": "Impact sur le budget"
+      "reason": "Impact sur le plan"
     }
   ]
 }
@@ -47,7 +47,7 @@ Règles de génération :
 8. Langage simple, rassurant, non-technique — pour des particuliers non-experts
 9. Maximum 4 options dans choices avant "Je ne sais pas encore"
 10. ids uniques en snake_case descriptif (ex: piscine_surface, terrasse_materiau, code_postal)
-11. Ne pas poser de questions sur le budget ou le financement (déjà gérés ailleurs)
+11. INTERDIT ABSOLU — Ne jamais poser de question sur le budget, le prix, le coût, le financement ou l'enveloppe financière. L'outil estime lui-même le budget : demander à l'utilisateur son budget est inutile et contre-productif. Si tu manques une question contextuelle, pose plutôt une question sur la gamme/qualité souhaitée (Économique / Standard / Haut de gamme) ou sur les contraintes techniques.
 `;
 
 /** POST /api/chantier/qualifier — génère des questions contextuelles via Gemini */
@@ -114,8 +114,14 @@ export const POST: APIRoute = async ({ request }) => {
       return new Response(JSON.stringify({ questions: [] }), { headers: CORS });
     }
 
-    const questions = (parsed.followUpQuestions ?? []).slice(0, 5);
-    return new Response(JSON.stringify({ questions }), { headers: CORS });
+    // Filtre côté serveur : supprimer toute question liée au budget/coût
+    // (règle de prompt parfois ignorée par le modèle)
+    const BUDGET_KEYWORDS = /budget|prix|coût|cout|financement|enveloppe|tarif|montant|combien/i;
+    const filtered = (parsed.followUpQuestions ?? [])
+      .filter((q) => !BUDGET_KEYWORDS.test(q.label) && !BUDGET_KEYWORDS.test(q.id))
+      .slice(0, 5);
+
+    return new Response(JSON.stringify({ questions: filtered }), { headers: CORS });
   } catch (err) {
     console.error('[qualifier] Error:', err instanceof Error ? err.message : String(err));
     return new Response(JSON.stringify({ questions: [] }), { headers: CORS });
