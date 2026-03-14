@@ -779,10 +779,10 @@ const jsonLd = {
     communeSel.innerHTML = '<option value="">Chargement…</option>';
 
     try {
-      const resp = await fetch(`/api/postal-lookup?code_postal=${cp}`);
-      type PostalResp = { data: { commune: string; code_insee: string }[]; error?: string };
+      const resp = await fetch(`/api/geo-communes?code_postal=${cp}`);
+      type PostalResp = { communes: { nom: string; codeInsee: string }[]; error?: string };
       const data = await resp.json() as PostalResp;
-      const communes = (data.data ?? []).map(c => ({ nom: c.commune, codeInsee: c.code_insee }));
+      const communes = (data.communes ?? []);
 
       if (communes.length === 0) {
         communeSel.innerHTML = '<option value="">Aucune commune trouvée</option>';

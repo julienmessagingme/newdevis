@@ -10,15 +10,15 @@ const CORS: Record<string, string> = {
 
 const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
 const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
-const googleApiKey    = import.meta.env.GOOGLE_API_KEY;
+const googleApiKey    = import.meta.env.GOOGLE_API_KEY ?? import.meta.env.GOOGLE_AI_API_KEY;
 
 function getSupabase() {
   return createClient(supabaseUrl, supabaseService);
 }
 
-/** POST /api/chantier/conseils — Génère 3 conseils pour le projet via Gemini */
+/** POST /api/chantier/conseils — Génère des conseils de maître d'œuvre via Gemini */
 export const POST: APIRoute = async ({ request }) => {
-  // ── Auth ────────────────────────────────────────────────────────────────────
+  // ── Auth ─────────────────────────────────────────────────────────────────
   const authHeader = request.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) {
     return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
@@ -32,38 +32,77 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response(JSON.stringify({ error: 'Token invalide' }), { status: 401, headers: CORS });
   }
 
-  // ── Body ────────────────────────────────────────────────────────────────────
-  let body: { lignesBudget?: { label: string; montant: number }[]; roadmap?: { nom: string; detail: string; isCurrent?: boolean }[] };
+  if (!googleApiKey) {
+    return new Response(JSON.stringify({ error: 'Clé API non configurée' }), { status: 500, headers: CORS });
+  }
+
+  // ── Body ─────────────────────────────────────────────────────────────────
+  let body: {
+    nomChantier?: string;
+    lignesBudget?: { label: string; montant: number }[];
+    lots?: { nom: string; role?: string; statut?: string }[];
+    artisans?: { metier: string; role?: string }[];
+    roadmap?: { nom: string; detail: string; isCurrent?: boolean }[];
+  };
   try {
     body = await request.json();
   } catch {
     return new Response(JSON.stringify({ error: 'Corps invalide' }), { status: 400, headers: CORS });
   }
 
-  const { lignesBudget = [], roadmap = [] } = body;
+  const { nomChantier = '', lignesBudget = [], lots = [], artisans = [], roadmap = [] } = body;
 
-  // ── Prompt ──────────────────────────────────────────────────────────────────
-  const budgetLines = lignesBudget
-    .map((l) => `${l.label}: ${l.montant.toLocaleString('fr-FR')} €`)
+  // Construire la liste des lots (depuis lots DB ou depuis artisans fallback)
+  const lotsStr = lots.length > 0
+    ? lots.map((l, i) => `Lot ${i + 1} : "${l.nom}"${l.role ? ` — ${l.role}` : ''}`).join('\n')
+    : artisans.map((a, i) => `Lot ${i + 1} : "${a.metier}"${a.role ? ` — ${a.role}` : ''}`).join('\n');
+
+  const budgetStr = lignesBudget
+    .map((l) => `${l.label} : ${l.montant.toLocaleString('fr-FR')} €`)
     .join(', ');
 
   const currentStep = roadmap.find((e) => e.isCurrent);
-  const stepContext = currentStep
-    ? `Étape en cours : ${currentStep.nom} — ${currentStep.detail}.`
-    : '';
+  const stepStr = currentStep ? `Étape actuelle : ${currentStep.nom} — ${currentStep.detail}.` : '';
 
-  const prompt = [
-    'Analyse ce projet de travaux pour un particulier.',
-    budgetLines ? `Postes budgétaires : ${budgetLines}.` : '',
-    stepContext,
-    'Donne exactement 3 conseils simples pour aider ce particulier à bien gérer son chantier.',
-    'Les conseils doivent être courts (maximum 25 mots chacun), pratiques et rassurants.',
-    'Réponds uniquement en JSON valide, sans markdown ni balises : {"conseils":["conseil 1","conseil 2","conseil 3"]}',
+  // ── Prompt maître d'œuvre ────────────────────────────────────────────────
+  const prompt = `
+Tu es un maître d'œuvre professionnel avec 20 ans d'expérience.
+Projet : "${nomChantier || 'chantier travaux'}".
+${stepStr}
+Lots de travaux :
+${lotsStr || 'Non précisés'}
+Budget : ${budgetStr || 'Non précisé'}.
+
+Analyse ce chantier en expert et génère entre 3 et 5 conseils CONCRETS, SPÉCIFIQUES À CES LOTS.
+Chaque conseil doit citer les lots concernés par leur nom exact.
+
+Types de conseils (utilise les plus pertinents pour CE projet) :
+- "ordre" : séquence d'intervention optimale et pourquoi (dépendances techniques entre lots)
+- "synergie" : deux lots à coordonner pour économiser temps/argent/déplacements
+- "technique" : point technique CRITIQUE à anticiper AVANT qu'il soit trop tard (ex : gaines avant coulage béton)
+- "economie" : économie concrète réalisable en combinant des interventions
+- "risque" : vigilance ou problème à anticiper sur ce type de chantier
+
+Règles :
+- Cite toujours les noms des lots concernés
+- Sois direct et professionnel, comme si tu parlais à un client devant le chantier
+- Le "detail" doit faire 30 à 60 mots
+- PAS de conseils génériques du type "bien choisir son artisan" ou "demander des devis"
+
+Réponds UNIQUEMENT en JSON valide sans markdown :
+{
+  "conseils": [
+    {
+      "type": "ordre|synergie|technique|economie|risque",
+      "emoji": "emoji adapté",
+      "titre": "titre court (6-8 mots max)",
+      "detail": "explication concrète (30-60 mots, avec noms des lots)"
+    }
   ]
-    .filter(Boolean)
-    .join(' ');
+}
+`.trim();
 
-  // ── Gemini ──────────────────────────────────────────────────────────────────
+  // ── Gemini ────────────────────────────────────────────────────────────────
   try {
     const res = await fetch(
       'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
@@ -76,7 +115,7 @@ export const POST: APIRoute = async ({ request }) => {
         body: JSON.stringify({
           model: 'gemini-2.0-flash',
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 512,
+          max_tokens: 1024,
           response_format: { type: 'json_object' },
         }),
       },
@@ -91,7 +130,7 @@ export const POST: APIRoute = async ({ request }) => {
     const gemini = await res.json();
     const raw    = gemini.choices?.[0]?.message?.content ?? '{}';
 
-    let parsed: { conseils?: string[] };
+    let parsed: { conseils?: { type: string; emoji: string; titre: string; detail: string }[] };
     try {
       parsed = JSON.parse(raw);
     } catch {
@@ -100,7 +139,9 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const conseils = Array.isArray(parsed.conseils)
-      ? parsed.conseils.filter((c): c is string => typeof c === 'string').slice(0, 3)
+      ? parsed.conseils
+          .filter((c) => c && typeof c.titre === 'string' && typeof c.detail === 'string')
+          .slice(0, 5)
       : [];
 
     if (conseils.length === 0) throw new Error('No conseils returned');

@@ -458,7 +458,10 @@ export default function DashboardChantier({
             <ConseilsChantier
               chantierId={chantierId}
               token={token}
+              nomChantier={result.nom}
               lignesBudget={result.lignesBudget ?? []}
+              lots={result.lots ?? []}
+              artisans={result.artisans ?? []}
               roadmap={result.roadmap ?? []}
             />
           </section>

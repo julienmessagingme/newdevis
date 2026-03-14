@@ -40,7 +40,8 @@ export default function SimulationFinancement({ budgetTotal }: SimulationFinance
     [montant, taux, duree],
   );
 
-  const coutTotal  = mensualite * duree;
+  const mensualiteArrondie = Math.round(mensualite);
+  const coutTotal  = mensualiteArrondie * duree;
   const coutCredit = coutTotal - montant;
   const isModified = montant !== budgetTotal;
 
@@ -145,7 +146,7 @@ export default function SimulationFinancement({ budgetTotal }: SimulationFinance
       <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-center">
         <p className="text-slate-400 text-xs mb-1">Mensualité estimée</p>
         <p className="text-blue-300 text-3xl font-display font-bold">
-          {Math.round(mensualite).toLocaleString('fr-FR')} <span className="text-lg">€/mois</span>
+          {mensualiteArrondie.toLocaleString('fr-FR')} <span className="text-lg">€/mois</span>
         </p>
         <div className="mt-3 flex justify-center gap-6 text-xs text-slate-500">
           <span>

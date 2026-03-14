@@ -124,6 +124,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     if (!VALID_TYPES.has(body.documentType))
       return new Response(JSON.stringify({ error: 'Type invalide' }), { status: 400, headers: CORS });
     updates.document_type = body.documentType;
+    updates.type = body.documentType; // sync colonne legacy NOT NULL
   }
 
   if ('lotId' in body) {

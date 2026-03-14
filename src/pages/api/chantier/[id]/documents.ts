@@ -159,7 +159,8 @@ export const POST: APIRoute = async ({ params, request }) => {
     .insert({
       chantier_id:   chantierId,
       lot_id:        lotId,
-      document_type: documentType,
+      type:          documentType,   // colonne originale NOT NULL
+      document_type: documentType,   // colonne ajoutée par migration
       source:        'manual_upload',
       nom,
       nom_fichier:   file.name,
