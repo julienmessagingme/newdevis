@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { CreditCard } from 'lucide-react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { Pencil, RotateCcw } from 'lucide-react';
 
 interface SimulationFinancementProps {
   budgetTotal: number;
@@ -13,25 +13,90 @@ function calcMensualite(montant: number, tauxAnnuel: number, dureeMois: number):
 }
 
 export default function SimulationFinancement({ budgetTotal }: SimulationFinancementProps) {
-  const [duree, setDuree] = useState(60);
-  const [taux, setTaux] = useState(4);
+  const [duree, setDuree]       = useState(60);
+  const [taux, setTaux]         = useState(4);
+  const [montant, setMontant]   = useState(budgetTotal);
+  const [editing, setEditing]   = useState(false);
+  const [inputVal, setInputVal] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Si budgetTotal change (rechargement), resync le montant
+  useEffect(() => { setMontant(budgetTotal); }, [budgetTotal]);
+
+  const startEdit = () => {
+    setInputVal(String(montant));
+    setEditing(true);
+    setTimeout(() => inputRef.current?.select(), 0);
+  };
+
+  const commitEdit = () => {
+    const parsed = parseInt(inputVal.replace(/\s/g, ''), 10);
+    if (!isNaN(parsed) && parsed > 0) setMontant(parsed);
+    setEditing(false);
+  };
 
   const mensualite = useMemo(
-    () => calcMensualite(budgetTotal, taux, duree),
-    [budgetTotal, taux, duree],
+    () => calcMensualite(montant, taux, duree),
+    [montant, taux, duree],
   );
 
-  const coutTotal = mensualite * duree;
-  const coutCredit = coutTotal - budgetTotal;
+  const coutTotal  = mensualite * duree;
+  const coutCredit = coutTotal - montant;
+  const isModified = montant !== budgetTotal;
 
   return (
     <div className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-5 space-y-5">
-      {/* Montant du projet */}
-      <div className="flex items-center justify-between">
-        <span className="text-slate-400 text-sm">Montant du projet</span>
-        <span className="text-white font-semibold text-sm">
-          {budgetTotal.toLocaleString('fr-FR')} €
-        </span>
+      {/* Montant du projet — éditable */}
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-slate-400 text-sm shrink-0">Montant à financer</span>
+
+        {editing ? (
+          <div className="flex items-center gap-1.5">
+            <input
+              ref={inputRef}
+              type="number"
+              min={1000}
+              step={500}
+              value={inputVal}
+              onChange={(e) => setInputVal(e.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitEdit();
+                if (e.key === 'Escape') setEditing(false);
+              }}
+              className="w-28 bg-white/10 border border-blue-400/50 rounded-lg px-2 py-0.5
+                         text-white font-semibold text-sm text-right focus:outline-none
+                         focus:border-blue-400 [appearance:textfield]
+                         [&::-webkit-outer-spin-button]:appearance-none
+                         [&::-webkit-inner-spin-button]:appearance-none"
+            />
+            <span className="text-white text-sm font-semibold">€</span>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={startEdit}
+            className="flex items-center gap-1.5 group"
+            title="Modifier le montant"
+          >
+            <span className={`font-semibold text-sm ${isModified ? 'text-blue-300' : 'text-white'}`}>
+              {montant.toLocaleString('fr-FR')} €
+            </span>
+            <Pencil className="h-3 w-3 text-slate-500 group-hover:text-blue-400 transition-colors" />
+          </button>
+        )}
+
+        {/* Bouton reset si montant modifié */}
+        {isModified && !editing && (
+          <button
+            type="button"
+            onClick={() => setMontant(budgetTotal)}
+            title="Remettre l'estimation initiale"
+            className="text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
 
       {/* Durée */}
