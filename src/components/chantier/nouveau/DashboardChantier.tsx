@@ -16,6 +16,7 @@ import SimulationFinancement from '@/components/chantier/financement/SimulationF
 import SyntheseChantier from '@/components/chantier/SyntheseChantier';
 import NextActionCard from '@/components/chantier/NextActionCard';
 import ConseilsChantier from '@/components/chantier/ConseilsChantier';
+import { getFormaliteLinks } from '@/lib/formalitesLinks';
 
 interface DashboardChantierProps {
   result: ChantierIAResult;
@@ -674,25 +675,57 @@ export default function DashboardChantier({
           <section id="section-formalites">
             <SectionHeading icon={FileText} label="Formalités administratives" color="blue" />
             <div className="space-y-3">
-              {result.formalites?.map((f, i) => (
-                <div key={i} className="flex items-start gap-3 bg-[#0d1525] border border-white/[0.06] rounded-2xl p-4">
-                  <span className="text-xl shrink-0">{f.emoji}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-white text-sm font-medium">{f.nom}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        f.obligatoire
-                          ? 'bg-red-500/15 text-red-300 border border-red-500/25'
-                          : 'bg-slate-700/50 text-slate-400 border border-white/[0.06]'
-                      }`}>
-                        {f.obligatoire ? 'Obligatoire' : 'Recommandé'}
-                      </span>
+              {result.formalites?.map((f, i) => {
+                const links = getFormaliteLinks(f.nom, f.detail);
+                return (
+                  <div key={i} className="bg-[#0d1525] border border-white/[0.06] rounded-2xl p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="text-xl shrink-0">{f.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-white text-sm font-medium">{f.nom}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            f.obligatoire
+                              ? 'bg-red-500/15 text-red-300 border border-red-500/25'
+                              : 'bg-slate-700/50 text-slate-400 border border-white/[0.06]'
+                          }`}>
+                            {f.obligatoire ? 'Obligatoire' : 'Recommandé'}
+                          </span>
+                        </div>
+                        <p className="text-slate-500 text-xs mt-0.5 leading-tight">{f.detail}</p>
+
+                        {/* Liens officiels gouv.fr */}
+                        {links && (
+                          <div className="flex flex-wrap gap-2 mt-2.5">
+                            <a
+                              href={links.primary.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-xs bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-blue-300 rounded-lg px-2.5 py-1 font-medium transition-all"
+                            >
+                              <ExternalLink className="h-3 w-3 shrink-0" />
+                              {links.primary.cerfa
+                                ? `CERFA ${links.primary.cerfa}`
+                                : links.primary.label}
+                            </a>
+                            {links.secondary && (
+                              <a
+                                href={links.secondary.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                              >
+                                <ExternalLink className="h-3 w-3 shrink-0" />
+                                {links.secondary.label}
+                              </a>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-slate-500 text-xs mt-0.5 leading-tight">{f.detail}</p>
                   </div>
-                  <ChevronRight className="h-4 w-4 text-slate-700 shrink-0 mt-0.5" />
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
 

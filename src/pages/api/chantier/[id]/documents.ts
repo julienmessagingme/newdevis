@@ -79,8 +79,9 @@ export const GET: APIRoute = async ({ params, request }) => {
 };
 
 // ── POST /api/chantier/[id]/documents ───────────────────────────────────────
-// Enregistre les métadonnées après l'upload client direct vers Supabase Storage.
-// Valide la taille côté serveur (2e garde après bucket file_size_limit + UI).
+// Upload serveur : reçoit le fichier via FormData, le pousse dans Supabase Storage
+// avec la service_role_key (bypass RLS), puis enregistre les métadonnées en DB.
+// Plus de dépendance à la RLS storage côté client.
 
 export const POST: APIRoute = async ({ params, request }) => {
   const auth = request.headers.get('Authorization');
@@ -96,51 +97,60 @@ export const POST: APIRoute = async ({ params, request }) => {
   if (!await verifyChantierOwnership(supabase, chantierId, user.id))
     return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
 
-  let body: {
-    bucketPath: string;
-    nom: string;
-    nomFichier: string;
-    documentType: DocumentType;
-    lotId?: string | null;
-    tailleOctets?: number | null;
-    mimeType?: string | null;
-  };
-
+  // ── Parse multipart/form-data ─────────────────────────────────────────────
+  let formData: FormData;
   try {
-    body = await request.json();
+    formData = await request.formData();
   } catch {
     return new Response(JSON.stringify({ error: 'Corps de requête invalide' }), { status: 400, headers: CORS });
   }
 
-  const { bucketPath, nom, nomFichier, documentType, lotId: lotIdRaw = null, tailleOctets = null, mimeType = null } = body;
+  const file         = formData.get('file') as File | null;
+  const nom          = (formData.get('nom') as string | null)?.trim() ?? '';
+  const documentType = (formData.get('documentType') as DocumentType | null) ?? 'autre';
+  const lotIdRaw     = (formData.get('lotId') as string | null) || null;
 
-  // Validations
-  if (!bucketPath?.trim() || !nom?.trim() || !nomFichier?.trim())
-    return new Response(JSON.stringify({ error: 'Champs obligatoires manquants' }), { status: 400, headers: CORS });
-
+  if (!file || !(file instanceof File))
+    return new Response(JSON.stringify({ error: 'Fichier manquant' }), { status: 400, headers: CORS });
+  if (!nom)
+    return new Response(JSON.stringify({ error: 'Nom du document requis' }), { status: 400, headers: CORS });
   if (!VALID_TYPES.has(documentType))
     return new Response(JSON.stringify({ error: 'Type de document invalide' }), { status: 400, headers: CORS });
-
-  // Validation taille serveur (cohérente avec limit bucket + UI)
-  if (tailleOctets !== null && tailleOctets > MAX_BYTES)
+  if (file.size > MAX_BYTES)
     return new Response(JSON.stringify({ error: 'Fichier trop volumineux (max 10 Mo)' }), { status: 400, headers: CORS });
 
-  // Sécurité : le chemin doit commencer par l'user_id pour respecter les policies storage
-  if (!bucketPath.startsWith(`${user.id}/`))
-    return new Response(JSON.stringify({ error: 'Chemin storage invalide' }), { status: 400, headers: CORS });
+  // ── Construire le chemin storage (user-scoped) ────────────────────────────
+  const ext        = file.name.includes('.') ? `.${file.name.split('.').pop()!.toLowerCase()}` : '';
+  const uuid       = crypto.randomUUID();
+  const bucketPath = `${user.id}/${chantierId}/${uuid}${ext}`;
 
-  // Validation lot si fourni — non-bloquant : log + fallback null si introuvable
+  // ── Upload vers Supabase Storage via service_role (bypass RLS) ───────────
+  const fileBuffer = await file.arrayBuffer();
+  const { error: uploadErr } = await supabase.storage
+    .from(BUCKET)
+    .upload(bucketPath, fileBuffer, {
+      contentType: file.type || 'application/octet-stream',
+      upsert: false,
+    });
+
+  if (uploadErr) {
+    console.error('[api/documents] Storage upload error:', uploadErr.message);
+    return new Response(JSON.stringify({ error: `Erreur storage : ${uploadErr.message}` }), { status: 500, headers: CORS });
+  }
+
+  // ── Validation lot si fourni ──────────────────────────────────────────────
   let lotId: string | null = lotIdRaw;
-  if (lotId !== null && lotId !== undefined) {
+  if (lotId) {
     const { data: lot } = await supabase
       .from('lots_chantier').select('id')
       .eq('id', lotId).eq('chantier_id', chantierId).single();
     if (!lot) {
-      console.warn('[api/documents] Lot invalide ignoré — rattachement au chantier uniquement:', lotId);
+      console.warn('[api/documents] Lot invalide ignoré:', lotId);
       lotId = null;
     }
   }
 
+  // ── Enregistrement métadonnées en DB ──────────────────────────────────────
   const { data: doc, error: insertError } = await supabase
     .from('documents_chantier')
     .insert({
@@ -148,16 +158,18 @@ export const POST: APIRoute = async ({ params, request }) => {
       lot_id:        lotId,
       document_type: documentType,
       source:        'manual_upload',
-      nom:           nom.trim(),
-      nom_fichier:   nomFichier,
+      nom,
+      nom_fichier:   file.name,
       bucket_path:   bucketPath,
-      taille_octets: tailleOctets,
-      mime_type:     mimeType,
+      taille_octets: file.size,
+      mime_type:     file.type || null,
     })
     .select()
     .single();
 
   if (insertError || !doc) {
+    // Rollback storage
+    await supabase.storage.from(BUCKET).remove([bucketPath]);
     console.error('[api/documents] POST insert error:', insertError?.message);
     return new Response(JSON.stringify({ error: 'Erreur lors de l\'enregistrement' }), { status: 500, headers: CORS });
   }

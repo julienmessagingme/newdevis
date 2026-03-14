@@ -1,18 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import {
   Upload, Trash2, Download, X, Loader2,
   Sparkles, AlertCircle, FolderOpen, ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { DocumentChantier, DocumentType, LotChantier } from '@/types/chantier-ia';
-
-// ── Constants ────────────────────────────────────────────────────────────────
-
-const SUPABASE_URL     = import.meta.env.PUBLIC_SUPABASE_URL as string;
-const SUPABASE_ANON    = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY as string;
-const BUCKET           = 'chantier-documents';
-const MAX_SIZE_BYTES   = 10 * 1024 * 1024; // 10 Mo — cohérent avec bucket + serveur
+const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10 Mo — cohérent avec bucket + serveur
 const ACCEPTED_TYPES   = '.pdf,.jpg,.jpeg,.png,.heic,.heif,.webp,.docx,.xlsx,.xls,.doc';
 
 const DOC_TYPES: { value: DocumentType; label: string; emoji: string }[] = [
@@ -26,11 +19,6 @@ const DOC_TYPES: { value: DocumentType; label: string; emoji: string }[] = [
 ];
 
 // ── Utilities ────────────────────────────────────────────────────────────────
-
-function getFileExt(file: File): string {
-  const parts = file.name.split('.');
-  return parts.length > 1 ? `.${parts.pop()!.toLowerCase()}` : '';
-}
 
 function inferDocType(file: File): DocumentType {
   if (file.type.startsWith('image/')) return 'photo';
@@ -128,46 +116,28 @@ export default function DocumentsSection({ chantierId, userId, token, lots }: Pr
   };
 
   // ── Upload ────────────────────────────────────────────────────────────────
+  // Le fichier est envoyé directement à l'API route serveur (FormData).
+  // Le serveur gère le push vers Supabase Storage avec la service_role_key.
+  // Élimine toute dépendance à la RLS storage côté client.
 
   const handleUpload = async () => {
-    if (!pendingFile || !uploadNom.trim() || uploading || !chantierId || !userId || !token) return;
+    if (!pendingFile || !uploadNom.trim() || uploading || !chantierId || !token) return;
     setUploading(true);
 
-    const ext        = getFileExt(pendingFile);
-    const uuid       = crypto.randomUUID();
-    const bucketPath = `${userId}/${chantierId}/${uuid}${ext}`;
-
     try {
-      // 1. Upload direct vers Supabase Storage avec le token user (RLS policy appliquée)
-      const storageClient = createClient(SUPABASE_URL, SUPABASE_ANON, {
-        global: { headers: { Authorization: `Bearer ${token}` } },
-        auth:   { persistSession: false },
-      });
+      const formData = new FormData();
+      formData.append('file', pendingFile);
+      formData.append('nom', uploadNom.trim());
+      formData.append('documentType', uploadType);
+      if (uploadLotId) formData.append('lotId', uploadLotId);
 
-      const { error: uploadErr } = await storageClient.storage
-        .from(BUCKET)
-        .upload(bucketPath, pendingFile, { contentType: pendingFile.type || 'application/octet-stream', upsert: false });
-
-      if (uploadErr) throw new Error(`Storage: ${uploadErr.message}`);
-
-      // 2. Enregistrement métadonnées en DB (avec 2e validation taille côté serveur)
       const res = await fetch(`/api/chantier/${chantierId}/documents`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          bucketPath,
-          nom:          uploadNom.trim(),
-          nomFichier:   pendingFile.name,
-          documentType: uploadType,
-          lotId:        uploadLotId || null,
-          tailleOctets: pendingFile.size,
-          mimeType:     pendingFile.type || null,
-        }),
+        method:  'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body:    formData,
       });
 
       if (!res.ok) {
-        // Rollback storage si la DB échoue
-        await storageClient.storage.from(BUCKET).remove([bucketPath]);
         const err = await res.json().catch(() => ({}));
         throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`);
       }
@@ -179,7 +149,7 @@ export default function DocumentsSection({ chantierId, userId, token, lots }: Pr
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error('[DocumentsSection] upload error:', msg);
-      toast.error('Erreur lors de l\'ajout du document', { duration: 3000 });
+      toast.error(`Erreur : ${msg}`, { duration: 4000 });
     } finally {
       setUploading(false);
     }
@@ -399,7 +369,7 @@ export default function DocumentsSection({ chantierId, userId, token, lots }: Pr
             </button>
             <button
               onClick={handleUpload}
-              disabled={!uploadNom.trim() || uploading || !chantierId || !userId || !token}
+              disabled={!uploadNom.trim() || uploading || !chantierId || !token}
               className="flex items-center gap-1.5 text-xs bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg px-3 py-1.5 transition-all"
             >
               {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
