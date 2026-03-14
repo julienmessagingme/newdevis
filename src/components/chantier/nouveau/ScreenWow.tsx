@@ -93,22 +93,6 @@ export default function ScreenWow({ result, tempsMs, onDashboard, onAmeliorer }:
           ))}
         </div>
 
-        {/* Financement info si crédit */}
-        {result.mensualite && (
-          <div
-            className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 mb-6 text-sm"
-            style={{ animation: 'ia-fade-up 0.5s ease-out 0.25s both' }}
-          >
-            <span className="text-slate-400">Mensualité estimée : </span>
-            <span className="text-blue-300 font-semibold">
-              {result.mensualite.toLocaleString('fr-FR')} €/mois
-            </span>
-            {result.dureeCredit && (
-              <span className="text-slate-500"> sur {result.dureeCredit} mois</span>
-            )}
-          </div>
-        )}
-
         {/* Actions */}
         <div
           className="flex flex-col sm:flex-row gap-3"

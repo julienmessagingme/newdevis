@@ -92,6 +92,72 @@ export const POST: APIRoute = async ({ request }) => {
     if (lotsError) {
       console.error('[api/chantier/sauvegarder] lots error:', lotsError.message);
     }
+
+    // ── Enrichissement budget : lookup market_prices par job_type ─────────────
+    const artisansWithJobType = (artisans as ArtisanIA[]).filter(
+      (a) => a.job_type && a.quantite && a.quantite > 0,
+    );
+
+    if (artisansWithJobType.length > 0) {
+      const jobTypes = artisansWithJobType.map((a) => a.job_type as string);
+
+      const { data: prices, error: pricesError } = await supabase
+        .from('market_prices')
+        .select(
+          'job_type, unit, price_min_unit_ht, price_avg_unit_ht, price_max_unit_ht,' +
+          'fixed_min_ht, fixed_avg_ht, fixed_max_ht, ratio_materiaux, ratio_main_oeuvre',
+        )
+        .in('job_type', jobTypes);
+
+      if (pricesError) {
+        console.error('[api/chantier/sauvegarder] market_prices lookup error:', pricesError.message);
+      } else if (prices && prices.length > 0) {
+        const priceMap = new Map(prices.map((p) => [p.job_type, p]));
+
+        for (const artisan of artisansWithJobType) {
+          const price = priceMap.get(artisan.job_type as string);
+          if (!artisan.quantite) continue;
+          if (!price) {
+            console.warn('[api/chantier/sauvegarder] market price not found for job_type:', artisan.job_type);
+            continue;
+          }
+
+          const q          = artisan.quantite;
+          const rM         = Number(price.ratio_materiaux   ?? 0.40);
+          const rMO        = Number(price.ratio_main_oeuvre ?? 0.55);
+          const ratioTotal = rM + rMO;
+          const safeRM     = ratioTotal >= 1 ? 0.40 : rM;
+          const safeRMO    = ratioTotal >= 1 ? 0.55 : rMO;
+
+          const calcBudget = (unitP: number | null, fixed: number | null) =>
+            q * (Number(unitP) || 0) + (Number(fixed) || 0);
+
+          const budgetMin = calcBudget(price.price_min_unit_ht, price.fixed_min_ht);
+          const budgetAvg = calcBudget(price.price_avg_unit_ht, price.fixed_avg_ht);
+          const budgetMax = calcBudget(price.price_max_unit_ht, price.fixed_max_ht);
+
+          const { error: updateError } = await supabase
+            .from('lots_chantier')
+            .update({
+              job_type:       artisan.job_type,
+              quantite:       q,
+              unite:          price.unit ?? null,
+              budget_min_ht:  Math.round(budgetMin),
+              budget_avg_ht:  Math.round(budgetAvg),
+              budget_max_ht:  Math.round(budgetMax),
+              materiaux_ht:   Math.round(budgetAvg * safeRM),
+              main_oeuvre_ht: Math.round(budgetAvg * safeRMO),
+              divers_ht:      Math.round(budgetAvg * Math.max(0, 1 - safeRM - safeRMO)),
+            })
+            .eq('chantier_id', chantierId)
+            .eq('nom', artisan.metier);
+
+          if (updateError) {
+            console.error('[api/chantier/sauvegarder] lot budget update error:', updateError.message);
+          }
+        }
+      }
+    }
   }
 
   // Créer les todos

@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Route, FileText, CheckSquare,
   Wand2, Plus, ExternalLink, ChevronRight, AlertCircle,
   TrendingUp, Layers, AlertTriangle, Wallet, FolderOpen, BookOpen,
-  Upload, Search, Zap, Lightbulb,
+  Upload, Search, Zap, Lightbulb, CreditCard,
 } from 'lucide-react';
 import type { ChantierIAResult, LotChantier, TacheIA, StatutArtisan } from '@/types/chantier-ia';
 import DocumentsSection from '@/components/chantier/nouveau/DocumentsSection';
@@ -12,6 +12,7 @@ import ChantierTimeline from '@/components/chantier/ChantierTimeline';
 import LotGrid from '@/components/chantier/lots/LotGrid';
 import JournalChantier from '@/components/chantier/JournalChantier';
 import BudgetGlobal from '@/components/chantier/BudgetGlobal';
+import SimulationFinancement from '@/components/chantier/financement/SimulationFinancement';
 import SyntheseChantier from '@/components/chantier/SyntheseChantier';
 import NextActionCard from '@/components/chantier/NextActionCard';
 import ConseilsChantier from '@/components/chantier/ConseilsChantier';
@@ -35,8 +36,9 @@ const PRIMARY_LINKS = [
   { id: 'timeline',  label: 'Planning',          icon: Route          },
   { id: 'conseils',  label: 'Nos conseils',      icon: Lightbulb      },
   { id: 'lots',      label: 'Lots',              icon: Layers         },
-  { id: 'budget',    label: 'Budget',            icon: Wallet         },
-  { id: 'documents', label: 'Documents',         icon: FolderOpen     },
+  { id: 'budget',      label: 'Budget',            icon: Wallet      },
+  { id: 'financement', label: 'Financement',      icon: CreditCard  },
+  { id: 'documents',   label: 'Documents',        icon: FolderOpen  },
   { id: 'journal',   label: 'Journal',           icon: BookOpen       },
 ];
 
@@ -459,7 +461,15 @@ export default function DashboardChantier({
           </section>
 
           {/* ═══════════════════════════════════════════════════════════════ */}
-          {/* 7. DOCUMENTS                                                    */}
+          {/* 7. FINANCEMENT                                                  */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          <section id="section-financement">
+            <SectionHeading icon={CreditCard} label="Simulation de financement" color="blue" />
+            <SimulationFinancement budgetTotal={result.budgetTotal} />
+          </section>
+
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* 8. DOCUMENTS                                                    */}
           {/* ═══════════════════════════════════════════════════════════════ */}
           <section id="section-documents">
             <DocumentsSection

@@ -130,7 +130,7 @@ export default function DocumentsSection({ chantierId, userId, token, lots }: Pr
   // ── Upload ────────────────────────────────────────────────────────────────
 
   const handleUpload = async () => {
-    if (!pendingFile || !uploadNom.trim() || uploading) return;
+    if (!pendingFile || !uploadNom.trim() || uploading || !chantierId || !userId || !token) return;
     setUploading(true);
 
     const ext        = getFileExt(pendingFile);
@@ -398,7 +398,7 @@ export default function DocumentsSection({ chantierId, userId, token, lots }: Pr
             </button>
             <button
               onClick={handleUpload}
-              disabled={!uploadNom.trim() || uploading}
+              disabled={!uploadNom.trim() || uploading || !chantierId || !userId || !token}
               className="flex items-center gap-1.5 text-xs bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg px-3 py-1.5 transition-all"
             >
               {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}

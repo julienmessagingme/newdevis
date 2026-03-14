@@ -34,6 +34,8 @@ export interface LotCardProps {
   nbFactures: number;
   /** Nombre de photos associées */
   nbPhotos: number;
+  /** Fourchette de prix calculée depuis market_prices — remplace montant si présente */
+  budgetRef?: { min: number; avg: number; max: number; unite?: string | null } | null;
   /** Callback déclenché par le bouton "Voir le lot" */
   onVoir?: () => void;
 }
@@ -72,6 +74,7 @@ export default function LotCard({
   nbDevis,
   nbFactures,
   nbPhotos,
+  budgetRef,
   onVoir,
 }: LotCardProps) {
   const statut = getStatut(nbDevis);
@@ -89,10 +92,24 @@ export default function LotCard({
         />
         <div className="flex-1 min-w-0">
           <p className="text-white text-sm font-medium leading-snug line-clamp-2">{label}</p>
-          <p className="text-2xl font-bold text-white mt-1.5 leading-none tracking-tight">
-            {montant.toLocaleString('fr-FR')}&thinsp;€
-          </p>
-          <p className="text-[11px] text-slate-500 mt-0.5">budget estimé</p>
+          {budgetRef ? (
+            <>
+              <p className="text-2xl font-bold text-white mt-1.5 leading-none tracking-tight">
+                {budgetRef.avg.toLocaleString('fr-FR')}&thinsp;€
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                {budgetRef.min.toLocaleString('fr-FR')} – {budgetRef.max.toLocaleString('fr-FR')} €
+                {budgetRef.unite ? <span className="text-slate-600"> · HT</span> : null}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-2xl font-bold text-white mt-1.5 leading-none tracking-tight">
+                {montant.toLocaleString('fr-FR')}&thinsp;€
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5">budget estimé</p>
+            </>
+          )}
         </div>
       </div>
 

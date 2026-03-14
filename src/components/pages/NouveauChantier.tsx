@@ -228,8 +228,8 @@ export default function NouveauChantier() {
           const data = await res.json();
           setChantierId(data.chantierId ?? null);
         }
-      } catch {
-        // Non-bloquant — la sauvegarde échoue silencieusement
+      } catch (err) {
+        console.error('[NouveauChantier] Erreur sauvegarde chantier:', err instanceof Error ? err.message : String(err));
       }
     },
     [],

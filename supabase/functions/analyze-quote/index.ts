@@ -308,6 +308,7 @@ serve(async (req) => {
     }
 
     // ============ CHECK CACHE ============
+    let cachedExtractedData: ExtractedData | null = null;
     const { data: cachedExtraction } = await supabase
       .from("document_extractions")
       .select("*")
@@ -319,6 +320,17 @@ serve(async (req) => {
 
     if (cachedExtraction && cachedExtraction.raw_text) {
       console.log("Cache hit for file hash:", fileHash);
+
+      // Réutiliser les données extraites — évite un second appel Gemini non-déterministe
+      try {
+        const parsedCache = JSON.parse(cachedExtraction.raw_text) as ExtractedData;
+        if (parsedCache?.type_document) {
+          cachedExtractedData = parsedCache;
+          console.log("Cache hit: ExtractedData réutilisée (type:", parsedCache.type_document, "), appel Gemini ignoré");
+        }
+      } catch {
+        console.warn("Cache hit: impossible de parser raw_text, Gemini sera appelé");
+      }
 
       if (extractionId) {
         await supabase
@@ -367,44 +379,51 @@ serve(async (req) => {
     try {
       console.log("--- PHASE 1: EXTRACTION (UN SEUL APPEL IA) ---");
 
-      if (extractionId) {
-        await supabase
-          .from("document_extractions")
-          .update({ status: "extracting", ocr_status: "extracting" })
-          .eq("id", extractionId);
-      }
-
-      extracted = await extractDataFromDocument(base64Content, mimeType, googleApiKey, domainConfig);
-
-      // Update status to extracted with ocr_status = success
-      if (extractionId) {
-        const { error: ocrUpdateError } = await supabase
-          .from("document_extractions")
-          .update({
-            status: "extracted",
-            ocr_status: "success",
-            provider: "gemini_ai",
-            ocr_used: true,
-            raw_text: JSON.stringify(extracted),
-            text_length: JSON.stringify(extracted).length,
-            ocr_debug: {
-              ocr_provider: "gemini_ai",
-              ocr_reason: "direct_ai_extraction",
-              request_id: requestId,
-              pages_total: 1,
-              pages_used: 1,
-            },
-          })
-          .eq("id", extractionId);
-
-        if (ocrUpdateError) {
-          console.error("Failed to update document_extractions ocr_status:", ocrUpdateError);
-          const { error: retryError } = await supabase
+      if (cachedExtractedData) {
+        // ── Chemin cache : données déjà extraites, pas d'appel Gemini ──────────
+        extracted = cachedExtractedData;
+        console.log("Phase 1: Cache hit — Gemini ignoré, type:", extracted.type_document);
+      } else {
+        // ── Chemin standard : extraction via Gemini ───────────────────────────
+        if (extractionId) {
+          await supabase
             .from("document_extractions")
-            .update({ ocr_status: "success" })
+            .update({ status: "extracting", ocr_status: "extracting" })
             .eq("id", extractionId);
-          if (retryError) {
-            console.error("Retry failed for ocr_status update:", retryError);
+        }
+
+        extracted = await extractDataFromDocument(base64Content, mimeType, googleApiKey, domainConfig);
+
+        // Update status to extracted with ocr_status = success
+        if (extractionId) {
+          const { error: ocrUpdateError } = await supabase
+            .from("document_extractions")
+            .update({
+              status: "extracted",
+              ocr_status: "success",
+              provider: "gemini_ai",
+              ocr_used: true,
+              raw_text: JSON.stringify(extracted),
+              text_length: JSON.stringify(extracted).length,
+              ocr_debug: {
+                ocr_provider: "gemini_ai",
+                ocr_reason: "direct_ai_extraction",
+                request_id: requestId,
+                pages_total: 1,
+                pages_used: 1,
+              },
+            })
+            .eq("id", extractionId);
+
+          if (ocrUpdateError) {
+            console.error("Failed to update document_extractions ocr_status:", ocrUpdateError);
+            const { error: retryError } = await supabase
+              .from("document_extractions")
+              .update({ ocr_status: "success" })
+              .eq("id", extractionId);
+            if (retryError) {
+              console.error("Retry failed for ocr_status update:", retryError);
+            }
           }
         }
       }

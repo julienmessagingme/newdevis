@@ -1,0 +1,140 @@
+warning: in the working copy of '.astro/types.d.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of '.claude/settings.local.json', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/.astro/data-store.json b/.astro/data-store.json[m
+[1mindex a30495b..24aea75 100644[m
+[1m--- a/.astro/data-store.json[m
+[1m+++ b/.astro/data-store.json[m
+[36m@@ -1 +1 @@[m
+[31m-[["Map",1,2],"meta::meta",["Map",3,4,5,6],"astro-version","5.17.1","astro-config-digest","{\"root\":{},\"srcDir\":{},\"publicDir\":{},\"outDir\":{},\"cacheDir\":{},\"site\":\"https://verifiermondevis.fr\",\"compressHTML\":true,\"base\":\"/\",\"trailingSlash\":\"ignore\",\"output\":\"static\",\"scopedStyleStrategy\":\"attribute\",\"build\":{\"format\":\"directory\",\"client\":{},\"server\":{},\"assets\":\"_astro\",\"serverEntry\":\"entry.mjs\",\"redirects\":false,\"inlineStylesheets\":\"auto\",\"concurrency\":1},\"server\":{\"open\":false,\"host\":false,\"port\":4321,\"streaming\":true,\"allowedHosts\":[]},\"redirects\":{},\"image\":{\"endpoint\":{\"route\":\"/_image\"},\"service\":{\"entrypoint\":\"astro/assets/services/sharp\",\"config\":{}},\"domains\":[],\"remotePatterns\":[],\"responsiveStyles\":false},\"devToolbar\":{\"enabled\":true},\"markdown\":{\"syntaxHighlight\":{\"type\":\"shiki\",\"excludeLangs\":[\"math\"]},\"shikiConfig\":{\"langs\":[],\"langAlias\":{},\"theme\":\"github-dark\",\"themes\":{},\"wrap\":false,\"transformers\":[]},\"remarkPlugins\":[],\"rehypePlugins\":[],\"remarkRehype\":{},\"gfm\":true,\"smartypants\":true},\"security\":{\"checkOrigin\":true,\"allowedDomains\":[]},\"env\":{\"schema\":{},\"validateSecrets\":false},\"experimental\":{\"clientPrerender\":false,\"contentIntellisense\":false,\"headingIdCompat\":false,\"preserveScriptOrder\":false,\"liveContentCollections\":false,\"csp\":false,\"staticImportMetaEnv\":false,\"chromeDevtoolsWorkspace\":false,\"failOnPrerenderConflict\":false,\"svgo\":false},\"legacy\":{\"collections\":false}}"][m
+\ No newline at end of file[m
+[32m+[m[32m[["Map",1,2],"meta::meta",["Map",3,4,5,6],"astro-version","5.17.1","astro-config-digest","{\"root\":{},\"srcDir\":{},\"publicDir\":{},\"outDir\":{},\"cacheDir\":{},\"site\":\"https://www.verifiermondevis.fr\",\"compressHTML\":true,\"base\":\"/\",\"trailingSlash\":\"ignore\",\"output\":\"static\",\"scopedStyleStrategy\":\"attribute\",\"build\":{\"format\":\"directory\",\"client\":{},\"server\":{},\"assets\":\"_astro\",\"serverEntry\":\"entry.mjs\",\"redirects\":false,\"inlineStylesheets\":\"auto\",\"concurrency\":1},\"server\":{\"open\":false,\"host\":false,\"port\":4321,\"streaming\":true,\"allowedHosts\":[]},\"redirects\":{},\"image\":{\"endpoint\":{\"route\":\"/_image\"},\"service\":{\"entrypoint\":\"astro/assets/services/sharp\",\"config\":{}},\"domains\":[],\"remotePatterns\":[],\"responsiveStyles\":false},\"devToolbar\":{\"enabled\":true},\"markdown\":{\"syntaxHighlight\":{\"type\":\"shiki\",\"excludeLangs\":[\"math\"]},\"shikiConfig\":{\"langs\":[],\"langAlias\":{},\"theme\":\"github-dark\",\"themes\":{},\"wrap\":false,\"transformers\":[]},\"remarkPlugins\":[],\"rehypePlugins\":[],\"remarkRehype\":{},\"gfm\":true,\"smartypants\":true},\"security\":{\"checkOrigin\":true,\"allowedDomains\":[]},\"env\":{\"schema\":{},\"validateSecrets\":false},\"experimental\":{\"clientPrerender\":false,\"contentIntellisense\":false,\"headingIdCompat\":false,\"preserveScriptOrder\":false,\"liveContentCollections\":false,\"csp\":false,\"staticImportMetaEnv\":false,\"chromeDevtoolsWorkspace\":false,\"failOnPrerenderConflict\":false,\"svgo\":false},\"legacy\":{\"collections\":false}}"][m
+\ No newline at end of file[m
+[1mdiff --git a/.astro/types.d.ts b/.astro/types.d.ts[m
+[1mindex f964fe0..03d7cc4 100644[m
+[1m--- a/.astro/types.d.ts[m
+[1m+++ b/.astro/types.d.ts[m
+[36m@@ -1 +1,2 @@[m
+ /// <reference types="astro/client" />[m
+[32m+[m[32m/// <reference path="content.d.ts" />[m
+\ No newline at end of file[m
+[1mdiff --git a/.claude/settings.local.json b/.claude/settings.local.json[m
+[1mindex 2f97e3b..90f420a 100644[m
+[1m--- a/.claude/settings.local.json[m
+[1m+++ b/.claude/settings.local.json[m
+[36m@@ -26,7 +26,31 @@[m
+       "Bash(npx tsc:*)",[m
+       "WebFetch(domain:api.dvf.etalab.gouv.fr)",[m
+       "WebFetch(domain:files.data.gouv.fr)",[m
+[31m-      "Bash(npx vercel:*)"[m
+[32m+[m[32m      "Bash(npx vercel:*)",[m
+[32m+[m[32m      "Bash(git pull --rebase origin main)",[m
+[32m+[m[32m      "Bash(git stash)",[m
+[32m+[m[32m      "Bash(git stash pop)",[m
+[32m+[m[32m      "Bash(git pull origin main --no-rebase)",[m
+[32m+[m[32m      "Bash(git show b701fae -- src/pages/analyse/[id].astro)",[m
+[32m+[m[32m      "Bash(grep -l \"document_extraction\\\\|analyses.*INSERT\\\\|CREATE TRIGGER\" supabase/migrations/*.sql)",[m
+[32m+[m[32m      "Bash(grep -rn \"analyses\\\\|COMPLETED_WITHOUT_OCR\" supabase/migrations/*.sql)",[m
+[32m+[m[32m      "Bash(python3 -m json.tool)",[m
+[32m+[m[32m      "Bash(grep -i \"volet\" /c/Users/bride/projets/newdevis/supabase/migrations/*.sql)",[m
+[32m+[m[32m      "Bash(ANON_KEY=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZocmhnc3F4d3ZvdXN3amFpY3puIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3MjQzMjEsImV4cCI6MjA4NjMwMDMyMX0.s1LvwmlSSGaCjiPRI8j4op-7xke7h53Ng8nqIkNAAzI\")",[m
+[32m+[m[32m      "Bash(__NEW_LINE_d059991ba0245c7b__ curl -s \"https://vhrhgsqxwvouswjaiczn.supabase.co/rest/v1/market_prices?select=job_type,label,unit,price_min_unit_ht,price_avg_unit_ht,price_max_unit_ht,notes&or=\\(job_type.eq.volet,job_type.eq.volet_roulant_fourniture_pose\\)\" -H \"apikey: $ANON_KEY\" -H \"Authorization: Bearer $ANON_KEY\" -H \"Content-Type: application/json\")",[m
+[32m+[m[32m      "Bash(Remove-Item \"C:\\\\Users\\\\bride\\\\projets\\\\newdevis\\\\.git\\\\index.lock\" -Force)",[m
+[32m+[m[32m      "Bash(powershell -Command \"Remove-Item -Force ''C:\\\\Users\\\\bride\\\\projets\\\\newdevis\\\\.git\\\\index.lock'' -ErrorAction SilentlyContinue; Write-Host ''Done''\")",[m
+[32m+[m[32m      "Bash(git -C \"C:/Users/bride/projets/newdevis\" add supabase/migrations/20260228120000_add_volet_roulant_fourniture_pose.sql supabase/migrations/20260228_system_alerts_cron.sql)",[m
+[32m+[m[32m      "Bash(powershell -Command \"Remove-Item -Force ''C:\\\\Users\\\\bride\\\\projets\\\\newdevis\\\\.git\\\\index.lock'' -ErrorAction SilentlyContinue\")",[m
+[32m+[m[32m      "Bash(powershell -Command \"Remove-Item -Force ''C:\\\\Users\\\\bride\\\\projets\\\\newdevis\\\\.git\\\\index.lock'' -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500; git -C ''C:\\\\Users\\\\bride\\\\projets\\\\newdevis'' add ''supabase/migrations/20260228120000_add_volet_roulant_fourniture_pose.sql'' ''supabase/migrations/20260228_system_alerts_cron.sql''; Write-Host ''Add exit code:'' $LASTEXITCODE\")",[m
+[32m+[m[32m      "Bash(powershell -Command \"git -C ''C:\\\\Users\\\\bride\\\\projets\\\\newdevis'' status\")",[m
+[32m+[m[32m      "Bash(powershell -Command \"Get-ChildItem ''C:\\\\Users\\\\bride\\\\projets\\\\newdevis\\\\supabase\\\\migrations\\\\'' | Select-Object Name | Sort-Object Name\")",[m
+[32m+[m[32m      "Bash(powershell -Command \"Remove-Item -Force ''C:\\\\Users\\\\bride\\\\projets\\\\newdevis\\\\.git\\\\index.lock'' -ErrorAction SilentlyContinue; git -C ''C:\\\\Users\\\\bride\\\\projets\\\\newdevis'' add ''supabase/migrations/20260228_system_alerts_cron.sql''; Write-Host ''Exit:'' $LASTEXITCODE; git -C ''C:\\\\Users\\\\bride\\\\projets\\\\newdevis'' status --short\")",[m
+[32m+[m[32m      "Bash(git -C \"C:/Users/bride/projets/newdevis\" log --oneline --all -- supabase/migrations/20260228_system_alerts_cron.sql)",[m
+[32m+[m[32m      "Bash(powershell -Command \":*)",[m
+[32m+[m[32m      "Bash(git -C \"C:/Users/bride/projets/newdevis\" push origin main)",[m
+[32m+[m[32m      "Bash(/tmp/patch_blog2.ps1:*)",[m
+[32m+[m[32m      "Bash(powershell.exe -File /tmp/patch_blog2.ps1)"[m
+     ][m
+   }[m
+ }[m
+[1mdiff --git a/src/pages/api/market-prices.ts b/src/pages/api/market-prices.ts[m
+[1mindex 1133ffd..210a180 100644[m
+[1m--- a/src/pages/api/market-prices.ts[m
+[1m+++ b/src/pages/api/market-prices.ts[m
+[36m@@ -35,9 +35,10 @@[m [mtype DvfV2Row = {[m
+ // Paramètres : code_insee (principal) | code_postal + commune (fallback)[m
+ // Tables : public.dvf_prices_v2 (priorité), sinon public.dvf_prices (fallback)[m
+ export const GET: APIRoute = async ({ url }) => {[m
+[31m-  const codeInsee = url.searchParams.get("code_insee")?.trim() ?? "";[m
+[32m+[m[32m  const codeInsee  = url.searchParams.get("code_insee")?.trim() ?? "";[m
+   const codePostal = url.searchParams.get("code_postal")?.trim() ?? "";[m
+[31m-  const communeQ = url.searchParams.get("commune")?.trim() ?? "";[m
+[32m+[m[32m  const communeQ   = url.searchParams.get("commune")?.trim() ?? "";[m
+[32m+[m[32m  const typeBien   = url.searchParams.get("type_bien")?.toLowerCase().trim() ?? "";[m
+ [m
+   if (!codeInsee && !codePostal) {[m
+     return json([m
+[36m@@ -133,24 +134,23 @@[m [mexport const GET: APIRoute = async ({ url }) => {[m
+   const v2Row = v2Res.ok && Array.isArray(v2Res.data) ? v2Res.data[0] : null;[m
+ [m
+   if (v2Row) {[m
+[31m-    // legacy prix_m2 (pour compat): moyenne simple des 2 si les deux existent, sinon celui dispo[m
+[31m-    const legacyPrixM2 =[m
+[31m-      v2Row.prix_m2_appartement && v2Row.prix_m2_maison[m
+[31m-        ? Math.round((v2Row.prix_m2_appartement + v2Row.prix_m2_maison) / 2)[m
+[31m-        : v2Row.prix_m2_appartement ?? v2Row.prix_m2_maison ?? null;[m
+[32m+[m[32m    const prixM2 =[m
+[32m+[m[32m      typeBien === "maison"      ? v2Row.prix_m2_maison :[m
+[32m+[m[32m      typeBien === "appartement" ? v2Row.prix_m2_appartement :[m
+[32m+[m[32m      v2Row.prix_m2_maison && v2Row.prix_m2_appartement[m
+[32m+[m[32m        ? Math.round((v2Row.prix_m2_maison + v2Row.prix_m2_appartement) / 2)[m
+[32m+[m[32m        : v2Row.prix_m2_maison ?? v2Row.prix_m2_appartement ?? null;[m
+ [m
+     return json({[m
+       dvf_available: true,[m
+       used_table: used,[m
+       code_insee: v2Row.code_insee,[m
+       commune: v2Row.commune,[m
+[31m-      // v2 fields[m
+       prix_m2_maison: v2Row.prix_m2_maison,[m
+       prix_m2_appartement: v2Row.prix_m2_appartement,[m
+       nb_ventes_maison: v2Row.nb_ventes_maison,[m
+       nb_ventes_appartement: v2Row.nb_ventes_appartement,[m
+[31m-      // legacy (v1 compat)[m
+[31m-      prix_m2: legacyPrixM2,[m
+[32m+[m[32m      prix_m2: prixM2,[m
+       source: v2Row.source ?? "DVF (données publiques)",[m
+       updated_at: v2Row.updated_at ?? null,[m
+     });[m
+[1mdiff --git a/src/pages/simulateur-valorisation-travaux.astro b/src/pages/simulateur-valorisation-travaux.astro[m
+[1mindex e6017ce..b27f192 100644[m
+[1m--- a/src/pages/simulateur-valorisation-travaux.astro[m
+[1m+++ b/src/pages/simulateur-valorisation-travaux.astro[m
+[36m@@ -738,7 +738,7 @@[m [mconst jsonLd = {[m
+     }[m
+   }[m
+ [m
+[31m-  // ── DVF : commune → prix/m² (table dvf_prices) ──[m
+[32m+[m[32m  // ── DVF : commune → prix/m² ──[m
+   async function fetchDvfForCommune(): Promise<void> {[m
+     hide('dvf-status-loaded');[m
+     hide('dvf-status-unavailable');[m
+[36m@@ -749,7 +749,9 @@[m [mconst jsonLd = {[m
+     show('dvf-loading');[m
+ [m
+     try {[m
+[31m-      const url = `/api/market-prices?code_insee=${selectedCommune.codeInsee}`;[m
+[32m+[m[32m      const typeBien = (el('property-type') as HTMLSelectElement).value;[m
+[32m+[m[32m      const typeBienParam = typeBien ? `&type_bien=${encodeURIComponent(typeBien)}` : '';[m
+[32m+[m[32m      const url = `/api/market-prices?code_insee=${selectedCommune.codeInsee}${typeBienParam}`;[m
+       const resp = await fetch(url);[m
+       if (!resp.ok) throw new Error('HTTP ' + resp.status);[m
+ [m
+[36m@@ -1140,7 +1142,9 @@[m [mconst jsonLd = {[m
+       void fetchDvfForCommune();[m
+     });[m
+ [m
+[31m-    // Changement de type de bien → pas de re-fetch DVF (prix_m2 non différencié par type)[m
+[32m+[m[32m    el('property-type').addEventListener('change', () => {[m
+[32m+[m[32m      if (selectedCommune) void fetchDvfForCommune();[m
+[32m+[m[32m    });[m
+   }[m
+ [m
+   init();[m

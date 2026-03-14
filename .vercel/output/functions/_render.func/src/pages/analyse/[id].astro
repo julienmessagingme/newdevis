@@ -1,0 +1,14 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AnalysisResultApp from '@/components/app/AnalysisResultApp';
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="Résultat d'analyse | VerifierMonDevis.fr"
+  description="Résultat détaillé de l'analyse de votre devis artisan."
+  noindex={true}
+>
+  <AnalysisResultApp client:only="react" />
+</BaseLayout>

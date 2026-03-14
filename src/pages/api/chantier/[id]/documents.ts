@@ -112,7 +112,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     return new Response(JSON.stringify({ error: 'Corps de requête invalide' }), { status: 400, headers: CORS });
   }
 
-  const { bucketPath, nom, nomFichier, documentType, lotId = null, tailleOctets = null, mimeType = null } = body;
+  const { bucketPath, nom, nomFichier, documentType, lotId: lotIdRaw = null, tailleOctets = null, mimeType = null } = body;
 
   // Validations
   if (!bucketPath?.trim() || !nom?.trim() || !nomFichier?.trim())
@@ -129,13 +129,16 @@ export const POST: APIRoute = async ({ params, request }) => {
   if (!bucketPath.startsWith(`${user.id}/`))
     return new Response(JSON.stringify({ error: 'Chemin storage invalide' }), { status: 400, headers: CORS });
 
-  // Validation lot si fourni
-  if (lotId) {
+  // Validation lot si fourni — non-bloquant : log + fallback null si introuvable
+  let lotId: string | null = lotIdRaw;
+  if (lotId !== null && lotId !== undefined) {
     const { data: lot } = await supabase
       .from('lots_chantier').select('id')
       .eq('id', lotId).eq('chantier_id', chantierId).single();
-    if (!lot)
-      return new Response(JSON.stringify({ error: 'Lot invalide' }), { status: 400, headers: CORS });
+    if (!lot) {
+      console.warn('[api/documents] Lot invalide ignoré — rattachement au chantier uniquement:', lotId);
+      lotId = null;
+    }
   }
 
   const { data: doc, error: insertError } = await supabase

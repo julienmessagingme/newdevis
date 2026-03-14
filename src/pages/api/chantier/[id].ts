@@ -115,7 +115,12 @@ export const GET: APIRoute = async ({ params, request }) => {
   // Lots depuis lots_chantier — chargés avant le fallback check pour couvrir tous les cas
   const { data: lotsRaw, error: lotsError } = await supabase
     .from('lots_chantier')
-    .select('id, nom, statut, ordre, emoji, role')
+    .select(
+      'id, nom, statut, ordre, emoji, role,' +
+      'job_type, quantite, unite,' +
+      'budget_min_ht, budget_avg_ht, budget_max_ht,' +
+      'materiaux_ht, main_oeuvre_ht, divers_ht',
+    )
     .eq('chantier_id', chantierId)
     .order('ordre', { ascending: true });
 
@@ -158,6 +163,16 @@ export const GET: APIRoute = async ({ params, request }) => {
         ordre: l.ordre,
         emoji: l.emoji ?? undefined,
         role: l.role ?? undefined,
+        // Prix de référence calculés (null si lot sans match market_prices)
+        job_type:       l.job_type       ?? null,
+        quantite:       l.quantite       ?? null,
+        unite:          l.unite          ?? null,
+        budget_min_ht:  l.budget_min_ht  ?? null,
+        budget_avg_ht:  l.budget_avg_ht  ?? null,
+        budget_max_ht:  l.budget_max_ht  ?? null,
+        materiaux_ht:   l.materiaux_ht   ?? null,
+        main_oeuvre_ht: l.main_oeuvre_ht ?? null,
+        divers_ht:      l.divers_ht      ?? null,
       }))
     : (artisans as ArtisanIA[]).map((a, i) => ({
         id: `fallback-${i}`,

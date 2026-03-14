@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { X, FileText, Receipt, Image, FolderOpen, Download, ExternalLink, GitCompareArrows, PlusCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { DocumentChantier, DocumentType } from '@/types/chantier-ia';
+import type { DocumentChantier, DocumentType, LotChantier } from '@/types/chantier-ia';
 import { compareQuotes } from '@/utils/devis/compareQuotes';
 import ComparateurDevis from '@/components/chantier/devis/ComparateurDevis';
 import { calcLotBudget } from '@/utils/chantier/calcLotBudget';
@@ -115,6 +115,8 @@ interface LotDetailProps {
   userId?:           string;
   token?:            string;
   lotId?:            string | null;
+  /** Lot DB correspondant — utilisé pour afficher la décomposition budgétaire */
+  lot?:              LotChantier | null;
   onDocumentAdded?:  () => void;
 }
 
@@ -130,6 +132,7 @@ export default function LotDetail({
   userId,
   token,
   lotId,
+  lot,
   onDocumentAdded,
 }: LotDetailProps) {
   const [showComparateur, setShowComparateur] = useState(false);
@@ -376,6 +379,11 @@ export default function LotDetail({
             nbDevis={lotBudget.nbDevis}
             nbFactures={lotBudget.nbFactures}
           />
+
+          {/* ── Décomposition budgétaire (market_prices) ── */}
+          {lot?.budget_avg_ht != null && (
+            <LotDecompositionSection lot={lot} />
+          )}
 
           {totalDocs === 0 && !pendingFile && (
             <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -700,6 +708,75 @@ function LotBudgetSection({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Sous-composant décomposition budgétaire ───────────────────────────────────
+
+function LotDecompositionSection({ lot }: { lot: LotChantier }) {
+  const avg = lot.budget_avg_ht!;
+  const min = lot.budget_min_ht ?? avg;
+  const max = lot.budget_max_ht ?? avg;
+  const mat = lot.materiaux_ht ?? 0;
+  const mo  = lot.main_oeuvre_ht ?? 0;
+  const div = lot.divers_ht ?? 0;
+  const total = mat + mo + div;
+
+  const pct = (v: number) =>
+    total > 0 ? Math.round((v / total) * 100) : 0;
+
+  const rows: { label: string; value: number; color: string }[] = [
+    { label: 'Matériaux',    value: mat, color: '#60a5fa' },
+    { label: "Main-d'œuvre", value: mo,  color: '#34d399' },
+    { label: 'Divers',       value: div, color: '#94a3b8' },
+  ];
+
+  return (
+    <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] overflow-hidden">
+
+      {/* Titre */}
+      <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-white/[0.05]">
+        <span className="text-sm">📊</span>
+        <span className="text-xs font-semibold text-white">Prix de référence marché</span>
+        {lot.unite && (
+          <span className="ml-auto text-[10px] text-slate-600 font-medium">
+            {lot.quantite?.toLocaleString('fr-FR')}&thinsp;{lot.unite}
+          </span>
+        )}
+      </div>
+
+      {/* Fourchette */}
+      <div className="px-4 pt-3 pb-2">
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <span className="text-xl font-bold text-white leading-none">
+            {avg.toLocaleString('fr-FR')}&thinsp;€
+          </span>
+          <span className="text-[11px] text-slate-500">
+            {min.toLocaleString('fr-FR')} – {max.toLocaleString('fr-FR')} € HT
+          </span>
+        </div>
+        <p className="text-[10px] text-slate-600 mt-0.5">Moyenne marché · hors taxes</p>
+      </div>
+
+      {/* Barres décomposition */}
+      <div className="px-4 pb-3 space-y-2">
+        {rows.map((row) => (
+          <div key={row.label} className="flex items-center gap-2">
+            <div
+              className="h-1 rounded-full"
+              style={{ width: `${pct(row.value)}%`, backgroundColor: row.color, minWidth: '4px', maxWidth: '100%' }}
+            />
+            <span className="text-[11px] text-slate-400 whitespace-nowrap">
+              {row.label}
+            </span>
+            <span className="ml-auto text-[11px] text-slate-400 font-medium tabular-nums shrink-0">
+              {row.value.toLocaleString('fr-FR')}&thinsp;€
+              <span className="text-slate-600 ml-1">({pct(row.value)}%)</span>
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

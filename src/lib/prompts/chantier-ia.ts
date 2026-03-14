@@ -31,9 +31,9 @@ Structure JSON exacte à retourner :
     {"numero": 5, "nom": "Réception chantier", "detail": "Visite de conformité", "mois": "Septembre 2026", "phase": "reception", "isCurrent": false}
   ],
   "artisans": [
-    {"metier": "Charpentier / Menuisier", "role": "Structure pergola + assemblage", "emoji": "🪚", "statut": "a_trouver", "couleurBg": "rgba(96,165,250,0.1)"},
-    {"metier": "Poseur terrasse bois", "role": "Pose lambourdes + lames ipé", "emoji": "🪵", "statut": "a_trouver", "couleurBg": "rgba(6,214,199,0.1)"},
-    {"metier": "Électricien", "role": "Éclairage LED extérieur", "emoji": "⚡", "statut": "a_trouver", "couleurBg": "rgba(245,158,11,0.1)"}
+    {"metier": "Charpentier / Menuisier", "role": "Structure pergola + assemblage", "emoji": "🪚", "statut": "a_trouver", "couleurBg": "rgba(96,165,250,0.1)", "job_type": "charpente_bois", "quantite": 30},
+    {"metier": "Poseur terrasse bois", "role": "Pose lambourdes + lames ipé", "emoji": "🪵", "statut": "a_trouver", "couleurBg": "rgba(6,214,199,0.1)", "job_type": "terrasse_bois", "quantite": 25},
+    {"metier": "Électricien", "role": "Éclairage LED extérieur", "emoji": "⚡", "statut": "a_trouver", "couleurBg": "rgba(245,158,11,0.1)", "job_type": "electricite_courant_fort", "quantite": 1}
   ],
   "formalites": [
     {"nom": "Déclaration préalable de travaux", "detail": "Mairie · Pergola > 5m² · Délai 1 mois", "emoji": "📄", "obligatoire": true},
@@ -75,6 +75,16 @@ Règles métier France 2026 :
 - Lignes budget : 3 à 5 postes avec des couleurs distinctes
 - mensualite : calculer si financement=credit ou mixte (taux 4.5% sur dureeCredit mois)
 - Pour financement=apport : omettre mensualite et dureeCredit
+- job_type : slug snake_case du type de travaux principal de l'artisan. Exemples :
+  charpente_bois, terrasse_bois, carrelage_sol, peinture_murs, electricite_courant_fort,
+  plomberie_sanitaire, menuiserie_interieure, menuiserie_exterieure, isolation_combles,
+  isolation_murs, toiture_tuiles, maconnerie_gros_oeuvre, terrassement, pose_parquet,
+  faience_salle_de_bain, placo_platre, bardage_bois, nettoyage_fin_chantier,
+  cuisine_equipee, salle_de_bain_complete, chauffage_chaudiere, climatisation,
+  piscine_enterree, cloture_portail, enduit_facade, ravalement_facade.
+  Choisir le job_type le plus précis ou construire un slug similaire si absent de la liste.
+- quantite : estimation numérique dans l'unité naturelle du job_type
+  (m² pour surfaces, ml pour longueurs, 1 pour forfaits). Toujours > 0.
 `;
 
 export const SYSTEM_PROMPT_UPDATE = `

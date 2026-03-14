@@ -45,15 +45,17 @@ export default function LotGrid({
   const countsByLot = groupDocumentsByLot(documents, lignesBudget, lots);
 
   // Ligne + documents du lot sélectionné
-  const selectedLigne = lignesBudget.find((l) => l.label === selectedLabel) ?? null;
+  const selectedIndex  = lignesBudget.findIndex((l) => l.label === selectedLabel);
+  const selectedLigne  = selectedIndex !== -1 ? lignesBudget[selectedIndex] : null;
   const selectedDocuments = selectedLabel
     ? getDocumentsForLot(selectedLabel, documents, lignesBudget, lots)
     : [];
 
-  // UUID du lot sélectionné (non-fallback) — pour l'upload depuis LotDetail
-  const selectedLotId = selectedLabel
-    ? (lots.find((l) => l.nom === selectedLabel && !l.id.startsWith('fallback-'))?.id ?? null)
-    : null;
+  // UUID du lot sélectionné — null car lignesBudget.label ≠ lots_chantier.nom (métier artisan)
+  // Les documents uploadés depuis LotDetail sont rattachés au chantier uniquement (lot_id = null)
+  const selectedLotId  = null;
+  // Lot DB correspondant (par index) pour la décomposition budgétaire
+  const selectedLotRef = selectedIndex !== -1 ? (lots[selectedIndex] ?? null) : null;
 
   return (
     <>
@@ -70,6 +72,14 @@ export default function LotGrid({
               facturesCount: 0,
               photosCount: 0,
             };
+            // Fourchette issue de market_prices — lot à la même position dans le tableau
+            const lot = lots[i];
+            const budgetRef =
+              lot?.budget_avg_ht != null &&
+              lot?.budget_min_ht != null &&
+              lot?.budget_max_ht != null
+                ? { min: lot.budget_min_ht, avg: lot.budget_avg_ht, max: lot.budget_max_ht, unite: lot.unite }
+                : null;
             return (
               <LotCard
                 key={i}
@@ -79,6 +89,7 @@ export default function LotGrid({
                 nbDevis={counts.devisCount}
                 nbFactures={counts.facturesCount}
                 nbPhotos={counts.photosCount}
+                budgetRef={budgetRef}
                 onVoir={() => setSelectedLabel(ligne.label)}
               />
             );
@@ -98,6 +109,7 @@ export default function LotGrid({
           userId={userId}
           token={token}
           lotId={selectedLotId}
+          lot={selectedLotRef}
           onDocumentAdded={onDocumentAdded}
         />
       )}

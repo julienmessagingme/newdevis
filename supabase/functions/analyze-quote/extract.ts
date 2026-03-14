@@ -102,6 +102,11 @@ IDENTIFICATION DU DOCUMENT:
 3. FACTURE : "Facture", numéro de facture, "Net à payer", travaux passés
 4. AUTRE : Document non conforme
 
+RÈGLES CRITIQUES POUR LE CHAMP "paiement" :
+- acompte_pct : % du PREMIER versement demandé (ex: "30% à la commande" → 30). Si l'échéancier liste plusieurs étapes (30% commande + 30% avancement + 40% fin), mettre uniquement la PREMIÈRE tranche dans acompte_pct et echeancier_detecte=true.
+- acompte_avant_travaux_pct : renseigner UNIQUEMENT si le texte précise explicitement "avant démarrage des travaux" ou "avant début de chantier" en distinguant ce versement d'un acompte général. Sinon null.
+- echeancier_detecte : true si et seulement si le devis liste plusieurs étapes de règlement numérotées ou séparées.
+
 EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes de travaux) :
 
 {
@@ -172,6 +177,7 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
         ],
         response_format: { type: "json_object" },
         max_tokens: 32768,
+        temperature: 0,
       }),
     });
 

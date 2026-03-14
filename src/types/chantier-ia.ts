@@ -38,6 +38,16 @@ export interface LotChantier {
   ordre: number;
   emoji?: string;
   role?: string;
+  // ── Prix de référence (enrichi par sauvegarder.ts via market_prices) ──────
+  job_type?:       string | null;
+  quantite?:       number | null;
+  unite?:          string | null;
+  budget_min_ht?:  number | null;
+  budget_avg_ht?:  number | null;
+  budget_max_ht?:  number | null;
+  materiaux_ht?:   number | null;
+  main_oeuvre_ht?: number | null;
+  divers_ht?:      number | null;
 }
 
 /** Signaux factuels calculés avant l'appel IA — aucun montant, aucune hallucination */
@@ -84,6 +94,10 @@ export interface ArtisanIA {
   emoji: string;
   statut: StatutArtisan;
   couleurBg: string; // rgba
+  /** Identifiant slug du type de travaux principal — ref market_prices.job_type */
+  job_type?: string;
+  /** Quantité estimée dans l'unité du job_type (m², ml, unité…) */
+  quantite?: number;
 }
 
 export interface FormaliteIA {
