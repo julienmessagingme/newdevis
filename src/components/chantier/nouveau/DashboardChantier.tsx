@@ -1,9 +1,11 @@
 import { useState, useMemo } from 'react';
 import {
   Wand2, Upload, Sparkles, Layers, Route, FolderOpen, Lightbulb,
-  Wallet, ShieldCheck, ShieldAlert, Activity, TrendingUp,
-  AlertTriangle, FileText, CheckSquare, CreditCard, Plus,
+  Wallet, Activity, TrendingUp,
+  FileText, Plus,
   ExternalLink, ChevronRight, BookOpen, Info,
+  Users, Send, X, MessageCircle, ClipboardList,
+  AlertCircle, ArrowRight, Calculator,
 } from 'lucide-react';
 import type { ChantierIAResult, LotChantier, TacheIA, StatutArtisan, EtapeRoadmap } from '@/types/chantier-ia';
 import type { ConseilMO } from '@/components/chantier/ConseilsChantier';
@@ -156,6 +158,84 @@ function getHealthPoints(result: ChantierIAResult): HealthPoint[] {
   return points;
 }
 
+// ── Génère un texte "Pourquoi maintenant" contextualisé ──────────────────────
+
+function getPourquoiText(result: ChantierIAResult, currentPhase: string): string {
+  const titre = result.prochaineAction?.titre?.toLowerCase() ?? '';
+  const nbATrouver = (result.lots ?? []).filter((l) => !l.id?.startsWith('fallback-') && l.statut === 'a_trouver').length;
+  const urgentes = (result.taches ?? []).filter((t) => !t.done && t.priorite === 'urgent').length;
+  const nextEtape = (result.roadmap ?? []).find((e, i, arr) => {
+    const currIdx = arr.findIndex((x) => x.isCurrent);
+    return i === currIdx + 1;
+  });
+
+  if (titre.includes('devis') || titre.includes('artisan') || titre.includes('chiffr')) {
+    return `Vous êtes en phase "${currentPhase}". Pour avancer, vous devez recevoir et comparer des devis — c'est la seule façon de valider votre budget estimatif et de sécuriser vos lots.${nbATrouver > 0 ? ` Il vous manque encore ${nbATrouver} artisan${nbATrouver > 1 ? 's' : ''}.` : ''} Sans devis signés, impossible de démarrer les travaux.`;
+  }
+  if (titre.includes('permit') || titre.includes('déclar') || titre.includes('formalit') || titre.includes('pc ') || titre.includes('dp ')) {
+    return `Les démarches administratives ont des délais incompressibles (2 à 3 mois pour un permis de construire). Attendre retarderait tout votre planning. La phase "${nextEtape?.nom ?? 'suivante'}" ne peut démarrer qu'après obtention des autorisations.`;
+  }
+  if (titre.includes('financement') || titre.includes('prêt') || titre.includes('budget')) {
+    return `Boucler votre plan de financement maintenant vous évite les mauvaises surprises en cours de chantier. Une fois les artisans retenus, les délais de banque (4-8 semaines) peuvent bloquer le démarrage.`;
+  }
+  if (urgentes > 0) {
+    return `Vous avez ${urgentes} tâche${urgentes > 1 ? 's' : ''} urgente${urgentes > 1 ? 's' : ''} en attente. Chaque semaine de retard en phase "${currentPhase}" se répercute directement sur la date de livraison.${nextEtape ? ` La prochaine étape "${nextEtape.nom}" est conditionnée à cette action.` : ''}`;
+  }
+  return `Vous êtes en phase "${currentPhase}" — c'est le moment stratégique pour cette action. En tant que maître d'œuvre, je surveille l'enchaînement des phases : agir maintenant évite les goulets d'étranglement qui retardent la livraison.${nextEtape ? ` Objectif : atteindre "${nextEtape.nom}" sans délai.` : ''}`;
+}
+
+// ── Génère les contenus enrichis d'une étape roadmap ─────────────────────────
+
+function getEtapeEnrichie(etape: EtapeRoadmap): {
+  actions: string[];
+  decisions: string[];
+  documents: string[];
+} {
+  const nom = etape.nom.toLowerCase();
+
+  if (nom.includes('prépa') || nom.includes('design') || nom.includes('concept')) {
+    return {
+      actions:   ['Clarifier vos besoins et contraintes', 'Consulter un architecte si > 150m²', 'Faire une visite du site avec un géomètre', 'Définir les lots de travaux'],
+      decisions: ['Budget cible TTC', 'Maîtrise d\'œuvre ou auto-gestion', 'Planning global et contraintes de dates'],
+      documents: ['Plans existants du logement', 'Titre de propriété', 'Règles du PLU (Plan Local d\'Urbanisme)', 'Photos de l\'existant'],
+    };
+  }
+  if (nom.includes('admin') || nom.includes('permit') || nom.includes('déclar') || nom.includes('autoris')) {
+    return {
+      actions:   ['Déposer la déclaration préalable ou le permis de construire', 'Attendre l\'instruction (1 à 3 mois)', 'Afficher le panneau de chantier après accord', 'Vérifier les recours des tiers (2 mois après affichage)'],
+      decisions: ['Type de dossier (DP ou PC) selon surface', 'Recours à un architecte (obligatoire > 150m² surface plancher)', 'Date de dépôt cible'],
+      documents: ['Formulaire Cerfa 13703 (DP) ou 13406 (PC)', 'Plan de masse coté', 'Plan de situation', 'Notice descriptive des travaux', 'Photos de l\'environnement'],
+    };
+  }
+  if (nom.includes('artisan') || nom.includes('devis') || nom.includes('chiffr') || nom.includes('consul')) {
+    return {
+      actions:   ['Contacter 3 artisans par lot minimum', 'Vérifier les qualifications RGE si travaux énergétiques', 'Demander les références chantiers récents', 'Comparer les devis sur les mêmes bases'],
+      decisions: ['Critères de sélection (prix, délai, références)', 'Coordination des lots (gros œuvre avant second œuvre)', 'Acomptes et modalités de paiement'],
+      documents: ['Devis signés avec délai d\'exécution', 'Attestation d\'assurance décennale', 'Extrait Kbis ou SIRET', 'Certificat RGE si applicable'],
+    };
+  }
+  if (nom.includes('travaux') || nom.includes('réalisa') || nom.includes('chantier')) {
+    return {
+      actions:   ['Ouvrir le chantier et sécuriser le périmètre', 'Vérifier les livraisons de matériaux', 'Organiser les réunions de chantier hebdomadaires', 'Consigner les réserves par écrit'],
+      decisions: ['Ordre d\'intervention des corps de métier', 'Gestion des imprévus et travaux supplémentaires', 'Validation des étapes clés avant suite'],
+      documents: ['Ordres de service', 'PV de réunion de chantier', 'Bons de livraison matériaux', 'Photos d\'avancement hebdomadaires'],
+    };
+  }
+  if (nom.includes('récep') || nom.includes('livrai') || nom.includes('fin')) {
+    return {
+      actions:   ['Réaliser le tour complet avec chaque artisan', 'Consigner toutes les réserves sur le PV', 'Activer les garanties (parfait achèvement, biennale, décennale)', 'Retenir la dernière tranche jusqu\'à levée des réserves'],
+      decisions: ['Réception avec ou sans réserves', 'Délai accordé pour lever les réserves', 'Retenue de garantie (5% pendant 1 an)'],
+      documents: ['Procès-verbal de réception', 'Liste de réserves signée', 'Garantie de parfait achèvement', 'DOE (Dossier des Ouvrages Exécutés)'],
+    };
+  }
+  // Default
+  return {
+    actions:   ['Suivre l\'avancement selon le planning', 'Documenter les décisions importantes', 'Communiquer avec les intervenants'],
+    decisions: ['Arbitrages techniques ou budgétaires', 'Ajustements du planning si nécessaire'],
+    documents: ['Compte-rendus de réunion', 'Devis complémentaires si besoin'],
+  };
+}
+
 // ── Constantes couleurs ───────────────────────────────────────────────────────
 
 const SANTE_COLORS = {
@@ -180,6 +260,15 @@ const STATUT_LABELS: Record<string, string> = {
 
 type PanneauId = 'sante' | 'budget' | 'lots' | 'planning' | 'artisans' | 'documents' | 'conseils' | 'budget-detail' | 'timeline-detail' | null;
 
+// ── Questions rapides pour le chat MO ─────────────────────────────────────────
+
+const QUICK_QUESTIONS = [
+  'Comment optimiser mon budget ?',
+  'Quels artisans dois-je contacter en premier ?',
+  'Quels sont les risques de mon chantier ?',
+  'Comment négocier les devis ?',
+];
+
 // ── Composant ─────────────────────────────────────────────────────────────────
 
 export default function DashboardChantier({
@@ -202,6 +291,9 @@ export default function DashboardChantier({
   const [uploadTrigger, setUploadTrigger] = useState<'document' | 'devis' | null>(null);
   const [selectedEtape, setSelectedEtape] = useState<EtapeRoadmap | null>(null);
   const [showWhyAction, setShowWhyAction] = useState(false);
+  const [optionBudget, setOptionBudget]   = useState<number | null>(null);
+  const [showChat, setShowChat]           = useState(false);
+  const [chatInput, setChatInput]         = useState('');
 
   // ── Calculs mémo ────────────────────────────────────────────────────────────
   const sante        = useMemo(() => getSante(result),         [result]);
@@ -220,6 +312,10 @@ export default function DashboardChantier({
   const currentEtape = (result.roadmap ?? []).find((e) => e.isCurrent);
   const currentPhase = currentEtape?.nom ?? 'Préparation';
 
+  // Budget affiché (option sélectionnée ou budget de base)
+  const displayBudget = optionBudget ?? result.budgetTotal;
+  const budgetDelta   = optionBudget != null ? optionBudget - result.budgetTotal : 0;
+
   // Badge confiance budget
   const budgetConfidence = (() => {
     const hasMarket = (result.lots ?? []).some((l) => l.budget_min_ht != null);
@@ -228,11 +324,17 @@ export default function DashboardChantier({
     return { label: 'Estimative', color: 'amber' };
   })();
 
-  // Formalités obligatoires
-  const nbFormalitesObl = (result.formalites ?? []).filter((f) => f.obligatoire).length;
-
   // Tâches urgentes
   const nbUrgentes = taches.filter((t) => !t.done && t.priorite === 'urgent').length;
+
+  // Texte "Pourquoi maintenant"
+  const pourquoiText = useMemo(() => getPourquoiText(result, currentPhase), [result, currentPhase]);
+
+  // Contenu enrichi de l'étape sélectionnée
+  const etapeEnrichie = useMemo(
+    () => selectedEtape ? getEtapeEnrichie(selectedEtape) : null,
+    [selectedEtape],
+  );
 
   const toggleTache = (idx: number) => {
     setTaches((prev) => prev.map((t, i) => (i === idx ? { ...t, done: !t.done } : t)));
@@ -246,6 +348,17 @@ export default function DashboardChantier({
   const handleEtapeClick = (etape: EtapeRoadmap) => {
     setSelectedEtape(etape);
     openPanneau('timeline-detail');
+  };
+
+  const handleOptionSelect = (option: OptionTravaux) => {
+    setOptionBudget(Math.round(result.budgetTotal * option.budgetMultiplier));
+  };
+
+  const handleChatSubmit = (question: string) => {
+    if (!question.trim()) return;
+    setShowChat(false);
+    setChatInput('');
+    onAmeliorer();
   };
 
   // ── Titre du panneau ────────────────────────────────────────────────────────
@@ -278,10 +391,18 @@ export default function DashboardChantier({
             <p className="text-slate-500 text-xs truncate hidden sm:block">{currentPhase}</p>
           </div>
 
-          {/* Budget */}
+          {/* Budget header — reflète l'option choisie */}
           <div className="hidden sm:block shrink-0 text-right">
-            <p className="text-white font-bold text-lg leading-none">{result.budgetTotal.toLocaleString('fr-FR')} €</p>
-            <p className="text-slate-500 text-[10px] mt-0.5">budget estimé TTC</p>
+            <p className="text-white font-bold text-lg leading-none">
+              {displayBudget.toLocaleString('fr-FR')} €
+            </p>
+            {budgetDelta !== 0 ? (
+              <p className={`text-[10px] mt-0.5 font-semibold ${budgetDelta > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                {budgetDelta > 0 ? '+' : ''}{budgetDelta.toLocaleString('fr-FR')} € vs base
+              </p>
+            ) : (
+              <p className="text-slate-500 text-[10px] mt-0.5">budget estimé TTC</p>
+            )}
           </div>
 
           {/* Séparateur */}
@@ -298,10 +419,10 @@ export default function DashboardChantier({
             </button>
             <button
               onClick={() => { openPanneau('documents'); setUploadTrigger('devis'); }}
-              className="flex items-center gap-1.5 bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 text-violet-300 text-xs font-medium rounded-lg px-3 py-1.5 transition-all"
+              className="flex items-center gap-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 text-xs font-medium rounded-lg px-3 py-1.5 transition-all"
             >
-              <Sparkles className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Analyser un devis</span>
+              <Users className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Demander devis</span>
             </button>
             {chantierId && (
               <a
@@ -369,69 +490,102 @@ export default function DashboardChantier({
               <ChevronRight className="h-3.5 w-3.5" />
             </button>
           </div>
+
+          {/* Tâches urgentes si présentes */}
+          {nbUrgentes > 0 && (
+            <div className="bg-amber-500/[0.07] border border-amber-500/20 rounded-2xl p-3 flex-none">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertCircle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                <p className="text-amber-300 text-xs font-semibold">{nbUrgentes} tâche{nbUrgentes > 1 ? 's' : ''} urgente{nbUrgentes > 1 ? 's' : ''}</p>
+              </div>
+              <div className="space-y-1.5">
+                {taches.filter((t) => !t.done && t.priorite === 'urgent').slice(0, 3).map((t, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <button
+                      onClick={() => toggleTache(taches.indexOf(t))}
+                      className="w-3.5 h-3.5 rounded border border-amber-500/40 flex items-center justify-center shrink-0 mt-0.5 hover:border-amber-400 transition-colors"
+                    >
+                      {t.done && <span className="text-[8px] text-amber-400">✔</span>}
+                    </button>
+                    <p className="text-slate-300 text-xs leading-tight">{t.titre}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Col 2 : Prochaine décision (CENTRE) ──────────────────────────── */}
         <div className="flex flex-col gap-3 overflow-y-auto min-h-0">
-          <div className="bg-gradient-to-br from-violet-950/50 to-purple-950/40 border border-violet-500/20 rounded-2xl p-4 flex-none">
-            {/* En-tête */}
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-7 h-7 rounded-lg bg-violet-500/20 border border-violet-500/25 flex items-center justify-center shrink-0">
-                <Sparkles className="h-3.5 w-3.5 text-violet-400" />
+          {/* Bloc décision — visuellement dominant */}
+          <div className="bg-gradient-to-br from-violet-950/60 to-purple-950/50 border border-violet-500/30 rounded-2xl p-5 flex-none shadow-lg shadow-violet-900/20">
+            {/* Badge phase + deadline */}
+            <div className="flex items-center gap-2 mb-4">
+              <div className="flex items-center gap-1.5 bg-violet-500/20 border border-violet-500/30 rounded-full px-2.5 py-1">
+                <Sparkles className="h-3 w-3 text-violet-400" />
+                <span className="text-[11px] font-bold text-violet-300 uppercase tracking-wider">Prochaine décision</span>
               </div>
-              <span className="text-xs font-semibold text-violet-300 uppercase tracking-wider flex-1">
-                Prochaine décision
-              </span>
               {result.prochaineAction.deadline && (
-                <span className="text-[10px] bg-amber-500/15 border border-amber-500/25 text-amber-300 rounded-full px-2 py-0.5 font-medium">
+                <span className="text-[10px] bg-amber-500/15 border border-amber-500/25 text-amber-300 rounded-full px-2 py-0.5 font-medium ml-auto">
                   ⏰ {result.prochaineAction.deadline}
                 </span>
               )}
             </div>
 
-            {/* Titre + detail */}
-            <p className="text-white font-bold text-sm leading-snug mb-1">
+            {/* Titre — grand et lisible */}
+            <h2 className="text-white font-bold text-base leading-snug mb-2">
               {result.prochaineAction.titre}
-            </p>
-            <p className="text-slate-400 text-xs leading-relaxed">
+            </h2>
+            <p className="text-slate-400 text-sm leading-relaxed mb-4">
               {result.prochaineAction.detail}
             </p>
 
-            {/* Simulateur d'options */}
+            {/* Simulateur d'options — met à jour le budget en temps réel */}
             {options && options.length > 0 && (
               <SimulateurOptions
                 baseBudget={result.budgetTotal}
                 lotLabel={result.prochaineAction.titre}
                 options={options}
+                onSelectOption={handleOptionSelect}
               />
             )}
 
-            {/* Boutons d'action */}
+            {/* CTA principal : Demander des devis */}
             <div className="flex gap-2 mt-4">
               <button
-                onClick={() => { openPanneau('documents'); setUploadTrigger('devis'); }}
-                className="flex-1 flex items-center justify-center gap-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold rounded-xl py-2 transition-all"
+                onClick={() => { openPanneau('artisans'); }}
+                className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-xl py-2.5 transition-all shadow-md shadow-emerald-900/30"
               >
-                <Sparkles className="h-3.5 w-3.5" />
-                Analyser un devis
+                <Users className="h-4 w-4" />
+                Demander des devis
               </button>
               <button
                 onClick={() => setShowWhyAction((v) => !v)}
-                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white border border-white/[0.08] hover:border-white/[0.16] rounded-xl px-3 py-2 transition-all"
+                className={`flex items-center gap-1.5 text-xs border rounded-xl px-3 py-2.5 transition-all ${
+                  showWhyAction
+                    ? 'text-violet-300 border-violet-500/40 bg-violet-500/10'
+                    : 'text-slate-400 hover:text-white border-white/[0.08] hover:border-white/[0.16]'
+                }`}
               >
                 <Info className="h-3.5 w-3.5" />
                 Pourquoi ?
               </button>
             </div>
 
-            {/* Bloc "Pourquoi" toggle */}
+            {/* Bloc "Pourquoi maintenant" — contextualisé */}
             {showWhyAction && (
-              <div className="mt-3 bg-white/[0.03] border border-white/[0.06] rounded-xl p-3">
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  En tant que maître d'œuvre virtuel, je surveille l'avancement de votre projet et identifie la prochaine étape critique.
-                  Cette action vous permettra d'avancer efficacement vers la phase suivante : <strong className="text-slate-200">{currentPhase}</strong>.
-                  Ne pas agir maintenant pourrait retarder votre planning global.
-                </p>
+              <div className="mt-3 bg-white/[0.04] border border-violet-500/15 rounded-xl p-4">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Lightbulb className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                  <p className="text-amber-300 text-[11px] font-semibold uppercase tracking-wider">Pourquoi cette décision maintenant ?</p>
+                </div>
+                <p className="text-slate-300 text-xs leading-relaxed">{pourquoiText}</p>
+                {currentEtape && (
+                  <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+                    <ArrowRight className="h-3 w-3 shrink-0" />
+                    <span>Phase en cours : <strong className="text-slate-300">{currentEtape.nom}</strong> · {currentEtape.mois}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -469,15 +623,38 @@ export default function DashboardChantier({
               </span>
             </div>
 
-            {/* Budget principal */}
-            <p className="text-white font-bold text-2xl leading-none mb-0.5">
-              {result.budgetTotal.toLocaleString('fr-FR')} €
+            {/* Budget principal — mis à jour par SimulateurOptions */}
+            <div className="flex items-baseline gap-2 mb-0.5">
+              <p className="text-white font-bold text-2xl leading-none">
+                {displayBudget.toLocaleString('fr-FR')} €
+              </p>
+              {budgetDelta !== 0 && (
+                <span className={`text-sm font-semibold ${budgetDelta > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                  {budgetDelta > 0 ? '+' : ''}{budgetDelta.toLocaleString('fr-FR')} €
+                </span>
+              )}
+            </div>
+            <p className="text-slate-500 text-[11px] mb-1">
+              {optionBudget != null ? 'avec option sélectionnée · TTC' : 'budget estimé TTC'}
             </p>
-            <p className="text-slate-500 text-[11px] mb-3">budget estimé TTC</p>
+            {optionBudget != null && (
+              <button
+                onClick={() => setOptionBudget(null)}
+                className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors mb-2"
+              >
+                ← Revenir au budget de base ({result.budgetTotal.toLocaleString('fr-FR')} €)
+              </button>
+            )}
 
             {/* Fourchette marché */}
             {range ? (
-              <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 mb-3">
+              <div className={`rounded-xl p-3 mb-3 border ${
+                displayBudget >= range.min && displayBudget <= range.max * 1.1
+                  ? 'bg-emerald-500/[0.06] border-emerald-500/20'
+                  : displayBudget > range.max * 1.1
+                  ? 'bg-amber-500/[0.06] border-amber-500/20'
+                  : 'bg-blue-500/[0.06] border-blue-500/20'
+              }`}>
                 <div className="flex items-center gap-1 mb-1">
                   <TrendingUp className="h-3 w-3 text-slate-500" />
                   <p className="text-slate-500 text-[10px] uppercase tracking-wider font-medium">Fourchette marché</p>
@@ -485,10 +662,34 @@ export default function DashboardChantier({
                 <p className="text-white font-bold text-base">
                   {Math.round(range.min / 1000)}k – {Math.round(range.max / 1000)}k €
                 </p>
+                <p className="text-slate-500 text-[11px] mt-0.5">TTC estimé · {
+                  displayBudget >= range.min && displayBudget <= range.max * 1.1
+                    ? '✓ Dans la fourchette'
+                    : displayBudget > range.max * 1.1
+                    ? '⚠ Au-dessus du marché'
+                    : '↓ Sous la fourchette'
+                }</p>
               </div>
             ) : (
               <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 mb-3">
                 <p className="text-slate-500 text-xs">Fourchette marché : données insuffisantes</p>
+              </div>
+            )}
+
+            {/* Résumé par lot si disponible */}
+            {(result.lots ?? []).filter((l) => l.budget_avg_ht != null).length > 0 && (
+              <div className="space-y-1.5 mb-3">
+                <p className="text-slate-600 text-[10px] uppercase tracking-wider font-medium">Par lot</p>
+                {(result.lots ?? []).filter((l) => l.budget_avg_ht != null).slice(0, 4).map((lot, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs">
+                    <span className="text-slate-400 truncate flex-1 min-w-0 mr-2">
+                      {lot.emoji && <span className="mr-1">{lot.emoji}</span>}{lot.nom}
+                    </span>
+                    <span className="text-white font-medium shrink-0">
+                      {Math.round((lot.budget_avg_ht ?? 0) * 1.2).toLocaleString('fr-FR')} €
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -497,6 +698,7 @@ export default function DashboardChantier({
               onClick={() => openPanneau('budget-detail')}
               className="w-full flex items-center justify-center gap-1.5 text-xs text-slate-400 hover:text-white border border-white/[0.07] hover:border-white/[0.14] rounded-xl py-2 transition-all"
             >
+              <Calculator className="h-3.5 w-3.5" />
               Comprendre le calcul
               <ChevronRight className="h-3.5 w-3.5" />
             </button>
@@ -520,7 +722,7 @@ export default function DashboardChantier({
         {[
           { id: 'lots' as PanneauId,      icon: Layers,       label: 'Lots' },
           { id: 'planning' as PanneauId,  icon: Route,        label: 'Planning' },
-          { id: 'artisans' as PanneauId,  icon: Layers,       label: 'Artisans',   badge: nbATrouver > 0 ? nbATrouver : undefined },
+          { id: 'artisans' as PanneauId,  icon: Users,        label: 'Artisans',   badge: nbATrouver > 0 ? nbATrouver : undefined },
           { id: 'documents' as PanneauId, icon: FolderOpen,   label: 'Documents' },
           { id: 'conseils' as PanneauId,  icon: Lightbulb,    label: 'Conseils' },
           { id: 'budget-detail' as PanneauId, icon: Wallet,   label: 'Budget' },
@@ -562,6 +764,60 @@ export default function DashboardChantier({
       {/* Budget détaillé */}
       <PanneauDetail open={panneau === 'budget-detail'} onClose={closePanneau} title={panneauTitle['budget-detail']}>
         <div className="space-y-6">
+          {/* Explication du calcul */}
+          <div className="bg-[#0d1525] border border-white/[0.06] rounded-2xl p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Calculator className="h-4 w-4 text-blue-400" />
+              <p className="text-white font-semibold text-sm">Comment ce budget est calculé</p>
+            </div>
+            <p className="text-slate-400 text-xs leading-relaxed mb-4">
+              Le budget est basé sur les données marché des lots identifiés par l'IA, exprimées en HT puis majorées de 20% pour obtenir le TTC. Chaque lot est estimé selon la surface, la zone géographique et les prix moyens constatés dans votre région.
+            </p>
+            {/* Détail par lot */}
+            {(result.lots ?? []).filter((l) => l.budget_avg_ht != null).length > 0 && (
+              <div className="space-y-3">
+                <p className="text-slate-500 text-[10px] uppercase tracking-wider font-medium">Détail par lot</p>
+                {(result.lots ?? []).filter((l) => l.budget_avg_ht != null).map((lot, i) => {
+                  const avgTTC = Math.round((lot.budget_avg_ht ?? 0) * 1.2);
+                  const minTTC = lot.budget_min_ht != null ? Math.round(lot.budget_min_ht * 1.2) : null;
+                  const maxTTC = lot.budget_max_ht != null ? Math.round(lot.budget_max_ht * 1.2) : null;
+                  return (
+                    <div key={i} className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-white text-xs font-medium">
+                          {lot.emoji && <span className="mr-1">{lot.emoji}</span>}{lot.nom}
+                        </span>
+                        <span className="text-white font-bold text-sm">{avgTTC.toLocaleString('fr-FR')} €</span>
+                      </div>
+                      {lot.quantite && lot.unite && (
+                        <p className="text-slate-500 text-[11px] mb-1">
+                          {lot.quantite} {lot.unite} · ~{Math.round(avgTTC / lot.quantite).toLocaleString('fr-FR')} €/{lot.unite}
+                        </p>
+                      )}
+                      {minTTC != null && maxTTC != null && (
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1 bg-white/[0.06] rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-blue-500/60 rounded-full"
+                              style={{ width: `${Math.min(100, Math.round(((avgTTC - minTTC) / (maxTTC - minTTC || 1)) * 100))}%` }}
+                            />
+                          </div>
+                          <span className="text-slate-600 text-[10px]">
+                            {Math.round(minTTC / 1000)}k – {Math.round(maxTTC / 1000)}k €
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <div className="flex items-center justify-between pt-2 border-t border-white/[0.06]">
+                  <span className="text-slate-400 text-xs font-medium">Total TTC estimé</span>
+                  <span className="text-white font-bold text-base">{result.budgetTotal.toLocaleString('fr-FR')} €</span>
+                </div>
+              </div>
+            )}
+          </div>
+
           <BudgetFiabilite result={result} onAmeliorer={onAmeliorer} />
           <BudgetGlobal key={refreshKey} lignesBudget={result.lignesBudget ?? []} chantierId={chantierId} token={token} />
           <SimulationFinancement budgetTotal={result.budgetTotal} />
@@ -592,7 +848,6 @@ export default function DashboardChantier({
       <PanneauDetail open={panneau === 'planning'} onClose={closePanneau} title={panneauTitle['planning']}>
         <div className="space-y-6">
           <ChantierTimeline roadmap={result.roadmap ?? []} />
-          {/* Roadmap détaillée */}
           <div className="bg-[#0d1525] border border-white/[0.06] rounded-2xl p-5">
             <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-4">Détail des étapes</p>
             <div className="space-y-4">
@@ -615,9 +870,12 @@ export default function DashboardChantier({
                     </div>
                     <p className="text-slate-500 text-xs mt-0.5">{etape.detail}</p>
                     {etape.isCurrent && (
-                      <span className="inline-block mt-1.5 bg-blue-500/15 border border-blue-500/25 text-blue-300 text-xs rounded-full px-2 py-0.5">
-                        Étape en cours
-                      </span>
+                      <button
+                        onClick={() => handleEtapeClick(etape)}
+                        className="inline-flex items-center gap-1 mt-1.5 bg-blue-500/15 border border-blue-500/25 text-blue-300 text-xs rounded-full px-2 py-0.5 hover:bg-blue-500/25 transition-colors"
+                      >
+                        Étape en cours · Voir le détail →
+                      </button>
                     )}
                   </div>
                 </div>
@@ -627,10 +885,11 @@ export default function DashboardChantier({
         </div>
       </PanneauDetail>
 
-      {/* Timeline détail (clic sur étape) */}
+      {/* Timeline détail — enrichi avec actions / décisions / documents */}
       <PanneauDetail open={panneau === 'timeline-detail'} onClose={closePanneau} title={panneauTitle['timeline-detail']}>
-        {selectedEtape && (
+        {selectedEtape && etapeEnrichie && (
           <div className="space-y-4">
+            {/* Résumé étape */}
             <div className={`rounded-xl p-4 border ${selectedEtape.isCurrent ? 'bg-blue-500/10 border-blue-500/20' : 'bg-white/[0.03] border-white/[0.07]'}`}>
               <div className="flex items-center gap-2 mb-2">
                 <span className={`text-xs font-semibold uppercase tracking-wider ${selectedEtape.isCurrent ? 'text-blue-300' : 'text-slate-500'}`}>
@@ -646,9 +905,59 @@ export default function DashboardChantier({
               <p className="text-slate-400 text-sm leading-relaxed">{selectedEtape.detail}</p>
             </div>
 
+            {/* Actions à faire */}
+            <div className="bg-[#0d1525] border border-white/[0.06] rounded-2xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <ClipboardList className="h-4 w-4 text-blue-400" />
+                <p className="text-white font-semibold text-sm">Actions à réaliser</p>
+              </div>
+              <ul className="space-y-2">
+                {etapeEnrichie.actions.map((action, i) => (
+                  <li key={i} className="flex items-start gap-2.5 text-sm">
+                    <span className="w-5 h-5 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                      {i + 1}
+                    </span>
+                    <span className="text-slate-300 leading-tight">{action}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Décisions clés */}
+            <div className="bg-[#0d1525] border border-amber-500/15 rounded-2xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertCircle className="h-4 w-4 text-amber-400" />
+                <p className="text-white font-semibold text-sm">Décisions clés</p>
+              </div>
+              <ul className="space-y-2">
+                {etapeEnrichie.decisions.map((decision, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm">
+                    <span className="text-amber-400 shrink-0 mt-0.5">◆</span>
+                    <span className="text-slate-300 leading-tight">{decision}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Documents nécessaires */}
+            <div className="bg-[#0d1525] border border-white/[0.06] rounded-2xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <FileText className="h-4 w-4 text-slate-400" />
+                <p className="text-white font-semibold text-sm">Documents à préparer</p>
+              </div>
+              <ul className="space-y-2">
+                {etapeEnrichie.documents.map((doc, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm">
+                    <span className="text-slate-600 shrink-0 mt-0.5">📄</span>
+                    <span className="text-slate-300 leading-tight">{doc}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
             {/* Roadmap complète */}
             <div>
-              <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-3">Toutes les étapes</p>
+              <p className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-3">Vue d'ensemble du projet</p>
               <ChantierTimeline roadmap={result.roadmap ?? []} />
             </div>
           </div>
@@ -666,6 +975,13 @@ export default function DashboardChantier({
           </div>
         ) : (
           <div className="space-y-3">
+            {/* Guide rapide */}
+            <div className="bg-emerald-500/[0.06] border border-emerald-500/20 rounded-2xl p-4">
+              <p className="text-emerald-300 text-xs font-semibold mb-1">💡 Conseil maître d'œuvre</p>
+              <p className="text-slate-400 text-xs leading-relaxed">
+                Contactez au minimum 3 artisans par lot pour obtenir des devis comparables. Vérifiez toujours l'assurance décennale et demandez des références de chantiers récents similaires.
+              </p>
+            </div>
             {(result.lots ?? []).map((lot: LotChantier) => {
               const statut     = lotStatuts[lot.id] ?? lot.statut;
               const isFallback = lot.id.startsWith('fallback-');
@@ -678,6 +994,9 @@ export default function DashboardChantier({
                         <p className="text-white text-sm font-medium">{lot.nom}</p>
                         {isFallback && (
                           <span className="text-[10px] text-slate-600 border border-white/[0.06] rounded px-1.5 py-0.5">lecture seule</span>
+                        )}
+                        {lot.budget_avg_ht && (
+                          <span className="text-[10px] text-slate-500">· ~{Math.round(lot.budget_avg_ht * 1.2).toLocaleString('fr-FR')} € TTC</span>
                         )}
                       </div>
                       {lot.role && <p className="text-slate-500 text-xs mt-0.5 leading-tight">{lot.role}</p>}
@@ -737,9 +1056,7 @@ export default function DashboardChantier({
             roadmap={result.roadmap ?? []}
             onConseils={setConseils}
           />
-          {/* Synthèse */}
           <SyntheseChantier result={result} chantierId={chantierId} token={token} />
-          {/* Journal */}
           <div>
             <div className="flex items-center gap-2 mb-3">
               <BookOpen className="h-4 w-4 text-slate-400" />
@@ -758,13 +1075,74 @@ export default function DashboardChantier({
         </div>
       </PanneauDetail>
 
+      {/* ── CHAT MAÎTRE D'ŒUVRE (mini overlay) ─────────────────────────────── */}
+      {showChat && (
+        <div className="fixed bottom-24 right-6 z-50 w-80 bg-[#0d1525] border border-white/[0.1] rounded-2xl shadow-2xl shadow-black/50 overflow-hidden">
+          {/* Header chat */}
+          <div className="flex items-center gap-2.5 px-4 py-3 border-b border-white/[0.07] bg-gradient-to-r from-blue-950/50 to-violet-950/50">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shrink-0">
+              <Wand2 className="h-3.5 w-3.5 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white text-xs font-semibold">Maître d'œuvre virtuel</p>
+              <p className="text-slate-500 text-[10px]">Posez votre question</p>
+            </div>
+            <button onClick={() => setShowChat(false)} className="text-slate-500 hover:text-white transition-colors">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Questions rapides */}
+          <div className="p-3 space-y-1.5">
+            <p className="text-slate-600 text-[10px] uppercase tracking-wider font-medium mb-2">Questions fréquentes</p>
+            {QUICK_QUESTIONS.map((q, i) => (
+              <button
+                key={i}
+                onClick={() => handleChatSubmit(q)}
+                className="w-full text-left text-xs text-slate-300 hover:text-white bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] hover:border-white/[0.12] rounded-xl px-3 py-2 transition-all leading-tight"
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+
+          {/* Input libre */}
+          <div className="px-3 pb-3">
+            <div className="flex items-center gap-2 bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleChatSubmit(chatInput)}
+                placeholder="Votre question…"
+                className="flex-1 bg-transparent text-white text-xs placeholder-slate-600 outline-none min-w-0"
+              />
+              <button
+                onClick={() => handleChatSubmit(chatInput)}
+                disabled={!chatInput.trim()}
+                className="text-blue-400 hover:text-blue-300 disabled:text-slate-700 transition-colors shrink-0"
+              >
+                <Send className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── BOUTON FLOTTANT MAÎTRE D'ŒUVRE ─────────────────────────────────── */}
       <button
-        onClick={onAmeliorer}
-        className="fixed bottom-6 right-24 z-40 flex items-center gap-2 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white font-semibold rounded-full px-5 py-3 shadow-xl shadow-blue-500/25 transition-all hover:scale-105"
+        onClick={() => setShowChat((v) => !v)}
+        className={`fixed bottom-6 right-6 z-40 flex items-center gap-2 font-semibold rounded-full px-5 py-3 shadow-xl transition-all hover:scale-105 ${
+          showChat
+            ? 'bg-white/[0.1] border border-white/[0.15] text-white shadow-black/30'
+            : 'bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white shadow-blue-500/25'
+        }`}
       >
-        <Wand2 className="h-4 w-4" />
-        Maître d'œuvre
+        {showChat ? (
+          <><X className="h-4 w-4" />Fermer</>
+        ) : (
+          <><MessageCircle className="h-4 w-4" />Maître d'œuvre</>
+        )}
       </button>
 
     </div>
