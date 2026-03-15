@@ -245,6 +245,44 @@ const SANTE_COLORS = {
   rose:    { bar: 'from-rose-500 to-pink-400',     text: 'text-rose-300',    bg: 'bg-rose-500/10',    border: 'border-rose-500/25'    },
 };
 
+// Couleurs SVG pour la jauge circulaire (valeurs hex, pas des classes Tailwind)
+const SANTE_GAUGE_STROKE: Record<string, string> = {
+  emerald: '#34d399',
+  blue:    '#60a5fa',
+  amber:   '#fbbf24',
+  rose:    '#fb7185',
+};
+
+// ── Jauge circulaire SVG ──────────────────────────────────────────────────────
+
+function CircularGauge({ score, color, label }: { score: number; color: string; label: string }) {
+  const r = 46;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (Math.max(score, 3) / 100) * circ;
+  const stroke = SANTE_GAUGE_STROKE[color] ?? '#60a5fa';
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative w-28 h-28">
+        <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
+          <circle cx="60" cy="60" r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="10" strokeLinecap="round" />
+          <circle
+            cx="60" cy="60" r={r} fill="none"
+            stroke={stroke} strokeWidth="10" strokeLinecap="round"
+            strokeDasharray={circ}
+            strokeDashoffset={offset}
+            style={{ transition: 'stroke-dashoffset 0.7s ease' }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-2xl font-bold text-white leading-none">{score}%</span>
+          <span className="text-[9px] text-slate-500 mt-0.5 leading-none">score</span>
+        </div>
+      </div>
+      <p className={`text-xs font-semibold mt-1.5 ${SANTE_COLORS[color as keyof typeof SANTE_COLORS]?.text ?? 'text-blue-300'}`}>{label}</p>
+    </div>
+  );
+}
+
 const STATUT_COLORS: Record<string, string> = {
   a_trouver:   'bg-orange-500/15 text-orange-300 border-orange-500/25',
   a_contacter: 'bg-blue-500/15 text-blue-300 border-blue-500/25',
@@ -448,21 +486,12 @@ export default function DashboardChantier({
               <div className={`w-7 h-7 rounded-lg ${santeColors.bg} border ${santeColors.border} flex items-center justify-center shrink-0`}>
                 <Activity className={`h-3.5 w-3.5 ${santeColors.text}`} />
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-white font-semibold text-xs">Santé du projet</p>
-              </div>
-              <span className={`text-sm font-bold ${santeColors.text}`}>{sante.score}%</span>
+              <p className="text-white font-semibold text-xs flex-1">Santé du projet</p>
             </div>
 
-            {/* Label */}
-            <p className={`text-xs font-medium mb-2 ${santeColors.text}`}>{sante.label}</p>
-
-            {/* Barre */}
-            <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden mb-3">
-              <div
-                className={`h-full bg-gradient-to-r ${santeColors.bar} rounded-full transition-all duration-700`}
-                style={{ width: `${Math.max(sante.score, 3)}%` }}
-              />
+            {/* Jauge circulaire */}
+            <div className="flex justify-center mb-3">
+              <CircularGauge score={sante.score} color={sante.color} label={sante.label} />
             </div>
 
             {/* Points */}
@@ -550,8 +579,17 @@ export default function DashboardChantier({
               />
             )}
 
-            {/* CTA principal : Demander des devis */}
+            {/* CTAs */}
             <div className="flex gap-2 mt-4">
+              {options && options.length > 0 && (
+                <button
+                  onClick={() => openPanneau('lots')}
+                  className="flex items-center justify-center gap-1.5 text-xs font-semibold text-violet-300 border border-violet-500/30 hover:border-violet-500/50 bg-violet-500/10 hover:bg-violet-500/15 rounded-xl px-3 py-2.5 transition-all"
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  Comparer
+                </button>
+              )}
               <button
                 onClick={() => { openPanneau('artisans'); }}
                 className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-xl py-2.5 transition-all shadow-md shadow-emerald-900/30"
@@ -646,35 +684,71 @@ export default function DashboardChantier({
               </button>
             )}
 
-            {/* Fourchette marché */}
-            {range ? (
-              <div className={`rounded-xl p-3 mb-3 border ${
-                displayBudget >= range.min && displayBudget <= range.max * 1.1
-                  ? 'bg-emerald-500/[0.06] border-emerald-500/20'
-                  : displayBudget > range.max * 1.1
-                  ? 'bg-amber-500/[0.06] border-amber-500/20'
-                  : 'bg-blue-500/[0.06] border-blue-500/20'
-              }`}>
-                <div className="flex items-center gap-1 mb-1">
-                  <TrendingUp className="h-3 w-3 text-slate-500" />
-                  <p className="text-slate-500 text-[10px] uppercase tracking-wider font-medium">Fourchette marché</p>
+            {/* Fourchette marché — barre de position visuelle */}
+            {range ? (() => {
+              const maxScale = range.max * 1.7;
+              const pctMin    = Math.round((range.min / maxScale) * 100);
+              const pctMax    = Math.round((range.max / maxScale) * 100);
+              const pctBudget = Math.min(97, Math.max(3, Math.round((displayBudget / maxScale) * 100)));
+              const inRange   = displayBudget >= range.min && displayBudget <= range.max * 1.1;
+              const above     = displayBudget > range.max * 1.1;
+              const markerColor = inRange ? '#34d399' : above ? '#fbbf24' : '#60a5fa';
+              return (
+                <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 mb-3">
+                  <div className="flex items-center gap-1 mb-2">
+                    <TrendingUp className="h-3 w-3 text-slate-500" />
+                    <p className="text-slate-500 text-[10px] uppercase tracking-wider font-medium flex-1">Fourchette marché</p>
+                    <span className={`text-[10px] font-semibold ${inRange ? 'text-emerald-400' : above ? 'text-amber-400' : 'text-blue-400'}`}>
+                      {inRange ? '✓ Dans la fourchette' : above ? '⚠ Au-dessus' : '↓ Sous la fourchette'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs font-bold text-white mb-1.5">
+                    <span>{Math.round(range.min / 1000)}k €</span>
+                    <span>{Math.round(range.max / 1000)}k €</span>
+                  </div>
+                  {/* Barre visuelle */}
+                  <div className="relative h-2.5 bg-white/[0.06] rounded-full mb-1">
+                    {/* Zone marché */}
+                    <div
+                      className="absolute inset-y-0 rounded-full bg-blue-500/25"
+                      style={{ left: `${pctMin}%`, right: `${100 - pctMax}%` }}
+                    />
+                    {/* Marqueur budget */}
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-[#0d1525] shadow-md transition-all duration-500"
+                      style={{ left: `calc(${pctBudget}% - 6px)`, backgroundColor: markerColor }}
+                    />
+                  </div>
+                  <p className="text-slate-600 text-[10px] text-center">Budget : {displayBudget.toLocaleString('fr-FR')} €</p>
                 </div>
-                <p className="text-white font-bold text-base">
-                  {Math.round(range.min / 1000)}k – {Math.round(range.max / 1000)}k €
-                </p>
-                <p className="text-slate-500 text-[11px] mt-0.5">TTC estimé · {
-                  displayBudget >= range.min && displayBudget <= range.max * 1.1
-                    ? '✓ Dans la fourchette'
-                    : displayBudget > range.max * 1.1
-                    ? '⚠ Au-dessus du marché'
-                    : '↓ Sous la fourchette'
-                }</p>
-              </div>
-            ) : (
+              );
+            })() : (
               <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 mb-3">
                 <p className="text-slate-500 text-xs">Fourchette marché : données insuffisantes</p>
               </div>
             )}
+
+            {/* Confiance de l'estimation */}
+            <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-3 mb-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-slate-500 text-[10px] uppercase tracking-wider font-medium">Confiance estimation</p>
+                <span className={`text-xs font-bold ${
+                  budgetConfidence.color === 'emerald' ? 'text-emerald-300' :
+                  budgetConfidence.color === 'blue' ? 'text-blue-300' : 'text-amber-300'
+                }`}>
+                  {budgetConfidence.color === 'emerald' ? '85 %' : budgetConfidence.color === 'blue' ? '70 %' : '45 %'}
+                </span>
+              </div>
+              <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-700 ${
+                    budgetConfidence.color === 'emerald' ? 'bg-emerald-500' :
+                    budgetConfidence.color === 'blue' ? 'bg-blue-500' : 'bg-amber-500'
+                  }`}
+                  style={{ width: budgetConfidence.color === 'emerald' ? '85%' : budgetConfidence.color === 'blue' ? '70%' : '45%' }}
+                />
+              </div>
+            </div>
 
             {/* Résumé par lot si disponible */}
             {(result.lots ?? []).filter((l) => l.budget_avg_ht != null).length > 0 && (
