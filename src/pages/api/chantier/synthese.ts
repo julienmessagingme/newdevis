@@ -30,7 +30,7 @@ interface SyntheseRequestBody {
 }
 
 export const POST: APIRoute = async ({ request }) => {
-  const googleApiKey = import.meta.env.GOOGLE_AI_API_KEY;
+  const googleApiKey = import.meta.env.GOOGLE_AI_API_KEY ?? import.meta.env.GOOGLE_API_KEY;
   if (!googleApiKey) {
     return new Response(JSON.stringify({ error: 'Clé API Google AI non configurée' }), { status: 500, headers: CORS });
   }
