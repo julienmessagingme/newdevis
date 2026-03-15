@@ -80,6 +80,9 @@ export default function LotGrid({
               lot?.budget_max_ht != null
                 ? { min: lot.budget_min_ht, avg: lot.budget_avg_ht, max: lot.budget_max_ht, unite: lot.unite }
                 : null;
+            const decomposition = lot
+              ? { quantite: lot.quantite, unite: lot.unite, materiaux_ht: lot.materiaux_ht, main_oeuvre_ht: lot.main_oeuvre_ht, divers_ht: lot.divers_ht }
+              : null;
             return (
               <LotCard
                 key={i}
@@ -90,7 +93,9 @@ export default function LotGrid({
                 nbFactures={counts.facturesCount}
                 nbPhotos={counts.photosCount}
                 budgetRef={budgetRef}
+                decomposition={decomposition}
                 onVoir={() => setSelectedLabel(ligne.label)}
+                onAjouterDevis={() => setSelectedLabel(ligne.label)}
               />
             );
           })}

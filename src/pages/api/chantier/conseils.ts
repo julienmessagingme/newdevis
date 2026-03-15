@@ -80,14 +80,17 @@ Types de conseils (utilise les plus pertinents pour CE projet) :
 - "ordre" : séquence d'intervention optimale et pourquoi (dépendances techniques entre lots)
 - "synergie" : deux lots à coordonner pour économiser temps/argent/déplacements
 - "technique" : point technique CRITIQUE à anticiper AVANT qu'il soit trop tard (ex : gaines avant coulage béton)
-- "economie" : économie concrète réalisable en combinant des interventions
+- "economie" : économie concrète réalisable en combinant des interventions ou groupements d'achats
 - "risque" : vigilance ou problème à anticiper sur ce type de chantier
 
 Règles :
 - Cite toujours les noms des lots concernés
 - Sois direct et professionnel, comme si tu parlais à un client devant le chantier
 - Le "detail" doit faire 30 à 60 mots
-- PAS de conseils génériques du type "bien choisir son artisan" ou "demander des devis"
+- PAS de conseils génériques du type "bien choisir son artisan"
+- Pour CHAQUE conseil de type "economie" ET pour tout conseil permettant une économie concrète,
+  estime une fourchette d'économie réaliste en euros (economie_potentielle).
+  Pour les autres types sans économie mesurable, mettre null.
 
 Réponds UNIQUEMENT en JSON valide sans markdown :
 {
@@ -96,10 +99,12 @@ Réponds UNIQUEMENT en JSON valide sans markdown :
       "type": "ordre|synergie|technique|economie|risque",
       "emoji": "emoji adapté",
       "titre": "titre court (6-8 mots max)",
-      "detail": "explication concrète (30-60 mots, avec noms des lots)"
+      "detail": "explication concrète (30-60 mots, avec noms des lots)",
+      "economie_potentielle": { "min": 300, "max": 800 }
     }
   ]
 }
+Note : economie_potentielle peut être null pour les types sans économie chiffrable.
 `.trim();
 
   // ── Gemini ────────────────────────────────────────────────────────────────
@@ -130,7 +135,7 @@ Réponds UNIQUEMENT en JSON valide sans markdown :
     const gemini = await res.json();
     const raw    = gemini.choices?.[0]?.message?.content ?? '{}';
 
-    let parsed: { conseils?: { type: string; emoji: string; titre: string; detail: string }[] };
+    let parsed: { conseils?: { type: string; emoji: string; titre: string; detail: string; economie_potentielle?: { min: number; max: number } | null }[] };
     try {
       parsed = JSON.parse(raw);
     } catch {

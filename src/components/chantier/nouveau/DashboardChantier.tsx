@@ -3,9 +3,10 @@ import {
   LayoutDashboard, Route, FileText, CheckSquare,
   Wand2, ExternalLink, ChevronRight, AlertCircle,
   TrendingUp, Layers, AlertTriangle, Wallet, FolderOpen, BookOpen,
-  Upload, Sparkles, Zap, Lightbulb, CreditCard, Plus,
+  Upload, Sparkles, Zap, Lightbulb, CreditCard, Plus, PiggyBank,
 } from 'lucide-react';
 import type { ChantierIAResult, LotChantier, TacheIA, StatutArtisan } from '@/types/chantier-ia';
+import type { ConseilMO } from '@/components/chantier/ConseilsChantier';
 import DocumentsSection from '@/components/chantier/nouveau/DocumentsSection';
 import BudgetFiabilite from '@/components/chantier/nouveau/BudgetFiabilite';
 import ChantierTimeline from '@/components/chantier/ChantierTimeline';
@@ -16,6 +17,7 @@ import SimulationFinancement from '@/components/chantier/financement/SimulationF
 import SyntheseChantier from '@/components/chantier/SyntheseChantier';
 import NextActionCard from '@/components/chantier/NextActionCard';
 import ConseilsChantier from '@/components/chantier/ConseilsChantier';
+import DiagnosticProjet from '@/components/chantier/DiagnosticProjet';
 import { getFormaliteLinks } from '@/lib/formalitesLinks';
 
 interface DashboardChantierProps {
@@ -135,6 +137,7 @@ export default function DashboardChantier({
   const [lotStatuts, setLotStatuts] = useState<Record<string, StatutArtisan>>(
     () => Object.fromEntries((result.lots ?? []).map((l) => [l.id, l.statut])),
   );
+  const [conseils, setConseils] = useState<ConseilMO[]>([]);
   /** Déclenche le mode upload dans DocumentsSection ('document' | 'devis' | null) */
   const [uploadTrigger, setUploadTrigger] = useState<'document' | 'devis' | null>(null);
   /** Bloque le scrollspy quand l'utilisateur a cliqué un lien nav (évite le flash) */
@@ -431,6 +434,11 @@ export default function DashboardChantier({
           </section>
 
           {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* 1b. DIAGNOSTIC DU PROJET                                        */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          <DiagnosticProjet result={result} />
+
+          {/* ═══════════════════════════════════════════════════════════════ */}
           {/* 2. PROCHAINE ACTION                                             */}
           {/* ═══════════════════════════════════════════════════════════════ */}
           <section id="section-prochaine">
@@ -463,8 +471,47 @@ export default function DashboardChantier({
               lots={result.lots ?? []}
               artisans={result.artisans ?? []}
               roadmap={result.roadmap ?? []}
+              onConseils={setConseils}
             />
           </section>
+
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {/* 4b. OPTIMISATIONS DÉTECTÉES                                     */}
+          {/* ═══════════════════════════════════════════════════════════════ */}
+          {(() => {
+            const withEco = conseils.filter((c) => c.economie_potentielle);
+            if (withEco.length === 0) return null;
+            const gainMin = withEco.reduce((s, c) => s + (c.economie_potentielle?.min ?? 0), 0);
+            const gainMax = withEco.reduce((s, c) => s + (c.economie_potentielle?.max ?? 0), 0);
+            return (
+              <div className="bg-gradient-to-br from-emerald-950/40 to-teal-950/30 border border-emerald-500/20 rounded-2xl p-5">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                    <PiggyBank className="h-4.5 w-4.5 text-emerald-400" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-emerald-300 font-bold text-sm mb-0.5">Optimisations détectées</p>
+                    <p className="text-slate-400 text-xs">
+                      {withEco.length} opportunité{withEco.length > 1 ? 's' : ''} d'économie identifiée{withEco.length > 1 ? 's' : ''} par votre maître d'œuvre
+                    </p>
+                    <div className="mt-3 flex items-center gap-2">
+                      <span className="text-emerald-400 font-bold text-xl">
+                        {gainMin.toLocaleString('fr-FR')} – {gainMax.toLocaleString('fr-FR')} €
+                      </span>
+                      <span className="text-slate-500 text-xs">de gain potentiel</span>
+                    </div>
+                    <button
+                      onClick={() => scrollTo('conseils')}
+                      className="mt-3 inline-flex items-center gap-1.5 text-xs bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/25 text-emerald-300 rounded-lg px-3 py-1.5 font-medium transition-all"
+                    >
+                      Voir les conseils
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ═══════════════════════════════════════════════════════════════ */}
           {/* 5. LOTS DE TRAVAUX                                              */}
