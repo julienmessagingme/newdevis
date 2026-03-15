@@ -31,23 +31,38 @@ Format JSON strict :
       "placeholder": null,
       "choices": ["Option A", "Option B", "Option C", "Je ne sais pas encore"],
       "required": true,
-      "reason": "Impact sur le plan"
+      "reason": "Impact sur le budget"
     }
   ]
 }
 
-Règles de génération :
+OBJECTIF UNIQUE : Identifier les variables qui ont un impact DIRECT ET FORT sur le coût des travaux.
+Chaque question doit pouvoir faire varier le budget estimé d'au moins 15 %.
+
+Questions AUTORISÉES (adapte selon le projet) :
+- Surface ou dimensions (m², ml) — fort impact prix
+- Matériaux ou gamme souhaitée (Économique / Standard / Haut de gamme) — fort impact prix
+- Type de structure ou technique (ex : béton / bois / métal) — fort impact prix
+- État actuel du bien / travaux de démolition nécessaires — fort impact prix
+- Contraintes d'accès ou de chantier (cave, étage, terrain pentu...) — fort impact prix
+- Si localisation non précisée : code postal / ville — impact coefficient géographique
+
+Questions STRICTEMENT INTERDITES — ne jamais poser :
+- Budget, prix, coût, financement, enveloppe, tarif, montant → L'outil calcule lui-même le budget, c'est son rôle
+- Date de démarrage, délais, planning, quand commencer → Aucun impact sur le coût estimé
+- Nombre de devis souhaités, recherche d'artisans → Hors-sujet pour l'estimation
+- Durée des travaux → Conséquence du chantier, pas une entrée
+
+Règles de format :
 1. EXACTEMENT 4 ou 5 questions — ni plus, ni moins
-2. Si le code postal ou la ville N'EST PAS mentionné dans la description : ajouter une question id="code_postal", type="text", label="Dans quelle ville ou quel code postal se situe le chantier ?", placeholder="Ex: Paris, 33000, 69001..."
-3. Prioriser par impact : surface/dimensions > type exact de travaux > matériaux/gamme > localisation
-4. Chaque type "single_choice" ou "text_or_choice" : toujours inclure "Je ne sais pas encore" comme DERNIÈRE option
-5. type "text" : pour code postal, dimensions libres (sans liste de choix, placeholder obligatoire)
-6. type "single_choice" : choix exclusifs (2-4 options + "Je ne sais pas encore")
-7. type "text_or_choice" : options prédéfinies ET possibilité de texte libre (2-3 options + "Je ne sais pas encore")
-8. Langage simple, rassurant, non-technique — pour des particuliers non-experts
-9. Maximum 4 options dans choices avant "Je ne sais pas encore"
-10. ids uniques en snake_case descriptif (ex: piscine_surface, terrasse_materiau, code_postal)
-11. INTERDIT ABSOLU — Ne jamais poser de question sur le budget, le prix, le coût, le financement ou l'enveloppe financière. L'outil estime lui-même le budget : demander à l'utilisateur son budget est inutile et contre-productif. Si tu manques une question contextuelle, pose plutôt une question sur la gamme/qualité souhaitée (Économique / Standard / Haut de gamme) ou sur les contraintes techniques.
+2. Si localisation absente : forcer id="code_postal", type="text", label="Dans quelle ville ou quel code postal se situe le chantier ?", placeholder="Ex: Paris, 33000, 69001..."
+3. Ordonner par impact décroissant : surface > matériaux/gamme > technique > contraintes > localisation
+4. Chaque type "single_choice" ou "text_or_choice" : toujours inclure "Je ne sais pas encore" en DERNIÈRE position
+5. type "text" : code postal ou dimensions libres (placeholder obligatoire, pas de choices)
+6. type "single_choice" : 2-4 options + "Je ne sais pas encore"
+7. type "text_or_choice" : 2-3 options prédéfinies + "Je ne sais pas encore" + texte libre
+8. Langage simple, rassurant, non-technique — pour des particuliers
+9. ids uniques en snake_case (ex: piscine_surface, facade_materiau, code_postal)
 `;
 
 /** POST /api/chantier/qualifier — génère des questions contextuelles via Gemini */
@@ -114,11 +129,11 @@ export const POST: APIRoute = async ({ request }) => {
       return new Response(JSON.stringify({ questions: [] }), { headers: CORS });
     }
 
-    // Filtre côté serveur : supprimer toute question liée au budget/coût
-    // (règle de prompt parfois ignorée par le modèle)
-    const BUDGET_KEYWORDS = /budget|prix|coût|cout|financement|enveloppe|tarif|montant|combien/i;
+    // Filtre côté serveur : supprimer toute question hors-scope (budget, date, artisans)
+    // Filet de sécurité au cas où le modèle ignore les interdictions du prompt
+    const BANNED_KEYWORDS = /budget|prix|co[uû]t|financement|enveloppe|tarif|montant|combien|d[eé]marr|d[eé]lai|planning|quand|artisan|devis|dur[eé]e/i;
     const filtered = (parsed.followUpQuestions ?? [])
-      .filter((q) => !BUDGET_KEYWORDS.test(q.label) && !BUDGET_KEYWORDS.test(q.id))
+      .filter((q) => !BANNED_KEYWORDS.test(q.label) && !BANNED_KEYWORDS.test(q.id))
       .slice(0, 5);
 
     return new Response(JSON.stringify({ questions: filtered }), { headers: CORS });
