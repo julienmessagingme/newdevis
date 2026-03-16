@@ -868,6 +868,7 @@ interface CockpitV1Props {
 
 export default function CockpitV1({
   result,
+  onNouveau,
   onLotStatutChange,
   userId,
 }: CockpitV1Props) {
@@ -1271,6 +1272,16 @@ export default function CockpitV1({
       {/* ── HEADER ──────────────────────────────────────────────────────────── */}
       <header className="border-b border-white/[0.06] px-6 lg:px-8 py-4">
         <div className="flex items-center gap-4">
+          {/* Bouton retour */}
+          {onNouveau && (
+            <button
+              onClick={onNouveau}
+              title="Retour à mes chantiers"
+              className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-slate-400 hover:text-white transition-all"
+            >
+              <ChevronRight className="h-4 w-4 rotate-180" />
+            </button>
+          )}
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-xl shrink-0 select-none">
               {result.emoji}
