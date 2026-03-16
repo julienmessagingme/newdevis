@@ -1451,47 +1451,64 @@ export default function CockpitV1({
               </div>
             )}
 
-            {/* Radars de vigilance */}
+            {/* Radars de vigilance — card expandée avec avatar expert */}
             {radarPoints.length > 0 && (
-              <button
-                onClick={() => openPanel('radar')}
-                className="w-full bg-[#0d1525] border border-blue-500/20 hover:border-blue-500/40 rounded-2xl p-4 text-left transition-all group hover:shadow-md hover:shadow-blue-900/20"
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-6 h-6 rounded-lg bg-blue-500/15 border border-blue-500/25 flex items-center justify-center shrink-0">
-                    <Scan className="h-3 w-3 text-blue-400" />
+              <div className="bg-[#0d1525] border border-blue-500/20 rounded-2xl p-4">
+                {/* Header : label + avatar */}
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Scan className="h-3 w-3 text-blue-400 shrink-0" />
+                      <p className="text-[10px] text-blue-400 uppercase tracking-wider font-semibold">Radars de vigilance</p>
+                      <span className="ml-auto text-[10px] font-bold bg-blue-500/15 text-blue-300 border border-blue-500/25 rounded-full px-1.5 py-0.5 leading-none">{radarPoints.length}</span>
+                    </div>
+                    {/* Premier point radar en preview */}
+                    <div className="bg-amber-500/[0.07] border border-amber-500/20 rounded-xl p-2.5">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <AlertTriangle className="h-3 w-3 text-amber-400 shrink-0" />
+                        <p className="text-xs font-bold text-white truncate">{radarPoints[0]?.title}</p>
+                      </div>
+                      <p className="text-[10px] text-slate-400 leading-relaxed line-clamp-2">{radarPoints[0]?.risk}</p>
+                    </div>
                   </div>
-                  <p className="text-[10px] text-blue-400 uppercase tracking-wider font-semibold">Radars de vigilance</p>
-                  <span className="ml-auto text-[10px] font-bold bg-blue-500/15 text-blue-300 border border-blue-500/25 rounded-full px-1.5 py-0.5 leading-none">{radarPoints.length}</span>
+                  {/* Avatar expert */}
+                  <img
+                    src="/avatar-expert.svg"
+                    alt="Expert chantier"
+                    className="w-16 h-20 object-cover rounded-xl shrink-0 border border-white/[0.08]"
+                  />
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-300 group-hover:text-white transition-colors flex-1 min-w-0 truncate font-medium">
-                    {radarPoints[0]?.title}
-                  </span>
-                  <ChevronRight className="h-3.5 w-3.5 text-slate-600 group-hover:text-blue-400 transition-colors shrink-0" />
-                </div>
-              </button>
+                <button
+                  onClick={() => openPanel('radar')}
+                  className="w-full flex items-center justify-end gap-1 text-[10px] text-blue-400/60 hover:text-blue-300 transition-colors mt-1"
+                >
+                  → Afficher le détail
+                </button>
+              </div>
             )}
 
-            {/* Bouclier Financier */}
+            {/* Bouclier Financier — card expandée */}
             {bouclierPoints.length > 0 && (
-              <button
-                onClick={() => openPanel('bouclier')}
-                className="w-full bg-[#0d1525] border border-orange-500/25 hover:border-orange-500/45 rounded-2xl p-4 text-left transition-all group hover:shadow-md hover:shadow-orange-900/20"
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-6 h-6 rounded-lg bg-orange-500/15 border border-orange-500/25 flex items-center justify-center shrink-0">
-                    <Shield className="h-3 w-3 text-orange-400" />
+              <div className="bg-[#0d1525] border border-orange-500/25 rounded-2xl p-4">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <div className="w-5 h-5 rounded-lg bg-orange-500/15 border border-orange-500/25 flex items-center justify-center shrink-0">
+                    <Shield className="h-2.5 w-2.5 text-orange-400" />
                   </div>
                   <p className="text-[10px] text-orange-400 uppercase tracking-wider font-semibold">Bouclier Financier</p>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-300 group-hover:text-white transition-colors font-medium">
-                    🛡️ {bouclierPoints.length} point{bouclierPoints.length > 1 ? 's' : ''} à sécuriser
-                  </span>
-                  <ChevronRight className="h-3.5 w-3.5 text-slate-600 group-hover:text-orange-400 transition-colors" />
-                </div>
-              </button>
+                <p className="text-xs font-bold text-white mb-1">
+                  🛡️ {bouclierPoints.length} lot{bouclierPoints.length > 1 ? 's' : ''} sans devis chiffré
+                </p>
+                <p className="text-[10px] text-slate-400 leading-relaxed mb-3">
+                  {bouclierPoints[0]?.lines[0] ?? 'Demandez des devis pour éviter les approximations budgétaires.'}
+                </p>
+                <button
+                  onClick={() => openPanel('bouclier')}
+                  className="flex items-center gap-1 text-[10px] text-orange-400/60 hover:text-orange-300 transition-colors"
+                >
+                  → Afficher le détail
+                </button>
+              </div>
             )}
 
           </div>
@@ -1520,7 +1537,7 @@ export default function CockpitV1({
 
             {currentDecision ? (
               <>
-                <p className="text-3xl font-black text-white leading-snug mb-2">{currentDecision.titre}</p>
+                <p className="text-[32px] font-extrabold text-white leading-snug mb-2">{currentDecision.titre}</p>
                 {currentDecision.detail && (
                   <p className="text-sm text-slate-400 leading-relaxed mb-5">{currentDecision.detail}</p>
                 )}

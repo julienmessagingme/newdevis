@@ -87,7 +87,7 @@ export function useMaterialAI({
     detectMaterialNeed(currentStepTitle, currentStepDetail);
 
   useEffect(() => {
-    if (!shouldShow || !token || fetchedRef.current) return;
+    if (!shouldShow || fetchedRef.current) return;
     fetchedRef.current = true;
 
     setIsLoading(true);
@@ -97,7 +97,7 @@ export function useMaterialAI({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
         description,
