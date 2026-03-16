@@ -3,7 +3,7 @@ import {
   AlertTriangle, ChevronRight, Upload, LayoutGrid, Calendar,
   Users, FolderOpen, BookOpen, Pencil, Check, X, Wallet,
   FileText, Wand2, MessageSquare, Send, SlidersHorizontal,
-  Info, Shield, Scan,
+  Info, Shield, Scan, Download,
 } from 'lucide-react';
 import type { ChantierIAResult, LotChantier, StatutArtisan, ProjectMode } from '@/types/chantier-ia';
 
@@ -17,7 +17,12 @@ type PanelId =
 
 type DecisionStatus = 'a_faire' | 'deja_fait' | 'document_envoye' | 'non_necessaire' | 'etape_suivante';
 
-interface ChatMessage { role: 'user' | 'assistant'; text: string; }
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  text: string;
+  document?: { title: string; content: string; filename: string };
+  actions?: string[];
+}
 
 // ── Work options ────────────────────────────────────────────────────────────────
 
@@ -25,34 +30,194 @@ interface WorkOption {
   id: string; label: string;
   priceMin: number; priceAvg: number; priceMax: number;
   multiplier: number;
+  emoji: string;
+  unit: string;          // '€/m²' | '€/ml'
+  dimLabel: string;      // 'Surface' | 'Longueur'
+  dimUnit: string;       // 'm²' | 'ml'
+  dimMax: number;        // max slider value
+  avantage: string;
+  inconvenient: string;
+  durabilite: string;
+  entretien: 'Faible' | 'Moyen' | 'Élevé';
 }
 
 const OPTIONS_REVETEMENT: WorkOption[] = [
-  { id: 'gravier',  label: 'Gravier',        priceMin: 15, priceAvg: 25,  priceMax: 40,  multiplier: 0.6 },
-  { id: 'paves',    label: 'Pavés',           priceMin: 60, priceAvg: 90,  priceMax: 130, multiplier: 1.2 },
-  { id: 'beton',    label: 'Béton drainant',  priceMin: 40, priceAvg: 65,  priceMax: 90,  multiplier: 1.0 },
-  { id: 'enrobe',   label: 'Enrobé',          priceMin: 50, priceAvg: 70,  priceMax: 100, multiplier: 1.1 },
+  { id: 'gravier',  label: 'Gravier',       emoji: '🪨', unit: '€/m²', dimLabel: 'Surface', dimUnit: 'm²', dimMax: 300,
+    priceMin: 15, priceAvg: 25,  priceMax: 40,  multiplier: 0.6,
+    durabilite: '5-10 ans',  entretien: 'Élevé',
+    avantage: 'Économique, drainage naturel', inconvenient: 'Déplacement fréquent' },
+  { id: 'paves',    label: 'Pavés',          emoji: '🟫', unit: '€/m²', dimLabel: 'Surface', dimUnit: 'm²', dimMax: 300,
+    priceMin: 60, priceAvg: 90,  priceMax: 130, multiplier: 1.2,
+    durabilite: '30+ ans',   entretien: 'Faible',
+    avantage: 'Très durable, esthétique', inconvenient: 'Coût et pose élevés' },
+  { id: 'beton',    label: 'Béton drainant', emoji: '⬜', unit: '€/m²', dimLabel: 'Surface', dimUnit: 'm²', dimMax: 300,
+    priceMin: 40, priceAvg: 65,  priceMax: 90,  multiplier: 1.0,
+    durabilite: '20-25 ans', entretien: 'Faible',
+    avantage: 'Solide, drainage intégré', inconvenient: 'Aspect uniforme' },
+  { id: 'enrobe',   label: 'Enrobé',         emoji: '🖤', unit: '€/m²', dimLabel: 'Surface', dimUnit: 'm²', dimMax: 300,
+    priceMin: 50, priceAvg: 70,  priceMax: 100, multiplier: 1.1,
+    durabilite: '15-20 ans', entretien: 'Faible',
+    avantage: 'Lisse, résistant', inconvenient: 'Chaud en été' },
 ];
 
-// Terrasse extérieure — béton ciré retiré (intérieur uniquement)
 const OPTIONS_TERRASSE: WorkOption[] = [
-  { id: 'bois',      label: 'Bois exotique',  priceMin: 70,  priceAvg: 110, priceMax: 160, multiplier: 1.2 },
-  { id: 'composite', label: 'Composite',      priceMin: 90,  priceAvg: 150, priceMax: 210, multiplier: 1.4 },
-  { id: 'carrelage', label: 'Carrelage ext.', priceMin: 55,  priceAvg: 90,  priceMax: 140, multiplier: 1.0 },
-  { id: 'beton',     label: 'Béton drainant', priceMin: 40,  priceAvg: 65,  priceMax: 90,  multiplier: 0.7 },
+  { id: 'bois',      label: 'Bois exotique',  emoji: '🪵', unit: '€/m²', dimLabel: 'Surface', dimUnit: 'm²', dimMax: 100,
+    priceMin: 70,  priceAvg: 110, priceMax: 160, multiplier: 1.2,
+    durabilite: '15-20 ans', entretien: 'Moyen',
+    avantage: 'Chaleureux, naturel', inconvenient: 'Traitement annuel' },
+  { id: 'composite', label: 'Composite',      emoji: '🟫', unit: '€/m²', dimLabel: 'Surface', dimUnit: 'm²', dimMax: 100,
+    priceMin: 90,  priceAvg: 150, priceMax: 210, multiplier: 1.4,
+    durabilite: '25-30 ans', entretien: 'Faible',
+    avantage: 'Sans entretien, durable', inconvenient: 'Prix élevé' },
+  { id: 'carrelage', label: 'Carrelage ext.', emoji: '🔲', unit: '€/m²', dimLabel: 'Surface', dimUnit: 'm²', dimMax: 100,
+    priceMin: 55,  priceAvg: 90,  priceMax: 140, multiplier: 1.0,
+    durabilite: '30+ ans',   entretien: 'Faible',
+    avantage: 'Très durable, varié', inconvenient: 'Glissant si mal choisi' },
+  { id: 'beton',     label: 'Béton drainant', emoji: '⬜', unit: '€/m²', dimLabel: 'Surface', dimUnit: 'm²', dimMax: 100,
+    priceMin: 40,  priceAvg: 65,  priceMax: 90,  multiplier: 0.7,
+    durabilite: '20-25 ans', entretien: 'Faible',
+    avantage: 'Économique, solide', inconvenient: 'Aspect minéral' },
 ];
 
 const OPTIONS_FACADE: WorkOption[] = [
-  { id: 'enduit',    label: 'Enduit',            priceMin: 35,  priceAvg: 60,  priceMax: 90,  multiplier: 1.0 },
-  { id: 'bard_bois', label: 'Bardage bois',      priceMin: 70,  priceAvg: 110, priceMax: 160, multiplier: 1.3 },
-  { id: 'bard_comp', label: 'Bardage composite', priceMin: 100, priceAvg: 160, priceMax: 220, multiplier: 1.5 },
-  { id: 'crepi',     label: 'Crépi',             priceMin: 25,  priceAvg: 45,  priceMax: 70,  multiplier: 0.8 },
+  { id: 'enduit',    label: 'Enduit',            emoji: '🏠', unit: '€/m²', dimLabel: 'Surface', dimUnit: 'm²', dimMax: 400,
+    priceMin: 35,  priceAvg: 60,  priceMax: 90,  multiplier: 1.0,
+    durabilite: '10-15 ans', entretien: 'Moyen',
+    avantage: 'Standard, économique', inconvenient: 'Réfection régulière' },
+  { id: 'bard_bois', label: 'Bardage bois',      emoji: '🪵', unit: '€/m²', dimLabel: 'Surface', dimUnit: 'm²', dimMax: 400,
+    priceMin: 70,  priceAvg: 110, priceMax: 160, multiplier: 1.3,
+    durabilite: '15-20 ans', entretien: 'Moyen',
+    avantage: 'Design naturel', inconvenient: 'Traitement régulier' },
+  { id: 'bard_comp', label: 'Bardage composite', emoji: '🟫', unit: '€/m²', dimLabel: 'Surface', dimUnit: 'm²', dimMax: 400,
+    priceMin: 100, priceAvg: 160, priceMax: 220, multiplier: 1.5,
+    durabilite: '25-30 ans', entretien: 'Faible',
+    avantage: 'Haute durabilité', inconvenient: 'Coût élevé' },
+  { id: 'crepi',     label: 'Crépi',             emoji: '🏡', unit: '€/m²', dimLabel: 'Surface', dimUnit: 'm²', dimMax: 400,
+    priceMin: 25,  priceAvg: 45,  priceMax: 70,  multiplier: 0.8,
+    durabilite: '10-12 ans', entretien: 'Élevé',
+    avantage: 'Traditionnel, économique', inconvenient: 'Se fissure avec le temps' },
 ];
 
 const OPTIONS_ISOLATION: WorkOption[] = [
-  { id: 'laine', label: 'Laine de roche',  priceMin: 20, priceAvg: 38, priceMax: 55, multiplier: 1.0 },
-  { id: 'ouate', label: 'Ouate cellulose', priceMin: 25, priceAvg: 45, priceMax: 65, multiplier: 1.1 },
-  { id: 'poly',  label: 'Polyuréthane',    priceMin: 35, priceAvg: 60, priceMax: 90, multiplier: 1.3 },
+  { id: 'laine', label: 'Laine de roche',  emoji: '🧱', unit: '€/m²', dimLabel: 'Surface', dimUnit: 'm²', dimMax: 200,
+    priceMin: 20, priceAvg: 38, priceMax: 55, multiplier: 1.0,
+    durabilite: '30+ ans', entretien: 'Faible',
+    avantage: 'Excellent rapport qualité/prix', inconvenient: "Sensible à l'humidité" },
+  { id: 'ouate', label: 'Ouate cellulose', emoji: '🌿', unit: '€/m²', dimLabel: 'Surface', dimUnit: 'm²', dimMax: 200,
+    priceMin: 25, priceAvg: 45, priceMax: 65, multiplier: 1.1,
+    durabilite: '30+ ans', entretien: 'Faible',
+    avantage: 'Écologique, excellent confort', inconvenient: 'Mise en œuvre délicate' },
+  { id: 'poly',  label: 'Polyuréthane',    emoji: '⚗️', unit: '€/m²', dimLabel: 'Surface', dimUnit: 'm²', dimMax: 200,
+    priceMin: 35, priceAvg: 60, priceMax: 90, multiplier: 1.3,
+    durabilite: '30+ ans', entretien: 'Faible',
+    avantage: 'Haute performance thermique', inconvenient: 'Non écologique, prix élevé' },
+];
+
+const OPTIONS_CLOTURE: WorkOption[] = [
+  { id: 'bois_panneaux', label: 'Panneaux bois',       emoji: '🪵', unit: '€/ml', dimLabel: 'Longueur', dimUnit: 'ml', dimMax: 100,
+    priceMin: 50, priceAvg: 80,  priceMax: 120, multiplier: 1.0,
+    durabilite: '10-15 ans', entretien: 'Moyen',
+    avantage: 'Esthétique, sur mesure', inconvenient: 'Traitement annuel requis' },
+  { id: 'bois_lames',    label: 'Lames horizontales',  emoji: '🎋', unit: '€/ml', dimLabel: 'Longueur', dimUnit: 'ml', dimMax: 100,
+    priceMin: 60, priceAvg: 95,  priceMax: 140, multiplier: 1.2,
+    durabilite: '10-15 ans', entretien: 'Moyen',
+    avantage: 'Design contemporain', inconvenient: 'Pose plus coûteuse' },
+  { id: 'composite_cl',  label: 'Bois composite',      emoji: '🟫', unit: '€/ml', dimLabel: 'Longueur', dimUnit: 'ml', dimMax: 100,
+    priceMin: 90, priceAvg: 140, priceMax: 200, multiplier: 1.5,
+    durabilite: '25-30 ans', entretien: 'Faible',
+    avantage: 'Sans entretien, très durable', inconvenient: 'Prix élevé' },
+  { id: 'grillage',      label: 'Grillage rigide',     emoji: '🔗', unit: '€/ml', dimLabel: 'Longueur', dimUnit: 'ml', dimMax: 100,
+    priceMin: 20, priceAvg: 35,  priceMax: 55,  multiplier: 0.5,
+    durabilite: '20-25 ans', entretien: 'Faible',
+    avantage: 'Économique, rapide', inconvenient: 'Moins esthétique' },
+];
+
+// ── Document templates ──────────────────────────────────────────────────────
+
+interface DocumentTemplate {
+  id: string;
+  title: string;
+  filename: string;
+  keywords: RegExp;
+  generate: (result: ChantierIAResult) => string;
+}
+
+const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
+  {
+    id: 'accord_voisinage',
+    title: 'Accord de voisinage',
+    filename: 'accord-voisinage.pdf',
+    keywords: /voisin|mitoyenn|accord/i,
+    generate: (r) => [
+      'ACCORD DE BON VOISINAGE',
+      '',
+      'Entre les soussignés :',
+      '- Maître d\'ouvrage : ___________________',
+      '- Voisin concerné  : ___________________',
+      '',
+      `Objet des travaux : ${r.nom}`,
+      `Durée estimée     : ${r.dureeEstimeeMois} mois`,
+      '',
+      'Les parties conviennent que :',
+      '1. Les travaux débuteront le : ___________________',
+      '2. Horaires de chantier : 8h–18h du lundi au vendredi',
+      '3. Le voisin sera informé de tout imprévu affectant son bien.',
+      '',
+      'Fait à _____________, le ___________________',
+      '',
+      'Signature maître d\'ouvrage :       Signature voisin :',
+    ].join('\n'),
+  },
+  {
+    id: 'declaration_travaux',
+    title: 'Checklist déclaration préalable',
+    filename: 'checklist-declaration-prealable.pdf',
+    keywords: /déclaration|autorisation|permis|formalité|cerfa/i,
+    generate: (r) => [
+      'CHECKLIST DÉCLARATION PRÉALABLE DE TRAVAUX',
+      'Formulaire Cerfa n°13703',
+      '',
+      `Projet   : ${r.nom}`,
+      `Budget   : ${r.budgetTotal.toLocaleString('fr-FR')} €`,
+      `Durée    : ${r.dureeEstimeeMois} mois`,
+      '',
+      'Pièces à rassembler :',
+      '☐ Plan de situation (extrait IGN ou cadastre)',
+      '☐ Plan de masse coté (vue de dessus)',
+      '☐ Plan des façades avant/après',
+      '☐ Notice descriptive des matériaux',
+      '☐ Photos de l\'état actuel',
+      '',
+      'Dépôt : mairie ou guichet-unique.fr',
+      'Délai d\'instruction : 1 mois (2 mois si secteur protégé)',
+    ].join('\n'),
+  },
+  {
+    id: 'grille_devis',
+    title: 'Grille comparaison de devis',
+    filename: 'grille-comparaison-devis.pdf',
+    keywords: /devis|comparer|artisan|choisir/i,
+    generate: (r) => [
+      `GRILLE DE COMPARAISON DE DEVIS — ${r.nom}`,
+      '',
+      'CRITÈRES              Artisan 1    Artisan 2    Artisan 3',
+      'Prix HT total         _________    _________    _________',
+      'Prix TTC              _________    _________    _________',
+      'Délai d\'exécution     _________    _________    _________',
+      'Acompte (%)           _________    _________    _________',
+      'Décennale             Oui / Non    Oui / Non    Oui / Non',
+      'RC pro                Oui / Non    Oui / Non    Oui / Non',
+      'Références            Oui / Non    Oui / Non    Oui / Non',
+      '',
+      'LOTS DU PROJET :',
+      ...(r.lots ?? []).map((l, i) =>
+        `${i + 1}. ${l.nom} — ${l.budget_avg_ht ? Math.round(l.budget_avg_ht).toLocaleString('fr-FR') + ' €' : 'À chiffrer'}`
+      ),
+      '',
+      '→ Ne jamais verser > 30% d\'acompte sans garantie',
+      '→ Vérifier la décennale avant tout premier paiement',
+    ].join('\n'),
+  },
 ];
 
 // ── Radar & Bouclier ─────────────────────────────────────────────────────────
@@ -272,6 +437,22 @@ function getAlertExplanation(alert: string): { emoji: string; title: string; lin
   return { emoji: '⚠️', title: "Point d'attention", lines: [alert] };
 }
 
+function detectProjectType(result: ChantierIAResult): string {
+  const hay = [result.nom, result.description ?? ''].join(' ').toLowerCase();
+  if (hay.match(/cl.ture|cloture|s.paratif|brise.vue/)) return 'cloture';
+  if (hay.match(/terrasse/)) return 'terrasse';
+  if (hay.match(/fa.ade|ravalement/)) return 'facade';
+  if (hay.match(/isolation/)) return 'isolation';
+  if (hay.match(/cuisine/)) return 'cuisine';
+  if (hay.match(/salle de bain|douche/)) return 'sdb';
+  if (hay.match(/piscine|bassin/)) return 'piscine';
+  return 'travaux';
+}
+
+function getDocumentForMessage(text: string): DocumentTemplate | null {
+  return DOCUMENT_TEMPLATES.find((t) => t.keywords.test(text)) ?? null;
+}
+
 function detectWorkOptions(result: ChantierIAResult): { title: string; options: WorkOption[] } | null {
   const hay = [
     result.prochaineAction?.titre ?? '',
@@ -279,6 +460,7 @@ function detectWorkOptions(result: ChantierIAResult): { title: string; options: 
     ...(result.lignesBudget ?? []).slice(0, 2).map((l) => l.label),
     result.nom, result.description ?? '',
   ].join(' ').toLowerCase();
+  if (hay.match(/cl.ture|cloture|s.paratif|brise.vue/)) return { title: 'Choisir le type de clôture', options: OPTIONS_CLOTURE };
   if (hay.match(/rev.tement|allee|allée|driveway/)) return { title: 'Choisir le type de revêtement', options: OPTIONS_REVETEMENT };
   if (hay.match(/terrasse/)) return { title: 'Choisir le matériau de terrasse', options: OPTIONS_TERRASSE };
   if (hay.match(/facade|façade/)) return { title: 'Choisir le type de façade', options: OPTIONS_FACADE };
@@ -358,7 +540,12 @@ const CHAT_SUGGESTIONS = [
 const CHAT_RESPONSES: { keywords: RegExp; reply: (r: ChantierIAResult) => string }[] = [
   {
     keywords: /aide|subvention|ma ?prime|anah|crédit|cee/i,
-    reply: (r) => `Pour votre projet **${r.nom}**, plusieurs aides peuvent s'appliquer : MaPrimeRénov', éco-PTZ, TVA réduite à 5,5% ou 10%. Vérifiez votre éligibilité sur le site de l'ANAH et consultez un conseiller France Rénov' gratuit.`,
+    reply: (r) => {
+      const t = detectProjectType(r);
+      if (t === 'cloture' || t === 'terrasse')
+        return `Pour votre projet **${r.nom}**, il n'existe pas d'aide type MaPrimeRénov' pour ce type de travaux. Renseignez-vous sur les aides locales sur **service-public.fr** ou auprès de votre mairie.`;
+      return `Pour votre projet **${r.nom}**, plusieurs aides peuvent s'appliquer : MaPrimeRénov', éco-PTZ, TVA réduite à 5,5% ou 10%. Vérifiez votre éligibilité sur **maprimerenov.gouv.fr** ou consultez un conseiller France Rénov' gratuit.`;
+    },
   },
   {
     keywords: /artisan|entreprise|trouver|choisir|sélect/i,
@@ -382,6 +569,24 @@ function getChatReply(text: string, result: ChantierIAResult): string {
   const match = CHAT_RESPONSES.find((r) => r.keywords.test(text));
   if (match) return match.reply(result);
   return `Pour votre projet **${result.nom}**, je vous conseille de commencer par obtenir plusieurs devis et de vérifier les qualifications des artisans. Posez-moi une question plus précise sur le budget, les artisans, les aides ou les démarches.`;
+}
+
+function getEnhancedChatReply(
+  text: string,
+  result: ChantierIAResult,
+): { text: string; document?: ChatMessage['document']; actions?: string[] } {
+  const replyText = getChatReply(text, result);
+  const docTemplate = getDocumentForMessage(text);
+  const actions: string[] = [];
+  if (docTemplate) actions.push('Télécharger le document');
+  if (/service-public|règlement|obligation|loi\b/i.test(text)) actions.push('Voir service-public.fr');
+  return {
+    text: replyText,
+    ...(docTemplate
+      ? { document: { title: docTemplate.title, content: docTemplate.generate(result), filename: docTemplate.filename } }
+      : {}),
+    ...(actions.length > 0 ? { actions } : {}),
+  };
 }
 
 // ── Props ──────────────────────────────────────────────────────────────────────
@@ -432,8 +637,11 @@ export default function CockpitV1({
   const [decisionIndex, setDecisionIndex]     = useState(0);
   const [selectedAlertIndex, setSelectedAlertIndex] = useState<number | null>(null);
   const [surface, setSurface]         = useState<number>(() => {
-    const m = (result.description ?? '').match(/(\d+)\s*m²/);
-    return m ? parseInt(m[1]) : 0;
+    const m2 = (result.description ?? '').match(/(\d+)\s*m²/);
+    if (m2) return parseInt(m2[1]);
+    const ml = (result.description ?? '').match(/(\d+)\s*ml\b/i);
+    if (ml) return parseInt(ml[1]);
+    return 0;
   });
   const [editingSurface, setEditSurf] = useState(false);
   const [surfaceInput, setSurfInput]  = useState('');
@@ -495,9 +703,28 @@ export default function CockpitV1({
     return lots.reduce((s, l) => s + (lotBudgets[l.id] ?? 0), 0);
   }, [lots, lotBudgets, hasLotBudgets, result.budgetTotal]);
 
-  const displayBudget = selectedOption
-    ? Math.round(totalBudget * selectedOption.multiplier)
-    : totalBudget;
+  const displayBudget = useMemo(() => {
+    if (selectedOption) {
+      if (surface > 0) return Math.round(selectedOption.priceAvg * surface);
+      return Math.round(totalBudget * selectedOption.multiplier);
+    }
+    return totalBudget;
+  }, [selectedOption, surface, totalBudget]);
+
+  const displayBudgetRange = useMemo(() => {
+    if (selectedOption && surface > 0) {
+      return {
+        min: Math.round(selectedOption.priceMin * surface),
+        avg: Math.round(selectedOption.priceAvg * surface),
+        max: Math.round(selectedOption.priceMax * surface),
+      };
+    }
+    return {
+      min: Math.round(totalBudget * 0.85),
+      avg: totalBudget,
+      max: Math.round(totalBudget * 1.15),
+    };
+  }, [selectedOption, surface, totalBudget]);
 
   const marketRange = useMemo(() => {
     let min = 0, max = 0, ok = false;
@@ -621,8 +848,31 @@ export default function CockpitV1({
     setChatInput('');
     setChatLoading(true);
     await new Promise((r) => setTimeout(r, 600 + Math.random() * 500));
-    setChatMessages((prev) => [...prev, { role: 'assistant', text: getChatReply(text, result) }]);
+    const reply = getEnhancedChatReply(text, result);
+    setChatMessages((prev) => [...prev, { role: 'assistant', ...reply }]);
     setChatLoading(false);
+  };
+
+  const downloadDocument = async (doc: NonNullable<ChatMessage['document']>) => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { jsPDF } = await import('jspdf') as any;
+      const pdf = new jsPDF();
+      pdf.setFontSize(16);
+      pdf.text(doc.title, 20, 20);
+      pdf.setFontSize(10);
+      const lines = pdf.splitTextToSize(doc.content, 170);
+      pdf.text(lines, 20, 35);
+      pdf.save(doc.filename);
+    } catch {
+      const blob = new Blob([`${doc.title}\n\n${doc.content}`], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.filename.replace('.pdf', '.txt');
+      a.click();
+      URL.revokeObjectURL(url);
+    }
   };
 
   const cyclePhaseStatus = (phaseId: PhaseId) => {
@@ -838,10 +1088,13 @@ export default function CockpitV1({
                 {/* Options matériaux */}
                 {workOptions && decisionIndex === 0 && (
                   <div className="mb-5">
+                    {/* Header : titre + saisie dimension */}
                     <div className="flex items-center justify-between mb-3">
                       <p className="text-xs text-violet-300 font-medium">{workOptions.title}</p>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-400">Surface</span>
+                        <span className="text-xs text-slate-400">
+                          {selectedOption?.dimLabel ?? workOptions.options[0]?.dimLabel ?? 'Surface'}
+                        </span>
                         {editingSurface ? (
                           <div className="flex items-center gap-1.5">
                             <input
@@ -852,7 +1105,9 @@ export default function CockpitV1({
                               className="w-14 text-xs bg-white/[0.08] border border-white/[0.15] rounded-lg px-2 py-1 text-white outline-none focus:border-violet-500/60"
                               autoFocus placeholder="0"
                             />
-                            <span className="text-xs text-slate-400">m²</span>
+                            <span className="text-xs text-slate-400">
+                              {selectedOption?.dimUnit ?? workOptions.options[0]?.dimUnit ?? 'm²'}
+                            </span>
                             <button onClick={saveSurface} className="text-emerald-400 hover:text-emerald-300 transition-colors"><Check className="h-3.5 w-3.5" /></button>
                             <button onClick={() => setEditSurf(false)} className="text-slate-500 hover:text-slate-300 transition-colors"><X className="h-3.5 w-3.5" /></button>
                           </div>
@@ -861,50 +1116,90 @@ export default function CockpitV1({
                             onClick={() => { setSurfInput(surface > 0 ? String(surface) : ''); setEditSurf(true); }}
                             className="flex items-center gap-1.5 text-xs bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.10] rounded-lg px-2.5 py-1 text-white transition-colors group"
                           >
-                            {surface > 0 ? `${surface} m²` : '— m²'}
+                            {surface > 0
+                              ? `${surface} ${selectedOption?.dimUnit ?? workOptions.options[0]?.dimUnit ?? 'm²'}`
+                              : `— ${selectedOption?.dimUnit ?? workOptions.options[0]?.dimUnit ?? 'm²'}`}
                             <Pencil className="h-2.5 w-2.5 text-slate-500 group-hover:text-slate-300 transition-colors" />
                           </button>
                         )}
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+
+                    {/* Grille cartes visuelles 2 colonnes */}
+                    <div className="grid grid-cols-2 gap-2">
                       {workOptions.options.map((opt) => {
                         const isSelected = selectedOption?.id === opt.id;
-                        const delta      = optionDeltas[opt.id] ?? null;
-                        const deltaStr   = delta === null
-                          ? null
-                          : delta === 0
-                          ? 'Base'
-                          : delta > 0
-                          ? `+${delta.toLocaleString('fr-FR')} €`
-                          : `${delta.toLocaleString('fr-FR')} €`;
+                        const priceStr = surface > 0
+                          ? `${(opt.priceMin * surface).toLocaleString('fr-FR')} – ${(opt.priceMax * surface).toLocaleString('fr-FR')} €`
+                          : `${opt.priceMin} – ${opt.priceMax} ${opt.unit}`;
                         return (
                           <button
                             key={opt.id}
                             onClick={() => handleOptionSelect(opt)}
-                            className={`text-left rounded-xl border px-3 py-2.5 text-xs transition-all ${
+                            className={`text-left rounded-xl border p-3 transition-all ${
                               isSelected
-                                ? 'border-violet-500/50 bg-violet-500/15 text-violet-200'
-                                : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-white/[0.15] hover:text-white'
+                                ? 'border-violet-500/50 bg-violet-500/15'
+                                : 'border-white/[0.08] bg-white/[0.03] hover:border-white/[0.15] hover:bg-white/[0.05]'
                             }`}
                           >
-                            <div className="font-medium">{opt.label}</div>
-                            {deltaStr && (
-                              <div className={`text-[10px] mt-0.5 font-semibold ${
-                                deltaStr === 'Base' ? 'text-slate-500' :
-                                delta! > 0 ? (isSelected ? 'text-red-300' : 'text-red-400/70') :
-                                (isSelected ? 'text-emerald-300' : 'text-emerald-400/70')
-                              }`}>
-                                {deltaStr}
+                            <div className="text-2xl mb-1.5 leading-none">{opt.emoji}</div>
+                            <div className={`font-semibold text-xs mb-1 ${isSelected ? 'text-violet-200' : 'text-white'}`}>{opt.label}</div>
+                            <div className="text-[10px] font-bold text-emerald-400 mb-2">{priceStr}</div>
+                            <div className="space-y-0.5 mb-2">
+                              <div className="flex items-start gap-1">
+                                <span className="text-emerald-400 text-[10px] shrink-0 mt-px">✓</span>
+                                <span className="text-[10px] text-slate-400 leading-tight">{opt.avantage}</span>
                               </div>
-                            )}
-                            {deltaStr === null && surface === 0 && (
-                              <div className="text-[10px] text-slate-600 mt-0.5">Saisir la surface</div>
-                            )}
+                              <div className="flex items-start gap-1">
+                                <span className="text-red-400/70 text-[10px] shrink-0 mt-px">✗</span>
+                                <span className="text-[10px] text-slate-500 leading-tight">{opt.inconvenient}</span>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              <span className="text-[9px] bg-slate-800 text-slate-400 rounded px-1.5 py-0.5">{opt.durabilite}</span>
+                              <span className={`text-[9px] rounded px-1.5 py-0.5 ${
+                                opt.entretien === 'Faible' ? 'bg-emerald-900/40 text-emerald-400' :
+                                opt.entretien === 'Moyen'  ? 'bg-amber-900/40 text-amber-400' :
+                                                             'bg-red-900/40 text-red-400'
+                              }`}>{opt.entretien}</span>
+                            </div>
                           </button>
                         );
                       })}
                     </div>
+
+                    {/* Réglette dimension — visible si une option est sélectionnée */}
+                    {selectedOption && (
+                      <div className="mt-3 bg-white/[0.03] border border-white/[0.07] rounded-xl p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-slate-400">{selectedOption.dimLabel}</span>
+                          <span className="text-xs font-bold text-white tabular-nums">
+                            {surface > 0 ? surface : '—'} {selectedOption.dimUnit}
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={1}
+                          max={selectedOption.dimMax}
+                          step={1}
+                          value={surface > 0 ? surface : Math.round(selectedOption.dimMax / 4)}
+                          onChange={(e) => setSurface(Number(e.target.value))}
+                          className="w-full accent-violet-500 cursor-pointer"
+                        />
+                        <div className="flex justify-between text-[9px] text-slate-600 mt-1">
+                          <span>1 {selectedOption.dimUnit}</span>
+                          <span>{selectedOption.dimMax} {selectedOption.dimUnit}</span>
+                        </div>
+                        {surface > 0 && (
+                          <div className="mt-2 pt-2 border-t border-white/[0.06] flex justify-between items-center text-[10px]">
+                            <span className="text-slate-500">Fourchette :</span>
+                            <span className="text-white font-semibold tabular-nums">
+                              {(selectedOption.priceMin * surface).toLocaleString('fr-FR')} – {(selectedOption.priceMax * surface).toLocaleString('fr-FR')} €
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -955,11 +1250,32 @@ export default function CockpitV1({
                 <p className="text-[10px] text-slate-500 uppercase tracking-wider">Budget estimé TTC</p>
               </div>
 
-              <p className="text-3xl font-bold text-white leading-none mb-1">
-                {displayBudget.toLocaleString('fr-FR')} €
-              </p>
-              {selectedOption && (
-                <p className="text-[10px] text-amber-400 mb-2">Option : {selectedOption.label}</p>
+              {selectedOption && surface > 0 ? (
+                <>
+                  <p className="text-2xl font-bold text-white leading-none">
+                    {displayBudgetRange.avg.toLocaleString('fr-FR')} €
+                  </p>
+                  <p className="text-[10px] text-amber-400 mt-0.5 mb-2">Option : {selectedOption.label}</p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="text-[10px] text-slate-500 tabular-nums shrink-0">{displayBudgetRange.min.toLocaleString('fr-FR')} €</span>
+                    <div className="flex-1 flex h-1.5 rounded-full overflow-hidden">
+                      <div className="flex-1 bg-emerald-500/40" />
+                      <div className="flex-1 bg-amber-500/40" />
+                      <div className="flex-1 bg-red-500/30" />
+                    </div>
+                    <span className="text-[10px] text-slate-500 tabular-nums shrink-0">{displayBudgetRange.max.toLocaleString('fr-FR')} €</span>
+                  </div>
+                  <p className="text-[9px] text-slate-600 mt-0.5">fourchette min – max</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-3xl font-bold text-white leading-none mb-1">
+                    {displayBudget.toLocaleString('fr-FR')} €
+                  </p>
+                  {selectedOption && (
+                    <p className="text-[10px] text-amber-400 mb-2">Option : {selectedOption.label}</p>
+                  )}
+                </>
               )}
 
               {marketRange ? (
@@ -1588,23 +1904,53 @@ export default function CockpitV1({
                 <>
                   <div className="flex-1 overflow-y-auto p-5 space-y-4">
                     {chatMessages.map((msg, i) => (
-                      <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        {msg.role === 'assistant' && (
-                          <div className="w-7 h-7 rounded-full bg-violet-600/30 border border-violet-500/30 flex items-center justify-center text-sm shrink-0 mr-2 mt-0.5">
-                            👷
+                      <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                        <div className="flex items-start">
+                          {msg.role === 'assistant' && (
+                            <div className="w-7 h-7 rounded-full bg-violet-600/30 border border-violet-500/30 flex items-center justify-center text-sm shrink-0 mr-2 mt-0.5">
+                              👷
+                            </div>
+                          )}
+                          <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
+                            msg.role === 'user'
+                              ? 'bg-violet-600 text-white rounded-tr-sm'
+                              : 'bg-white/[0.06] border border-white/[0.08] text-slate-200 rounded-tl-sm'
+                          }`}>
+                            {msg.text.split('**').map((part, pi) =>
+                              pi % 2 === 1
+                                ? <strong key={pi} className="font-semibold text-white">{part}</strong>
+                                : <span key={pi}>{part}</span>
+                            )}
+                          </div>
+                        </div>
+                        {msg.role === 'assistant' && msg.document && (
+                          <div className="ml-9 mt-1.5 flex items-center gap-2 bg-blue-500/[0.08] border border-blue-500/20 rounded-xl px-3 py-2 max-w-[80%]">
+                            <FileText className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                            <span className="text-[10px] text-blue-200 font-medium flex-1 min-w-0 truncate">{msg.document.title}</span>
+                            <button
+                              onClick={() => downloadDocument(msg.document!)}
+                              className="shrink-0 flex items-center gap-1 text-[10px] font-semibold text-blue-300 hover:text-white bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg px-2 py-1 transition-all"
+                            >
+                              <Download className="h-2.5 w-2.5" />
+                              PDF
+                            </button>
                           </div>
                         )}
-                        <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
-                          msg.role === 'user'
-                            ? 'bg-violet-600 text-white rounded-tr-sm'
-                            : 'bg-white/[0.06] border border-white/[0.08] text-slate-200 rounded-tl-sm'
-                        }`}>
-                          {msg.text.split('**').map((part, pi) =>
-                            pi % 2 === 1
-                              ? <strong key={pi} className="font-semibold text-white">{part}</strong>
-                              : <span key={pi}>{part}</span>
-                          )}
-                        </div>
+                        {msg.role === 'assistant' && msg.actions && msg.actions.filter((a) => a !== 'Télécharger le document').length > 0 && (
+                          <div className="ml-9 mt-1 flex flex-wrap gap-1.5">
+                            {msg.actions.filter((a) => a !== 'Télécharger le document').map((action) => (
+                              <button
+                                key={action}
+                                onClick={() => {
+                                  if (action === 'Voir service-public.fr') window.open('https://www.service-public.fr', '_blank');
+                                }}
+                                className="text-[10px] text-slate-400 hover:text-slate-200 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] rounded-full px-2.5 py-1 transition-all"
+                              >
+                                {action}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))}
                     {chatLoading && (
