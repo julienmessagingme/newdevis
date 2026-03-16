@@ -3,10 +3,12 @@ import {
   AlertTriangle, ChevronRight, Upload, LayoutGrid, Calendar,
   Users, FolderOpen, BookOpen, Pencil, Check, X, Wallet,
   FileText, Wand2, MessageSquare, Send, SlidersHorizontal,
-  Info, Shield, Scan, Download,
+  Info, Shield, Scan, Download, Sparkles,
 } from 'lucide-react';
 import type { ChantierIAResult, LotChantier, StatutArtisan, ProjectMode } from '@/types/chantier-ia';
 import { supabase } from '@/integrations/supabase/client';
+import MaterialSelector from '@/components/chantier/nouveau/MaterialSelector';
+import { useMaterialAI } from '@/hooks/useMaterialAI';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -764,10 +766,10 @@ const DECISION_STATUTS: { id: DecisionStatus; label: string; emoji: string; cls:
 // ── Chat helpers ────────────────────────────────────────────────────────────────
 
 const CHAT_SUGGESTIONS = [
-  'Quelles aides financières puis-je obtenir ?',
-  'Comment choisir mes artisans ?',
-  'Mon budget est-il réaliste ?',
-  'Quels documents dois-je préparer ?',
+  'Quel est le bon ordre pour mes lots de travaux ?',
+  'Comment maximiser les aides financières pour mon projet ?',
+  'Mon budget est-il réaliste pour ce type de chantier ?',
+  'Quelles formalités administratives dois-je anticiper ?',
 ];
 
 const CHAT_RESPONSES: { keywords: RegExp; reply: (r: ChantierIAResult) => string }[] = [
@@ -871,6 +873,7 @@ export default function CockpitV1({
   onNouveau,
   onLotStatutChange,
   userId,
+  token,
 }: CockpitV1Props) {
 
   // ── Masquer le widget de chat externe sur cette page ────────────────────────
@@ -909,7 +912,7 @@ export default function CockpitV1({
   const [surfaceInput, setSurfInput]  = useState('');
   const [selectedOption, setOption]   = useState<WorkOption | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => [
-    { role: 'assistant', text: `Bonjour ! Je suis votre assistant pour **${result.nom}**. Posez-moi vos questions sur le budget, les artisans, les aides ou les démarches administratives.` },
+    { role: 'assistant', text: `Bonjour ! Je suis votre maître d'œuvre pour **${result.nom}**. J'ai pris connaissance de votre projet, de vos ${(result.lots ?? []).length > 0 ? `${(result.lots ?? []).length} lot${(result.lots ?? []).length > 1 ? 's' : ''}` : 'lots de travaux'}, de votre budget de **${result.budgetTotal.toLocaleString('fr-FR')} €** et de vos documents. Posez-moi vos questions — je vous accompagne comme si j'étais sur le terrain.` },
   ]);
   const [chatInput, setChatInput]       = useState('');
   const [chatLoading, setChatLoading]   = useState(false);
@@ -1064,6 +1067,16 @@ export default function CockpitV1({
 
   const slidableLots = lots.filter((l) => l.budget_avg_ht != null && l.quantite != null && l.quantite > 0 && !l.id.startsWith('fallback-'));
 
+  // ── Material AI (actif uniquement quand pas de SimulateurOptions) ──────────
+  const materialAI = useMaterialAI({
+    description: result.description ?? result.nom,
+    lots: lots.map((l) => l.nom),
+    currentStepTitle:  currentDecision?.titre  ?? '',
+    currentStepDetail: currentDecision?.detail ?? '',
+    token,
+    enabled: !workOptions,
+  });
+
   // ── Effects ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -1201,10 +1214,58 @@ export default function CockpitV1({
     setChatMessages((prev) => [...prev, { role: 'user', text }]);
     setChatInput('');
     setChatLoading(true);
-    await new Promise((r) => setTimeout(r, 600 + Math.random() * 500));
-    const reply = getEnhancedChatReply(text, result);
-    setChatMessages((prev) => [...prev, { role: 'assistant', ...reply }]);
-    setChatLoading(false);
+
+    try {
+      // Historique de la conversation (sans le message système initial)
+      const history = chatMessages.slice(1).map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.text,
+      }));
+
+      // Documents uploadés avec résultats d'analyse si disponibles
+      const docsContext = uploadedFiles.map((f) => ({
+        name: f.name,
+        type: f.type,
+        analysisResume: f.analysisResume,
+        analysisScore: f.analysisScore,
+      }));
+
+      const res = await fetch('/api/chantier/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          message: text,
+          history,
+          context: {
+            nom:                result.nom,
+            description:        result.description,
+            typeProjet:         result.typeProjet,
+            budgetTotal:        result.budgetTotal,
+            dureeEstimeeMois:   result.dureeEstimeeMois,
+            lignesBudget:       result.lignesBudget,
+            lots:               result.lots,
+            formalites:         result.formalites,
+            aides:              result.aides,
+            roadmap:            result.roadmap,
+            prochaineAction:    result.prochaineAction,
+          },
+          documents: docsContext,
+        }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setChatMessages((prev) => [...prev, { role: 'assistant', text: data.reply }]);
+    } catch {
+      // Fallback local si l'API échoue
+      const reply = getEnhancedChatReply(text, result);
+      setChatMessages((prev) => [...prev, { role: 'assistant', ...reply }]);
+    } finally {
+      setChatLoading(false);
+    }
   };
 
   const downloadDocument = async (doc: NonNullable<ChatMessage['document']>) => {
@@ -1336,7 +1397,7 @@ export default function CockpitV1({
                       onClick={() => handlePhaseClick(phase.id)}
                       className={`w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-all group ${
                         isCurrent
-                          ? 'bg-violet-500/15 border border-violet-500/30'
+                          ? 'bg-gradient-to-r from-violet-600/20 to-indigo-600/10 border border-violet-500/40 shadow-sm shadow-violet-900/20'
                           : 'hover:bg-white/[0.04] border border-transparent'
                       }`}
                     >
@@ -1360,60 +1421,70 @@ export default function CockpitV1({
             {/* Points à traiter */}
             {alerts.length > 0 && (
               <div className="bg-[#0d1525] border border-white/[0.07] rounded-2xl p-4">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-3">À traiter</p>
-                <div className="space-y-1.5">
+                <div className="flex items-center gap-2 mb-3">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                  <p className="text-[10px] text-amber-400/80 uppercase tracking-wider font-semibold">À traiter</p>
+                  <span className="ml-auto text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-full px-1.5 py-0.5 leading-none">{alerts.length}</span>
+                </div>
+                <div className="space-y-2">
                   {alerts.map((a, i) => (
                     <button
                       key={i}
                       onClick={() => { setSelectedAlertIndex(i); openPanel('alert-detail'); }}
-                      className="w-full flex items-center gap-2 bg-amber-500/[0.06] hover:bg-amber-500/[0.12] border border-amber-500/15 hover:border-amber-500/30 rounded-xl px-3 py-2 text-left transition-all group"
+                      className="w-full flex items-start gap-3 bg-amber-500/[0.07] hover:bg-amber-500/[0.13] border border-amber-500/20 hover:border-amber-500/35 rounded-xl p-3 text-left transition-all group"
                     >
-                      <AlertTriangle className="h-3 w-3 shrink-0 text-amber-400" />
-                      <span className="text-xs text-amber-300/80 group-hover:text-amber-200 flex-1 min-w-0 truncate transition-colors">{a}</span>
-                      <ChevronRight className="h-3 w-3 shrink-0 text-amber-700/50 group-hover:text-amber-500/70 transition-colors" />
+                      <div className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0 mt-px">
+                        <AlertTriangle className="h-3 w-3 text-amber-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-semibold text-amber-200 group-hover:text-white transition-colors block truncate">{a}</span>
+                        <span className="text-[10px] text-amber-700/70 group-hover:text-amber-600/70 transition-colors">Cliquer pour voir les détails →</span>
+                      </div>
                     </button>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Radar chantier */}
+            {/* Radars de vigilance */}
             {radarPoints.length > 0 && (
               <button
                 onClick={() => openPanel('radar')}
-                className="w-full bg-[#0d1525] border border-blue-500/15 hover:border-blue-500/30 rounded-2xl p-4 text-left transition-all group"
+                className="w-full bg-[#0d1525] border border-blue-500/20 hover:border-blue-500/40 rounded-2xl p-4 text-left transition-all group hover:shadow-md hover:shadow-blue-900/20"
               >
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Scan className="h-3 w-3 text-blue-400 shrink-0" />
-                  <p className="text-[10px] text-blue-400/80 uppercase tracking-wider font-medium">Radar chantier</p>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 rounded-lg bg-blue-500/15 border border-blue-500/25 flex items-center justify-center shrink-0">
+                    <Scan className="h-3 w-3 text-blue-400" />
+                  </div>
+                  <p className="text-[10px] text-blue-400 uppercase tracking-wider font-semibold">Radars de vigilance</p>
+                  <span className="ml-auto text-[10px] font-bold bg-blue-500/15 text-blue-300 border border-blue-500/25 rounded-full px-1.5 py-0.5 leading-none">{radarPoints.length}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-300 group-hover:text-white transition-colors flex-1 min-w-0 truncate font-medium">
                     {radarPoints[0]?.title}
                   </span>
-                  {radarPoints.length > 1 && (
-                    <span className="text-[10px] text-blue-500/70 shrink-0">+{radarPoints.length - 1}</span>
-                  )}
-                  <ChevronRight className="h-3 w-3 text-slate-600 group-hover:text-blue-500/60 transition-colors shrink-0" />
+                  <ChevronRight className="h-3.5 w-3.5 text-slate-600 group-hover:text-blue-400 transition-colors shrink-0" />
                 </div>
               </button>
             )}
 
-            {/* Bouclier chantier */}
+            {/* Bouclier Financier */}
             {bouclierPoints.length > 0 && (
               <button
                 onClick={() => openPanel('bouclier')}
-                className="w-full bg-[#0d1525] border border-orange-500/20 hover:border-orange-500/35 rounded-2xl p-4 text-left transition-all group"
+                className="w-full bg-[#0d1525] border border-orange-500/25 hover:border-orange-500/45 rounded-2xl p-4 text-left transition-all group hover:shadow-md hover:shadow-orange-900/20"
               >
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Shield className="h-3 w-3 text-orange-400 shrink-0" />
-                  <p className="text-[10px] text-orange-400/80 uppercase tracking-wider font-medium">Bouclier chantier</p>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 rounded-lg bg-orange-500/15 border border-orange-500/25 flex items-center justify-center shrink-0">
+                    <Shield className="h-3 w-3 text-orange-400" />
+                  </div>
+                  <p className="text-[10px] text-orange-400 uppercase tracking-wider font-semibold">Bouclier Financier</p>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-400 group-hover:text-slate-200 transition-colors">
-                    {bouclierPoints.length} point{bouclierPoints.length > 1 ? 's' : ''} à sécuriser
+                  <span className="text-xs text-slate-300 group-hover:text-white transition-colors font-medium">
+                    🛡️ {bouclierPoints.length} point{bouclierPoints.length > 1 ? 's' : ''} à sécuriser
                   </span>
-                  <ChevronRight className="h-3 w-3 text-slate-600 group-hover:text-orange-500/60 transition-colors" />
+                  <ChevronRight className="h-3.5 w-3.5 text-slate-600 group-hover:text-orange-400 transition-colors" />
                 </div>
               </button>
             )}
@@ -1423,12 +1494,15 @@ export default function CockpitV1({
           {/* ── COL 2 : Prochaine action — carte centrale ─────────────────── */}
           <div className="order-1 lg:order-2 bg-[#0d1525] border border-white/[0.07] rounded-2xl p-6 flex flex-col min-h-[420px]">
             <div className="flex items-center justify-between mb-5">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wider">
-                Prochaine action
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 bg-violet-600/15 border border-violet-500/25 rounded-full px-2.5 py-1">
+                  <Sparkles className="h-3 w-3 text-violet-400" />
+                  <span className="text-[10px] text-violet-300 font-bold uppercase tracking-wider">Prochaine décision</span>
+                </div>
                 {decisions.length > 1 && (
-                  <span className="ml-2 text-slate-600 normal-case">{decisionIndex + 1}/{decisions.length}</span>
+                  <span className="text-[10px] text-slate-600">{decisionIndex + 1}/{decisions.length}</span>
                 )}
-              </p>
+              </div>
               {currentDecisionStatus && currentDecisionStatus !== 'a_faire' && (
                 <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
                   DECISION_STATUTS.find(s => s.id === currentDecisionStatus)?.cls ?? ''
@@ -1441,7 +1515,7 @@ export default function CockpitV1({
 
             {currentDecision ? (
               <>
-                <p className="text-2xl font-bold text-white leading-snug mb-2">{currentDecision.titre}</p>
+                <p className="text-3xl font-black text-white leading-snug mb-2">{currentDecision.titre}</p>
                 {currentDecision.detail && (
                   <p className="text-sm text-slate-400 leading-relaxed mb-5">{currentDecision.detail}</p>
                 )}
@@ -1567,6 +1641,23 @@ export default function CockpitV1({
                   </div>
                 )}
 
+                {/* Sélecteur de matériaux IA */}
+                {materialAI.shouldShow && (
+                  <div className="mb-4">
+                    {materialAI.isLoading ? (
+                      <div className="flex items-center gap-2.5 bg-violet-500/[0.07] border border-violet-500/15 rounded-xl px-4 py-3">
+                        <div className="w-4 h-4 border-2 border-violet-500/40 border-t-violet-400 rounded-full animate-spin shrink-0" />
+                        <span className="text-xs text-violet-300/70">Analyse des matériaux en cours…</span>
+                      </div>
+                    ) : materialAI.result ? (
+                      <MaterialSelector
+                        result={materialAI.result}
+                        baseBudget={displayBudget}
+                      />
+                    ) : null}
+                  </div>
+                )}
+
                 {/* Boutons d'action */}
                 <div className="mt-auto pt-4 border-t border-white/[0.06]">
                   <p className="text-[10px] text-slate-500 mb-3">Marquer cette étape :</p>
@@ -1575,8 +1666,8 @@ export default function CockpitV1({
                       <button
                         key={s.id}
                         onClick={() => handleDecisionAction(s.id)}
-                        className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-medium transition-all ${s.cls} ${
-                          currentDecisionStatus === s.id ? 'ring-1 ring-inset ring-current' : ''
+                        className={`flex items-center gap-2 rounded-xl border px-3 py-3 text-xs font-semibold transition-all hover:scale-[1.02] active:scale-[0.98] ${s.cls} ${
+                          currentDecisionStatus === s.id ? 'ring-1 ring-inset ring-current shadow-sm' : ''
                         }`}
                       >
                         <span className="text-sm leading-none">{s.emoji}</span>
@@ -1616,24 +1707,24 @@ export default function CockpitV1({
 
               {selectedOption && surface > 0 ? (
                 <>
-                  <p className="text-2xl font-bold text-white leading-none">
+                  <p className="text-4xl font-black text-white leading-none tabular-nums">
                     {displayBudgetRange.avg.toLocaleString('fr-FR')} €
                   </p>
-                  <p className="text-[10px] text-amber-400 mt-0.5 mb-2">Option : {selectedOption.label}</p>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <span className="text-[10px] text-slate-500 tabular-nums shrink-0">{displayBudgetRange.min.toLocaleString('fr-FR')} €</span>
-                    <div className="flex-1 flex h-1.5 rounded-full overflow-hidden">
-                      <div className="flex-1 bg-emerald-500/40" />
-                      <div className="flex-1 bg-amber-500/40" />
-                      <div className="flex-1 bg-red-500/30" />
+                  <p className="text-[10px] text-amber-400 mt-1 mb-3">Option : {selectedOption.label}</p>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-slate-500 tabular-nums shrink-0">{displayBudgetRange.min.toLocaleString('fr-FR')} €</span>
+                      <div className="flex-1 h-2 rounded-full overflow-hidden bg-white/[0.05]">
+                        <div className="h-full w-full bg-gradient-to-r from-emerald-500/60 via-amber-500/60 to-red-500/50 rounded-full" />
+                      </div>
+                      <span className="text-[10px] text-slate-500 tabular-nums shrink-0">{displayBudgetRange.max.toLocaleString('fr-FR')} €</span>
                     </div>
-                    <span className="text-[10px] text-slate-500 tabular-nums shrink-0">{displayBudgetRange.max.toLocaleString('fr-FR')} €</span>
+                    <p className="text-[9px] text-slate-600 text-center">fourchette min → max estimée</p>
                   </div>
-                  <p className="text-[9px] text-slate-600 mt-0.5">fourchette min – max</p>
                 </>
               ) : (
                 <>
-                  <p className="text-3xl font-bold text-white leading-none mb-1">
+                  <p className="text-4xl font-black text-white leading-none tabular-nums mb-1">
                     {displayBudget.toLocaleString('fr-FR')} €
                   </p>
                   {selectedOption && (
@@ -1708,10 +1799,10 @@ export default function CockpitV1({
                     onClick={() => cyclePhaseStatus(phase.id)}
                     className="flex flex-col items-center gap-1.5 flex-1 min-w-0 py-1 rounded-xl hover:bg-white/[0.04] transition-all group"
                   >
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-all ${
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-all ${
                       status === 'fait'     ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' :
-                      status === 'en_cours' ? 'bg-violet-500/20 border-violet-500/50 text-violet-300 ring-2 ring-violet-500/20' :
-                                             'bg-white/[0.04] border-white/[0.10] text-slate-600'
+                      status === 'en_cours' ? 'bg-violet-500/20 border-violet-500/60 text-violet-300 ring-2 ring-violet-500/25 shadow-lg shadow-violet-900/40' :
+                                             'bg-white/[0.03] border-white/[0.08] text-slate-600'
                     }`}>
                       {status === 'fait' ? '✓' : phase.emoji}
                     </div>
