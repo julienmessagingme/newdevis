@@ -925,9 +925,19 @@ export default function CockpitV1({
                       </button>
                     ))}
                   </div>
-                  {decisionIndex === decisions.length - 1 && currentDecisionStatus && currentDecisionStatus !== 'a_faire' && (
-                    <p className="text-center text-[10px] text-emerald-400 mt-3">✓ Toutes les étapes traitées</p>
-                  )}
+                  <div className="flex items-center justify-between mt-3">
+                    {decisionIndex > 0 ? (
+                      <button
+                        onClick={() => setDecisionIndex((i) => Math.max(0, i - 1))}
+                        className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
+                      >
+                        ← Étape précédente
+                      </button>
+                    ) : <span />}
+                    {decisionIndex === decisions.length - 1 && currentDecisionStatus && currentDecisionStatus !== 'a_faire' && (
+                      <p className="text-[10px] text-emerald-400">✓ Toutes les étapes traitées</p>
+                    )}
+                  </div>
                 </div>
               </>
             ) : (
