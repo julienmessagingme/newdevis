@@ -145,6 +145,89 @@ const OPTIONS_CLOTURE: WorkOption[] = [
     avantage: 'Économique, rapide', inconvenient: 'Moins esthétique' },
 ];
 
+const OPTIONS_TOITURE: WorkOption[] = [
+  { id: 'tuiles',   label: 'Tuiles terre cuite', emoji: '🏠', unit: '€/m²', dimLabel: 'Surface toiture', dimUnit: 'm²', dimMax: 300,
+    priceMin: 80,  priceAvg: 130, priceMax: 180, multiplier: 1.0,
+    durabilite: '30-50 ans', entretien: 'Faible',
+    avantage: 'Esthétique traditionnelle, durable', inconvenient: 'Pose technique, lourd' },
+  { id: 'bac_acier', label: 'Bac acier',         emoji: '🔩', unit: '€/m²', dimLabel: 'Surface toiture', dimUnit: 'm²', dimMax: 300,
+    priceMin: 50,  priceAvg: 80,  priceMax: 110, multiplier: 0.7,
+    durabilite: '30-40 ans', entretien: 'Faible',
+    avantage: 'Léger, rapide à poser', inconvenient: 'Moins esthétique, bruit pluie' },
+  { id: 'ardoise',  label: 'Ardoise naturelle',  emoji: '⬛', unit: '€/m²', dimLabel: 'Surface toiture', dimUnit: 'm²', dimMax: 300,
+    priceMin: 120, priceAvg: 185, priceMax: 260, multiplier: 1.5,
+    durabilite: '80-100 ans', entretien: 'Faible',
+    avantage: 'Très durable, haut de gamme', inconvenient: 'Coût élevé, artisan spécialisé' },
+  { id: 'epdm',     label: 'Membrane EPDM',      emoji: '⬜', unit: '€/m²', dimLabel: 'Surface toiture', dimUnit: 'm²', dimMax: 300,
+    priceMin: 40,  priceAvg: 65,  priceMax: 90,  multiplier: 0.6,
+    durabilite: '20-30 ans', entretien: 'Faible',
+    avantage: 'Toit plat, parfaitement étanche', inconvenient: 'Esthétique industrielle' },
+];
+
+const OPTIONS_PISCINE: WorkOption[] = [
+  { id: 'coque',    label: 'Coque polyester',    emoji: '🏊', unit: '€/m²', dimLabel: 'Surface bassin', dimUnit: 'm²', dimMax: 80,
+    priceMin: 400, priceAvg: 550, priceMax: 700, multiplier: 1.0,
+    durabilite: '25-30 ans', entretien: 'Moyen',
+    avantage: 'Pose rapide, surface lisse', inconvenient: 'Formes limitées au catalogue' },
+  { id: 'beton',    label: 'Béton coulé',        emoji: '🏗️', unit: '€/m²', dimLabel: 'Surface bassin', dimUnit: 'm²', dimMax: 80,
+    priceMin: 600, priceAvg: 900, priceMax: 1300, multiplier: 1.5,
+    durabilite: '40+ ans', entretien: 'Élevé',
+    avantage: 'Sur mesure total, très durable', inconvenient: 'Coût élevé, chantier long' },
+  { id: 'liner',    label: 'Liner vinyl',        emoji: '💧', unit: '€/m²', dimLabel: 'Surface bassin', dimUnit: 'm²', dimMax: 80,
+    priceMin: 250, priceAvg: 380, priceMax: 500, multiplier: 0.7,
+    durabilite: '10-15 ans', entretien: 'Moyen',
+    avantage: 'Économique, coloris variés', inconvenient: 'Remplacement à prévoir' },
+  { id: 'carrelage', label: 'Carrelage émaillé', emoji: '🔵', unit: '€/m²', dimLabel: 'Surface bassin', dimUnit: 'm²', dimMax: 80,
+    priceMin: 500, priceAvg: 750, priceMax: 1000, multiplier: 1.3,
+    durabilite: '30+ ans', entretien: 'Moyen',
+    avantage: 'Luxueux, très personnalisable', inconvenient: 'Joints à entretenir' },
+];
+
+const OPTIONS_EXTENSION: WorkOption[] = [
+  { id: 'bois',      label: 'Ossature bois',   emoji: '🪵', unit: '€/m²', dimLabel: 'Surface créée', dimUnit: 'm²', dimMax: 150,
+    priceMin: 1500, priceAvg: 2200, priceMax: 3000, multiplier: 1.0,
+    durabilite: '50+ ans', entretien: 'Faible',
+    avantage: 'Rapide, écologique, léger', inconvenient: 'Traitement humidité régulier' },
+  { id: 'parpaing',  label: 'Parpaing/béton',  emoji: '🧱', unit: '€/m²', dimLabel: 'Surface créée', dimUnit: 'm²', dimMax: 150,
+    priceMin: 1200, priceAvg: 1800, priceMax: 2500, multiplier: 0.9,
+    durabilite: '80+ ans', entretien: 'Faible',
+    avantage: 'Solide, excellente inertie', inconvenient: 'Chantier plus long' },
+  { id: 'veranda',   label: 'Véranda alu/PVC', emoji: '🪟', unit: '€/m²', dimLabel: 'Surface créée', dimUnit: 'm²', dimMax: 150,
+    priceMin: 800, priceAvg: 1300, priceMax: 1900, multiplier: 0.7,
+    durabilite: '20-30 ans', entretien: 'Faible',
+    avantage: 'Rapide, très lumineux', inconvenient: 'Surchauffe été sans protection' },
+];
+
+// ── Registre universel par type de lot ──────────────────────────────────────
+
+type LotType = 'cloture' | 'terrasse' | 'allee' | 'toiture' | 'piscine' | 'extension' | 'facade' | 'isolation';
+
+interface LotTypeConfig { title: string; options: WorkOption[] }
+
+const OPTIONS_BY_LOT_TYPE: Record<LotType, LotTypeConfig> = {
+  cloture:   { title: 'Choisir le type de clôture',          options: OPTIONS_CLOTURE    },
+  terrasse:  { title: 'Choisir le matériau de terrasse',     options: OPTIONS_TERRASSE   },
+  allee:     { title: 'Choisir le type de revêtement',       options: OPTIONS_REVETEMENT },
+  toiture:   { title: 'Choisir la couverture toiture',       options: OPTIONS_TOITURE    },
+  piscine:   { title: 'Choisir le type de piscine',          options: OPTIONS_PISCINE    },
+  extension: { title: "Choisir le type d'extension",         options: OPTIONS_EXTENSION  },
+  facade:    { title: 'Choisir le type de façade',           options: OPTIONS_FACADE     },
+  isolation: { title: "Choisir le type d'isolation",         options: OPTIONS_ISOLATION  },
+};
+
+function detectLotType(nom: string, role?: string): LotType | null {
+  const h = [nom, role ?? ''].join(' ').toLowerCase();
+  if (h.match(/cl.ture|cloture|s.paratif|brise.vue|grillage|haie/))         return 'cloture';
+  if (h.match(/terrasse|deck/))                                               return 'terrasse';
+  if (h.match(/all.e|driveway|rev.tement|enrob./))                           return 'allee';
+  if (h.match(/toiture|toit\b|couverture|charpente|tuile|ardoise|zinguerie/)) return 'toiture';
+  if (h.match(/piscine|bassin|spa|jacuzzi/))                                 return 'piscine';
+  if (h.match(/extension|agrandissement|sur.l.vation|annexe/))               return 'extension';
+  if (h.match(/fa.ade|ravalement|bardage|enduit|cr.pi/))                     return 'facade';
+  if (h.match(/isolation|ite\b|comble|plancher bas/))                        return 'isolation';
+  return null;
+}
+
 // ── Document templates ──────────────────────────────────────────────────────
 
 interface DocumentTemplate {
@@ -229,6 +312,110 @@ const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
       '',
       '→ Ne jamais verser > 30% d\'acompte sans garantie',
       '→ Vérifier la décennale avant tout premier paiement',
+    ].join('\n'),
+  },
+  {
+    id: 'checklist_piscine',
+    title: 'Checklist piscine — réglementation',
+    filename: 'checklist-piscine.pdf',
+    keywords: /piscine|bassin|sécurité.piscine/i,
+    generate: (r) => [
+      `CHECKLIST RÉGLEMENTATION PISCINE — ${r.nom}`,
+      '',
+      'AUTORISATION D\'URBANISME :',
+      '☐ Bassin > 10 m² → Déclaration préalable (Cerfa 13703)',
+      '☐ Bassin > 100 m² → Permis de construire (Cerfa 13406)',
+      '☐ Abri de piscine > 1,80 m → Déclaration préalable',
+      '',
+      'SÉCURITÉ OBLIGATOIRE (norme NF P 90-308) — au choix :',
+      '☐ Barrière de protection homologuée',
+      '☐ Alarme d\'immersion ou périmétrique',
+      '☐ Couverture de sécurité',
+      '☐ Abri de piscine',
+      '',
+      'RACCORDEMENTS :',
+      '☐ Évacuation eau conforme au réseau communal',
+      '☐ Déclaration à la mairie si débit > 1 000 L',
+      '',
+      'Dépôt : mairie ou guichet-unique.fr',
+    ].join('\n'),
+  },
+  {
+    id: 'checklist_extension',
+    title: 'Checklist extension — permis',
+    filename: 'checklist-extension-permis.pdf',
+    keywords: /extension|agrandissement|permis.construire/i,
+    generate: (r) => [
+      `CHECKLIST EXTENSION — ${r.nom}`,
+      `Budget estimé : ${r.budgetTotal.toLocaleString('fr-FR')} €`,
+      '',
+      'AUTORISATION D\'URBANISME :',
+      '☐ < 20 m² en zone sans PLU → Déclaration préalable',
+      '☐ < 40 m² en zone PLU → Déclaration préalable',
+      '☐ > 40 m² ou surface totale > 150 m² → Permis de construire',
+      '☐ Architecte obligatoire si SHON > 150 m²',
+      '',
+      'PIÈCES À JOINDRE (permis de construire) :',
+      '☐ Plan de situation',
+      '☐ Plan de masse coté (distances aux limites)',
+      '☐ Plan des façades avant / après',
+      '☐ Coupe du terrain et de la construction',
+      '☐ Notice descriptive des matériaux',
+      '☐ Photos du terrain et environnement',
+      '',
+      'Dépôt : mairie ou guichet-unique.fr',
+      'Délai : 2 mois (DP) ou 3 mois (PC)',
+    ].join('\n'),
+  },
+  {
+    id: 'checklist_toiture',
+    title: 'Checklist toiture — aides & réglementation',
+    filename: 'checklist-toiture-aides.pdf',
+    keywords: /toiture|toit|couverture|ardoise|tuile/i,
+    generate: (r) => [
+      `CHECKLIST TOITURE — ${r.nom}`,
+      `Budget estimé : ${r.budgetTotal.toLocaleString('fr-FR')} €`,
+      '',
+      'AIDES FINANCIÈRES POSSIBLES :',
+      '☐ MaPrimeRénov\' (si isolation toiture incluse)',
+      '☐ TVA réduite à 10% sur la main d\'œuvre',
+      '☐ Eco-PTZ (prêt taux zéro si isolation)',
+      '☐ Aide Anah "Habiter mieux" si revenus modestes',
+      '',
+      'RÉGLEMENTATION :',
+      '☐ Déclaration préalable si changement d\'aspect (matériaux, couleur)',
+      '☐ Secteur protégé : contraintes ABF spécifiques',
+      '☐ Bâtiment classé : accord DRAC obligatoire',
+      '',
+      'DOCUMENTS ARTISAN :',
+      '☐ Qualibat ou RGE si isolation (pour aides)',
+      '☐ Assurance décennale à jour',
+      '☐ Garantie parfait achèvement (1 an)',
+    ].join('\n'),
+  },
+  {
+    id: 'accord_copropriete',
+    title: 'Checklist autorisation copropriété',
+    filename: 'checklist-copropriete.pdf',
+    keywords: /copropri.t.|syndic|assembl.e|parties communes/i,
+    generate: (r) => [
+      `CHECKLIST COPROPRIÉTÉ — ${r.nom}`,
+      '',
+      'AVANT LES TRAVAUX :',
+      '☐ Vérifier le règlement de copropriété (parties communes vs privatives)',
+      '☐ Demander l\'inscription à l\'ordre du jour de l\'AG',
+      '☐ Obtenir le vote de l\'AG (art. 25 ou 26 selon les travaux)',
+      '☐ Notifier le syndic avant démarrage',
+      '',
+      'DOCUMENTS À OBTENIR :',
+      '☐ PV d\'AG autorisant les travaux',
+      '☐ Accord écrit du conseil syndical',
+      '☐ Règlement de chantier de l\'immeuble',
+      '',
+      'PENDANT LES TRAVAUX :',
+      '☐ Respecter les horaires autorisés (généralement 8h-18h)',
+      '☐ Protéger les parties communes',
+      '☐ Signaler tout imprévu au syndic',
     ].join('\n'),
   },
 ];
@@ -451,14 +638,23 @@ function getAlertExplanation(alert: string): { emoji: string; title: string; lin
 }
 
 function detectProjectType(result: ChantierIAResult): string {
+  // 1. Priorité : scanner les lots réels générés par l'IA
+  for (const lot of result.lots ?? []) {
+    const t = detectLotType(lot.nom, lot.role ?? '');
+    if (t) return t;
+  }
+  // 2. Fallback : description / nom du projet
   const hay = [result.nom, result.description ?? ''].join(' ').toLowerCase();
-  if (hay.match(/cl.ture|cloture|s.paratif|brise.vue/)) return 'cloture';
-  if (hay.match(/terrasse/)) return 'terrasse';
-  if (hay.match(/fa.ade|ravalement/)) return 'facade';
-  if (hay.match(/isolation/)) return 'isolation';
-  if (hay.match(/cuisine/)) return 'cuisine';
-  if (hay.match(/salle de bain|douche/)) return 'sdb';
-  if (hay.match(/piscine|bassin/)) return 'piscine';
+  if (hay.match(/cl.ture|cloture/))         return 'cloture';
+  if (hay.match(/terrasse/))                 return 'terrasse';
+  if (hay.match(/all.e|driveway/))           return 'allee';
+  if (hay.match(/toiture|toit\b/))           return 'toiture';
+  if (hay.match(/piscine|bassin/))           return 'piscine';
+  if (hay.match(/extension|agrandissement/)) return 'extension';
+  if (hay.match(/fa.ade|ravalement/))        return 'facade';
+  if (hay.match(/isolation/))                return 'isolation';
+  if (hay.match(/cuisine/))                  return 'cuisine';
+  if (hay.match(/salle de bain|douche/))     return 'sdb';
   return 'travaux';
 }
 
@@ -466,19 +662,43 @@ function getDocumentForMessage(text: string): DocumentTemplate | null {
   return DOCUMENT_TEMPLATES.find((t) => t.keywords.test(text)) ?? null;
 }
 
-function detectWorkOptions(result: ChantierIAResult): { title: string; options: WorkOption[] } | null {
+function getDocumentForProjectType(projectType: string): DocumentTemplate | null {
+  const map: Record<string, string> = {
+    cloture: 'accord_voisinage',
+    extension: 'checklist_extension',
+    piscine: 'checklist_piscine',
+    toiture: 'checklist_toiture',
+    copropriete: 'accord_copropriete',
+  };
+  const id = map[projectType];
+  return id ? (DOCUMENT_TEMPLATES.find((t) => t.id === id) ?? null) : null;
+}
+
+function detectWorkOptions(result: ChantierIAResult): LotTypeConfig | null {
+  // 1. Scanner les lots réels (priorité absolue)
+  for (const lot of result.lots ?? []) {
+    const lotType = detectLotType(lot.nom, lot.role ?? '');
+    if (lotType) return OPTIONS_BY_LOT_TYPE[lotType] ?? null;
+  }
+  // 2. Fallback sur les mots-clés du projet
   const hay = [
     result.prochaineAction?.titre ?? '',
     result.prochaineAction?.detail ?? '',
     ...(result.lignesBudget ?? []).slice(0, 2).map((l) => l.label),
     result.nom, result.description ?? '',
   ].join(' ').toLowerCase();
-  if (hay.match(/cl.ture|cloture|s.paratif|brise.vue/)) return { title: 'Choisir le type de clôture', options: OPTIONS_CLOTURE };
-  if (hay.match(/rev.tement|allee|allée|driveway/)) return { title: 'Choisir le type de revêtement', options: OPTIONS_REVETEMENT };
-  if (hay.match(/terrasse/)) return { title: 'Choisir le matériau de terrasse', options: OPTIONS_TERRASSE };
-  if (hay.match(/facade|façade/)) return { title: 'Choisir le type de façade', options: OPTIONS_FACADE };
-  if (hay.match(/isolation/)) return { title: "Choisir le type d'isolation", options: OPTIONS_ISOLATION };
-  return null;
+  const fallback = (
+    hay.match(/cl.ture|cloture/)          ? 'cloture'   :
+    hay.match(/terrasse/)                  ? 'terrasse'  :
+    hay.match(/all.e|driveway|rev.tement/) ? 'allee'     :
+    hay.match(/toiture|toit\b/)            ? 'toiture'   :
+    hay.match(/piscine|bassin/)            ? 'piscine'   :
+    hay.match(/extension|agrandissement/)  ? 'extension' :
+    hay.match(/fa.ade|facade/)             ? 'facade'    :
+    hay.match(/isolation/)                 ? 'isolation' :
+    null
+  ) as LotType | null;
+  return fallback ? (OPTIONS_BY_LOT_TYPE[fallback] ?? null) : null;
 }
 
 // ── Phases ──────────────────────────────────────────────────────────────────────
@@ -557,7 +777,28 @@ const CHAT_RESPONSES: { keywords: RegExp; reply: (r: ChantierIAResult) => string
       const t = detectProjectType(r);
       if (t === 'cloture' || t === 'terrasse')
         return `Pour votre projet **${r.nom}**, il n'existe pas d'aide type MaPrimeRénov' pour ce type de travaux. Renseignez-vous sur les aides locales sur **service-public.fr** ou auprès de votre mairie.`;
+      if (t === 'toiture')
+        return `Pour votre projet **${r.nom}**, plusieurs aides sont possibles si isolation incluse : **MaPrimeRénov'**, éco-PTZ, TVA réduite à 5,5%. Vérifiez votre éligibilité sur **maprimerenov.gouv.fr** — un artisan RGE est obligatoire pour en bénéficier.`;
+      if (t === 'isolation')
+        return `Pour votre projet d'isolation, les aides sont importantes : **MaPrimeRénov'** (jusqu'à 75% des travaux), éco-PTZ sans condition de ressources, TVA à 5,5%. Consultez un conseiller **France Rénov'** gratuit (0 808 800 700).`;
       return `Pour votre projet **${r.nom}**, plusieurs aides peuvent s'appliquer : MaPrimeRénov', éco-PTZ, TVA réduite à 5,5% ou 10%. Vérifiez votre éligibilité sur **maprimerenov.gouv.fr** ou consultez un conseiller France Rénov' gratuit.`;
+    },
+  },
+  {
+    keywords: /réglementation|règle|obligation|loi|autoris|permis|déclar|cerfa|formalité/i,
+    reply: (r) => {
+      const t = detectProjectType(r);
+      if (t === 'cloture')
+        return `Pour votre clôture, voici les règles essentielles :\n\n• **Mitoyenneté** : si la clôture est en limite de propriété, l'accord écrit du voisin est recommandé (art. 663 du Code Civil).\n• **Déclaration préalable** : obligatoire pour toute clôture visible depuis la voie publique (Cerfa 13703).\n• **Hauteur** : vérifiez les règles du PLU de votre commune — souvent 1,80 m à 2 m en zone urbaine.\n\nConsultez votre mairie ou **service-public.fr** pour les règles locales spécifiques.`;
+      if (t === 'piscine')
+        return `Pour votre piscine, la réglementation est stricte :\n\n• **Autorisation** : déclaration préalable si bassin > 10 m², permis de construire si > 100 m² (Cerfa 13406).\n• **Sécurité obligatoire** (norme NF P 90-308) : barrière, alarme, couverture ou abri — au choix, mais obligatoire.\n• **Raccordement** : l'évacuation de l'eau doit être conforme au réseau communal.\n\nDélai d'instruction : 1 mois pour la déclaration préalable.`;
+      if (t === 'extension')
+        return `Pour votre extension, les seuils à connaître :\n\n• **< 20 m²** (hors zone PLU) ou **< 40 m²** (en zone PLU) → Déclaration préalable (Cerfa 13703)\n• **> 40 m²** ou surface totale > 150 m² → Permis de construire (Cerfa 13406)\n• **Architecte obligatoire** si la surface totale dépasse 150 m² après travaux.\n\nDélai d'instruction : 2 mois (DP) à 3 mois (PC). Déposez en mairie ou sur **guichet-unique.fr**.`;
+      if (t === 'toiture')
+        return `Pour votre toiture, les règles à vérifier :\n\n• **Déclaration préalable** si changement d'aspect (matériaux, couleur) visible depuis la voie publique.\n• **Secteur ABF** (architectes des bâtiments de France) : contraintes spécifiques si proche d'un monument historique.\n• **Bâtiment classé** : accord DRAC obligatoire.\n• **RGE obligatoire** pour bénéficier des aides si isolation incluse.\n\nVérifiez auprès de votre mairie ou sur **service-public.fr**.`;
+      if (t === 'facade')
+        return `Pour votre ravalement, la réglementation impose :\n\n• **Déclaration préalable** obligatoire si modification d'aspect extérieur (Cerfa 13703).\n• Le PLU peut imposer des matériaux ou couleurs spécifiques — vérifiez le cahier des prescriptions architecturales.\n• **Secteur protégé** : avis de l'ABF requis si proche d'un monument historique.\n\nDélai d'instruction : 1 mois (2 mois en secteur protégé).`;
+      return `Pour votre projet **${r.nom}**, vérifiez les autorisations nécessaires auprès de votre mairie. ${r.nbFormalites > 0 ? `Votre plan identifie **${r.nbFormalites} formalité(s) administrative(s)** à réaliser.` : ''} Consultez **service-public.fr** ou **guichet-unique.fr** pour les démarches en ligne.`;
     },
   },
   {
@@ -569,7 +810,7 @@ const CHAT_RESPONSES: { keywords: RegExp; reply: (r: ChantierIAResult) => string
     reply: (r) => `Votre budget estimé de **${r.budgetTotal.toLocaleString('fr-FR')} €** est basé sur les prix marché moyens. Les vrais devis peuvent varier de ±20%. Prévoyez une réserve de 10–15% pour les imprévus.`,
   },
   {
-    keywords: /document|papier|dossier|permis|autor/i,
+    keywords: /document|papier|dossier/i,
     reply: (r) => `Pour votre projet, les documents clés sont : titre de propriété, PLU de votre commune, plans côtés. ${r.nbFormalites > 0 ? `Vous avez ${r.nbFormalites} formalité(s) administrative(s) identifiée(s) dans votre plan.` : ''}`,
   },
   {
@@ -589,10 +830,16 @@ function getEnhancedChatReply(
   result: ChantierIAResult,
 ): { text: string; document?: ChatMessage['document']; actions?: string[] } {
   const replyText = getChatReply(text, result);
-  const docTemplate = getDocumentForMessage(text);
+  // 1. Try to find a document matching the user's message keywords
+  let docTemplate = getDocumentForMessage(text);
+  // 2. Fallback: if the reply touches réglementation/documents, proactively offer the project-type document
+  if (!docTemplate && /réglementation|règle|obligation|permis|déclar|formalité|document|papier/i.test(text)) {
+    const projectType = detectProjectType(result);
+    docTemplate = getDocumentForProjectType(projectType);
+  }
   const actions: string[] = [];
   if (docTemplate) actions.push('Télécharger le document');
-  if (/service-public|règlement|obligation|loi\b/i.test(text)) actions.push('Voir service-public.fr');
+  if (/service-public|règlement|obligation|loi\b|réglementation/i.test(text)) actions.push('Voir service-public.fr');
   return {
     text: replyText,
     ...(docTemplate
