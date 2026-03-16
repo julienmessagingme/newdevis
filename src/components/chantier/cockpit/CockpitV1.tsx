@@ -851,6 +851,38 @@ function getEnhancedChatReply(
   };
 }
 
+// ── Ventilation budget par option choisie ──────────────────────────────────────
+
+/**
+ * Génère une répartition budgétaire cohérente en fonction de l'option
+ * choisie (grillage, panneaux bois, terrasse bois, etc.) et de la surface.
+ * Logique : 4 postes avec des pourcentages typiques selon le tier du matériau.
+ */
+function generateOptionBudgetLines(
+  option: WorkOption,
+  surface: number,
+): { label: string; montant: number }[] {
+  const totalHT = Math.round(option.priceAvg * surface);
+
+  // Pourcentages de répartition selon l'entretien/tier (proxy du type de matériau)
+  const isHighEnd  = option.entretien === 'Faible'; // composite, pierre naturelle...
+  const matPct     = isHighEnd ? 0.62 : 0.55;
+  const posePct    = isHighEnd ? 0.25 : 0.30;
+  const finPct     = 0.10;
+
+  const mat  = Math.round(totalHT * matPct);
+  const pose = Math.round(totalHT * posePct);
+  const fin  = Math.round(totalHT * finPct);
+  const div  = totalHT - mat - pose - fin; // ajuste pour que ∑ = 100%
+
+  return [
+    { label: `Fourniture — ${option.label}`, montant: mat  },
+    { label: 'Main d\'œuvre & pose',          montant: pose },
+    { label: 'Finitions & accessoires',        montant: fin  },
+    { label: 'Divers / Imprévus',              montant: Math.max(0, div) },
+  ];
+}
+
 // ── Props ──────────────────────────────────────────────────────────────────────
 
 interface CockpitV1Props {
@@ -2201,9 +2233,86 @@ export default function CockpitV1({
               {panel === 'budget-detail' && (
                 <div className="space-y-4">
                   <div className="bg-white/[0.04] rounded-xl p-4 space-y-3">
-                    <h4 className="text-sm font-semibold text-white">Répartition par lots</h4>
-                    {hasLotBudgets ? (
+
+                    {/* ── CAS 1 : Option choisie + surface → ventilation dynamique ── */}
+                    {selectedOption && surface > 0 ? (() => {
+                      const lines = generateOptionBudgetLines(selectedOption, surface);
+                      const totalHT = lines.reduce((s, l) => s + l.montant, 0);
+                      const totalTTC = Math.round(totalHT * 1.2);
+                      return (
+                        <>
+                          {/* Badge option */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="text-sm font-semibold text-white">Répartition estimée</h4>
+                            <span className="text-[10px] bg-violet-500/20 text-violet-300 border border-violet-500/30 rounded-full px-2 py-0.5 font-semibold">
+                              {selectedOption.label}
+                            </span>
+                          </div>
+
+                          {/* Lignes ventilées */}
+                          <div className="space-y-2">
+                            {lines.map((l, i) => {
+                              const pct = Math.round((l.montant / totalHT) * 100);
+                              return (
+                                <div key={i} className="space-y-1">
+                                  <div className="flex items-center justify-between text-xs gap-4">
+                                    <span className="text-slate-300 truncate">{l.label}</span>
+                                    <span className="text-white font-semibold tabular-nums shrink-0">
+                                      {l.montant.toLocaleString('fr-FR')} €
+                                    </span>
+                                  </div>
+                                  {/* Barre de progression */}
+                                  <div className="h-1 bg-white/[0.05] rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full ${
+                                        i === 0 ? 'bg-violet-500/60' :
+                                        i === 1 ? 'bg-blue-500/60'   :
+                                        i === 2 ? 'bg-emerald-500/60':
+                                                  'bg-slate-500/40'
+                                      }`}
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                  <p className="text-[9px] text-slate-600 text-right">{pct}%</p>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Total HT + TTC */}
+                          <div className="border-t border-white/[0.08] pt-3 space-y-1.5">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-slate-400">Total HT estimé</span>
+                              <span className="font-semibold text-slate-200 tabular-nums">
+                                {totalHT.toLocaleString('fr-FR')} €
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-slate-400 font-medium">Total TTC (TVA 20%)</span>
+                              <span className="font-black text-white tabular-nums">
+                                {totalTTC.toLocaleString('fr-FR')} €
+                              </span>
+                            </div>
+                          </div>
+
+                          <p className="text-[10px] text-slate-500">
+                            Basé sur {selectedOption.priceAvg}&nbsp;{selectedOption.unit}&nbsp;×&nbsp;{surface}&nbsp;{selectedOption.dimUnit}.
+                            Répartition indicative — à affiner avec de vrais devis.
+                          </p>
+
+                          {/* Bouton réinitialiser option */}
+                          <button
+                            onClick={() => setOption(null)}
+                            className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
+                          >
+                            ↺ Voir le budget initial sans option
+                          </button>
+                        </>
+                      );
+                    })() : hasLotBudgets ? (
+                    /* ── CAS 2 : Budgets par lots (IA) ──────────────────────── */
                       <>
+                        <h4 className="text-sm font-semibold text-white">Répartition par lots</h4>
                         <div className="space-y-2">
                           {lots.filter((l) => l.budget_avg_ht != null).map((l, i) => (
                             <div key={i} className="flex items-center justify-between text-xs gap-4">
@@ -2227,7 +2336,9 @@ export default function CockpitV1({
                         <p className="text-[10px] text-slate-500">Estimations basées sur les prix marché moyens. TTC = HT × 1,20 (TVA 20%).</p>
                       </>
                     ) : (
+                    /* ── CAS 3 : Lignes budget IA (fallback) ─────────────── */
                       <>
+                        <h4 className="text-sm font-semibold text-white">Répartition par lots</h4>
                         <div className="space-y-2">
                           {(result.lignesBudget ?? []).map((l, i) => (
                             <div key={i} className="flex items-center justify-between text-xs">
@@ -2243,7 +2354,9 @@ export default function CockpitV1({
                         <p className="text-[10px] text-slate-500">Estimation basée sur le projet décrit. Affinez avec de vrais devis.</p>
                       </>
                     )}
-                    {surface > 0 && (
+
+                    {/* Coût moyen au m² (hors option active) */}
+                    {!selectedOption && surface > 0 && (
                       <div className="pt-2 border-t border-white/[0.08]">
                         <p className="text-xs text-slate-400">
                           Coût moyen :{' '}
