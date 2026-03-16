@@ -943,11 +943,10 @@ export default function CockpitV1({
   const [editingSurface, setEditSurf] = useState(false);
   const [surfaceInput, setSurfInput]  = useState('');
   const [selectedOption, setOption]   = useState<WorkOption | null>(null);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => [
-    { role: 'assistant', text: `Bonjour ! Je suis votre maître d'œuvre pour **${result.nom}**. J'ai pris connaissance de votre projet, de vos ${(result.lots ?? []).length > 0 ? `${(result.lots ?? []).length} lot${(result.lots ?? []).length > 1 ? 's' : ''}` : 'lots de travaux'}, de votre budget de **${result.budgetTotal.toLocaleString('fr-FR')} €** et de vos documents. Posez-moi vos questions — je vous accompagne comme si j'étais sur le terrain.` },
-  ]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput]       = useState('');
   const [chatLoading, setChatLoading]   = useState(false);
+  const [chatProactiveTriggered, setChatProactiveTriggered] = useState(false);
   const chatEndRef                       = useRef<HTMLDivElement>(null);
 
   type PhaseStatus = 'fait' | 'en_cours' | 'a_faire';
@@ -1109,11 +1108,70 @@ export default function CockpitV1({
     enabled: !workOptions,
   });
 
+  // ── Chat context helper ────────────────────────────────────────────────────
+  const buildChatContext = () => ({
+    nom:              result.nom,
+    description:      result.description,
+    typeProjet:       result.typeProjet,
+    budgetTotal:      result.budgetTotal,
+    dureeEstimeeMois: result.dureeEstimeeMois,
+    lignesBudget:     result.lignesBudget,
+    lots:             result.lots,
+    formalites:       result.formalites,
+    aides:            result.aides,
+    roadmap:          result.roadmap,
+    prochaineAction:  result.prochaineAction,
+  });
+
   // ── Effects ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (panel === 'chat') chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages, panel]);
+
+  // ── Auto-proactive advice quand le chat s'ouvre pour la 1re fois ──────────
+  useEffect(() => {
+    if (panel !== 'chat' || chatProactiveTriggered) return;
+    setChatProactiveTriggered(true);
+    setChatLoading(true);
+
+    const stepInfo = currentDecision
+      ? `"${currentDecision.titre}"${currentDecision.detail ? ` (${currentDecision.detail})` : ''}`
+      : 'démarrage du chantier';
+
+    const proactiveMsg = `En tant que maître d'œuvre, analyse immédiatement ce chantier sans que je te pose de question. Donne-moi : 1) Un constat rapide de la situation actuelle en 1-2 phrases, 2) Les 3 points d'attention prioritaires pour l'étape en cours : ${stepInfo}, 3) L'action immédiate que je dois faire aujourd'hui et pourquoi. Sois précis, direct, et cite des éléments concrets de MON projet (budget, lots, délais). Pas de généralités.`;
+
+    fetch('/api/chantier/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        message: proactiveMsg,
+        history: [],
+        context: buildChatContext(),
+        documents: uploadedFiles.map((f) => ({
+          name: f.name, type: f.type,
+          analysisResume: f.analysisResume,
+          analysisScore:  f.analysisScore,
+        })),
+      }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.reply) {
+          setChatMessages([{ role: 'assistant', text: data.reply }]);
+        } else {
+          setChatMessages([{ role: 'assistant', text: `J'ai analysé votre chantier **${result.nom}** (${result.budgetTotal.toLocaleString('fr-FR')} €, ${(result.lots ?? []).length} lots). Posez-moi une question spécifique pour aller plus loin.` }]);
+        }
+      })
+      .catch(() => {
+        setChatMessages([{ role: 'assistant', text: `J'ai analysé votre chantier **${result.nom}**. Posez-moi vos questions sur les délais, le budget, les démarches administratives ou les artisans.` }]);
+      })
+      .finally(() => setChatLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panel]);
 
   useEffect(() => {
     const intervals = pollIntervalsRef.current;
@@ -1271,19 +1329,7 @@ export default function CockpitV1({
         body: JSON.stringify({
           message: text,
           history,
-          context: {
-            nom:                result.nom,
-            description:        result.description,
-            typeProjet:         result.typeProjet,
-            budgetTotal:        result.budgetTotal,
-            dureeEstimeeMois:   result.dureeEstimeeMois,
-            lignesBudget:       result.lignesBudget,
-            lots:               result.lots,
-            formalites:         result.formalites,
-            aides:              result.aides,
-            roadmap:            result.roadmap,
-            prochaineAction:    result.prochaineAction,
-          },
+          context: buildChatContext(),
           documents: docsContext,
         }),
       });
@@ -2593,14 +2639,54 @@ export default function CockpitV1({
               {/* ── Chat ─────────────────────────────────────────────────── */}
               {panel === 'chat' && (
                 <>
+                  {/* ── Header expert ──────────────────────────────────────── */}
+                  <div className="px-5 pt-5 pb-4 border-b border-white/[0.06] flex items-center gap-3 shrink-0">
+                    <img
+                      src="/avatar-expert.svg"
+                      alt="Expert chantier"
+                      className="w-14 h-14 rounded-2xl shrink-0 border border-white/[0.08]"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-white">Thomas</p>
+                      <p className="text-[11px] text-slate-400">Maître d'œuvre certifié</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="text-[10px] text-emerald-400 font-medium">
+                          {chatLoading && chatMessages.length === 0 ? 'Analyse votre chantier…' : 'En ligne — prêt à vous conseiller'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-[9px] text-slate-600 uppercase tracking-wider">Votre projet</p>
+                      <p className="text-xs font-semibold text-slate-300 max-w-[100px] truncate">{result.nom}</p>
+                      <p className="text-[10px] text-violet-400 font-bold">{result.budgetTotal.toLocaleString('fr-FR')} €</p>
+                    </div>
+                  </div>
+
                   <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                    {/* Skeleton "Thomas analyse..." quand pas encore de message */}
+                    {chatLoading && chatMessages.length === 0 && (
+                      <div className="flex items-start gap-2">
+                        <img src="/avatar-expert.svg" alt="Expert" className="w-7 h-7 rounded-xl shrink-0 border border-white/[0.08]" />
+                        <div className="bg-white/[0.06] border border-white/[0.08] rounded-2xl rounded-tl-sm px-4 py-3 max-w-[80%]">
+                          <p className="text-[10px] text-violet-300 font-medium mb-2">Thomas analyse votre chantier…</p>
+                          <div className="flex gap-1.5 items-center">
+                            <div className="w-1.5 h-1.5 bg-violet-400/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <div className="w-1.5 h-1.5 bg-violet-400/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <div className="w-1.5 h-1.5 bg-violet-400/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {chatMessages.map((msg, i) => (
                       <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                         <div className="flex items-start">
                           {msg.role === 'assistant' && (
-                            <div className="w-7 h-7 rounded-full bg-violet-600/30 border border-violet-500/30 flex items-center justify-center text-sm shrink-0 mr-2 mt-0.5">
-                              👷
-                            </div>
+                            <img
+                              src="/avatar-expert.svg"
+                              alt="Expert"
+                              className="w-7 h-7 rounded-xl shrink-0 mr-2 mt-0.5 border border-white/[0.08]"
+                            />
                           )}
                           <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
                             msg.role === 'user'
@@ -2644,9 +2730,9 @@ export default function CockpitV1({
                         )}
                       </div>
                     ))}
-                    {chatLoading && (
-                      <div className="flex justify-start">
-                        <div className="w-7 h-7 rounded-full bg-violet-600/30 border border-violet-500/30 flex items-center justify-center text-sm shrink-0 mr-2">👷</div>
+                    {chatLoading && chatMessages.length > 0 && (
+                      <div className="flex justify-start items-start gap-2">
+                        <img src="/avatar-expert.svg" alt="Expert" className="w-7 h-7 rounded-xl shrink-0 border border-white/[0.08]" />
                         <div className="bg-white/[0.06] border border-white/[0.08] rounded-2xl rounded-tl-sm px-4 py-3">
                           <div className="flex gap-1.5 items-center">
                             <div className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -2658,17 +2744,21 @@ export default function CockpitV1({
                     )}
                     <div ref={chatEndRef} />
                   </div>
-                  {chatMessages.length === 1 && (
-                    <div className="px-5 pb-3 flex flex-wrap gap-2">
-                      {CHAT_SUGGESTIONS.map((s) => (
-                        <button
-                          key={s}
-                          onClick={() => setChatInput(s)}
-                          className="text-[10px] text-slate-300 bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.08] hover:border-white/[0.15] rounded-full px-3 py-1.5 transition-all"
-                        >
-                          {s}
-                        </button>
-                      ))}
+                  {/* Suggestions après la réponse proactive */}
+                  {chatMessages.length === 1 && !chatLoading && (
+                    <div className="px-5 pb-3">
+                      <p className="text-[9px] text-slate-600 uppercase tracking-wider mb-2 font-semibold">Questions fréquentes</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {CHAT_SUGGESTIONS.map((s) => (
+                          <button
+                            key={s}
+                            onClick={() => setChatInput(s)}
+                            className="text-[10px] text-slate-300 bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.08] hover:border-violet-500/30 rounded-full px-3 py-1.5 transition-all"
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
                   <div className="px-4 pb-4 pt-2 border-t border-white/[0.06] shrink-0">
