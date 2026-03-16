@@ -808,8 +808,18 @@ const CHAT_RESPONSES: { keywords: RegExp; reply: (r: ChantierIAResult) => string
     reply: () => `Je recommande de contacter **3 artisans minimum par lot** pour votre projet. Vérifiez systématiquement : inscription au RCS, assurance décennale valide, références récentes et qualifications RGE si travaux énergie.`,
   },
   {
-    keywords: /budget|prix|coût|cher|réaliste/i,
+    // \bcher\b évite de matcher "recherche", "cherche", etc.
+    keywords: /budget|prix|coût|\bcher\b|réaliste/i,
     reply: (r) => `Votre budget estimé de **${r.budgetTotal.toLocaleString('fr-FR')} €** est basé sur les prix marché moyens. Les vrais devis peuvent varier de ±20%. Prévoyez une réserve de 10–15% pour les imprévus.`,
+  },
+  {
+    keywords: /matériau|matériaux|bois|parquet|carrelage|faïence|enduit|revêtement|essence|exotique|durable|teck|ipé|pin|chêne|mélèze|bambou/i,
+    reply: (r) => {
+      const t = detectProjectType(r);
+      if (t === 'terrasse')
+        return `Pour une terrasse, voici les essences les plus durables :\n\n• **Ipé (Brésil)** : ultra-résistant, 25+ ans, classe IV. Le meilleur mais coûteux (80–120€/m²).\n• **Teck** : naturellement huileux, imputrescible, 20+ ans (70–100€/m²).\n• **Chêne thermique** : bois européen traité thermiquement, 15+ ans, classe III-IV (45–70€/m²).\n• **Pin traité** : économique mais moins durable, 10–15 ans (25–40€/m²).\n\nConseil : exigez la **classe IV** (contact sol/eau) et le label **FSC** pour un bois issu de forêts gérées.`;
+      return `Pour votre projet **${r.nom}**, le choix du matériau dépend du budget, de la durabilité souhaitée et de l'exposition. Précisez le type de surface concernée pour une recommandation adaptée.`;
+    },
   },
   {
     keywords: /document|papier|dossier/i,
@@ -947,6 +957,7 @@ export default function CockpitV1({
   const [chatInput, setChatInput]       = useState('');
   const [chatLoading, setChatLoading]   = useState(false);
   const [chatProactiveTriggered, setChatProactiveTriggered] = useState(false);
+  const [chatApiStatus, setChatApiStatus] = useState<'unknown' | 'online' | 'offline'>('unknown');
   const chatEndRef                       = useRef<HTMLDivElement>(null);
 
   type PhaseStatus = 'fait' | 'en_cours' | 'a_faire';
@@ -1159,15 +1170,24 @@ export default function CockpitV1({
       }),
     })
       .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data) => {
         if (data.reply) {
+          setChatApiStatus('online');
           setChatMessages([{ role: 'assistant', text: data.reply }]);
         } else {
-          setChatMessages([{ role: 'assistant', text: `J'ai analysé votre chantier **${result.nom}** (${result.budgetTotal.toLocaleString('fr-FR')} €, ${(result.lots ?? []).length} lots). Posez-moi une question spécifique pour aller plus loin.` }]);
+          throw new Error('Réponse vide');
         }
       })
-      .catch(() => {
-        setChatMessages([{ role: 'assistant', text: `J'ai analysé votre chantier **${result.nom}**. Posez-moi vos questions sur les délais, le budget, les démarches administratives ou les artisans.` }]);
+      .catch((e: Error) => {
+        setChatApiStatus('offline');
+        setChatMessages([{
+          role: 'assistant',
+          text: `⚠️ **Connexion IA temporairement indisponible** (${e.message})\n\nJe reste disponible en mode hors ligne. Posez vos questions sur le budget, les artisans, les démarches ou le planning de votre chantier **${result.nom}**.`,
+        }]);
       })
       .finally(() => setChatLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1339,13 +1359,20 @@ export default function CockpitV1({
         throw new Error(errData.error ?? `HTTP ${res.status}`);
       }
       const data = await res.json();
+      setChatApiStatus('online');
       setChatMessages((prev) => [...prev, { role: 'assistant', text: data.reply }]);
     } catch (err) {
-      // Fallback local enrichi si l'API échoue
       const errMsg = err instanceof Error ? err.message : 'Erreur inconnue';
       console.error('[chat] API error:', errMsg);
+      setChatApiStatus('offline');
+      // Fallback local + indicateur d'erreur visible
       const reply = getEnhancedChatReply(text, result);
-      setChatMessages((prev) => [...prev, { role: 'assistant', ...reply }]);
+      setChatMessages((prev) => [...prev, {
+        role: 'assistant',
+        text: `⚠️ *Mode hors ligne* (${errMsg})\n\n${reply.text}`,
+        document: reply.document,
+        actions: reply.actions,
+      }]);
     } finally {
       setChatLoading(false);
     }
@@ -2650,9 +2677,20 @@ export default function CockpitV1({
                       <p className="text-sm font-bold text-white">Thomas</p>
                       <p className="text-[11px] text-slate-400">Maître d'œuvre certifié</p>
                       <div className="flex items-center gap-1.5 mt-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        <span className="text-[10px] text-emerald-400 font-medium">
-                          {chatLoading && chatMessages.length === 0 ? 'Analyse votre chantier…' : 'En ligne — prêt à vous conseiller'}
+                        <div className={`w-1.5 h-1.5 rounded-full ${
+                          chatApiStatus === 'offline' ? 'bg-red-400' :
+                          chatApiStatus === 'online'  ? 'bg-emerald-400 animate-pulse' :
+                          'bg-amber-400 animate-pulse'
+                        }`} />
+                        <span className={`text-[10px] font-medium ${
+                          chatApiStatus === 'offline' ? 'text-red-400' :
+                          chatApiStatus === 'online'  ? 'text-emerald-400' :
+                          'text-amber-400'
+                        }`}>
+                          {chatLoading && chatMessages.length === 0 ? 'Analyse votre chantier…' :
+                           chatApiStatus === 'offline' ? 'Hors ligne — mode de secours actif' :
+                           chatApiStatus === 'online'  ? 'IA connectée — Gemini 2.0' :
+                           'Connexion en cours…'}
                         </span>
                       </div>
                     </div>
