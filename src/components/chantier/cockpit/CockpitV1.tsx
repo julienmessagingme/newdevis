@@ -1256,11 +1256,16 @@ export default function CockpitV1({
         }),
       });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error ?? `HTTP ${res.status}`);
+      }
       const data = await res.json();
       setChatMessages((prev) => [...prev, { role: 'assistant', text: data.reply }]);
-    } catch {
-      // Fallback local si l'API échoue
+    } catch (err) {
+      // Fallback local enrichi si l'API échoue
+      const errMsg = err instanceof Error ? err.message : 'Erreur inconnue';
+      console.error('[chat] API error:', errMsg);
       const reply = getEnhancedChatReply(text, result);
       setChatMessages((prev) => [...prev, { role: 'assistant', ...reply }]);
     } finally {

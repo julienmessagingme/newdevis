@@ -59,18 +59,17 @@ interface ChatRequestBody {
 
 /** POST /api/chantier/chat — Assistant maître d'œuvre branché sur Gemini 2.0-flash */
 export const POST: APIRoute = async ({ request }) => {
-  // ── Auth ─────────────────────────────────────────────────────────────────
+  // ── Auth optionnelle (le contexte projet est dans le body, pas en DB) ─────
+  // On vérifie le token si présent, mais on ne bloque pas si absent
   const authHeader = request.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
-  }
-
-  const token    = authHeader.slice(7);
-  const supabase = getSupabase();
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !user) {
-    return new Response(JSON.stringify({ error: 'Token invalide' }), { status: 401, headers: CORS });
+  if (authHeader?.startsWith('Bearer ') && supabaseService) {
+    const token    = authHeader.slice(7);
+    const supabase = getSupabase();
+    const { error: authError } = await supabase.auth.getUser(token);
+    if (authError) {
+      // Token invalide mais on laisse passer quand même (données dans le body)
+      console.warn('[api/chantier/chat] Token invalide, accès toléré:', authError.message);
+    }
   }
 
   if (!googleApiKey) {
