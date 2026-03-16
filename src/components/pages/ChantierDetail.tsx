@@ -183,17 +183,27 @@ export default function ChantierDetail() {
     );
   }
 
-  // ── Écran amélioration ──────────────────────────────────────────────────────
+  // ── Écran amélioration — temporairement désactivé ──────────────────────────
 
-  if (screen === 'ameliorer' && chantierId && token) {
+  if (screen === 'ameliorer') {
     return (
-      <ScreenAmeliorations
-        result={result}
-        chantierId={chantierId}
-        token={token}
-        onBack={() => setScreen('dashboard')}
-        onUpdate={handleUpdate}
-      />
+      <div className="min-h-screen bg-[#0a0f1e] flex flex-col items-center justify-center gap-5 px-4 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-3xl">
+          🚧
+        </div>
+        <div>
+          <p className="text-white font-semibold text-lg mb-1">Fonction bientôt disponible</p>
+          <p className="text-slate-400 text-sm max-w-xs">
+            L'amélioration du plan sera disponible prochainement.
+          </p>
+        </div>
+        <button
+          onClick={() => setScreen('dashboard')}
+          className="flex items-center gap-2 text-slate-400 hover:text-white text-sm transition-colors border border-white/[0.08] hover:border-white/[0.15] rounded-xl px-4 py-2"
+        >
+          ← Retour au cockpit
+        </button>
+      </div>
     );
   }
 

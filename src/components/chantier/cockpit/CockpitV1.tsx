@@ -11,14 +11,14 @@ import type { ChantierIAResult, LotChantier, StatutArtisan, ProjectMode } from '
 
 type PanelId =
   | 'lots' | 'planning' | 'artisans' | 'documents' | 'journal'
-  | 'budget-detail' | 'phase-detail' | 'lot-params' | 'chat'
+  | 'budget-detail' | 'phase-detail' | 'lot-params' | 'chat' | 'alert-detail'
   | null;
 
-type DecisionStatus = 'a_faire' | 'en_cours' | 'deja_fait' | 'non_necessaire';
+type DecisionStatus = 'a_faire' | 'deja_fait' | 'document_envoye' | 'non_necessaire' | 'etape_suivante';
 
 interface ChatMessage { role: 'user' | 'assistant'; text: string; }
 
-// ── Work options (Prochaine décision) ──────────────────────────────────────────
+// ── Work options ────────────────────────────────────────────────────────────────
 
 interface WorkOption {
   id: string; label: string;
@@ -32,23 +32,75 @@ const OPTIONS_REVETEMENT: WorkOption[] = [
   { id: 'beton',    label: 'Béton drainant',  priceMin: 40, priceAvg: 65,  priceMax: 90,  multiplier: 1.0 },
   { id: 'enrobe',   label: 'Enrobé',          priceMin: 50, priceAvg: 70,  priceMax: 100, multiplier: 1.1 },
 ];
+
+// Terrasse extérieure — béton ciré retiré (intérieur uniquement)
 const OPTIONS_TERRASSE: WorkOption[] = [
-  { id: 'bois',       label: 'Bois exotique', priceMin: 70,  priceAvg: 110, priceMax: 160, multiplier: 1.2 },
-  { id: 'composite',  label: 'Composite',     priceMin: 90,  priceAvg: 150, priceMax: 210, multiplier: 1.4 },
-  { id: 'carrelage',  label: 'Carrelage',     priceMin: 55,  priceAvg: 90,  priceMax: 140, multiplier: 1.0 },
-  { id: 'beton_cire', label: 'Béton ciré',    priceMin: 45,  priceAvg: 75,  priceMax: 110, multiplier: 0.8 },
+  { id: 'bois',      label: 'Bois exotique',  priceMin: 70,  priceAvg: 110, priceMax: 160, multiplier: 1.2 },
+  { id: 'composite', label: 'Composite',      priceMin: 90,  priceAvg: 150, priceMax: 210, multiplier: 1.4 },
+  { id: 'carrelage', label: 'Carrelage ext.', priceMin: 55,  priceAvg: 90,  priceMax: 140, multiplier: 1.0 },
+  { id: 'beton',     label: 'Béton drainant', priceMin: 40,  priceAvg: 65,  priceMax: 90,  multiplier: 0.7 },
 ];
+
 const OPTIONS_FACADE: WorkOption[] = [
   { id: 'enduit',    label: 'Enduit',            priceMin: 35,  priceAvg: 60,  priceMax: 90,  multiplier: 1.0 },
   { id: 'bard_bois', label: 'Bardage bois',      priceMin: 70,  priceAvg: 110, priceMax: 160, multiplier: 1.3 },
   { id: 'bard_comp', label: 'Bardage composite', priceMin: 100, priceAvg: 160, priceMax: 220, multiplier: 1.5 },
   { id: 'crepi',     label: 'Crépi',             priceMin: 25,  priceAvg: 45,  priceMax: 70,  multiplier: 0.8 },
 ];
+
 const OPTIONS_ISOLATION: WorkOption[] = [
   { id: 'laine', label: 'Laine de roche',  priceMin: 20, priceAvg: 38, priceMax: 55, multiplier: 1.0 },
   { id: 'ouate', label: 'Ouate cellulose', priceMin: 25, priceAvg: 45, priceMax: 65, multiplier: 1.1 },
   { id: 'poly',  label: 'Polyuréthane',    priceMin: 35, priceAvg: 60, priceMax: 90, multiplier: 1.3 },
 ];
+
+function getAlertExplanation(alert: string): { emoji: string; title: string; lines: string[] } {
+  if (alert.match(/sans artisan/)) return {
+    emoji: '👷',
+    title: 'Lots sans artisan assigné',
+    lines: [
+      "Certains lots de travaux n'ont pas encore d'artisan confirmé.",
+      'Contactez au moins 3 artisans par lot pour comparer les devis.',
+      'Vérifiez systématiquement : assurance décennale, SIRET valide, références récentes.',
+    ],
+  };
+  if (alert.match(/démarche/)) return {
+    emoji: '📄',
+    title: 'Démarches administratives requises',
+    lines: [
+      'Des formalités administratives obligatoires sont identifiées pour votre projet.',
+      "Certaines autorisations peuvent prendre 1 à 3 mois d'instruction.",
+      "Anticipez ces démarches avant de lancer les travaux pour éviter tout blocage.",
+    ],
+  };
+  if (alert.match(/Surface/)) return {
+    emoji: '📐',
+    title: 'Surface non définie',
+    lines: [
+      "Renseignez la surface pour comparer les options matériaux en euros.",
+      "La surface permet de calculer le coût réel de chaque option et d'afficher les écarts de prix.",
+    ],
+  };
+  if (alert.match(/sans devis/)) return {
+    emoji: '📋',
+    title: 'Lots sans devis chiffré',
+    lines: [
+      "Certains lots n'ont pas encore de budget chiffré.",
+      "L'estimation globale est donc partielle et pourrait sous-estimer le budget réel.",
+      "Demandez des devis auprès d'artisans pour affiner la fourchette.",
+    ],
+  };
+  if (alert.match(/fourchette/)) return {
+    emoji: '💰',
+    title: 'Budget au-dessus de la fourchette',
+    lines: [
+      "Votre estimation dépasse la fourchette haute du marché pour ce type de travaux.",
+      "Vérifiez si des lots peuvent être optimisés ou si des matériaux moins coûteux conviennent.",
+      "Une réserve de 10–15% est normale — au-delà, challengez vos devis.",
+    ],
+  };
+  return { emoji: '⚠️', title: "Point d'attention", lines: [alert] };
+}
 
 function detectWorkOptions(result: ChantierIAResult): { title: string; options: WorkOption[] } | null {
   const hay = [
@@ -117,11 +169,11 @@ function getPhaseDetail(phaseId: PhaseId) {
 
 // ── Decision status config ──────────────────────────────────────────────────────
 
-const DECISION_STATUTS: { id: DecisionStatus; label: string; emoji: string; cls: string }[] = [
-  { id: 'deja_fait',      label: 'Déjà fait',      emoji: '✅', cls: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20' },
-  { id: 'en_cours',       label: 'En cours',        emoji: '🔄', cls: 'border-blue-500/40 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20' },
-  { id: 'non_necessaire', label: 'Non nécessaire',  emoji: '⏭', cls: 'border-slate-500/40 bg-slate-500/10 text-slate-300 hover:bg-slate-500/20' },
-  { id: 'a_faire',        label: 'À faire',          emoji: '📌', cls: 'border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20' },
+const DECISION_STATUTS: { id: DecisionStatus; label: string; emoji: string; cls: string; advance?: boolean }[] = [
+  { id: 'deja_fait',       label: 'Déjà fait',        emoji: '✔',  cls: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20' },
+  { id: 'document_envoye', label: 'Document envoyé',  emoji: '📄', cls: 'border-blue-500/40 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20' },
+  { id: 'non_necessaire',  label: 'Non nécessaire',   emoji: '❌', cls: 'border-slate-500/40 bg-slate-500/10 text-slate-300 hover:bg-slate-500/20' },
+  { id: 'etape_suivante',  label: 'Étape suivante',   emoji: '➡', cls: 'border-violet-500/40 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20', advance: true },
 ];
 
 // ── Chat helpers ────────────────────────────────────────────────────────────────
@@ -140,26 +192,26 @@ const CHAT_RESPONSES: { keywords: RegExp; reply: (r: ChantierIAResult) => string
   },
   {
     keywords: /artisan|entreprise|trouver|choisir|sélect/i,
-    reply: (r) => `Je recommande de contacter **3 artisans minimum par lot** pour ${r.nom}. Vérifiez systématiquement : inscription au RCS, assurance décennale valide, références récentes et qualifications RGE si travaux énergie.`,
+    reply: (r) => `Je recommande de contacter **3 artisans minimum par lot** pour votre projet. Vérifiez systématiquement : inscription au RCS, assurance décennale valide, références récentes et qualifications RGE si travaux énergie.`,
   },
   {
     keywords: /budget|prix|coût|cher|réaliste/i,
-    reply: (r) => `Votre budget estimé de **${r.budgetTotal.toLocaleString('fr-FR')} €** est basé sur les prix marché moyens. Les vrais devis peuvent varier de ±20%. Prévoyez une réserve de 10-15% pour les imprévus.`,
+    reply: (r) => `Votre budget estimé de **${r.budgetTotal.toLocaleString('fr-FR')} €** est basé sur les prix marché moyens. Les vrais devis peuvent varier de ±20%. Prévoyez une réserve de 10–15% pour les imprévus.`,
   },
   {
     keywords: /document|papier|dossier|permis|autor/i,
-    reply: (r) => `Pour votre projet, les documents clés sont : titre de propriété, PLU de votre commune, plans côtés. ${r.nbFormalites > 0 ? `Vous avez ${r.nbFormalites} formalité(s) administrative(s) identifiées dans votre plan.` : ''}`,
+    reply: (r) => `Pour votre projet, les documents clés sont : titre de propriété, PLU de votre commune, plans côtés. ${r.nbFormalites > 0 ? `Vous avez ${r.nbFormalites} formalité(s) administrative(s) identifiée(s) dans votre plan.` : ''}`,
   },
   {
     keywords: /délai|durée|quand|planning|calendrier/i,
-    reply: (r) => `La durée estimée de votre chantier est de **${r.dureeEstimeeMois} mois**. Comptez 1-3 mois supplémentaires pour les démarches administratives et la recherche d'artisans.`,
+    reply: (r) => `La durée estimée de votre chantier est de **${r.dureeEstimeeMois} mois**. Comptez 1–3 mois supplémentaires pour les démarches administratives et la recherche d'artisans.`,
   },
 ];
 
 function getChatReply(text: string, result: ChantierIAResult): string {
   const match = CHAT_RESPONSES.find((r) => r.keywords.test(text));
   if (match) return match.reply(result);
-  return `Pour votre projet **${result.nom}**, je vous conseille de commencer par obtenir plusieurs devis et de vérifier les qualifications des artisans. N'hésitez pas à me poser une question plus précise sur le budget, les artisans, les aides ou les démarches.`;
+  return `Pour votre projet **${result.nom}**, je vous conseille de commencer par obtenir plusieurs devis et de vérifier les qualifications des artisans. Posez-moi une question plus précise sur le budget, les artisans, les aides ou les démarches.`;
 }
 
 // ── Props ──────────────────────────────────────────────────────────────────────
@@ -184,24 +236,29 @@ export default function CockpitV1({
   onLotStatutChange,
 }: CockpitV1Props) {
 
-  // ── State ─────────────────────────────────────────────────────────────────
+  // ── Masquer le widget de chat externe sur cette page ────────────────────────
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.id = 'cockpit-hide-ext-widget';
+    style.textContent = [
+      'iframe[src*="messagingme.app"] { display: none !important; }',
+      'div[id*="msg-widget"], div[id*="messagingme"], div[class*="msg-widget"] { display: none !important; }',
+    ].join(' ');
+    document.head.appendChild(style);
+    return () => { document.getElementById('cockpit-hide-ext-widget')?.remove(); };
+  }, []);
+
+  // ── State ──────────────────────────────────────────────────────────────────
 
   const [panel, setPanel]             = useState<PanelId>(null);
   const [selectedPhaseId, setPhaseId] = useState<PhaseId | null>(null);
-
-  // Budget lot quantities (for sliders)
   const [lotQuantities, setLotQuantities] = useState<Record<string, number>>({});
-
-  // Lot statuts
   const [lotStatuts, setLotStatuts]   = useState<Record<string, StatutArtisan>>(
     () => Object.fromEntries((result.lots ?? []).map((l) => [l.id, l.statut])),
   );
-
-  // Decision flow
   const [decisionStatuts, setDecisionStatuts] = useState<Record<string, DecisionStatus>>({});
   const [decisionIndex, setDecisionIndex]     = useState(0);
-
-  // Surface (used in work-options)
+  const [selectedAlertIndex, setSelectedAlertIndex] = useState<number | null>(null);
   const [surface, setSurface]         = useState<number>(() => {
     const m = (result.description ?? '').match(/(\d+)\s*m²/);
     return m ? parseInt(m[1]) : 0;
@@ -209,11 +266,6 @@ export default function CockpitV1({
   const [editingSurface, setEditSurf] = useState(false);
   const [surfaceInput, setSurfInput]  = useState('');
   const [selectedOption, setOption]   = useState<WorkOption | null>(null);
-
-  // Budget lot expand
-  const [budgetExpanded, setBudgetExpanded] = useState(false);
-
-  // Chat
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => [
     { role: 'assistant', text: `Bonjour ! Je suis votre assistant pour **${result.nom}**. Posez-moi vos questions sur le budget, les artisans, les aides ou les démarches administratives.` },
   ]);
@@ -223,12 +275,11 @@ export default function CockpitV1({
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
-  const lots      = result.lots     ?? [];
-  const artisans  = result.artisans ?? [];
-  const taches    = result.taches   ?? [];
+  const lots       = result.lots     ?? [];
+  const artisans   = result.artisans ?? [];
+  const taches     = result.taches   ?? [];
   const formalites = result.formalites ?? [];
 
-  // Decision queue: prochaineAction first, then urgent undone tasks
   const decisions = useMemo(() => {
     const q: { id: string; titre: string; detail: string; deadline?: string }[] = [
       { id: '_prochaine', ...result.prochaineAction },
@@ -240,10 +291,10 @@ export default function CockpitV1({
     return q;
   }, [result.prochaineAction, taches]);
 
-  const currentDecision = decisions[decisionIndex] ?? null;
+  const currentDecision       = decisions[decisionIndex] ?? null;
   const currentDecisionStatus = currentDecision ? (decisionStatuts[currentDecision.id] ?? 'a_faire') : null;
 
-  // Budget per lot (adjusted by slider quantities)
+  // Budget lot quantities
   const lotBudgets = useMemo(() => {
     const map: Record<string, number> = {};
     for (const l of lots) {
@@ -279,20 +330,43 @@ export default function CockpitV1({
     return ok ? { min: Math.round(min * 1.2), max: Math.round(max * 1.2) } : null;
   }, [lots]);
 
+  // Position du budget par rapport à la fourchette marché
+  const budgetPosition = useMemo(() => {
+    if (!marketRange) return null;
+    if (displayBudget > marketRange.max * 1.1) return { label: 'Au-dessus du marché', color: 'text-red-400' };
+    if (displayBudget < marketRange.min * 0.9) return { label: 'En dessous du marché', color: 'text-amber-400' };
+    const mid = (marketRange.min + marketRange.max) / 2;
+    if (displayBudget <= mid * 1.05 && displayBudget >= mid * 0.95) return { label: 'Dans la moyenne', color: 'text-emerald-400' };
+    if (displayBudget > mid) return { label: 'Légèrement au-dessus', color: 'text-amber-400' };
+    return { label: 'Légèrement en dessous', color: 'text-emerald-400' };
+  }, [displayBudget, marketRange]);
+
   const workOptions = useMemo(() => detectWorkOptions(result), [result]);
 
-  // Alert bar items
+  // Delta de chaque option matériau par rapport à la première option (référence = 0 €)
+  const optionDeltas = useMemo(() => {
+    if (!workOptions || surface === 0) return {};
+    const basePrice = workOptions.options[0]?.priceAvg ?? 0;
+    const map: Record<string, number> = {};
+    for (const opt of workOptions.options) {
+      map[opt.id] = Math.round((opt.priceAvg - basePrice) * surface);
+    }
+    return map;
+  }, [workOptions, surface]);
+
+  // Alertes spécifiques
   const alerts = useMemo(() => {
     const list: string[] = [];
     const nbATrouver = lots.filter((l) => !l.id.startsWith('fallback-') && (lotStatuts[l.id] ?? l.statut) === 'a_trouver').length;
-    if (nbATrouver > 0) list.push(`${nbATrouver} artisan${nbATrouver > 1 ? 's' : ''} à trouver`);
+    if (nbATrouver > 0) list.push(`${nbATrouver} lot${nbATrouver > 1 ? 's' : ''} sans artisan`);
     const nbFormal = formalites.filter((f) => f.obligatoire).length;
-    if (nbFormal > 0) list.push(`${nbFormal} formalité${nbFormal > 1 ? 's' : ''} administrative${nbFormal > 1 ? 's' : ''}`);
-    const nbUrgentes = taches.filter((t) => !t.done && t.priorite === 'urgent').length;
-    if (nbUrgentes > 0) list.push(`${nbUrgentes} tâche${nbUrgentes > 1 ? 's' : ''} urgente${nbUrgentes > 1 ? 's' : ''}`);
-    if (marketRange && displayBudget > marketRange.max * 1.1) list.push('Budget au-dessus du marché');
+    if (nbFormal > 0) list.push(`${nbFormal} démarche${nbFormal > 1 ? 's' : ''} à effectuer`);
+    if (workOptions && surface === 0) list.push('Surface non définie');
+    const noDevisLots = lots.filter((l) => l.budget_avg_ht == null && !l.id.startsWith('fallback-')).length;
+    if (noDevisLots > 0 && list.length < 4) list.push(`${noDevisLots} lot${noDevisLots > 1 ? 's' : ''} sans devis chiffré`);
+    if (marketRange && displayBudget > marketRange.max * 1.1 && list.length < 4) list.push('Budget au-dessus de la fourchette');
     return list.slice(0, 4);
-  }, [lots, lotStatuts, formalites, taches, marketRange, displayBudget]);
+  }, [lots, lotStatuts, formalites, workOptions, surface, marketRange, displayBudget]);
 
   const currentPhaseId = useMemo<PhaseId>(() => {
     const cur = (result.roadmap ?? []).find((e) => e.isCurrent);
@@ -303,7 +377,7 @@ export default function CockpitV1({
 
   const journalEvents = useMemo(() => {
     const ev: { emoji: string; label: string; sublabel: string; date: string }[] = [];
-    ev.push({ emoji: '✨', label: 'Plan de chantier généré', sublabel: result.nom, date: result.generatedAt ? new Date(result.generatedAt).toLocaleDateString('fr-FR') : '—' });
+    ev.push({ emoji: '✨', label: 'Plan généré', sublabel: result.nom, date: result.generatedAt ? new Date(result.generatedAt).toLocaleDateString('fr-FR') : '—' });
     lots.filter((l) => (lotStatuts[l.id] ?? l.statut) === 'ok').forEach((l) => {
       ev.push({ emoji: '✅', label: `Artisan confirmé — ${l.nom}`, sublabel: l.role ?? 'Artisan', date: '—' });
     });
@@ -313,22 +387,18 @@ export default function CockpitV1({
     return ev;
   }, [result, lots, lotStatuts, taches]);
 
-  // Lots with sliders (have quantite + unite)
   const slidableLots = lots.filter((l) => l.budget_avg_ht != null && l.quantite != null && l.quantite > 0 && !l.id.startsWith('fallback-'));
 
   // ── Effects ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (panel === 'chat') {
-      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
+    if (panel === 'chat') chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages, panel]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const openPanel  = (id: PanelId) => setPanel(id);
   const closePanel = () => { setPanel(null); setPhaseId(null); };
-
   const handlePhaseClick = (id: PhaseId) => { setPhaseId(id); openPanel('phase-detail'); };
 
   const handleOptionSelect = (opt: WorkOption) =>
@@ -345,13 +415,20 @@ export default function CockpitV1({
     onLotStatutChange?.(lotId, statut);
   };
 
-  const handleDecisionStatus = (status: DecisionStatus) => {
+  const handleDecisionAction = (status: DecisionStatus) => {
     if (!currentDecision) return;
+    if (status === 'etape_suivante') {
+      // Avance directement sans marquer un statut
+      setDecisionIndex((i) => Math.min(i + 1, decisions.length - 1));
+      return;
+    }
     setDecisionStatuts((prev) => ({ ...prev, [currentDecision.id]: status }));
-  };
-
-  const goNextDecision = () => {
-    setDecisionIndex((i) => Math.min(i + 1, decisions.length - 1));
+    // Auto-avance après choix
+    setTimeout(() => {
+      if (decisionIndex < decisions.length - 1) {
+        setDecisionIndex((i) => Math.min(i + 1, decisions.length - 1));
+      }
+    }, 800);
   };
 
   const handleSendChat = async () => {
@@ -361,13 +438,8 @@ export default function CockpitV1({
     setChatInput('');
     setChatLoading(true);
     await new Promise((r) => setTimeout(r, 600 + Math.random() * 500));
-    const reply = getChatReply(text, result);
-    setChatMessages((prev) => [...prev, { role: 'assistant', text: reply }]);
+    setChatMessages((prev) => [...prev, { role: 'assistant', text: getChatReply(text, result) }]);
     setChatLoading(false);
-  };
-
-  const handleSuggestionClick = (s: string) => {
-    setChatInput(s);
   };
 
   // ── Panel meta ─────────────────────────────────────────────────────────────
@@ -384,7 +456,8 @@ export default function CockpitV1({
     'budget-detail': 'Détail du budget',
     'lot-params':    'Ajuster les paramètres',
     'phase-detail':  phaseMeta ? `${phaseMeta.emoji} ${phaseMeta.label}` : 'Détail de la phase',
-    chat:            '🤖 Assistant chantier',
+    chat:            '👷 Maître d\'œuvre',
+    'alert-detail':  selectedAlertIndex != null ? (getAlertExplanation(alerts[selectedAlertIndex] ?? '').title) : 'Point d\'attention',
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -428,12 +501,16 @@ export default function CockpitV1({
         {alerts.length > 0 && (
           <div className="flex items-center gap-2 bg-amber-500/[0.08] border border-amber-500/20 rounded-xl px-4 py-2.5">
             <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-            <div className="flex flex-wrap gap-x-3 gap-y-0.5 min-w-0">
+            <div className="flex flex-wrap gap-x-1 gap-y-0.5 min-w-0">
               {alerts.map((a, i) => (
-                <span key={i} className="text-xs text-amber-300/90 whitespace-nowrap">
-                  {i > 0 && <span className="text-amber-500/50 mr-3">|</span>}
+                <button
+                  key={i}
+                  onClick={() => { setSelectedAlertIndex(i); openPanel('alert-detail'); }}
+                  className="text-xs text-amber-300/90 whitespace-nowrap hover:text-amber-200 underline-offset-2 hover:underline transition-colors"
+                >
+                  {i > 0 && <span className="text-amber-600/60 mx-2 no-underline" style={{ textDecoration: 'none' }}>|</span>}
                   {a}
-                </span>
+                </button>
               ))}
             </div>
           </div>
@@ -442,7 +519,7 @@ export default function CockpitV1({
         {/* ── COCKPIT : 2 cartes ───────────────────────────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-          {/* Carte 1 : Prochaine décision */}
+          {/* ── Carte 1 : Prochaine décision ────────────────────────────────── */}
           <div className="bg-[#0d1525] border border-white/[0.07] rounded-2xl p-4 flex flex-col">
             <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-3">
               Prochaine décision {decisions.length > 1 && `(${decisionIndex + 1}/${decisions.length})`}
@@ -450,7 +527,16 @@ export default function CockpitV1({
 
             {currentDecision ? (
               <>
-                {/* Decision title */}
+                {/* Statut actuel */}
+                {currentDecisionStatus && currentDecisionStatus !== 'a_faire' && (
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2 py-0.5">
+                      {DECISION_STATUTS.find((s) => s.id === currentDecisionStatus)?.emoji}{' '}
+                      {DECISION_STATUTS.find((s) => s.id === currentDecisionStatus)?.label}
+                    </span>
+                  </div>
+                )}
+
                 <p className="text-sm font-semibold text-white mb-1 leading-snug">{currentDecision.titre}</p>
                 {currentDecision.detail && (
                   <p className="text-xs text-slate-400 leading-relaxed mb-3">{currentDecision.detail}</p>
@@ -459,7 +545,7 @@ export default function CockpitV1({
                   <p className="text-[10px] text-amber-400 mb-3">⏰ {currentDecision.deadline}</p>
                 )}
 
-                {/* Work options (if applicable) */}
+                {/* Options matériaux (si applicable) */}
                 {workOptions && decisionIndex === 0 && (
                   <div className="mb-3">
                     <p className="text-xs text-violet-300 font-medium mb-2">{workOptions.title}</p>
@@ -492,7 +578,14 @@ export default function CockpitV1({
                     <div className="grid grid-cols-2 gap-1.5">
                       {workOptions.options.map((opt) => {
                         const isSelected = selectedOption?.id === opt.id;
-                        const budgetEst  = surface > 0 ? Math.round(surface * opt.priceAvg) : null;
+                        const delta      = optionDeltas[opt.id] ?? null;
+                        const deltaStr   = delta === null
+                          ? null
+                          : delta === 0
+                          ? 'Base'
+                          : delta > 0
+                          ? `+${delta.toLocaleString('fr-FR')} €`
+                          : `${delta.toLocaleString('fr-FR')} €`;
                         return (
                           <button
                             key={opt.id}
@@ -504,10 +597,17 @@ export default function CockpitV1({
                             }`}
                           >
                             <div className="font-medium">{opt.label}</div>
-                            {budgetEst != null && (
-                              <div className={`text-[10px] mt-0.5 ${isSelected ? 'text-violet-400' : 'text-slate-500'}`}>
-                                ~{budgetEst.toLocaleString('fr-FR')} €
+                            {deltaStr && (
+                              <div className={`text-[10px] mt-0.5 font-semibold ${
+                                deltaStr === 'Base' ? 'text-slate-500' :
+                                delta! > 0 ? (isSelected ? 'text-red-300' : 'text-red-400/70') :
+                                (isSelected ? 'text-emerald-300' : 'text-emerald-400/70')
+                              }`}>
+                                {deltaStr}
                               </div>
+                            )}
+                            {deltaStr === null && surface === 0 && (
+                              <div className="text-[10px] text-slate-600 mt-0.5">Saisir la surface</div>
                             )}
                           </button>
                         );
@@ -516,18 +616,16 @@ export default function CockpitV1({
                   </div>
                 )}
 
-                {/* Status buttons */}
+                {/* Boutons d'action */}
                 <div className="mt-auto pt-3">
-                  <p className="text-[10px] text-slate-500 mb-2">Marquer cette décision comme :</p>
+                  <p className="text-[10px] text-slate-500 mb-2">Marquer cette étape :</p>
                   <div className="grid grid-cols-2 gap-1.5">
                     {DECISION_STATUTS.map((s) => (
                       <button
                         key={s.id}
-                        onClick={() => handleDecisionStatus(s.id)}
-                        className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all ${
-                          currentDecisionStatus === s.id
-                            ? s.cls + ' ring-1 ring-inset ring-current'
-                            : s.cls
+                        onClick={() => handleDecisionAction(s.id)}
+                        className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all ${s.cls} ${
+                          currentDecisionStatus === s.id ? 'ring-1 ring-inset ring-current' : ''
                         }`}
                       >
                         <span className="text-sm leading-none">{s.emoji}</span>
@@ -535,19 +633,8 @@ export default function CockpitV1({
                       </button>
                     ))}
                   </div>
-
-                  {/* Advance button */}
-                  {currentDecisionStatus && currentDecisionStatus !== 'a_faire' && decisionIndex < decisions.length - 1 && (
-                    <button
-                      onClick={goNextDecision}
-                      className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs text-violet-300 hover:text-violet-200 border border-violet-500/20 hover:border-violet-500/40 bg-violet-500/[0.06] hover:bg-violet-500/[0.12] rounded-xl py-2 transition-all"
-                    >
-                      Décision suivante
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    </button>
-                  )}
                   {decisionIndex === decisions.length - 1 && currentDecisionStatus && currentDecisionStatus !== 'a_faire' && (
-                    <p className="text-center text-[10px] text-emerald-400 mt-2">✓ Toutes les décisions traitées</p>
+                    <p className="text-center text-[10px] text-emerald-400 mt-2">✓ Toutes les étapes traitées</p>
                   )}
                 </div>
               </>
@@ -556,7 +643,7 @@ export default function CockpitV1({
             )}
           </div>
 
-          {/* Carte 2 : Budget par lots */}
+          {/* ── Carte 2 : Budget ─────────────────────────────────────────────── */}
           <div className="bg-[#0d1525] border border-white/[0.07] rounded-2xl p-4 flex flex-col">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -574,27 +661,31 @@ export default function CockpitV1({
               )}
             </div>
 
-            {/* Big budget number */}
-            <p className="text-2xl font-bold text-white leading-none mb-1">
+            {/* Montant principal */}
+            <p className="text-3xl font-bold text-white leading-none mb-1">
               {displayBudget.toLocaleString('fr-FR')} €
             </p>
             {selectedOption && (
               <p className="text-[10px] text-amber-400 mb-3">Option : {selectedOption.label}</p>
             )}
 
-            {/* Market range bar */}
-            {marketRange && (
-              <div className="mb-3">
-                <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1">
-                  <span>Fourchette marché</span>
-                  <span className="tabular-nums">
+            {/* Fourchette marché */}
+            {marketRange ? (
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Fourchette marché</span>
+                  <span className="text-slate-300 tabular-nums font-medium">
                     {marketRange.min.toLocaleString('fr-FR')} – {marketRange.max.toLocaleString('fr-FR')} €
                   </span>
                 </div>
+                {/* Barre de position */}
                 <div className="h-1.5 bg-white/[0.06] rounded-full relative">
-                  <div className="absolute inset-0 bg-emerald-500/20 rounded-full" />
+                  <div className="absolute inset-0 bg-emerald-500/15 rounded-full" />
                   {(() => {
-                    const pct = Math.min(100, Math.max(0, ((displayBudget - marketRange.min) / (marketRange.max - marketRange.min)) * 100));
+                    const total = marketRange.max - marketRange.min;
+                    const pct = total > 0
+                      ? Math.min(100, Math.max(0, ((displayBudget - marketRange.min) / total) * 100))
+                      : 50;
                     const color = displayBudget > marketRange.max * 1.1 ? '#fb7185' : displayBudget >= marketRange.min ? '#34d399' : '#fbbf24';
                     return (
                       <div
@@ -604,64 +695,23 @@ export default function CockpitV1({
                     );
                   })()}
                 </div>
-              </div>
-            )}
-
-            {/* Lot breakdown */}
-            {hasLotBudgets ? (
-              <div className="mt-1 flex-1">
-                <div className="space-y-1.5">
-                  {(budgetExpanded ? lots : lots.slice(0, 3)).filter((l) => l.budget_avg_ht != null).map((l) => (
-                    <button
-                      key={l.id}
-                      onClick={() => openPanel('lot-params')}
-                      className="w-full flex items-center justify-between text-xs gap-2 rounded-lg px-2 py-1.5 hover:bg-white/[0.04] transition-colors group"
-                    >
-                      <span className="flex items-center gap-1.5 text-slate-300 min-w-0 truncate">
-                        <span className="shrink-0">{l.emoji ?? '🔧'}</span>
-                        <span className="truncate">{l.nom}</span>
-                        {lotQuantities[l.id] != null && l.quantite != null && (
-                          <span className="text-violet-400 shrink-0 text-[10px]">✎</span>
-                        )}
-                      </span>
-                      <span className="text-white font-semibold tabular-nums shrink-0">
-                        {(lotBudgets[l.id] ?? 0).toLocaleString('fr-FR')} €
-                      </span>
-                    </button>
-                  ))}
-                </div>
-
-                {lots.filter((l) => l.budget_avg_ht != null).length > 3 && (
-                  <button
-                    onClick={() => setBudgetExpanded((v) => !v)}
-                    className="mt-1 flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
-                  >
-                    {budgetExpanded ? <><ChevronUp className="h-3 w-3" />Voir moins</> : <><ChevronDown className="h-3 w-3" />+{lots.filter((l) => l.budget_avg_ht != null).length - 3} lots</>}
-                  </button>
+                {/* Position texte */}
+                {budgetPosition && (
+                  <p className={`text-xs font-medium ${budgetPosition.color}`}>
+                    Votre estimation : {budgetPosition.label.toLowerCase()}
+                  </p>
                 )}
               </div>
             ) : (
-              <div className="flex-1 space-y-1.5">
-                {(result.lignesBudget ?? []).slice(0, budgetExpanded ? undefined : 3).map((l, i) => (
-                  <div key={i} className="flex items-center justify-between text-xs px-2">
-                    <span className="text-slate-400 truncate">{l.label}</span>
-                    <span className="text-white font-semibold tabular-nums shrink-0 ml-2">{l.montant.toLocaleString('fr-FR')} €</span>
-                  </div>
-                ))}
-                {(result.lignesBudget ?? []).length > 3 && (
-                  <button onClick={() => setBudgetExpanded((v) => !v)} className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-300 transition-colors ml-2">
-                    {budgetExpanded ? <><ChevronUp className="h-3 w-3" />Moins</> : <><ChevronDown className="h-3 w-3" />+{(result.lignesBudget ?? []).length - 3} postes</>}
-                  </button>
-                )}
-              </div>
+              <p className="text-xs text-slate-500 italic mt-3">Fourchette marché en attente de devis</p>
             )}
 
             <button
               onClick={() => openPanel('budget-detail')}
-              className="mt-3 w-full flex items-center justify-center gap-1.5 text-[10px] text-slate-500 hover:text-slate-300 border border-white/[0.06] hover:border-white/[0.12] rounded-xl py-1.5 transition-all"
+              className="mt-auto pt-4 w-full flex items-center justify-center gap-1.5 text-[10px] text-slate-500 hover:text-slate-300 border border-white/[0.06] hover:border-white/[0.12] rounded-xl py-1.5 transition-all"
             >
               <Info className="h-3 w-3" />
-              Comprendre le calcul
+              Voir le détail du budget
             </button>
           </div>
         </div>
@@ -678,9 +728,7 @@ export default function CockpitV1({
                   key={phase.id}
                   onClick={() => handlePhaseClick(phase.id)}
                   className={`flex-1 flex flex-col items-center gap-1.5 rounded-xl py-2.5 px-1 transition-all group ${
-                    isCurrent
-                      ? 'bg-violet-500/15 border border-violet-500/30'
-                      : 'hover:bg-white/[0.04] border border-transparent'
+                    isCurrent ? 'bg-violet-500/15 border border-violet-500/30' : 'hover:bg-white/[0.04] border border-transparent'
                   }`}
                 >
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all ${
@@ -734,7 +782,6 @@ export default function CockpitV1({
           <div className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm" onClick={closePanel} />
           <div className="fixed right-0 top-0 bottom-0 w-full sm:w-[480px] bg-[#0d1525] border-l border-white/[0.08] z-50 flex flex-col shadow-2xl shadow-black/60">
 
-            {/* Panel header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06] shrink-0">
               <h3 className="font-semibold text-white text-sm">{panelTitle[panel]}</h3>
               <button onClick={closePanel} className="text-slate-400 hover:text-white transition-colors p-1 -mr-1">
@@ -742,7 +789,6 @@ export default function CockpitV1({
               </button>
             </div>
 
-            {/* Panel content */}
             <div className={`flex-1 overflow-y-auto ${panel === 'chat' ? 'flex flex-col' : 'p-5 space-y-4'}`}>
 
               {/* ── Lots ──────────────────────────────────────────────────── */}
@@ -750,8 +796,8 @@ export default function CockpitV1({
                 lots.length === 0
                   ? <p className="text-sm text-slate-400 italic">Aucun lot défini.</p>
                   : lots.map((lot) => {
-                    const statut    = lotStatuts[lot.id] ?? lot.statut;
-                    const noDevis   = lot.budget_avg_ht == null && !lot.id.startsWith('fallback-');
+                    const statut     = lotStatuts[lot.id] ?? lot.statut;
+                    const noDevis    = lot.budget_avg_ht == null && !lot.id.startsWith('fallback-');
                     const isFallback = lot.id.startsWith('fallback-');
                     return (
                       <div key={lot.id} className="bg-white/[0.04] border border-white/[0.07] rounded-xl p-4">
@@ -913,7 +959,7 @@ export default function CockpitV1({
                             {lots.reduce((s, l) => s + (lotBudgets[l.id] ?? 0), 0).toLocaleString('fr-FR')} €
                           </span>
                         </div>
-                        <p className="text-[10px] text-slate-500">Prix issus des références marché. TTC = HT × 1,20 (TVA 20%).</p>
+                        <p className="text-[10px] text-slate-500">Estimations basées sur les prix marché moyens. TTC = HT × 1,20 (TVA 20%).</p>
                       </>
                     ) : (
                       <>
@@ -929,13 +975,13 @@ export default function CockpitV1({
                           <span className="text-xs text-slate-400">Total estimé</span>
                           <span className="text-sm font-bold text-white tabular-nums">{result.budgetTotal.toLocaleString('fr-FR')} €</span>
                         </div>
-                        <p className="text-[10px] text-slate-500">Estimation IA basée sur le projet décrit. Affinez avec de vrais devis.</p>
+                        <p className="text-[10px] text-slate-500">Estimation basée sur le projet décrit. Affinez avec de vrais devis.</p>
                       </>
                     )}
                     {surface > 0 && (
                       <div className="pt-2 border-t border-white/[0.08]">
                         <p className="text-xs text-slate-400">
-                          Coût moyen estimé :{' '}
+                          Coût moyen :{' '}
                           <strong className="text-white">{Math.round(totalBudget / surface).toLocaleString('fr-FR')} €/m²</strong>{' '}
                           pour {surface} m²
                         </p>
@@ -953,12 +999,12 @@ export default function CockpitV1({
                     <p className="text-sm text-slate-500 italic">Aucun lot avec des paramètres ajustables.</p>
                   ) : (
                     slidableLots.map((l) => {
-                      const baseQty = l.quantite!;
-                      const curQty  = lotQuantities[l.id] ?? baseQty;
-                      const minQty  = Math.max(1, Math.round(baseQty * 0.3));
-                      const maxQty  = Math.round(baseQty * 3);
-                      const pricePerUnit = l.budget_avg_ht! / baseQty;
-                      const curBudget    = Math.round(pricePerUnit * curQty);
+                      const baseQty  = l.quantite!;
+                      const curQty   = lotQuantities[l.id] ?? baseQty;
+                      const minQty   = Math.max(1, Math.round(baseQty * 0.3));
+                      const maxQty   = Math.round(baseQty * 3);
+                      const ppu      = l.budget_avg_ht! / baseQty;
+                      const curBudget = Math.round(ppu * curQty);
                       return (
                         <div key={l.id} className="bg-white/[0.04] border border-white/[0.07] rounded-xl p-4 space-y-3">
                           <div className="flex items-center gap-2">
@@ -978,8 +1024,7 @@ export default function CockpitV1({
                             </div>
                             <input
                               type="range"
-                              min={minQty}
-                              max={maxQty}
+                              min={minQty} max={maxQty}
                               step={Math.max(1, Math.round(baseQty * 0.05))}
                               value={curQty}
                               onChange={(e) => setLotQuantities((prev) => ({ ...prev, [l.id]: Number(e.target.value) }))}
@@ -1003,7 +1048,6 @@ export default function CockpitV1({
                       );
                     })
                   )}
-                  {/* Budget total recap */}
                   {slidableLots.length > 0 && (
                     <div className="bg-emerald-500/[0.08] border border-emerald-500/20 rounded-xl p-4 flex items-center justify-between">
                       <span className="text-sm text-slate-300 font-medium">Budget total estimé</span>
@@ -1051,16 +1095,53 @@ export default function CockpitV1({
                 </div>
               )}
 
+              {/* ── Alert detail ─────────────────────────────────────────── */}
+              {panel === 'alert-detail' && selectedAlertIndex != null && (() => {
+                const exp = getAlertExplanation(alerts[selectedAlertIndex] ?? '');
+                return (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-2xl shrink-0">
+                        {exp.emoji}
+                      </div>
+                      <h4 className="text-base font-semibold text-white leading-snug">{exp.title}</h4>
+                    </div>
+                    <ul className="space-y-3">
+                      {exp.lines.map((line, i) => (
+                        <li key={i} className="flex items-start gap-2.5 text-sm text-slate-300 leading-relaxed">
+                          <span className="text-amber-400 shrink-0 mt-0.5">→</span>
+                          {line}
+                        </li>
+                      ))}
+                    </ul>
+                    {alerts.length > 1 && (
+                      <div className="pt-4 border-t border-white/[0.07] space-y-2">
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wider">Autres points d'attention</p>
+                        {alerts.map((a, i) => i !== selectedAlertIndex && (
+                          <button
+                            key={i}
+                            onClick={() => setSelectedAlertIndex(i)}
+                            className="w-full text-left flex items-center gap-2 text-xs text-amber-300/70 hover:text-amber-200 bg-amber-500/[0.05] hover:bg-amber-500/[0.10] border border-amber-500/15 rounded-xl px-3 py-2 transition-all"
+                          >
+                            <AlertTriangle className="h-3 w-3 shrink-0" />
+                            {a}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* ── Chat ─────────────────────────────────────────────────── */}
               {panel === 'chat' && (
                 <>
-                  {/* Messages */}
                   <div className="flex-1 overflow-y-auto p-5 space-y-4">
                     {chatMessages.map((msg, i) => (
                       <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                         {msg.role === 'assistant' && (
                           <div className="w-7 h-7 rounded-full bg-violet-600/30 border border-violet-500/30 flex items-center justify-center text-sm shrink-0 mr-2 mt-0.5">
-                            🤖
+                            👷
                           </div>
                         )}
                         <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
@@ -1078,7 +1159,7 @@ export default function CockpitV1({
                     ))}
                     {chatLoading && (
                       <div className="flex justify-start">
-                        <div className="w-7 h-7 rounded-full bg-violet-600/30 border border-violet-500/30 flex items-center justify-center text-sm shrink-0 mr-2">🤖</div>
+                        <div className="w-7 h-7 rounded-full bg-violet-600/30 border border-violet-500/30 flex items-center justify-center text-sm shrink-0 mr-2">👷</div>
                         <div className="bg-white/[0.06] border border-white/[0.08] rounded-2xl rounded-tl-sm px-4 py-3">
                           <div className="flex gap-1.5 items-center">
                             <div className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -1090,14 +1171,12 @@ export default function CockpitV1({
                     )}
                     <div ref={chatEndRef} />
                   </div>
-
-                  {/* Suggestions (only before first user message) */}
                   {chatMessages.length === 1 && (
                     <div className="px-5 pb-3 flex flex-wrap gap-2">
                       {CHAT_SUGGESTIONS.map((s) => (
                         <button
                           key={s}
-                          onClick={() => handleSuggestionClick(s)}
+                          onClick={() => setChatInput(s)}
                           className="text-[10px] text-slate-300 bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.08] hover:border-white/[0.15] rounded-full px-3 py-1.5 transition-all"
                         >
                           {s}
@@ -1105,8 +1184,6 @@ export default function CockpitV1({
                       ))}
                     </div>
                   )}
-
-                  {/* Input */}
                   <div className="px-4 pb-4 pt-2 border-t border-white/[0.06] shrink-0">
                     <div className="flex gap-2">
                       <input

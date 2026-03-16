@@ -119,6 +119,26 @@ function QuestionCard({ question, index, answer, onChange }: QuestionCardProps) 
   );
 }
 
+// Questions fixes ajoutées systématiquement en fin de qualification
+const FIXED_QUESTIONS: FollowUpQuestion[] = [
+  {
+    id: '_finition',
+    label: 'Quel niveau de finition souhaitez-vous ?',
+    type: 'single_choice',
+    choices: ['Économique', 'Standard', 'Haut de gamme', 'Je ne sais pas'],
+    required: true,
+    reason: 'Impacte le budget et le choix des matériaux',
+  },
+  {
+    id: '_auto_travaux',
+    label: 'Souhaitez-vous réaliser une partie des travaux vous-même ?',
+    type: 'single_choice',
+    choices: ['Non', 'Peut-être', 'Oui'],
+    required: true,
+    reason: 'Permet d\'adapter les recommandations',
+  },
+];
+
 export default function ScreenQualification({
   questions,
   description,
@@ -131,8 +151,14 @@ export default function ScreenQualification({
     setAnswers((prev) => ({ ...prev, [id]: value }));
   };
 
-  const requiredCount = questions.filter((q) => q.required).length;
-  const answeredCount = questions.filter((q) => q.required && !!answers[q.id]?.trim()).length;
+  // Merge questions API + questions fixes (sans doublons)
+  const allQuestions = [
+    ...questions,
+    ...FIXED_QUESTIONS.filter((fq) => !questions.some((q) => q.id === fq.id)),
+  ];
+
+  const requiredCount = allQuestions.filter((q) => q.required).length;
+  const answeredCount = allQuestions.filter((q) => q.required && !!answers[q.id]?.trim()).length;
   const allAnswered = answeredCount === requiredCount;
 
   const handleSubmit = () => {
@@ -188,7 +214,7 @@ export default function ScreenQualification({
 
       {/* Questions */}
       <div className="max-w-2xl mx-auto w-full space-y-3 pb-32">
-        {questions.map((q, idx) => (
+        {allQuestions.map((q, idx) => (
           <QuestionCard
             key={q.id}
             question={q}
@@ -209,7 +235,7 @@ export default function ScreenQualification({
               className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-35 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-3.5 text-sm transition-all"
             >
               <Wand2 className="h-4 w-4" />
-              Générer mon plan IA
+              Générer mon plan
               <ArrowRight className="h-4 w-4" />
             </button>
             <button
