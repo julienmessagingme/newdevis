@@ -1,3 +1,5 @@
+export type ProjectMode = 'guided' | 'flexible' | 'investor';
+
 export type TypeProjet =
   | 'renovation_maison' | 'salle_de_bain' | 'cuisine' | 'extension'
   | 'terrasse' | 'pergola' | 'isolation' | 'toiture'

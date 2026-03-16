@@ -7,14 +7,15 @@ import ScreenWow from '@/components/chantier/nouveau/ScreenWow';
 import DashboardChantier from '@/components/chantier/nouveau/DashboardChantier';
 import ScreenAmeliorations from '@/components/chantier/nouveau/ScreenAmeliorations';
 import ScreenQualification from '@/components/chantier/nouveau/ScreenQualification';
-import type { ChantierIAResult, ChantierGuideForm, FollowUpQuestion } from '@/types/chantier-ia';
+import ScreenModeSelection from '@/components/chantier/nouveau/ScreenModeSelection';
+import type { ChantierIAResult, ChantierGuideForm, FollowUpQuestion, ProjectMode } from '@/types/chantier-ia';
 
 const supabase = createClient(
   import.meta.env.PUBLIC_SUPABASE_URL,
   import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY,
 );
 
-type Ecran = 'prompt' | 'qualification' | 'generating' | 'wow' | 'dashboard' | 'ameliorer';
+type Ecran = 'prompt' | 'qualification' | 'generating' | 'wow' | 'mode_selection' | 'dashboard' | 'ameliorer';
 
 
 export default function NouveauChantier() {
@@ -26,6 +27,7 @@ export default function NouveauChantier() {
   const [requestBody, setRequestBody] = useState('');
   const startTimeRef = useRef<number>(0);
   const [tempsMs, setTempsMs] = useState(0);
+  const [projectMode, setProjectMode] = useState<ProjectMode | null>(null);
   // Déclenché si l'utilisateur clique "Voir le dashboard" avant que chantierId soit disponible
   const [pendingRedirect, setPendingRedirect] = useState(false);
 
@@ -133,6 +135,7 @@ export default function NouveauChantier() {
       setEcran('wow');
 
       // Sauvegarde en background + stockage token/userId pour le dashboard
+      // Note: project_mode sera envoyé séparément lors du handleModeSelect
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const tok = session?.access_token ?? null;
@@ -154,6 +157,35 @@ export default function NouveauChantier() {
       }
     },
     [],
+  );
+
+  // Appelé depuis ScreenModeSelection — met à jour le mode et redirige vers le dashboard
+  const handleModeSelect = useCallback(
+    async (mode: ProjectMode) => {
+      setProjectMode(mode);
+
+      // Persistance du mode en base (PATCH sur le chantier si l'ID est déjà connu)
+      if (chantierId) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const tok = session?.access_token ?? token;
+          if (tok) {
+            await fetch(`/api/chantier/${chantierId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
+              body: JSON.stringify({ projectMode: mode }),
+            });
+          }
+        } catch (err) {
+          console.error('[NouveauChantier] Erreur persistance project_mode:', err instanceof Error ? err.message : String(err));
+        }
+        window.location.href = `/mon-chantier/${chantierId}`;
+      } else {
+        // chantierId pas encore connu — attendre via pendingRedirect
+        setPendingRedirect(true);
+      }
+    },
+    [chantierId, token],
   );
 
   const handleError = useCallback((msg: string) => {
@@ -197,16 +229,20 @@ export default function NouveauChantier() {
       <ScreenWow
         result={result}
         tempsMs={tempsMs}
-        onDashboard={() => {
-          // Si chantierId est déjà connu (sauvegarde terminée) → redirection immédiate
-          // Sinon → pendingRedirect attend que chantierId soit disponible
-          if (chantierId) {
-            window.location.href = `/mon-chantier/${chantierId}`;
-          } else {
-            setPendingRedirect(true);
-          }
-        }}
+        onDashboard={() => setEcran('mode_selection')}
         onAmeliorer={() => setEcran('ameliorer')}
+      />
+    );
+  }
+
+  if (ecran === 'mode_selection') {
+    // Bonus : pré-sélectionner "guided" si l'utilisateur vient depuis une analyse VerifierMonDevis
+    const params = new URLSearchParams(window.location.search);
+    const fromAnalyse = params.get('from') === 'analyse' || params.get('devis') === '1';
+    return (
+      <ScreenModeSelection
+        onSelect={handleModeSelect}
+        defaultMode={fromAnalyse ? 'guided' : undefined}
       />
     );
   }

@@ -82,7 +82,7 @@ export const GET: APIRoute = async ({ params, request }) => {
   // Chargement avec vérification ownership
   const { data: chantier, error: chantierError } = await supabase
     .from('chantiers')
-    .select('id, nom, emoji, budget, phase, type_projet, mensualite, duree_credit, metadonnees, created_at')
+    .select('id, nom, emoji, budget, phase, type_projet, mensualite, duree_credit, metadonnees, created_at, project_mode')
     .eq('id', chantierId)
     .eq('user_id', user.id)
     .single();
@@ -256,7 +256,7 @@ export const GET: APIRoute = async ({ params, request }) => {
     );
 
   return new Response(
-    JSON.stringify({ result, phase: chantier.phase, isPlanComplet }),
+    JSON.stringify({ result, phase: chantier.phase, isPlanComplet, projectMode: chantier.project_mode ?? null }),
     { status: 200, headers: CORS },
   );
 };
@@ -395,6 +395,13 @@ export const PATCH: APIRoute = async ({ request, params }) => {
       );
     }
     updates.budget = updatePayload.enveloppePrevue;
+  }
+  if (updatePayload.projectMode !== undefined) {
+    const VALID_MODES = ['guided', 'flexible', 'investor'];
+    if (!VALID_MODES.includes(updatePayload.projectMode)) {
+      return new Response(JSON.stringify({ error: 'Mode de projet invalide' }), { status: 400, headers: CORS });
+    }
+    updates.project_mode = updatePayload.projectMode;
   }
 
   const { data, error } = await supabase

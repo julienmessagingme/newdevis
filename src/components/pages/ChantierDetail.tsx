@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Loader2, AlertCircle, ArrowLeft, Info, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
-import DashboardChantier from '@/components/chantier/nouveau/DashboardChantier';
+import CockpitV1 from '@/components/chantier/cockpit/CockpitV1';
 import ScreenAmeliorations from '@/components/chantier/nouveau/ScreenAmeliorations';
-import type { ChantierIAResult, StatutArtisan } from '@/types/chantier-ia';
+import type { ChantierIAResult, StatutArtisan, ProjectMode } from '@/types/chantier-ia';
 
 const supabase = createClient(
   import.meta.env.PUBLIC_SUPABASE_URL,
@@ -30,6 +30,7 @@ export default function ChantierDetail() {
   const [error, setError] = useState<string | null>(null);
   // false = chantier manuel sans plan IA détaillé
   const [isPlanComplet, setIsPlanComplet] = useState(true);
+  const [projectMode, setProjectMode] = useState<ProjectMode | null>(null);
 
   const getToken = useCallback(async (): Promise<string | null> => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -81,6 +82,7 @@ export default function ChantierDetail() {
       const data = await res.json();
       setResult(data.result ?? null);
       setIsPlanComplet(data.isPlanComplet !== false); // false explicite uniquement
+      setProjectMode(data.projectMode ?? null);
       setChantierId(id);
       setLoading(false);
     })();
@@ -218,7 +220,7 @@ export default function ChantierDetail() {
         </div>
       )}
 
-      <DashboardChantier
+      <CockpitV1
         result={result}
         chantierId={chantierId}
         onAmeliorer={() => setScreen('ameliorer')}
@@ -227,6 +229,20 @@ export default function ChantierDetail() {
         onLotStatutChange={handleLotStatutChange}
         token={token}
         userId={userId}
+        projectMode={projectMode}
+        onProjectModeChange={async (mode) => {
+          setProjectMode(mode);
+          if (!chantierId || !token) return;
+          try {
+            await fetch(`/api/chantier/${chantierId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ projectMode: mode }),
+            });
+          } catch (err) {
+            console.error('[ChantierDetail] Erreur PATCH project_mode:', err instanceof Error ? err.message : String(err));
+          }
+        }}
       />
     </>
   );

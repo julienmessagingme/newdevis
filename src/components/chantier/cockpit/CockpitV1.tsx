@@ -1,0 +1,1150 @@
+import { useState, useMemo, useRef, useEffect } from 'react';
+import {
+  AlertTriangle, ChevronRight, Upload, LayoutGrid, Calendar,
+  Users, FolderOpen, BookOpen, Pencil, Check, X, Wallet,
+  FileText, Wand2, MessageSquare, Send, SlidersHorizontal,
+  ChevronDown, ChevronUp, Info,
+} from 'lucide-react';
+import type { ChantierIAResult, LotChantier, StatutArtisan, ProjectMode } from '@/types/chantier-ia';
+
+// ── Types ──────────────────────────────────────────────────────────────────────
+
+type PanelId =
+  | 'lots' | 'planning' | 'artisans' | 'documents' | 'journal'
+  | 'budget-detail' | 'phase-detail' | 'lot-params' | 'chat'
+  | null;
+
+type DecisionStatus = 'a_faire' | 'en_cours' | 'deja_fait' | 'non_necessaire';
+
+interface ChatMessage { role: 'user' | 'assistant'; text: string; }
+
+// ── Work options (Prochaine décision) ──────────────────────────────────────────
+
+interface WorkOption {
+  id: string; label: string;
+  priceMin: number; priceAvg: number; priceMax: number;
+  multiplier: number;
+}
+
+const OPTIONS_REVETEMENT: WorkOption[] = [
+  { id: 'gravier',  label: 'Gravier',        priceMin: 15, priceAvg: 25,  priceMax: 40,  multiplier: 0.6 },
+  { id: 'paves',    label: 'Pavés',           priceMin: 60, priceAvg: 90,  priceMax: 130, multiplier: 1.2 },
+  { id: 'beton',    label: 'Béton drainant',  priceMin: 40, priceAvg: 65,  priceMax: 90,  multiplier: 1.0 },
+  { id: 'enrobe',   label: 'Enrobé',          priceMin: 50, priceAvg: 70,  priceMax: 100, multiplier: 1.1 },
+];
+const OPTIONS_TERRASSE: WorkOption[] = [
+  { id: 'bois',       label: 'Bois exotique', priceMin: 70,  priceAvg: 110, priceMax: 160, multiplier: 1.2 },
+  { id: 'composite',  label: 'Composite',     priceMin: 90,  priceAvg: 150, priceMax: 210, multiplier: 1.4 },
+  { id: 'carrelage',  label: 'Carrelage',     priceMin: 55,  priceAvg: 90,  priceMax: 140, multiplier: 1.0 },
+  { id: 'beton_cire', label: 'Béton ciré',    priceMin: 45,  priceAvg: 75,  priceMax: 110, multiplier: 0.8 },
+];
+const OPTIONS_FACADE: WorkOption[] = [
+  { id: 'enduit',    label: 'Enduit',            priceMin: 35,  priceAvg: 60,  priceMax: 90,  multiplier: 1.0 },
+  { id: 'bard_bois', label: 'Bardage bois',      priceMin: 70,  priceAvg: 110, priceMax: 160, multiplier: 1.3 },
+  { id: 'bard_comp', label: 'Bardage composite', priceMin: 100, priceAvg: 160, priceMax: 220, multiplier: 1.5 },
+  { id: 'crepi',     label: 'Crépi',             priceMin: 25,  priceAvg: 45,  priceMax: 70,  multiplier: 0.8 },
+];
+const OPTIONS_ISOLATION: WorkOption[] = [
+  { id: 'laine', label: 'Laine de roche',  priceMin: 20, priceAvg: 38, priceMax: 55, multiplier: 1.0 },
+  { id: 'ouate', label: 'Ouate cellulose', priceMin: 25, priceAvg: 45, priceMax: 65, multiplier: 1.1 },
+  { id: 'poly',  label: 'Polyuréthane',    priceMin: 35, priceAvg: 60, priceMax: 90, multiplier: 1.3 },
+];
+
+function detectWorkOptions(result: ChantierIAResult): { title: string; options: WorkOption[] } | null {
+  const hay = [
+    result.prochaineAction?.titre ?? '',
+    result.prochaineAction?.detail ?? '',
+    ...(result.lignesBudget ?? []).slice(0, 2).map((l) => l.label),
+    result.nom, result.description ?? '',
+  ].join(' ').toLowerCase();
+  if (hay.match(/rev.tement|allee|allée|driveway/)) return { title: 'Choisir le type de revêtement', options: OPTIONS_REVETEMENT };
+  if (hay.match(/terrasse/)) return { title: 'Choisir le matériau de terrasse', options: OPTIONS_TERRASSE };
+  if (hay.match(/facade|façade/)) return { title: 'Choisir le type de façade', options: OPTIONS_FACADE };
+  if (hay.match(/isolation/)) return { title: "Choisir le type d'isolation", options: OPTIONS_ISOLATION };
+  return null;
+}
+
+// ── Phases ──────────────────────────────────────────────────────────────────────
+
+const PHASES = [
+  { id: 'conception',    label: 'Conception',   emoji: '✏️' },
+  { id: 'devis',         label: 'Devis',         emoji: '📋' },
+  { id: 'autorisations', label: 'Autorisations', emoji: '📄' },
+  { id: 'travaux',       label: 'Travaux',        emoji: '🔨' },
+  { id: 'reception',     label: 'Réception',     emoji: '✅' },
+] as const;
+
+type PhaseId = (typeof PHASES)[number]['id'];
+
+function mapRoadmapToPhase(roadmapPhase: string): PhaseId {
+  const p = roadmapPhase.toLowerCase();
+  if (p.match(/autori|admin|permit/)) return 'autorisations';
+  if (p.match(/travaux|réalisa|gros|second|finit/)) return 'travaux';
+  if (p.match(/récep|livrai|fin/)) return 'reception';
+  if (p.match(/devis|artisan|chiffr|consul/)) return 'devis';
+  return 'conception';
+}
+
+function getPhaseDetail(phaseId: PhaseId) {
+  switch (phaseId) {
+    case 'conception': return {
+      actions: ['Définir les besoins et contraintes', 'Consulter un architecte si > 150 m²', 'Visiter le site avec les intervenants', 'Définir les lots de travaux'],
+      decisions: ['Budget cible TTC', "Maîtrise d'œuvre ou auto-gestion", 'Planning et contraintes de dates'],
+      documents: ['Plans existants', 'Titre de propriété', 'Règles du PLU', "Photos de l'existant"],
+    };
+    case 'devis': return {
+      actions: ['Contacter 3 artisans par lot minimum', 'Vérifier les qualifications RGE', 'Demander des références chantiers récents', 'Comparer les devis sur les mêmes bases'],
+      decisions: ['Critères de sélection (prix, délai, références)', 'Coordination des lots', "Modalités d'acompte et de paiement"],
+      documents: ["Devis signés avec délai d'exécution", 'Attestations décennale', 'Extraits Kbis / SIRET', 'Certificats RGE si applicable'],
+    };
+    case 'autorisations': return {
+      actions: ["Déposer la déclaration préalable ou le permis de construire", "Attendre l'instruction (1 à 3 mois)", 'Afficher le panneau de chantier après accord', 'Vérifier les recours des tiers (2 mois après affichage)'],
+      decisions: ['Type de dossier (DP ou PC) selon surface', 'Recours à un architecte obligatoire si > 150 m²', 'Date de dépôt cible'],
+      documents: ['Cerfa 13703 (DP) ou 13406 (PC)', 'Plan de masse coté', 'Plan de situation', 'Notice descriptive des travaux'],
+    };
+    case 'travaux': return {
+      actions: ["Ouvrir le chantier et sécuriser le périmètre", 'Vérifier les livraisons de matériaux', 'Organiser des réunions de chantier hebdomadaires', 'Consigner les réserves par écrit'],
+      decisions: ["Ordre d'intervention des corps de métier", 'Gestion des imprévus et travaux supplémentaires', 'Validation des étapes clés avant la suite'],
+      documents: ["Ordres de service", 'PV de réunion de chantier', 'Bons de livraison', "Photos d'avancement hebdomadaires"],
+    };
+    case 'reception': return {
+      actions: ['Réaliser le tour complet avec chaque artisan', 'Consigner toutes les réserves sur le PV', 'Activer les garanties (parfait achèvement, biennale, décennale)', "Retenir la dernière tranche jusqu'à levée des réserves"],
+      decisions: ['Réception avec ou sans réserves', 'Délai accordé pour lever les réserves', 'Retenue de garantie (5 % pendant 1 an)'],
+      documents: ['Procès-verbal de réception', 'Liste de réserves signée', 'Garantie de parfait achèvement', 'DOE (Dossier des Ouvrages Exécutés)'],
+    };
+  }
+}
+
+// ── Decision status config ──────────────────────────────────────────────────────
+
+const DECISION_STATUTS: { id: DecisionStatus; label: string; emoji: string; cls: string }[] = [
+  { id: 'deja_fait',      label: 'Déjà fait',      emoji: '✅', cls: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20' },
+  { id: 'en_cours',       label: 'En cours',        emoji: '🔄', cls: 'border-blue-500/40 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20' },
+  { id: 'non_necessaire', label: 'Non nécessaire',  emoji: '⏭', cls: 'border-slate-500/40 bg-slate-500/10 text-slate-300 hover:bg-slate-500/20' },
+  { id: 'a_faire',        label: 'À faire',          emoji: '📌', cls: 'border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20' },
+];
+
+// ── Chat helpers ────────────────────────────────────────────────────────────────
+
+const CHAT_SUGGESTIONS = [
+  'Quelles aides financières puis-je obtenir ?',
+  'Comment choisir mes artisans ?',
+  'Mon budget est-il réaliste ?',
+  'Quels documents dois-je préparer ?',
+];
+
+const CHAT_RESPONSES: { keywords: RegExp; reply: (r: ChantierIAResult) => string }[] = [
+  {
+    keywords: /aide|subvention|ma ?prime|anah|crédit|cee/i,
+    reply: (r) => `Pour votre projet **${r.nom}**, plusieurs aides peuvent s'appliquer : MaPrimeRénov', éco-PTZ, TVA réduite à 5,5% ou 10%. Vérifiez votre éligibilité sur le site de l'ANAH et consultez un conseiller France Rénov' gratuit.`,
+  },
+  {
+    keywords: /artisan|entreprise|trouver|choisir|sélect/i,
+    reply: (r) => `Je recommande de contacter **3 artisans minimum par lot** pour ${r.nom}. Vérifiez systématiquement : inscription au RCS, assurance décennale valide, références récentes et qualifications RGE si travaux énergie.`,
+  },
+  {
+    keywords: /budget|prix|coût|cher|réaliste/i,
+    reply: (r) => `Votre budget estimé de **${r.budgetTotal.toLocaleString('fr-FR')} €** est basé sur les prix marché moyens. Les vrais devis peuvent varier de ±20%. Prévoyez une réserve de 10-15% pour les imprévus.`,
+  },
+  {
+    keywords: /document|papier|dossier|permis|autor/i,
+    reply: (r) => `Pour votre projet, les documents clés sont : titre de propriété, PLU de votre commune, plans côtés. ${r.nbFormalites > 0 ? `Vous avez ${r.nbFormalites} formalité(s) administrative(s) identifiées dans votre plan.` : ''}`,
+  },
+  {
+    keywords: /délai|durée|quand|planning|calendrier/i,
+    reply: (r) => `La durée estimée de votre chantier est de **${r.dureeEstimeeMois} mois**. Comptez 1-3 mois supplémentaires pour les démarches administratives et la recherche d'artisans.`,
+  },
+];
+
+function getChatReply(text: string, result: ChantierIAResult): string {
+  const match = CHAT_RESPONSES.find((r) => r.keywords.test(text));
+  if (match) return match.reply(result);
+  return `Pour votre projet **${result.nom}**, je vous conseille de commencer par obtenir plusieurs devis et de vérifier les qualifications des artisans. N'hésitez pas à me poser une question plus précise sur le budget, les artisans, les aides ou les démarches.`;
+}
+
+// ── Props ──────────────────────────────────────────────────────────────────────
+
+interface CockpitV1Props {
+  result: ChantierIAResult;
+  chantierId: string | null;
+  onAmeliorer: () => void;
+  onNouveau: () => void;
+  onToggleTache?: (todoId: string, done: boolean) => void;
+  onLotStatutChange?: (lotId: string, statut: StatutArtisan) => void;
+  token?: string | null;
+  userId?: string | null;
+  projectMode?: ProjectMode | null;
+  onProjectModeChange?: (mode: ProjectMode) => void;
+}
+
+// ── Component ──────────────────────────────────────────────────────────────────
+
+export default function CockpitV1({
+  result,
+  onLotStatutChange,
+}: CockpitV1Props) {
+
+  // ── State ─────────────────────────────────────────────────────────────────
+
+  const [panel, setPanel]             = useState<PanelId>(null);
+  const [selectedPhaseId, setPhaseId] = useState<PhaseId | null>(null);
+
+  // Budget lot quantities (for sliders)
+  const [lotQuantities, setLotQuantities] = useState<Record<string, number>>({});
+
+  // Lot statuts
+  const [lotStatuts, setLotStatuts]   = useState<Record<string, StatutArtisan>>(
+    () => Object.fromEntries((result.lots ?? []).map((l) => [l.id, l.statut])),
+  );
+
+  // Decision flow
+  const [decisionStatuts, setDecisionStatuts] = useState<Record<string, DecisionStatus>>({});
+  const [decisionIndex, setDecisionIndex]     = useState(0);
+
+  // Surface (used in work-options)
+  const [surface, setSurface]         = useState<number>(() => {
+    const m = (result.description ?? '').match(/(\d+)\s*m²/);
+    return m ? parseInt(m[1]) : 0;
+  });
+  const [editingSurface, setEditSurf] = useState(false);
+  const [surfaceInput, setSurfInput]  = useState('');
+  const [selectedOption, setOption]   = useState<WorkOption | null>(null);
+
+  // Budget lot expand
+  const [budgetExpanded, setBudgetExpanded] = useState(false);
+
+  // Chat
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => [
+    { role: 'assistant', text: `Bonjour ! Je suis votre assistant pour **${result.nom}**. Posez-moi vos questions sur le budget, les artisans, les aides ou les démarches administratives.` },
+  ]);
+  const [chatInput, setChatInput]       = useState('');
+  const [chatLoading, setChatLoading]   = useState(false);
+  const chatEndRef                       = useRef<HTMLDivElement>(null);
+
+  // ── Derived ────────────────────────────────────────────────────────────────
+
+  const lots      = result.lots     ?? [];
+  const artisans  = result.artisans ?? [];
+  const taches    = result.taches   ?? [];
+  const formalites = result.formalites ?? [];
+
+  // Decision queue: prochaineAction first, then urgent undone tasks
+  const decisions = useMemo(() => {
+    const q: { id: string; titre: string; detail: string; deadline?: string }[] = [
+      { id: '_prochaine', ...result.prochaineAction },
+    ];
+    taches
+      .filter((t) => !t.done && t.priorite === 'urgent')
+      .slice(0, 4)
+      .forEach((t) => q.push({ id: t.id ?? t.titre, titre: t.titre, detail: '' }));
+    return q;
+  }, [result.prochaineAction, taches]);
+
+  const currentDecision = decisions[decisionIndex] ?? null;
+  const currentDecisionStatus = currentDecision ? (decisionStatuts[currentDecision.id] ?? 'a_faire') : null;
+
+  // Budget per lot (adjusted by slider quantities)
+  const lotBudgets = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const l of lots) {
+      if (l.budget_avg_ht == null) continue;
+      const qty = lotQuantities[l.id];
+      if (qty != null && l.quantite != null && l.quantite > 0) {
+        map[l.id] = Math.round((l.budget_avg_ht / l.quantite) * qty);
+      } else {
+        map[l.id] = Math.round(l.budget_avg_ht);
+      }
+    }
+    return map;
+  }, [lots, lotQuantities]);
+
+  const hasLotBudgets = lots.some((l) => l.budget_avg_ht != null);
+
+  const totalBudget = useMemo(() => {
+    if (!hasLotBudgets) return result.budgetTotal;
+    return lots.reduce((s, l) => s + (lotBudgets[l.id] ?? 0), 0);
+  }, [lots, lotBudgets, hasLotBudgets, result.budgetTotal]);
+
+  const displayBudget = selectedOption
+    ? Math.round(totalBudget * selectedOption.multiplier)
+    : totalBudget;
+
+  const marketRange = useMemo(() => {
+    let min = 0, max = 0, ok = false;
+    for (const l of lots) {
+      if (l.budget_min_ht != null && l.budget_max_ht != null) {
+        min += l.budget_min_ht; max += l.budget_max_ht; ok = true;
+      }
+    }
+    return ok ? { min: Math.round(min * 1.2), max: Math.round(max * 1.2) } : null;
+  }, [lots]);
+
+  const workOptions = useMemo(() => detectWorkOptions(result), [result]);
+
+  // Alert bar items
+  const alerts = useMemo(() => {
+    const list: string[] = [];
+    const nbATrouver = lots.filter((l) => !l.id.startsWith('fallback-') && (lotStatuts[l.id] ?? l.statut) === 'a_trouver').length;
+    if (nbATrouver > 0) list.push(`${nbATrouver} artisan${nbATrouver > 1 ? 's' : ''} à trouver`);
+    const nbFormal = formalites.filter((f) => f.obligatoire).length;
+    if (nbFormal > 0) list.push(`${nbFormal} formalité${nbFormal > 1 ? 's' : ''} administrative${nbFormal > 1 ? 's' : ''}`);
+    const nbUrgentes = taches.filter((t) => !t.done && t.priorite === 'urgent').length;
+    if (nbUrgentes > 0) list.push(`${nbUrgentes} tâche${nbUrgentes > 1 ? 's' : ''} urgente${nbUrgentes > 1 ? 's' : ''}`);
+    if (marketRange && displayBudget > marketRange.max * 1.1) list.push('Budget au-dessus du marché');
+    return list.slice(0, 4);
+  }, [lots, lotStatuts, formalites, taches, marketRange, displayBudget]);
+
+  const currentPhaseId = useMemo<PhaseId>(() => {
+    const cur = (result.roadmap ?? []).find((e) => e.isCurrent);
+    return cur ? mapRoadmapToPhase(cur.phase ?? '') : 'conception';
+  }, [result.roadmap]);
+
+  const currentPhaseIndex = PHASES.findIndex((p) => p.id === currentPhaseId);
+
+  const journalEvents = useMemo(() => {
+    const ev: { emoji: string; label: string; sublabel: string; date: string }[] = [];
+    ev.push({ emoji: '✨', label: 'Plan de chantier généré', sublabel: result.nom, date: result.generatedAt ? new Date(result.generatedAt).toLocaleDateString('fr-FR') : '—' });
+    lots.filter((l) => (lotStatuts[l.id] ?? l.statut) === 'ok').forEach((l) => {
+      ev.push({ emoji: '✅', label: `Artisan confirmé — ${l.nom}`, sublabel: l.role ?? 'Artisan', date: '—' });
+    });
+    taches.filter((t) => t.done).slice(0, 5).forEach((t) => {
+      ev.push({ emoji: '☑️', label: t.titre, sublabel: 'Tâche complétée', date: '—' });
+    });
+    return ev;
+  }, [result, lots, lotStatuts, taches]);
+
+  // Lots with sliders (have quantite + unite)
+  const slidableLots = lots.filter((l) => l.budget_avg_ht != null && l.quantite != null && l.quantite > 0 && !l.id.startsWith('fallback-'));
+
+  // ── Effects ───────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (panel === 'chat') {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages, panel]);
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+
+  const openPanel  = (id: PanelId) => setPanel(id);
+  const closePanel = () => { setPanel(null); setPhaseId(null); };
+
+  const handlePhaseClick = (id: PhaseId) => { setPhaseId(id); openPanel('phase-detail'); };
+
+  const handleOptionSelect = (opt: WorkOption) =>
+    setOption((prev) => (prev?.id === opt.id ? null : opt));
+
+  const saveSurface = () => {
+    const v = parseInt(surfaceInput);
+    if (!isNaN(v) && v > 0) setSurface(v);
+    setEditSurf(false);
+  };
+
+  const handleLotStatut = (lotId: string, statut: StatutArtisan) => {
+    setLotStatuts((prev) => ({ ...prev, [lotId]: statut }));
+    onLotStatutChange?.(lotId, statut);
+  };
+
+  const handleDecisionStatus = (status: DecisionStatus) => {
+    if (!currentDecision) return;
+    setDecisionStatuts((prev) => ({ ...prev, [currentDecision.id]: status }));
+  };
+
+  const goNextDecision = () => {
+    setDecisionIndex((i) => Math.min(i + 1, decisions.length - 1));
+  };
+
+  const handleSendChat = async () => {
+    const text = chatInput.trim();
+    if (!text || chatLoading) return;
+    setChatMessages((prev) => [...prev, { role: 'user', text }]);
+    setChatInput('');
+    setChatLoading(true);
+    await new Promise((r) => setTimeout(r, 600 + Math.random() * 500));
+    const reply = getChatReply(text, result);
+    setChatMessages((prev) => [...prev, { role: 'assistant', text: reply }]);
+    setChatLoading(false);
+  };
+
+  const handleSuggestionClick = (s: string) => {
+    setChatInput(s);
+  };
+
+  // ── Panel meta ─────────────────────────────────────────────────────────────
+
+  const phaseMeta   = selectedPhaseId ? PHASES.find((p) => p.id === selectedPhaseId) : null;
+  const phaseDetail = selectedPhaseId ? getPhaseDetail(selectedPhaseId) : null;
+
+  const panelTitle: Record<NonNullable<PanelId>, string> = {
+    lots:            'Lots de travaux',
+    planning:        'Planning du chantier',
+    artisans:        'Artisans',
+    documents:       'Documents',
+    journal:         'Journal',
+    'budget-detail': 'Détail du budget',
+    'lot-params':    'Ajuster les paramètres',
+    'phase-detail':  phaseMeta ? `${phaseMeta.emoji} ${phaseMeta.label}` : 'Détail de la phase',
+    chat:            '🤖 Assistant chantier',
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="min-h-screen bg-[#0a0f1e] text-white pb-24">
+
+      {/* ── HEADER ──────────────────────────────────────────────────────────── */}
+      <header className="border-b border-white/[0.06] px-4 sm:px-6 py-4">
+        <div className="max-w-5xl mx-auto flex items-center gap-4">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-xl shrink-0 select-none">
+              {result.emoji}
+            </div>
+            <div className="min-w-0">
+              <h1 className="font-bold text-base text-white truncate leading-tight">{result.nom}</h1>
+              {surface > 0 && <p className="text-xs text-slate-500 mt-0.5">{surface} m²</p>}
+            </div>
+          </div>
+          <div className="hidden sm:block text-right shrink-0">
+            <p className="text-lg font-bold text-white leading-none">
+              {displayBudget.toLocaleString('fr-FR')} €
+            </p>
+            <p className={`text-[10px] mt-0.5 ${selectedOption ? 'text-amber-400' : 'text-slate-500'}`}>
+              {selectedOption ? `Option : ${selectedOption.label}` : 'budget estimé TTC'}
+            </p>
+          </div>
+          <button
+            onClick={() => openPanel('chat')}
+            className="flex items-center gap-1.5 bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 text-violet-300 text-xs font-semibold rounded-xl px-3 py-2 transition-all shrink-0"
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Assistant</span>
+          </button>
+        </div>
+      </header>
+
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 space-y-4">
+
+        {/* ── ALERT BAR ────────────────────────────────────────────────────── */}
+        {alerts.length > 0 && (
+          <div className="flex items-center gap-2 bg-amber-500/[0.08] border border-amber-500/20 rounded-xl px-4 py-2.5">
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+            <div className="flex flex-wrap gap-x-3 gap-y-0.5 min-w-0">
+              {alerts.map((a, i) => (
+                <span key={i} className="text-xs text-amber-300/90 whitespace-nowrap">
+                  {i > 0 && <span className="text-amber-500/50 mr-3">|</span>}
+                  {a}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── COCKPIT : 2 cartes ───────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+          {/* Carte 1 : Prochaine décision */}
+          <div className="bg-[#0d1525] border border-white/[0.07] rounded-2xl p-4 flex flex-col">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-3">
+              Prochaine décision {decisions.length > 1 && `(${decisionIndex + 1}/${decisions.length})`}
+            </p>
+
+            {currentDecision ? (
+              <>
+                {/* Decision title */}
+                <p className="text-sm font-semibold text-white mb-1 leading-snug">{currentDecision.titre}</p>
+                {currentDecision.detail && (
+                  <p className="text-xs text-slate-400 leading-relaxed mb-3">{currentDecision.detail}</p>
+                )}
+                {currentDecision.deadline && (
+                  <p className="text-[10px] text-amber-400 mb-3">⏰ {currentDecision.deadline}</p>
+                )}
+
+                {/* Work options (if applicable) */}
+                {workOptions && decisionIndex === 0 && (
+                  <div className="mb-3">
+                    <p className="text-xs text-violet-300 font-medium mb-2">{workOptions.title}</p>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs text-slate-400 shrink-0">Surface</span>
+                      {editingSurface ? (
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            value={surfaceInput}
+                            onChange={(e) => setSurfInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') saveSurface(); if (e.key === 'Escape') setEditSurf(false); }}
+                            className="w-14 text-xs bg-white/[0.08] border border-white/[0.15] rounded-lg px-2 py-1 text-white outline-none focus:border-violet-500/60"
+                            autoFocus placeholder="0"
+                          />
+                          <span className="text-xs text-slate-400">m²</span>
+                          <button onClick={saveSurface} className="text-emerald-400 hover:text-emerald-300 transition-colors"><Check className="h-3.5 w-3.5" /></button>
+                          <button onClick={() => setEditSurf(false)} className="text-slate-500 hover:text-slate-300 transition-colors"><X className="h-3.5 w-3.5" /></button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => { setSurfInput(surface > 0 ? String(surface) : ''); setEditSurf(true); }}
+                          className="flex items-center gap-1.5 text-xs bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.10] rounded-lg px-2.5 py-1 text-white transition-colors group"
+                        >
+                          {surface > 0 ? `${surface} m²` : '— m²'}
+                          <Pencil className="h-2.5 w-2.5 text-slate-500 group-hover:text-slate-300 transition-colors" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {workOptions.options.map((opt) => {
+                        const isSelected = selectedOption?.id === opt.id;
+                        const budgetEst  = surface > 0 ? Math.round(surface * opt.priceAvg) : null;
+                        return (
+                          <button
+                            key={opt.id}
+                            onClick={() => handleOptionSelect(opt)}
+                            className={`text-left rounded-xl border px-2.5 py-2 text-xs transition-all ${
+                              isSelected
+                                ? 'border-violet-500/50 bg-violet-500/15 text-violet-200'
+                                : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-white/[0.15] hover:text-white'
+                            }`}
+                          >
+                            <div className="font-medium">{opt.label}</div>
+                            {budgetEst != null && (
+                              <div className={`text-[10px] mt-0.5 ${isSelected ? 'text-violet-400' : 'text-slate-500'}`}>
+                                ~{budgetEst.toLocaleString('fr-FR')} €
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Status buttons */}
+                <div className="mt-auto pt-3">
+                  <p className="text-[10px] text-slate-500 mb-2">Marquer cette décision comme :</p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {DECISION_STATUTS.map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => handleDecisionStatus(s.id)}
+                        className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                          currentDecisionStatus === s.id
+                            ? s.cls + ' ring-1 ring-inset ring-current'
+                            : s.cls
+                        }`}
+                      >
+                        <span className="text-sm leading-none">{s.emoji}</span>
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Advance button */}
+                  {currentDecisionStatus && currentDecisionStatus !== 'a_faire' && decisionIndex < decisions.length - 1 && (
+                    <button
+                      onClick={goNextDecision}
+                      className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs text-violet-300 hover:text-violet-200 border border-violet-500/20 hover:border-violet-500/40 bg-violet-500/[0.06] hover:bg-violet-500/[0.12] rounded-xl py-2 transition-all"
+                    >
+                      Décision suivante
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {decisionIndex === decisions.length - 1 && currentDecisionStatus && currentDecisionStatus !== 'a_faire' && (
+                    <p className="text-center text-[10px] text-emerald-400 mt-2">✓ Toutes les décisions traitées</p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-slate-400 italic">Aucune décision en attente.</p>
+            )}
+          </div>
+
+          {/* Carte 2 : Budget par lots */}
+          <div className="bg-[#0d1525] border border-white/[0.07] rounded-2xl p-4 flex flex-col">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Wallet className="h-4 w-4 text-emerald-400 shrink-0" />
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider">Budget estimé TTC</p>
+              </div>
+              {slidableLots.length > 0 && (
+                <button
+                  onClick={() => openPanel('lot-params')}
+                  className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-violet-300 transition-colors"
+                >
+                  <SlidersHorizontal className="h-3 w-3" />
+                  Ajuster
+                </button>
+              )}
+            </div>
+
+            {/* Big budget number */}
+            <p className="text-2xl font-bold text-white leading-none mb-1">
+              {displayBudget.toLocaleString('fr-FR')} €
+            </p>
+            {selectedOption && (
+              <p className="text-[10px] text-amber-400 mb-3">Option : {selectedOption.label}</p>
+            )}
+
+            {/* Market range bar */}
+            {marketRange && (
+              <div className="mb-3">
+                <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1">
+                  <span>Fourchette marché</span>
+                  <span className="tabular-nums">
+                    {marketRange.min.toLocaleString('fr-FR')} – {marketRange.max.toLocaleString('fr-FR')} €
+                  </span>
+                </div>
+                <div className="h-1.5 bg-white/[0.06] rounded-full relative">
+                  <div className="absolute inset-0 bg-emerald-500/20 rounded-full" />
+                  {(() => {
+                    const pct = Math.min(100, Math.max(0, ((displayBudget - marketRange.min) / (marketRange.max - marketRange.min)) * 100));
+                    const color = displayBudget > marketRange.max * 1.1 ? '#fb7185' : displayBudget >= marketRange.min ? '#34d399' : '#fbbf24';
+                    return (
+                      <div
+                        className="absolute top-1/2 w-2.5 h-2.5 rounded-full border-2 border-[#0d1525] shadow"
+                        style={{ left: `${pct}%`, transform: 'translate(-50%, -50%)', background: color }}
+                      />
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+
+            {/* Lot breakdown */}
+            {hasLotBudgets ? (
+              <div className="mt-1 flex-1">
+                <div className="space-y-1.5">
+                  {(budgetExpanded ? lots : lots.slice(0, 3)).filter((l) => l.budget_avg_ht != null).map((l) => (
+                    <button
+                      key={l.id}
+                      onClick={() => openPanel('lot-params')}
+                      className="w-full flex items-center justify-between text-xs gap-2 rounded-lg px-2 py-1.5 hover:bg-white/[0.04] transition-colors group"
+                    >
+                      <span className="flex items-center gap-1.5 text-slate-300 min-w-0 truncate">
+                        <span className="shrink-0">{l.emoji ?? '🔧'}</span>
+                        <span className="truncate">{l.nom}</span>
+                        {lotQuantities[l.id] != null && l.quantite != null && (
+                          <span className="text-violet-400 shrink-0 text-[10px]">✎</span>
+                        )}
+                      </span>
+                      <span className="text-white font-semibold tabular-nums shrink-0">
+                        {(lotBudgets[l.id] ?? 0).toLocaleString('fr-FR')} €
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {lots.filter((l) => l.budget_avg_ht != null).length > 3 && (
+                  <button
+                    onClick={() => setBudgetExpanded((v) => !v)}
+                    className="mt-1 flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
+                  >
+                    {budgetExpanded ? <><ChevronUp className="h-3 w-3" />Voir moins</> : <><ChevronDown className="h-3 w-3" />+{lots.filter((l) => l.budget_avg_ht != null).length - 3} lots</>}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="flex-1 space-y-1.5">
+                {(result.lignesBudget ?? []).slice(0, budgetExpanded ? undefined : 3).map((l, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs px-2">
+                    <span className="text-slate-400 truncate">{l.label}</span>
+                    <span className="text-white font-semibold tabular-nums shrink-0 ml-2">{l.montant.toLocaleString('fr-FR')} €</span>
+                  </div>
+                ))}
+                {(result.lignesBudget ?? []).length > 3 && (
+                  <button onClick={() => setBudgetExpanded((v) => !v)} className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-300 transition-colors ml-2">
+                    {budgetExpanded ? <><ChevronUp className="h-3 w-3" />Moins</> : <><ChevronDown className="h-3 w-3" />+{(result.lignesBudget ?? []).length - 3} postes</>}
+                  </button>
+                )}
+              </div>
+            )}
+
+            <button
+              onClick={() => openPanel('budget-detail')}
+              className="mt-3 w-full flex items-center justify-center gap-1.5 text-[10px] text-slate-500 hover:text-slate-300 border border-white/[0.06] hover:border-white/[0.12] rounded-xl py-1.5 transition-all"
+            >
+              <Info className="h-3 w-3" />
+              Comprendre le calcul
+            </button>
+          </div>
+        </div>
+
+        {/* ── TIMELINE ─────────────────────────────────────────────────────── */}
+        <div className="bg-[#0d1525] border border-white/[0.07] rounded-2xl p-4">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-3">Phases du projet</p>
+          <div className="flex items-stretch gap-1">
+            {PHASES.map((phase, idx) => {
+              const isCompleted = idx < currentPhaseIndex;
+              const isCurrent   = phase.id === currentPhaseId;
+              return (
+                <button
+                  key={phase.id}
+                  onClick={() => handlePhaseClick(phase.id)}
+                  className={`flex-1 flex flex-col items-center gap-1.5 rounded-xl py-2.5 px-1 transition-all group ${
+                    isCurrent
+                      ? 'bg-violet-500/15 border border-violet-500/30'
+                      : 'hover:bg-white/[0.04] border border-transparent'
+                  }`}
+                >
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all ${
+                    isCompleted ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-300' :
+                    isCurrent   ? 'bg-violet-500/25 border border-violet-500/40' :
+                                  'bg-white/[0.05] border border-white/[0.08] text-slate-500'
+                  }`}>
+                    {isCompleted ? '✓' : phase.emoji}
+                  </div>
+                  <span className={`text-[10px] font-medium text-center leading-tight ${
+                    isCompleted ? 'text-emerald-400' : isCurrent ? 'text-violet-300' : 'text-slate-500'
+                  }`}>
+                    {phase.label}
+                  </span>
+                  <ChevronRight className="h-2.5 w-2.5 text-slate-600 rotate-90 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── ACTION BAR ──────────────────────────────────────────────────── */}
+        <div className="bg-[#0d1525] border border-white/[0.07] rounded-2xl p-2">
+          <div className="flex">
+            {([
+              { id: 'lots',      label: 'Lots',      Icon: LayoutGrid },
+              { id: 'planning',  label: 'Planning',  Icon: Calendar   },
+              { id: 'artisans',  label: 'Artisans',  Icon: Users      },
+              { id: 'documents', label: 'Documents', Icon: FolderOpen },
+              { id: 'journal',   label: 'Journal',   Icon: BookOpen   },
+            ] as const).map(({ id, label, Icon }) => (
+              <button
+                key={id}
+                onClick={() => openPanel(id)}
+                className={`flex-1 flex flex-col items-center gap-1 py-2.5 rounded-xl transition-all ${
+                  panel === id ? 'bg-white/[0.08] text-white' : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="text-[10px] font-medium">{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+      </div>
+
+      {/* ── PANEL SLIDE-IN ────────────────────────────────────────────────── */}
+      {panel && (
+        <>
+          <div className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm" onClick={closePanel} />
+          <div className="fixed right-0 top-0 bottom-0 w-full sm:w-[480px] bg-[#0d1525] border-l border-white/[0.08] z-50 flex flex-col shadow-2xl shadow-black/60">
+
+            {/* Panel header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06] shrink-0">
+              <h3 className="font-semibold text-white text-sm">{panelTitle[panel]}</h3>
+              <button onClick={closePanel} className="text-slate-400 hover:text-white transition-colors p-1 -mr-1">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Panel content */}
+            <div className={`flex-1 overflow-y-auto ${panel === 'chat' ? 'flex flex-col' : 'p-5 space-y-4'}`}>
+
+              {/* ── Lots ──────────────────────────────────────────────────── */}
+              {panel === 'lots' && (
+                lots.length === 0
+                  ? <p className="text-sm text-slate-400 italic">Aucun lot défini.</p>
+                  : lots.map((lot) => {
+                    const statut    = lotStatuts[lot.id] ?? lot.statut;
+                    const noDevis   = lot.budget_avg_ht == null && !lot.id.startsWith('fallback-');
+                    const isFallback = lot.id.startsWith('fallback-');
+                    return (
+                      <div key={lot.id} className="bg-white/[0.04] border border-white/[0.07] rounded-xl p-4">
+                        <div className="flex items-start gap-3">
+                          <span className="text-xl shrink-0 mt-0.5">{lot.emoji ?? '🔧'}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-semibold text-white">{lot.nom}</p>
+                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${
+                                statut === 'ok'          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25' :
+                                statut === 'a_contacter' ? 'bg-blue-500/15 text-blue-300 border-blue-500/25' :
+                                                           'bg-orange-500/15 text-orange-300 border-orange-500/25'
+                              }`}>
+                                {statut === 'ok' ? 'Confirmé' : statut === 'a_contacter' ? 'À contacter' : 'À trouver'}
+                              </span>
+                            </div>
+                            {lot.role && <p className="text-xs text-slate-400 mt-0.5">{lot.role}</p>}
+                            {lot.budget_min_ht != null && lot.budget_max_ht != null ? (
+                              <p className="text-xs text-slate-300 mt-1 tabular-nums">
+                                {Math.round(lot.budget_min_ht).toLocaleString('fr-FR')} – {Math.round(lot.budget_max_ht).toLocaleString('fr-FR')} € HT
+                              </p>
+                            ) : (
+                              <p className="text-xs text-slate-500 mt-1 italic">Aucun devis chiffré</p>
+                            )}
+                            {noDevis && (
+                              <div className="flex items-center gap-1.5 text-[10px] text-amber-400 mt-1.5">
+                                <AlertTriangle className="h-3 w-3 shrink-0" />
+                                Lot sans devis officiel
+                              </div>
+                            )}
+                          </div>
+                          {!isFallback && (
+                            <select
+                              value={statut}
+                              onChange={(e) => handleLotStatut(lot.id, e.target.value as StatutArtisan)}
+                              className="shrink-0 text-[10px] bg-white/[0.06] border border-white/[0.10] rounded-lg px-1.5 py-1 text-slate-300 outline-none cursor-pointer"
+                            >
+                              <option value="a_trouver">À trouver</option>
+                              <option value="a_contacter">À contacter</option>
+                              <option value="ok">Confirmé</option>
+                            </select>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+
+              {/* ── Planning ──────────────────────────────────────────────── */}
+              {panel === 'planning' && (
+                (result.roadmap ?? []).length === 0
+                  ? <p className="text-sm text-slate-400 italic">Aucun planning défini.</p>
+                  : (result.roadmap ?? []).map((etape, i) => (
+                    <div key={i} className="flex gap-4">
+                      <div className="flex flex-col items-center shrink-0">
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                          etape.isCurrent ? 'bg-violet-600 text-white' : 'bg-white/[0.06] text-slate-400 border border-white/[0.08]'
+                        }`}>
+                          {etape.numero}
+                        </div>
+                        {i < (result.roadmap ?? []).length - 1 && (
+                          <div className="w-px flex-1 bg-white/[0.06] mt-1 min-h-[20px]" />
+                        )}
+                      </div>
+                      <div className="pb-5 flex-1 min-w-0">
+                        <p className={`text-sm font-medium ${etape.isCurrent ? 'text-white' : 'text-slate-300'}`}>{etape.nom}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{etape.mois}</p>
+                        {etape.isCurrent && (
+                          <span className="inline-block mt-1 text-[10px] font-semibold text-violet-300 bg-violet-500/15 border border-violet-500/25 rounded-full px-2 py-0.5">
+                            Phase actuelle
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+              )}
+
+              {/* ── Artisans ──────────────────────────────────────────────── */}
+              {panel === 'artisans' && (
+                artisans.length === 0
+                  ? <p className="text-sm text-slate-400 italic">Aucun artisan défini.</p>
+                  : artisans.map((a, i) => (
+                    <div key={i} className="flex items-center gap-3 bg-white/[0.04] border border-white/[0.07] rounded-xl p-3.5">
+                      <span className="text-xl">{a.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white">{a.metier}</p>
+                        <p className="text-xs text-slate-400">{a.role}</p>
+                      </div>
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                        a.statut === 'ok'          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25' :
+                        a.statut === 'a_contacter' ? 'bg-blue-500/15 text-blue-300 border-blue-500/25' :
+                                                     'bg-orange-500/15 text-orange-300 border-orange-500/25'
+                      }`}>
+                        {a.statut === 'ok' ? 'Confirmé' : a.statut === 'a_contacter' ? 'À contacter' : 'À trouver'}
+                      </span>
+                    </div>
+                  ))
+              )}
+
+              {/* ── Documents ─────────────────────────────────────────────── */}
+              {panel === 'documents' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <button className="flex flex-col items-center gap-2 bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.07] hover:border-white/[0.14] rounded-xl p-4 transition-all text-slate-300 hover:text-white">
+                      <Upload className="h-5 w-5 text-blue-400" />
+                      <span className="text-xs font-medium">Ajouter un devis</span>
+                    </button>
+                    <button className="flex flex-col items-center gap-2 bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.07] hover:border-white/[0.14] rounded-xl p-4 transition-all text-slate-300 hover:text-white">
+                      <FileText className="h-5 w-5 text-emerald-400" />
+                      <span className="text-xs font-medium">Ajouter un document</span>
+                    </button>
+                  </div>
+                  <div className="text-center py-10">
+                    <FolderOpen className="h-8 w-8 text-slate-700 mx-auto mb-2" />
+                    <p className="text-sm text-slate-400">Aucun document ajouté</p>
+                    <p className="text-xs text-slate-600 mt-1">Importez vos devis et documents de chantier</p>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Journal ───────────────────────────────────────────────── */}
+              {panel === 'journal' && journalEvents.map((e, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <div className="w-9 h-9 bg-white/[0.05] border border-white/[0.08] rounded-xl flex items-center justify-center text-base shrink-0">
+                    {e.emoji}
+                  </div>
+                  <div className="flex-1 min-w-0 pt-0.5">
+                    <p className="text-sm text-white font-medium leading-tight">{e.label}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{e.sublabel}</p>
+                  </div>
+                  <span className="text-[10px] text-slate-600 shrink-0 pt-1">{e.date}</span>
+                </div>
+              ))}
+
+              {/* ── Budget detail ─────────────────────────────────────────── */}
+              {panel === 'budget-detail' && (
+                <div className="space-y-4">
+                  <div className="bg-white/[0.04] rounded-xl p-4 space-y-3">
+                    <h4 className="text-sm font-semibold text-white">Répartition par lots</h4>
+                    {hasLotBudgets ? (
+                      <>
+                        <div className="space-y-2">
+                          {lots.filter((l) => l.budget_avg_ht != null).map((l, i) => (
+                            <div key={i} className="flex items-center justify-between text-xs gap-4">
+                              <span className="text-slate-300 flex items-center gap-1.5 min-w-0 truncate">
+                                <span>{l.emoji ?? '🔧'}</span>
+                                {l.nom}
+                                {l.quantite && l.unite ? ` (${lotQuantities[l.id] ?? l.quantite} ${l.unite})` : ''}
+                              </span>
+                              <span className="text-white font-semibold tabular-nums shrink-0">
+                                {(lotBudgets[l.id] ?? 0).toLocaleString('fr-FR')} € HT
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="border-t border-white/[0.08] pt-3 flex items-center justify-between">
+                          <span className="text-xs text-slate-400">Total HT estimé</span>
+                          <span className="text-sm font-bold text-white tabular-nums">
+                            {lots.reduce((s, l) => s + (lotBudgets[l.id] ?? 0), 0).toLocaleString('fr-FR')} €
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500">Prix issus des références marché. TTC = HT × 1,20 (TVA 20%).</p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="space-y-2">
+                          {(result.lignesBudget ?? []).map((l, i) => (
+                            <div key={i} className="flex items-center justify-between text-xs">
+                              <span className="text-slate-300">{l.label}</span>
+                              <span className="text-white font-semibold tabular-nums">{l.montant.toLocaleString('fr-FR')} €</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="border-t border-white/[0.08] pt-3 flex items-center justify-between">
+                          <span className="text-xs text-slate-400">Total estimé</span>
+                          <span className="text-sm font-bold text-white tabular-nums">{result.budgetTotal.toLocaleString('fr-FR')} €</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500">Estimation IA basée sur le projet décrit. Affinez avec de vrais devis.</p>
+                      </>
+                    )}
+                    {surface > 0 && (
+                      <div className="pt-2 border-t border-white/[0.08]">
+                        <p className="text-xs text-slate-400">
+                          Coût moyen estimé :{' '}
+                          <strong className="text-white">{Math.round(totalBudget / surface).toLocaleString('fr-FR')} €/m²</strong>{' '}
+                          pour {surface} m²
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Lot params (sliders) ──────────────────────────────────── */}
+              {panel === 'lot-params' && (
+                <div className="space-y-5">
+                  <p className="text-xs text-slate-400">Ajustez les quantités pour recalculer le budget estimé en temps réel.</p>
+                  {slidableLots.length === 0 ? (
+                    <p className="text-sm text-slate-500 italic">Aucun lot avec des paramètres ajustables.</p>
+                  ) : (
+                    slidableLots.map((l) => {
+                      const baseQty = l.quantite!;
+                      const curQty  = lotQuantities[l.id] ?? baseQty;
+                      const minQty  = Math.max(1, Math.round(baseQty * 0.3));
+                      const maxQty  = Math.round(baseQty * 3);
+                      const pricePerUnit = l.budget_avg_ht! / baseQty;
+                      const curBudget    = Math.round(pricePerUnit * curQty);
+                      return (
+                        <div key={l.id} className="bg-white/[0.04] border border-white/[0.07] rounded-xl p-4 space-y-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">{l.emoji ?? '🔧'}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-white">{l.nom}</p>
+                              {l.role && <p className="text-xs text-slate-400">{l.role}</p>}
+                            </div>
+                            <span className="text-sm font-bold text-emerald-400 tabular-nums shrink-0">
+                              {curBudget.toLocaleString('fr-FR')} € HT
+                            </span>
+                          </div>
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-slate-400">{l.unite ?? 'unité'}</span>
+                              <span className="text-white font-semibold tabular-nums">{curQty} {l.unite ?? ''}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={minQty}
+                              max={maxQty}
+                              step={Math.max(1, Math.round(baseQty * 0.05))}
+                              value={curQty}
+                              onChange={(e) => setLotQuantities((prev) => ({ ...prev, [l.id]: Number(e.target.value) }))}
+                              className="w-full accent-violet-500 cursor-pointer"
+                            />
+                            <div className="flex justify-between text-[10px] text-slate-600">
+                              <span>{minQty} {l.unite ?? ''}</span>
+                              <span className="text-slate-500">Base : {baseQty} {l.unite ?? ''}</span>
+                              <span>{maxQty} {l.unite ?? ''}</span>
+                            </div>
+                          </div>
+                          {lotQuantities[l.id] != null && lotQuantities[l.id] !== baseQty && (
+                            <button
+                              onClick={() => setLotQuantities((prev) => { const n = { ...prev }; delete n[l.id]; return n; })}
+                              className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
+                            >
+                              ↺ Réinitialiser à {baseQty} {l.unite ?? ''}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                  {/* Budget total recap */}
+                  {slidableLots.length > 0 && (
+                    <div className="bg-emerald-500/[0.08] border border-emerald-500/20 rounded-xl p-4 flex items-center justify-between">
+                      <span className="text-sm text-slate-300 font-medium">Budget total estimé</span>
+                      <span className="text-lg font-bold text-emerald-400 tabular-nums">
+                        {displayBudget.toLocaleString('fr-FR')} €
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Phase detail ─────────────────────────────────────────── */}
+              {panel === 'phase-detail' && phaseDetail && (
+                <div className="space-y-6">
+                  <div>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Actions</p>
+                    <ul className="space-y-2">
+                      {phaseDetail.actions.map((a, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm text-slate-200">
+                          <span className="text-blue-400 shrink-0 mt-1">→</span>{a}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Décisions à prendre</p>
+                    <ul className="space-y-2">
+                      {phaseDetail.decisions.map((d, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm text-slate-200">
+                          <span className="text-amber-400 shrink-0 mt-1">◆</span>{d}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Documents</p>
+                    <ul className="space-y-2">
+                      {phaseDetail.documents.map((d, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm text-slate-200">
+                          <FileText className="h-3.5 w-3.5 text-slate-500 shrink-0 mt-0.5" />{d}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Chat ─────────────────────────────────────────────────── */}
+              {panel === 'chat' && (
+                <>
+                  {/* Messages */}
+                  <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                    {chatMessages.map((msg, i) => (
+                      <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        {msg.role === 'assistant' && (
+                          <div className="w-7 h-7 rounded-full bg-violet-600/30 border border-violet-500/30 flex items-center justify-center text-sm shrink-0 mr-2 mt-0.5">
+                            🤖
+                          </div>
+                        )}
+                        <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
+                          msg.role === 'user'
+                            ? 'bg-violet-600 text-white rounded-tr-sm'
+                            : 'bg-white/[0.06] border border-white/[0.08] text-slate-200 rounded-tl-sm'
+                        }`}>
+                          {msg.text.split('**').map((part, pi) =>
+                            pi % 2 === 1
+                              ? <strong key={pi} className="font-semibold text-white">{part}</strong>
+                              : <span key={pi}>{part}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {chatLoading && (
+                      <div className="flex justify-start">
+                        <div className="w-7 h-7 rounded-full bg-violet-600/30 border border-violet-500/30 flex items-center justify-center text-sm shrink-0 mr-2">🤖</div>
+                        <div className="bg-white/[0.06] border border-white/[0.08] rounded-2xl rounded-tl-sm px-4 py-3">
+                          <div className="flex gap-1.5 items-center">
+                            <div className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <div className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <div className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div ref={chatEndRef} />
+                  </div>
+
+                  {/* Suggestions (only before first user message) */}
+                  {chatMessages.length === 1 && (
+                    <div className="px-5 pb-3 flex flex-wrap gap-2">
+                      {CHAT_SUGGESTIONS.map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => handleSuggestionClick(s)}
+                          className="text-[10px] text-slate-300 bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.08] hover:border-white/[0.15] rounded-full px-3 py-1.5 transition-all"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Input */}
+                  <div className="px-4 pb-4 pt-2 border-t border-white/[0.06] shrink-0">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendChat(); } }}
+                        placeholder="Posez votre question..."
+                        className="flex-1 bg-white/[0.06] border border-white/[0.10] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none focus:border-violet-500/50 transition-colors"
+                      />
+                      <button
+                        onClick={handleSendChat}
+                        disabled={!chatInput.trim() || chatLoading}
+                        className="w-10 h-10 flex items-center justify-center bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-all"
+                      >
+                        <Send className="h-4 w-4 text-white" />
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── FLOATING ASSISTANT ────────────────────────────────────────────── */}
+      <div className="fixed bottom-6 right-6 z-30">
+        <button
+          onClick={() => openPanel('chat')}
+          className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white font-semibold text-sm rounded-2xl px-4 py-3 shadow-lg shadow-violet-900/50 transition-all hover:shadow-violet-700/40 hover:scale-105"
+        >
+          <Wand2 className="h-4 w-4" />
+          <span className="hidden sm:inline">Maître d'œuvre</span>
+        </button>
+      </div>
+
+    </div>
+  );
+}

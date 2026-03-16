@@ -7,7 +7,7 @@ import {
   Users, Send, X, MessageCircle, ClipboardList,
   AlertCircle, ArrowRight, Calculator,
 } from 'lucide-react';
-import type { ChantierIAResult, LotChantier, TacheIA, StatutArtisan, EtapeRoadmap } from '@/types/chantier-ia';
+import type { ChantierIAResult, LotChantier, TacheIA, StatutArtisan, EtapeRoadmap, ProjectMode } from '@/types/chantier-ia';
 import type { ConseilMO } from '@/components/chantier/ConseilsChantier';
 
 import PanneauDetail from '@/components/chantier/cockpit/PanneauDetail';
@@ -36,7 +36,53 @@ interface DashboardChantierProps {
   onLotStatutChange?: (lotId: string, statut: StatutArtisan) => void;
   token?: string | null;
   userId?: string | null;
+  projectMode?: ProjectMode | null;
+  onProjectModeChange?: (mode: ProjectMode) => void;
 }
+
+// ── Config visuelle par mode de gestion ───────────────────────────────────────
+
+const MODE_CONFIG: Record<ProjectMode, {
+  label: string;
+  emoji: string;
+  badgeBg: string;
+  badgeText: string;
+  bannerBg: string;
+  bannerBorder: string;
+  bannerText: string;
+  tip: string;
+}> = {
+  guided: {
+    label: 'Guidé',
+    emoji: '📚',
+    badgeBg: 'bg-violet-500/15',
+    badgeText: 'text-violet-300',
+    bannerBg: 'bg-violet-500/[0.06]',
+    bannerBorder: 'border-violet-500/20',
+    bannerText: 'text-violet-300',
+    tip: 'Mode guidé — les étapes pédagogiques et les alertes sont renforcées pour vous accompagner.',
+  },
+  flexible: {
+    label: 'Flexible',
+    emoji: '🗂️',
+    badgeBg: 'bg-blue-500/15',
+    badgeText: 'text-blue-300',
+    bannerBg: 'bg-blue-500/[0.06]',
+    bannerBorder: 'border-blue-500/20',
+    bannerText: 'text-blue-300',
+    tip: 'Mode flexible — organisez vos lots librement, sans blocages.',
+  },
+  investor: {
+    label: 'Investisseur',
+    emoji: '📈',
+    badgeBg: 'bg-emerald-500/15',
+    badgeText: 'text-emerald-300',
+    bannerBg: 'bg-emerald-500/[0.06]',
+    bannerBorder: 'border-emerald-500/20',
+    bannerText: 'text-emerald-300',
+    tip: 'Mode investisseur — le suivi financier et les rapports d\'avancement sont mis en avant.',
+  },
+};
 
 // ── Options simulateur par type de travaux ────────────────────────────────────
 
@@ -318,6 +364,8 @@ export default function DashboardChantier({
   onLotStatutChange,
   token,
   userId,
+  projectMode,
+  onProjectModeChange,
 }: DashboardChantierProps) {
   const [panneau, setPanneau]       = useState<PanneauId>(null);
   const [taches, setTaches]         = useState<TacheIA[]>(result.taches ?? []);
@@ -328,7 +376,8 @@ export default function DashboardChantier({
   const [conseils, setConseils]     = useState<ConseilMO[]>([]);
   const [uploadTrigger, setUploadTrigger] = useState<'document' | 'devis' | null>(null);
   const [selectedEtape, setSelectedEtape] = useState<EtapeRoadmap | null>(null);
-  const [showWhyAction, setShowWhyAction] = useState(false);
+  // En mode guidé, "Pourquoi maintenant" est ouvert par défaut
+  const [showWhyAction, setShowWhyAction] = useState(projectMode === 'guided');
   const [optionBudget, setOptionBudget]   = useState<number | null>(null);
   const [showChat, setShowChat]           = useState(false);
   const [chatInput, setChatInput]         = useState('');
@@ -364,6 +413,9 @@ export default function DashboardChantier({
 
   // Tâches urgentes
   const nbUrgentes = taches.filter((t) => !t.done && t.priorite === 'urgent').length;
+
+  // Mode de gestion
+  const modeConfig = projectMode ? MODE_CONFIG[projectMode] : null;
 
   // Texte "Pourquoi maintenant"
   const pourquoiText = useMemo(() => getPourquoiText(result, currentPhase), [result, currentPhase]);
@@ -425,7 +477,14 @@ export default function DashboardChantier({
             {result.emoji}
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-white font-bold text-sm sm:text-base leading-tight truncate">{result.nom}</h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-white font-bold text-sm sm:text-base leading-tight truncate">{result.nom}</h1>
+              {modeConfig && (
+                <span className={`hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${modeConfig.badgeBg} ${modeConfig.badgeText}`}>
+                  {modeConfig.emoji} {modeConfig.label}
+                </span>
+              )}
+            </div>
             <p className="text-slate-500 text-xs truncate hidden sm:block">{currentPhase}</p>
           </div>
 
@@ -474,6 +533,37 @@ export default function DashboardChantier({
           </div>
         </div>
       </header>
+
+      {/* ── MODE BANNER ────────────────────────────────────────────────────── */}
+      {modeConfig && (
+        <div className={`flex-none border-b ${modeConfig.bannerBorder} ${modeConfig.bannerBg} px-4 lg:px-6 py-2 flex items-center justify-between gap-3`}>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm shrink-0">{modeConfig.emoji}</span>
+            <p className={`text-xs ${modeConfig.bannerText} truncate`}>{modeConfig.tip}</p>
+          </div>
+          {/* Bouton changer de mode */}
+          {onProjectModeChange && (
+            <div className="relative shrink-0 group">
+              <button className="text-xs text-slate-500 hover:text-white transition-colors whitespace-nowrap">
+                Changer
+              </button>
+              {/* Dropdown rapide */}
+              <div className="absolute right-0 top-full mt-1 bg-[#0d1525] border border-white/[0.10] rounded-xl shadow-xl py-1 w-40 z-50 hidden group-focus-within:block group-hover:block">
+                {(['guided', 'flexible', 'investor'] as ProjectMode[]).filter((m) => m !== projectMode).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => onProjectModeChange(m)}
+                    className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-white/[0.05] transition-colors flex items-center gap-2"
+                  >
+                    <span>{MODE_CONFIG[m].emoji}</span>
+                    <span>{MODE_CONFIG[m].label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── COCKPIT MAIN ───────────────────────────────────────────────────── */}
       <main className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-3 gap-3 p-3 lg:p-4">
@@ -540,6 +630,100 @@ export default function DashboardChantier({
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+          {/* ── Carte mode guidé : conseils pédagogiques ─────────────────── */}
+          {projectMode === 'guided' && (
+            <div className="bg-violet-500/[0.06] border border-violet-500/20 rounded-2xl p-3 flex-none">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-base">📚</span>
+                <p className="text-violet-300 text-xs font-semibold">Pourquoi cette étape ?</p>
+              </div>
+              <p className="text-slate-400 text-xs leading-relaxed">
+                {pourquoiText}
+              </p>
+              {nbATrouver > 0 && (
+                <div className="mt-2 pt-2 border-t border-violet-500/15 flex items-start gap-2">
+                  <AlertCircle className="h-3.5 w-3.5 text-violet-400 shrink-0 mt-0.5" />
+                  <p className="text-violet-300 text-xs">
+                    <strong>{nbATrouver} lot{nbATrouver > 1 ? 's' : ''}</strong> sans artisan — commencez par demander des devis.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Carte mode investisseur : suivi à distance ────────────────── */}
+          {projectMode === 'investor' && (
+            <div className="bg-emerald-500/[0.06] border border-emerald-500/20 rounded-2xl p-3 flex-none">
+              <div className="flex items-center gap-2 mb-2.5">
+                <span className="text-base">📡</span>
+                <p className="text-emerald-300 text-xs font-semibold">Suivi à distance</p>
+              </div>
+              {/* Budget en temps réel */}
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-slate-400">Budget engagé</span>
+                <span className="text-xs font-bold text-white">
+                  {(() => {
+                    const okLots = (result.lots ?? []).filter((l) => (lotStatuts[l.id] ?? l.statut) === 'ok');
+                    const total = okLots.reduce((s, l) => s + (l.budget_avg_ht ?? 0), 0);
+                    return total > 0 ? `~${total.toLocaleString('fr-FR')} € HT` : '—';
+                  })()}
+                </span>
+              </div>
+              {/* Avancement artisans */}
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs text-slate-400">Artisans confirmés</span>
+                <span className="text-xs font-bold text-emerald-300">
+                  {(result.lots ?? []).filter((l) => (lotStatuts[l.id] ?? l.statut) === 'ok').length}
+                  /{(result.lots ?? []).length}
+                </span>
+              </div>
+              {/* Barre progression */}
+              {(result.lots ?? []).length > 0 && (() => {
+                const total = (result.lots ?? []).length;
+                const ok = (result.lots ?? []).filter((l) => (lotStatuts[l.id] ?? l.statut) === 'ok').length;
+                const pct = Math.round((ok / total) * 100);
+                return (
+                  <div className="mb-3">
+                    <div className="w-full bg-white/[0.06] rounded-full h-1.5">
+                      <div
+                        className="bg-emerald-400 rounded-full h-1.5 transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-1">{pct}% des lots validés</p>
+                  </div>
+                );
+              })()}
+              {/* Bouton photo avancement */}
+              <button
+                onClick={onAmeliorer}
+                className="w-full flex items-center justify-center gap-1.5 text-xs text-emerald-300 hover:text-emerald-200 border border-emerald-500/25 hover:border-emerald-500/40 rounded-xl py-2 transition-all"
+              >
+                <Send className="h-3.5 w-3.5" />
+                Demander un rapport d'avancement
+              </button>
+            </div>
+          )}
+
+          {/* ── Carte mode flexible : accès rapide ajout lot ─────────────── */}
+          {projectMode === 'flexible' && (
+            <div className="bg-blue-500/[0.06] border border-blue-500/20 rounded-2xl p-3 flex-none">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-base">🗂️</span>
+                <p className="text-blue-300 text-xs font-semibold">Organisation libre</p>
+              </div>
+              <p className="text-slate-400 text-xs leading-relaxed mb-3">
+                Ajoutez des lots, réorganisez les priorités ou importez un devis sans blocages.
+              </p>
+              <button
+                onClick={() => openPanneau('lots')}
+                className="w-full flex items-center justify-center gap-1.5 text-xs text-blue-300 hover:text-blue-200 border border-blue-500/25 hover:border-blue-500/40 rounded-xl py-2 transition-all"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Gérer les lots de travaux
+              </button>
             </div>
           )}
         </div>

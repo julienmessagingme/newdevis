@@ -62,6 +62,7 @@ export interface UpdateChantierPayload {
   emoji?: string;
   phase?: PhaseChantier;
   enveloppePrevue?: number;
+  projectMode?: 'guided' | 'flexible' | 'investor';
 }
 
 /** Entrée d'activité récente */
