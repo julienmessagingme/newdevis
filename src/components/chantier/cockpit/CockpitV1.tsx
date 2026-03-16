@@ -1152,44 +1152,52 @@ export default function CockpitV1({
 
     const proactiveMsg = `En tant que maître d'œuvre, analyse immédiatement ce chantier sans que je te pose de question. Donne-moi : 1) Un constat rapide de la situation actuelle en 1-2 phrases, 2) Les 3 points d'attention prioritaires pour l'étape en cours : ${stepInfo}, 3) L'action immédiate que je dois faire aujourd'hui et pourquoi. Sois précis, direct, et cite des éléments concrets de MON projet (budget, lots, délais). Pas de généralités.`;
 
-    fetch('/api/chantier/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        message: proactiveMsg,
-        history: [],
-        context: buildChatContext(),
-        documents: uploadedFiles.map((f) => ({
-          name: f.name, type: f.type,
-          analysisResume: f.analysisResume,
-          analysisScore:  f.analysisScore,
-        })),
-      }),
-    })
-      .then((r) => r.json())
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((data) => {
+    const doProactiveFetch = async () => {
+      try {
+        const r = await fetch('/api/chantier/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            message: proactiveMsg,
+            history: [],
+            context: buildChatContext(),
+            documents: uploadedFiles.map((f) => ({
+              name: f.name, type: f.type,
+              analysisResume: f.analysisResume,
+              analysisScore:  f.analysisScore,
+            })),
+          }),
+        });
+
+        if (!r.ok) {
+          const errData = await r.json().catch(() => ({}));
+          throw new Error((errData as Record<string, string>).error ?? `HTTP ${r.status}`);
+        }
+
+        const data = await r.json() as { reply?: string };
         if (data.reply) {
           setChatApiStatus('online');
           setChatMessages([{ role: 'assistant', text: data.reply }]);
         } else {
           throw new Error('Réponse vide');
         }
-      })
-      .catch((e: Error) => {
+      } catch (e) {
+        const err = e as Error;
+        console.error('[chat proactive]', err.name, err.message);
         setChatApiStatus('offline');
         setChatMessages([{
           role: 'assistant',
-          text: `⚠️ **Connexion IA temporairement indisponible** (${e.message})\n\nJe reste disponible en mode hors ligne. Posez vos questions sur le budget, les artisans, les démarches ou le planning de votre chantier **${result.nom}**.`,
+          text: `⚠️ **Connexion IA indisponible** : *${err.message}*\n\nJe reste disponible en mode hors ligne. Posez vos questions sur le budget, les artisans, les démarches ou le planning de votre chantier **${result.nom}**.`,
         }]);
-      })
-      .finally(() => setChatLoading(false));
+      } finally {
+        setChatLoading(false);
+      }
+    };
+
+    doProactiveFetch();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panel]);
 
