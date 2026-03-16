@@ -6,8 +6,21 @@ import {
   Info, Shield, Scan, Download,
 } from 'lucide-react';
 import type { ChantierIAResult, LotChantier, StatutArtisan, ProjectMode } from '@/types/chantier-ia';
+import { supabase } from '@/integrations/supabase/client';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
+
+interface UploadedFile {
+  name: string;
+  type: 'devis' | 'document';
+  size: number;
+  // champs analyse (devis uniquement)
+  analysisId?: string;
+  analysisStatus?: 'uploading' | 'analyzing' | 'completed' | 'failed';
+  analysisScore?: 'VERT' | 'ORANGE' | 'ROUGE';
+  analysisResume?: string;
+  analysisMessage?: string;
+}
 
 type PanelId =
   | 'lots' | 'planning' | 'artisans' | 'documents' | 'journal'
@@ -609,6 +622,7 @@ interface CockpitV1Props {
 export default function CockpitV1({
   result,
   onLotStatutChange,
+  userId,
 }: CockpitV1Props) {
 
   // ── Masquer le widget de chat externe sur cette page ────────────────────────
@@ -656,9 +670,10 @@ export default function CockpitV1({
   type PhaseStatus = 'fait' | 'en_cours' | 'a_faire';
   const [phaseTimelineStatuses, setPhaseTimelineStatuses] = useState<Partial<Record<PhaseId, PhaseStatus>>>({});
 
-  const [uploadedFiles, setUploadedFiles] = useState<{ name: string; type: 'devis' | 'document'; size: number }[]>([]);
-  const devisFileRef    = useRef<HTMLInputElement>(null);
-  const documentFileRef = useRef<HTMLInputElement>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const devisFileRef      = useRef<HTMLInputElement>(null);
+  const documentFileRef   = useRef<HTMLInputElement>(null);
+  const pollIntervalsRef  = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
@@ -807,6 +822,11 @@ export default function CockpitV1({
     if (panel === 'chat') chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages, panel]);
 
+  useEffect(() => {
+    const intervals = pollIntervalsRef.current;
+    return () => { intervals.forEach((id) => clearInterval(id)); };
+  }, []);
+
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const openPanel  = (id: PanelId) => setPanel(id);
@@ -820,6 +840,92 @@ export default function CockpitV1({
     const v = parseInt(surfaceInput);
     if (!isNaN(v) && v > 0) setSurface(v);
     setEditSurf(false);
+  };
+
+  const handleDevisUpload = async (file: File) => {
+    const tempId = `tmp-${Date.now()}`;
+    const entry: UploadedFile = {
+      name: file.name, type: 'devis', size: file.size,
+      analysisId: tempId, analysisStatus: 'uploading', analysisMessage: 'Upload en cours…',
+    };
+    setUploadedFiles((prev) => [...prev, entry]);
+
+    if (!userId) {
+      setUploadedFiles((prev) =>
+        prev.map((f) => f.analysisId === tempId ? { ...f, analysisStatus: 'failed', analysisMessage: 'Connexion requise' } : f)
+      );
+      return;
+    }
+
+    try {
+      // 1. Upload fichier dans le bucket "devis"
+      const ext = file.name.split('.').pop() ?? 'pdf';
+      const filePath = `${userId}/${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from('devis').upload(filePath, file);
+      if (uploadErr) throw uploadErr;
+
+      // 2. Créer l'enregistrement analyse
+      const { data: analysis, error: insertErr } = await supabase
+        .from('analyses')
+        .insert({ user_id: userId, file_name: file.name, file_path: filePath, status: 'pending' })
+        .select('id')
+        .single();
+      if (insertErr || !analysis) throw insertErr ?? new Error('Insert failed');
+
+      const analysisId: string = analysis.id;
+
+      setUploadedFiles((prev) =>
+        prev.map((f) => f.analysisId === tempId
+          ? { ...f, analysisId, analysisStatus: 'analyzing', analysisMessage: '[1/5] Démarrage…' }
+          : f)
+      );
+
+      // 3. Lancer le pipeline (fire & forget)
+      supabase.functions.invoke('analyze-quote', { body: { analysisId } });
+
+      // 4. Polling toutes les 4s jusqu'à completion
+      const pollId = setInterval(async () => {
+        const { data } = await supabase
+          .from('analyses')
+          .select('status, score, resume, error_message')
+          .eq('id', analysisId)
+          .single();
+
+        if (!data) return;
+
+        setUploadedFiles((prev) =>
+          prev.map((f) => {
+            if (f.analysisId !== analysisId) return f;
+            if (data.status === 'completed') {
+              return {
+                ...f,
+                analysisStatus: 'completed',
+                analysisScore: (data.score as 'VERT' | 'ORANGE' | 'ROUGE') ?? undefined,
+                analysisResume: (data.resume as string) ?? undefined,
+              };
+            }
+            if (data.status === 'error') {
+              return { ...f, analysisStatus: 'failed', analysisMessage: 'Analyse échouée' };
+            }
+            return { ...f, analysisMessage: (data.error_message as string) ?? 'Analyse en cours…' };
+          })
+        );
+
+        if (data.status === 'completed' || data.status === 'error') {
+          clearInterval(pollId);
+          pollIntervalsRef.current.delete(analysisId);
+        }
+      }, 4000);
+
+      pollIntervalsRef.current.set(analysisId, pollId);
+
+    } catch {
+      setUploadedFiles((prev) =>
+        prev.map((f) => f.analysisId === tempId
+          ? { ...f, analysisStatus: 'failed', analysisMessage: 'Erreur lors de l\'upload' }
+          : f)
+      );
+    }
   };
 
   const handleLotStatut = (lotId: string, statut: StatutArtisan) => {
@@ -1552,11 +1658,11 @@ export default function CockpitV1({
                   <input
                     ref={devisFileRef}
                     type="file"
-                    accept=".pdf"
+                    accept=".pdf,.jpg,.jpeg,.png,.heic"
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file) setUploadedFiles((prev) => [...prev, { name: file.name, type: 'devis', size: file.size }]);
+                      if (file) handleDevisUpload(file);
                       e.target.value = '';
                     }}
                   />
@@ -1573,25 +1679,126 @@ export default function CockpitV1({
                   />
                   {/* Liste des fichiers uploadés */}
                   {uploadedFiles.length > 0 ? (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {uploadedFiles.map((f, i) => (
-                        <div key={i} className="flex items-center gap-3 bg-white/[0.04] border border-white/[0.07] rounded-xl px-3 py-2.5">
-                          {f.type === 'devis'
-                            ? <Upload className="h-4 w-4 text-blue-400 shrink-0" />
-                            : <FileText className="h-4 w-4 text-emerald-400 shrink-0" />
-                          }
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-white font-medium truncate">{f.name}</p>
-                            <p className="text-[10px] text-slate-500">
-                              {f.type === 'devis' ? 'Devis' : 'Document'} · {Math.round(f.size / 1024)} Ko
-                            </p>
+                        <div key={i} className={`border rounded-xl overflow-hidden transition-all ${
+                          f.type === 'devis' ? 'border-blue-500/20 bg-blue-500/[0.04]' : 'border-white/[0.07] bg-white/[0.04]'
+                        }`}>
+                          {/* En-tête fichier */}
+                          <div className="flex items-center gap-3 px-3 py-2.5">
+                            {f.type === 'devis'
+                              ? <FileText className="h-4 w-4 text-blue-400 shrink-0" />
+                              : <FileText className="h-4 w-4 text-emerald-400 shrink-0" />
+                            }
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-white font-medium truncate">{f.name}</p>
+                              <p className="text-[10px] text-slate-500">
+                                {f.type === 'devis' ? 'Devis' : 'Document'} · {Math.round(f.size / 1024)} Ko
+                              </p>
+                            </div>
+                            {/* Badge statut analyse */}
+                            {f.type === 'devis' && f.analysisStatus === 'completed' && f.analysisScore && (
+                              <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                f.analysisScore === 'VERT'   ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' :
+                                f.analysisScore === 'ORANGE' ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' :
+                                                               'bg-red-500/15 text-red-300 border-red-500/30'
+                              }`}>
+                                {f.analysisScore === 'VERT' ? '🟢' : f.analysisScore === 'ORANGE' ? '🟡' : '🔴'} {f.analysisScore}
+                              </span>
+                            )}
+                            <button
+                              onClick={() => {
+                                if (f.analysisId) {
+                                  const pollId = pollIntervalsRef.current.get(f.analysisId);
+                                  if (pollId) { clearInterval(pollId); pollIntervalsRef.current.delete(f.analysisId); }
+                                }
+                                setUploadedFiles((prev) => prev.filter((_, j) => j !== i));
+                              }}
+                              className="text-slate-600 hover:text-slate-400 transition-colors p-1 shrink-0"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
                           </div>
-                          <button
-                            onClick={() => setUploadedFiles((prev) => prev.filter((_, j) => j !== i))}
-                            className="text-slate-600 hover:text-slate-400 transition-colors p-1"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
+
+                          {/* Zone résultat analyse (devis) */}
+                          {f.type === 'devis' && (
+                            <>
+                              {(f.analysisStatus === 'uploading' || f.analysisStatus === 'analyzing') && (
+                                <div className="px-3 pb-3 pt-0">
+                                  <div className="bg-white/[0.04] border border-white/[0.07] rounded-lg px-3 py-2.5">
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                      <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse shrink-0" />
+                                      <span className="text-[10px] text-blue-300 font-medium">Analyse en cours…</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 truncate">
+                                      {f.analysisMessage ?? 'Initialisation…'}
+                                    </p>
+                                    {/* Barre de progression minimale */}
+                                    <div className="mt-2 h-1 bg-white/[0.06] rounded-full overflow-hidden">
+                                      <div className="h-full bg-blue-500/50 rounded-full animate-pulse" style={{ width: '60%' }} />
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {f.analysisStatus === 'completed' && (
+                                <div className="px-3 pb-3 pt-0">
+                                  <div className={`border rounded-lg px-3 py-2.5 space-y-2 ${
+                                    f.analysisScore === 'VERT'   ? 'bg-emerald-500/[0.06] border-emerald-500/20' :
+                                    f.analysisScore === 'ORANGE' ? 'bg-amber-500/[0.06] border-amber-500/20' :
+                                                                   'bg-red-500/[0.06] border-red-500/20'
+                                  }`}>
+                                    {/* Verdict */}
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-base leading-none">
+                                        {f.analysisScore === 'VERT' ? '✅' : f.analysisScore === 'ORANGE' ? '⚠️' : '🚨'}
+                                      </span>
+                                      <span className={`text-xs font-bold ${
+                                        f.analysisScore === 'VERT'   ? 'text-emerald-300' :
+                                        f.analysisScore === 'ORANGE' ? 'text-amber-300' :
+                                                                       'text-red-300'
+                                      }`}>
+                                        {f.analysisScore === 'VERT'   ? 'Devis favorable' :
+                                         f.analysisScore === 'ORANGE' ? 'Points d\'attention' :
+                                                                        'Risques détectés'}
+                                      </span>
+                                    </div>
+                                    {/* Résumé */}
+                                    {f.analysisResume && (
+                                      <p className="text-[10px] text-slate-300 leading-relaxed line-clamp-3">
+                                        {f.analysisResume}
+                                      </p>
+                                    )}
+                                    {/* Lien analyse complète */}
+                                    {f.analysisId && (
+                                      <a
+                                        href={`/analyse/${f.analysisId}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={`inline-flex items-center gap-1.5 text-[10px] font-semibold rounded-lg px-2.5 py-1.5 transition-all ${
+                                          f.analysisScore === 'VERT'   ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30' :
+                                          f.analysisScore === 'ORANGE' ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30' :
+                                                                         'bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30'
+                                        }`}
+                                      >
+                                        <ChevronRight className="h-3 w-3" />
+                                        Voir l'analyse détaillée
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {f.analysisStatus === 'failed' && (
+                                <div className="px-3 pb-3 pt-0">
+                                  <div className="bg-red-500/[0.06] border border-red-500/20 rounded-lg px-3 py-2 flex items-center gap-2">
+                                    <AlertTriangle className="h-3.5 w-3.5 text-red-400 shrink-0" />
+                                    <span className="text-[10px] text-red-300">{f.analysisMessage ?? 'Analyse échouée'}</span>
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1599,7 +1806,7 @@ export default function CockpitV1({
                     <div className="text-center py-8">
                       <FolderOpen className="h-8 w-8 text-slate-700 mx-auto mb-2" />
                       <p className="text-sm text-slate-400">Aucun document ajouté</p>
-                      <p className="text-xs text-slate-600 mt-1">Importez vos devis et documents de chantier</p>
+                      <p className="text-xs text-slate-600 mt-1">Importez vos devis pour les analyser automatiquement</p>
                     </div>
                   )}
                 </div>
