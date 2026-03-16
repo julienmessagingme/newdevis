@@ -378,25 +378,14 @@ export default function MonChantierHub() {
                 Mon espace chantier
               </span>
             </div>
-            <div className="flex items-end justify-between gap-4 flex-wrap">
-              <div>
-                <h1 className="font-bold text-white text-3xl md:text-4xl mb-1.5">
-                  Mes chantiers
-                </h1>
-                <p className="text-slate-400 text-sm">
-                  <span className="text-white font-semibold">{chantiers.length}</span>{' '}
-                  chantier{chantiers.length > 1 ? 's' : ''} en cours
-                </p>
-              </div>
-              <a
-                href="/mon-chantier/nouveau"
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500
-                  text-white font-semibold rounded-xl transition-colors no-underline text-sm
-                  shadow-lg shadow-blue-600/25"
-              >
-                <Plus className="h-4 w-4" />
-                Nouveau chantier
-              </a>
+            <div>
+              <h1 className="font-bold text-white text-3xl md:text-4xl mb-1.5">
+                Mes chantiers
+              </h1>
+              <p className="text-slate-400 text-sm">
+                <span className="text-white font-semibold">{chantiers.length}</span>{' '}
+                chantier{chantiers.length > 1 ? 's' : ''} en cours
+              </p>
             </div>
             {/* Séparateur décoratif */}
             <div className="mt-6 h-px bg-gradient-to-r from-blue-500/30 via-blue-500/10 to-transparent" />
