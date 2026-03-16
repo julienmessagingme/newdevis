@@ -3,7 +3,7 @@ import {
   AlertTriangle, ChevronRight, Upload, LayoutGrid, Calendar,
   Users, FolderOpen, BookOpen, Pencil, Check, X, Wallet,
   FileText, Wand2, MessageSquare, Send, SlidersHorizontal,
-  Info,
+  Info, Shield, Scan,
 } from 'lucide-react';
 import type { ChantierIAResult, LotChantier, StatutArtisan, ProjectMode } from '@/types/chantier-ia';
 
@@ -12,6 +12,7 @@ import type { ChantierIAResult, LotChantier, StatutArtisan, ProjectMode } from '
 type PanelId =
   | 'lots' | 'planning' | 'artisans' | 'documents' | 'journal'
   | 'budget-detail' | 'phase-detail' | 'lot-params' | 'chat' | 'alert-detail'
+  | 'radar' | 'bouclier'
   | null;
 
 type DecisionStatus = 'a_faire' | 'deja_fait' | 'document_envoye' | 'non_necessaire' | 'etape_suivante';
@@ -53,6 +54,167 @@ const OPTIONS_ISOLATION: WorkOption[] = [
   { id: 'ouate', label: 'Ouate cellulose', priceMin: 25, priceAvg: 45, priceMax: 65, multiplier: 1.1 },
   { id: 'poly',  label: 'Polyuréthane',    priceMin: 35, priceAvg: 60, priceMax: 90, multiplier: 1.3 },
 ];
+
+// ── Radar & Bouclier ─────────────────────────────────────────────────────────
+
+interface RadarPoint {
+  emoji: string;
+  title: string;
+  risk: string;
+  rule: string;
+  document: string;
+}
+
+interface BouclierPoint {
+  emoji: string;
+  title: string;
+  severity: 'high' | 'medium';
+  lines: string[];
+}
+
+function detectRadarPoints(result: ChantierIAResult): RadarPoint[] {
+  const hay = [
+    result.nom,
+    result.description ?? '',
+    ...(result.lots ?? []).map((l) => `${l.nom} ${l.role ?? ''}`),
+    ...(result.formalites ?? []).map((f) => (f as { label?: string }).label ?? ''),
+  ].join(' ').toLowerCase();
+
+  const points: RadarPoint[] = [];
+
+  if (hay.match(/mitoyen|séparatif|clôture|cloture/)) points.push({
+    emoji: '🏠', title: 'Mur ou ouvrage mitoyen',
+    risk: "Travaux sur un mur mitoyen sans accord écrit du voisin peuvent entraîner un arrêt de chantier et une responsabilité civile.",
+    rule: "Le Code Civil impose l'accord écrit du copropriétaire avant tout travaux affectant la mitoyenneté.",
+    document: "Accord de mitoyenneté signé, bornage cadastral, déclaration préalable si modification de clôture.",
+  });
+
+  if (hay.match(/terrassement|excavation|fouille|sous-sol|vide sanitaire/)) points.push({
+    emoji: '⛏️', title: 'Terrassement et réseaux souterrains',
+    risk: "Endommager des réseaux souterrains (gaz, élec, eau, télécoms) engage la responsabilité pénale du maître d'ouvrage.",
+    rule: "La DICT (Déclaration d'Intention de Commencement de Travaux) est obligatoire avant tout terrassement.",
+    document: "DICT sur reseaux-et-canalisations.gouv.fr, plan des réseaux, attestation de l'entreprise de terrassement.",
+  });
+
+  if (hay.match(/assainissement|fosse|eaux usées|eaux pluviales|raccordement/)) points.push({
+    emoji: '🚿', title: 'Assainissement',
+    risk: "Un raccordement non conforme peut entraîner une amende et une obligation de mise en conformité à vos frais.",
+    rule: "Toute construction neuve doit être raccordée au réseau public si disponible. En zone rurale : fosse conforme DTU 64.1.",
+    document: "Attestation de conformité SPANC, plan d'assainissement communal, devis de raccordement réseau.",
+  });
+
+  if (hay.match(/électri|tableau|câblage|domotique/)) points.push({
+    emoji: '⚡', title: 'Conformité électrique',
+    risk: "Une installation non conforme peut causer un incendie ou un refus d'assurance habitation.",
+    rule: "La norme NF C 15-100 est obligatoire. Un certificat CONSUEL est requis pour tout nouveau raccordement.",
+    document: "Attestation CONSUEL, rapport de conformité électrique, devis d'un électricien qualifié.",
+  });
+
+  if (hay.match(/amiante|désamiant/)) points.push({
+    emoji: '☣️', title: 'Risque amiante',
+    risk: "L'amiante libère des fibres cancérigènes. Intervenir sans diagnostic expose à des poursuites pénales.",
+    rule: "Diagnostic amiante obligatoire avant démolition ou rénovation d'un bâtiment construit avant juillet 1997.",
+    document: "Rapport de diagnostic amiante, devis de désamiantage certifié, registre amiante.",
+  });
+
+  if (hay.match(/extension|agrandissement|surface habitable/)) points.push({
+    emoji: '📐', title: 'Surface créée',
+    risk: "Créer de la surface sans autorisation : amende jusqu'à 6 000 €/m² et démolition judiciaire possible.",
+    rule: "Déclaration préalable jusqu'à 40 m² en zone PLU (20 m² hors zone). Permis de construire au-delà.",
+    document: "Cerfa 13703 (déclaration préalable) ou 13406 (permis de construire), plan de masse coté.",
+  });
+
+  if (hay.match(/copropriété|syndic|assemblée|parties communes/)) points.push({
+    emoji: '🏢', title: 'Travaux en copropriété',
+    risk: "Travaux en parties communes sans accord de l'AG : nullité et remise en état obligatoire à vos frais.",
+    rule: "L'assemblée générale doit voter les travaux en parties communes (article 25, loi 1965).",
+    document: "PV d'AG autorisant les travaux, règlement de copropriété, devis validé par le syndic.",
+  });
+
+  if (hay.match(/piscine|bassin|spa/)) points.push({
+    emoji: '🏊', title: 'Piscine ou bassin',
+    risk: "Installation sans autorisation : amende. Sans dispositif de sécurité : responsabilité pénale en cas de noyade.",
+    rule: "Déclaration préalable si bassin > 10 m², permis si > 100 m². Dispositif de sécurité NF P 90-308 obligatoire.",
+    document: "Cerfa déclaration préalable, attestation norme sécurité piscine.",
+  });
+
+  if (hay.match(/façade|ravalement|enduit|bardage/)) points.push({
+    emoji: '🏗️', title: 'Ravalement de façade',
+    risk: "Ravalement non déclaré : amende. Matériaux non conformes au PLU : obligation de reprise.",
+    rule: "Déclaration préalable obligatoire si modification d'aspect extérieur. Certains secteurs imposent des matériaux spécifiques.",
+    document: "Déclaration préalable Cerfa 13703, cahier des prescriptions architecturales de la commune.",
+  });
+
+  if (hay.match(/porteur|charpente|mur porteur|plancher/)) points.push({
+    emoji: '🏛️', title: 'Travaux structurels',
+    risk: "Modifier un élément structurel sans étude préalable peut fragiliser l'ouvrage et engager votre responsabilité.",
+    rule: "Un bureau d'études structure doit valider toute modification de mur porteur, charpente ou plancher.",
+    document: "Note de calcul bureau d'études, plan d'exécution visé, attestation de l'architecte si applicable.",
+  });
+
+  return points.slice(0, 6);
+}
+
+function detectBouclierPoints(
+  lots: LotChantier[],
+  lotStatuts: Record<string, StatutArtisan>,
+  displayBudget: number,
+  marketRange: { min: number; max: number } | null,
+  formalites: { obligatoire?: boolean }[],
+): BouclierPoint[] {
+  const points: BouclierPoint[] = [];
+
+  if (marketRange && displayBudget > marketRange.max * 1.15) {
+    const depassement = Math.round(displayBudget - marketRange.max);
+    points.push({
+      emoji: '💸', title: 'Budget au-dessus du marché', severity: 'high',
+      lines: [
+        `Votre estimation dépasse la fourchette haute de ${depassement.toLocaleString('fr-FR')} €.`,
+        "Demandez au moins 3 devis par lot pour valider les prix avant de vous engager.",
+        "Vérifiez si un phasage des travaux ou des matériaux alternatifs permettent d'optimiser.",
+      ],
+    });
+  }
+
+  const lotsWithoutDevis = lots.filter((l) => l.budget_avg_ht == null && !l.id.startsWith('fallback-'));
+  if (lotsWithoutDevis.length > 0) {
+    const noms = lotsWithoutDevis.slice(0, 2).map((l) => l.nom).join(', ') + (lotsWithoutDevis.length > 2 ? '…' : '');
+    points.push({
+      emoji: '📋', title: 'Absence de devis officiel', severity: 'medium',
+      lines: [
+        `${lotsWithoutDevis.length} lot${lotsWithoutDevis.length > 1 ? 's' : ''} sans devis chiffré : ${noms}.`,
+        "Un devis signé protège juridiquement les deux parties en cas de litige.",
+        "Ne démarrez aucun travail sans devis détaillé : prix HT, délais, conditions de paiement.",
+      ],
+    });
+  }
+
+  const lotsATrouver = lots.filter((l) => (lotStatuts[l.id] ?? l.statut) === 'a_trouver' && l.budget_avg_ht != null);
+  if (lotsATrouver.length > 0) {
+    points.push({
+      emoji: '👷', title: 'Artisans non confirmés', severity: 'medium',
+      lines: [
+        `${lotsATrouver.length} lot${lotsATrouver.length > 1 ? 's' : ''} avec budget estimé mais sans artisan confirmé.`,
+        "Vérifiez systématiquement : assurance décennale valide, SIRET actif, références récentes.",
+        "Un artisan sans assurance vous expose à couvrir les sinistres de votre poche pendant 10 ans.",
+      ],
+    });
+  }
+
+  const formalitesObligatoires = formalites.filter((f) => f.obligatoire);
+  if (formalitesObligatoires.length > 0) {
+    points.push({
+      emoji: '📄', title: 'Autorisations obligatoires non obtenues', severity: 'high',
+      lines: [
+        `${formalitesObligatoires.length} formalité${formalitesObligatoires.length > 1 ? 's' : ''} administrative${formalitesObligatoires.length > 1 ? 's' : ''} obligatoire${formalitesObligatoires.length > 1 ? 's' : ''} identifiée${formalitesObligatoires.length > 1 ? 's' : ''}.`,
+        "Démarrer les travaux sans autorisation expose à une amende et une obligation de démolition.",
+        "Déposez votre dossier en mairie ou sur le guichet numérique avant tout commencement.",
+      ],
+    });
+  }
+
+  return points;
+}
 
 function getAlertExplanation(alert: string): { emoji: string; title: string; lines: string[] } {
   if (alert.match(/sans artisan/)) return {
@@ -372,6 +534,13 @@ export default function CockpitV1({
     return cur ? mapRoadmapToPhase(cur.phase ?? '') : 'conception';
   }, [result.roadmap]);
 
+  const radarPoints = useMemo(() => detectRadarPoints(result), [result]);
+
+  const bouclierPoints = useMemo(
+    () => detectBouclierPoints(lots, lotStatuts, displayBudget, marketRange, formalites),
+    [lots, lotStatuts, displayBudget, marketRange, formalites],
+  );
+
   const currentPhaseIndex = PHASES.findIndex((p) => p.id === currentPhaseId);
 
   const journalEvents = useMemo(() => {
@@ -455,6 +624,8 @@ export default function CockpitV1({
     'phase-detail':  phaseMeta ? `${phaseMeta.emoji} ${phaseMeta.label}` : 'Détail de la phase',
     chat:            "👷 Maître d'œuvre",
     'alert-detail':  selectedAlertIndex != null ? getAlertExplanation(alerts[selectedAlertIndex] ?? '').title : "Point d'attention",
+    radar:           'Radar chantier',
+    bouclier:        'Bouclier chantier',
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -558,6 +729,44 @@ export default function CockpitV1({
                   ))}
                 </div>
               </div>
+            )}
+
+            {/* Radar chantier */}
+            {radarPoints.length > 0 && (
+              <button
+                onClick={() => openPanel('radar')}
+                className="w-full bg-[#0d1525] border border-blue-500/15 hover:border-blue-500/30 rounded-2xl p-4 text-left transition-all group"
+              >
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Scan className="h-3 w-3 text-blue-400 shrink-0" />
+                  <p className="text-[10px] text-blue-400/80 uppercase tracking-wider font-medium">Radar chantier</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-400 group-hover:text-slate-200 transition-colors">
+                    {radarPoints.length} point{radarPoints.length > 1 ? 's' : ''} à vérifier
+                  </span>
+                  <ChevronRight className="h-3 w-3 text-slate-600 group-hover:text-blue-500/60 transition-colors" />
+                </div>
+              </button>
+            )}
+
+            {/* Bouclier chantier */}
+            {bouclierPoints.length > 0 && (
+              <button
+                onClick={() => openPanel('bouclier')}
+                className="w-full bg-[#0d1525] border border-orange-500/20 hover:border-orange-500/35 rounded-2xl p-4 text-left transition-all group"
+              >
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Shield className="h-3 w-3 text-orange-400 shrink-0" />
+                  <p className="text-[10px] text-orange-400/80 uppercase tracking-wider font-medium">Bouclier chantier</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-400 group-hover:text-slate-200 transition-colors">
+                    {bouclierPoints.length} point{bouclierPoints.length > 1 ? 's' : ''} à sécuriser
+                  </span>
+                  <ChevronRight className="h-3 w-3 text-slate-600 group-hover:text-orange-500/60 transition-colors" />
+                </div>
+              </button>
             )}
 
           </div>
@@ -1143,6 +1352,85 @@ export default function CockpitV1({
                   </div>
                 );
               })()}
+
+              {/* ── Radar ────────────────────────────────────────────────── */}
+              {panel === 'radar' && (
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3 bg-blue-500/[0.06] border border-blue-500/15 rounded-xl p-3.5">
+                    <Scan className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      Le radar identifie automatiquement les points de vigilance spécifiques à votre chantier, avant même que les travaux démarrent.
+                    </p>
+                  </div>
+                  {radarPoints.map((pt, i) => (
+                    <div key={i} className="bg-white/[0.04] border border-white/[0.07] rounded-xl p-4 space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-lg shrink-0">
+                          {pt.emoji}
+                        </div>
+                        <p className="text-sm font-semibold text-white leading-snug">{pt.title}</p>
+                      </div>
+                      <div className="space-y-2 pl-0.5">
+                        <div className="flex items-start gap-2">
+                          <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider shrink-0 mt-0.5 w-14">Risque</span>
+                          <span className="text-xs text-slate-300 leading-relaxed">{pt.risk}</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider shrink-0 mt-0.5 w-14">Règle</span>
+                          <span className="text-xs text-slate-300 leading-relaxed">{pt.rule}</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider shrink-0 mt-0.5 w-14">Document</span>
+                          <span className="text-xs text-slate-300 leading-relaxed">{pt.document}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ── Bouclier ─────────────────────────────────────────────── */}
+              {panel === 'bouclier' && (
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3 bg-orange-500/[0.06] border border-orange-500/15 rounded-xl p-3.5">
+                    <Shield className="h-4 w-4 text-orange-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      Le bouclier détecte les situations à risque pour protéger votre projet et votre budget.
+                    </p>
+                  </div>
+                  {bouclierPoints.map((pt, i) => (
+                    <div key={i} className={`bg-white/[0.04] border rounded-xl p-4 space-y-3 ${
+                      pt.severity === 'high' ? 'border-red-500/20' : 'border-orange-500/15'
+                    }`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0 ${
+                          pt.severity === 'high'
+                            ? 'bg-red-500/10 border border-red-500/20'
+                            : 'bg-orange-500/10 border border-orange-500/20'
+                        }`}>
+                          {pt.emoji}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-white leading-snug">{pt.title}</p>
+                          <span className={`text-[10px] font-semibold ${
+                            pt.severity === 'high' ? 'text-red-400' : 'text-orange-400'
+                          }`}>
+                            {pt.severity === 'high' ? '⚠ Risque élevé' : 'Point à sécuriser'}
+                          </span>
+                        </div>
+                      </div>
+                      <ul className="space-y-2">
+                        {pt.lines.map((line, j) => (
+                          <li key={j} className="flex items-start gap-2 text-xs text-slate-300 leading-relaxed">
+                            <span className={`shrink-0 mt-0.5 ${pt.severity === 'high' ? 'text-red-400' : 'text-orange-400'}`}>→</span>
+                            {line}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* ── Chat ─────────────────────────────────────────────────── */}
               {panel === 'chat' && (
