@@ -155,60 +155,68 @@ function detectRadarPoints(result: ChantierIAResult): RadarPoint[] {
   return points.slice(0, 6);
 }
 
+// Bouclier = uniquement risques FINANCIERS ou CONTRACTUELS (pas de doublon avec le Radar)
 function detectBouclierPoints(
   lots: LotChantier[],
   lotStatuts: Record<string, StatutArtisan>,
   displayBudget: number,
   marketRange: { min: number; max: number } | null,
-  formalites: { obligatoire?: boolean }[],
+  description: string,
 ): BouclierPoint[] {
   const points: BouclierPoint[] = [];
 
+  // 1. Devis trop élevé vs marché
   if (marketRange && displayBudget > marketRange.max * 1.15) {
     const depassement = Math.round(displayBudget - marketRange.max);
     points.push({
-      emoji: '💸', title: 'Budget au-dessus du marché', severity: 'high',
+      emoji: '💸', title: 'Devis au-dessus du marché', severity: 'high',
       lines: [
         `Votre estimation dépasse la fourchette haute de ${depassement.toLocaleString('fr-FR')} €.`,
         "Demandez au moins 3 devis par lot pour valider les prix avant de vous engager.",
-        "Vérifiez si un phasage des travaux ou des matériaux alternatifs permettent d'optimiser.",
+        "Un devis 30% au-dessus du marché mérite toujours une contre-offre ou un second avis.",
       ],
     });
   }
 
+  // 2. Acompte trop élevé (détecté dans la description du projet)
+  const acompteMatch = description.match(/acompte[^0-9]*(\d+)\s*%/i);
+  if (acompteMatch) {
+    const pct = parseInt(acompteMatch[1]);
+    if (pct > 30) {
+      points.push({
+        emoji: '💳', title: `Acompte de ${pct}% demandé`, severity: pct > 50 ? 'high' : 'medium',
+        lines: [
+          `Un acompte de ${pct}% est supérieur au plafond recommandé de 30%.`,
+          "Au-delà de 30% sans garantie, vous prenez un risque financier significatif si l'artisan disparaît.",
+          "Exigez une garantie de remboursement ou négociez des paiements échelonnés par avancement.",
+        ],
+      });
+    }
+  }
+
+  // 3. Lots sans devis officiel
   const lotsWithoutDevis = lots.filter((l) => l.budget_avg_ht == null && !l.id.startsWith('fallback-'));
   if (lotsWithoutDevis.length > 0) {
     const noms = lotsWithoutDevis.slice(0, 2).map((l) => l.nom).join(', ') + (lotsWithoutDevis.length > 2 ? '…' : '');
     points.push({
-      emoji: '📋', title: 'Absence de devis officiel', severity: 'medium',
+      emoji: '📋', title: 'Absence de devis signé', severity: 'medium',
       lines: [
         `${lotsWithoutDevis.length} lot${lotsWithoutDevis.length > 1 ? 's' : ''} sans devis chiffré : ${noms}.`,
-        "Un devis signé protège juridiquement les deux parties en cas de litige.",
-        "Ne démarrez aucun travail sans devis détaillé : prix HT, délais, conditions de paiement.",
+        "Sans devis signé, vous n'avez aucune protection contractuelle en cas de litige sur le prix.",
+        "Exigez un devis détaillé : prix HT, délais d'exécution, conditions de paiement.",
       ],
     });
   }
 
+  // 4. Artisan sans assurance vérifiée
   const lotsATrouver = lots.filter((l) => (lotStatuts[l.id] ?? l.statut) === 'a_trouver' && l.budget_avg_ht != null);
   if (lotsATrouver.length > 0) {
     points.push({
-      emoji: '👷', title: 'Artisans non confirmés', severity: 'medium',
+      emoji: '🔒', title: 'Assurance artisan non vérifiée', severity: 'medium',
       lines: [
-        `${lotsATrouver.length} lot${lotsATrouver.length > 1 ? 's' : ''} avec budget estimé mais sans artisan confirmé.`,
-        "Vérifiez systématiquement : assurance décennale valide, SIRET actif, références récentes.",
+        `${lotsATrouver.length} lot${lotsATrouver.length > 1 ? 's' : ''} avec budget mais sans artisan confirmé.`,
+        "Exigez l'attestation décennale à jour avant tout premier versement.",
         "Un artisan sans assurance vous expose à couvrir les sinistres de votre poche pendant 10 ans.",
-      ],
-    });
-  }
-
-  const formalitesObligatoires = formalites.filter((f) => f.obligatoire);
-  if (formalitesObligatoires.length > 0) {
-    points.push({
-      emoji: '📄', title: 'Autorisations obligatoires non obtenues', severity: 'high',
-      lines: [
-        `${formalitesObligatoires.length} formalité${formalitesObligatoires.length > 1 ? 's' : ''} administrative${formalitesObligatoires.length > 1 ? 's' : ''} obligatoire${formalitesObligatoires.length > 1 ? 's' : ''} identifiée${formalitesObligatoires.length > 1 ? 's' : ''}.`,
-        "Démarrer les travaux sans autorisation expose à une amende et une obligation de démolition.",
-        "Déposez votre dossier en mairie ou sur le guichet numérique avant tout commencement.",
       ],
     });
   }
@@ -405,6 +413,8 @@ export default function CockpitV1({
     style.textContent = [
       'iframe[src*="messagingme.app"] { display: none !important; }',
       'div[id*="msg-widget"], div[id*="messagingme"], div[class*="msg-widget"] { display: none !important; }',
+      'iframe[src*="whatsapp"], a[href*="wa.me"], a[href*="whatsapp.com"] { display: none !important; }',
+      '[class*="widget-chat"], [id*="chat-widget"], [class*="whatsapp-btn"] { display: none !important; }',
     ].join(' ');
     document.head.appendChild(style);
     return () => { document.getElementById('cockpit-hide-ext-widget')?.remove(); };
@@ -434,6 +444,13 @@ export default function CockpitV1({
   const [chatInput, setChatInput]       = useState('');
   const [chatLoading, setChatLoading]   = useState(false);
   const chatEndRef                       = useRef<HTMLDivElement>(null);
+
+  type PhaseStatus = 'fait' | 'en_cours' | 'a_faire';
+  const [phaseTimelineStatuses, setPhaseTimelineStatuses] = useState<Partial<Record<PhaseId, PhaseStatus>>>({});
+
+  const [uploadedFiles, setUploadedFiles] = useState<{ name: string; type: 'devis' | 'document'; size: number }[]>([]);
+  const devisFileRef    = useRef<HTMLInputElement>(null);
+  const documentFileRef = useRef<HTMLInputElement>(null);
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
@@ -537,8 +554,8 @@ export default function CockpitV1({
   const radarPoints = useMemo(() => detectRadarPoints(result), [result]);
 
   const bouclierPoints = useMemo(
-    () => detectBouclierPoints(lots, lotStatuts, displayBudget, marketRange, formalites),
-    [lots, lotStatuts, displayBudget, marketRange, formalites],
+    () => detectBouclierPoints(lots, lotStatuts, displayBudget, marketRange, result.description ?? ''),
+    [lots, lotStatuts, displayBudget, marketRange, result.description],
   );
 
   const currentPhaseIndex = PHASES.findIndex((p) => p.id === currentPhaseId);
@@ -608,6 +625,21 @@ export default function CockpitV1({
     setChatLoading(false);
   };
 
+  const cyclePhaseStatus = (phaseId: PhaseId) => {
+    setPhaseTimelineStatuses((prev) => {
+      const current = prev[phaseId] ?? getDefaultPhaseStatus(phaseId);
+      const next: PhaseStatus = current === 'a_faire' ? 'en_cours' : current === 'en_cours' ? 'fait' : 'a_faire';
+      return { ...prev, [phaseId]: next };
+    });
+  };
+
+  const getDefaultPhaseStatus = (phaseId: PhaseId): PhaseStatus => {
+    const idx = PHASES.findIndex((p) => p.id === phaseId);
+    if (idx < currentPhaseIndex) return 'fait';
+    if (idx === currentPhaseIndex) return 'en_cours';
+    return 'a_faire';
+  };
+
   // ── Panel meta ─────────────────────────────────────────────────────────────
 
   const phaseMeta   = selectedPhaseId ? PHASES.find((p) => p.id === selectedPhaseId) : null;
@@ -622,7 +654,7 @@ export default function CockpitV1({
     'budget-detail': 'Détail du budget',
     'lot-params':    'Ajuster les paramètres',
     'phase-detail':  phaseMeta ? `${phaseMeta.emoji} ${phaseMeta.label}` : 'Détail de la phase',
-    chat:            "👷 Maître d'œuvre",
+    chat:            '💬 Assistant chantier',
     'alert-detail':  selectedAlertIndex != null ? getAlertExplanation(alerts[selectedAlertIndex] ?? '').title : "Point d'attention",
     radar:           'Radar chantier',
     bouclier:        'Bouclier chantier',
@@ -634,8 +666,8 @@ export default function CockpitV1({
     <div className="min-h-screen bg-[#0a0f1e] text-white pb-24">
 
       {/* ── HEADER ──────────────────────────────────────────────────────────── */}
-      <header className="border-b border-white/[0.06] px-4 sm:px-6 py-4">
-        <div className="max-w-6xl mx-auto flex items-center gap-4">
+      <header className="border-b border-white/[0.06] px-6 lg:px-8 py-4">
+        <div className="flex items-center gap-4">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-xl shrink-0 select-none">
               {result.emoji}
@@ -662,17 +694,17 @@ export default function CockpitV1({
             className="flex items-center gap-1.5 bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 text-violet-300 text-xs font-semibold rounded-xl px-3 py-2 transition-all shrink-0"
           >
             <MessageSquare className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Assistant</span>
+            <span className="hidden sm:inline">Assistant chantier</span>
           </button>
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 space-y-4">
+      <div className="px-6 lg:px-8 py-5 space-y-4">
 
         {/* ── GRILLE 3 COLONNES ────────────────────────────────────────────── */}
         {/* Mobile : decision d'abord (order-1), puis situation (order-2), puis budget (order-3) */}
         {/* Desktop lg : situation | decision | budget */}
-        <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr_220px] gap-4 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr_320px] gap-4 items-start">
 
           {/* ── COL 1 : Situation projet ───────────────────────────────────── */}
           <div className="order-2 lg:order-1 space-y-3">
@@ -741,11 +773,14 @@ export default function CockpitV1({
                   <Scan className="h-3 w-3 text-blue-400 shrink-0" />
                   <p className="text-[10px] text-blue-400/80 uppercase tracking-wider font-medium">Radar chantier</p>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-400 group-hover:text-slate-200 transition-colors">
-                    {radarPoints.length} point{radarPoints.length > 1 ? 's' : ''} à vérifier
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-300 group-hover:text-white transition-colors flex-1 min-w-0 truncate font-medium">
+                    {radarPoints[0]?.title}
                   </span>
-                  <ChevronRight className="h-3 w-3 text-slate-600 group-hover:text-blue-500/60 transition-colors" />
+                  {radarPoints.length > 1 && (
+                    <span className="text-[10px] text-blue-500/70 shrink-0">+{radarPoints.length - 1}</span>
+                  )}
+                  <ChevronRight className="h-3 w-3 text-slate-600 group-hover:text-blue-500/60 transition-colors shrink-0" />
                 </div>
               </button>
             )}
@@ -970,6 +1005,54 @@ export default function CockpitV1({
 
         </div>
 
+        {/* ── TIMELINE PHASES ───────────────────────────────────────────── */}
+        <div className="bg-[#0d1525] border border-white/[0.07] rounded-2xl px-4 py-3">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-3">Avancement du projet · cliquer pour changer le statut</p>
+          <div className="flex items-center">
+            {PHASES.map((phase, idx) => {
+              const status = phaseTimelineStatuses[phase.id] ?? getDefaultPhaseStatus(phase.id);
+              const isLast = idx === PHASES.length - 1;
+              return (
+                <div key={phase.id} className="flex items-center flex-1 min-w-0">
+                  <button
+                    onClick={() => cyclePhaseStatus(phase.id)}
+                    className="flex flex-col items-center gap-1.5 flex-1 min-w-0 py-1 rounded-xl hover:bg-white/[0.04] transition-all group"
+                  >
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-all ${
+                      status === 'fait'     ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' :
+                      status === 'en_cours' ? 'bg-violet-500/20 border-violet-500/50 text-violet-300 ring-2 ring-violet-500/20' :
+                                             'bg-white/[0.04] border-white/[0.10] text-slate-600'
+                    }`}>
+                      {status === 'fait' ? '✓' : phase.emoji}
+                    </div>
+                    <span className={`text-[10px] font-semibold truncate w-full text-center px-1 ${
+                      status === 'fait'     ? 'text-emerald-400' :
+                      status === 'en_cours' ? 'text-violet-300' :
+                                             'text-slate-600'
+                    }`}>
+                      {phase.label}
+                    </span>
+                    <span className={`text-[10px] leading-none ${
+                      status === 'fait'     ? 'text-emerald-600' :
+                      status === 'en_cours' ? 'text-violet-500' :
+                                             'text-slate-700'
+                    }`}>
+                      {status === 'fait' ? 'Fait' : status === 'en_cours' ? 'En cours' : 'À faire'}
+                    </span>
+                  </button>
+                  {!isLast && (
+                    <div className={`h-px w-6 shrink-0 transition-colors ${
+                      (phaseTimelineStatuses[PHASES[idx + 1].id] ?? getDefaultPhaseStatus(PHASES[idx + 1].id)) !== 'a_faire'
+                        ? 'bg-emerald-500/30'
+                        : 'bg-white/[0.07]'
+                    }`} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         {/* ── NAVIGATION CHANTIER ───────────────────────────────────────── */}
         <div className="bg-[#0d1525] border border-white/[0.07] rounded-2xl p-2">
           <div className="flex">
@@ -1120,21 +1203,79 @@ export default function CockpitV1({
               {/* ── Documents ─────────────────────────────────────────────── */}
               {panel === 'documents' && (
                 <div className="space-y-4">
+                  {/* Boutons upload — les inputs file sont cachés, déclenchés par click */}
                   <div className="grid grid-cols-2 gap-3">
-                    <button className="flex flex-col items-center gap-2 bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.07] hover:border-white/[0.14] rounded-xl p-4 transition-all text-slate-300 hover:text-white">
+                    <button
+                      onClick={() => devisFileRef.current?.click()}
+                      className="flex flex-col items-center gap-2 bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.07] hover:border-white/[0.14] rounded-xl p-4 transition-all text-slate-300 hover:text-white"
+                    >
                       <Upload className="h-5 w-5 text-blue-400" />
                       <span className="text-xs font-medium">Ajouter un devis</span>
+                      <span className="text-[10px] text-slate-600">PDF uniquement</span>
                     </button>
-                    <button className="flex flex-col items-center gap-2 bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.07] hover:border-white/[0.14] rounded-xl p-4 transition-all text-slate-300 hover:text-white">
+                    <button
+                      onClick={() => documentFileRef.current?.click()}
+                      className="flex flex-col items-center gap-2 bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.07] hover:border-white/[0.14] rounded-xl p-4 transition-all text-slate-300 hover:text-white"
+                    >
                       <FileText className="h-5 w-5 text-emerald-400" />
                       <span className="text-xs font-medium">Ajouter un document</span>
+                      <span className="text-[10px] text-slate-600">PDF ou image</span>
                     </button>
                   </div>
-                  <div className="text-center py-10">
-                    <FolderOpen className="h-8 w-8 text-slate-700 mx-auto mb-2" />
-                    <p className="text-sm text-slate-400">Aucun document ajouté</p>
-                    <p className="text-xs text-slate-600 mt-1">Importez vos devis et documents de chantier</p>
-                  </div>
+                  {/* Inputs file cachés */}
+                  <input
+                    ref={devisFileRef}
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) setUploadedFiles((prev) => [...prev, { name: file.name, type: 'devis', size: file.size }]);
+                      e.target.value = '';
+                    }}
+                  />
+                  <input
+                    ref={documentFileRef}
+                    type="file"
+                    accept=".pdf,image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) setUploadedFiles((prev) => [...prev, { name: file.name, type: 'document', size: file.size }]);
+                      e.target.value = '';
+                    }}
+                  />
+                  {/* Liste des fichiers uploadés */}
+                  {uploadedFiles.length > 0 ? (
+                    <div className="space-y-2">
+                      {uploadedFiles.map((f, i) => (
+                        <div key={i} className="flex items-center gap-3 bg-white/[0.04] border border-white/[0.07] rounded-xl px-3 py-2.5">
+                          {f.type === 'devis'
+                            ? <Upload className="h-4 w-4 text-blue-400 shrink-0" />
+                            : <FileText className="h-4 w-4 text-emerald-400 shrink-0" />
+                          }
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-white font-medium truncate">{f.name}</p>
+                            <p className="text-[10px] text-slate-500">
+                              {f.type === 'devis' ? 'Devis' : 'Document'} · {Math.round(f.size / 1024)} Ko
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setUploadedFiles((prev) => prev.filter((_, j) => j !== i))}
+                            className="text-slate-600 hover:text-slate-400 transition-colors p-1"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <FolderOpen className="h-8 w-8 text-slate-700 mx-auto mb-2" />
+                      <p className="text-sm text-slate-400">Aucun document ajouté</p>
+                      <p className="text-xs text-slate-600 mt-1">Importez vos devis et documents de chantier</p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1510,16 +1651,6 @@ export default function CockpitV1({
         </>
       )}
 
-      {/* ── FLOATING ASSISTANT ────────────────────────────────────────────── */}
-      <div className="fixed bottom-6 right-6 z-30">
-        <button
-          onClick={() => openPanel('chat')}
-          className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white font-semibold text-sm rounded-2xl px-4 py-3 shadow-lg shadow-violet-900/50 transition-all hover:shadow-violet-700/40 hover:scale-105"
-        >
-          <Wand2 className="h-4 w-4" />
-          <span className="hidden sm:inline">Maître d'œuvre</span>
-        </button>
-      </div>
 
     </div>
   );
