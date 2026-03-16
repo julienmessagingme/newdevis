@@ -82,7 +82,7 @@ export const GET: APIRoute = async ({ params, request }) => {
   // Chargement avec vérification ownership
   const { data: chantier, error: chantierError } = await supabase
     .from('chantiers')
-    .select('id, nom, emoji, budget, phase, type_projet, mensualite, duree_credit, metadonnees, created_at, project_mode')
+    .select('id, nom, emoji, budget, phase, type_projet, mensualite, duree_credit, metadonnees, created_at')
     .eq('id', chantierId)
     .eq('user_id', user.id)
     .single();
@@ -256,7 +256,7 @@ export const GET: APIRoute = async ({ params, request }) => {
     );
 
   return new Response(
-    JSON.stringify({ result, phase: chantier.phase, isPlanComplet, projectMode: chantier.project_mode ?? null }),
+    JSON.stringify({ result, phase: chantier.phase, isPlanComplet, projectMode: null }),
     { status: 200, headers: CORS },
   );
 };
