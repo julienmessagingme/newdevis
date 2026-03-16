@@ -3,7 +3,7 @@ import {
   AlertTriangle, ChevronRight, Upload, LayoutGrid, Calendar,
   Users, FolderOpen, BookOpen, Pencil, Check, X, Wallet,
   FileText, Wand2, MessageSquare, Send, SlidersHorizontal,
-  ChevronDown, ChevronUp, Info,
+  Info,
 } from 'lucide-react';
 import type { ChantierIAResult, LotChantier, StatutArtisan, ProjectMode } from '@/types/chantier-ia';
 
@@ -192,7 +192,7 @@ const CHAT_RESPONSES: { keywords: RegExp; reply: (r: ChantierIAResult) => string
   },
   {
     keywords: /artisan|entreprise|trouver|choisir|sélect/i,
-    reply: (r) => `Je recommande de contacter **3 artisans minimum par lot** pour votre projet. Vérifiez systématiquement : inscription au RCS, assurance décennale valide, références récentes et qualifications RGE si travaux énergie.`,
+    reply: () => `Je recommande de contacter **3 artisans minimum par lot** pour votre projet. Vérifiez systématiquement : inscription au RCS, assurance décennale valide, références récentes et qualifications RGE si travaux énergie.`,
   },
   {
     keywords: /budget|prix|coût|cher|réaliste/i,
@@ -330,7 +330,6 @@ export default function CockpitV1({
     return ok ? { min: Math.round(min * 1.2), max: Math.round(max * 1.2) } : null;
   }, [lots]);
 
-  // Position du budget par rapport à la fourchette marché
   const budgetPosition = useMemo(() => {
     if (!marketRange) return null;
     if (displayBudget > marketRange.max * 1.1) return { label: 'Au-dessus du marché', color: 'text-red-400' };
@@ -343,7 +342,7 @@ export default function CockpitV1({
 
   const workOptions = useMemo(() => detectWorkOptions(result), [result]);
 
-  // Delta de chaque option matériau par rapport à la première option (référence = 0 €)
+  // Delta vs première option (référence = 0 €)
   const optionDeltas = useMemo(() => {
     if (!workOptions || surface === 0) return {};
     const basePrice = workOptions.options[0]?.priceAvg ?? 0;
@@ -354,7 +353,7 @@ export default function CockpitV1({
     return map;
   }, [workOptions, surface]);
 
-  // Alertes spécifiques
+  // Alertes
   const alerts = useMemo(() => {
     const list: string[] = [];
     const nbATrouver = lots.filter((l) => !l.id.startsWith('fallback-') && (lotStatuts[l.id] ?? l.statut) === 'a_trouver').length;
@@ -418,12 +417,10 @@ export default function CockpitV1({
   const handleDecisionAction = (status: DecisionStatus) => {
     if (!currentDecision) return;
     if (status === 'etape_suivante') {
-      // Avance directement sans marquer un statut
       setDecisionIndex((i) => Math.min(i + 1, decisions.length - 1));
       return;
     }
     setDecisionStatuts((prev) => ({ ...prev, [currentDecision.id]: status }));
-    // Auto-avance après choix
     setTimeout(() => {
       if (decisionIndex < decisions.length - 1) {
         setDecisionIndex((i) => Math.min(i + 1, decisions.length - 1));
@@ -456,8 +453,8 @@ export default function CockpitV1({
     'budget-detail': 'Détail du budget',
     'lot-params':    'Ajuster les paramètres',
     'phase-detail':  phaseMeta ? `${phaseMeta.emoji} ${phaseMeta.label}` : 'Détail de la phase',
-    chat:            '👷 Maître d\'œuvre',
-    'alert-detail':  selectedAlertIndex != null ? (getAlertExplanation(alerts[selectedAlertIndex] ?? '').title) : 'Point d\'attention',
+    chat:            "👷 Maître d'œuvre",
+    'alert-detail':  selectedAlertIndex != null ? getAlertExplanation(alerts[selectedAlertIndex] ?? '').title : "Point d'attention",
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -467,18 +464,22 @@ export default function CockpitV1({
 
       {/* ── HEADER ──────────────────────────────────────────────────────────── */}
       <header className="border-b border-white/[0.06] px-4 sm:px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center gap-4">
+        <div className="max-w-6xl mx-auto flex items-center gap-4">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-xl shrink-0 select-none">
               {result.emoji}
             </div>
             <div className="min-w-0">
               <h1 className="font-bold text-base text-white truncate leading-tight">{result.nom}</h1>
-              {surface > 0 && <p className="text-xs text-slate-500 mt-0.5">{surface} m²</p>}
+              <p className="text-xs text-slate-500 mt-0.5">
+                {PHASES.find(p => p.id === currentPhaseId)?.emoji}{' '}
+                {PHASES.find(p => p.id === currentPhaseId)?.label}
+                {surface > 0 && ` · ${surface} m²`}
+              </p>
             </div>
           </div>
           <div className="hidden sm:block text-right shrink-0">
-            <p className="text-lg font-bold text-white leading-none">
+            <p className="text-xl font-bold text-white leading-none">
               {displayBudget.toLocaleString('fr-FR')} €
             </p>
             <p className={`text-[10px] mt-0.5 ${selectedOption ? 'text-amber-400' : 'text-slate-500'}`}>
@@ -495,87 +496,134 @@ export default function CockpitV1({
         </div>
       </header>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 space-y-4">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 space-y-4">
 
-        {/* ── ALERT BAR ────────────────────────────────────────────────────── */}
-        {alerts.length > 0 && (
-          <div className="flex items-center gap-2 bg-amber-500/[0.08] border border-amber-500/20 rounded-xl px-4 py-2.5">
-            <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-            <div className="flex flex-wrap gap-x-1 gap-y-0.5 min-w-0">
-              {alerts.map((a, i) => (
-                <button
-                  key={i}
-                  onClick={() => { setSelectedAlertIndex(i); openPanel('alert-detail'); }}
-                  className="text-xs text-amber-300/90 whitespace-nowrap hover:text-amber-200 underline-offset-2 hover:underline transition-colors"
-                >
-                  {i > 0 && <span className="text-amber-600/60 mx-2 no-underline" style={{ textDecoration: 'none' }}>|</span>}
-                  {a}
-                </button>
-              ))}
+        {/* ── GRILLE 3 COLONNES ────────────────────────────────────────────── */}
+        {/* Mobile : decision d'abord (order-1), puis situation (order-2), puis budget (order-3) */}
+        {/* Desktop lg : situation | decision | budget */}
+        <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr_220px] gap-4 items-start">
+
+          {/* ── COL 1 : Situation projet ───────────────────────────────────── */}
+          <div className="order-2 lg:order-1 space-y-3">
+
+            {/* Phase du chantier */}
+            <div className="bg-[#0d1525] border border-white/[0.07] rounded-2xl p-4">
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-3">Phase du projet</p>
+              <div className="space-y-0.5">
+                {PHASES.map((phase, idx) => {
+                  const isCompleted = idx < currentPhaseIndex;
+                  const isCurrent   = phase.id === currentPhaseId;
+                  return (
+                    <button
+                      key={phase.id}
+                      onClick={() => handlePhaseClick(phase.id)}
+                      className={`w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-all group ${
+                        isCurrent
+                          ? 'bg-violet-500/15 border border-violet-500/30'
+                          : 'hover:bg-white/[0.04] border border-transparent'
+                      }`}
+                    >
+                      <span className={`text-sm shrink-0 leading-none ${isCompleted ? 'opacity-40' : ''}`}>
+                        {isCompleted ? '✓' : phase.emoji}
+                      </span>
+                      <span className={`text-xs font-medium flex-1 truncate ${
+                        isCompleted ? 'text-emerald-400/40 line-through decoration-emerald-700/40' :
+                        isCurrent   ? 'text-violet-300' :
+                                      'text-slate-500'
+                      }`}>
+                        {phase.label}
+                      </span>
+                      {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-violet-400 shrink-0 animate-pulse" />}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+
+            {/* Points à traiter */}
+            {alerts.length > 0 && (
+              <div className="bg-[#0d1525] border border-white/[0.07] rounded-2xl p-4">
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-3">À traiter</p>
+                <div className="space-y-1.5">
+                  {alerts.map((a, i) => (
+                    <button
+                      key={i}
+                      onClick={() => { setSelectedAlertIndex(i); openPanel('alert-detail'); }}
+                      className="w-full flex items-center gap-2 bg-amber-500/[0.06] hover:bg-amber-500/[0.12] border border-amber-500/15 hover:border-amber-500/30 rounded-xl px-3 py-2 text-left transition-all group"
+                    >
+                      <AlertTriangle className="h-3 w-3 shrink-0 text-amber-400" />
+                      <span className="text-xs text-amber-300/80 group-hover:text-amber-200 flex-1 min-w-0 truncate transition-colors">{a}</span>
+                      <ChevronRight className="h-3 w-3 shrink-0 text-amber-700/50 group-hover:text-amber-500/70 transition-colors" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
           </div>
-        )}
 
-        {/* ── COCKPIT : 2 cartes ───────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-          {/* ── Carte 1 : Prochaine décision ────────────────────────────────── */}
-          <div className="bg-[#0d1525] border border-white/[0.07] rounded-2xl p-4 flex flex-col">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-3">
-              Prochaine décision {decisions.length > 1 && `(${decisionIndex + 1}/${decisions.length})`}
-            </p>
+          {/* ── COL 2 : Prochaine action — carte centrale ─────────────────── */}
+          <div className="order-1 lg:order-2 bg-[#0d1525] border border-white/[0.07] rounded-2xl p-6 flex flex-col min-h-[420px]">
+            <div className="flex items-center justify-between mb-5">
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider">
+                Prochaine action
+                {decisions.length > 1 && (
+                  <span className="ml-2 text-slate-600 normal-case">{decisionIndex + 1}/{decisions.length}</span>
+                )}
+              </p>
+              {currentDecisionStatus && currentDecisionStatus !== 'a_faire' && (
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                  DECISION_STATUTS.find(s => s.id === currentDecisionStatus)?.cls ?? ''
+                }`}>
+                  {DECISION_STATUTS.find(s => s.id === currentDecisionStatus)?.emoji}{' '}
+                  {DECISION_STATUTS.find(s => s.id === currentDecisionStatus)?.label}
+                </span>
+              )}
+            </div>
 
             {currentDecision ? (
               <>
-                {/* Statut actuel */}
-                {currentDecisionStatus && currentDecisionStatus !== 'a_faire' && (
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2 py-0.5">
-                      {DECISION_STATUTS.find((s) => s.id === currentDecisionStatus)?.emoji}{' '}
-                      {DECISION_STATUTS.find((s) => s.id === currentDecisionStatus)?.label}
-                    </span>
-                  </div>
-                )}
-
-                <p className="text-sm font-semibold text-white mb-1 leading-snug">{currentDecision.titre}</p>
+                <p className="text-2xl font-bold text-white leading-snug mb-2">{currentDecision.titre}</p>
                 {currentDecision.detail && (
-                  <p className="text-xs text-slate-400 leading-relaxed mb-3">{currentDecision.detail}</p>
+                  <p className="text-sm text-slate-400 leading-relaxed mb-5">{currentDecision.detail}</p>
                 )}
                 {currentDecision.deadline && (
-                  <p className="text-[10px] text-amber-400 mb-3">⏰ {currentDecision.deadline}</p>
+                  <p className="text-xs text-amber-400 mb-4">⏰ {currentDecision.deadline}</p>
                 )}
 
-                {/* Options matériaux (si applicable) */}
+                {/* Options matériaux */}
                 {workOptions && decisionIndex === 0 && (
-                  <div className="mb-3">
-                    <p className="text-xs text-violet-300 font-medium mb-2">{workOptions.title}</p>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs text-slate-400 shrink-0">Surface</span>
-                      {editingSurface ? (
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="number"
-                            value={surfaceInput}
-                            onChange={(e) => setSurfInput(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') saveSurface(); if (e.key === 'Escape') setEditSurf(false); }}
-                            className="w-14 text-xs bg-white/[0.08] border border-white/[0.15] rounded-lg px-2 py-1 text-white outline-none focus:border-violet-500/60"
-                            autoFocus placeholder="0"
-                          />
-                          <span className="text-xs text-slate-400">m²</span>
-                          <button onClick={saveSurface} className="text-emerald-400 hover:text-emerald-300 transition-colors"><Check className="h-3.5 w-3.5" /></button>
-                          <button onClick={() => setEditSurf(false)} className="text-slate-500 hover:text-slate-300 transition-colors"><X className="h-3.5 w-3.5" /></button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => { setSurfInput(surface > 0 ? String(surface) : ''); setEditSurf(true); }}
-                          className="flex items-center gap-1.5 text-xs bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.10] rounded-lg px-2.5 py-1 text-white transition-colors group"
-                        >
-                          {surface > 0 ? `${surface} m²` : '— m²'}
-                          <Pencil className="h-2.5 w-2.5 text-slate-500 group-hover:text-slate-300 transition-colors" />
-                        </button>
-                      )}
+                  <div className="mb-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-xs text-violet-300 font-medium">{workOptions.title}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-400">Surface</span>
+                        {editingSurface ? (
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              value={surfaceInput}
+                              onChange={(e) => setSurfInput(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') saveSurface(); if (e.key === 'Escape') setEditSurf(false); }}
+                              className="w-14 text-xs bg-white/[0.08] border border-white/[0.15] rounded-lg px-2 py-1 text-white outline-none focus:border-violet-500/60"
+                              autoFocus placeholder="0"
+                            />
+                            <span className="text-xs text-slate-400">m²</span>
+                            <button onClick={saveSurface} className="text-emerald-400 hover:text-emerald-300 transition-colors"><Check className="h-3.5 w-3.5" /></button>
+                            <button onClick={() => setEditSurf(false)} className="text-slate-500 hover:text-slate-300 transition-colors"><X className="h-3.5 w-3.5" /></button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => { setSurfInput(surface > 0 ? String(surface) : ''); setEditSurf(true); }}
+                            className="flex items-center gap-1.5 text-xs bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.10] rounded-lg px-2.5 py-1 text-white transition-colors group"
+                          >
+                            {surface > 0 ? `${surface} m²` : '— m²'}
+                            <Pencil className="h-2.5 w-2.5 text-slate-500 group-hover:text-slate-300 transition-colors" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-1.5">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {workOptions.options.map((opt) => {
                         const isSelected = selectedOption?.id === opt.id;
                         const delta      = optionDeltas[opt.id] ?? null;
@@ -590,7 +638,7 @@ export default function CockpitV1({
                           <button
                             key={opt.id}
                             onClick={() => handleOptionSelect(opt)}
-                            className={`text-left rounded-xl border px-2.5 py-2 text-xs transition-all ${
+                            className={`text-left rounded-xl border px-3 py-2.5 text-xs transition-all ${
                               isSelected
                                 ? 'border-violet-500/50 bg-violet-500/15 text-violet-200'
                                 : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-white/[0.15] hover:text-white'
@@ -617,14 +665,14 @@ export default function CockpitV1({
                 )}
 
                 {/* Boutons d'action */}
-                <div className="mt-auto pt-3">
-                  <p className="text-[10px] text-slate-500 mb-2">Marquer cette étape :</p>
-                  <div className="grid grid-cols-2 gap-1.5">
+                <div className="mt-auto pt-4 border-t border-white/[0.06]">
+                  <p className="text-[10px] text-slate-500 mb-3">Marquer cette étape :</p>
+                  <div className="grid grid-cols-2 gap-2">
                     {DECISION_STATUTS.map((s) => (
                       <button
                         key={s.id}
                         onClick={() => handleDecisionAction(s.id)}
-                        className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all ${s.cls} ${
+                        className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-medium transition-all ${s.cls} ${
                           currentDecisionStatus === s.id ? 'ring-1 ring-inset ring-current' : ''
                         }`}
                       >
@@ -634,123 +682,86 @@ export default function CockpitV1({
                     ))}
                   </div>
                   {decisionIndex === decisions.length - 1 && currentDecisionStatus && currentDecisionStatus !== 'a_faire' && (
-                    <p className="text-center text-[10px] text-emerald-400 mt-2">✓ Toutes les étapes traitées</p>
+                    <p className="text-center text-[10px] text-emerald-400 mt-3">✓ Toutes les étapes traitées</p>
                   )}
                 </div>
               </>
             ) : (
-              <p className="text-xs text-slate-400 italic">Aucune décision en attente.</p>
+              <div className="flex-1 flex items-center justify-center">
+                <p className="text-sm text-slate-400 italic">Aucune décision en attente.</p>
+              </div>
             )}
           </div>
 
-          {/* ── Carte 2 : Budget ─────────────────────────────────────────────── */}
-          <div className="bg-[#0d1525] border border-white/[0.07] rounded-2xl p-4 flex flex-col">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Wallet className="h-4 w-4 text-emerald-400 shrink-0" />
+          {/* ── COL 3 : Budget ────────────────────────────────────────────── */}
+          <div className="order-3 space-y-3">
+            <div className="bg-[#0d1525] border border-white/[0.07] rounded-2xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Wallet className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
                 <p className="text-[10px] text-slate-500 uppercase tracking-wider">Budget estimé TTC</p>
               </div>
-              {slidableLots.length > 0 && (
-                <button
-                  onClick={() => openPanel('lot-params')}
-                  className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-violet-300 transition-colors"
-                >
-                  <SlidersHorizontal className="h-3 w-3" />
-                  Ajuster
-                </button>
+
+              <p className="text-3xl font-bold text-white leading-none mb-1">
+                {displayBudget.toLocaleString('fr-FR')} €
+              </p>
+              {selectedOption && (
+                <p className="text-[10px] text-amber-400 mb-2">Option : {selectedOption.label}</p>
               )}
-            </div>
 
-            {/* Montant principal */}
-            <p className="text-3xl font-bold text-white leading-none mb-1">
-              {displayBudget.toLocaleString('fr-FR')} €
-            </p>
-            {selectedOption && (
-              <p className="text-[10px] text-amber-400 mb-3">Option : {selectedOption.label}</p>
-            )}
-
-            {/* Fourchette marché */}
-            {marketRange ? (
-              <div className="mt-3 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-500">Fourchette marché</span>
-                  <span className="text-slate-300 tabular-nums font-medium">
+              {marketRange ? (
+                <div className="mt-3 space-y-2">
+                  <p className="text-[10px] text-slate-500">Fourchette marché</p>
+                  <p className="text-xs text-slate-300 tabular-nums font-medium">
                     {marketRange.min.toLocaleString('fr-FR')} – {marketRange.max.toLocaleString('fr-FR')} €
-                  </span>
-                </div>
-                {/* Barre de position */}
-                <div className="h-1.5 bg-white/[0.06] rounded-full relative">
-                  <div className="absolute inset-0 bg-emerald-500/15 rounded-full" />
-                  {(() => {
-                    const total = marketRange.max - marketRange.min;
-                    const pct = total > 0
-                      ? Math.min(100, Math.max(0, ((displayBudget - marketRange.min) / total) * 100))
-                      : 50;
-                    const color = displayBudget > marketRange.max * 1.1 ? '#fb7185' : displayBudget >= marketRange.min ? '#34d399' : '#fbbf24';
-                    return (
-                      <div
-                        className="absolute top-1/2 w-2.5 h-2.5 rounded-full border-2 border-[#0d1525] shadow"
-                        style={{ left: `${pct}%`, transform: 'translate(-50%, -50%)', background: color }}
-                      />
-                    );
-                  })()}
-                </div>
-                {/* Position texte */}
-                {budgetPosition && (
-                  <p className={`text-xs font-medium ${budgetPosition.color}`}>
-                    Votre estimation : {budgetPosition.label.toLowerCase()}
                   </p>
+                  <div className="h-1.5 bg-white/[0.06] rounded-full relative mt-1">
+                    <div className="absolute inset-0 bg-emerald-500/15 rounded-full" />
+                    {(() => {
+                      const total = marketRange.max - marketRange.min;
+                      const pct = total > 0
+                        ? Math.min(100, Math.max(0, ((displayBudget - marketRange.min) / total) * 100))
+                        : 50;
+                      const color = displayBudget > marketRange.max * 1.1 ? '#fb7185' : displayBudget >= marketRange.min ? '#34d399' : '#fbbf24';
+                      return (
+                        <div
+                          className="absolute top-1/2 w-2.5 h-2.5 rounded-full border-2 border-[#0d1525] shadow"
+                          style={{ left: `${pct}%`, transform: 'translate(-50%, -50%)', background: color }}
+                        />
+                      );
+                    })()}
+                  </div>
+                  {budgetPosition && (
+                    <p className={`text-xs font-medium ${budgetPosition.color}`}>{budgetPosition.label}</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500 italic mt-3">Fourchette en attente de devis</p>
+              )}
+
+              <div className="mt-4 space-y-1.5">
+                <button
+                  onClick={() => openPanel('budget-detail')}
+                  className="w-full flex items-center justify-center gap-1.5 text-[10px] text-slate-500 hover:text-slate-300 border border-white/[0.06] hover:border-white/[0.12] rounded-xl py-2 transition-all"
+                >
+                  <Info className="h-3 w-3" />
+                  Voir le détail du budget
+                </button>
+                {slidableLots.length > 0 && (
+                  <button
+                    onClick={() => openPanel('lot-params')}
+                    className="w-full flex items-center justify-center gap-1.5 text-[10px] text-slate-400 hover:text-violet-300 border border-white/[0.06] hover:border-violet-500/20 rounded-xl py-2 transition-all"
+                  >
+                    <SlidersHorizontal className="h-3 w-3" />
+                    Ajuster les quantités
+                  </button>
                 )}
               </div>
-            ) : (
-              <p className="text-xs text-slate-500 italic mt-3">Fourchette marché en attente de devis</p>
-            )}
-
-            <button
-              onClick={() => openPanel('budget-detail')}
-              className="mt-auto pt-4 w-full flex items-center justify-center gap-1.5 text-[10px] text-slate-500 hover:text-slate-300 border border-white/[0.06] hover:border-white/[0.12] rounded-xl py-1.5 transition-all"
-            >
-              <Info className="h-3 w-3" />
-              Voir le détail du budget
-            </button>
+            </div>
           </div>
+
         </div>
 
-        {/* ── TIMELINE ─────────────────────────────────────────────────────── */}
-        <div className="bg-[#0d1525] border border-white/[0.07] rounded-2xl p-4">
-          <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-3">Phases du projet</p>
-          <div className="flex items-stretch gap-1">
-            {PHASES.map((phase, idx) => {
-              const isCompleted = idx < currentPhaseIndex;
-              const isCurrent   = phase.id === currentPhaseId;
-              return (
-                <button
-                  key={phase.id}
-                  onClick={() => handlePhaseClick(phase.id)}
-                  className={`flex-1 flex flex-col items-center gap-1.5 rounded-xl py-2.5 px-1 transition-all group ${
-                    isCurrent ? 'bg-violet-500/15 border border-violet-500/30' : 'hover:bg-white/[0.04] border border-transparent'
-                  }`}
-                >
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all ${
-                    isCompleted ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-300' :
-                    isCurrent   ? 'bg-violet-500/25 border border-violet-500/40' :
-                                  'bg-white/[0.05] border border-white/[0.08] text-slate-500'
-                  }`}>
-                    {isCompleted ? '✓' : phase.emoji}
-                  </div>
-                  <span className={`text-[10px] font-medium text-center leading-tight ${
-                    isCompleted ? 'text-emerald-400' : isCurrent ? 'text-violet-300' : 'text-slate-500'
-                  }`}>
-                    {phase.label}
-                  </span>
-                  <ChevronRight className="h-2.5 w-2.5 text-slate-600 rotate-90 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* ── ACTION BAR ──────────────────────────────────────────────────── */}
+        {/* ── NAVIGATION CHANTIER ───────────────────────────────────────── */}
         <div className="bg-[#0d1525] border border-white/[0.07] rounded-2xl p-2">
           <div className="flex">
             {([
