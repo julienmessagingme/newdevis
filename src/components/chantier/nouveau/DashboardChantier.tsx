@@ -20,6 +20,8 @@ import ChantierTimeline from '@/components/chantier/ChantierTimeline';
 import DocumentsSection from '@/components/chantier/nouveau/DocumentsSection';
 import BudgetFiabilite from '@/components/chantier/nouveau/BudgetFiabilite';
 import BudgetGlobal from '@/components/chantier/BudgetGlobal';
+import MaterialSelector from '@/components/chantier/nouveau/MaterialSelector';
+import { useMaterialAI } from '@/hooks/useMaterialAI';
 import SimulationFinancement from '@/components/chantier/financement/SimulationFinancement';
 import SyntheseChantier from '@/components/chantier/SyntheseChantier';
 import JournalChantier from '@/components/chantier/JournalChantier';
@@ -388,6 +390,17 @@ export default function DashboardChantier({
   const range        = useMemo(() => getMarketRange(result),   [result]);
   const santeColors  = SANTE_COLORS[sante.color];
   const options      = useMemo(() => detectOptions(result),    [result]);
+
+  // ── Sélecteur matériaux IA — activé uniquement quand SimulateurOptions
+  //    ne couvre pas l'étape courante (options === null) ─────────────────────
+  const materialAI = useMaterialAI({
+    description:       result.description ?? '',
+    lots:              (result.lots ?? []).map((l) => l.nom),
+    currentStepTitle:  result.prochaineAction?.titre  ?? '',
+    currentStepDetail: result.prochaineAction?.detail ?? '',
+    token,
+    enabled: !options, // SimulateurOptions a priorité si ses options sont détectées
+  });
 
   const okPoints   = healthPoints.filter((p) => p.type === 'ok').slice(0, 3);
   const warnPoints = healthPoints.filter((p) => p.type === 'warn').slice(0, 3);
@@ -763,9 +776,30 @@ export default function DashboardChantier({
               />
             )}
 
+            {/* ── Sélecteur de matériaux IA ─────────────────────────────── */}
+            {/* Spinner pendant le chargement */}
+            {materialAI.shouldShow && materialAI.isLoading && (
+              <div className="mt-4 flex items-center gap-2.5 text-slate-500 text-xs bg-white/[0.02] border border-white/[0.05] rounded-xl px-3 py-2.5">
+                <div className="w-3.5 h-3.5 border-2 border-violet-500/40 border-t-violet-400 rounded-full animate-spin shrink-0" />
+                Analyse des matériaux adaptés à votre projet…
+              </div>
+            )}
+            {/* Composant sélecteur — s'affiche uniquement quand l'IA a répondu */}
+            {materialAI.shouldShow && materialAI.result && (
+              <MaterialSelector
+                result={materialAI.result}
+                baseBudget={result.budgetTotal}
+                onConfirm={(mat, surface) => {
+                  // Répercute le coût matériau sur l'affichage du budget
+                  const impactMid = Math.round((mat.priceMin + mat.priceMax) / 2 * surface);
+                  setOptionBudget(impactMid);
+                }}
+              />
+            )}
+
             {/* CTAs */}
             <div className="flex gap-2 mt-4">
-              {options && options.length > 0 && (
+              {!materialAI.shouldShow && options && options.length > 0 && (
                 <button
                   onClick={() => openPanneau('lots')}
                   className="flex items-center justify-center gap-1.5 text-xs font-semibold text-violet-300 border border-violet-500/30 hover:border-violet-500/50 bg-violet-500/10 hover:bg-violet-500/15 rounded-xl px-3 py-2.5 transition-all"
