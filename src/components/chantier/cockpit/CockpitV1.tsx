@@ -9,6 +9,8 @@ import type { ChantierIAResult, LotChantier, StatutArtisan, ProjectMode } from '
 import { supabase } from '@/integrations/supabase/client';
 import MaterialSelector from '@/components/chantier/nouveau/MaterialSelector';
 import { useMaterialAI } from '@/hooks/useMaterialAI';
+import ConceptionPage from '@/components/chantier/cockpit/ConceptionPage';
+import { useMaterialSuggestions } from '@/hooks/useMaterialSuggestions';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -1109,6 +1111,9 @@ export default function CockpitV1({
 
   const slidableLots = lots.filter((l) => l.budget_avg_ht != null && l.quantite != null && l.quantite > 0 && !l.id.startsWith('fallback-'));
 
+  // ── Material suggestions photo-réalistes (client-side, no API) ────────────
+  const materialSuggestions = useMaterialSuggestions(result);
+
   // ── Material AI (actif uniquement quand pas de SimulateurOptions) ──────────
   const materialAI = useMaterialAI({
     description: result.description ?? result.nom,
@@ -1920,6 +1925,26 @@ export default function CockpitV1({
           </div>
 
         </div>
+
+        {/* ── CONCEPTION : sélection matériaux photo-réaliste ───────────── */}
+        {materialSuggestions.hasMatch && (
+          <ConceptionPage
+            result={result}
+            currentStepIndex={(result.roadmap ?? []).findIndex((e) => e.isCurrent)}
+            showHeader={false}
+            onMarkStep={(status) => {
+              const map: Record<string, DecisionStatus> = {
+                completed: 'deja_fait',
+                skip:      'non_necessaire',
+                sent:      'document_envoye',
+                next:      'etape_suivante',
+              };
+              if (currentDecision) {
+                setDecisionStatuts(prev => ({ ...prev, [currentDecision.id]: map[status] as DecisionStatus }));
+              }
+            }}
+          />
+        )}
 
         {/* ── TIMELINE PHASES ───────────────────────────────────────────── */}
         <div className="bg-[#0d1525] border border-white/[0.07] rounded-2xl px-4 py-3">
