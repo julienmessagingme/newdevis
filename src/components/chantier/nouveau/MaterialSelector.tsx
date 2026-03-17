@@ -10,6 +10,36 @@ interface MaterialSelectorProps {
   onConfirm?: (selected: MaterialOption, surface: number) => void;
 }
 
+// ── Mapping statique id → image (pas de fetch dynamique) ─────────────────────
+
+const IMAGE_MAP: Record<string, string> = {
+  'gravier':           'https://images.unsplash.com/photo-1723175315614-8b85be78d929?w=400&q=80',
+  'paves':             'https://images.pexels.com/photos/210307/pexels-photo-210307.jpeg?auto=compress&cs=tinysrgb&w=400',
+  'enrobe':            'https://images.pexels.com/photos/248747/pexels-photo-248747.jpeg?auto=compress&cs=tinysrgb&w=400',
+  'beton-drainant':    'https://images.pexels.com/photos/534174/pexels-photo-534174.jpeg?auto=compress&cs=tinysrgb&w=400',
+  'pin-traite':        'https://images.pexels.com/photos/129731/pexels-photo-129731.jpeg?auto=compress&cs=tinysrgb&w=400',
+  'composite':         'https://images.pexels.com/photos/1080696/pexels-photo-1080696.jpeg?auto=compress&cs=tinysrgb&w=400',
+  'bois-exotique':     'https://images.pexels.com/photos/1396122/pexels-photo-1396122.jpeg?auto=compress&cs=tinysrgb&w=400',
+  'portail-aluminium': 'https://images.pexels.com/photos/2089698/pexels-photo-2089698.jpeg?auto=compress&cs=tinysrgb&w=400',
+  'portail-fer-forge': 'https://images.pexels.com/photos/1642228/pexels-photo-1642228.jpeg?auto=compress&cs=tinysrgb&w=400',
+  'portail-pvc':       'https://images.pexels.com/photos/1029600/pexels-photo-1029600.jpeg?auto=compress&cs=tinysrgb&w=400',
+  'piscine-macon':     'https://images.pexels.com/photos/1001965/pexels-photo-1001965.jpeg?auto=compress&cs=tinysrgb&w=400',
+  'piscine-coque':     'https://images.pexels.com/photos/261102/pexels-photo-261102.jpeg?auto=compress&cs=tinysrgb&w=400',
+  'piscine-bois':      'https://images.pexels.com/photos/1488463/pexels-photo-1488463.jpeg?auto=compress&cs=tinysrgb&w=400',
+  'tuile-terre-cuite': 'https://images.pexels.com/photos/1029600/pexels-photo-1029600.jpeg?auto=compress&cs=tinysrgb&w=400',
+  'toiture-ardoise':   'https://images.pexels.com/photos/209315/pexels-photo-209315.jpeg?auto=compress&cs=tinysrgb&w=400',
+  'toiture-zinc':      'https://images.pexels.com/photos/1108101/pexels-photo-1108101.jpeg?auto=compress&cs=tinysrgb&w=400',
+  'parquet-chene':     'https://images.pexels.com/photos/1571460/pexels-photo-1571460.jpeg?auto=compress&cs=tinysrgb&w=400',
+  'stratifie':         'https://images.pexels.com/photos/1082355/pexels-photo-1082355.jpeg?auto=compress&cs=tinysrgb&w=400',
+  'beton-cire-sol':    'https://images.pexels.com/photos/2832532/pexels-photo-2832532.jpeg?auto=compress&cs=tinysrgb&w=400',
+  'ceramique':         'https://images.pexels.com/photos/1571463/pexels-photo-1571463.jpeg?auto=compress&cs=tinysrgb&w=400',
+  'gres-cerame':       'https://images.pexels.com/photos/2079234/pexels-photo-2079234.jpeg?auto=compress&cs=tinysrgb&w=400',
+  'marbre':            'https://images.pexels.com/photos/2629593/pexels-photo-2629593.jpeg?auto=compress&cs=tinysrgb&w=400',
+};
+
+const getStaticImage = (id: string, imageQuery: string): string =>
+  IMAGE_MAP[id] ?? IMAGE_MAP[imageQuery.split(',')[0].trim().toLowerCase()] ?? '';
+
 // ── Constantes visuelles ──────────────────────────────────────────────────────
 
 const TIER_TAG: Record<string, { label: string; bg: string; text: string }> = {
@@ -91,11 +121,12 @@ export default function MaterialSelector({
             >
               {/* Photo */}
               <div className="relative h-[90px] overflow-hidden shrink-0">
-                {!hasError ? (
+                {!hasError && getStaticImage(mat.id, mat.imageQuery) ? (
                   <img
-                    src={`https://source.unsplash.com/featured/?${encodeURIComponent(mat.imageQuery)},material&sig=${mat.id}`}
+                    src={getStaticImage(mat.id, mat.imageQuery)}
                     alt={mat.name}
                     className="w-full h-full object-cover"
+                    loading="lazy"
                     onError={() => setImageErrors((prev) => new Set([...prev, mat.id]))}
                   />
                 ) : (

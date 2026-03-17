@@ -100,7 +100,7 @@ function MaterialCard({
       }`}
     >
       {/* Image */}
-      <div className="relative h-40 overflow-hidden bg-gray-800">
+      <div className="relative h-28 overflow-hidden bg-gray-800">
         {!imgError ? (
           <img
             src={option.image}
@@ -131,26 +131,26 @@ function MaterialCard({
       </div>
 
       {/* Contenu */}
-      <div className="p-4">
-        <div className="flex items-start gap-2 mb-1">
-          <span className="text-lg leading-none">{option.emoji}</span>
-          <h4 className="font-semibold text-white leading-tight">{option.label}</h4>
+      <div className="p-2">
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <span className="text-base leading-none">{option.emoji}</span>
+          <h4 className="text-sm font-semibold text-white leading-tight truncate">{option.label}</h4>
         </div>
 
-        <div className="text-sm text-indigo-400 font-semibold mb-3">{priceLabel}</div>
+        <div className="text-xs text-indigo-400 font-semibold mb-1">{priceLabel}</div>
 
-        <p className="text-xs text-gray-400 mb-3 leading-relaxed line-clamp-3">{option.description}</p>
+        <p className="text-[10px] text-gray-400 leading-relaxed line-clamp-2 mb-1">{option.description}</p>
 
-        <div className="flex items-center justify-between text-xs">
+        <div className="flex items-center justify-between">
           {option.priceUnit === 'm²' && !option.isOther && (
-            <span className="text-gray-500">{option.priceMin}–{option.priceMax} €/m²</span>
+            <span className="text-[10px] text-gray-500">{option.priceMin}–{option.priceMax} €/m²</span>
           )}
           {option.priceUnit !== 'm²' && !option.isOther && (
-            <span className="text-gray-500">{option.priceUnit}</span>
+            <span className="text-[10px] text-gray-500">{option.priceUnit}</span>
           )}
-          {option.isOther && <span className="text-gray-500">Estimation gratuite</span>}
+          {option.isOther && <span className="text-[10px] text-gray-500">Estimation gratuite</span>}
 
-          <span className={`px-2 py-1 rounded text-[11px] ${surDevisBadge ?? badgeColor}`}>
+          <span className={`px-1.5 py-0.5 rounded text-[10px] mt-1 ${surDevisBadge ?? badgeColor}`}>
             {option.maintenanceBadge}
           </span>
         </div>
@@ -277,13 +277,11 @@ export default function ConceptionPage({
 
           {/* Réglette surface */}
           {showSlider && (
-            <div className="bg-[#14182a] border border-gray-800 rounded-xl p-4 mb-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <SlidersHorizontal className="w-4 h-4 text-indigo-400" />
-                  <span className="text-sm font-medium text-white">Surface estimée</span>
-                </div>
-                <span className="text-indigo-400 font-bold text-sm">{surface} m²</span>
+            <div className="bg-[#14182a] border border-gray-800 rounded-xl p-3 mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="text-xs font-medium text-white flex-1">Surface estimée</span>
+                <span className="text-indigo-400 font-bold text-xs">{surface} m²</span>
               </div>
               <input
                 type="range"
@@ -292,17 +290,13 @@ export default function ConceptionPage({
                 step={1}
                 value={surface}
                 onChange={(e) => setSurface(Number(e.target.value))}
-                className="w-full h-2 bg-gray-700 rounded-full appearance-none cursor-pointer accent-indigo-500"
+                className="w-full h-1.5 bg-gray-700 rounded-full appearance-none cursor-pointer accent-indigo-500"
               />
-              <div className="flex justify-between text-xs text-gray-500 mt-1.5">
-                <span>1 m²</span>
-                <span>500 m²</span>
-              </div>
             </div>
           )}
 
           {/* Grille 4 cartes (3 options + "Autre") */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
             {chantierType.options.map((option) => (
               <MaterialCard
                 key={option.id}
@@ -348,7 +342,7 @@ export default function ConceptionPage({
           <button
             onClick={handleConfirm}
             disabled={!selectedId}
-            className={`w-full py-3 rounded-lg font-medium transition-colors ${
+            className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${
               selectedId && selectedOption?.isOther
                 ? 'bg-blue-600 hover:bg-blue-700 text-white'
                 : selectedId

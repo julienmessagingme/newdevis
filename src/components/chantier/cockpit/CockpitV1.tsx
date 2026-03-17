@@ -9,8 +9,8 @@ import type { ChantierIAResult, LotChantier, StatutArtisan, ProjectMode } from '
 import { supabase } from '@/integrations/supabase/client';
 import MaterialSelector from '@/components/chantier/nouveau/MaterialSelector';
 import { useMaterialAI } from '@/hooks/useMaterialAI';
-import ConceptionPage from '@/components/chantier/cockpit/ConceptionPage';
 import { useMaterialSuggestions } from '@/hooks/useMaterialSuggestions';
+import { useMaterialDetection } from '@/hooks/useMaterialDetection';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -955,6 +955,7 @@ export default function CockpitV1({
   const [editingSurface, setEditSurf] = useState(false);
   const [surfaceInput, setSurfInput]  = useState('');
   const [selectedOption, setOption]   = useState<WorkOption | null>(null);
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput]       = useState('');
   const [chatLoading, setChatLoading]   = useState(false);
@@ -1113,6 +1114,7 @@ export default function CockpitV1({
 
   // ── Material suggestions photo-réalistes (client-side, no API) ────────────
   const materialSuggestions = useMaterialSuggestions(result);
+  const { chantierType } = useMaterialDetection(result);
 
   // ── Material AI (actif uniquement quand pas de SimulateurOptions) ──────────
   const materialAI = useMaterialAI({
@@ -1451,7 +1453,7 @@ export default function CockpitV1({
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-[#0a0f1e] text-white pb-24">
+    <div className="h-screen bg-[#0a0f1e] text-white overflow-hidden flex flex-col">
 
       {/* ── HEADER ──────────────────────────────────────────────────────────── */}
       <header className="border-b border-white/[0.06] px-6 lg:px-8 py-4">
@@ -1497,12 +1499,10 @@ export default function CockpitV1({
         </div>
       </header>
 
-      <div className="px-6 lg:px-8 py-5 space-y-4">
+      <div className="flex-1 overflow-y-auto px-6 lg:px-8 py-3 flex flex-col gap-3">
 
         {/* ── GRILLE 3 COLONNES ────────────────────────────────────────────── */}
-        {/* Mobile : decision d'abord (order-1), puis situation (order-2), puis budget (order-3) */}
-        {/* Desktop lg : situation | decision | budget */}
-        <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr_320px] gap-4 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr_280px] gap-3 items-start">
 
           {/* ── COL 1 : Situation projet ───────────────────────────────────── */}
           <div className="order-2 lg:order-1 space-y-3">
@@ -1569,79 +1569,11 @@ export default function CockpitV1({
               </div>
             )}
 
-            {/* Radars de vigilance — card expandée avec avatar expert */}
-            {radarPoints.length > 0 && (
-              <div className="bg-[#0d1525] border border-blue-500/20 rounded-2xl p-4">
-                {/* Header : label + avatar */}
-                <div className="flex items-start gap-3 mb-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <Scan className="h-3 w-3 text-blue-400 shrink-0" />
-                      <p className="text-[10px] text-blue-400 uppercase tracking-wider font-semibold">Radars de vigilance</p>
-                      <span className="ml-auto text-[10px] font-bold bg-blue-500/15 text-blue-300 border border-blue-500/25 rounded-full px-1.5 py-0.5 leading-none">{radarPoints.length}</span>
-                    </div>
-                    {/* Premier point radar en preview */}
-                    <div className="bg-amber-500/[0.07] border border-amber-500/20 rounded-xl p-2.5">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <AlertTriangle className="h-3 w-3 text-amber-400 shrink-0" />
-                        <p className="text-xs font-bold text-white truncate">{radarPoints[0]?.title}</p>
-                      </div>
-                      <p className="text-[10px] text-slate-400 leading-relaxed line-clamp-2">{radarPoints[0]?.risk}</p>
-                    </div>
-                  </div>
-                  {/* Avatar expert */}
-                  <div className="relative shrink-0">
-                    <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/[0.12]">
-                      <img
-                        src="https://images.pexels.com/photos/1516680/pexels-photo-1516680.jpeg?w=200&q=80"
-                        alt="Expert chantier"
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                        onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/avatar-expert.svg'; }}
-                      />
-                    </div>
-                    <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-green-500 border-2 border-[#0d1525] flex items-center justify-center">
-                      <span className="text-white text-[9px] font-bold leading-none">✓</span>
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => openPanel('radar')}
-                  className="w-full flex items-center justify-end gap-1 text-[10px] text-blue-400/60 hover:text-blue-300 transition-colors mt-1"
-                >
-                  → Afficher le détail
-                </button>
-              </div>
-            )}
-
-            {/* Bouclier Financier — card expandée */}
-            {bouclierPoints.length > 0 && (
-              <div className="bg-[#0d1525] border border-orange-500/25 rounded-2xl p-4">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <div className="w-5 h-5 rounded-lg bg-orange-500/15 border border-orange-500/25 flex items-center justify-center shrink-0">
-                    <Shield className="h-2.5 w-2.5 text-orange-400" />
-                  </div>
-                  <p className="text-[10px] text-orange-400 uppercase tracking-wider font-semibold">Bouclier Financier</p>
-                </div>
-                <p className="text-xs font-bold text-white mb-1">
-                  🛡️ {bouclierPoints.length} lot{bouclierPoints.length > 1 ? 's' : ''} sans devis chiffré
-                </p>
-                <p className="text-[10px] text-slate-400 leading-relaxed mb-3">
-                  {bouclierPoints[0]?.lines[0] ?? 'Demandez des devis pour éviter les approximations budgétaires.'}
-                </p>
-                <button
-                  onClick={() => openPanel('bouclier')}
-                  className="flex items-center gap-1 text-[10px] text-orange-400/60 hover:text-orange-300 transition-colors"
-                >
-                  → Afficher le détail
-                </button>
-              </div>
-            )}
 
           </div>
 
           {/* ── COL 2 : Prochaine action — carte centrale ─────────────────── */}
-          <div className="order-1 lg:order-2 bg-[#0d1525] border border-white/[0.07] rounded-2xl p-6 flex flex-col min-h-[420px]">
+          <div className="order-1 lg:order-2 bg-[#0d1525] border border-white/[0.07] rounded-2xl p-5 flex flex-col overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1.5 bg-violet-600/15 border border-violet-500/25 rounded-full px-2.5 py-1">
@@ -1672,7 +1604,53 @@ export default function CockpitV1({
                   <p className="text-xs text-amber-400 mb-4">⏰ {currentDecision.deadline}</p>
                 )}
 
-                {/* Options matériaux — remplacé par ConceptionPage ci-dessous */}
+                {/* Cartes matériaux statiques (MATERIALS_MAP) */}
+                {!materialAI.shouldShow && chantierType && (
+                  <div className="mb-4">
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">
+                      Choisir {chantierType.label.toLowerCase()}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {chantierType.options.slice(0, 4).map((opt) => {
+                        const isSel = selectedMaterialId === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            onClick={() => setSelectedMaterialId((prev) => (prev === opt.id ? null : opt.id))}
+                            className={`flex flex-col rounded-xl overflow-hidden text-left transition-all duration-200 outline-none ${
+                              isSel ? 'ring-2 ring-violet-500 shadow-lg shadow-violet-900/30' : 'ring-1 ring-white/[0.08] hover:ring-white/20'
+                            }`}
+                          >
+                            <div className="relative h-20 overflow-hidden shrink-0">
+                              {opt.image ? (
+                                <img src={opt.image} alt={opt.label} className="w-full h-full object-cover" loading="lazy" />
+                              ) : (
+                                <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center text-2xl">
+                                  {opt.emoji}
+                                </div>
+                              )}
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                              <p className="absolute bottom-1 left-1.5 right-1.5 text-white font-bold text-[10px] leading-tight truncate drop-shadow">
+                                {opt.label}
+                              </p>
+                              {isSel && (
+                                <div className="absolute top-1 right-1 w-4 h-4 bg-violet-600 rounded-full flex items-center justify-center">
+                                  <span className="text-white text-[8px] font-bold">✓</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="bg-[#0a0f1e] px-2 py-1">
+                              <p className="text-white font-black text-[11px] tabular-nums">
+                                {opt.isOther ? 'Sur devis' : `${opt.priceMin}–${opt.priceMax}`}
+                                {!opt.isOther && <span className="text-slate-500 font-normal text-[9px] ml-0.5">€/{opt.priceUnit}</span>}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Sélecteur de matériaux IA */}
                 {materialAI.shouldShow && (
@@ -1730,114 +1708,102 @@ export default function CockpitV1({
             )}
           </div>
 
-          {/* ── COL 3 : Budget ────────────────────────────────────────────── */}
-          <div className="order-3 space-y-3">
-            <div className="bg-[#0d1525] border border-white/[0.07] rounded-2xl p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Wallet className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider">Budget estimé TTC</p>
-              </div>
+          {/* ── COL 3 : Expert + Radars + Bouclier ───────────────────────── */}
+          <div className="order-3 space-y-3 overflow-y-auto">
 
-              {selectedOption && surface > 0 ? (
-                <>
-                  <p className="text-4xl font-black text-white leading-none tabular-nums">
-                    {displayBudgetRange.avg.toLocaleString('fr-FR')} €
-                  </p>
-                  <p className="text-[10px] text-amber-400 mt-1 mb-3">Option : {selectedOption.label}</p>
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-slate-500 tabular-nums shrink-0">{displayBudgetRange.min.toLocaleString('fr-FR')} €</span>
-                      <div className="flex-1 h-2 rounded-full overflow-hidden bg-white/[0.05]">
-                        <div className="h-full w-full bg-gradient-to-r from-emerald-500/60 via-amber-500/60 to-red-500/50 rounded-full" />
-                      </div>
-                      <span className="text-[10px] text-slate-500 tabular-nums shrink-0">{displayBudgetRange.max.toLocaleString('fr-FR')} €</span>
-                    </div>
-                    <p className="text-[9px] text-slate-600 text-center">fourchette min → max estimée</p>
+            {/* Radars de vigilance avec avatar expert */}
+            {radarPoints.length > 0 && (
+              <div className="bg-[#0d1525] border border-blue-500/20 rounded-2xl p-4">
+                {/* Expert photo row */}
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="relative shrink-0">
+                    <img
+                      src="https://images.pexels.com/photos/1516680/pexels-photo-1516680.jpeg?auto=compress&cs=tinysrgb&w=80"
+                      alt="Expert chantier"
+                      className="w-10 h-10 rounded-full object-cover object-top ring-2 ring-purple-500/30"
+                      loading="lazy"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                    />
+                    <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-[#0d1525]" />
                   </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-4xl font-black text-white leading-none tabular-nums mb-1">
-                    {displayBudget.toLocaleString('fr-FR')} €
-                  </p>
-                  {selectedOption && (
-                    <p className="text-[10px] text-amber-400 mb-2">Option : {selectedOption.label}</p>
-                  )}
-                </>
-              )}
-
-              {marketRange ? (
-                <div className="mt-3 space-y-2">
-                  <p className="text-[10px] text-slate-500">Fourchette marché</p>
-                  <p className="text-xs text-slate-300 tabular-nums font-medium">
-                    {marketRange.min.toLocaleString('fr-FR')} – {marketRange.max.toLocaleString('fr-FR')} €
-                  </p>
-                  <div className="h-1.5 bg-white/[0.06] rounded-full relative mt-1">
-                    <div className="absolute inset-0 bg-emerald-500/15 rounded-full" />
-                    {(() => {
-                      const total = marketRange.max - marketRange.min;
-                      const pct = total > 0
-                        ? Math.min(100, Math.max(0, ((displayBudget - marketRange.min) / total) * 100))
-                        : 50;
-                      const color = displayBudget > marketRange.max * 1.1 ? '#fb7185' : displayBudget >= marketRange.min ? '#34d399' : '#fbbf24';
-                      return (
-                        <div
-                          className="absolute top-1/2 w-2.5 h-2.5 rounded-full border-2 border-[#0d1525] shadow"
-                          style={{ left: `${pct}%`, transform: 'translate(-50%, -50%)', background: color }}
-                        />
-                      );
-                    })()}
+                  <div>
+                    <p className="text-xs font-semibold text-white leading-none">Votre expert chantier</p>
+                    <p className="text-[10px] text-green-400 mt-0.5">● Disponible</p>
                   </div>
-                  {budgetPosition && (
-                    <p className={`text-xs font-medium ${budgetPosition.color}`}>{budgetPosition.label}</p>
-                  )}
                 </div>
-              ) : (
-                <p className="text-xs text-slate-500 italic mt-3">Fourchette en attente de devis</p>
-              )}
-
-              <div className="mt-4 space-y-1.5">
+                {/* Label radar */}
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Scan className="h-3 w-3 text-blue-400 shrink-0" />
+                  <p className="text-[10px] text-blue-400 uppercase tracking-wider font-semibold">Radars de vigilance</p>
+                  <span className="ml-auto text-[10px] font-bold bg-blue-500/15 text-blue-300 border border-blue-500/25 rounded-full px-1.5 py-0.5 leading-none">{radarPoints.length}</span>
+                </div>
+                {/* Premier point */}
+                <div className="bg-amber-500/[0.07] border border-amber-500/20 rounded-xl p-2.5">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <AlertTriangle className="h-3 w-3 text-amber-400 shrink-0" />
+                    <p className="text-xs font-bold text-white truncate">{radarPoints[0]?.title}</p>
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-relaxed line-clamp-2">{radarPoints[0]?.risk}</p>
+                </div>
                 <button
-                  onClick={() => openPanel('budget-detail')}
-                  className="w-full flex items-center justify-center gap-1.5 text-[10px] text-slate-500 hover:text-slate-300 border border-white/[0.06] hover:border-white/[0.12] rounded-xl py-2 transition-all"
+                  onClick={() => openPanel('radar')}
+                  className="w-full flex items-center justify-end gap-1 text-[10px] text-blue-400/60 hover:text-blue-300 transition-colors mt-2"
                 >
-                  <Info className="h-3 w-3" />
-                  Voir le détail du budget
+                  → Afficher le détail
                 </button>
-                {slidableLots.length > 0 && (
-                  <button
-                    onClick={() => openPanel('lot-params')}
-                    className="w-full flex items-center justify-center gap-1.5 text-[10px] text-slate-400 hover:text-violet-300 border border-white/[0.06] hover:border-violet-500/20 rounded-xl py-2 transition-all"
-                  >
-                    <SlidersHorizontal className="h-3 w-3" />
-                    Ajuster les quantités
-                  </button>
-                )}
               </div>
-            </div>
+            )}
+
+            {/* Bouclier Financier */}
+            {bouclierPoints.length > 0 && (
+              <div className="bg-[#0d1525] border border-orange-500/25 rounded-2xl p-4">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <div className="w-5 h-5 rounded-lg bg-orange-500/15 border border-orange-500/25 flex items-center justify-center shrink-0">
+                    <Shield className="h-2.5 w-2.5 text-orange-400" />
+                  </div>
+                  <p className="text-[10px] text-orange-400 uppercase tracking-wider font-semibold">Bouclier Financier</p>
+                </div>
+                <p className="text-xs font-bold text-white mb-1">
+                  🛡️ {bouclierPoints.length} lot{bouclierPoints.length > 1 ? 's' : ''} sans devis chiffré
+                </p>
+                <p className="text-[10px] text-slate-400 leading-relaxed mb-3">
+                  {bouclierPoints[0]?.lines[0] ?? 'Demandez des devis pour éviter les approximations budgétaires.'}
+                </p>
+                <button
+                  onClick={() => openPanel('bouclier')}
+                  className="flex items-center gap-1 text-[10px] text-orange-400/60 hover:text-orange-300 transition-colors"
+                >
+                  → Afficher le détail
+                </button>
+              </div>
+            )}
+
+            {/* Si ni radar ni bouclier : expert seul + budget compact */}
+            {radarPoints.length === 0 && bouclierPoints.length === 0 && (
+              <div className="bg-[#0d1525] border border-white/[0.07] rounded-2xl p-4">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="relative shrink-0">
+                    <img
+                      src="https://images.pexels.com/photos/1516680/pexels-photo-1516680.jpeg?auto=compress&cs=tinysrgb&w=80"
+                      alt="Expert chantier"
+                      className="w-10 h-10 rounded-full object-cover object-top ring-2 ring-purple-500/30"
+                      loading="lazy"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                    />
+                    <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-[#0d1525]" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-white leading-none">Votre expert chantier</p>
+                    <p className="text-[10px] text-green-400 mt-0.5">● Disponible</p>
+                  </div>
+                </div>
+                <p className="text-emerald-400 text-xs font-semibold">✓ Aucun point de vigilance détecté</p>
+                <p className="text-[10px] text-slate-500 mt-1">Votre projet semble bien cadré. Continuez !</p>
+              </div>
+            )}
           </div>
 
         </div>
-
-        {/* ── CONCEPTION : sélection matériaux photo-réaliste ───────────── */}
-        {materialSuggestions.hasMatch && (
-          <ConceptionPage
-            result={result}
-            currentStepIndex={(result.roadmap ?? []).findIndex((e) => e.isCurrent)}
-            showHeader={false}
-            onMarkStep={(status) => {
-              const map: Record<string, DecisionStatus> = {
-                completed: 'deja_fait',
-                skip:      'non_necessaire',
-                sent:      'document_envoye',
-                next:      'etape_suivante',
-              };
-              if (currentDecision) {
-                setDecisionStatuts(prev => ({ ...prev, [currentDecision.id]: map[status] as DecisionStatus }));
-              }
-            }}
-          />
-        )}
 
         {/* ── TIMELINE PHASES ───────────────────────────────────────────── */}
         <div className="bg-[#0d1525] border border-white/[0.07] rounded-2xl px-4 py-3">
