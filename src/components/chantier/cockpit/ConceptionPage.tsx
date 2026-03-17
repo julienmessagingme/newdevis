@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { AlertCircle, Edit2, CheckCircle2, XCircle, Send, ChevronRight } from 'lucide-react';
+import { AlertCircle, Edit2, CheckCircle2, XCircle, Send, ChevronRight, SlidersHorizontal } from 'lucide-react';
 import type { ChantierIAResult } from '@/types/chantier-ia';
-import { useMaterialSuggestions, type MaterialCard } from '@/hooks/useMaterialSuggestions';
+import { useMaterialDetection } from '@/hooks/useMaterialDetection';
+import type { MaterialOption } from '@/data/MATERIALS_MAP';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -55,21 +56,39 @@ const STEP_ACTIONS: Array<{
 
 // ── Carte matériau ────────────────────────────────────────────────────────────
 
-function MaterialCardItem({
-  card,
+function MaterialCard({
+  option,
   selected,
   onSelect,
+  surface,
 }: {
-  card: MaterialCard;
+  option: MaterialOption;
   selected: boolean;
   onSelect: () => void;
+  surface: number;
 }) {
+  const [imgError, setImgError] = useState(false);
+
   const badgeColor =
-    card.maintenanceBadgeVariant === 'green'
+    option.maintenanceBadgeVariant === 'green'
       ? 'bg-green-500/20 text-green-400'
-      : card.maintenanceBadgeVariant === 'red'
+      : option.maintenanceBadgeVariant === 'red'
       ? 'bg-red-500/20 text-red-400'
       : 'bg-amber-500/20 text-amber-400';
+
+  // Badge "Sur devis" bleu pour l'option Autre
+  const surDevisBadge = option.isOther
+    ? 'bg-blue-500/20 text-blue-400'
+    : null;
+
+  const priceMin = option.priceUnit === 'm²' ? option.priceMin * surface : option.priceMin;
+  const priceMax = option.priceUnit === 'm²' ? option.priceMax * surface : option.priceMax;
+  const priceLabel =
+    option.isOther
+      ? 'Sur devis'
+      : option.priceUnit === 'm²'
+      ? `${priceMin.toLocaleString('fr-FR')} – ${priceMax.toLocaleString('fr-FR')} €`
+      : `${option.priceMin.toLocaleString('fr-FR')} – ${option.priceMax.toLocaleString('fr-FR')} €`;
 
   return (
     <div
@@ -81,13 +100,20 @@ function MaterialCardItem({
       }`}
     >
       {/* Image */}
-      <div className="relative h-40 overflow-hidden">
-        <img
-          src={card.image}
-          alt={card.name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          loading="lazy"
-        />
+      <div className="relative h-40 overflow-hidden bg-gray-800">
+        {!imgError ? (
+          <img
+            src={option.image}
+            alt={option.label}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            loading="lazy"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-4xl">
+            {option.emoji}
+          </div>
+        )}
         {selected && (
           <div className="absolute inset-0 bg-indigo-500/10 flex items-center justify-center">
             <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center">
@@ -95,34 +121,37 @@ function MaterialCardItem({
             </div>
           </div>
         )}
+        {option.isOther && (
+          <div className="absolute top-2 right-2">
+            <span className="bg-blue-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+              Sur devis
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Contenu */}
       <div className="p-4">
-        <h4 className="font-semibold mb-1 text-white">{card.name}</h4>
-        <div className="text-sm text-indigo-400 font-semibold mb-3">{card.priceRange}</div>
-
-        <div className="space-y-2 mb-3">
-          {card.features.map((f, i) => (
-            <div key={i} className="flex items-start gap-2 text-xs text-gray-400">
-              <div
-                className={`w-3 h-3 rounded-sm mt-0.5 flex-shrink-0 flex items-center justify-center ${
-                  f.positive ? 'bg-green-500/20' : 'bg-red-500/20'
-                }`}
-              >
-                <span className={`text-[9px] leading-none ${f.positive ? 'text-green-400' : 'text-red-400'}`}>
-                  {f.positive ? '✓' : '✗'}
-                </span>
-              </div>
-              <span>{f.text}</span>
-            </div>
-          ))}
+        <div className="flex items-start gap-2 mb-1">
+          <span className="text-lg leading-none">{option.emoji}</span>
+          <h4 className="font-semibold text-white leading-tight">{option.label}</h4>
         </div>
 
+        <div className="text-sm text-indigo-400 font-semibold mb-3">{priceLabel}</div>
+
+        <p className="text-xs text-gray-400 mb-3 leading-relaxed line-clamp-3">{option.description}</p>
+
         <div className="flex items-center justify-between text-xs">
-          <span className="text-gray-400">{card.duration}</span>
-          <span className={`px-2 py-1 rounded text-[11px] ${badgeColor}`}>
-            {card.maintenanceBadge}
+          {option.priceUnit === 'm²' && !option.isOther && (
+            <span className="text-gray-500">{option.priceMin}–{option.priceMax} €/m²</span>
+          )}
+          {option.priceUnit !== 'm²' && !option.isOther && (
+            <span className="text-gray-500">{option.priceUnit}</span>
+          )}
+          {option.isOther && <span className="text-gray-500">Estimation gratuite</span>}
+
+          <span className={`px-2 py-1 rounded text-[11px] ${surDevisBadge ?? badgeColor}`}>
+            {option.maintenanceBadge}
           </span>
         </div>
       </div>
@@ -139,9 +168,10 @@ export default function ConceptionPage({
   onMarkStep,
   onMaterialConfirm,
 }: ConceptionPageProps) {
-  const { cards, categoryLabel, hasMatch } = useMaterialSuggestions(result);
-  const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
+  const { chantierType, hasMatch } = useMaterialDetection(result);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [markedStatus, setMarkedStatus] = useState<StepStatus | null>(null);
+  const [surface, setSurface] = useState(50);
 
   // ── Données de la prochaine action ─────────────────────────────────────────
 
@@ -149,22 +179,40 @@ export default function ConceptionPage({
   const roadmap = result.roadmap ?? [];
   const currentStep = roadmap[currentStepIndex];
 
-  // Numéro de l'étape courante parmi les étapes actives
   const totalSteps = roadmap.length;
   const stepLabel = totalSteps > 0 ? `${currentStepIndex + 1}/${totalSteps}` : null;
-
-  // Formatage de la deadline
   const deadline = action?.deadline ?? currentStep?.mois ?? null;
+
+  // ── Budget impact ───────────────────────────────────────────────────────────
+
+  const selectedOption = chantierType?.options.find((o) => o.id === selectedId);
+  const budgetTotal = result.budgetTotal ?? 0;
+
+  const budgetMin = selectedOption && !selectedOption.isOther
+    ? selectedOption.priceUnit === 'm²'
+      ? selectedOption.priceMin * surface
+      : selectedOption.priceMin
+    : null;
+
+  const budgetMax = selectedOption && !selectedOption.isOther
+    ? selectedOption.priceUnit === 'm²'
+      ? selectedOption.priceMax * surface
+      : selectedOption.priceMax
+    : null;
+
+  const showBudgetImpact = budgetMin !== null && budgetMax !== null && budgetTotal > 0;
+  const avgBudget = budgetMin !== null && budgetMax !== null ? (budgetMin + budgetMax) / 2 : 0;
+  const isOverBudget = showBudgetImpact && avgBudget > budgetTotal;
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
-  const handleSelectMaterial = (id: string) => {
-    setSelectedMaterialId((prev) => (prev === id ? null : id));
+  const handleSelect = (id: string) => {
+    setSelectedId((prev) => (prev === id ? null : id));
   };
 
-  const handleConfirmMaterial = () => {
-    if (!selectedMaterialId) return;
-    onMaterialConfirm?.(selectedMaterialId);
+  const handleConfirm = () => {
+    if (!selectedId) return;
+    onMaterialConfirm?.(selectedId);
   };
 
   const handleMarkStep = (status: StepStatus) => {
@@ -173,6 +221,8 @@ export default function ConceptionPage({
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
+
+  const showSlider = hasMatch && chantierType && chantierType.options.some((o) => o.priceUnit === 'm²');
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -211,41 +261,106 @@ export default function ConceptionPage({
         </div>
       )}
 
-      {/* ── Sélection de matériaux (si catégorie détectée) ───────────────── */}
-      {hasMatch && cards.length > 0 && (
+      {/* ── Sélection de matériaux ────────────────────────────────────────── */}
+      {hasMatch && chantierType && (
         <div className="mb-8">
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold mb-2 text-white">
-              Choisir {categoryLabel.toLowerCase()}
-            </h3>
-            <p className="text-sm text-gray-400">
-              Comparez les options selon votre budget et vos priorités.
-            </p>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-white">
+                Choisir {chantierType.label.toLowerCase()}
+              </h3>
+              <p className="text-sm text-gray-400 mt-0.5">
+                Comparez les options selon votre budget et vos priorités.
+              </p>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {cards.map((card) => (
-              <MaterialCardItem
-                key={card.id}
-                card={card}
-                selected={selectedMaterialId === card.id}
-                onSelect={() => handleSelectMaterial(card.id)}
+          {/* Réglette surface */}
+          {showSlider && (
+            <div className="bg-[#14182a] border border-gray-800 rounded-xl p-4 mb-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <SlidersHorizontal className="w-4 h-4 text-indigo-400" />
+                  <span className="text-sm font-medium text-white">Surface estimée</span>
+                </div>
+                <span className="text-indigo-400 font-bold text-sm">{surface} m²</span>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={500}
+                step={1}
+                value={surface}
+                onChange={(e) => setSurface(Number(e.target.value))}
+                className="w-full h-2 bg-gray-700 rounded-full appearance-none cursor-pointer accent-indigo-500"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1.5">
+                <span>1 m²</span>
+                <span>500 m²</span>
+              </div>
+            </div>
+          )}
+
+          {/* Grille 4 cartes (3 options + "Autre") */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+            {chantierType.options.map((option) => (
+              <MaterialCard
+                key={option.id}
+                option={option}
+                selected={selectedId === option.id}
+                onSelect={() => handleSelect(option.id)}
+                surface={surface}
               />
             ))}
           </div>
 
+          {/* Budget impact */}
+          {showBudgetImpact && selectedOption && (
+            <div className={`mb-5 rounded-xl border p-4 flex items-center justify-between ${
+              isOverBudget
+                ? 'bg-amber-500/10 border-amber-500/30'
+                : 'bg-green-500/10 border-green-500/30'
+            }`}>
+              <div>
+                <div className="text-sm font-semibold text-white mb-0.5">
+                  Estimation pour {surface} m²
+                </div>
+                <div className="text-xs text-gray-400">
+                  Budget initial : {budgetTotal.toLocaleString('fr-FR')} €
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold text-white">
+                  {budgetMin!.toLocaleString('fr-FR')} – {budgetMax!.toLocaleString('fr-FR')} €
+                </div>
+                <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${
+                  isOverBudget
+                    ? 'bg-amber-500/20 text-amber-400'
+                    : 'bg-green-500/20 text-green-400'
+                }`}>
+                  {isOverBudget ? '⚠ Budget serré' : '✓ Dans le budget'}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Bouton confirmer */}
           <button
-            onClick={handleConfirmMaterial}
-            disabled={!selectedMaterialId}
+            onClick={handleConfirm}
+            disabled={!selectedId}
             className={`w-full py-3 rounded-lg font-medium transition-colors ${
-              selectedMaterialId
+              selectedId && selectedOption?.isOther
+                ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                : selectedId
                 ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
                 : 'bg-gray-800 text-gray-500 cursor-not-allowed'
             }`}
           >
-            {selectedMaterialId
-              ? `Confirmer : ${cards.find((c) => c.id === selectedMaterialId)?.name}`
-              : 'Sélectionnez un matériau pour continuer'}
+            {selectedId && selectedOption?.isOther
+              ? 'Obtenir des devis comparatifs'
+              : selectedId
+              ? `Confirmer : ${chantierType.options.find((o) => o.id === selectedId)?.label}`
+              : 'Sélectionnez une option pour continuer'}
           </button>
         </div>
       )}

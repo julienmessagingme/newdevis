@@ -1590,11 +1590,20 @@ export default function CockpitV1({
                     </div>
                   </div>
                   {/* Avatar expert */}
-                  <img
-                    src="/avatar-expert.svg"
-                    alt="Expert chantier"
-                    className="w-16 h-20 object-cover rounded-xl shrink-0 border border-white/[0.08]"
-                  />
+                  <div className="relative shrink-0">
+                    <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/[0.12]">
+                      <img
+                        src="https://images.pexels.com/photos/1516680/pexels-photo-1516680.jpeg?w=200&q=80"
+                        alt="Expert chantier"
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/avatar-expert.svg'; }}
+                      />
+                    </div>
+                    <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-green-500 border-2 border-[#0d1525] flex items-center justify-center">
+                      <span className="text-white text-[9px] font-bold leading-none">✓</span>
+                    </div>
+                  </div>
                 </div>
                 <button
                   onClick={() => openPanel('radar')}
@@ -1663,123 +1672,7 @@ export default function CockpitV1({
                   <p className="text-xs text-amber-400 mb-4">⏰ {currentDecision.deadline}</p>
                 )}
 
-                {/* Options matériaux */}
-                {workOptions && decisionIndex === 0 && (
-                  <div className="mb-5">
-                    {/* Header : titre + saisie dimension */}
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-xs text-violet-300 font-medium">{workOptions.title}</p>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-400">
-                          {selectedOption?.dimLabel ?? workOptions.options[0]?.dimLabel ?? 'Surface'}
-                        </span>
-                        {editingSurface ? (
-                          <div className="flex items-center gap-1.5">
-                            <input
-                              type="number"
-                              value={surfaceInput}
-                              onChange={(e) => setSurfInput(e.target.value)}
-                              onKeyDown={(e) => { if (e.key === 'Enter') saveSurface(); if (e.key === 'Escape') setEditSurf(false); }}
-                              className="w-14 text-xs bg-white/[0.08] border border-white/[0.15] rounded-lg px-2 py-1 text-white outline-none focus:border-violet-500/60"
-                              autoFocus placeholder="0"
-                            />
-                            <span className="text-xs text-slate-400">
-                              {selectedOption?.dimUnit ?? workOptions.options[0]?.dimUnit ?? 'm²'}
-                            </span>
-                            <button onClick={saveSurface} className="text-emerald-400 hover:text-emerald-300 transition-colors"><Check className="h-3.5 w-3.5" /></button>
-                            <button onClick={() => setEditSurf(false)} className="text-slate-500 hover:text-slate-300 transition-colors"><X className="h-3.5 w-3.5" /></button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => { setSurfInput(surface > 0 ? String(surface) : ''); setEditSurf(true); }}
-                            className="flex items-center gap-1.5 text-xs bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.10] rounded-lg px-2.5 py-1 text-white transition-colors group"
-                          >
-                            {surface > 0
-                              ? `${surface} ${selectedOption?.dimUnit ?? workOptions.options[0]?.dimUnit ?? 'm²'}`
-                              : `— ${selectedOption?.dimUnit ?? workOptions.options[0]?.dimUnit ?? 'm²'}`}
-                            <Pencil className="h-2.5 w-2.5 text-slate-500 group-hover:text-slate-300 transition-colors" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Grille cartes visuelles 2 colonnes */}
-                    <div className="grid grid-cols-2 gap-2">
-                      {workOptions.options.map((opt) => {
-                        const isSelected = selectedOption?.id === opt.id;
-                        const priceStr = surface > 0
-                          ? `${(opt.priceMin * surface).toLocaleString('fr-FR')} – ${(opt.priceMax * surface).toLocaleString('fr-FR')} €`
-                          : `${opt.priceMin} – ${opt.priceMax} ${opt.unit}`;
-                        return (
-                          <button
-                            key={opt.id}
-                            onClick={() => handleOptionSelect(opt)}
-                            className={`text-left rounded-xl border p-3 transition-all ${
-                              isSelected
-                                ? 'border-violet-500/50 bg-violet-500/15'
-                                : 'border-white/[0.08] bg-white/[0.03] hover:border-white/[0.15] hover:bg-white/[0.05]'
-                            }`}
-                          >
-                            <div className="text-2xl mb-1.5 leading-none">{opt.emoji}</div>
-                            <div className={`font-semibold text-xs mb-1 ${isSelected ? 'text-violet-200' : 'text-white'}`}>{opt.label}</div>
-                            <div className="text-[10px] font-bold text-emerald-400 mb-2">{priceStr}</div>
-                            <div className="space-y-0.5 mb-2">
-                              <div className="flex items-start gap-1">
-                                <span className="text-emerald-400 text-[10px] shrink-0 mt-px">✓</span>
-                                <span className="text-[10px] text-slate-400 leading-tight">{opt.avantage}</span>
-                              </div>
-                              <div className="flex items-start gap-1">
-                                <span className="text-red-400/70 text-[10px] shrink-0 mt-px">✗</span>
-                                <span className="text-[10px] text-slate-500 leading-tight">{opt.inconvenient}</span>
-                              </div>
-                            </div>
-                            <div className="flex flex-wrap gap-1">
-                              <span className="text-[9px] bg-slate-800 text-slate-400 rounded px-1.5 py-0.5">{opt.durabilite}</span>
-                              <span className={`text-[9px] rounded px-1.5 py-0.5 ${
-                                opt.entretien === 'Faible' ? 'bg-emerald-900/40 text-emerald-400' :
-                                opt.entretien === 'Moyen'  ? 'bg-amber-900/40 text-amber-400' :
-                                                             'bg-red-900/40 text-red-400'
-                              }`}>{opt.entretien}</span>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Réglette dimension — visible si une option est sélectionnée */}
-                    {selectedOption && (
-                      <div className="mt-3 bg-white/[0.03] border border-white/[0.07] rounded-xl p-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs text-slate-400">{selectedOption.dimLabel}</span>
-                          <span className="text-xs font-bold text-white tabular-nums">
-                            {surface > 0 ? surface : '—'} {selectedOption.dimUnit}
-                          </span>
-                        </div>
-                        <input
-                          type="range"
-                          min={1}
-                          max={selectedOption.dimMax}
-                          step={1}
-                          value={surface > 0 ? surface : Math.round(selectedOption.dimMax / 4)}
-                          onChange={(e) => setSurface(Number(e.target.value))}
-                          className="w-full accent-violet-500 cursor-pointer"
-                        />
-                        <div className="flex justify-between text-[9px] text-slate-600 mt-1">
-                          <span>1 {selectedOption.dimUnit}</span>
-                          <span>{selectedOption.dimMax} {selectedOption.dimUnit}</span>
-                        </div>
-                        {surface > 0 && (
-                          <div className="mt-2 pt-2 border-t border-white/[0.06] flex justify-between items-center text-[10px]">
-                            <span className="text-slate-500">Fourchette :</span>
-                            <span className="text-white font-semibold tabular-nums">
-                              {(selectedOption.priceMin * surface).toLocaleString('fr-FR')} – {(selectedOption.priceMax * surface).toLocaleString('fr-FR')} €
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* Options matériaux — remplacé par ConceptionPage ci-dessous */}
 
                 {/* Sélecteur de matériaux IA */}
                 {materialAI.shouldShow && (
