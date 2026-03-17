@@ -3,6 +3,7 @@ import { AlertCircle, Edit2, CheckCircle2, XCircle, Send, ChevronRight, SlidersH
 import type { ChantierIAResult } from '@/types/chantier-ia';
 import { useMaterialDetection } from '@/hooks/useMaterialDetection';
 import type { MaterialOption } from '@/data/MATERIALS_MAP';
+import { MaterialImage } from '@/components/chantier/MATERIAL_IMAGES';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -67,8 +68,6 @@ function MaterialCard({
   onSelect: () => void;
   surface: number;
 }) {
-  const [imgError, setImgError] = useState(false);
-
   const badgeColor =
     option.maintenanceBadgeVariant === 'green'
       ? 'bg-green-500/20 text-green-400'
@@ -101,19 +100,12 @@ function MaterialCard({
     >
       {/* Image */}
       <div className="relative h-28 overflow-hidden bg-gray-800">
-        {!imgError ? (
-          <img
-            src={option.image}
-            alt={option.label}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            loading="lazy"
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-4xl">
-            {option.emoji}
-          </div>
-        )}
+        <MaterialImage
+          materialId={option.id}
+          materialName={option.label}
+          className="w-full h-28 object-cover group-hover:scale-105 transition-transform duration-300"
+          isSelected={selected}
+        />
         {selected && (
           <div className="absolute inset-0 bg-indigo-500/10 flex items-center justify-center">
             <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center">

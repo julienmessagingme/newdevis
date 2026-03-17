@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { MaterialOption, MaterialAIResult } from '@/hooks/useMaterialAI';
+import { MaterialImage } from '@/components/chantier/MATERIAL_IMAGES';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -63,7 +64,6 @@ export default function MaterialSelector({
 }: MaterialSelectorProps) {
   const [selectedId,  setSelectedId]  = useState<string>(result.materiaux[0]?.id ?? '');
   const [surface,     setSurface]     = useState<number>(10);
-  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
   const [confirmed,   setConfirmed]   = useState(false);
 
   const selectedMat = result.materiaux.find((m) => m.id === selectedId) ?? result.materiaux[0];
@@ -105,9 +105,7 @@ export default function MaterialSelector({
       <div className="grid grid-cols-3 gap-2">
         {result.materiaux.map((mat) => {
           const isSelected = mat.id === selectedId;
-          const hasError   = imageErrors.has(mat.id);
           const tag        = TIER_TAG[mat.tier] ?? TIER_TAG['intermédiaire'];
-          const fallback   = TIER_GRADIENT[mat.tier] ?? TIER_GRADIENT['intermédiaire'];
 
           return (
             <button
@@ -121,17 +119,12 @@ export default function MaterialSelector({
             >
               {/* Photo */}
               <div className="relative h-[90px] overflow-hidden shrink-0">
-                {!hasError && getStaticImage(mat.id, mat.imageQuery) ? (
-                  <img
-                    src={getStaticImage(mat.id, mat.imageQuery)}
-                    alt={mat.name}
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                    onError={() => setImageErrors((prev) => new Set([...prev, mat.id]))}
-                  />
-                ) : (
-                  <div className="w-full h-full" style={{ background: fallback }} />
-                )}
+                <MaterialImage
+                  materialId={mat.id}
+                  materialName={mat.name}
+                  className="w-full h-[90px] object-cover"
+                  isSelected={isSelected}
+                />
                 {/* Gradient overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 

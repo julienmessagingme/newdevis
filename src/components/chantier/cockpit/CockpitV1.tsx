@@ -11,6 +11,7 @@ import MaterialSelector from '@/components/chantier/nouveau/MaterialSelector';
 import { useMaterialAI } from '@/hooks/useMaterialAI';
 import { useMaterialSuggestions } from '@/hooks/useMaterialSuggestions';
 import { useMaterialDetection } from '@/hooks/useMaterialDetection';
+import { ExpertAvatar, AssistantChantierContent, ExpertSidebarBlock, MaterialImage } from '@/components/chantier/MATERIAL_IMAGES';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -1493,8 +1494,7 @@ export default function CockpitV1({
             onClick={() => openPanel('chat')}
             className="flex items-center gap-1.5 bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 text-violet-300 text-xs font-semibold rounded-xl px-3 py-2 transition-all shrink-0"
           >
-            <MessageSquare className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Assistant chantier</span>
+            <AssistantChantierContent />
           </button>
         </div>
       </header>
@@ -1622,13 +1622,12 @@ export default function CockpitV1({
                             }`}
                           >
                             <div className="relative h-20 overflow-hidden shrink-0">
-                              {opt.image ? (
-                                <img src={opt.image} alt={opt.label} className="w-full h-full object-cover" loading="lazy" />
-                              ) : (
-                                <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center text-2xl">
-                                  {opt.emoji}
-                                </div>
-                              )}
+                              <MaterialImage
+                                materialId={opt.id}
+                                materialName={opt.label}
+                                className="w-full h-20 object-cover"
+                                isSelected={isSel}
+                              />
                               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                               <p className="absolute bottom-1 left-1.5 right-1.5 text-white font-bold text-[10px] leading-tight truncate drop-shadow">
                                 {opt.label}
@@ -1715,22 +1714,7 @@ export default function CockpitV1({
             {radarPoints.length > 0 && (
               <div className="bg-[#0d1525] border border-blue-500/20 rounded-2xl p-4">
                 {/* Expert photo row */}
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="relative shrink-0">
-                    <img
-                      src="https://images.pexels.com/photos/1516680/pexels-photo-1516680.jpeg?auto=compress&cs=tinysrgb&w=80"
-                      alt="Expert chantier"
-                      className="w-10 h-10 rounded-full object-cover object-top ring-2 ring-purple-500/30"
-                      loading="lazy"
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                    />
-                    <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-[#0d1525]" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-white leading-none">Votre expert chantier</p>
-                    <p className="text-[10px] text-green-400 mt-0.5">● Disponible</p>
-                  </div>
-                </div>
+                <ExpertSidebarBlock />
                 {/* Label radar */}
                 <div className="flex items-center gap-1.5 mb-2">
                   <Scan className="h-3 w-3 text-blue-400 shrink-0" />
@@ -1781,22 +1765,7 @@ export default function CockpitV1({
             {/* Si ni radar ni bouclier : expert seul + budget compact */}
             {radarPoints.length === 0 && bouclierPoints.length === 0 && (
               <div className="bg-[#0d1525] border border-white/[0.07] rounded-2xl p-4">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="relative shrink-0">
-                    <img
-                      src="https://images.pexels.com/photos/1516680/pexels-photo-1516680.jpeg?auto=compress&cs=tinysrgb&w=80"
-                      alt="Expert chantier"
-                      className="w-10 h-10 rounded-full object-cover object-top ring-2 ring-purple-500/30"
-                      loading="lazy"
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                    />
-                    <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-[#0d1525]" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-white leading-none">Votre expert chantier</p>
-                    <p className="text-[10px] text-green-400 mt-0.5">● Disponible</p>
-                  </div>
-                </div>
+                <ExpertSidebarBlock />
                 <p className="text-emerald-400 text-xs font-semibold">✓ Aucun point de vigilance détecté</p>
                 <p className="text-[10px] text-slate-500 mt-1">Votre projet semble bien cadré. Continuez !</p>
               </div>
@@ -2560,13 +2529,9 @@ export default function CockpitV1({
                 <>
                   {/* ── Header expert ──────────────────────────────────────── */}
                   <div className="px-5 pt-5 pb-4 border-b border-white/[0.06] flex items-center gap-3 shrink-0">
-                    <img
-                      src="/avatar-expert.svg"
-                      alt="Expert chantier"
-                      className="w-14 h-14 rounded-2xl shrink-0 border border-white/[0.08]"
-                    />
+                    <ExpertAvatar size={56} showBadge={false} className="rounded-2xl border border-white/[0.08]" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-white">Thomas</p>
+                      <p className="text-sm font-bold text-white">Votre expert chantier</p>
                       <p className="text-[11px] text-slate-400">Maître d'œuvre certifié</p>
                       <div className="flex items-center gap-1.5 mt-1">
                         <div className={`w-1.5 h-1.5 rounded-full ${
@@ -2597,9 +2562,9 @@ export default function CockpitV1({
                     {/* Skeleton "Thomas analyse..." quand pas encore de message */}
                     {chatLoading && chatMessages.length === 0 && (
                       <div className="flex items-start gap-2">
-                        <img src="/avatar-expert.svg" alt="Expert" className="w-7 h-7 rounded-xl shrink-0 border border-white/[0.08]" />
+                        <ExpertAvatar size={28} showBadge={false} className="rounded-xl border border-white/[0.08]" />
                         <div className="bg-white/[0.06] border border-white/[0.08] rounded-2xl rounded-tl-sm px-4 py-3 max-w-[80%]">
-                          <p className="text-[10px] text-violet-300 font-medium mb-2">Thomas analyse votre chantier…</p>
+                          <p className="text-[10px] text-violet-300 font-medium mb-2">Votre expert analyse votre chantier…</p>
                           <div className="flex gap-1.5 items-center">
                             <div className="w-1.5 h-1.5 bg-violet-400/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                             <div className="w-1.5 h-1.5 bg-violet-400/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -2612,10 +2577,7 @@ export default function CockpitV1({
                       <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                         <div className="flex items-start">
                           {msg.role === 'assistant' && (
-                            <img
-                              src="/avatar-expert.svg"
-                              alt="Expert"
-                              className="w-7 h-7 rounded-xl shrink-0 mr-2 mt-0.5 border border-white/[0.08]"
+                            <ExpertAvatar size={28} showBadge={false} className="rounded-xl shrink-0 mr-2 mt-0.5 border border-white/[0.08]"
                             />
                           )}
                           <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
@@ -2662,7 +2624,7 @@ export default function CockpitV1({
                     ))}
                     {chatLoading && chatMessages.length > 0 && (
                       <div className="flex justify-start items-start gap-2">
-                        <img src="/avatar-expert.svg" alt="Expert" className="w-7 h-7 rounded-xl shrink-0 border border-white/[0.08]" />
+                        <ExpertAvatar size={28} showBadge={false} className="rounded-xl shrink-0 border border-white/[0.08]" />
                         <div className="bg-white/[0.06] border border-white/[0.08] rounded-2xl rounded-tl-sm px-4 py-3">
                           <div className="flex gap-1.5 items-center">
                             <div className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
