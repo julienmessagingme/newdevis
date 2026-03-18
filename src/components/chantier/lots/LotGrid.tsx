@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import LotCard from '@/components/chantier/lots/LotCard';
 import LotDetail from '@/components/chantier/lots/LotDetail';
+import AjouterDevisModal from '@/components/chantier/lots/AjouterDevisModal';
 import { groupDocumentsByLot, getDocumentsForLot } from '@/utils/chantier/groupDocumentsByLot';
 import type { DocumentChantier, LigneBudgetIA, LotChantier } from '@/types/chantier-ia';
 
@@ -38,6 +39,11 @@ export default function LotGrid({
   onDocumentAdded,
 }: LotGridProps) {
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
+  const [ajouterDevisLotId, setAjouterDevisLotId] = useState<string | null>(null);
+  const [lotsList, setLotsList] = useState(lots);
+
+  // Keep lotsList in sync if parent lots change
+  if (lots.length !== lotsList.length) setLotsList(lots);
 
   if (!lignesBudget.length) return null;
 
@@ -95,7 +101,10 @@ export default function LotGrid({
                 budgetRef={budgetRef}
                 decomposition={decomposition}
                 onVoir={() => setSelectedLabel(ligne.label)}
-                onAjouterDevis={() => setSelectedLabel(ligne.label)}
+                onAjouterDevis={() => {
+                  const lot = lots[i];
+                  setAjouterDevisLotId(lot?.id ?? null);
+                }}
               />
             );
           })}
@@ -116,6 +125,24 @@ export default function LotGrid({
           lotId={selectedLotId}
           lot={selectedLotRef}
           onDocumentAdded={onDocumentAdded}
+        />
+      )}
+
+      {/* Modal ajout devis */}
+      {ajouterDevisLotId !== null && chantierId && token && (
+        <AjouterDevisModal
+          chantierId={chantierId}
+          preselectedLotId={ajouterDevisLotId || undefined}
+          lots={lotsList.map((l) => ({ id: l.id, nom: l.nom, emoji: l.emoji }))}
+          token={token}
+          onClose={() => setAjouterDevisLotId(null)}
+          onDevisAdded={() => {
+            setAjouterDevisLotId(null);
+            onDocumentAdded?.();
+          }}
+          onLotCreated={(lot) => {
+            setLotsList((prev) => [...prev, { ...lot, id: lot.id, nom: lot.nom } as LotChantier]);
+          }}
         />
       )}
     </>

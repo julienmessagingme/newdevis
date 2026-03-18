@@ -1,3 +1,4 @@
+npm warn exec The following package was not found and will be installed: supabase@2.81.3
 export type Json =
   | string
   | number
@@ -269,6 +270,7 @@ export type Database = {
           metadonnees: string | null
           nom: string
           phase: string
+          project_mode: string | null
           taux_interet: number | null
           type_projet: string | null
           updated_at: string
@@ -290,6 +292,7 @@ export type Database = {
           metadonnees?: string | null
           nom?: string
           phase?: string
+          project_mode?: string | null
           taux_interet?: number | null
           type_projet?: string | null
           updated_at?: string
@@ -311,6 +314,7 @@ export type Database = {
           metadonnees?: string | null
           nom?: string
           phase?: string
+          project_mode?: string | null
           taux_interet?: number | null
           type_projet?: string | null
           updated_at?: string
@@ -372,6 +376,7 @@ export type Database = {
           date_debut: string | null
           date_fin: string | null
           id: string
+          lot_id: string | null
           mentions_ok: boolean
           montant_ht: number
           montant_ttc: number
@@ -396,6 +401,7 @@ export type Database = {
           date_debut?: string | null
           date_fin?: string | null
           id?: string
+          lot_id?: string | null
           mentions_ok?: boolean
           montant_ht?: number
           montant_ttc?: number
@@ -420,6 +426,7 @@ export type Database = {
           date_debut?: string | null
           date_fin?: string | null
           id?: string
+          lot_id?: string | null
           mentions_ok?: boolean
           montant_ht?: number
           montant_ttc?: number
@@ -436,6 +443,13 @@ export type Database = {
             columns: ["chantier_id"]
             isOneToOne: false
             referencedRelation: "chantiers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "devis_chantier_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: false
+            referencedRelation: "lots_chantier"
             referencedColumns: ["id"]
           },
         ]
@@ -617,7 +631,7 @@ export type Database = {
           source?: string
           statut?: string
           taille_octets?: number | null
-          type: string
+          type?: string
           url?: string
           user_id?: string | null
         }
@@ -831,36 +845,63 @@ export type Database = {
       }
       lots_chantier: {
         Row: {
+          budget_avg_ht: number | null
+          budget_max_ht: number | null
+          budget_min_ht: number | null
           chantier_id: string
           created_at: string
+          divers_ht: number | null
           emoji: string | null
           id: string
+          job_type: string | null
+          main_oeuvre_ht: number | null
+          materiaux_ht: number | null
           nom: string
           ordre: number
+          quantite: number | null
           role: string | null
           statut: string
+          unite: string | null
           updated_at: string
         }
         Insert: {
+          budget_avg_ht?: number | null
+          budget_max_ht?: number | null
+          budget_min_ht?: number | null
           chantier_id: string
           created_at?: string
+          divers_ht?: number | null
           emoji?: string | null
           id?: string
+          job_type?: string | null
+          main_oeuvre_ht?: number | null
+          materiaux_ht?: number | null
           nom: string
           ordre?: number
+          quantite?: number | null
           role?: string | null
           statut?: string
+          unite?: string | null
           updated_at?: string
         }
         Update: {
+          budget_avg_ht?: number | null
+          budget_max_ht?: number | null
+          budget_min_ht?: number | null
           chantier_id?: string
           created_at?: string
+          divers_ht?: number | null
           emoji?: string | null
           id?: string
+          job_type?: string | null
+          main_oeuvre_ht?: number | null
+          materiaux_ht?: number | null
           nom?: string
           ordre?: number
+          quantite?: number | null
           role?: string | null
           statut?: string
+          unite?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -890,6 +931,8 @@ export type Database = {
           price_max_unit_ht: number
           price_min_unit_ht: number
           ratio_fixed: number | null
+          ratio_main_oeuvre: number
+          ratio_materiaux: number
           ratio_unit: number | null
           sample_size: number | null
           source: string | null
@@ -913,6 +956,8 @@ export type Database = {
           price_max_unit_ht?: number
           price_min_unit_ht?: number
           ratio_fixed?: number | null
+          ratio_main_oeuvre?: number
+          ratio_materiaux?: number
           ratio_unit?: number | null
           sample_size?: number | null
           source?: string | null
@@ -936,6 +981,8 @@ export type Database = {
           price_max_unit_ht?: number
           price_min_unit_ht?: number
           ratio_fixed?: number | null
+          ratio_main_oeuvre?: number
+          ratio_materiaux?: number
           ratio_unit?: number | null
           sample_size?: number | null
           source?: string | null
@@ -1080,6 +1127,45 @@ export type Database = {
           unit?: string
           variability_ratio?: number | null
           zip_scope?: string
+        }
+        Relationships: []
+      }
+      materials: {
+        Row: {
+          advantages: Json | null
+          category: string | null
+          disadvantages: Json | null
+          id: string
+          image_path: string | null
+          impact_budget: string | null
+          label: string | null
+          lifetime: string | null
+          price_max: number | null
+          price_min: number | null
+        }
+        Insert: {
+          advantages?: Json | null
+          category?: string | null
+          disadvantages?: Json | null
+          id: string
+          image_path?: string | null
+          impact_budget?: string | null
+          label?: string | null
+          lifetime?: string | null
+          price_max?: number | null
+          price_min?: number | null
+        }
+        Update: {
+          advantages?: Json | null
+          category?: string | null
+          disadvantages?: Json | null
+          id?: string
+          image_path?: string | null
+          impact_budget?: string | null
+          label?: string | null
+          lifetime?: string | null
+          price_max?: number | null
+          price_min?: number | null
         }
         Relationships: []
       }
@@ -1281,6 +1367,8 @@ export type Database = {
         Row: {
           artisan_email: string
           artisan_nom: string
+          artisan_phone: string | null
+          channel: string | null
           chantier_id: string
           contenu: string
           created_at: string
@@ -1291,6 +1379,8 @@ export type Database = {
         Insert: {
           artisan_email?: string
           artisan_nom: string
+          artisan_phone?: string | null
+          channel?: string | null
           chantier_id: string
           contenu?: string
           created_at?: string
@@ -1301,6 +1391,8 @@ export type Database = {
         Update: {
           artisan_email?: string
           artisan_nom?: string
+          artisan_phone?: string | null
+          channel?: string | null
           chantier_id?: string
           contenu?: string
           created_at?: string

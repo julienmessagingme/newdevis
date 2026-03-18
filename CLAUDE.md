@@ -41,6 +41,10 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 | `/simulateur-valorisation-travaux` | `simulateur-valorisation-travaux.astro` | `SimulateurScoresApp` → `SimulateurScores` *(simulateur IVP/IPI)* |
 | `/valorisation-travaux-immobiliers` | `valorisation-travaux-immobiliers.astro` | *(statique Astro — page SEO valorisation)* |
 | `/sitemap-blog.xml` | `sitemap-blog.xml.ts` | *(endpoint SSR — sitemap dynamique blog)* |
+| `/mon-chantier` | `mon-chantier.astro` | `MonChantierHubApp` → `MonChantierHub` *(hub chantiers)* |
+| `/mon-chantier/nouveau` | `mon-chantier/nouveau.astro` | `NouveauChantierApp` → `NouveauChantier` *(création IA)* |
+| `/mon-chantier/:id` | `mon-chantier/[id].astro` | `ChantierDetailApp` → `ChantierDetail` *(détail chantier)* |
+| `/premium` | `premium.astro` | *(page premium)* |
 
 ### API Routes (Astro SSR)
 
@@ -49,10 +53,14 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 | `/api/geo-communes` | `api/geo-communes.ts` | Résolution code postal → communes via geo.api.gouv.fr |
 | `/api/market-prices` | `api/market-prices.ts` | Prix immobiliers DVF par commune (table `dvf_prices_yearly`) |
 | `/api/strategic-scores` | `api/strategic-scores.ts` | Calcul scores IVP/IPI depuis `strategic_matrix` |
-| `/api/debug-supabase` | `api/debug-supabase.ts` | Diagnostic connexion Supabase (dev/debug) |
 | `/api/newsletter` | `api/newsletter.ts` | Inscription newsletter + webhook MessagingMe |
+| `/api/postal-lookup` | `api/postal-lookup.ts` | Lookup code postal → communes (DVF) |
+| `/api/rental-prices` | `api/rental-prices.ts` | Prix locatifs par commune |
 | `/api/create-checkout-session` | `api/create-checkout-session.ts` | Création session Stripe Checkout (Pass Sérénité) |
+| `/api/create-portal-session` | `api/create-portal-session.ts` | Portail client Stripe |
 | `/api/stripe-webhook` | `api/stripe-webhook.ts` | Webhook Stripe (souscription, annulation, échec paiement) |
+| `/api/premium/*` | `api/premium/` | Statut et essai premium |
+| `/api/chantier/*` | `api/chantier/` | Module chantier complet (16 routes dont lots, devis, chat, matériaux — voir `DOCUMENTATION.md` §20) |
 
 ## Ajouter une page
 
@@ -64,30 +72,40 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 
 - **`lib/*Utils.ts`** : Logique métier externalisée par domaine (`entrepriseUtils`, `devisUtils`, `securiteUtils`, `contexteUtils`, `urbanismeUtils`, `architecteUtils`, `blogUtils`, `scoreUtils`). `lib/constants.ts` contient les constantes partagées. Les composants `analysis/Block*.tsx` importent depuis ces fichiers.
 - **`components/admin/`** : Module blog admin complet (`BlogPostList`, `BlogPostEditor`, `BlogDialogs`, `AiGenerationPanel`, `ManualWriteEditor`, `RichTextToolbar`, `ImageManagement`, `blogTypes`)
-- **`components/funnel/`** : Tunnel de conversion (`FunnelStepper`, `PremiumGate`). PremiumGate est intégré dans `BlockPrixMarche` via props (`showGate`, `onAuthSuccess`, `convertToPermanent`) — affiché uniquement quand le bloc est collapsé et l'utilisateur anonyme.
+- **`components/chantier/`** : Module gestion de chantier complet (~30 composants). Création IA (ScreenModeSelection → ScreenPrompt → Qualification → Génération), dashboard (budget, lots, timeline, documents, conseils IA, chat expert, matériaux). Sous-dossiers : `cockpit/` (CockpitV1, ConceptionPage, PanneauDetail, SimulateurOptions, TimelineHorizontale), `lots/` (LotCard, LotGrid, LotDetail), `nouveau/` (DashboardChantier, MaterialSelector, ScreenModeSelection, etc.). Voir `DOCUMENTATION.md` §20 pour le détail.
+- **`components/funnel/`** : Tunnel de conversion (`FunnelStepper`, `PremiumGate`, `PassSereniteGate`). PremiumGate est intégré dans `BlockPrixMarche` via props (`showGate`, `onAuthSuccess`, `convertToPermanent`) — affiché uniquement quand le bloc est collapsé et l'utilisateur anonyme.
 - **`components/analysis/`** : 20 composants dont `DocumentRejectionScreen`, `ExtractionBlocker`, `OcrDebugPanel` (lazy-loaded via `React.lazy` + `Suspense` dans `AnalysisResult.tsx`), `StrategicBadge` (affichage scores IVP/IPI), `UrbanismeAssistant` (assistant urbanisme). `BlockPrixMarche` inclut un `StepIndicator` interne (stepper visuel 2 étapes : Affectation des postes → Analyse des prix).
 - **`supabase/functions/analyze-quote/`** : Pipeline modulaire (10 fichiers : `index`, `extract`, `verify`, `score`, `render`, `summarize`, `market-prices`, `domain-config`, `utils`, `types`)
 - **`utils/generatePdfReport.ts`** : Génération PDF côté client via `jsPDF`. Structuré par blocs (entreprise, devis, sécurité, contexte) en miroir du frontend. Utilise les mêmes utils métier (`entrepriseUtils`, `securiteUtils`, etc.).
 - **`lib/domainConfig.ts`** : Registre frontend des blocs visibles par domaine (`travaux`, `auto`, `dentaire`). Conditionne l'affichage des blocs dans `AnalysisResult`.
-- **Hooks** : 6 hooks dont `useAnonymousAuth.ts` (auth anonyme), `useMarketPriceEditor.ts` (édition interactive prix marché)
+- **`data/MATERIALS_MAP.ts`** : Catalogue statique de 17 types de chantier × 3+ options matériaux (prix, durabilité, entretien, images). Auto-détection via `detectChantierType()`.
+- **Hooks** : 9 hooks dont `useAnonymousAuth.ts` (auth anonyme), `useMarketPriceEditor.ts` (édition interactive prix marché), `useMaterialAI.ts` (suggestions matériaux Gemini), `useMaterialDetection.ts` (détection type catalogue), `useMaterialSuggestions.ts` (catalogue matériaux dynamique)
 
 ## Supabase
 
-### Tables (12)
+### Tables (20)
 - `analyses` — analyses de devis (table principale). Colonne `market_price_overrides` (JSONB) pour les éditions utilisateur sur les prix marché. Colonne `domain` (TEXT, default `'travaux'`) pour le multi-vertical. **Limite 10 par utilisateur** : les plus anciennes sont purgées automatiquement par le pipeline.
 - `analysis_work_items` — lignes de travaux détaillées par analyse. Colonne `job_type_group` (TEXT) pour le rattachement au job type IA.
 - `blog_posts` — articles de blog (avec workflow IA, images cover + mid)
+- `chantiers` — projets de chantier (nom, emoji, budget, phase, type_projet, project_mode, metadonnees JSON). Colonne `project_mode` (TEXT, CHECK: 'guided'|'flexible'|'investor'). Voir `DOCUMENTATION.md` §20.
+- `lots_chantier` — lots de travaux par chantier (nom, statut, job_type, budget min/avg/max). FK chantiers CASCADE.
+- `todo_chantier` — checklist par chantier (titre, priorité, done). FK chantiers CASCADE.
+- `chantier_updates` — journal des modifications IA par chantier. FK chantiers CASCADE.
+- `documents_chantier` — documents attachés aux chantiers (devis, factures, photos, plans). FK chantiers CASCADE.
 - `company_cache` — cache vérification entreprise (recherche-entreprises.api.gouv.fr). Purge auto quotidienne via cron.
 - `document_extractions` — cache OCR par hash SHA-256 du fichier (provider, parsed_data, quality_score)
 - `dvf_prices` — cache prix immobiliers DVF par commune (code INSEE, prix/m² maison et appartement, nb ventes). Source : data.gouv.fr. RLS lecture publique.
-- `market_prices` — référentiel prix marché (~267 lignes). Colonne `domain` (TEXT, default `'travaux'`). RLS avec policy `market_prices_public_read` (accès anon + authenticated en lecture). Utilisé côté backend (edge functions via service_role) ET côté frontend (calculatrice homepage via anon key).
+- `market_prices` — référentiel prix marché (~267 lignes). Colonne `domain` (TEXT, default `'travaux'`). Colonnes `ratio_materiaux` / `ratio_main_oeuvre` pour la ventilation. RLS avec policy `market_prices_public_read` (accès anon + authenticated en lecture). Utilisé côté backend (edge functions via service_role) ET côté frontend (calculatrice homepage via anon key).
+- `newsletter_subscriptions` — inscriptions newsletter (email unique)
 - `post_signature_tracking` — suivi post-signature
 - `price_observations` — **données "gold" big data** : snapshot des groupements job type par analyse. Colonne `domain` (TEXT, default `'travaux'`). Survit à la suppression des analyses (pas de FK CASCADE). Voir section dédiée ci-dessous.
+- `rental_prices` — prix locatifs par commune (loyer/m² maison et appartement)
 - `strategic_matrix` — matrice IVP (Indice de Valorisation Patrimoniale) / IPI (Indice de Performance Investisseur). Scores 0-10 par critère et par job type (9 critères + recovery_rate). RLS lecture publique. Utilisée par `/api/strategic-scores` et le pipeline `analyze-quote`.
+- `subscriptions` — abonnements premium (stripe_customer_id, stripe_subscription_id, lifetime_analysis_count)
 - `user_roles` — rôles (admin/moderator/user)
 - `zones_geographiques` — coefficients géographiques par code postal
 
-### Edge Functions (8)
+### Edge Functions (12)
 | Fonction | JWT | Rôle |
 |---|---|---|
 | `analyze-quote` | false | Pipeline principal d'analyse de devis |
@@ -98,12 +116,17 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 | `generate-blog-article` | false | Génération articles via Claude API (vérifie admin role en interne) |
 | `generate-blog-image` | false | Génération images via fal.ai (vérifie admin role en interne) |
 | `publish-scheduled-posts` | false | Cron publication blog programmée |
+| `chantier-generer` | false | Génération plan chantier complet via Gemini |
+| `chantier-qualifier` | false | Questions contextuelles pour qualifier un projet |
+| `system-alerts` | false | Alertes système |
+| `read-invoice` | false | Lecture/extraction factures |
 
 > **`verify_jwt = false` sur TOUTES les fonctions** : Supabase Auth signe les JWT avec ES256, mais le runtime edge `verify_jwt` ne supporte pas cet algorithme → "Invalid JWT". Chaque fonction admin vérifie le rôle en interne via `user_roles`.
 
-### Storage (2 buckets)
+### Storage (3 buckets)
 - `devis` — fichiers PDF/images uploadés (privé, user-scoped)
 - `blog-images` — images de couverture et mi-texte (public, admin-only write)
+- `chantier-documents` — documents de chantier (privé, user-scoped via RLS)
 
 ### Crons
 - `purge-expired-company-cache` — quotidien 03h UTC, nettoie les entrées expirées

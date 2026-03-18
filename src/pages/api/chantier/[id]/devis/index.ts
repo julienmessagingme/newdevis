@@ -63,12 +63,20 @@ export const POST: APIRoute = async ({ request, params }) => {
       .from('devis_chantier')
       .update({ chantier_id: chantierId })
       .eq('id', body.devisId)
-      .select('id, artisan_nom, type_travaux, montant_ttc, statut, score_analyse, analyse_id')
+      .select('id, artisan_nom, type_travaux, montant_ttc, statut, score_analyse, analyse_id, lot_id')
       .single();
 
     if (error) {
       console.error('[api/chantier/devis POST] rattachement error:', error.message);
       return new Response(JSON.stringify({ error: 'Erreur lors du rattachement du devis' }), { status: 500, headers: CORS });
+    }
+
+    // Also update lot_id if provided
+    if (typeof body.lotId === 'string' && body.lotId) {
+      await supabase
+        .from('devis_chantier')
+        .update({ lot_id: body.lotId })
+        .eq('id', data.id);
     }
 
     return new Response(JSON.stringify({
@@ -80,6 +88,7 @@ export const POST: APIRoute = async ({ request, params }) => {
         statut: data.statut,
         analyseId: data.analyse_id,
         scoreAnalyse: data.score_analyse,
+        lotId: typeof body.lotId === 'string' ? body.lotId : data.lot_id,
       },
     }), { status: 200, headers: CORS });
   }
@@ -90,17 +99,47 @@ export const POST: APIRoute = async ({ request, params }) => {
     return new Response(JSON.stringify({ error: 'Le nom de l\'artisan est requis' }), { status: 400, headers: CORS });
   }
 
+  // Try to auto-populate artisan contact from linked analysis
+  let artisanEmail = typeof body.artisanEmail === 'string' ? body.artisanEmail : null;
+  let artisanPhone = typeof body.artisanPhone === 'string' ? body.artisanPhone : null;
+  let artisanSiret = typeof body.artisanSiret === 'string' ? body.artisanSiret : null;
+  const analyseId = typeof body.analyseId === 'string' ? body.analyseId : null;
+
+  if (analyseId && (!artisanEmail || !artisanPhone)) {
+    const { data: analyse } = await supabase
+      .from('analyses')
+      .select('raw_text')
+      .eq('id', analyseId)
+      .single();
+
+    if (analyse?.raw_text) {
+      try {
+        const rawData = typeof analyse.raw_text === 'string' ? JSON.parse(analyse.raw_text) : analyse.raw_text;
+        const entreprise = rawData?.extracted?.entreprise;
+        if (entreprise) {
+          if (!artisanEmail && entreprise.email) artisanEmail = entreprise.email;
+          if (!artisanPhone && entreprise.telephone) artisanPhone = entreprise.telephone;
+          if (!artisanSiret && entreprise.siret) artisanSiret = entreprise.siret;
+        }
+      } catch { /* ignore parse errors */ }
+    }
+  }
+
   const { data, error } = await supabase
     .from('devis_chantier')
     .insert({
       chantier_id: chantierId,
+      lot_id: typeof body.lotId === 'string' ? body.lotId : null,
       artisan_nom: nom,
+      artisan_email: artisanEmail,
+      artisan_phone: artisanPhone,
+      artisan_siret: artisanSiret,
       type_travaux: typeof body.description === 'string' ? body.description : 'Travaux',
       montant_ttc: typeof body.montant === 'number' ? body.montant : null,
       statut: typeof body.statut === 'string' ? body.statut : 'recu',
-      analyse_id: typeof body.analyseId === 'string' ? body.analyseId : null,
+      analyse_id: analyseId,
     })
-    .select('id, artisan_nom, type_travaux, montant_ttc, statut, score_analyse, analyse_id')
+    .select('id, artisan_nom, artisan_email, artisan_phone, artisan_siret, type_travaux, montant_ttc, statut, score_analyse, analyse_id, lot_id')
     .single();
 
   if (error) {

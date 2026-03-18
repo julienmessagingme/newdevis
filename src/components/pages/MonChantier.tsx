@@ -10,6 +10,7 @@ import {
   Settings, LogOut, Sparkles, Users, Check,
   Circle, CheckCircle2, X, TrendingUp,
   BookOpen, Trash2, Menu, ArrowLeft, AlertTriangle,
+  Phone, Save, MessageCircle,
 } from "lucide-react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import {
@@ -40,8 +41,11 @@ interface Chantier {
 interface DevisItem {
   id: string;
   analyse_id: string | null;
+  lot_id: string | null;
   artisan_nom: string;
   artisan_email: string | null;
+  artisan_phone: string | null;
+  artisan_siret: string | null;
   type_travaux: string;
   montant_ht: number;
   montant_ttc: number;
@@ -63,8 +67,10 @@ interface RelanceItem {
   id: string;
   artisan_nom: string;
   artisan_email: string;
+  artisan_phone: string | null;
   type: string;
   contenu: string;
+  channel: string | null;
   envoye_at: string | null;
   created_at: string;
 }
@@ -562,7 +568,10 @@ function DevisTab({ chantier, devisList, analyses, onImportAll, onRefresh }: {
                       </a>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500">{d.type_travaux}</p>
+                  <p className="text-xs text-slate-500">
+                    {d.type_travaux}
+                    {d.lot_id && <span className="ml-2 text-blue-400/70">· Lot rattaché</span>}
+                  </p>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <p className="text-sm font-bold text-white">{fmt(d.montant_ttc)} €</p>
@@ -786,6 +795,14 @@ function FormalitesTab({ chantierId }: { chantierId: string }) {
   );
 }
 
+// ── WhatsApp templates (versions courtes) ─────────────────────────────────────
+const WHATSAPP_TEMPLATES: Record<string, string> = {
+  relance_delai: "Bonjour, je vous contacte concernant les travaux en cours. Les délais semblent dépassés, pourriez-vous me donner une date estimée de fin de chantier ? Merci.",
+  reclamation: "Bonjour, je constate des malfaçons sur les travaux effectués. Pourriez-vous intervenir rapidement pour corriger ? Merci.",
+  demande_facture: "Bonjour, les travaux étant terminés, pourriez-vous m'envoyer la facture définitive ? Merci.",
+  mise_en_demeure: "Bonjour, malgré mes relances, je n'ai pas obtenu satisfaction. Je vous demande d'intervenir sous 8 jours. Merci.",
+};
+
 // ── RelancesTab ────────────────────────────────────────────────────────────────
 function RelancesTab({ chantier, devisList, relancesList, user, onRefresh }: {
   chantier: Chantier; devisList: DevisItem[]; relancesList: RelanceItem[];
@@ -794,43 +811,112 @@ function RelancesTab({ chantier, devisList, relancesList, user, onRefresh }: {
   const [selectedArtisan, setSelectedArtisan] = useState("");
   const [selectedType, setSelectedType] = useState(RELANCE_TEMPLATES[0].type);
   const [contenu, setContenu] = useState(RELANCE_TEMPLATES[0].template(""));
+  const [whatsappMessage, setWhatsappMessage] = useState(WHATSAPP_TEMPLATES.relance_delai);
   const [destinataireEmail, setDestinatataireEmail] = useState("");
+  const [artisanPhone, setArtisanPhone] = useState("");
+  const [artisanSiret, setArtisanSiret] = useState("");
   const [senderEmail, setSenderEmail] = useState(user?.email || "");
   const [saving, setSaving] = useState(false);
+  const [savingContact, setSavingContact] = useState(false);
+  const [activeChannel, setActiveChannel] = useState<"email" | "whatsapp">("email");
 
   const artisans = [...new Set(devisList.map((d) => d.artisan_nom))];
+
+  // Find the devis for the selected artisan (to get its ID for PATCH)
+  const selectedDevis = useMemo(
+    () => devisList.find((d) => d.artisan_nom === selectedArtisan),
+    [devisList, selectedArtisan],
+  );
 
   // Auto-fill template when artisan or type changes
   useEffect(() => {
     const tpl = RELANCE_TEMPLATES.find((t) => t.type === selectedType);
     if (tpl) setContenu(tpl.template(selectedArtisan));
+    setWhatsappMessage(WHATSAPP_TEMPLATES[selectedType] || WHATSAPP_TEMPLATES.relance_delai);
   }, [selectedType, selectedArtisan]);
 
-  // Auto-detect artisan email when artisan changes
+  // Auto-detect artisan contact when artisan changes
   useEffect(() => {
     const devis = devisList.find((d) => d.artisan_nom === selectedArtisan);
     setDestinatataireEmail(devis?.artisan_email || "");
+    setArtisanPhone(devis?.artisan_phone || "");
+    setArtisanSiret(devis?.artisan_siret || "");
   }, [selectedArtisan, devisList]);
 
-  const handleSend = async () => {
+  // Save artisan contact info via PATCH
+  const handleSaveContact = async () => {
+    if (!selectedDevis) return;
+    setSavingContact(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const res = await fetch(`/api/chantier/${chantier.id}/devis/${selectedDevis.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          artisanEmail: destinataireEmail || null,
+          artisanPhone: artisanPhone || null,
+          artisanSiret: artisanSiret || null,
+        }),
+      });
+      if (res.ok) { toast.success("Coordonnées artisan enregistrées"); onRefresh(); }
+      else { const err = await res.json(); toast.error(err.error || "Erreur"); }
+    } catch { toast.error("Erreur réseau"); }
+    setSavingContact(false);
+  };
+
+  // Send email via API (SMTP)
+  const handleSendEmail = async () => {
     if (!selectedArtisan) { toast.error("Sélectionnez un artisan"); return; }
+    if (!destinataireEmail) { toast.error("Email de l'artisan requis"); return; }
     setSaving(true);
-    // Open email client with pre-filled content
-    const subject = encodeURIComponent(RELANCE_TEMPLATES.find((t) => t.type === selectedType)?.label || selectedType);
-    const body = encodeURIComponent(contenu);
-    const mailtoUrl = `mailto:${encodeURIComponent(destinataireEmail)}?subject=${subject}&body=${body}`;
-    window.open(mailtoUrl, "_blank");
-    // Save to DB with envoye_at
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const subject = RELANCE_TEMPLATES.find((t) => t.type === selectedType)?.label || selectedType;
+      const res = await fetch("/api/chantier/relance-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          chantierId: chantier.id,
+          artisanNom: selectedArtisan,
+          artisanEmail: destinataireEmail,
+          artisanPhone: artisanPhone || undefined,
+          senderName: user?.user_metadata?.first_name
+            ? `${user.user_metadata.first_name} ${user.user_metadata.last_name || ""}`.trim()
+            : "",
+          senderEmail,
+          subject,
+          contenu,
+          type: selectedType,
+        }),
+      });
+      if (res.ok) { toast.success("Email envoyé avec succès"); onRefresh(); }
+      else { const err = await res.json(); toast.error(err.error || "Erreur d'envoi"); }
+    } catch { toast.error("Erreur réseau"); }
+    setSaving(false);
+  };
+
+  // Send WhatsApp message
+  const handleSendWhatsApp = async () => {
+    if (!selectedArtisan) { toast.error("Sélectionnez un artisan"); return; }
+    if (!artisanPhone) { toast.error("Numéro de téléphone requis"); return; }
+    setSaving(true);
+    // Format phone: strip non-digits, 0X → 33X
+    const cleanPhone = artisanPhone.replace(/[^0-9+]/g, "").replace(/^\+/, "").replace(/^0/, "33");
+    const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(whatsappMessage)}`;
+    window.open(waUrl, "_blank");
+    // Save to relances DB
     const { error } = await supabase.from("relances").insert({
       chantier_id: chantier.id,
       artisan_nom: selectedArtisan,
       artisan_email: destinataireEmail,
+      artisan_phone: artisanPhone,
       type: selectedType,
-      contenu,
+      contenu: whatsappMessage,
+      channel: "whatsapp",
       envoye_at: new Date().toISOString(),
     });
     if (error) toast.error("Erreur lors de l'enregistrement");
-    else { toast.success("Relance envoyée et enregistrée"); onRefresh(); }
+    else { toast.success("WhatsApp ouvert et relance enregistrée"); onRefresh(); }
     setSaving(false);
   };
 
@@ -841,8 +927,10 @@ function RelancesTab({ chantier, devisList, relancesList, user, onRefresh }: {
       chantier_id: chantier.id,
       artisan_nom: selectedArtisan,
       artisan_email: destinataireEmail,
+      artisan_phone: artisanPhone || null,
       type: selectedType,
-      contenu,
+      contenu: activeChannel === "whatsapp" ? whatsappMessage : contenu,
+      channel: activeChannel,
       envoye_at: null,
     });
     if (error) toast.error("Erreur lors de l'enregistrement");
@@ -870,6 +958,7 @@ function RelancesTab({ chantier, devisList, relancesList, user, onRefresh }: {
       <h1 className="text-2xl font-bold text-white mb-6">Relances & Messages</h1>
 
       <div className="bg-[#162035] border border-white/10 rounded-xl p-5 mb-4">
+        {/* Artisan + Type selectors */}
         <h2 className="text-white font-semibold mb-4">Nouvelle relance</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
           <div>
@@ -887,73 +976,176 @@ function RelancesTab({ chantier, devisList, relancesList, user, onRefresh }: {
           </div>
         </div>
 
-        {/* Destinataire */}
-        <div className="mb-3">
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-xs text-slate-400">Destinataire (email artisan)</label>
-            {selectedArtisan && destinataireEmail && (
-              <span className="text-[10px] font-medium text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded-full">✓ auto-détecté</span>
-            )}
-            {selectedArtisan && !destinataireEmail && (
-              <span className="text-[10px] font-medium text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded-full">⚠ email inconnu</span>
-            )}
+        {/* Fiche artisan - coordonnées éditables */}
+        {selectedArtisan && (
+          <div className="bg-[#0f1829] border border-white/5 rounded-lg p-4 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium text-slate-300">Coordonnées artisan</h3>
+              <button
+                onClick={handleSaveContact}
+                disabled={savingContact || !selectedDevis}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-blue-400 hover:text-blue-300 bg-blue-400/10 hover:bg-blue-400/20 rounded-md disabled:opacity-50 transition-colors"
+              >
+                {savingContact ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                Enregistrer
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Mail className="h-3 w-3 text-slate-500" />
+                  <label className="text-xs text-slate-400">Email</label>
+                  {destinataireEmail ? (
+                    <span className="text-[10px] font-medium text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded-full ml-auto">auto-détecté</span>
+                  ) : (
+                    <span className="text-[10px] font-medium text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded-full ml-auto">inconnu</span>
+                  )}
+                </div>
+                <input
+                  type="email" value={destinataireEmail}
+                  onChange={(e) => setDestinatataireEmail(e.target.value)}
+                  placeholder="email@artisan.fr" className={inputClass}
+                />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Phone className="h-3 w-3 text-slate-500" />
+                  <label className="text-xs text-slate-400">Téléphone</label>
+                  {artisanPhone ? (
+                    <span className="text-[10px] font-medium text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded-full ml-auto">auto-détecté</span>
+                  ) : (
+                    <span className="text-[10px] font-medium text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded-full ml-auto">inconnu</span>
+                  )}
+                </div>
+                <input
+                  type="tel" value={artisanPhone}
+                  onChange={(e) => setArtisanPhone(e.target.value)}
+                  placeholder="06 12 34 56 78" className={inputClass}
+                />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <FileText className="h-3 w-3 text-slate-500" />
+                  <label className="text-xs text-slate-400">SIRET</label>
+                </div>
+                <input
+                  type="text" value={artisanSiret}
+                  onChange={(e) => setArtisanSiret(e.target.value)}
+                  placeholder="123 456 789 00012" className={inputClass}
+                />
+              </div>
+            </div>
           </div>
-          <input
-            type="email"
-            value={destinataireEmail}
-            onChange={(e) => setDestinatataireEmail(e.target.value)}
-            placeholder="email@artisan.fr"
-            className={inputClass}
-          />
-          {selectedArtisan && !destinataireEmail && (
-            <p className="text-xs text-amber-400 mt-1">Aucun email trouvé pour cet artisan. Vous pouvez le saisir manuellement.</p>
-          )}
-        </div>
+        )}
 
-        {/* De la part de */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-xs text-slate-400">De la part de</label>
-            {senderEmail && (
-              <span className="text-[10px] font-medium text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded-full">✓ auto-rempli</span>
-            )}
-          </div>
-          <input
-            type="email"
-            value={senderEmail}
-            onChange={(e) => setSenderEmail(e.target.value)}
-            placeholder="votre@email.fr"
-            className={inputClass}
-          />
-        </div>
-
-        <textarea
-          value={contenu}
-          onChange={(e) => setContenu(e.target.value)}
-          rows={6}
-          className="w-full bg-[#1c2a42] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white resize-none focus:outline-none focus:border-blue-500 mb-1"
-        />
-        <p className="text-xs text-slate-500 mb-3">→ Le bouton Envoyer ouvrira votre client email (Outlook, Gmail…) avec le message pré-rempli.</p>
-
-        <div className="flex gap-2 flex-wrap">
+        {/* Channel toggle */}
+        <div className="flex gap-2 mb-4">
           <button
-            onClick={handleSend}
-            disabled={saving}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg disabled:opacity-50"
+            onClick={() => setActiveChannel("email")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeChannel === "email"
+                ? "bg-blue-600 text-white"
+                : "bg-[#1c2a42] text-slate-400 hover:text-white border border-white/10"
+            }`}
           >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            Envoyer
+            <Mail className="h-4 w-4" /> Email
           </button>
           <button
-            onClick={handleSaveDraft}
-            disabled={saving}
-            className="flex items-center gap-2 px-4 py-2 border border-white/20 hover:border-white/40 text-slate-300 text-sm font-medium rounded-lg disabled:opacity-50"
+            onClick={() => setActiveChannel("whatsapp")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeChannel === "whatsapp"
+                ? "bg-green-600 text-white"
+                : "bg-[#1c2a42] text-slate-400 hover:text-white border border-white/10"
+            }`}
           >
-            Enregistrer brouillon
+            <MessageCircle className="h-4 w-4" /> WhatsApp
           </button>
         </div>
+
+        {/* Email mode */}
+        {activeChannel === "email" && (
+          <>
+            {/* De la part de */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-slate-400">De la part de (Reply-To)</label>
+                {senderEmail && (
+                  <span className="text-[10px] font-medium text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded-full">auto-rempli</span>
+                )}
+              </div>
+              <input
+                type="email" value={senderEmail}
+                onChange={(e) => setSenderEmail(e.target.value)}
+                placeholder="votre@email.fr" className={inputClass}
+              />
+            </div>
+
+            <textarea
+              value={contenu} onChange={(e) => setContenu(e.target.value)}
+              rows={6}
+              className="w-full bg-[#1c2a42] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white resize-none focus:outline-none focus:border-blue-500 mb-1"
+            />
+            <p className="text-xs text-slate-500 mb-3">
+              Email envoyé directement depuis contact@verifiermondevis.fr — l'artisan pourra répondre à votre adresse.
+            </p>
+
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={handleSendEmail} disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                Envoyer l'email
+              </button>
+              <button
+                onClick={handleSaveDraft} disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 border border-white/20 hover:border-white/40 text-slate-300 text-sm font-medium rounded-lg disabled:opacity-50"
+              >
+                Enregistrer brouillon
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* WhatsApp mode */}
+        {activeChannel === "whatsapp" && (
+          <>
+            {!artisanPhone && selectedArtisan && (
+              <p className="text-xs text-amber-400 mb-3">
+                Renseignez le numéro de téléphone de l'artisan dans la fiche ci-dessus pour envoyer un WhatsApp.
+              </p>
+            )}
+
+            <textarea
+              value={whatsappMessage} onChange={(e) => setWhatsappMessage(e.target.value)}
+              rows={4}
+              className="w-full bg-[#1c2a42] border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white resize-none focus:outline-none focus:border-green-500 mb-1"
+              placeholder="Votre message WhatsApp..."
+            />
+            <p className="text-xs text-slate-500 mb-3">
+              Ouvre WhatsApp Web avec le message pré-rempli. L'artisan verra votre numéro.
+            </p>
+
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={handleSendWhatsApp} disabled={saving || !artisanPhone}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+                Ouvrir WhatsApp
+              </button>
+              <button
+                onClick={handleSaveDraft} disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 border border-white/20 hover:border-white/40 text-slate-300 text-sm font-medium rounded-lg disabled:opacity-50"
+              >
+                Enregistrer brouillon
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
+      {/* Historique */}
       {relancesList.length > 0 && (
         <div className="bg-[#162035] border border-white/10 rounded-xl overflow-hidden">
           <div className="px-5 py-3 border-b border-white/10">
@@ -964,12 +1156,21 @@ function RelancesTab({ chantier, devisList, relancesList, user, onRefresh }: {
               <div key={r.id} className="px-4 py-3">
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-sm font-medium text-white">{r.artisan_nom}</p>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${r.envoye_at ? "bg-green-500/20 text-green-400" : "bg-slate-500/20 text-slate-400"}`}>
-                    {r.envoye_at ? "Envoyé" : "Brouillon"}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {r.channel === "whatsapp" && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">WhatsApp</span>
+                    )}
+                    {r.channel === "email" && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">Email</span>
+                    )}
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${r.envoye_at ? "bg-green-500/20 text-green-400" : "bg-slate-500/20 text-slate-400"}`}>
+                      {r.envoye_at ? "Envoyé" : "Brouillon"}
+                    </span>
+                  </div>
                 </div>
                 <p className="text-xs text-slate-500">{RELANCE_TEMPLATES.find((t) => t.type === r.type)?.label || r.type}</p>
                 {r.artisan_email && <p className="text-xs text-slate-600 mt-0.5">→ {r.artisan_email}</p>}
+                {r.artisan_phone && <p className="text-xs text-slate-600 mt-0.5">tel: {r.artisan_phone}</p>}
                 {r.envoye_at && <p className="text-xs text-slate-600 mt-0.5">{new Date(r.envoye_at).toLocaleDateString("fr-FR")}</p>}
               </div>
             ))}
@@ -1264,9 +1465,9 @@ export default function MonChantier() {
 
   const loadData = useCallback(async (userId: string, chantierId: string) => {
     const [d, j, r, a] = await Promise.all([
-      supabase.from("devis_chantier").select("id, analyse_id, artisan_nom, artisan_email, type_travaux, montant_ht, montant_ttc, acompte_pct, acompte_paye, statut, score_analyse, created_at").eq("chantier_id", chantierId).order("created_at", { ascending: false }),
+      supabase.from("devis_chantier").select("id, analyse_id, lot_id, artisan_nom, artisan_email, artisan_phone, artisan_siret, type_travaux, montant_ht, montant_ttc, acompte_pct, acompte_paye, statut, score_analyse, created_at").eq("chantier_id", chantierId).order("created_at", { ascending: false }),
       supabase.from("journal_entries").select("id, date, phase, artisan_nom, note, tags").eq("chantier_id", chantierId).order("date", { ascending: false }),
-      supabase.from("relances").select("id, artisan_nom, artisan_email, type, contenu, envoye_at, created_at").eq("chantier_id", chantierId).order("created_at", { ascending: false }),
+      supabase.from("relances").select("id, artisan_nom, artisan_email, artisan_phone, type, contenu, channel, envoye_at, created_at").eq("chantier_id", chantierId).order("created_at", { ascending: false }),
       supabase.from("analyses").select("id, file_name, score, status, raw_text").eq("user_id", userId).eq("status", "completed"),
     ]);
     if (d.data) setDevisList(d.data);

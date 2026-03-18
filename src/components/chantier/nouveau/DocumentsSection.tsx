@@ -4,6 +4,7 @@ import {
   Sparkles, AlertCircle, FolderOpen, ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import LotSelector from '@/components/chantier/lots/LotSelector';
 import type { DocumentChantier, DocumentType, LotChantier } from '@/types/chantier-ia';
 const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10 Mo — cohérent avec bucket + serveur
 const ACCEPTED_TYPES   = '.pdf,.jpg,.jpeg,.png,.heic,.heif,.webp,.docx,.xlsx,.xls,.doc';
@@ -270,6 +271,18 @@ export default function DocumentsSection({ chantierId, userId, token, lots, uplo
       // Mise à jour locale immédiate pour afficher le badge "Voir l'analyse"
       setDocs((prev) => prev.map((d) => d.id === doc.id ? { ...d, analyse_id: analysisId } : d));
 
+      // Pont: créer automatiquement un devis_chantier rattaché au lot (fire & forget)
+      fetch(`/api/chantier/${chantierId}/devis`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          analyseId: analysisId,
+          lotId: doc.lot_id ?? null,
+          nom: doc.nom || doc.nom_fichier || 'Devis analysé',
+          description: 'Devis uploadé et analysé',
+        }),
+      }).catch(() => {}); // non-bloquant
+
       window.location.href = `/analyse/${analysisId}`;
     } catch (e) {
       console.error('[DocumentsSection] analyser error:', e instanceof Error ? e.message : String(e));
@@ -400,21 +413,18 @@ export default function DocumentsSection({ chantierId, userId, token, lots, uplo
               />
             </div>
 
-            {persistedLots.length > 0 && (
-              <div>
-                <label className="text-xs text-slate-500 mb-1 block">Lot (optionnel)</label>
-                <select
-                  value={uploadLotId}
-                  onChange={(e) => setUploadLotId(e.target.value)}
-                  className="w-full bg-white/[0.05] border border-white/[0.08] text-white text-xs rounded-lg px-2.5 py-2 appearance-none outline-none focus:border-blue-500/50"
-                >
-                  <option value="">— Aucun lot —</option>
-                  {persistedLots.map((l) => (
-                    <option key={l.id} value={l.id}>{l.emoji ?? ''} {l.nom}</option>
-                  ))}
-                </select>
-              </div>
-            )}
+            <LotSelector
+              lots={persistedLots.map((l) => ({ id: l.id, nom: l.nom, emoji: l.emoji }))}
+              selectedLotId={uploadLotId || null}
+              onSelect={(id) => setUploadLotId(id ?? '')}
+              chantierId={chantierId}
+              token={token}
+              onLotCreated={(lot) => {
+                // Refresh lots list — parent should handle this
+                setUploadLotId(lot.id);
+              }}
+              label="Lot (optionnel)"
+            />
           </div>
 
           <div className="flex items-center justify-end gap-2">
