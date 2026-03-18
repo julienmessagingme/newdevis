@@ -18,11 +18,11 @@ export default defineConfig({
       },
     },
     ssr: {
-      external: ['stripe'],
+      external: ['stripe', 'nodemailer'],
     },
     build: {
       rollupOptions: {
-        external: ['stripe'],
+        external: ['stripe', 'nodemailer'],
       },
     },
   },
