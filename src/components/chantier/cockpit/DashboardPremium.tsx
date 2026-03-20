@@ -1,73 +1,28 @@
-import { useState } from 'react';
+/**
+ * DashboardPremium — point d'entrée unique.
+ * Redirige toujours vers DashboardUnified (plus de sélection de mode).
+ */
 import type { ChantierIAResult, ProjectMode, StatutArtisan, TacheIA } from '@/types/chantier-ia';
-import DashboardGuided from './DashboardGuided';
-import DashboardOrganised from './DashboardOrganised';
-import DashboardExpert from './DashboardExpert';
-import ScreenModeSelection from '@/components/chantier/nouveau/ScreenModeSelection';
+import DashboardUnified from './DashboardUnified';
 
 interface Props {
   result: ChantierIAResult;
   chantierId: string | null;
-  projectMode: ProjectMode | null;
-  onProjectModeChange: (mode: ProjectMode) => void;
+  projectMode?: ProjectMode | null;
+  onProjectModeChange?: (mode: ProjectMode) => void;
   onToggleTache?: (todoId: string, done: boolean) => void;
   onLotStatutChange?: (lotId: string, statut: StatutArtisan) => void;
   token?: string | null;
   userId?: string | null;
 }
 
-export default function DashboardPremium({
-  result,
-  chantierId,
-  projectMode,
-  onProjectModeChange,
-  onToggleTache,
-  onLotStatutChange,
-  token,
-}: Props) {
-  // Si pas de mode choisi, afficher le sélecteur
-  if (!projectMode) {
-    return (
-      <ScreenModeSelection
-        onSelect={onProjectModeChange}
-      />
-    );
-  }
-
-  const sharedProps = {
-    result,
-    chantierId,
-    token,
-    onProjectModeChange,
-  };
-
-  switch (projectMode) {
-    case 'guided':
-      return (
-        <DashboardGuided
-          {...sharedProps}
-          token={token}
-          onToggleTache={onToggleTache}
-        />
-      );
-
-    case 'flexible':
-      return (
-        <DashboardOrganised
-          {...sharedProps}
-          onLotStatutChange={onLotStatutChange}
-        />
-      );
-
-    case 'investor':
-      return (
-        <DashboardExpert
-          {...sharedProps}
-          onLotStatutChange={onLotStatutChange}
-        />
-      );
-
-    default:
-      return null;
-  }
+export default function DashboardPremium({ result, chantierId, token, onLotStatutChange }: Props) {
+  return (
+    <DashboardUnified
+      result={result}
+      chantierId={chantierId}
+      token={token}
+      onLotStatutChange={onLotStatutChange}
+    />
+  );
 }
