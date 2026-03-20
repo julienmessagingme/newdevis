@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Loader2, AlertCircle, ArrowLeft, Info, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
-import CockpitV1 from '@/components/chantier/cockpit/CockpitV1';
+import DashboardPremium from '@/components/chantier/cockpit/DashboardPremium';
 import ScreenAmeliorations from '@/components/chantier/nouveau/ScreenAmeliorations';
 import type { ChantierIAResult, StatutArtisan, ProjectMode } from '@/types/chantier-ia';
 
@@ -230,13 +230,9 @@ export default function ChantierDetail() {
         </div>
       )}
 
-      <CockpitV1
+      <DashboardPremium
         result={result}
         chantierId={chantierId}
-        onAmeliorer={() => setScreen('ameliorer')}
-        onNouveau={() => { window.location.href = '/mon-chantier'; }}
-        onToggleTache={handleToggleTache}
-        onLotStatutChange={handleLotStatutChange}
         token={token}
         userId={userId}
         projectMode={projectMode}
@@ -253,6 +249,8 @@ export default function ChantierDetail() {
             console.error('[ChantierDetail] Erreur PATCH project_mode:', err instanceof Error ? err.message : String(err));
           }
         }}
+        onToggleTache={handleToggleTache}
+        onLotStatutChange={handleLotStatutChange}
       />
     </>
   );
