@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Clock, ChevronRight, Upload, FileText, AlertTriangle } from 'lucide-react';
+import { Check, Clock, ChevronRight, Upload, FileText, AlertTriangle, Sparkles } from 'lucide-react';
 import type { ChantierIAResult, ProjectMode, TacheIA } from '@/types/chantier-ia';
 import { useInsights, type InsightItem } from './useInsights';
 
@@ -105,6 +105,31 @@ export default function DashboardGuided({ result, chantierId, token, onToggleTac
         </div>
       </header>
 
+      {/* ── Assistant Banner ────────────────────────────────────────────────── */}
+      {(insightsLoading || (insights?.global?.length ?? 0) > 0) && (
+        <div className="border-b border-gray-100 bg-white px-6 py-2.5">
+          <div className="max-w-5xl mx-auto flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Assistant</span>
+            </div>
+            {insightsLoading ? (
+              [1, 2].map(i => <div key={i} className="h-5 w-36 bg-gray-100 rounded-full animate-pulse" />)
+            ) : (
+              insights?.global.slice(0, 2).map((item, i) => {
+                const s = INSIGHT_STYLES[item.type];
+                return (
+                  <span key={i} className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-semibold ${s.bg} ${s.text} ${s.border}`}>
+                    {item.icon && <span className="leading-none">{item.icon}</span>}
+                    {item.text}
+                  </span>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Body ───────────────────────────────────────────────────────────── */}
       <div className="flex flex-1 max-w-5xl w-full mx-auto">
 
@@ -150,25 +175,6 @@ export default function DashboardGuided({ result, chantierId, token, onToggleTac
 
         {/* Main */}
         <main className="flex-1 min-w-0 py-8 pl-4 pr-6 space-y-5">
-
-          {/* ── Insights maître d'œuvre ─────────────────────────────────── */}
-          {(insightsLoading || (insights?.global?.length ?? 0) > 0) && (
-            <div className="flex flex-wrap items-center gap-2">
-              {insightsLoading ? (
-                [1, 2].map(i => <div key={i} className="h-7 w-36 bg-gray-100 rounded-full animate-pulse" />)
-              ) : (
-                insights?.global.map((item, i) => {
-                  const s = INSIGHT_STYLES[item.type];
-                  return (
-                    <span key={i} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold ${s.bg} ${s.text} ${s.border}`}>
-                      {item.icon && <span className="leading-none">{item.icon}</span>}
-                      {item.text}
-                    </span>
-                  );
-                })
-              )}
-            </div>
-          )}
 
           {/* Prochaine action */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">

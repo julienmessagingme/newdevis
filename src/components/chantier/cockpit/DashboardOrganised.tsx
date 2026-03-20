@@ -47,42 +47,62 @@ const INSIGHT_STYLES: Record<InsightItem['type'], { bg: string; text: string; bo
   info:    { bg: 'bg-blue-50',     text: 'text-blue-800',    border: 'border-blue-100'    },
 };
 
-function InsightsBar({ items, loading }: { items: InsightItem[]; loading: boolean }) {
-  if (loading) {
-    return (
-      <div className="flex items-center gap-3 mb-5">
-        {[1, 2, 3].map(i => (
-          <div key={i} className="h-7 w-36 bg-gray-100 rounded-full animate-pulse" />
-        ))}
-      </div>
-    );
-  }
-  if (items.length === 0) return null;
-  return (
-    <div className="flex flex-wrap items-center gap-2 mb-5">
-      {items.map((item, i) => {
-        const s = INSIGHT_STYLES[item.type];
-        return (
-          <span
-            key={i}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold ${s.bg} ${s.text} ${s.border}`}
-          >
-            {item.icon && <span className="leading-none">{item.icon}</span>}
-            {item.text}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
 
 function LotInsightPill({ insight }: { insight: InsightItem | undefined }) {
   if (!insight) return null;
   const s = INSIGHT_STYLES[insight.type];
+  const accentColor = {
+    success: 'border-l-emerald-400',
+    warning: 'border-l-amber-400',
+    alert:   'border-l-red-400',
+    info:    'border-l-blue-400',
+  }[insight.type];
   return (
-    <div className={`mx-[-1px] px-4 py-2.5 border-t ${s.border} ${s.bg} flex items-center gap-1.5`}>
+    <div className={`px-4 py-2.5 border-t border-l-4 ${accentColor} ${s.border} ${s.bg} flex items-center gap-1.5`}>
       {insight.icon && <span className="text-[11px] leading-none">{insight.icon}</span>}
       <span className={`text-[11px] font-semibold ${s.text} leading-tight`}>{insight.text}</span>
+    </div>
+  );
+}
+
+// ── Assistant Banner (global insights strip) ──────────────────────────────────
+
+function AssistantBanner({ items, loading }: { items: InsightItem[]; loading: boolean }) {
+  const shown = items.slice(0, 2);
+  if (loading) {
+    return (
+      <div className="border-b border-gray-100 bg-white px-6 py-2.5">
+        <div className="max-w-5xl mx-auto flex items-center gap-3">
+          <Sparkles className="h-3.5 w-3.5 text-gray-300 shrink-0 animate-pulse" />
+          <div className="flex gap-2">
+            <div className="h-5 w-40 bg-gray-100 rounded-full animate-pulse" />
+            <div className="h-5 w-28 bg-gray-100 rounded-full animate-pulse" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (shown.length === 0) return null;
+  return (
+    <div className="border-b border-gray-100 bg-white px-6 py-2.5">
+      <div className="max-w-5xl mx-auto flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Assistant</span>
+        </div>
+        {shown.map((item, i) => {
+          const s = INSIGHT_STYLES[item.type];
+          return (
+            <span
+              key={i}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-semibold cursor-default ${s.bg} ${s.text} ${s.border}`}
+            >
+              {item.icon && <span className="leading-none">{item.icon}</span>}
+              {item.text}
+            </span>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -108,6 +128,7 @@ function UploadModal({ chantierId, token, lots, defaultLotId, onClose, onSuccess
   const [uploadState, setUploadState] = useState<UploadState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [resultMsg, setResultMsg] = useState('');
+  const [savingsAmount, setSavingsAmount] = useState(0);
   const [analyses, setAnalyses] = useState<{ id: string; created_at: string; titre?: string }[]>([]);
   const [loadingAnalyses, setLoadingAnalyses] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -182,17 +203,19 @@ function UploadModal({ chantierId, token, lots, defaultLotId, onClose, onSuccess
           });
           if (aRes.ok) {
             const aData = await aRes.json().catch(() => ({}));
-            const savings = aData?.result?.economics?.savings;
-            setResultMsg(savings > 0
-              ? `+${fmtEuro(savings)} économisés détectés 🎉`
-              : 'Devis importé et analysé ✓');
+            const savings = aData?.result?.economics?.savings ?? 0;
+            setSavingsAmount(savings > 0 ? savings : 0);
+            setResultMsg(savings > 0 ? `+${fmtEuro(savings)} détectés vs marché` : '');
           } else {
-            setResultMsg('Devis importé avec succès ✓');
+            setSavingsAmount(0);
+            setResultMsg('');
           }
         } catch {
-          setResultMsg('Devis importé avec succès ✓');
+          setSavingsAmount(0);
+          setResultMsg('');
         }
       } else {
+        setSavingsAmount(0);
         setResultMsg(`${TYPE_LABELS[docType]} ajouté ✓`);
       }
 
@@ -274,17 +297,52 @@ function UploadModal({ chantierId, token, lots, defaultLotId, onClose, onSuccess
 
         {/* ── État : Success ────────────────────────────────────────────────── */}
         {uploadState === 'success' && (
-          <div className="px-6 py-12 flex flex-col items-center gap-4 text-center">
+          <div className="px-6 py-8 flex flex-col items-center gap-4 text-center">
             <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center">
               <CheckCircle2 className="h-7 w-7 text-emerald-600" />
             </div>
-            <p className="font-bold text-gray-900 text-lg">{resultMsg}</p>
-            <button
-              onClick={onClose}
-              className="mt-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-6 py-2.5 text-sm transition-colors"
-            >
-              Parfait
-            </button>
+            <div>
+              <p className="font-bold text-gray-900 text-lg">
+                {docType === 'devis' ? '✔ Devis analysé' : resultMsg}
+              </p>
+              {docType === 'devis' && !savingsAmount && (
+                <p className="text-sm text-gray-400 mt-0.5">Importé avec succès</p>
+              )}
+            </div>
+
+            {/* Mise en avant des économies détectées */}
+            {savingsAmount > 0 && (
+              <div className="w-full bg-emerald-50 border border-emerald-100 rounded-2xl px-5 py-4">
+                <p className="text-3xl font-extrabold text-emerald-600 tracking-tight">
+                  +{fmtEuro(savingsAmount)}
+                </p>
+                <p className="text-xs font-medium text-emerald-600 mt-1">détectés vs prix du marché 🎉</p>
+              </div>
+            )}
+
+            {/* CTA */}
+            <div className="flex flex-col gap-2 w-full mt-1">
+              <button
+                onClick={onClose}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl py-3 text-sm transition-colors"
+              >
+                Parfait
+              </button>
+              {docType === 'devis' && (
+                <button
+                  onClick={() => {
+                    setFile(null);
+                    setDocName('');
+                    setSavingsAmount(0);
+                    setResultMsg('');
+                    setUploadState('idle');
+                  }}
+                  className="text-sm font-medium text-blue-600 hover:text-blue-700 py-2 transition-colors"
+                >
+                  Ajouter un autre devis pour comparer →
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -713,6 +771,9 @@ export default function DashboardOrganised({ result, chantierId, token, onLotSta
         </div>
       </header>
 
+      {/* ── Assistant Banner ────────────────────────────────────────────────── */}
+      <AssistantBanner items={insights?.global ?? []} loading={insightsLoading} />
+
       {/* ── Body ───────────────────────────────────────────────────────────── */}
       <div className="flex flex-1 max-w-5xl w-full mx-auto">
 
@@ -771,9 +832,6 @@ export default function DashboardOrganised({ result, chantierId, token, onLotSta
                     <h2 className="font-semibold text-gray-900">Lots de travaux</h2>
                     <span className="text-xs text-gray-400">{lots.length} lot{lots.length > 1 ? 's' : ''}</span>
                   </div>
-
-                  {/* ── Insights globaux ── */}
-                  <InsightsBar items={insights?.global ?? []} loading={insightsLoading} />
 
                   {lots.length === 0 ? (
                     <EmptyState onAdd={() => setUploadModal({ open: true })} />
@@ -1024,10 +1082,7 @@ export default function DashboardOrganised({ result, chantierId, token, onLotSta
           onClose={() => setUploadModal({ open: false })}
           onSuccess={(doc) => {
             setDocuments(prev => [doc, ...prev]);
-            setTimeout(() => {
-              setUploadModal({ open: false });
-              refreshInsights();   // régénérer les insights après ajout
-            }, 1800);
+            refreshInsights();
           }}
         />
       )}
