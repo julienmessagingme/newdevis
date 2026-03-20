@@ -46,6 +46,7 @@ export default function DashboardPremium({
       return (
         <DashboardGuided
           {...sharedProps}
+          token={token}
           onToggleTache={onToggleTache}
         />
       );

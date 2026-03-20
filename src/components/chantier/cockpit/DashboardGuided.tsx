@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Check, Clock, ChevronRight, Upload, FileText, AlertTriangle } from 'lucide-react';
 import type { ChantierIAResult, ProjectMode, TacheIA } from '@/types/chantier-ia';
+import { useInsights, type InsightItem } from './useInsights';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -29,17 +30,26 @@ const PHASE_LABELS: Record<string, string> = {
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
+const INSIGHT_STYLES: Record<InsightItem['type'], { bg: string; text: string; border: string }> = {
+  success: { bg: 'bg-emerald-50',  text: 'text-emerald-800', border: 'border-emerald-100' },
+  warning: { bg: 'bg-amber-50',    text: 'text-amber-800',   border: 'border-amber-100'   },
+  alert:   { bg: 'bg-red-50',      text: 'text-red-800',     border: 'border-red-100'     },
+  info:    { bg: 'bg-blue-50',     text: 'text-blue-800',    border: 'border-blue-100'    },
+};
+
 interface Props {
   result: ChantierIAResult;
   chantierId: string | null;
+  token?: string | null;
   onToggleTache?: (todoId: string, done: boolean) => void;
   onProjectModeChange?: (mode: ProjectMode) => void;
 }
 
 // ── Composant ─────────────────────────────────────────────────────────────────
 
-export default function DashboardGuided({ result, onToggleTache, onProjectModeChange }: Props) {
+export default function DashboardGuided({ result, chantierId, token, onToggleTache, onProjectModeChange }: Props) {
   const [tasks, setTasks] = useState<TacheIA[]>(result.taches ?? []);
+  const { insights, loading: insightsLoading } = useInsights(chantierId, token, 0);
 
   const budgetMin = Math.round(result.budgetTotal * 0.85);
   const budgetMax = Math.round(result.budgetTotal * 1.20);
@@ -140,6 +150,25 @@ export default function DashboardGuided({ result, onToggleTache, onProjectModeCh
 
         {/* Main */}
         <main className="flex-1 min-w-0 py-8 pl-4 pr-6 space-y-5">
+
+          {/* ── Insights maître d'œuvre ─────────────────────────────────── */}
+          {(insightsLoading || (insights?.global?.length ?? 0) > 0) && (
+            <div className="flex flex-wrap items-center gap-2">
+              {insightsLoading ? (
+                [1, 2].map(i => <div key={i} className="h-7 w-36 bg-gray-100 rounded-full animate-pulse" />)
+              ) : (
+                insights?.global.map((item, i) => {
+                  const s = INSIGHT_STYLES[item.type];
+                  return (
+                    <span key={i} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold ${s.bg} ${s.text} ${s.border}`}>
+                      {item.icon && <span className="leading-none">{item.icon}</span>}
+                      {item.text}
+                    </span>
+                  );
+                })
+              )}
+            </div>
+          )}
 
           {/* Prochaine action */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">

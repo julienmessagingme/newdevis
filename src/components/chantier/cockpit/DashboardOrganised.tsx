@@ -3,12 +3,13 @@ import { createClient } from '@supabase/supabase-js';
 import {
   Upload, ChevronRight, Plus, LayoutGrid, Calendar,
   FileText, FolderOpen, X, Loader2, CheckCircle2,
-  AlertCircle, CloudUpload, Sparkles, Trash2, TrendingUp, Clock,
+  AlertCircle, CloudUpload, Sparkles, Trash2, TrendingUp,
 } from 'lucide-react';
 import type {
   ChantierIAResult, DocumentChantier, DocumentType,
   LotChantier, ProjectMode, StatutArtisan,
 } from '@/types/chantier-ia';
+import { useInsights, type InsightItem } from './useInsights';
 
 // ── Supabase client (frontend) ────────────────────────────────────────────────
 const supabase = createClient(
@@ -37,7 +38,54 @@ const TYPE_LABELS: Record<DocumentType, string> = {
 type NavItem = 'lots' | 'planning' | 'documents' | 'projet';
 type UploadState = 'idle' | 'uploading' | 'analyzing' | 'success' | 'error';
 
-interface AnalyseResumed { titre?: string; economics?: { savings?: number; overcharge?: number } }
+// ── InsightsBar ───────────────────────────────────────────────────────────────
+
+const INSIGHT_STYLES: Record<InsightItem['type'], { bg: string; text: string; border: string }> = {
+  success: { bg: 'bg-emerald-50',  text: 'text-emerald-800', border: 'border-emerald-100' },
+  warning: { bg: 'bg-amber-50',    text: 'text-amber-800',   border: 'border-amber-100'   },
+  alert:   { bg: 'bg-red-50',      text: 'text-red-800',     border: 'border-red-100'     },
+  info:    { bg: 'bg-blue-50',     text: 'text-blue-800',    border: 'border-blue-100'    },
+};
+
+function InsightsBar({ items, loading }: { items: InsightItem[]; loading: boolean }) {
+  if (loading) {
+    return (
+      <div className="flex items-center gap-3 mb-5">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="h-7 w-36 bg-gray-100 rounded-full animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+  if (items.length === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2 mb-5">
+      {items.map((item, i) => {
+        const s = INSIGHT_STYLES[item.type];
+        return (
+          <span
+            key={i}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold ${s.bg} ${s.text} ${s.border}`}
+          >
+            {item.icon && <span className="leading-none">{item.icon}</span>}
+            {item.text}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function LotInsightPill({ insight }: { insight: InsightItem | undefined }) {
+  if (!insight) return null;
+  const s = INSIGHT_STYLES[insight.type];
+  return (
+    <div className={`mx-[-1px] px-4 py-2.5 border-t ${s.border} ${s.bg} flex items-center gap-1.5`}>
+      {insight.icon && <span className="text-[11px] leading-none">{insight.icon}</span>}
+      <span className={`text-[11px] font-semibold ${s.text} leading-tight`}>{insight.text}</span>
+    </div>
+  );
+}
 
 // ── Modal Upload ──────────────────────────────────────────────────────────────
 
@@ -454,13 +502,14 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
 // ── Lot Card ──────────────────────────────────────────────────────────────────
 
 function LotCard({
-  lot, docs, refMin, refMax, onAdd, onDetail,
+  lot, docs, refMin, refMax, onAdd, onDetail, insight,
 }: {
   lot: LotChantier;
   docs: DocumentChantier[];
   refMin: number; refMax: number;
   onAdd: () => void;
   onDetail: () => void;
+  insight?: InsightItem;
 }) {
   const devisCount   = docs.filter(d => d.document_type === 'devis').length;
   const factureCount = docs.filter(d => d.document_type === 'facture').length;
@@ -523,6 +572,9 @@ function LotCard({
         )}
       </div>
 
+      {/* Insight assistant */}
+      <LotInsightPill insight={insight} />
+
       {/* Actions */}
       <div className="flex border-t border-gray-50">
         <button
@@ -561,6 +613,11 @@ export default function DashboardOrganised({ result, chantierId, token, onLotSta
   const [lots, setLots] = useState<LotChantier[]>(result.lots ?? []);
   const [selectedLotId, setSelectedLotId] = useState<string | null>(null);
   const [uploadModal, setUploadModal] = useState<{ open: boolean; lotId?: string }>({ open: false });
+
+  // ── Insights maître d'œuvre ───────────────────────────────────────────────
+  const { insights, loading: insightsLoading, refresh: refreshInsights } = useInsights(
+    chantierId, token, documents.length,
+  );
 
   // ── Budget ────────────────────────────────────────────────────────────────
   const totalMin = lots.reduce((s, l) => s + (l.budget_min_ht ?? 0), 0);
@@ -710,10 +767,13 @@ export default function DashboardOrganised({ result, chantierId, token, onLotSta
                 <EmptyState onAdd={() => setUploadModal({ open: true })} />
               ) : (
                 <>
-                  <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center justify-between mb-4">
                     <h2 className="font-semibold text-gray-900">Lots de travaux</h2>
                     <span className="text-xs text-gray-400">{lots.length} lot{lots.length > 1 ? 's' : ''}</span>
                   </div>
+
+                  {/* ── Insights globaux ── */}
+                  <InsightsBar items={insights?.global ?? []} loading={insightsLoading} />
 
                   {lots.length === 0 ? (
                     <EmptyState onAdd={() => setUploadModal({ open: true })} />
@@ -726,6 +786,7 @@ export default function DashboardOrganised({ result, chantierId, token, onLotSta
                           docs={docsByLot[lot.id] ?? []}
                           refMin={lot.budget_min_ht ?? 0}
                           refMax={lot.budget_max_ht ?? 0}
+                          insight={insights?.lots?.[lot.id]}
                           onAdd={() => setUploadModal({ open: true, lotId: lot.id.startsWith('fallback-') ? undefined : lot.id })}
                           onDetail={() => setSelectedLotId(lot.id)}
                         />
@@ -963,7 +1024,10 @@ export default function DashboardOrganised({ result, chantierId, token, onLotSta
           onClose={() => setUploadModal({ open: false })}
           onSuccess={(doc) => {
             setDocuments(prev => [doc, ...prev]);
-            setTimeout(() => setUploadModal({ open: false }), 1800);
+            setTimeout(() => {
+              setUploadModal({ open: false });
+              refreshInsights();   // régénérer les insights après ajout
+            }, 1800);
           }}
         />
       )}
