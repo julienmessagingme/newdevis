@@ -58,8 +58,7 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
       <div
         className="absolute inset-0"
         style={{
-          background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.5) 60%, rgba(0,0,0,0.65) 100%)',
-          backdropFilter: 'blur(0.5px)',
+          background: 'linear-gradient(180deg, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.68) 60%, rgba(0,0,0,0.78) 100%)',
         }}
       />
 
@@ -67,7 +66,7 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
       <div className="absolute top-6 left-6 z-10">
         <a
           href="/mon-chantier"
-          className="inline-flex items-center gap-1.5 text-white/45 hover:text-white/90 text-sm transition-all duration-200 group"
+          className="inline-flex items-center gap-1.5 text-white/60 hover:text-white text-sm transition-all duration-200 group"
         >
           <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
           Mes chantiers
@@ -82,10 +81,10 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
 
         {/* ── Titre ─────────────────────────────────────────────────────── */}
         <div className="text-center mb-10">
-          <h1 className="text-5xl sm:text-6xl font-extrabold text-white tracking-tight leading-[1.06] mb-5">
+          <h1 className="text-5xl sm:text-6xl font-extrabold text-white tracking-tight leading-[1.06] mb-5" style={{ textShadow: '0 2px 16px rgba(0,0,0,0.5)' }}>
             Pilotez votre projet<br />comme un pro
           </h1>
-          <p className="text-white/60 text-lg max-w-lg mx-auto leading-relaxed">
+          <p className="text-white/80 text-lg max-w-lg mx-auto leading-relaxed" style={{ textShadow: '0 1px 8px rgba(0,0,0,0.6)' }}>
             Transformez votre projet en un chantier maîtrisé,
             <br className="hidden sm:block" /> du premier devis à la réception
           </p>
@@ -95,11 +94,11 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
         <div
           className="rounded-2xl overflow-hidden transition-all duration-300"
           style={{
-            background: 'rgba(255, 255, 255, 0.07)',
+            background: 'rgba(255, 255, 255, 0.10)',
             backdropFilter: 'blur(24px)',
             WebkitBackdropFilter: 'blur(24px)',
-            border: '1px solid rgba(255, 255, 255, 0.14)',
-            boxShadow: '0 10px 50px rgba(0, 0, 0, 0.35), 0 0 0 0 rgba(59,130,246,0)',
+            border: '1px solid rgba(255, 255, 255, 0.22)',
+            boxShadow: '0 10px 50px rgba(0, 0, 0, 0.45)',
           }}
           onFocus={() => {/* déclaratif via CSS */}}
         >
@@ -108,16 +107,16 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
             onChange={(e) => setDescription(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Décrivez votre projet (ex : piscine avec terrasse bois et pergola)"
-            className="w-full bg-transparent text-white placeholder-white/28 text-base sm:text-lg resize-none px-6 pt-6 pb-3 outline-none min-h-[130px] leading-relaxed"
+            className="w-full bg-transparent text-white placeholder-white/45 text-base sm:text-lg resize-none px-6 pt-6 pb-3 outline-none min-h-[130px] leading-relaxed"
             style={{ caretColor: 'rgba(255,255,255,0.8)' }}
             maxLength={500}
             autoFocus
           />
           <div className="flex items-center justify-between px-6 pb-5 pt-1 gap-3">
-            <span className="text-xs text-white/22 select-none tabular-nums">
+            <span className="text-xs text-white/40 select-none tabular-nums">
               {description.length}/500
               {description.length > 0 && (
-                <span className="text-white/15 ml-1.5">· Entrée pour valider</span>
+                <span className="text-white/28 ml-1.5">· Entrée pour valider</span>
               )}
             </span>
             <button
@@ -152,12 +151,12 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
 
         {/* ── Exemples cliquables ───────────────────────────────────────── */}
         <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-          <span className="text-white/30 text-xs font-medium">Exemples :</span>
+          <span className="text-white/55 text-xs font-medium">Exemples :</span>
           {EXAMPLES.map((ex) => (
             <button
               key={ex}
               onClick={() => setDescription(ex)}
-              className="text-xs text-white/55 hover:text-white/90 border rounded-full px-4 py-1.5 transition-all duration-150"
+              className="text-xs text-white/75 hover:text-white border rounded-full px-4 py-1.5 transition-all duration-150"
               style={{
                 background: 'rgba(255,255,255,0.05)',
                 borderColor: 'rgba(255,255,255,0.12)',
@@ -177,7 +176,7 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
         </div>
 
         {/* ── Crédibilité ──────────────────────────────────────────────── */}
-        <p className="text-center text-white/25 text-xs mt-8 tracking-wide">
+        <p className="text-center text-white/45 text-xs mt-8 tracking-wide">
           +2 000 projets analysés · basé sur des milliers de devis réels
         </p>
       </div>
