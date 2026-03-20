@@ -1,19 +1,19 @@
 /**
- * DashboardUnified — cockpit chantier simplifié, premium, orienté action.
- * Remplace les 3 modes (guided / organised / expert) par une expérience unique.
- * Principe : chaque bloc répond à "qu'est-ce que ça m'apporte concrètement ?"
+ * DashboardUnified — cockpit chantier avec sidebar premium.
+ * Navigation claire, sections orientées décision, zéro complexité inutile.
  */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
-  Plus, X, Loader2, CheckCircle2, AlertCircle, CloudUpload,
-  FileText, Sparkles, Trash2, ArrowLeft, ChevronRight, Wrench,
+  Plus, X, Loader2, CheckCircle2, AlertCircle, CloudUpload, FileText,
+  Sparkles, Trash2, ArrowLeft, ChevronRight, Wrench, Wallet, Layers,
+  FileSearch, Calendar, FolderOpen, Bot, Settings, Menu, ExternalLink,
 } from 'lucide-react';
 import type {
-  ChantierIAResult, DocumentChantier, DocumentType,
-  LotChantier, StatutArtisan,
+  ChantierIAResult, DocumentChantier, DocumentType, LotChantier, StatutArtisan,
 } from '@/types/chantier-ia';
-import { useInsights, type InsightItem } from './useInsights';
+import { useInsights, type InsightItem, type InsightsData } from './useInsights';
+import BudgetTresorerie from './BudgetTresorerie';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 
@@ -24,11 +24,10 @@ const supabase = createClient(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmtEuro(n: number): string {
+function fmtK(n: number): string {
   if (n >= 1000) return `${Math.round(n / 1000)} k€`;
   return `${n} €`;
 }
-
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
 }
@@ -38,141 +37,183 @@ const TYPE_LABELS: Record<DocumentType, string> = {
   plan: 'Plan', autorisation: 'Autorisation', assurance: 'Assurance', autre: 'Autre',
 };
 
-// ── Insight styles ────────────────────────────────────────────────────────────
-
 const IS: Record<InsightItem['type'], { bg: string; text: string; border: string; accent: string }> = {
   success: { bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-100', accent: 'border-l-emerald-400' },
   warning: { bg: 'bg-amber-50',   text: 'text-amber-800',   border: 'border-amber-100',   accent: 'border-l-amber-400'   },
   alert:   { bg: 'bg-red-50',     text: 'text-red-800',     border: 'border-red-100',     accent: 'border-l-red-400'     },
-  info:    { bg: 'bg-blue-50',    text: 'text-blue-800',    border: 'border-blue-100',    accent: 'border-l-blue-400'    },
+  info:    { bg: 'bg-blue-50',    text: 'text-blue-800',    border: 'border-blue-100',     accent: 'border-l-blue-400'    },
 };
 
+type Section = 'budget' | 'lots' | 'analyse' | 'planning' | 'documents' | 'assistant' | 'diy' | 'settings';
 type UploadState = 'idle' | 'uploading' | 'analyzing' | 'success' | 'error';
 
-// ── Assistant Banner ──────────────────────────────────────────────────────────
+// ── Sidebar ───────────────────────────────────────────────────────────────────
 
-function AssistantBanner({ items, loading }: { items: InsightItem[]; loading: boolean }) {
-  const shown = items.slice(0, 3);
-  if (!loading && shown.length === 0) return null;
+interface NavBadge { text: string; style: string }
+
+interface SidebarProps {
+  result: ChantierIAResult;
+  activeSection: Section;
+  onSelect: (s: Section) => void;
+  rangeMin: number;
+  rangeMax: number;
+  badges: Partial<Record<Section, NavBadge>>;
+  mobileOpen: boolean;
+  onCloseMobile: () => void;
+}
+
+const NAV_ITEMS: { id: Section; label: string; icon: React.ElementType }[] = [
+  { id: 'budget',    label: 'Budget & trésorerie', icon: Wallet      },
+  { id: 'lots',      label: 'Lots de travaux',     icon: Layers      },
+  { id: 'analyse',   label: 'Analyse des devis',   icon: FileSearch  },
+  { id: 'planning',  label: 'Planning',             icon: Calendar    },
+  { id: 'documents', label: 'Documents',            icon: FolderOpen  },
+  { id: 'assistant', label: 'Assistant chantier',  icon: Bot         },
+  { id: 'diy',       label: 'Travaux DIY',          icon: Wrench      },
+];
+
+function Sidebar({ result, activeSection, onSelect, rangeMin, rangeMax, badges, mobileOpen, onCloseMobile }: SidebarProps) {
   return (
-    <div className="border-b border-gray-100 bg-white px-6 py-2.5">
-      <div className="max-w-5xl mx-auto flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-1.5 shrink-0">
-          <Sparkles className="h-3.5 w-3.5 text-violet-500" />
-          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Insights</span>
+    <>
+      {/* Overlay mobile */}
+      {mobileOpen && (
+        <div className="fixed inset-0 bg-black/20 z-30 lg:hidden" onClick={onCloseMobile} />
+      )}
+
+      <aside className={`
+        fixed top-0 left-0 h-full w-[240px] bg-white border-r border-gray-100 z-40 flex flex-col
+        transition-transform duration-300 ease-in-out
+        ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
+        lg:relative lg:translate-x-0 lg:z-auto lg:flex-none
+      `}>
+        {/* Projet */}
+        <div className="px-4 py-5 border-b border-gray-50">
+          <a href="/mon-chantier"
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 mb-4 transition-colors">
+            <ArrowLeft className="h-3 w-3" /> Mes chantiers
+          </a>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-xl shrink-0">
+              {result.emoji}
+            </div>
+            <div className="min-w-0">
+              <p className="font-bold text-sm text-gray-900 leading-tight truncate">{result.nom}</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                {fmtK(rangeMin)} – {fmtK(rangeMax)}
+              </p>
+            </div>
+          </div>
         </div>
-        {loading ? (
-          [1, 2, 3].map(i => <div key={i} className="h-5 w-32 bg-gray-100 rounded-full animate-pulse" />)
-        ) : (
-          shown.map((item, i) => {
-            const s = IS[item.type];
+
+        {/* Navigation */}
+        <nav className="flex-1 px-3 py-3 overflow-y-auto">
+          <p className="text-[10px] font-semibold text-gray-300 uppercase tracking-wider px-2 mb-2">Navigation</p>
+          {NAV_ITEMS.map(item => {
+            const active = activeSection === item.id;
+            const badge  = badges[item.id];
             return (
-              <span key={i} className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-semibold ${s.bg} ${s.text} ${s.border}`}>
-                {item.icon && <span className="leading-none">{item.icon}</span>}
-                {item.text}
-              </span>
+              <button key={item.id}
+                onClick={() => { onSelect(item.id); onCloseMobile(); }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium mb-0.5 transition-all text-left group ${
+                  active ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}>
+                <item.icon className={`h-4 w-4 shrink-0 transition-colors ${active ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                <span className="flex-1 truncate">{item.label}</span>
+                {badge && (
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap ${badge.style}`}>
+                    {badge.text}
+                  </span>
+                )}
+              </button>
             );
-          })
-        )}
-      </div>
-    </div>
+          })}
+        </nav>
+
+        {/* Paramètres (bas) */}
+        <div className="px-3 pb-4 pt-3 border-t border-gray-50">
+          <button
+            onClick={() => { onSelect('settings'); onCloseMobile(); }}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+              activeSection === 'settings' ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+            }`}>
+            <Settings className={`h-4 w-4 ${activeSection === 'settings' ? 'text-blue-600' : 'text-gray-400'}`} />
+            Paramètres
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }
 
-// ── Lot insight pill (bande colorée en bas de carte) ─────────────────────────
+// ── Page header (inside main) ─────────────────────────────────────────────────
 
-function LotInsightPill({ insight }: { insight?: InsightItem }) {
-  if (!insight) return null;
-  const s = IS[insight.type];
+function PageHeader({ title, sub, action, onMenuToggle }: {
+  title: string; sub?: string; action?: React.ReactNode; onMenuToggle: () => void;
+}) {
   return (
-    <div className={`px-4 py-2.5 border-t border-l-4 ${s.accent} ${s.border} ${s.bg} flex items-center gap-1.5`}>
-      {insight.icon && <span className="text-[11px] leading-none">{insight.icon}</span>}
-      <span className={`text-[11px] font-semibold ${s.text} leading-tight`}>{insight.text}</span>
-    </div>
+    <header className="bg-white border-b border-gray-100 px-6 py-4">
+      <div className="flex items-center gap-3">
+        <button onClick={onMenuToggle} className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100">
+          <Menu className="h-4 w-4" />
+        </button>
+        <div className="flex-1 min-w-0">
+          <h1 className="font-bold text-gray-900">{title}</h1>
+          {sub && <p className="text-sm text-gray-400 mt-0.5">{sub}</p>}
+        </div>
+        {action}
+      </div>
+    </header>
   );
 }
 
-// ── Lot Card ──────────────────────────────────────────────────────────────────
+// ── Lot card ──────────────────────────────────────────────────────────────────
 
-function LotCard({
-  lot, docs, insight, onAdd, onDetail,
-}: {
-  lot: LotChantier;
-  docs: DocumentChantier[];
-  insight?: InsightItem;
-  onAdd: () => void;
-  onDetail: () => void;
+function LotCard({ lot, docs, insight, onAdd, onDetail }: {
+  lot: LotChantier; docs: DocumentChantier[];
+  insight?: InsightItem; onAdd: () => void; onDetail: () => void;
 }) {
   const devisCount   = docs.filter(d => d.document_type === 'devis').length;
   const factureCount = docs.filter(d => d.document_type === 'facture').length;
-  const photoCount   = docs.filter(d => d.document_type === 'photo').length;
   const hasRef       = (lot.budget_min_ht ?? 0) > 0 || (lot.budget_max_ht ?? 0) > 0;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col">
       <div className="p-5 flex-1 space-y-3">
-
-        {/* Titre */}
         <div className="flex items-center gap-2.5">
           <span className="text-xl shrink-0 leading-none">{lot.emoji ?? '🔧'}</span>
           <h3 className="font-bold text-gray-900 text-sm leading-tight truncate">{lot.nom}</h3>
         </div>
-
-        {/* Contenu selon état */}
         {docs.length === 0 ? (
           <div className="space-y-2">
-            <span className="inline-flex items-center text-xs text-gray-400 bg-gray-50 px-2.5 py-1 rounded-full">
-              Aucun devis ajouté
-            </span>
+            <span className="inline-flex text-xs text-gray-400 bg-gray-50 px-2.5 py-1 rounded-full">Aucun devis ajouté</span>
             {hasRef && (
               <div className="bg-gray-50 rounded-xl px-3.5 py-2.5">
                 <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Prix observé</p>
-                <p className="text-sm font-bold text-gray-700">
-                  {fmtEuro(lot.budget_min_ht ?? 0)} – {fmtEuro(lot.budget_max_ht ?? 0)}
-                </p>
+                <p className="text-sm font-bold text-gray-700">{fmtK(lot.budget_min_ht ?? 0)} – {fmtK(lot.budget_max_ht ?? 0)}</p>
               </div>
             )}
           </div>
         ) : (
           <div className="space-y-2">
             <div className="flex flex-wrap gap-1.5">
-              {devisCount > 0 && (
-                <span className="flex items-center gap-1 text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
-                  <FileText className="h-3 w-3" />{devisCount} devis
-                </span>
-              )}
-              {factureCount > 0 && (
-                <span className="flex items-center gap-1 text-xs font-medium text-violet-700 bg-violet-50 px-2 py-0.5 rounded-full">
-                  <FileText className="h-3 w-3" />{factureCount} facture{factureCount > 1 ? 's' : ''}
-                </span>
-              )}
-              {photoCount > 0 && (
-                <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">
-                  📷 {photoCount}
-                </span>
-              )}
+              {devisCount   > 0 && <span className="flex items-center gap-1 text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full"><FileText className="h-3 w-3" />{devisCount} devis</span>}
+              {factureCount > 0 && <span className="flex items-center gap-1 text-xs font-medium text-violet-700 bg-violet-50 px-2 py-0.5 rounded-full"><FileText className="h-3 w-3" />{factureCount} facture{factureCount > 1 ? 's' : ''}</span>}
             </div>
-            {hasRef && (
-              <p className="text-xs text-gray-400">
-                Réf. marché · {fmtEuro(lot.budget_min_ht ?? 0)} – {fmtEuro(lot.budget_max_ht ?? 0)}
-              </p>
-            )}
+            {hasRef && <p className="text-xs text-gray-400">Réf. marché · {fmtK(lot.budget_min_ht ?? 0)} – {fmtK(lot.budget_max_ht ?? 0)}</p>}
           </div>
         )}
       </div>
-
-      {/* Insight */}
-      <LotInsightPill insight={insight} />
-
-      {/* Actions */}
+      {/* Insight band */}
+      {insight && (
+        <div className={`px-4 py-2 border-t border-l-4 ${IS[insight.type].accent} ${IS[insight.type].border} ${IS[insight.type].bg} flex items-center gap-1.5`}>
+          {insight.icon && <span className="text-[11px]">{insight.icon}</span>}
+          <span className={`text-[11px] font-semibold ${IS[insight.type].text}`}>{insight.text}</span>
+        </div>
+      )}
       <div className="flex border-t border-gray-50">
-        <button onClick={onDetail} className="flex-1 flex items-center justify-center gap-1 py-3 text-xs font-medium text-blue-600 hover:bg-blue-50 transition-colors">
-          Voir <ChevronRight className="h-3 w-3" />
-        </button>
+        <button onClick={onDetail} className="flex-1 flex items-center justify-center gap-1 py-3 text-xs font-medium text-blue-600 hover:bg-blue-50 transition-colors">Voir <ChevronRight className="h-3 w-3" /></button>
         <div className="w-px bg-gray-50" />
-        <button onClick={onAdd} className="flex-1 flex items-center justify-center gap-1 py-3 text-xs font-medium text-gray-500 hover:bg-gray-50 transition-colors">
-          <Plus className="h-3 w-3" /> Ajouter
-        </button>
+        <button onClick={onAdd} className="flex-1 flex items-center justify-center gap-1 py-3 text-xs font-medium text-gray-500 hover:bg-gray-50 transition-colors"><Plus className="h-3 w-3" /> Ajouter</button>
       </div>
     </div>
   );
@@ -180,60 +221,41 @@ function LotCard({
 
 // ── Lot Detail ────────────────────────────────────────────────────────────────
 
-function LotDetail({
-  lot, docs, insight, onAddDoc, onDeleteDoc, onBack,
-}: {
-  lot: LotChantier;
-  docs: DocumentChantier[];
-  insight?: InsightItem;
-  onAddDoc: () => void;
-  onDeleteDoc: (id: string) => void;
-  onBack: () => void;
+function LotDetail({ lot, docs, insight, onAddDoc, onDeleteDoc, onBack }: {
+  lot: LotChantier; docs: DocumentChantier[];
+  insight?: InsightItem; onAddDoc: () => void; onDeleteDoc: (id: string) => void; onBack: () => void;
 }) {
   return (
-    <div>
+    <div className="max-w-3xl mx-auto px-6 py-7">
       <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 mb-5 transition-colors">
         <ArrowLeft className="h-4 w-4" /> Retour aux lots
       </button>
-
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <div className="px-5 py-5 border-b border-gray-50 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-2xl leading-none">{lot.emoji ?? '🔧'}</span>
             <div>
               <h2 className="font-bold text-gray-900">{lot.nom}</h2>
               {(lot.budget_min_ht || lot.budget_max_ht) && (
-                <p className="text-sm text-gray-400 mt-0.5">
-                  Prix observé : {fmtEuro(lot.budget_min_ht ?? 0)} – {fmtEuro(lot.budget_max_ht ?? 0)}
-                </p>
+                <p className="text-sm text-gray-400 mt-0.5">Prix observé · {fmtK(lot.budget_min_ht ?? 0)} – {fmtK(lot.budget_max_ht ?? 0)}</p>
               )}
             </div>
           </div>
-          <button
-            onClick={onAddDoc}
-            className="flex items-center gap-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-xl transition-colors"
-          >
+          <button onClick={onAddDoc} className="flex items-center gap-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-xl transition-colors">
             <Plus className="h-3.5 w-3.5" /> Ajouter
           </button>
         </div>
-
-        {/* Insight lot */}
         {insight && (
           <div className={`px-5 py-3 border-b ${IS[insight.type].border} ${IS[insight.type].bg} flex items-center gap-2`}>
-            {insight.icon && <span className="text-sm">{insight.icon}</span>}
+            {insight.icon && <span>{insight.icon}</span>}
             <span className={`text-sm font-semibold ${IS[insight.type].text}`}>{insight.text}</span>
           </div>
         )}
-
-        {/* Documents */}
         {docs.length === 0 ? (
           <div className="py-14 text-center">
             <FileText className="h-8 w-8 text-gray-200 mx-auto mb-3" />
             <p className="text-sm text-gray-400 mb-4">Aucun document pour ce lot</p>
-            <button
-              onClick={onAddDoc}
-              className="flex items-center gap-2 mx-auto text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors"
-            >
+            <button onClick={onAddDoc} className="flex items-center gap-2 mx-auto text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors">
               <CloudUpload className="h-4 w-4" /> Ajouter un devis
             </button>
           </div>
@@ -246,13 +268,10 @@ function LotDetail({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-800 truncate">{doc.nom}</p>
-                  <p className="text-xs text-gray-400">
-                    {TYPE_LABELS[doc.document_type]} · {fmtDate(doc.created_at)}
-                  </p>
+                  <p className="text-xs text-gray-400">{TYPE_LABELS[doc.document_type]} · {fmtDate(doc.created_at)}</p>
                 </div>
                 {doc.signedUrl && (
-                  <a href={doc.signedUrl} target="_blank" rel="noreferrer"
-                    className="shrink-0 text-xs text-blue-600 hover:text-blue-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <a href={doc.signedUrl} target="_blank" rel="noreferrer" className="shrink-0 text-xs text-blue-600 hover:text-blue-700 opacity-0 group-hover:opacity-100 transition-opacity">
                     Ouvrir
                   </a>
                 )}
@@ -264,10 +283,8 @@ function LotDetail({
             ))}
           </div>
         )}
-
         <div className="p-5 border-t border-gray-50">
-          <button onClick={onAddDoc}
-            className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-xl py-3 text-sm text-gray-400 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-all">
+          <button onClick={onAddDoc} className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-xl py-3 text-sm text-gray-400 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-all">
             <Plus className="h-4 w-4" /> Ajouter un document
           </button>
         </div>
@@ -276,51 +293,19 @@ function LotDetail({
   );
 }
 
-// ── DIY Section ───────────────────────────────────────────────────────────────
-
-function DiySection({ onAddDoc }: { onAddDoc: () => void }) {
-  return (
-    <div className="mt-8">
-      <div className="flex items-center gap-2.5 mb-4">
-        <Wrench className="h-4 w-4 text-gray-400" />
-        <h2 className="font-semibold text-gray-700 text-sm">Travaux réalisés par vous-même</h2>
-      </div>
-      <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-6 flex items-center justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold text-gray-800 mb-1">Estimez vos économies DIY</p>
-          <p className="text-xs text-gray-400 max-w-xs leading-relaxed">
-            Ajoutez vos factures de matériaux et photos pour calculer automatiquement ce que vous économisez.
-          </p>
-        </div>
-        <button
-          onClick={onAddDoc}
-          className="shrink-0 flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold rounded-xl px-4 py-2.5 transition-colors"
-        >
-          <Plus className="h-3.5 w-3.5" /> Ajouter
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ── Upload Modal ──────────────────────────────────────────────────────────────
 
-interface UploadModalProps {
-  chantierId: string;
-  token: string;
-  lots: LotChantier[];
-  defaultLotId?: string | null;
-  onClose: () => void;
+function UploadModal({ chantierId, token, lots, defaultLotId, onClose, onSuccess }: {
+  chantierId: string; token: string; lots: LotChantier[];
+  defaultLotId?: string | null; onClose: () => void;
   onSuccess: (doc: DocumentChantier) => void;
-}
-
-function UploadModal({ chantierId, token, lots, defaultLotId, onClose, onSuccess }: UploadModalProps) {
+}) {
   const [tab, setTab]                   = useState<'file' | 'import'>('file');
   const [dragging, setDragging]         = useState(false);
   const [file, setFile]                 = useState<File | null>(null);
   const [docName, setDocName]           = useState('');
   const [docType, setDocType]           = useState<DocumentType>('devis');
-  const [lotId, setLotId]               = useState<string>(defaultLotId ?? '');
+  const [lotId, setLotId]               = useState(defaultLotId ?? '');
   const [uploadState, setUploadState]   = useState<UploadState>('idle');
   const [errorMsg, setErrorMsg]         = useState('');
   const [savingsAmount, setSavingsAmount] = useState(0);
@@ -331,35 +316,22 @@ function UploadModal({ chantierId, token, lots, defaultLotId, onClose, onSuccess
   useEffect(() => {
     if (tab !== 'import') return;
     setLoadingAnalyses(true);
-    supabase
-      .from('analyses')
-      .select('id, created_at, raw_text')
-      .eq('status', 'completed')
-      .order('created_at', { ascending: false })
-      .limit(8)
+    supabase.from('analyses').select('id, created_at, raw_text').eq('status', 'completed')
+      .order('created_at', { ascending: false }).limit(8)
       .then(({ data }) => {
         setAnalyses((data ?? []).map(a => ({
-          id: a.id,
-          created_at: a.created_at,
+          id: a.id, created_at: a.created_at,
           titre: a.raw_text?.entreprise?.nom ?? a.raw_text?.context?.type_chantier ?? `Analyse du ${fmtDate(a.created_at)}`,
         })));
-      })
-      .finally(() => setLoadingAnalyses(false));
+      }).finally(() => setLoadingAnalyses(false));
   }, [tab]);
 
   function handleFile(f: File) {
-    setFile(f);
-    setDocName(f.name.replace(/\.[^.]+$/, ''));
+    setFile(f); setDocName(f.name.replace(/\.[^.]+$/, ''));
     const lower = f.name.toLowerCase();
     if (lower.includes('devis') || lower.includes('quote')) setDocType('devis');
     else if (lower.includes('facture') || lower.includes('invoice')) setDocType('facture');
     else if (/\.(jpg|jpeg|png|webp|heic)$/i.test(f.name)) setDocType('photo');
-  }
-
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault(); setDragging(false);
-    const f = e.dataTransfer.files[0];
-    if (f) handleFile(f);
   }
 
   async function handleUpload() {
@@ -376,7 +348,6 @@ function UploadModal({ chantierId, token, lots, defaultLotId, onClose, onSuccess
       const data = await res.json();
       if (!res.ok) { setErrorMsg(data.error ?? 'Erreur upload'); setUploadState('error'); return; }
       const doc: DocumentChantier = data.document;
-
       if (docType === 'devis') {
         setUploadState('analyzing');
         try {
@@ -385,12 +356,10 @@ function UploadModal({ chantierId, token, lots, defaultLotId, onClose, onSuccess
           });
           if (aRes.ok) {
             const aData = await aRes.json().catch(() => ({}));
-            const savings = aData?.result?.economics?.savings ?? 0;
-            setSavingsAmount(savings > 0 ? savings : 0);
+            setSavingsAmount(aData?.result?.economics?.savings ?? 0);
           } else { setSavingsAmount(0); }
         } catch { setSavingsAmount(0); }
       } else { setSavingsAmount(0); }
-
       setUploadState('success');
       onSuccess(doc);
     } catch { setErrorMsg('Erreur réseau.'); setUploadState('error'); }
@@ -401,17 +370,14 @@ function UploadModal({ chantierId, token, lots, defaultLotId, onClose, onSuccess
     try {
       const fd = new FormData();
       fd.append('nom', titre); fd.append('documentType', 'devis');
-      fd.append('source', 'verifier_mon_devis');
+      fd.append('source', 'verifier_mon_devis'); fd.append('analyseId', analyseId);
       if (lotId) fd.append('lotId', lotId);
-      fd.append('analyseId', analyseId);
       const res = await fetch(`/api/chantier/${chantierId}/documents`, {
         method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
       });
       const data = await res.json();
       if (!res.ok) { setErrorMsg(data.error ?? 'Erreur'); setUploadState('error'); return; }
-      setSavingsAmount(0);
-      setUploadState('success');
-      onSuccess(data.document);
+      setSavingsAmount(0); setUploadState('success'); onSuccess(data.document);
     } catch { setErrorMsg('Erreur réseau.'); setUploadState('error'); }
   }
 
@@ -421,8 +387,6 @@ function UploadModal({ chantierId, token, lots, defaultLotId, onClose, onSuccess
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={!isUploading ? onClose : undefined} />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-
-        {/* Header modal */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
           <h2 className="font-bold text-gray-900">Ajouter un document</h2>
           {!isUploading && (
@@ -431,8 +395,6 @@ function UploadModal({ chantierId, token, lots, defaultLotId, onClose, onSuccess
             </button>
           )}
         </div>
-
-        {/* Uploading */}
         {uploadState === 'uploading' && (
           <div className="px-6 py-12 flex flex-col items-center gap-4 text-center">
             <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center">
@@ -442,19 +404,15 @@ function UploadModal({ chantierId, token, lots, defaultLotId, onClose, onSuccess
             <p className="text-sm text-gray-400">Ne fermez pas cette fenêtre</p>
           </div>
         )}
-
-        {/* Analyzing */}
         {uploadState === 'analyzing' && (
           <div className="px-6 py-12 flex flex-col items-center gap-4 text-center">
             <div className="w-14 h-14 rounded-2xl bg-violet-50 flex items-center justify-center">
               <Sparkles className="h-7 w-7 text-violet-600 animate-pulse" />
             </div>
-            <p className="font-semibold text-gray-900">Analyse en cours…</p>
+            <p className="font-semibold text-gray-900">Analyse IA en cours…</p>
             <p className="text-sm text-gray-400">Détection des surcoûts et économies</p>
           </div>
         )}
-
-        {/* Success */}
         {uploadState === 'success' && (
           <div className="px-6 py-8 flex flex-col items-center gap-4 text-center">
             <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center">
@@ -465,27 +423,21 @@ function UploadModal({ chantierId, token, lots, defaultLotId, onClose, onSuccess
             </p>
             {savingsAmount > 0 && (
               <div className="w-full bg-emerald-50 border border-emerald-100 rounded-2xl px-5 py-4">
-                <p className="text-3xl font-extrabold text-emerald-600">+{fmtEuro(savingsAmount)}</p>
+                <p className="text-3xl font-extrabold text-emerald-600">+{fmtK(savingsAmount)}</p>
                 <p className="text-xs font-medium text-emerald-600 mt-1">détectés vs prix du marché 🎉</p>
               </div>
             )}
-            <div className="flex flex-col gap-2 w-full mt-1">
-              <button onClick={onClose} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl py-3 text-sm transition-colors">
-                Parfait
-              </button>
+            <div className="flex flex-col gap-2 w-full">
+              <button onClick={onClose} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl py-3 text-sm transition-colors">Parfait</button>
               {docType === 'devis' && (
-                <button
-                  onClick={() => { setFile(null); setDocName(''); setSavingsAmount(0); setUploadState('idle'); }}
-                  className="text-sm font-medium text-blue-600 hover:text-blue-700 py-2"
-                >
+                <button onClick={() => { setFile(null); setDocName(''); setSavingsAmount(0); setUploadState('idle'); }}
+                  className="text-sm font-medium text-blue-600 hover:text-blue-700 py-2">
                   Ajouter un autre devis pour comparer →
                 </button>
               )}
             </div>
           </div>
         )}
-
-        {/* Error */}
         {uploadState === 'error' && (
           <div className="px-6 py-10 flex flex-col items-center gap-4 text-center">
             <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center">
@@ -493,16 +445,11 @@ function UploadModal({ chantierId, token, lots, defaultLotId, onClose, onSuccess
             </div>
             <p className="font-semibold text-gray-900">Erreur</p>
             <p className="text-sm text-red-600">{errorMsg}</p>
-            <button onClick={() => setUploadState('idle')} className="text-sm font-medium text-blue-600 hover:text-blue-700">
-              Réessayer
-            </button>
+            <button onClick={() => setUploadState('idle')} className="text-sm font-medium text-blue-600">Réessayer</button>
           </div>
         )}
-
-        {/* Idle */}
         {uploadState === 'idle' && (
           <div className="px-6 py-5">
-            {/* Tabs */}
             <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-5">
               {[{ id: 'file' as const, label: 'Importer un fichier' }, { id: 'import' as const, label: 'Depuis VerifierMonDevis' }].map(({ id, label }) => (
                 <button key={id} onClick={() => setTab(id)}
@@ -511,97 +458,64 @@ function UploadModal({ chantierId, token, lots, defaultLotId, onClose, onSuccess
                 </button>
               ))}
             </div>
-
-            {/* Tab fichier */}
             {tab === 'file' && (
               <div className="space-y-4">
                 <div
-                  onDrop={handleDrop}
+                  onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
                   onDragOver={e => { e.preventDefault(); setDragging(true); }}
                   onDragLeave={() => setDragging(false)}
                   onClick={() => inputRef.current?.click()}
-                  className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${dragging ? 'border-blue-400 bg-blue-50' : file ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'}`}
-                >
+                  className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${dragging ? 'border-blue-400 bg-blue-50' : file ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'}`}>
                   <input ref={inputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
                     onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
                   {file ? (
-                    <>
-                      <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
-                      <p className="font-semibold text-emerald-800 text-sm">{file.name}</p>
-                      <p className="text-xs text-emerald-600 mt-0.5">{(file.size / 1024).toFixed(0)} Ko</p>
-                    </>
+                    <><CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2" /><p className="font-semibold text-emerald-800 text-sm">{file.name}</p></>
                   ) : (
-                    <>
-                      <CloudUpload className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                      <p className="text-sm font-medium text-gray-700">Glissez votre fichier ici</p>
-                      <p className="text-xs text-gray-400 mt-1">ou cliquez pour parcourir</p>
-                      <p className="text-[10px] text-gray-300 mt-2">PDF, JPG, PNG, Word — max 10 Mo</p>
-                    </>
+                    <><CloudUpload className="h-8 w-8 text-gray-300 mx-auto mb-2" /><p className="text-sm font-medium text-gray-700">Glissez votre fichier ici</p><p className="text-xs text-gray-400 mt-1">ou cliquez pour parcourir</p></>
                   )}
                 </div>
-
                 {file && (
                   <div className="space-y-3">
-                    <div>
-                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Nom</label>
-                      <input value={docName} onChange={e => setDocName(e.target.value)}
-                        placeholder="ex : Devis Piscine — Entreprise Martin"
-                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300" />
-                    </div>
+                    <input value={docName} onChange={e => setDocName(e.target.value)} placeholder="Nom du document"
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300" />
                     <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Type</label>
-                        <select value={docType} onChange={e => setDocType(e.target.value as DocumentType)}
-                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100">
-                          {Object.entries(TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Lot</label>
-                        <select value={lotId} onChange={e => setLotId(e.target.value)}
-                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100">
-                          <option value="">— Aucun lot —</option>
-                          {lots.filter(l => !l.id.startsWith('fallback-')).map(l => (
-                            <option key={l.id} value={l.id}>{l.emoji ?? '🔧'} {l.nom}</option>
-                          ))}
-                        </select>
-                      </div>
+                      <select value={docType} onChange={e => setDocType(e.target.value as DocumentType)}
+                        className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100">
+                        {Object.entries(TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                      </select>
+                      <select value={lotId} onChange={e => setLotId(e.target.value)}
+                        className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100">
+                        <option value="">— Aucun lot —</option>
+                        {lots.filter(l => !l.id.startsWith('fallback-')).map(l => <option key={l.id} value={l.id}>{l.emoji ?? '🔧'} {l.nom}</option>)}
+                      </select>
                     </div>
                   </div>
                 )}
-
                 <button onClick={handleUpload} disabled={!file || !docName.trim()}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-3 text-sm transition-colors">
-                  Importer ce document
+                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-30 text-white font-semibold rounded-xl py-3 text-sm transition-colors">
+                  Importer
                 </button>
               </div>
             )}
-
-            {/* Tab import VerifierMonDevis */}
             {tab === 'import' && (
               <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Lot de destination</label>
-                  <select value={lotId} onChange={e => setLotId(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 mb-3">
-                    <option value="">— Aucun lot —</option>
-                    {lots.filter(l => !l.id.startsWith('fallback-')).map(l => (
-                      <option key={l.id} value={l.id}>{l.emoji ?? '🔧'} {l.nom}</option>
-                    ))}
-                  </select>
-                </div>
+                <select value={lotId} onChange={e => setLotId(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 mb-1">
+                  <option value="">— Aucun lot —</option>
+                  {lots.filter(l => !l.id.startsWith('fallback-')).map(l => <option key={l.id} value={l.id}>{l.emoji ?? '🔧'} {l.nom}</option>)}
+                </select>
                 {loadingAnalyses ? (
                   <div className="py-8 flex justify-center"><Loader2 className="h-5 w-5 text-gray-300 animate-spin" /></div>
                 ) : analyses.length === 0 ? (
                   <div className="py-8 text-center">
                     <p className="text-sm text-gray-400 mb-2">Aucune analyse disponible</p>
-                    <a href="/nouvelle-analyse" className="text-sm font-medium text-blue-600 hover:text-blue-700">Analyser un devis →</a>
+                    <a href="/nouvelle-analyse" className="text-sm font-medium text-blue-600">Analyser un devis →</a>
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
                     {analyses.map(a => (
                       <button key={a.id}
-                        onClick={() => handleImportAnalyse(a.id, a.titre ?? `Analyse du ${fmtDate(a.created_at)}`)}
+                        onClick={() => handleImportAnalyse(a.id, a.titre ?? fmtDate(a.created_at))}
                         className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-blue-50 transition-colors text-left">
                         <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
                           <FileText className="h-4 w-4 text-blue-600" />
@@ -624,6 +538,101 @@ function UploadModal({ chantierId, token, lots, defaultLotId, onClose, onSuccess
   );
 }
 
+// ── Placeholder "bientôt disponible" ─────────────────────────────────────────
+
+function ComingSoon({ section, icon: Icon, description, cta }: {
+  section: string; icon: React.ElementType;
+  description: string; cta?: { label: string; href?: string; onClick?: () => void };
+}) {
+  return (
+    <div className="max-w-md mx-auto px-6 py-20 flex flex-col items-center text-center">
+      <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-6">
+        <Icon className="h-8 w-8 text-blue-400" />
+      </div>
+      <h2 className="font-bold text-gray-900 text-lg mb-2">{section}</h2>
+      <p className="text-sm text-gray-400 leading-relaxed mb-7">{description}</p>
+      {cta && (
+        cta.href
+          ? <a href={cta.href} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-colors">
+              {cta.label} <ExternalLink className="h-4 w-4" />
+            </a>
+          : <button onClick={cta.onClick} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-colors">
+              {cta.label}
+            </button>
+      )}
+    </div>
+  );
+}
+
+// ── Section Documents (all docs) ──────────────────────────────────────────────
+
+function DocumentsView({ documents, lots, onAddDoc, onDeleteDoc }: {
+  documents: DocumentChantier[]; lots: LotChantier[];
+  onAddDoc: () => void; onDeleteDoc: (id: string) => void;
+}) {
+  const byType: Record<DocumentType, DocumentChantier[]> = {} as never;
+  for (const doc of documents) (byType[doc.document_type] ??= []).push(doc);
+  const typesWithDocs = Object.entries(byType).filter(([, docs]) => docs.length > 0);
+
+  return (
+    <div className="max-w-3xl mx-auto px-6 py-7">
+      {documents.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <FolderOpen className="h-10 w-10 text-gray-200 mx-auto mb-4" />
+          <p className="font-bold text-gray-900 mb-1">Aucun document</p>
+          <p className="text-sm text-gray-400 mb-6">Importez vos devis, factures et photos de chantier</p>
+          <button onClick={onAddDoc} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-colors">
+            <Plus className="h-4 w-4" /> Ajouter un document
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {typesWithDocs.map(([type, docs]) => (
+            <div key={type} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
+                <p className="font-semibold text-gray-900 text-sm">{TYPE_LABELS[type as DocumentType]} ({docs.length})</p>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {docs.map(doc => {
+                  const lot = lots.find(l => l.id === doc.lot_id);
+                  return (
+                    <div key={doc.id} className="flex items-center gap-3 px-5 py-4 group">
+                      <div className="w-9 h-9 rounded-xl bg-gray-50 flex items-center justify-center shrink-0">
+                        <FileText className="h-4 w-4 text-gray-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{doc.nom}</p>
+                        <p className="text-xs text-gray-400">
+                          {fmtDate(doc.created_at)}
+                          {lot && <span> · {lot.emoji} {lot.nom}</span>}
+                        </p>
+                      </div>
+                      {doc.signedUrl && (
+                        <a href={doc.signedUrl} target="_blank" rel="noreferrer"
+                          className="text-xs text-blue-600 hover:text-blue-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                          Ouvrir
+                        </a>
+                      )}
+                      <button onClick={() => onDeleteDoc(doc.id)}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          <button onClick={onAddDoc}
+            className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-2xl py-4 text-sm text-gray-400 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-all">
+            <Plus className="h-4 w-4" /> Ajouter un document
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Props & composant principal ───────────────────────────────────────────────
 
 interface Props {
@@ -634,44 +643,34 @@ interface Props {
 }
 
 export default function DashboardUnified({ result, chantierId, token }: Props) {
-  const [documents, setDocuments]     = useState<DocumentChantier[]>([]);
-  const [lots]                        = useState<LotChantier[]>(result.lots ?? []);
+  const [activeSection, setActiveSection] = useState<Section>('budget');
+  const [mobileOpen, setMobileOpen]       = useState(false);
+  const [documents, setDocuments]         = useState<DocumentChantier[]>([]);
   const [selectedLotId, setSelectedLotId] = useState<string | null>(null);
-  const [uploadModal, setUploadModal] = useState<{ open: boolean; lotId?: string }>({ open: false });
+  const [uploadModal, setUploadModal]     = useState<{ open: boolean; lotId?: string }>({ open: false });
+  const lots = result.lots ?? [];
 
   // ── Insights ──────────────────────────────────────────────────────────────
   const { insights, loading: insightsLoading, refresh: refreshInsights } = useInsights(
     chantierId, token, documents.length,
   );
 
-  // ── Budget (fourchette uniquement — jamais de prix fixe) ──────────────────
-  const totalMin = lots.reduce((s, l) => s + (l.budget_min_ht ?? 0), 0);
-  const totalMax = lots.reduce((s, l) => s + (l.budget_max_ht ?? 0), 0);
-  const rangeMin = totalMin > 0 ? totalMin : Math.round(result.budgetTotal * 0.85);
-  const rangeMax = totalMax > 0 ? totalMax : Math.round(result.budgetTotal * 1.20);
+  // ── Budget fourchette (jamais prix fixe) ──────────────────────────────────
+  const rangeMin = lots.reduce((s, l) => s + (l.budget_min_ht ?? 0), 0) || Math.round(result.budgetTotal * 0.85);
+  const rangeMax = lots.reduce((s, l) => s + (l.budget_max_ht ?? 0), 0) || Math.round(result.budgetTotal * 1.20);
 
-  // ── Chargement documents ──────────────────────────────────────────────────
+  // ── Documents ─────────────────────────────────────────────────────────────
   const loadDocuments = useCallback(async () => {
     if (!chantierId || !token) return;
     try {
       const res = await fetch(`/api/chantier/${chantierId}/documents`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
-        const d = await res.json();
-        setDocuments(d.documents ?? []);
-      }
+      if (res.ok) { const d = await res.json(); setDocuments(d.documents ?? []); }
     } catch {}
   }, [chantierId, token]);
 
   useEffect(() => { loadDocuments(); }, [loadDocuments]);
-
-  // ── Index docs par lot ────────────────────────────────────────────────────
-  const docsByLot: Record<string, DocumentChantier[]> = {};
-  for (const doc of documents) {
-    const k = doc.lot_id ?? '__none__';
-    (docsByLot[k] ??= []).push(doc);
-  }
 
   async function handleDeleteDoc(docId: string) {
     if (!chantierId || !token) return;
@@ -683,81 +682,91 @@ export default function DashboardUnified({ result, chantierId, token }: Props) {
     } catch {}
   }
 
-  const selectedLot = lots.find(l => l.id === selectedLotId);
+  // ── Index docs par lot ────────────────────────────────────────────────────
+  const docsByLot = useMemo(() => {
+    const idx: Record<string, DocumentChantier[]> = {};
+    for (const doc of documents) (idx[doc.lot_id ?? '__none__'] ??= []).push(doc);
+    return idx;
+  }, [documents]);
 
-  // DIY : proposer si certains lots n'ont pas encore d'artisan
+  // ── Badges sidebar ────────────────────────────────────────────────────────
+  const navBadges = useMemo<Partial<Record<Section, NavBadge>>>(() => {
+    const lotsNoDocs = lots.filter(l => (docsByLot[l.id] ?? []).length === 0).length;
+    const alerts     = insights?.global.filter(i => i.type === 'alert' || i.type === 'warning') ?? [];
+    const devisCount = documents.filter(d => d.document_type === 'devis').length;
+    return {
+      budget:    alerts.length  > 0 ? { text: `${alerts.length} alerte${alerts.length > 1 ? 's' : ''}`, style: 'bg-red-100 text-red-600' } : undefined,
+      lots:      lotsNoDocs     > 0 ? { text: `${lotsNoDocs} incomplet${lotsNoDocs > 1 ? 's' : ''}`, style: 'bg-amber-100 text-amber-700' } : undefined,
+      analyse:   devisCount     > 0 ? { text: `${devisCount} devis`, style: 'bg-blue-100 text-blue-700' } : undefined,
+      documents: documents.length > 0 ? { text: `${documents.length}`, style: 'bg-gray-100 text-gray-600' } : undefined,
+    };
+  }, [lots, docsByLot, insights, documents]);
+
+  const selectedLot = lots.find(l => l.id === selectedLotId);
   const hasDiyOpportunity = lots.some(l => l.statut === 'a_trouver');
 
-  return (
-    <div className="min-h-screen bg-[#f7f8fc] flex flex-col">
+  // ── Navigation helpers ────────────────────────────────────────────────────
+  function navigateTo(s: Section) {
+    setActiveSection(s);
+    setSelectedLotId(null);
+  }
 
-      {/* ── Header ────────────────────────────────────────────────────────── */}
-      <header className="bg-white border-b border-gray-100 px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center gap-4">
-          {/* Retour */}
-          <a href="/mon-chantier" className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors">
-            <ArrowLeft className="h-5 w-5" />
-          </a>
+  // ── Rendu du contenu ──────────────────────────────────────────────────────
+  function renderContent() {
+    // Lots — vue détail lot
+    if (activeSection === 'lots' && selectedLotId && selectedLot) {
+      return (
+        <LotDetail
+          lot={selectedLot}
+          docs={docsByLot[selectedLot.id] ?? []}
+          insight={insights?.lots?.[selectedLot.id]}
+          onAddDoc={() => setUploadModal({ open: true, lotId: selectedLot.id.startsWith('fallback-') ? undefined : selectedLot.id })}
+          onDeleteDoc={handleDeleteDoc}
+          onBack={() => setSelectedLotId(null)}
+        />
+      );
+    }
 
-          {/* Identité */}
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <span className="text-2xl leading-none shrink-0">{result.emoji}</span>
-            <div className="min-w-0">
-              <h1 className="font-bold text-gray-900 text-base leading-tight truncate">{result.nom}</h1>
-              <p className="text-sm text-gray-400 mt-0.5">
-                Budget observé · {fmtEuro(rangeMin)} – {fmtEuro(rangeMax)}
-              </p>
-            </div>
-          </div>
+    switch (activeSection) {
+      case 'budget':
+        return (
+          <BudgetTresorerie
+            result={result}
+            documents={documents}
+            insights={insights}
+            insightsLoading={insightsLoading}
+            onAddDoc={() => setUploadModal({ open: true })}
+            onGoToAnalyse={() => navigateTo('analyse')}
+            onGoToLots={() => navigateTo('lots')}
+          />
+        );
 
-          {/* CTA */}
-          <button
-            onClick={() => setUploadModal({ open: true })}
-            className="shrink-0 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl px-4 py-2.5 transition-colors shadow-sm shadow-blue-200"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Ajouter un document</span>
-            <span className="sm:hidden">Ajouter</span>
-          </button>
-        </div>
-      </header>
-
-      {/* ── Insights banner ────────────────────────────────────────────────── */}
-      <AssistantBanner items={insights?.global ?? []} loading={insightsLoading} />
-
-      {/* ── Corps ─────────────────────────────────────────────────────────── */}
-      <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-7">
-
-        {/* Vue : liste des lots */}
-        {!selectedLotId && (
-          <>
+      case 'lots':
+        return (
+          <div className="max-w-5xl mx-auto px-6 py-7">
             <div className="flex items-center justify-between mb-5">
               <h2 className="font-semibold text-gray-900">
-                Vos lots de travaux
-                <span className="ml-2 text-xs font-normal text-gray-400">{lots.length} lot{lots.length > 1 ? 's' : ''}</span>
+                Lots de travaux <span className="ml-1.5 text-xs font-normal text-gray-400">{lots.length} lot{lots.length > 1 ? 's' : ''}</span>
               </h2>
+              <button onClick={() => setUploadModal({ open: true })}
+                className="flex items-center gap-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-xl transition-colors">
+                <Plus className="h-3.5 w-3.5" /> Ajouter un document
+              </button>
             </div>
-
             {lots.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-5">
-                  <CloudUpload className="h-8 w-8 text-blue-400" />
-                </div>
-                <h3 className="font-bold text-gray-900 text-lg mb-2">Commencez par ajouter un devis</h3>
-                <p className="text-gray-400 text-sm max-w-xs leading-relaxed mb-8">
-                  Importez un devis pour obtenir une analyse automatique et voir s'il est au prix du marché.
-                </p>
-                <button onClick={() => setUploadModal({ open: true })}
-                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-5 py-3 text-sm transition-colors shadow-lg shadow-blue-200">
-                  <Plus className="h-4 w-4" /> Ajouter votre premier devis
-                </button>
+                <CloudUpload className="h-10 w-10 text-gray-200 mx-auto mb-4" />
+                <p className="font-bold text-gray-900 mb-1">Aucun lot de travaux</p>
+                <p className="text-sm text-gray-400 mb-6 max-w-xs leading-relaxed">Votre plan de chantier ne contient pas encore de lots. Créez un nouveau chantier avec l'IA.</p>
+                <a href="/mon-chantier/nouveau" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-colors">
+                  <Plus className="h-4 w-4" /> Nouveau chantier
+                </a>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {lots.map(lot => (
                   <LotCard
-                    key={lot.id}
-                    lot={lot}
+                    key={lot.id} lot={lot}
                     docs={docsByLot[lot.id] ?? []}
                     insight={insights?.lots?.[lot.id]}
                     onAdd={() => setUploadModal({ open: true, lotId: lot.id.startsWith('fallback-') ? undefined : lot.id })}
@@ -766,28 +775,184 @@ export default function DashboardUnified({ result, chantierId, token }: Props) {
                 ))}
               </div>
             )}
-
-            {/* Section DIY */}
             {hasDiyOpportunity && (
-              <DiySection onAddDoc={() => setUploadModal({ open: true })} />
+              <div className="mt-8">
+                <div className="flex items-center gap-2.5 mb-4">
+                  <Wrench className="h-4 w-4 text-gray-400" />
+                  <h2 className="font-semibold text-gray-700 text-sm">Travaux réalisés par vous-même</h2>
+                </div>
+                <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-6 flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800 mb-1">Estimez vos économies DIY</p>
+                    <p className="text-xs text-gray-400 leading-relaxed">Factures matériaux + photos → calcul automatique des économies réalisées</p>
+                  </div>
+                  <button onClick={() => setUploadModal({ open: true })}
+                    className="shrink-0 flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold rounded-xl px-4 py-2.5 transition-colors">
+                    <Plus className="h-3.5 w-3.5" /> Ajouter
+                  </button>
+                </div>
+              </div>
             )}
-          </>
-        )}
+          </div>
+        );
 
-        {/* Vue : détail d'un lot */}
-        {selectedLotId && selectedLot && (
-          <LotDetail
-            lot={selectedLot}
-            docs={docsByLot[selectedLot.id] ?? []}
-            insight={insights?.lots?.[selectedLot.id]}
-            onAddDoc={() => setUploadModal({ open: true, lotId: selectedLot.id.startsWith('fallback-') ? undefined : selectedLot.id })}
-            onDeleteDoc={handleDeleteDoc}
-            onBack={() => setSelectedLotId(null)}
+      case 'analyse':
+        return (
+          <ComingSoon
+            section="Analyse des devis"
+            icon={FileSearch}
+            description="Importez vos devis pour les comparer aux prix du marché et détecter les surcoûts automatiquement."
+            cta={{ label: 'Analyser un devis maintenant', href: '/nouvelle-analyse' }}
           />
-        )}
-      </main>
+        );
 
-      {/* ── Modal upload ──────────────────────────────────────────────────── */}
+      case 'planning':
+        return (
+          <div className="max-w-3xl mx-auto px-6 py-7">
+            <h2 className="font-semibold text-gray-900 mb-5">Planning du chantier</h2>
+            <div className="space-y-3">
+              {(result.roadmap ?? []).slice(0, 15).map((step, i) => (
+                <div key={i} className="bg-white rounded-xl border border-gray-100 px-5 py-4 flex items-center gap-4">
+                  <div className="w-16 shrink-0 text-center">
+                    <span className="text-xs font-semibold text-gray-400 block">{step.mois ?? '—'}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{step.titre}</p>
+                    {step.artisan && <p className="text-xs text-gray-400 mt-0.5">{step.artisan}</p>}
+                  </div>
+                  <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize
+                    ${step.phase === 'preparation' ? 'bg-blue-50 text-blue-700' : ''}
+                    ${step.phase === 'autorisations' ? 'bg-amber-50 text-amber-700' : ''}
+                    ${step.phase === 'gros_oeuvre' ? 'bg-orange-50 text-orange-700' : ''}
+                    ${step.phase === 'second_oeuvre' ? 'bg-violet-50 text-violet-700' : ''}
+                    ${step.phase === 'finitions' ? 'bg-emerald-50 text-emerald-700' : ''}
+                    ${step.phase === 'reception' ? 'bg-teal-50 text-teal-700' : ''}
+                    ${!step.phase ? 'bg-gray-50 text-gray-500' : ''}
+                  `}>{step.phase?.replace('_', ' ') ?? 'étape'}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+
+      case 'documents':
+        return (
+          <DocumentsView documents={documents} lots={lots} onAddDoc={() => setUploadModal({ open: true })} onDeleteDoc={handleDeleteDoc} />
+        );
+
+      case 'assistant':
+        return (
+          <div className="max-w-3xl mx-auto px-6 py-7">
+            <h2 className="font-semibold text-gray-900 mb-5">Assistant chantier</h2>
+            {insightsLoading ? (
+              <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="h-16 rounded-2xl bg-white border border-gray-100 animate-pulse" />)}</div>
+            ) : (insights?.global ?? []).length === 0 ? (
+              <ComingSoon
+                section="Insights intelligents"
+                icon={Bot}
+                description="L'assistant analyse vos devis, factures et planning pour détecter les risques et opportunités."
+                cta={{ label: 'Ajouter un premier devis', onClick: () => setUploadModal({ open: true }) }}
+              />
+            ) : (
+              <div className="space-y-3">
+                {[...(insights?.global ?? []), ...Object.values(insights?.lots ?? {})].map((item, i) => {
+                  const s = IS[item.type];
+                  return (
+                    <div key={i} className={`flex items-start gap-3 px-5 py-4 rounded-2xl border border-l-4 ${s.accent} ${s.border} ${s.bg}`}>
+                      {item.icon && <span className="text-base leading-none shrink-0">{item.icon}</span>}
+                      <p className={`text-sm font-medium ${s.text}`}>{item.text}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+
+      case 'diy':
+        return (
+          <ComingSoon
+            section="Travaux DIY"
+            icon={Wrench}
+            description="Ajoutez vos factures de matériaux et photos de chantier pour calculer automatiquement vos économies."
+            cta={{ label: 'Ajouter une facture matériaux', onClick: () => { setUploadModal({ open: true }); } }}
+          />
+        );
+
+      case 'settings':
+        return (
+          <div className="max-w-xl mx-auto px-6 py-7">
+            <h2 className="font-semibold text-gray-900 mb-5">Paramètres du chantier</h2>
+            <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50">
+              {[
+                { label: 'Nom du projet', value: result.nom },
+                { label: 'Budget observé', value: `${fmtK(rangeMin)} – ${fmtK(rangeMax)}` },
+                { label: 'Durée estimée', value: result.dureeEstimee ?? '—' },
+                { label: 'Nombre de lots', value: `${lots.length} lot${lots.length > 1 ? 's' : ''}` },
+                { label: 'Documents', value: `${documents.length}` },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex items-center justify-between px-5 py-4">
+                  <span className="text-sm text-gray-500">{label}</span>
+                  <span className="text-sm font-semibold text-gray-900">{value}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-5">
+              <a href="/mon-chantier" className="flex items-center justify-center gap-2 text-sm text-gray-400 hover:text-gray-600 py-3 transition-colors">
+                <ArrowLeft className="h-4 w-4" /> Retour à tous mes chantiers
+              </a>
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  }
+
+  const SECTION_TITLES: Record<Section, string> = {
+    budget: 'Budget & trésorerie', lots: 'Lots de travaux', analyse: 'Analyse des devis',
+    planning: 'Planning', documents: 'Documents', assistant: 'Assistant chantier',
+    diy: 'Travaux DIY', settings: 'Paramètres',
+  };
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-[#f7f8fc]">
+
+      {/* ── Sidebar ───────────────────────────────────────────────────────── */}
+      <Sidebar
+        result={result}
+        activeSection={activeSection}
+        onSelect={navigateTo}
+        rangeMin={rangeMin}
+        rangeMax={rangeMax}
+        badges={navBadges}
+        mobileOpen={mobileOpen}
+        onCloseMobile={() => setMobileOpen(false)}
+      />
+
+      {/* ── Contenu principal ──────────────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <PageHeader
+          title={SECTION_TITLES[activeSection]}
+          action={
+            <button
+              onClick={() => setUploadModal({ open: true })}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl px-4 py-2.5 transition-colors shadow-sm shadow-blue-200">
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Ajouter un document</span>
+              <span className="sm:hidden">Ajouter</span>
+            </button>
+          }
+          onMenuToggle={() => setMobileOpen(v => !v)}
+        />
+
+        <main className="flex-1 overflow-y-auto">
+          {renderContent()}
+        </main>
+      </div>
+
+      {/* ── Upload modal ──────────────────────────────────────────────────── */}
       {uploadModal.open && chantierId && token && (
         <UploadModal
           chantierId={chantierId}
