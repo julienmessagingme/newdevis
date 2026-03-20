@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, BookOpen, LayoutDashboard, LineChart } from 'lucide-react';
+import { ArrowRight, Check } from 'lucide-react';
 import type { ProjectMode } from '@/types/chantier-ia';
 
 interface Props {
@@ -7,121 +7,212 @@ interface Props {
   defaultMode?: ProjectMode;
 }
 
+// ── Mini mock UIs ────────────────────────────────────────────────────────────
+
+function MockGuided() {
+  const steps = [
+    { label: 'Choisir un architecte', done: true },
+    { label: 'Déposer le permis', done: true },
+    { label: 'Sélectionner les artisans', done: false },
+    { label: 'Démarrer les travaux', done: false },
+  ];
+  return (
+    <div className="space-y-2">
+      {steps.map((s, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <div className={`w-4 h-4 rounded-full shrink-0 flex items-center justify-center border ${
+            s.done ? 'bg-violet-500 border-violet-500' : 'border-white/20'
+          }`}>
+            {s.done && <Check className="w-2.5 h-2.5 text-white" />}
+          </div>
+          <span className={`text-[11px] ${s.done ? 'line-through text-slate-600' : 'text-slate-300'}`}>
+            {s.label}
+          </span>
+          {!s.done && i === 2 && (
+            <span className="ml-auto text-[9px] bg-violet-500/20 text-violet-300 px-1.5 py-0.5 rounded-full font-medium">
+              En cours
+            </span>
+          )}
+        </div>
+      ))}
+      <div className="mt-3 bg-violet-500/10 border border-violet-500/20 rounded-lg px-2.5 py-2">
+        <p className="text-[10px] text-violet-300 font-medium">💡 Conseil</p>
+        <p className="text-[10px] text-slate-400 mt-0.5">Demandez 3 devis avant de choisir</p>
+      </div>
+    </div>
+  );
+}
+
+function MockFlexible() {
+  const lots = [
+    { label: 'Piscine', amount: '24 000€', pct: 53, status: 'done' },
+    { label: 'Terrasse', amount: '7 500€', pct: 17, status: 'active' },
+    { label: 'Façade', amount: '8 200€', pct: 18, status: 'idle' },
+  ];
+  return (
+    <div>
+      <div className="flex items-end justify-between mb-1.5">
+        <span className="text-[10px] text-slate-500 uppercase tracking-wider">Budget</span>
+        <span className="text-sm font-bold text-white">45 000 €</span>
+      </div>
+      <div className="h-1.5 bg-white/[0.07] rounded-full mb-3 overflow-hidden">
+        <div className="h-full w-[62%] bg-gradient-to-r from-blue-500 to-blue-400 rounded-full" />
+      </div>
+      <div className="space-y-1.5">
+        {lots.map((lot) => (
+          <div key={lot.label} className="flex items-center gap-2">
+            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+              lot.status === 'done' ? 'bg-blue-400' :
+              lot.status === 'active' ? 'bg-amber-400' : 'bg-white/20'
+            }`} />
+            <span className="text-[11px] text-slate-300 flex-1">{lot.label}</span>
+            <span className="text-[11px] text-slate-500">{lot.amount}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MockExpert() {
+  const tasks = [
+    { label: 'Gros œuvre', start: 0, width: 45, color: 'bg-emerald-500/50' },
+    { label: 'Plomberie',  start: 30, width: 30, color: 'bg-emerald-500/40' },
+    { label: 'Électricité',start: 45, width: 35, color: 'bg-emerald-500/30' },
+    { label: 'Finitions',  start: 65, width: 35, color: 'bg-emerald-500/25' },
+  ];
+  const months = ['Avr', 'Mai', 'Juin', 'Juil'];
+  return (
+    <div>
+      <div className="flex mb-1.5">
+        <div className="w-16 shrink-0" />
+        <div className="flex-1 flex">
+          {months.map((m) => (
+            <div key={m} className="flex-1 text-center text-[9px] text-slate-600">{m}</div>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        {tasks.map((t) => (
+          <div key={t.label} className="flex items-center gap-2 h-5">
+            <span className="w-16 shrink-0 text-[10px] text-slate-500 truncate">{t.label}</span>
+            <div className="flex-1 relative h-full">
+              <div
+                className={`absolute top-0 bottom-0 rounded ${t.color}`}
+                style={{ left: `${t.start}%`, width: `${t.width}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2.5 flex items-center gap-1.5">
+        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+        <span className="text-[10px] text-slate-500">3 lots en retard détectés</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Config des modes ─────────────────────────────────────────────────────────
+
 const MODES: {
   mode: ProjectMode;
-  icon: React.ReactNode;
   title: string;
-  description: string;
-  color: string;
-  border: string;
-  bg: string;
-  iconBg: string;
-  badge: string;
+  bullets: string[];
+  accent: string;
+  ring: string;
+  preview: React.ReactNode;
 }[] = [
   {
     mode: 'guided',
-    icon: <BookOpen className="h-6 w-6" />,
-    title: 'Être guidé étape par étape',
-    description: 'Idéal pour un premier chantier. Nous vous aidons à éviter les erreurs avec des conseils pédagogiques et des alertes renforcées.',
-    color: 'text-violet-300',
-    border: 'border-violet-500/40',
-    bg: 'bg-violet-500/10 hover:bg-violet-500/20',
-    iconBg: 'bg-violet-500/20 text-violet-300',
-    badge: 'bg-violet-500/15 text-violet-300 border-violet-500/25',
+    title: 'Mode guidé',
+    bullets: ['Étapes simplifiées', 'Conseils en continu', 'Alertes importantes'],
+    accent: 'text-violet-300',
+    ring: 'ring-violet-500/60',
+    preview: <MockGuided />,
   },
   {
     mode: 'flexible',
-    icon: <LayoutDashboard className="h-6 w-6" />,
-    title: 'Organiser mon chantier',
-    description: 'Vous savez globalement quoi faire. Vous voulez surtout un outil pour tout suivre sans blocages inutiles.',
-    color: 'text-blue-300',
-    border: 'border-blue-500/40',
-    bg: 'bg-blue-500/10 hover:bg-blue-500/20',
-    iconBg: 'bg-blue-500/20 text-blue-300',
-    badge: 'bg-blue-500/15 text-blue-300 border-blue-500/25',
+    title: 'Mode organisé',
+    bullets: ['Vue globale du chantier', 'Suivi des tâches', 'Budget détaillé'],
+    accent: 'text-blue-300',
+    ring: 'ring-blue-500/60',
+    preview: <MockFlexible />,
   },
   {
     mode: 'investor',
-    icon: <LineChart className="h-6 w-6" />,
-    title: 'Suivre le chantier à distance',
-    description: 'Idéal pour un projet locatif ou un chantier que vous ne gérez pas sur place. Accent sur la trésorerie et les rapports d\'avancement.',
-    color: 'text-emerald-300',
-    border: 'border-emerald-500/40',
-    bg: 'bg-emerald-500/10 hover:bg-emerald-500/20',
-    iconBg: 'bg-emerald-500/20 text-emerald-300',
-    badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25',
+    title: 'Mode expert',
+    bullets: ['Planning avancé (GANTT)', 'Suivi des délais', 'Vue multi-lots'],
+    accent: 'text-emerald-300',
+    ring: 'ring-emerald-500/60',
+    preview: <MockExpert />,
   },
 ];
+
+// ── Composant principal ──────────────────────────────────────────────────────
 
 export default function ScreenModeSelection({ onSelect, defaultMode }: Props) {
   const [selected, setSelected] = useState<ProjectMode | null>(defaultMode ?? null);
 
   return (
-    <div className="min-h-screen bg-[#0a0f1e] flex flex-col items-center justify-center px-4 py-10">
-      <div className="w-full max-w-lg">
+    <div className="min-h-screen bg-[#080d1a] flex flex-col items-center justify-center px-4 py-12">
+      <div className="w-full max-w-2xl">
 
         {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 bg-white/[0.05] border border-white/[0.08] rounded-full px-3 py-1 text-xs text-slate-400 mb-4">
-            <span>Étape finale</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
-            Comment souhaitez-vous<br />gérer votre chantier ?
+        <div className="text-center mb-10">
+          <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight mb-3">
+            Choisissez votre mode de gestion
           </h1>
-          <p className="text-slate-400 text-sm">
-            Votre tableau de bord s'adaptera à votre façon de travailler.
+          <p className="text-slate-400 text-base">
+            Votre espace s'adapte automatiquement à votre façon de piloter
           </p>
         </div>
 
-        {/* Mode cards */}
+        {/* Cards */}
         <div className="flex flex-col gap-3 mb-8">
-          {MODES.map(({ mode, icon, title, description, color, border, bg, iconBg, badge }) => {
+          {MODES.map(({ mode, title, bullets, accent, ring, preview }) => {
             const isSelected = selected === mode;
             return (
               <button
                 key={mode}
                 onClick={() => setSelected(mode)}
                 className={`
-                  w-full text-left rounded-2xl border p-4 transition-all duration-200
+                  w-full text-left rounded-2xl border overflow-hidden transition-all duration-200
                   ${isSelected
-                    ? `${bg} ${border} ring-2 ring-offset-2 ring-offset-[#0a0f1e] ${border.replace('/40', '')}`
-                    : 'bg-white/[0.03] border-white/[0.07] hover:border-white/[0.14] hover:bg-white/[0.05]'}
+                    ? `border-white/20 ring-2 ${ring} bg-white/[0.05]`
+                    : 'border-white/[0.07] bg-white/[0.03] hover:border-white/[0.14] hover:bg-white/[0.05]'
+                  }
                 `}
               >
-                <div className="flex items-start gap-4">
-                  {/* Icon */}
-                  <div className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center ${isSelected ? iconBg : 'bg-white/[0.06] text-slate-400'}`}>
-                    {icon}
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`font-semibold text-sm ${isSelected ? color : 'text-white'}`}>
+                <div className="flex">
+                  {/* Left: info */}
+                  <div className="flex-1 min-w-0 px-5 py-5">
+                    <div className="flex items-center gap-2.5 mb-3">
+                      {/* Radio dot */}
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                        isSelected ? 'border-white bg-white' : 'border-white/25'
+                      }`}>
+                        {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-[#080d1a]" />}
+                      </div>
+                      <span className={`font-semibold text-sm ${isSelected ? accent : 'text-white'}`}>
                         {title}
                       </span>
-                      {isSelected && (
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${badge}`}>
-                          Sélectionné
-                        </span>
-                      )}
                     </div>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      {description}
-                    </p>
+                    <ul className="space-y-1.5 pl-6">
+                      {bullets.map((b) => (
+                        <li key={b} className="flex items-center gap-2 text-xs text-slate-400">
+                          <span className={`w-1 h-1 rounded-full shrink-0 ${isSelected ? accent.replace('text-', 'bg-') : 'bg-slate-600'}`} />
+                          {b}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
 
-                  {/* Check indicator */}
-                  <div className={`shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all mt-0.5 ${
-                    isSelected
-                      ? `${border} bg-current`
-                      : 'border-white/20'
+                  {/* Right: mock preview */}
+                  <div className={`w-52 shrink-0 px-4 py-5 border-l transition-colors ${
+                    isSelected ? 'border-white/10 bg-white/[0.03]' : 'border-white/[0.05] bg-white/[0.02]'
                   }`}>
-                    {isSelected && (
-                      <svg viewBox="0 0 10 8" className="w-2.5 h-2.5 text-white" fill="none">
-                        <path d="M1 4l2.5 2.5L9 1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    )}
+                    {preview}
                   </div>
                 </div>
               </button>
@@ -129,25 +220,21 @@ export default function ScreenModeSelection({ onSelect, defaultMode }: Props) {
           })}
         </div>
 
-        {/* Note: modifiable later */}
-        <p className="text-center text-xs text-slate-500 mb-6">
-          Vous pourrez modifier ce choix à tout moment dans les paramètres du projet.
+        {/* Note */}
+        <p className="text-center text-xs text-slate-600 mb-6">
+          Vous pourrez modifier ce choix à tout moment dans les paramètres
         </p>
 
         {/* CTA */}
         <button
           disabled={!selected}
           onClick={() => selected && onSelect(selected)}
-          className={`
-            w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 font-semibold text-sm transition-all
-            ${selected
-              ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20'
-              : 'bg-white/[0.05] text-slate-500 cursor-not-allowed'}
-          `}
+          className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-25 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-3.5 text-sm transition-all"
         >
           Accéder à mon tableau de bord
           <ArrowRight className="h-4 w-4" />
         </button>
+
       </div>
     </div>
   );
