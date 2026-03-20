@@ -146,8 +146,13 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
             Pilotez votre projet<br />comme un pro
           </h1>
           <p
-            className="text-white/82 text-lg max-w-lg mx-auto leading-relaxed"
-            style={{ textShadow: '0 1px 10px rgba(0,0,0,0.65)' }}
+            className="text-white text-lg max-w-lg mx-auto leading-relaxed inline-block px-4 py-2 rounded-xl"
+            style={{
+              textShadow: '0 1px 12px rgba(0,0,0,0.9), 0 2px 30px rgba(0,0,0,0.8)',
+              background: 'rgba(0,0,0,0.22)',
+              backdropFilter: 'blur(6px)',
+              WebkitBackdropFilter: 'blur(6px)',
+            }}
           >
             Transformez votre projet en un chantier maîtrisé,
             <br className="hidden sm:block" /> du premier devis à la réception
