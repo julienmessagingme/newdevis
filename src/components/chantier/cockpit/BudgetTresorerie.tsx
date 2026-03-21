@@ -5,7 +5,7 @@
 import { useMemo } from 'react';
 import {
   TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, CircleDollarSign,
-  FileText, Plus, Search, ChevronRight, Info, Zap, Layers,
+  FileText, Plus, Search, ChevronRight, Info, Zap, Layers, Wallet,
 } from 'lucide-react';
 import type { ChantierIAResult, DocumentChantier } from '@/types/chantier-ia';
 import type { InsightsData, InsightItem } from './useInsights';
@@ -416,6 +416,54 @@ function QuickActions({ onAddDoc, onGoToAnalyse, onGoToLots }: {
   );
 }
 
+// ── Fiabilité budget ───────────────────────────────────────────────────────────
+
+function ReliabilityBadge({ signaux }: { signaux?: ChantierIAResult['estimationSignaux'] }) {
+  if (!signaux) return null;
+  const score = [
+    signaux.hasLocalisation, signaux.hasBudget, signaux.hasSurface, signaux.typeProjetPrecis,
+    (signaux.nbLignesBudget ?? 0) > 3,
+  ].filter(Boolean).length;
+  const cfg = score <= 1
+    ? { label: 'Fiabilité : faible',  cls: 'bg-amber-100 text-amber-700 border-amber-200' }
+    : score <= 3
+    ? { label: 'Fiabilité : moyenne', cls: 'bg-blue-50 text-blue-700 border-blue-100' }
+    : { label: 'Fiabilité : élevée',  cls: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
+  return (
+    <span className={`inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full border ${cfg.cls}`}>
+      {cfg.label}
+    </span>
+  );
+}
+
+// ── Comparaison estimation vs devis ───────────────────────────────────────────
+
+function BudgetComparaison({ rangeMin, rangeMax, documents }: {
+  rangeMin: number; rangeMax: number; documents: DocumentChantier[];
+}) {
+  const devisCount   = documents.filter(d => d.document_type === 'devis').length;
+  const factureCount = documents.filter(d => d.document_type === 'facture').length;
+  const rangeAvg = Math.round((rangeMin + rangeMax) / 2);
+
+  const columns = [
+    { label: 'Budget estimé', value: fmtFull(rangeAvg), sub: `${fmtK(rangeMin)} – ${fmtK(rangeMax)}`, color: 'text-gray-900', bg: 'bg-gray-50 border-gray-100' },
+    { label: 'Devis reçus', value: devisCount > 0 ? `${devisCount}` : '—', sub: devisCount === 1 ? 'Insuffisant, obtenez-en 2 de plus' : devisCount > 1 ? 'Comparaison possible' : 'Ajoutez vos devis', color: devisCount >= 2 ? 'text-emerald-700' : 'text-amber-700', bg: devisCount >= 2 ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100' },
+    ...(factureCount > 0 ? [{ label: 'Factures enregistrées', value: `${factureCount}`, sub: 'paiements suivis', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-100' }] : []),
+  ];
+
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      {columns.map(col => (
+        <div key={col.label} className={`rounded-2xl border ${col.bg} px-5 py-4`}>
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">{col.label}</p>
+          <p className={`text-2xl font-extrabold ${col.color} leading-none`}>{col.value}</p>
+          <p className="text-xs text-gray-400 mt-1">{col.sub}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Composant principal ───────────────────────────────────────────────────────
 
 interface Props {
@@ -431,72 +479,109 @@ interface Props {
 export default function BudgetTresorerie({ result, documents, insights, insightsLoading, onAddDoc, onGoToAnalyse, onGoToLots }: Props) {
   const lots = result.lots ?? [];
 
-  // Calcul fourchette globale
-  const rangeMin = lots.reduce((s, l) => s + (l.budget_min_ht ?? 0), 0)
-    || Math.round(result.budgetTotal * 0.85);
-  const rangeMax = lots.reduce((s, l) => s + (l.budget_max_ht ?? 0), 0)
-    || Math.round(result.budgetTotal * 1.20);
+  // ── Détection de l'état budget ────────────────────────────────────────────
+  const hasLotBudget  = lots.some(l => (l.budget_min_ht ?? 0) > 0 || (l.budget_max_ht ?? 0) > 0);
+  const hasBudgetTotal = (result.budgetTotal ?? 0) > 5000;
+  const hasAnyBudget  = hasLotBudget || hasBudgetTotal;
+  const hasDevis      = documents.some(d => d.document_type === 'devis');
+  const hasFactures   = documents.some(d => d.document_type === 'facture');
 
-  // Données documents
+  // Fourchette UNIQUEMENT depuis les lots (jamais inventée)
+  const rangeMin = hasLotBudget
+    ? lots.reduce((s, l) => s + (l.budget_min_ht ?? 0), 0)
+    : hasBudgetTotal ? Math.round(result.budgetTotal * 0.88) : 0;
+  const rangeMax = hasLotBudget
+    ? lots.reduce((s, l) => s + (l.budget_max_ht ?? 0), 0)
+    : hasBudgetTotal ? Math.round(result.budgetTotal * 1.15) : 0;
+  const hasRange = rangeMin > 0 || rangeMax > 0;
+
   const devisCount   = documents.filter(d => d.document_type === 'devis').length;
   const factureCount = documents.filter(d => d.document_type === 'facture').length;
   const lotsAvecDevis = lots.filter(l => documents.some(d => d.lot_id === l.id && d.document_type === 'devis')).length;
   const lotsManquants = lots.length - lotsAvecDevis;
-
-  // Économies détectées depuis insights
-  const savingsInsight = insights?.global.find(i => i.type === 'success' && i.text.includes('€'));
   const alertsCount = insights?.global.filter(i => i.type === 'alert' || i.type === 'warning').length ?? 0;
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-7 space-y-5">
 
-      {/* ── KPI Row ─────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          label="Budget observé"
-          value={`${Math.round(rangeMin / 1000)}k – ${Math.round(rangeMax / 1000)}k€`}
-          sub="Fourchette estimée"
-          color="default"
-        />
-        <KpiCard
-          label="Devis reçus"
-          value={devisCount > 0 ? `${devisCount} devis` : '—'}
-          sub={devisCount > 0 ? `${lotsManquants} lot${lotsManquants !== 1 ? 's' : ''} sans devis` : 'Aucun devis ajouté'}
-          color={lotsManquants > 0 ? 'amber' : 'green'}
-          trend={lotsManquants > 0 ? 'down' : 'up'}
-        />
-        <KpiCard
-          label="Factures enregistrées"
-          value={factureCount > 0 ? `${factureCount}` : '—'}
-          sub={factureCount > 0 ? 'paiements suivis' : 'Aucune facture'}
-          color={factureCount > 0 ? 'green' : 'default'}
-        />
-        <KpiCard
-          label="Alertes actives"
-          value={insightsLoading ? '…' : alertsCount > 0 ? `${alertsCount}` : '✓'}
-          sub={alertsCount > 0 ? 'points à surveiller' : 'Tout est sous contrôle'}
-          color={alertsCount > 0 ? 'red' : 'green'}
-          trend={alertsCount > 0 ? 'down' : 'up'}
-        />
-      </div>
-
-      {/* ── Budget gauge ─────────────────────────────────────────────────── */}
-      <BudgetGauge rangeMin={rangeMin} rangeMax={rangeMax} documents={documents} />
-
-      {/* ── Grille principale ─────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-        {/* Répartition lots (60%) */}
-        <div className="lg:col-span-3">
-          <LotBreakdown result={result} documents={documents} />
+      {/* ── État 1 : aucun budget ────────────────────────────────────────── */}
+      {!hasAnyBudget && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-8 flex flex-col items-center text-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center">
+            <Wallet className="h-7 w-7 text-gray-300" />
+          </div>
+          <div>
+            <h3 className="font-bold text-gray-900 text-lg mb-1">Votre budget n'est pas encore estimé</h3>
+            <p className="text-sm text-gray-400 max-w-md leading-relaxed">
+              Créez votre plan de chantier avec l'IA pour obtenir une estimation basée sur les prix du marché réels.
+            </p>
+          </div>
+          <a href="/mon-chantier/nouveau"
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-6 py-3 text-sm transition-colors">
+            Construire mon budget
+          </a>
         </div>
-        {/* Alertes IA (40%) */}
-        <div className="lg:col-span-2">
-          <AlertesIA insights={insights} loading={insightsLoading} />
+      )}
+
+      {/* ── État 2+ : fourchette + badge fiabilité ───────────────────────── */}
+      {hasAnyBudget && hasRange && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Fourchette estimée</p>
+              <p className="text-3xl font-extrabold text-gray-900 leading-none">
+                {fmtK(rangeMin)} – {fmtK(rangeMax)}
+              </p>
+            </div>
+            <ReliabilityBadge signaux={result.estimationSignaux} />
+          </div>
+          {!hasDevis && (
+            <p className="text-xs text-gray-400 mt-3 border-t border-gray-50 pt-3">
+              💡 Ajoutez vos devis pour affiner cette estimation et valider les prix
+            </p>
+          )}
         </div>
-      </div>
+      )}
+
+      {/* ── État 3+ : comparaison estimation / devis ─────────────────────── */}
+      {hasAnyBudget && hasDevis && hasRange && (
+        <BudgetComparaison rangeMin={rangeMin} rangeMax={rangeMax} documents={documents} />
+      )}
+
+      {/* ── KPI Row (état 2+) ────────────────────────────────────────────── */}
+      {hasAnyBudget && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard label="Devis reçus" value={devisCount > 0 ? `${devisCount}` : '—'}
+            sub={devisCount > 0 ? `${lotsManquants} lot${lotsManquants !== 1 ? 's' : ''} sans devis` : 'Aucun devis ajouté'}
+            color={lotsManquants > 0 ? 'amber' : devisCount > 0 ? 'green' : 'default'}
+            trend={lotsManquants > 0 ? 'down' : devisCount > 0 ? 'up' : 'neutral'} />
+          <KpiCard label="Factures enregistrées" value={factureCount > 0 ? `${factureCount}` : '—'}
+            sub={factureCount > 0 ? 'paiements suivis' : 'Aucune facture'}
+            color={factureCount > 0 ? 'green' : 'default'} />
+          <KpiCard label="Alertes actives" value={insightsLoading ? '…' : alertsCount > 0 ? `${alertsCount}` : '✓'}
+            sub={alertsCount > 0 ? 'points à surveiller' : 'Tout est sous contrôle'}
+            color={alertsCount > 0 ? 'red' : 'green'} trend={alertsCount > 0 ? 'down' : 'up'} />
+          <KpiCard label="Lots" value={`${lots.length}`}
+            sub={lotsManquants > 0 ? `${lotsManquants} sans devis` : 'Tous documentés'}
+            color={lotsManquants > 0 ? 'amber' : 'green'} />
+        </div>
+      )}
+
+      {/* ── Budget gauge (état 3+) ───────────────────────────────────────── */}
+      {hasAnyBudget && hasDevis && hasRange && (
+        <BudgetGauge rangeMin={rangeMin} rangeMax={rangeMax} documents={documents} />
+      )}
+
+      {/* ── Grille lots + alertes ────────────────────────────────────────── */}
+      {hasAnyBudget && (
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+          <div className="lg:col-span-3"><LotBreakdown result={result} documents={documents} /></div>
+          <div className="lg:col-span-2"><AlertesIA insights={insights} loading={insightsLoading} /></div>
+        </div>
+      )}
 
       {/* ── Trésorerie par phase ──────────────────────────────────────────── */}
-      <TresoreriePhases result={result} />
+      {hasAnyBudget && <TresoreriePhases result={result} />}
 
       {/* ── Factures & paiements ──────────────────────────────────────────── */}
       <FacturesPaiements documents={documents} onAddFacture={onAddDoc} />

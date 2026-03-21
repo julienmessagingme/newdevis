@@ -7,7 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import {
   Plus, X, Loader2, CheckCircle2, AlertCircle, CloudUpload, FileText,
   Sparkles, Trash2, ArrowLeft, ChevronRight, Wrench, Wallet, Layers,
-  FileSearch, Calendar, FolderOpen, Bot, Settings, Menu, ExternalLink,
+  FileSearch, Calendar, FolderOpen, Bot, Settings, Menu, ExternalLink, Receipt,
 } from 'lucide-react';
 import type {
   ChantierIAResult, DocumentChantier, DocumentType, LotChantier, StatutArtisan,
@@ -69,7 +69,7 @@ const NAV_ITEMS: { id: Section; label: string; icon: React.ElementType }[] = [
   { id: 'planning',  label: 'Planning',             icon: Calendar    },
   { id: 'documents', label: 'Documents',            icon: FolderOpen  },
   { id: 'assistant', label: 'Assistant chantier',  icon: Bot         },
-  { id: 'diy',       label: 'Travaux DIY',          icon: Wrench      },
+  { id: 'diy',       label: 'Travaux réalisés par vous', icon: Wrench },
 ];
 
 function Sidebar({ result, activeSection, onSelect, rangeMin, rangeMax, badges, mobileOpen, onCloseMobile }: SidebarProps) {
@@ -633,6 +633,384 @@ function DocumentsView({ documents, lots, onAddDoc, onDeleteDoc }: {
   );
 }
 
+// ── Section Analyse des devis ─────────────────────────────────────────────────
+
+function DevisCard({ doc, lot, insight, onDelete }: {
+  doc: DocumentChantier;
+  lot?: LotChantier;
+  insight?: InsightItem;
+  onDelete: () => void;
+}) {
+  const isFromVerifier = doc.source === 'verifier_mon_devis';
+  const isAnalysed     = !!doc.analyse_id || isFromVerifier;
+  const s = insight ? IS[insight.type] : null;
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+      <div className="px-5 py-4 flex items-center gap-4">
+        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+          <FileText className="h-5 w-5 text-blue-500" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-gray-900 text-sm truncate">{doc.nom}</p>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            <span className="text-xs text-gray-400">{fmtDate(doc.created_at)}</span>
+            {lot && (
+              <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full">
+                {lot.emoji ?? '🔧'} {lot.nom}
+              </span>
+            )}
+            {isAnalysed ? (
+              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full">✓ Analysé</span>
+            ) : (
+              <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full">Non analysé</span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {isFromVerifier && doc.analyse_id && (
+            <a href={`/analyse/${doc.analyse_id}`}
+              className="text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition-colors">
+              Voir l'analyse →
+            </a>
+          )}
+          {!isAnalysed && (
+            <a href="/nouvelle-analyse"
+              className="text-xs font-medium text-gray-500 bg-gray-50 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors">
+              Analyser
+            </a>
+          )}
+          <button onClick={onDelete}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all">
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+      {lot && ((lot.budget_min_ht ?? 0) > 0 || (lot.budget_max_ht ?? 0) > 0) && (
+        <div className="px-5 pb-4">
+          <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Prix marché observé</p>
+              <p className="text-sm font-bold text-gray-700">{fmtK(lot.budget_min_ht ?? 0)} – {fmtK(lot.budget_max_ht ?? 0)}</p>
+            </div>
+            <ChevronRight className="h-4 w-4 text-gray-300 shrink-0" />
+          </div>
+        </div>
+      )}
+      {s && insight && (
+        <div className={`px-5 py-3 border-t border-l-4 ${s.accent} ${s.border} ${s.bg} flex items-center gap-2`}>
+          {insight.icon && <span className="text-sm shrink-0">{insight.icon}</span>}
+          <p className={`text-xs font-semibold ${s.text}`}>{insight.text}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AnalyseDevisSection({ documents, lots, insights, insightsLoading, onAddDoc }: {
+  documents: DocumentChantier[];
+  lots: LotChantier[];
+  insights: InsightsData | null;
+  insightsLoading: boolean;
+  onAddDoc: () => void;
+}) {
+  const devis = documents.filter(d => d.document_type === 'devis');
+  const analyses = devis.filter(d => !!d.analyse_id || d.source === 'verifier_mon_devis').length;
+
+  return (
+    <div className="max-w-3xl mx-auto px-6 py-7">
+      {devis.length > 0 && (
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="bg-white rounded-2xl border border-gray-100 px-4 py-4 text-center">
+            <p className="text-2xl font-extrabold text-gray-900">{devis.length}</p>
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mt-0.5">Devis</p>
+          </div>
+          <div className="bg-emerald-50 rounded-2xl border border-emerald-100 px-4 py-4 text-center">
+            <p className="text-2xl font-extrabold text-emerald-700">{analyses}</p>
+            <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider mt-0.5">Analysés</p>
+          </div>
+          <div className="bg-amber-50 rounded-2xl border border-amber-100 px-4 py-4 text-center">
+            <p className="text-2xl font-extrabold text-amber-700">{devis.length - analyses}</p>
+            <p className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider mt-0.5">À analyser</p>
+          </div>
+        </div>
+      )}
+      {devis.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-6">
+            <FileSearch className="h-8 w-8 text-blue-400" />
+          </div>
+          <h2 className="font-bold text-gray-900 text-lg mb-2">Aucun devis à analyser</h2>
+          <p className="text-sm text-gray-400 leading-relaxed mb-7 max-w-sm">
+            Importez vos devis pour les comparer aux prix du marché et détecter les surcoûts.
+          </p>
+          <div className="flex flex-col gap-3 w-full max-w-xs">
+            <a href="/nouvelle-analyse"
+              className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-colors">
+              <Sparkles className="h-4 w-4" /> Analyser un devis maintenant
+            </a>
+            <button onClick={onAddDoc}
+              className="flex items-center justify-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold rounded-xl px-5 py-2.5 text-sm transition-colors">
+              <Plus className="h-4 w-4" /> Importer un devis
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {devis.map(doc => {
+            const lot = lots.find(l => l.id === doc.lot_id);
+            const lotInsight = lot ? insights?.lots?.[lot.id] : undefined;
+            return (
+              <DevisCard key={doc.id} doc={doc} lot={lot} insight={lotInsight} onDelete={() => {}} />
+            );
+          })}
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <a href="/nouvelle-analyse"
+              className="flex items-center justify-center gap-2 flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-5 py-3 text-sm transition-colors">
+              <Sparkles className="h-4 w-4" /> Analyser un nouveau devis
+            </a>
+            <button onClick={onAddDoc}
+              className="flex items-center justify-center gap-2 flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold rounded-xl px-5 py-3 text-sm transition-colors">
+              <Plus className="h-4 w-4" /> Importer un devis
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Section Travaux réalisés par vous ─────────────────────────────────────────
+
+function TravauxDIYSection({ documents, onAddDoc }: {
+  documents: DocumentChantier[];
+  onAddDoc: () => void;
+}) {
+  const factures = documents.filter(d => d.document_type === 'facture');
+  const photos   = documents.filter(d => d.document_type === 'photo');
+
+  return (
+    <div className="max-w-3xl mx-auto px-6 py-7">
+      <p className="text-sm text-gray-400 mb-6 leading-relaxed">
+        Ajoutez vos factures de matériaux et photos de réalisation pour estimer les économies réalisées en faisant vous-même certains travaux.
+      </p>
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="bg-white rounded-2xl border border-gray-100 px-4 py-4 text-center">
+          <p className="text-2xl font-extrabold text-gray-900">{factures.length}</p>
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mt-0.5">Factures</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">matériaux</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-100 px-4 py-4 text-center">
+          <p className="text-2xl font-extrabold text-gray-900">{photos.length}</p>
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mt-0.5">Photos</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">réalisation</p>
+        </div>
+        <div className="bg-emerald-50 rounded-2xl border border-emerald-100 px-4 py-4 text-center">
+          <p className="text-2xl font-extrabold text-emerald-700">—</p>
+          <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider mt-0.5">Économie</p>
+          <p className="text-[10px] text-emerald-400 mt-0.5">estimée</p>
+        </div>
+      </div>
+      {factures.length === 0 && photos.length === 0 ? (
+        <div className="border-2 border-dashed border-gray-200 rounded-2xl p-10 flex flex-col items-center text-center">
+          <Wrench className="h-8 w-8 text-gray-300 mb-3" />
+          <p className="font-semibold text-gray-700 mb-1">Aucun travail DIY enregistré</p>
+          <p className="text-xs text-gray-400 mb-5 max-w-xs leading-relaxed">
+            Factures matériaux (peinture, carrelage, bois…) + photos → calcul automatique des économies réalisées.
+          </p>
+          <button onClick={onAddDoc}
+            className="flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-colors">
+            <Plus className="h-4 w-4" /> Ajouter une facture matériaux
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-100 rounded-2xl px-5 py-4">
+            <p className="text-xs font-semibold text-blue-700 mb-1">💡 Comment fonctionne le calcul</p>
+            <p className="text-xs text-blue-600 leading-relaxed">
+              Nous comparons le coût de vos matériaux aux prix TTC observés sur des devis d'artisans. La différence représente votre économie main d'œuvre.
+            </p>
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50 overflow-hidden">
+            {[...factures, ...photos].map(doc => (
+              <div key={doc.id} className="flex items-center gap-3 px-5 py-4">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${doc.document_type === 'photo' ? 'bg-violet-50' : 'bg-emerald-50'}`}>
+                  {doc.document_type === 'photo'
+                    ? <span className="text-sm">📸</span>
+                    : <Receipt className="h-4 w-4 text-emerald-500" />
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">{doc.nom}</p>
+                  <p className="text-xs text-gray-400">{fmtDate(doc.created_at)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button onClick={onAddDoc}
+            className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-2xl py-4 text-sm text-gray-400 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-all">
+            <Plus className="h-4 w-4" /> Ajouter une facture ou une photo
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Section Assistant chantier ────────────────────────────────────────────────
+
+function AssistantChantierSection({ result, documents, lots, insights, insightsLoading, onAddDoc, onGoToLots, onGoToAnalyse, onGoToBudget }: {
+  result: ChantierIAResult;
+  documents: DocumentChantier[];
+  lots: LotChantier[];
+  insights: InsightsData | null;
+  insightsLoading: boolean;
+  onAddDoc: () => void;
+  onGoToLots: () => void;
+  onGoToAnalyse: () => void;
+  onGoToBudget: () => void;
+}) {
+  const contextActions = useMemo(() => {
+    const actions: Array<{
+      type: 'alert' | 'warning' | 'info' | 'success';
+      icon: string;
+      text: string;
+      sub?: string;
+      cta: { label: string; onClick: () => void };
+    }> = [];
+
+    const devisCount   = documents.filter(d => d.document_type === 'devis').length;
+    const factureCount = documents.filter(d => d.document_type === 'facture').length;
+    const lotsNoDocs   = lots.filter(l => documents.every(d => d.lot_id !== l.id)).length;
+    const hasLotBudget = lots.some(l => (l.budget_min_ht ?? 0) > 0);
+
+    if (lotsNoDocs > 0 && lots.length > 0) {
+      actions.push({
+        type: 'alert', icon: '📋',
+        text: `${lotsNoDocs} lot${lotsNoDocs > 1 ? 's' : ''} sans devis`,
+        sub: 'Obtenez au minimum 3 devis par lot pour comparer les prix.',
+        cta: { label: 'Voir les lots', onClick: onGoToLots },
+      });
+    }
+    if (devisCount === 1) {
+      actions.push({
+        type: 'warning', icon: '⚠️',
+        text: '1 seul devis — insuffisant pour comparer',
+        sub: 'Un seul devis ne permet pas de négocier. Obtenez-en au moins 2 de plus.',
+        cta: { label: 'Analyser un nouveau devis', onClick: onGoToAnalyse },
+      });
+    }
+    if (devisCount === 0 && lots.length > 0) {
+      actions.push({
+        type: 'warning', icon: '📩',
+        text: 'Aucun devis reçu — relancez vos artisans',
+        sub: 'Ajoutez vos devis pour valider votre budget et comparer les prix.',
+        cta: { label: 'Importer un devis', onClick: onAddDoc },
+      });
+    }
+    if (insights?.global) {
+      insights.global.filter(i => i.type === 'alert' || i.type === 'warning').slice(0, 2).forEach(insight => {
+        actions.push({
+          type: insight.type as 'alert' | 'warning', icon: insight.icon ?? '🔔',
+          text: insight.text,
+          cta: { label: 'Voir le budget', onClick: onGoToBudget },
+        });
+      });
+    }
+    if (devisCount > 0 && factureCount === 0) {
+      actions.push({
+        type: 'info', icon: '🧾',
+        text: 'Aucune facture enregistrée',
+        sub: 'Suivez vos paiements en ajoutant vos factures.',
+        cta: { label: 'Ajouter une facture', onClick: onAddDoc },
+      });
+    }
+    if (devisCount >= 2 && hasLotBudget && actions.length === 0) {
+      actions.push({
+        type: 'success', icon: '✅',
+        text: 'Budget bien documenté',
+        sub: 'Vous avez plusieurs devis. Comparez-les pour optimiser votre budget.',
+        cta: { label: 'Analyser les devis', onClick: onGoToAnalyse },
+      });
+    }
+    if (insights?.lots) {
+      Object.values(insights.lots).filter(i => i.type === 'alert' || i.type === 'warning').slice(0, 2).forEach(insight => {
+        actions.push({
+          type: insight.type as 'alert' | 'warning', icon: insight.icon ?? '⚠️',
+          text: insight.text,
+          cta: { label: 'Voir les lots', onClick: onGoToLots },
+        });
+      });
+    }
+    return actions;
+  }, [documents, lots, insights, onAddDoc, onGoToLots, onGoToAnalyse, onGoToBudget]);
+
+  return (
+    <div className="max-w-2xl mx-auto px-6 py-7">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+          <Bot className="h-5 w-5 text-violet-500" />
+        </div>
+        <div>
+          <h2 className="font-bold text-gray-900">Votre maître d'œuvre digital</h2>
+          <p className="text-xs text-gray-400">Priorités et actions pour votre chantier</p>
+        </div>
+      </div>
+      {insightsLoading && contextActions.length === 0 ? (
+        <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="h-20 rounded-2xl bg-white border border-gray-100 animate-pulse" />)}</div>
+      ) : contextActions.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <CheckCircle2 className="h-10 w-10 text-emerald-400 mx-auto mb-4" />
+          <p className="font-bold text-gray-900 mb-2">Tout est sous contrôle 🎉</p>
+          <p className="text-sm text-gray-400 leading-relaxed max-w-xs">Aucune action urgente. Continuez à alimenter votre chantier avec vos devis et factures.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {contextActions.map((action, i) => {
+            const s = IS[action.type];
+            return (
+              <div key={i} className={`rounded-2xl border border-l-4 ${s.accent} ${s.border} ${s.bg} overflow-hidden`}>
+                <div className="px-5 py-4">
+                  <div className="flex items-start gap-3">
+                    <span className="text-base leading-none shrink-0 mt-0.5">{action.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-bold ${s.text} leading-snug`}>{action.text}</p>
+                      {action.sub && <p className={`text-xs ${s.text} opacity-70 mt-1 leading-relaxed`}>{action.sub}</p>}
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <button onClick={action.cta.onClick}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+                        action.type === 'success' ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        : action.type === 'alert' ? 'bg-red-600 hover:bg-red-700 text-white'
+                        : action.type === 'warning' ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                      }`}>
+                      {action.cta.label} →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <div className="mt-6 bg-white rounded-2xl border border-gray-100 px-5 py-4">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Prochaine étape recommandée</p>
+        <p className="text-sm font-medium text-gray-800 mb-3">
+          {result.roadmap && result.roadmap.length > 0
+            ? result.roadmap[0]?.titre ?? 'Démarrer la planification'
+            : 'Obtenir vos premiers devis artisans'}
+        </p>
+        <div className="flex gap-2">
+          <button onClick={onGoToLots} className="text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors">Voir les lots →</button>
+          <button onClick={onGoToAnalyse} className="text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors">Analyser un devis →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Props & composant principal ───────────────────────────────────────────────
 
 interface Props {
@@ -798,11 +1176,12 @@ export default function DashboardUnified({ result, chantierId, token }: Props) {
 
       case 'analyse':
         return (
-          <ComingSoon
-            section="Analyse des devis"
-            icon={FileSearch}
-            description="Importez vos devis pour les comparer aux prix du marché et détecter les surcoûts automatiquement."
-            cta={{ label: 'Analyser un devis maintenant', href: '/nouvelle-analyse' }}
+          <AnalyseDevisSection
+            documents={documents}
+            lots={lots}
+            insights={insights}
+            insightsLoading={insightsLoading}
+            onAddDoc={() => setUploadModal({ open: true })}
           />
         );
 
@@ -842,40 +1221,24 @@ export default function DashboardUnified({ result, chantierId, token }: Props) {
 
       case 'assistant':
         return (
-          <div className="max-w-3xl mx-auto px-6 py-7">
-            <h2 className="font-semibold text-gray-900 mb-5">Assistant chantier</h2>
-            {insightsLoading ? (
-              <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="h-16 rounded-2xl bg-white border border-gray-100 animate-pulse" />)}</div>
-            ) : (insights?.global ?? []).length === 0 ? (
-              <ComingSoon
-                section="Insights intelligents"
-                icon={Bot}
-                description="L'assistant analyse vos devis, factures et planning pour détecter les risques et opportunités."
-                cta={{ label: 'Ajouter un premier devis', onClick: () => setUploadModal({ open: true }) }}
-              />
-            ) : (
-              <div className="space-y-3">
-                {[...(insights?.global ?? []), ...Object.values(insights?.lots ?? {})].map((item, i) => {
-                  const s = IS[item.type];
-                  return (
-                    <div key={i} className={`flex items-start gap-3 px-5 py-4 rounded-2xl border border-l-4 ${s.accent} ${s.border} ${s.bg}`}>
-                      {item.icon && <span className="text-base leading-none shrink-0">{item.icon}</span>}
-                      <p className={`text-sm font-medium ${s.text}`}>{item.text}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <AssistantChantierSection
+            result={result}
+            documents={documents}
+            lots={lots}
+            insights={insights}
+            insightsLoading={insightsLoading}
+            onAddDoc={() => setUploadModal({ open: true })}
+            onGoToLots={() => navigateTo('lots')}
+            onGoToAnalyse={() => navigateTo('analyse')}
+            onGoToBudget={() => navigateTo('budget')}
+          />
         );
 
       case 'diy':
         return (
-          <ComingSoon
-            section="Travaux DIY"
-            icon={Wrench}
-            description="Ajoutez vos factures de matériaux et photos de chantier pour calculer automatiquement vos économies."
-            cta={{ label: 'Ajouter une facture matériaux', onClick: () => { setUploadModal({ open: true }); } }}
+          <TravauxDIYSection
+            documents={documents}
+            onAddDoc={() => setUploadModal({ open: true })}
           />
         );
 
@@ -913,7 +1276,7 @@ export default function DashboardUnified({ result, chantierId, token }: Props) {
   const SECTION_TITLES: Record<Section, string> = {
     budget: 'Budget & trésorerie', lots: 'Lots de travaux', analyse: 'Analyse des devis',
     planning: 'Planning', documents: 'Documents', assistant: 'Assistant chantier',
-    diy: 'Travaux DIY', settings: 'Paramètres',
+    diy: 'Travaux réalisés par vous', settings: 'Paramètres',
   };
 
   return (
