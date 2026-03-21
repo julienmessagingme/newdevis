@@ -93,7 +93,7 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
   const canSubmit = description.trim().length > 0 && !isLoading;
 
   return (
-    <div className="relative min-h-screen flex flex-col items-center justify-center px-4 overflow-hidden">
+    <div className="relative min-h-screen flex flex-col items-center justify-center px-4 overflow-hidden pb-[env(safe-area-inset-bottom,16px)]">
 
       {/* ── Image de fond ────────────────────────────────────────────────── */}
       <div
@@ -114,10 +114,10 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
       )}
 
       {/* ── Lien retour ──────────────────────────────────────────────────── */}
-      <div className="absolute top-6 left-6 z-10">
+      <div className="absolute top-[env(safe-area-inset-top,24px)] left-4 sm:left-6 z-10 mt-2">
         <a
           href="/mon-chantier"
-          className="inline-flex items-center gap-1.5 text-white/60 hover:text-white text-sm transition-all duration-200 group"
+          className="inline-flex items-center gap-1.5 text-white/80 hover:text-white text-sm transition-all duration-200 group"
         >
           <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
           Mes chantiers
@@ -125,8 +125,8 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
       </div>
 
       {/* ── Indicateur heure (discret, coin sup droit) ────────────────────── */}
-      <div className="absolute top-6 right-6 z-10">
-        <span className="text-white/25 text-xs tabular-nums">
+      <div className="absolute top-[env(safe-area-inset-top,24px)] right-4 sm:right-6 z-10 mt-2">
+        <span className="text-white/40 text-xs tabular-nums hidden sm:block">
           {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
         </span>
       </div>
@@ -138,20 +138,20 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
       >
 
         {/* Titre */}
-        <div className="text-center mb-10">
+        <div className="text-center mb-7 sm:mb-10">
           <h1
-            className="text-5xl sm:text-6xl font-extrabold text-white tracking-tight leading-[1.06] mb-5"
-            style={{ textShadow: '0 2px 20px rgba(0,0,0,0.55)' }}
+            className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white tracking-tight leading-[1.06] mb-4 sm:mb-5"
+            style={{ textShadow: '0 2px 24px rgba(0,0,0,0.75), 0 1px 6px rgba(0,0,0,0.60)' }}
           >
             Pilotez votre projet<br />comme un pro
           </h1>
           <p
-            className="text-white text-lg max-w-lg mx-auto leading-relaxed inline-block px-4 py-2 rounded-xl"
+            className="text-white text-base sm:text-lg max-w-lg mx-auto leading-relaxed inline-block px-4 py-2 rounded-xl"
             style={{
-              textShadow: '0 1px 12px rgba(0,0,0,0.9), 0 2px 30px rgba(0,0,0,0.8)',
-              background: 'rgba(0,0,0,0.22)',
-              backdropFilter: 'blur(6px)',
-              WebkitBackdropFilter: 'blur(6px)',
+              textShadow: '0 1px 8px rgba(0,0,0,0.95), 0 2px 24px rgba(0,0,0,0.90)',
+              background: 'rgba(0,0,0,0.38)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
             }}
           >
             Transformez votre projet en un chantier maîtrisé,
@@ -164,20 +164,20 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
           className="rounded-2xl overflow-hidden"
           style={{
             background: slot === 'night'
-              ? 'rgba(20, 15, 5, 0.55)'
+              ? 'rgba(20, 15, 5, 0.65)'
               : slot === 'sunset'
-              ? 'rgba(30, 12, 0, 0.40)'
-              : 'rgba(255, 255, 255, 0.10)',
+              ? 'rgba(30, 12, 0, 0.52)'
+              : 'rgba(255, 255, 255, 0.15)',
             backdropFilter: 'blur(24px)',
             WebkitBackdropFilter: 'blur(24px)',
             border: slot === 'night'
-              ? '1px solid rgba(255,200,80,0.18)'
+              ? '1px solid rgba(255,200,80,0.22)'
               : slot === 'sunset'
-              ? '1px solid rgba(255,160,60,0.22)'
-              : '1px solid rgba(255,255,255,0.22)',
+              ? '1px solid rgba(255,160,60,0.28)'
+              : '1px solid rgba(255,255,255,0.28)',
             boxShadow: slot === 'night'
-              ? '0 12px 50px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,180,60,0.06)'
-              : '0 10px 50px rgba(0,0,0,0.38)',
+              ? '0 12px 50px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,180,60,0.08)'
+              : '0 10px 50px rgba(0,0,0,0.50)',
           }}
         >
           <textarea
@@ -185,27 +185,26 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
             onChange={(e) => setDescription(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Décrivez votre projet (ex : piscine avec terrasse bois et pergola)"
-            className="w-full bg-transparent text-white placeholder-white/45 text-base sm:text-lg resize-none px-6 pt-6 pb-3 outline-none min-h-[130px] leading-relaxed"
+            className="w-full bg-transparent text-white placeholder-white/55 text-base sm:text-lg resize-none px-4 sm:px-6 pt-5 sm:pt-6 pb-3 outline-none min-h-[100px] sm:min-h-[130px] leading-relaxed"
             style={{ caretColor: 'rgba(255,255,255,0.85)' }}
             maxLength={500}
-            autoFocus
           />
-          <div className="flex items-center justify-between px-6 pb-5 pt-1 gap-3">
-            <span className="text-xs text-white/40 select-none tabular-nums">
+          <div className="flex items-center justify-between px-4 sm:px-6 pb-4 sm:pb-5 pt-1 gap-3">
+            <span className="text-xs text-white/60 select-none tabular-nums">
               {description.length}/500
               {description.length > 0 && (
-                <span className="text-white/28 ml-1.5">· Entrée pour valider</span>
+                <span className="text-white/50 ml-1.5 hidden sm:inline">· Entrée pour valider</span>
               )}
             </span>
             <button
               onClick={handleSubmit}
               disabled={!canSubmit}
-              className="shrink-0 flex items-center gap-2 font-semibold rounded-xl px-6 py-3 text-sm transition-all duration-200"
+              className="shrink-0 flex items-center gap-2 font-semibold rounded-xl px-5 sm:px-6 py-3 text-sm transition-all duration-200"
               style={{
                 background: canSubmit
                   ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)'
-                  : 'rgba(255,255,255,0.10)',
-                color: canSubmit ? '#fff' : 'rgba(255,255,255,0.30)',
+                  : 'rgba(255,255,255,0.12)',
+                color: canSubmit ? '#fff' : 'rgba(255,255,255,0.40)',
                 boxShadow: canSubmit ? '0 4px 20px rgba(37,99,235,0.50)' : 'none',
                 cursor: canSubmit ? 'pointer' : 'not-allowed',
               }}
@@ -223,24 +222,24 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
         </div>
 
         {/* ── Exemples cliquables ───────────────────────────────────────── */}
-        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-          <span className="text-white/55 text-xs font-medium">Exemples :</span>
+        <div className="mt-4 sm:mt-5 flex flex-wrap items-center justify-center gap-2">
+          <span className="text-white/70 text-xs font-medium">Exemples :</span>
           {EXAMPLES.map((ex) => (
             <button
               key={ex}
               onClick={() => setDescription(ex)}
-              className="text-xs text-white/75 hover:text-white border rounded-full px-4 py-1.5 transition-all duration-150"
+              className="text-xs text-white/85 hover:text-white border rounded-full px-3 sm:px-4 py-1.5 transition-all duration-150"
               style={{
-                background: 'rgba(255,255,255,0.06)',
-                borderColor: 'rgba(255,255,255,0.14)',
+                background: 'rgba(255,255,255,0.10)',
+                borderColor: 'rgba(255,255,255,0.22)',
               }}
               onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.12)';
-                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.24)';
+                (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.18)';
+                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.35)';
               }}
               onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)';
-                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.14)';
+                (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.10)';
+                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.22)';
               }}
             >
               {ex}
@@ -249,7 +248,7 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
         </div>
 
         {/* ── Crédibilité ──────────────────────────────────────────────── */}
-        <p className="text-center text-white/45 text-xs mt-8 tracking-wide">
+        <p className="text-center text-white/65 text-xs mt-6 sm:mt-8 tracking-wide">
           +2 000 projets analysés · basé sur des milliers de devis réels
         </p>
       </div>

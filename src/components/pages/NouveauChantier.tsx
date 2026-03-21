@@ -4,22 +4,19 @@ import { createClient } from '@supabase/supabase-js';
 import { Loader2 } from 'lucide-react';
 import ScreenPrompt from '@/components/chantier/nouveau/ScreenPrompt';
 import ScreenGenerating from '@/components/chantier/nouveau/ScreenGenerating';
-import ScreenQualification from '@/components/chantier/nouveau/ScreenQualification';
-import type { ChantierIAResult, ChantierGuideForm, FollowUpQuestion } from '@/types/chantier-ia';
+import type { ChantierIAResult, ChantierGuideForm } from '@/types/chantier-ia';
 
 const supabase = createClient(
   import.meta.env.PUBLIC_SUPABASE_URL,
   import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY,
 );
 
-type Ecran = 'prompt' | 'qualification' | 'generating' | 'saving';
+type Ecran = 'prompt' | 'generating' | 'saving';
 
 export default function NouveauChantier() {
-  const [ecran, setEcran]               = useState<Ecran>('prompt');
-  const [requestBody, setRequestBody]   = useState('');
-  const [isQualifying, setIsQualifying] = useState(false);
-  const [qualificationQuestions, setQualificationQuestions] = useState<FollowUpQuestion[]>([]);
-  const [currentDescription, setCurrentDescription] = useState('');
+  const [ecran, setEcran]             = useState<Ecran>('prompt');
+  const [requestBody, setRequestBody] = useState('');
+  const [isLoading, setIsLoading]     = useState(false);
   const startTimeRef = useRef<number>(0);
 
   const getToken = useCallback(async (): Promise<string | null> => {
@@ -27,7 +24,7 @@ export default function NouveauChantier() {
     return session?.access_token ?? null;
   }, []);
 
-  // ── Étape 1 : saisie de la description ────────────────────────────────────
+  // ── Étape 1 : saisie de la description → génération directe ───────────────
   const handleGenerate = useCallback(
     async (description: string, mode: 'libre' | 'guide', guidedForm?: ChantierGuideForm) => {
       const token = await getToken();
@@ -37,58 +34,13 @@ export default function NouveauChantier() {
         return;
       }
 
-      if (mode === 'guide') {
-        startTimeRef.current = Date.now();
-        setRequestBody(JSON.stringify({ description, mode, guidedForm }));
-        setEcran('generating');
-        return;
-      }
-
-      // Mode libre → qualification contextuelle d'abord
-      setIsQualifying(true);
-      try {
-        let questions: FollowUpQuestion[] = [];
-        try {
-          const supabaseUrl    = import.meta.env.PUBLIC_SUPABASE_URL;
-          const supabaseAnon   = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-          const res = await fetch(`${supabaseUrl}/functions/v1/chantier-qualifier`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, apikey: supabaseAnon },
-            body: JSON.stringify({ description }),
-          });
-          if (res.ok) { const d = await res.json(); questions = d.questions ?? []; }
-        } catch { /* non bloquant */ }
-
-        if (questions.length > 0) {
-          setCurrentDescription(description);
-          setQualificationQuestions(questions);
-          setEcran('qualification');
-        } else {
-          startTimeRef.current = Date.now();
-          setRequestBody(JSON.stringify({ description, mode }));
-          setEcran('generating');
-        }
-      } finally {
-        setIsQualifying(false);
-      }
+      setIsLoading(true);
+      startTimeRef.current = Date.now();
+      setRequestBody(JSON.stringify({ description, mode, ...(guidedForm ? { guidedForm } : {}) }));
+      setEcran('generating');
+      setIsLoading(false);
     },
     [getToken],
-  );
-
-  // ── Étape 2 (optionnelle) : réponses qualification ─────────────────────────
-  const handleQualificationSubmit = useCallback(
-    async (answers: Record<string, string>) => {
-      const token = await getToken();
-      if (!token) {
-        toast.error('Session expirée, veuillez vous reconnecter');
-        window.location.href = '/connexion?redirect=/mon-chantier/nouveau';
-        return;
-      }
-      startTimeRef.current = Date.now();
-      setRequestBody(JSON.stringify({ description: currentDescription, mode: 'libre', qualificationAnswers: answers }));
-      setEcran('generating');
-    },
-    [getToken, currentDescription],
   );
 
   // ── Étape 3 : génération terminée → sauvegarder → rediriger ───────────────
@@ -133,18 +85,7 @@ export default function NouveauChantier() {
 
   // ── Rendu ──────────────────────────────────────────────────────────────────
   if (ecran === 'prompt') {
-    return <ScreenPrompt onGenerate={handleGenerate} isLoading={isQualifying} />;
-  }
-
-  if (ecran === 'qualification') {
-    return (
-      <ScreenQualification
-        questions={qualificationQuestions}
-        description={currentDescription}
-        onSubmit={handleQualificationSubmit}
-        onBack={() => setEcran('prompt')}
-      />
-    );
+    return <ScreenPrompt onGenerate={handleGenerate} isLoading={isLoading} />;
   }
 
   if (ecran === 'generating') {
