@@ -51,12 +51,6 @@ export const GET: APIRoute = async ({ params, request }) => {
     .eq('chantier_id', chantierId)
     .order('created_at', { ascending: false });
 
-  // Artisans des devis chantier
-  const { data: devisArtisans } = await ctx.supabase
-    .from('devis_chantier')
-    .select('id, artisan_nom, artisan_email, artisan_phone, artisan_siret, lot_id, type_travaux, analyse_id')
-    .eq('chantier_id', chantierId);
-
   // Analyses complétées du user — source principale des infos entreprise
   const { data: analyses } = await ctx.supabase
     .from('analyses')
@@ -72,32 +66,41 @@ export const GET: APIRoute = async ({ params, request }) => {
     .eq('chantier_id', chantierId)
     .in('document_type', ['devis', 'facture']);
 
-  // Index analyse_id → lot_id — croisement multi-sources
-  const devisLotMap = new Map<string, string>();
+  // TOUS les devis_chantier du user (pas juste ce chantier) pour croiser nom fichier → analyse_id
+  const { data: allDevis } = await ctx.supabase
+    .from('devis_chantier')
+    .select('artisan_nom, analyse_id, lot_id')
+    .eq('user_id', ctx.user.id);
 
-  // Source 1 : devis_chantier (lot_id direct)
-  for (const d of devisArtisans ?? []) {
-    if (d.analyse_id && d.lot_id) devisLotMap.set(d.analyse_id, d.lot_id);
+  // ── Croisement : trouver le lot_id pour chaque analyse ────────────────
+  // Étape 1 : map nom de fichier → analyse_id (depuis tous les devis du user)
+  const nameToAnalyseId = new Map<string, string>();
+  for (const d of allDevis ?? []) {
+    if (d.analyse_id) nameToAnalyseId.set(d.artisan_nom.toLowerCase().trim(), d.analyse_id);
   }
 
-  // Source 2 : documents_chantier (lot_id via document rattaché)
-  // Croise par analyse_id direct OU par nom de fichier → devis_chantier.analyse_id
-  const docLotByName = new Map<string, string>();
+  // Étape 2 : map analyse_id → lot_id (depuis documents de CE chantier)
+  const analyseLotMap = new Map<string, string>();
   for (const doc of docChantier ?? []) {
-    if (doc.lot_id) {
-      if (doc.analyse_id) devisLotMap.set(doc.analyse_id, doc.lot_id);
-      if (doc.nom) docLotByName.set(doc.nom.toLowerCase().trim(), doc.lot_id);
+    if (!doc.lot_id) continue;
+    // Lien direct par analyse_id
+    if (doc.analyse_id) {
+      analyseLotMap.set(doc.analyse_id, doc.lot_id);
+      continue;
     }
+    // Lien par nom de fichier → devis_chantier → analyse_id
+    const analyseId = nameToAnalyseId.get(doc.nom.toLowerCase().trim());
+    if (analyseId) analyseLotMap.set(analyseId, doc.lot_id);
   }
-  // Croise devis_chantier.artisan_nom → documents_chantier.nom pour récupérer le lot_id
-  for (const d of devisArtisans ?? []) {
-    if (d.analyse_id && !devisLotMap.has(d.analyse_id)) {
-      const lotId = docLotByName.get(d.artisan_nom.toLowerCase().trim());
-      if (lotId) devisLotMap.set(d.analyse_id, lotId);
+
+  // Étape 3 : aussi depuis devis_chantier.lot_id direct (ce chantier)
+  for (const d of allDevis ?? []) {
+    if (d.analyse_id && d.lot_id && !analyseLotMap.has(d.analyse_id)) {
+      analyseLotMap.set(d.analyse_id, d.lot_id);
     }
   }
 
-  // Extraire les artisans des analyses (nom, siret, email, tel depuis raw_text)
+  // ── Extraire les artisans des analyses ────────────────────────────────
   const analyseArtisans: {
     analyse_id: string; nom: string; nom_officiel: string | null;
     siret: string | null; email: string | null; telephone: string | null;
@@ -115,7 +118,7 @@ export const GET: APIRoute = async ({ params, request }) => {
         siret: ent.siret || null,
         email: ent.email || null,
         telephone: ent.telephone || null,
-        lot_id: devisLotMap.get(a.id) || null,
+        lot_id: analyseLotMap.get(a.id) || null,
       });
     } catch { /* skip malformed */ }
   }
@@ -126,26 +129,9 @@ export const GET: APIRoute = async ({ params, request }) => {
     .select('id, nom')
     .eq('chantier_id', chantierId);
 
-  // Documents devis/facture rattachés à un lot (source supplémentaire)
-  const docContacts: {
-    doc_id: string; nom: string; lot_id: string | null;
-    analyse_id: string | null; document_type: string;
-  }[] = [];
-  for (const doc of docChantier ?? []) {
-    docContacts.push({
-      doc_id: doc.id,
-      nom: doc.nom,
-      lot_id: doc.lot_id,
-      analyse_id: doc.analyse_id,
-      document_type: doc.document_type,
-    });
-  }
-
   return new Response(JSON.stringify({
     contacts: contacts ?? [],
-    devisArtisans: devisArtisans ?? [],
     analyseArtisans,
-    docContacts,
     lots: lots ?? [],
   }), { headers: CORS });
 };

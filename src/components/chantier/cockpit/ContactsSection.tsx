@@ -26,17 +26,6 @@ interface Contact {
   created_at: string;
 }
 
-interface DevisArtisan {
-  id: string;
-  artisan_nom: string;
-  artisan_email: string | null;
-  artisan_phone: string | null;
-  artisan_siret: string | null;
-  lot_id: string | null;
-  type_travaux: string;
-  analyse_id: string | null;
-}
-
 interface AnalyseArtisan {
   analyse_id: string;
   nom: string;
@@ -45,14 +34,6 @@ interface AnalyseArtisan {
   email: string | null;
   telephone: string | null;
   lot_id: string | null;
-}
-
-interface DocContact {
-  doc_id: string;
-  nom: string;
-  lot_id: string | null;
-  analyse_id: string | null;
-  document_type: string;
 }
 
 interface Lot {
@@ -86,9 +67,7 @@ interface UnifiedContact {
 
 export default function ContactsSection({ chantierId, token }: Props) {
   const [contacts, setContacts]               = useState<Contact[]>([]);
-  const [devisArtisans, setDevisArtisans]     = useState<DevisArtisan[]>([]);
   const [analyseArtisans, setAnalyseArtisans] = useState<AnalyseArtisan[]>([]);
-  const [docContacts, setDocContacts]         = useState<DocContact[]>([]);
   const [lots, setLots]                       = useState<Lot[]>([]);
   const [loading, setLoading]           = useState(true);
   const [search, setSearch]             = useState('');
@@ -105,9 +84,7 @@ export default function ContactsSection({ chantierId, token }: Props) {
     if (!res.ok) return;
     const data = await res.json();
     setContacts(data.contacts ?? []);
-    setDevisArtisans(data.devisArtisans ?? []);
     setAnalyseArtisans(data.analyseArtisans ?? []);
-    setDocContacts(data.docContacts ?? []);
     setLots(data.lots ?? []);
     setLoading(false);
   }, [chantierId, token]);
@@ -147,9 +124,8 @@ export default function ContactsSection({ chantierId, token }: Props) {
       });
     }
 
-    // 2) Artisans from analyses (primary source — real company names + SIRET)
+    // 2) Artisans from analyses (deduplicated by SIRET then name)
     for (const a of analyseArtisans) {
-      // Deduplicate by SIRET first, then by name
       if (a.siret && seenSirets.has(a.siret)) continue;
       const nameKey = a.nom.toLowerCase();
       if (seenNames.has(nameKey)) continue;
@@ -172,54 +148,8 @@ export default function ContactsSection({ chantierId, token }: Props) {
       });
     }
 
-    // 3) Artisans from devis_chantier (fallback — only if not already seen)
-    for (const d of devisArtisans) {
-      if (d.artisan_siret && seenSirets.has(d.artisan_siret)) continue;
-      const nameKey = d.artisan_nom.toLowerCase();
-      if (seenNames.has(nameKey)) continue;
-      if (d.artisan_siret) seenSirets.add(d.artisan_siret);
-      seenNames.add(nameKey);
-
-      result.push({
-        id: `devis-${d.id}`,
-        nom: d.artisan_nom,
-        email: d.artisan_email,
-        telephone: d.artisan_phone,
-        siret: d.artisan_siret,
-        role: d.type_travaux || null,
-        lotId: d.lot_id,
-        lotNom: d.lot_id ? lotMap.get(d.lot_id) ?? null : null,
-        source: 'devis',
-        analyseId: d.analyse_id,
-        devisId: d.id,
-        dbContact: null,
-      });
-    }
-
-    // 4) Documents devis/facture rattachés à un lot (même sans analyse)
-    for (const doc of docContacts) {
-      const nameKey = doc.nom.toLowerCase().trim();
-      if (seenNames.has(nameKey)) continue;
-      seenNames.add(nameKey);
-
-      result.push({
-        id: `doc-${doc.doc_id}`,
-        nom: doc.nom,
-        email: null,
-        telephone: null,
-        siret: null,
-        role: null,
-        lotId: doc.lot_id,
-        lotNom: doc.lot_id ? lotMap.get(doc.lot_id) ?? null : null,
-        source: doc.document_type === 'facture' ? 'devis' : 'devis',
-        analyseId: doc.analyse_id,
-        devisId: null,
-        dbContact: null,
-      });
-    }
-
     return result;
-  }, [contacts, devisArtisans, analyseArtisans, docContacts, lotMap]);
+  }, [contacts, analyseArtisans, lotMap]);
 
   // ── Filtered list ─────────────────────────────────────────────────────
 
