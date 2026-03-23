@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Plus, Phone, Mail, ExternalLink, Building2, X, Loader2,
-  Pencil, Trash2, Link2, User, Search, FileText,
+  Pencil, Trash2, Link2, User, Search, FileText, Layers,
 } from 'lucide-react';
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -297,6 +297,10 @@ export default function ContactsSection({ chantierId, token }: Props) {
             <ContactCard
               key={c.id}
               contact={c}
+              lots={lots}
+              chantierId={chantierId}
+              token={token}
+              onSaved={fetchContacts}
               onEdit={() => { setEditContact(c); setShowForm(true); }}
               onDelete={c.dbContact ? () => handleDelete(c.id) : undefined}
             />
@@ -318,10 +322,76 @@ export default function ContactsSection({ chantierId, token }: Props) {
   );
 }
 
+// ── Inline editable field ────────────────────────────────────────────────────
+
+function InlineField({ icon: Icon, value, placeholder, type, onChange }: {
+  icon: React.ElementType;
+  value: string;
+  placeholder: string;
+  type?: string;
+  onChange: (v: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft]     = useState(value);
+
+  function commit() {
+    setEditing(false);
+    if (draft.trim() !== value) onChange(draft.trim());
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-2">
+        <Icon className="h-3.5 w-3.5 shrink-0 text-blue-400" />
+        <input
+          autoFocus type={type ?? 'text'} value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setDraft(value); setEditing(false); } }}
+          className="flex-1 min-w-0 text-sm border border-blue-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-100"
+          placeholder={placeholder}
+        />
+      </div>
+    );
+  }
+
+  if (value) {
+    const Tag = type === 'email' ? 'a' : type === 'tel' ? 'a' : 'span';
+    const href = type === 'email' ? `mailto:${value}` : type === 'tel' ? `tel:${value}` : undefined;
+    return (
+      <div className="flex items-center gap-2 group/field">
+        <Icon className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+        <Tag {...(href ? { href } : {})} className="text-sm text-gray-700 hover:text-blue-600 transition-colors truncate flex-1 min-w-0">
+          {value}
+        </Tag>
+        <button onClick={() => setEditing(true)} className="opacity-0 group-hover/field:opacity-100 transition-opacity">
+          <Pencil className="h-3 w-3 text-gray-300 hover:text-blue-500" />
+        </button>
+      </div>
+    );
+  }
+
+  // Empty — show prominent CTA to fill in
+  return (
+    <button
+      onClick={() => setEditing(true)}
+      className="flex items-center gap-2 w-full text-left px-2.5 py-2 rounded-lg border border-dashed border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all"
+    >
+      <Icon className="h-3.5 w-3.5 shrink-0 text-gray-300" />
+      <span className="text-sm text-gray-400 italic">{placeholder}</span>
+      <Plus className="h-3 w-3 text-gray-300 ml-auto" />
+    </button>
+  );
+}
+
 // ── ContactCard ─────────────────────────────────────────────────────────────
 
-function ContactCard({ contact: c, onEdit, onDelete }: {
+function ContactCard({ contact: c, lots, chantierId, token, onSaved, onEdit, onDelete }: {
   contact: UnifiedContact;
+  lots: Lot[];
+  chantierId: string;
+  token: string;
+  onSaved: () => void;
   onEdit: () => void;
   onDelete?: () => void;
 }) {
@@ -331,17 +401,44 @@ function ContactCard({ contact: c, onEdit, onDelete }: {
     ? { label: 'Facture', style: 'bg-emerald-50 text-emerald-600' }
     : { label: 'Manuel', style: 'bg-gray-100 text-gray-500' };
 
+  // Quick-save a single field (upsert contact if needed)
+  async function quickSave(field: string, value: string) {
+    if (c.dbContact) {
+      // Update existing
+      await fetch(`/api/chantier/${chantierId}/contacts`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactId: c.id, [field]: value }),
+      });
+    } else {
+      // Create from analyse/devis source
+      await fetch(`/api/chantier/${chantierId}/contacts`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nom: c.nom, email: c.email, telephone: c.telephone, siret: c.siret,
+          role: c.role, lot_id: c.lotId,
+          source: c.source === 'analyse' ? 'devis' : c.source,
+          analyse_id: c.analyseId,
+          devis_id: c.devisId ? (c.devisId.startsWith('devis-') ? c.devisId.slice(6) : c.devisId) : null,
+          [field]: value,
+        }),
+      });
+    }
+    onSaved();
+  }
+
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-sm transition-shadow group">
-      {/* Top row */}
-      <div className="flex items-start justify-between mb-3">
+      {/* Header — nom + badge */}
+      <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-500 shrink-0">
+          <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-sm font-bold text-blue-600 shrink-0">
             {c.nom.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
             <p className="font-semibold text-sm text-gray-900 truncate">{c.nom}</p>
-            {c.role && <p className="text-xs text-gray-400 truncate">{c.role}</p>}
+            {c.siret && <p className="text-[11px] text-gray-400 font-mono">SIRET {c.siret}</p>}
           </div>
         </div>
         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap ${sourceBadge.style}`}>
@@ -349,35 +446,40 @@ function ContactCard({ contact: c, onEdit, onDelete }: {
         </span>
       </div>
 
-      {/* Contact info */}
-      <div className="space-y-1.5 mb-3">
-        {c.email && (
-          <a href={`mailto:${c.email}`} className="flex items-center gap-2 text-xs text-gray-500 hover:text-blue-600 transition-colors truncate">
-            <Mail className="h-3 w-3 shrink-0 text-gray-300" /> {c.email}
-          </a>
-        )}
-        {c.telephone && (
-          <a href={`tel:${c.telephone}`} className="flex items-center gap-2 text-xs text-gray-500 hover:text-blue-600 transition-colors">
-            <Phone className="h-3 w-3 shrink-0 text-gray-300" /> {c.telephone}
-          </a>
-        )}
-        {c.siret && (
-          <div className="flex items-center gap-2 text-xs text-gray-400">
-            <Building2 className="h-3 w-3 shrink-0 text-gray-300" /> SIRET {c.siret}
-          </div>
-        )}
-        {!c.email && !c.telephone && (
-          <p className="text-xs text-gray-300 italic">Aucune info de contact</p>
-        )}
-      </div>
-
-      {/* Lot link */}
-      {c.lotNom && (
-        <div className="flex items-center gap-1.5 mb-3">
-          <Link2 className="h-3 w-3 text-gray-300" />
-          <span className="text-[11px] text-gray-400">Rattaché à <span className="font-medium text-gray-600">{c.lotNom}</span></span>
+      {/* Lot — prominent badge */}
+      {c.lotNom ? (
+        <div className="flex items-center gap-2 mb-3 px-2.5 py-2 rounded-lg bg-purple-50 border border-purple-100">
+          <Layers className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+          <span className="text-xs font-semibold text-purple-700 truncate">{c.lotNom}</span>
         </div>
-      )}
+      ) : lots.length > 0 ? (
+        <div className="mb-3">
+          <select
+            value=""
+            onChange={e => { if (e.target.value) quickSave('lot_id', e.target.value); }}
+            className="w-full text-xs text-gray-400 border border-dashed border-gray-200 rounded-lg px-2.5 py-2 bg-transparent hover:border-purple-300 hover:bg-purple-50/50 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-100"
+          >
+            <option value="">+ Rattacher à un intervenant...</option>
+            {lots.map(l => <option key={l.id} value={l.id}>{l.nom}</option>)}
+          </select>
+        </div>
+      ) : null}
+
+      {/* Phone & Email — inline editable, prominent when empty */}
+      <div className="space-y-2 mb-3">
+        <InlineField
+          icon={Phone} type="tel"
+          value={c.telephone ?? ''}
+          placeholder="+ Ajouter un téléphone"
+          onChange={v => quickSave('telephone', v)}
+        />
+        <InlineField
+          icon={Mail} type="email"
+          value={c.email ?? ''}
+          placeholder="+ Ajouter un email"
+          onChange={v => quickSave('email', v)}
+        />
+      </div>
 
       {/* Devis link */}
       {c.analyseId && (
@@ -385,7 +487,7 @@ function ContactCard({ contact: c, onEdit, onDelete }: {
           href={`/analyse/${c.analyseId}`}
           target="_blank"
           rel="noopener"
-          className="flex items-center gap-1.5 text-[11px] text-blue-500 hover:text-blue-700 mb-3 transition-colors"
+          className="flex items-center gap-1.5 text-[11px] text-blue-500 hover:text-blue-700 mb-2 transition-colors"
         >
           <FileText className="h-3 w-3" /> Voir l'analyse du devis
         </a>
