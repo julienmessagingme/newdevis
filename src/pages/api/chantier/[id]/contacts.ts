@@ -100,7 +100,37 @@ export const GET: APIRoute = async ({ params, request }) => {
     }
   }
 
-  // ── Extraire les artisans des analyses (dédupliqués par SIRET, lot_id prioritaire) ──
+  // ── Collecter les analyse_id liés à CE chantier ────────────────────────
+  // Via documents_chantier (direct ou par nom de fichier)
+  const chantierAnalyseIds = new Set<string>();
+  for (const doc of docChantier ?? []) {
+    if (doc.analyse_id) chantierAnalyseIds.add(doc.analyse_id);
+    // Par nom de fichier → devis_chantier → analyse_id
+    const aId = nameToAnalyseId.get(doc.nom.toLowerCase().trim());
+    if (aId) chantierAnalyseIds.add(aId);
+  }
+  // Via devis_chantier directement sur ce chantier
+  const { data: chantierDevis } = await ctx.supabase
+    .from('devis_chantier')
+    .select('analyse_id')
+    .eq('chantier_id', chantierId)
+    .not('analyse_id', 'is', null);
+  for (const d of chantierDevis ?? []) {
+    if (d.analyse_id) chantierAnalyseIds.add(d.analyse_id);
+  }
+
+  // Aussi inclure toutes les analyses dont le SIRET correspond à un analyse_id déjà lié
+  const linkedSirets = new Set<string>();
+  for (const a of analyses ?? []) {
+    if (!chantierAnalyseIds.has(a.id)) continue;
+    try {
+      const raw = typeof a.raw_text === 'string' ? JSON.parse(a.raw_text) : a.raw_text;
+      const siret = raw?.extracted?.entreprise?.siret;
+      if (siret) linkedSirets.add(siret);
+    } catch { /* skip */ }
+  }
+
+  // ── Extraire les artisans (seulement ceux liés au chantier, dédupliqués par SIRET) ──
   type ArtisanRow = {
     analyse_id: string; nom: string; nom_officiel: string | null;
     siret: string | null; email: string | null; telephone: string | null;
@@ -114,20 +144,25 @@ export const GET: APIRoute = async ({ params, request }) => {
       const raw = typeof a.raw_text === 'string' ? JSON.parse(a.raw_text) : a.raw_text;
       const ent = raw?.extracted?.entreprise;
       if (!ent?.nom) continue;
+
+      const siret = ent.siret || null;
+      // Filtrer : seulement si cette analyse ou ce SIRET est lié au chantier
+      const isLinked = chantierAnalyseIds.has(a.id) || (siret && linkedSirets.has(siret));
+      if (!isLinked) continue;
+
       const row: ArtisanRow = {
         analyse_id: a.id,
         nom: raw?.verified?.nom_officiel || ent.nom,
         nom_officiel: raw?.verified?.nom_officiel || null,
-        siret: ent.siret || null,
+        siret,
         email: ent.email || null,
         telephone: ent.telephone || null,
         lot_id: analyseLotMap.get(a.id) || null,
       };
 
-      const key = row.siret || row.nom.toLowerCase();
-      const map = row.siret ? bySiret : byName;
+      const key = siret || row.nom.toLowerCase();
+      const map = siret ? bySiret : byName;
       const existing = map.get(key);
-      // Garder l'entrée qui a un lot_id, sinon la plus récente (première dans l'ordre DESC)
       if (!existing) {
         map.set(key, row);
       } else if (row.lot_id && !existing.lot_id) {
@@ -136,7 +171,6 @@ export const GET: APIRoute = async ({ params, request }) => {
     } catch { /* skip malformed */ }
   }
 
-  // Fusionner : retirer de byName ceux déjà dans bySiret
   const seenNames = new Set([...bySiret.values()].map(r => r.nom.toLowerCase()));
   const analyseArtisans = [
     ...bySiret.values(),
