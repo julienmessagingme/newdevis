@@ -136,9 +136,18 @@ function BudgetGauge({ rangeMin, rangeMax, documents }: {
 
 // ── Répartition par lot ───────────────────────────────────────────────────────
 
-function LotBreakdown({ result, documents }: { result: ChantierIAResult; documents: DocumentChantier[] }) {
+function LotBreakdown({ result, documents, rangeMin, rangeMax, onGoToLot, onAddDoc }: {
+  result: ChantierIAResult;
+  documents: DocumentChantier[];
+  rangeMin: number;
+  rangeMax: number;
+  onGoToLot?: (lotId: string) => void;
+  onAddDoc: () => void;
+}) {
   const lots = result.lots ?? [];
-  const totalMax = lots.reduce((s, l) => s + (l.budget_max_ht ?? 0), 0) || 1;
+  const totalMax = lots.reduce((s, l) => s + (l.budget_max_ht ?? 0), 0) || rangeMax || 1;
+  const totalMin = lots.reduce((s, l) => s + (l.budget_min_ht ?? 0), 0);
+  const hasTotalBudget = totalMax > 0 && totalMin > 0;
 
   const lotsWithData = useMemo(() => {
     return lots.map(lot => {
@@ -147,8 +156,9 @@ function LotBreakdown({ result, documents }: { result: ChantierIAResult; documen
       const avg = (min + max) / 2;
       const pctMin = totalMax > 0 ? (min / totalMax) * 100 : 0;
       const pctMax = totalMax > 0 ? (max / totalMax) * 100 : 0;
-      const docCount = documents.filter(d => d.lot_id === lot.id).length;
-      return { ...lot, min, max, avg, pctMin, pctMax, docCount };
+      const devisCount  = documents.filter(d => d.lot_id === lot.id && d.document_type === 'devis').length;
+      const docCount    = documents.filter(d => d.lot_id === lot.id).length;
+      return { ...lot, min, max, avg, pctMin, pctMax, devisCount, docCount };
     }).sort((a, b) => b.avg - a.avg);
   }, [lots, documents, totalMax]);
 
@@ -156,47 +166,78 @@ function LotBreakdown({ result, documents }: { result: ChantierIAResult; documen
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-5">
-      <div className="flex items-center gap-2 mb-5">
-        <Layers className="h-4 w-4 text-gray-400" />
-        <h3 className="font-semibold text-gray-900">Répartition par lot</h3>
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-2">
+          <Layers className="h-4 w-4 text-gray-400" />
+          <h3 className="font-semibold text-gray-900">Vos travaux par métier</h3>
+        </div>
+        <span className="text-[10px] font-semibold text-gray-300 uppercase tracking-wider">
+          {lots.length} métier{lots.length > 1 ? 's' : ''}
+        </span>
       </div>
 
-      <div className="space-y-4">
-        {lotsWithData.map(lot => (
-          <div key={lot.id}>
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="flex items-center gap-2">
-                <span className="text-sm leading-none">{lot.emoji ?? '🔧'}</span>
-                <span className="text-sm font-medium text-gray-800">{lot.nom}</span>
-                {lot.docCount > 0 && (
-                  <span className="text-[10px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
-                    {lot.docCount} doc
+      <div className="space-y-1">
+        {lotsWithData.map(lot => {
+          const statusDot = lot.devisCount === 0
+            ? { color: 'bg-red-400',   label: '0 devis',                  text: 'text-red-600'  }
+            : lot.devisCount === 1
+            ? { color: 'bg-amber-400', label: '1 devis',                  text: 'text-amber-600'}
+            : { color: 'bg-emerald-400', label: `${lot.devisCount} devis`, text: 'text-emerald-600' };
+
+          return (
+            <button key={lot.id}
+              onClick={() => onGoToLot ? onGoToLot(lot.id) : undefined}
+              className={`w-full flex flex-col gap-2 px-3.5 py-3 rounded-xl text-left transition-all ${
+                onGoToLot ? 'hover:bg-gray-50 cursor-pointer' : 'cursor-default'
+              } group`}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-base leading-none shrink-0">{lot.emoji ?? '🔧'}</span>
+                  <span className="text-sm font-medium text-gray-800 truncate">{lot.nom}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-1">
+                    <div className={`w-2 h-2 rounded-full ${statusDot.color}`} />
+                    <span className={`text-[11px] font-semibold ${statusDot.text}`}>{statusDot.label}</span>
+                  </div>
+                  <span className="text-sm font-bold text-gray-700">
+                    {lot.min > 0 ? `${fmtK(lot.min)} – ${fmtK(lot.max)}` : '—'}
                   </span>
+                  {onGoToLot && <ChevronRight className="h-3.5 w-3.5 text-gray-300 group-hover:text-gray-500 transition-colors" />}
+                </div>
+              </div>
+              {/* Barre budget */}
+              <div className="relative h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                {lot.pctMax > 0 && (
+                  <>
+                    <div className="absolute h-full bg-blue-100 rounded-full" style={{ left: 0, width: `${lot.pctMax}%` }} />
+                    <div className="absolute h-full bg-blue-400 rounded-full" style={{ left: 0, width: `${lot.pctMin}%` }} />
+                  </>
                 )}
               </div>
-              <span className="text-sm font-bold text-gray-600">
-                {lot.min > 0 ? `${fmtK(lot.min)} – ${fmtK(lot.max)}` : '—'}
-              </span>
-            </div>
-            {/* Barre avec fourchette min/max */}
-            <div className="relative h-2 bg-gray-100 rounded-full overflow-hidden">
-              {lot.pctMax > 0 && (
-                <>
-                  <div className="absolute h-full bg-blue-100 rounded-full" style={{ left: 0, width: `${lot.pctMax}%` }} />
-                  <div className="absolute h-full bg-blue-400 rounded-full" style={{ left: 0, width: `${lot.pctMin}%` }} />
-                </>
-              )}
-            </div>
-          </div>
-        ))}
+            </button>
+          );
+        })}
       </div>
 
+      {/* Footer */}
       <div className="mt-4 pt-3 border-t border-gray-50 flex items-center justify-between">
-        <span className="text-xs text-gray-400">Budget total observé</span>
-        <span className="text-sm font-bold text-gray-800">
-          {fmtK(lots.reduce((s, l) => s + (l.budget_min_ht ?? 0), 0))} –{' '}
-          {fmtK(lots.reduce((s, l) => s + (l.budget_max_ht ?? 0), 0))}
-        </span>
+        {hasTotalBudget ? (
+          <>
+            <span className="text-xs text-gray-400">Total estimé (marché)</span>
+            <span className="text-sm font-bold text-gray-800">
+              {fmtK(totalMin)} – {fmtK(totalMax)}
+            </span>
+          </>
+        ) : (
+          <div className="flex items-center justify-between w-full">
+            <span className="text-xs text-gray-400">Aucun devis ajouté pour le moment</span>
+            <button onClick={onAddDoc}
+              className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors">
+              + Ajouter un devis
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -228,13 +269,17 @@ function AlertesIA({ insights, loading }: { insights: InsightsData | null; loadi
         <div className="space-y-2">
           {items.map((item, i) => {
             const s = INSIGHT_STYLES[item.type];
+            // Sanitize known bad alert texts
+            const cleanText = item.text
+              .replace(/Aucun document[^\.]*risque de dépassement/gi, 'Aucun devis ajouté — impossible de valider le budget')
+              .replace(/Aucun document[^\.]*budget/gi, 'Aucun devis ajouté — impossible de valider le budget');
             return (
               <div key={i} className={`flex items-start gap-3 px-3.5 py-3 rounded-xl border ${s.bg} ${s.border}`}>
                 {s.icon}
                 <div className="min-w-0">
                   <p className={`text-sm font-medium ${s.text} leading-snug`}>
                     {item.icon && <span className="mr-1">{item.icon}</span>}
-                    {item.text}
+                    {cleanText}
                   </p>
                 </div>
               </div>
@@ -890,12 +935,16 @@ interface Props {
   documents: DocumentChantier[];
   insights: InsightsData | null;
   insightsLoading: boolean;
+  baseRangeMin: number;
+  baseRangeMax: number;
   onAddDoc: () => void;
   onGoToAnalyse: () => void;
   onGoToLots: () => void;
+  onGoToLot?: (lotId: string) => void;
+  onRangeRefined?: (min: number, max: number) => void;
 }
 
-export default function BudgetTresorerie({ result, documents, insights, insightsLoading, onAddDoc, onGoToAnalyse, onGoToLots }: Props) {
+export default function BudgetTresorerie({ result, documents, insights, insightsLoading, baseRangeMin, baseRangeMax, onAddDoc, onGoToAnalyse, onGoToLots, onGoToLot, onRangeRefined }: Props) {
   const lots = result.lots ?? [];
 
   // ── État modal affinage ────────────────────────────────────────────────────
@@ -905,24 +954,16 @@ export default function BudgetTresorerie({ result, documents, insights, insights
   const [affinageScore, setAffinageScore] = useState(0);
   const isImmeuble = (result.nom + ' ' + result.description).toLowerCase().includes('immeuble');
 
-  // ── Détection de l'état budget ────────────────────────────────────────────
+  // ── Budget — utilise la source unique passée en props ─────────────────────
   const hasLotBudget   = lots.some(l => (l.budget_min_ht ?? 0) > 0 || (l.budget_max_ht ?? 0) > 0);
   const hasBudgetTotal = (result.budgetTotal ?? 0) > 5000;
-  const hasAnyBudget   = hasLotBudget || hasBudgetTotal;
+  const hasAnyBudget   = hasLotBudget || hasBudgetTotal || baseRangeMin > 0;
   const hasDevis       = documents.some(d => d.document_type === 'devis');
   const hasFactures    = documents.some(d => d.document_type === 'facture');
 
-  // Fourchette de base UNIQUEMENT depuis les lots (jamais inventée)
-  const baseMin = hasLotBudget
-    ? lots.reduce((s, l) => s + (l.budget_min_ht ?? 0), 0)
-    : hasBudgetTotal ? Math.round(result.budgetTotal * 0.88) : 0;
-  const baseMax = hasLotBudget
-    ? lots.reduce((s, l) => s + (l.budget_max_ht ?? 0), 0)
-    : hasBudgetTotal ? Math.round(result.budgetTotal * 1.15) : 0;
-
-  // Fourchette affichée : affinée après questionnaire, sinon base
-  const rangeMin  = refinedMin ?? baseMin;
-  const rangeMax  = refinedMax ?? baseMax;
+  // Fourchette affichée : affinée après questionnaire, sinon base (source unique depuis parent)
+  const rangeMin  = refinedMin ?? baseRangeMin;
+  const rangeMax  = refinedMax ?? baseRangeMax;
   const hasRange  = rangeMin > 0 || rangeMax > 0;
   const isRefined = refinedMin !== null;
 
@@ -934,6 +975,7 @@ export default function BudgetTresorerie({ result, documents, insights, insights
 
   function handleValidate(min: number, max: number) {
     setRefinedMin(min); setRefinedMax(max); setAffinageScore(6); setModalOpen(false);
+    onRangeRefined?.(min, max);
   }
 
   return (
@@ -941,6 +983,36 @@ export default function BudgetTresorerie({ result, documents, insights, insights
 
       {/* ── Header projet ─────────────────────────────────────────────────── */}
       <ProjectHeader emoji={result.emoji} nom={result.nom} hasAnyBudget={hasAnyBudget} />
+
+      {/* ── 🎯 Prochaine étape ────────────────────────────────────────────── */}
+      {(() => {
+        const lotsNoDocs = lots.filter(l => !documents.some(d => d.lot_id === l.id && d.document_type === 'devis'));
+        const firstLot   = lotsNoDocs[0];
+        if (!hasAnyBudget) return null;
+        const message = devisCount === 0
+          ? firstLot
+            ? `Ajoutez un devis ${firstLot.nom.toLowerCase()} pour valider votre budget`
+            : 'Demandez vos premiers devis artisans'
+          : devisCount === 1
+          ? 'Obtenez 2 devis supplémentaires pour comparer les prix'
+          : firstLot
+          ? `Ajoutez un devis pour le lot : ${firstLot.nom}`
+          : null;
+        if (!message) return null;
+        return (
+          <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
+            <span className="text-xl shrink-0">🎯</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-semibold text-blue-500 uppercase tracking-wider mb-0.5">Prochaine étape</p>
+              <p className="text-sm font-medium text-blue-900 leading-snug">{message}</p>
+            </div>
+            <button onClick={onAddDoc}
+              className="shrink-0 text-xs font-semibold text-blue-700 bg-white border border-blue-200 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition-colors whitespace-nowrap">
+              + Ajouter un devis
+            </button>
+          </div>
+        );
+      })()}
 
       {/* ── État 1 : aucun budget ────────────────────────────────────────── */}
       {!hasAnyBudget && (
@@ -992,7 +1064,7 @@ export default function BudgetTresorerie({ result, documents, insights, insights
       {/* ── Modal affinage budget ─────────────────────────────────────────── */}
       {modalOpen && (
         <BudgetAffinageModal
-          baseMin={baseMin} baseMax={baseMax}
+          baseMin={baseRangeMin} baseMax={baseRangeMax}
           resultNom={result.nom} isImmeuble={isImmeuble}
           onClose={() => setModalOpen(false)}
           onValidate={handleValidate}
@@ -1031,7 +1103,7 @@ export default function BudgetTresorerie({ result, documents, insights, insights
       {/* ── Grille lots + alertes ────────────────────────────────────────── */}
       {hasAnyBudget && (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-          <div className="lg:col-span-3"><LotBreakdown result={result} documents={documents} /></div>
+          <div className="lg:col-span-3"><LotBreakdown result={result} documents={documents} rangeMin={rangeMin} rangeMax={rangeMax} onGoToLot={onGoToLot} onAddDoc={onAddDoc} /></div>
           <div className="lg:col-span-2"><AlertesIA insights={insights} loading={insightsLoading} /></div>
         </div>
       )}

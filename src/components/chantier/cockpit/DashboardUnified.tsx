@@ -99,7 +99,7 @@ function Sidebar({ result, activeSection, onSelect, rangeMin, rangeMax, badges, 
             <div className="min-w-0">
               <p className="font-bold text-sm text-gray-900 leading-tight truncate">{result.nom}</p>
               <p className="text-[11px] text-gray-400 mt-0.5">
-                {fmtK(rangeMin)} – {fmtK(rangeMax)}
+                {displayMin > 0 ? `${fmtK(displayMin)} – ${fmtK(displayMax)}` : 'Budget en cours d\u2019estimation'}
               </p>
             </div>
           </div>
@@ -1033,9 +1033,19 @@ export default function DashboardUnified({ result, chantierId, token }: Props) {
     chantierId, token, documents.length,
   );
 
-  // ── Budget fourchette (jamais prix fixe) ──────────────────────────────────
-  const rangeMin = lots.reduce((s, l) => s + (l.budget_min_ht ?? 0), 0) || Math.round(result.budgetTotal * 0.85);
-  const rangeMax = lots.reduce((s, l) => s + (l.budget_max_ht ?? 0), 0) || Math.round(result.budgetTotal * 1.20);
+  // ── Budget — source unique de vérité ──────────────────────────────────────
+  const hasLotBudget   = lots.some(l => (l.budget_min_ht ?? 0) > 0 || (l.budget_max_ht ?? 0) > 0);
+  const hasBudgetTotal = (result.budgetTotal ?? 0) > 5000;
+  const baseRangeMin = hasLotBudget
+    ? lots.reduce((s, l) => s + (l.budget_min_ht ?? 0), 0)
+    : hasBudgetTotal ? Math.round(result.budgetTotal * 0.88) : 0;
+  const baseRangeMax = hasLotBudget
+    ? lots.reduce((s, l) => s + (l.budget_max_ht ?? 0), 0)
+    : hasBudgetTotal ? Math.round(result.budgetTotal * 1.15) : 0;
+  const [refinedRangeMin, setRefinedRangeMin] = useState<number | null>(null);
+  const [refinedRangeMax, setRefinedRangeMax] = useState<number | null>(null);
+  const displayMin = refinedRangeMin ?? baseRangeMin;
+  const displayMax = refinedRangeMax ?? baseRangeMax;
 
   // ── Documents ─────────────────────────────────────────────────────────────
   const loadDocuments = useCallback(async () => {
@@ -1113,9 +1123,13 @@ export default function DashboardUnified({ result, chantierId, token }: Props) {
             documents={documents}
             insights={insights}
             insightsLoading={insightsLoading}
+            baseRangeMin={baseRangeMin}
+            baseRangeMax={baseRangeMax}
             onAddDoc={() => setUploadModal({ open: true })}
             onGoToAnalyse={() => navigateTo('analyse')}
             onGoToLots={() => navigateTo('lots')}
+            onGoToLot={(lotId) => { setSelectedLotId(lotId); navigateTo('lots'); }}
+            onRangeRefined={(min, max) => { setRefinedRangeMin(min); setRefinedRangeMax(max); }}
           />
         );
 
