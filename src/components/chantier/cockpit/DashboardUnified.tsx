@@ -7,7 +7,8 @@ import { createClient } from '@supabase/supabase-js';
 import {
   Plus, X, Loader2, CheckCircle2, AlertCircle, CloudUpload, FileText,
   Sparkles, Trash2, ArrowLeft, ChevronRight, Wrench, Wallet, Layers,
-  FileSearch, Calendar, FolderOpen, Bot, Settings, Menu, ExternalLink, Receipt, Pencil,
+  FileSearch, Calendar, FolderOpen, Bot, Settings, Menu, ExternalLink,
+  Receipt, Pencil, SlidersHorizontal,
 } from 'lucide-react';
 import type {
   ChantierIAResult, DocumentChantier, DocumentType, LotChantier, StatutArtisan,
@@ -66,13 +67,11 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS: { id: Section; label: string; icon: React.ElementType }[] = [
-  { id: 'budget',    label: 'Budget & trésorerie', icon: Wallet      },
-  { id: 'lots',      label: 'Intervenants',         icon: Layers      },
-  { id: 'analyse',   label: 'Analyse des devis',   icon: FileSearch  },
-  { id: 'planning',  label: 'Planning',             icon: Calendar    },
-  { id: 'documents', label: 'Documents',            icon: FolderOpen  },
-  { id: 'assistant', label: 'Assistant chantier',  icon: Bot         },
-  { id: 'diy',       label: 'Travaux réalisés par vous', icon: Wrench },
+  { id: 'budget',    label: 'Vue d\'ensemble',      icon: Layers      },
+  { id: 'analyse',   label: 'Analyse des devis',    icon: FileSearch  },
+  { id: 'planning',  label: 'Planning',              icon: Calendar    },
+  { id: 'documents', label: 'Documents',             icon: FolderOpen  },
+  { id: 'assistant', label: 'Assistant chantier',   icon: Bot         },
 ];
 
 function Sidebar({ result, activeSection, onSelect, rangeMin, rangeMax, badges, mobileOpen, onCloseMobile, onAmeliorer }: SidebarProps) {
@@ -314,18 +313,261 @@ function LotDetail({ lot, docs, insight, onAddDoc, onDeleteDoc, onBack }: {
   );
 }
 
+// ── Statut artisan ─────────────────────────────────────────────────────────────
+
+const STATUT_STYLE: Record<string, { label: string; pill: string }> = {
+  a_trouver:  { label: 'À trouver',  pill: 'text-gray-500 bg-gray-100'       },
+  a_contacter:{ label: 'À contacter',pill: 'text-blue-700 bg-blue-100'       },
+  ok:         { label: 'Validé ✓',   pill: 'text-emerald-700 bg-emerald-100' },
+};
+
+// ── Lot Intervenant Card (home) ────────────────────────────────────────────────
+
+function LotIntervenantCard({ lot, docs, onAddDevis, onAddFacture, onAddDocument, onDetail }: {
+  lot: LotChantier;
+  docs: DocumentChantier[];
+  onAddDevis: () => void;
+  onAddFacture: () => void;
+  onAddDocument: () => void;
+  onDetail: () => void;
+}) {
+  const statut   = lot.statut ?? 'a_trouver';
+  const sc       = STATUT_STYLE[statut] ?? STATUT_STYLE.a_trouver;
+  const devisCnt = docs.filter(d => d.document_type === 'devis').length;
+  const hasRef   = (lot.budget_min_ht ?? 0) > 0 || (lot.budget_max_ht ?? 0) > 0;
+  const validated = statut === 'ok';
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+
+      {/* ── Nom + budget ───────────────────────────────────── */}
+      <button
+        onClick={onDetail}
+        className="p-5 flex items-start gap-3 text-left hover:bg-gray-50 transition-colors"
+      >
+        <span className="text-xl leading-none pt-0.5 shrink-0">{lot.emoji ?? '🔧'}</span>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-gray-900 text-sm leading-tight truncate">{lot.nom}</p>
+          {hasRef && (
+            <p className="text-xs font-semibold text-gray-500 mt-1 tabular-nums">
+              {fmtK(lot.budget_min_ht ?? 0)} – {fmtK(lot.budget_max_ht ?? 0)}
+            </p>
+          )}
+        </div>
+        <ChevronRight className="h-3.5 w-3.5 text-gray-300 shrink-0 mt-0.5" />
+      </button>
+
+      {/* ── Statut + compteur devis ─────────────────────────── */}
+      <div className="px-5 pb-3 flex items-center gap-2">
+        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${sc.pill}`}>
+          {sc.label}
+        </span>
+        {devisCnt > 0 && (
+          <span className="flex items-center gap-0.5 text-[11px] font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+            <FileText className="h-2.5 w-2.5" /> {devisCnt} devis
+          </span>
+        )}
+      </div>
+
+      {/* ── Jauge (si validé) ───────────────────────────────── */}
+      {validated && (
+        <div className="px-5 pb-3">
+          <div className="h-1.5 w-full rounded-full bg-emerald-100 overflow-hidden">
+            <div className="h-full w-full rounded-full bg-emerald-400" />
+          </div>
+        </div>
+      )}
+
+      {/* ── 3 actions ───────────────────────────────────────── */}
+      <div className="border-t border-gray-50 grid grid-cols-3 divide-x divide-gray-50 mt-auto">
+        <button
+          onClick={onAddDevis}
+          className="flex flex-col items-center gap-0.5 py-3 text-[11px] font-semibold text-blue-600 hover:bg-blue-50 transition-colors"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Devis
+        </button>
+        <button
+          onClick={onAddFacture}
+          className="flex flex-col items-center gap-0.5 py-3 text-[11px] font-semibold text-violet-600 hover:bg-violet-50 transition-colors"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Facture
+        </button>
+        <button
+          onClick={onAddDocument}
+          className="flex flex-col items-center gap-0.5 py-3 text-[11px] font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Document
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Calcul prochaine étape ─────────────────────────────────────────────────────
+
+function nextStepFromContext(lots: LotChantier[], docs: DocumentChantier[]): {
+  icon: string;
+  title: string;
+  desc: string;
+  cta: string;
+  action: 'new_chantier' | 'add_devis' | 'go_analyse' | 'go_planning';
+  lotId?: string;
+} {
+  if (lots.length === 0) {
+    return {
+      icon: '🏗', title: 'Créez votre plan de chantier',
+      desc: "L'IA génère la liste des intervenants et une estimation de budget.",
+      cta: "Créer avec l'IA", action: 'new_chantier',
+    };
+  }
+  const lotsNoDev = lots.filter(l => !docs.some(d => d.lot_id === l.id && d.document_type === 'devis'));
+  if (lotsNoDev.length > 0) {
+    const l = lotsNoDev[0];
+    return {
+      icon: l.emoji ?? '📋',
+      title: `Demandez un devis — ${l.nom}`,
+      desc: `${lotsNoDev.length} intervenant${lotsNoDev.length > 1 ? 's' : ''} sans devis reçu.`,
+      cta: 'Ajouter un devis', action: 'add_devis', lotId: l.id,
+    };
+  }
+  const unanalyzed = docs.filter(d => d.document_type === 'devis' && !d.analyse_id && d.source !== 'verifier_mon_devis');
+  if (unanalyzed.length > 0) {
+    return {
+      icon: '🔍', title: 'Analysez vos devis reçus',
+      desc: `${unanalyzed.length} devis non encore analysé${unanalyzed.length > 1 ? 's' : ''}.`,
+      cta: 'Analyser sur VerifierMonDevis', action: 'go_analyse',
+    };
+  }
+  return {
+    icon: '📅', title: 'Planifiez votre chantier',
+    desc: 'Budget documenté — suivez les étapes et les paiements.',
+    cta: 'Voir le planning', action: 'go_planning',
+  };
+}
+
+// ── Dashboard Home ─────────────────────────────────────────────────────────────
+
+function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, onAffineBudget,
+  onAddDevisForLot, onAddFactureForLot, onAddDocForLot, onGoToLot, onGoToAnalyse, onGoToPlanning, onAddDoc,
+}: {
+  lots: LotChantier[];
+  documents: DocumentChantier[];
+  docsByLot: Record<string, DocumentChantier[]>;
+  displayMin: number;
+  displayMax: number;
+  onAffineBudget: () => void;
+  onAddDevisForLot: (lotId: string) => void;
+  onAddFactureForLot: (lotId: string) => void;
+  onAddDocForLot: (lotId: string) => void;
+  onGoToLot: (lotId: string) => void;
+  onGoToAnalyse: () => void;
+  onGoToPlanning: () => void;
+  onAddDoc: () => void;
+}) {
+  const step = nextStepFromContext(lots, documents);
+
+  function handleStepCta() {
+    switch (step.action) {
+      case 'new_chantier': window.location.href = '/mon-chantier/nouveau'; break;
+      case 'add_devis':    step.lotId ? onAddDevisForLot(step.lotId) : onAddDoc(); break;
+      case 'go_analyse':   onGoToAnalyse(); break;
+      case 'go_planning':  onGoToPlanning(); break;
+    }
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto px-5 py-6 space-y-5">
+
+      {/* ── Prochaine étape ─────────────────────────────────── */}
+      <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl px-6 py-5 text-white shadow-md shadow-blue-200">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-blue-200 mb-3">Prochaine étape</p>
+        <div className="flex items-start gap-3 mb-4">
+          <span className="text-2xl leading-none shrink-0">{step.icon}</span>
+          <div>
+            <p className="font-bold text-base leading-snug">{step.title}</p>
+            <p className="text-sm text-blue-100 mt-1 leading-relaxed">{step.desc}</p>
+          </div>
+        </div>
+        <button
+          onClick={handleStepCta}
+          className="bg-white text-blue-700 font-bold text-sm rounded-xl px-5 py-2.5 hover:bg-blue-50 transition-colors shadow-sm"
+        >
+          {step.cta} →
+        </button>
+      </div>
+
+      {/* ── Budget ──────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-5 flex items-center justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Budget estimé</p>
+          {displayMin > 0
+            ? <p className="text-2xl font-extrabold text-gray-900 tabular-nums">{fmtK(displayMin)} – {fmtK(displayMax)}</p>
+            : <p className="text-base text-gray-400 font-medium">En cours d'estimation…</p>
+          }
+        </div>
+        <button
+          onClick={onAffineBudget}
+          className="shrink-0 flex items-center gap-1.5 text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl px-4 py-2.5 transition-colors"
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          Affiner
+        </button>
+      </div>
+
+      {/* ── Intervenants ─────────────────────────────────────── */}
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-3">
+          Intervenants · {lots.length}
+        </p>
+        {lots.length === 0 ? (
+          <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 py-14 flex flex-col items-center text-center">
+            <p className="text-4xl mb-4">🏗</p>
+            <p className="font-bold text-gray-900 mb-2">Aucun intervenant défini</p>
+            <p className="text-sm text-gray-400 mb-6 max-w-xs leading-relaxed">
+              Décrivez votre projet et l'IA génère la liste des intervenants et une estimation de budget.
+            </p>
+            <a href="/mon-chantier/nouveau"
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-colors">
+              <Plus className="h-4 w-4" /> Créer avec l'IA
+            </a>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {lots.map(lot => (
+              <LotIntervenantCard
+                key={lot.id}
+                lot={lot}
+                docs={docsByLot[lot.id] ?? []}
+                onAddDevis={() => onAddDevisForLot(lot.id)}
+                onAddFacture={() => onAddFactureForLot(lot.id)}
+                onAddDocument={() => onAddDocForLot(lot.id)}
+                onDetail={() => onGoToLot(lot.id)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Upload Modal ──────────────────────────────────────────────────────────────
 
-function UploadModal({ chantierId, token, lots, defaultLotId, onClose, onSuccess }: {
+function UploadModal({ chantierId, token, lots, defaultLotId, defaultType, onClose, onSuccess }: {
   chantierId: string; token: string; lots: LotChantier[];
-  defaultLotId?: string | null; onClose: () => void;
+  defaultLotId?: string | null;
+  defaultType?: DocumentType;
+  onClose: () => void;
   onSuccess: (doc: DocumentChantier) => void;
 }) {
   const [tab, setTab]                   = useState<'file' | 'import'>('file');
   const [dragging, setDragging]         = useState(false);
   const [file, setFile]                 = useState<File | null>(null);
   const [docName, setDocName]           = useState('');
-  const [docType, setDocType]           = useState<DocumentType>('devis');
+  const [docType, setDocType]           = useState<DocumentType>(defaultType ?? 'devis');
   const [lotId, setLotId]               = useState(defaultLotId ?? '');
   const [uploadState, setUploadState]   = useState<UploadState>('idle');
   const [errorMsg, setErrorMsg]         = useState('');
@@ -1068,11 +1310,12 @@ interface Props {
 export default function DashboardUnified({ result: resultProp, chantierId, token }: Props) {
   const [result, setResult]               = useState(resultProp);
   const [showAmelioration, setShowAmelioration] = useState(false);
+  const [showBudgetDetail, setShowBudgetDetail]   = useState(false);
   const [activeSection, setActiveSection] = useState<Section>('budget');
   const [mobileOpen, setMobileOpen]       = useState(false);
   const [documents, setDocuments]         = useState<DocumentChantier[]>([]);
   const [selectedLotId, setSelectedLotId] = useState<string | null>(null);
-  const [uploadModal, setUploadModal]     = useState<{ open: boolean; lotId?: string }>({ open: false });
+  const [uploadModal, setUploadModal]     = useState<{ open: boolean; lotId?: string; defaultType?: DocumentType }>({ open: false });
   const lots = result.lots ?? [];
 
   // ── Insights ──────────────────────────────────────────────────────────────
@@ -1126,16 +1369,10 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
 
   // ── Badges sidebar ────────────────────────────────────────────────────────
   const navBadges = useMemo<Partial<Record<Section, NavBadge>>>(() => {
-    const lotsNoDocs = lots.filter(l => (docsByLot[l.id] ?? []).length === 0).length;
-    const alerts     = insights?.global.filter(i => i.type === 'alert' || i.type === 'warning') ?? [];
-    const devisCount = documents.filter(d => d.document_type === 'devis').length;
     return {
-      budget:    alerts.length  > 0 ? { text: `${alerts.length} alerte${alerts.length > 1 ? 's' : ''}`, style: 'bg-red-100 text-red-600' } : undefined,
-      lots:      lotsNoDocs     > 0 ? { text: `${lotsNoDocs} incomplet${lotsNoDocs > 1 ? 's' : ''}`, style: 'bg-amber-100 text-amber-700' } : undefined,
-      analyse:   devisCount     > 0 ? { text: `${devisCount} devis`, style: 'bg-blue-100 text-blue-700' } : undefined,
       documents: documents.length > 0 ? { text: `${documents.length}`, style: 'bg-gray-100 text-gray-600' } : undefined,
     };
-  }, [lots, docsByLot, insights, documents]);
+  }, [documents]);
 
   const selectedLot = lots.find(l => l.id === selectedLotId);
   const hasDiyOpportunity = lots.some(l => l.statut === 'a_trouver');
@@ -1144,6 +1381,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
   function navigateTo(s: Section) {
     setActiveSection(s);
     setSelectedLotId(null);
+    setShowBudgetDetail(false);
   }
 
   // ── Rendu du contenu ──────────────────────────────────────────────────────
@@ -1164,20 +1402,39 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
 
     switch (activeSection) {
       case 'budget':
+        if (showBudgetDetail) {
+          return (
+            <BudgetTresorerie
+              result={result}
+              documents={documents}
+              insights={insights}
+              insightsLoading={insightsLoading}
+              baseRangeMin={baseRangeMin}
+              baseRangeMax={baseRangeMax}
+              onAddDoc={() => setUploadModal({ open: true })}
+              onGoToAnalyse={() => navigateTo('analyse')}
+              onGoToLots={() => navigateTo('lots')}
+              onGoToLot={(lotId) => { setSelectedLotId(lotId); navigateTo('lots'); }}
+              onRangeRefined={(min, max) => { setRefinedRangeMin(min); setRefinedRangeMax(max); }}
+              onAmeliorer={() => setShowAmelioration(true)}
+            />
+          );
+        }
         return (
-          <BudgetTresorerie
-            result={result}
+          <DashboardHome
+            lots={lots}
             documents={documents}
-            insights={insights}
-            insightsLoading={insightsLoading}
-            baseRangeMin={baseRangeMin}
-            baseRangeMax={baseRangeMax}
-            onAddDoc={() => setUploadModal({ open: true })}
-            onGoToAnalyse={() => navigateTo('analyse')}
-            onGoToLots={() => navigateTo('lots')}
+            docsByLot={docsByLot}
+            displayMin={displayMin}
+            displayMax={displayMax}
+            onAffineBudget={() => setShowBudgetDetail(true)}
+            onAddDevisForLot={(lotId) => setUploadModal({ open: true, lotId, defaultType: 'devis' })}
+            onAddFactureForLot={(lotId) => setUploadModal({ open: true, lotId, defaultType: 'facture' })}
+            onAddDocForLot={(lotId) => setUploadModal({ open: true, lotId })}
             onGoToLot={(lotId) => { setSelectedLotId(lotId); navigateTo('lots'); }}
-            onRangeRefined={(min, max) => { setRefinedRangeMin(min); setRefinedRangeMax(max); }}
-            onAmeliorer={() => setShowAmelioration(true)}
+            onGoToAnalyse={() => navigateTo('analyse')}
+            onGoToPlanning={() => navigateTo('planning')}
+            onAddDoc={() => setUploadModal({ open: true })}
           />
         );
 
@@ -1317,7 +1574,8 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
   }
 
   const SECTION_TITLES: Record<Section, string> = {
-    budget: 'Budget & trésorerie', lots: 'Intervenants nécessaires', analyse: 'Analyse des devis',
+    budget: showBudgetDetail ? 'Affinage du budget' : result.nom,
+    lots: 'Intervenants', analyse: 'Analyse des devis',
     planning: 'Planning', documents: 'Documents', assistant: 'Assistant chantier',
     diy: 'Travaux réalisés par vous', settings: 'Paramètres',
   };
@@ -1365,7 +1623,11 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             </button>
           }
           onMenuToggle={() => setMobileOpen(v => !v)}
-          onBack={activeSection !== 'budget' ? () => navigateTo('budget') : undefined}
+          onBack={
+            (activeSection !== 'budget' || showBudgetDetail)
+              ? () => { setShowBudgetDetail(false); if (activeSection !== 'budget') navigateTo('budget'); }
+              : undefined
+          }
         />
 
         <main className="flex-1 overflow-y-auto">
@@ -1380,6 +1642,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
           token={token}
           lots={lots}
           defaultLotId={uploadModal.lotId}
+          defaultType={uploadModal.defaultType}
           onClose={() => setUploadModal({ open: false })}
           onSuccess={(doc) => {
             setDocuments(prev => [doc, ...prev]);
