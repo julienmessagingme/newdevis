@@ -44,6 +44,7 @@ interface AnalyseArtisan {
   siret: string | null;
   email: string | null;
   telephone: string | null;
+  lot_id: string | null;
 }
 
 interface Lot {
@@ -152,8 +153,8 @@ export default function ContactsSection({ chantierId, token }: Props) {
         telephone: a.telephone,
         siret: a.siret,
         role: null,
-        lotId: null,
-        lotNom: null,
+        lotId: a.lot_id,
+        lotNom: a.lot_id ? lotMap.get(a.lot_id) ?? null : null,
         source: 'analyse',
         analyseId: a.analyse_id,
         devisId: null,

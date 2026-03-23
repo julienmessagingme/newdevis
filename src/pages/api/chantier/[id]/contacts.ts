@@ -65,10 +65,17 @@ export const GET: APIRoute = async ({ params, request }) => {
     .eq('status', 'completed')
     .order('created_at', { ascending: false });
 
+  // Index analyse_id → lot_id depuis devis_chantier (pour croiser)
+  const devisLotMap = new Map<string, string>();
+  for (const d of devisArtisans ?? []) {
+    if (d.analyse_id && d.lot_id) devisLotMap.set(d.analyse_id, d.lot_id);
+  }
+
   // Extraire les artisans des analyses (nom, siret, email, tel depuis raw_text)
   const analyseArtisans: {
     analyse_id: string; nom: string; nom_officiel: string | null;
     siret: string | null; email: string | null; telephone: string | null;
+    lot_id: string | null;
   }[] = [];
   for (const a of analyses ?? []) {
     try {
@@ -82,6 +89,7 @@ export const GET: APIRoute = async ({ params, request }) => {
         siret: ent.siret || null,
         email: ent.email || null,
         telephone: ent.telephone || null,
+        lot_id: devisLotMap.get(a.id) || null,
       });
     } catch { /* skip malformed */ }
   }
