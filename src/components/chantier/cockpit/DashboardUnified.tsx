@@ -858,13 +858,23 @@ function ComingSoon({ section, icon: Icon, description, cta }: {
 
 // ── Section Documents (all docs) ──────────────────────────────────────────────
 
-function DocumentsView({ documents, lots, onAddDoc, onDeleteDoc }: {
+function DocumentsView({ documents, lots, chantierId, token, onAddDoc, onDeleteDoc, onDocUpdated }: {
   documents: DocumentChantier[]; lots: LotChantier[];
-  onAddDoc: () => void; onDeleteDoc: (id: string) => void;
+  chantierId: string; token: string;
+  onAddDoc: () => void; onDeleteDoc: (id: string) => void; onDocUpdated: () => void;
 }) {
   const byType: Record<DocumentType, DocumentChantier[]> = {} as never;
   for (const doc of documents) (byType[doc.document_type] ??= []).push(doc);
   const typesWithDocs = Object.entries(byType).filter(([, docs]) => docs.length > 0);
+
+  async function handleChangeLot(docId: string, lotId: string | null) {
+    await fetch(`/api/chantier/${chantierId}/documents/${docId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lotId }),
+    });
+    onDocUpdated();
+  }
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-7">
@@ -894,19 +904,29 @@ function DocumentsView({ documents, lots, onAddDoc, onDeleteDoc }: {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-800 truncate">{doc.nom}</p>
-                        <p className="text-xs text-gray-400">
-                          {fmtDate(doc.created_at)}
-                          {lot && <span> · {lot.emoji} {lot.nom}</span>}
-                        </p>
+                        <p className="text-xs text-gray-400">{fmtDate(doc.created_at)}</p>
                       </div>
+                      {/* Sélecteur intervenant */}
+                      {(doc.document_type === 'devis' || doc.document_type === 'facture') && lots.length > 0 && (
+                        <select
+                          value={doc.lot_id ?? ''}
+                          onChange={e => handleChangeLot(doc.id, e.target.value || null)}
+                          className={`text-xs border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 max-w-[160px] truncate ${
+                            lot ? 'border-purple-200 text-purple-700 font-medium' : 'border-gray-200 text-gray-400'
+                          }`}
+                        >
+                          <option value="">Aucun intervenant</option>
+                          {lots.map(l => <option key={l.id} value={l.id}>{l.emoji} {l.nom}</option>)}
+                        </select>
+                      )}
                       {doc.signedUrl && (
                         <a href={doc.signedUrl} target="_blank" rel="noreferrer"
-                          className="text-xs text-blue-600 hover:text-blue-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                          className="text-xs text-blue-600 hover:text-blue-700 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                           Ouvrir
                         </a>
                       )}
                       <button onClick={() => onDeleteDoc(doc.id)}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all">
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all shrink-0">
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
@@ -1526,7 +1546,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
 
       case 'documents':
         return (
-          <DocumentsView documents={documents} lots={lots} onAddDoc={() => setUploadModal({ open: true })} onDeleteDoc={handleDeleteDoc} />
+          <DocumentsView documents={documents} lots={lots} chantierId={chantierId!} token={token!} onAddDoc={() => setUploadModal({ open: true })} onDeleteDoc={handleDeleteDoc} onDocUpdated={loadDocuments} />
         );
 
       case 'assistant':
