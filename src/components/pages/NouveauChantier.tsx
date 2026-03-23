@@ -108,7 +108,7 @@ export default function NouveauChantier() {
       >
         <Loader2 className="h-7 w-7 text-blue-400 animate-spin" />
       </div>
-      <p className="text-white font-semibold text-base">Préparation de votre cockpit…</p>
+      <p className="text-white font-semibold text-base">Préparation de votre tableau de bord…</p>
       <p className="text-slate-500 text-sm">Quelques secondes</p>
     </div>
   );

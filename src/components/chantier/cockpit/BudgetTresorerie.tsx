@@ -2,10 +2,11 @@
  * BudgetTresorerie — écran financier premium du cockpit chantier.
  * Données claires, zéro tableau dense, chaque bloc orienté décision.
  */
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import {
   TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, CircleDollarSign,
-  FileText, Plus, Search, ChevronRight, Info, Zap, Layers, Wallet,
+  FileText, Plus, Search, ChevronRight, ChevronLeft, Info, Zap, Layers, Wallet, X,
+  SlidersHorizontal, Check,
 } from 'lucide-react';
 import type { ChantierIAResult, DocumentChantier } from '@/types/chantier-ia';
 import type { InsightsData, InsightItem } from './useInsights';
@@ -416,6 +417,424 @@ function QuickActions({ onAddDoc, onGoToAnalyse, onGoToLots }: {
   );
 }
 
+// ── Header projet ─────────────────────────────────────────────────────────────
+
+function ProjectHeader({ emoji, nom, hasAnyBudget }: { emoji: string; nom: string; hasAnyBudget: boolean }) {
+  return (
+    <div className="flex items-center gap-3 pb-1">
+      <div className="w-11 h-11 rounded-2xl bg-blue-50 flex items-center justify-center text-2xl shrink-0 shadow-sm">
+        {emoji}
+      </div>
+      <div className="min-w-0">
+        <h2 className="font-bold text-gray-900 text-xl leading-tight truncate">{nom}</h2>
+        <p className="text-sm text-gray-400 mt-0.5">
+          {hasAnyBudget ? "Budget en cours d\u2019affinage" : "Budget en cours d\u2019estimation"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Types questionnaire affinage ──────────────────────────────────────────────
+
+type TypeProjetAffinage = 'renovation_complete' | 'renovation_partielle' | 'extension' | 'exterieur';
+type Gamme = 'entree' | 'standard' | 'haut_de_gamme';
+type Participation = 'tout_delegue' | 'partiellement' | 'beaucoup';
+type NatureTravaux = 'gros_oeuvre' | 'electricite' | 'plomberie' | 'isolation' | 'menuiserie' | 'finitions';
+
+interface AffinageAnswers {
+  typeProjet?: TypeProjetAffinage;
+  surface?: number;
+  surfaceTravaux?: number;
+  // Immeuble
+  nbAppartements?: number;
+  partiesCommunes?: boolean;
+  ascenseur?: boolean;
+  // Maison
+  nbPieces?: number;
+  nbNiveaux?: number;
+  // Multi-select
+  natureTravaux: NatureTravaux[];
+  gamme?: Gamme;
+  participation?: Participation;
+}
+
+const INITIAL_ANSWERS: AffinageAnswers = { natureTravaux: [] };
+
+// Coefficients multiplicateurs — toujours appliqués SUR les prix marché existants
+const TYPE_COEFF: Record<TypeProjetAffinage, number> = {
+  renovation_complete: 1.0,
+  renovation_partielle: 0.55,
+  extension: 1.30,
+  exterieur: 0.40,
+};
+const GAMME_COEFF: Record<Gamme, number> = {
+  entree: 0.72,
+  standard: 1.0,
+  haut_de_gamme: 1.45,
+};
+const PARTICIPATION_COEFF: Record<Participation, number> = {
+  tout_delegue: 1.0,
+  partiellement: 0.85,
+  beaucoup: 0.65,
+};
+
+function computeRefinedRange(
+  baseMin: number, baseMax: number, a: AffinageAnswers,
+): { min: number; max: number } {
+  if (baseMin === 0 && baseMax === 0) return { min: 0, max: 0 };
+  const tc = a.typeProjet ? TYPE_COEFF[a.typeProjet] : 1;
+  const gc = a.gamme ? GAMME_COEFF[a.gamme] : 1;
+  const pc = a.participation ? PARTICIPATION_COEFF[a.participation] : 1;
+  const mult = tc * gc * pc;
+  return {
+    min: Math.round(baseMin * mult / 100) * 100,
+    max: Math.round(baseMax * mult / 100) * 100,
+  };
+}
+
+function computeScore(a: AffinageAnswers): number {
+  let s = 0;
+  if (a.typeProjet) s++;
+  if ((a.surface ?? 0) > 0) s++;
+  if (a.nbAppartements !== undefined || a.nbPieces !== undefined) s++;
+  if (a.natureTravaux.length > 0) s++;
+  if (a.gamme) s++;
+  if (a.participation) s++;
+  return s;
+}
+
+function ScoreBadge({ score }: { score: number }) {
+  const cfg = score <= 1
+    ? { label: '🟡 Fiabilité faible',   cls: 'bg-amber-50  text-amber-700  border-amber-200'  }
+    : score <= 3
+    ? { label: '🔵 Fiabilité moyenne',  cls: 'bg-blue-50   text-blue-700   border-blue-100'   }
+    : { label: '🟢 Fiabilité élevée',   cls: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
+  return (
+    <span className={`inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full border ${cfg.cls}`}>
+      {cfg.label}
+    </span>
+  );
+}
+
+// ── Modal affinage budget ─────────────────────────────────────────────────────
+
+function BudgetAffinageModal({
+  baseMin, baseMax, resultNom, isImmeuble, onClose, onValidate,
+}: {
+  baseMin: number; baseMax: number; resultNom: string; isImmeuble: boolean;
+  onClose: () => void; onValidate: (min: number, max: number) => void;
+}) {
+  const [step, setStep] = useState(1);
+  const [answers, setAnswers] = useState<AffinageAnswers>(INITIAL_ANSWERS);
+  const TOTAL_STEPS = 6;
+
+  const refined = useMemo(() => computeRefinedRange(baseMin, baseMax, answers), [baseMin, baseMax, answers]);
+  const score   = useMemo(() => computeScore(answers), [answers]);
+  const hasBase = baseMin > 0 || baseMax > 0;
+
+  const upd = useCallback(<K extends keyof AffinageAnswers>(key: K, val: AffinageAnswers[K]) => {
+    setAnswers(prev => ({ ...prev, [key]: val }));
+  }, []);
+
+  function toggleNature(n: NatureTravaux) {
+    setAnswers(prev => {
+      const set = new Set(prev.natureTravaux);
+      set.has(n) ? set.delete(n) : set.add(n);
+      return { ...prev, natureTravaux: Array.from(set) };
+    });
+  }
+
+  const canNext = (() => {
+    if (step === 1) return !!answers.typeProjet;
+    if (step === 5) return !!answers.gamme;
+    if (step === 6) return !!answers.participation;
+    return true; // steps 2, 3, 4 are optional
+  })();
+
+  const CHOICE_BASE = 'flex flex-col items-start gap-1 px-4 py-3.5 rounded-2xl border-2 cursor-pointer transition-all text-left w-full';
+  const CHOICE_ON   = 'border-blue-500 bg-blue-50 text-blue-900';
+  const CHOICE_OFF  = 'border-gray-100 bg-white hover:border-blue-200 text-gray-700';
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl flex flex-col max-h-[92vh] sm:max-h-[85vh] shadow-2xl overflow-hidden">
+
+        {/* Header modal */}
+        <div className="px-6 pt-5 pb-4 border-b border-gray-100 shrink-0">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-bold text-gray-900 text-lg">Affiner mon budget</h2>
+            <button onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 transition-colors">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          {/* Stepper */}
+          <div className="flex items-center gap-1.5">
+            {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+              <div key={i} className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                i + 1 < step ? 'bg-blue-500' : i + 1 === step ? 'bg-blue-400' : 'bg-gray-100'
+              }`} />
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 mt-1.5">Étape {step} sur {TOTAL_STEPS}</p>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-3">
+
+          {/* Estimation live */}
+          {hasBase && (
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl px-5 py-3.5 flex items-center justify-between mb-4 border border-blue-100">
+              <div>
+                <p className="text-[10px] font-semibold text-blue-500 uppercase tracking-wider mb-0.5">Estimation actuelle</p>
+                <p className="text-2xl font-extrabold text-blue-900 leading-none">
+                  {refined.min > 0 ? `${fmtK(refined.min)} – ${fmtK(refined.max)}` : `${fmtK(baseMin)} – ${fmtK(baseMax)}`}
+                </p>
+              </div>
+              <ScoreBadge score={score} />
+            </div>
+          )}
+
+          {/* Step 1 — Type de projet */}
+          {step === 1 && (
+            <div className="space-y-2">
+              <p className="font-semibold text-gray-900 mb-3">Quel type de projet ?</p>
+              {([
+                ['renovation_complete', '🏠', 'Rénovation complète', 'Ensemble du logement ou bâtiment'],
+                ['renovation_partielle','🛠️', 'Rénovation partielle', 'Une ou plusieurs pièces ciblées'],
+                ['extension',          '📐', 'Extension',           'Agrandissement de la surface habitable'],
+                ['exterieur',          '🌿', 'Extérieur',           'Jardin, terrasse, façade, toiture'],
+              ] as const).map(([val, emoji, label, sub]) => (
+                <button key={val} onClick={() => upd('typeProjet', val as TypeProjetAffinage)}
+                  className={`${CHOICE_BASE} ${answers.typeProjet === val ? CHOICE_ON : CHOICE_OFF}`}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{emoji}</span>
+                    <span className="font-semibold text-sm">{label}</span>
+                    {answers.typeProjet === val && <Check className="h-4 w-4 text-blue-500 ml-auto shrink-0" />}
+                  </div>
+                  <span className="text-xs text-gray-400 pl-7">{sub}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Step 2 — Surface */}
+          {step === 2 && (
+            <div className="space-y-4">
+              <p className="font-semibold text-gray-900">Quelle est la surface concernée ?</p>
+              <p className="text-sm text-gray-400 -mt-2">Facultatif — permet d'affiner l'estimation</p>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Surface totale du bien (m²)</label>
+                <input type="number" min="0" placeholder="ex : 120"
+                  value={answers.surface ?? ''}
+                  onChange={e => upd('surface', e.target.value ? Number(e.target.value) : undefined)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Surface concernée par les travaux (m²)</label>
+                <input type="number" min="0" placeholder="ex : 80"
+                  value={answers.surfaceTravaux ?? ''}
+                  onChange={e => upd('surfaceTravaux', e.target.value ? Number(e.target.value) : undefined)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+              </div>
+            </div>
+          )}
+
+          {/* Step 3 — Détails adaptatifs */}
+          {step === 3 && isImmeuble && (
+            <div className="space-y-4">
+              <p className="font-semibold text-gray-900">Détails de l'immeuble</p>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Nombre d'appartements</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[2,3,4,5,6,7,8,10].map(n => (
+                    <button key={n} onClick={() => upd('nbAppartements', n)}
+                      className={`py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${answers.nbAppartements === n ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-100 hover:border-blue-200 text-gray-700'}`}>
+                      {n === 10 ? '10+' : n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">Parties communes à rénover ?</label>
+                <div className="flex gap-3">
+                  {(['Oui', 'Non'] as const).map(v => (
+                    <button key={v} onClick={() => upd('partiesCommunes', v === 'Oui')}
+                      className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${answers.partiesCommunes === (v === 'Oui') && answers.partiesCommunes !== undefined ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-100 hover:border-blue-200 text-gray-700'}`}>
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">Présence d'un ascenseur ?</label>
+                <div className="flex gap-3">
+                  {(['Oui', 'Non'] as const).map(v => (
+                    <button key={v} onClick={() => upd('ascenseur', v === 'Oui')}
+                      className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${answers.ascenseur === (v === 'Oui') && answers.ascenseur !== undefined ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-100 hover:border-blue-200 text-gray-700'}`}>
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          {step === 3 && !isImmeuble && (
+            <div className="space-y-4">
+              <p className="font-semibold text-gray-900">Détails du projet</p>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Nombre de pièces concernées</label>
+                <div className="grid grid-cols-5 gap-2">
+                  {[1,2,3,4,5,6,7,8,9].map(n => (
+                    <button key={n} onClick={() => upd('nbPieces', n)}
+                      className={`py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${answers.nbPieces === n ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-100 hover:border-blue-200 text-gray-700'}`}>
+                      {n === 9 ? '9+' : n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Nombre de niveaux</label>
+                <div className="flex gap-3">
+                  {[1,2,3,4].map(n => (
+                    <button key={n} onClick={() => upd('nbNiveaux', n)}
+                      className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${answers.nbNiveaux === n ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-100 hover:border-blue-200 text-gray-700'}`}>
+                      {n === 4 ? '4+' : n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 4 — Nature des travaux */}
+          {step === 4 && (
+            <div className="space-y-2">
+              <p className="font-semibold text-gray-900 mb-1">Quels types de travaux ?</p>
+              <p className="text-sm text-gray-400 -mt-1 mb-3">Sélectionnez tout ce qui s'applique</p>
+              {([
+                ['gros_oeuvre',  '🏗️', 'Gros œuvre',   'Murs, planchers, charpente, toiture'],
+                ['electricite', '⚡', 'Électricité',   'Tableau, prises, éclairage'],
+                ['plomberie',   '🚿', 'Plomberie',     'Sanitaires, chauffage, eau'],
+                ['isolation',   '🌡️', 'Isolation',     'Murs, combles, fenêtres'],
+                ['menuiserie',  '🚪', 'Menuiserie',    'Portes, fenêtres, parquet'],
+                ['finitions',   '🎨', 'Finitions',     'Peinture, carrelage, revêtements'],
+              ] as [NatureTravaux, string, string, string][]).map(([val, emoji, label, sub]) => {
+                const active = answers.natureTravaux.includes(val);
+                return (
+                  <button key={val} onClick={() => toggleNature(val)}
+                    className={`${CHOICE_BASE} ${active ? CHOICE_ON : CHOICE_OFF}`}>
+                    <div className="flex items-center gap-2 w-full">
+                      <span className="text-lg">{emoji}</span>
+                      <div className="flex-1 text-left">
+                        <p className="font-semibold text-sm">{label}</p>
+                        <p className="text-xs text-gray-400">{sub}</p>
+                      </div>
+                      <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center shrink-0 ${active ? 'border-blue-500 bg-blue-500' : 'border-gray-200'}`}>
+                        {active && <Check className="h-3 w-3 text-white" />}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Step 5 — Niveau de gamme */}
+          {step === 5 && (
+            <div className="space-y-2">
+              <p className="font-semibold text-gray-900 mb-3">Quel niveau de prestations ?</p>
+              {([
+                ['entree',        '🪵', 'Entrée de gamme', 'Matériaux fonctionnels, finitions simples',        '– 28% vs standard'],
+                ['standard',      '✨', 'Standard',        'Bon rapport qualité-prix, prestations soignées',   'Prix de référence'],
+                ['haut_de_gamme', '💎', 'Haut de gamme',   'Matériaux premium, artisans spécialisés',          '+ 45% vs standard'],
+              ] as const).map(([val, emoji, label, sub, badge]) => (
+                <button key={val} onClick={() => upd('gamme', val as Gamme)}
+                  className={`${CHOICE_BASE} ${answers.gamme === val ? CHOICE_ON : CHOICE_OFF}`}>
+                  <div className="flex items-center gap-2 w-full">
+                    <span className="text-lg">{emoji}</span>
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm">{label}</p>
+                      <p className="text-xs text-gray-400">{sub}</p>
+                    </div>
+                    <span className="text-[10px] font-semibold text-gray-400 shrink-0">{badge}</span>
+                    {answers.gamme === val && <Check className="h-4 w-4 text-blue-500 shrink-0" />}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Step 6 — Participation */}
+          {step === 6 && (
+            <div className="space-y-2">
+              <p className="font-semibold text-gray-900 mb-3">Quelle part réalisez-vous vous-même ?</p>
+              {([
+                ['tout_delegue',  '👷', 'Tout délégué',             'Vous faites appel uniquement à des professionnels', 'Prix pleins'],
+                ['partiellement', '🤝', 'Partiellement fait soi-même', 'Vous réalisez quelques tâches simples',         '– 15% estimé'],
+                ['beaucoup',      '🛠️', 'Beaucoup fait soi-même',   'Vous êtes très impliqué dans les travaux',          '– 35% estimé'],
+              ] as const).map(([val, emoji, label, sub, badge]) => (
+                <button key={val} onClick={() => upd('participation', val as Participation)}
+                  className={`${CHOICE_BASE} ${answers.participation === val ? CHOICE_ON : CHOICE_OFF}`}>
+                  <div className="flex items-center gap-2 w-full">
+                    <span className="text-lg">{emoji}</span>
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm">{label}</p>
+                      <p className="text-xs text-gray-400">{sub}</p>
+                    </div>
+                    <span className="text-[10px] font-semibold text-gray-400 shrink-0">{badge}</span>
+                    {answers.participation === val && <Check className="h-4 w-4 text-blue-500 shrink-0" />}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-100 shrink-0">
+          {step < TOTAL_STEPS ? (
+            <div className="flex items-center gap-3">
+              {step > 1 && (
+                <button onClick={() => setStep(s => s - 1)}
+                  className="w-11 h-11 flex items-center justify-center rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors shrink-0">
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+              )}
+              <button onClick={() => setStep(s => s + 1)} disabled={!canNext}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm transition-all ${
+                  canNext ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                }`}>
+                {step === 1 && !answers.typeProjet ? 'Choisissez un type de projet' : 'Continuer'}
+                {canNext && <ChevronRight className="h-4 w-4" />}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 mb-3">
+                <ScoreBadge score={score} />
+                <span className="text-xs text-gray-400">{score} / 6 informations renseignées</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setStep(s => s - 1)}
+                  className="w-11 h-11 flex items-center justify-center rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors shrink-0">
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => onValidate(refined.min || baseMin, refined.max || baseMax)}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all">
+                  <Check className="h-4 w-4" /> Valider mon estimation
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Fiabilité budget ───────────────────────────────────────────────────────────
 
 function ReliabilityBadge({ signaux }: { signaux?: ChantierIAResult['estimationSignaux'] }) {
@@ -479,30 +898,49 @@ interface Props {
 export default function BudgetTresorerie({ result, documents, insights, insightsLoading, onAddDoc, onGoToAnalyse, onGoToLots }: Props) {
   const lots = result.lots ?? [];
 
-  // ── Détection de l'état budget ────────────────────────────────────────────
-  const hasLotBudget  = lots.some(l => (l.budget_min_ht ?? 0) > 0 || (l.budget_max_ht ?? 0) > 0);
-  const hasBudgetTotal = (result.budgetTotal ?? 0) > 5000;
-  const hasAnyBudget  = hasLotBudget || hasBudgetTotal;
-  const hasDevis      = documents.some(d => d.document_type === 'devis');
-  const hasFactures   = documents.some(d => d.document_type === 'facture');
+  // ── État modal affinage ────────────────────────────────────────────────────
+  const [modalOpen, setModalOpen]       = useState(false);
+  const [refinedMin, setRefinedMin]     = useState<number | null>(null);
+  const [refinedMax, setRefinedMax]     = useState<number | null>(null);
+  const [affinageScore, setAffinageScore] = useState(0);
+  const isImmeuble = (result.nom + ' ' + result.description).toLowerCase().includes('immeuble');
 
-  // Fourchette UNIQUEMENT depuis les lots (jamais inventée)
-  const rangeMin = hasLotBudget
+  // ── Détection de l'état budget ────────────────────────────────────────────
+  const hasLotBudget   = lots.some(l => (l.budget_min_ht ?? 0) > 0 || (l.budget_max_ht ?? 0) > 0);
+  const hasBudgetTotal = (result.budgetTotal ?? 0) > 5000;
+  const hasAnyBudget   = hasLotBudget || hasBudgetTotal;
+  const hasDevis       = documents.some(d => d.document_type === 'devis');
+  const hasFactures    = documents.some(d => d.document_type === 'facture');
+
+  // Fourchette de base UNIQUEMENT depuis les lots (jamais inventée)
+  const baseMin = hasLotBudget
     ? lots.reduce((s, l) => s + (l.budget_min_ht ?? 0), 0)
     : hasBudgetTotal ? Math.round(result.budgetTotal * 0.88) : 0;
-  const rangeMax = hasLotBudget
+  const baseMax = hasLotBudget
     ? lots.reduce((s, l) => s + (l.budget_max_ht ?? 0), 0)
     : hasBudgetTotal ? Math.round(result.budgetTotal * 1.15) : 0;
-  const hasRange = rangeMin > 0 || rangeMax > 0;
 
-  const devisCount   = documents.filter(d => d.document_type === 'devis').length;
-  const factureCount = documents.filter(d => d.document_type === 'facture').length;
+  // Fourchette affichée : affinée après questionnaire, sinon base
+  const rangeMin  = refinedMin ?? baseMin;
+  const rangeMax  = refinedMax ?? baseMax;
+  const hasRange  = rangeMin > 0 || rangeMax > 0;
+  const isRefined = refinedMin !== null;
+
+  const devisCount    = documents.filter(d => d.document_type === 'devis').length;
+  const factureCount  = documents.filter(d => d.document_type === 'facture').length;
   const lotsAvecDevis = lots.filter(l => documents.some(d => d.lot_id === l.id && d.document_type === 'devis')).length;
   const lotsManquants = lots.length - lotsAvecDevis;
-  const alertsCount = insights?.global.filter(i => i.type === 'alert' || i.type === 'warning').length ?? 0;
+  const alertsCount   = insights?.global.filter(i => i.type === 'alert' || i.type === 'warning').length ?? 0;
+
+  function handleValidate(min: number, max: number) {
+    setRefinedMin(min); setRefinedMax(max); setAffinageScore(6); setModalOpen(false);
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-7 space-y-5">
+
+      {/* ── Header projet ─────────────────────────────────────────────────── */}
+      <ProjectHeader emoji={result.emoji} nom={result.nom} hasAnyBudget={hasAnyBudget} />
 
       {/* ── État 1 : aucun budget ────────────────────────────────────────── */}
       {!hasAnyBudget && (
@@ -523,24 +961,42 @@ export default function BudgetTresorerie({ result, documents, insights, insights
         </div>
       )}
 
-      {/* ── État 2+ : fourchette + badge fiabilité ───────────────────────── */}
+      {/* ── État 2+ : fourchette cliquable ───────────────────────────────── */}
       {hasAnyBudget && hasRange && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <button onClick={() => setModalOpen(true)}
+          className="w-full bg-white rounded-2xl border border-gray-100 p-5 text-left hover:shadow-md hover:scale-[1.01] transition-all duration-200 cursor-pointer group">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Fourchette estimée</p>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                {isRefined ? '✅ Budget affiné' : 'Fourchette estimée'}
+              </p>
               <p className="text-3xl font-extrabold text-gray-900 leading-none">
                 {fmtK(rangeMin)} – {fmtK(rangeMax)}
               </p>
             </div>
-            <ReliabilityBadge signaux={result.estimationSignaux} />
+            {isRefined
+              ? <ScoreBadge score={affinageScore} />
+              : <ReliabilityBadge signaux={result.estimationSignaux} />}
           </div>
-          {!hasDevis && (
-            <p className="text-xs text-gray-400 mt-3 border-t border-gray-50 pt-3">
-              💡 Ajoutez vos devis pour affiner cette estimation et valider les prix
-            </p>
-          )}
-        </div>
+          <p className="text-xs text-gray-400">
+            Basé sur les prix du marché réels. Affinez pour plus de précision.
+          </p>
+          <div className="mt-3 pt-3 border-t border-gray-50 flex items-center gap-2 text-blue-600 group-hover:text-blue-700 transition-colors">
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <span className="text-xs font-semibold">Affiner mon estimation</span>
+            <ChevronRight className="h-3.5 w-3.5 ml-auto" />
+          </div>
+        </button>
+      )}
+
+      {/* ── Modal affinage budget ─────────────────────────────────────────── */}
+      {modalOpen && (
+        <BudgetAffinageModal
+          baseMin={baseMin} baseMax={baseMax}
+          resultNom={result.nom} isImmeuble={isImmeuble}
+          onClose={() => setModalOpen(false)}
+          onValidate={handleValidate}
+        />
       )}
 
       {/* ── État 3+ : comparaison estimation / devis ─────────────────────── */}
