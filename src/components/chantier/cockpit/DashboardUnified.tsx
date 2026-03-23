@@ -65,7 +65,7 @@ interface SidebarProps {
 
 const NAV_ITEMS: { id: Section; label: string; icon: React.ElementType }[] = [
   { id: 'budget',    label: 'Budget & trésorerie', icon: Wallet      },
-  { id: 'lots',      label: 'Lots de travaux',     icon: Layers      },
+  { id: 'lots',      label: 'Intervenants',         icon: Layers      },
   { id: 'analyse',   label: 'Analyse des devis',   icon: FileSearch  },
   { id: 'planning',  label: 'Planning',             icon: Calendar    },
   { id: 'documents', label: 'Documents',            icon: FolderOpen  },
@@ -229,7 +229,7 @@ function LotDetail({ lot, docs, insight, onAddDoc, onDeleteDoc, onBack }: {
   return (
     <div className="max-w-3xl mx-auto px-6 py-7">
       <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 mb-5 transition-colors">
-        <ArrowLeft className="h-4 w-4" /> Retour aux lots
+        <ArrowLeft className="h-4 w-4" /> Retour aux intervenants
       </button>
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <div className="px-5 py-5 border-b border-gray-50 flex items-center justify-between">
@@ -1142,7 +1142,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
           <div className="max-w-5xl mx-auto px-6 py-7">
             <div className="flex items-center justify-between mb-5">
               <h2 className="font-semibold text-gray-900">
-                Lots de travaux <span className="ml-1.5 text-xs font-normal text-gray-400">{lots.length} lot{lots.length > 1 ? 's' : ''}</span>
+                Intervenants nécessaires <span className="ml-1.5 text-xs font-normal text-gray-400">{lots.length} intervenant{lots.length > 1 ? 's' : ''}</span>
               </h2>
               <button onClick={() => setUploadModal({ open: true })}
                 className="flex items-center gap-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-xl transition-colors">
@@ -1292,7 +1292,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
   }
 
   const SECTION_TITLES: Record<Section, string> = {
-    budget: 'Budget & trésorerie', lots: 'Lots de travaux', analyse: 'Analyse des devis',
+    budget: 'Budget & trésorerie', lots: 'Intervenants nécessaires', analyse: 'Analyse des devis',
     planning: 'Planning', documents: 'Documents', assistant: 'Assistant chantier',
     diy: 'Travaux réalisés par vous', settings: 'Paramètres',
   };

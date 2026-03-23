@@ -166,65 +166,71 @@ function LotBreakdown({ result, documents, rangeMin, rangeMax, onGoToLot, onAddD
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-5">
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Layers className="h-4 w-4 text-gray-400" />
-          <h3 className="font-semibold text-gray-900">Vos travaux par métier</h3>
+          <h3 className="font-semibold text-gray-900">Intervenants nécessaires</h3>
         </div>
         <span className="text-[10px] font-semibold text-gray-300 uppercase tracking-wider">
-          {lots.length} métier{lots.length > 1 ? 's' : ''}
+          {lots.length} intervenant{lots.length > 1 ? 's' : ''}
         </span>
       </div>
 
-      <div className="space-y-1">
+      <div className="divide-y divide-gray-50">
         {lotsWithData.map(lot => {
-          const statusDot = lot.devisCount === 0
-            ? { color: 'bg-red-400',   label: '0 devis',                  text: 'text-red-600'  }
+          const statusCfg = lot.devisCount === 0
+            ? { dot: 'bg-red-400',     badge: 'bg-red-50 text-red-600 border-red-100',     label: '0 devis'  }
             : lot.devisCount === 1
-            ? { color: 'bg-amber-400', label: '1 devis',                  text: 'text-amber-600'}
-            : { color: 'bg-emerald-400', label: `${lot.devisCount} devis`, text: 'text-emerald-600' };
+            ? { dot: 'bg-amber-400',   badge: 'bg-amber-50 text-amber-700 border-amber-100', label: '1 devis' }
+            : { dot: 'bg-emerald-400', badge: 'bg-emerald-50 text-emerald-700 border-emerald-100', label: `${lot.devisCount} devis` };
 
           return (
             <button key={lot.id}
-              onClick={() => onGoToLot ? onGoToLot(lot.id) : undefined}
-              className={`w-full flex flex-col gap-2 px-3.5 py-3 rounded-xl text-left transition-all ${
-                onGoToLot ? 'hover:bg-gray-50 cursor-pointer' : 'cursor-default'
-              } group`}>
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-base leading-none shrink-0">{lot.emoji ?? '🔧'}</span>
-                  <span className="text-sm font-medium text-gray-800 truncate">{lot.nom}</span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className="flex items-center gap-1">
-                    <div className={`w-2 h-2 rounded-full ${statusDot.color}`} />
-                    <span className={`text-[11px] font-semibold ${statusDot.text}`}>{statusDot.label}</span>
-                  </div>
-                  <span className="text-sm font-bold text-gray-700">
-                    {lot.min > 0 ? `${fmtK(lot.min)} – ${fmtK(lot.max)}` : '—'}
+              onClick={() => onGoToLot?.(lot.id)}
+              className={`w-full flex items-center gap-3 py-3.5 text-left transition-all group ${
+                onGoToLot ? 'hover:bg-gray-50 rounded-xl px-3 -mx-3 cursor-pointer' : 'cursor-default'
+              }`}>
+              {/* Emoji intervenant */}
+              <div className="w-9 h-9 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center text-lg shrink-0 group-hover:border-blue-100 group-hover:bg-blue-50 transition-colors">
+                {lot.emoji ?? '🔧'}
+              </div>
+
+              {/* Nom + barre */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <span className="text-sm font-semibold text-gray-800 truncate group-hover:text-blue-700 transition-colors">{lot.nom}</span>
+                  <span className="text-sm font-bold text-gray-700 shrink-0">
+                    {lot.min > 0 ? `${fmtK(lot.min)} – ${fmtK(lot.max)}` : <span className="text-gray-300 font-normal text-xs">Non estimé</span>}
                   </span>
-                  {onGoToLot && <ChevronRight className="h-3.5 w-3.5 text-gray-300 group-hover:text-gray-500 transition-colors" />}
+                </div>
+                {/* Barre budget */}
+                <div className="relative h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  {lot.pctMax > 0 && (
+                    <>
+                      <div className="absolute h-full bg-blue-100 rounded-full" style={{ left: 0, width: `${lot.pctMax}%` }} />
+                      <div className="absolute h-full bg-blue-500 rounded-full" style={{ left: 0, width: `${lot.pctMin}%` }} />
+                    </>
+                  )}
                 </div>
               </div>
-              {/* Barre budget */}
-              <div className="relative h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                {lot.pctMax > 0 && (
-                  <>
-                    <div className="absolute h-full bg-blue-100 rounded-full" style={{ left: 0, width: `${lot.pctMax}%` }} />
-                    <div className="absolute h-full bg-blue-400 rounded-full" style={{ left: 0, width: `${lot.pctMin}%` }} />
-                  </>
-                )}
+
+              {/* Badge devis + chevron */}
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusCfg.badge}`}>
+                  {statusCfg.label}
+                </span>
+                {onGoToLot && <ChevronRight className="h-3.5 w-3.5 text-gray-300 group-hover:text-blue-400 transition-colors" />}
               </div>
             </button>
           );
         })}
       </div>
 
-      {/* Footer */}
-      <div className="mt-4 pt-3 border-t border-gray-50 flex items-center justify-between">
+      {/* Footer total */}
+      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
         {hasTotalBudget ? (
           <>
-            <span className="text-xs text-gray-400">Total estimé (marché)</span>
+            <span className="text-xs text-gray-400">Total (somme des intervenants)</span>
             <span className="text-sm font-bold text-gray-800">
               {fmtK(totalMin)} – {fmtK(totalMax)}
             </span>
@@ -245,48 +251,108 @@ function LotBreakdown({ result, documents, rangeMin, rangeMax, onGoToLot, onAddD
 
 // ── Alertes IA ────────────────────────────────────────────────────────────────
 
-function AlertesIA({ insights, loading }: { insights: InsightsData | null; loading: boolean }) {
-  const items = insights?.global ?? [];
+// ── Alertes actionnables (calculées localement, toujours disponibles) ─────────
+
+interface ActionAlert {
+  type: 'alert' | 'warning' | 'tip' | 'ok';
+  icon: string;
+  text: string;
+  btn?: string;
+  onBtn?: () => void;
+}
+
+function computeActionAlerts(
+  lots: import('@/types/chantier-ia').LotChantier[],
+  documents: DocumentChantier[],
+  onAddDoc: () => void,
+  onGoToLot?: (id: string) => void,
+): ActionAlert[] {
+  const alerts: ActionAlert[] = [];
+
+  // Trier par budget desc → les intervenants les plus coûteux d'abord
+  const sorted = [...lots].sort((a, b) => (b.budget_max_ht ?? 0) - (a.budget_max_ht ?? 0));
+
+  for (const lot of sorted) {
+    const devisLot = documents.filter(d => d.lot_id === lot.id && d.document_type === 'devis');
+    if (devisLot.length === 0) {
+      alerts.push({
+        type: 'alert', icon: '📋',
+        text: `Aucun devis ${lot.nom.toLowerCase()} — demandez au moins 2 devis pour valider ce poste.`,
+        btn: '+ Ajouter un devis', onBtn: onAddDoc,
+      });
+    } else if (devisLot.length === 1) {
+      alerts.push({
+        type: 'warning', icon: '⚖️',
+        text: `1 seul devis ${lot.nom.toLowerCase()} — ajoutez un 2e devis pour comparer les prix (écart moyen : 20–30 %).`,
+        btn: '+ Ajouter un devis', onBtn: onAddDoc,
+      });
+    }
+  }
+
+  // Pas de lots du tout
+  if (lots.length === 0) {
+    alerts.push({
+      type: 'tip', icon: '💡',
+      text: 'Commencez par créer vos intervenants pour suivre votre budget poste par poste.',
+    });
+  }
+
+  // Tout est couvert
+  if (alerts.length === 0 && lots.length > 0) {
+    const multiDevis = lots.filter(l =>
+      documents.filter(d => d.lot_id === l.id && d.document_type === 'devis').length >= 2
+    ).length;
+    alerts.push({
+      type: 'ok', icon: '✅',
+      text: `${multiDevis}/${lots.length} intervenant${lots.length > 1 ? 's' : ''} avec 2 devis ou plus — bonne progression !`,
+    });
+  }
+
+  return alerts.slice(0, 4); // max 4 alertes
+}
+
+function AlertesIA({ lots, documents, onAddDoc, onGoToLot }: {
+  lots: import('@/types/chantier-ia').LotChantier[];
+  documents: DocumentChantier[];
+  onAddDoc: () => void;
+  onGoToLot?: (id: string) => void;
+}) {
+  const alerts = useMemo(
+    () => computeActionAlerts(lots, documents, onAddDoc, onGoToLot),
+    [lots, documents],
+  );
+
+  const STYLES: Record<ActionAlert['type'], { bg: string; border: string; text: string }> = {
+    alert:   { bg: 'bg-red-50',     border: 'border-red-100',     text: 'text-red-800'     },
+    warning: { bg: 'bg-amber-50',   border: 'border-amber-100',   text: 'text-amber-800'   },
+    tip:     { bg: 'bg-blue-50',    border: 'border-blue-100',    text: 'text-blue-800'    },
+    ok:      { bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-800' },
+  };
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-5">
       <div className="flex items-center gap-2 mb-4">
         <Zap className="h-4 w-4 text-violet-500" />
-        <h3 className="font-semibold text-gray-900">Alertes intelligentes</h3>
+        <h3 className="font-semibold text-gray-900">Alertes actionnables</h3>
       </div>
 
-      {loading ? (
-        <div className="space-y-2">
-          {[1, 2, 3].map(i => <div key={i} className="h-14 rounded-xl bg-gray-50 animate-pulse" />)}
-        </div>
-      ) : items.length === 0 ? (
-        <div className="text-center py-6">
-          <CheckCircle2 className="h-8 w-8 text-emerald-300 mx-auto mb-2" />
-          <p className="text-sm text-gray-400">Aucune alerte pour le moment</p>
-          <p className="text-xs text-gray-300 mt-1">Ajoutez des devis pour les activer</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {items.map((item, i) => {
-            const s = INSIGHT_STYLES[item.type];
-            // Sanitize known bad alert texts
-            const cleanText = item.text
-              .replace(/Aucun document[^\.]*risque de dépassement/gi, 'Aucun devis ajouté — impossible de valider le budget')
-              .replace(/Aucun document[^\.]*budget/gi, 'Aucun devis ajouté — impossible de valider le budget');
-            return (
-              <div key={i} className={`flex items-start gap-3 px-3.5 py-3 rounded-xl border ${s.bg} ${s.border}`}>
-                {s.icon}
-                <div className="min-w-0">
-                  <p className={`text-sm font-medium ${s.text} leading-snug`}>
-                    {item.icon && <span className="mr-1">{item.icon}</span>}
-                    {cleanText}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <div className="space-y-2">
+        {alerts.map((alert, i) => {
+          const s = STYLES[alert.type];
+          return (
+            <div key={i} className={`flex items-start gap-3 px-3.5 py-3 rounded-xl border ${s.bg} ${s.border}`}>
+              <span className="text-base shrink-0 mt-0.5">{alert.icon}</span>
+              <p className={`flex-1 text-sm font-medium ${s.text} leading-snug`}>{alert.text}</p>
+              {alert.btn && alert.onBtn && (
+                <button onClick={alert.onBtn}
+                  className="shrink-0 text-xs font-semibold text-blue-600 hover:text-blue-700 bg-white border border-blue-200 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition-all whitespace-nowrap">
+                  {alert.btn}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1108,31 +1174,68 @@ export default function BudgetTresorerie({ result, documents, insights, insights
       {/* ── Header projet ─────────────────────────────────────────────────── */}
       <ProjectHeader emoji={result.emoji} nom={result.nom} hasAnyBudget={hasAnyBudget} onAmeliorer={onAmeliorer} />
 
-      {/* ── 🎯 Prochaine étape ────────────────────────────────────────────── */}
+      {/* ── 🎯 Prochaine action recommandée ──────────────────────────────── */}
       {(() => {
-        const lotsNoDocs = lots.filter(l => !documents.some(d => d.lot_id === l.id && d.document_type === 'devis'));
-        const firstLot   = lotsNoDocs[0];
-        if (!hasAnyBudget) return null;
-        const message = devisCount === 0
-          ? firstLot
-            ? `Ajoutez un devis ${firstLot.nom.toLowerCase()} pour valider votre budget`
-            : 'Demandez vos premiers devis artisans'
-          : devisCount === 1
-          ? 'Obtenez 2 devis supplémentaires pour comparer les prix'
-          : firstLot
-          ? `Ajoutez un devis pour le lot : ${firstLot.nom}`
-          : null;
-        if (!message) return null;
+        const sortedLots  = [...lots].sort((a, b) => (b.budget_max_ht ?? 0) - (a.budget_max_ht ?? 0));
+        const lotsNoDocs  = sortedLots.filter(l => !documents.some(d => d.lot_id === l.id && d.document_type === 'devis'));
+        const lotsOneDevis = sortedLots.filter(l => documents.filter(d => d.lot_id === l.id && d.document_type === 'devis').length === 1);
+        const allCovered  = lots.length > 0 && lotsNoDocs.length === 0;
+
+        type Action = { icon: string; label: string; message: string; btn: string; btnColor: string; onClick: () => void };
+        let action: Action;
+
+        if (!hasAnyBudget) {
+          action = {
+            icon: '📐', label: 'Prochaine action recommandée',
+            message: 'Affinez votre estimation pour débloquer le suivi budgétaire par intervenant.',
+            btn: 'Affiner mon budget', btnColor: 'bg-blue-600 hover:bg-blue-700 text-white',
+            onClick: () => setModalOpen(true),
+          };
+        } else if (devisCount === 0 && lotsNoDocs[0]) {
+          const top = lotsNoDocs[0];
+          action = {
+            icon: '📋', label: 'Prochaine action recommandée',
+            message: `Demandez un devis à votre ${top.nom.toLowerCase()} pour valider ce poste budgétaire.`,
+            btn: '+ Ajouter un devis', btnColor: 'bg-blue-600 hover:bg-blue-700 text-white',
+            onClick: onAddDoc,
+          };
+        } else if (lotsOneDevis[0]) {
+          const lot = lotsOneDevis[0];
+          action = {
+            icon: '⚖️', label: 'Prochaine action recommandée',
+            message: `Comparez votre ${lot.nom.toLowerCase()} avec un 2e devis — les prix peuvent varier de 30 %.`,
+            btn: '+ Ajouter un devis', btnColor: 'bg-blue-600 hover:bg-blue-700 text-white',
+            onClick: onAddDoc,
+          };
+        } else if (lotsNoDocs[0]) {
+          const lot = lotsNoDocs[0];
+          action = {
+            icon: '📋', label: 'Prochaine action recommandée',
+            message: `Il manque un devis pour votre ${lot.nom.toLowerCase()}.`,
+            btn: '+ Ajouter un devis', btnColor: 'bg-blue-600 hover:bg-blue-700 text-white',
+            onClick: onAddDoc,
+          };
+        } else if (allCovered) {
+          action = {
+            icon: '🎉', label: 'Dossier complet',
+            message: 'Tous vos intervenants ont au moins 2 devis. Vous pouvez analyser et comparer les offres.',
+            btn: 'Voir l\u2019analyse', btnColor: 'bg-emerald-600 hover:bg-emerald-700 text-white',
+            onClick: onGoToAnalyse,
+          };
+        } else {
+          return null;
+        }
+
         return (
-          <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
-            <span className="text-xl shrink-0">🎯</span>
+          <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3.5">
+            <span className="text-xl shrink-0 mt-0.5">{action.icon}</span>
             <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-semibold text-blue-500 uppercase tracking-wider mb-0.5">Prochaine étape</p>
-              <p className="text-sm font-medium text-blue-900 leading-snug">{message}</p>
+              <p className="text-[11px] font-bold text-blue-500 uppercase tracking-wider mb-1">{action.label}</p>
+              <p className="text-sm font-medium text-blue-900 leading-snug">{action.message}</p>
             </div>
-            <button onClick={onAddDoc}
-              className="shrink-0 text-xs font-semibold text-blue-700 bg-white border border-blue-200 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition-colors whitespace-nowrap">
-              + Ajouter un devis
+            <button onClick={action.onClick}
+              className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors whitespace-nowrap ${action.btnColor}`}>
+              {action.btn}
             </button>
           </div>
         );
@@ -1228,7 +1331,7 @@ export default function BudgetTresorerie({ result, documents, insights, insights
       {hasAnyBudget && (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
           <div className="lg:col-span-3"><LotBreakdown result={result} documents={documents} rangeMin={rangeMin} rangeMax={rangeMax} onGoToLot={onGoToLot} onAddDoc={onAddDoc} /></div>
-          <div className="lg:col-span-2"><AlertesIA insights={insights} loading={insightsLoading} /></div>
+          <div className="lg:col-span-2"><AlertesIA lots={lots} documents={documents} onAddDoc={onAddDoc} onGoToLot={onGoToLot} /></div>
         </div>
       )}
 
