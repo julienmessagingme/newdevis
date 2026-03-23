@@ -7,7 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import {
   Plus, X, Loader2, CheckCircle2, AlertCircle, CloudUpload, FileText,
   Sparkles, Trash2, ArrowLeft, ChevronRight, Wrench, Wallet, Layers,
-  FileSearch, Calendar, FolderOpen, Bot, Settings, Menu, ExternalLink, Receipt,
+  FileSearch, Calendar, FolderOpen, Bot, Settings, Menu, ExternalLink, Receipt, Pencil,
 } from 'lucide-react';
 import type {
   ChantierIAResult, DocumentChantier, DocumentType, LotChantier, StatutArtisan,
