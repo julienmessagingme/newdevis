@@ -60,7 +60,7 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 | `/api/create-portal-session` | `api/create-portal-session.ts` | Portail client Stripe |
 | `/api/stripe-webhook` | `api/stripe-webhook.ts` | Webhook Stripe (souscription, annulation, échec paiement) |
 | `/api/premium/*` | `api/premium/` | Statut et essai premium |
-| `/api/chantier/*` | `api/chantier/` | Module chantier complet (16 routes dont lots, devis, chat, matériaux — voir `DOCUMENTATION.md` §20) |
+| `/api/chantier/*` | `api/chantier/` | Module chantier complet (17 routes dont lots, devis, contacts, chat, matériaux — voir `DOCUMENTATION.md` §20) |
 
 ## Ajouter une page
 
@@ -72,7 +72,7 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 
 - **`lib/*Utils.ts`** : Logique métier externalisée par domaine (`entrepriseUtils`, `devisUtils`, `securiteUtils`, `contexteUtils`, `urbanismeUtils`, `architecteUtils`, `blogUtils`, `scoreUtils`). `lib/constants.ts` contient les constantes partagées. Les composants `analysis/Block*.tsx` importent depuis ces fichiers.
 - **`components/admin/`** : Module blog admin complet (`BlogPostList`, `BlogPostEditor`, `BlogDialogs`, `AiGenerationPanel`, `ManualWriteEditor`, `RichTextToolbar`, `ImageManagement`, `blogTypes`)
-- **`components/chantier/`** : Module gestion de chantier complet (~30 composants). Création IA (ScreenModeSelection → ScreenPrompt → Qualification → Génération), dashboard (budget, lots, timeline, documents, conseils IA, chat expert, matériaux). Sous-dossiers : `cockpit/` (CockpitV1, ConceptionPage, PanneauDetail, SimulateurOptions, TimelineHorizontale), `lots/` (LotCard, LotGrid, LotDetail), `nouveau/` (DashboardChantier, MaterialSelector, ScreenModeSelection, etc.). Voir `DOCUMENTATION.md` §20 pour le détail.
+- **`components/chantier/`** : Module gestion de chantier complet (~30 composants). Création IA (ScreenModeSelection → ScreenPrompt → Qualification → Génération), dashboard (budget, lots, contacts, timeline, documents, conseils IA, chat expert, matériaux). Sous-dossiers : `cockpit/` (CockpitV1, ConceptionPage, PanneauDetail, SimulateurOptions, TimelineHorizontale, ContactsSection), `lots/` (LotCard, LotGrid, LotDetail), `nouveau/` (DashboardChantier, MaterialSelector, ScreenModeSelection, etc.). Voir `DOCUMENTATION.md` §20 pour le détail.
 - **`components/funnel/`** : Tunnel de conversion (`FunnelStepper`, `PremiumGate`, `PassSereniteGate`). PremiumGate est intégré dans `BlockPrixMarche` via props (`showGate`, `onAuthSuccess`, `convertToPermanent`) — affiché uniquement quand le bloc est collapsé et l'utilisateur anonyme.
 - **`components/analysis/`** : 20 composants dont `DocumentRejectionScreen`, `ExtractionBlocker`, `OcrDebugPanel` (lazy-loaded via `React.lazy` + `Suspense` dans `AnalysisResult.tsx`), `StrategicBadge` (affichage scores IVP/IPI), `UrbanismeAssistant` (assistant urbanisme). `BlockPrixMarche` inclut un `StepIndicator` interne (stepper visuel 2 étapes : Affectation des postes → Analyse des prix).
 - **`supabase/functions/analyze-quote/`** : Pipeline modulaire (10 fichiers : `index`, `extract`, `verify`, `score`, `render`, `summarize`, `market-prices`, `domain-config`, `utils`, `types`)
@@ -83,7 +83,7 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 
 ## Supabase
 
-### Tables (20)
+### Tables (21)
 - `analyses` — analyses de devis (table principale). Colonne `market_price_overrides` (JSONB) pour les éditions utilisateur sur les prix marché. Colonne `domain` (TEXT, default `'travaux'`) pour le multi-vertical. **Limite 10 par utilisateur** : les plus anciennes sont purgées automatiquement par le pipeline.
 - `analysis_work_items` — lignes de travaux détaillées par analyse. Colonne `job_type_group` (TEXT) pour le rattachement au job type IA.
 - `blog_posts` — articles de blog (avec workflow IA, images cover + mid)
@@ -92,6 +92,7 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 - `todo_chantier` — checklist par chantier (titre, priorité, done). FK chantiers CASCADE.
 - `chantier_updates` — journal des modifications IA par chantier. FK chantiers CASCADE.
 - `documents_chantier` — documents attachés aux chantiers (devis, factures, photos, plans). FK chantiers CASCADE.
+- `contacts_chantier` — carnet de contacts par chantier (nom, email, téléphone, SIRET, rôle, notes). FK chantiers CASCADE, FK lots_chantier SET NULL. Source : 'manual'|'devis'|'facture'. RLS user-scoped.
 - `company_cache` — cache vérification entreprise (recherche-entreprises.api.gouv.fr). Purge auto quotidienne via cron.
 - `document_extractions` — cache OCR par hash SHA-256 du fichier (provider, parsed_data, quality_score)
 - `dvf_prices` — cache prix immobiliers DVF par commune (code INSEE, prix/m² maison et appartement, nb ventes). Source : data.gouv.fr. RLS lecture publique.
