@@ -483,14 +483,18 @@ function ProjectHeader({ emoji, nom, hasAnyBudget }: { emoji: string; nom: strin
 // ── Types questionnaire affinage ──────────────────────────────────────────────
 
 type TypeProjetAffinage = 'renovation_complete' | 'renovation_partielle' | 'extension' | 'exterieur';
+type ExtensionStructure = 'plain_pied' | 'surelevation';
 type Gamme = 'entree' | 'standard' | 'haut_de_gamme';
 type Participation = 'tout_delegue' | 'partiellement' | 'beaucoup';
 type NatureTravaux = 'gros_oeuvre' | 'electricite' | 'plomberie' | 'isolation' | 'menuiserie' | 'finitions';
 
 interface AffinageAnswers {
-  typeProjet?: TypeProjetAffinage;
+  typesProjet: TypeProjetAffinage[];   // multi-select
   surface?: number;
   surfaceTravaux?: number;
+  // Extension bonus
+  extensionSurface?: number;
+  extensionStructure?: ExtensionStructure;
   // Immeuble
   nbAppartements?: number;
   partiesCommunes?: boolean;
@@ -504,31 +508,50 @@ interface AffinageAnswers {
   participation?: Participation;
 }
 
-const INITIAL_ANSWERS: AffinageAnswers = { natureTravaux: [] };
+const INITIAL_ANSWERS: AffinageAnswers = { typesProjet: [], natureTravaux: [] };
 
-// Coefficients multiplicateurs — toujours appliqués SUR les prix marché existants
+// Coefficients de base — toujours appliqués SUR les prix marché existants
 const TYPE_COEFF: Record<TypeProjetAffinage, number> = {
-  renovation_complete: 1.0,
+  renovation_complete:  1.00,
   renovation_partielle: 0.55,
-  extension: 1.30,
-  exterieur: 0.40,
+  extension:            0.30, // portion additive par rapport à la base intérieure
+  exterieur:            0.40, // portion additive
 };
 const GAMME_COEFF: Record<Gamme, number> = {
-  entree: 0.72,
-  standard: 1.0,
-  haut_de_gamme: 1.45,
+  entree: 0.72, standard: 1.0, haut_de_gamme: 1.45,
 };
 const PARTICIPATION_COEFF: Record<Participation, number> = {
-  tout_delegue: 1.0,
-  partiellement: 0.85,
-  beaucoup: 0.65,
+  tout_delegue: 1.0, partiellement: 0.85, beaucoup: 0.65,
 };
+
+/** Agrège les types sélectionnés de façon cohérente (sans double-comptage) */
+function computeMultiTypeCoeff(types: TypeProjetAffinage[]): number {
+  if (types.length === 0) return 1;
+  // Portion intérieure : prendre le max entre complete/partielle (elles s'excluent)
+  const interiorTypes = types.filter(t => t === 'renovation_complete' || t === 'renovation_partielle');
+  const hasExtension  = types.includes('extension');
+  const hasExterieur  = types.includes('exterieur');
+
+  let coeff = 0;
+  if (interiorTypes.length > 0) {
+    coeff = Math.max(...interiorTypes.map(t => TYPE_COEFF[t])); // max évite double-comptage
+  }
+  // Extension : additive (30% du budget de base) — standalone = 1.30
+  if (hasExtension) {
+    coeff = coeff > 0 ? coeff + TYPE_COEFF.extension : 1.30;
+  }
+  // Extérieur : additive (40% du budget de base) — standalone = 0.40
+  if (hasExterieur) {
+    coeff = coeff > 0 ? coeff + TYPE_COEFF.exterieur : TYPE_COEFF.exterieur;
+  }
+  return coeff > 0 ? coeff : 1;
+}
 
 function computeRefinedRange(
   baseMin: number, baseMax: number, a: AffinageAnswers,
 ): { min: number; max: number } {
   if (baseMin === 0 && baseMax === 0) return { min: 0, max: 0 };
-  const tc = a.typeProjet ? TYPE_COEFF[a.typeProjet] : 1;
+  const tc = computeMultiTypeCoeff(a.typesProjet);
   const gc = a.gamme ? GAMME_COEFF[a.gamme] : 1;
   const pc = a.participation ? PARTICIPATION_COEFF[a.participation] : 1;
   const mult = tc * gc * pc;
@@ -540,9 +563,9 @@ function computeRefinedRange(
 
 function computeScore(a: AffinageAnswers): number {
   let s = 0;
-  if (a.typeProjet) s++;
+  if (a.typesProjet.length > 0) s++;
   if ((a.surface ?? 0) > 0) s++;
-  if (a.nbAppartements !== undefined || a.nbPieces !== undefined) s++;
+  if (a.nbAppartements !== undefined || a.nbPieces !== undefined || (a.extensionSurface ?? 0) > 0) s++;
   if (a.natureTravaux.length > 0) s++;
   if (a.gamme) s++;
   if (a.participation) s++;
@@ -572,7 +595,17 @@ function BudgetAffinageModal({
 }) {
   const [step, setStep] = useState(1);
   const [answers, setAnswers] = useState<AffinageAnswers>(INITIAL_ANSWERS);
-  const TOTAL_STEPS = 6;
+
+  // Séquence de steps dynamique selon les types sélectionnés
+  const stepKeys = useMemo(() => {
+    const keys = ['types', 'surface', 'details', 'nature', 'gamme', 'participation'];
+    if (answers.typesProjet.includes('extension')) {
+      keys.splice(2, 0, 'extension_details'); // insère après 'surface'
+    }
+    return keys;
+  }, [answers.typesProjet]);
+  const TOTAL_STEPS   = stepKeys.length;
+  const currentKey    = stepKeys[step - 1] ?? 'types';
 
   const refined = useMemo(() => computeRefinedRange(baseMin, baseMax, answers), [baseMin, baseMax, answers]);
   const score   = useMemo(() => computeScore(answers), [answers]);
@@ -582,6 +615,15 @@ function BudgetAffinageModal({
     setAnswers(prev => ({ ...prev, [key]: val }));
   }, []);
 
+  function toggleTypeProjet(t: TypeProjetAffinage) {
+    setAnswers(prev => {
+      const set = new Set(prev.typesProjet);
+      set.has(t) ? set.delete(t) : set.add(t);
+      // Si on retire 'extension', remettre step < extension_details si on y était
+      return { ...prev, typesProjet: Array.from(set) };
+    });
+  }
+
   function toggleNature(n: NatureTravaux) {
     setAnswers(prev => {
       const set = new Set(prev.natureTravaux);
@@ -590,11 +632,20 @@ function BudgetAffinageModal({
     });
   }
 
+  // Quand on retire "extension" alors qu'on est sur l'étape extension_details, reculer
+  const safeNext = () => {
+    const nextStep = step + 1;
+    const nextKey  = stepKeys[nextStep - 1];
+    // Si le step suivant n'existe plus (ex: on vient de décocher extension), on skip
+    if (!nextKey) return;
+    setStep(nextStep);
+  };
+
   const canNext = (() => {
-    if (step === 1) return !!answers.typeProjet;
-    if (step === 5) return !!answers.gamme;
-    if (step === 6) return !!answers.participation;
-    return true; // steps 2, 3, 4 are optional
+    if (currentKey === 'types')  return answers.typesProjet.length > 0;
+    if (currentKey === 'gamme')  return !!answers.gamme;
+    if (currentKey === 'participation') return !!answers.participation;
+    return true;
   })();
 
   const CHOICE_BASE = 'flex flex-col items-start gap-1 px-4 py-3.5 rounded-2xl border-2 cursor-pointer transition-all text-left w-full';
@@ -641,31 +692,50 @@ function BudgetAffinageModal({
             </div>
           )}
 
-          {/* Step 1 — Type de projet */}
-          {step === 1 && (
+          {/* Step 1 — Types de travaux (multi-select) */}
+          {currentKey === 'types' && (
             <div className="space-y-2">
-              <p className="font-semibold text-gray-900 mb-3">Quel type de projet ?</p>
+              <p className="font-semibold text-gray-900 mb-1">Quels types de travaux concernent votre projet ?</p>
+              <p className="text-sm text-gray-400 mb-3">Plusieurs choix possibles</p>
               {([
-                ['renovation_complete', '🏠', 'Rénovation complète', 'Ensemble du logement ou bâtiment'],
-                ['renovation_partielle','🛠️', 'Rénovation partielle', 'Une ou plusieurs pièces ciblées'],
-                ['extension',          '📐', 'Extension',           'Agrandissement de la surface habitable'],
-                ['exterieur',          '🌿', 'Extérieur',           'Jardin, terrasse, façade, toiture'],
-              ] as const).map(([val, emoji, label, sub]) => (
-                <button key={val} onClick={() => upd('typeProjet', val as TypeProjetAffinage)}
-                  className={`${CHOICE_BASE} ${answers.typeProjet === val ? CHOICE_ON : CHOICE_OFF}`}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">{emoji}</span>
-                    <span className="font-semibold text-sm">{label}</span>
-                    {answers.typeProjet === val && <Check className="h-4 w-4 text-blue-500 ml-auto shrink-0" />}
-                  </div>
-                  <span className="text-xs text-gray-400 pl-7">{sub}</span>
-                </button>
-              ))}
+                ['renovation_complete', '🏠', 'Rénovation complète',    'Ensemble du logement ou bâtiment'],
+                ['renovation_partielle','🛠️', 'Rénovation partielle',   'Une ou plusieurs pièces ciblées'],
+                ['extension',          '📐', 'Extension',              'Agrandissement de la surface habitable'],
+                ['exterieur',          '🌿', 'Aménagement extérieur',  'Jardin, terrasse, façade, toiture'],
+              ] as const).map(([val, emoji, label, sub]) => {
+                const active = answers.typesProjet.includes(val as TypeProjetAffinage);
+                return (
+                  <button key={val} onClick={() => toggleTypeProjet(val as TypeProjetAffinage)}
+                    className={`${CHOICE_BASE} ${active ? CHOICE_ON : CHOICE_OFF} hover:scale-[1.01] active:scale-[0.99]`}>
+                    <div className="flex items-center gap-2 w-full">
+                      <span className="text-lg">{emoji}</span>
+                      <div className="flex-1 text-left">
+                        <p className="font-semibold text-sm">{label}</p>
+                        <p className="text-xs text-gray-400">{sub}</p>
+                      </div>
+                      <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${
+                        active ? 'border-blue-500 bg-blue-500' : 'border-gray-200'
+                      }`}>
+                        {active && <Check className="h-3 w-3 text-white" />}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+              {/* Message contextuel multi-sélection */}
+              {answers.typesProjet.length > 1 && (
+                <div className="mt-1 flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-2.5">
+                  <span className="text-base shrink-0">💡</span>
+                  <p className="text-xs text-blue-700 leading-relaxed">
+                    Votre projet combine plusieurs types de travaux — l&rsquo;estimation sera ajustée automatiquement.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Step 2 — Surface */}
-          {step === 2 && (
+          {/* Step surface */}
+          {currentKey === 'surface' && (
             <div className="space-y-4">
               <p className="font-semibold text-gray-900">Quelle est la surface concernée ?</p>
               <p className="text-sm text-gray-400 -mt-2">Facultatif — permet d'affiner l'estimation</p>
@@ -686,8 +756,43 @@ function BudgetAffinageModal({
             </div>
           )}
 
-          {/* Step 3 — Détails adaptatifs */}
-          {step === 3 && isImmeuble && (
+          {/* Step extension_details (bonus — uniquement si extension sélectionnée) */}
+          {currentKey === 'extension_details' && (
+            <div className="space-y-4">
+              <p className="font-semibold text-gray-900">Détails de l'extension</p>
+              <p className="text-sm text-gray-400 -mt-2">Ces informations affinent le calcul du surcoût</p>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Surface de l'extension (m²)</label>
+                <input type="number" min="0" placeholder="ex : 30"
+                  value={answers.extensionSurface ?? ''}
+                  onChange={e => upd('extensionSurface', e.target.value ? Number(e.target.value) : undefined)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">Type de structure</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {([
+                    ['plain_pied',   '🏡', 'Plain pied',     'Extension de plain-pied (dalle)'],
+                    ['surelevation', '🏗️', 'Surélévation',   'Ajout d'un niveau supplémentaire'],
+                  ] as const).map(([val, emoji, label, sub]) => {
+                    const active = answers.extensionStructure === val;
+                    return (
+                      <button key={val} onClick={() => upd('extensionStructure', val as ExtensionStructure)}
+                        className={`${CHOICE_BASE} ${active ? CHOICE_ON : CHOICE_OFF}`}>
+                        <span className="text-2xl mb-0.5">{emoji}</span>
+                        <p className="font-semibold text-sm">{label}</p>
+                        <p className="text-[11px] text-gray-400 leading-tight">{sub}</p>
+                        {active && <Check className="h-3.5 w-3.5 text-blue-500 mt-1" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step details — Détails adaptatifs */}
+          {currentKey === 'details' && isImmeuble && (
             <div className="space-y-4">
               <p className="font-semibold text-gray-900">Détails de l'immeuble</p>
               <div>
@@ -725,7 +830,7 @@ function BudgetAffinageModal({
               </div>
             </div>
           )}
-          {step === 3 && !isImmeuble && (
+          {currentKey === 'details' && !isImmeuble && (
             <div className="space-y-4">
               <p className="font-semibold text-gray-900">Détails du projet</p>
               <div>
@@ -753,8 +858,8 @@ function BudgetAffinageModal({
             </div>
           )}
 
-          {/* Step 4 — Nature des travaux */}
-          {step === 4 && (
+          {/* Step nature — Nature des travaux */}
+          {currentKey === 'nature' && (
             <div className="space-y-2">
               <p className="font-semibold text-gray-900 mb-1">Quels types de travaux ?</p>
               <p className="text-sm text-gray-400 -mt-1 mb-3">Sélectionnez tout ce qui s'applique</p>
@@ -786,8 +891,8 @@ function BudgetAffinageModal({
             </div>
           )}
 
-          {/* Step 5 — Niveau de gamme */}
-          {step === 5 && (
+          {/* Step gamme — Niveau de gamme */}
+          {currentKey === 'gamme' && (
             <div className="space-y-2">
               <p className="font-semibold text-gray-900 mb-3">Quel niveau de prestations ?</p>
               {([
@@ -811,8 +916,8 @@ function BudgetAffinageModal({
             </div>
           )}
 
-          {/* Step 6 — Participation */}
-          {step === 6 && (
+          {/* Step participation */}
+          {currentKey === 'participation' && (
             <div className="space-y-2">
               <p className="font-semibold text-gray-900 mb-3">Quelle part réalisez-vous vous-même ?</p>
               {([
@@ -847,11 +952,13 @@ function BudgetAffinageModal({
                   <ChevronLeft className="h-4 w-4" />
                 </button>
               )}
-              <button onClick={() => setStep(s => s + 1)} disabled={!canNext}
+              <button onClick={safeNext} disabled={!canNext}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm transition-all ${
                   canNext ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                 }`}>
-                {step === 1 && !answers.typeProjet ? 'Choisissez un type de projet' : 'Continuer'}
+                {currentKey === 'types' && answers.typesProjet.length === 0
+                  ? 'Choisissez au moins un type'
+                  : 'Continuer'}
                 {canNext && <ChevronRight className="h-4 w-4" />}
               </button>
             </div>
