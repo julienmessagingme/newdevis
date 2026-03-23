@@ -96,7 +96,10 @@ function Sidebar({ result, activeSection, onSelect, rangeMin, rangeMax, badges, 
             className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 mb-4 transition-colors">
             <ArrowLeft className="h-3 w-3" /> Mes chantiers
           </a>
-          <div className="flex items-center gap-3">
+          <button
+            onClick={() => { onSelect('budget'); onCloseMobile(); }}
+            className="flex items-center gap-3 w-full text-left hover:opacity-80 transition-opacity"
+          >
             <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-xl shrink-0">
               {result.emoji}
             </div>
@@ -106,7 +109,7 @@ function Sidebar({ result, activeSection, onSelect, rangeMin, rangeMax, badges, 
                 {rangeMin > 0 ? `${fmtK(rangeMin)} – ${fmtK(rangeMax)}` : 'Budget en cours d\u2019estimation'}
               </p>
             </div>
-          </div>
+          </button>
           {onAmeliorer && (
             <button
               onClick={onAmeliorer}
