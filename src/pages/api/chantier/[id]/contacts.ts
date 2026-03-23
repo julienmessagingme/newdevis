@@ -100,18 +100,21 @@ export const GET: APIRoute = async ({ params, request }) => {
     }
   }
 
-  // ── Extraire les artisans des analyses ────────────────────────────────
-  const analyseArtisans: {
+  // ── Extraire les artisans des analyses (dédupliqués par SIRET, lot_id prioritaire) ──
+  type ArtisanRow = {
     analyse_id: string; nom: string; nom_officiel: string | null;
     siret: string | null; email: string | null; telephone: string | null;
     lot_id: string | null;
-  }[] = [];
+  };
+  const bySiret = new Map<string, ArtisanRow>();
+  const byName  = new Map<string, ArtisanRow>();
+
   for (const a of analyses ?? []) {
     try {
       const raw = typeof a.raw_text === 'string' ? JSON.parse(a.raw_text) : a.raw_text;
       const ent = raw?.extracted?.entreprise;
       if (!ent?.nom) continue;
-      analyseArtisans.push({
+      const row: ArtisanRow = {
         analyse_id: a.id,
         nom: raw?.verified?.nom_officiel || ent.nom,
         nom_officiel: raw?.verified?.nom_officiel || null,
@@ -119,9 +122,26 @@ export const GET: APIRoute = async ({ params, request }) => {
         email: ent.email || null,
         telephone: ent.telephone || null,
         lot_id: analyseLotMap.get(a.id) || null,
-      });
+      };
+
+      const key = row.siret || row.nom.toLowerCase();
+      const map = row.siret ? bySiret : byName;
+      const existing = map.get(key);
+      // Garder l'entrée qui a un lot_id, sinon la plus récente (première dans l'ordre DESC)
+      if (!existing) {
+        map.set(key, row);
+      } else if (row.lot_id && !existing.lot_id) {
+        map.set(key, row);
+      }
     } catch { /* skip malformed */ }
   }
+
+  // Fusionner : retirer de byName ceux déjà dans bySiret
+  const seenNames = new Set([...bySiret.values()].map(r => r.nom.toLowerCase()));
+  const analyseArtisans = [
+    ...bySiret.values(),
+    ...[...byName.values()].filter(r => !seenNames.has(r.nom.toLowerCase())),
+  ];
 
   // Lots pour les noms
   const { data: lots } = await ctx.supabase
