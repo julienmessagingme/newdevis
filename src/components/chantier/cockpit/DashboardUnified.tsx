@@ -8,7 +8,7 @@ import {
   Plus, X, Loader2, CheckCircle2, AlertCircle, CloudUpload, FileText,
   Sparkles, Trash2, ArrowLeft, ChevronRight, Wrench, Wallet, Layers,
   FileSearch, Calendar, FolderOpen, Bot, Settings, Menu, ExternalLink,
-  Receipt, Pencil, SlidersHorizontal,
+  Receipt, Pencil, SlidersHorizontal, Users,
 } from 'lucide-react';
 import type {
   ChantierIAResult, DocumentChantier, DocumentType, LotChantier, StatutArtisan,
@@ -16,6 +16,7 @@ import type {
 import { useInsights, type InsightItem, type InsightsData } from './useInsights';
 import BudgetTresorerie from './BudgetTresorerie';
 import PlanningChantier from './PlanningChantier';
+import ContactsSection from './ContactsSection';
 import ScreenEditPrompt from '@/components/chantier/nouveau/ScreenEditPrompt';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
@@ -47,7 +48,7 @@ const IS: Record<InsightItem['type'], { bg: string; text: string; border: string
   info:    { bg: 'bg-blue-50',    text: 'text-blue-800',    border: 'border-blue-100',     accent: 'border-l-blue-400'    },
 };
 
-type Section = 'budget' | 'lots' | 'analyse' | 'planning' | 'documents' | 'assistant' | 'diy' | 'settings';
+type Section = 'budget' | 'lots' | 'contacts' | 'analyse' | 'planning' | 'documents' | 'assistant' | 'diy' | 'settings';
 type UploadState = 'idle' | 'uploading' | 'analyzing' | 'success' | 'error';
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
@@ -68,6 +69,7 @@ interface SidebarProps {
 
 const NAV_ITEMS: { id: Section; label: string; icon: React.ElementType }[] = [
   { id: 'budget',    label: 'Vue d\'ensemble',      icon: Layers      },
+  { id: 'contacts',  label: 'Contacts',             icon: Users       },
   { id: 'analyse',   label: 'Analyse des devis',    icon: FileSearch  },
   { id: 'planning',  label: 'Planning',              icon: Calendar    },
   { id: 'documents', label: 'Documents',             icon: FolderOpen  },
@@ -1493,6 +1495,11 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
           </div>
         );
 
+      case 'contacts':
+        return chantierId && token ? (
+          <ContactsSection chantierId={chantierId} token={token} />
+        ) : null;
+
       case 'analyse':
         return (
           <AnalyseDevisSection
@@ -1575,7 +1582,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
 
   const SECTION_TITLES: Record<Section, string> = {
     budget: showBudgetDetail ? 'Affinage du budget' : result.nom,
-    lots: 'Intervenants', analyse: 'Analyse des devis',
+    lots: 'Intervenants', contacts: 'Contacts', analyse: 'Analyse des devis',
     planning: 'Planning', documents: 'Documents', assistant: 'Assistant chantier',
     diy: 'Travaux réalisés par vous', settings: 'Paramètres',
   };
