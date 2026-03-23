@@ -51,11 +51,40 @@ export const GET: APIRoute = async ({ params, request }) => {
     .eq('chantier_id', chantierId)
     .order('created_at', { ascending: false });
 
-  // Artisans des devis (pour auto-population)
+  // Artisans des devis chantier
   const { data: devisArtisans } = await ctx.supabase
     .from('devis_chantier')
     .select('id, artisan_nom, artisan_email, artisan_phone, artisan_siret, lot_id, type_travaux, analyse_id')
     .eq('chantier_id', chantierId);
+
+  // Analyses complétées du user — source principale des infos entreprise
+  const { data: analyses } = await ctx.supabase
+    .from('analyses')
+    .select('id, raw_text, created_at')
+    .eq('user_id', ctx.user.id)
+    .eq('status', 'completed')
+    .order('created_at', { ascending: false });
+
+  // Extraire les artisans des analyses (nom, siret, email, tel depuis raw_text)
+  const analyseArtisans: {
+    analyse_id: string; nom: string; nom_officiel: string | null;
+    siret: string | null; email: string | null; telephone: string | null;
+  }[] = [];
+  for (const a of analyses ?? []) {
+    try {
+      const raw = typeof a.raw_text === 'string' ? JSON.parse(a.raw_text) : a.raw_text;
+      const ent = raw?.extracted?.entreprise;
+      if (!ent?.nom) continue;
+      analyseArtisans.push({
+        analyse_id: a.id,
+        nom: raw?.verified?.nom_officiel || ent.nom,
+        nom_officiel: raw?.verified?.nom_officiel || null,
+        siret: ent.siret || null,
+        email: ent.email || null,
+        telephone: ent.telephone || null,
+      });
+    } catch { /* skip malformed */ }
+  }
 
   // Lots pour les noms
   const { data: lots } = await ctx.supabase
@@ -66,6 +95,7 @@ export const GET: APIRoute = async ({ params, request }) => {
   return new Response(JSON.stringify({
     contacts: contacts ?? [],
     devisArtisans: devisArtisans ?? [],
+    analyseArtisans,
     lots: lots ?? [],
   }), { headers: CORS });
 };

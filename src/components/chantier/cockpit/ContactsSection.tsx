@@ -37,6 +37,15 @@ interface DevisArtisan {
   analyse_id: string | null;
 }
 
+interface AnalyseArtisan {
+  analyse_id: string;
+  nom: string;
+  nom_officiel: string | null;
+  siret: string | null;
+  email: string | null;
+  telephone: string | null;
+}
+
 interface Lot {
   id: string;
   nom: string;
@@ -58,18 +67,19 @@ interface UnifiedContact {
   role: string | null;
   lotId: string | null;
   lotNom: string | null;
-  source: 'manual' | 'devis' | 'facture';
+  source: 'manual' | 'devis' | 'analyse';
   analyseId: string | null;
   devisId: string | null;
-  dbContact: Contact | null; // null = from devis only (not yet in contacts table)
+  dbContact: Contact | null;
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────
 
 export default function ContactsSection({ chantierId, token }: Props) {
-  const [contacts, setContacts]         = useState<Contact[]>([]);
-  const [devisArtisans, setDevisArtisans] = useState<DevisArtisan[]>([]);
-  const [lots, setLots]                 = useState<Lot[]>([]);
+  const [contacts, setContacts]               = useState<Contact[]>([]);
+  const [devisArtisans, setDevisArtisans]     = useState<DevisArtisan[]>([]);
+  const [analyseArtisans, setAnalyseArtisans] = useState<AnalyseArtisan[]>([]);
+  const [lots, setLots]                       = useState<Lot[]>([]);
   const [loading, setLoading]           = useState(true);
   const [search, setSearch]             = useState('');
   const [showForm, setShowForm]         = useState(false);
@@ -86,6 +96,7 @@ export default function ContactsSection({ chantierId, token }: Props) {
     const data = await res.json();
     setContacts(data.contacts ?? []);
     setDevisArtisans(data.devisArtisans ?? []);
+    setAnalyseArtisans(data.analyseArtisans ?? []);
     setLots(data.lots ?? []);
     setLoading(false);
   }, [chantierId, token]);
@@ -102,11 +113,13 @@ export default function ContactsSection({ chantierId, token }: Props) {
 
   const unified = useMemo(() => {
     const result: UnifiedContact[] = [];
-    const seenDevisIds = new Set<string>();
+    const seenSirets = new Set<string>();
+    const seenNames  = new Set<string>();
 
-    // 1) Contacts from DB
+    // 1) Contacts from DB (manual or previously saved)
     for (const c of contacts) {
-      if (c.devis_id) seenDevisIds.add(c.devis_id);
+      if (c.siret) seenSirets.add(c.siret);
+      seenNames.add(c.nom.toLowerCase());
       result.push({
         id: c.id,
         nom: c.nom,
@@ -116,20 +129,45 @@ export default function ContactsSection({ chantierId, token }: Props) {
         role: c.role,
         lotId: c.lot_id,
         lotNom: c.lot_id ? lotMap.get(c.lot_id) ?? null : null,
-        source: c.source,
+        source: c.source as 'manual' | 'devis' | 'analyse',
         analyseId: c.analyse_id,
         devisId: c.devis_id,
         dbContact: c,
       });
     }
 
-    // 2) Artisans from devis not yet saved as contacts (deduplicated by name)
-    const seenNames = new Set(result.map(r => r.nom.toLowerCase()));
+    // 2) Artisans from analyses (primary source — real company names + SIRET)
+    for (const a of analyseArtisans) {
+      // Deduplicate by SIRET first, then by name
+      if (a.siret && seenSirets.has(a.siret)) continue;
+      const nameKey = a.nom.toLowerCase();
+      if (seenNames.has(nameKey)) continue;
+      if (a.siret) seenSirets.add(a.siret);
+      seenNames.add(nameKey);
+
+      result.push({
+        id: `analyse-${a.analyse_id}`,
+        nom: a.nom,
+        email: a.email,
+        telephone: a.telephone,
+        siret: a.siret,
+        role: null,
+        lotId: null,
+        lotNom: null,
+        source: 'analyse',
+        analyseId: a.analyse_id,
+        devisId: null,
+        dbContact: null,
+      });
+    }
+
+    // 3) Artisans from devis_chantier (fallback — only if not already seen)
     for (const d of devisArtisans) {
-      if (seenDevisIds.has(d.id)) continue;
-      const key = d.artisan_nom.toLowerCase();
-      if (seenNames.has(key)) continue;
-      seenNames.add(key);
+      if (d.artisan_siret && seenSirets.has(d.artisan_siret)) continue;
+      const nameKey = d.artisan_nom.toLowerCase();
+      if (seenNames.has(nameKey)) continue;
+      if (d.artisan_siret) seenSirets.add(d.artisan_siret);
+      seenNames.add(nameKey);
 
       result.push({
         id: `devis-${d.id}`,
@@ -148,7 +186,7 @@ export default function ContactsSection({ chantierId, token }: Props) {
     }
 
     return result;
-  }, [contacts, devisArtisans, lotMap]);
+  }, [contacts, devisArtisans, analyseArtisans, lotMap]);
 
   // ── Filtered list ─────────────────────────────────────────────────────
 
@@ -287,7 +325,7 @@ function ContactCard({ contact: c, onEdit, onDelete }: {
   onEdit: () => void;
   onDelete?: () => void;
 }) {
-  const sourceBadge = c.source === 'devis'
+  const sourceBadge = c.source === 'devis' || c.source === 'analyse'
     ? { label: 'Devis', style: 'bg-blue-50 text-blue-600' }
     : c.source === 'facture'
     ? { label: 'Facture', style: 'bg-emerald-50 text-emerald-600' }
