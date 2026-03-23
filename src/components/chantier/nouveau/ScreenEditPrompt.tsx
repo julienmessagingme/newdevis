@@ -130,87 +130,66 @@ function GeneratingPhase({
       }, delay));
     });
 
-    const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-    const edgeFnUrl = `${supabaseUrl}/functions/v1/chantier-generer`;
+    const run = async () => {
+      try {
+        const supabaseUrl    = import.meta.env.PUBLIC_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-    const body = JSON.stringify({
-      description: newPrompt,
-      mode: 'libre',
-    });
+        const response = await fetch(`${supabaseUrl}/functions/v1/chantier-generer`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            apikey: supabaseAnonKey,
+          },
+          body: JSON.stringify({ description: newPrompt, mode: 'libre' }),
+        });
 
-    let result: ChantierIAResult | null = null;
-
-    fetch(edgeFnUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body,
-    })
-      .then(async (res) => {
-        if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buf = '';
-
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buf += decoder.decode(value, { stream: true });
-
-          const lines = buf.split('\n');
-          buf = lines.pop() ?? '';
-
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            const raw = line.slice(6).trim();
-            if (!raw || raw === '[DONE]') continue;
-            try {
-              const evt = JSON.parse(raw);
-              if (evt.type === 'result' && evt.data) {
-                result = { ...evt.data, promptOriginal: newPrompt };
-              }
-            } catch { /* ignore malformed */ }
-          }
-        }
-      })
-      .then(async () => {
         timers.forEach(clearTimeout);
-        setPct(100);
-        setActiveStep(GEN_STEPS.length - 1);
 
-        if (!result) {
-          onError('Aucun résultat reçu de l\'IA.');
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          onError((errData as { error?: string }).error ?? `Erreur serveur HTTP ${response.status}`);
           return;
         }
+
+        const data = await response.json() as { result?: ChantierIAResult; error?: string };
+
+        if (data.error || !data.result) {
+          onError(data.error ?? 'Réponse invalide du serveur');
+          return;
+        }
+
+        const result: ChantierIAResult = { ...data.result, promptOriginal: newPrompt };
+
+        setActiveStep(GEN_STEPS.length - 1);
+        setPct(100);
 
         // PATCH le chantier existant
-        try {
-          const apiUrl = `/api/chantier/${chantierId}/regenerer`;
-          const patchRes = await fetch(apiUrl, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ result }),
-          });
-          if (!patchRes.ok) {
-            const err = await patchRes.json().catch(() => ({}));
-            throw new Error(err.error ?? `HTTP ${patchRes.status}`);
-          }
-        } catch (e) {
-          onError(`Erreur lors de la sauvegarde : ${e instanceof Error ? e.message : String(e)}`);
+        const patchRes = await fetch(`/api/chantier/${chantierId}/regenerer`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ result }),
+        });
+
+        if (!patchRes.ok) {
+          const err = await patchRes.json().catch(() => ({}));
+          onError(`Erreur lors de la sauvegarde : ${(err as { error?: string }).error ?? `HTTP ${patchRes.status}`}`);
           return;
         }
 
-        setTimeout(() => onSuccess(result!), 400);
-      })
-      .catch((e) => {
+        setTimeout(() => onSuccess(result), 400);
+
+      } catch (e) {
         timers.forEach(clearTimeout);
-        onError(e instanceof Error ? e.message : String(e));
-      });
+        onError(e instanceof Error ? e.message : 'Erreur réseau, veuillez réessayer');
+      }
+    };
+
+    run();
 
     return () => timers.forEach(clearTimeout);
   }, []);
