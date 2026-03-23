@@ -43,24 +43,21 @@ export default function ScreenWow({ result, tempsMs, onDashboard, onAmeliorer }:
   const tempsSec = (tempsMs / 1000).toFixed(1);
 
   const stats = [
-    { label: 'Budget estimé', value: `${result.budgetTotal.toLocaleString('fr-FR')} €`, icon: '💰', color: 'text-blue-300' },
-    { label: 'Durée estimée', value: `${result.dureeEstimeeMois} mois`, icon: '🗓️', color: 'text-cyan-300' },
-    { label: 'Artisans', value: `${result.nbArtisans}`, icon: '👷', color: 'text-amber-300' },
-    { label: 'Formalités', value: `${result.nbFormalites}`, icon: '📋', color: 'text-purple-300' },
+    { label: 'Budget estimé', value: `${result.budgetTotal.toLocaleString('fr-FR')} €`, icon: '💰', color: 'text-blue-600' },
+    { label: 'Durée estimée', value: `${result.dureeEstimeeMois} mois`, icon: '🗓️', color: 'text-cyan-600' },
+    { label: 'Artisans', value: `${result.nbArtisans}`, icon: '👷', color: 'text-amber-600' },
+    { label: 'Formalités', value: `${result.nbFormalites}`, icon: '📋', color: 'text-purple-600' },
   ];
 
   return (
-    <div className="min-h-screen bg-[#0a0f1e] flex flex-col items-center justify-center px-4 py-12 relative overflow-hidden">
+    <div className="min-h-screen bg-white flex flex-col items-center justify-center px-4 py-12 relative overflow-hidden">
       {/* Confetti container */}
       <div ref={confettiRef} className="absolute inset-0 pointer-events-none overflow-hidden" />
-
-      {/* Glow */}
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-500/8 rounded-full blur-3xl pointer-events-none" />
 
       <div className="relative w-full max-w-lg text-center">
         {/* Badge temps */}
         <div
-          className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-4 py-1.5 text-emerald-300 text-sm font-medium mb-6"
+          className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-full px-4 py-1.5 text-emerald-700 text-sm font-medium mb-6"
           style={{ animation: 'ia-pop-in 0.4s ease-out both' }}
         >
           <Sparkles className="h-3.5 w-3.5" />
@@ -70,10 +67,10 @@ export default function ScreenWow({ result, tempsMs, onDashboard, onAmeliorer }:
         {/* Titre */}
         <div style={{ animation: 'ia-fade-up 0.5s ease-out 0.1s both' }}>
           <div className="text-5xl mb-3">{result.emoji}</div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white mb-2">
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-gray-900 mb-2">
             {result.nom}
           </h1>
-          <p className="text-slate-400 text-sm max-w-xs mx-auto">{result.description}</p>
+          <p className="text-gray-500 text-sm max-w-xs mx-auto">{result.description}</p>
         </div>
 
         {/* Stats */}
@@ -84,11 +81,11 @@ export default function ScreenWow({ result, tempsMs, onDashboard, onAmeliorer }:
           {stats.map((s) => (
             <div
               key={s.label}
-              className="bg-white/[0.04] border border-white/[0.07] rounded-2xl p-4"
+              className="bg-gray-50 border border-gray-100 rounded-2xl p-4"
             >
               <div className="text-2xl mb-1">{s.icon}</div>
               <div className={`text-xl font-display font-bold ${s.color}`}>{s.value}</div>
-              <div className="text-slate-500 text-xs mt-0.5">{s.label}</div>
+              <div className="text-gray-500 text-xs mt-0.5">{s.label}</div>
             </div>
           ))}
         </div>
@@ -100,14 +97,14 @@ export default function ScreenWow({ result, tempsMs, onDashboard, onAmeliorer }:
         >
           <button
             onClick={onAmeliorer}
-            className="flex-1 flex items-center justify-center gap-2 bg-white/[0.06] hover:bg-white/[0.09] border border-white/10 text-slate-200 font-medium rounded-xl py-3 px-5 text-sm transition-all"
+            className="flex-1 flex items-center justify-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium rounded-xl py-3 px-5 text-sm transition-all"
           >
             <Pencil className="h-4 w-4" />
             Améliorer mon plan
           </button>
           <button
             onClick={onDashboard}
-            className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl py-3 px-5 text-sm transition-all"
+            className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl py-3 px-5 text-sm transition-all"
           >
             Accéder au tableau de bord
             <ArrowRight className="h-4 w-4" />

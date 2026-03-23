@@ -101,15 +101,15 @@ export default function NouveauChantier() {
 
   // Saving — écran de transition pendant la sauvegarde en DB
   return (
-    <div className="min-h-screen bg-[#080d1a] flex flex-col items-center justify-center gap-4">
+    <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-4">
       <div
-        className="w-16 h-16 rounded-2xl bg-white/[0.06] border border-white/[0.10] flex items-center justify-center"
+        className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center"
         style={{ animation: 'pulse 1.5s ease-in-out infinite' }}
       >
-        <Loader2 className="h-7 w-7 text-blue-400 animate-spin" />
+        <Loader2 className="h-7 w-7 text-blue-600 animate-spin" />
       </div>
-      <p className="text-white font-semibold text-base">Préparation de votre tableau de bord…</p>
-      <p className="text-slate-500 text-sm">Quelques secondes</p>
+      <p className="text-gray-900 font-semibold text-base">Préparation de votre tableau de bord…</p>
+      <p className="text-gray-400 text-sm">Quelques secondes</p>
     </div>
   );
 }

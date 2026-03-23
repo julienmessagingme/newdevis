@@ -147,14 +147,14 @@ export default function ScreenGenerating({ token, requestBody, onResult, onError
   const strokeOffset = CIRCUMFERENCE * (1 - displayPct / 100);
 
   return (
-    <div className="min-h-screen bg-[#0a0f1e] flex flex-col items-center justify-center px-4 py-12">
+    <div className="min-h-screen bg-white flex flex-col items-center justify-center px-4 py-12">
       <div className="w-full max-w-lg">
         {/* Ring SVG */}
         <div className="flex justify-center mb-8">
           <div className="relative w-40 h-40">
             <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
               {/* Track */}
-              <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="8" />
+              <circle cx="60" cy="60" r="50" fill="none" stroke="#E5E7EB" strokeWidth="8" />
               {/* Progress */}
               <circle
                 cx="60" cy="60" r="50" fill="none"
@@ -166,8 +166,8 @@ export default function ScreenGenerating({ token, requestBody, onResult, onError
               />
               <defs>
                 <linearGradient id="ia-ring-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#3b82f6" />
-                  <stop offset="100%" stopColor="#06d6c7" />
+                  <stop offset="0%" stopColor="#2563eb" />
+                  <stop offset="100%" stopColor="#0ea5e9" />
                 </linearGradient>
               </defs>
             </svg>
@@ -179,7 +179,7 @@ export default function ScreenGenerating({ token, requestBody, onResult, onError
             >
               <circle
                 cx="60" cy="60" r="50" fill="none"
-                stroke="rgba(59,130,246,0.2)" strokeWidth="8"
+                stroke="rgba(37,99,235,0.15)" strokeWidth="8"
                 strokeLinecap="round"
                 strokeDasharray="30 284"
                 strokeDashoffset="0"
@@ -187,16 +187,16 @@ export default function ScreenGenerating({ token, requestBody, onResult, onError
             </svg>
             {/* Pourcentage */}
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-2xl font-display font-bold text-white">{displayPct}%</span>
-              <span className="text-xs text-slate-500 mt-0.5">en cours</span>
+              <span className="text-2xl font-bold text-gray-900">{displayPct}%</span>
+              <span className="text-xs text-gray-400 mt-0.5">en cours</span>
             </div>
           </div>
         </div>
 
         {/* Titre */}
         <div className="text-center mb-8">
-          <h2 className="text-xl font-display font-bold text-white mb-1">Génération en cours…</h2>
-          <p className="text-slate-500 text-sm">Gemini analyse votre projet et crée votre plan sur mesure</p>
+          <h2 className="text-xl font-bold text-gray-900 mb-1">Génération en cours…</h2>
+          <p className="text-gray-500 text-sm">Notre IA analyse votre projet et crée votre plan sur mesure</p>
         </div>
 
         {/* Steps */}
@@ -211,25 +211,25 @@ export default function ScreenGenerating({ token, requestBody, onResult, onError
                 key={step.name}
                 className={`flex items-center gap-4 rounded-xl p-4 border transition-all duration-500 ${
                   isActive
-                    ? 'border-blue-500/40 bg-blue-500/10'
+                    ? 'border-blue-200 bg-blue-50'
                     : isDone
-                    ? 'border-emerald-500/30 bg-emerald-500/8'
-                    : 'border-white/[0.04] bg-white/[0.02] opacity-40'
+                    ? 'border-emerald-200 bg-emerald-50'
+                    : 'border-gray-100 bg-gray-50 opacity-50'
                 }`}
               >
                 {/* Icon */}
                 <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-lg shrink-0 transition-all ${
-                  isActive ? 'bg-blue-500/20' : isDone ? 'bg-emerald-500/15' : 'bg-white/5'
+                  isActive ? 'bg-blue-100' : isDone ? 'bg-emerald-100' : 'bg-white'
                 }`}>
                   {isDone ? '✓' : step.ico}
                 </div>
                 {/* Text */}
                 <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-medium ${isDone ? 'text-emerald-300' : isActive ? 'text-white' : 'text-slate-500'}`}>
+                  <p className={`text-sm font-medium ${isDone ? 'text-emerald-700' : isActive ? 'text-blue-700' : 'text-gray-400'}`}>
                     {step.name}
                   </p>
                   {s.detail && (
-                    <p className={`text-xs mt-0.5 ${isDone ? 'text-emerald-500' : 'text-slate-400'}`}>
+                    <p className={`text-xs mt-0.5 ${isDone ? 'text-emerald-500' : 'text-blue-500'}`}>
                       {s.detail}
                     </p>
                   )}
@@ -240,7 +240,7 @@ export default function ScreenGenerating({ token, requestBody, onResult, onError
                     {[0, 1, 2].map((d) => (
                       <div
                         key={d}
-                        className="w-1.5 h-1.5 rounded-full bg-blue-400"
+                        className="w-1.5 h-1.5 rounded-full bg-blue-500"
                         style={{ animation: `ia-typing-dot 1.2s ease-in-out ${d * 0.2}s infinite` }}
                       />
                     ))}
