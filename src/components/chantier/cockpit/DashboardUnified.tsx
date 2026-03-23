@@ -14,6 +14,7 @@ import type {
 } from '@/types/chantier-ia';
 import { useInsights, type InsightItem, type InsightsData } from './useInsights';
 import BudgetTresorerie from './BudgetTresorerie';
+import ScreenAmeliorations from '@/components/chantier/nouveau/ScreenAmeliorations';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 
@@ -1020,7 +1021,9 @@ interface Props {
   onLotStatutChange?: (lotId: string, statut: StatutArtisan) => void;
 }
 
-export default function DashboardUnified({ result, chantierId, token }: Props) {
+export default function DashboardUnified({ result: resultProp, chantierId, token }: Props) {
+  const [result, setResult]               = useState(resultProp);
+  const [showAmelioration, setShowAmelioration] = useState(false);
   const [activeSection, setActiveSection] = useState<Section>('budget');
   const [mobileOpen, setMobileOpen]       = useState(false);
   const [documents, setDocuments]         = useState<DocumentChantier[]>([]);
@@ -1130,6 +1133,7 @@ export default function DashboardUnified({ result, chantierId, token }: Props) {
             onGoToLots={() => navigateTo('lots')}
             onGoToLot={(lotId) => { setSelectedLotId(lotId); navigateTo('lots'); }}
             onRangeRefined={(min, max) => { setRefinedRangeMin(min); setRefinedRangeMax(max); }}
+            onAmeliorer={() => setShowAmelioration(true)}
           />
         );
 
@@ -1292,6 +1296,19 @@ export default function DashboardUnified({ result, chantierId, token }: Props) {
     planning: 'Planning', documents: 'Documents', assistant: 'Assistant chantier',
     diy: 'Travaux réalisés par vous', settings: 'Paramètres',
   };
+
+  // ── Écran d'amélioration plein écran ─────────────────────────────────────
+  if (showAmelioration && chantierId && token) {
+    return (
+      <ScreenAmeliorations
+        result={result}
+        chantierId={chantierId}
+        token={token}
+        onBack={() => setShowAmelioration(false)}
+        onUpdate={(updated) => { setResult(updated); setShowAmelioration(false); }}
+      />
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f7f8fc]">

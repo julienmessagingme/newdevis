@@ -6,7 +6,7 @@ import { useMemo, useState, useCallback } from 'react';
 import {
   TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, CircleDollarSign,
   FileText, Plus, Search, ChevronRight, ChevronLeft, Info, Zap, Layers, Wallet, X,
-  SlidersHorizontal, Check,
+  SlidersHorizontal, Check, Pencil,
 } from 'lucide-react';
 import type { ChantierIAResult, DocumentChantier } from '@/types/chantier-ia';
 import type { InsightsData, InsightItem } from './useInsights';
@@ -464,14 +464,30 @@ function QuickActions({ onAddDoc, onGoToAnalyse, onGoToLots }: {
 
 // ── Header projet ─────────────────────────────────────────────────────────────
 
-function ProjectHeader({ emoji, nom, hasAnyBudget }: { emoji: string; nom: string; hasAnyBudget: boolean }) {
+function ProjectHeader({
+  emoji, nom, hasAnyBudget, onAmeliorer,
+}: {
+  emoji: string; nom: string; hasAnyBudget: boolean; onAmeliorer?: () => void;
+}) {
   return (
-    <div className="flex items-center gap-3 pb-1">
+    <div className="flex items-start gap-3 pb-1">
       <div className="w-11 h-11 rounded-2xl bg-blue-50 flex items-center justify-center text-2xl shrink-0 shadow-sm">
         {emoji}
       </div>
-      <div className="min-w-0">
-        <h2 className="font-bold text-gray-900 text-xl leading-tight truncate">{nom}</h2>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h2 className="font-bold text-gray-900 text-xl leading-tight">{nom}</h2>
+          {onAmeliorer && (
+            <button
+              onClick={onAmeliorer}
+              className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-full px-2.5 py-1 transition-all shrink-0"
+              title="Modifier ou compléter la description du projet"
+            >
+              <Pencil className="h-3 w-3" />
+              Modifier le projet
+            </button>
+          )}
+        </div>
         <p className="text-sm text-gray-400 mt-0.5">
           {hasAnyBudget ? "Budget en cours d\u2019affinage" : "Budget en cours d\u2019estimation"}
         </p>
@@ -1049,9 +1065,10 @@ interface Props {
   onGoToLots: () => void;
   onGoToLot?: (lotId: string) => void;
   onRangeRefined?: (min: number, max: number) => void;
+  onAmeliorer?: () => void;
 }
 
-export default function BudgetTresorerie({ result, documents, insights, insightsLoading, baseRangeMin, baseRangeMax, onAddDoc, onGoToAnalyse, onGoToLots, onGoToLot, onRangeRefined }: Props) {
+export default function BudgetTresorerie({ result, documents, insights, insightsLoading, baseRangeMin, baseRangeMax, onAddDoc, onGoToAnalyse, onGoToLots, onGoToLot, onRangeRefined, onAmeliorer }: Props) {
   const lots = result.lots ?? [];
 
   // ── État modal affinage ────────────────────────────────────────────────────
@@ -1089,7 +1106,7 @@ export default function BudgetTresorerie({ result, documents, insights, insights
     <div className="max-w-5xl mx-auto px-6 py-7 space-y-5">
 
       {/* ── Header projet ─────────────────────────────────────────────────── */}
-      <ProjectHeader emoji={result.emoji} nom={result.nom} hasAnyBudget={hasAnyBudget} />
+      <ProjectHeader emoji={result.emoji} nom={result.nom} hasAnyBudget={hasAnyBudget} onAmeliorer={onAmeliorer} />
 
       {/* ── 🎯 Prochaine étape ────────────────────────────────────────────── */}
       {(() => {
