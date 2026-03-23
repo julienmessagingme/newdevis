@@ -570,27 +570,156 @@ type Gamme = 'entree' | 'standard' | 'haut_de_gamme';
 type Participation = 'tout_delegue' | 'partiellement' | 'beaucoup';
 type NatureTravaux = 'gros_oeuvre' | 'electricite' | 'plomberie' | 'isolation' | 'menuiserie' | 'finitions';
 
+// ── Éléments de projet détectables ────────────────────────────────────────────
+
+interface ElemQuestion {
+  id: string;
+  label: string;
+  type: 'number' | 'choice';
+  unit?: string;
+  placeholder?: string;
+  choices?: string[];
+}
+
+interface ProjectElementDef {
+  id: string;
+  label: string;
+  emoji: string;
+  keywords: string[];
+  typeEquiv: TypeProjetAffinage;
+  questions: ElemQuestion[];
+}
+
+const ELEMENT_DEFS: ProjectElementDef[] = [
+  {
+    id: 'piscine', label: 'Piscine', emoji: '🏊', typeEquiv: 'exterieur',
+    keywords: ['piscine', 'pool', 'bassin'],
+    questions: [
+      { id: 'type', label: 'Type de piscine', type: 'choice',
+        choices: ['Béton coulé (sur mesure)', 'Coque polyester', 'Hors-sol'] },
+      { id: 'surface', label: 'Surface du bassin', type: 'number', unit: 'm²', placeholder: '30' },
+    ],
+  },
+  {
+    id: 'terrasse', label: 'Terrasse', emoji: '🪵', typeEquiv: 'exterieur',
+    keywords: ['terrasse', 'deck', 'platelage'],
+    questions: [
+      { id: 'surface', label: 'Surface de la terrasse', type: 'number', unit: 'm²', placeholder: '25' },
+      { id: 'materiau', label: 'Matériau', type: 'choice',
+        choices: ['Bois composite', 'Bois naturel (ipé, pin…)', 'Carrelage extérieur', 'Béton / dallage'] },
+    ],
+  },
+  {
+    id: 'pergola', label: 'Pergola', emoji: '⛺', typeEquiv: 'exterieur',
+    keywords: ['pergola'],
+    questions: [
+      { id: 'surface', label: 'Surface couverte', type: 'number', unit: 'm²', placeholder: '15' },
+      { id: 'type', label: 'Type', type: 'choice',
+        choices: ['Bioclimatique (lames orientables)', 'Classique bois', 'Aluminium fixe'] },
+    ],
+  },
+  {
+    id: 'pool_house', label: 'Pool house', emoji: '🏡', typeEquiv: 'exterieur',
+    keywords: ['pool house', 'poolhouse', 'abri piscine', 'pool-house'],
+    questions: [
+      { id: 'surface', label: 'Surface du pool house', type: 'number', unit: 'm²', placeholder: '20' },
+      { id: 'type', label: 'Construction', type: 'choice',
+        choices: ['Parpaing / enduit', 'Ossature bois', 'Maçonnerie pierre'] },
+    ],
+  },
+  {
+    id: 'extension', label: 'Extension', emoji: '🏗️', typeEquiv: 'extension',
+    keywords: ['extension', 'agrandissement', 'annexe', 'surélévation', 'surelevation'],
+    questions: [
+      { id: 'surface', label: 'Surface à créer', type: 'number', unit: 'm²', placeholder: '30' },
+      { id: 'structure', label: 'Type de structure', type: 'choice',
+        choices: ['Plain-pied (dalle béton)', 'Surélévation (niveau supplémentaire)'] },
+    ],
+  },
+  {
+    id: 'renovation', label: 'Rénovation complète', emoji: '🔨', typeEquiv: 'renovation_complete',
+    keywords: ['rénovation complète', 'renovation complete', 'rénover entièrement', 'réhabilitation'],
+    questions: [
+      { id: 'surface', label: 'Surface à rénover', type: 'number', unit: 'm²', placeholder: '100' },
+      { id: 'type', label: 'Étendue des travaux', type: 'choice',
+        choices: ['Complète (gros œuvre + second œuvre)', 'Partielle (finitions et aménagements)', 'Rafraîchissement léger'] },
+    ],
+  },
+  {
+    id: 'salle_bain', label: 'Salle de bain', emoji: '🚿', typeEquiv: 'renovation_partielle',
+    keywords: ['salle de bain', 'salle de bains', 'sdb', 'douche', 'baignoire'],
+    questions: [
+      { id: 'surface', label: 'Surface de la salle de bain', type: 'number', unit: 'm²', placeholder: '8' },
+      { id: 'type', label: 'Type de rénovation', type: 'choice',
+        choices: ['Complète (plomberie + carrelage + équipements)', 'Équipements uniquement', 'Rafraîchissement'] },
+    ],
+  },
+  {
+    id: 'cuisine', label: 'Cuisine', emoji: '🍳', typeEquiv: 'renovation_partielle',
+    keywords: ['cuisine', 'plan de travail', 'meuble cuisine'],
+    questions: [
+      { id: 'surface', label: 'Surface de la cuisine', type: 'number', unit: 'm²', placeholder: '15' },
+      { id: 'type', label: 'Type de rénovation', type: 'choice',
+        choices: ['Complète (plomberie + électricité + mobilier)', 'Remplacement des équipements', 'Façades et plan de travail'] },
+    ],
+  },
+  {
+    id: 'cloture', label: 'Clôture / portail', emoji: '🚧', typeEquiv: 'exterieur',
+    keywords: ['clôture', 'cloture', 'portail', 'grillage', 'palissade', 'mur de clôture'],
+    questions: [
+      { id: 'lineaire', label: 'Linéaire de clôture', type: 'number', unit: 'ml', placeholder: '30' },
+      { id: 'type', label: 'Type', type: 'choice',
+        choices: ['Bois (palissade / lisses)', 'Aluminium / PVC', 'Béton / pierre', 'Grillage rigide'] },
+    ],
+  },
+  {
+    id: 'carport', label: 'Carport / garage', emoji: '🚗', typeEquiv: 'exterieur',
+    keywords: ['carport', 'abri voiture', 'garage', 'box'],
+    questions: [
+      { id: 'surface', label: 'Surface du carport', type: 'number', unit: 'm²', placeholder: '20' },
+      { id: 'type', label: 'Type', type: 'choice',
+        choices: ['Bois', 'Aluminium', 'Métal', 'Maçonnerie'] },
+    ],
+  },
+];
+
+function detectElements(text: string): ProjectElementDef[] {
+  const lower = text.toLowerCase();
+  const result: ProjectElementDef[] = [];
+  for (const def of ELEMENT_DEFS) {
+    if (def.keywords.some(kw => lower.includes(kw))) {
+      result.push(def);
+    }
+  }
+  return result;
+}
+
 interface AffinageAnswers {
-  typesProjet: TypeProjetAffinage[];   // multi-select
+  // Nouveau : éléments confirmés + réponses par élément
+  confirmedElements: string[];
+  elementAnswers: Record<string, Record<string, string | number>>;
+  // Gardé pour backward compat (computeScore, détails immeuble)
+  typesProjet: TypeProjetAffinage[];
   surface?: number;
   surfaceTravaux?: number;
-  // Extension bonus
   extensionSurface?: number;
   extensionStructure?: ExtensionStructure;
-  // Immeuble
   nbAppartements?: number;
   partiesCommunes?: boolean;
   ascenseur?: boolean;
-  // Maison
   nbPieces?: number;
   nbNiveaux?: number;
-  // Multi-select
   natureTravaux: NatureTravaux[];
   gamme?: Gamme;
   participation?: Participation;
 }
 
-const INITIAL_ANSWERS: AffinageAnswers = { typesProjet: [], natureTravaux: [] };
+const INITIAL_ANSWERS: AffinageAnswers = {
+  confirmedElements: [],
+  elementAnswers: {},
+  typesProjet: [],
+  natureTravaux: [],
+};
 
 // Coefficients de base — toujours appliqués SUR les prix marché existants
 const TYPE_COEFF: Record<TypeProjetAffinage, number> = {
@@ -630,10 +759,17 @@ function computeMultiTypeCoeff(types: TypeProjetAffinage[]): number {
 }
 
 function computeRefinedRange(
-  baseMin: number, baseMax: number, a: AffinageAnswers,
+  baseMin: number, baseMax: number, a: AffinageAnswers, detectedEls?: ProjectElementDef[],
 ): { min: number; max: number } {
   if (baseMin === 0 && baseMax === 0) return { min: 0, max: 0 };
-  const tc = computeMultiTypeCoeff(a.typesProjet);
+  // Dériver typesProjet depuis les éléments confirmés (si disponibles)
+  let typesProjet = a.typesProjet;
+  if (detectedEls && a.confirmedElements.length > 0) {
+    typesProjet = a.confirmedElements
+      .map(id => detectedEls.find(e => e.id === id)?.typeEquiv)
+      .filter(Boolean) as TypeProjetAffinage[];
+  }
+  const tc = computeMultiTypeCoeff(typesProjet.length > 0 ? typesProjet : ['renovation_complete']);
   const gc = a.gamme ? GAMME_COEFF[a.gamme] : 1;
   const pc = a.participation ? PARTICIPATION_COEFF[a.participation] : 1;
   const mult = tc * gc * pc;
@@ -645,13 +781,15 @@ function computeRefinedRange(
 
 function computeScore(a: AffinageAnswers): number {
   let s = 0;
-  if (a.typesProjet.length > 0) s++;
-  if ((a.surface ?? 0) > 0) s++;
-  if (a.nbAppartements !== undefined || a.nbPieces !== undefined || (a.extensionSurface ?? 0) > 0) s++;
+  if (a.confirmedElements.length > 0) s++;
+  const hasSurface = Object.values(a.elementAnswers).some(ea =>
+    (Number(ea.surface) > 0) || (Number(ea.lineaire) > 0)
+  );
+  if (hasSurface) s++;
   if (a.natureTravaux.length > 0) s++;
   if (a.gamme) s++;
   if (a.participation) s++;
-  return s;
+  return s; // max 5
 }
 
 function ScoreBadge({ score }: { score: number }) {
@@ -670,26 +808,48 @@ function ScoreBadge({ score }: { score: number }) {
 // ── Modal affinage budget ─────────────────────────────────────────────────────
 
 function BudgetAffinageModal({
-  baseMin, baseMax, resultNom, isImmeuble, onClose, onValidate,
+  baseMin, baseMax, resultNom, isImmeuble, resultDescription, resultLots,
+  onClose, onValidate,
 }: {
   baseMin: number; baseMax: number; resultNom: string; isImmeuble: boolean;
+  resultDescription?: string; resultLots?: { nom: string }[];
   onClose: () => void; onValidate: (min: number, max: number) => void;
 }) {
+  // ── Détection éléments depuis le texte du projet ─────────────────────────
+  const detectionText = useMemo(
+    () => [resultNom, resultDescription ?? '', ...(resultLots ?? []).map(l => l.nom)].join(' '),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  const [detectedElements, setDetectedElements] = useState<ProjectElementDef[]>(() =>
+    detectElements(detectionText),
+  );
+
   const [step, setStep] = useState(1);
-  const [answers, setAnswers] = useState<AffinageAnswers>(INITIAL_ANSWERS);
+  const [answers, setAnswers] = useState<AffinageAnswers>(() => ({
+    ...INITIAL_ANSWERS,
+    // Pré-sélectionner tous les éléments détectés
+    confirmedElements: detectElements(detectionText).map(e => e.id),
+  }));
 
-  // Séquence de steps dynamique selon les types sélectionnés
+  // Séquence de steps : confirm_elements → une étape par élément confirmé → nature → gamme → participation
   const stepKeys = useMemo(() => {
-    const keys = ['types', 'surface', 'details', 'nature', 'gamme', 'participation'];
-    if (answers.typesProjet.includes('extension')) {
-      keys.splice(2, 0, 'extension_details'); // insère après 'surface'
+    const keys: string[] = ['confirm_elements'];
+    for (const elemId of answers.confirmedElements) {
+      const def = detectedElements.find(e => e.id === elemId);
+      if (def && def.questions.length > 0) keys.push(`elem_${elemId}`);
     }
+    keys.push('nature', 'gamme', 'participation');
     return keys;
-  }, [answers.typesProjet]);
-  const TOTAL_STEPS   = stepKeys.length;
-  const currentKey    = stepKeys[step - 1] ?? 'types';
+  }, [answers.confirmedElements, detectedElements]);
 
-  const refined = useMemo(() => computeRefinedRange(baseMin, baseMax, answers), [baseMin, baseMax, answers]);
+  const TOTAL_STEPS = stepKeys.length;
+  const currentKey  = stepKeys[step - 1] ?? 'confirm_elements';
+
+  const refined = useMemo(
+    () => computeRefinedRange(baseMin, baseMax, answers, detectedElements),
+    [baseMin, baseMax, answers, detectedElements],
+  );
   const score   = useMemo(() => computeScore(answers), [answers]);
   const hasBase = baseMin > 0 || baseMax > 0;
 
@@ -697,13 +857,32 @@ function BudgetAffinageModal({
     setAnswers(prev => ({ ...prev, [key]: val }));
   }, []);
 
-  function toggleTypeProjet(t: TypeProjetAffinage) {
+  function toggleElement(id: string) {
     setAnswers(prev => {
-      const set = new Set(prev.typesProjet);
-      set.has(t) ? set.delete(t) : set.add(t);
-      // Si on retire 'extension', remettre step < extension_details si on y était
-      return { ...prev, typesProjet: Array.from(set) };
+      const s = new Set(prev.confirmedElements);
+      s.has(id) ? s.delete(id) : s.add(id);
+      return { ...prev, confirmedElements: Array.from(s) };
     });
+  }
+
+  function addCustomElement(def: ProjectElementDef) {
+    if (!detectedElements.find(e => e.id === def.id)) {
+      setDetectedElements(prev => [...prev, def]);
+    }
+    setAnswers(prev => {
+      if (prev.confirmedElements.includes(def.id)) return prev;
+      return { ...prev, confirmedElements: [...prev.confirmedElements, def.id] };
+    });
+  }
+
+  function updElemAnswer(elemId: string, qId: string, val: string | number) {
+    setAnswers(prev => ({
+      ...prev,
+      elementAnswers: {
+        ...prev.elementAnswers,
+        [elemId]: { ...(prev.elementAnswers[elemId] ?? {}), [qId]: val },
+      },
+    }));
   }
 
   function toggleNature(n: NatureTravaux) {
@@ -714,19 +893,16 @@ function BudgetAffinageModal({
     });
   }
 
-  // Quand on retire "extension" alors qu'on est sur l'étape extension_details, reculer
   const safeNext = () => {
     const nextStep = step + 1;
-    const nextKey  = stepKeys[nextStep - 1];
-    // Si le step suivant n'existe plus (ex: on vient de décocher extension), on skip
-    if (!nextKey) return;
+    if (!stepKeys[nextStep - 1]) return;
     setStep(nextStep);
   };
 
   const canNext = (() => {
-    if (currentKey === 'types')  return answers.typesProjet.length > 0;
-    if (currentKey === 'gamme')  return !!answers.gamme;
-    if (currentKey === 'participation') return !!answers.participation;
+    if (currentKey === 'confirm_elements') return answers.confirmedElements.length > 0;
+    if (currentKey === 'gamme')            return !!answers.gamme;
+    if (currentKey === 'participation')    return !!answers.participation;
     return true;
   })();
 
@@ -774,27 +950,24 @@ function BudgetAffinageModal({
             </div>
           )}
 
-          {/* Step 1 — Types de travaux (multi-select) */}
-          {currentKey === 'types' && (
+          {/* Étape 1 — Confirmation des éléments du projet */}
+          {currentKey === 'confirm_elements' && (
             <div className="space-y-2">
-              <p className="font-semibold text-gray-900 mb-1">Quels types de travaux concernent votre projet ?</p>
-              <p className="text-sm text-gray-400 mb-3">Plusieurs choix possibles</p>
-              {([
-                ['renovation_complete', '🏠', 'Rénovation complète',    'Ensemble du logement ou bâtiment'],
-                ['renovation_partielle','🛠️', 'Rénovation partielle',   'Une ou plusieurs pièces ciblées'],
-                ['extension',          '📐', 'Extension',              'Agrandissement de la surface habitable'],
-                ['exterieur',          '🌿', 'Aménagement extérieur',  'Jardin, terrasse, façade, toiture'],
-              ] as const).map(([val, emoji, label, sub]) => {
-                const active = answers.typesProjet.includes(val as TypeProjetAffinage);
+              <p className="font-semibold text-gray-900 mb-1">Confirmez les éléments de votre projet</p>
+              <p className="text-sm text-gray-400 mb-3">
+                {detectedElements.length > 0
+                  ? 'Nous avons identifié ces éléments — décochez ceux qui ne sont pas prévus'
+                  : 'Sélectionnez les éléments de votre projet'}
+              </p>
+
+              {detectedElements.map(elem => {
+                const active = answers.confirmedElements.includes(elem.id);
                 return (
-                  <button key={val} onClick={() => toggleTypeProjet(val as TypeProjetAffinage)}
-                    className={`${CHOICE_BASE} ${active ? CHOICE_ON : CHOICE_OFF} hover:scale-[1.01] active:scale-[0.99]`}>
+                  <button key={elem.id} onClick={() => toggleElement(elem.id)}
+                    className={`${CHOICE_BASE} ${active ? CHOICE_ON : CHOICE_OFF}`}>
                     <div className="flex items-center gap-2 w-full">
-                      <span className="text-lg">{emoji}</span>
-                      <div className="flex-1 text-left">
-                        <p className="font-semibold text-sm">{label}</p>
-                        <p className="text-xs text-gray-400">{sub}</p>
-                      </div>
+                      <span className="text-lg">{elem.emoji}</span>
+                      <p className="flex-1 font-semibold text-sm text-left">{elem.label}</p>
                       <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${
                         active ? 'border-blue-500 bg-blue-500' : 'border-gray-200'
                       }`}>
@@ -804,17 +977,75 @@ function BudgetAffinageModal({
                   </button>
                 );
               })}
-              {/* Message contextuel multi-sélection */}
-              {answers.typesProjet.length > 1 && (
-                <div className="mt-1 flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-2.5">
-                  <span className="text-base shrink-0">💡</span>
-                  <p className="text-xs text-blue-700 leading-relaxed">
-                    Votre projet combine plusieurs types de travaux — l&rsquo;estimation sera ajustée automatiquement.
-                  </p>
+
+              {/* Ajouter un élément manquant */}
+              {ELEMENT_DEFS.filter(d => !detectedElements.find(e => e.id === d.id)).length > 0 && (
+                <div className="pt-3 border-t border-gray-100">
+                  <p className="text-xs text-gray-400 mb-2">Un élément manque ?</p>
+                  <div className="flex flex-wrap gap-2">
+                    {ELEMENT_DEFS.filter(d => !detectedElements.find(e => e.id === d.id)).map(d => (
+                      <button key={d.id} onClick={() => addCustomElement(d)}
+                        className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 border border-gray-100 hover:border-blue-200 rounded-full px-3 py-1.5 transition-all">
+                        <span>{d.emoji}</span>+ {d.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {answers.confirmedElements.length === 0 && (
+                <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3.5 py-2.5 mt-1">
+                  <span className="text-sm shrink-0">⚠️</span>
+                  <p className="text-xs text-amber-700">Sélectionnez au moins un élément pour continuer</p>
                 </div>
               )}
             </div>
           )}
+
+          {/* Étapes par élément — questions spécifiques */}
+          {currentKey.startsWith('elem_') && (() => {
+            const elemId = currentKey.slice(5);
+            const def = detectedElements.find(e => e.id === elemId);
+            if (!def) return null;
+            const ea = answers.elementAnswers[elemId] ?? {};
+            return (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">{def.emoji}</span>
+                  <p className="font-semibold text-gray-900">{def.label}</p>
+                </div>
+                <p className="text-sm text-gray-400 -mt-2">Quelques précisions pour affiner l&rsquo;estimation</p>
+                {def.questions.map(q => (
+                  <div key={q.id}>
+                    <label className="text-sm font-medium text-gray-700 mb-1.5 block">{q.label}</label>
+                    {q.type === 'number' ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number" min="0" placeholder={q.placeholder}
+                          value={ea[q.id] ?? ''}
+                          onChange={e => updElemAnswer(elemId, q.id, e.target.value ? Number(e.target.value) : '')}
+                          className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                        />
+                        {q.unit && <span className="text-sm font-medium text-gray-400">{q.unit}</span>}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {q.choices?.map(choice => (
+                          <button key={choice} onClick={() => updElemAnswer(elemId, q.id, choice)}
+                            className={`${CHOICE_BASE} ${ea[q.id] === choice ? CHOICE_ON : CHOICE_OFF} w-full text-left`}>
+                            <div className="flex items-center gap-2 w-full">
+                              <p className="flex-1 font-semibold text-sm">{choice}</p>
+                              {ea[q.id] === choice && <Check className="h-4 w-4 text-blue-500 shrink-0" />}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* Step surface */}
           {currentKey === 'surface' && (
@@ -855,7 +1086,7 @@ function BudgetAffinageModal({
                 <div className="grid grid-cols-2 gap-3">
                   {([
                     ['plain_pied',   '🏡', 'Plain pied',     'Extension de plain-pied (dalle)'],
-                    ['surelevation', '🏗️', 'Surélévation',   'Ajout d'un niveau supplémentaire'],
+                    ['surelevation', '🏗️', 'Surélévation',   'Ajout d\u2019un niveau supplémentaire'],
                   ] as const).map(([val, emoji, label, sub]) => {
                     const active = answers.extensionStructure === val;
                     return (
@@ -1038,8 +1269,8 @@ function BudgetAffinageModal({
                 className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm transition-all ${
                   canNext ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm' : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                 }`}>
-                {currentKey === 'types' && answers.typesProjet.length === 0
-                  ? 'Choisissez au moins un type'
+                {currentKey === 'confirm_elements' && answers.confirmedElements.length === 0
+                  ? 'Sélectionnez au moins un élément'
                   : 'Continuer'}
                 {canNext && <ChevronRight className="h-4 w-4" />}
               </button>
@@ -1048,7 +1279,7 @@ function BudgetAffinageModal({
             <div className="space-y-2">
               <div className="flex items-center gap-2 mb-3">
                 <ScoreBadge score={score} />
-                <span className="text-xs text-gray-400">{score} / 6 informations renseignées</span>
+                <span className="text-xs text-gray-400">{score} / 5 informations renseignées</span>
               </div>
               <div className="flex items-center gap-3">
                 <button onClick={() => setStep(s => s - 1)}
@@ -1293,6 +1524,8 @@ export default function BudgetTresorerie({ result, documents, insights, insights
         <BudgetAffinageModal
           baseMin={baseRangeMin} baseMax={baseRangeMax}
           resultNom={result.nom} isImmeuble={isImmeuble}
+          resultDescription={result.description ?? ''}
+          resultLots={lots}
           onClose={() => setModalOpen(false)}
           onValidate={handleValidate}
         />

@@ -14,6 +14,7 @@ import type {
 } from '@/types/chantier-ia';
 import { useInsights, type InsightItem, type InsightsData } from './useInsights';
 import BudgetTresorerie from './BudgetTresorerie';
+import PlanningChantier from './PlanningChantier';
 import ScreenAmeliorations from '@/components/chantier/nouveau/ScreenAmeliorations';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
@@ -61,6 +62,7 @@ interface SidebarProps {
   badges: Partial<Record<Section, NavBadge>>;
   mobileOpen: boolean;
   onCloseMobile: () => void;
+  onAmeliorer?: () => void;
 }
 
 const NAV_ITEMS: { id: Section; label: string; icon: React.ElementType }[] = [
@@ -73,7 +75,7 @@ const NAV_ITEMS: { id: Section; label: string; icon: React.ElementType }[] = [
   { id: 'diy',       label: 'Travaux réalisés par vous', icon: Wrench },
 ];
 
-function Sidebar({ result, activeSection, onSelect, rangeMin, rangeMax, badges, mobileOpen, onCloseMobile }: SidebarProps) {
+function Sidebar({ result, activeSection, onSelect, rangeMin, rangeMax, badges, mobileOpen, onCloseMobile, onAmeliorer }: SidebarProps) {
   return (
     <>
       {/* Overlay mobile */}
@@ -104,6 +106,15 @@ function Sidebar({ result, activeSection, onSelect, rangeMin, rangeMax, badges, 
               </p>
             </div>
           </div>
+          {onAmeliorer && (
+            <button
+              onClick={onAmeliorer}
+              className="mt-3 w-full flex items-center gap-2 text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-xl px-3 py-2 transition-all"
+            >
+              <Pencil className="h-3 w-3 shrink-0" />
+              Revoir / modifier mon projet
+            </button>
+          )}
         </div>
 
         {/* Navigation */}
@@ -1205,31 +1216,12 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
 
       case 'planning':
         return (
-          <div className="max-w-3xl mx-auto px-6 py-7">
-            <h2 className="font-semibold text-gray-900 mb-5">Planning du chantier</h2>
-            <div className="space-y-3">
-              {(result.roadmap ?? []).slice(0, 15).map((step, i) => (
-                <div key={i} className="bg-white rounded-xl border border-gray-100 px-5 py-4 flex items-center gap-4">
-                  <div className="w-16 shrink-0 text-center">
-                    <span className="text-xs font-semibold text-gray-400 block">{step.mois ?? '—'}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{step.titre}</p>
-                    {step.artisan && <p className="text-xs text-gray-400 mt-0.5">{step.artisan}</p>}
-                  </div>
-                  <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize
-                    ${step.phase === 'preparation' ? 'bg-blue-50 text-blue-700' : ''}
-                    ${step.phase === 'autorisations' ? 'bg-amber-50 text-amber-700' : ''}
-                    ${step.phase === 'gros_oeuvre' ? 'bg-orange-50 text-orange-700' : ''}
-                    ${step.phase === 'second_oeuvre' ? 'bg-violet-50 text-violet-700' : ''}
-                    ${step.phase === 'finitions' ? 'bg-emerald-50 text-emerald-700' : ''}
-                    ${step.phase === 'reception' ? 'bg-teal-50 text-teal-700' : ''}
-                    ${!step.phase ? 'bg-gray-50 text-gray-500' : ''}
-                  `}>{step.phase?.replace('_', ' ') ?? 'étape'}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <PlanningChantier
+            result={result}
+            chantierId={chantierId ?? null}
+            token={token ?? null}
+            initialTaches={result.taches ?? []}
+          />
         );
 
       case 'documents':
@@ -1323,6 +1315,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
         badges={navBadges}
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
+        onAmeliorer={chantierId && token ? () => setShowAmelioration(true) : undefined}
       />
 
       {/* ── Contenu principal ──────────────────────────────────────────────── */}
