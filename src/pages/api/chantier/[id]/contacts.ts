@@ -65,10 +65,36 @@ export const GET: APIRoute = async ({ params, request }) => {
     .eq('status', 'completed')
     .order('created_at', { ascending: false });
 
-  // Index analyse_id → lot_id depuis devis_chantier (pour croiser)
+  // Documents du chantier (devis/factures rattachés à des lots)
+  const { data: docChantier } = await ctx.supabase
+    .from('documents_chantier')
+    .select('id, lot_id, analyse_id, nom, document_type')
+    .eq('chantier_id', chantierId)
+    .in('document_type', ['devis', 'facture']);
+
+  // Index analyse_id → lot_id — croisement multi-sources
   const devisLotMap = new Map<string, string>();
+
+  // Source 1 : devis_chantier (lot_id direct)
   for (const d of devisArtisans ?? []) {
     if (d.analyse_id && d.lot_id) devisLotMap.set(d.analyse_id, d.lot_id);
+  }
+
+  // Source 2 : documents_chantier (lot_id via document rattaché)
+  // Croise par analyse_id direct OU par nom de fichier → devis_chantier.analyse_id
+  const docLotByName = new Map<string, string>();
+  for (const doc of docChantier ?? []) {
+    if (doc.lot_id) {
+      if (doc.analyse_id) devisLotMap.set(doc.analyse_id, doc.lot_id);
+      if (doc.nom) docLotByName.set(doc.nom.toLowerCase().trim(), doc.lot_id);
+    }
+  }
+  // Croise devis_chantier.artisan_nom → documents_chantier.nom pour récupérer le lot_id
+  for (const d of devisArtisans ?? []) {
+    if (d.analyse_id && !devisLotMap.has(d.analyse_id)) {
+      const lotId = docLotByName.get(d.artisan_nom.toLowerCase().trim());
+      if (lotId) devisLotMap.set(d.analyse_id, lotId);
+    }
   }
 
   // Extraire les artisans des analyses (nom, siret, email, tel depuis raw_text)
