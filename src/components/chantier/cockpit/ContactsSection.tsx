@@ -47,6 +47,14 @@ interface AnalyseArtisan {
   lot_id: string | null;
 }
 
+interface DocContact {
+  doc_id: string;
+  nom: string;
+  lot_id: string | null;
+  analyse_id: string | null;
+  document_type: string;
+}
+
 interface Lot {
   id: string;
   nom: string;
@@ -80,6 +88,7 @@ export default function ContactsSection({ chantierId, token }: Props) {
   const [contacts, setContacts]               = useState<Contact[]>([]);
   const [devisArtisans, setDevisArtisans]     = useState<DevisArtisan[]>([]);
   const [analyseArtisans, setAnalyseArtisans] = useState<AnalyseArtisan[]>([]);
+  const [docContacts, setDocContacts]         = useState<DocContact[]>([]);
   const [lots, setLots]                       = useState<Lot[]>([]);
   const [loading, setLoading]           = useState(true);
   const [search, setSearch]             = useState('');
@@ -98,6 +107,7 @@ export default function ContactsSection({ chantierId, token }: Props) {
     setContacts(data.contacts ?? []);
     setDevisArtisans(data.devisArtisans ?? []);
     setAnalyseArtisans(data.analyseArtisans ?? []);
+    setDocContacts(data.docContacts ?? []);
     setLots(data.lots ?? []);
     setLoading(false);
   }, [chantierId, token]);
@@ -186,8 +196,30 @@ export default function ContactsSection({ chantierId, token }: Props) {
       });
     }
 
+    // 4) Documents devis/facture rattachés à un lot (même sans analyse)
+    for (const doc of docContacts) {
+      const nameKey = doc.nom.toLowerCase().trim();
+      if (seenNames.has(nameKey)) continue;
+      seenNames.add(nameKey);
+
+      result.push({
+        id: `doc-${doc.doc_id}`,
+        nom: doc.nom,
+        email: null,
+        telephone: null,
+        siret: null,
+        role: null,
+        lotId: doc.lot_id,
+        lotNom: doc.lot_id ? lotMap.get(doc.lot_id) ?? null : null,
+        source: doc.document_type === 'facture' ? 'devis' : 'devis',
+        analyseId: doc.analyse_id,
+        devisId: null,
+        dbContact: null,
+      });
+    }
+
     return result;
-  }, [contacts, devisArtisans, analyseArtisans, lotMap]);
+  }, [contacts, devisArtisans, analyseArtisans, docContacts, lotMap]);
 
   // ── Filtered list ─────────────────────────────────────────────────────
 

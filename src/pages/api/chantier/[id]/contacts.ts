@@ -126,10 +126,26 @@ export const GET: APIRoute = async ({ params, request }) => {
     .select('id, nom')
     .eq('chantier_id', chantierId);
 
+  // Documents devis/facture rattachés à un lot (source supplémentaire)
+  const docContacts: {
+    doc_id: string; nom: string; lot_id: string | null;
+    analyse_id: string | null; document_type: string;
+  }[] = [];
+  for (const doc of docChantier ?? []) {
+    docContacts.push({
+      doc_id: doc.id,
+      nom: doc.nom,
+      lot_id: doc.lot_id,
+      analyse_id: doc.analyse_id,
+      document_type: doc.document_type,
+    });
+  }
+
   return new Response(JSON.stringify({
     contacts: contacts ?? [],
     devisArtisans: devisArtisans ?? [],
     analyseArtisans,
+    docContacts,
     lots: lots ?? [],
   }), { headers: CORS });
 };
