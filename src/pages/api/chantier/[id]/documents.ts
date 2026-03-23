@@ -66,9 +66,11 @@ export const GET: APIRoute = async ({ params, request }) => {
     return new Response(JSON.stringify({ error: 'Erreur chargement documents' }), { status: 500, headers: CORS });
   }
 
-  // Génération des URLs signées en batch
+  // Génération des URLs signées en batch (skip pour les imports VerifierMonDevis)
   const enriched = await Promise.all(
     (docs ?? []).map(async (doc) => {
+      if (!doc.bucket_path || doc.bucket_path.startsWith('analyse/') || doc.source === 'verifier_mon_devis')
+        return { ...doc, signedUrl: null };
       const { data: s } = await ctx.supabase.storage
         .from(BUCKET).createSignedUrl(doc.bucket_path, SIGNED_TTL);
       return { ...doc, signedUrl: s?.signedUrl ?? null };
@@ -109,6 +111,54 @@ export const POST: APIRoute = async ({ params, request }) => {
   const nom          = (formData.get('nom') as string | null)?.trim() ?? '';
   const documentType = (formData.get('documentType') as DocumentType | null) ?? 'autre';
   const lotIdRaw     = (formData.get('lotId') as string | null) || null;
+  const source       = (formData.get('source') as string | null) ?? 'manual_upload';
+  const analyseId    = (formData.get('analyseId') as string | null) || null;
+
+  // ── Import depuis VerifierMonDevis (pas de fichier) ───────────────────────
+  if (source === 'verifier_mon_devis' && analyseId) {
+    // Vérifier que l'analyse appartient à l'utilisateur
+    const { data: analyse } = await supabase
+      .from('analyses').select('id')
+      .eq('id', analyseId).eq('user_id', user.id).single();
+    if (!analyse)
+      return new Response(JSON.stringify({ error: 'Analyse introuvable' }), { status: 404, headers: CORS });
+
+    // Validation lot
+    let lotIdImport: string | null = lotIdRaw;
+    if (lotIdImport) {
+      const { data: lot } = await supabase
+        .from('lots_chantier').select('id')
+        .eq('id', lotIdImport).eq('chantier_id', chantierId).single();
+      if (!lot) lotIdImport = null;
+    }
+
+    const { data: doc, error: insertError } = await supabase
+      .from('documents_chantier')
+      .insert({
+        chantier_id:   chantierId,
+        lot_id:        lotIdImport,
+        type:          'devis',
+        document_type: 'devis',
+        source:        'verifier_mon_devis',
+        nom:           nom || `Analyse importée`,
+        nom_fichier:   '',
+        bucket_path:   `analyse/${analyseId}`,   // placeholder non-storage
+        taille_octets: null,
+        mime_type:     null,
+        analyse_id:    analyseId,
+      })
+      .select()
+      .single();
+
+    if (insertError || !doc) {
+      console.error('[api/documents] import insert error:', insertError?.message);
+      return new Response(JSON.stringify({ error: `Erreur DB : ${insertError?.message ?? 'insert failed'}` }), { status: 500, headers: CORS });
+    }
+    return new Response(
+      JSON.stringify({ document: { ...doc, signedUrl: null } }),
+      { status: 201, headers: CORS },
+    );
+  }
 
   if (!file || !(file instanceof File))
     return new Response(JSON.stringify({ error: 'Fichier manquant' }), { status: 400, headers: CORS });

@@ -159,11 +159,20 @@ function Sidebar({ result, activeSection, onSelect, rangeMin, rangeMax, badges, 
 
 // ── Page header (inside main) ─────────────────────────────────────────────────
 
-function PageHeader({ title, sub, action, onMenuToggle }: {
-  title: string; sub?: string; action?: React.ReactNode; onMenuToggle: () => void;
+function PageHeader({ title, sub, action, onMenuToggle, onBack }: {
+  title: string; sub?: string; action?: React.ReactNode; onMenuToggle: () => void; onBack?: () => void;
 }) {
   return (
     <header className="bg-white border-b border-gray-100 px-6 py-4">
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-blue-600 transition-colors mb-2"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Tableau de bord
+        </button>
+      )}
       <div className="flex items-center gap-3">
         <button onClick={onMenuToggle} className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100">
           <Menu className="h-4 w-4" />
@@ -321,7 +330,10 @@ function UploadModal({ chantierId, token, lots, defaultLotId, onClose, onSuccess
   const [uploadState, setUploadState]   = useState<UploadState>('idle');
   const [errorMsg, setErrorMsg]         = useState('');
   const [savingsAmount, setSavingsAmount] = useState(0);
-  const [analyses, setAnalyses]         = useState<{ id: string; created_at: string; titre?: string }[]>([]);
+  const [analyses, setAnalyses]         = useState<{
+    id: string; created_at: string; titre: string;
+    artisanNom: string | null; totalTtc: number | null; dateDevis: string | null;
+  }[]>([]);
   const [loadingAnalyses, setLoadingAnalyses] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -329,12 +341,18 @@ function UploadModal({ chantierId, token, lots, defaultLotId, onClose, onSuccess
     if (tab !== 'import') return;
     setLoadingAnalyses(true);
     supabase.from('analyses').select('id, created_at, raw_text').eq('status', 'completed')
-      .order('created_at', { ascending: false }).limit(8)
+      .order('created_at', { ascending: false }).limit(20)
       .then(({ data }) => {
-        setAnalyses((data ?? []).map(a => ({
-          id: a.id, created_at: a.created_at,
-          titre: a.raw_text?.entreprise?.nom ?? a.raw_text?.context?.type_chantier ?? `Analyse du ${fmtDate(a.created_at)}`,
-        })));
+        setAnalyses((data ?? []).map(a => {
+          const artisanNom = a.raw_text?.entreprise?.nom ?? null;
+          const totalTtc   = a.raw_text?.totaux?.ttc ?? null;
+          const dateDevis  = a.raw_text?.dates?.date_devis ?? null;
+          const typeChantier = a.raw_text?.context?.type_chantier ?? null;
+          const titre = artisanNom
+            ? artisanNom
+            : typeChantier ?? `Analyse du ${fmtDate(a.created_at)}`;
+          return { id: a.id, created_at: a.created_at, titre, artisanNom, totalTtc, dateDevis };
+        }));
       }).finally(() => setLoadingAnalyses(false));
   }, [tab]);
 
@@ -524,19 +542,34 @@ function UploadModal({ chantierId, token, lots, defaultLotId, onClose, onSuccess
                     <a href="/nouvelle-analyse" className="text-sm font-medium text-blue-600">Analyser un devis →</a>
                   </div>
                 ) : (
-                  <div className="divide-y divide-gray-50 border border-gray-100 rounded-2xl overflow-hidden">
+                  <div className="divide-y divide-gray-50 border border-gray-100 rounded-2xl overflow-hidden max-h-80 overflow-y-auto">
                     {analyses.map(a => (
                       <button key={a.id}
                         onClick={() => handleImportAnalyse(a.id, a.titre ?? fmtDate(a.created_at))}
-                        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-blue-50 transition-colors text-left">
-                        <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-blue-50 transition-colors text-left group">
+                        <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 group-hover:bg-blue-100 transition-colors">
                           <FileText className="h-4 w-4 text-blue-600" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-800 truncate">{a.titre}</p>
-                          <p className="text-xs text-gray-400">{fmtDate(a.created_at)}</p>
+                          {/* Nom artisan */}
+                          <p className="text-sm font-semibold text-gray-900 truncate">
+                            {a.artisanNom ?? '—'}
+                          </p>
+                          {/* Montant TTC + date */}
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            {a.totalTtc != null && a.totalTtc > 0 && (
+                              <span className="text-xs font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-full">
+                                {fmtK(a.totalTtc)} TTC
+                              </span>
+                            )}
+                            <span className="text-xs text-gray-400">
+                              Devis du {a.dateDevis
+                                ? new Date(a.dateDevis).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+                                : fmtDate(a.created_at)}
+                            </span>
+                          </div>
                         </div>
-                        <ChevronRight className="h-4 w-4 text-gray-300 shrink-0" />
+                        <ChevronRight className="h-4 w-4 text-gray-300 shrink-0 group-hover:text-blue-400 transition-colors" />
                       </button>
                     ))}
                   </div>
@@ -1332,6 +1365,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             </button>
           }
           onMenuToggle={() => setMobileOpen(v => !v)}
+          onBack={activeSection !== 'budget' ? () => navigateTo('budget') : undefined}
         />
 
         <main className="flex-1 overflow-y-auto">
