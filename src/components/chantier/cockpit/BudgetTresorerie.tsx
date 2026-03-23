@@ -602,7 +602,7 @@ const ELEMENT_DEFS: ProjectElementDef[] = [
   },
   {
     id: 'terrasse', label: 'Terrasse', emoji: '🪵', typeEquiv: 'exterieur',
-    keywords: ['terrasse', 'deck', 'platelage'],
+    keywords: ['terrasse', 'deck', 'platelage', 'dallage', 'dalle extérieure', 'dalle béton'],
     questions: [
       { id: 'surface', label: 'Surface de la terrasse', type: 'number', unit: 'm²', placeholder: '25' },
       { id: 'materiau', label: 'Matériau', type: 'choice',
@@ -681,13 +681,213 @@ const ELEMENT_DEFS: ProjectElementDef[] = [
         choices: ['Bois', 'Aluminium', 'Métal', 'Maçonnerie'] },
     ],
   },
+  // ── Nouveaux éléments ──────────────────────────────────────────────────────
+  {
+    id: 'allee', label: 'Allée carrossable', emoji: '🛣️', typeEquiv: 'exterieur',
+    keywords: ['allée', 'allee', 'carrossable', 'voie d\'accès', 'voie acces', 'entrée voiture', 'accès voiture'],
+    questions: [
+      { id: 'surface', label: 'Surface de l\'allée', type: 'number', unit: 'm²', placeholder: '40' },
+      { id: 'materiau', label: 'Revêtement', type: 'choice',
+        choices: ['Béton désactivé', 'Enrobé / bitume', 'Gravier / stabilisé', 'Pavés autobloquants', 'Dalles béton'] },
+    ],
+  },
+  {
+    id: 'amenagement_jardin', label: 'Aménagement jardin', emoji: '🌳', typeEquiv: 'exterieur',
+    keywords: ['jardin', 'paysager', 'gazon', 'pelouse', 'plantation', 'massif', 'engazonnement', 'arrosage automatique'],
+    questions: [
+      { id: 'surface', label: 'Surface du jardin', type: 'number', unit: 'm²', placeholder: '200' },
+      { id: 'type', label: 'Type d\'aménagement', type: 'choice',
+        choices: ['Gazon + plantations', 'Terrain sportif / pelouse', 'Jardin paysager complet', 'Arrosage automatique inclus'] },
+    ],
+  },
+  {
+    id: 'toiture', label: 'Toiture / charpente', emoji: '🏠', typeEquiv: 'renovation_partielle',
+    keywords: ['toiture', 'charpente', 'couverture', 'toit', 'tuile', 'ardoise', 'zinguerie', 'gouttière'],
+    questions: [
+      { id: 'surface', label: 'Surface de toiture', type: 'number', unit: 'm²', placeholder: '120' },
+      { id: 'type', label: 'Type de toiture', type: 'choice',
+        choices: ['Tuiles (terre cuite / béton)', 'Ardoise naturelle', 'Zinc / bac acier', 'Réfection partielle'] },
+    ],
+  },
+  {
+    id: 'isolation', label: 'Isolation', emoji: '🧱', typeEquiv: 'renovation_partielle',
+    keywords: ['isolation', 'ite', 'iti', 'combles', 'plancher bas', 'pare-vapeur', 'laine de verre', 'laine de roche'],
+    questions: [
+      { id: 'surface', label: 'Surface à isoler', type: 'number', unit: 'm²', placeholder: '100' },
+      { id: 'type', label: 'Type d\'isolation', type: 'choice',
+        choices: ['Combles perdus', 'Isolation par l\'extérieur (ITE)', 'Isolation intérieure (ITI)', 'Plancher bas / vide sanitaire'] },
+    ],
+  },
+  {
+    id: 'electricite', label: 'Électricité', emoji: '⚡', typeEquiv: 'renovation_partielle',
+    keywords: ['électricité', 'electricite', 'tableau électrique', 'mise aux normes', 'vmc', 'domotique', 'prises', 'câblage'],
+    questions: [
+      { id: 'surface', label: 'Surface concernée', type: 'number', unit: 'm²', placeholder: '80' },
+      { id: 'type', label: 'Type de travaux', type: 'choice',
+        choices: ['Rénovation complète (tableau + câblage)', 'Mise aux normes partielle', 'VMC / ventilation', 'Domotique / home automation'] },
+    ],
+  },
+  {
+    id: 'plomberie', label: 'Plomberie / chauffage', emoji: '🔧', typeEquiv: 'renovation_partielle',
+    keywords: ['plomberie', 'chauffage', 'chaudière', 'radiateur', 'plancher chauffant', 'pompe à chaleur', 'pac', 'sanitaire'],
+    questions: [
+      { id: 'surface', label: 'Surface du logement', type: 'number', unit: 'm²', placeholder: '100' },
+      { id: 'type', label: 'Type de travaux', type: 'choice',
+        choices: ['Plomberie neuve + sanitaires', 'Remplacement chaudière / PAC', 'Plancher chauffant', 'Radiateurs + distribution'] },
+    ],
+  },
+  {
+    id: 'menuiseries', label: 'Menuiseries', emoji: '🪟', typeEquiv: 'renovation_partielle',
+    keywords: ['menuiserie', 'fenêtre', 'fenetre', 'porte-fenêtre', 'porte fenetre', 'baie vitrée', 'baie vitree', 'volet', 'store'],
+    questions: [
+      { id: 'quantite', label: 'Nombre d\'ouvertures', type: 'number', unit: 'unités', placeholder: '8' },
+      { id: 'type', label: 'Matériau', type: 'choice',
+        choices: ['PVC', 'Aluminium', 'Bois', 'Mixte bois-alu'] },
+    ],
+  },
+  {
+    id: 'ravalement', label: 'Ravalement façade', emoji: '🏛️', typeEquiv: 'renovation_partielle',
+    keywords: ['ravalement', 'façade', 'facade', 'enduit', 'bardage', 'isolation extérieure'],
+    questions: [
+      { id: 'surface', label: 'Surface de façade', type: 'number', unit: 'm²', placeholder: '150' },
+      { id: 'type', label: 'Type de finition', type: 'choice',
+        choices: ['Enduit projeté', 'Peinture façade', 'Bardage bois / composite', 'Pierre / briquettes'] },
+    ],
+  },
+  {
+    id: 'amenagement_interieur', label: 'Aménagement intérieur', emoji: '🛋️', typeEquiv: 'renovation_partielle',
+    keywords: ['aménagement intérieur', 'amenagement interieur', 'cloison', 'parquet', 'carrelage intérieur', 'peinture', 'plâtrerie'],
+    questions: [
+      { id: 'surface', label: 'Surface à aménager', type: 'number', unit: 'm²', placeholder: '50' },
+      { id: 'type', label: 'Type de travaux', type: 'choice',
+        choices: ['Peinture + sols', 'Cloisons + plâtrerie', 'Parquet / carrelage', 'Aménagement complet'] },
+    ],
+  },
+  {
+    id: 'terrassement', label: 'Terrassement / VRD', emoji: '🚜', typeEquiv: 'exterieur',
+    keywords: ['terrassement', 'vrd', 'voirie', 'assainissement', 'drainage', 'fouille', 'nivellement', 'remblai'],
+    questions: [
+      { id: 'surface', label: 'Surface concernée', type: 'number', unit: 'm²', placeholder: '300' },
+      { id: 'type', label: 'Type de travaux', type: 'choice',
+        choices: ['Terrassement / décaissement', 'VRD (voirie + réseaux)', 'Assainissement', 'Drainage + remblai'] },
+    ],
+  },
+  {
+    id: 'piscine_amenagements', label: 'Aménagements piscine', emoji: '💦', typeEquiv: 'exterieur',
+    keywords: ['plage piscine', 'local technique', 'équipements piscine', 'filtration', 'chauffage piscine', 'robot piscine'],
+    questions: [
+      { id: 'type', label: 'Équipements souhaités', type: 'choice',
+        choices: ['Plage béton / carrelage', 'Local technique + filtration', 'Chauffage (PAC ou solaire)', 'Couverture automatique'] },
+    ],
+  },
 ];
 
+/** Convertit un nom de lot en slug simple */
+function slugify(text: string): string {
+  return text.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+/** Déduit l'emoji et les questions par défaut quand un lot ne correspond à aucun ELEMENT_DEF */
+function inferGenericElement(lotNom: string): ProjectElementDef {
+  const lower = lotNom.toLowerCase();
+  let emoji = '🔨';
+  let unit: string = 'm²';
+  let choices: string[] = ['Économique', 'Standard', 'Premium'];
+
+  if (/\b(électric|electri|tableau|câblag|domotiq|vmc)\b/.test(lower)) { emoji = '⚡'; unit = 'm²'; }
+  else if (/\b(plomber|chaudièr|chauffag|radiateur|sanitaire|pac)\b/.test(lower)) { emoji = '🔧'; unit = 'm²'; }
+  else if (/\b(allée|carrossable|voie|accès|bitume|enrobé|gravier|pavé)\b/.test(lower)) { emoji = '🛣️'; unit = 'm²'; choices = ['Béton désactivé', 'Enrobé', 'Gravier stabilisé', 'Pavés']; }
+  else if (/\b(jardin|gazon|pelouse|paysag|plantat)\b/.test(lower)) { emoji = '🌳'; unit = 'm²'; }
+  else if (/\b(toiture|charpente|couverture|tuile|ardoise|gouttière)\b/.test(lower)) { emoji = '🏠'; unit = 'm²'; }
+  else if (/\b(isol|comble|ite|iti)\b/.test(lower)) { emoji = '🧱'; unit = 'm²'; }
+  else if (/\b(façade|facade|ravale|bardage|enduit)\b/.test(lower)) { emoji = '🏛️'; unit = 'm²'; }
+  else if (/\b(terrassement|vrd|fouille|remblai|drainage)\b/.test(lower)) { emoji = '🚜'; unit = 'm²'; }
+  else if (/\b(clôture|cloture|portail|grillage|palissade)\b/.test(lower)) { emoji = '🚧'; unit = 'ml'; choices = ['Bois', 'Aluminium / PVC', 'Béton / pierre', 'Grillage']; }
+
+  return {
+    id: slugify(lotNom),
+    label: lotNom,
+    emoji,
+    keywords: [lower],
+    typeEquiv: 'exterieur',
+    questions: [
+      { id: 'surface', label: `Surface / quantité prévue`, type: 'number', unit, placeholder: '50' },
+      { id: 'qualite', label: 'Niveau de qualité', type: 'choice', choices },
+    ],
+  };
+}
+
+/**
+ * Construit la liste des éléments détectables en utilisant les lots IA comme source primaire.
+ * Pour chaque lot, cherche une définition correspondante dans ELEMENT_DEFS ;
+ * si aucune correspondance, crée un élément générique avec des questions pertinentes.
+ * Complète ensuite avec une analyse textuelle du prompt.
+ */
+function buildElementsFromLots(
+  lots: { nom: string }[],
+  promptText: string,
+): ProjectElementDef[] {
+  const result: ProjectElementDef[] = [];
+  const addedIds = new Set<string>();
+
+  // Priorité 1 : utiliser les lots déjà identifiés par l'IA
+  for (const lot of lots) {
+    const lower = lot.nom.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    let matched = false;
+
+    for (const def of ELEMENT_DEFS) {
+      if (!addedIds.has(def.id)) {
+        const defKeywordsNorm = def.keywords.map(k =>
+          k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''),
+        );
+        if (defKeywordsNorm.some(kw => lower.includes(kw))) {
+          result.push(def);
+          addedIds.add(def.id);
+          matched = true;
+          break;
+        }
+      }
+    }
+
+    // Lot non couvert par les définitions → créer un élément générique
+    if (!matched) {
+      const generic = inferGenericElement(lot.nom);
+      if (!addedIds.has(generic.id)) {
+        result.push(generic);
+        addedIds.add(generic.id);
+      }
+    }
+  }
+
+  // Priorité 2 : compléter avec le texte du prompt (pour les éléments hors lots)
+  const lowerPrompt = promptText.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  for (const def of ELEMENT_DEFS) {
+    if (!addedIds.has(def.id)) {
+      const defKeywordsNorm = def.keywords.map(k =>
+        k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''),
+      );
+      if (defKeywordsNorm.some(kw => lowerPrompt.includes(kw))) {
+        result.push(def);
+        addedIds.add(def.id);
+      }
+    }
+  }
+
+  return result;
+}
+
+/** Ancienne fonction (utilisée quand resultLots est vide) */
 function detectElements(text: string): ProjectElementDef[] {
-  const lower = text.toLowerCase();
+  const lower = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const result: ProjectElementDef[] = [];
   for (const def of ELEMENT_DEFS) {
-    if (def.keywords.some(kw => lower.includes(kw))) {
+    const defKeywordsNorm = def.keywords.map(k =>
+      k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''),
+    );
+    if (defKeywordsNorm.some(kw => lower.includes(kw))) {
       result.push(def);
     }
   }
@@ -815,21 +1015,23 @@ function BudgetAffinageModal({
   resultDescription?: string; resultLots?: { nom: string }[];
   onClose: () => void; onValidate: (min: number, max: number) => void;
 }) {
-  // ── Détection éléments depuis le texte du projet ─────────────────────────
-  const detectionText = useMemo(
-    () => [resultNom, resultDescription ?? '', ...(resultLots ?? []).map(l => l.nom)].join(' '),
+  // ── Détection éléments — lots IA comme source primaire ───────────────────
+  // Les lots générés par l'IA contiennent déjà tous les types de travaux détectés.
+  // On les utilise en priorité, puis on complète avec le texte du prompt.
+  const promptText = useMemo(
+    () => [resultNom, resultDescription ?? ''].join(' '),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
   const [detectedElements, setDetectedElements] = useState<ProjectElementDef[]>(() =>
-    detectElements(detectionText),
+    buildElementsFromLots(resultLots ?? [], promptText),
   );
 
   const [step, setStep] = useState(1);
   const [answers, setAnswers] = useState<AffinageAnswers>(() => ({
     ...INITIAL_ANSWERS,
-    // Pré-sélectionner tous les éléments détectés
-    confirmedElements: detectElements(detectionText).map(e => e.id),
+    // Pré-sélectionner tous les éléments détectés depuis les lots IA
+    confirmedElements: buildElementsFromLots(resultLots ?? [], promptText).map(e => e.id),
   }));
 
   // Séquence de steps : confirm_elements → une étape par élément confirmé → nature → gamme → participation

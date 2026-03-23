@@ -15,7 +15,7 @@ import type {
 import { useInsights, type InsightItem, type InsightsData } from './useInsights';
 import BudgetTresorerie from './BudgetTresorerie';
 import PlanningChantier from './PlanningChantier';
-import ScreenAmeliorations from '@/components/chantier/nouveau/ScreenAmeliorations';
+import ScreenEditPrompt from '@/components/chantier/nouveau/ScreenEditPrompt';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 
@@ -1289,10 +1289,10 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
     diy: 'Travaux réalisés par vous', settings: 'Paramètres',
   };
 
-  // ── Écran d'amélioration plein écran ─────────────────────────────────────
+  // ── Écran modification du prompt (plein écran) ───────────────────────────
   if (showAmelioration && chantierId && token) {
     return (
-      <ScreenAmeliorations
+      <ScreenEditPrompt
         result={result}
         chantierId={chantierId}
         token={token}
