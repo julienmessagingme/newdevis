@@ -99,7 +99,7 @@ function Sidebar({ result, activeSection, onSelect, rangeMin, rangeMax, badges, 
             <div className="min-w-0">
               <p className="font-bold text-sm text-gray-900 leading-tight truncate">{result.nom}</p>
               <p className="text-[11px] text-gray-400 mt-0.5">
-                {displayMin > 0 ? `${fmtK(displayMin)} – ${fmtK(displayMax)}` : 'Budget en cours d\u2019estimation'}
+                {rangeMin > 0 ? `${fmtK(rangeMin)} – ${fmtK(rangeMax)}` : 'Budget en cours d\u2019estimation'}
               </p>
             </div>
           </div>
