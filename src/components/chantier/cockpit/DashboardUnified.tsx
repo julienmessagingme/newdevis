@@ -1263,7 +1263,7 @@ export default function DashboardUnified({ result, chantierId, token }: Props) {
             <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50">
               {[
                 { label: 'Nom du projet', value: result.nom },
-                { label: 'Budget observé', value: `${fmtK(rangeMin)} – ${fmtK(rangeMax)}` },
+                { label: 'Budget observé', value: `${fmtK(displayMin)} – ${fmtK(displayMax)}` },
                 { label: 'Durée estimée', value: result.dureeEstimee ?? '—' },
                 { label: 'Nombre de lots', value: `${lots.length} lot${lots.length > 1 ? 's' : ''}` },
                 { label: 'Documents', value: `${documents.length}` },
@@ -1301,8 +1301,8 @@ export default function DashboardUnified({ result, chantierId, token }: Props) {
         result={result}
         activeSection={activeSection}
         onSelect={navigateTo}
-        rangeMin={rangeMin}
-        rangeMax={rangeMax}
+        rangeMin={displayMin}
+        rangeMax={displayMax}
         badges={navBadges}
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
