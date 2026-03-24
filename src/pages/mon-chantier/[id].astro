@@ -11,3 +11,33 @@ import ChantierDetailApp from '@/components/app/ChantierDetailApp';
 >
   <ChantierDetailApp client:only="react" />
 </BaseLayout>
+
+<!-- Masquer le widget MessagingMe sur les pages chantier :
+     le chat maître d'œuvre intégré remplit ce rôle ici. -->
+<style is:global>
+  /* Cible le conteneur principal du widget MessagingMe */
+  #mme-w-f236879w135897,
+  [id*="f236879"],
+  [class*="mme-widget"],
+  iframe[src*="messagingme.app/widget"],
+  div[id^="mme-"],
+  div[class^="mme-"] {
+    display: none !important;
+  }
+</style>
+
+<script>
+  // Fallback : MutationObserver pour masquer le widget après son chargement dynamique
+  (function () {
+    function hideWidget() {
+      document.querySelectorAll<HTMLElement>(
+        '[id*="f236879"], [class*="mme-widget"], iframe[src*="messagingme"]'
+      ).forEach((el) => { el.style.setProperty('display', 'none', 'important'); });
+    }
+    hideWidget();
+    const obs = new MutationObserver(hideWidget);
+    obs.observe(document.body, { childList: true, subtree: true });
+    // Arrêter après 10 s (widget chargé)
+    setTimeout(() => obs.disconnect(), 10000);
+  })();
+</script>

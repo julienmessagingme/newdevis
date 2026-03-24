@@ -857,9 +857,10 @@ function AssistantActiveBlock({ lots, documents, onAddDevisForLot, onGoToAnalyse
             </button>
             <button
               onClick={onGoToAssistant}
-              className="text-sm font-medium text-gray-500 hover:text-blue-600 px-3 py-2 rounded-xl hover:bg-blue-50 transition-colors"
+              className="flex items-center gap-2 text-sm font-semibold text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200 rounded-xl px-4 py-2 transition-all shadow-sm"
             >
-              Poser une question
+              <MessageCircle className="h-3.5 w-3.5" />
+              Poser une question →
             </button>
           </div>
         </div>
@@ -1854,8 +1855,9 @@ function AssistantChantierSection({ result, documents, lots, chantierId, token, 
           <div className="pt-2 flex justify-center">
             <button
               onClick={onOpenChat}
-              className="text-sm font-medium text-gray-400 hover:text-blue-600 transition-colors"
+              className="flex items-center gap-2 text-sm font-semibold text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200 rounded-xl px-5 py-2.5 transition-all shadow-sm"
             >
+              <MessageCircle className="h-4 w-4" />
               Poser une question au maître d'œuvre →
             </button>
           </div>
