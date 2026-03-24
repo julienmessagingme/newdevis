@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup Dashboard — v2</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f7f8fc; margin:0; }
+  @media (max-width: 768px) {
+    .layout { flex-direction: column !important; }
+    .sidebar { width: 100% !important; min-width: unset !important; border-right: none !important; border-bottom: 1px solid #f0f0f0; }
+    .kpi-grid { grid-template-columns: repeat(2,1fr) !important; }
+    .int-grid  { grid-template-columns: 1fr !important; }
+  }
+  @media (min-width: 769px) and (max-width: 1100px) {
+    .int-grid { grid-template-columns: repeat(2,1fr) !important; }
+  }
+</style>
+</head>
+<body>
+
+<div style="background:#1e40af;color:white;padding:8px 20px;font-size:12px;font-weight:600;text-align:center;">
+  🎨 MOCKUP v2 — Validez avant implémentation
+</div>
+
+<div class="layout" style="display:flex;height:calc(100vh - 32px);overflow:hidden;">
+
+  <!-- ════ SIDEBAR 200px ════ -->
+  <aside style="width:200px;min-width:200px;background:white;border-right:1px solid #f0f0f0;display:flex;flex-direction:column;" class="sidebar">
+
+    <div style="padding:12px;border-bottom:1px solid #f8f8f8;">
+      <a href="#" style="font-size:11px;color:#9ca3af;display:flex;align-items:center;gap:4px;margin-bottom:10px;">← Mes chantiers</a>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <div style="width:34px;height:34px;background:#eff6ff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🧺</div>
+        <div style="font-size:11px;font-weight:700;color:#1f2937;line-height:1.3;">Buanderie et<br>poêle chaleureux</div>
+      </div>
+      <button style="width:100%;display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#2563eb;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:6px 10px;cursor:pointer;">
+        ✏️ Modifier le projet
+      </button>
+    </div>
+
+    <nav style="flex:1;padding:8px;overflow-y:auto;">
+      <p style="font-size:9px;font-weight:700;color:#d1d5db;text-transform:uppercase;letter-spacing:.08em;padding:0 8px;margin-bottom:6px;">Navigation</p>
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#eff6ff;border-radius:10px;margin-bottom:2px;">
+        <span style="font-size:14px;">🏠</span><span style="font-size:12px;font-weight:600;color:#1d4ed8;">Vue d'ensemble</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;margin-bottom:2px;cursor:pointer;">
+        <span style="font-size:14px;">💰</span><span style="font-size:12px;color:#4b5563;">Budget & Trésorerie</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;margin-bottom:2px;cursor:pointer;">
+        <span style="font-size:14px;">👥</span><span style="font-size:12px;color:#4b5563;">Contacts</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;margin-bottom:2px;cursor:pointer;">
+        <span style="font-size:14px;">🔍</span><span style="font-size:12px;color:#4b5563;">Analyse des devis</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;margin-bottom:2px;cursor:pointer;">
+        <span style="font-size:14px;">📅</span><span style="font-size:12px;color:#4b5563;">Planning</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;margin-bottom:2px;cursor:pointer;">
+        <span style="font-size:14px;">📁</span><span style="font-size:12px;color:#4b5563;">Documents</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;cursor:pointer;">
+        <span style="font-size:14px;">🤖</span><span style="font-size:12px;color:#4b5563;">Assistant chantier</span>
+      </div>
+    </nav>
+
+    <div style="padding:8px;border-top:1px solid #f8f8f8;">
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;">
+        <span style="font-size:14px;">⚙️</span><span style="font-size:12px;color:#6b7280;">Paramètres</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ════ MAIN pleine largeur ════ -->
+  <main style="flex:1;overflow-y:auto;">
+
+    <!-- ✅ Header simplifié — NOM supprimé, CTA centré bien visible -->
+    <header style="background:white;border-bottom:1px solid #f0f0f0;padding:14px 24px;display:flex;align-items:center;justify-content:center;gap:16px;position:sticky;top:0;z-index:10;">
+      <div style="text-align:center;">
+        <button style="background:#2563eb;color:white;font-size:14px;font-weight:700;padding:11px 28px;border-radius:12px;border:none;cursor:pointer;box-shadow:0 2px 10px rgba(37,99,235,.3);">
+          + Ajouter un document
+        </button>
+        <p style="font-size:11px;color:#9ca3af;margin-top:5px;">devis · facture · photo · plan · ou importer depuis votre espace</p>
+      </div>
+    </header>
+
+    <div style="padding:16px 20px;">
+
+      <!-- KPI 4 cards -->
+      <div class="kpi-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;">
+        <div style="background:#eff6ff;border-radius:16px;padding:14px 16px;">
+          <p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9ca3af;margin-bottom:4px;">Budget estimé</p>
+          <p style="font-size:20px;font-weight:800;color:#1d4ed8;line-height:1;">11 k€–14 k€</p>
+          <p style="font-size:11px;color:#60a5fa;margin-top:4px;">fourchette estimée</p>
+          <button style="margin-top:8px;display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:#2563eb;background:white;border:1px solid #bfdbfe;border-radius:8px;padding:4px 10px;cursor:pointer;">⚙ Affiner</button>
+        </div>
+        <div style="background:#f0fdf4;border-radius:16px;padding:14px 16px;">
+          <p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9ca3af;margin-bottom:4px;">Intervenants</p>
+          <p style="font-size:20px;font-weight:800;color:#111827;line-height:1;">0/4</p>
+          <p style="font-size:11px;color:#6b7280;margin-top:4px;">validés</p>
+        </div>
+        <div style="background:#f9fafb;border-radius:16px;padding:14px 16px;">
+          <p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9ca3af;margin-bottom:4px;">Documents</p>
+          <p style="font-size:20px;font-weight:800;color:#111827;line-height:1;">0</p>
+          <p style="font-size:11px;color:#6b7280;margin-top:4px;">aucun document</p>
+        </div>
+        <div style="background:#fef2f2;border-radius:16px;padding:14px 16px;">
+          <p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9ca3af;margin-bottom:4px;">À traiter</p>
+          <p style="font-size:20px;font-weight:800;color:#dc2626;line-height:1;">4</p>
+          <p style="font-size:11px;color:#f87171;margin-top:4px;">sans devis</p>
+        </div>
+      </div>
+
+      <!-- Barre progression -->
+      <div style="background:white;border-radius:16px;border:1px solid #f0f0f0;padding:13px 18px;margin-bottom:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;">
+          <span style="font-size:13px;font-weight:600;color:#374151;">Progression du projet</span>
+          <span style="font-size:13px;font-weight:800;color:#dc2626;">0% validé</span>
+        </div>
+        <div style="height:7px;background:#f3f4f6;border-radius:99px;overflow:hidden;margin-bottom:7px;">
+          <div style="height:100%;width:2%;background:#dc2626;border-radius:99px;"></div>
+        </div>
+        <div style="display:flex;gap:14px;">
+          <span style="font-size:10px;color:#9ca3af;display:flex;align-items:center;gap:4px;"><span style="width:7px;height:7px;background:#34d399;border-radius:99px;display:inline-block;"></span>0 validés</span>
+          <span style="font-size:10px;color:#9ca3af;display:flex;align-items:center;gap:4px;"><span style="width:7px;height:7px;background:#fbbf24;border-radius:99px;display:inline-block;"></span>0 avec devis</span>
+          <span style="font-size:10px;color:#f87171;font-weight:600;display:flex;align-items:center;gap:4px;"><span style="width:7px;height:7px;background:#f87171;border-radius:99px;display:inline-block;"></span>4 à traiter</span>
+        </div>
+      </div>
+
+      <!-- Bloc Maître d'œuvre -->
+      <div style="background:white;border-radius:16px;border:1px solid #f0f0f0;border-left:4px solid #3b82f6;padding:16px 18px;margin-bottom:14px;">
+        <div style="display:flex;align-items:flex-start;gap:14px;">
+          <div style="position:relative;flex-shrink:0;">
+            <div style="width:48px;height:48px;border-radius:50%;background:#e0e7ff;display:flex;align-items:center;justify-content:center;font-size:22px;">👷</div>
+            <div style="position:absolute;bottom:1px;right:1px;width:11px;height:11px;background:#22c55e;border-radius:99px;border:2px solid white;"></div>
+          </div>
+          <div style="flex:1;">
+            <p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9ca3af;margin-bottom:2px;">Votre Maître d'œuvre IA</p>
+            <p style="font-size:14px;font-weight:700;color:#111827;margin-bottom:5px;">Demandez un devis — Plombier</p>
+            <p style="font-size:12px;color:#6b7280;line-height:1.5;margin-bottom:12px;">Je suis là pour vous accompagner tout au long de votre chantier. Posez-moi vos questions sur les artisans, le budget ou les démarches.</p>
+            <button style="display:flex;align-items:center;gap:6px;background:#7c3aed;color:white;font-size:12px;font-weight:700;padding:8px 16px;border-radius:10px;border:none;cursor:pointer;">
+              💬 Poser une question →
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ✅ Intervenants — pleine largeur, 3 colonnes, cartes plus grandes -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9ca3af;">Intervenants · 4</p>
+        <button style="font-size:11px;font-weight:600;color:#2563eb;background:#eff6ff;padding:5px 10px;border-radius:8px;border:none;cursor:pointer;">+ Ajouter</button>
+      </div>
+
+      <div class="int-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+
+        <!-- Card intervenant — plus grande car pas de colonne droite -->
+        <div style="background:white;border-radius:18px;border:1px solid #f0f0f0;overflow:hidden;">
+          <div style="padding:16px 16px 10px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:24px;">🪠</span>
+                <div>
+                  <p style="font-size:14px;font-weight:700;color:#111827;">Plombier</p>
+                  <div style="display:flex;align-items:center;gap:4px;margin-top:3px;">
+                    <div style="width:7px;height:7px;background:#f87171;border-radius:99px;"></div>
+                    <span style="font-size:10px;font-weight:700;color:#ef4444;">Bloqué</span>
+                  </div>
+                </div>
+              </div>
+              <span style="font-size:16px;color:#d1d5db;">›</span>
+            </div>
+            <div style="background:#fef2f2;border-radius:10px;padding:8px 10px;margin-bottom:10px;">
+              <p style="font-size:11px;color:#ef4444;font-weight:500;">Aucun artisan contacté — action requise</p>
+            </div>
+            <p style="font-size:12px;color:#d1d5db;font-style:italic;margin-bottom:3px;">Budget à estimer</p>
+            <p style="font-size:12px;color:#d1d5db;font-style:italic;margin-bottom:12px;">Aucun devis reçu</p>
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                <span style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;">Avancement</span>
+                <span style="font-size:10px;font-weight:700;color:#ef4444;">✗ Action requise</span>
+              </div>
+              <div style="height:6px;background:#fee2e2;border-radius:99px;"><div style="height:100%;width:5%;background:#f87171;border-radius:99px;"></div></div>
+            </div>
+          </div>
+          <div style="border-top:1px solid #f8f8f8;display:grid;grid-template-columns:1fr 1fr 1fr;">
+            <button style="padding:12px 6px;font-size:11px;font-weight:600;color:#2563eb;background:none;border:none;border-right:1px solid #f8f8f8;cursor:pointer;">+ Devis</button>
+            <button style="padding:12px 6px;font-size:11px;font-weight:600;color:#6b7280;background:none;border:none;border-right:1px solid #f8f8f8;cursor:pointer;">› Détails</button>
+            <button style="padding:12px 6px;font-size:11px;font-weight:600;color:#7c3aed;background:none;border:none;cursor:pointer;">📷 Photo</button>
+          </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div style="background:white;border-radius:18px;border:1px solid #f0f0f0;overflow:hidden;">
+          <div style="padding:16px 16px 10px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:24px;">🔥</span>
+                <div>
+                  <p style="font-size:14px;font-weight:700;color:#111827;">Chauffagiste</p>
+                  <div style="display:flex;align-items:center;gap:4px;margin-top:3px;">
+                    <div style="width:7px;height:7px;background:#f87171;border-radius:99px;"></div>
+                    <span style="font-size:10px;font-weight:700;color:#ef4444;">Bloqué</span>
+                  </div>
+                </div>
+              </div>
+              <span style="font-size:16px;color:#d1d5db;">›</span>
+            </div>
+            <div style="background:#fef2f2;border-radius:10px;padding:8px 10px;margin-bottom:10px;">
+              <p style="font-size:11px;color:#ef4444;font-weight:500;">Aucun artisan contacté — action requise</p>
+            </div>
+            <p style="font-size:12px;color:#d1d5db;font-style:italic;margin-bottom:3px;">Budget à estimer</p>
+            <p style="font-size:12px;color:#d1d5db;font-style:italic;margin-bottom:12px;">Aucun devis reçu</p>
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                <span style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;">Avancement</span>
+                <span style="font-size:10px;font-weight:700;color:#ef4444;">✗ Action requise</span>
+              </div>
+              <div style="height:6px;background:#fee2e2;border-radius:99px;"><div style="height:100%;width:5%;background:#f87171;border-radius:99px;"></div></div>
+            </div>
+          </div>
+          <div style="border-top:1px solid #f8f8f8;display:grid;grid-template-columns:1fr 1fr 1fr;">
+            <button style="padding:12px 6px;font-size:11px;font-weight:600;color:#2563eb;background:none;border:none;border-right:1px solid #f8f8f8;cursor:pointer;">+ Devis</button>
+            <button style="padding:12px 6px;font-size:11px;font-weight:600;color:#6b7280;background:none;border:none;border-right:1px solid #f8f8f8;cursor:pointer;">› Détails</button>
+            <button style="padding:12px 6px;font-size:11px;font-weight:600;color:#7c3aed;background:none;border:none;cursor:pointer;">📷 Photo</button>
+          </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div style="background:white;border-radius:18px;border:1px solid #f0f0f0;overflow:hidden;">
+          <div style="padding:16px 16px 10px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:24px;">⚡</span>
+                <div>
+                  <p style="font-size:14px;font-weight:700;color:#111827;">Électricien</p>
+                  <div style="display:flex;align-items:center;gap:4px;margin-top:3px;">
+                    <div style="width:7px;height:7px;background:#f87171;border-radius:99px;"></div>
+                    <span style="font-size:10px;font-weight:700;color:#ef4444;">Bloqué</span>
+                  </div>
+                </div>
+              </div>
+              <span style="font-size:16px;color:#d1d5db;">›</span>
+            </div>
+            <div style="background:#fef2f2;border-radius:10px;padding:8px 10px;margin-bottom:10px;">
+              <p style="font-size:11px;color:#ef4444;font-weight:500;">Aucun artisan contacté — action requise</p>
+            </div>
+            <p style="font-size:12px;color:#d1d5db;font-style:italic;margin-bottom:3px;">Budget à estimer</p>
+            <p style="font-size:12px;color:#d1d5db;font-style:italic;margin-bottom:12px;">Aucun devis reçu</p>
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                <span style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;">Avancement</span>
+                <span style="font-size:10px;font-weight:700;color:#ef4444;">✗ Action requise</span>
+              </div>
+              <div style="height:6px;background:#fee2e2;border-radius:99px;"><div style="height:100%;width:5%;background:#f87171;border-radius:99px;"></div></div>
+            </div>
+          </div>
+          <div style="border-top:1px solid #f8f8f8;display:grid;grid-template-columns:1fr 1fr 1fr;">
+            <button style="padding:12px 6px;font-size:11px;font-weight:600;color:#2563eb;background:none;border:none;border-right:1px solid #f8f8f8;cursor:pointer;">+ Devis</button>
+            <button style="padding:12px 6px;font-size:11px;font-weight:600;color:#6b7280;background:none;border:none;border-right:1px solid #f8f8f8;cursor:pointer;">› Détails</button>
+            <button style="padding:12px 6px;font-size:11px;font-weight:600;color:#7c3aed;background:none;border:none;cursor:pointer;">📷 Photo</button>
+          </div>
+        </div>
+
+      </div>
+      <!-- Card 4 en ligne suivante -->
+      <div style="margin-top:14px;max-width:calc(33.33% - 10px);">
+        <div style="background:white;border-radius:18px;border:1px solid #f0f0f0;overflow:hidden;">
+          <div style="padding:16px 16px 10px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:24px;">🎨</span>
+                <div>
+                  <p style="font-size:14px;font-weight:700;color:#111827;">Plaquiste / Peintre</p>
+                  <div style="display:flex;align-items:center;gap:4px;margin-top:3px;">
+                    <div style="width:7px;height:7px;background:#f87171;border-radius:99px;"></div>
+                    <span style="font-size:10px;font-weight:700;color:#ef4444;">Bloqué</span>
+                  </div>
+                </div>
+              </div>
+              <span style="font-size:16px;color:#d1d5db;">›</span>
+            </div>
+            <div style="background:#fef2f2;border-radius:10px;padding:8px 10px;margin-bottom:10px;">
+              <p style="font-size:11px;color:#ef4444;font-weight:500;">Aucun artisan contacté — action requise</p>
+            </div>
+            <p style="font-size:12px;color:#d1d5db;font-style:italic;margin-bottom:3px;">Budget à estimer</p>
+            <p style="font-size:12px;color:#d1d5db;font-style:italic;margin-bottom:12px;">Aucun devis reçu</p>
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                <span style="font-size:10px;color:#9ca3af;text-transform:uppercase;">Avancement</span>
+                <span style="font-size:10px;font-weight:700;color:#ef4444;">✗ Action requise</span>
+              </div>
+              <div style="height:6px;background:#fee2e2;border-radius:99px;"><div style="height:100%;width:5%;background:#f87171;border-radius:99px;"></div></div>
+            </div>
+          </div>
+          <div style="border-top:1px solid #f8f8f8;display:grid;grid-template-columns:1fr 1fr 1fr;">
+            <button style="padding:12px 6px;font-size:11px;font-weight:600;color:#2563eb;background:none;border:none;border-right:1px solid #f8f8f8;cursor:pointer;">+ Devis</button>
+            <button style="padding:12px 6px;font-size:11px;font-weight:600;color:#6b7280;background:none;border:none;border-right:1px solid #f8f8f8;cursor:pointer;">› Détails</button>
+            <button style="padding:12px 6px;font-size:11px;font-weight:600;color:#7c3aed;background:none;border:none;cursor:pointer;">📷 Photo</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- Légende -->
+<div style="position:fixed;bottom:14px;right:14px;background:white;border:2px solid #2563eb;border-radius:14px;padding:12px 16px;max-width:260px;box-shadow:0 6px 24px rgba(0,0,0,.1);font-size:11px;line-height:1.8;color:#374151;">
+  <p style="font-weight:800;color:#1d4ed8;margin-bottom:6px;">✅ Changements v2</p>
+  <p>🗑 Colonne droite supprimée (budget + ajouter doc)</p>
+  <p>🗑 Header projet/budget supprimé (redondant)</p>
+  <p>📌 CTA "Ajouter un document" centré seul dans le bandeau</p>
+  <p>📌 Budget estimé reste dans les KPI cards</p>
+  <p>📌 3 intervenants côte à côte, cartes plus grandes</p>
+</div>
+
+</body>
+</html>

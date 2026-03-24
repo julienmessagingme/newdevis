@@ -484,12 +484,8 @@ function FinancingSimulator() {
     return { mensualite, coutTotal, interets };
   }, [montant, duree, taux]);
 
-  // Labels durée lisibles
-  const dureeLabel = duree < 12
-    ? `${duree} mois`
-    : duree % 12 === 0
-    ? `${duree / 12} ans`
-    : `${Math.floor(duree / 12)} ans ${duree % 12} mois`;
+  // Label durée — toujours en mois
+  const dureeLabel = `${duree} mois`;
 
   return (
     <div className="space-y-5">
@@ -518,13 +514,13 @@ function FinancingSimulator() {
         </div>
       </div>
 
-      {/* Durée — réglette 6→360 mois */}
+      {/* Durée — réglette 1→360 mois, pas de 1 mois */}
       <SliderField
         label="Durée de remboursement"
         value={duree}
-        min={6}
+        min={1}
         max={360}
-        step={6}
+        step={1}
         onChange={setDuree}
         display={dureeLabel}
       />

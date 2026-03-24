@@ -2,7 +2,7 @@
  * DashboardUnified — cockpit chantier avec sidebar premium.
  * Navigation claire, sections orientées décision, zéro complexité inutile.
  */
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import {
@@ -388,10 +388,7 @@ function PageHeader({ title, sub, action, onMenuToggle, onBack }: {
 
 // ── Budget Home Header (header premium section principale) ────────────────────
 
-function BudgetHomeHeader({ result, displayMin, displayMax, onMenuToggle, onAddDoc }: {
-  result: ChantierIAResult;
-  displayMin: number;
-  displayMax: number;
+function BudgetHomeHeader({ onMenuToggle, onAddDoc }: {
   onMenuToggle: () => void;
   onAddDoc: () => void;
 }) {
@@ -403,30 +400,17 @@ function BudgetHomeHeader({ result, displayMin, displayMax, onMenuToggle, onAddD
           <Menu className="h-4 w-4" />
         </button>
 
-        {/* Nom + budget (source de vérité) */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-xl leading-none">{result.emoji}</span>
-            <h1 className="font-bold text-gray-900 truncate">{result.nom}</h1>
-          </div>
-          {displayMin > 0 ? (
-            <p className="text-sm font-semibold text-blue-700 mt-0.5 tabular-nums">
-              {fmtK(displayMin)} – {fmtK(displayMax)}
-            </p>
-          ) : (
-            <p className="text-sm text-gray-400 mt-0.5">Budget en cours d'estimation</p>
-          )}
+        {/* CTA centré */}
+        <div className="flex-1 flex flex-col items-center gap-1">
+          <button
+            onClick={onAddDoc}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl px-5 py-2.5 transition-colors shadow-sm shadow-blue-200"
+          >
+            <Plus className="h-4 w-4" />
+            Ajouter un document
+          </button>
+          <p className="text-[11px] text-gray-400">devis · facture · photo · plan · ou importer depuis votre espace</p>
         </div>
-
-        {/* Bouton Ajouter un document */}
-        <button
-          onClick={onAddDoc}
-          className="shrink-0 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl px-4 py-2.5 transition-colors shadow-sm shadow-blue-200"
-        >
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">Ajouter un document</span>
-          <span className="sm:hidden">Ajouter</span>
-        </button>
       </div>
     </header>
   );
@@ -997,12 +981,13 @@ function AddIntervenantModal({ chantierId, token, existingNoms, onClose, onAdded
 
 // ── Dashboard Home ─────────────────────────────────────────────────────────────
 
-function KpiCard({ icon, label, value, sub, accent = 'gray' }: {
+function KpiCard({ icon, label, value, sub, accent = 'gray', action }: {
   icon: string;
   label: string;
   value: string | number;
   sub?: string;
   accent?: 'gray' | 'emerald' | 'blue' | 'red' | 'amber';
+  action?: ReactNode;
 }) {
   const colors: Record<string, { bg: string; value: string; sub: string }> = {
     gray:    { bg: 'bg-gray-50',    value: 'text-gray-900',    sub: 'text-gray-400'   },
@@ -1015,10 +1000,11 @@ function KpiCard({ icon, label, value, sub, accent = 'gray' }: {
   return (
     <div className={`${c.bg} rounded-2xl px-4 py-4 flex items-start gap-3`}>
       <span className="text-2xl leading-none mt-0.5 shrink-0">{icon}</span>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">{label}</p>
         <p className={`text-2xl font-extrabold tabular-nums leading-none ${c.value}`}>{value}</p>
         {sub && <p className={`text-xs font-medium mt-1 ${c.sub}`}>{sub}</p>}
+        {action && <div className="mt-2">{action}</div>}
       </div>
     </div>
   );
@@ -1065,6 +1051,15 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
           value={displayMin > 0 ? `${fmtK(displayMin)}–${fmtK(displayMax)}` : '—'}
           sub={displayMin > 0 ? 'fourchette estimée' : 'à estimer'}
           accent="blue"
+          action={
+            <button
+              onClick={onAffineBudget}
+              className="flex items-center gap-1 text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1 transition-colors"
+            >
+              <SlidersHorizontal className="h-3 w-3" />
+              {refinedBreakdown.length > 0 ? 'Recalculer' : 'Affiner'}
+            </button>
+          }
         />
         <KpiCard
           icon="✅" label="Intervenants"
@@ -1117,166 +1112,88 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
         </div>
       )}
 
-      {/* ── Layout principal 2/3 + 1/3 ──────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
-
-        {/* ── Colonne gauche (2/3) : recommandation + intervenants ── */}
-        <div className="lg:col-span-2 space-y-4">
-
-          {/* Recommandation IA */}
-          <AssistantActiveBlock
-            lots={lots}
-            documents={documents}
-            onAddDevisForLot={onAddDevisForLot}
-            onGoToAnalyse={onGoToAnalyse}
-            onGoToPlanning={onGoToPlanning}
-            onAddDoc={onAddDoc}
-            onGoToAssistant={onGoToAssistant}
-          />
-
-          {/* Intervenants */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                Intervenants · {total}
-              </p>
-              <button
-                onClick={onAddIntervenant}
-                className="flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-xl transition-colors"
-              >
-                <Plus className="h-3 w-3" /> Ajouter
-              </button>
-            </div>
-            {total === 0 ? (
-              <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 py-14 flex flex-col items-center text-center">
-                <p className="text-4xl mb-4">🏗</p>
-                <p className="font-bold text-gray-900 mb-2">Aucun intervenant défini</p>
-                <p className="text-sm text-gray-400 mb-6 max-w-xs leading-relaxed">
-                  Décrivez votre projet et l'IA génère la liste des intervenants et une estimation de budget.
-                </p>
-                <a href="/mon-chantier/nouveau"
-                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-colors">
-                  <Plus className="h-4 w-4" /> Créer avec l'IA
-                </a>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {lots.map(lot => (
-                  <LotIntervenantCard
-                    key={lot.id}
-                    lot={lot}
-                    docs={docsByLot[lot.id] ?? []}
-                    onAddDevis={() => onAddDevisForLot(lot.id)}
-                    onAddDocument={() => onAddDocForLot(lot.id)}
-                    onDetail={() => onGoToLot(lot.id)}
-                    onDelete={() => onDeleteLot(lot.id)}
-                  />
-                ))}
-              </div>
-            )}
+      {/* ── Détail budget par poste (pleine largeur, visible si affiné) ── */}
+      {refinedBreakdown.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-1.5 bg-gray-50 flex items-center justify-between border-b border-gray-100">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Postes affinés</p>
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Fiabilité</p>
           </div>
+          <ul className="divide-y divide-gray-50">
+            {refinedBreakdown.map(item => {
+              const rel =
+                item.reliability === 'haute'   ? { dot: 'bg-emerald-400', label: 'Haute',  text: 'text-emerald-600' } :
+                item.reliability === 'moyenne' ? { dot: 'bg-amber-400',   label: 'Moy.',   text: 'text-amber-600'  } :
+                                                 { dot: 'bg-gray-300',    label: 'Faible', text: 'text-gray-400'   };
+              return (
+                <li key={item.id} className="px-5 py-2.5 flex items-center gap-2">
+                  <span className="text-base leading-none shrink-0">{item.emoji}</span>
+                  <span className="flex-1 min-w-0 text-xs font-medium text-gray-700 truncate">{item.label}</span>
+                  <span className="shrink-0 tabular-nums text-xs font-bold text-gray-900 whitespace-nowrap">
+                    {fmtK(item.min)}–{fmtK(item.max)}
+                  </span>
+                  <span className={`shrink-0 flex items-center gap-1 text-[10px] font-bold ${rel.text}`}>
+                    <span className={`inline-block h-1.5 w-1.5 rounded-full ${rel.dot}`} />
+                    {rel.label}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
         </div>
+      )}
 
-        {/* ── Colonne droite (1/3) : budget + actions ─────────── */}
-        <div className="space-y-4">
+      {/* ── Recommandation IA (pleine largeur) ──────────────── */}
+      <AssistantActiveBlock
+        lots={lots}
+        documents={documents}
+        onAddDevisForLot={onAddDevisForLot}
+        onGoToAnalyse={onGoToAnalyse}
+        onGoToPlanning={onGoToPlanning}
+        onAddDoc={onAddDoc}
+        onGoToAssistant={onGoToAssistant}
+      />
 
-          {/* Budget card */}
-          {(displayMin > 0 || displayMax > 0) && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Budget estimé</p>
-                  <p className="text-xl font-extrabold text-gray-900 tabular-nums leading-tight">
-                    {fmtK(displayMin)} – {fmtK(displayMax)}
-                  </p>
-                </div>
-                <button
-                  onClick={onAffineBudget}
-                  className="shrink-0 flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl px-3 py-2 transition-colors"
-                >
-                  <SlidersHorizontal className="h-3.5 w-3.5" />
-                  {refinedBreakdown.length > 0 ? 'Recalculer' : 'Affiner'}
-                </button>
-              </div>
-
-              {/* Détail poste par poste */}
-              {refinedBreakdown.length > 0 && (
-                <div className="border-t border-gray-100">
-                  <div className="px-5 py-1.5 bg-gray-50 flex items-center justify-between">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Postes</p>
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Fiabilité</p>
-                  </div>
-                  <ul className="divide-y divide-gray-50">
-                    {refinedBreakdown.map(item => {
-                      const rel =
-                        item.reliability === 'haute'   ? { dot: 'bg-emerald-400', label: 'Haute',   text: 'text-emerald-600' } :
-                        item.reliability === 'moyenne' ? { dot: 'bg-amber-400',   label: 'Moy.',    text: 'text-amber-600'   } :
-                                                         { dot: 'bg-gray-300',    label: 'Faible',  text: 'text-gray-400'   };
-                      return (
-                        <li key={item.id} className="px-5 py-2.5 flex items-center gap-2">
-                          <span className="text-base leading-none shrink-0">{item.emoji}</span>
-                          <span className="flex-1 min-w-0 text-xs font-medium text-gray-700 truncate">{item.label}</span>
-                          <span className="shrink-0 tabular-nums text-xs font-bold text-gray-900 whitespace-nowrap">
-                            {fmtK(item.min)}–{fmtK(item.max)}
-                          </span>
-                          <span className={`shrink-0 flex items-center gap-1 text-[10px] font-bold ${rel.text}`}>
-                            <span className={`inline-block h-1.5 w-1.5 rounded-full ${rel.dot}`} />
-                            {rel.label}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Bloc "sans budget" */}
-          {displayMin === 0 && displayMax === 0 && (
-            <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 px-5 py-6 flex flex-col items-center text-center gap-3">
-              <span className="text-3xl">💰</span>
-              <div>
-                <p className="font-bold text-gray-700 text-sm">Budget à estimer</p>
-                <p className="text-xs text-gray-400 mt-1">Créez un chantier avec l'IA pour obtenir une fourchette de budget.</p>
-              </div>
-            </div>
-          )}
-
-          {/* CTA Assistant */}
+      {/* ── Intervenants (pleine largeur, 3 colonnes) ────────── */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+            Intervenants · {total}
+          </p>
           <button
-            onClick={onGoToAssistant}
-            className="w-full flex items-center justify-between gap-3 bg-violet-50 hover:bg-violet-100 border border-violet-100 rounded-2xl px-5 py-4 transition-all group"
+            onClick={onAddIntervenant}
+            className="flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-xl transition-colors"
           >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-violet-600 flex items-center justify-center shrink-0">
-                <MessageCircle className="h-4 w-4 text-white" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-bold text-violet-800">Maître d'œuvre IA</p>
-                <p className="text-xs text-violet-500 mt-0.5">Posez une question sur votre projet</p>
-              </div>
-            </div>
-            <ArrowRight className="h-4 w-4 text-violet-400 group-hover:text-violet-600 group-hover:translate-x-0.5 transition-all shrink-0" />
-          </button>
-
-          {/* Accès rapide documents */}
-          <button
-            onClick={onAddDoc}
-            className="w-full flex items-center justify-between gap-3 bg-gray-50 hover:bg-blue-50 border border-gray-100 hover:border-blue-100 rounded-2xl px-5 py-4 transition-all group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-gray-200 group-hover:bg-blue-100 flex items-center justify-center shrink-0 transition-colors">
-                <CloudUpload className="h-4 w-4 text-gray-500 group-hover:text-blue-600 transition-colors" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-bold text-gray-700 group-hover:text-blue-700 transition-colors">Ajouter un document</p>
-                <p className="text-xs text-gray-400 mt-0.5">Devis, facture, photo, plan…</p>
-              </div>
-            </div>
-            <ArrowRight className="h-4 w-4 text-gray-300 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+            <Plus className="h-3 w-3" /> Ajouter
           </button>
         </div>
+        {total === 0 ? (
+          <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 py-14 flex flex-col items-center text-center">
+            <p className="text-4xl mb-4">🏗</p>
+            <p className="font-bold text-gray-900 mb-2">Aucun intervenant défini</p>
+            <p className="text-sm text-gray-400 mb-6 max-w-xs leading-relaxed">
+              Décrivez votre projet et l'IA génère la liste des intervenants et une estimation de budget.
+            </p>
+            <a href="/mon-chantier/nouveau"
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-colors">
+              <Plus className="h-4 w-4" /> Créer avec l'IA
+            </a>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {lots.map(lot => (
+              <LotIntervenantCard
+                key={lot.id}
+                lot={lot}
+                docs={docsByLot[lot.id] ?? []}
+                onAddDevis={() => onAddDevisForLot(lot.id)}
+                onAddDocument={() => onAddDocForLot(lot.id)}
+                onDetail={() => onGoToLot(lot.id)}
+                onDelete={() => onDeleteLot(lot.id)}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2431,9 +2348,6 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
       <div className="flex-1 flex flex-col overflow-hidden">
         {activeSection === 'budget' && !showBudgetDetail ? (
           <BudgetHomeHeader
-            result={result}
-            displayMin={displayMin}
-            displayMax={displayMax}
             onMenuToggle={() => setMobileOpen(v => !v)}
             onAddDoc={() => setUploadModal({ open: true })}
           />
