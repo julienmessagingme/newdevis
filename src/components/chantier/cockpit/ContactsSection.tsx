@@ -91,6 +91,32 @@ export default function ContactsSection({ chantierId, token }: Props) {
 
   useEffect(() => { fetchContacts(); }, [fetchContacts]);
 
+  // Auto-persist : quand des contacts DB ont email/tél enrichis depuis l'analyse, les sauvegarder
+  useEffect(() => {
+    if (!contacts.length || !analyseArtisans.length) return;
+    const updates: Array<{ id: string; email?: string; telephone?: string }> = [];
+    for (const c of contacts) {
+      if (c.email && c.telephone) continue; // déjà complet
+      const artisan = (c.analyse_id ? artisanByAnalyseId.get(c.analyse_id) : null)
+        ?? (c.siret ? artisanBySiret.get(c.siret) : null);
+      if (!artisan) continue;
+      const patch: { id: string; email?: string; telephone?: string } = { id: c.id };
+      if (!c.email && artisan.email) patch.email = artisan.email;
+      if (!c.telephone && artisan.telephone) patch.telephone = artisan.telephone;
+      if (patch.email || patch.telephone) updates.push(patch);
+    }
+    if (!updates.length) return;
+    // PATCH silencieux fire-and-forget pour chaque contact enrichi
+    Promise.all(updates.map(u =>
+      fetch(`/api/chantier/${chantierId}/contacts`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactId: u.id, email: u.email, telephone: u.telephone }),
+      }).catch(() => {}),
+    )).then(() => { if (updates.length) fetchContacts(); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contacts, analyseArtisans]);
+
   // ── Build unified list ────────────────────────────────────────────────
 
   const lotMap = useMemo(() => {
@@ -98,6 +124,19 @@ export default function ContactsSection({ chantierId, token }: Props) {
     for (const l of lots) m.set(l.id, l.nom);
     return m;
   }, [lots]);
+
+  // Index des artisans extraits par analyse_id et siret pour enrichissement auto
+  const artisanByAnalyseId = useMemo(() => {
+    const m = new Map<string, typeof analyseArtisans[0]>();
+    for (const a of analyseArtisans) m.set(a.analyse_id, a);
+    return m;
+  }, [analyseArtisans]);
+
+  const artisanBySiret = useMemo(() => {
+    const m = new Map<string, typeof analyseArtisans[0]>();
+    for (const a of analyseArtisans) { if (a.siret) m.set(a.siret, a); }
+    return m;
+  }, [analyseArtisans]);
 
   const unified = useMemo(() => {
     const result: UnifiedContact[] = [];
@@ -108,11 +147,24 @@ export default function ContactsSection({ chantierId, token }: Props) {
     for (const c of contacts) {
       if (c.siret) seenSirets.add(c.siret);
       seenNames.add(c.nom.toLowerCase());
+
+      // Enrichissement auto : si le contact n'a pas d'email/tél, les chercher dans l'analyse liée
+      let email = c.email;
+      let telephone = c.telephone;
+      if (!email || !telephone) {
+        const artisan = (c.analyse_id ? artisanByAnalyseId.get(c.analyse_id) : null)
+          ?? (c.siret ? artisanBySiret.get(c.siret) : null);
+        if (artisan) {
+          email = email || artisan.email;
+          telephone = telephone || artisan.telephone;
+        }
+      }
+
       result.push({
         id: c.id,
         nom: c.nom,
-        email: c.email,
-        telephone: c.telephone,
+        email,
+        telephone,
         siret: c.siret,
         role: c.role,
         lotId: c.lot_id,
