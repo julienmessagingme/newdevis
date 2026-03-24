@@ -24,6 +24,10 @@ import {
 const fmtEur = (n: number) =>
   new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
 
+/** Mensualité affichée avec 2 décimales pour cohérence avec le coût total */
+const fmtEurPrecis = (n: number) =>
+  new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+
 function fmtDateFR(iso: string): string {
   return new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR', {
     day: '2-digit', month: 'short', year: 'numeric',
@@ -541,7 +545,7 @@ function FinancingSimulator() {
         <div className="grid grid-cols-1 gap-3">
           <div className="bg-blue-600 rounded-2xl p-5 text-center text-white">
             <p className="text-xs font-bold uppercase tracking-wider opacity-70 mb-1">Mensualité estimée</p>
-            <p className="text-4xl font-extrabold leading-none">{fmtEur(result.mensualite)}</p>
+            <p className="text-4xl font-extrabold leading-none">{fmtEurPrecis(result.mensualite)}</p>
             <p className="text-xs opacity-60 mt-1">par mois pendant {dureeLabel}</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
