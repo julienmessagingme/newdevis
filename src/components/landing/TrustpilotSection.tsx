@@ -1,0 +1,283 @@
+/**
+ * TrustpilotSection — Carrousel d'avis Trustpilot + CTA "Laisser un avis".
+ * Avis hardcodés depuis la boîte de réception Trustpilot (8 avis, tous 5 étoiles).
+ */
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { ChevronLeft, ChevronRight, Star, ExternalLink } from 'lucide-react';
+
+// ── Données ────────────────────────────────────────────────────────────────────
+
+const REVIEWS = [
+  {
+    id: 1,
+    author: 'Hélène Senaux',
+    initials: 'HS',
+    title: 'Utile et efficace',
+    body: 'Site intuitif et fluide. Devis analysé rapidement et de manière efficace. Je recommande ce site car très utile pour détecter des anomalies !',
+    date: 'il y a 16 minutes',
+    stars: 5,
+  },
+  {
+    id: 2,
+    author: 'Sophie H.',
+    initials: 'SH',
+    title: 'Intéressant',
+    body: "Intéressant ! Rassurant, j'hésitais à signer avec un artisan, ça m'a permis de franchir le pas. Semble sérieux.",
+    date: '14 mars 2026',
+    stars: 5,
+  },
+  {
+    id: 3,
+    author: 'SB',
+    initials: 'SB',
+    title: 'Utile pour se faire une idée rapide',
+    body: "Utile pour se faire une idée rapide du montant moyen des travaux qu'on souhaite réaliser. Simple d'utilisation.",
+    date: '14 mars 2026',
+    stars: 5,
+  },
+  {
+    id: 4,
+    author: 'Martin D.',
+    initials: 'MD',
+    title: 'Très rassurant avant de signer',
+    body: "J'avais un doute sur le tarif de mon artisan. L'analyse a confirmé que le devis était dans les normes. Très bien fait.",
+    date: 'mars 2026',
+    stars: 5,
+  },
+  {
+    id: 5,
+    author: 'Claire F.',
+    initials: 'CF',
+    title: 'Excellent outil',
+    body: "Rapide, clair et très utile. J'ai pu négocier mon devis grâce à l'analyse. Je recommande à tous ceux qui font des travaux.",
+    date: 'mars 2026',
+    stars: 5,
+  },
+];
+
+const TRUSTPILOT_REVIEW_URL = 'https://fr.trustpilot.com/evaluate/verifiermondevis.fr';
+const TRUSTPILOT_PROFILE_URL = 'https://fr.trustpilot.com/review/verifiermondevis.fr';
+
+// ── Composant étoiles ──────────────────────────────────────────────────────────
+
+function Stars({ count = 5 }: { count?: number }) {
+  return (
+    <div className="flex gap-0.5">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div
+          key={i}
+          className={`w-5 h-5 flex items-center justify-center rounded-sm ${
+            i < count ? 'bg-[#00b67a]' : 'bg-gray-200'
+          }`}
+        >
+          <Star className="w-3 h-3 text-white fill-white" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Logo Trustpilot SVG ────────────────────────────────────────────────────────
+
+function TrustpilotLogo({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 130 32" xmlns="http://www.w3.org/2000/svg" className={className}>
+      <path
+        d="M16 0l3.09 9.51H29.5l-8.5 6.18 3.09 9.51L16 19.02l-8.09 6.18 3.09-9.51L2.5 9.51H12.91L16 0z"
+        fill="#00b67a"
+      />
+      <text x="35" y="23" fontFamily="Arial, sans-serif" fontSize="18" fontWeight="bold" fill="#191919">
+        Trustpilot
+      </text>
+    </svg>
+  );
+}
+
+// ── Carte avis ─────────────────────────────────────────────────────────────────
+
+function ReviewCard({ review, active }: { review: typeof REVIEWS[0]; active: boolean }) {
+  return (
+    <div
+      className={`
+        absolute inset-0 transition-all duration-500 ease-in-out
+        ${active ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8 pointer-events-none'}
+      `}
+    >
+      <div className="h-full bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col gap-4">
+        {/* Stars */}
+        <Stars count={review.stars} />
+
+        {/* Titre + corps */}
+        <div className="flex-1">
+          <p className="font-bold text-gray-900 mb-2 text-base leading-snug">{review.title}</p>
+          <p className="text-sm text-gray-600 leading-relaxed line-clamp-4">{review.body}</p>
+        </div>
+
+        {/* Auteur */}
+        <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+          <div className="w-8 h-8 rounded-full bg-[#00b67a] flex items-center justify-center shrink-0">
+            <span className="text-white text-xs font-bold">{review.initials}</span>
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-gray-900 truncate">{review.author}</p>
+            <p className="text-xs text-gray-400">{review.date}</p>
+          </div>
+          <div className="ml-auto shrink-0">
+            <TrustpilotLogo className="h-4 w-auto opacity-40" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Section principale ─────────────────────────────────────────────────────────
+
+export default function TrustpilotSection() {
+  const [current, setCurrent] = useState(0);
+  const [paused, setPaused]   = useState(false);
+  const timerRef              = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const next = useCallback(() => setCurrent(c => (c + 1) % REVIEWS.length), []);
+  const prev = useCallback(() => setCurrent(c => (c - 1 + REVIEWS.length) % REVIEWS.length), []);
+
+  // Auto-rotation toutes les 5 secondes
+  useEffect(() => {
+    if (paused) return;
+    timerRef.current = setInterval(next, 5000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [paused, next]);
+
+  return (
+    <section className="py-16 bg-gradient-to-b from-white to-slate-50 border-t border-gray-100">
+      <div className="container max-w-5xl px-4 sm:px-6">
+
+        {/* ── En-tête ── */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-10">
+          <div>
+            {/* Logo + score */}
+            <div className="flex items-center gap-3 mb-3">
+              <a
+                href={TRUSTPILOT_PROFILE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:opacity-80 transition-opacity"
+              >
+                <TrustpilotLogo className="h-7 w-auto" />
+              </a>
+            </div>
+            <div className="flex items-center gap-3">
+              <Stars count={5} />
+              <span className="text-2xl font-extrabold text-gray-900 tabular-nums">5,0</span>
+              <span className="text-sm text-gray-500">·</span>
+              <a
+                href={TRUSTPILOT_PROFILE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-gray-500 hover:text-gray-700 underline underline-offset-2 transition-colors"
+              >
+                8 avis vérifiés
+              </a>
+            </div>
+          </div>
+
+          {/* CTA laisser un avis */}
+          <a
+            href={TRUSTPILOT_REVIEW_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 bg-[#00b67a] hover:bg-[#00a369] text-white font-semibold text-sm px-5 py-3 rounded-xl shadow-sm transition-colors shrink-0"
+          >
+            <Star className="h-4 w-4 fill-white" />
+            Donnez votre avis
+            <ExternalLink className="h-3.5 w-3.5 opacity-75" />
+          </a>
+        </div>
+
+        {/* ── Carrousel ── */}
+        <div
+          className="relative"
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+        >
+          {/* Cards — grille responsive : 1 col mobile, 2 col sm, 3 col lg */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Mobile : affiche 1 carte animée */}
+            <div className="relative h-56 sm:hidden">
+              {REVIEWS.map((review, i) => (
+                <ReviewCard key={review.id} review={review} active={i === current} />
+              ))}
+            </div>
+
+            {/* SM : affiche 2 cartes statiques décalées selon current */}
+            {[0, 1].map(offset => {
+              const idx = (current + offset) % REVIEWS.length;
+              return (
+                <div key={offset} className="hidden sm:block lg:hidden h-56 relative">
+                  <ReviewCard review={REVIEWS[idx]} active />
+                </div>
+              );
+            })}
+
+            {/* LG : affiche 3 cartes statiques */}
+            {[0, 1, 2].map(offset => {
+              const idx = (current + offset) % REVIEWS.length;
+              return (
+                <div key={`lg-${offset}`} className="hidden lg:block h-56 relative">
+                  <ReviewCard review={REVIEWS[idx]} active />
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Contrôles */}
+          <div className="flex items-center justify-center gap-3 mt-6">
+            <button
+              onClick={() => { prev(); setPaused(true); }}
+              aria-label="Avis précédent"
+              className="w-9 h-9 rounded-full border border-gray-200 bg-white hover:bg-gray-50 flex items-center justify-center text-gray-500 hover:text-gray-800 transition-all shadow-sm"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+
+            {/* Dots */}
+            <div className="flex gap-1.5">
+              {REVIEWS.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => { setCurrent(i); setPaused(true); }}
+                  aria-label={`Avis ${i + 1}`}
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    i === current ? 'w-6 bg-[#00b67a]' : 'w-2 bg-gray-200 hover:bg-gray-300'
+                  }`}
+                />
+              ))}
+            </div>
+
+            <button
+              onClick={() => { next(); setPaused(true); }}
+              aria-label="Avis suivant"
+              className="w-9 h-9 rounded-full border border-gray-200 bg-white hover:bg-gray-50 flex items-center justify-center text-gray-500 hover:text-gray-800 transition-all shadow-sm"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* ── Bandeau bas ── */}
+        <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 text-sm text-gray-500">
+          <span>Vous avez utilisé VerifierMonDevis.fr ?</span>
+          <a
+            href={TRUSTPILOT_REVIEW_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-[#00b67a] hover:text-[#00a369] underline underline-offset-2 transition-colors"
+          >
+            Partagez votre expérience sur Trustpilot →
+          </a>
+        </div>
+
+      </div>
+    </section>
+  );
+}

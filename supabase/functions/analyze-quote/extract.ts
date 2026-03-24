@@ -107,6 +107,19 @@ RÈGLES CRITIQUES POUR LE CHAMP "paiement" :
 - acompte_avant_travaux_pct : renseigner UNIQUEMENT si le texte précise explicitement "avant démarrage des travaux" ou "avant début de chantier" en distinguant ce versement d'un acompte général. Sinon null.
 - echeancier_detecte : true si et seulement si le devis liste plusieurs étapes de règlement numérotées ou séparées.
 
+RÈGLES STRICTES POUR "conditions_paiement" :
+- Extraire UNIQUEMENT les conditions de paiement EXPLICITEMENT MENTIONNÉES dans le document.
+- Ne fais AUCUNE supposition. Si une information n'est pas présente dans le texte, mets null.
+- Ne jamais déduire un pourcentage ou une date qui n'est pas écrit noir sur blanc dans le document.
+- Si aucune condition de paiement n'est mentionnée, retourner un tableau vide [].
+- "label" = TEXTE EXACT copié mot pour mot depuis le document (pas de reformulation).
+- "type" : "acompte" si versement initial/avant démarrage, "progress" si versement en cours de travaux, "solde" si versement final/à la fin.
+- "percentage" : uniquement si un % est explicitement indiqué pour cette échéance. Sinon null.
+- "amount" : uniquement si un montant en euros est explicitement indiqué pour cette échéance. Sinon null.
+- "due_type" : "date" si une date précise est mentionnée, "delay" si un délai en jours est mentionné, "milestone" si une étape de chantier est mentionnée (ex: "à la livraison"), null si rien n'est précisé.
+- "due_date" : format YYYY-MM-DD uniquement si une date calendaire est explicitement mentionnée. Sinon null.
+- "delay_days" : nombre de jours uniquement si explicitement indiqué (ex: "30 jours après réception"). Sinon null.
+
 EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes de travaux) :
 
 {
@@ -140,7 +153,18 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
     "acompte_pct": 30,
     "acompte_avant_travaux_pct": null,
     "modes": ["virement"],
-    "echeancier_detecte": false
+    "echeancier_detecte": false,
+    "conditions_paiement": [
+      {
+        "type": "acompte | progress | solde",
+        "percentage": 30,
+        "amount": null,
+        "due_type": "date | delay | milestone | null",
+        "due_date": "YYYY-MM-DD ou null",
+        "delay_days": null,
+        "label": "TEXTE EXACT copié mot pour mot depuis le document"
+      }
+    ]
   },
   "dates": {
     "date_devis": "YYYY-MM-DD",
@@ -301,6 +325,20 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
           : null,
         modes: Array.isArray(parsed.paiement?.modes) ? parsed.paiement.modes : [],
         echeancier_detecte: parsed.paiement?.echeancier_detecte === true,
+        conditions_paiement: Array.isArray(parsed.paiement?.conditions_paiement)
+          ? parsed.paiement.conditions_paiement
+              .filter((c: any) => c && typeof c === "object")
+              .map((c: any) => ({
+                type: ["acompte", "progress", "solde"].includes(c.type) ? c.type : "acompte",
+                percentage: typeof c.percentage === "number" ? c.percentage : null,
+                amount: typeof c.amount === "number" ? c.amount : null,
+                due_type: ["date", "delay", "milestone"].includes(c.due_type) ? c.due_type : null,
+                due_date: typeof c.due_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(c.due_date) ? c.due_date : null,
+                delay_days: typeof c.delay_days === "number" ? c.delay_days : null,
+                label: typeof c.label === "string" ? c.label.trim() : "",
+              }))
+              .filter((c: any) => c.label !== "")
+          : [],
       },
       dates: {
         date_devis: parsed.dates?.date_devis || null,

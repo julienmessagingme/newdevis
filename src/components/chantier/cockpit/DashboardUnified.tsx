@@ -15,7 +15,8 @@ import type {
   ChantierIAResult, DocumentChantier, DocumentType, LotChantier, StatutArtisan,
 } from '@/types/chantier-ia';
 import { useInsights, type InsightItem, type InsightsData } from './useInsights';
-import BudgetTresorerie from './BudgetTresorerie';
+import BudgetTresorerie, { type BreakdownItem } from './BudgetTresorerie';
+import TresoreriePanel from './TresoreriePanel';
 import PlanningChantier from './PlanningChantier';
 import ContactsSection from './ContactsSection';
 import ScreenEditPrompt from '@/components/chantier/nouveau/ScreenEditPrompt';
@@ -73,7 +74,7 @@ const IS: Record<InsightItem['type'], { bg: string; text: string; border: string
   info:    { bg: 'bg-blue-50',    text: 'text-blue-800',    border: 'border-blue-100',     accent: 'border-l-blue-400'    },
 };
 
-type Section = 'budget' | 'lots' | 'contacts' | 'analyse' | 'planning' | 'documents' | 'assistant' | 'diy' | 'settings';
+type Section = 'budget' | 'lots' | 'contacts' | 'analyse' | 'planning' | 'documents' | 'assistant' | 'diy' | 'settings' | 'tresorerie';
 type UploadState = 'idle' | 'uploading' | 'analyzing' | 'success' | 'error';
 
 // ── Chat Drawer ────────────────────────────────────────────────────────────────
@@ -266,12 +267,13 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS: { id: Section; label: string; icon: React.ElementType }[] = [
-  { id: 'budget',    label: 'Vue d\'ensemble',      icon: Layers      },
-  { id: 'contacts',  label: 'Contacts',             icon: Users       },
-  { id: 'analyse',   label: 'Analyse des devis',    icon: FileSearch  },
-  { id: 'planning',  label: 'Planning',              icon: Calendar    },
-  { id: 'documents', label: 'Documents',             icon: FolderOpen  },
-  { id: 'assistant', label: 'Assistant chantier',   icon: Bot         },
+  { id: 'budget',     label: 'Vue d\'ensemble',     icon: Layers      },
+  { id: 'tresorerie', label: 'Budget & Trésorerie', icon: Wallet      },
+  { id: 'contacts',   label: 'Contacts',            icon: Users       },
+  { id: 'analyse',    label: 'Analyse des devis',   icon: FileSearch  },
+  { id: 'planning',   label: 'Planning',             icon: Calendar    },
+  { id: 'documents',  label: 'Documents',            icon: FolderOpen  },
+  { id: 'assistant',  label: 'Assistant chantier',  icon: Bot         },
 ];
 
 function Sidebar({ result, activeSection, onSelect, rangeMin, rangeMax, badges, mobileOpen, onCloseMobile, onAmeliorer }: SidebarProps) {
@@ -995,7 +997,7 @@ function AddIntervenantModal({ chantierId, token, existingNoms, onClose, onAdded
 
 // ── Dashboard Home ─────────────────────────────────────────────────────────────
 
-function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, onAffineBudget,
+function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, refinedBreakdown, onAffineBudget,
   onAddDevisForLot, onAddDocForLot, onGoToLot, onGoToAnalyse, onGoToPlanning, onAddDoc,
   onGoToAssistant, onAddIntervenant, onDeleteLot,
 }: {
@@ -1004,6 +1006,7 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, onA
   docsByLot: Record<string, DocumentChantier[]>;
   displayMin: number;
   displayMax: number;
+  refinedBreakdown: BreakdownItem[];
   onAffineBudget: () => void;
   onAddDevisForLot: (lotId: string) => void;
   onAddDocForLot: (lotId: string) => void;
@@ -1034,18 +1037,52 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, onA
 
       {/* ── Budget + affiner ────────────────────────────────── */}
       {(displayMin > 0 || displayMax > 0) && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-5 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Budget estimé</p>
-            <p className="text-2xl font-extrabold text-gray-900 tabular-nums">{fmtK(displayMin)} – {fmtK(displayMax)}</p>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          {/* En-tête total */}
+          <div className="px-6 py-5 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Budget estimé</p>
+              <p className="text-2xl font-extrabold text-gray-900 tabular-nums">{fmtK(displayMin)} – {fmtK(displayMax)}</p>
+            </div>
+            <button
+              onClick={onAffineBudget}
+              className="shrink-0 flex items-center gap-1.5 text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl px-4 py-2.5 transition-colors"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              {refinedBreakdown.length > 0 ? 'Recalculer' : 'Affiner'}
+            </button>
           </div>
-          <button
-            onClick={onAffineBudget}
-            className="shrink-0 flex items-center gap-1.5 text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl px-4 py-2.5 transition-colors"
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-            Affiner
-          </button>
+
+          {/* Détail poste par poste (après affinage) */}
+          {refinedBreakdown.length > 0 && (
+            <div className="border-t border-gray-100">
+              <div className="px-6 py-2 bg-gray-50 flex items-center justify-between">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Détail par poste</p>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Fiabilité</p>
+              </div>
+              <ul className="divide-y divide-gray-50">
+                {refinedBreakdown.map(item => {
+                  const relIcon =
+                    item.reliability === 'haute'   ? { dot: 'bg-emerald-400', label: 'Haute',   text: 'text-emerald-600' } :
+                    item.reliability === 'moyenne' ? { dot: 'bg-amber-400',   label: 'Moyenne', text: 'text-amber-600'   } :
+                                                     { dot: 'bg-gray-300',    label: 'Faible',  text: 'text-gray-400'   };
+                  return (
+                    <li key={item.id} className="px-6 py-3 flex items-center gap-3">
+                      <span className="text-lg leading-none shrink-0">{item.emoji}</span>
+                      <span className="flex-1 min-w-0 text-sm font-medium text-gray-700 truncate">{item.label}</span>
+                      <span className="shrink-0 tabular-nums text-sm font-semibold text-gray-900">
+                        {fmtK(item.min)} – {fmtK(item.max)}
+                      </span>
+                      <span className={`shrink-0 flex items-center gap-1.5 text-xs font-semibold ${relIcon.text}`}>
+                        <span className={`inline-block h-2 w-2 rounded-full ${relIcon.dot}`} />
+                        {relIcon.label}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 
@@ -1903,6 +1940,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
     : hasBudgetTotal ? Math.round(result.budgetTotal * 1.15) : 0;
   const [refinedRangeMin, setRefinedRangeMin] = useState<number | null>(null);
   const [refinedRangeMax, setRefinedRangeMax] = useState<number | null>(null);
+  const [refinedBreakdown, setRefinedBreakdown] = useState<BreakdownItem[]>([]);
   const [affineBudgetModal, setAffineBudgetModal] = useState(false);
   const [showAddIntervenant, setShowAddIntervenant] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -1996,6 +2034,8 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             <BudgetTresorerie
               result={result}
               documents={documents}
+              chantierId={chantierId}
+              token={token}
               insights={insights}
               insightsLoading={insightsLoading}
               baseRangeMin={baseRangeMin}
@@ -2004,9 +2044,10 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
               onGoToAnalyse={() => navigateTo('analyse')}
               onGoToLots={() => navigateTo('lots')}
               onGoToLot={(lotId) => { setSelectedLotId(lotId); navigateTo('lots'); }}
-              onRangeRefined={(min, max) => {
+              onRangeRefined={(min, max, breakdown) => {
                 setRefinedRangeMin(min);
                 setRefinedRangeMax(max);
+                setRefinedBreakdown(breakdown ?? []);
                 setShowBudgetDetail(false);
                 setAffineBudgetModal(false);
               }}
@@ -2026,6 +2067,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             docsByLot={docsByLot}
             displayMin={displayMin}
             displayMax={displayMax}
+            refinedBreakdown={refinedBreakdown}
             onAffineBudget={() => { setShowBudgetDetail(true); setAffineBudgetModal(true); }}
             onAddDevisForLot={(lotId) => setUploadModal({ open: true, lotId, defaultType: 'devis' })}
             onAddDocForLot={(lotId) => setUploadModal({ open: true, lotId })}
@@ -2175,6 +2217,23 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
           </div>
         );
 
+      case 'tresorerie':
+        return (
+          <div className="max-w-3xl mx-auto px-4 py-7">
+            {chantierId && token ? (
+              <TresoreriePanel
+                chantierId={chantierId}
+                token={token}
+                budgetMax={displayMax}
+              />
+            ) : (
+              <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
+                Chantier non identifié — impossible de charger la trésorerie.
+              </div>
+            )}
+          </div>
+        );
+
       default:
         return null;
     }
@@ -2182,6 +2241,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
 
   const SECTION_TITLES: Record<Section, string> = {
     budget: showBudgetDetail ? 'Affinage du budget' : result.nom,
+    tresorerie: 'Budget & Trésorerie',
     lots: 'Intervenants', contacts: 'Contacts', analyse: 'Analyse des devis',
     planning: 'Planning', documents: 'Documents', assistant: 'Assistant chantier',
     diy: 'Travaux réalisés par vous', settings: 'Paramètres',

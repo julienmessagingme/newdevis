@@ -853,6 +853,95 @@ serve(async (req) => {
       );
     }
 
+    // ============ PAYMENT EVENTS — génération timeline de paiement ============
+    // Déclenché après la sauvegarde réussie de l'analyse.
+    // Cherche le document chantier lié (via analyse_id) pour obtenir le project_id.
+    // Non-bloquant : les erreurs sont loggées mais n'échouent pas le pipeline.
+    try {
+      const { data: docLinked } = await supabase
+        .from("documents_chantier")
+        .select("id, chantier_id, document_type")
+        .eq("analyse_id", analysisId)
+        .maybeSingle();
+
+      if (docLinked?.chantier_id) {
+        const conditions = extracted.paiement?.conditions_paiement ?? [];
+        const totalAmount = extracted.totaux?.ttc ?? extracted.totaux?.ht ?? null;
+
+        if (Array.isArray(conditions) && conditions.length > 0) {
+          const today = new Date().toISOString().slice(0, 10);
+          const addDays = (base: string, days: number) => {
+            const d = new Date(base);
+            d.setDate(d.getDate() + days);
+            return d.toISOString().slice(0, 10);
+          };
+
+          const sourceType: "devis" | "facture" =
+            docLinked.document_type === "facture" ? "facture" : "devis";
+
+          const events = (conditions as Array<Record<string, unknown>>)
+            .filter((c) => c && typeof c === "object")
+            .map((cond) => {
+              // ── Montant ────────────────────────────────────────────────
+              let amount: number | null = null;
+              if (typeof cond.amount === "number" && (cond.amount as number) > 0) {
+                amount = cond.amount as number;
+              } else if (
+                typeof cond.percentage === "number" &&
+                (cond.percentage as number) > 0 &&
+                totalAmount !== null
+              ) {
+                amount = Math.round(((cond.percentage as number) * (totalAmount as number)) / 100 * 100) / 100;
+              }
+
+              // ── Date d'échéance ────────────────────────────────────────
+              let dueDate: string | null = null;
+              const lbl = typeof cond.label === "string" ? cond.label.toLowerCase() : "";
+              switch (cond.due_type) {
+                case "date":
+                  dueDate = typeof cond.due_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(cond.due_date as string)
+                    ? cond.due_date as string : null;
+                  break;
+                case "delay":
+                  if (typeof cond.delay_days === "number" && (cond.delay_days as number) >= 0)
+                    dueDate = addDays(today, cond.delay_days as number);
+                  break;
+                case "milestone":
+                  if (/signature|commande|acceptation/.test(lbl)) dueDate = today;
+                  else if (/début|démarrage|chantier/.test(lbl))  dueDate = addDays(today, 7);
+                  else if (/réception|livraison|fin\b|achèvement/.test(lbl)) dueDate = addDays(today, 30);
+                  else dueDate = addDays(today, 14);
+                  break;
+              }
+
+              return {
+                project_id:  docLinked.chantier_id,
+                source_type: sourceType,
+                source_id:   docLinked.id,
+                amount,
+                due_date:    dueDate,
+                status:      "pending",
+                is_override: false,
+                label:       typeof cond.label === "string" && cond.label.trim()
+                  ? cond.label.trim()
+                  : `${cond.type ?? "échéance"}`,
+              };
+            });
+
+          if (events.length > 0) {
+            const { error: evtErr } = await supabase.from("payment_events").insert(events);
+            if (evtErr) {
+              console.error("[PaymentEvents] insert error:", evtErr.message);
+            } else {
+              console.log(`[PaymentEvents] timeline générée — ${events.length} événements insérés`);
+            }
+          }
+        }
+      }
+    } catch (paymentErr) {
+      console.error("[PaymentEvents] erreur inattendue:", paymentErr instanceof Error ? paymentErr.message : paymentErr);
+    }
+
     // ============ PURGE OLD ANALYSES (keep max 10 per user) ============
     if (analysis.user_id) {
       try {

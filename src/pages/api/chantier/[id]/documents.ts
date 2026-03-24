@@ -3,6 +3,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { createClient } from '@supabase/supabase-js';
 import type { DocumentType } from '@/types/chantier-ia';
+import { generatePaymentEventsFromAnalyse } from '@/lib/paymentEvents';
 
 const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
 const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -154,6 +155,16 @@ export const POST: APIRoute = async ({ params, request }) => {
       console.error('[api/documents] import insert error:', insertError?.message);
       return new Response(JSON.stringify({ error: `Erreur DB : ${insertError?.message ?? 'insert failed'}` }), { status: 500, headers: CORS });
     }
+
+    // ── Génération payment_events (fire-and-forget) ───────────────────────
+    // L'analyse VerifierMonDevis est déjà complète → on peut extraire
+    // les conditions de paiement immédiatement.
+    const sourceType = documentType === 'facture' ? 'facture' : 'devis';
+    generatePaymentEventsFromAnalyse(supabase, analyseId, chantierId, sourceType, doc.id)
+      .catch((e: unknown) => {
+        console.error('[api/documents] paymentEvents error:', e instanceof Error ? e.message : e);
+      });
+
     return new Response(
       JSON.stringify({ document: { ...doc, signedUrl: null } }),
       { status: 201, headers: CORS },

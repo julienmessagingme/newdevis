@@ -5,6 +5,20 @@ export type DocumentType = "devis_travaux" | "facture" | "diagnostic_immobilier"
 export type DomainType = "travaux" | "auto" | "dentaire";
 
 // ============================================================
+// CONDITIONS DE PAIEMENT — Extraction stricte depuis le document
+// ============================================================
+
+export interface ConditionPaiement {
+  type: "acompte" | "progress" | "solde";
+  percentage: number | null;
+  amount: number | null;
+  due_type: "date" | "delay" | "milestone" | null;
+  due_date: string | null;      // format YYYY-MM-DD
+  delay_days: number | null;
+  label: string;                // libellé exact copié depuis le document
+}
+
+// ============================================================
 // PHASE 1 — EXTRACTION UNIQUE (UN SEUL APPEL IA)
 // ============================================================
 
@@ -36,6 +50,7 @@ export interface ExtractedData {
     acompte_avant_travaux_pct: number | null;
     modes: string[];
     echeancier_detecte: boolean;
+    conditions_paiement: ConditionPaiement[];
   };
   dates: {
     date_devis: string | null;

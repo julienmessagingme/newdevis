@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import type { ChantierIAResult, DocumentChantier } from '@/types/chantier-ia';
 import type { InsightsData, InsightItem } from './useInsights';
+import TresoreriePanel from './TresoreriePanel';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1263,12 +1264,13 @@ function detectElements(text: string): ProjectElementDef[] {
   return result;
 }
 
-interface BreakdownItem {
+export interface BreakdownItem {
   id: string;
   label: string;
   emoji: string;
   min: number;
   max: number;
+  reliability: 'haute' | 'moyenne' | 'faible';
 }
 
 interface AffinageAnswers {
@@ -1323,21 +1325,25 @@ function computeRefinedRange(
   for (let i = 0; i < confirmed.length; i++) {
     const def = confirmed[i];
     const lot = matchedLots[i];
-    const lotMin = (lot?.budget_min_ht ?? 0) > 0 ? (lot?.budget_min_ht ?? 0) : splitMin;
-    const lotMax = (lot?.budget_max_ht ?? 0) > 0 ? (lot?.budget_max_ht ?? 0) : splitMax;
+    const hasLotBudget = (lot?.budget_min_ht ?? 0) > 0;
+    const lotMin = hasLotBudget ? (lot?.budget_min_ht ?? 0) : splitMin;
+    const lotMax = hasLotBudget ? (lot?.budget_max_ht ?? 0) : splitMax;
 
     let elemAddMin = 0; let elemAddMax = 0;
+    let hasAnswers = false;
     if (def.isCustom) {
       elemAddMin = def.customBudgetMin ?? 0;
       elemAddMax = def.customBudgetMax ?? 0;
+      hasAnswers = true;
     } else {
       const ea = a.elementAnswers[def.id] ?? {};
       for (const q of def.questions) {
         if (q.type === 'yesno' && ea[q.id] === 'oui') {
           elemAddMin += q.addMin ?? 0; elemAddMax += q.addMax ?? 0;
+          hasAnswers = true;
         } else if (q.type === 'choice' && q.choiceImpact) {
           const impact = q.choiceImpact[ea[q.id] as string];
-          if (impact) { elemAddMin += impact.addMin; elemAddMax += impact.addMax; }
+          if (impact) { elemAddMin += impact.addMin; elemAddMax += impact.addMax; hasAnswers = true; }
         }
       }
     }
@@ -1347,18 +1353,46 @@ function computeRefinedRange(
     addMin += def.isCustom ? elemAddMin : elemAddMin;
     addMax += def.isCustom ? elemAddMax : elemAddMax;
 
+    const reliability: BreakdownItem['reliability'] =
+      def.isCustom ? 'haute' :
+      (hasLotBudget && hasAnswers) ? 'haute' :
+      (hasLotBudget || hasAnswers)  ? 'moyenne' :
+      'faible';
+
     breakdown.push({
       id: def.id, label: def.label, emoji: def.emoji,
       min: Math.round(elemMin / 100) * 100,
       max: Math.round(elemMax / 100) * 100,
+      reliability,
     });
   }
 
-  return {
-    min:  Math.round((baseMin + addMin) / 100) * 100,
-    max:  Math.round((baseMax + addMax) / 100) * 100,
-    breakdown,
-  };
+  const finalMin = Math.round((baseMin + addMin) / 100) * 100;
+  const finalMax = Math.round((baseMax + addMax) / 100) * 100;
+
+  // ── Normalisation : garantit que somme des postes = total affiché ──────────
+  if (breakdown.length > 0) {
+    const sumMin = breakdown.reduce((s, b) => s + b.min, 0);
+    const sumMax = breakdown.reduce((s, b) => s + b.max, 0);
+
+    if (sumMin > 0 && sumMax > 0) {
+      let cumMin = 0; let cumMax = 0;
+      for (let i = 0; i < breakdown.length; i++) {
+        if (i < breakdown.length - 1) {
+          breakdown[i].min = Math.round((breakdown[i].min / sumMin) * finalMin / 100) * 100;
+          breakdown[i].max = Math.round((breakdown[i].max / sumMax) * finalMax / 100) * 100;
+          cumMin += breakdown[i].min;
+          cumMax += breakdown[i].max;
+        } else {
+          // Dernier poste absorbe le reste (arrondi)
+          breakdown[i].min = Math.max(0, finalMin - cumMin);
+          breakdown[i].max = Math.max(0, finalMax - cumMax);
+        }
+      }
+    }
+  }
+
+  return { min: finalMin, max: finalMax, breakdown };
 }
 
 function computeScore(a: AffinageAnswers, detectedEls?: ProjectElementDef[]): number {
@@ -2058,6 +2092,8 @@ function BudgetExplication({ lots }: { lots: import('@/types/chantier-ia').LotCh
 interface Props {
   result: ChantierIAResult;
   documents: DocumentChantier[];
+  chantierId?: string | null;
+  token?: string | null;
   insights: InsightsData | null;
   insightsLoading: boolean;
   baseRangeMin: number;
@@ -2066,13 +2102,13 @@ interface Props {
   onGoToAnalyse: () => void;
   onGoToLots: () => void;
   onGoToLot?: (lotId: string) => void;
-  onRangeRefined?: (min: number, max: number) => void;
+  onRangeRefined?: (min: number, max: number, breakdown: BreakdownItem[]) => void;
   onAmeliorer?: () => void;
   autoOpenModal?: boolean;
   onModalClose?: () => void;
 }
 
-export default function BudgetTresorerie({ result, documents, insights, insightsLoading, baseRangeMin, baseRangeMax, onAddDoc, onGoToAnalyse, onGoToLots, onGoToLot, onRangeRefined, onAmeliorer, autoOpenModal, onModalClose }: Props) {
+export default function BudgetTresorerie({ result, documents, chantierId, token, insights, insightsLoading, baseRangeMin, baseRangeMax, onAddDoc, onGoToAnalyse, onGoToLots, onGoToLot, onRangeRefined, onAmeliorer, autoOpenModal, onModalClose }: Props) {
   const lots = result.lots ?? [];
 
   // ── État modal affinage ────────────────────────────────────────────────────
@@ -2105,7 +2141,7 @@ export default function BudgetTresorerie({ result, documents, insights, insights
   function handleValidate(min: number, max: number, breakdown: BreakdownItem[]) {
     setRefinedMin(min); setRefinedMax(max); setAffinageScore(6); setModalOpen(false);
     setRefinedBreakdown(breakdown);
-    onRangeRefined?.(min, max);
+    onRangeRefined?.(min, max, breakdown);
   }
 
   return (
@@ -2311,6 +2347,15 @@ export default function BudgetTresorerie({ result, documents, insights, insights
 
       {/* ── Factures & paiements ──────────────────────────────────────────── */}
       <FacturesPaiements documents={documents} onAddFacture={onAddDoc} />
+
+      {/* ── Module Budget & Trésorerie (payment_events réels) ────────────── */}
+      {chantierId && token && (
+        <TresoreriePanel
+          chantierId={chantierId}
+          token={token}
+          budgetMax={rangeMax}
+        />
+      )}
 
       {/* ── Quick actions ─────────────────────────────────────────────────── */}
       <QuickActions onAddDoc={onAddDoc} onGoToAnalyse={onGoToAnalyse} onGoToLots={onGoToLots} />
