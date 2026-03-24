@@ -1770,13 +1770,23 @@ function DocumentsView({ documents, lots, chantierId, token, onAddDoc, onDeleteD
   for (const doc of documents) (byType[doc.document_type] ??= []).push(doc);
   const typesWithDocs = Object.entries(byType).filter(([, docs]) => docs.length > 0);
 
+  // Optimistic update : map docId → lotId pour affichage immédiat
+  const [lotOverrides, setLotOverrides] = useState<Record<string, string | null>>({});
+
   async function handleChangeLot(docId: string, lotId: string | null) {
-    await fetch(`/api/chantier/${chantierId}/documents/${docId}`, {
+    // Mise à jour visuelle immédiate
+    setLotOverrides(prev => ({ ...prev, [docId]: lotId }));
+    const res = await fetch(`/api/chantier/${chantierId}/documents/${docId}`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ lotId }),
     });
-    onDocUpdated();
+    if (res.ok) {
+      onDocUpdated();
+    } else {
+      // Rollback si erreur
+      setLotOverrides(prev => ({ ...prev, [docId]: undefined as unknown as null }));
+    }
   }
 
   return (
@@ -1799,7 +1809,10 @@ function DocumentsView({ documents, lots, chantierId, token, onAddDoc, onDeleteD
               </div>
               <div className="divide-y divide-gray-50">
                 {docs.map(doc => {
-                  const lot = lots.find(l => l.id === doc.lot_id);
+                  // Lots réels uniquement (pas les fallback- dérivés des métadonnées)
+                  const realLots = lots.filter(l => !l.id.startsWith('fallback-'));
+                  const effectiveLotId = lotOverrides[doc.id] !== undefined ? lotOverrides[doc.id] : doc.lot_id;
+                  const lot = realLots.find(l => l.id === effectiveLotId);
                   return (
                     <div key={doc.id} className="flex items-center gap-3 px-5 py-4 group">
                       <div className="w-9 h-9 rounded-xl bg-gray-50 flex items-center justify-center shrink-0">
@@ -1809,17 +1822,17 @@ function DocumentsView({ documents, lots, chantierId, token, onAddDoc, onDeleteD
                         <p className="text-sm font-medium text-gray-800 truncate">{doc.nom}</p>
                         <p className="text-xs text-gray-400">{fmtDate(doc.created_at)}</p>
                       </div>
-                      {/* Sélecteur intervenant */}
-                      {(doc.document_type === 'devis' || doc.document_type === 'facture') && lots.length > 0 && (
+                      {/* Sélecteur intervenant — lots réels uniquement */}
+                      {(doc.document_type === 'devis' || doc.document_type === 'facture') && realLots.length > 0 && (
                         <select
-                          value={doc.lot_id ?? ''}
+                          value={effectiveLotId ?? ''}
                           onChange={e => handleChangeLot(doc.id, e.target.value || null)}
                           className={`text-xs border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 max-w-[160px] truncate ${
                             lot ? 'border-purple-200 text-purple-700 font-medium' : 'border-gray-200 text-gray-400'
                           }`}
                         >
                           <option value="">Aucun intervenant</option>
-                          {lots.map(l => <option key={l.id} value={l.id}>{l.emoji} {l.nom}</option>)}
+                          {realLots.map(l => <option key={l.id} value={l.id}>{l.emoji} {l.nom}</option>)}
                         </select>
                       )}
                       {doc.signedUrl && (
