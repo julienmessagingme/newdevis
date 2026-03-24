@@ -471,74 +471,336 @@ function LotCard({ lot, docs, insight, onAdd, onDetail }: {
 
 // ── Lot Detail ────────────────────────────────────────────────────────────────
 
-function LotDetail({ lot, docs, insight, onAddDoc, onDeleteDoc, onBack }: {
-  lot: LotChantier; docs: DocumentChantier[];
-  insight?: InsightItem; onAddDoc: () => void; onDeleteDoc: (id: string) => void; onBack: () => void;
+// ── Statuts devis ─────────────────────────────────────────────────────────────
+
+import type { DevisStatut } from '@/types/chantier-ia';
+
+const DEVIS_STATUT_OPTIONS: { value: DevisStatut; label: string }[] = [
+  { value: 'en_cours',        label: 'En cours' },
+  { value: 'a_relancer',      label: 'À relancer' },
+  { value: 'valide',          label: '✓ Validé' },
+  { value: 'attente_facture', label: 'En attente facture' },
+];
+
+const DEVIS_STATUT_STYLE: Record<DevisStatut, string> = {
+  en_cours:        'bg-blue-50 border-blue-200 text-blue-700',
+  a_relancer:      'bg-orange-50 border-orange-200 text-orange-700',
+  valide:          'bg-emerald-50 border-emerald-200 text-emerald-700',
+  attente_facture: 'bg-violet-50 border-violet-200 text-violet-700',
+};
+
+// ── Lot Detail ────────────────────────────────────────────────────────────────
+
+function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token }: {
+  lot: LotChantier;
+  docs: DocumentChantier[];
+  onAddDoc: () => void;
+  onDeleteDoc: (id: string) => void;
+  onBack: () => void;
+  chantierId: string | undefined;
+  token: string | null | undefined;
 }) {
+  // ── Séparation par type ──────────────────────────────────────────────────
+  const devisDocs = docs.filter(d => d.document_type === 'devis' || d.document_type === 'facture');
+  const photoDocs = docs.filter(d => d.document_type === 'photo');
+
+  // ── Statuts locaux (optimistic UI, persisté via PATCH) ───────────────────
+  const [statutMap, setStatutMap] = useState<Record<string, DevisStatut>>(() => {
+    const m: Record<string, DevisStatut> = {};
+    devisDocs.forEach(d => { if (d.devis_statut) m[d.id] = d.devis_statut; });
+    return m;
+  });
+
+  // Sync si docs changent (ex : reload)
+  useEffect(() => {
+    setStatutMap(prev => {
+      const m = { ...prev };
+      devisDocs.forEach(d => { if (d.devis_statut && !m[d.id]) m[d.id] = d.devis_statut; });
+      return m;
+    });
+  }, [docs]);
+
+  async function updateStatut(docId: string, statut: DevisStatut) {
+    setStatutMap(prev => ({ ...prev, [docId]: statut }));
+    if (!chantierId || !token) return;
+    try {
+      await fetch(`/api/chantier/${chantierId}/documents/${docId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ devisStatut: statut }),
+      });
+    } catch { /* silencieux */ }
+  }
+
+  // ── Jauge budget (devis validés vs fourchette estimée) ───────────────────
+  const hasRange = (lot.budget_min_ht ?? 0) > 0 || (lot.budget_max_ht ?? 0) > 0;
+  const budgetMax = (lot.budget_max_ht ?? lot.budget_avg_ht ?? 0) * 1.2; // HT → TTC approx
+
+  // Montant validé = sum des devis en statut 'valide'
+  // Pour l'instant on ne stocke pas le montant TTC dans le doc → on ne peut calculer que le nb validés
+  const validatedCount = devisDocs.filter(d => (statutMap[d.id] ?? d.devis_statut ?? 'en_cours') === 'valide').length;
+  const totalCount     = devisDocs.length;
+
+  // ── Score analyse ─────────────────────────────────────────────────────────
+  // Récupéré depuis analyse_id si présent (score stocké dans analyses.score)
+  const [scoreMap, setScoreMap] = useState<Record<string, number | null>>({});
+  useEffect(() => {
+    const withAnalyse = devisDocs.filter(d => d.analyse_id);
+    if (!withAnalyse.length) return;
+    const ids = withAnalyse.map(d => d.analyse_id!);
+    supabase.from('analyses').select('id, score').in('id', ids).then(({ data }) => {
+      if (!data) return;
+      const m: Record<string, number | null> = {};
+      data.forEach(a => { m[a.id] = a.score != null ? Number(a.score) : null; });
+      // Relier analyse_id → doc.id
+      withAnalyse.forEach(d => { if (d.analyse_id && m[d.analyse_id] !== undefined) m[d.id] = m[d.analyse_id]; });
+      setScoreMap(m);
+    });
+  }, [docs]);
+
+  function ScoreBadge({ score }: { score: number | null | undefined }) {
+    if (score == null) return <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">— Pas analysé</span>;
+    const cls = score >= 70 ? 'bg-emerald-50 text-emerald-700' : score >= 45 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-600';
+    const dot = score >= 70 ? 'bg-emerald-500' : score >= 45 ? 'bg-amber-500' : 'bg-red-500';
+    const lbl = score >= 70 ? 'Bon' : score >= 45 ? 'Moyen' : 'Risqué';
+    return (
+      <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full ${cls}`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+        {lbl} — {score}/100
+      </span>
+    );
+  }
+
   return (
-    <div className="max-w-3xl mx-auto px-6 py-7">
-      <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 mb-5 transition-colors">
-        <ArrowLeft className="h-4 w-4" /> Retour aux intervenants
-      </button>
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-        <div className="px-5 py-5 border-b border-gray-50 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl leading-none">{lot.emoji ?? '🔧'}</span>
-            <div>
-              <h2 className="font-bold text-gray-900">{lot.nom}</h2>
-              {(lot.budget_min_ht || lot.budget_max_ht) && (
-                <p className="text-sm text-gray-400 mt-0.5">Prix observé · {fmtK(lot.budget_min_ht ?? 0)} – {fmtK(lot.budget_max_ht ?? 0)}</p>
-              )}
-            </div>
-          </div>
-          <button onClick={onAddDoc} className="flex items-center gap-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-xl transition-colors">
-            <Plus className="h-3.5 w-3.5" /> Ajouter
-          </button>
+    <div className="px-5 py-6 space-y-5 max-w-5xl mx-auto">
+
+      {/* ── Back + header ── */}
+      <div className="flex items-center gap-3">
+        <button onClick={onBack} className="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-500 transition-colors shrink-0">
+          <ArrowLeft className="h-4 w-4" />
+        </button>
+        <span className="text-2xl leading-none">{lot.emoji ?? '🔧'}</span>
+        <div className="flex-1 min-w-0">
+          <h2 className="font-bold text-gray-900 text-lg leading-tight">{lot.nom}</h2>
+          {hasRange && (
+            <p className="text-sm text-blue-700 font-semibold mt-0.5 tabular-nums">
+              Fourchette estimée : {fmtK(lot.budget_min_ht ?? 0)} – {fmtK(lot.budget_max_ht ?? 0)} HT
+            </p>
+          )}
         </div>
-        {insight && (
-          <div className={`px-5 py-3 border-b ${IS[insight.type].border} ${IS[insight.type].bg} flex items-center gap-2`}>
-            {insight.icon && <span>{insight.icon}</span>}
-            <span className={`text-sm font-semibold ${IS[insight.type].text}`}>{insight.text}</span>
+        <button onClick={onAddDoc}
+          className="shrink-0 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl px-4 py-2.5 transition-colors shadow-sm shadow-blue-200">
+          <Plus className="h-4 w-4" /> Ajouter un devis
+        </button>
+      </div>
+
+      {/* ── Jauge budget ── */}
+      {hasRange && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Budget engagé — devis validés</p>
+            <span className={`text-sm font-extrabold tabular-nums ${validatedCount === 0 ? 'text-gray-400' : 'text-emerald-600'}`}>
+              {validatedCount} devis validé{validatedCount > 1 ? 's' : ''} / {totalCount} reçu{totalCount > 1 ? 's' : ''}
+            </span>
           </div>
-        )}
-        {docs.length === 0 ? (
-          <div className="py-14 text-center">
+          <div className="h-2.5 w-full rounded-full bg-blue-50 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-emerald-400 transition-all duration-700"
+              style={{ width: totalCount > 0 ? `${Math.min(100, (validatedCount / Math.max(totalCount, 1)) * 100)}%` : '2%' }}
+            />
+          </div>
+          <div className="flex items-center gap-4 mt-2">
+            <span className="flex items-center gap-1.5 text-[11px] text-gray-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />{validatedCount} validé{validatedCount > 1 ? 's' : ''}
+            </span>
+            <span className="flex items-center gap-1.5 text-[11px] text-gray-400">
+              <span className="w-2 h-2 rounded-full bg-gray-200 inline-block" />{totalCount - validatedCount} en attente
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Tableau devis / factures ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-gray-50 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-gray-700">Devis & Factures</span>
+            <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{devisDocs.length}</span>
+          </div>
+        </div>
+
+        {devisDocs.length === 0 ? (
+          <div className="py-14 flex flex-col items-center text-center">
             <FileText className="h-8 w-8 text-gray-200 mx-auto mb-3" />
-            <p className="text-sm text-gray-400 mb-4">Aucun document pour ce lot</p>
-            <button onClick={onAddDoc} className="flex items-center gap-2 mx-auto text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors">
-              <CloudUpload className="h-4 w-4" /> Ajouter un devis
+            <p className="text-sm text-gray-400 mb-4">Aucun devis ajouté pour ce lot</p>
+            <button onClick={onAddDoc} className="flex items-center gap-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl transition-colors">
+              <Plus className="h-4 w-4" /> Ajouter un devis
             </button>
           </div>
         ) : (
-          <div className="divide-y divide-gray-50">
-            {docs.map(doc => (
-              <div key={doc.id} className="flex items-center gap-3 px-5 py-4 group">
-                <div className="w-9 h-9 rounded-xl bg-gray-50 flex items-center justify-center shrink-0">
-                  <FileText className="h-4 w-4 text-gray-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">{doc.nom}</p>
-                  <p className="text-xs text-gray-400">{TYPE_LABELS[doc.document_type]} · {fmtDate(doc.created_at)}</p>
-                </div>
-                {doc.signedUrl && (
-                  <a href={doc.signedUrl} target="_blank" rel="noreferrer" className="shrink-0 text-xs text-blue-600 hover:text-blue-700 opacity-0 group-hover:opacity-100 transition-opacity">
-                    Ouvrir
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[22%]">Artisan / Société</th>
+                  <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[14%]">Type</th>
+                  <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[18%]">Analyse VMD</th>
+                  <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[20%]">Statut</th>
+                  <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[14%]">Date</th>
+                  <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[8%]">Doc</th>
+                  <th className="w-[4%]" />
+                </tr>
+              </thead>
+              <tbody>
+                {devisDocs.map(doc => {
+                  const statut = statutMap[doc.id] ?? doc.devis_statut ?? 'en_cours';
+                  const score  = scoreMap[doc.id];
+                  return (
+                    <tr key={doc.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/60 transition-colors group">
+                      {/* Artisan */}
+                      <td className="px-4 py-3.5">
+                        <p className="text-sm font-bold text-gray-900 truncate max-w-[160px]">{doc.nom}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">{TYPE_LABELS[doc.document_type]}</p>
+                      </td>
+                      {/* Type */}
+                      <td className="px-4 py-3.5">
+                        <span className={`inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full ${doc.document_type === 'facture' ? 'bg-violet-50 text-violet-700' : 'bg-blue-50 text-blue-700'}`}>
+                          {doc.document_type === 'facture' ? '🧾 Facture' : '📄 Devis'}
+                        </span>
+                      </td>
+                      {/* Score VMD */}
+                      <td className="px-4 py-3.5">
+                        {doc.analyse_id ? (
+                          <ScoreBadge score={score} />
+                        ) : (
+                          <span className="text-[11px] text-gray-300 italic">Non analysé</span>
+                        )}
+                      </td>
+                      {/* Statut */}
+                      <td className="px-4 py-3.5">
+                        <select
+                          value={statut}
+                          onChange={e => updateStatut(doc.id, e.target.value as DevisStatut)}
+                          className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg border appearance-none cursor-pointer outline-none transition-colors ${DEVIS_STATUT_STYLE[statut]}`}
+                        >
+                          {DEVIS_STATUT_OPTIONS.map(o => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                      </td>
+                      {/* Date */}
+                      <td className="px-4 py-3.5">
+                        <span className="text-xs text-gray-400 whitespace-nowrap">{fmtDate(doc.created_at)}</span>
+                      </td>
+                      {/* Doc */}
+                      <td className="px-4 py-3.5">
+                        {doc.signedUrl ? (
+                          <a href={doc.signedUrl} target="_blank" rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 transition-colors">
+                            <FileText className="h-3 w-3" /> Ouvrir
+                          </a>
+                        ) : (
+                          <span className="text-[11px] text-gray-300">—</span>
+                        )}
+                      </td>
+                      {/* Supprimer */}
+                      <td className="px-2 py-3.5">
+                        <button onClick={() => onDeleteDoc(doc.id)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-200 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Footer tableau */}
+        {devisDocs.length > 0 && (
+          <div className="px-5 py-3 border-t border-gray-50 flex items-center justify-between">
+            <span className="text-xs text-gray-400">{devisDocs.length} document{devisDocs.length > 1 ? 's' : ''} · {validatedCount} validé{validatedCount > 1 ? 's' : ''}</span>
+            <button onClick={onAddDoc}
+              className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
+              <Plus className="h-3 w-3" /> Ajouter
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Photos du lot ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-gray-50 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-gray-700">📷 Photos</span>
+            <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{photoDocs.length}</span>
+          </div>
+          <button onClick={onAddDoc}
+            className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 bg-gray-50 hover:bg-gray-100 px-3 py-1.5 rounded-lg transition-colors">
+            <Plus className="h-3 w-3" /> Ajouter
+          </button>
+        </div>
+
+        {photoDocs.length === 0 ? (
+          <div className="py-10 flex flex-col items-center text-center">
+            <p className="text-3xl mb-2">📷</p>
+            <p className="text-sm text-gray-400 mb-1">Aucune photo pour ce lot</p>
+            <p className="text-xs text-gray-300">Avant travaux · Pendant · Après réception</p>
+          </div>
+        ) : (
+          <div className="p-4 grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+            {photoDocs.map(doc => (
+              <div key={doc.id} className="relative group aspect-square rounded-xl overflow-hidden bg-gray-100 border border-gray-100">
+                {doc.signedUrl ? (
+                  <a href={doc.signedUrl} target="_blank" rel="noreferrer">
+                    <img src={doc.signedUrl} alt={doc.nom} className="w-full h-full object-cover hover:scale-105 transition-transform duration-200" />
                   </a>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-300">📷</div>
                 )}
                 <button onClick={() => onDeleteDoc(doc.id)}
-                  className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all">
-                  <Trash2 className="h-4 w-4" />
+                  className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/40 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500">
+                  <X className="h-3 w-3" />
                 </button>
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <p className="text-[10px] text-white truncate">{doc.nom}</p>
+                </div>
               </div>
             ))}
           </div>
         )}
-        <div className="p-5 border-t border-gray-50">
-          <button onClick={onAddDoc} className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-xl py-3 text-sm text-gray-400 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-all">
-            <Plus className="h-4 w-4" /> Ajouter un document
-          </button>
-        </div>
       </div>
+
+      {/* ── Autres documents (plans, autorisations…) ── */}
+      {docs.filter(d => !['devis', 'facture', 'photo'].includes(d.document_type)).length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-gray-50">
+            <span className="text-sm font-bold text-gray-700">Autres documents</span>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {docs.filter(d => !['devis', 'facture', 'photo'].includes(d.document_type)).map(doc => (
+              <div key={doc.id} className="flex items-center gap-3 px-5 py-3.5 group">
+                <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
+                  <FileText className="h-3.5 w-3.5 text-gray-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">{doc.nom}</p>
+                  <p className="text-[11px] text-gray-400">{TYPE_LABELS[doc.document_type]} · {fmtDate(doc.created_at)}</p>
+                </div>
+                {doc.signedUrl && (
+                  <a href={doc.signedUrl} target="_blank" rel="noreferrer" className="shrink-0 text-xs text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">Ouvrir</a>
+                )}
+                <button onClick={() => onDeleteDoc(doc.id)}
+                  className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-200 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -688,15 +950,10 @@ function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail, on
         </div>
       </div>
 
-      {/* ── 3 actions ───────────────────────────────────── */}
-      <div className="border-t border-gray-50 grid grid-cols-3 divide-x divide-gray-50 mt-auto">
-        <button onClick={onAddDevis}
-          className="flex flex-col items-center gap-1 py-3.5 text-[11px] font-semibold text-blue-600 hover:bg-blue-50 transition-colors">
-          <Plus className="h-3.5 w-3.5" />
-          Devis
-        </button>
+      {/* ── 2 actions ───────────────────────────────────── */}
+      <div className="border-t border-gray-50 grid grid-cols-2 divide-x divide-gray-50 mt-auto">
         <button onClick={onDetail}
-          className="flex flex-col items-center gap-1 py-3.5 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+          className="flex flex-col items-center gap-1 py-3.5 text-[11px] font-semibold text-blue-600 hover:bg-blue-50 transition-colors">
           <ChevronRight className="h-3.5 w-3.5" />
           Voir détails
         </button>
@@ -831,7 +1088,7 @@ function AssistantActiveBlock({ lots, documents, onAddDevisForLot, onGoToAnalyse
         </div>
         {/* Contenu */}
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Recommandation</p>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Votre Maître d'œuvre</p>
           <p className="font-bold text-gray-900 leading-snug mb-1">{step.title}</p>
           <p className="text-sm text-gray-500 leading-relaxed mb-3">{step.desc}</p>
           <div className="flex items-center gap-2 flex-wrap">
@@ -1235,10 +1492,12 @@ function UploadModal({ chantierId, token, lots, defaultLotId, defaultType, onClo
           try {
             parsed = typeof a.raw_text === 'string' ? JSON.parse(a.raw_text) : (a.raw_text ?? {});
           } catch {}
-          const artisanNom = parsed?.entreprise?.nom ?? null;
-          const totalTtc   = parsed?.totaux?.ttc ?? null;
-          const dateDevis  = parsed?.dates?.date_devis ?? null;
-          const typeChantier = parsed?.context?.type_chantier ?? null;
+          // raw_text structure : { extracted: { entreprise, totaux, dates, context, ... }, verified, scoring, ... }
+          const extracted   = parsed?.extracted ?? parsed; // rétrocompat si structure plate
+          const artisanNom  = extracted?.entreprise?.nom ?? null;
+          const totalTtc    = extracted?.totaux?.ttc ?? null;
+          const dateDevis   = extracted?.dates?.date_devis ?? null;
+          const typeChantier = extracted?.context?.type_chantier ?? null;
           const titre = artisanNom
             ? artisanNom
             : typeChantier ?? `Analyse du ${fmtDate(a.created_at)}`;
@@ -2087,10 +2346,11 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
         <LotDetail
           lot={selectedLot}
           docs={docsByLot[selectedLot.id] ?? []}
-          insight={insights?.lots?.[selectedLot.id]}
           onAddDoc={() => setUploadModal({ open: true, lotId: selectedLot.id.startsWith('fallback-') ? undefined : selectedLot.id })}
           onDeleteDoc={handleDeleteDoc}
           onBack={() => setSelectedLotId(null)}
+          chantierId={chantierId}
+          token={token}
         />
       );
     }

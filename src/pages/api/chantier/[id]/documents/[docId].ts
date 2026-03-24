@@ -108,7 +108,9 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   const doc = await loadDocWithOwnership(ctx.supabase, params.docId!, params.id!, ctx.user.id);
   if (!doc) return new Response(JSON.stringify({ error: 'Document introuvable' }), { status: 404, headers: CORS });
 
-  let body: { nom?: string; documentType?: DocumentType; lotId?: string | null };
+  const VALID_DEVIS_STATUTS = new Set(['en_cours', 'a_relancer', 'valide', 'attente_facture']);
+
+  let body: { nom?: string; documentType?: DocumentType; lotId?: string | null; devisStatut?: string };
   try {
     body = await request.json();
   } catch {
@@ -136,6 +138,12 @@ export const PATCH: APIRoute = async ({ params, request }) => {
         return new Response(JSON.stringify({ error: 'Lot invalide' }), { status: 400, headers: CORS });
     }
     updates.lot_id = body.lotId ?? null;
+  }
+
+  if (body.devisStatut !== undefined) {
+    if (!VALID_DEVIS_STATUTS.has(body.devisStatut))
+      return new Response(JSON.stringify({ error: 'Statut invalide' }), { status: 400, headers: CORS });
+    updates.devis_statut = body.devisStatut;
   }
 
   if (!Object.keys(updates).length)

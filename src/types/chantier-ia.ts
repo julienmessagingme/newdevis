@@ -12,6 +12,8 @@ export type DocumentType =
   | 'devis' | 'facture' | 'photo'
   | 'plan' | 'autorisation' | 'assurance' | 'autre';
 
+export type DevisStatut = 'en_cours' | 'a_relancer' | 'valide' | 'attente_facture';
+
 export interface DocumentChantier {
   id: string;
   chantier_id: string;
@@ -19,6 +21,8 @@ export interface DocumentChantier {
   /** Terrain lot 6 : lien vers l'analyse créée depuis ce document */
   analyse_id: string | null;
   document_type: DocumentType;
+  /** Statut du devis — uniquement pertinent pour document_type === 'devis' */
+  devis_statut?: DevisStatut | null;
   source: string;
   nom: string;
   nom_fichier: string;
