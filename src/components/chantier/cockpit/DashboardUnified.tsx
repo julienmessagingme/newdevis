@@ -8,7 +8,7 @@ import {
   Plus, X, Loader2, CheckCircle2, AlertCircle, CloudUpload, FileText,
   Sparkles, Trash2, ArrowLeft, ChevronRight, Wrench, Wallet, Layers,
   FileSearch, Calendar, FolderOpen, Bot, Settings, Menu, ExternalLink,
-  Receipt, Pencil, SlidersHorizontal, Users,
+  Receipt, Pencil, SlidersHorizontal, Users, MessageCircle,
 } from 'lucide-react';
 import type {
   ChantierIAResult, DocumentChantier, DocumentType, LotChantier, StatutArtisan,
@@ -18,6 +18,8 @@ import BudgetTresorerie from './BudgetTresorerie';
 import PlanningChantier from './PlanningChantier';
 import ContactsSection from './ContactsSection';
 import ScreenEditPrompt from '@/components/chantier/nouveau/ScreenEditPrompt';
+import { ExpertAvatar } from '@/components/chantier/MATERIAL_IMAGES';
+import { useChantierAssistant } from '@/hooks/useChantierAssistant';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 
@@ -90,33 +92,28 @@ function Sidebar({ result, activeSection, onSelect, rangeMin, rangeMax, badges, 
         ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
         lg:relative lg:translate-x-0 lg:z-auto lg:flex-none
       `}>
-        {/* Projet */}
-        <div className="px-4 py-5 border-b border-gray-50">
+        {/* Projet — logo seul, pas de doublon nom/budget */}
+        <div className="px-4 py-4 border-b border-gray-50">
           <a href="/mon-chantier"
-            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 mb-4 transition-colors">
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 mb-3 transition-colors">
             <ArrowLeft className="h-3 w-3" /> Mes chantiers
           </a>
           <button
             onClick={() => { onSelect('budget'); onCloseMobile(); }}
-            className="flex items-center gap-3 w-full text-left hover:opacity-80 transition-opacity"
+            className="flex items-center gap-2.5 w-full text-left hover:opacity-80 transition-opacity"
           >
-            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-xl shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center text-lg shrink-0">
               {result.emoji}
             </div>
-            <div className="min-w-0">
-              <p className="font-bold text-sm text-gray-900 leading-tight truncate">{result.nom}</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">
-                {rangeMin > 0 ? `${fmtK(rangeMin)} – ${fmtK(rangeMax)}` : 'Budget en cours d\u2019estimation'}
-              </p>
-            </div>
+            <span className="text-xs text-gray-400 truncate">Vue d'ensemble</span>
           </button>
           {onAmeliorer && (
             <button
               onClick={onAmeliorer}
-              className="mt-3 w-full flex items-center gap-2 text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-xl px-3 py-2 transition-all"
+              className="mt-2.5 w-full flex items-center gap-2 text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-xl px-3 py-2 transition-all"
             >
               <Pencil className="h-3 w-3 shrink-0" />
-              Revoir / modifier mon projet
+              Modifier le projet
             </button>
           )}
         </div>
@@ -186,6 +183,52 @@ function PageHeader({ title, sub, action, onMenuToggle, onBack }: {
           {sub && <p className="text-sm text-gray-400 mt-0.5">{sub}</p>}
         </div>
         {action}
+      </div>
+    </header>
+  );
+}
+
+// ── Budget Home Header (header premium section principale) ────────────────────
+
+function BudgetHomeHeader({ result, displayMin, displayMax, onMenuToggle, onAddDoc }: {
+  result: ChantierIAResult;
+  displayMin: number;
+  displayMax: number;
+  onMenuToggle: () => void;
+  onAddDoc: () => void;
+}) {
+  return (
+    <header className="bg-white border-b border-gray-100 px-5 py-4">
+      <div className="flex items-center gap-3">
+        {/* Bouton menu mobile */}
+        <button onClick={onMenuToggle} className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 shrink-0">
+          <Menu className="h-4 w-4" />
+        </button>
+
+        {/* Nom + budget (source de vérité) */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-xl leading-none">{result.emoji}</span>
+            <h1 className="font-bold text-gray-900 truncate">{result.nom}</h1>
+          </div>
+          {displayMin > 0 ? (
+            <p className="text-sm font-semibold text-blue-700 mt-0.5 tabular-nums">
+              {fmtK(displayMin)} – {fmtK(displayMax)}
+            </p>
+          ) : (
+            <p className="text-sm text-gray-400 mt-0.5">Budget en cours d'estimation</p>
+          )}
+        </div>
+
+        {/* Bouton Ajouter un document */}
+        <button
+          onClick={onAddDoc}
+          className="shrink-0 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl px-4 py-2.5 transition-colors shadow-sm shadow-blue-200"
+        >
+          <Plus className="h-4 w-4" />
+          <span className="hidden sm:inline">Ajouter un document</span>
+          <span className="sm:hidden">Ajouter</span>
+        </button>
       </div>
     </header>
   );
@@ -326,86 +369,191 @@ const STATUT_STYLE: Record<string, { label: string; pill: string }> = {
   ok:         { label: 'Validé ✓',   pill: 'text-emerald-700 bg-emerald-100' },
 };
 
+// ── Statut sémantique intervenant ──────────────────────────────────────────────
+
+type LotStatusLevel = 'blocked' | 'insufficient' | 'ok';
+
+function getLotStatusLevel(lot: LotChantier, docs: DocumentChantier[]): {
+  level: LotStatusLevel;
+  label: string;
+  msg: string;
+  dotColor: string;
+  textColor: string;
+  bgColor: string;
+} {
+  const statut   = lot.statut ?? 'a_trouver';
+  const devisCnt = docs.filter(d => d.document_type === 'devis').length;
+
+  if (['ok', 'termine', 'en_cours'].includes(statut)) {
+    const msg = statut === 'en_cours' ? 'Travaux en cours' : 'Intervenant validé ✓';
+    return { level: 'ok', label: 'OK', msg, dotColor: 'bg-emerald-400', textColor: 'text-emerald-700', bgColor: 'bg-emerald-50' };
+  }
+  if (statut === 'contrat_signe') {
+    return { level: 'ok', label: 'Signé', msg: 'Contrat signé — en attente de démarrage', dotColor: 'bg-emerald-400', textColor: 'text-emerald-700', bgColor: 'bg-emerald-50' };
+  }
+  if (devisCnt >= 2) {
+    return { level: 'ok', label: 'À comparer', msg: `${devisCnt} devis reçus — comparez les prix`, dotColor: 'bg-blue-400', textColor: 'text-blue-700', bgColor: 'bg-blue-50' };
+  }
+  if (devisCnt === 1) {
+    return { level: 'insufficient', label: 'Insuffisant', msg: 'Obtenez au moins 1 devis supplémentaire', dotColor: 'bg-amber-400', textColor: 'text-amber-700', bgColor: 'bg-amber-50' };
+  }
+  if (statut === 'a_contacter') {
+    return { level: 'insufficient', label: 'En attente', msg: 'Devis demandé, pas encore reçu', dotColor: 'bg-amber-400', textColor: 'text-amber-700', bgColor: 'bg-amber-50' };
+  }
+  return { level: 'blocked', label: 'Bloqué', msg: 'Aucun artisan contacté — action requise', dotColor: 'bg-red-400', textColor: 'text-red-700', bgColor: 'bg-red-50' };
+}
+
 // ── Lot Intervenant Card (home) ────────────────────────────────────────────────
 
-function LotIntervenantCard({ lot, docs, onAddDevis, onAddFacture, onAddDocument, onDetail }: {
+function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail }: {
   lot: LotChantier;
   docs: DocumentChantier[];
   onAddDevis: () => void;
-  onAddFacture: () => void;
   onAddDocument: () => void;
   onDetail: () => void;
 }) {
-  const statut   = lot.statut ?? 'a_trouver';
-  const sc       = STATUT_STYLE[statut] ?? STATUT_STYLE.a_trouver;
-  const devisCnt = docs.filter(d => d.document_type === 'devis').length;
-  const hasRef   = (lot.budget_min_ht ?? 0) > 0 || (lot.budget_max_ht ?? 0) > 0;
-  const validated = statut === 'ok';
+  const devisCnt  = docs.filter(d => d.document_type === 'devis').length;
+  const hasRef    = (lot.budget_min_ht ?? 0) > 0 || (lot.budget_max_ht ?? 0) > 0;
+  const status    = getLotStatusLevel(lot, docs);
+  const statut    = lot.statut ?? 'a_trouver';
+
+  // Jauge
+  const progress =
+    statut === 'termine' || statut === 'ok' ? 100 :
+    statut === 'en_cours'                   ? 85  :
+    statut === 'contrat_signe'              ? 65  :
+    devisCnt >= 2                           ? 50  :
+    devisCnt === 1                          ? 35  :
+    statut === 'a_contacter'                ? 15  : 5;
+
+  const gaugeColor =
+    progress >= 65  ? 'bg-emerald-400' :
+    progress >= 35  ? 'bg-amber-400'   :
+                      'bg-red-400';
+
+  const gaugeLabel =
+    progress >= 65  ? { text: '✓ OK',           cls: 'text-emerald-600' } :
+    progress >= 35  ? { text: '⚠ À surveiller', cls: 'text-amber-600'   } :
+                      { text: '✗ Action requise',cls: 'text-red-600'     };
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col">
 
-      {/* ── Nom + budget ───────────────────────────────────── */}
-      <button
-        onClick={onDetail}
-        className="p-5 flex items-start gap-3 text-left hover:bg-gray-50 transition-colors"
-      >
-        <span className="text-xl leading-none pt-0.5 shrink-0">{lot.emoji ?? '🔧'}</span>
+      {/* ── Zone cliquable principale ──────────────────── */}
+      <button onClick={onDetail} className="p-5 pb-3 flex items-start gap-3 text-left hover:bg-gray-50/60 transition-colors group">
+        <span className="text-2xl leading-none pt-0.5 shrink-0">{lot.emoji ?? '🔧'}</span>
         <div className="flex-1 min-w-0">
-          <p className="font-bold text-gray-900 text-sm leading-tight truncate">{lot.nom}</p>
-          {hasRef && (
-            <p className="text-xs font-semibold text-gray-500 mt-1 tabular-nums">
-              {fmtK(lot.budget_min_ht ?? 0)} – {fmtK(lot.budget_max_ht ?? 0)}
-            </p>
-          )}
+          <p className="font-bold text-gray-900 leading-tight truncate text-base">{lot.nom}</p>
+          {/* Statut clair */}
+          <div className="flex items-center gap-1.5 mt-1.5">
+            <div className={`w-2 h-2 rounded-full shrink-0 ${status.dotColor}`} />
+            <span className={`text-[11px] font-bold ${status.textColor}`}>{status.label}</span>
+          </div>
         </div>
-        <ChevronRight className="h-3.5 w-3.5 text-gray-300 shrink-0 mt-0.5" />
+        <ChevronRight className="h-4 w-4 text-gray-300 shrink-0 mt-1 group-hover:text-blue-400 transition-colors" />
       </button>
 
-      {/* ── Statut + compteur devis ─────────────────────────── */}
-      <div className="px-5 pb-3 flex items-center gap-2">
-        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${sc.pill}`}>
-          {sc.label}
-        </span>
-        {devisCnt > 0 && (
-          <span className="flex items-center gap-0.5 text-[11px] font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-            <FileText className="h-2.5 w-2.5" /> {devisCnt} devis
-          </span>
-        )}
+      {/* ── Message explicatif ─────────────────────────── */}
+      <div className={`mx-5 mb-3 px-3 py-2 rounded-xl border ${status.bgColor} border-transparent`}>
+        <p className={`text-xs leading-snug ${status.textColor} font-medium`}>{status.msg}</p>
       </div>
 
-      {/* ── Jauge (si validé) ───────────────────────────────── */}
-      {validated && (
+      {/* ── Budget fourchette ───────────────────────────── */}
+      {hasRef ? (
         <div className="px-5 pb-3">
-          <div className="h-1.5 w-full rounded-full bg-emerald-100 overflow-hidden">
-            <div className="h-full w-full rounded-full bg-emerald-400" />
-          </div>
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Budget observé</p>
+          <p className="text-lg font-extrabold text-gray-900 tabular-nums">
+            {fmtK(lot.budget_min_ht ?? 0)} – {fmtK(lot.budget_max_ht ?? 0)}
+          </p>
+        </div>
+      ) : (
+        <div className="px-5 pb-3">
+          <p className="text-xs text-gray-300 italic">Budget à estimer</p>
         </div>
       )}
 
-      {/* ── 3 actions ───────────────────────────────────────── */}
+      {/* ── Compteur devis ──────────────────────────────── */}
+      <div className="px-5 pb-3 flex items-center gap-2 flex-wrap min-h-[24px]">
+        {devisCnt > 0 ? (
+          <span className="flex items-center gap-1 text-xs font-medium text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full">
+            <FileText className="h-3 w-3" /> {devisCnt} devis reçu{devisCnt > 1 ? 's' : ''}
+          </span>
+        ) : (
+          <span className="text-xs text-gray-400 italic">Aucun devis reçu</span>
+        )}
+      </div>
+
+      {/* ── Jauge + interprétation ──────────────────────── */}
+      <div className="px-5 pb-4">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Avancement</span>
+          <span className={`text-[10px] font-bold ${gaugeLabel.cls}`}>{gaugeLabel.text}</span>
+        </div>
+        <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
+          <div className={`h-full rounded-full transition-all duration-500 ${gaugeColor}`} style={{ width: `${progress}%` }} />
+        </div>
+      </div>
+
+      {/* ── 3 actions ───────────────────────────────────── */}
       <div className="border-t border-gray-50 grid grid-cols-3 divide-x divide-gray-50 mt-auto">
-        <button
-          onClick={onAddDevis}
-          className="flex flex-col items-center gap-0.5 py-3 text-[11px] font-semibold text-blue-600 hover:bg-blue-50 transition-colors"
-        >
+        <button onClick={onAddDevis}
+          className="flex flex-col items-center gap-1 py-3.5 text-[11px] font-semibold text-blue-600 hover:bg-blue-50 transition-colors">
           <Plus className="h-3.5 w-3.5" />
           Devis
         </button>
-        <button
-          onClick={onAddFacture}
-          className="flex flex-col items-center gap-0.5 py-3 text-[11px] font-semibold text-violet-600 hover:bg-violet-50 transition-colors"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Facture
+        <button onClick={onDetail}
+          className="flex flex-col items-center gap-1 py-3.5 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+          <ChevronRight className="h-3.5 w-3.5" />
+          Voir détails
         </button>
-        <button
-          onClick={onAddDocument}
-          className="flex flex-col items-center gap-0.5 py-3 text-[11px] font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Document
+        <button onClick={onAddDocument}
+          className="flex flex-col items-center gap-1 py-3.5 text-[11px] font-semibold text-violet-600 hover:bg-violet-50 transition-colors">
+          <Receipt className="h-3.5 w-3.5" />
+          Photo/Facture
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ── État global du chantier ────────────────────────────────────────────────────
+
+function EtatChantierBlock({ lots, documents }: { lots: LotChantier[]; documents: DocumentChantier[] }) {
+  if (lots.length === 0) return null;
+
+  const total     = lots.length;
+  const validated = lots.filter(l => ['ok', 'termine', 'en_cours', 'contrat_signe'].includes(l.statut ?? '')).length;
+  const withDevis = lots.filter(l => documents.some(d => d.lot_id === l.id && d.document_type === 'devis') && !['ok', 'termine', 'en_cours', 'contrat_signe'].includes(l.statut ?? '')).length;
+  const blocked   = total - validated - withDevis;
+  const pct       = Math.round((validated / total) * 100);
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-3">État du chantier</p>
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        {/* Validés */}
+        <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-3 text-center">
+          <p className="text-xl font-extrabold text-emerald-700">{validated}</p>
+          <p className="text-[10px] font-semibold text-emerald-600 mt-0.5">Validés</p>
+        </div>
+        {/* Avec devis */}
+        <div className="rounded-xl bg-amber-50 border border-amber-100 px-3 py-3 text-center">
+          <p className="text-xl font-extrabold text-amber-700">{withDevis}</p>
+          <p className="text-[10px] font-semibold text-amber-600 mt-0.5">Avec devis</p>
+        </div>
+        {/* Bloqués */}
+        <div className={`rounded-xl px-3 py-3 text-center ${blocked > 0 ? 'bg-red-50 border border-red-100' : 'bg-gray-50 border border-gray-100'}`}>
+          <p className={`text-xl font-extrabold ${blocked > 0 ? 'text-red-600' : 'text-gray-400'}`}>{blocked}</p>
+          <p className={`text-[10px] font-semibold mt-0.5 ${blocked > 0 ? 'text-red-500' : 'text-gray-400'}`}>Manquants</p>
+        </div>
+      </div>
+      {/* Barre de progression globale */}
+      <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden mb-1">
+        <div className="h-full rounded-full bg-emerald-400 transition-all duration-500" style={{ width: `${pct}%` }} />
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] text-gray-400">Progression globale</span>
+        <span className="text-[10px] font-bold text-emerald-600">{pct}% validé</span>
       </div>
     </div>
   );
@@ -453,28 +601,20 @@ function nextStepFromContext(lots: LotChantier[], docs: DocumentChantier[]): {
   };
 }
 
-// ── Dashboard Home ─────────────────────────────────────────────────────────────
+// ── Assistant actif (remplace "Prochaine étape") ──────────────────────────────
 
-function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, onAffineBudget,
-  onAddDevisForLot, onAddFactureForLot, onAddDocForLot, onGoToLot, onGoToAnalyse, onGoToPlanning, onAddDoc,
-}: {
+function AssistantActiveBlock({ lots, documents, onAddDevisForLot, onGoToAnalyse, onGoToPlanning, onAddDoc, onGoToAssistant }: {
   lots: LotChantier[];
   documents: DocumentChantier[];
-  docsByLot: Record<string, DocumentChantier[]>;
-  displayMin: number;
-  displayMax: number;
-  onAffineBudget: () => void;
   onAddDevisForLot: (lotId: string) => void;
-  onAddFactureForLot: (lotId: string) => void;
-  onAddDocForLot: (lotId: string) => void;
-  onGoToLot: (lotId: string) => void;
   onGoToAnalyse: () => void;
   onGoToPlanning: () => void;
   onAddDoc: () => void;
+  onGoToAssistant: () => void;
 }) {
   const step = nextStepFromContext(lots, documents);
 
-  function handleStepCta() {
+  function handleCta() {
     switch (step.action) {
       case 'new_chantier': window.location.href = '/mon-chantier/nouveau'; break;
       case 'add_devis':    step.lotId ? onAddDevisForLot(step.lotId) : onAddDoc(); break;
@@ -483,44 +623,94 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, onA
     }
   }
 
+  // Urgency level for border color
+  const urgentBorder = step.action === 'new_chantier' || step.action === 'add_devis'
+    ? 'border-l-4 border-l-blue-400'
+    : 'border-l-4 border-l-emerald-400';
+
+  return (
+    <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden ${urgentBorder}`}>
+      <div className="flex items-start gap-4 px-5 py-5">
+        {/* Avatar actif */}
+        <div className="shrink-0">
+          <ExpertAvatar size={52} showBadge />
+        </div>
+        {/* Contenu */}
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Recommandation</p>
+          <p className="font-bold text-gray-900 leading-snug mb-1">{step.title}</p>
+          <p className="text-sm text-gray-500 leading-relaxed mb-3">{step.desc}</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleCta}
+              className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl px-4 py-2 transition-colors shadow-sm shadow-blue-200"
+            >
+              {step.cta} →
+            </button>
+            <button
+              onClick={onGoToAssistant}
+              className="text-sm font-medium text-gray-500 hover:text-blue-600 px-3 py-2 rounded-xl hover:bg-blue-50 transition-colors"
+            >
+              Poser une question
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Dashboard Home ─────────────────────────────────────────────────────────────
+
+function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, onAffineBudget,
+  onAddDevisForLot, onAddDocForLot, onGoToLot, onGoToAnalyse, onGoToPlanning, onAddDoc,
+}: {
+  lots: LotChantier[];
+  documents: DocumentChantier[];
+  docsByLot: Record<string, DocumentChantier[]>;
+  displayMin: number;
+  displayMax: number;
+  onAffineBudget: () => void;
+  onAddDevisForLot: (lotId: string) => void;
+  onAddDocForLot: (lotId: string) => void;
+  onGoToLot: (lotId: string) => void;
+  onGoToAnalyse: () => void;
+  onGoToPlanning: () => void;
+  onAddDoc: () => void;
+}) {
   return (
     <div className="max-w-4xl mx-auto px-5 py-6 space-y-5">
 
-      {/* ── Prochaine étape ─────────────────────────────────── */}
-      <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl px-6 py-5 text-white shadow-md shadow-blue-200">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-blue-200 mb-3">Prochaine étape</p>
-        <div className="flex items-start gap-3 mb-4">
-          <span className="text-2xl leading-none shrink-0">{step.icon}</span>
-          <div>
-            <p className="font-bold text-base leading-snug">{step.title}</p>
-            <p className="text-sm text-blue-100 mt-1 leading-relaxed">{step.desc}</p>
-          </div>
-        </div>
-        <button
-          onClick={handleStepCta}
-          className="bg-white text-blue-700 font-bold text-sm rounded-xl px-5 py-2.5 hover:bg-blue-50 transition-colors shadow-sm"
-        >
-          {step.cta} →
-        </button>
-      </div>
+      {/* ── Assistant actif ─────────────────────────────────── */}
+      <AssistantActiveBlock
+        lots={lots}
+        documents={documents}
+        onAddDevisForLot={onAddDevisForLot}
+        onGoToAnalyse={onGoToAnalyse}
+        onGoToPlanning={onGoToPlanning}
+        onAddDoc={onAddDoc}
+        onGoToAssistant={() => {/* handled at parent level */}}
+      />
 
-      {/* ── Budget ──────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-5 flex items-center justify-between gap-4">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Budget estimé</p>
-          {displayMin > 0
-            ? <p className="text-2xl font-extrabold text-gray-900 tabular-nums">{fmtK(displayMin)} – {fmtK(displayMax)}</p>
-            : <p className="text-base text-gray-400 font-medium">En cours d'estimation…</p>
-          }
+      {/* ── État du chantier ────────────────────────────────── */}
+      <EtatChantierBlock lots={lots} documents={documents} />
+
+      {/* ── Budget + affiner ────────────────────────────────── */}
+      {(displayMin > 0 || displayMax > 0) && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-5 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Budget estimé</p>
+            <p className="text-2xl font-extrabold text-gray-900 tabular-nums">{fmtK(displayMin)} – {fmtK(displayMax)}</p>
+          </div>
+          <button
+            onClick={onAffineBudget}
+            className="shrink-0 flex items-center gap-1.5 text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl px-4 py-2.5 transition-colors"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            Affiner
+          </button>
         </div>
-        <button
-          onClick={onAffineBudget}
-          className="shrink-0 flex items-center gap-1.5 text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl px-4 py-2.5 transition-colors"
-        >
-          <SlidersHorizontal className="h-4 w-4" />
-          Affiner
-        </button>
-      </div>
+      )}
 
       {/* ── Intervenants ─────────────────────────────────────── */}
       <div>
@@ -540,14 +730,13 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, onA
             </a>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             {lots.map(lot => (
               <LotIntervenantCard
                 key={lot.id}
                 lot={lot}
                 docs={docsByLot[lot.id] ?? []}
                 onAddDevis={() => onAddDevisForLot(lot.id)}
-                onAddFacture={() => onAddFactureForLot(lot.id)}
                 onAddDocument={() => onAddDocForLot(lot.id)}
                 onDetail={() => onGoToLot(lot.id)}
               />
@@ -1169,156 +1358,160 @@ function TravauxDIYSection({ documents, onAddDoc }: {
   );
 }
 
-// ── Section Assistant chantier ────────────────────────────────────────────────
+// ── Section Assistant chantier (Gemini 2.0-flash) ────────────────────────────
 
-function AssistantChantierSection({ result, documents, lots, insights, insightsLoading, onAddDoc, onGoToLots, onGoToAnalyse, onGoToBudget }: {
+const ALERTE_STYLE: Record<string, { bg: string; border: string; text: string; accent: string; btn: string }> = {
+  critique:     { bg: 'bg-red-50',    border: 'border-red-100',    text: 'text-red-800',    accent: 'border-l-red-500',    btn: 'bg-red-600 hover:bg-red-700 text-white'     },
+  risque:       { bg: 'bg-amber-50',  border: 'border-amber-100',  text: 'text-amber-800',  accent: 'border-l-amber-400',  btn: 'bg-amber-500 hover:bg-amber-600 text-white'  },
+  opportunité:  { bg: 'bg-emerald-50',border: 'border-emerald-100',text: 'text-emerald-800',accent: 'border-l-emerald-400',btn: 'bg-emerald-600 hover:bg-emerald-700 text-white'},
+};
+
+const ALERTE_ICON: Record<string, string> = {
+  critique: '🔴', risque: '⚠️', opportunité: '✅',
+};
+
+function AssistantChantierSection({ result, documents, lots, chantierId, token, onAddDoc, onGoToLots, onGoToAnalyse, onGoToBudget }: {
   result: ChantierIAResult;
   documents: DocumentChantier[];
   lots: LotChantier[];
-  insights: InsightsData | null;
-  insightsLoading: boolean;
+  chantierId: string | null;
+  token: string | null | undefined;
   onAddDoc: () => void;
   onGoToLots: () => void;
   onGoToAnalyse: () => void;
   onGoToBudget: () => void;
 }) {
-  const contextActions = useMemo(() => {
-    const actions: Array<{
-      type: 'alert' | 'warning' | 'info' | 'success';
-      icon: string;
-      text: string;
-      sub?: string;
-      cta: { label: string; onClick: () => void };
-    }> = [];
+  const { data, loading, error, refresh } = useChantierAssistant({
+    chantierId, token, result, documents, lots, enabled: true,
+  });
 
-    const devisCount   = documents.filter(d => d.document_type === 'devis').length;
-    const factureCount = documents.filter(d => d.document_type === 'facture').length;
-    const lotsNoDocs   = lots.filter(l => documents.every(d => d.lot_id !== l.id)).length;
-    const hasLotBudget = lots.some(l => (l.budget_min_ht ?? 0) > 0);
-
-    if (lotsNoDocs > 0 && lots.length > 0) {
-      actions.push({
-        type: 'alert', icon: '📋',
-        text: `${lotsNoDocs} lot${lotsNoDocs > 1 ? 's' : ''} sans devis`,
-        sub: 'Obtenez au minimum 3 devis par lot pour comparer les prix.',
-        cta: { label: 'Voir les lots', onClick: onGoToLots },
-      });
-    }
-    if (devisCount === 1) {
-      actions.push({
-        type: 'warning', icon: '⚠️',
-        text: '1 seul devis — insuffisant pour comparer',
-        sub: 'Un seul devis ne permet pas de négocier. Obtenez-en au moins 2 de plus.',
-        cta: { label: 'Analyser un nouveau devis', onClick: onGoToAnalyse },
-      });
-    }
-    if (devisCount === 0 && lots.length > 0) {
-      actions.push({
-        type: 'warning', icon: '📩',
-        text: 'Aucun devis reçu — relancez vos artisans',
-        sub: 'Ajoutez vos devis pour valider votre budget et comparer les prix.',
-        cta: { label: 'Importer un devis', onClick: onAddDoc },
-      });
-    }
-    if (insights?.global) {
-      insights.global.filter(i => i.type === 'alert' || i.type === 'warning').slice(0, 2).forEach(insight => {
-        actions.push({
-          type: insight.type as 'alert' | 'warning', icon: insight.icon ?? '🔔',
-          text: insight.text,
-          cta: { label: 'Voir le budget', onClick: onGoToBudget },
-        });
-      });
-    }
-    if (devisCount > 0 && factureCount === 0) {
-      actions.push({
-        type: 'info', icon: '🧾',
-        text: 'Aucune facture enregistrée',
-        sub: 'Suivez vos paiements en ajoutant vos factures.',
-        cta: { label: 'Ajouter une facture', onClick: onAddDoc },
-      });
-    }
-    if (devisCount >= 2 && hasLotBudget && actions.length === 0) {
-      actions.push({
-        type: 'success', icon: '✅',
-        text: 'Budget bien documenté',
-        sub: 'Vous avez plusieurs devis. Comparez-les pour optimiser votre budget.',
-        cta: { label: 'Analyser les devis', onClick: onGoToAnalyse },
-      });
-    }
-    if (insights?.lots) {
-      Object.values(insights.lots).filter(i => i.type === 'alert' || i.type === 'warning').slice(0, 2).forEach(insight => {
-        actions.push({
-          type: insight.type as 'alert' | 'warning', icon: insight.icon ?? '⚠️',
-          text: insight.text,
-          cta: { label: 'Voir les lots', onClick: onGoToLots },
-        });
-      });
-    }
-    return actions;
-  }, [documents, lots, insights, onAddDoc, onGoToLots, onGoToAnalyse, onGoToBudget]);
+  // Mapper le CTA texte → action réelle
+  function resolveCtaAction(cta: string) {
+    const c = cta.toLowerCase();
+    if (c.includes('devis') && (c.includes('voir') || c.includes('lot'))) return onGoToLots;
+    if (c.includes('analys') || c.includes('devis')) return onGoToAnalyse;
+    if (c.includes('budget') || c.includes('affin')) return onGoToBudget;
+    if (c.includes('import') || c.includes('ajout') || c.includes('factur') || c.includes('photo')) return onAddDoc;
+    return onGoToLots;
+  }
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-7">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
-          <Bot className="h-5 w-5 text-violet-500" />
-        </div>
+    <div className="max-w-2xl mx-auto px-6 py-7 space-y-4">
+
+      {/* ── En-tête avatar ──────────────────────────────────── */}
+      <div className="flex items-center gap-4">
+        <ExpertAvatar size={52} showBadge />
         <div>
-          <h2 className="font-bold text-gray-900">Votre maître d'œuvre digital</h2>
-          <p className="text-xs text-gray-400">Priorités et actions pour votre chantier</p>
+          <h2 className="font-bold text-gray-900">Votre maître d'œuvre</h2>
+          <p className="text-xs text-gray-400">Analyse propulsée par Gemini 2.0</p>
         </div>
+        <button
+          onClick={refresh}
+          className="ml-auto text-xs text-gray-400 hover:text-blue-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-blue-50"
+        >
+          Actualiser
+        </button>
       </div>
-      {insightsLoading && contextActions.length === 0 ? (
-        <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="h-20 rounded-2xl bg-white border border-gray-100 animate-pulse" />)}</div>
-      ) : contextActions.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <CheckCircle2 className="h-10 w-10 text-emerald-400 mx-auto mb-4" />
-          <p className="font-bold text-gray-900 mb-2">Tout est sous contrôle 🎉</p>
-          <p className="text-sm text-gray-400 leading-relaxed max-w-xs">Aucune action urgente. Continuez à alimenter votre chantier avec vos devis et factures.</p>
-        </div>
-      ) : (
+
+      {/* ── Loading ─────────────────────────────────────────── */}
+      {loading && !data && (
         <div className="space-y-3">
-          {contextActions.map((action, i) => {
-            const s = IS[action.type];
-            return (
-              <div key={i} className={`rounded-2xl border border-l-4 ${s.accent} ${s.border} ${s.bg} overflow-hidden`}>
-                <div className="px-5 py-4">
-                  <div className="flex items-start gap-3">
-                    <span className="text-base leading-none shrink-0 mt-0.5">{action.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-bold ${s.text} leading-snug`}>{action.text}</p>
-                      {action.sub && <p className={`text-xs ${s.text} opacity-70 mt-1 leading-relaxed`}>{action.sub}</p>}
-                    </div>
-                  </div>
-                  <div className="mt-3">
-                    <button onClick={action.cta.onClick}
-                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
-                        action.type === 'success' ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                        : action.type === 'alert' ? 'bg-red-600 hover:bg-red-700 text-white'
-                        : action.type === 'warning' ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                        : 'bg-blue-600 hover:bg-blue-700 text-white'
-                      }`}>
-                      {action.cta.label} →
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-20 rounded-2xl bg-white border border-gray-100 animate-pulse" />
+          ))}
+          <p className="text-xs text-center text-gray-400">Analyse en cours…</p>
         </div>
       )}
-      <div className="mt-6 bg-white rounded-2xl border border-gray-100 px-5 py-4">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Prochaine étape recommandée</p>
-        <p className="text-sm font-medium text-gray-800 mb-3">
-          {result.roadmap && result.roadmap.length > 0
-            ? result.roadmap[0]?.titre ?? 'Démarrer la planification'
-            : 'Obtenir vos premiers devis artisans'}
-        </p>
-        <div className="flex gap-2">
-          <button onClick={onGoToLots} className="text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors">Voir les lots →</button>
-          <button onClick={onGoToAnalyse} className="text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors">Analyser un devis →</button>
+
+      {/* ── Erreur ─────────────────────────────────────────── */}
+      {error && !data && (
+        <div className="bg-gray-50 border border-gray-200 rounded-2xl px-5 py-5 text-center">
+          <Bot className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+          <p className="text-sm text-gray-500 mb-3">{error}</p>
+          <button onClick={refresh} className="text-sm font-medium text-blue-600 hover:text-blue-700">
+            Réessayer →
+          </button>
         </div>
-      </div>
+      )}
+
+      {/* ── Résultat IA ─────────────────────────────────────── */}
+      {data && (
+        <>
+          {/* Action prioritaire */}
+          <div className="bg-white rounded-2xl border-l-4 border-l-blue-500 border border-blue-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-blue-400 mb-1">Action prioritaire</p>
+              <p className="font-bold text-gray-900 leading-snug mb-1">{data.action_prioritaire.titre}</p>
+              <p className="text-sm text-gray-500 leading-relaxed mb-3">{data.action_prioritaire.raison}</p>
+              <button
+                onClick={resolveCtaAction(data.action_prioritaire.cta)}
+                className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl px-4 py-2 transition-colors"
+              >
+                {data.action_prioritaire.cta} →
+              </button>
+            </div>
+          </div>
+
+          {/* Alertes */}
+          {data.alertes.length > 0 && (
+            <div className="space-y-2">
+              {data.alertes.map((alerte, i) => {
+                const s = ALERTE_STYLE[alerte.type] ?? ALERTE_STYLE.risque;
+                return (
+                  <div key={i} className={`rounded-2xl border-l-4 ${s.accent} ${s.border} ${s.bg} overflow-hidden`}>
+                    <div className="px-5 py-3.5 flex items-start gap-3">
+                      <span className="text-sm leading-none shrink-0 mt-0.5">{ALERTE_ICON[alerte.type] ?? '⚠️'}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-bold ${s.text} leading-snug`}>{alerte.message}</p>
+                      </div>
+                      <button
+                        onClick={resolveCtaAction(alerte.cta)}
+                        className={`shrink-0 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors ${s.btn}`}
+                      >
+                        {alerte.cta} →
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Insights */}
+          {data.insights.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-3">Observations</p>
+              <ul className="space-y-2">
+                {data.insights.map((insight, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="text-blue-400 shrink-0 mt-0.5">›</span>
+                    <span className="text-sm text-gray-700 leading-snug">{insight}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Conseil métier */}
+          {data.conseil_metier && (
+            <div className="bg-blue-50 border border-blue-100 rounded-2xl px-5 py-4 flex items-start gap-3">
+              <span className="text-lg shrink-0">💡</span>
+              <p className="text-sm text-blue-800 font-medium leading-relaxed">{data.conseil_metier}</p>
+            </div>
+          )}
+
+          {/* Accès chat */}
+          <div className="pt-2 flex justify-center">
+            <a
+              href="#chat"
+              onClick={(e) => { e.preventDefault(); onGoToAnalyse(); }}
+              className="text-sm font-medium text-gray-400 hover:text-blue-600 transition-colors"
+            >
+              Poser une question au maître d'œuvre →
+            </a>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1454,7 +1647,6 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             displayMax={displayMax}
             onAffineBudget={() => setShowBudgetDetail(true)}
             onAddDevisForLot={(lotId) => setUploadModal({ open: true, lotId, defaultType: 'devis' })}
-            onAddFactureForLot={(lotId) => setUploadModal({ open: true, lotId, defaultType: 'facture' })}
             onAddDocForLot={(lotId) => setUploadModal({ open: true, lotId })}
             onGoToLot={(lotId) => { setSelectedLotId(lotId); navigateTo('lots'); }}
             onGoToAnalyse={() => navigateTo('analyse')}
@@ -1485,7 +1677,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
                 </a>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 {lots.map(lot => (
                   <LotCard
                     key={lot.id} lot={lot}
@@ -1555,8 +1747,8 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             result={result}
             documents={documents}
             lots={lots}
-            insights={insights}
-            insightsLoading={insightsLoading}
+            chantierId={chantierId}
+            token={token}
             onAddDoc={() => setUploadModal({ open: true })}
             onGoToLots={() => navigateTo('lots')}
             onGoToAnalyse={() => navigateTo('analyse')}
@@ -1641,24 +1833,34 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
 
       {/* ── Contenu principal ──────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <PageHeader
-          title={SECTION_TITLES[activeSection]}
-          action={
-            <button
-              onClick={() => setUploadModal({ open: true })}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl px-4 py-2.5 transition-colors shadow-sm shadow-blue-200">
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Ajouter un document</span>
-              <span className="sm:hidden">Ajouter</span>
-            </button>
-          }
-          onMenuToggle={() => setMobileOpen(v => !v)}
-          onBack={
-            (activeSection !== 'budget' || showBudgetDetail)
-              ? () => { setShowBudgetDetail(false); if (activeSection !== 'budget') navigateTo('budget'); }
-              : undefined
-          }
-        />
+        {activeSection === 'budget' && !showBudgetDetail ? (
+          <BudgetHomeHeader
+            result={result}
+            displayMin={displayMin}
+            displayMax={displayMax}
+            onMenuToggle={() => setMobileOpen(v => !v)}
+            onAddDoc={() => setUploadModal({ open: true })}
+          />
+        ) : (
+          <PageHeader
+            title={SECTION_TITLES[activeSection]}
+            action={
+              <button
+                onClick={() => setUploadModal({ open: true })}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl px-4 py-2.5 transition-colors shadow-sm shadow-blue-200">
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Ajouter un document</span>
+                <span className="sm:hidden">Ajouter</span>
+              </button>
+            }
+            onMenuToggle={() => setMobileOpen(v => !v)}
+            onBack={
+              (activeSection !== 'budget' || showBudgetDetail)
+                ? () => { setShowBudgetDetail(false); if (activeSection !== 'budget') navigateTo('budget'); }
+                : undefined
+            }
+          />
+        )}
 
         <main className="flex-1 overflow-y-auto">
           {renderContent()}
