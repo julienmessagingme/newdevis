@@ -65,7 +65,7 @@ export const POST: APIRoute = async ({ request, params }) => {
       nom,
       emoji: typeof body.emoji === 'string' ? body.emoji : null,
       job_type: typeof body.jobType === 'string' ? body.jobType : null,
-      statut: 'a_lancer',
+      statut: 'a_trouver',
     })
     .select('id, nom, emoji, job_type, statut')
     .single();

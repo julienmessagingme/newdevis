@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { toast } from 'sonner';
 import {
   Plus, X, Loader2, CheckCircle2, AlertCircle, CloudUpload, FileText,
   Sparkles, Trash2, ArrowLeft, ChevronRight, Wrench, Wallet, Layers,
@@ -910,9 +911,24 @@ function AddIntervenantModal({ chantierId, token, existingNoms, onClose, onAdded
       });
       const data = await res.json();
       if (res.ok && data.lot) {
-        onAdded(data.lot as LotChantier);
+        // Normalise le lot reçu pour qu'il soit compatible avec LotChantier
+        const lot: LotChantier = {
+          id: data.lot.id,
+          nom: data.lot.nom,
+          statut: 'a_trouver' as const,
+          ordre: 999,
+          emoji: data.lot.emoji ?? undefined,
+          job_type: data.lot.job_type ?? undefined,
+        };
+        onAdded(lot);
+        toast.success(`${emoji} ${nom} ajouté`);
         onClose();
+      } else {
+        const msg = data.error ?? `Erreur ${res.status}`;
+        toast.error(`Impossible d'ajouter : ${msg}`);
       }
+    } catch {
+      toast.error('Erreur réseau, réessayez.');
     } finally {
       setAdding(null);
     }
