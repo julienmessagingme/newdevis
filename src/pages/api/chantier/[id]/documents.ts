@@ -124,6 +124,21 @@ export const POST: APIRoute = async ({ params, request }) => {
     if (!analyse)
       return new Response(JSON.stringify({ error: 'Analyse introuvable' }), { status: 404, headers: CORS });
 
+    // Idempotence : si ce document VMD a déjà été importé dans ce chantier, retourner l'existant
+    const { data: existing } = await supabase
+      .from('documents_chantier')
+      .select('*')
+      .eq('chantier_id', chantierId)
+      .eq('analyse_id', analyseId)
+      .eq('source', 'verifier_mon_devis')
+      .maybeSingle();
+    if (existing) {
+      return new Response(
+        JSON.stringify({ document: { ...existing, signedUrl: null } }),
+        { status: 200, headers: CORS },
+      );
+    }
+
     // Validation lot
     let lotIdImport: string | null = lotIdRaw;
     if (lotIdImport) {

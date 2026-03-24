@@ -1267,6 +1267,36 @@ function KpiCard({ icon, label, value, sub, accent = 'gray', action }: {
   );
 }
 
+// ── Carte DIY — toujours présente dans la grille intervenants ─────────────────
+
+function DiyCard({ onAddDoc }: { onAddDoc: () => void }) {
+  return (
+    <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-5 flex flex-col gap-3 hover:border-gray-300 hover:shadow-sm transition-all">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="w-11 h-11 rounded-xl bg-gray-50 flex items-center justify-center text-xl shrink-0">
+          🔧
+        </div>
+        <div className="min-w-0">
+          <p className="font-semibold text-sm text-gray-800 truncate">Travaux par vous-même</p>
+          <p className="text-[11px] text-gray-400">DIY · Auto-construction</p>
+        </div>
+      </div>
+      {/* Description */}
+      <p className="text-xs text-gray-500 leading-relaxed">
+        Ajoutez vos factures de matériaux et photos pour calculer automatiquement vos économies réalisées.
+      </p>
+      {/* CTA */}
+      <button
+        onClick={onAddDoc}
+        className="w-full flex items-center justify-center gap-2 bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold rounded-xl px-4 py-2.5 transition-colors mt-auto"
+      >
+        <Plus className="h-3.5 w-3.5" /> Ajouter factures / photos
+      </button>
+    </div>
+  );
+}
+
 function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, refinedBreakdown, onAffineBudget,
   onAddDevisForLot, onAddDocForLot, onGoToLot, onGoToAnalyse, onGoToPlanning, onAddDoc,
   onGoToAssistant, onAddIntervenant, onDeleteLot,
@@ -1449,6 +1479,8 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
                 onDelete={() => onDeleteLot(lot.id)}
               />
             ))}
+            {/* Carte DIY — toujours présente, travaux réalisés par le client */}
+            <DiyCard onAddDoc={onAddDoc} />
           </div>
         )}
       </div>
@@ -2287,6 +2319,13 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
   const [mobileOpen, setMobileOpen]       = useState(false);
   const [documents, setDocuments]         = useState<DocumentChantier[]>([]);
   const [selectedLotId, setSelectedLotId] = useState<string | null>(null);
+
+  // Auto-sélection du premier lot quand on navigue vers 'lots' sans sélection explicite
+  useEffect(() => {
+    if (activeSection === 'lots' && !selectedLotId && lots.length > 0) {
+      setSelectedLotId(lots[0].id);
+    }
+  }, [activeSection, selectedLotId, lots]);
   const [uploadModal, setUploadModal]     = useState<{ open: boolean; lotId?: string; defaultType?: DocumentType }>({ open: false });
   const lots = result.lots ?? [];
 
@@ -2387,7 +2426,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
           docs={docsByLot[selectedLot.id] ?? []}
           onAddDoc={() => setUploadModal({ open: true, lotId: selectedLot.id.startsWith('fallback-') ? undefined : selectedLot.id })}
           onDeleteDoc={handleDeleteDoc}
-          onBack={() => setSelectedLotId(null)}
+          onBack={() => { setSelectedLotId(null); navigateTo('budget'); }}
           chantierId={chantierId}
           token={token}
         />
@@ -2449,59 +2488,9 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
         );
 
       case 'lots':
-        return (
-          <div className="max-w-5xl mx-auto px-6 py-7">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="font-semibold text-gray-900">
-                Intervenants nécessaires <span className="ml-1.5 text-xs font-normal text-gray-400">{lots.length} intervenant{lots.length > 1 ? 's' : ''}</span>
-              </h2>
-              <button onClick={() => setUploadModal({ open: true })}
-                className="flex items-center gap-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-xl transition-colors">
-                <Plus className="h-3.5 w-3.5" /> Ajouter un document
-              </button>
-            </div>
-            {lots.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-center">
-                <CloudUpload className="h-10 w-10 text-gray-200 mx-auto mb-4" />
-                <p className="font-bold text-gray-900 mb-1">Aucun lot de travaux</p>
-                <p className="text-sm text-gray-400 mb-6 max-w-xs leading-relaxed">Votre plan de chantier ne contient pas encore de lots. Créez un nouveau chantier avec l'IA.</p>
-                <a href="/mon-chantier/nouveau" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-colors">
-                  <Plus className="h-4 w-4" /> Nouveau chantier
-                </a>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                {lots.map(lot => (
-                  <LotCard
-                    key={lot.id} lot={lot}
-                    docs={docsByLot[lot.id] ?? []}
-                    insight={insights?.lots?.[lot.id]}
-                    onAdd={() => setUploadModal({ open: true, lotId: lot.id.startsWith('fallback-') ? undefined : lot.id })}
-                    onDetail={() => setSelectedLotId(lot.id)}
-                  />
-                ))}
-              </div>
-            )}
-            {hasDiyOpportunity && (
-              <div className="mt-8">
-                <div className="flex items-center gap-2.5 mb-4">
-                  <Wrench className="h-4 w-4 text-gray-400" />
-                  <h2 className="font-semibold text-gray-700 text-sm">Travaux réalisés par vous-même</h2>
-                </div>
-                <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-6 flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800 mb-1">Estimez vos économies DIY</p>
-                    <p className="text-xs text-gray-400 leading-relaxed">Factures matériaux + photos → calcul automatique des économies réalisées</p>
-                  </div>
-                  <button onClick={() => setUploadModal({ open: true })}
-                    className="shrink-0 flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold rounded-xl px-4 py-2.5 transition-colors">
-                    <Plus className="h-3.5 w-3.5" /> Ajouter
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        );
+        // Grille supprimée — l'useEffect auto-sélectionne le premier lot → LotDetail
+        // Rendu vide pendant le cycle de rendu initial (rare)
+        return null;
 
       case 'contacts':
         return chantierId && token ? (
