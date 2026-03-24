@@ -2002,7 +2002,16 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
               onGoToAnalyse={() => navigateTo('analyse')}
               onGoToLots={() => navigateTo('lots')}
               onGoToLot={(lotId) => { setSelectedLotId(lotId); navigateTo('lots'); }}
-              onRangeRefined={(min, max) => { setRefinedRangeMin(min); setRefinedRangeMax(max); }}
+              onRangeRefined={(min, max) => {
+                setRefinedRangeMin(min);
+                setRefinedRangeMax(max);
+                setShowBudgetDetail(false);
+                setAffineBudgetModal(false);
+              }}
+              onModalClose={() => {
+                setShowBudgetDetail(false);
+                setAffineBudgetModal(false);
+              }}
               onAmeliorer={() => setShowAmelioration(true)}
               autoOpenModal={affineBudgetModal}
             />

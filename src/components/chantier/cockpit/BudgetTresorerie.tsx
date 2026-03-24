@@ -2069,9 +2069,10 @@ interface Props {
   onRangeRefined?: (min: number, max: number) => void;
   onAmeliorer?: () => void;
   autoOpenModal?: boolean;
+  onModalClose?: () => void;
 }
 
-export default function BudgetTresorerie({ result, documents, insights, insightsLoading, baseRangeMin, baseRangeMax, onAddDoc, onGoToAnalyse, onGoToLots, onGoToLot, onRangeRefined, onAmeliorer, autoOpenModal }: Props) {
+export default function BudgetTresorerie({ result, documents, insights, insightsLoading, baseRangeMin, baseRangeMax, onAddDoc, onGoToAnalyse, onGoToLots, onGoToLot, onRangeRefined, onAmeliorer, autoOpenModal, onModalClose }: Props) {
   const lots = result.lots ?? [];
 
   // ── État modal affinage ────────────────────────────────────────────────────
@@ -2234,7 +2235,7 @@ export default function BudgetTresorerie({ result, documents, insights, insights
           resultNom={result.nom} isImmeuble={isImmeuble}
           resultDescription={result.description ?? ''}
           resultLots={lots}
-          onClose={() => setModalOpen(false)}
+          onClose={() => { setModalOpen(false); onModalClose?.(); }}
           onValidate={handleValidate}
         />
       )}
