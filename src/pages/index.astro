@@ -5,6 +5,7 @@ import AstroFooter from '@/components/astro/Footer.astro';
 import DisclaimerSection from '@/components/landing/DisclaimerSection';
 import CTASection from '@/components/landing/CTASection';
 import TrustpilotSection from '@/components/landing/TrustpilotSection';
+import BlogTeaser from '@/components/landing/BlogTeaser';
 // HeroSection inliné ci-dessous pour modification des textes uniquement
 
 const jsonLd = {
@@ -194,8 +195,8 @@ const jsonLd = {
             </p>
           </div>
 
-          <!-- Deux cartes enrichies -->
-          <div class="grid sm:grid-cols-2 gap-4">
+          <!-- Trois cartes -->
+          <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
             <!-- Carte A : Impact valorisation → simulateur dédié -->
             <a
@@ -253,7 +254,35 @@ const jsonLd = {
               </span>
             </a>
 
+            <!-- Carte C : Blog → conseils travaux -->
+            <a
+              href="/blog"
+              class="group flex flex-col border-2 border-slate-200 rounded-2xl p-5 sm:p-6 hover:border-primary/30 hover:shadow-md transition-all bg-white"
+            >
+              <!-- Icône BookOpen -->
+              <div class="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center mb-4 flex-shrink-0">
+                <svg class="h-5 w-5 text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+                </svg>
+              </div>
+              <p class="text-base font-bold text-slate-900 mb-2 leading-snug">
+                Conseils travaux
+              </p>
+              <p class="text-sm text-slate-500 leading-relaxed flex-1">
+                Guides pratiques, erreurs à éviter et bonnes pratiques pour réussir vos travaux.
+              </p>
+              <span class="mt-4 inline-flex items-center justify-center gap-2 bg-amber-500 group-hover:bg-amber-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+                Voir les conseils
+                <svg class="h-4 w-4 transition-transform group-hover:translate-x-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                </svg>
+              </span>
+            </a>
+
           </div>
+
+          <!-- Articles récents -->
+          <BlogTeaser client:visible />
 
         </div>
       </section>
