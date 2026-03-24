@@ -1525,8 +1525,11 @@ function UploadModal({ chantierId, token, lots, defaultLotId, defaultType, onClo
       const res = await fetch(`/api/chantier/${chantierId}/documents`, {
         method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
       });
-      const data = await res.json();
-      if (!res.ok) { setErrorMsg(data.error ?? 'Erreur upload'); setUploadState('error'); return; }
+      // Lire le body comme texte d'abord pour éviter un crash JSON si le serveur renvoie du HTML
+      const rawText = await res.text();
+      let data: Record<string, unknown> = {};
+      try { data = JSON.parse(rawText); } catch { /* non-JSON : garder data vide */ }
+      if (!res.ok) { setErrorMsg((data.error as string) ?? `Erreur ${res.status}`); setUploadState('error'); return; }
       const doc: DocumentChantier = data.document;
       if (docType === 'devis') {
         setUploadState('analyzing');
@@ -1542,7 +1545,10 @@ function UploadModal({ chantierId, token, lots, defaultLotId, defaultType, onClo
       } else { setSavingsAmount(0); }
       setUploadState('success');
       onSuccess(doc);
-    } catch { setErrorMsg('Erreur réseau.'); setUploadState('error'); }
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Erreur réseau.');
+      setUploadState('error');
+    }
   }
 
   async function handleImportAnalyse(analyseId: string, titre: string) {
@@ -1555,10 +1561,15 @@ function UploadModal({ chantierId, token, lots, defaultLotId, defaultType, onClo
       const res = await fetch(`/api/chantier/${chantierId}/documents`, {
         method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
       });
-      const data = await res.json();
-      if (!res.ok) { setErrorMsg(data.error ?? 'Erreur'); setUploadState('error'); return; }
-      setSavingsAmount(0); setUploadState('success'); onSuccess(data.document);
-    } catch { setErrorMsg('Erreur réseau.'); setUploadState('error'); }
+      const rawText = await res.text();
+      let data: Record<string, unknown> = {};
+      try { data = JSON.parse(rawText); } catch { /* non-JSON */ }
+      if (!res.ok) { setErrorMsg((data.error as string) ?? `Erreur ${res.status}`); setUploadState('error'); return; }
+      setSavingsAmount(0); setUploadState('success'); onSuccess(data.document as DocumentChantier);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Erreur réseau.');
+      setUploadState('error');
+    }
   }
 
   const isUploading = uploadState === 'uploading' || uploadState === 'analyzing';
@@ -1761,7 +1772,7 @@ function ComingSoon({ section, icon: Icon, description, cta }: {
 
 // ── Section Documents (all docs) ──────────────────────────────────────────────
 
-function DocumentsView({ documents, lots, chantierId, token, onAddDoc, onDeleteDoc, onDocUpdated }: {
+function DocumentsView({ documents, lots: lotsProp, chantierId, token, onAddDoc, onDeleteDoc, onDocUpdated }: {
   documents: DocumentChantier[]; lots: LotChantier[];
   chantierId: string; token: string;
   onAddDoc: () => void; onDeleteDoc: (id: string) => void; onDocUpdated: () => void;
@@ -1769,6 +1780,23 @@ function DocumentsView({ documents, lots, chantierId, token, onAddDoc, onDeleteD
   const byType: Record<DocumentType, DocumentChantier[]> = {} as never;
   for (const doc of documents) (byType[doc.document_type] ??= []).push(doc);
   const typesWithDocs = Object.entries(byType).filter(([, docs]) => docs.length > 0);
+
+  // Lots réels fetchés depuis la DB (garantit la cohérence avec la validation PATCH)
+  const [dbLots, setDbLots] = useState<LotChantier[]>([]);
+  useEffect(() => {
+    if (!chantierId || !token) return;
+    fetch(`/api/chantier/${chantierId}/lots`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.lots) setDbLots(d.lots); })
+      .catch(() => {});
+  }, [chantierId, token]);
+
+  // Fallback sur les lots de la prop si l'API n'a pas encore répondu
+  const realLots = dbLots.length > 0
+    ? dbLots
+    : lotsProp.filter(l => !l.id.startsWith('fallback-'));
 
   // Optimistic update : map docId → lotId pour affichage immédiat
   const [lotOverrides, setLotOverrides] = useState<Record<string, string | null>>({});
@@ -1809,8 +1837,6 @@ function DocumentsView({ documents, lots, chantierId, token, onAddDoc, onDeleteD
               </div>
               <div className="divide-y divide-gray-50">
                 {docs.map(doc => {
-                  // Lots réels uniquement (pas les fallback- dérivés des métadonnées)
-                  const realLots = lots.filter(l => !l.id.startsWith('fallback-'));
                   const effectiveLotId = lotOverrides[doc.id] !== undefined ? lotOverrides[doc.id] : doc.lot_id;
                   const lot = realLots.find(l => l.id === effectiveLotId);
                   return (

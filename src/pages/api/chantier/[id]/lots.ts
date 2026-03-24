@@ -78,5 +78,44 @@ export const POST: APIRoute = async ({ request, params }) => {
   return new Response(JSON.stringify({ lot: data }), { status: 201, headers: CORS });
 };
 
+// ── GET /api/chantier/[id]/lots ──────────────────────────────────────────────
+// Liste les lots réels du chantier depuis lots_chantier (pas les fallback metadata).
+
+export const GET: APIRoute = async ({ request, params }) => {
+  const chantierId = params.id;
+  if (!chantierId)
+    return new Response(JSON.stringify({ error: 'ID chantier manquant' }), { status: 400, headers: CORS });
+
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer '))
+    return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
+
+  const token = authHeader.slice(7);
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+  if (authError || !user)
+    return new Response(JSON.stringify({ error: 'Token invalide' }), { status: 401, headers: CORS });
+
+  const { data: chantier } = await supabase
+    .from('chantiers').select('id')
+    .eq('id', chantierId).eq('user_id', user.id).single();
+  if (!chantier)
+    return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
+
+  const { data: lots, error } = await supabase
+    .from('lots_chantier')
+    .select('id, nom, emoji, statut, ordre, job_type, role')
+    .eq('chantier_id', chantierId)
+    .order('ordre', { ascending: true });
+
+  if (error) {
+    console.error('[api/chantier/lots GET] error:', error.message);
+    return new Response(JSON.stringify({ error: 'Erreur chargement lots' }), { status: 500, headers: CORS });
+  }
+
+  return new Response(JSON.stringify({ lots: lots ?? [] }), { status: 200, headers: CORS });
+};
+
 export const OPTIONS: APIRoute = () =>
-  new Response(null, { status: 204, headers: { ...CORS, 'Access-Control-Allow-Methods': 'POST,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' } });
+  new Response(null, { status: 204, headers: { ...CORS, 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' } });
