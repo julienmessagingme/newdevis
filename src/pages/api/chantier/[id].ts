@@ -428,6 +428,10 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 
 // ── DELETE /api/chantier/[id] ──────────────────────────────────────────────────
 // Suppression complète d'un chantier : fichiers storage + ligne DB (cascade).
+//
+// Stratégie double-client :
+//  • supabaseUser  : créé avec le JWT utilisateur → opérations DB user-scoped (RLS)
+//  • supabaseAdmin : créé avec service_role_key  → storage privé (non-bloquant si absent)
 
 export const DELETE: APIRoute = async ({ params, request }) => {
   const authHeader = request.headers.get('Authorization');
@@ -435,37 +439,47 @@ export const DELETE: APIRoute = async ({ params, request }) => {
     return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
 
   const token = authHeader.slice(7);
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !user)
+  // Client avec le JWT utilisateur — fonctionne même sans service_role_key (RLS via auth.uid())
+  const supabaseUser = createClient(supabaseUrl, supabaseServiceKey || import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  });
+
+  // Valide le JWT et récupère l'utilisateur
+  const { data: { user }, error: authError } = await supabaseUser.auth.getUser(token);
+  if (authError || !user) {
+    console.error('[DELETE /api/chantier] auth error:', authError?.message);
     return new Response(JSON.stringify({ error: 'Token invalide' }), { status: 401, headers: CORS });
+  }
 
   const chantierId = params.id;
   if (!chantierId)
     return new Response(JSON.stringify({ error: 'ID manquant' }), { status: 400, headers: CORS });
 
-  // Vérifie ownership
-  const { data: ownerCheck } = await supabase
+  // Vérifie ownership via RLS (auth.uid() = user_id dans la policy chantiers)
+  const { data: ownerCheck, error: ownerErr } = await supabaseUser
     .from('chantiers')
     .select('id')
     .eq('id', chantierId)
     .eq('user_id', user.id)
     .single();
 
-  if (!ownerCheck)
+  if (ownerErr || !ownerCheck) {
+    console.error(`[DELETE /api/chantier/${chantierId}] ownership check:`, ownerErr?.message ?? 'not found');
     return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
+  }
 
-  // Récupère les chemins storage à supprimer
-  const { data: docs } = await supabase
+  // Récupère les chemins storage (non-bloquant si la table est vide)
+  const { data: docs } = await supabaseUser
     .from('documents_chantier')
     .select('bucket_path')
     .eq('chantier_id', chantierId);
 
-  // Suppression des fichiers storage (non-bloquant si erreur)
-  const paths = (docs ?? []).map((d) => d.bucket_path).filter(Boolean);
-  if (paths.length > 0) {
-    const { error: storageErr } = await supabase.storage
+  // Suppression des fichiers storage via service_role (non-bloquant si absent en local)
+  const paths = (docs ?? []).map((d: { bucket_path: string }) => d.bucket_path).filter(Boolean);
+  if (paths.length > 0 && supabaseServiceKey) {
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    const { error: storageErr } = await supabaseAdmin.storage
       .from('chantier-documents')
       .remove(paths);
     if (storageErr) {
@@ -473,17 +487,17 @@ export const DELETE: APIRoute = async ({ params, request }) => {
     }
   }
 
-  // Suppression du chantier — CASCADE supprime todos, lots, documents, devis
-  const { error: deleteErr } = await supabase
+  // Suppression du chantier — CASCADE supprime todos, lots, documents, devis, contacts
+  const { error: deleteErr } = await supabaseUser
     .from('chantiers')
     .delete()
     .eq('id', chantierId)
     .eq('user_id', user.id);
 
   if (deleteErr) {
-    console.error(`[DELETE /api/chantier/${chantierId}] db:`, deleteErr.message);
+    console.error(`[DELETE /api/chantier/${chantierId}] db delete:`, deleteErr.message, deleteErr.code);
     return new Response(
-      JSON.stringify({ error: 'Erreur lors de la suppression' }),
+      JSON.stringify({ error: `Erreur lors de la suppression : ${deleteErr.message}` }),
       { status: 500, headers: CORS },
     );
   }

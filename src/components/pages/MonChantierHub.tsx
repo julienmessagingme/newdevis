@@ -61,9 +61,13 @@ function ChantierHubCard({
         toast.success('Chantier supprimé');
         onDelete(chantier.id);
       } else {
-        toast.error('Impossible de supprimer ce chantier');
+        const body = await res.json().catch(() => ({}));
+        const msg = (body as { error?: string }).error ?? `Erreur ${res.status}`;
+        console.error('[MonChantierHub] DELETE failed:', res.status, msg);
+        toast.error(`Impossible de supprimer : ${msg}`);
       }
-    } catch {
+    } catch (e) {
+      console.error('[MonChantierHub] DELETE network error:', e);
       toast.error('Erreur réseau');
     } finally {
       setDeleting(false);
