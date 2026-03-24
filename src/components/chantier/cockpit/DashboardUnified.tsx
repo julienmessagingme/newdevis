@@ -997,6 +997,33 @@ function AddIntervenantModal({ chantierId, token, existingNoms, onClose, onAdded
 
 // ── Dashboard Home ─────────────────────────────────────────────────────────────
 
+function KpiCard({ icon, label, value, sub, accent = 'gray' }: {
+  icon: string;
+  label: string;
+  value: string | number;
+  sub?: string;
+  accent?: 'gray' | 'emerald' | 'blue' | 'red' | 'amber';
+}) {
+  const colors: Record<string, { bg: string; value: string; sub: string }> = {
+    gray:    { bg: 'bg-gray-50',    value: 'text-gray-900',    sub: 'text-gray-400'   },
+    emerald: { bg: 'bg-emerald-50', value: 'text-emerald-700', sub: 'text-emerald-500' },
+    blue:    { bg: 'bg-blue-50',    value: 'text-blue-700',    sub: 'text-blue-400'   },
+    red:     { bg: 'bg-red-50',     value: 'text-red-600',     sub: 'text-red-400'    },
+    amber:   { bg: 'bg-amber-50',   value: 'text-amber-700',   sub: 'text-amber-500'  },
+  };
+  const c = colors[accent];
+  return (
+    <div className={`${c.bg} rounded-2xl px-4 py-4 flex items-start gap-3`}>
+      <span className="text-2xl leading-none mt-0.5 shrink-0">{icon}</span>
+      <div className="min-w-0">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">{label}</p>
+        <p className={`text-2xl font-extrabold tabular-nums leading-none ${c.value}`}>{value}</p>
+        {sub && <p className={`text-xs font-medium mt-1 ${c.sub}`}>{sub}</p>}
+      </div>
+    </div>
+  );
+}
+
 function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, refinedBreakdown, onAffineBudget,
   onAddDevisForLot, onAddDocForLot, onGoToLot, onGoToAnalyse, onGoToPlanning, onAddDoc,
   onGoToAssistant, onAddIntervenant, onDeleteLot,
@@ -1018,114 +1045,238 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
   onAddIntervenant: () => void;
   onDeleteLot: (lotId: string) => void;
 }) {
-  return (
-    <div className="max-w-4xl mx-auto px-5 py-5 space-y-4">
+  const total     = lots.length;
+  const validated = lots.filter(l => ['ok', 'termine', 'en_cours', 'contrat_signe'].includes(l.statut ?? '')).length;
+  const withDevis = lots.filter(l =>
+    (docsByLot[l.id] ?? []).some(d => d.document_type === 'devis') &&
+    !['ok', 'termine', 'en_cours', 'contrat_signe'].includes(l.statut ?? ''),
+  ).length;
+  const blocked   = Math.max(0, total - validated - withDevis);
+  const pct       = total > 0 ? Math.round((validated / total) * 100) : 0;
+  const totalDocs = documents.length;
 
-      {/* ── Assistant actif + État du chantier ──────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <AssistantActiveBlock
-          lots={lots}
-          documents={documents}
-          onAddDevisForLot={onAddDevisForLot}
-          onGoToAnalyse={onGoToAnalyse}
-          onGoToPlanning={onGoToPlanning}
-          onAddDoc={onAddDoc}
-          onGoToAssistant={onGoToAssistant}
+  return (
+    <div className="px-5 py-5 space-y-5">
+
+      {/* ── 4 KPI cards ────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+        <KpiCard
+          icon="💰" label="Budget estimé"
+          value={displayMin > 0 ? `${fmtK(displayMin)}–${fmtK(displayMax)}` : '—'}
+          sub={displayMin > 0 ? 'fourchette estimée' : 'à estimer'}
+          accent="blue"
         />
-        <EtatChantierBlock lots={lots} documents={documents} />
+        <KpiCard
+          icon="✅" label="Intervenants"
+          value={total > 0 ? `${validated}/${total}` : '0'}
+          sub={total > 0 ? 'validés' : 'aucun intervenant'}
+          accent={validated === total && total > 0 ? 'emerald' : 'gray'}
+        />
+        <KpiCard
+          icon="📄" label="Documents"
+          value={totalDocs}
+          sub={totalDocs > 0 ? `devis, factures, photos` : 'aucun document'}
+          accent={totalDocs > 0 ? 'blue' : 'gray'}
+        />
+        <KpiCard
+          icon="⚡" label="À traiter"
+          value={blocked}
+          sub={blocked > 0 ? `intervenant${blocked > 1 ? 's' : ''} sans devis` : 'tout est suivi'}
+          accent={blocked > 0 ? 'red' : 'emerald'}
+        />
       </div>
 
-      {/* ── Budget + affiner ────────────────────────────────── */}
-      {(displayMin > 0 || displayMax > 0) && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          {/* En-tête total */}
-          <div className="px-6 py-5 flex items-center justify-between gap-4">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Budget estimé</p>
-              <p className="text-2xl font-extrabold text-gray-900 tabular-nums">{fmtK(displayMin)} – {fmtK(displayMax)}</p>
-            </div>
-            <button
-              onClick={onAffineBudget}
-              className="shrink-0 flex items-center gap-1.5 text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl px-4 py-2.5 transition-colors"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-              {refinedBreakdown.length > 0 ? 'Recalculer' : 'Affiner'}
-            </button>
+      {/* ── Barre de progression globale ────────────────────── */}
+      {total > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4">
+          <div className="flex items-center justify-between mb-2.5">
+            <p className="text-sm font-semibold text-gray-700">Progression du projet</p>
+            <span className={`text-sm font-extrabold ${pct >= 80 ? 'text-emerald-600' : pct >= 40 ? 'text-amber-600' : 'text-red-500'}`}>
+              {pct}% validé
+            </span>
           </div>
-
-          {/* Détail poste par poste (après affinage) */}
-          {refinedBreakdown.length > 0 && (
-            <div className="border-t border-gray-100">
-              <div className="px-6 py-2 bg-gray-50 flex items-center justify-between">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Détail par poste</p>
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Fiabilité</p>
-              </div>
-              <ul className="divide-y divide-gray-50">
-                {refinedBreakdown.map(item => {
-                  const relIcon =
-                    item.reliability === 'haute'   ? { dot: 'bg-emerald-400', label: 'Haute',   text: 'text-emerald-600' } :
-                    item.reliability === 'moyenne' ? { dot: 'bg-amber-400',   label: 'Moyenne', text: 'text-amber-600'   } :
-                                                     { dot: 'bg-gray-300',    label: 'Faible',  text: 'text-gray-400'   };
-                  return (
-                    <li key={item.id} className="px-6 py-3 flex items-center gap-3">
-                      <span className="text-lg leading-none shrink-0">{item.emoji}</span>
-                      <span className="flex-1 min-w-0 text-sm font-medium text-gray-700 truncate">{item.label}</span>
-                      <span className="shrink-0 tabular-nums text-sm font-semibold text-gray-900">
-                        {fmtK(item.min)} – {fmtK(item.max)}
-                      </span>
-                      <span className={`shrink-0 flex items-center gap-1.5 text-xs font-semibold ${relIcon.text}`}>
-                        <span className={`inline-block h-2 w-2 rounded-full ${relIcon.dot}`} />
-                        {relIcon.label}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
+          <div className="h-2.5 w-full rounded-full bg-gray-100 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-700 ${pct >= 80 ? 'bg-emerald-400' : pct >= 40 ? 'bg-amber-400' : 'bg-red-400'}`}
+              style={{ width: `${Math.max(pct, 2)}%` }}
+            />
+          </div>
+          <div className="flex items-center gap-4 mt-2">
+            <span className="flex items-center gap-1.5 text-[11px] text-gray-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />{validated} validés
+            </span>
+            <span className="flex items-center gap-1.5 text-[11px] text-gray-400">
+              <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />{withDevis} avec devis
+            </span>
+            {blocked > 0 && (
+              <span className="flex items-center gap-1.5 text-[11px] text-red-400 font-semibold">
+                <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />{blocked} à traiter
+              </span>
+            )}
+          </div>
         </div>
       )}
 
-      {/* ── Intervenants ─────────────────────────────────────── */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-            Intervenants · {lots.length}
-          </p>
+      {/* ── Layout principal 2/3 + 1/3 ──────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+
+        {/* ── Colonne gauche (2/3) : recommandation + intervenants ── */}
+        <div className="lg:col-span-2 space-y-4">
+
+          {/* Recommandation IA */}
+          <AssistantActiveBlock
+            lots={lots}
+            documents={documents}
+            onAddDevisForLot={onAddDevisForLot}
+            onGoToAnalyse={onGoToAnalyse}
+            onGoToPlanning={onGoToPlanning}
+            onAddDoc={onAddDoc}
+            onGoToAssistant={onGoToAssistant}
+          />
+
+          {/* Intervenants */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                Intervenants · {total}
+              </p>
+              <button
+                onClick={onAddIntervenant}
+                className="flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-xl transition-colors"
+              >
+                <Plus className="h-3 w-3" /> Ajouter
+              </button>
+            </div>
+            {total === 0 ? (
+              <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 py-14 flex flex-col items-center text-center">
+                <p className="text-4xl mb-4">🏗</p>
+                <p className="font-bold text-gray-900 mb-2">Aucun intervenant défini</p>
+                <p className="text-sm text-gray-400 mb-6 max-w-xs leading-relaxed">
+                  Décrivez votre projet et l'IA génère la liste des intervenants et une estimation de budget.
+                </p>
+                <a href="/mon-chantier/nouveau"
+                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-colors">
+                  <Plus className="h-4 w-4" /> Créer avec l'IA
+                </a>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {lots.map(lot => (
+                  <LotIntervenantCard
+                    key={lot.id}
+                    lot={lot}
+                    docs={docsByLot[lot.id] ?? []}
+                    onAddDevis={() => onAddDevisForLot(lot.id)}
+                    onAddDocument={() => onAddDocForLot(lot.id)}
+                    onDetail={() => onGoToLot(lot.id)}
+                    onDelete={() => onDeleteLot(lot.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Colonne droite (1/3) : budget + actions ─────────── */}
+        <div className="space-y-4">
+
+          {/* Budget card */}
+          {(displayMin > 0 || displayMax > 0) && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Budget estimé</p>
+                  <p className="text-xl font-extrabold text-gray-900 tabular-nums leading-tight">
+                    {fmtK(displayMin)} – {fmtK(displayMax)}
+                  </p>
+                </div>
+                <button
+                  onClick={onAffineBudget}
+                  className="shrink-0 flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl px-3 py-2 transition-colors"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  {refinedBreakdown.length > 0 ? 'Recalculer' : 'Affiner'}
+                </button>
+              </div>
+
+              {/* Détail poste par poste */}
+              {refinedBreakdown.length > 0 && (
+                <div className="border-t border-gray-100">
+                  <div className="px-5 py-1.5 bg-gray-50 flex items-center justify-between">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Postes</p>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Fiabilité</p>
+                  </div>
+                  <ul className="divide-y divide-gray-50">
+                    {refinedBreakdown.map(item => {
+                      const rel =
+                        item.reliability === 'haute'   ? { dot: 'bg-emerald-400', label: 'Haute',   text: 'text-emerald-600' } :
+                        item.reliability === 'moyenne' ? { dot: 'bg-amber-400',   label: 'Moy.',    text: 'text-amber-600'   } :
+                                                         { dot: 'bg-gray-300',    label: 'Faible',  text: 'text-gray-400'   };
+                      return (
+                        <li key={item.id} className="px-5 py-2.5 flex items-center gap-2">
+                          <span className="text-base leading-none shrink-0">{item.emoji}</span>
+                          <span className="flex-1 min-w-0 text-xs font-medium text-gray-700 truncate">{item.label}</span>
+                          <span className="shrink-0 tabular-nums text-xs font-bold text-gray-900 whitespace-nowrap">
+                            {fmtK(item.min)}–{fmtK(item.max)}
+                          </span>
+                          <span className={`shrink-0 flex items-center gap-1 text-[10px] font-bold ${rel.text}`}>
+                            <span className={`inline-block h-1.5 w-1.5 rounded-full ${rel.dot}`} />
+                            {rel.label}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Bloc "sans budget" */}
+          {displayMin === 0 && displayMax === 0 && (
+            <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 px-5 py-6 flex flex-col items-center text-center gap-3">
+              <span className="text-3xl">💰</span>
+              <div>
+                <p className="font-bold text-gray-700 text-sm">Budget à estimer</p>
+                <p className="text-xs text-gray-400 mt-1">Créez un chantier avec l'IA pour obtenir une fourchette de budget.</p>
+              </div>
+            </div>
+          )}
+
+          {/* CTA Assistant */}
           <button
-            onClick={onAddIntervenant}
-            className="flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-xl transition-colors"
+            onClick={onGoToAssistant}
+            className="w-full flex items-center justify-between gap-3 bg-violet-50 hover:bg-violet-100 border border-violet-100 rounded-2xl px-5 py-4 transition-all group"
           >
-            <Plus className="h-3 w-3" /> Ajouter
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-violet-600 flex items-center justify-center shrink-0">
+                <MessageCircle className="h-4 w-4 text-white" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-bold text-violet-800">Maître d'œuvre IA</p>
+                <p className="text-xs text-violet-500 mt-0.5">Posez une question sur votre projet</p>
+              </div>
+            </div>
+            <ArrowRight className="h-4 w-4 text-violet-400 group-hover:text-violet-600 group-hover:translate-x-0.5 transition-all shrink-0" />
+          </button>
+
+          {/* Accès rapide documents */}
+          <button
+            onClick={onAddDoc}
+            className="w-full flex items-center justify-between gap-3 bg-gray-50 hover:bg-blue-50 border border-gray-100 hover:border-blue-100 rounded-2xl px-5 py-4 transition-all group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-gray-200 group-hover:bg-blue-100 flex items-center justify-center shrink-0 transition-colors">
+                <CloudUpload className="h-4 w-4 text-gray-500 group-hover:text-blue-600 transition-colors" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-bold text-gray-700 group-hover:text-blue-700 transition-colors">Ajouter un document</p>
+                <p className="text-xs text-gray-400 mt-0.5">Devis, facture, photo, plan…</p>
+              </div>
+            </div>
+            <ArrowRight className="h-4 w-4 text-gray-300 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all shrink-0" />
           </button>
         </div>
-        {lots.length === 0 ? (
-          <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 py-14 flex flex-col items-center text-center">
-            <p className="text-4xl mb-4">🏗</p>
-            <p className="font-bold text-gray-900 mb-2">Aucun intervenant défini</p>
-            <p className="text-sm text-gray-400 mb-6 max-w-xs leading-relaxed">
-              Décrivez votre projet et l'IA génère la liste des intervenants et une estimation de budget.
-            </p>
-            <a href="/mon-chantier/nouveau"
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-colors">
-              <Plus className="h-4 w-4" /> Créer avec l'IA
-            </a>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {lots.map(lot => (
-              <LotIntervenantCard
-                key={lot.id}
-                lot={lot}
-                docs={docsByLot[lot.id] ?? []}
-                onAddDevis={() => onAddDevisForLot(lot.id)}
-                onAddDocument={() => onAddDocForLot(lot.id)}
-                onDetail={() => onGoToLot(lot.id)}
-                onDelete={() => onDeleteLot(lot.id)}
-              />
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
