@@ -2068,13 +2068,14 @@ interface Props {
   onGoToLot?: (lotId: string) => void;
   onRangeRefined?: (min: number, max: number) => void;
   onAmeliorer?: () => void;
+  autoOpenModal?: boolean;
 }
 
-export default function BudgetTresorerie({ result, documents, insights, insightsLoading, baseRangeMin, baseRangeMax, onAddDoc, onGoToAnalyse, onGoToLots, onGoToLot, onRangeRefined, onAmeliorer }: Props) {
+export default function BudgetTresorerie({ result, documents, insights, insightsLoading, baseRangeMin, baseRangeMax, onAddDoc, onGoToAnalyse, onGoToLots, onGoToLot, onRangeRefined, onAmeliorer, autoOpenModal }: Props) {
   const lots = result.lots ?? [];
 
   // ── État modal affinage ────────────────────────────────────────────────────
-  const [modalOpen, setModalOpen]       = useState(false);
+  const [modalOpen, setModalOpen]       = useState(autoOpenModal ?? false);
   const [refinedMin, setRefinedMin]         = useState<number | null>(null);
   const [refinedMax, setRefinedMax]         = useState<number | null>(null);
   const [affinageScore, setAffinageScore]   = useState(0);

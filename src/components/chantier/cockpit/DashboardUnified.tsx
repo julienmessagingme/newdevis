@@ -405,12 +405,13 @@ function getLotStatusLevel(lot: LotChantier, docs: DocumentChantier[]): {
 
 // ── Lot Intervenant Card (home) ────────────────────────────────────────────────
 
-function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail }: {
+function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail, onDelete }: {
   lot: LotChantier;
   docs: DocumentChantier[];
   onAddDevis: () => void;
   onAddDocument: () => void;
   onDetail: () => void;
+  onDelete: () => void;
 }) {
   const devisCnt  = docs.filter(d => d.document_type === 'devis').length;
   const hasRef    = (lot.budget_min_ht ?? 0) > 0 || (lot.budget_max_ht ?? 0) > 0;
@@ -437,7 +438,18 @@ function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail }: 
                       { text: '✗ Action requise',cls: 'text-red-600'     };
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col">
+    <div className="relative group bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col">
+
+      {/* Delete button */}
+      <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+        <button
+          onClick={e => { e.stopPropagation(); onDelete(); }}
+          className="w-6 h-6 flex items-center justify-center rounded-lg bg-white shadow-sm border border-gray-100 text-gray-300 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all"
+          title="Supprimer cet intervenant"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
 
       {/* ── Zone cliquable principale ──────────────────── */}
       <button onClick={onDetail} className="p-5 pb-3 flex items-start gap-3 text-left hover:bg-gray-50/60 transition-colors group">
@@ -660,10 +672,120 @@ function AssistantActiveBlock({ lots, documents, onAddDevisForLot, onGoToAnalyse
   );
 }
 
+// ── Intervenants preset ───────────────────────────────────────────────────────
+
+const PRESET_INTERVENANTS = [
+  { nom: 'Terrassement',             emoji: '🏗', jobType: 'terrassement' },
+  { nom: 'Maçonnerie',               emoji: '🧱', jobType: 'maconnerie' },
+  { nom: 'Charpente / Couverture',   emoji: '🏚', jobType: 'couverture' },
+  { nom: 'Menuiserie extérieure',    emoji: '🪟', jobType: 'menuiserie_ext' },
+  { nom: 'Menuiserie intérieure',    emoji: '🚪', jobType: 'menuiserie_int' },
+  { nom: 'Électricité',              emoji: '⚡', jobType: 'electricite' },
+  { nom: 'Plomberie',                emoji: '🚿', jobType: 'plomberie' },
+  { nom: 'Chauffage / Climatisation',emoji: '🔥', jobType: 'chauffage' },
+  { nom: 'Isolation',                emoji: '🧤', jobType: 'isolation' },
+  { nom: 'Peinture',                 emoji: '🎨', jobType: 'peinture' },
+  { nom: 'Carrelage / Faïence',      emoji: '🪟', jobType: 'carrelage' },
+  { nom: 'Revêtements de sol',       emoji: '🪵', jobType: 'revetement_sol' },
+  { nom: 'Agencement / Placards',    emoji: '🛋', jobType: 'agencement' },
+  { nom: 'Étanchéité',               emoji: '🛡', jobType: 'etancheite' },
+  { nom: 'Démolition',               emoji: '⛏', jobType: 'demolition' },
+  { nom: 'Serrurerie / Métallerie',  emoji: '🔧', jobType: 'serrurerie' },
+  { nom: 'Espaces verts',            emoji: '🌿', jobType: 'espaces_verts' },
+];
+
+function AddIntervenantModal({ chantierId, token, existingNoms, onClose, onAdded }: {
+  chantierId: string;
+  token: string;
+  existingNoms: string[];
+  onClose: () => void;
+  onAdded: (lot: LotChantier) => void;
+}) {
+  const [customNom, setCustomNom] = useState('');
+  const [adding, setAdding] = useState<string | null>(null);
+
+  async function add(nom: string, emoji: string, jobType: string) {
+    if (adding) return;
+    setAdding(nom);
+    try {
+      const res = await fetch(`/api/chantier/${chantierId}/lots`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ nom, emoji, jobType }),
+      });
+      const data = await res.json();
+      if (res.ok && data.lot) {
+        onAdded(data.lot as LotChantier);
+        onClose();
+      }
+    } finally {
+      setAdding(null);
+    }
+  }
+
+  const available = PRESET_INTERVENANTS.filter(p => !existingNoms.includes(p.nom));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h2 className="font-bold text-gray-900">Ajouter un intervenant</h2>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
+            <X className="h-4 w-4 text-gray-500" />
+          </button>
+        </div>
+        <div className="px-5 py-4 max-h-[60vh] overflow-y-auto space-y-3">
+          {/* Custom nom */}
+          <div className="flex gap-2">
+            <input
+              value={customNom}
+              onChange={e => setCustomNom(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && customNom.trim()) add(customNom.trim(), '🔧', 'autre'); }}
+              placeholder="Ou tapez un nom personnalisé…"
+              className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+            />
+            <button
+              onClick={() => { if (customNom.trim()) add(customNom.trim(), '🔧', 'autre'); }}
+              disabled={!customNom.trim() || !!adding}
+              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm font-semibold rounded-xl transition-colors"
+            >
+              {adding === customNom.trim() ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            </button>
+          </div>
+          {/* Preset list */}
+          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 pt-2">Types courants</p>
+          <div className="grid grid-cols-1 gap-1.5">
+            {available.map(p => (
+              <button
+                key={p.jobType}
+                onClick={() => add(p.nom, p.emoji, p.jobType)}
+                disabled={!!adding}
+                className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl hover:bg-blue-50 transition-colors text-left disabled:opacity-50 group"
+              >
+                <span className="text-lg w-7 text-center shrink-0">{p.emoji}</span>
+                <span className="text-sm font-medium text-gray-800 group-hover:text-blue-700 transition-colors flex-1">{p.nom}</span>
+                {adding === p.nom
+                  ? <Loader2 className="h-3.5 w-3.5 text-blue-500 animate-spin shrink-0" />
+                  : <Plus className="h-3.5 w-3.5 text-gray-300 group-hover:text-blue-500 shrink-0 transition-colors" />
+                }
+              </button>
+            ))}
+            {available.length === 0 && (
+              <p className="text-sm text-gray-400 text-center py-4">Tous les types courants ont été ajoutés.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Dashboard Home ─────────────────────────────────────────────────────────────
 
 function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, onAffineBudget,
   onAddDevisForLot, onAddDocForLot, onGoToLot, onGoToAnalyse, onGoToPlanning, onAddDoc,
+  onGoToAssistant, onAddIntervenant, onDeleteLot,
 }: {
   lots: LotChantier[];
   documents: DocumentChantier[];
@@ -677,23 +799,26 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, onA
   onGoToAnalyse: () => void;
   onGoToPlanning: () => void;
   onAddDoc: () => void;
+  onGoToAssistant: () => void;
+  onAddIntervenant: () => void;
+  onDeleteLot: (lotId: string) => void;
 }) {
   return (
-    <div className="max-w-4xl mx-auto px-5 py-6 space-y-5">
+    <div className="max-w-4xl mx-auto px-5 py-5 space-y-4">
 
-      {/* ── Assistant actif ─────────────────────────────────── */}
-      <AssistantActiveBlock
-        lots={lots}
-        documents={documents}
-        onAddDevisForLot={onAddDevisForLot}
-        onGoToAnalyse={onGoToAnalyse}
-        onGoToPlanning={onGoToPlanning}
-        onAddDoc={onAddDoc}
-        onGoToAssistant={() => {/* handled at parent level */}}
-      />
-
-      {/* ── État du chantier ────────────────────────────────── */}
-      <EtatChantierBlock lots={lots} documents={documents} />
+      {/* ── Assistant actif + État du chantier ──────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <AssistantActiveBlock
+          lots={lots}
+          documents={documents}
+          onAddDevisForLot={onAddDevisForLot}
+          onGoToAnalyse={onGoToAnalyse}
+          onGoToPlanning={onGoToPlanning}
+          onAddDoc={onAddDoc}
+          onGoToAssistant={onGoToAssistant}
+        />
+        <EtatChantierBlock lots={lots} documents={documents} />
+      </div>
 
       {/* ── Budget + affiner ────────────────────────────────── */}
       {(displayMin > 0 || displayMax > 0) && (
@@ -714,9 +839,17 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, onA
 
       {/* ── Intervenants ─────────────────────────────────────── */}
       <div>
-        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-3">
-          Intervenants · {lots.length}
-        </p>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+            Intervenants · {lots.length}
+          </p>
+          <button
+            onClick={onAddIntervenant}
+            className="flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-xl transition-colors"
+          >
+            <Plus className="h-3 w-3" /> Ajouter
+          </button>
+        </div>
         {lots.length === 0 ? (
           <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 py-14 flex flex-col items-center text-center">
             <p className="text-4xl mb-4">🏗</p>
@@ -739,6 +872,7 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, onA
                 onAddDevis={() => onAddDevisForLot(lot.id)}
                 onAddDocument={() => onAddDocForLot(lot.id)}
                 onDetail={() => onGoToLot(lot.id)}
+                onDelete={() => onDeleteLot(lot.id)}
               />
             ))}
           </div>
@@ -780,10 +914,14 @@ function UploadModal({ chantierId, token, lots, defaultLotId, defaultType, onClo
       .order('created_at', { ascending: false }).limit(20)
       .then(({ data }) => {
         setAnalyses((data ?? []).map(a => {
-          const artisanNom = a.raw_text?.entreprise?.nom ?? null;
-          const totalTtc   = a.raw_text?.totaux?.ttc ?? null;
-          const dateDevis  = a.raw_text?.dates?.date_devis ?? null;
-          const typeChantier = a.raw_text?.context?.type_chantier ?? null;
+          let parsed: Record<string, any> = {};
+          try {
+            parsed = typeof a.raw_text === 'string' ? JSON.parse(a.raw_text) : (a.raw_text ?? {});
+          } catch {}
+          const artisanNom = parsed?.entreprise?.nom ?? null;
+          const totalTtc   = parsed?.totaux?.ttc ?? null;
+          const dateDevis  = parsed?.dates?.date_devis ?? null;
+          const typeChantier = parsed?.context?.type_chantier ?? null;
           const titre = artisanNom
             ? artisanNom
             : typeChantier ?? `Analyse du ${fmtDate(a.created_at)}`;
@@ -1552,6 +1690,8 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
     : hasBudgetTotal ? Math.round(result.budgetTotal * 1.15) : 0;
   const [refinedRangeMin, setRefinedRangeMin] = useState<number | null>(null);
   const [refinedRangeMax, setRefinedRangeMax] = useState<number | null>(null);
+  const [affineBudgetModal, setAffineBudgetModal] = useState(false);
+  const [showAddIntervenant, setShowAddIntervenant] = useState(false);
   const displayMin = refinedRangeMin ?? baseRangeMin;
   const displayMax = refinedRangeMax ?? baseRangeMax;
 
@@ -1600,7 +1740,24 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
     setActiveSection(s);
     setSelectedLotId(null);
     setShowBudgetDetail(false);
+    setAffineBudgetModal(false);
   }
+
+  // ── Lot mutations ─────────────────────────────────────────────────────────
+  const deleteLot = useCallback(async (lotId: string) => {
+    if (!chantierId || !token) return;
+    try {
+      await fetch(`/api/chantier/${chantierId}/lots/${lotId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setResult(prev => ({ ...prev, lots: (prev.lots ?? []).filter(l => l.id !== lotId) }));
+    } catch {}
+  }, [chantierId, token]);
+
+  const addLot = useCallback((lot: LotChantier) => {
+    setResult(prev => ({ ...prev, lots: [...(prev.lots ?? []), lot] }));
+  }, []);
 
   // ── Rendu du contenu ──────────────────────────────────────────────────────
   function renderContent() {
@@ -1635,6 +1792,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
               onGoToLot={(lotId) => { setSelectedLotId(lotId); navigateTo('lots'); }}
               onRangeRefined={(min, max) => { setRefinedRangeMin(min); setRefinedRangeMax(max); }}
               onAmeliorer={() => setShowAmelioration(true)}
+              autoOpenModal={affineBudgetModal}
             />
           );
         }
@@ -1645,13 +1803,16 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             docsByLot={docsByLot}
             displayMin={displayMin}
             displayMax={displayMax}
-            onAffineBudget={() => setShowBudgetDetail(true)}
+            onAffineBudget={() => { setShowBudgetDetail(true); setAffineBudgetModal(true); }}
             onAddDevisForLot={(lotId) => setUploadModal({ open: true, lotId, defaultType: 'devis' })}
             onAddDocForLot={(lotId) => setUploadModal({ open: true, lotId })}
             onGoToLot={(lotId) => { setSelectedLotId(lotId); navigateTo('lots'); }}
             onGoToAnalyse={() => navigateTo('analyse')}
             onGoToPlanning={() => navigateTo('planning')}
             onAddDoc={() => setUploadModal({ open: true })}
+            onGoToAssistant={() => navigateTo('assistant')}
+            onAddIntervenant={() => setShowAddIntervenant(true)}
+            onDeleteLot={deleteLot}
           />
         );
 
@@ -1880,6 +2041,17 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             setDocuments(prev => [doc, ...prev]);
             refreshInsights();
           }}
+        />
+      )}
+
+      {/* ── Add intervenant modal ─────────────────────────────────────────── */}
+      {showAddIntervenant && chantierId && token && (
+        <AddIntervenantModal
+          chantierId={chantierId}
+          token={token}
+          existingNoms={lots.map(l => l.nom)}
+          onClose={() => setShowAddIntervenant(false)}
+          onAdded={addLot}
         />
       )}
     </div>
