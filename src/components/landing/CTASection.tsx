@@ -22,7 +22,7 @@ const CTASection = () => {
             Prêt à sécuriser vos travaux ?
           </h2>
           <p className="text-lg md:text-xl text-primary-foreground/80 mb-8">
-            Analysez tous vos devis gratuitement et sans limite. Rejoignez les particuliers qui font confiance à VerifierMonDevis.fr.
+            Rejoignez les particuliers qui font confiance à VerifierMonDevis.fr.
           </p>
 
           <a href="/nouvelle-analyse">
