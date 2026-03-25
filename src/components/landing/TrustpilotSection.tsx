@@ -124,13 +124,8 @@ function TrustpilotLogo({ className = '' }: { className?: string }) {
 
 function ReviewCard({ review, active }: { review: typeof REVIEWS[0]; active: boolean }) {
   return (
-    <div
-      className={`
-        absolute inset-0 transition-all duration-500 ease-in-out
-        ${active ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8 pointer-events-none'}
-      `}
-    >
-      <div className="h-full bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col gap-4">
+    <div className={active ? '' : 'hidden'}>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col gap-4 h-56">
         {/* Stars */}
         <Stars count={review.stars} />
 
@@ -160,20 +155,45 @@ function ReviewCard({ review, active }: { review: typeof REVIEWS[0]; active: boo
 
 // ── Section principale ─────────────────────────────────────────────────────────
 
+// Nombre de cartes visibles selon le breakpoint
+const VISIBLE = { mobile: 1, sm: 2, lg: 3 };
+
 export default function TrustpilotSection() {
   const [current, setCurrent] = useState(0);
+  const [fading, setFading]   = useState(false);
   const [paused, setPaused]   = useState(false);
   const timerRef              = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const next = useCallback(() => setCurrent(c => (c + 1) % REVIEWS.length), []);
-  const prev = useCallback(() => setCurrent(c => (c - 1 + REVIEWS.length) % REVIEWS.length), []);
+  const goTo = useCallback((idx: number) => {
+    setFading(true);
+    setTimeout(() => {
+      setCurrent((idx + REVIEWS.length) % REVIEWS.length);
+      setFading(false);
+    }, 200);
+  }, []);
 
-  // Auto-rotation toutes les 5 secondes
+  const next = useCallback(() => goTo(current + 1), [current, goTo]);
+  const prev = useCallback(() => goTo(current - 1), [current, goTo]);
+
+  // Auto-rotation toutes les 5 secondes — repart après interaction
   useEffect(() => {
     if (paused) return;
-    timerRef.current = setInterval(next, 5000);
+    timerRef.current = setInterval(() => {
+      setCurrent(c => (c + 1) % REVIEWS.length);
+    }, 5000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [paused, next]);
+  }, [paused, current]);
+
+  // Après clic bouton : reprise auto après 8 secondes
+  const handleNav = (fn: () => void) => {
+    setPaused(true);
+    fn();
+    setTimeout(() => setPaused(false), 8000);
+  };
+
+  // Cartes visibles : on affiche cols cartes à partir de current
+  const getCards = (cols: number) =>
+    Array.from({ length: cols }, (_, i) => REVIEWS[(current + i) % REVIEWS.length]);
 
   return (
     <section className="py-16 bg-gradient-to-b from-white to-slate-50 border-t border-gray-100">
@@ -182,14 +202,9 @@ export default function TrustpilotSection() {
         {/* ── En-tête ── */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-10">
           <div>
-            {/* Logo + score */}
             <div className="flex items-center gap-3 mb-3">
-              <a
-                href={TRUSTPILOT_PROFILE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:opacity-80 transition-opacity"
-              >
+              <a href={TRUSTPILOT_PROFILE_URL} target="_blank" rel="noopener noreferrer"
+                className="hover:opacity-80 transition-opacity">
                 <TrustpilotLogo className="h-7 w-auto" />
               </a>
             </div>
@@ -197,24 +212,15 @@ export default function TrustpilotSection() {
               <Stars count={5} />
               <span className="text-2xl font-extrabold text-gray-900 tabular-nums">5,0</span>
               <span className="text-sm text-gray-500">·</span>
-              <a
-                href={TRUSTPILOT_PROFILE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-gray-500 hover:text-gray-700 underline underline-offset-2 transition-colors"
-              >
+              <a href={TRUSTPILOT_PROFILE_URL} target="_blank" rel="noopener noreferrer"
+                className="text-sm text-gray-500 hover:text-gray-700 underline underline-offset-2 transition-colors">
                 8 avis vérifiés
               </a>
             </div>
           </div>
 
-          {/* CTA laisser un avis */}
-          <a
-            href={TRUSTPILOT_REVIEW_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 bg-[#00b67a] hover:bg-[#00a369] text-white font-semibold text-sm px-5 py-3 rounded-xl shadow-sm transition-colors shrink-0"
-          >
+          <a href={TRUSTPILOT_REVIEW_URL} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 bg-[#00b67a] hover:bg-[#00a369] text-white font-semibold text-sm px-5 py-3 rounded-xl shadow-sm transition-colors shrink-0">
             <Star className="h-4 w-4 fill-white" />
             Donnez votre avis
             <ExternalLink className="h-3.5 w-3.5 opacity-75" />
@@ -222,58 +228,43 @@ export default function TrustpilotSection() {
         </div>
 
         {/* ── Carrousel ── */}
-        <div
-          className="relative"
-          onMouseEnter={() => setPaused(true)}
-          onMouseLeave={() => setPaused(false)}
-        >
-          {/* Cards — grille responsive : 1 col mobile, 2 col sm, 3 col lg */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Mobile : affiche 1 carte animée */}
-            <div className="relative h-56 sm:hidden">
-              {REVIEWS.map((review, i) => (
-                <ReviewCard key={review.id} review={review} active={i === current} />
-              ))}
-            </div>
+        <div className="relative">
 
-            {/* SM : affiche 2 cartes statiques décalées selon current */}
-            {[0, 1].map(offset => {
-              const idx = (current + offset) % REVIEWS.length;
-              return (
-                <div key={offset} className="hidden sm:block lg:hidden h-56 relative">
-                  <ReviewCard review={REVIEWS[idx]} active />
-                </div>
-              );
-            })}
-
-            {/* LG : affiche 3 cartes statiques */}
-            {[0, 1, 2].map(offset => {
-              const idx = (current + offset) % REVIEWS.length;
-              return (
-                <div key={`lg-${offset}`} className="hidden lg:block h-56 relative">
-                  <ReviewCard review={REVIEWS[idx]} active />
-                </div>
-              );
-            })}
+          {/* Grille de cartes avec fade */}
+          <div
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 transition-opacity duration-200"
+            style={{ opacity: fading ? 0 : 1 }}
+          >
+            {/* Mobile : 1 carte */}
+            {getCards(VISIBLE.mobile).map((review, i) => (
+              <div key={`m-${i}`} className="sm:hidden">
+                <ReviewCard review={review} active />
+              </div>
+            ))}
+            {/* SM : 2 cartes */}
+            {getCards(VISIBLE.sm).map((review, i) => (
+              <div key={`s-${i}`} className="hidden sm:block lg:hidden">
+                <ReviewCard review={review} active />
+              </div>
+            ))}
+            {/* LG : 3 cartes */}
+            {getCards(VISIBLE.lg).map((review, i) => (
+              <div key={`l-${i}`} className="hidden lg:block">
+                <ReviewCard review={review} active />
+              </div>
+            ))}
           </div>
 
           {/* Contrôles */}
           <div className="flex items-center justify-center gap-3 mt-6">
-            <button
-              onClick={() => { prev(); setPaused(true); }}
-              aria-label="Avis précédent"
-              className="w-9 h-9 rounded-full border border-gray-200 bg-white hover:bg-gray-50 flex items-center justify-center text-gray-500 hover:text-gray-800 transition-all shadow-sm"
-            >
+            <button onClick={() => handleNav(prev)} aria-label="Avis précédent"
+              className="w-9 h-9 rounded-full border border-gray-200 bg-white hover:bg-gray-50 flex items-center justify-center text-gray-500 hover:text-gray-800 transition-all shadow-sm">
               <ChevronLeft className="h-4 w-4" />
             </button>
 
-            {/* Dots */}
             <div className="flex gap-1.5">
               {REVIEWS.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => { setCurrent(i); setPaused(true); }}
-                  aria-label={`Avis ${i + 1}`}
+                <button key={i} onClick={() => handleNav(() => goTo(i))} aria-label={`Avis ${i + 1}`}
                   className={`h-2 rounded-full transition-all duration-300 ${
                     i === current ? 'w-6 bg-[#00b67a]' : 'w-2 bg-gray-200 hover:bg-gray-300'
                   }`}
@@ -281,11 +272,8 @@ export default function TrustpilotSection() {
               ))}
             </div>
 
-            <button
-              onClick={() => { next(); setPaused(true); }}
-              aria-label="Avis suivant"
-              className="w-9 h-9 rounded-full border border-gray-200 bg-white hover:bg-gray-50 flex items-center justify-center text-gray-500 hover:text-gray-800 transition-all shadow-sm"
-            >
+            <button onClick={() => handleNav(next)} aria-label="Avis suivant"
+              className="w-9 h-9 rounded-full border border-gray-200 bg-white hover:bg-gray-50 flex items-center justify-center text-gray-500 hover:text-gray-800 transition-all shadow-sm">
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
@@ -294,12 +282,8 @@ export default function TrustpilotSection() {
         {/* ── Bandeau bas ── */}
         <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 text-sm text-gray-500">
           <span>Vous avez utilisé VerifierMonDevis.fr ?</span>
-          <a
-            href={TRUSTPILOT_REVIEW_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-semibold text-[#00b67a] hover:text-[#00a369] underline underline-offset-2 transition-colors"
-          >
+          <a href={TRUSTPILOT_REVIEW_URL} target="_blank" rel="noopener noreferrer"
+            className="font-semibold text-[#00b67a] hover:text-[#00a369] underline underline-offset-2 transition-colors">
             Partagez votre expérience sur Trustpilot →
           </a>
         </div>
