@@ -420,26 +420,31 @@ function BudgetHomeHeader({ nom, emoji, typeProjet, onMenuToggle, onAddDoc }: {
           <Menu className="h-4 w-4" />
         </button>
 
-        {/* Illustration + titre projet */}
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center text-2xl shrink-0 shadow-sm">
+        {/* Illustration + titre projet — gauche */}
+        <div className="flex items-center gap-3 w-64 shrink-0 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center text-xl shrink-0 shadow-sm">
             {illustration}
           </div>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">Mon chantier</p>
-            <h1 className="font-bold text-gray-900 text-base leading-tight truncate">{nom}</h1>
+            <h1 className="font-bold text-gray-900 text-sm leading-tight truncate">{nom}</h1>
           </div>
         </div>
 
-        {/* CTA */}
-        <button
-          onClick={onAddDoc}
-          className="shrink-0 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl px-4 py-2.5 transition-colors shadow-sm shadow-blue-200"
-        >
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">Ajouter un document</span>
-          <span className="sm:hidden">Ajouter</span>
-        </button>
+        {/* CTA centré */}
+        <div className="flex-1 flex flex-col items-center gap-1">
+          <button
+            onClick={onAddDoc}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl px-5 py-2.5 transition-colors shadow-sm shadow-blue-200"
+          >
+            <Plus className="h-4 w-4" />
+            Ajouter un document
+          </button>
+          <p className="text-[11px] text-gray-400">devis · facture · photo · plan · ou importer depuis votre espace</p>
+        </div>
+
+        {/* Espace équilibrant à droite */}
+        <div className="w-64 shrink-0 hidden lg:block" />
       </div>
     </header>
   );
