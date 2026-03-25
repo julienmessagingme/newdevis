@@ -188,8 +188,8 @@ const Dashboard = () => {
           </p>
         </div>
 
-        {/* Mon Chantier CTA — visible admins uniquement */}
-        {ADMIN_EMAILS.includes(user?.email || "") && <a href="/mon-chantier" className="block mb-4">
+        {/* Mon Chantier CTA */}
+        <a href={ADMIN_EMAILS.includes(user?.email || "") ? "/mon-chantier" : "/mon-chantier/bientot"} className="block mb-4">
           <div className="bg-gradient-to-r from-primary/10 to-blue-500/10 border border-primary/30 rounded-2xl p-5 hover:border-primary hover:shadow-sm transition-all duration-200 cursor-pointer group">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-primary/15 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-200 text-2xl">
@@ -208,7 +208,7 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
-        </a>}
+        </a>
 
         {/* Pass Sérénité CTA */}
         {!isPremium && (
