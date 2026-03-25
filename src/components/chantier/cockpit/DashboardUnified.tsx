@@ -2397,12 +2397,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
   const [uploadModal, setUploadModal]     = useState<{ open: boolean; lotId?: string; defaultType?: DocumentType }>({ open: false });
   const lots = result.lots ?? [];
 
-  // Auto-sélection du premier lot quand on navigue vers 'lots' sans sélection explicite
-  useEffect(() => {
-    if (activeSection === 'lots' && !selectedLotId && lots.length > 0) {
-      setSelectedLotId(lots[0].id);
-    }
-  }, [activeSection, selectedLotId, lots]);
+  // Pas de useEffect pour la sélection de lot — géré directement dans renderContent
 
   // ── Insights ──────────────────────────────────────────────────────────────
   const { insights, loading: insightsLoading, refresh: refreshInsights } = useInsights(
@@ -2470,7 +2465,9 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
   // ── Navigation helpers ────────────────────────────────────────────────────
   function navigateTo(s: Section) {
     setActiveSection(s);
-    setSelectedLotId(null);
+    // Ne PAS reset selectedLotId ici — c'est onGoToLot qui le positionne,
+    // et onBack qui l'efface explicitement. Sinon navigateTo écrase la sélection.
+    if (s !== 'lots') setSelectedLotId(null);
     setShowBudgetDetail(false);
     setAffineBudgetModal(false);
   }
@@ -2562,10 +2559,23 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
           />
         );
 
-      case 'lots':
-        // Grille supprimée — l'useEffect auto-sélectionne le premier lot → LotDetail
-        // Rendu vide pendant le cycle de rendu initial (rare)
-        return null;
+      case 'lots': {
+        // Sélection : le lot demandé, ou le premier par défaut (clic sidebar sans sélection)
+        const targetId  = selectedLotId ?? lots[0]?.id ?? null;
+        const targetLot = targetId ? lots.find(l => l.id === targetId) : null;
+        if (!targetLot) return null;
+        return (
+          <LotDetail
+            lot={targetLot}
+            docs={docsByLot[targetLot.id] ?? []}
+            onAddDoc={() => setUploadModal({ open: true, lotId: targetLot.id.startsWith('fallback-') ? undefined : targetLot.id })}
+            onDeleteDoc={handleDeleteDoc}
+            onBack={() => { setSelectedLotId(null); navigateTo('budget'); }}
+            chantierId={chantierId}
+            token={token}
+          />
+        );
+      }
 
       case 'contacts':
         return chantierId && token ? (

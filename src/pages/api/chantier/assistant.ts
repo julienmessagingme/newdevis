@@ -7,6 +7,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { createClient } from '@supabase/supabase-js';
+import { extractProjectElements, detectDevisType } from '@/utils/extractProjectElements';
 
 const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -89,6 +90,13 @@ LOGIQUE MÉTIER :
 * ≥2 devis → comparaison possible → OK
 * devis > budget → alerte dépassement
 * devis cohérent marché → validation possible
+RÈGLE COHÉRENCE (PRIORITAIRE) :
+* Si [COHERENCE_DEVIS] contient "INCOHÉRENCE DÉTECTÉE" :
+  - Ne jamais valider ces devis
+  - Générer une alerte de type "critique" pour chaque devis hors périmètre
+  - Format exact : { "type": "critique", "message": "Devis [nom] hors périmètre projet", "cta": "Vérifier" }
+  - Proposer 2 actions dans conseil_metier : corriger le projet OU supprimer le devis
+* Si tous les devis sont cohérents → ne pas générer d'alerte cohérence
 Toujours :
 * expliquer simplement
 * guider vers UNE action claire
@@ -125,6 +133,22 @@ export const POST: APIRoute = async ({ request }) => {
 
   const { description, lots = [], devis = [], budgetMin, budgetMax, planning = [] } = body;
 
+  // ── Détection des éléments du projet ──────────────────────────────────────
+
+  const elementsProjet = extractProjectElements(description ?? '');
+
+  // Enrichir chaque devis avec son type détecté
+  const devisEnrichis = devis.map(d => ({
+    ...d,
+    type: detectDevisType(d.nom),
+  }));
+
+  // Détecter les incohérences : devis dont le type n'est pas dans les éléments projet
+  // (on ignore 'autre' — pas assez d'info pour trancher)
+  const devisHorsProjet = elementsProjet.length > 0
+    ? devisEnrichis.filter(d => d.type !== 'autre' && !elementsProjet.includes(d.type))
+    : [];
+
   // ── Construire le contexte projet ─────────────────────────────────────────
 
   const devisCount   = devis.length;
@@ -140,15 +164,24 @@ export const POST: APIRoute = async ({ request }) => {
       }).join('\n')
     : 'Aucun intervenant défini';
 
-  const devisStr = devis.length > 0
-    ? devis.map(d => {
-        let str = `- ${d.nom}`;
+  const devisStr = devisEnrichis.length > 0
+    ? devisEnrichis.map(d => {
+        let str = `- ${d.nom} [type: ${d.type}]`;
         if (d.montant != null) str += ` (${Math.round(d.montant / 1000)}k€)`;
         if (d.analysisScore) str += ` [score: ${d.analysisScore}]`;
         if (d.anomalies) str += ` ⚠ ${d.anomalies}`;
         return str;
       }).join('\n')
     : 'Aucun devis transmis';
+
+  const elementsProjetStr = elementsProjet.length > 0
+    ? elementsProjet.join(', ')
+    : 'non détectés (description insuffisante)';
+
+  const coherenceStr = devisHorsProjet.length > 0
+    ? `⚠ INCOHÉRENCE DÉTECTÉE — ${devisHorsProjet.length} devis hors périmètre projet :\n` +
+      devisHorsProjet.map(d => `  - "${d.nom}" (type: ${d.type}) n'appartient pas au projet`).join('\n')
+    : 'OK — tous les devis sont cohérents avec le périmètre projet';
 
   const planningStr = planning.length > 0
     ? planning.map(p => `- ${p.phase}: ${p.statut}`).join('\n')
@@ -157,6 +190,11 @@ export const POST: APIRoute = async ({ request }) => {
   const userMessage = `Analyse les données suivantes :
 
 [PROJET] ${description || 'Non précisé'}
+
+[ELEMENTS_PROJET] ${elementsProjetStr}
+
+[COHERENCE_DEVIS]
+${coherenceStr}
 
 [INTERVENANTS]
 ${lotsStr}
