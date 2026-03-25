@@ -10,6 +10,7 @@ import {
   Sparkles, Trash2, ArrowLeft, ChevronRight, Wrench, Wallet, Layers,
   FileSearch, Calendar, FolderOpen, Bot, Settings, Menu, ExternalLink,
   Receipt, Pencil, SlidersHorizontal, Users, MessageCircle, ArrowRight,
+  LayoutGrid, List, ChevronUp, ChevronDown, Filter,
 } from 'lucide-react';
 import type {
   ChantierIAResult, DocumentChantier, DocumentType, LotChantier, StatutArtisan,
@@ -1368,6 +1369,303 @@ function DiyCard({ onAddDoc }: { onAddDoc: () => void }) {
   );
 }
 
+// ── Toggle vue cartes / liste ─────────────────────────────────────────────────
+
+function ViewToggle({ value, onChange }: { value: 'cards' | 'list'; onChange: (v: 'cards' | 'list') => void }) {
+  return (
+    <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-0.5">
+      <button
+        onClick={() => onChange('cards')}
+        className={`flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-all ${value === 'cards' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
+      >
+        <LayoutGrid className="h-3 w-3" /> Cartes
+      </button>
+      <button
+        onClick={() => onChange('list')}
+        className={`flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-all ${value === 'list' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
+      >
+        <List className="h-3 w-3" /> Liste
+      </button>
+    </div>
+  );
+}
+
+// ── Vue liste intervenants + devis ────────────────────────────────────────────
+
+type LotListStatus = 'bloque' | 'a_comparer' | 'comparaison' | 'valide';
+
+function getLotListStatus(lot: LotChantier, devisDocs: DocumentChantier[]): LotListStatus {
+  const hasValidated = devisDocs.some(d =>
+    (d.devis_statut ?? 'en_cours') === 'valide' || ['ok', 'termine', 'contrat_signe'].includes(lot.statut ?? ''),
+  );
+  if (hasValidated) return 'valide';
+  if (devisDocs.length >= 2) return 'comparaison';
+  if (devisDocs.length === 1) return 'a_comparer';
+  return 'bloque';
+}
+
+const LOT_STATUS_CFG: Record<LotListStatus, { dot: string; label: string; badge: string; text: string }> = {
+  bloque:      { dot: 'bg-red-400',     label: '🔴 Bloqué',              badge: 'bg-red-50 border-red-200 text-red-700',     text: 'text-red-600' },
+  a_comparer:  { dot: 'bg-amber-400',   label: '🟡 À comparer',          badge: 'bg-amber-50 border-amber-200 text-amber-700', text: 'text-amber-600' },
+  comparaison: { dot: 'bg-blue-400',    label: '🔵 Comparaison possible', badge: 'bg-blue-50 border-blue-200 text-blue-700',   text: 'text-blue-600' },
+  valide:      { dot: 'bg-emerald-400', label: '🟢 Validé',              badge: 'bg-emerald-50 border-emerald-200 text-emerald-700', text: 'text-emerald-600' },
+};
+
+type SortKey = 'none' | 'prix_asc' | 'prix_desc';
+type FilterStatus = 'all' | LotListStatus;
+
+function IntervenantsListView({ lots, docsByLot, onAddDevisForLot, onGoToLot }: {
+  lots: LotChantier[];
+  docsByLot: Record<string, DocumentChantier[]>;
+  onAddDevisForLot: (lotId: string) => void;
+  onGoToLot: (lotId: string) => void;
+}) {
+  const [sortKey,    setSortKey]    = useState<SortKey>('none');
+  const [filterSt,   setFilterSt]   = useState<FilterStatus>('all');
+  const [analysisData, setAnalysisData] = useState<Record<string, { score: number | null; ttc: number | null }>>({});
+
+  // Tous les devis de tous les lots (avec analyse_id) — fetch en une seule requête
+  useEffect(() => {
+    const allDevis = lots.flatMap(l => (docsByLot[l.id] ?? []).filter(d => d.document_type === 'devis' || d.document_type === 'facture'));
+    const withAnalyse = allDevis.filter(d => d.analyse_id);
+    if (!withAnalyse.length) return;
+    const ids = [...new Set(withAnalyse.map(d => d.analyse_id!))];
+    supabase.from('analyses').select('id, score, raw_text').in('id', ids).then(({ data }) => {
+      if (!data) return;
+      const m: Record<string, { score: number | null; ttc: number | null }> = {};
+      data.forEach(a => {
+        const n = Number(a.score);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const totaux = (a.raw_text as any)?.extracted?.totaux;
+        m[a.id] = {
+          score: a.score != null && !isNaN(n) ? n : null,
+          ttc:   totaux?.ttc != null && !isNaN(Number(totaux.ttc)) ? Number(totaux.ttc) : null,
+        };
+      });
+      withAnalyse.forEach(d => { if (d.analyse_id && m[d.analyse_id]) m[d.id] = m[d.analyse_id]; });
+      setAnalysisData(m);
+    });
+  }, [lots, docsByLot]);
+
+  // Construction des groupes (lot + ses devis)
+  const groups = useMemo(() => {
+    return lots.map(lot => {
+      const devisDocs = (docsByLot[lot.id] ?? []).filter(d => d.document_type === 'devis' || d.document_type === 'facture');
+      return { lot, devisDocs, status: getLotListStatus(lot, devisDocs) };
+    });
+  }, [lots, docsByLot]);
+
+  // Filtrage par statut
+  const filtered = filterSt === 'all' ? groups : groups.filter(g => g.status === filterSt);
+
+  // Tri par prix (total TTC du lot ou premier devis)
+  const sorted = useMemo(() => {
+    if (sortKey === 'none') return filtered;
+    return [...filtered].sort((a, b) => {
+      const priceA = a.devisDocs.reduce((s, d) => s + (analysisData[d.id]?.ttc ?? 0), 0);
+      const priceB = b.devisDocs.reduce((s, d) => s + (analysisData[d.id]?.ttc ?? 0), 0);
+      return sortKey === 'prix_asc' ? priceA - priceB : priceB - priceA;
+    });
+  }, [filtered, sortKey, analysisData]);
+
+  const filterOptions: { key: FilterStatus; label: string }[] = [
+    { key: 'all',        label: 'Tous' },
+    { key: 'bloque',     label: '🔴 Bloqués' },
+    { key: 'a_comparer', label: '🟡 À comparer' },
+    { key: 'comparaison',label: '🔵 Comparaison' },
+    { key: 'valide',     label: '🟢 Validés' },
+  ];
+
+  return (
+    <div className="space-y-3">
+      {/* Filtres + tri */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Filter className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+        {filterOptions.map(opt => (
+          <button key={opt.key}
+            onClick={() => setFilterSt(opt.key)}
+            className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all ${filterSt === opt.key ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+            {opt.label}
+          </button>
+        ))}
+        <div className="ml-auto flex items-center gap-1">
+          <span className="text-[11px] text-gray-400">Prix :</span>
+          <button onClick={() => setSortKey(sortKey === 'prix_asc' ? 'prix_desc' : 'prix_asc')}
+            className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg border transition-all ${sortKey !== 'none' ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`}>
+            {sortKey === 'prix_asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            {sortKey === 'prix_asc' ? 'Croissant' : 'Décroissant'}
+          </button>
+          {sortKey !== 'none' && (
+            <button onClick={() => setSortKey('none')} className="text-[11px] text-gray-400 hover:text-gray-600 px-1">×</button>
+          )}
+        </div>
+      </div>
+
+      {/* Tableau */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        {/* En-tête colonnes */}
+        <div className="grid grid-cols-[2fr_1.5fr_1.5fr_1fr_1.2fr_auto] gap-0 border-b border-gray-100 bg-gray-50">
+          {['Intervenant / Artisan', 'Lot', 'Prix TTC', 'Statut', 'Analyse VMD', ''].map((h, i) => (
+            <div key={i} className="px-4 py-2.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">{h}</div>
+          ))}
+        </div>
+
+        {sorted.length === 0 ? (
+          <div className="py-12 flex flex-col items-center text-center">
+            <p className="text-sm text-gray-400">Aucun intervenant dans ce filtre</p>
+          </div>
+        ) : (
+          sorted.map(({ lot, devisDocs, status }) => {
+            const cfg      = LOT_STATUS_CFG[status];
+            const lotTotal = devisDocs.reduce((s, d) => s + (analysisData[d.id]?.ttc ?? 0), 0);
+
+            return (
+              <div key={lot.id} className="border-b border-gray-100 last:border-0">
+                {/* Ligne groupe (header du lot) */}
+                <div className="grid grid-cols-[2fr_1.5fr_1.5fr_1fr_1.2fr_auto] gap-0 bg-gray-50/70 border-b border-gray-100 group/lot">
+                  {/* Intervenant */}
+                  <div className="px-4 py-2.5 flex items-center gap-2">
+                    <span className="text-base leading-none">{lot.emoji ?? '🔧'}</span>
+                    <span className="font-bold text-sm text-gray-900 truncate">{lot.nom}</span>
+                  </div>
+                  {/* Lot (statut avancement) */}
+                  <div className="px-4 py-2.5 flex items-center">
+                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border ${cfg.badge}`}>
+                      {cfg.label}
+                    </span>
+                  </div>
+                  {/* Prix total */}
+                  <div className="px-4 py-2.5 flex items-center">
+                    {lotTotal > 0
+                      ? <span className="text-sm font-bold text-gray-700 tabular-nums">{fmtEur(lotTotal)}</span>
+                      : <span className="text-xs text-gray-300">—</span>
+                    }
+                  </div>
+                  {/* Statut (vide — au niveau lot) */}
+                  <div className="px-4 py-2.5" />
+                  {/* Analyse (vide — au niveau lot) */}
+                  <div className="px-4 py-2.5" />
+                  {/* Action */}
+                  <div className="px-4 py-2.5 flex items-center justify-end">
+                    <button
+                      onClick={() => onGoToLot(lot.id)}
+                      className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap">
+                      Voir →
+                    </button>
+                  </div>
+                </div>
+
+                {/* Lignes devis du lot */}
+                {devisDocs.length === 0 ? (
+                  <div className="grid grid-cols-[2fr_1.5fr_1.5fr_1fr_1.2fr_auto] gap-0 bg-red-50/30">
+                    <div className="px-4 py-3 col-span-5 flex items-center gap-2">
+                      <span className="text-[11px] text-red-400 italic">Aucun devis pour cet intervenant</span>
+                    </div>
+                    <div className="px-4 py-3 flex items-center justify-end">
+                      <button
+                        onClick={() => onAddDevisForLot(lot.id)}
+                        className="text-[11px] font-semibold text-blue-600 bg-white hover:bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap">
+                        + Ajouter
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  devisDocs.map((doc, idx) => {
+                    const data    = analysisData[doc.id];
+                    const score   = data?.score;
+                    const ttc     = data?.ttc;
+                    const statut  = doc.devis_statut ?? 'en_cours';
+                    const statutCfg: Record<string, { bg: string; label: string }> = {
+                      en_cours:        { bg: 'bg-blue-50 text-blue-700',    label: 'En cours' },
+                      a_relancer:      { bg: 'bg-orange-50 text-orange-700',label: 'À relancer' },
+                      valide:          { bg: 'bg-emerald-50 text-emerald-700', label: '✓ Validé' },
+                      attente_facture: { bg: 'bg-violet-50 text-violet-700',label: 'Att. facture' },
+                    };
+                    const sc = statutCfg[statut] ?? { bg: 'bg-gray-50 text-gray-500', label: statut };
+                    const scoreCfg = score == null ? null
+                      : score >= 70 ? { bg: 'bg-emerald-50 text-emerald-700', label: '✅ Bon' }
+                      : score >= 45 ? { bg: 'bg-amber-50 text-amber-700',   label: '⚠️ Moyen' }
+                      :               { bg: 'bg-red-50 text-red-600',        label: '🔴 Risqué' };
+
+                    return (
+                      <div key={doc.id}
+                        className={`grid grid-cols-[2fr_1.5fr_1.5fr_1fr_1.2fr_auto] gap-0 hover:bg-gray-50/60 transition-colors ${idx < devisDocs.length - 1 ? 'border-b border-gray-50' : ''}`}>
+                        {/* Artisan / nom */}
+                        <div className="px-4 py-3 pl-10 flex flex-col justify-center">
+                          {doc.signedUrl ? (
+                            <a href={doc.signedUrl} target="_blank" rel="noreferrer"
+                              className="text-sm font-semibold text-blue-700 hover:underline truncate max-w-[180px]">
+                              {doc.nom}
+                            </a>
+                          ) : (
+                            <span className="text-sm font-semibold text-gray-800 truncate max-w-[180px]">{doc.nom}</span>
+                          )}
+                          <span className="text-[10px] text-gray-400 mt-0.5">{fmtDate(doc.created_at)}</span>
+                        </div>
+                        {/* Lot (type de doc) */}
+                        <div className="px-4 py-3 flex items-center">
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${doc.document_type === 'facture' ? 'bg-violet-50 text-violet-700' : 'bg-blue-50 text-blue-700'}`}>
+                            {doc.document_type === 'facture' ? '🧾 Facture' : '📄 Devis'}
+                          </span>
+                        </div>
+                        {/* Prix TTC */}
+                        <div className="px-4 py-3 flex items-center">
+                          {ttc != null
+                            ? <span className="text-sm font-bold text-gray-800 tabular-nums">{fmtEur(ttc)}</span>
+                            : <span className="text-xs text-gray-300">—</span>
+                          }
+                        </div>
+                        {/* Statut */}
+                        <div className="px-4 py-3 flex items-center">
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${sc.bg}`}>{sc.label}</span>
+                        </div>
+                        {/* Analyse VMD */}
+                        <div className="px-4 py-3 flex items-center">
+                          {doc.analyse_id ? (
+                            scoreCfg ? (
+                              <a href={`/analyse/${doc.analyse_id}`} target="_blank" rel="noreferrer"
+                                className={`text-[11px] font-bold px-2.5 py-1 rounded-full transition-colors hover:opacity-80 ${scoreCfg.bg}`}>
+                                {scoreCfg.label}
+                              </a>
+                            ) : (
+                              <a href={`/analyse/${doc.analyse_id}`} target="_blank" rel="noreferrer"
+                                className="text-[11px] text-blue-500 hover:underline">Voir →</a>
+                            )
+                          ) : (
+                            <span className="text-[11px] text-gray-300 italic">—</span>
+                          )}
+                        </div>
+                        {/* Actions */}
+                        <div className="px-4 py-3 flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => onGoToLot(lot.id)}
+                            className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-lg transition-colors whitespace-nowrap">
+                            Détails
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            );
+          })
+        )}
+
+        {/* Footer récap */}
+        <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+          <span className="text-[11px] text-gray-400">
+            {sorted.length} intervenant{sorted.length > 1 ? 's' : ''} · {sorted.reduce((s, g) => s + g.devisDocs.length, 0)} devis
+          </span>
+          <span className="text-[11px] font-semibold text-gray-600 tabular-nums">
+            Total TTC estimé : {fmtEur(sorted.reduce((s, g) => s + g.devisDocs.reduce((ss, d) => ss + (analysisData[d.id]?.ttc ?? 0), 0), 0))}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, refinedBreakdown, onAffineBudget,
   onAddDevisForLot, onAddDocForLot, onGoToLot, onGoToAnalyse, onGoToPlanning, onAddDoc,
   onGoToAssistant, onAddIntervenant, onDeleteLot,
@@ -1389,6 +1687,8 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
   onAddIntervenant: () => void;
   onDeleteLot: (lotId: string) => void;
 }) {
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
+
   const total     = lots.length;
   const validated = lots.filter(l => ['ok', 'termine', 'en_cours', 'contrat_signe'].includes(l.statut ?? '')).length;
   const withDevis = lots.filter(l =>
@@ -1515,9 +1815,12 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
       {/* ── Intervenants (pleine largeur, 3 colonnes) ────────── */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-            Intervenants · {total}
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+              Intervenants · {total}
+            </p>
+            {total > 0 && <ViewToggle value={viewMode} onChange={setViewMode} />}
+          </div>
           <button
             onClick={onAddIntervenant}
             className="flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-xl transition-colors"
@@ -1537,6 +1840,13 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
               <Plus className="h-4 w-4" /> Créer avec l'IA
             </a>
           </div>
+        ) : viewMode === 'list' ? (
+          <IntervenantsListView
+            lots={lots}
+            docsByLot={docsByLot}
+            onAddDevisForLot={onAddDevisForLot}
+            onGoToLot={onGoToLot}
+          />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {lots.map(lot => (
