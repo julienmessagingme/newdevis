@@ -187,40 +187,39 @@ const jsonLd = {
       <HowItWorksSection client:visible />
 
       <!-- ══ Vous préparez des travaux ? ══ -->
-      <section class="py-10 sm:py-12 bg-white border-b border-slate-100">
-        <div class="container max-w-3xl">
+      <section class="py-16 sm:py-20 bg-white border-b border-slate-100">
+        <div class="container">
 
-          <div class="mb-6">
-            <h2 class="text-xl sm:text-2xl font-bold text-slate-900 mb-2">
+          <div class="text-center mb-10">
+            <h2 class="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 mb-3">
               Vous préparez des travaux ?
             </h2>
-            <p class="text-sm text-slate-500 leading-relaxed">
+            <p class="text-base sm:text-lg text-slate-500 max-w-2xl mx-auto">
               Avant de demander un devis, estimez le budget et l'impact réel de vos travaux.
             </p>
           </div>
 
           <!-- Trois cartes -->
-          <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
 
             <!-- Carte A : Impact valorisation → simulateur dédié -->
             <a
               href="/simulateur-valorisation-travaux"
-              class="group flex flex-col border-2 border-slate-200 rounded-2xl p-5 sm:p-6 hover:border-primary/30 hover:shadow-md transition-all bg-white"
+              class="group flex flex-col border-2 border-slate-200 rounded-2xl p-7 sm:p-8 hover:border-primary/40 hover:shadow-xl transition-all bg-white"
             >
-              <!-- Icône TrendingUp -->
-              <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-4 flex-shrink-0">
-                <svg class="h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <div class="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-5 flex-shrink-0 group-hover:scale-110 transition-transform">
+                <svg class="h-7 w-7 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                   <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
                   <polyline points="16 7 22 7 22 13"/>
                 </svg>
               </div>
-              <p class="text-base font-bold text-slate-900 mb-2 leading-snug">
+              <p class="text-lg font-bold text-slate-900 mb-2 leading-snug">
                 Estimer l'impact sur la valeur du bien
               </p>
               <p class="text-sm text-slate-500 leading-relaxed flex-1">
                 Découvrez si vos travaux seront réellement valorisés à la revente ou en location.
               </p>
-              <span class="mt-4 inline-flex items-center justify-center gap-2 bg-primary group-hover:bg-primary/90 text-primary-foreground text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+              <span class="mt-6 inline-flex items-center justify-center gap-2 bg-primary group-hover:bg-primary/90 text-primary-foreground font-semibold px-5 py-3 rounded-xl transition-colors">
                 Lancer le simulateur
                 <svg class="h-4 w-4 transition-transform group-hover:translate-x-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
@@ -231,11 +230,10 @@ const jsonLd = {
             <!-- Carte B : Prix de référence → calculette dédiée -->
             <a
               href="/calculette-travaux"
-              class="group flex flex-col border-2 border-slate-200 rounded-2xl p-5 sm:p-6 hover:border-primary/30 hover:shadow-md transition-all bg-white"
+              class="group flex flex-col border-2 border-slate-200 rounded-2xl p-7 sm:p-8 hover:border-primary/40 hover:shadow-xl transition-all bg-white"
             >
-              <!-- Icône List -->
-              <div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center mb-4 flex-shrink-0">
-                <svg class="h-5 w-5 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <div class="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-5 flex-shrink-0 group-hover:scale-110 transition-transform">
+                <svg class="h-7 w-7 text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                   <line x1="8" y1="6" x2="21" y2="6"/>
                   <line x1="8" y1="12" x2="21" y2="12"/>
                   <line x1="8" y1="18" x2="21" y2="18"/>
@@ -244,14 +242,14 @@ const jsonLd = {
                   <line x1="3" y1="18" x2="3.01" y2="18"/>
                 </svg>
               </div>
-              <p class="text-base font-bold text-slate-900 mb-2 leading-snug">
+              <p class="text-lg font-bold text-slate-900 mb-2 leading-snug">
                 Estimer le prix moyen des travaux
               </p>
               <p class="text-sm text-slate-500 leading-relaxed flex-1">
                 Consultez les prix observés sur le marché pour chaque type de travaux.
               </p>
-              <span class="mt-4 inline-flex items-center justify-center gap-2 bg-primary group-hover:bg-primary/90 text-primary-foreground text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-                Accéder à notre calculette de travaux
+              <span class="mt-6 inline-flex items-center justify-center gap-2 bg-primary group-hover:bg-primary/90 text-primary-foreground font-semibold px-5 py-3 rounded-xl transition-colors">
+                Accéder à la calculette de travaux
                 <svg class="h-4 w-4 transition-transform group-hover:translate-x-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                 </svg>
@@ -261,21 +259,20 @@ const jsonLd = {
             <!-- Carte C : Blog → conseils travaux -->
             <a
               href="/blog"
-              class="group flex flex-col border-2 border-slate-200 rounded-2xl p-5 sm:p-6 hover:border-primary/30 hover:shadow-md transition-all bg-white"
+              class="group flex flex-col border-2 border-slate-200 rounded-2xl p-7 sm:p-8 hover:border-amber-300 hover:shadow-xl transition-all bg-white"
             >
-              <!-- Icône BookOpen -->
-              <div class="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center mb-4 flex-shrink-0">
-                <svg class="h-5 w-5 text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <div class="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center mb-5 flex-shrink-0 group-hover:scale-110 transition-transform">
+                <svg class="h-7 w-7 text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
                 </svg>
               </div>
-              <p class="text-base font-bold text-slate-900 mb-2 leading-snug">
+              <p class="text-lg font-bold text-slate-900 mb-2 leading-snug">
                 Conseils travaux
               </p>
               <p class="text-sm text-slate-500 leading-relaxed flex-1">
                 Guides pratiques, erreurs à éviter et bonnes pratiques pour réussir vos travaux.
               </p>
-              <span class="mt-4 inline-flex items-center justify-center gap-2 bg-amber-500 group-hover:bg-amber-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+              <span class="mt-6 inline-flex items-center justify-center gap-2 bg-amber-500 group-hover:bg-amber-600 text-white font-semibold px-5 py-3 rounded-xl transition-colors">
                 Voir les conseils
                 <svg class="h-4 w-4 transition-transform group-hover:translate-x-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
