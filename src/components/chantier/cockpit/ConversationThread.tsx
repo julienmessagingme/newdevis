@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
-import { ArrowLeft, Loader2, MessageSquare } from "lucide-react";
+import { ArrowLeft, Loader2, MessageSquare, Download } from "lucide-react";
+import { generateConversationPdf } from "@/utils/generateConversationPdf";
 import MessageComposer from "./MessageComposer";
 
 interface ConversationThreadProps {
@@ -23,6 +24,7 @@ interface ConversationThreadProps {
   sending: boolean;
   onBack: () => void;
   variables: Record<string, string>;
+  chantierNom?: string;
 }
 
 function formatTime(iso: string): string {
@@ -49,6 +51,7 @@ export default function ConversationThread({
   sending,
   onBack,
   variables,
+  chantierNom = "",
 }: ConversationThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -75,16 +78,29 @@ export default function ConversationThread({
           </p>
         </div>
 
-        {conversation.contact_phone && (
-          <a
-            href={`https://wa.me/${formatPhone(conversation.contact_phone)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-200 transition-colors"
-          >
-            WhatsApp
-          </a>
-        )}
+        <div className="flex items-center gap-2">
+          {messages.length > 0 && (
+            <button
+              type="button"
+              onClick={() => generateConversationPdf(conversation, messages, chantierNom)}
+              className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200 transition-colors"
+              title="Exporter en PDF"
+            >
+              <Download className="h-3 w-3" />
+              PDF
+            </button>
+          )}
+          {conversation.contact_phone && (
+            <a
+              href={`https://wa.me/${formatPhone(conversation.contact_phone)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-200 transition-colors"
+            >
+              WhatsApp
+            </a>
+          )}
+        </div>
       </div>
 
       {/* Messages area */}

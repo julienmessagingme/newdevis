@@ -249,6 +249,7 @@ export default function MessagerieSection({
             sending={sending}
             onBack={handleBack}
             variables={activeTemplateVars}
+            chantierNom={chantierNom}
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-3">
