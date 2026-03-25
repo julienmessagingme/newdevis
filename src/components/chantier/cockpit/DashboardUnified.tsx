@@ -532,7 +532,7 @@ const DEVIS_STATUT_STYLE: Record<DevisStatut, string> = {
 
 // ── Lot Detail ────────────────────────────────────────────────────────────────
 
-function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token }: {
+function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token, onDocStatutUpdated }: {
   lot: LotChantier;
   docs: DocumentChantier[];
   onAddDoc: () => void;
@@ -540,6 +540,7 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
   onBack: () => void;
   chantierId: string | undefined;
   token: string | null | undefined;
+  onDocStatutUpdated?: (docId: string, statut: string) => void;
 }) {
   // ── Séparation par type ──────────────────────────────────────────────────
   const devisDocs = docs.filter(d => d.document_type === 'devis' || d.document_type === 'facture');
@@ -565,11 +566,14 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
     setStatutMap(prev => ({ ...prev, [docId]: statut }));
     if (!chantierId || !token) return;
     try {
-      await fetch(`/api/chantier/${chantierId}/documents/${docId}`, {
+      const res = await fetch(`/api/chantier/${chantierId}/documents/${docId}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ devisStatut: statut }),
       });
+      if (res.ok) {
+        onDocStatutUpdated?.(docId, statut);
+      }
     } catch { /* silencieux */ }
   }
 
@@ -1432,11 +1436,8 @@ const LOT_STATUS_CFG: Record<LotListStatus, { dot: string; label: string; badge:
   valide:      { dot: 'bg-emerald-400', label: '🟢 Validé',              badge: 'bg-emerald-50 border-emerald-200 text-emerald-700', text: 'text-emerald-600' },
 };
 
-type SortKey = 'none' | 'prix_asc' | 'prix_desc' | 'statut_asc' | 'statut_desc' | 'vmd_asc' | 'vmd_desc';
+type SortKey = 'none' | 'prix_asc' | 'prix_desc';
 type FilterStatus = 'all' | LotListStatus;
-
-const LOT_STATUS_ORDER: Record<LotListStatus, number> = { bloque: 0, a_comparer: 1, comparaison: 2, valide: 3 };
-const VMD_ORDER: Record<string, number> = { ROUGE: 1, ORANGE: 2, VERT: 3 };
 
 function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, onGoToLot, onGoToDiy, chantierId, token, onDocStatutUpdated }: {
   lots: LotChantier[];
@@ -1514,38 +1515,15 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
   // Filtrage par statut
   const filtered = filterSt === 'all' ? groups : groups.filter(g => g.status === filterSt);
 
-  // VMD best score d'un lot (VERT > ORANGE > ROUGE > null)
-  const lotBestVmd = useCallback((devisDocs: DocumentChantier[]) => {
-    let best = 0;
-    for (const d of devisDocs) {
-      const s = analysisData[d.id]?.score;
-      if (s && (VMD_ORDER[s] ?? 0) > best) best = VMD_ORDER[s] ?? 0;
-    }
-    return best;
-  }, [analysisData]);
-
-  // Tri multi-critères
+  // Tri par prix (total TTC du lot ou premier devis)
   const sorted = useMemo(() => {
     if (sortKey === 'none') return filtered;
     return [...filtered].sort((a, b) => {
-      if (sortKey === 'prix_asc' || sortKey === 'prix_desc') {
-        const pA = a.devisDocs.reduce((s, d) => s + (analysisData[d.id]?.ttc ?? 0), 0);
-        const pB = b.devisDocs.reduce((s, d) => s + (analysisData[d.id]?.ttc ?? 0), 0);
-        return sortKey === 'prix_asc' ? pA - pB : pB - pA;
-      }
-      if (sortKey === 'statut_asc' || sortKey === 'statut_desc') {
-        const oA = LOT_STATUS_ORDER[a.status] ?? 0;
-        const oB = LOT_STATUS_ORDER[b.status] ?? 0;
-        return sortKey === 'statut_asc' ? oA - oB : oB - oA;
-      }
-      if (sortKey === 'vmd_asc' || sortKey === 'vmd_desc') {
-        const vA = lotBestVmd(a.devisDocs);
-        const vB = lotBestVmd(b.devisDocs);
-        return sortKey === 'vmd_asc' ? vA - vB : vB - vA;
-      }
-      return 0;
+      const priceA = a.devisDocs.reduce((s, d) => s + (analysisData[d.id]?.ttc ?? 0), 0);
+      const priceB = b.devisDocs.reduce((s, d) => s + (analysisData[d.id]?.ttc ?? 0), 0);
+      return sortKey === 'prix_asc' ? priceA - priceB : priceB - priceA;
     });
-  }, [filtered, sortKey, analysisData, lotBestVmd]);
+  }, [filtered, sortKey, analysisData]);
 
   const filterOptions: { key: FilterStatus; label: string }[] = [
     { key: 'all',        label: 'Tous' },
@@ -1567,37 +1545,26 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
             {opt.label}
           </button>
         ))}
-        {sortKey !== 'none' && (
-          <button onClick={() => setSortKey('none')} className="ml-auto text-[11px] text-gray-400 hover:text-gray-600 border border-gray-200 rounded-lg px-2 py-1">
-            × Réinitialiser tri
+        <div className="ml-auto flex items-center gap-1">
+          <span className="text-[11px] text-gray-400">Prix :</span>
+          <button onClick={() => setSortKey(sortKey === 'prix_asc' ? 'prix_desc' : 'prix_asc')}
+            className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg border transition-all ${sortKey !== 'none' ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'}`}>
+            {sortKey === 'prix_asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            {sortKey === 'prix_asc' ? 'Croissant' : 'Décroissant'}
           </button>
-        )}
+          {sortKey !== 'none' && (
+            <button onClick={() => setSortKey('none')} className="text-[11px] text-gray-400 hover:text-gray-600 px-1">×</button>
+          )}
+        </div>
       </div>
 
       {/* Tableau */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        {/* En-tête colonnes — cliquables pour le tri */}
+        {/* En-tête colonnes */}
         <div className="grid grid-cols-[2fr_1.5fr_1.5fr_1fr_1.2fr_auto] gap-0 border-b border-gray-100 bg-gray-50">
-          {/* Colonnes non triables */}
-          <div className="px-4 py-2.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Intervenant / Artisan</div>
-          <div className="px-4 py-2.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Lot</div>
-          {/* Colonnes triables */}
-          {([ ['Prix TTC', 'prix_asc', 'prix_desc'], ['Statut', 'statut_asc', 'statut_desc'], ['Analyse VMD', 'vmd_asc', 'vmd_desc'] ] as const).map(([label, asc, desc]) => {
-            const isAsc  = sortKey === asc;
-            const isDesc = sortKey === desc;
-            const active = isAsc || isDesc;
-            return (
-              <button key={label}
-                onClick={() => setSortKey(isAsc ? desc : isDesc ? 'none' : asc)}
-                className={`px-4 py-2.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider transition-colors text-left ${active ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}>
-                {label}
-                {isAsc  && <ChevronUp   className="h-3 w-3 shrink-0" />}
-                {isDesc && <ChevronDown className="h-3 w-3 shrink-0" />}
-                {!active && <span className="opacity-30 text-[9px]">⇅</span>}
-              </button>
-            );
-          })}
-          <div className="px-4 py-2.5" />
+          {['Intervenant / Artisan', 'Lot', 'Prix TTC', 'Statut', 'Analyse VMD', ''].map((h, i) => (
+            <div key={i} className="px-4 py-2.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">{h}</div>
+          ))}
         </div>
 
         {sorted.length === 0 ? (
@@ -1701,20 +1668,11 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
                           )}
                           <span className="text-[10px] text-gray-400 mt-0.5">{fmtDate(doc.created_at)}</span>
                         </div>
-                        {/* Type de doc — cliquable si signedUrl disponible */}
+                        {/* Type de doc */}
                         <div className="px-4 py-3 flex items-center">
-                          {doc.signedUrl ? (
-                            <a href={doc.signedUrl} target="_blank" rel="noreferrer"
-                              title="Ouvrir le document"
-                              className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full transition-all hover:brightness-95 hover:shadow-sm cursor-pointer ${doc.document_type === 'facture' ? 'bg-violet-50 text-violet-700' : 'bg-blue-50 text-blue-700'}`}>
-                              {doc.document_type === 'facture' ? '🧾 Facture' : '📄 Devis'}
-                              <ExternalLink className="h-2.5 w-2.5 opacity-50" />
-                            </a>
-                          ) : (
-                            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${doc.document_type === 'facture' ? 'bg-violet-50 text-violet-700' : 'bg-blue-50 text-blue-700'}`}>
-                              {doc.document_type === 'facture' ? '🧾 Facture' : '📄 Devis'}
-                            </span>
-                          )}
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${doc.document_type === 'facture' ? 'bg-violet-50 text-violet-700' : 'bg-blue-50 text-blue-700'}`}>
+                            {doc.document_type === 'facture' ? '🧾 Facture' : '📄 Devis'}
+                          </span>
                         </div>
                         {/* Prix TTC */}
                         <div className="px-4 py-3 flex items-center">
@@ -1860,7 +1818,6 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
 function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, refinedBreakdown, onAffineBudget,
   onAddDevisForLot, onAddDocForLot, onGoToLot, onGoToAnalyse, onGoToPlanning, onAddDoc,
   onGoToAssistant, onAddIntervenant, onDeleteLot, onGoToDiy, chantierId, token, onDocStatutUpdated,
-  viewMode, onViewModeChange,
 }: {
   lots: LotChantier[];
   documents: DocumentChantier[];
@@ -1882,9 +1839,8 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
   chantierId: string;
   token: string | null | undefined;
   onDocStatutUpdated?: (docId: string, statut: string) => void;
-  viewMode: 'cards' | 'list';
-  onViewModeChange: (v: 'cards' | 'list') => void;
 }) {
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
 
   const total     = lots.length;
   const validated = lots.filter(l => ['ok', 'termine', 'en_cours', 'contrat_signe'].includes(l.statut ?? '')).length;
@@ -2016,7 +1972,7 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
             <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
               Intervenants · {total}
             </p>
-            {total > 0 && <ViewToggle value={viewMode} onChange={onViewModeChange} />}
+            {total > 0 && <ViewToggle value={viewMode} onChange={setViewMode} />}
           </div>
           <button
             onClick={onAddIntervenant}
@@ -2994,8 +2950,6 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
   const [showBudgetDetail, setShowBudgetDetail]   = useState(false);
   const [activeSection, setActiveSection] = useState<Section>('budget');
   const [mobileOpen, setMobileOpen]       = useState(false);
-  // Vue intervenants persistée : reste en 'list' jusqu'à clic explicite sur 'Cartes'
-  const [intervenantsView, setIntervenantsView] = useState<'cards' | 'list'>('cards');
   const [documents, setDocuments]         = useState<DocumentChantier[]>([]);
   const [selectedLotId, setSelectedLotId] = useState<string | null>(null);
   const [uploadModal, setUploadModal]     = useState<{ open: boolean; lotId?: string; defaultType?: DocumentType }>({ open: false });
@@ -3109,6 +3063,9 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
           onBack={() => { setSelectedLotId(null); navigateTo('budget'); }}
           chantierId={chantierId}
           token={token}
+          onDocStatutUpdated={(docId, statut) =>
+            setDocuments(prev => prev.map(d => d.id === docId ? { ...d, devis_statut: statut as any } : d))
+          }
         />
       );
     }
@@ -3167,8 +3124,6 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             onGoToDiy={() => navigateTo('diy')}
             chantierId={chantierId!}
             token={token}
-            viewMode={intervenantsView}
-            onViewModeChange={setIntervenantsView}
             onDocStatutUpdated={(docId, statut) =>
               setDocuments(prev => prev.map(d => d.id === docId ? { ...d, devis_statut: statut as any } : d))
             }
@@ -3189,6 +3144,9 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             onBack={() => { setSelectedLotId(null); navigateTo('budget'); }}
             chantierId={chantierId}
             token={token}
+            onDocStatutUpdated={(docId, statut) =>
+              setDocuments(prev => prev.map(d => d.id === docId ? { ...d, devis_statut: statut as any } : d))
+            }
           />
         );
       }
