@@ -11,7 +11,77 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
+
+// ─── Category mapping ────────────────────────────────────
+// Maps catalog_job_type prefixes to main trade categories
+const PREFIX_TO_CATEGORY: Record<string, string> = {
+  electricite: "Électricité",
+  plomberie: "Plomberie",
+  peinture: "Peinture",
+  carrelage: "Carrelage",
+  faience: "Carrelage",
+  menuiserie: "Menuiseries",
+  porte_fenetre: "Menuiseries",
+  baie_vitree: "Menuiseries",
+  fenetre: "Menuiseries",
+  chassis: "Menuiseries",
+  volet: "Menuiseries",
+  porte: "Menuiseries",
+  maconnerie: "Maçonnerie",
+  isolation: "Isolation",
+  toiture: "Toiture",
+  couverture: "Toiture",
+  zinguerie: "Toiture",
+  chauffage: "Chauffage",
+  climatisation: "Chauffage",
+  pompe_a_chaleur: "Chauffage",
+  demolition: "Démolition",
+  evacuation: "Divers",
+  revetement: "Revêtement sol",
+  parquet: "Revêtement sol",
+  cloison: "Cloisons / Placo",
+  placo: "Cloisons / Placo",
+  doublage: "Cloisons / Placo",
+  facade: "Façade",
+  ravalement: "Façade",
+  charpente: "Charpente",
+  terrasse: "Terrasse",
+  amenagement: "Aménagement",
+  cuisine: "Cuisine",
+  salle_de_bain: "Salle de bain",
+  sdb: "Salle de bain",
+  assainissement: "Assainissement",
+  terrassement: "Terrassement",
+  enduit: "Façade",
+  etancheite: "Étanchéité",
+  serrurerie: "Serrurerie",
+  vitrerie: "Menuiseries",
+  stores: "Menuiseries",
+  domotique: "Électricité",
+  alarme: "Électricité",
+  vmc: "Ventilation",
+  ventilation: "Ventilation",
+};
+
+function getCategoryFromJobType(jt: JobTypeDisplayRow): string {
+  // Try catalog_job_types first
+  for (const catalogId of jt.catalogJobTypes) {
+    const lower = catalogId.toLowerCase();
+    // Try longest prefix match first
+    for (const [prefix, cat] of Object.entries(PREFIX_TO_CATEGORY)) {
+      if (lower.startsWith(prefix)) return cat;
+    }
+  }
+  // Fallback: try to infer from the label
+  const label = jt.jobTypeLabel.toLowerCase();
+  for (const [prefix, cat] of Object.entries(PREFIX_TO_CATEGORY)) {
+    if (label.includes(prefix.replace(/_/g, " "))) return cat;
+  }
+  return "Divers";
+}
 
 // ─── Types ───────────────────────────────────────────────
 interface AnalysisRaw {
@@ -22,18 +92,21 @@ interface AnalysisRaw {
   raw_text: string | null;
 }
 
+interface SubRow {
+  jobTypeLabel: string;
+  category: string;
+  amountHT: number;
+  marketAvgHT: number;
+}
+
 interface AnalysisRow {
   id: string;
   fileName: string;
   score: string | null;
   createdAt: string;
-  jobTypes: Map<string, number>; // label → devisTotalHT
+  categoryTotals: Map<string, number>;
+  subRows: SubRow[];
   totalHT: number;
-}
-
-interface ColumnMarketData {
-  avgHT: number;
-  count: number;
 }
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -55,6 +128,16 @@ const SuiviBudget = () => {
   const { isPremium, isLoading: premiumLoading } = usePremium();
   const [analyses, setAnalyses] = useState<AnalysisRaw[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggleExpand = (id: string) => {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   // Auth + premium guard
   useEffect(() => {
@@ -86,11 +169,10 @@ const SuiviBudget = () => {
   }, [isPremium, premiumLoading]);
 
   // Build matrix data
-  const { rows, columns, columnTotals, columnMarket, grandTotal, grandMarketAvg } = useMemo(() => {
-    const allJobTypes = new Set<string>();
+  const { rows, categories, categoryTotals, categoryMarket, grandTotal, grandMarketAvg } = useMemo(() => {
+    const allCategories = new Set<string>();
     const parsedRows: AnalysisRow[] = [];
-    // Accumulate market data per column
-    const marketAcc: Map<string, ColumnMarketData> = new Map();
+    const marketAcc: Map<string, { total: number; count: number }> = new Map();
 
     for (const analysis of analyses) {
       let rawData: unknown = null;
@@ -100,23 +182,31 @@ const SuiviBudget = () => {
       } catch { /* ignore */ }
 
       const jtRows: JobTypeDisplayRow[] = processJobTypes(rawData);
-      const jobTypes = new Map<string, number>();
+      const catTotals = new Map<string, number>();
+      const subRows: SubRow[] = [];
       let totalHT = 0;
 
       for (const jt of jtRows) {
-        const label = jt.jobTypeLabel;
-        if (label === "Autre") continue; // Skip uncategorized
-        allJobTypes.add(label);
+        if (jt.jobTypeLabel === "Autre") continue;
+        const category = getCategoryFromJobType(jt);
+        allCategories.add(category);
         const amount = jt.devisTotalHT ?? 0;
-        jobTypes.set(label, amount);
+        catTotals.set(category, (catTotals.get(category) ?? 0) + amount);
         totalHT += amount;
 
-        // Accumulate market averages
+        subRows.push({
+          jobTypeLabel: jt.jobTypeLabel,
+          category,
+          amountHT: amount,
+          marketAvgHT: jt.theoreticalAvgHT,
+        });
+
+        // Market accumulation per category
         if (jt.theoreticalAvgHT > 0) {
-          const existing = marketAcc.get(label) || { avgHT: 0, count: 0 };
-          existing.avgHT += jt.theoreticalAvgHT;
-          existing.count += 1;
-          marketAcc.set(label, existing);
+          const acc = marketAcc.get(category) || { total: 0, count: 0 };
+          acc.total += jt.theoreticalAvgHT;
+          acc.count += 1;
+          marketAcc.set(category, acc);
         }
       }
 
@@ -125,32 +215,33 @@ const SuiviBudget = () => {
         fileName: analysis.file_name,
         score: analysis.score,
         createdAt: analysis.created_at,
-        jobTypes,
+        categoryTotals: catTotals,
+        subRows,
         totalHT,
       });
     }
 
-    // Sort columns alphabetically
-    const cols = Array.from(allJobTypes).sort((a, b) => a.localeCompare(b, "fr"));
+    // Sort categories: biggest total first
+    const catSums = new Map<string, number>();
+    for (const cat of allCategories) {
+      let sum = 0;
+      for (const row of parsedRows) sum += row.categoryTotals.get(cat) ?? 0;
+      catSums.set(cat, sum);
+    }
+    const cats = Array.from(allCategories).sort((a, b) => (catSums.get(b) ?? 0) - (catSums.get(a) ?? 0));
 
     // Column totals
     const colTotals = new Map<string, number>();
-    for (const col of cols) {
-      let sum = 0;
-      for (const row of parsedRows) {
-        sum += row.jobTypes.get(col) ?? 0;
-      }
-      colTotals.set(col, sum);
-    }
+    for (const cat of cats) colTotals.set(cat, catSums.get(cat) ?? 0);
 
-    // Column market averages (weighted average across analyses)
+    // Column market averages
     const colMarket = new Map<string, number>();
     let gMarket = 0;
-    for (const col of cols) {
-      const acc = marketAcc.get(col);
+    for (const cat of cats) {
+      const acc = marketAcc.get(cat);
       if (acc && acc.count > 0) {
-        const avg = acc.avgHT / acc.count;
-        colMarket.set(col, avg);
+        const avg = acc.total / acc.count;
+        colMarket.set(cat, avg);
         gMarket += avg;
       }
     }
@@ -159,9 +250,9 @@ const SuiviBudget = () => {
 
     return {
       rows: parsedRows,
-      columns: cols,
-      columnTotals: colTotals,
-      columnMarket: colMarket,
+      categories: cats,
+      categoryTotals: colTotals,
+      categoryMarket: colMarket,
       grandTotal: gTotal,
       grandMarketAvg: gMarket,
     };
@@ -206,7 +297,7 @@ const SuiviBudget = () => {
               <Button>Analyser un devis</Button>
             </a>
           </div>
-        ) : columns.length === 0 ? (
+        ) : categories.length === 0 ? (
           <div className="text-center py-16 bg-card border border-border rounded-xl">
             <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="font-semibold text-foreground mb-2">Aucun type de lot identifié</h3>
@@ -223,8 +314,8 @@ const SuiviBudget = () => {
                 <p className="text-2xl font-bold text-foreground">{rows.length}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-4">
-                <p className="text-xs text-muted-foreground mb-1">Types de lots</p>
-                <p className="text-2xl font-bold text-foreground">{columns.length}</p>
+                <p className="text-xs text-muted-foreground mb-1">Corps de métier</p>
+                <p className="text-2xl font-bold text-foreground">{categories.length}</p>
               </div>
               <div className="bg-card border border-border rounded-xl p-4">
                 <p className="text-xs text-muted-foreground mb-1">Budget total devis</p>
@@ -244,68 +335,116 @@ const SuiviBudget = () => {
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="bg-muted/50">
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground sticky left-0 bg-muted/50 z-10 min-w-[200px] border-r border-border">
+                      <th className="text-left py-3 px-4 font-medium text-muted-foreground sticky left-0 bg-muted/50 z-10 min-w-[220px] border-r border-border">
                         Devis
                       </th>
-                      {columns.map(col => (
-                        <th key={col} className="text-right py-3 px-3 font-medium text-muted-foreground min-w-[130px] whitespace-nowrap">
-                          {col}
+                      {categories.map(cat => (
+                        <th key={cat} className="text-right py-3 px-3 font-medium text-muted-foreground min-w-[120px] whitespace-nowrap">
+                          {cat}
                         </th>
                       ))}
-                      <th className="text-right py-3 px-4 font-bold text-foreground min-w-[120px] border-l border-border bg-muted/70">
+                      <th className="text-right py-3 px-4 font-bold text-foreground min-w-[110px] border-l border-border bg-muted/70">
                         Total HT
                       </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((row, idx) => (
-                      <tr
-                        key={row.id}
-                        className={`border-t border-border/50 hover:bg-muted/20 ${idx % 2 === 0 ? "" : "bg-muted/10"}`}
-                      >
-                        <td className="py-3 px-4 sticky left-0 bg-card z-10 border-r border-border">
-                          <a
-                            href={`/analyse/${row.id}`}
-                            className="hover:underline text-foreground font-medium text-xs block truncate max-w-[180px]"
-                            title={row.fileName}
+                    {rows.map((row, idx) => {
+                      const isOpen = expanded.has(row.id);
+                      return (
+                        <>
+                          {/* Main devis row */}
+                          <tr
+                            key={row.id}
+                            className={`border-t border-border/50 hover:bg-muted/20 cursor-pointer select-none ${idx % 2 === 0 ? "" : "bg-muted/10"}`}
+                            onClick={() => toggleExpand(row.id)}
                           >
-                            {row.fileName}
-                          </a>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[10px] text-muted-foreground">{fmtDate(row.createdAt)}</span>
-                            {row.score && (
-                              <span className={`text-[10px] font-bold ${scoreColor(row.score)}`}>
-                                {row.score}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        {columns.map(col => {
-                          const val = row.jobTypes.get(col);
-                          return (
-                            <td key={col} className="text-right py-3 px-3 font-mono text-xs">
-                              {val != null && val > 0 ? (
-                                <span className="text-foreground">{fmt(val)}</span>
-                              ) : (
-                                <span className="text-muted-foreground/30">—</span>
-                              )}
+                            <td className="py-3 px-4 sticky left-0 bg-card z-10 border-r border-border">
+                              <div className="flex items-center gap-2">
+                                {isOpen
+                                  ? <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                  : <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                }
+                                <div className="min-w-0">
+                                  <span className="text-foreground font-medium text-xs block truncate max-w-[170px]" title={row.fileName}>
+                                    {row.fileName}
+                                  </span>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <span className="text-[10px] text-muted-foreground">{fmtDate(row.createdAt)}</span>
+                                    {row.score && (
+                                      <span className={`text-[10px] font-bold ${scoreColor(row.score)}`}>
+                                        {row.score}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
                             </td>
-                          );
-                        })}
-                        <td className="text-right py-3 px-4 font-mono text-xs font-bold text-foreground border-l border-border bg-muted/10">
-                          {fmt(row.totalHT)}
-                        </td>
-                      </tr>
-                    ))}
+                            {categories.map(cat => {
+                              const val = row.categoryTotals.get(cat);
+                              return (
+                                <td key={cat} className="text-right py-3 px-3 font-mono text-xs">
+                                  {val != null && val > 0 ? (
+                                    <span className="text-foreground font-medium">{fmt(val)}</span>
+                                  ) : (
+                                    <span className="text-muted-foreground/30">—</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            <td className="text-right py-3 px-4 font-mono text-xs font-bold text-foreground border-l border-border bg-muted/10">
+                              {fmt(row.totalHT)}
+                            </td>
+                          </tr>
+
+                          {/* Expanded sub-rows */}
+                          {isOpen && row.subRows.map((sub, si) => (
+                            <tr
+                              key={`${row.id}-sub-${si}`}
+                              className="border-t border-border/20 bg-accent/30"
+                            >
+                              <td className="py-2 px-4 pl-12 sticky left-0 bg-accent/30 z-10 border-r border-border">
+                                <span className="text-xs text-muted-foreground">{sub.jobTypeLabel}</span>
+                              </td>
+                              {categories.map(cat => (
+                                <td key={cat} className="text-right py-2 px-3 font-mono text-[11px]">
+                                  {cat === sub.category && sub.amountHT > 0 ? (
+                                    <div>
+                                      <span className="text-foreground">{fmt(sub.amountHT)}</span>
+                                      {sub.marketAvgHT > 0 && (
+                                        <div className={`text-[9px] mt-0.5 ${
+                                          sub.amountHT <= sub.marketAvgHT * 0.9
+                                            ? "text-score-green"
+                                            : sub.amountHT >= sub.marketAvgHT * 1.1
+                                            ? "text-score-red"
+                                            : "text-muted-foreground"
+                                        }`}>
+                                          moy. {fmt(sub.marketAvgHT)}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted-foreground/20">·</span>
+                                  )}
+                                </td>
+                              ))}
+                              <td className="text-right py-2 px-4 font-mono text-[11px] text-muted-foreground border-l border-border bg-accent/20">
+                                {fmt(sub.amountHT)}
+                              </td>
+                            </tr>
+                          ))}
+                        </>
+                      );
+                    })}
 
                     {/* Total row */}
                     <tr className="border-t-2 border-border bg-primary/5 font-bold">
                       <td className="py-3 px-4 sticky left-0 bg-primary/5 z-10 border-r border-border text-foreground">
                         TOTAL
                       </td>
-                      {columns.map(col => (
-                        <td key={col} className="text-right py-3 px-3 font-mono text-xs text-foreground">
-                          {fmt(columnTotals.get(col) ?? 0)}
+                      {categories.map(cat => (
+                        <td key={cat} className="text-right py-3 px-3 font-mono text-xs text-foreground">
+                          {fmt(categoryTotals.get(cat) ?? 0)}
                         </td>
                       ))}
                       <td className="text-right py-3 px-4 font-mono text-xs text-foreground border-l border-border bg-primary/10">
@@ -316,24 +455,19 @@ const SuiviBudget = () => {
                     {/* Market average row */}
                     <tr className="border-t border-border bg-blue-50/50">
                       <td className="py-3 px-4 sticky left-0 bg-blue-50/50 z-10 border-r border-border">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-medium text-blue-700">Prix marché moy.</span>
-                        </div>
+                        <span className="text-xs font-medium text-blue-700">Prix marché moy.</span>
                       </td>
-                      {columns.map(col => {
-                        const marketAvg = columnMarket.get(col);
-                        const total = columnTotals.get(col) ?? 0;
+                      {categories.map(cat => {
+                        const marketAvg = categoryMarket.get(cat);
+                        const total = categoryTotals.get(cat) ?? 0;
                         if (!marketAvg || marketAvg <= 0) {
                           return (
-                            <td key={col} className="text-right py-3 px-3 text-xs text-muted-foreground/30">
-                              —
-                            </td>
+                            <td key={cat} className="text-right py-3 px-3 text-xs text-muted-foreground/30">—</td>
                           );
                         }
-                        const diff = total - marketAvg;
-                        const pct = (diff / marketAvg) * 100;
+                        const pct = ((total - marketAvg) / marketAvg) * 100;
                         return (
-                          <td key={col} className="text-right py-3 px-3">
+                          <td key={cat} className="text-right py-3 px-3">
                             <div className="font-mono text-xs text-blue-700">{fmt(marketAvg)}</div>
                             {total > 0 && (
                               <div className={`flex items-center justify-end gap-0.5 text-[10px] mt-0.5 ${
@@ -379,6 +513,9 @@ const SuiviBudget = () => {
               <div className="flex items-center gap-1.5">
                 <TrendingUp className="h-3 w-3 text-score-red" />
                 <span>Au dessus du marché (+10%+)</span>
+              </div>
+              <div className="flex items-center gap-1.5 ml-auto">
+                <span>Cliquez sur un devis pour voir le détail par poste</span>
               </div>
             </div>
           </>
