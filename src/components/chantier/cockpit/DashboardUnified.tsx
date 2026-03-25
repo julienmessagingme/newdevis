@@ -1460,8 +1460,11 @@ function IntervenantsListView({ lots, docsByLot, onAddDevisForLot, onGoToLot, ch
       const m: Record<string, { score: number | null; ttc: number | null }> = {};
       data.forEach(a => {
         const n = Number(a.score);
+        // raw_text peut être TEXT (JSON string) ou JSONB selon la ligne — toujours parser
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const totaux = (a.raw_text as any)?.extracted?.totaux;
+        let raw: any = a.raw_text;
+        if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = null; } }
+        const totaux = raw?.extracted?.totaux;
         m[a.id] = {
           score: a.score != null && !isNaN(n) ? n : null,
           ttc:   totaux?.ttc != null && !isNaN(Number(totaux.ttc)) ? Number(totaux.ttc) : null,
