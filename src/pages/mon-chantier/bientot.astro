@@ -9,25 +9,69 @@ export const prerender = false;
   description="La fonctionnalité Mon Chantier arrive bientôt sur VerifierMonDevis.fr"
   noindex={true}
 >
-  <div class="min-h-screen bg-background flex items-center justify-center px-4">
-    <div class="text-center max-w-lg">
-      <div class="text-6xl mb-6">🏗️</div>
-      <h1 class="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-        Bientôt disponible
-      </h1>
-      <p class="text-lg text-muted-foreground mb-3">
-        <strong class="text-foreground">Mon Chantier</strong> est en cours de développement.
-      </p>
-      <p class="text-muted-foreground mb-8">
-        Gérez vos devis, votre budget, vos contacts artisans et suivez l'avancement de vos travaux — le tout depuis un seul espace.
-      </p>
-      <div class="flex flex-col sm:flex-row gap-3 justify-center">
-        <a href="/tableau-de-bord" class="inline-flex items-center justify-center rounded-lg bg-primary text-primary-foreground px-6 py-3 text-sm font-medium hover:bg-primary/90 transition-colors">
-          Retour au tableau de bord
-        </a>
-        <a href="/nouvelle-analyse" class="inline-flex items-center justify-center rounded-lg border border-border bg-card text-foreground px-6 py-3 text-sm font-medium hover:bg-accent transition-colors">
-          Analyser un devis
-        </a>
+  <div class="min-h-screen bg-background px-4 py-16">
+    <div class="max-w-2xl mx-auto">
+      <!-- Hero -->
+      <div class="text-center mb-12">
+        <div class="text-6xl mb-6">🏗️</div>
+        <h1 class="text-3xl sm:text-4xl font-bold text-foreground mb-4">
+          Mon Chantier arrive bientôt
+        </h1>
+        <p class="text-lg text-muted-foreground">
+          Votre espace centralisé pour piloter vos travaux de A à Z.
+        </p>
+      </div>
+
+      <!-- Arguments -->
+      <div class="grid sm:grid-cols-2 gap-4 mb-12">
+        <div class="bg-card border border-border rounded-2xl p-5">
+          <div class="text-2xl mb-3">📋</div>
+          <h3 class="font-semibold text-foreground mb-1">Suivi de chantier centralisé</h3>
+          <p class="text-sm text-muted-foreground">Tous vos devis, artisans et échanges regroupés dans un seul tableau de bord. Fini les fichiers éparpillés.</p>
+        </div>
+
+        <div class="bg-card border border-border rounded-2xl p-5">
+          <div class="text-2xl mb-3">💰</div>
+          <h3 class="font-semibold text-foreground mb-1">Budget & trésorerie</h3>
+          <p class="text-sm text-muted-foreground">Évaluez et pilotez votre budget en temps réel. Visualisez les dépenses par lot, les acomptes versés et le reste à payer.</p>
+        </div>
+
+        <div class="bg-card border border-border rounded-2xl p-5">
+          <div class="text-2xl mb-3">📊</div>
+          <h3 class="font-semibold text-foreground mb-1">Avancement des travaux</h3>
+          <p class="text-sm text-muted-foreground">Suivez l'avancée de chaque lot en un coup d'oeil. Timeline, jalons, statuts — gardez le contrôle sur votre chantier.</p>
+        </div>
+
+        <div class="bg-card border border-border rounded-2xl p-5">
+          <div class="text-2xl mb-3">📁</div>
+          <h3 class="font-semibold text-foreground mb-1">Documents & photos</h3>
+          <p class="text-sm text-muted-foreground">Centralisez tous vos documents : devis, factures, attestations, photos de chantier. Tout est accessible et organisé.</p>
+        </div>
+
+        <div class="bg-card border border-border rounded-2xl p-5">
+          <div class="text-2xl mb-3">✉️</div>
+          <h3 class="font-semibold text-foreground mb-1">Relances artisans</h3>
+          <p class="text-sm text-muted-foreground">Relancez vos artisans directement depuis la plateforme. Historique des échanges, templates de messages, suivi des réponses.</p>
+        </div>
+
+        <div class="bg-card border border-border rounded-2xl p-5">
+          <div class="text-2xl mb-3">🤖</div>
+          <h3 class="font-semibold text-foreground mb-1">Assistant IA</h3>
+          <p class="text-sm text-muted-foreground">Posez vos questions chantier à notre assistant : réglementation, matériaux, bonnes pratiques — il vous guide à chaque étape.</p>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <div class="text-center">
+        <p class="text-sm text-muted-foreground mb-6">Nous vous préviendrons dès que la fonctionnalité sera disponible.</p>
+        <div class="flex flex-col sm:flex-row gap-3 justify-center">
+          <a href="/tableau-de-bord" class="inline-flex items-center justify-center rounded-lg bg-primary text-primary-foreground px-6 py-3 text-sm font-medium hover:bg-primary/90 transition-colors">
+            Retour au tableau de bord
+          </a>
+          <a href="/nouvelle-analyse" class="inline-flex items-center justify-center rounded-lg border border-border bg-card text-foreground px-6 py-3 text-sm font-medium hover:bg-accent transition-colors">
+            Analyser un devis
+          </a>
+        </div>
       </div>
     </div>
   </div>
