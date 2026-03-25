@@ -1417,15 +1417,37 @@ const LOT_STATUS_CFG: Record<LotListStatus, { dot: string; label: string; badge:
 type SortKey = 'none' | 'prix_asc' | 'prix_desc';
 type FilterStatus = 'all' | LotListStatus;
 
-function IntervenantsListView({ lots, docsByLot, onAddDevisForLot, onGoToLot }: {
+function IntervenantsListView({ lots, docsByLot, onAddDevisForLot, onGoToLot, chantierId, token, onDocStatutUpdated }: {
   lots: LotChantier[];
   docsByLot: Record<string, DocumentChantier[]>;
   onAddDevisForLot: (lotId: string) => void;
   onGoToLot: (lotId: string) => void;
+  chantierId: string;
+  token: string | null | undefined;
+  onDocStatutUpdated?: (docId: string, statut: string) => void;
 }) {
-  const [sortKey,    setSortKey]    = useState<SortKey>('none');
-  const [filterSt,   setFilterSt]   = useState<FilterStatus>('all');
-  const [analysisData, setAnalysisData] = useState<Record<string, { score: number | null; ttc: number | null }>>({});
+  const [sortKey,       setSortKey]       = useState<SortKey>('none');
+  const [filterSt,      setFilterSt]      = useState<FilterStatus>('all');
+  const [analysisData,  setAnalysisData]  = useState<Record<string, { score: number | null; ttc: number | null }>>({});
+  const [statutOverrides, setStatutOverrides] = useState<Record<string, string>>({});
+
+  async function handleStatutChange(docId: string, statut: string) {
+    setStatutOverrides(prev => ({ ...prev, [docId]: statut }));
+    try {
+      const res = await fetch(`/api/chantier/${chantierId}/documents/${docId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ devisStatut: statut }),
+      });
+      if (res.ok) {
+        onDocStatutUpdated?.(docId, statut);
+      } else {
+        setStatutOverrides(prev => { const n = { ...prev }; delete n[docId]; return n; });
+      }
+    } catch {
+      setStatutOverrides(prev => { const n = { ...prev }; delete n[docId]; return n; });
+    }
+  }
 
   // Tous les devis de tous les lots (avec analyse_id) — fetch en une seule requête
   useEffect(() => {
@@ -1584,19 +1606,29 @@ function IntervenantsListView({ lots, docsByLot, onAddDevisForLot, onGoToLot }: 
                       valide:          { bg: 'bg-emerald-50 text-emerald-700', label: '✓ Validé' },
                       attente_facture: { bg: 'bg-violet-50 text-violet-700',label: 'Att. facture' },
                     };
-                    const sc = statutCfg[statut] ?? { bg: 'bg-gray-50 text-gray-500', label: statut };
                     const scoreCfg = score == null ? null
                       : score >= 70 ? { bg: 'bg-emerald-50 text-emerald-700', label: '✅ Bon' }
                       : score >= 45 ? { bg: 'bg-amber-50 text-amber-700',   label: '⚠️ Moyen' }
                       :               { bg: 'bg-red-50 text-red-600',        label: '🔴 Risqué' };
+                    const effectiveStatut = statutOverrides[doc.id] ?? statut;
+                    const sc2 = statutCfg[effectiveStatut] ?? { bg: 'bg-gray-50 text-gray-500', label: effectiveStatut };
+                    // VMD: dot color
+                    const dotColor = scoreCfg
+                      ? score! >= 70 ? 'bg-emerald-400' : score! >= 45 ? 'bg-amber-400' : 'bg-red-500'
+                      : null;
 
                     return (
                       <div key={doc.id}
                         className={`grid grid-cols-[2fr_1.5fr_1.5fr_1fr_1.2fr_auto] gap-0 hover:bg-gray-50/60 transition-colors ${idx < devisDocs.length - 1 ? 'border-b border-gray-50' : ''}`}>
-                        {/* Artisan / nom */}
+                        {/* Artisan / nom — cliquable (fichier ou analyse) */}
                         <div className="px-4 py-3 pl-10 flex flex-col justify-center">
                           {doc.signedUrl ? (
                             <a href={doc.signedUrl} target="_blank" rel="noreferrer"
+                              className="text-sm font-semibold text-blue-700 hover:underline truncate max-w-[180px]">
+                              {doc.nom}
+                            </a>
+                          ) : doc.analyse_id ? (
+                            <a href={`/analyse/${doc.analyse_id}`} target="_blank" rel="noreferrer"
                               className="text-sm font-semibold text-blue-700 hover:underline truncate max-w-[180px]">
                               {doc.nom}
                             </a>
@@ -1605,7 +1637,7 @@ function IntervenantsListView({ lots, docsByLot, onAddDevisForLot, onGoToLot }: 
                           )}
                           <span className="text-[10px] text-gray-400 mt-0.5">{fmtDate(doc.created_at)}</span>
                         </div>
-                        {/* Lot (type de doc) */}
+                        {/* Type de doc */}
                         <div className="px-4 py-3 flex items-center">
                           <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${doc.document_type === 'facture' ? 'bg-violet-50 text-violet-700' : 'bg-blue-50 text-blue-700'}`}>
                             {doc.document_type === 'facture' ? '🧾 Facture' : '📄 Devis'}
@@ -1618,24 +1650,36 @@ function IntervenantsListView({ lots, docsByLot, onAddDevisForLot, onGoToLot }: 
                             : <span className="text-xs text-gray-300">—</span>
                           }
                         </div>
-                        {/* Statut */}
+                        {/* Statut — dropdown éditable */}
                         <div className="px-4 py-3 flex items-center">
-                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${sc.bg}`}>{sc.label}</span>
+                          <select
+                            value={effectiveStatut}
+                            onChange={e => handleStatutChange(doc.id, e.target.value)}
+                            className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border-0 focus:outline-none focus:ring-1 focus:ring-blue-200 cursor-pointer ${sc2.bg}`}
+                          >
+                            <option value="en_cours">En cours</option>
+                            <option value="a_relancer">À relancer</option>
+                            <option value="valide">✓ Validé</option>
+                            <option value="attente_facture">Att. facture</option>
+                          </select>
                         </div>
-                        {/* Analyse VMD */}
-                        <div className="px-4 py-3 flex items-center">
+                        {/* Analyse VMD — point coloré + Voir */}
+                        <div className="px-4 py-3 flex items-center gap-2">
                           {doc.analyse_id ? (
-                            scoreCfg ? (
+                            <>
+                              {dotColor && (
+                                <span className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${dotColor}`} />
+                              )}
+                              {!dotColor && (
+                                <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0 bg-gray-300" />
+                              )}
                               <a href={`/analyse/${doc.analyse_id}`} target="_blank" rel="noreferrer"
-                                className={`text-[11px] font-bold px-2.5 py-1 rounded-full transition-colors hover:opacity-80 ${scoreCfg.bg}`}>
-                                {scoreCfg.label}
+                                className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline whitespace-nowrap">
+                                Voir →
                               </a>
-                            ) : (
-                              <a href={`/analyse/${doc.analyse_id}`} target="_blank" rel="noreferrer"
-                                className="text-[11px] text-blue-500 hover:underline">Voir →</a>
-                            )
+                            </>
                           ) : (
-                            <span className="text-[11px] text-gray-300 italic">—</span>
+                            <span className="text-[11px] text-gray-300 italic">En attente</span>
                           )}
                         </div>
                         {/* Actions */}
@@ -1671,7 +1715,7 @@ function IntervenantsListView({ lots, docsByLot, onAddDevisForLot, onGoToLot }: 
 
 function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, refinedBreakdown, onAffineBudget,
   onAddDevisForLot, onAddDocForLot, onGoToLot, onGoToAnalyse, onGoToPlanning, onAddDoc,
-  onGoToAssistant, onAddIntervenant, onDeleteLot,
+  onGoToAssistant, onAddIntervenant, onDeleteLot, chantierId, token, onDocStatutUpdated,
 }: {
   lots: LotChantier[];
   documents: DocumentChantier[];
@@ -1689,6 +1733,9 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
   onGoToAssistant: () => void;
   onAddIntervenant: () => void;
   onDeleteLot: (lotId: string) => void;
+  chantierId: string;
+  token: string | null | undefined;
+  onDocStatutUpdated?: (docId: string, statut: string) => void;
 }) {
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
 
@@ -1849,6 +1896,9 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
             docsByLot={docsByLot}
             onAddDevisForLot={onAddDevisForLot}
             onGoToLot={onGoToLot}
+            chantierId={chantierId}
+            token={token}
+            onDocStatutUpdated={onDocStatutUpdated}
           />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -2875,6 +2925,11 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             onGoToAssistant={() => setChatOpen(true)}
             onAddIntervenant={() => setShowAddIntervenant(true)}
             onDeleteLot={deleteLot}
+            chantierId={chantierId!}
+            token={token}
+            onDocStatutUpdated={(docId, statut) =>
+              setDocuments(prev => prev.map(d => d.id === docId ? { ...d, devis_statut: statut as any } : d))
+            }
           />
         );
 
@@ -3095,6 +3150,31 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
           onSuccess={(doc) => {
             setDocuments(prev => [doc, ...prev]);
             refreshInsights();
+            // Auto-analyse : déclencher l'analyse VMD pour les devis uploadés manuellement
+            if (
+              doc.document_type === 'devis' &&
+              doc.source !== 'verifier_mon_devis' &&
+              doc.bucket_path &&
+              !doc.bucket_path.startsWith('analyse/')
+            ) {
+              toast.loading('Analyse VMD en cours…', { id: `analyse-${doc.id}`, duration: 30_000 });
+              fetch(`/api/chantier/${chantierId}/documents/${doc.id}/analyser`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token ?? ''}` },
+              })
+                .then(r => r.json())
+                .then(({ analysisId }) => {
+                  if (analysisId) {
+                    setDocuments(prev => prev.map(d =>
+                      d.id === doc.id ? { ...d, analyse_id: analysisId } : d,
+                    ));
+                    toast.success('Analyse lancée — résultat dans quelques instants', { id: `analyse-${doc.id}` });
+                  } else {
+                    toast.dismiss(`analyse-${doc.id}`);
+                  }
+                })
+                .catch(() => toast.dismiss(`analyse-${doc.id}`));
+            }
           }}
         />
       )}
