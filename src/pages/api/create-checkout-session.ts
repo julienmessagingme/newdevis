@@ -120,6 +120,7 @@ export const POST: APIRoute = async ({ request }) => {
       mode: 'subscription',
       customer: customerId,
       line_items: [{ price: PRICE_ID, quantity: 1 }],
+      allow_promotion_codes: true,
       success_url: `${origin}/pass-serenite?success=true`,
       cancel_url: `${origin}/pass-serenite?canceled=true`,
       metadata: { supabase_user_id: userId },
