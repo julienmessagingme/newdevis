@@ -40,6 +40,7 @@ export function generateConversationPdf(
   conversation: PdfConversation,
   messages: PdfMessage[],
   chantierNom: string,
+  userName: string,
 ): void {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -69,14 +70,14 @@ export function generateConversationPdf(
   doc.rect(0, 0, pageWidth, 35, "F");
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
+  doc.setFontSize(14);
   doc.setTextColor(255, 255, 255);
-  doc.text("Conversation", margin, 15);
+  doc.text(`${sanitize(userName)}  ↔  ${sanitize(conversation.contact_name)}`, margin, 14);
 
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
-  doc.text(`${conversation.contact_name} — ${conversation.contact_email}`, margin, 23);
-  doc.text(`Chantier : ${sanitize(chantierNom)}`, margin, 30);
+  doc.text(`Contact : ${conversation.contact_email}`, margin, 22);
+  doc.text(`Chantier : ${sanitize(chantierNom)}`, margin, 29);
 
   y = 45;
 
@@ -115,7 +116,7 @@ export function generateConversationPdf(
     // Sender label
     doc.setFontSize(7);
     doc.setTextColor(GRAY[0], GRAY[1], GRAY[2]);
-    doc.text(isOut ? "Vous" : conversation.contact_name, textX, y + 3);
+    doc.text(isOut ? sanitize(userName) : sanitize(conversation.contact_name), textX, y + 3);
     y += 7;
 
     // Subject

@@ -25,6 +25,7 @@ interface ConversationThreadProps {
   onBack: () => void;
   variables: Record<string, string>;
   chantierNom?: string;
+  userName?: string;
 }
 
 function formatTime(iso: string): string {
@@ -52,6 +53,7 @@ export default function ConversationThread({
   onBack,
   variables,
   chantierNom = "",
+  userName = "Vous",
 }: ConversationThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -82,7 +84,7 @@ export default function ConversationThread({
           {messages.length > 0 && (
             <button
               type="button"
-              onClick={() => generateConversationPdf(conversation, messages, chantierNom)}
+              onClick={() => generateConversationPdf(conversation, messages, chantierNom, userName)}
               className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200 transition-colors"
               title="Exporter en PDF"
             >
