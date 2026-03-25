@@ -144,7 +144,7 @@ export const POST: APIRoute = async ({ params, request }) => {
       sgMail.default.setApiKey(sendgridApiKey);
       await sgMail.default.send({
         to:      contact.email,
-        from:    { email: 'noreply@verifiermondevis.fr', name: `${userName} via VerifierMonDevis` },
+        from:    { email: `noreply@${replyDomain}`, name: `${userName} via VerifierMonDevis` },
         replyTo: replyAddress,
         subject,
         text:    bodyText,

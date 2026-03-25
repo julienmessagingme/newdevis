@@ -256,7 +256,7 @@ async function sendNotificationEmail(
 
   await sgMail.default.send({
     to:   user.email,
-    from: { email: 'noreply@verifiermondevis.fr', name: 'VerifierMonDevis' },
+    from: { email: `noreply@${import.meta.env.REPLY_EMAIL_DOMAIN || 'reply.verifiermondevis.fr'}`, name: 'VerifierMonDevis' },
     subject: `Nouvelle r\u00e9ponse de ${contactName} - ${chantierNom}`,
     text: [
       `${contactName} a r\u00e9pondu \u00e0 votre message sur le chantier "${chantierNom}".`,
