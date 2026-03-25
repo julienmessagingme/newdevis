@@ -6,23 +6,36 @@ import { useMessages } from "@/hooks/useMessages";
 import ConversationList from "./ConversationList";
 import ConversationThread from "./ConversationThread";
 
+interface Contact {
+  id: string;
+  nom: string;
+  email?: string;
+  telephone?: string;
+  role?: string;
+}
+
 interface MessagerieSectionProps {
   chantierId: string;
   chantierNom: string;
-  contacts: Array<{
-    id: string;
-    nom: string;
-    email?: string;
-    telephone?: string;
-    role?: string;
-  }>;
+  token: string;
 }
 
 export default function MessagerieSection({
   chantierId,
   chantierNom,
-  contacts,
+  token,
 }: MessagerieSectionProps) {
+  const [contacts, setContacts] = useState<Contact[]>([]);
+
+  useEffect(() => {
+    if (!chantierId || !token) return;
+    fetch(`/api/chantier/${chantierId}/contacts`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.ok ? r.json() : { contacts: [] })
+      .then((data) => setContacts(data.contacts ?? []))
+      .catch(() => {});
+  }, [chantierId, token]);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [showNewMessage, setShowNewMessage] = useState(false);
   const [newMsgContactId, setNewMsgContactId] = useState<string | null>(null);

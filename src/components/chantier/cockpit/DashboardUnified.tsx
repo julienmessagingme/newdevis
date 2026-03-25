@@ -10,7 +10,7 @@ import {
   Sparkles, Trash2, ArrowLeft, ChevronRight, Wrench, Wallet, Layers,
   FileSearch, Calendar, FolderOpen, Bot, Settings, Menu, ExternalLink,
   Receipt, Pencil, SlidersHorizontal, Users, MessageCircle, ArrowRight,
-  LayoutGrid, List, ChevronUp, ChevronDown, Filter,
+  LayoutGrid, List, ChevronUp, ChevronDown, Filter, Mail,
 } from 'lucide-react';
 import type {
   ChantierIAResult, DocumentChantier, DocumentType, LotChantier, StatutArtisan,
@@ -23,6 +23,8 @@ import ContactsSection from './ContactsSection';
 import ScreenEditPrompt from '@/components/chantier/nouveau/ScreenEditPrompt';
 import { ExpertAvatar } from '@/components/chantier/MATERIAL_IMAGES';
 import { useChantierAssistant } from '@/hooks/useChantierAssistant';
+import MessagerieSection from './MessagerieSection';
+import { useConversations } from '@/hooks/useConversations';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 
@@ -75,7 +77,7 @@ const IS: Record<InsightItem['type'], { bg: string; text: string; border: string
   info:    { bg: 'bg-blue-50',    text: 'text-blue-800',    border: 'border-blue-100',     accent: 'border-l-blue-400'    },
 };
 
-type Section = 'budget' | 'lots' | 'contacts' | 'analyse' | 'planning' | 'documents' | 'assistant' | 'diy' | 'settings' | 'tresorerie';
+type Section = 'budget' | 'lots' | 'contacts' | 'messagerie' | 'analyse' | 'planning' | 'documents' | 'assistant' | 'diy' | 'settings' | 'tresorerie';
 type UploadState = 'idle' | 'uploading' | 'analyzing' | 'success' | 'error';
 
 // ── Chat Drawer ────────────────────────────────────────────────────────────────
@@ -271,6 +273,7 @@ const NAV_ITEMS: { id: Section; label: string; icon: React.ElementType }[] = [
   { id: 'budget',     label: 'Vue d\'ensemble',     icon: Layers      },
   { id: 'tresorerie', label: 'Budget & Trésorerie', icon: Wallet      },
   { id: 'contacts',   label: 'Contacts',            icon: Users       },
+  { id: 'messagerie', label: 'Messagerie',          icon: Mail        },
   { id: 'analyse',    label: 'Analyse des devis',   icon: FileSearch  },
   { id: 'planning',   label: 'Planning',             icon: Calendar    },
   { id: 'documents',  label: 'Documents',            icon: FolderOpen  },
@@ -2707,6 +2710,9 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
   const [uploadModal, setUploadModal]     = useState<{ open: boolean; lotId?: string; defaultType?: DocumentType }>({ open: false });
   const lots = result.lots ?? [];
 
+  // Messagerie: unread count for sidebar badge
+  const { totalUnread: msgUnread } = useConversations(chantierId);
+
   // Pas de useEffect pour la sélection de lot — géré directement dans renderContent
 
   // ── Insights ──────────────────────────────────────────────────────────────
@@ -2766,8 +2772,9 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
   const navBadges = useMemo<Partial<Record<Section, NavBadge>>>(() => {
     return {
       documents: documents.length > 0 ? { text: `${documents.length}`, style: 'bg-gray-100 text-gray-600' } : undefined,
+      messagerie: msgUnread > 0 ? { text: `${msgUnread}`, style: 'bg-blue-100 text-blue-700' } : undefined,
     };
-  }, [documents]);
+  }, [documents, msgUnread]);
 
   const selectedLot = lots.find(l => l.id === selectedLotId);
   const hasDiyOpportunity = lots.some(l => l.statut === 'a_trouver');
@@ -2892,6 +2899,11 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
           <ContactsSection chantierId={chantierId} token={token} />
         ) : null;
 
+      case 'messagerie':
+        return chantierId && token ? (
+          <MessagerieSection chantierId={chantierId} chantierNom={result.nom} token={token} />
+        ) : null;
+
       case 'analyse':
         return (
           <AnalyseDevisSection
@@ -3004,7 +3016,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
   const SECTION_TITLES: Record<Section, string> = {
     budget: showBudgetDetail ? 'Affinage du budget' : result.nom,
     tresorerie: 'Budget & Trésorerie',
-    lots: 'Intervenants', contacts: 'Contacts', analyse: 'Analyse des devis',
+    lots: 'Intervenants', contacts: 'Contacts', messagerie: 'Messagerie', analyse: 'Analyse des devis',
     planning: 'Planning', documents: 'Documents', assistant: 'Assistant chantier',
     diy: 'Travaux réalisés par vous', settings: 'Paramètres',
   };
