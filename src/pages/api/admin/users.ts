@@ -95,11 +95,11 @@ export const GET: APIRoute = async ({ request }) => {
       .filter(u => u.email && !u.is_anonymous)
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-    // Fetch subscriptions with active Pass Sérénité
+    // Fetch all subscriptions linked to Stripe (any status)
     const { data: subscriptions, error: subError } = await supabaseAdmin
       .from('subscriptions')
-      .select('user_id, status, stripe_subscription_id, lifetime_analysis_count, created_at, current_period_end')
-      .in('status', ['active', 'trial', 'past_due']);
+      .select('user_id, status, stripe_customer_id, stripe_subscription_id, lifetime_analysis_count, created_at, current_period_end')
+      .not('stripe_customer_id', 'is', null);
 
     if (subError) throw subError;
 

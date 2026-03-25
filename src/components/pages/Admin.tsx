@@ -1025,9 +1025,11 @@ const Admin = () => {
                                   ? "bg-score-green/10 text-score-green"
                                   : s.status === "trial"
                                   ? "bg-blue-100 text-blue-700"
+                                  : s.status === "inactive"
+                                  ? "bg-gray-100 text-gray-600"
                                   : "bg-score-orange/10 text-score-orange"
                               }`}>
-                                {s.status === "active" ? "Actif" : s.status === "trial" ? "Essai" : "Impayé"}
+                                {s.status === "active" ? "Actif" : s.status === "trial" ? "Essai" : s.status === "inactive" ? "Inactif" : "Impayé"}
                               </span>
                             </td>
                             <td className="py-2 px-3 text-center font-medium">{s.lifetime_analysis_count}</td>
