@@ -18,8 +18,12 @@ import {
   Building2,
   LineChart,
   Download,
-  FolderOpen
+  FolderOpen,
+  CreditCard,
+  UserPlus,
+  Search,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Card,
@@ -51,6 +55,34 @@ interface ScoreDistribution {
   name: string;
   value: number;
   color: string;
+}
+
+interface RegisteredUser {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  created_at: string;
+  last_sign_in_at: string | null;
+}
+
+interface Subscriber {
+  user_id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  status: string;
+  lifetime_analysis_count: number;
+  subscribed_at: string;
+  current_period_end: string | null;
+}
+
+interface UsersData {
+  registered_users: RegisteredUser[];
+  subscribers: Subscriber[];
+  total_registered: number;
+  total_subscribers: number;
 }
 
 interface KPIs {
@@ -124,6 +156,10 @@ const Admin = () => {
   const [error, setError] = useState<string | null>(null);
   const [devisList, setDevisList] = useState<DevisRow[]>([]);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [usersData, setUsersData] = useState<UsersData | null>(null);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [userSearch, setUserSearch] = useState("");
+  const [subscriberSearch, setSubscriberSearch] = useState("");
 
   const checkAdminAndFetchKPIs = async () => {
     try {
@@ -151,7 +187,8 @@ const Admin = () => {
 
       setIsAdmin(true);
 
-      // Fetch KPIs from edge function
+      // Fetch KPIs and users in parallel
+      fetchUsers();
       const { data, error } = await supabase.functions.invoke("admin-kpis");
 
       if (error) {
@@ -165,6 +202,26 @@ const Admin = () => {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const fetchUsers = async () => {
+    setUsersLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+
+      const res = await fetch("/api/admin/users", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (!res.ok) throw new Error("Erreur API");
+      const data = await res.json();
+      setUsersData(data);
+    } catch (err) {
+      console.error("Error fetching users:", err);
+    } finally {
+      setUsersLoading(false);
     }
   };
 
@@ -804,7 +861,201 @@ const Admin = () => {
           </div>
         </section>
 
-        {/* === SECTION 6: LEGAL DISCLAIMER === */}
+        {/* === SECTION 6: UTILISATEURS INSCRITS === */}
+        <section className="mb-10">
+          <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
+            <UserPlus className="h-5 w-5 text-primary" />
+            Utilisateurs inscrits
+            {usersData && (
+              <span className="text-sm font-normal text-muted-foreground ml-2">
+                ({usersData.total_registered})
+              </span>
+            )}
+          </h2>
+
+          {usersLoading ? (
+            <Card>
+              <CardContent className="py-8 flex items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <span className="ml-2 text-muted-foreground">Chargement...</span>
+              </CardContent>
+            </Card>
+          ) : usersData ? (
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Rechercher par email ou nom..."
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    className="pl-9 max-w-sm"
+                  />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground">Email</th>
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground">Nom</th>
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground">Téléphone</th>
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground">Inscription</th>
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground">Dernière connexion</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {usersData.registered_users
+                        .filter(u => {
+                          if (!userSearch) return true;
+                          const s = userSearch.toLowerCase();
+                          return (
+                            u.email?.toLowerCase().includes(s) ||
+                            u.first_name?.toLowerCase().includes(s) ||
+                            u.last_name?.toLowerCase().includes(s)
+                          );
+                        })
+                        .slice(0, 50)
+                        .map(u => (
+                          <tr key={u.id} className="border-b border-border/50 hover:bg-muted/30">
+                            <td className="py-2 px-3 font-mono text-xs">{u.email}</td>
+                            <td className="py-2 px-3">
+                              {u.first_name || u.last_name
+                                ? `${u.first_name} ${u.last_name}`.trim()
+                                : <span className="text-muted-foreground">—</span>}
+                            </td>
+                            <td className="py-2 px-3 text-xs">
+                              {u.phone || <span className="text-muted-foreground">—</span>}
+                            </td>
+                            <td className="py-2 px-3 text-xs text-muted-foreground">
+                              {new Date(u.created_at).toLocaleDateString("fr-FR")}
+                            </td>
+                            <td className="py-2 px-3 text-xs text-muted-foreground">
+                              {u.last_sign_in_at
+                                ? new Date(u.last_sign_in_at).toLocaleDateString("fr-FR")
+                                : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                  {usersData.registered_users.filter(u => {
+                    if (!userSearch) return true;
+                    const s = userSearch.toLowerCase();
+                    return u.email?.toLowerCase().includes(s) || u.first_name?.toLowerCase().includes(s) || u.last_name?.toLowerCase().includes(s);
+                  }).length > 50 && (
+                    <p className="text-xs text-muted-foreground mt-3 text-center">
+                      50 premiers résultats affichés — affiner la recherche pour voir plus
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+        </section>
+
+        {/* === SECTION 7: ABONNÉS PASS SÉRÉNITÉ === */}
+        <section className="mb-10">
+          <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
+            <CreditCard className="h-5 w-5 text-primary" />
+            Abonnés Pass Sérénité
+            {usersData && (
+              <span className="text-sm font-normal text-muted-foreground ml-2">
+                ({usersData.total_subscribers})
+              </span>
+            )}
+          </h2>
+
+          {usersLoading ? (
+            <Card>
+              <CardContent className="py-8 flex items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <span className="ml-2 text-muted-foreground">Chargement...</span>
+              </CardContent>
+            </Card>
+          ) : usersData && usersData.subscribers.length > 0 ? (
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Rechercher un abonné..."
+                    value={subscriberSearch}
+                    onChange={(e) => setSubscriberSearch(e.target.value)}
+                    className="pl-9 max-w-sm"
+                  />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground">Email</th>
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground">Nom</th>
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground">Statut</th>
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground">Analyses</th>
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground">Souscription</th>
+                        <th className="text-left py-2 px-3 font-medium text-muted-foreground">Fin période</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {usersData.subscribers
+                        .filter(s => {
+                          if (!subscriberSearch) return true;
+                          const q = subscriberSearch.toLowerCase();
+                          return (
+                            s.email?.toLowerCase().includes(q) ||
+                            s.first_name?.toLowerCase().includes(q) ||
+                            s.last_name?.toLowerCase().includes(q)
+                          );
+                        })
+                        .map(s => (
+                          <tr key={s.user_id} className="border-b border-border/50 hover:bg-muted/30">
+                            <td className="py-2 px-3 font-mono text-xs">{s.email}</td>
+                            <td className="py-2 px-3">
+                              {s.first_name || s.last_name
+                                ? `${s.first_name} ${s.last_name}`.trim()
+                                : <span className="text-muted-foreground">—</span>}
+                            </td>
+                            <td className="py-2 px-3">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                s.status === "active"
+                                  ? "bg-score-green/10 text-score-green"
+                                  : s.status === "trial"
+                                  ? "bg-blue-100 text-blue-700"
+                                  : "bg-score-orange/10 text-score-orange"
+                              }`}>
+                                {s.status === "active" ? "Actif" : s.status === "trial" ? "Essai" : "Impayé"}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-center font-medium">{s.lifetime_analysis_count}</td>
+                            <td className="py-2 px-3 text-xs text-muted-foreground">
+                              {new Date(s.subscribed_at).toLocaleDateString("fr-FR")}
+                            </td>
+                            <td className="py-2 px-3 text-xs text-muted-foreground">
+                              {s.current_period_end
+                                ? new Date(s.current_period_end).toLocaleDateString("fr-FR")
+                                : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          ) : usersData ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                Aucun abonné Pass Sérénité pour le moment
+              </CardContent>
+            </Card>
+          ) : null}
+        </section>
+
+        {/* === SECTION 8: LEGAL DISCLAIMER === */}
         <section className="mb-8">
           <div className="bg-muted/50 border border-border rounded-xl p-6">
             <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
