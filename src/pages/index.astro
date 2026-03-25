@@ -6,6 +6,7 @@ import DisclaimerSection from '@/components/landing/DisclaimerSection';
 import CTASection from '@/components/landing/CTASection';
 import TrustpilotSection from '@/components/landing/TrustpilotSection';
 import BlogTeaser from '@/components/landing/BlogTeaser';
+import HowItWorksSection from '@/components/landing/HowItWorksSection';
 // HeroSection inliné ci-dessous pour modification des textes uniquement
 
 const jsonLd = {
@@ -181,6 +182,9 @@ const jsonLd = {
           </div>
         </div>
       </section>
+
+      <div id="comment-ca-marche"></div>
+      <HowItWorksSection client:visible />
 
       <!-- ══ Vous préparez des travaux ? ══ -->
       <section class="py-10 sm:py-12 bg-white border-b border-slate-100">
