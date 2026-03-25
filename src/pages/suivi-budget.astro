@@ -1,0 +1,14 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import SuiviBudgetApp from '@/components/app/SuiviBudgetApp';
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="Suivi budget | VerifierMonDevis.fr"
+  description="Vue croisée de tous vos devis par type de lot avec comparaison prix marché."
+  noindex={true}
+>
+  <SuiviBudgetApp client:only="react" />
+</BaseLayout>

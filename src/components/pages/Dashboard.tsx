@@ -9,6 +9,7 @@ import {
   Loader2,
   CheckCircle2,
   Shield,
+  BarChart3,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -222,6 +223,26 @@ const Dashboard = () => {
                   </div>
                 </div>
                 <span className="text-xs font-semibold text-orange-600 bg-orange-100 px-3 py-1 rounded-full whitespace-nowrap">Découvrir →</span>
+              </div>
+            </div>
+          </a>
+        )}
+
+        {/* Suivi budget CTA — premium only */}
+        {isPremium && analyses.length > 0 && (
+          <a href="/suivi-budget" className="block mb-4">
+            <div className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-300 rounded-2xl p-4 hover:border-blue-400 hover:shadow-sm transition-all duration-200 cursor-pointer group">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center text-white">
+                    <BarChart3 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-semibold text-foreground">Suivi budget</h2>
+                    <p className="text-xs text-muted-foreground">Vue croisée de vos devis par type de lot</p>
+                  </div>
+                </div>
+                <span className="text-xs font-semibold text-blue-600 bg-blue-100 px-3 py-1 rounded-full whitespace-nowrap">Voir →</span>
               </div>
             </div>
           </a>
