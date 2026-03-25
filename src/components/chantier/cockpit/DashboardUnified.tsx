@@ -37,6 +37,9 @@ function fmtK(n: number): string {
   if (n >= 1000) return `${Math.round(n / 1000)} k€`;
   return `${n} €`;
 }
+function fmtEur(n: number): string {
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
+}
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
 }
@@ -1825,7 +1828,7 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
             onClick={onAddIntervenant}
             className="flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-xl transition-colors"
           >
-            <Plus className="h-3 w-3" /> Ajouter
+            <Plus className="h-3 w-3" /> Ajouter un intervenant
           </button>
         </div>
         {total === 0 ? (
@@ -2218,18 +2221,24 @@ function DocumentsView({ documents, lots: lotsProp, chantierId, token, onAddDoc,
   async function handleChangeLot(docId: string, lotId: string | null) {
     // Mise à jour visuelle immédiate (optimiste)
     setLotOverrides(prev => ({ ...prev, [docId]: lotId }));
-    const res = await fetch(`/api/chantier/${chantierId}/documents/${docId}`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lotId }),
-    });
-    if (res.ok) {
-      // Mise à jour directe de la ligne dans le state parent (pas de reload complet)
-      onDocLotUpdated?.(docId, lotId);
-      // Nettoyer l'override maintenant que doc.lot_id est à jour
-      setLotOverrides(prev => { const n = { ...prev }; delete n[docId]; return n; });
-    } else {
-      // Rollback si erreur
+    try {
+      const res = await fetch(`/api/chantier/${chantierId}/documents/${docId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lotId }),
+      });
+      if (res.ok) {
+        // Mise à jour directe de la ligne dans le state parent (pas de reload complet)
+        // On conserve l'override — source de vérité jusqu'au prochain rechargement
+        onDocLotUpdated?.(docId, lotId);
+      } else {
+        const { error } = await res.json().catch(() => ({ error: 'Erreur inconnue' }));
+        toast.error(`Impossible d'affecter l'intervenant : ${error}`);
+        // Rollback visuel
+        setLotOverrides(prev => { const n = { ...prev }; delete n[docId]; return n; });
+      }
+    } catch {
+      toast.error("Erreur réseau — réessayez");
       setLotOverrides(prev => { const n = { ...prev }; delete n[docId]; return n; });
     }
   }
