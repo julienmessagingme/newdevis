@@ -127,6 +127,16 @@ AFFECTATION :
 - TOUS les ${totalItems} postes (1 à ${totalItems}) doivent apparaître dans un work_items. Aucun oubli.
 - Chaque poste dans EXACTEMENT un groupe.
 
+CALCUL DE main_quantity :
+- main_unit = l'unité principale du groupe (m2, ml, u, forfait, etc.)
+- main_quantity = SOMME des quantités de TOUTES les lignes du groupe ayant cette unité.
+  Exemple : lignes de 75,72 m² + 33,33 m² + 5,00 m² + 15,24 m² = main_quantity 129,29
+  Exemple : 3 lignes à 1 fft = main_quantity 1 (forfait global, pas de somme)
+  Exemple : 2 radiateurs + 1 radiateur + 1 radiateur = main_quantity 4
+- Si les lignes ont des quantités différentes mais la même unité, SOMME-les.
+- Si le groupe est un forfait global sans quantité explicite, main_quantity = 1.
+- NE JAMAIS mettre main_quantity = 1 quand les lignes détaillent des surfaces en m² : additionne-les.
+
 Réponds UNIQUEMENT en JSON (pas de markdown) :
 [
   {
