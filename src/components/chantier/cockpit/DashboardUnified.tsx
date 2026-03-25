@@ -1447,10 +1447,11 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
 }) {
   const [sortKey,       setSortKey]       = useState<SortKey>('none');
   const [filterSt,      setFilterSt]      = useState<FilterStatus>('all');
-  const [analysisData,  setAnalysisData]  = useState<Record<string, { score: number | null; ttc: number | null }>>({});
+  const [analysisData,  setAnalysisData]  = useState<Record<string, { score: 'VERT' | 'ORANGE' | 'ROUGE' | null; ttc: number | null }>>({});
   const [statutOverrides, setStatutOverrides] = useState<Record<string, string>>({});
 
   async function handleStatutChange(docId: string, statut: string) {
+    if (!token) { toast.error('Session expirée — rechargez la page'); return; }
     setStatutOverrides(prev => ({ ...prev, [docId]: statut }));
     try {
       const res = await fetch(`/api/chantier/${chantierId}/documents/${docId}`, {
@@ -1461,9 +1462,12 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
       if (res.ok) {
         onDocStatutUpdated?.(docId, statut);
       } else {
+        const body = await res.json().catch(() => ({}));
+        toast.error(`Statut non sauvegardé : ${body.error ?? res.status}`);
         setStatutOverrides(prev => { const n = { ...prev }; delete n[docId]; return n; });
       }
     } catch {
+      toast.error('Erreur réseau — statut non sauvegardé');
       setStatutOverrides(prev => { const n = { ...prev }; delete n[docId]; return n; });
     }
   }
@@ -1476,16 +1480,17 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
     const ids = [...new Set(withAnalyse.map(d => d.analyse_id!))];
     supabase.from('analyses').select('id, score, raw_text').in('id', ids).then(({ data }) => {
       if (!data) return;
-      const m: Record<string, { score: number | null; ttc: number | null }> = {};
+      // score est un TEXT : 'VERT' | 'ORANGE' | 'ROUGE' (pas un nombre)
+      const m: Record<string, { score: 'VERT' | 'ORANGE' | 'ROUGE' | null; ttc: number | null }> = {};
       data.forEach(a => {
-        const n = Number(a.score);
         // raw_text peut être TEXT (JSON string) ou JSONB selon la ligne — toujours parser
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let raw: any = a.raw_text;
         if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = null; } }
         const totaux = raw?.extracted?.totaux;
+        const scoreVal = a.score === 'VERT' || a.score === 'ORANGE' || a.score === 'ROUGE' ? a.score : null;
         m[a.id] = {
-          score: a.score != null && !isNaN(n) ? n : null,
+          score: scoreVal,
           ttc:   totaux?.ttc != null && !isNaN(Number(totaux.ttc)) ? Number(totaux.ttc) : null,
         };
       });
@@ -1628,16 +1633,15 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
                       valide:          { bg: 'bg-emerald-50 text-emerald-700', label: '✓ Validé' },
                       attente_facture: { bg: 'bg-violet-50 text-violet-700',label: 'Att. facture' },
                     };
-                    const scoreCfg = score == null ? null
-                      : score >= 70 ? { bg: 'bg-emerald-50 text-emerald-700', label: '✅ Bon' }
-                      : score >= 45 ? { bg: 'bg-amber-50 text-amber-700',   label: '⚠️ Moyen' }
-                      :               { bg: 'bg-red-50 text-red-600',        label: '🔴 Risqué' };
+                    // score est TEXT : 'VERT' | 'ORANGE' | 'ROUGE'
+                    const scoreCfg = score === 'VERT'   ? { bg: 'bg-emerald-50 text-emerald-700', label: '✅ Bon',    dot: 'bg-emerald-400' }
+                      : score === 'ORANGE' ? { bg: 'bg-amber-50 text-amber-700',   label: '⚠️ Moyen',  dot: 'bg-amber-400' }
+                      : score === 'ROUGE'  ? { bg: 'bg-red-50 text-red-600',       label: '🔴 Risqué', dot: 'bg-red-500' }
+                      : null;
                     const effectiveStatut = statutOverrides[doc.id] ?? statut;
                     const sc2 = statutCfg[effectiveStatut] ?? { bg: 'bg-gray-50 text-gray-500', label: effectiveStatut };
                     // VMD: dot color
-                    const dotColor = scoreCfg
-                      ? score! >= 70 ? 'bg-emerald-400' : score! >= 45 ? 'bg-amber-400' : 'bg-red-500'
-                      : null;
+                    const dotColor = scoreCfg?.dot ?? null;
 
                     return (
                       <div key={doc.id}
