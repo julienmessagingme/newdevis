@@ -149,17 +149,26 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   if (!Object.keys(updates).length)
     return new Response(JSON.stringify({ error: 'Aucune modification fournie' }), { status: 400, headers: CORS });
 
-  const { data: updated, error } = await ctx.supabase
+  // Séparer update et fetch pour éviter PGRST116 (single() échoue si 0 lignes)
+  const { error: updateErr } = await ctx.supabase
     .from('documents_chantier')
     .update(updates)
     .eq('id', params.docId!)
-    .eq('chantier_id', params.id!)
-    .select()
+    .eq('chantier_id', params.id!);
+
+  if (updateErr) {
+    console.error('[api/documents] PATCH error:', updateErr.message);
+    return new Response(JSON.stringify({ error: updateErr.message }), { status: 500, headers: CORS });
+  }
+
+  const { data: updated, error: fetchErr } = await ctx.supabase
+    .from('documents_chantier')
+    .select('*')
+    .eq('id', params.docId!)
     .single();
 
-  if (error) {
-    console.error('[api/documents] PATCH error:', error.message);
-    return new Response(JSON.stringify({ error: 'Erreur mise à jour' }), { status: 500, headers: CORS });
+  if (fetchErr || !updated) {
+    return new Response(JSON.stringify({ error: 'Document introuvable après mise à jour' }), { status: 404, headers: CORS });
   }
 
   return new Response(JSON.stringify({ document: updated }), { status: 200, headers: CORS });

@@ -1984,19 +1984,52 @@ function UploadModal({ chantierId, token, lots, defaultLotId, defaultType, onClo
     if (!file || !docName.trim()) return;
     setUploadState('uploading'); setErrorMsg('');
     try {
-      const fd = new FormData();
-      fd.append('file', file); fd.append('nom', docName.trim());
-      fd.append('documentType', docType);
-      if (lotId) fd.append('lotId', lotId);
-      const res = await fetch(`/api/chantier/${chantierId}/documents`, {
-        method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
+      // ── Étape 1 : obtenir une URL signée pour l'upload direct (bypass Vercel 4.5 Mo) ──
+      const urlRes = await fetch(`/api/chantier/${chantierId}/upload-url`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: file.name }),
       });
-      // Lire le body comme texte d'abord pour éviter un crash JSON si le serveur renvoie du HTML
-      const rawText = await res.text();
+      if (!urlRes.ok) {
+        const { error } = await urlRes.json().catch(() => ({ error: `Erreur ${urlRes.status}` }));
+        setErrorMsg(error ?? `Erreur ${urlRes.status}`);
+        setUploadState('error');
+        return;
+      }
+      const { signedUrl, bucketPath } = await urlRes.json();
+
+      // ── Étape 2 : upload direct navigateur → Supabase Storage (pas via Vercel) ──
+      const putRes = await fetch(signedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        body: file,
+      });
+      if (!putRes.ok) {
+        setErrorMsg(`Erreur upload fichier (${putRes.status})`);
+        setUploadState('error');
+        return;
+      }
+
+      // ── Étape 3 : enregistrer les métadonnées en base ──
+      const regRes = await fetch(`/api/chantier/${chantierId}/documents/register`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nom: docName.trim(),
+          documentType: docType,
+          lotId: lotId ?? null,
+          bucketPath,
+          nomFichier: file.name,
+          mimeType: file.type || null,
+          tailleOctets: file.size || null,
+        }),
+      });
+      const rawText = await regRes.text();
       let data: Record<string, unknown> = {};
-      try { data = JSON.parse(rawText); } catch { /* non-JSON : garder data vide */ }
-      if (!res.ok) { setErrorMsg((data.error as string) ?? `Erreur ${res.status}`); setUploadState('error'); return; }
-      const doc: DocumentChantier = data.document;
+      try { data = JSON.parse(rawText); } catch { /* non-JSON */ }
+      if (!regRes.ok) { setErrorMsg((data.error as string) ?? `Erreur ${regRes.status}`); setUploadState('error'); return; }
+
+      const doc: DocumentChantier = data.document as DocumentChantier;
       if (docType === 'devis') {
         setUploadState('analyzing');
         try {
