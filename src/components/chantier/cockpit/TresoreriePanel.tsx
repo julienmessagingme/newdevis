@@ -112,7 +112,7 @@ function PaymentTimeline({
         </div>
         <p className="text-sm font-semibold text-gray-700 mb-1">Aucune échéance pour l'instant</p>
         <p className="text-xs text-gray-400 max-w-xs mx-auto leading-relaxed">
-          Les conditions de paiement de vos devis et factures analyseront ici automatiquement.
+          Les conditions de paiement de vos devis et factures seront analysées ici automatiquement.
         </p>
       </div>
     );
