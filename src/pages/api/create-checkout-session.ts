@@ -80,6 +80,37 @@ export const POST: APIRoute = async ({ request }) => {
           { user_id: userId, stripe_customer_id: customerId },
           { onConflict: 'user_id' },
         );
+    } else {
+      // Check if customer already has an active subscription on Stripe
+      const existingSubs = await stripe.subscriptions.list({
+        customer: customerId,
+        status: 'active',
+        price: PRICE_ID,
+        limit: 1,
+      });
+
+      if (existingSubs.data.length > 0) {
+        // Already subscribed — update Supabase status in case webhook missed it
+        const activeSub = existingSubs.data[0];
+        await supabase
+          .from('subscriptions')
+          .upsert(
+            {
+              user_id: userId,
+              status: 'active',
+              plan: 'pass_serenite',
+              stripe_customer_id: customerId,
+              stripe_subscription_id: activeSub.id,
+              current_period_end: new Date(activeSub.current_period_end * 1000).toISOString(),
+            },
+            { onConflict: 'user_id' },
+          );
+
+        return new Response(
+          JSON.stringify({ error: 'Vous avez déjà un abonnement Pass Sérénité actif.', already_subscribed: true }),
+          { status: 409, headers: CORS },
+        );
+      }
     }
 
     // Determine origin for redirect URLs

@@ -98,6 +98,11 @@ const PassSerenite = () => {
       });
 
       const data = await res.json();
+      if (data.already_subscribed) {
+        toast.success("Vous avez déjà un abonnement actif ! Rechargez la page.");
+        window.location.reload();
+        return;
+      }
       if (data.url) {
         window.location.href = data.url;
       } else {
@@ -128,17 +133,17 @@ const PassSerenite = () => {
           <p className="text-3xl font-bold text-primary mb-2">4,99€<span className="text-lg font-normal text-muted-foreground">/mois</span></p>
           <p className="text-sm text-muted-foreground mb-8">Sans engagement · Annulable à tout moment</p>
 
-          {isPremium && !isLoading ? (
+          {isPremium || isSuccess ? (
             <div className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-green-50 border-2 border-green-200 text-green-700 font-medium">
               <CheckCircle2 className="h-5 w-5" />
-              Vous avez le Pass Sérénité
+              {isSuccess ? "Paiement confirmé — Pass Sérénité activé !" : "Vous avez le Pass Sérénité"}
             </div>
-          ) : (
+          ) : isLoading ? null : (
             <Button
               size="lg"
               className="text-base px-8 py-6 h-auto"
               onClick={handleSubscribe}
-              disabled={isRedirecting || isLoading}
+              disabled={isRedirecting}
             >
               {isRedirecting ? (
                 <>
@@ -219,17 +224,17 @@ const PassSerenite = () => {
           Protégez-vous sur tous vos projets travaux
         </h2>
         <p className="text-muted-foreground mb-8">4,99€/mois · Sans engagement · Annulable en 1 clic</p>
-        {isPremium && !isLoading ? (
+        {isPremium || isSuccess ? (
           <div className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-green-50 border-2 border-green-200 text-green-700 font-medium">
             <CheckCircle2 className="h-5 w-5" />
-            Vous avez déjà le Pass Sérénité
+            {isSuccess ? "Paiement confirmé — Pass Sérénité activé !" : "Vous avez déjà le Pass Sérénité"}
           </div>
-        ) : (
+        ) : isLoading ? null : (
           <Button
             size="lg"
             className="text-base px-10 py-6 h-auto"
             onClick={handleSubscribe}
-            disabled={isRedirecting || isLoading}
+            disabled={isRedirecting}
           >
             {isRedirecting ? "Redirection..." : "Souscrire maintenant →"}
           </Button>
