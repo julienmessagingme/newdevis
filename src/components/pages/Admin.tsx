@@ -190,15 +190,27 @@ const Admin = () => {
 
   const downloadFile = async (filePath: string, devisId: string) => {
     setDownloadingId(devisId);
-    const { data, error } = await supabase.storage
-      .from("devis")
-      .createSignedUrl(filePath, 60);
-    setDownloadingId(null);
-    if (error || !data?.signedUrl) {
-      alert("Impossible de générer le lien de téléchargement.");
-      return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) { alert("Session expirée — rechargez la page."); setDownloadingId(null); return; }
+
+      const res = await fetch("/api/admin/signed-url", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ filePath }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.signedUrl) {
+        alert(`Erreur : ${json.error ?? "URL introuvable"}`);
+        return;
+      }
+      window.open(json.signedUrl, "_blank");
+    } catch {
+      alert("Erreur réseau lors du téléchargement.");
+    } finally {
+      setDownloadingId(null);
     }
-    window.open(data.signedUrl, "_blank");
   };
 
   const handleRefresh = () => {
