@@ -174,12 +174,16 @@ const Admin = () => {
 
   useEffect(() => {
     const fetchDevis = async () => {
-      const { data } = await supabase
-        .from("analyses")
-        .select("id, file_name, file_path, created_at")
-        .order("created_at", { ascending: false })
-        .limit(20);
-      if (data) setDevisList(data);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+      const res = await fetch("/api/admin/devis", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setDevisList(json.devis ?? []);
+      }
     };
     fetchDevis();
   }, []);
