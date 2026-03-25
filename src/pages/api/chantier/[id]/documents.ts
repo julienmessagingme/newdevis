@@ -172,13 +172,58 @@ export const POST: APIRoute = async ({ params, request }) => {
     }
 
     // ── Génération payment_events (fire-and-forget) ───────────────────────
-    // L'analyse VerifierMonDevis est déjà complète → on peut extraire
-    // les conditions de paiement immédiatement.
     const sourceType = documentType === 'facture' ? 'facture' : 'devis';
     generatePaymentEventsFromAnalyse(supabase, analyseId, chantierId, sourceType, doc.id)
       .catch((e: unknown) => {
         console.error('[api/documents] paymentEvents error:', e instanceof Error ? e.message : e);
       });
+
+    // ── Auto-création / mise à jour du contact avec téléphone + email ────────
+    // On récupère les données extraites de l'analyse pour peupler le contact
+    supabase
+      .from('analyses')
+      .select('raw_text')
+      .eq('id', analyseId)
+      .single()
+      .then(({ data: analyseRow }) => {
+        if (!analyseRow?.raw_text) return;
+        const raw   = analyseRow.raw_text as Record<string, unknown>;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const ent   = (raw as any)?.extracted?.entreprise as Record<string, unknown> | undefined;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const nomOfficiel = (raw as any)?.verified?.nom_officiel as string | undefined;
+        if (!ent?.nom && !nomOfficiel) return;
+        const contactNom  = nomOfficiel || (ent?.nom as string);
+        const siret       = (ent?.siret as string | undefined) || null;
+        const email       = (ent?.email as string | undefined) || null;
+        const telephone   = (ent?.telephone as string | undefined) || null;
+        // Upsert sur SIRET si dispo, sinon insert
+        const upsertData = {
+          chantier_id: chantierId,
+          user_id:     user.id,
+          nom:         contactNom,
+          siret,
+          email,
+          telephone,
+          role:        'artisan',
+          source:      'devis',
+          notes:       `Importé depuis VerifierMonDevis (analyse ${analyseId})`,
+        };
+        if (siret) {
+          supabase.from('contacts_chantier')
+            .upsert(upsertData, { onConflict: 'chantier_id,siret' })
+            .then(({ error: e }) => {
+              if (e) console.error('[api/documents] contact upsert:', e.message);
+            });
+        } else {
+          supabase.from('contacts_chantier')
+            .insert(upsertData)
+            .then(({ error: e }) => {
+              if (e) console.error('[api/documents] contact insert:', e.message);
+            });
+        }
+      })
+      .catch(() => {/* non-bloquant */});
 
     return new Response(
       JSON.stringify({ document: { ...doc, signedUrl: null } }),

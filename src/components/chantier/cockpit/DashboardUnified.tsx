@@ -1804,9 +1804,10 @@ function ComingSoon({ section, icon: Icon, description, cta }: {
 
 // ── Section Documents (all docs) ──────────────────────────────────────────────
 
-function DocumentsView({ documents, lots: lotsProp, chantierId, token, onAddDoc, onDeleteDoc, onDocUpdated }: {
+function DocumentsView({ documents, lots: lotsProp, chantierId, token, onAddDoc, onDeleteDoc, onDocUpdated, onDocLotUpdated }: {
   documents: DocumentChantier[]; lots: LotChantier[];
   chantierId: string; token: string;
+  onDocLotUpdated?: (docId: string, lotId: string | null) => void;
   onAddDoc: () => void; onDeleteDoc: (id: string) => void; onDocUpdated: () => void;
 }) {
   const byType: Record<DocumentType, DocumentChantier[]> = {} as never;
@@ -1834,7 +1835,7 @@ function DocumentsView({ documents, lots: lotsProp, chantierId, token, onAddDoc,
   const [lotOverrides, setLotOverrides] = useState<Record<string, string | null>>({});
 
   async function handleChangeLot(docId: string, lotId: string | null) {
-    // Mise à jour visuelle immédiate
+    // Mise à jour visuelle immédiate (optimiste)
     setLotOverrides(prev => ({ ...prev, [docId]: lotId }));
     const res = await fetch(`/api/chantier/${chantierId}/documents/${docId}`, {
       method: 'PATCH',
@@ -1842,10 +1843,13 @@ function DocumentsView({ documents, lots: lotsProp, chantierId, token, onAddDoc,
       body: JSON.stringify({ lotId }),
     });
     if (res.ok) {
-      onDocUpdated();
+      // Mise à jour directe de la ligne dans le state parent (pas de reload complet)
+      onDocLotUpdated?.(docId, lotId);
+      // Nettoyer l'override maintenant que doc.lot_id est à jour
+      setLotOverrides(prev => { const n = { ...prev }; delete n[docId]; return n; });
     } else {
       // Rollback si erreur
-      setLotOverrides(prev => ({ ...prev, [docId]: undefined as unknown as null }));
+      setLotOverrides(prev => { const n = { ...prev }; delete n[docId]; return n; });
     }
   }
 
@@ -2520,7 +2524,18 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
 
       case 'documents':
         return (
-          <DocumentsView documents={documents} lots={lots} chantierId={chantierId!} token={token!} onAddDoc={() => setUploadModal({ open: true })} onDeleteDoc={handleDeleteDoc} onDocUpdated={loadDocuments} />
+          <DocumentsView
+            documents={documents}
+            lots={lots}
+            chantierId={chantierId!}
+            token={token!}
+            onAddDoc={() => setUploadModal({ open: true })}
+            onDeleteDoc={handleDeleteDoc}
+            onDocUpdated={loadDocuments}
+            onDocLotUpdated={(docId, lotId) =>
+              setDocuments(prev => prev.map(d => d.id === docId ? { ...d, lot_id: lotId } : d))
+            }
+          />
         );
 
       case 'assistant':

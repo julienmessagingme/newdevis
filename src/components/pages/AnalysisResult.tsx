@@ -684,7 +684,7 @@ const AnalysisResult = () => {
   return (
     <ExtractionBlocker analysisId={analysis.id} analysisStatus={analysis.status} errorMessage={analysis.error_message}>
     {/* Pass Sérénité gate: block results if 6+ analyses and not premium */}
-    {lifetimeAnalysisCount > 5 && !isPremium && !isAnonymous ? (
+    {lifetimeAnalysisCount > 5 && !isPremium && !isAnonymous && !isAdmin ? (
       <div className="min-h-screen bg-background">
         <header className="sticky top-0 z-50 bg-card border-b border-border">
           <div className="container flex h-16 items-center justify-between">
