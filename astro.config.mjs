@@ -11,6 +11,9 @@ export default defineConfig({
   ],
   output: 'static',
   adapter: vercel(),
+  security: {
+    checkOrigin: false, // Required for external webhooks (SendGrid Inbound Parse, Stripe)
+  },
   vite: {
     resolve: {
       alias: {
