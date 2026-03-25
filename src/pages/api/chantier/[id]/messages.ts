@@ -83,16 +83,21 @@ export const POST: APIRoute = async ({ params, request }) => {
     conversationId = existingConv.id;
     replyAddress   = existingConv.reply_address;
   } else {
-    // Insert new conversation
+    // Generate ID upfront so we can build the reply_address before INSERT
+    const newId = crypto.randomUUID();
+    replyAddress = `chantier-${chantierId}+${newId}@${replyDomain}`;
+
     const { data: newConv, error: convErr } = await ctx.supabase
       .from('chantier_conversations')
       .insert({
+        id:            newId,
         chantier_id:   chantierId,
         contact_id:    contactId,
         user_id:       ctx.user.id,
         contact_name:  contact.nom,
         contact_email: contact.email,
         contact_phone: contact.telephone,
+        reply_address: replyAddress,
       })
       .select('id')
       .single();
@@ -101,13 +106,6 @@ export const POST: APIRoute = async ({ params, request }) => {
       return new Response(JSON.stringify({ error: convErr?.message ?? 'Erreur création conversation' }), { status: 500, headers: CORS });
 
     conversationId = newConv.id;
-    replyAddress = `chantier-${chantierId}+${conversationId}@${replyDomain}`;
-
-    // Update reply_address now that we have the id
-    await ctx.supabase
-      .from('chantier_conversations')
-      .update({ reply_address: replyAddress })
-      .eq('id', conversationId);
   }
 
   // Insert message
