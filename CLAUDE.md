@@ -60,7 +60,8 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 | `/api/create-portal-session` | `api/create-portal-session.ts` | Portail client Stripe |
 | `/api/stripe-webhook` | `api/stripe-webhook.ts` | Webhook Stripe (souscription, annulation, échec paiement) |
 | `/api/premium/*` | `api/premium/` | Statut et essai premium |
-| `/api/chantier/*` | `api/chantier/` | Module chantier complet (17 routes dont lots, devis, contacts, chat, matériaux — voir `DOCUMENTATION.md` §20) |
+| `/api/chantier/*` | `api/chantier/` | Module chantier complet (21 routes dont lots, devis, contacts, messagerie, chat, matériaux — voir `DOCUMENTATION.md` §20) |
+| `/api/webhooks/inbound-email` | `api/webhooks/inbound-email.ts` | Webhook SendGrid Inbound Parse (réception réponses artisans) |
 
 ## Ajouter une page
 
@@ -83,7 +84,7 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 
 ## Supabase
 
-### Tables (21)
+### Tables (23)
 - `analyses` — analyses de devis (table principale). Colonne `market_price_overrides` (JSONB) pour les éditions utilisateur sur les prix marché. Colonne `domain` (TEXT, default `'travaux'`) pour le multi-vertical. **Limite 10 par utilisateur** : les plus anciennes sont purgées automatiquement par le pipeline.
 - `analysis_work_items` — lignes de travaux détaillées par analyse. Colonne `job_type_group` (TEXT) pour le rattachement au job type IA.
 - `blog_posts` — articles de blog (avec workflow IA, images cover + mid)
@@ -93,6 +94,8 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 - `chantier_updates` — journal des modifications IA par chantier. FK chantiers CASCADE.
 - `documents_chantier` — documents attachés aux chantiers (devis, factures, photos, plans). FK chantiers CASCADE.
 - `contacts_chantier` — carnet de contacts par chantier (nom, email, téléphone, SIRET, rôle, notes). FK chantiers CASCADE, FK lots_chantier SET NULL. Source : 'manual'|'devis'|'facture'. RLS user-scoped.
+- `chantier_conversations` — conversations email par chantier (1 par contact). Contient reply_address unique pour SendGrid Inbound Parse. FK chantiers CASCADE, FK contacts_chantier SET NULL. RLS user-scoped.
+- `chantier_messages` — messages email (outbound/inbound). FK chantier_conversations CASCADE. Direction, subject, body_text, body_html, status. RLS via join sur conversations.user_id.
 - `company_cache` — cache vérification entreprise (recherche-entreprises.api.gouv.fr). Purge auto quotidienne via cron.
 - `document_extractions` — cache OCR par hash SHA-256 du fichier (provider, parsed_data, quality_score)
 - `dvf_prices` — cache prix immobiliers DVF par commune (code INSEE, prix/m² maison et appartement, nb ventes). Source : data.gouv.fr. RLS lecture publique.
@@ -434,6 +437,50 @@ Préparation pour supporter d'autres domaines que "travaux" (auto, dentaire, etc
 ## Widget MessagingMe
 
 Script chat widget chargé dans `<head>` de `BaseLayout.astro` : `<script src="https://ai.messagingme.app/widget/f236879w135897.js" async>`. Présent sur toutes les pages.
+
+## Messagerie chantier (SendGrid)
+
+Onglet "Messagerie" dans la sidebar du dashboard chantier. Permet aux clients d'envoyer/recevoir des emails avec les artisans, et d'envoyer des liens WhatsApp.
+
+### Architecture
+
+- **Envoi** : API route `POST /api/chantier/[id]/messages` → SendGrid Mail API
+- **Réception** : SendGrid Inbound Parse → webhook `POST /api/webhooks/inbound-email`
+- **Reply-to** : adresse unique par conversation `chantier-{id}+{convId}@{REPLY_EMAIL_DOMAIN}`
+- **WhatsApp** : lien `wa.me/{numéro}?text={message}` (pas d'API, ouverture dans nouvel onglet)
+- **Templates** : fichier statique `src/data/MESSAGE_TEMPLATES.ts` avec interpolation de variables
+
+### API Routes messagerie
+
+| Méthode | Route | Rôle |
+|---|---|---|
+| GET | `/api/chantier/[id]/conversations` | Liste des conversations |
+| GET | `/api/chantier/[id]/conversations/[convId]` | Messages + mark read |
+| PATCH | `/api/chantier/[id]/conversations/[convId]` | Marquer comme lu |
+| POST | `/api/chantier/[id]/messages` | Envoyer un message |
+| POST | `/api/webhooks/inbound-email` | Webhook SendGrid (pas de JWT) |
+
+### Variables d'environnement
+
+| Variable | Où | Usage |
+|---|---|---|
+| `SENDGRID_API_KEY` | Vercel | Envoi/notification email via SendGrid |
+| `REPLY_EMAIL_DOMAIN` | Vercel | Sous-domaine reply (default: `reply.verifiermondevis.fr`) |
+
+### Configuration SendGrid requise
+
+1. Domain Authentication pour le domaine d'envoi
+2. MX record `reply.verifiermondevis.fr` → `mx.sendgrid.net`
+3. Inbound Parse webhook URL → `https://www.verifiermondevis.fr/api/webhooks/inbound-email`
+
+### Composants
+
+- `MessagerieSection.tsx` — orchestrateur (2 colonnes desktop, vue unique mobile)
+- `ConversationList.tsx` — liste des conversations avec search, badges unread
+- `ConversationThread.tsx` — fil de messages avec bulles, auto-scroll
+- `MessageComposer.tsx` — zone de saisie + templates + WhatsApp
+- `TemplateSelector.tsx` — dropdown de templates avec interpolation
+- `useConversations.ts` / `useMessages.ts` — hooks de données
 
 ## Email marketing (SMTP OVH + MessagingMe)
 
