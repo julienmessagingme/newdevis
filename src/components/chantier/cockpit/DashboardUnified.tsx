@@ -575,34 +575,62 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
   const validatedCount = devisDocs.filter(d => (statutMap[d.id] ?? d.devis_statut ?? 'en_cours') === 'valide').length;
   const totalCount     = devisDocs.length;
 
-  // ── Score analyse ─────────────────────────────────────────────────────────
-  // Récupéré depuis analyse_id si présent (score stocké dans analyses.score)
-  const [scoreMap, setScoreMap] = useState<Record<string, number | null>>({});
+  // ── Score + montant depuis les analyses ──────────────────────────────────
+  const [scoreMap,  setScoreMap]  = useState<Record<string, number | null>>({});
+  const [amountMap, setAmountMap] = useState<Record<string, { ttc: number | null; ht: number | null }>>({});
   useEffect(() => {
     const withAnalyse = devisDocs.filter(d => d.analyse_id);
     if (!withAnalyse.length) return;
     const ids = withAnalyse.map(d => d.analyse_id!);
-    supabase.from('analyses').select('id, score').in('id', ids).then(({ data }) => {
+    supabase.from('analyses').select('id, score, raw_text').in('id', ids).then(({ data }) => {
       if (!data) return;
-      const m: Record<string, number | null> = {};
-      data.forEach(a => { m[a.id] = a.score != null ? Number(a.score) : null; });
+      const mScore:  Record<string, number | null> = {};
+      const mAmount: Record<string, { ttc: number | null; ht: number | null }> = {};
+      data.forEach(a => {
+        // Score : Number() peut retourner NaN si score est un objet/string — on protège
+        const n = Number(a.score);
+        mScore[a.id] = (a.score != null && !isNaN(n)) ? n : null;
+        // Montant depuis raw_text.extracted.totaux
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const totaux = (a.raw_text as any)?.extracted?.totaux;
+        mAmount[a.id] = {
+          ttc: totaux?.ttc  != null && !isNaN(Number(totaux.ttc))  ? Number(totaux.ttc)  : null,
+          ht:  totaux?.ht   != null && !isNaN(Number(totaux.ht))   ? Number(totaux.ht)   : null,
+        };
+      });
       // Relier analyse_id → doc.id
-      withAnalyse.forEach(d => { if (d.analyse_id && m[d.analyse_id] !== undefined) m[d.id] = m[d.analyse_id]; });
-      setScoreMap(m);
+      withAnalyse.forEach(d => {
+        if (!d.analyse_id) return;
+        if (mScore[d.analyse_id]  !== undefined) mScore[d.id]  = mScore[d.analyse_id];
+        if (mAmount[d.analyse_id] !== undefined) mAmount[d.id] = mAmount[d.analyse_id];
+      });
+      setScoreMap(mScore);
+      setAmountMap(mAmount);
     });
   }, [docs]);
 
-  function ScoreBadge({ score }: { score: number | null | undefined }) {
-    if (score == null) return <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">— Pas analysé</span>;
-    const cls = score >= 70 ? 'bg-emerald-50 text-emerald-700' : score >= 45 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-600';
+  function ScoreBadge({ score, analyseId }: { score: number | null | undefined; analyseId?: string | null }) {
+    if (score == null) {
+      // Pas encore analysé ou score absent
+      return analyseId
+        ? <a href={`/analyse/${analyseId}`} target="_blank" rel="noreferrer"
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-500 hover:text-blue-700 hover:underline transition-colors">
+            Voir l'analyse →
+          </a>
+        : <span className="text-[11px] text-gray-300 italic">Non analysé</span>;
+    }
+    const cls = score >= 70 ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : score >= 45 ? 'bg-amber-50 text-amber-700 hover:bg-amber-100' : 'bg-red-50 text-red-600 hover:bg-red-100';
     const dot = score >= 70 ? 'bg-emerald-500' : score >= 45 ? 'bg-amber-500' : 'bg-red-500';
-    const lbl = score >= 70 ? 'Bon' : score >= 45 ? 'Moyen' : 'Risqué';
-    return (
-      <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full ${cls}`}>
+    const lbl = score >= 70 ? '✅ Bon' : score >= 45 ? '⚠️ Moyen' : '🔴 Risqué';
+    const badge = (
+      <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full transition-colors ${cls}`}>
         <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
-        {lbl} — {score}/100
+        {lbl}
       </span>
     );
+    return analyseId
+      ? <a href={`/analyse/${analyseId}`} target="_blank" rel="noreferrer">{badge}</a>
+      : badge;
   }
 
   return (
@@ -677,24 +705,35 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
                   <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[22%]">Artisan / Société</th>
-                  <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[14%]">Type</th>
-                  <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[18%]">Analyse VMD</th>
-                  <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[20%]">Statut</th>
-                  <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[14%]">Date</th>
-                  <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[8%]">Doc</th>
+                  <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[10%]">Type</th>
+                  <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[16%]">Analyse VMD</th>
+                  <th className="text-right text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[14%]">Montant</th>
+                  <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[18%]">Statut</th>
+                  <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[12%]">Date</th>
                   <th className="w-[4%]" />
                 </tr>
               </thead>
               <tbody>
                 {devisDocs.map(doc => {
-                  const statut = statutMap[doc.id] ?? doc.devis_statut ?? 'en_cours';
-                  const score  = scoreMap[doc.id];
+                  const statut  = statutMap[doc.id] ?? doc.devis_statut ?? 'en_cours';
+                  const score   = scoreMap[doc.id];
+                  const amounts = amountMap[doc.id];
                   return (
                     <tr key={doc.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/60 transition-colors group">
-                      {/* Artisan */}
+                      {/* Artisan — cliquable pour ouvrir le doc */}
                       <td className="px-4 py-3.5">
-                        <p className="text-sm font-bold text-gray-900 truncate max-w-[160px]">{doc.nom}</p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">{TYPE_LABELS[doc.document_type]}</p>
+                        {doc.signedUrl ? (
+                          <a href={doc.signedUrl} target="_blank" rel="noreferrer"
+                            className="group/name flex flex-col">
+                            <span className="text-sm font-bold text-blue-700 hover:text-blue-900 underline-offset-2 hover:underline truncate max-w-[160px] transition-colors">{doc.nom}</span>
+                            <span className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1"><FileText className="h-2.5 w-2.5" /> Ouvrir le document</span>
+                          </a>
+                        ) : (
+                          <div>
+                            <p className="text-sm font-bold text-gray-900 truncate max-w-[160px]">{doc.nom}</p>
+                            <p className="text-[10px] text-gray-400 mt-0.5">{TYPE_LABELS[doc.document_type]}</p>
+                          </div>
+                        )}
                       </td>
                       {/* Type */}
                       <td className="px-4 py-3.5">
@@ -702,12 +741,21 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
                           {doc.document_type === 'facture' ? '🧾 Facture' : '📄 Devis'}
                         </span>
                       </td>
-                      {/* Score VMD */}
+                      {/* Score VMD — cliquable vers l'analyse */}
                       <td className="px-4 py-3.5">
-                        {doc.analyse_id ? (
-                          <ScoreBadge score={score} />
+                        <ScoreBadge score={score} analyseId={doc.analyse_id} />
+                      </td>
+                      {/* Montant TTC / HT */}
+                      <td className="px-4 py-3.5 text-right">
+                        {amounts?.ttc != null ? (
+                          <div>
+                            <p className="text-sm font-bold text-gray-800 tabular-nums whitespace-nowrap">{fmtEur(amounts.ttc)} TTC</p>
+                            {amounts.ht != null && (
+                              <p className="text-[10px] text-gray-400 tabular-nums">{fmtEur(amounts.ht)} HT</p>
+                            )}
+                          </div>
                         ) : (
-                          <span className="text-[11px] text-gray-300 italic">Non analysé</span>
+                          <span className="text-[11px] text-gray-300">—</span>
                         )}
                       </td>
                       {/* Statut */}
@@ -725,17 +773,6 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
                       {/* Date */}
                       <td className="px-4 py-3.5">
                         <span className="text-xs text-gray-400 whitespace-nowrap">{fmtDate(doc.created_at)}</span>
-                      </td>
-                      {/* Doc */}
-                      <td className="px-4 py-3.5">
-                        {doc.signedUrl ? (
-                          <a href={doc.signedUrl} target="_blank" rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 transition-colors">
-                            <FileText className="h-3 w-3" /> Ouvrir
-                          </a>
-                        ) : (
-                          <span className="text-[11px] text-gray-300">—</span>
-                        )}
                       </td>
                       {/* Supprimer */}
                       <td className="px-2 py-3.5">
