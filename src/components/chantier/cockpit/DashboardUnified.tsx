@@ -1344,7 +1344,7 @@ function KpiCard({ icon, label, value, sub, accent = 'gray', action }: {
 
 // ── Carte DIY — toujours présente dans la grille intervenants ─────────────────
 
-function DiyCard({ onAddDoc }: { onAddDoc: () => void }) {
+function DiyCard({ onAddDoc, onGoToDiy }: { onAddDoc: () => void; onGoToDiy: () => void }) {
   return (
     <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-5 flex flex-col gap-3 hover:border-gray-300 hover:shadow-sm transition-all">
       {/* Header */}
@@ -1352,22 +1352,36 @@ function DiyCard({ onAddDoc }: { onAddDoc: () => void }) {
         <div className="w-11 h-11 rounded-xl bg-gray-50 flex items-center justify-center text-xl shrink-0">
           🔧
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="font-semibold text-sm text-gray-800 truncate">Travaux par vous-même</p>
           <p className="text-[11px] text-gray-400">DIY · Auto-construction</p>
         </div>
+        <button
+          onClick={onGoToDiy}
+          className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 shrink-0"
+        >
+          Détails →
+        </button>
       </div>
       {/* Description */}
       <p className="text-xs text-gray-500 leading-relaxed">
         Ajoutez vos factures de matériaux et photos pour calculer automatiquement vos économies réalisées.
       </p>
-      {/* CTA */}
-      <button
-        onClick={onAddDoc}
-        className="w-full flex items-center justify-center gap-2 bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold rounded-xl px-4 py-2.5 transition-colors mt-auto"
-      >
-        <Plus className="h-3.5 w-3.5" /> Ajouter factures / photos
-      </button>
+      {/* CTAs */}
+      <div className="flex gap-2 mt-auto">
+        <button
+          onClick={onAddDoc}
+          className="flex-1 flex items-center justify-center gap-2 bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold rounded-xl px-4 py-2.5 transition-colors"
+        >
+          <Plus className="h-3.5 w-3.5" /> Ajouter
+        </button>
+        <button
+          onClick={onGoToDiy}
+          className="flex items-center justify-center gap-1 border border-gray-200 hover:bg-gray-50 text-gray-600 text-xs font-semibold rounded-xl px-4 py-2.5 transition-colors"
+        >
+          Voir détails
+        </button>
+      </div>
     </div>
   );
 }
@@ -1417,11 +1431,13 @@ const LOT_STATUS_CFG: Record<LotListStatus, { dot: string; label: string; badge:
 type SortKey = 'none' | 'prix_asc' | 'prix_desc';
 type FilterStatus = 'all' | LotListStatus;
 
-function IntervenantsListView({ lots, docsByLot, onAddDevisForLot, onGoToLot, chantierId, token, onDocStatutUpdated }: {
+function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, onGoToLot, onGoToDiy, chantierId, token, onDocStatutUpdated }: {
   lots: LotChantier[];
   docsByLot: Record<string, DocumentChantier[]>;
+  documents: DocumentChantier[];
   onAddDevisForLot: (lotId: string) => void;
   onGoToLot: (lotId: string) => void;
+  onGoToDiy: () => void;
   chantierId: string;
   token: string | null | undefined;
   onDocStatutUpdated?: (docId: string, statut: string) => void;
@@ -1702,6 +1718,77 @@ function IntervenantsListView({ lots, docsByLot, onAddDevisForLot, onGoToLot, ch
           })
         )}
 
+        {/* ── Ligne DIY — Travaux par vous-même ──────────────────────────────── */}
+        {(() => {
+          const diyDocs = documents.filter(d =>
+            d.document_type === 'facture' || d.document_type === 'photo',
+          );
+          return (
+            <div className="border-t-2 border-dashed border-gray-200">
+              {/* En-tête lot DIY */}
+              <div className="grid border-b border-gray-100" style={{ gridTemplateColumns: '1fr 160px 120px 130px 160px 100px' }}>
+                <div className="px-4 py-3 flex items-center gap-2.5">
+                  <span className="text-base leading-none">🔧</span>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm text-gray-700 truncate">Travaux par vous-même</p>
+                    <p className="text-[11px] text-gray-400">DIY · Auto-construction</p>
+                  </div>
+                </div>
+                <div className="px-4 py-3 flex items-center">
+                  <span className="text-[11px] text-gray-400 italic">{diyDocs.length} document{diyDocs.length !== 1 ? 's' : ''}</span>
+                </div>
+                <div className="px-4 py-3 flex items-center" />
+                <div className="px-4 py-3 flex items-center" />
+                <div className="px-4 py-3 flex items-center" />
+                <div className="px-4 py-3 flex items-center justify-end">
+                  <button
+                    onClick={onGoToDiy}
+                    className="text-[11px] font-semibold text-blue-600 hover:text-blue-700"
+                  >
+                    Voir détails →
+                  </button>
+                </div>
+              </div>
+              {/* Sous-lignes documents DIY */}
+              {diyDocs.length === 0 ? (
+                <div className="px-6 py-3 text-[11px] text-gray-400 italic">
+                  Aucun document — ajoutez vos factures matériaux et photos.
+                  <button onClick={onGoToDiy} className="ml-2 text-blue-500 hover:text-blue-600 font-medium">Accéder →</button>
+                </div>
+              ) : (
+                diyDocs.slice(0, 3).map(doc => (
+                  <div key={doc.id} className="grid border-b border-gray-50 bg-gray-50/40" style={{ gridTemplateColumns: '1fr 160px 120px 130px 160px 100px' }}>
+                    <div className="px-4 py-2.5 flex items-center gap-2 pl-10">
+                      <span className="text-xs">
+                        {doc.document_type === 'facture' ? '🧾' : '📷'}
+                      </span>
+                      <span className="text-xs text-gray-600 truncate max-w-[200px]">{doc.nom}</span>
+                    </div>
+                    <div className="px-4 py-2.5 flex items-center">
+                      <span className="text-[11px] text-gray-400 capitalize">{doc.document_type}</span>
+                    </div>
+                    <div className="px-4 py-2.5" />
+                    <div className="px-4 py-2.5" />
+                    <div className="px-4 py-2.5" />
+                    <div className="px-4 py-2.5 flex items-center justify-end">
+                      {doc.signedUrl && (
+                        <a href={doc.signedUrl} target="_blank" rel="noreferrer"
+                          className="text-[11px] text-blue-500 hover:text-blue-600">Ouvrir →</a>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+              {diyDocs.length > 3 && (
+                <div className="px-6 py-2 text-[11px] text-gray-400">
+                  +{diyDocs.length - 3} autres documents —{' '}
+                  <button onClick={onGoToDiy} className="text-blue-500 hover:text-blue-600 font-medium">tout voir</button>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* Footer récap */}
         <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
           <span className="text-[11px] text-gray-400">
@@ -1718,7 +1805,7 @@ function IntervenantsListView({ lots, docsByLot, onAddDevisForLot, onGoToLot, ch
 
 function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, refinedBreakdown, onAffineBudget,
   onAddDevisForLot, onAddDocForLot, onGoToLot, onGoToAnalyse, onGoToPlanning, onAddDoc,
-  onGoToAssistant, onAddIntervenant, onDeleteLot, chantierId, token, onDocStatutUpdated,
+  onGoToAssistant, onAddIntervenant, onDeleteLot, onGoToDiy, chantierId, token, onDocStatutUpdated,
 }: {
   lots: LotChantier[];
   documents: DocumentChantier[];
@@ -1736,6 +1823,7 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
   onGoToAssistant: () => void;
   onAddIntervenant: () => void;
   onDeleteLot: (lotId: string) => void;
+  onGoToDiy: () => void;
   chantierId: string;
   token: string | null | undefined;
   onDocStatutUpdated?: (docId: string, statut: string) => void;
@@ -1897,8 +1985,10 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
           <IntervenantsListView
             lots={lots}
             docsByLot={docsByLot}
+            documents={documents}
             onAddDevisForLot={onAddDevisForLot}
             onGoToLot={onGoToLot}
+            onGoToDiy={onGoToDiy}
             chantierId={chantierId}
             token={token}
             onDocStatutUpdated={onDocStatutUpdated}
@@ -1917,7 +2007,7 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
               />
             ))}
             {/* Carte DIY — toujours présente, travaux réalisés par le client */}
-            <DiyCard onAddDoc={onAddDoc} />
+            <DiyCard onAddDoc={onAddDoc} onGoToDiy={onGoToDiy} />
           </div>
         )}
       </div>
@@ -2961,6 +3051,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             onGoToAssistant={() => setChatOpen(true)}
             onAddIntervenant={() => setShowAddIntervenant(true)}
             onDeleteLot={deleteLot}
+            onGoToDiy={() => navigateTo('diy')}
             chantierId={chantierId!}
             token={token}
             onDocStatutUpdated={(docId, statut) =>
