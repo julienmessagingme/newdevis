@@ -591,15 +591,16 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
     const ids = withAnalyse.map(d => d.analyse_id!);
     supabase.from('analyses').select('id, score, raw_text').in('id', ids).then(({ data }) => {
       if (!data) return;
+      // score = TEXT : 'VERT'|'ORANGE'|'ROUGE' → convertir en nombre pour ScoreBadge (70 / 55 / 30)
       const mScore:  Record<string, number | null> = {};
       const mAmount: Record<string, { ttc: number | null; ht: number | null }> = {};
       data.forEach(a => {
-        // Score : Number() peut retourner NaN si score est un objet/string — on protège
-        const n = Number(a.score);
-        mScore[a.id] = (a.score != null && !isNaN(n)) ? n : null;
-        // Montant depuis raw_text.extracted.totaux
+        mScore[a.id] = a.score === 'VERT' ? 75 : a.score === 'ORANGE' ? 55 : a.score === 'ROUGE' ? 25 : null;
+        // Montant depuis raw_text.extracted.totaux (peut être JSON string ou JSONB)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const totaux = (a.raw_text as any)?.extracted?.totaux;
+        let raw: any = a.raw_text;
+        if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = null; } }
+        const totaux = raw?.extracted?.totaux;
         mAmount[a.id] = {
           ttc: totaux?.ttc  != null && !isNaN(Number(totaux.ttc))  ? Number(totaux.ttc)  : null,
           ht:  totaux?.ht   != null && !isNaN(Number(totaux.ht))   ? Number(totaux.ht)   : null,
@@ -2129,6 +2130,7 @@ function UploadModal({ chantierId, token, lots, defaultLotId, defaultType, onClo
       try { data = JSON.parse(rawText); } catch { /* non-JSON */ }
       if (!regRes.ok) { setErrorMsg((data.error as string) ?? `Erreur ${regRes.status}`); setUploadState('error'); return; }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const doc: DocumentChantier = data.document as DocumentChantier;
       if (docType === 'devis') {
         setUploadState('analyzing');
@@ -2139,6 +2141,8 @@ function UploadModal({ chantierId, token, lots, defaultLotId, defaultType, onClo
           if (aRes.ok) {
             const aData = await aRes.json().catch(() => ({}));
             setSavingsAmount(aData?.result?.economics?.savings ?? 0);
+            // Mettre à jour l'analyse_id sur le doc AVANT onSuccess
+            if (aData.analysisId) (doc as unknown as Record<string, unknown>).analyse_id = aData.analysisId;
           } else { setSavingsAmount(0); }
         } catch { setSavingsAmount(0); }
       } else { setSavingsAmount(0); }
@@ -2498,15 +2502,45 @@ function DocumentsView({ documents, lots: lotsProp, chantierId, token, onAddDoc,
 
 // ── Section Analyse des devis ─────────────────────────────────────────────────
 
-function DevisCard({ doc, lot, insight, onDelete }: {
+function DevisCard({ doc: docProp, lot, insight, onDelete, chantierId, token, onAnalysed }: {
   doc: DocumentChantier;
   lot?: LotChantier;
   insight?: InsightItem;
   onDelete: () => void;
+  chantierId?: string | null;
+  token?: string | null;
+  onAnalysed?: (docId: string, analysisId: string) => void;
 }) {
-  const isFromVerifier = doc.source === 'verifier_mon_devis';
-  const isAnalysed     = !!doc.analyse_id || isFromVerifier;
+  const [doc, setDoc]           = useState(docProp);
+  const [analysing, setAnalysing] = useState(false);
+  const isAnalysed = !!doc.analyse_id;
   const s = insight ? IS[insight.type] : null;
+
+  async function handleAnalyser() {
+    if (!chantierId || !token) { toast.error('Session expirée — rechargez'); return; }
+    setAnalysing(true);
+    try {
+      const res = await fetch(`/api/chantier/${chantierId}/documents/${doc.id}/analyser`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok || res.status === 409) {
+        // 409 = déjà analysé (idempotence) — on récupère quand même l'analysisId
+        const analysisId: string = data.analysisId;
+        if (analysisId) {
+          setDoc(prev => ({ ...prev, analyse_id: analysisId }));
+          onAnalysed?.(doc.id, analysisId);
+          toast.success('Analyse lancée — résultat dans quelques secondes');
+        }
+      } else {
+        toast.error(`Erreur analyse : ${data.error ?? res.status}`);
+      }
+    } catch {
+      toast.error('Erreur réseau lors de l\'analyse');
+    } finally {
+      setAnalysing(false);
+    }
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
@@ -2531,17 +2565,19 @@ function DevisCard({ doc, lot, insight, onDelete }: {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {isFromVerifier && doc.analyse_id && (
+          {/* Lien vers l'analyse pour tout devis analysé */}
+          {doc.analyse_id && (
             <a href={`/analyse/${doc.analyse_id}`}
               className="text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition-colors">
               Voir l'analyse →
             </a>
           )}
+          {/* Bouton analyser — appelle l'API directement, pas de redirect */}
           {!isAnalysed && (
-            <a href="/nouvelle-analyse"
-              className="text-xs font-medium text-gray-500 bg-gray-50 hover:bg-gray-100 px-3 py-1.5 rounded-xl transition-colors">
-              Analyser
-            </a>
+            <button onClick={handleAnalyser} disabled={analysing}
+              className="text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1">
+              {analysing ? <><Loader2 className="h-3 w-3 animate-spin" /> Analyse…</> : '⚡ Analyser'}
+            </button>
           )}
           <button onClick={onDelete}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all">
@@ -2570,15 +2606,20 @@ function DevisCard({ doc, lot, insight, onDelete }: {
   );
 }
 
-function AnalyseDevisSection({ documents, lots, insights, insightsLoading, onAddDoc }: {
+function AnalyseDevisSection({ documents: docsProp, lots, insights, insightsLoading, onAddDoc, chantierId, token }: {
   documents: DocumentChantier[];
   lots: LotChantier[];
   insights: InsightsData | null;
   insightsLoading: boolean;
   onAddDoc: () => void;
+  chantierId?: string | null;
+  token?: string | null;
 }) {
-  const devis = documents.filter(d => d.document_type === 'devis');
-  const analyses = devis.filter(d => !!d.analyse_id || d.source === 'verifier_mon_devis').length;
+  const [docs, setDocs] = useState(docsProp);
+  useEffect(() => { setDocs(docsProp); }, [docsProp]);
+
+  const devis = docs.filter(d => d.document_type === 'devis');
+  const analyses = devis.filter(d => !!d.analyse_id).length;
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-7">
@@ -2624,7 +2665,18 @@ function AnalyseDevisSection({ documents, lots, insights, insightsLoading, onAdd
             const lot = lots.find(l => l.id === doc.lot_id);
             const lotInsight = lot ? insights?.lots?.[lot.id] : undefined;
             return (
-              <DevisCard key={doc.id} doc={doc} lot={lot} insight={lotInsight} onDelete={() => {}} />
+              <DevisCard
+                key={doc.id}
+                doc={doc}
+                lot={lot}
+                insight={lotInsight}
+                onDelete={() => {}}
+                chantierId={chantierId}
+                token={token}
+                onAnalysed={(docId, analysisId) =>
+                  setDocs(prev => prev.map(d => d.id === docId ? { ...d, analyse_id: analysisId } : d))
+                }
+              />
             );
           })}
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
@@ -3106,7 +3158,9 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             lots={lots}
             insights={insights}
             insightsLoading={insightsLoading}
-            onAddDoc={() => setUploadModal({ open: true })}
+            onAddDoc={() => setUploadModal({ open: true, defaultType: 'devis' })}
+            chantierId={chantierId}
+            token={token}
           />
         );
 
