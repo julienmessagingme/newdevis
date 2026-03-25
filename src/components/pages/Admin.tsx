@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { 
-  Shield, 
+import {
+  Shield,
   Users,
   FileText,
   BarChart3,
@@ -16,7 +16,9 @@ import {
   RefreshCw,
   Clock,
   Building2,
-  LineChart
+  LineChart,
+  Download,
+  FolderOpen
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -107,12 +109,21 @@ interface KPIs {
   };
 }
 
+interface DevisRow {
+  id: string;
+  file_name: string | null;
+  file_path: string | null;
+  created_at: string;
+}
+
 const Admin = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [kpis, setKpis] = useState<KPIs | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [devisList, setDevisList] = useState<DevisRow[]>([]);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const checkAdminAndFetchKPIs = async () => {
     try {
@@ -160,6 +171,31 @@ const Admin = () => {
   useEffect(() => {
     checkAdminAndFetchKPIs();
   }, []);
+
+  useEffect(() => {
+    const fetchDevis = async () => {
+      const { data } = await supabase
+        .from("analyses")
+        .select("id, file_name, file_path, created_at")
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (data) setDevisList(data);
+    };
+    fetchDevis();
+  }, []);
+
+  const downloadFile = async (filePath: string, devisId: string) => {
+    setDownloadingId(devisId);
+    const { data, error } = await supabase.storage
+      .from("devis")
+      .createSignedUrl(filePath, 60);
+    setDownloadingId(null);
+    if (error || !data?.signedUrl) {
+      alert("Impossible de générer le lien de téléchargement.");
+      return;
+    }
+    window.open(data.signedUrl, "_blank");
+  };
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -696,7 +732,63 @@ const Admin = () => {
           </div>
         </section>
 
-        {/* === SECTION 5: LEGAL DISCLAIMER === */}
+        {/* === SECTION 5: DERNIERS DEVIS === */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-foreground mb-6 flex items-center gap-2">
+            <FolderOpen className="h-5 w-5 text-primary" />
+            📂 Derniers devis
+          </h2>
+          <div className="bg-background border border-border rounded-xl overflow-hidden">
+            {devisList.length === 0 ? (
+              <p className="text-sm text-muted-foreground p-6">Aucun devis trouvé.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 border-b border-border">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Fichier</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Date</th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {devisList.map((d, i) => (
+                    <tr key={d.id} className={i % 2 === 0 ? "bg-background" : "bg-muted/20"}>
+                      <td className="px-4 py-3 font-mono text-xs text-foreground truncate max-w-[300px]">
+                        {d.file_name ?? d.file_path ?? d.id}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                        {new Date(d.created_at).toLocaleString("fr-FR", {
+                          day: "2-digit", month: "2-digit", year: "numeric",
+                          hour: "2-digit", minute: "2-digit"
+                        })}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {d.file_path ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={downloadingId === d.id}
+                            onClick={() => downloadFile(d.file_path!, d.id)}
+                            className="gap-1.5"
+                          >
+                            {downloadingId === d.id
+                              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              : <Download className="h-3.5 w-3.5" />}
+                            Télécharger
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">Indisponible</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </section>
+
+        {/* === SECTION 6: LEGAL DISCLAIMER === */}
         <section className="mb-8">
           <div className="bg-muted/50 border border-border rounded-xl p-6">
             <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
