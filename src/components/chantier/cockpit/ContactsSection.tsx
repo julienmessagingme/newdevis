@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Plus, Phone, Mail, ExternalLink, Building2, X, Loader2,
-  Pencil, Trash2, Link2, User, Search, FileText, Layers,
+  Pencil, Trash2, Link2, User, Search, FileText, Layers, Check,
 } from 'lucide-react';
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -354,18 +354,36 @@ function InlineField({ icon: Icon, value, placeholder, type, onChange }: {
     if (draft.trim() !== value) onChange(draft.trim());
   }
 
+  function cancel() {
+    setDraft(value);
+    setEditing(false);
+  }
+
   if (editing) {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         <Icon className="h-3.5 w-3.5 shrink-0 text-blue-400" />
         <input
           autoFocus type={type ?? 'text'} value={draft}
           onChange={e => setDraft(e.target.value)}
-          onBlur={commit}
-          onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setDraft(value); setEditing(false); } }}
+          onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') cancel(); }}
           className="flex-1 min-w-0 text-sm border border-blue-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-100"
           placeholder={placeholder}
         />
+        <button
+          onClick={commit}
+          className="p-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors shrink-0"
+          title="Valider"
+        >
+          <Check className="h-3.5 w-3.5" />
+        </button>
+        <button
+          onClick={cancel}
+          className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors shrink-0"
+          title="Annuler"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
       </div>
     );
   }
@@ -374,13 +392,16 @@ function InlineField({ icon: Icon, value, placeholder, type, onChange }: {
     const Tag = type === 'email' ? 'a' : type === 'tel' ? 'a' : 'span';
     const href = type === 'email' ? `mailto:${value}` : type === 'tel' ? `tel:${value}` : undefined;
     return (
-      <div className="flex items-center gap-2 group/field">
+      <div className="flex items-center gap-2">
         <Icon className="h-3.5 w-3.5 shrink-0 text-gray-400" />
         <Tag {...(href ? { href } : {})} className="text-sm text-gray-700 hover:text-blue-600 transition-colors truncate flex-1 min-w-0">
           {value}
         </Tag>
-        <button onClick={() => setEditing(true)} className="opacity-0 group-hover/field:opacity-100 transition-opacity">
-          <Pencil className="h-3 w-3 text-gray-300 hover:text-blue-500" />
+        <button
+          onClick={() => { setDraft(value); setEditing(true); }}
+          className="text-xs text-gray-400 hover:text-blue-600 px-1.5 py-0.5 rounded hover:bg-blue-50 transition-colors shrink-0"
+        >
+          Modifier
         </button>
       </div>
     );
@@ -389,7 +410,7 @@ function InlineField({ icon: Icon, value, placeholder, type, onChange }: {
   // Empty — show prominent CTA to fill in
   return (
     <button
-      onClick={() => setEditing(true)}
+      onClick={() => { setDraft(''); setEditing(true); }}
       className="flex items-center gap-2 w-full text-left px-2.5 py-2 rounded-lg border border-dashed border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all"
     >
       <Icon className="h-3.5 w-3.5 shrink-0 text-gray-300" />
