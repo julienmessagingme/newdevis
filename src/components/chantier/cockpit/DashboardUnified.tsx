@@ -2319,6 +2319,8 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
   const [mobileOpen, setMobileOpen]       = useState(false);
   const [documents, setDocuments]         = useState<DocumentChantier[]>([]);
   const [selectedLotId, setSelectedLotId] = useState<string | null>(null);
+  const [uploadModal, setUploadModal]     = useState<{ open: boolean; lotId?: string; defaultType?: DocumentType }>({ open: false });
+  const lots = result.lots ?? [];
 
   // Auto-sélection du premier lot quand on navigue vers 'lots' sans sélection explicite
   useEffect(() => {
@@ -2326,8 +2328,6 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
       setSelectedLotId(lots[0].id);
     }
   }, [activeSection, selectedLotId, lots]);
-  const [uploadModal, setUploadModal]     = useState<{ open: boolean; lotId?: string; defaultType?: DocumentType }>({ open: false });
-  const lots = result.lots ?? [];
 
   // ── Insights ──────────────────────────────────────────────────────────────
   const { insights, loading: insightsLoading, refresh: refreshInsights } = useInsights(
