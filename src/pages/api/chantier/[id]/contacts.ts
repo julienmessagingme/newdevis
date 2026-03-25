@@ -119,6 +119,30 @@ export const GET: APIRoute = async ({ params, request }) => {
     if (d.analyse_id) chantierAnalyseIds.add(d.analyse_id);
   }
 
+  // Via analyse_id stocké sur les contacts du chantier (nouvellement peuplé)
+  for (const c of contacts ?? []) {
+    if (c.analyse_id) chantierAnalyseIds.add(c.analyse_id);
+  }
+
+  // Matching fuzzy : pour les documents sans analyse_id, chercher une analyse
+  // dont le nom officiel / nom entreprise apparaît dans le nom du document
+  for (const doc of docChantier ?? []) {
+    if (doc.analyse_id) continue; // déjà traité
+    const docNameLower = doc.nom.toLowerCase();
+    for (const a of analyses ?? []) {
+      if (chantierAnalyseIds.has(a.id)) continue;
+      try {
+        const raw = typeof a.raw_text === 'string' ? JSON.parse(a.raw_text) : a.raw_text;
+        const artisanNom = ((raw?.verified?.nom_officiel || raw?.extracted?.entreprise?.nom) as string | undefined)
+          ?.toLowerCase().trim() ?? '';
+        // Match si le nom de l'entreprise (≥4 chars) est contenu dans le nom du document
+        if (artisanNom.length >= 4 && docNameLower.includes(artisanNom)) {
+          chantierAnalyseIds.add(a.id);
+        }
+      } catch { /* skip */ }
+    }
+  }
+
   // Aussi inclure toutes les analyses dont le SIRET correspond à un analyse_id déjà lié
   const linkedSirets = new Set<string>();
   for (const a of analyses ?? []) {

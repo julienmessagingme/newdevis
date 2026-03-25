@@ -198,29 +198,58 @@ export const POST: APIRoute = async ({ params, request }) => {
         const email       = (ent?.email as string | undefined) || null;
         const telephone   = (ent?.telephone as string | undefined) || null;
         // Upsert sur SIRET si dispo, sinon insert
-        const upsertData = {
+        // On inclut analyse_id pour permettre l'enrichissement ultérieur côté frontend
+        const baseData = {
           chantier_id: chantierId,
           user_id:     user.id,
           nom:         contactNom,
           siret,
-          email,
-          telephone,
           role:        'artisan',
           source:      'devis',
+          analyse_id:  analyseId,
           notes:       `Importé depuis VerifierMonDevis (analyse ${analyseId})`,
         };
         if (siret) {
+          // Chercher si un contact existe déjà pour ce SIRET sur ce chantier
           supabase.from('contacts_chantier')
-            .upsert(upsertData, { onConflict: 'chantier_id,siret' })
-            .then(({ error: e }) => {
-              if (e) console.error('[api/documents] contact upsert:', e.message);
-            });
+            .select('id, email, telephone')
+            .eq('chantier_id', chantierId).eq('siret', siret).maybeSingle()
+            .then(({ data: existing }) => {
+              if (existing) {
+                // Ne mettre à jour email/téléphone que s'ils sont vides sur le contact existant
+                const patch: Record<string, unknown> = { nom: contactNom, analyse_id: analyseId };
+                if (!existing.email && email)         patch.email     = email;
+                if (!existing.telephone && telephone) patch.telephone = telephone;
+                supabase.from('contacts_chantier').update(patch).eq('id', existing.id)
+                  .then(({ error: e }) => { if (e) console.error('[api/documents] contact update:', e.message); });
+              } else {
+                supabase.from('contacts_chantier')
+                  .insert({ ...baseData, email, telephone })
+                  .then(({ error: e }) => { if (e) console.error('[api/documents] contact insert (siret):', e.message); });
+              }
+            })
+            .catch(() => {});
         } else {
+          // Sans SIRET : insert si pas déjà un contact avec ce nom sur ce chantier
           supabase.from('contacts_chantier')
-            .insert(upsertData)
-            .then(({ error: e }) => {
-              if (e) console.error('[api/documents] contact insert:', e.message);
-            });
+            .select('id, email, telephone')
+            .eq('chantier_id', chantierId).ilike('nom', contactNom).maybeSingle()
+            .then(({ data: existing }) => {
+              if (existing) {
+                const patch: Record<string, unknown> = { analyse_id: analyseId };
+                if (!existing.email && email)         patch.email     = email;
+                if (!existing.telephone && telephone) patch.telephone = telephone;
+                if (Object.keys(patch).length > 1) {
+                  supabase.from('contacts_chantier').update(patch).eq('id', existing.id)
+                    .then(({ error: e }) => { if (e) console.error('[api/documents] contact update (name):', e.message); });
+                }
+              } else {
+                supabase.from('contacts_chantier')
+                  .insert({ ...baseData, email, telephone })
+                  .then(({ error: e }) => { if (e) console.error('[api/documents] contact insert (nosiret):', e.message); });
+              }
+            })
+            .catch(() => {});
         }
       })
       .catch(() => {/* non-bloquant */});
