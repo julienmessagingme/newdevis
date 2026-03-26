@@ -945,7 +945,7 @@ function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail, on
   const status    = getLotStatusLevel(lot, docs);
   const statut    = lot.statut ?? 'a_trouver';
 
-  // Jauge
+  // Jauge — labels contextuels selon l'étape réelle
   const progress =
     statut === 'termine' || statut === 'ok' ? 100 :
     statut === 'en_cours'                   ? 85  :
@@ -960,9 +960,19 @@ function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail, on
                       'bg-red-400';
 
   const gaugeLabel =
-    progress >= 65  ? { text: '✓ OK',           cls: 'text-emerald-600' } :
-    progress >= 35  ? { text: '⚠ À surveiller', cls: 'text-amber-600'   } :
-                      { text: '✗ Action requise',cls: 'text-red-600'     };
+    statut === 'termine' || statut === 'ok'
+      ? { text: '✅ Terminé',                cls: 'text-emerald-600' } :
+    statut === 'en_cours'
+      ? { text: '🔨 Travaux en cours',       cls: 'text-emerald-600' } :
+    statut === 'contrat_signe'
+      ? { text: '✓ Artisan sélectionné',     cls: 'text-emerald-600' } :
+    devisCnt >= 2
+      ? { text: '🔍 Comparez les offres',    cls: 'text-amber-600'   } :
+    devisCnt === 1
+      ? { text: '📋 Demandez d\'autres devis', cls: 'text-amber-600' } :
+    statut === 'a_contacter'
+      ? { text: '📞 Contacter des artisans', cls: 'text-red-600'     } :
+      { text: '🎯 Chercher des artisans',    cls: 'text-red-600'     };
 
   return (
     <div className="relative group bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col">
