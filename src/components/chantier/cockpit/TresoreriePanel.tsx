@@ -234,16 +234,26 @@ function PaymentTimeline({
                         )}
                       </div>
 
-                      {/* Ligne 2 : source + date + badge + délai */}
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
-                        {/* Source document */}
-                        {(ev.lot_nom || ev.source_name) && (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-gray-400 font-medium">
-                            <FileText className="h-2.5 w-2.5 shrink-0" />
-                            {ev.lot_nom ?? ev.source_name?.replace('.pdf', '')}
-                          </span>
-                        )}
+                      {/* Ligne 2 : artisan / document source — bien visible */}
+                      {(ev.lot_nom || ev.source_name) && (
+                        <div className="flex items-center gap-1.5 mt-1">
+                          {ev.lot_nom ? (
+                            <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                              isPaid ? 'bg-gray-100 text-gray-400' : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              🔧 {ev.lot_nom}
+                            </span>
+                          ) : null}
+                          {ev.source_name && (
+                            <span className="text-[10px] text-gray-400 truncate max-w-[160px]">
+                              {ev.source_name.replace(/\.(pdf|PDF)$/, '')}
+                            </span>
+                          )}
+                        </div>
+                      )}
 
+                      {/* Ligne 3 : date + badge + délai */}
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
                         {/* Date */}
                         {ev.due_date && (
                           <span className={`text-[11px] font-medium ${isLate ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>
