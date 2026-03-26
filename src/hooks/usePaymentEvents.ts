@@ -3,6 +3,12 @@
  * Retourne la liste triée, les états loading/error, et une fonction de refresh.
  */
 import { useState, useEffect, useCallback } from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  (import.meta as any).env.PUBLIC_SUPABASE_URL,
+  (import.meta as any).env.PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+);
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -45,21 +51,36 @@ export function usePaymentEvents(
   const refresh = useCallback(() => setTick(t => t + 1), []);
 
   useEffect(() => {
-    if (!chantierId || !token) return;
+    if (!chantierId) return;
 
     let cancelled = false;
     setLoading(true);
     setError(null);
 
-    fetch(`/api/chantier/${chantierId}/payment-events`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    // Toujours récupérer un token frais pour éviter les 401 sur token expiré
+    const doFetch = async () => {
+      let bearerToken = token;
+      if (!bearerToken) {
+        const { data: { session } } = await supabase.auth.getSession();
+        bearerToken = session?.access_token ?? null;
+      }
+      if (!bearerToken) {
+        if (!cancelled) { setError('Non authentifié'); setLoading(false); }
+        return;
+      }
+      return fetch(`/api/chantier/${chantierId}/payment-events`, {
+        headers: { Authorization: `Bearer ${bearerToken}` },
+      });
+    };
+
+    doFetch()
       .then(r => {
+        if (!r) return null;
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
-      .then((data: { payment_events: PaymentEvent[] }) => {
-        if (cancelled) return;
+      .then((data: { payment_events: PaymentEvent[] } | null) => {
+        if (cancelled || !data) return;
         // Auto-escalade : passe "pending" → "late" si due_date < aujourd'hui
         const today = new Date().toISOString().slice(0, 10);
         const enriched = (data.payment_events ?? []).map(ev => ({

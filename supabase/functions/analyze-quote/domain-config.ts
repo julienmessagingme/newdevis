@@ -62,6 +62,11 @@ RÈGLES D'EXTRACTION:
    f) Les lignes HORS blocs (gestion déchets, frais divers, etc.) restent des lignes séparées normales
    g) VÉRIFICATION : le total de tes lignes extraites doit correspondre au MONTANT TOTAL HT du devis. Si ce n'est pas le cas, tu as probablement extrait des lignes internes au lieu des SOUS-TOTAUX.
 
+9. **CHAMPS COMPLÉMENTAIRES** — Détecte et indique dans le JSON racine :
+   - "tva_non_applicable": true si le devis mentionne "TVA non applicable" ou "Article 293B" ou "auto-entrepreneur" sans TVA affichée. false sinon. null si ambiguïté.
+   - "devis_manuscrit": true si le document est entièrement ou majoritairement manuscrit (rempli à la main, pas dactylographié). false si tapé/imprimé.
+   - "materiaux_fournis_client": true si le devis précise que les matériaux seront fournis par le client (formulations : "matériaux fournis par le client", "MO uniquement", "main d'œuvre seule", "pose seule - fournitures client"). false sinon.
+
 Tu dois effectuer UNE SEULE extraction complète et structurée.`,
 
   marketPriceExpertPrompt: `Tu es un expert en travaux de bâtiment et rénovation.

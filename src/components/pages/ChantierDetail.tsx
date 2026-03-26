@@ -37,6 +37,16 @@ export default function ChantierDetail() {
     return session?.access_token ?? null;
   }, []);
 
+  // Maintenir le token toujours à jour (refresh automatique Supabase)
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.access_token) {
+        setToken(session.access_token);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
   useEffect(() => {
     const id = extractIdFromPath();
 

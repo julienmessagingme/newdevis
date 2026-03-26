@@ -128,6 +128,26 @@ export function calculateScore(
     informatifs.push("ℹ️ Aucun poste de travaux détaillé détecté sur le devis");
   }
 
+  // Devis sans prix par ligne
+  if (extracted.travaux.length > 0 && extracted.travaux.every(t => t.montant === null)) {
+    oranges.push("Devis sans détail de prix par poste — impossible de vérifier la ventilation des coûts");
+  }
+
+  // Auto-entrepreneur TVA non applicable
+  if (extracted.tva_non_applicable === true) {
+    oranges.push("TVA non applicable (art. 293 B) — vérifiez que l'artisan ne dépasse pas le seuil de franchise (77 700 €/an)");
+  }
+
+  // Devis manuscrit
+  if (extracted.devis_manuscrit === true) {
+    oranges.push("Devis manuscrit — valeur juridique et traçabilité limitées, préférez un devis dactylographié");
+  }
+
+  // Matériaux fournis par le client
+  if (extracted.materiaux_fournis_client === true) {
+    informatifs.push("ℹ️ Matériaux fournis par le client — la comparaison aux prix marché (fourniture + pose) ne s'applique pas ici");
+  }
+
   // VERT criteria
   if (verified.entreprise_immatriculee === true) {
     verts.push("Entreprise identifiée dans les registres officiels");
@@ -208,7 +228,7 @@ export function calculateScore(
         ? "ORANGE" as ScoringColor
         : "VERT" as ScoringColor,
 
-    devis: oranges.some(o => o.includes("prix") || o.includes("travaux"))
+    devis: oranges.some(o => o.includes("prix") || o.includes("travaux") || o.includes("manuscrit") || o.includes("TVA"))
       ? "ORANGE" as ScoringColor
       : "VERT" as ScoringColor,
 

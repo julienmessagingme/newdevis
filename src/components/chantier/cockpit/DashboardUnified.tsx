@@ -2123,10 +2123,19 @@ function UploadModal({ chantierId, token, lots, defaultLotId, defaultType, onClo
     if (!file || !docName.trim()) return;
     setUploadState('uploading'); setErrorMsg('');
     try {
+      // Toujours récupérer un token frais pour éviter les 401 sur token expiré
+      const { data: { session } } = await supabase.auth.getSession();
+      const freshToken = session?.access_token ?? token;
+      if (!freshToken) {
+        setErrorMsg('Session expirée — rechargez la page');
+        setUploadState('error');
+        return;
+      }
+
       // ── Étape 1 : obtenir une URL signée pour l'upload direct (bypass Vercel 4.5 Mo) ──
       const urlRes = await fetch(`/api/chantier/${chantierId}/upload-url`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${freshToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ filename: file.name }),
       });
       if (!urlRes.ok) {
@@ -2152,7 +2161,7 @@ function UploadModal({ chantierId, token, lots, defaultLotId, defaultType, onClo
       // ── Étape 3 : enregistrer les métadonnées en base ──
       const regRes = await fetch(`/api/chantier/${chantierId}/documents/register`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${freshToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nom: docName.trim(),
           documentType: docType,
@@ -2174,7 +2183,7 @@ function UploadModal({ chantierId, token, lots, defaultLotId, defaultType, onClo
         setUploadState('analyzing');
         try {
           const aRes = await fetch(`/api/chantier/${chantierId}/documents/${doc.id}/analyser`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${freshToken}` },
           });
           if (aRes.ok) {
             const aData = await aRes.json().catch(() => ({}));

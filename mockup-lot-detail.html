@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — Détail Lot Intervenant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f6f9; color: #111827; }
+
+  /* ── Layout global ── */
+  .shell { display: flex; height: 100vh; overflow: hidden; }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 200px; background: white; border-right: 1px solid #f0f0f0;
+    display: flex; flex-direction: column; flex-shrink: 0;
+    padding: 16px 0;
+  }
+  .sidebar-logo {
+    font-size: 13px; font-weight: 800; color: #111; padding: 0 16px 16px;
+    border-bottom: 1px solid #f4f4f4; margin-bottom: 8px;
+  }
+  .sidebar-logo span { color: #2563eb; }
+  .nav-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px; font-size: 12px; font-weight: 600; color: #6b7280;
+    cursor: pointer; border-radius: 0; transition: all .15s;
+    border-left: 3px solid transparent;
+  }
+  .nav-item.active { color: #2563eb; background: #eff6ff; border-left-color: #2563eb; }
+  .nav-item .dot { width: 7px; height: 7px; border-radius: 99px; }
+  .nav-project {
+    padding: 10px 16px; margin: 8px 12px; background: #f8faff;
+    border-radius: 12px; border: 1px solid #e0e7ff;
+  }
+  .nav-project-emoji { font-size: 18px; }
+  .nav-project-name { font-size: 11px; font-weight: 700; color: #1e40af; margin-top: 3px; }
+  .nav-project-sub { font-size: 10px; color: #93c5fd; margin-top: 1px; }
+  .sidebar-section { font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .08em; color: #d1d5db; padding: 12px 16px 4px; }
+
+  /* ── Main ── */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ── Header ── */
+  .header {
+    background: white; border-bottom: 1px solid #f0f0f0;
+    padding: 14px 24px; display: flex; align-items: center; gap: 12px;
+  }
+  .header-back {
+    width: 32px; height: 32px; border-radius: 10px; background: #f4f6f9;
+    border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 16px; color: #6b7280; flex-shrink: 0;
+  }
+  .header-back:hover { background: #e5e7eb; }
+  .header-emoji { font-size: 22px; flex-shrink: 0; }
+  .header-info { flex: 1; }
+  .header-title { font-size: 16px; font-weight: 800; color: #111827; }
+  .header-sub { font-size: 12px; color: #6b7280; margin-top: 2px; }
+  .header-sub strong { color: #1d4ed8; }
+  .btn-add {
+    display: flex; align-items: center; gap: 6px;
+    background: #2563eb; color: white; font-size: 12px; font-weight: 700;
+    padding: 8px 16px; border-radius: 10px; border: none; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(37,99,235,.25); white-space: nowrap;
+  }
+  .btn-add:hover { background: #1d4ed8; }
+
+  /* ── Content ── */
+  .content { flex: 1; overflow-y: auto; padding: 24px; }
+
+  /* ── Budget gauge card ── */
+  .gauge-card {
+    background: white; border-radius: 16px; border: 1px solid #f0f0f0;
+    padding: 18px 22px; margin-bottom: 20px;
+    display: flex; align-items: center; gap: 24px;
+  }
+  .gauge-left { flex-shrink: 0; }
+  .gauge-label { font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .08em; color: #9ca3af; margin-bottom: 3px; }
+  .gauge-range { font-size: 22px; font-weight: 800; color: #111827; }
+  .gauge-right { flex: 1; }
+  .gauge-bar-wrap { height: 10px; background: #f3f4f6; border-radius: 99px;
+    overflow: hidden; position: relative; margin-bottom: 8px; }
+  .gauge-bar-bg { position: absolute; left: 0; top: 0; height: 100%; border-radius: 99px; }
+  .gauge-bar-min { background: #e0f2fe; } /* zone min–avg */
+  .gauge-bar-avg { background: #bfdbfe; } /* zone avg–max */
+  .gauge-bar-validated { background: #10b981; } /* montant validé */
+  .gauge-legend { display: flex; gap: 16px; }
+  .gauge-legend-item { display: flex; align-items: center; gap: 5px;
+    font-size: 10px; color: #9ca3af; }
+  .gauge-legend-dot { width: 8px; height: 8px; border-radius: 99px; flex-shrink: 0; }
+  .gauge-stats { display: flex; gap: 16px; flex-shrink: 0; }
+  .gauge-stat { text-align: center; }
+  .gauge-stat-val { font-size: 16px; font-weight: 800; }
+  .gauge-stat-lbl { font-size: 10px; color: #9ca3af; margin-top: 2px; }
+  .gauge-stat.green .gauge-stat-val { color: #10b981; }
+  .gauge-stat.blue .gauge-stat-val  { color: #2563eb; }
+  .gauge-stat.gray .gauge-stat-val  { color: #9ca3af; }
+
+  /* ── Table card ── */
+  .table-card {
+    background: white; border-radius: 16px; border: 1px solid #f0f0f0;
+    overflow: hidden;
+  }
+  .table-toolbar {
+    padding: 14px 20px; border-bottom: 1px solid #f8f8f8;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .table-title { font-size: 12px; font-weight: 700; color: #374151; }
+  .table-count {
+    font-size: 11px; font-weight: 600; color: #9ca3af;
+    background: #f4f6f9; padding: 3px 8px; border-radius: 99px; margin-left: 8px;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .06em; color: #9ca3af; padding: 10px 16px;
+    background: #fafafa; border-bottom: 1px solid #f0f0f0; text-align: left;
+    white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid #f8f8f8; transition: background .1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #fafbff; }
+  tbody td { padding: 13px 16px; font-size: 12px; vertical-align: middle; }
+
+  /* ── Artisan cell ── */
+  .artisan-cell { display: flex; flex-direction: column; gap: 2px; }
+  .artisan-name { font-weight: 700; color: #111827; font-size: 13px; }
+  .artisan-sub { font-size: 10px; color: #9ca3af; }
+
+  /* ── Montant ── */
+  .montant { font-size: 14px; font-weight: 800; color: #111827; tabular-nums: true; }
+  .montant-sub { font-size: 10px; color: #9ca3af; margin-top: 1px; }
+
+  /* ── Score badge ── */
+  .score { display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+  .score.green  { background: #dcfce7; color: #16a34a; }
+  .score.orange { background: #fef3c7; color: #d97706; }
+  .score.red    { background: #fee2e2; color: #dc2626; }
+  .score.none   { background: #f3f4f6; color: #9ca3af; }
+  .score-dot { width: 6px; height: 6px; border-radius: 99px; flex-shrink: 0; }
+  .score.green  .score-dot { background: #16a34a; }
+  .score.orange .score-dot { background: #d97706; }
+  .score.red    .score-dot { background: #dc2626; }
+  .score.none   .score-dot { background: #d1d5db; }
+
+  /* ── Statut dropdown ── */
+  .statut-select {
+    appearance: none; -webkit-appearance: none;
+    font-size: 11px; font-weight: 700;
+    padding: 5px 24px 5px 10px; border-radius: 8px; border: 1px solid;
+    cursor: pointer; outline: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239ca3af'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 7px center;
+    background-size: 8px; transition: all .15s;
+  }
+  .statut-select.en-cours       { background-color: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+  .statut-select.a-relancer     { background-color: #fff7ed; border-color: #fed7aa; color: #c2410c; }
+  .statut-select.valide         { background-color: #f0fdf4; border-color: #bbf7d0; color: #15803d; }
+  .statut-select.attente-facture{ background-color: #faf5ff; border-color: #e9d5ff; color: #7c3aed; }
+
+  /* ── Date ── */
+  .date-cell { font-size: 11px; color: #9ca3af; white-space: nowrap; }
+
+  /* ── Actions ── */
+  .action-btn {
+    width: 28px; height: 28px; border-radius: 8px;
+    border: none; background: none; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 14px; color: #d1d5db; transition: all .15s;
+  }
+  .action-btn:hover { background: #f3f4f6; color: #6b7280; }
+
+  /* ── Empty state ── */
+  .empty-row td { text-align: center; padding: 48px 20px; }
+  .empty-icon { font-size: 36px; margin-bottom: 10px; }
+  .empty-title { font-size: 14px; font-weight: 700; color: #374151; margin-bottom: 5px; }
+  .empty-sub { font-size: 12px; color: #9ca3af; margin-bottom: 16px; }
+  .btn-add-sm {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: #2563eb; color: white; font-size: 12px; font-weight: 700;
+    padding: 8px 16px; border-radius: 10px; border: none; cursor: pointer;
+  }
+
+  /* ── Footer table ── */
+  .table-footer {
+    padding: 10px 20px; border-top: 1px solid #f8f8f8;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 11px; color: #9ca3af;
+  }
+
+  /* ── Info banner ── */
+  .info-banner {
+    display: flex; align-items: center; gap: 10px;
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px;
+    padding: 10px 16px; margin-bottom: 16px; font-size: 12px; color: #1d4ed8;
+  }
+  .info-icon { font-size: 15px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ── Sidebar ── -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">mon<span>chantier</span>.ia</div>
+
+    <div class="nav-project">
+      <div class="nav-project-emoji">🛁</div>
+      <div class="nav-project-name">Rénovation salle de bain</div>
+      <div class="nav-project-sub">11 k€ – 14 k€</div>
+    </div>
+
+    <div class="sidebar-section">Navigation</div>
+    <div class="nav-item active">
+      <div class="dot" style="background:#2563eb"></div> Vue d'ensemble
+    </div>
+    <div class="nav-item">
+      <div class="dot" style="background:#d1d5db"></div> Budget & Tréso
+    </div>
+    <div class="nav-item">
+      <div class="dot" style="background:#d1d5db"></div> Documents
+    </div>
+    <div class="nav-item">
+      <div class="dot" style="background:#d1d5db"></div> Planning
+    </div>
+    <div class="nav-item">
+      <div class="dot" style="background:#d1d5db"></div> Contacts
+    </div>
+    <div class="nav-item">
+      <div class="dot" style="background:#d1d5db"></div> Expert IA
+    </div>
+  </nav>
+
+  <!-- ── Main ── -->
+  <div class="main">
+
+    <!-- ── Header ── -->
+    <header class="header">
+      <button class="header-back" title="Retour">←</button>
+      <span class="header-emoji">🪠</span>
+      <div class="header-info">
+        <div class="header-title">Plomberie</div>
+        <div class="header-sub">
+          Fourchette estimée : <strong>3 000 € – 5 500 €</strong> &nbsp;·&nbsp; 2 devis reçus
+        </div>
+      </div>
+      <button class="btn-add">+ Ajouter un devis</button>
+    </header>
+
+    <!-- ── Content ── -->
+    <div class="content">
+
+      <!-- Info banner -->
+      <div class="info-banner">
+        <span class="info-icon">💡</span>
+        Passez un devis en statut <strong style="margin:0 3px">Validé</strong> pour mettre à jour la jauge de budget engagé.
+      </div>
+
+      <!-- ── Gauge card ── -->
+      <div class="gauge-card">
+
+        <div class="gauge-left">
+          <div class="gauge-label">Fourchette estimée</div>
+          <div class="gauge-range">3 000 € – 5 500 €</div>
+        </div>
+
+        <div class="gauge-right">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-size:11px;font-weight:600;color:#374151;">Budget engagé (devis validés)</span>
+            <span style="font-size:13px;font-weight:800;color:#10b981;">3 800 € <span style="font-size:10px;font-weight:600;color:#9ca3af;">/ 5 500 € max</span></span>
+          </div>
+          <!-- Barre composite : fond = fourchette, overlay vert = validé -->
+          <div class="gauge-bar-wrap">
+            <!-- Zone fourchette (min → max = 100%) -->
+            <div class="gauge-bar-bg" style="width:100%;background:#e0f2fe;"></div>
+            <!-- Montant validé : 3800/5500 = 69% -->
+            <div class="gauge-bar-bg gauge-bar-validated" style="width:69%;"></div>
+          </div>
+          <div class="gauge-legend">
+            <div class="gauge-legend-item">
+              <div class="gauge-legend-dot" style="background:#10b981;"></div>
+              Validé : 3 800 €
+            </div>
+            <div class="gauge-legend-item">
+              <div class="gauge-legend-dot" style="background:#bfdbfe;"></div>
+              Estimé restant : 1 700 €
+            </div>
+            <div class="gauge-legend-item" style="color:#f59e0b;">
+              ⚠️ 1 devis en attente
+            </div>
+          </div>
+        </div>
+
+        <div class="gauge-stats">
+          <div class="gauge-stat green">
+            <div class="gauge-stat-val">3 800 €</div>
+            <div class="gauge-stat-lbl">Validé</div>
+          </div>
+          <div style="width:1px;background:#f0f0f0;margin:4px 0;"></div>
+          <div class="gauge-stat blue">
+            <div class="gauge-stat-val">4 200 €</div>
+            <div class="gauge-stat-lbl">Reçu total</div>
+          </div>
+          <div style="width:1px;background:#f0f0f0;margin:4px 0;"></div>
+          <div class="gauge-stat gray">
+            <div class="gauge-stat-val">2</div>
+            <div class="gauge-stat-lbl">Devis</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Table des devis ── -->
+      <div class="table-card">
+        <div class="table-toolbar">
+          <div style="display:flex;align-items:center;">
+            <span class="table-title">Devis reçus</span>
+            <span class="table-count">2</span>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <select style="font-size:11px;padding:5px 10px;border-radius:8px;border:1px solid #e5e7eb;color:#6b7280;background:white;cursor:pointer;">
+              <option>Tous les statuts</option>
+              <option>En cours</option>
+              <option>À relancer</option>
+              <option>Validé</option>
+              <option>En attente facture</option>
+            </select>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width:22%;">Artisan / Société</th>
+              <th style="width:14%;">Montant TTC</th>
+              <th style="width:16%;">Analyse VMD</th>
+              <th style="width:18%;">Statut</th>
+              <th style="width:13%;">Date</th>
+              <th style="width:13%;">Document</th>
+              <th style="width:4%;"></th>
+            </tr>
+          </thead>
+          <tbody>
+
+            <!-- Ligne 1 — validé -->
+            <tr>
+              <td>
+                <div class="artisan-cell">
+                  <div class="artisan-name">Dupont Plomberie</div>
+                  <div class="artisan-sub">SIRET · 823 456 789 00012</div>
+                </div>
+              </td>
+              <td>
+                <div class="montant">3 800 €</div>
+                <div class="montant-sub">HT : 3 167 €</div>
+              </td>
+              <td>
+                <span class="score green">
+                  <span class="score-dot"></span>
+                  Bon — 81/100
+                </span>
+              </td>
+              <td>
+                <select class="statut-select valide">
+                  <option value="en-cours">En cours</option>
+                  <option value="a-relancer">À relancer</option>
+                  <option value="valide" selected>✓ Validé</option>
+                  <option value="attente-facture">En attente facture</option>
+                </select>
+              </td>
+              <td class="date-cell">12 jan. 2026</td>
+              <td>
+                <span style="font-size:11px;color:#2563eb;font-weight:600;cursor:pointer;">📄 devis-dupont.pdf</span>
+              </td>
+              <td>
+                <button class="action-btn" title="Plus d'actions">⋯</button>
+              </td>
+            </tr>
+
+            <!-- Ligne 2 — en cours -->
+            <tr>
+              <td>
+                <div class="artisan-cell">
+                  <div class="artisan-name">Martin & Fils Plomb.</div>
+                  <div class="artisan-sub">SIRET · 712 345 678 00034</div>
+                </div>
+              </td>
+              <td>
+                <div class="montant">4 200 €</div>
+                <div class="montant-sub">HT : 3 500 €</div>
+              </td>
+              <td>
+                <span class="score orange">
+                  <span class="score-dot"></span>
+                  Moyen — 58/100
+                </span>
+              </td>
+              <td>
+                <select class="statut-select en-cours">
+                  <option value="en-cours" selected>En cours</option>
+                  <option value="a-relancer">À relancer</option>
+                  <option value="valide">✓ Validé</option>
+                  <option value="attente-facture">En attente facture</option>
+                </select>
+              </td>
+              <td class="date-cell">15 jan. 2026</td>
+              <td>
+                <span style="font-size:11px;color:#2563eb;font-weight:600;cursor:pointer;">📄 devis-martin.pdf</span>
+              </td>
+              <td>
+                <button class="action-btn" title="Plus d'actions">⋯</button>
+              </td>
+            </tr>
+
+            <!-- Ligne 3 — empty / à relancer (exemple) -->
+            <tr style="background:#fffbf0;">
+              <td>
+                <div class="artisan-cell">
+                  <div class="artisan-name" style="color:#9ca3af;font-style:italic;">Plombier Express</div>
+                  <div class="artisan-sub">Contact ajouté — devis non reçu</div>
+                </div>
+              </td>
+              <td>
+                <div style="font-size:12px;color:#d1d5db;font-style:italic;">—</div>
+              </td>
+              <td>
+                <span class="score none">
+                  <span class="score-dot"></span>
+                  Pas analysé
+                </span>
+              </td>
+              <td>
+                <select class="statut-select a-relancer">
+                  <option value="en-cours">En cours</option>
+                  <option value="a-relancer" selected>À relancer</option>
+                  <option value="valide">✓ Validé</option>
+                  <option value="attente-facture">En attente facture</option>
+                </select>
+              </td>
+              <td class="date-cell">18 jan. 2026</td>
+              <td>
+                <span style="font-size:11px;color:#d1d5db;">Aucun doc</span>
+              </td>
+              <td>
+                <button class="action-btn">⋯</button>
+              </td>
+            </tr>
+
+          </tbody>
+        </table>
+
+        <div class="table-footer">
+          <span>3 entrées · 1 validée</span>
+          <span style="color:#10b981;font-weight:700;">✓ Devis Dupont Plomberie sélectionné</span>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /shell -->
+
+<!-- ── Interactive statut color ── -->
+<script>
+  document.querySelectorAll('.statut-select').forEach(sel => {
+    sel.addEventListener('change', function() {
+      this.className = 'statut-select ' + this.value;
+    });
+  });
+</script>
+</body>
+</html>

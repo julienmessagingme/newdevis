@@ -64,6 +64,9 @@ export interface ExtractedData {
   };
   anomalies_detectees: string[];
   resume_factuel: string;
+  tva_non_applicable: boolean | null;
+  devis_manuscrit: boolean | null;
+  materiaux_fournis_client: boolean | null;
 }
 
 // ============================================================
