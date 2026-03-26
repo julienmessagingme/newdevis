@@ -25,6 +25,9 @@ import { ExpertAvatar } from '@/components/chantier/MATERIAL_IMAGES';
 import { useChantierAssistant } from '@/hooks/useChantierAssistant';
 import MessagerieSection from './MessagerieSection';
 import { useConversations } from '@/hooks/useConversations';
+import DocScoreCell from '@/components/chantier/shared/DocScoreCell';
+import DocStatusSelect from '@/components/chantier/shared/DocStatusSelect';
+import DocTypeBadge from '@/components/chantier/shared/DocTypeBadge';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 
@@ -514,36 +517,6 @@ function LotCard({ lot, docs, insight, onAdd, onDetail }: {
 
 // ── Lot Detail ────────────────────────────────────────────────────────────────
 
-// ── Statuts devis ─────────────────────────────────────────────────────────────
-
-import type { DevisStatut, FactureStatut } from '@/types/chantier-ia';
-
-const DEVIS_STATUT_OPTIONS: { value: DevisStatut; label: string }[] = [
-  { value: 'en_cours',        label: 'En cours' },
-  { value: 'a_relancer',      label: 'À relancer' },
-  { value: 'valide',          label: '✓ Validé' },
-  { value: 'attente_facture', label: 'En attente facture' },
-];
-
-const DEVIS_STATUT_STYLE: Record<string, string> = {
-  en_cours:        'bg-blue-50 border-blue-200 text-blue-700',
-  a_relancer:      'bg-orange-50 border-orange-200 text-orange-700',
-  valide:          'bg-emerald-50 border-emerald-200 text-emerald-700',
-  attente_facture: 'bg-violet-50 border-violet-200 text-violet-700',
-  // Facture statuts
-  recue:                 'bg-blue-50 border-blue-200 text-blue-700',
-  payee:                 'bg-emerald-50 border-emerald-200 text-emerald-700',
-  payee_partiellement:   'bg-amber-50 border-amber-200 text-amber-700',
-};
-
-const FACTURE_STATUT_OPTIONS: { value: FactureStatut; label: string }[] = [
-  { value: 'recue',               label: 'Reçue' },
-  { value: 'payee',               label: '✓ Payée' },
-  { value: 'payee_partiellement', label: '◐ Payée partiel.' },
-];
-
-// ── Lot Detail ────────────────────────────────────────────────────────────────
-
 function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token, onDocStatutUpdated }: {
   lot: LotChantier;
   docs: DocumentChantier[];
@@ -558,45 +531,13 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
   const devisDocs = docs.filter(d => d.document_type === 'devis' || d.document_type === 'facture');
   const photoDocs = docs.filter(d => d.document_type === 'photo');
 
-  // ── Statuts locaux (optimistic UI, persisté via PATCH) ───────────────────
-  const [statutMap, setStatutMap] = useState<Record<string, DevisStatut>>(() => {
-    const m: Record<string, DevisStatut> = {};
-    devisDocs.forEach(d => { if (d.devis_statut) m[d.id] = d.devis_statut; });
-    return m;
-  });
-
-  // Sync si docs changent (ex : reload)
-  useEffect(() => {
-    setStatutMap(prev => {
-      const m = { ...prev };
-      devisDocs.forEach(d => { if (d.devis_statut && !m[d.id]) m[d.id] = d.devis_statut; });
-      return m;
-    });
-  }, [docs]);
-
-  async function updateStatut(docId: string, statut: string, isFacture: boolean) {
-    setStatutMap(prev => ({ ...prev, [docId]: statut as DevisStatut }));
-    if (!chantierId || !token) return;
-    const payload = isFacture ? { factureStatut: statut } : { devisStatut: statut };
-    try {
-      const res = await fetch(`/api/chantier/${chantierId}/documents/${docId}`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (res.ok) {
-        onDocStatutUpdated?.(docId, statut);
-      }
-    } catch { /* silencieux */ }
-  }
-
   // ── Jauge budget (devis validés vs fourchette estimée) ───────────────────
   const hasRange = (lot.budget_min_ht ?? 0) > 0 || (lot.budget_max_ht ?? 0) > 0;
   const budgetMax = (lot.budget_max_ht ?? lot.budget_avg_ht ?? 0) * 1.2; // HT → TTC approx
 
   // Montant validé = sum des devis en statut 'valide'
   // Pour l'instant on ne stocke pas le montant TTC dans le doc → on ne peut calculer que le nb validés
-  const validatedCount = devisDocs.filter(d => (statutMap[d.id] ?? d.devis_statut ?? 'en_cours') === 'valide').length;
+  const validatedCount = devisDocs.filter(d => (d.devis_statut ?? 'en_cours') === 'valide').length;
   const totalCount     = devisDocs.length;
 
   // ── Score + montant depuis les analyses ──────────────────────────────────
@@ -608,7 +549,7 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
     const ids = withAnalyse.map(d => d.analyse_id!);
     supabase.from('analyses').select('id, score, raw_text').in('id', ids).then(({ data }) => {
       if (!data) return;
-      // score = TEXT : 'VERT'|'ORANGE'|'ROUGE' → convertir en nombre pour ScoreBadge (70 / 55 / 30)
+      // score = TEXT : 'VERT'|'ORANGE'|'ROUGE' → convertir en nombre (70 / 55 / 30) pour DocScoreCell
       const mScore:  Record<string, number | null> = {};
       const mAmount: Record<string, { ttc: number | null; ht: number | null }> = {};
       data.forEach(a => {
@@ -633,41 +574,6 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
       setAmountMap(mAmount);
     });
   }, [docs]);
-
-  function analyseUrl(analyseId: string) {
-    return `/analyse/${analyseId}?from=chantier&chantierId=${chantierId}`;
-  }
-
-  function ScoreBadge({ score, analyseId, docId, docType }: { score: number | null | undefined; analyseId?: string | null; docId: string; docType: DocumentType }) {
-    if (score == null) {
-      if (analyseId) {
-        return <a href={analyseUrl(analyseId)}
-          className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-500 hover:text-blue-700 hover:underline transition-colors">
-          Voir l'analyse →
-        </a>;
-      }
-      // Bouton analyser pour les devis non analysés
-      if (docType === 'devis') {
-        return <AnalyseInlineButton docId={docId} chantierId={chantierId!} token={token} onAnalysed={() => {
-          // Forcer un re-fetch des scores
-          setScoreMap(prev => ({ ...prev, [docId]: null }));
-        }} />;
-      }
-      return <span className="text-[11px] text-gray-300 italic">—</span>;
-    }
-    const cls = score >= 70 ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : score >= 45 ? 'bg-amber-50 text-amber-700 hover:bg-amber-100' : 'bg-red-50 text-red-600 hover:bg-red-100';
-    const dot = score >= 70 ? 'bg-emerald-500' : score >= 45 ? 'bg-amber-500' : 'bg-red-500';
-    const lbl = score >= 70 ? '✅ Bon' : score >= 45 ? '⚠️ Moyen' : '🔴 Risqué';
-    const badge = (
-      <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full transition-colors ${cls}`}>
-        <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
-        {lbl}
-      </span>
-    );
-    return analyseId
-      ? <a href={analyseUrl(analyseId)}>{badge}</a>
-      : badge;
-  }
 
   return (
     <div className="px-5 py-6 space-y-5 max-w-5xl mx-auto">
@@ -758,8 +664,6 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
               </thead>
               <tbody>
                 {devisDocs.map(doc => {
-                  const isFacture = doc.document_type === 'facture';
-                  const statut  = statutMap[doc.id] ?? (isFacture ? (doc.facture_statut ?? 'recue') : (doc.devis_statut ?? 'en_cours'));
                   const score   = scoreMap[doc.id];
                   const amounts = amountMap[doc.id];
                   return (
@@ -781,21 +685,17 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
                       </td>
                       {/* Type */}
                       <td className="px-4 py-3.5">
-                        {doc.signedUrl ? (
-                          <a href={doc.signedUrl} target="_blank" rel="noreferrer"
-                            className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full hover:opacity-80 transition-opacity ${doc.document_type === 'facture' ? 'bg-violet-50 text-violet-700' : 'bg-blue-50 text-blue-700'}`}>
-                            {doc.document_type === 'facture' ? '🧾 Facture' : '📄 Devis'}
-                            <ExternalLink className="h-2.5 w-2.5 opacity-60" />
-                          </a>
-                        ) : (
-                          <span className={`inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full ${doc.document_type === 'facture' ? 'bg-violet-50 text-violet-700' : 'bg-blue-50 text-blue-700'}`}>
-                            {doc.document_type === 'facture' ? '🧾 Facture' : '📄 Devis'}
-                          </span>
-                        )}
+                        <DocTypeBadge type={doc.document_type} signedUrl={doc.signedUrl} />
                       </td>
                       {/* Score VMD — cliquable vers l'analyse OU bouton analyser */}
                       <td className="px-4 py-3.5">
-                        <ScoreBadge score={score} analyseId={doc.analyse_id} docId={doc.id} docType={doc.document_type} />
+                        <DocScoreCell
+                          doc={doc}
+                          chantierId={chantierId}
+                          token={token}
+                          score={score}
+                          onAnalysed={() => setScoreMap(prev => ({ ...prev, [doc.id]: null }))}
+                        />
                       </td>
                       {/* Montant TTC / HT */}
                       <td className="px-4 py-3.5 text-right">
@@ -812,15 +712,12 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
                       </td>
                       {/* Statut — différent pour devis vs facture */}
                       <td className="px-4 py-3.5">
-                        <select
-                          value={statut}
-                          onChange={e => updateStatut(doc.id, e.target.value, isFacture)}
-                          className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg border appearance-none cursor-pointer outline-none transition-colors ${DEVIS_STATUT_STYLE[statut] ?? 'bg-gray-50 border-gray-200 text-gray-700'}`}
-                        >
-                          {(isFacture ? FACTURE_STATUT_OPTIONS : DEVIS_STATUT_OPTIONS).map(o => (
-                            <option key={o.value} value={o.value}>{o.label}</option>
-                          ))}
-                        </select>
+                        <DocStatusSelect
+                          doc={doc}
+                          chantierId={chantierId!}
+                          token={token!}
+                          onUpdated={onDocStatutUpdated}
+                        />
                       </td>
                       {/* Date */}
                       <td className="px-4 py-3.5">
@@ -1691,52 +1588,6 @@ const LOT_STATUS_CFG: Record<LotListStatus, { dot: string; label: string; badge:
   valide:               { dot: 'bg-emerald-400', label: '🟢 Sélection en cours',       badge: 'bg-emerald-50 border-emerald-200 text-emerald-700', text: 'text-emerald-600' },
 };
 
-// ── Bouton Analyser inline pour le tableau Intervenants ──────────────────────
-
-function AnalyseInlineButton({ docId, chantierId, token, onAnalysed }: {
-  docId: string;
-  chantierId: string;
-  token: string | null | undefined;
-  onAnalysed: (analyseId: string) => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
-
-  async function handleClick() {
-    if (!token) { toast.error('Session expirée — rechargez'); return; }
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/chantier/${chantierId}/documents/${docId}/analyser`, {
-        method: 'POST', headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok || res.status === 409) {
-        const analysisId: string = data.analysisId;
-        if (analysisId) {
-          setDone(true);
-          onAnalysed(analysisId);
-          toast.success('Analyse lancée — résultat dans quelques secondes');
-        }
-      } else {
-        toast.error(`Erreur : ${data.error ?? res.status}`);
-      }
-    } catch {
-      toast.error("Erreur réseau");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (done) return <span className="text-[11px] text-emerald-600 font-semibold">✓ Lancée</span>;
-
-  return (
-    <button onClick={handleClick} disabled={busy}
-      className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 px-2 py-1 rounded-lg transition-colors whitespace-nowrap">
-      {busy ? <><Loader2 className="h-3 w-3 animate-spin" /> Analyse…</> : '⚡ Analyser'}
-    </button>
-  );
-}
-
 type SortKey = 'none' | 'prix_asc' | 'prix_desc';
 type FilterStatus = 'all' | LotListStatus;
 
@@ -1755,58 +1606,7 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
   const [sortKey,       setSortKey]       = useState<SortKey>('none');
   const [filterSt,      setFilterSt]      = useState<FilterStatus>('all');
   const [analysisData,  setAnalysisData]  = useState<Record<string, { score: 'VERT' | 'ORANGE' | 'ROUGE' | null; ttc: number | null }>>({});
-  const [statutOverrides, setStatutOverrides] = useState<Record<string, string>>({});
-  const [montantPayeOverrides, setMontantPayeOverrides] = useState<Record<string, number | null>>({});
-  const [editingMontant, setEditingMontant] = useState<string | null>(null);
   const [comparingLot, setComparingLot]   = useState<{ lot: LotChantier; docs: DocumentChantier[] } | null>(null);
-
-  async function handleStatutChange(docId: string, statut: string, isFacture: boolean) {
-    if (!token) { toast.error('Session expirée — rechargez la page'); return; }
-    setStatutOverrides(prev => ({ ...prev, [docId]: statut }));
-    const payload = isFacture ? { factureStatut: statut } : { devisStatut: statut };
-    try {
-      const res = await fetch(`/api/chantier/${chantierId}/documents/${docId}`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (res.ok) {
-        onDocStatutUpdated?.(docId, statut);
-        if (isFacture && statut === 'payee_partiellement') {
-          setEditingMontant(docId);
-        } else {
-          setEditingMontant(null);
-        }
-      } else {
-        const body = await res.json().catch(() => ({}));
-        toast.error(`Statut non sauvegardé : ${body.error ?? res.status}`);
-        setStatutOverrides(prev => { const n = { ...prev }; delete n[docId]; return n; });
-      }
-    } catch {
-      toast.error('Erreur réseau — statut non sauvegardé');
-      setStatutOverrides(prev => { const n = { ...prev }; delete n[docId]; return n; });
-    }
-  }
-
-  async function handleMontantPayeSave(docId: string, montant: number) {
-    if (!token) return;
-    setMontantPayeOverrides(prev => ({ ...prev, [docId]: montant }));
-    setEditingMontant(null);
-    try {
-      const res = await fetch(`/api/chantier/${chantierId}/documents/${docId}`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ montantPaye: montant }),
-      });
-      if (!res.ok) {
-        toast.error('Montant non sauvegardé');
-        setMontantPayeOverrides(prev => { const n = { ...prev }; delete n[docId]; return n; });
-      }
-    } catch {
-      toast.error('Erreur réseau');
-      setMontantPayeOverrides(prev => { const n = { ...prev }; delete n[docId]; return n; });
-    }
-  }
 
   // Tous les devis de tous les lots (avec analyse_id) — fetch en une seule requête
   useEffect(() => {
@@ -1981,35 +1781,8 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
                   </div>
                 ) : (
                   devisDocs.map((doc, idx) => {
-                    const data    = analysisData[doc.id];
-                    const score   = data?.score;
-                    const ttc     = data?.ttc;
-                    const isFacture = doc.document_type === 'facture';
-                    const statut  = isFacture
-                      ? (doc.facture_statut ?? 'recue')
-                      : (doc.devis_statut ?? 'en_cours');
-                    const devisStatutCfg: Record<string, { bg: string; label: string }> = {
-                      en_cours:        { bg: 'bg-blue-50 text-blue-700',    label: 'En cours' },
-                      a_relancer:      { bg: 'bg-orange-50 text-orange-700',label: 'À relancer' },
-                      valide:          { bg: 'bg-emerald-50 text-emerald-700', label: '✓ Validé' },
-                      attente_facture: { bg: 'bg-violet-50 text-violet-700',label: 'Att. facture' },
-                    };
-                    const factureStatutCfg: Record<string, { bg: string; label: string }> = {
-                      recue:                 { bg: 'bg-blue-50 text-blue-700',       label: 'Reçue' },
-                      payee:                 { bg: 'bg-emerald-50 text-emerald-700', label: '✓ Payée' },
-                      payee_partiellement:   { bg: 'bg-amber-50 text-amber-700',    label: '◐ Partiel' },
-                    };
-                    const statutCfg = isFacture ? factureStatutCfg : devisStatutCfg;
-                    // score est TEXT : 'VERT' | 'ORANGE' | 'ROUGE'
-                    const scoreCfg = score === 'VERT'   ? { bg: 'bg-emerald-50 text-emerald-700', label: '✅ Bon',    dot: 'bg-emerald-400' }
-                      : score === 'ORANGE' ? { bg: 'bg-amber-50 text-amber-700',   label: '⚠️ Moyen',  dot: 'bg-amber-400' }
-                      : score === 'ROUGE'  ? { bg: 'bg-red-50 text-red-600',       label: '🔴 Risqué', dot: 'bg-red-500' }
-                      : null;
-                    const effectiveStatut = statutOverrides[doc.id] ?? statut;
-                    const sc2 = statutCfg[effectiveStatut] ?? { bg: 'bg-gray-50 text-gray-500', label: effectiveStatut };
-                    // VMD: dot color
-                    const dotColor = scoreCfg?.dot ?? null;
-                    const effectiveMontantPaye = montantPayeOverrides[doc.id] ?? doc.montant_paye;
+                    const data = analysisData[doc.id];
+                    const ttc  = data?.ttc;
 
                     return (
                       <div key={doc.id}
@@ -2031,19 +1804,9 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
                           )}
                           <span className="text-[10px] text-gray-400 mt-0.5">{fmtDate(doc.created_at)}</span>
                         </div>
-                        {/* Type de doc — cliquable → ouvre le fichier */}
+                        {/* Type de doc */}
                         <div className="px-4 py-3 flex items-center">
-                          {doc.signedUrl ? (
-                            <a href={doc.signedUrl} target="_blank" rel="noreferrer"
-                              className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full hover:opacity-80 transition-opacity ${doc.document_type === 'facture' ? 'bg-violet-50 text-violet-700' : 'bg-blue-50 text-blue-700'}`}>
-                              {doc.document_type === 'facture' ? '🧾 Facture' : '📄 Devis'}
-                              <ExternalLink className="h-2.5 w-2.5 opacity-60" />
-                            </a>
-                          ) : (
-                            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${doc.document_type === 'facture' ? 'bg-violet-50 text-violet-700' : 'bg-blue-50 text-blue-700'}`}>
-                              {doc.document_type === 'facture' ? '🧾 Facture' : '📄 Devis'}
-                            </span>
-                          )}
+                          <DocTypeBadge type={doc.document_type} signedUrl={doc.signedUrl} />
                         </div>
                         {/* Prix TTC */}
                         <div className="px-4 py-3 flex items-center">
@@ -2052,74 +1815,13 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
                             : <span className="text-xs text-gray-300">—</span>
                           }
                         </div>
-                        {/* Statut — dropdown éditable (différent devis vs facture) */}
-                        <div className="px-4 py-3 flex flex-col justify-center gap-1">
-                          <select
-                            value={effectiveStatut}
-                            onChange={e => handleStatutChange(doc.id, e.target.value, isFacture)}
-                            className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border-0 focus:outline-none focus:ring-1 focus:ring-blue-200 cursor-pointer ${sc2.bg}`}
-                          >
-                            {isFacture ? (
-                              <>
-                                <option value="recue">Reçue</option>
-                                <option value="payee">✓ Payée</option>
-                                <option value="payee_partiellement">◐ Partiel</option>
-                              </>
-                            ) : (
-                              <>
-                                <option value="en_cours">En cours</option>
-                                <option value="a_relancer">À relancer</option>
-                                <option value="valide">✓ Validé</option>
-                                <option value="attente_facture">Att. facture</option>
-                              </>
-                            )}
-                          </select>
-                          {/* Input montant payé — affiché quand facture payée partiellement */}
-                          {isFacture && effectiveStatut === 'payee_partiellement' && (
-                            editingMontant === doc.id ? (
-                              <form onSubmit={e => {
-                                e.preventDefault();
-                                const val = parseFloat((e.currentTarget.elements.namedItem('mp') as HTMLInputElement).value);
-                                if (!isNaN(val) && val >= 0) handleMontantPayeSave(doc.id, val);
-                              }} className="flex items-center gap-1">
-                                <input name="mp" type="number" step="0.01" min="0" placeholder="€ payé"
-                                  defaultValue={effectiveMontantPaye ?? ''}
-                                  autoFocus
-                                  className="w-16 text-[11px] border border-gray-200 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-200" />
-                                <button type="submit" className="text-[10px] text-blue-600 font-semibold">OK</button>
-                              </form>
-                            ) : (
-                              <button onClick={() => setEditingMontant(doc.id)}
-                                className="text-[10px] text-amber-600 hover:text-amber-800 font-medium">
-                                {effectiveMontantPaye != null ? `${effectiveMontantPaye.toLocaleString('fr-FR')} € payé` : 'Saisir montant payé'}
-                              </button>
-                            )
-                          )}
+                        {/* Statut */}
+                        <div className="px-4 py-3 flex items-center">
+                          <DocStatusSelect doc={doc} chantierId={chantierId} token={token!} onUpdated={onDocStatutUpdated} compact />
                         </div>
-                        {/* Analyse VMD — point coloré + Voir OU bouton Analyser */}
+                        {/* Score fiabilité */}
                         <div className="px-4 py-3 flex items-center gap-2">
-                          {doc.analyse_id ? (
-                            <>
-                              {dotColor && (
-                                <span className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${dotColor}`} />
-                              )}
-                              {!dotColor && (
-                                <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0 bg-gray-300" />
-                              )}
-                              <a href={`/analyse/${doc.analyse_id}?from=chantier&chantierId=${chantierId}`}
-                                className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline whitespace-nowrap">
-                                Voir →
-                              </a>
-                            </>
-                          ) : doc.document_type === 'devis' ? (
-                            <AnalyseInlineButton docId={doc.id} chantierId={chantierId} token={token} onAnalysed={(analyseId) => {
-                              setAnalysisData(prev => ({ ...prev, [doc.id]: { score: null, ttc: null } }));
-                              // Force parent refresh
-                              onDocStatutUpdated?.(doc.id, doc.devis_statut ?? 'en_cours');
-                            }} />
-                          ) : (
-                            <span className="text-[11px] text-gray-300 italic">—</span>
-                          )}
+                          <DocScoreCell doc={doc} chantierId={chantierId} token={token} score={data?.score} onAnalysed={(docId, analyseId) => { setAnalysisData(prev => ({ ...prev, [docId]: { score: null, ttc: null } })); }} variant="dot" />
                         </div>
                         {/* Actions */}
                         <div className="px-4 py-3 flex items-center justify-end gap-1.5">
@@ -3026,7 +2728,7 @@ function DocumentsView({ documents, lots: lotsProp, chantierId, token, onAddDoc,
 
 // ── Section Analyse des devis ─────────────────────────────────────────────────
 
-function DevisCard({ doc: docProp, lot, insight, onDelete, chantierId, token, onAnalysed }: {
+function DevisCard({ doc, lot, insight, onDelete, chantierId, token, onAnalysed }: {
   doc: DocumentChantier;
   lot?: LotChantier;
   insight?: InsightItem;
@@ -3035,36 +2737,7 @@ function DevisCard({ doc: docProp, lot, insight, onDelete, chantierId, token, on
   token?: string | null;
   onAnalysed?: (docId: string, analysisId: string) => void;
 }) {
-  const [doc, setDoc]           = useState(docProp);
-  const [analysing, setAnalysing] = useState(false);
-  const isAnalysed = !!doc.analyse_id;
   const s = insight ? IS[insight.type] : null;
-
-  async function handleAnalyser() {
-    if (!chantierId || !token) { toast.error('Session expirée — rechargez'); return; }
-    setAnalysing(true);
-    try {
-      const res = await fetch(`/api/chantier/${chantierId}/documents/${doc.id}/analyser`, {
-        method: 'POST', headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok || res.status === 409) {
-        // 409 = déjà analysé (idempotence) — on récupère quand même l'analysisId
-        const analysisId: string = data.analysisId;
-        if (analysisId) {
-          setDoc(prev => ({ ...prev, analyse_id: analysisId }));
-          onAnalysed?.(doc.id, analysisId);
-          toast.success('Analyse lancée — résultat dans quelques secondes');
-        }
-      } else {
-        toast.error(`Erreur analyse : ${data.error ?? res.status}`);
-      }
-    } catch {
-      toast.error('Erreur réseau lors de l\'analyse');
-    } finally {
-      setAnalysing(false);
-    }
-  }
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
@@ -3081,28 +2754,10 @@ function DevisCard({ doc: docProp, lot, insight, onDelete, chantierId, token, on
                 {lot.emoji ?? '🔧'} {lot.nom}
               </span>
             )}
-            {isAnalysed ? (
-              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full">✓ Analysé</span>
-            ) : (
-              <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full">Non analysé</span>
-            )}
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {/* Lien vers l'analyse pour tout devis analysé */}
-          {doc.analyse_id && (
-            <a href={`/analyse/${doc.analyse_id}?from=chantier&chantierId=${chantierId}`}
-              className="text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition-colors">
-              Voir l'analyse →
-            </a>
-          )}
-          {/* Bouton analyser — appelle l'API directement, pas de redirect */}
-          {!isAnalysed && (
-            <button onClick={handleAnalyser} disabled={analysing}
-              className="text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1">
-              {analysing ? <><Loader2 className="h-3 w-3 animate-spin" /> Analyse…</> : '⚡ Analyser'}
-            </button>
-          )}
+          <DocScoreCell doc={doc} chantierId={chantierId ?? undefined} token={token} onAnalysed={onAnalysed} />
           <button onClick={onDelete}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all">
             <Trash2 className="h-3.5 w-3.5" />
