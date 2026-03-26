@@ -24,8 +24,9 @@ export interface PaymentEvent {
   label: string;
   created_at: string;
   // Champs enrichis par l'API
-  source_name: string | null;     // nom du fichier source (devis PDF)
-  lot_nom: string | null;         // nom du lot/artisan
+  source_name: string | null;     // nom du document source (devis PDF)
+  lot_nom: string | null;         // nom du lot lié
+  artisan_nom: string | null;     // nom de l'artisan (depuis devis_chantier)
 }
 
 export interface UsePaymentEventsReturn {

@@ -234,10 +234,16 @@ function PaymentTimeline({
                         )}
                       </div>
 
-                      {/* Ligne 2 : artisan / document source — bien visible */}
-                      {(ev.lot_nom || ev.source_name) && (
-                        <div className="flex items-center gap-1.5 mt-1">
-                          {ev.lot_nom ? (
+                      {/* Ligne 2 : artisan + lot/document source */}
+                      {(ev.artisan_nom || ev.lot_nom || ev.source_name) && (
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          {ev.artisan_nom ? (
+                            <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                              isPaid ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-blue-700'
+                            }`}>
+                              🔧 {ev.artisan_nom}
+                            </span>
+                          ) : ev.lot_nom ? (
                             <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
                               isPaid ? 'bg-gray-100 text-gray-400' : 'bg-slate-100 text-slate-600'
                             }`}>
@@ -563,7 +569,7 @@ function CashflowProjection({
                   <div className="flex-1 min-w-0">
                     <p className="text-[11px] font-semibold text-gray-700 truncate">{ev.label}</p>
                     <p className="text-[10px] text-gray-400">
-                      {ev.lot_nom ?? ev.source_name?.replace('.pdf', '') ?? ''}
+                      {ev.artisan_nom ?? ev.lot_nom ?? ev.source_name?.replace(/\.(pdf|PDF)$/, '') ?? ''}
                       {ev.due_date && ` · ${fmtDateShort(ev.due_date)}`}
                     </p>
                   </div>

@@ -67,27 +67,49 @@ export const GET: APIRoute = async ({ params, request }) => {
     return new Response(JSON.stringify({ error: 'Erreur chargement events' }), { status: 500, headers: CORS });
   }
 
-  // Enrichir avec nom du document source + nom du lot
+  // Enrichir avec nom du document source + nom du lot + nom de l'artisan
   const sourceIds = (data ?? []).map(e => e.source_id).filter(Boolean);
-  let docMap: Record<string, { file_name: string | null; lot_nom: string | null }> = {};
+  let docMap: Record<string, { nom: string | null; nom_fichier: string | null; lot_nom: string | null; analyse_id: string | null }> = {};
+
   if (sourceIds.length > 0) {
     const { data: docs } = await ctx.supabase
       .from('documents_chantier')
-      .select('id, file_name, lots_chantier(nom)')
+      .select('id, nom, nom_fichier, analyse_id, lots_chantier(nom)')
       .in('id', sourceIds);
+
     for (const d of docs ?? []) {
       docMap[d.id] = {
-        file_name: d.file_name ?? null,
-        lot_nom: (d.lots_chantier as any)?.nom ?? null,
+        nom:        d.nom ?? null,
+        nom_fichier: d.nom_fichier ?? null,
+        lot_nom:    (d.lots_chantier as any)?.nom ?? null,
+        analyse_id: d.analyse_id ?? null,
       };
     }
   }
 
-  const enriched = (data ?? []).map(e => ({
-    ...e,
-    source_name: docMap[e.source_id]?.file_name ?? null,
-    lot_nom:     docMap[e.source_id]?.lot_nom ?? null,
-  }));
+  // Remonter le nom de l'artisan via devis_chantier.analyse_id
+  const analyseIds = Object.values(docMap).map(d => d.analyse_id).filter(Boolean) as string[];
+  let artisanMap: Record<string, string> = {}; // analyse_id → artisan_nom
+  if (analyseIds.length > 0) {
+    const { data: devis } = await ctx.supabase
+      .from('devis_chantier')
+      .select('analyse_id, artisan_nom')
+      .in('analyse_id', analyseIds);
+    for (const d of devis ?? []) {
+      if (d.analyse_id) artisanMap[d.analyse_id] = d.artisan_nom;
+    }
+  }
+
+  const enriched = (data ?? []).map(e => {
+    const doc = docMap[e.source_id];
+    const analyseId = doc?.analyse_id ?? null;
+    return {
+      ...e,
+      source_name:  doc?.nom ?? doc?.nom_fichier ?? null,
+      lot_nom:      doc?.lot_nom ?? null,
+      artisan_nom:  analyseId ? artisanMap[analyseId] ?? null : null,
+    };
+  });
 
   return new Response(JSON.stringify({ payment_events: enriched }), { status: 200, headers: CORS });
 };
