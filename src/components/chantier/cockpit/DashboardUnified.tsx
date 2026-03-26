@@ -1672,6 +1672,52 @@ const LOT_STATUS_CFG: Record<LotListStatus, { dot: string; label: string; badge:
   valide:               { dot: 'bg-emerald-400', label: '🟢 Sélection en cours',       badge: 'bg-emerald-50 border-emerald-200 text-emerald-700', text: 'text-emerald-600' },
 };
 
+// ── Bouton Analyser inline pour le tableau Intervenants ──────────────────────
+
+function AnalyseInlineButton({ docId, chantierId, token, onAnalysed }: {
+  docId: string;
+  chantierId: string;
+  token: string | null | undefined;
+  onAnalysed: (analyseId: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  async function handleClick() {
+    if (!token) { toast.error('Session expirée — rechargez'); return; }
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/chantier/${chantierId}/documents/${docId}/analyser`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok || res.status === 409) {
+        const analysisId: string = data.analysisId;
+        if (analysisId) {
+          setDone(true);
+          onAnalysed(analysisId);
+          toast.success('Analyse lancée — résultat dans quelques secondes');
+        }
+      } else {
+        toast.error(`Erreur : ${data.error ?? res.status}`);
+      }
+    } catch {
+      toast.error("Erreur réseau");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (done) return <span className="text-[11px] text-emerald-600 font-semibold">✓ Lancée</span>;
+
+  return (
+    <button onClick={handleClick} disabled={busy}
+      className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 px-2 py-1 rounded-lg transition-colors whitespace-nowrap">
+      {busy ? <><Loader2 className="h-3 w-3 animate-spin" /> Analyse…</> : '⚡ Analyser'}
+    </button>
+  );
+}
+
 type SortKey = 'none' | 'prix_asc' | 'prix_desc';
 type FilterStatus = 'all' | LotListStatus;
 
@@ -1962,7 +2008,7 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
                             <option value="attente_facture">Att. facture</option>
                           </select>
                         </div>
-                        {/* Analyse VMD — point coloré + Voir */}
+                        {/* Analyse VMD — point coloré + Voir OU bouton Analyser */}
                         <div className="px-4 py-3 flex items-center gap-2">
                           {doc.analyse_id ? (
                             <>
@@ -1972,13 +2018,19 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
                               {!dotColor && (
                                 <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0 bg-gray-300" />
                               )}
-                              <a href={`/analyse/${doc.analyse_id}`} target="_blank" rel="noreferrer"
+                              <a href={`/analyse/${doc.analyse_id}?from=chantier&chantierId=${chantierId}`}
                                 className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline whitespace-nowrap">
                                 Voir →
                               </a>
                             </>
+                          ) : doc.document_type === 'devis' ? (
+                            <AnalyseInlineButton docId={doc.id} chantierId={chantierId} token={token} onAnalysed={(analyseId) => {
+                              setAnalysisData(prev => ({ ...prev, [doc.id]: { score: null, ttc: null } }));
+                              // Force parent refresh
+                              onDocStatutUpdated?.(doc.id, doc.devis_statut ?? 'en_cours');
+                            }} />
                           ) : (
-                            <span className="text-[11px] text-gray-300 italic">En attente</span>
+                            <span className="text-[11px] text-gray-300 italic">—</span>
                           )}
                         </div>
                         {/* Actions */}
