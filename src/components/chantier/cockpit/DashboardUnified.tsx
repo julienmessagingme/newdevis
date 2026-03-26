@@ -1449,11 +1449,12 @@ const LOT_STATUS_CFG: Record<LotListStatus, { dot: string; label: string; badge:
 type SortKey = 'none' | 'prix_asc' | 'prix_desc';
 type FilterStatus = 'all' | LotListStatus;
 
-function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, onGoToLot, onGoToDiy, chantierId, token, onDocStatutUpdated }: {
+function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, onGoToLot, onGoToDiy, onDeleteDoc, chantierId, token, onDocStatutUpdated }: {
   lots: LotChantier[];
   docsByLot: Record<string, DocumentChantier[]>;
   documents: DocumentChantier[];
   onAddDevisForLot: (lotId: string) => void;
+  onDeleteDoc: (docId: string) => void;
   onGoToLot: (lotId: string) => void;
   onGoToDiy: () => void;
   chantierId: string;
@@ -1544,7 +1545,7 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
   ];
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 pb-20">
       {/* Filtres + tri */}
       <div className="flex items-center gap-2 flex-wrap">
         <Filter className="h-3.5 w-3.5 text-gray-400 shrink-0" />
@@ -1613,7 +1614,12 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
                   {/* Analyse (vide — au niveau lot) */}
                   <div className="px-4 py-2.5" />
                   {/* Action */}
-                  <div className="px-4 py-2.5 flex items-center justify-end">
+                  <div className="px-4 py-2.5 flex items-center justify-end gap-2">
+                    <button
+                      onClick={() => onAddDevisForLot(lot.id)}
+                      className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg transition-colors whitespace-nowrap">
+                      + Devis
+                    </button>
                     <button
                       onClick={() => onGoToLot(lot.id)}
                       className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap">
@@ -1678,11 +1684,19 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
                           )}
                           <span className="text-[10px] text-gray-400 mt-0.5">{fmtDate(doc.created_at)}</span>
                         </div>
-                        {/* Type de doc */}
+                        {/* Type de doc — cliquable → ouvre le fichier */}
                         <div className="px-4 py-3 flex items-center">
-                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${doc.document_type === 'facture' ? 'bg-violet-50 text-violet-700' : 'bg-blue-50 text-blue-700'}`}>
-                            {doc.document_type === 'facture' ? '🧾 Facture' : '📄 Devis'}
-                          </span>
+                          {doc.signedUrl ? (
+                            <a href={doc.signedUrl} target="_blank" rel="noreferrer"
+                              className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full hover:opacity-80 transition-opacity ${doc.document_type === 'facture' ? 'bg-violet-50 text-violet-700' : 'bg-blue-50 text-blue-700'}`}>
+                              {doc.document_type === 'facture' ? '🧾 Facture' : '📄 Devis'}
+                              <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                            </a>
+                          ) : (
+                            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${doc.document_type === 'facture' ? 'bg-violet-50 text-violet-700' : 'bg-blue-50 text-blue-700'}`}>
+                              {doc.document_type === 'facture' ? '🧾 Facture' : '📄 Devis'}
+                            </span>
+                          )}
                         </div>
                         {/* Prix TTC */}
                         <div className="px-4 py-3 flex items-center">
@@ -1725,6 +1739,12 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
                         </div>
                         {/* Actions */}
                         <div className="px-4 py-3 flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => onDeleteDoc(doc.id)}
+                            title="Supprimer ce document"
+                            className="text-[11px] font-semibold text-gray-300 hover:text-red-500 hover:bg-red-50 p-1 rounded-lg transition-colors">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                           <button
                             onClick={() => onGoToLot(lot.id)}
                             className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-lg transition-colors whitespace-nowrap">
@@ -1845,12 +1865,14 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
   onGoToAssistant: () => void;
   onAddIntervenant: () => void;
   onDeleteLot: (lotId: string) => void;
+  onDeleteDoc: (docId: string) => void;
   onGoToDiy: () => void;
   chantierId: string;
   token: string | null | undefined;
+  viewMode: 'cards' | 'list';
+  onViewModeChange: (v: 'cards' | 'list') => void;
   onDocStatutUpdated?: (docId: string, statut: string) => void;
 }) {
-  const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
 
   const total     = lots.length;
   const validated = lots.filter(l => ['ok', 'termine', 'en_cours', 'contrat_signe'].includes(l.statut ?? '')).length;
@@ -1982,7 +2004,7 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
             <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
               Intervenants · {total}
             </p>
-            {total > 0 && <ViewToggle value={viewMode} onChange={setViewMode} />}
+            {total > 0 && <ViewToggle value={viewMode} onChange={onViewModeChange} />}
           </div>
           <button
             onClick={onAddIntervenant}
@@ -2009,6 +2031,7 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
             docsByLot={docsByLot}
             documents={documents}
             onAddDevisForLot={onAddDevisForLot}
+            onDeleteDoc={onDeleteDoc}
             onGoToLot={onGoToLot}
             onGoToDiy={onGoToDiy}
             chantierId={chantierId}
@@ -2959,6 +2982,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
   const [showAmelioration, setShowAmelioration] = useState(false);
   const [showBudgetDetail, setShowBudgetDetail]   = useState(false);
   const [activeSection, setActiveSection] = useState<Section>('budget');
+  const [homeViewMode, setHomeViewMode]   = useState<'cards' | 'list'>('cards');
   const [mobileOpen, setMobileOpen]       = useState(false);
   const [documents, setDocuments]         = useState<DocumentChantier[]>([]);
   const [selectedLotId, setSelectedLotId] = useState<string | null>(null);
@@ -3131,9 +3155,12 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             onGoToAssistant={() => setChatOpen(true)}
             onAddIntervenant={() => setShowAddIntervenant(true)}
             onDeleteLot={deleteLot}
+            onDeleteDoc={handleDeleteDoc}
             onGoToDiy={() => navigateTo('diy')}
             chantierId={chantierId!}
             token={token}
+            viewMode={homeViewMode}
+            onViewModeChange={setHomeViewMode}
             onDocStatutUpdated={(docId, statut) =>
               setDocuments(prev => prev.map(d => d.id === docId ? { ...d, devis_statut: statut as any } : d))
             }
