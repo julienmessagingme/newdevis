@@ -45,7 +45,7 @@ export const GET: APIRoute = async ({ request }) => {
     .from('analyses')
     .select('id, file_name, file_path, created_at, user_id, score, status')
     .order('created_at', { ascending: false })
-    .limit(20);
+    .limit(30);
 
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: CORS });

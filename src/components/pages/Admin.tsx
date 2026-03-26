@@ -20,6 +20,8 @@ import {
   CreditCard,
   UserPlus,
   Search,
+  Download,
+  FolderOpen,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -149,6 +151,9 @@ const Admin = () => {
   const [usersLoading, setUsersLoading] = useState(false);
   const [userSearch, setUserSearch] = useState("");
   const [subscriberSearch, setSubscriberSearch] = useState("");
+  const [recentDevis, setRecentDevis] = useState<Array<{ id: string; file_name: string; file_path: string; created_at: string; score: string | null; status: string }>>([]);
+  const [devisLoading, setDevisLoading] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const checkAdminAndFetchKPIs = async () => {
     try {
@@ -176,8 +181,9 @@ const Admin = () => {
 
       setIsAdmin(true);
 
-      // Fetch KPIs and users in parallel
+      // Fetch KPIs, users and devis in parallel
       fetchUsers();
+      fetchRecentDevis();
       const { data, error } = await supabase.functions.invoke("admin-kpis");
 
       if (error) {
@@ -211,6 +217,50 @@ const Admin = () => {
       console.error("Error fetching users:", err);
     } finally {
       setUsersLoading(false);
+    }
+  };
+
+  const fetchRecentDevis = async () => {
+    setDevisLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch("/api/admin/devis", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) throw new Error("Erreur API");
+      const data = await res.json();
+      setRecentDevis(data.devis ?? []);
+    } catch (err) {
+      console.error("Error fetching devis:", err);
+    } finally {
+      setDevisLoading(false);
+    }
+  };
+
+  const downloadFile = async (fileId: string, filePath: string) => {
+    setDownloadingId(fileId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch("/api/admin/signed-url", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ filePath }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.signedUrl) {
+        alert(data.error ?? "Impossible de générer le lien");
+        return;
+      }
+      window.open(data.signedUrl, "_blank");
+    } catch {
+      alert("Erreur réseau");
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -953,7 +1003,79 @@ const Admin = () => {
           ) : null}
         </section>
 
-        {/* === SECTION 7: LEGAL DISCLAIMER === */}
+        {/* === SECTION 7: DERNIERS DEVIS === */}
+        <section className="mb-10">
+          <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
+            <FolderOpen className="h-5 w-5 text-primary" />
+            30 derniers devis téléchargés
+          </h2>
+
+          {devisLoading ? (
+            <Card>
+              <CardContent className="py-8 flex items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <span className="ml-2 text-muted-foreground">Chargement...</span>
+              </CardContent>
+            </Card>
+          ) : recentDevis.length > 0 ? (
+            <Card>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/30">
+                        <th className="text-left py-3 px-4 font-medium text-muted-foreground">Fichier</th>
+                        <th className="text-left py-3 px-4 font-medium text-muted-foreground">Score</th>
+                        <th className="text-left py-3 px-4 font-medium text-muted-foreground">Date</th>
+                        <th className="text-right py-3 px-4 font-medium text-muted-foreground">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentDevis.map((d) => (
+                        <tr key={d.id} className="border-b border-border/50 hover:bg-muted/30">
+                          <td className="py-2 px-4 font-mono text-xs max-w-xs truncate">{d.file_name ?? "—"}</td>
+                          <td className="py-2 px-4">
+                            {d.score === "VERT" && <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">✅ Vert</span>}
+                            {d.score === "ORANGE" && <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">⚠️ Orange</span>}
+                            {d.score === "ROUGE" && <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded-full">🔴 Rouge</span>}
+                            {!d.score && <span className="text-muted-foreground text-xs">—</span>}
+                          </td>
+                          <td className="py-2 px-4 text-xs text-muted-foreground whitespace-nowrap">
+                            {new Date(d.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </td>
+                          <td className="py-2 px-4 text-right">
+                            {d.file_path ? (
+                              <button
+                                onClick={() => downloadFile(d.id, d.file_path)}
+                                disabled={downloadingId === d.id}
+                                className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border border-border hover:bg-accent transition-colors disabled:opacity-50"
+                              >
+                                {downloadingId === d.id
+                                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                                  : <Download className="h-3 w-3" />}
+                                Télécharger
+                              </button>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">Indisponible</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                Aucun devis trouvé
+              </CardContent>
+            </Card>
+          )}
+        </section>
+
+        {/* === SECTION 8: LEGAL DISCLAIMER === */}
         <section className="mb-8">
           <div className="bg-muted/50 border border-border rounded-xl p-6">
             <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
