@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } fro
 import { createClient } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import {
-  Plus, X, Loader2, CheckCircle2, AlertCircle, CloudUpload, FileText,
+  Plus, X, Loader2, FileText,
   Sparkles, Trash2, ArrowLeft, ChevronRight, Wrench, Wallet, Layers,
   FileSearch, Calendar, FolderOpen, Bot, Settings, Menu, ExternalLink,
   Receipt, Pencil, SlidersHorizontal, Users, MessageCircle, ArrowRight,
@@ -28,6 +28,10 @@ import { useConversations } from '@/hooks/useConversations';
 import DocScoreCell from '@/components/chantier/shared/DocScoreCell';
 import DocStatusSelect from '@/components/chantier/shared/DocStatusSelect';
 import DocTypeBadge from '@/components/chantier/shared/DocTypeBadge';
+import UploadDocumentModal from '@/components/chantier/cockpit/UploadDocumentModal';
+import ComparateurDevisModal from '@/components/chantier/cockpit/ComparateurDevisModal';
+import { useAnalysisScores } from '@/hooks/useAnalysisScores';
+import { getDevisEtFactures, getPhotos } from '@/lib/documentFilters';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 
@@ -76,7 +80,6 @@ const TYPE_LABELS: Record<DocumentType, string> = {
   plan: 'Plan', autorisation: 'Autorisation', assurance: 'Assurance', autre: 'Autre',
 };
 
-const FEMININE_TYPES: Set<DocumentType> = new Set(['facture', 'photo', 'autorisation', 'assurance']);
 
 const IS: Record<InsightItem['type'], { bg: string; text: string; border: string; accent: string }> = {
   success: { bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-100', accent: 'border-l-emerald-400' },
@@ -86,7 +89,6 @@ const IS: Record<InsightItem['type'], { bg: string; text: string; border: string
 };
 
 type Section = 'budget' | 'lots' | 'contacts' | 'messagerie' | 'analyse' | 'planning' | 'documents' | 'assistant' | 'diy' | 'settings' | 'tresorerie';
-type UploadState = 'idle' | 'uploading' | 'analyzing' | 'success' | 'error';
 
 // ── Chat Drawer ────────────────────────────────────────────────────────────────
 
@@ -528,52 +530,29 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
   onDocStatutUpdated?: (docId: string, statut: string) => void;
 }) {
   // ── Séparation par type ──────────────────────────────────────────────────
-  const devisDocs = docs.filter(d => d.document_type === 'devis' || d.document_type === 'facture');
-  const photoDocs = docs.filter(d => d.document_type === 'photo');
+  const devisDocs = getDevisEtFactures(docs);
+  const photoDocs = getPhotos(docs);
 
   // ── Jauge budget (devis validés vs fourchette estimée) ───────────────────
   const hasRange = (lot.budget_min_ht ?? 0) > 0 || (lot.budget_max_ht ?? 0) > 0;
   const budgetMax = (lot.budget_max_ht ?? lot.budget_avg_ht ?? 0) * 1.2; // HT → TTC approx
 
   // Montant validé = sum des devis en statut 'valide'
-  // Pour l'instant on ne stocke pas le montant TTC dans le doc → on ne peut calculer que le nb validés
   const validatedCount = devisDocs.filter(d => (d.devis_statut ?? 'en_cours') === 'valide').length;
   const totalCount     = devisDocs.length;
 
-  // ── Score + montant depuis les analyses ──────────────────────────────────
-  const [scoreMap,  setScoreMap]  = useState<Record<string, number | null>>({});
-  const [amountMap, setAmountMap] = useState<Record<string, { ttc: number | null; ht: number | null }>>({});
-  useEffect(() => {
-    const withAnalyse = devisDocs.filter(d => d.analyse_id);
-    if (!withAnalyse.length) return;
-    const ids = withAnalyse.map(d => d.analyse_id!);
-    supabase.from('analyses').select('id, score, raw_text').in('id', ids).then(({ data }) => {
-      if (!data) return;
-      // score = TEXT : 'VERT'|'ORANGE'|'ROUGE' → convertir en nombre (70 / 55 / 30) pour DocScoreCell
-      const mScore:  Record<string, number | null> = {};
-      const mAmount: Record<string, { ttc: number | null; ht: number | null }> = {};
-      data.forEach(a => {
-        mScore[a.id] = a.score === 'VERT' ? 75 : a.score === 'ORANGE' ? 55 : a.score === 'ROUGE' ? 25 : null;
-        // Montant depuis raw_text.extracted.totaux (peut être JSON string ou JSONB)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let raw: any = a.raw_text;
-        if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = null; } }
-        const totaux = raw?.extracted?.totaux;
-        mAmount[a.id] = {
-          ttc: totaux?.ttc  != null && !isNaN(Number(totaux.ttc))  ? Number(totaux.ttc)  : null,
-          ht:  totaux?.ht   != null && !isNaN(Number(totaux.ht))   ? Number(totaux.ht)   : null,
-        };
-      });
-      // Relier analyse_id → doc.id
-      withAnalyse.forEach(d => {
-        if (!d.analyse_id) return;
-        if (mScore[d.analyse_id]  !== undefined) mScore[d.id]  = mScore[d.analyse_id];
-        if (mAmount[d.analyse_id] !== undefined) mAmount[d.id] = mAmount[d.analyse_id];
-      });
-      setScoreMap(mScore);
-      setAmountMap(mAmount);
-    });
-  }, [docs]);
+  // ── Score + montant depuis les analyses (hook partagé) ─────────────────
+  const { data: analysisScores } = useAnalysisScores(devisDocs);
+  const scoreMap  = useMemo(() => {
+    const m: Record<string, number | null> = {};
+    Object.entries(analysisScores).forEach(([id, d]) => { m[id] = d.scoreNum; });
+    return m;
+  }, [analysisScores]);
+  const amountMap = useMemo(() => {
+    const m: Record<string, { ttc: number | null; ht: number | null }> = {};
+    Object.entries(analysisScores).forEach(([id, d]) => { m[id] = { ttc: d.ttc, ht: d.ht }; });
+    return m;
+  }, [analysisScores]);
 
   return (
     <div className="px-5 py-6 space-y-5 max-w-5xl mx-auto">
@@ -694,7 +673,6 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
                           chantierId={chantierId}
                           token={token}
                           score={score}
-                          onAnalysed={() => setScoreMap(prev => ({ ...prev, [doc.id]: null }))}
                         />
                       </td>
                       {/* Montant TTC / HT */}
@@ -875,182 +853,6 @@ function getLotStatusLevel(lot: LotChantier, docs: DocumentChantier[]): {
     return { level: 'insufficient', label: 'En attente', msg: 'Devis demandé, pas encore reçu', dotColor: 'bg-amber-400', textColor: 'text-amber-700', bgColor: 'bg-amber-50' };
   }
   return { level: 'blocked', label: 'Bloqué', msg: 'Aucun artisan contacté — action requise', dotColor: 'bg-red-400', textColor: 'text-red-700', bgColor: 'bg-red-50' };
-}
-
-// ── Comparateur de devis ───────────────────────────────────────────────────────
-
-function ComparateurDevisModal({ lot, docs, onClose }: {
-  lot: LotChantier;
-  docs: DocumentChantier[];
-  onClose: () => void;
-}) {
-  const [analysisData, setAnalysisData] = useState<Record<string, { score: 'VERT' | 'ORANGE' | 'ROUGE' | null; ttc: number | null }>>({});
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const withAnalyse = docs.filter(d => d.analyse_id);
-    if (!withAnalyse.length) { setLoading(false); return; }
-    const ids = [...new Set(withAnalyse.map(d => d.analyse_id!))];
-    supabase.from('analyses').select('id, score, raw_text').in('id', ids).then(({ data }) => {
-      if (!data) { setLoading(false); return; }
-      const m: Record<string, { score: 'VERT' | 'ORANGE' | 'ROUGE' | null; ttc: number | null }> = {};
-      data.forEach(a => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let raw: any = a.raw_text;
-        if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = null; } }
-        const totaux   = raw?.extracted?.totaux;
-        const scoreVal = a.score === 'VERT' || a.score === 'ORANGE' || a.score === 'ROUGE' ? a.score as 'VERT' | 'ORANGE' | 'ROUGE' : null;
-        m[a.id] = { score: scoreVal, ttc: totaux?.ttc != null && !isNaN(Number(totaux.ttc)) ? Number(totaux.ttc) : null };
-      });
-      withAnalyse.forEach(d => { if (d.analyse_id && m[d.analyse_id]) m[d.id] = m[d.analyse_id]; });
-      setAnalysisData(m);
-      setLoading(false);
-    });
-  }, [docs]);
-
-  const recommendation = useMemo(() => {
-    const scored = docs.map(d => ({ doc: d, score: analysisData[d.id]?.score ?? null, ttc: analysisData[d.id]?.ttc ?? null }));
-    const scoreOrder = { VERT: 3, ORANGE: 2, ROUGE: 1 };
-    const verts = scored.filter(d => d.score === 'VERT' && d.ttc != null).sort((a, b) => a.ttc! - b.ttc!);
-    if (verts.length > 0) return { id: verts[0].doc.id, nom: verts[0].doc.nom, ttc: verts[0].ttc, reason: 'Score VMD optimal et prix compétitif' };
-    const withScore = scored.filter(d => d.score && d.ttc != null).sort((a, b) => {
-      const diff = (scoreOrder[b.score as keyof typeof scoreOrder] ?? 0) - (scoreOrder[a.score as keyof typeof scoreOrder] ?? 0);
-      return diff !== 0 ? diff : (a.ttc ?? 0) - (b.ttc ?? 0);
-    });
-    if (withScore.length > 0) return { id: withScore[0].doc.id, nom: withScore[0].doc.nom, ttc: withScore[0].ttc, reason: 'Meilleur rapport qualité / prix disponible' };
-    const withPrice = scored.filter(d => d.ttc != null).sort((a, b) => a.ttc! - b.ttc!);
-    if (withPrice.length > 0) return { id: withPrice[0].doc.id, nom: withPrice[0].doc.nom, ttc: withPrice[0].ttc, reason: 'Offre la moins chère parmi les devis reçus' };
-    return null;
-  }, [docs, analysisData]);
-
-  const SCORE_CFG = {
-    VERT:   { bg: 'bg-emerald-50 text-emerald-700', label: '✅ Bon' },
-    ORANGE: { bg: 'bg-amber-50 text-amber-700',     label: '⚠️ Moyen' },
-    ROUGE:  { bg: 'bg-red-50 text-red-600',         label: '🔴 Risqué' },
-  } as const;
-  const STATUT_LABELS: Record<string, string> = {
-    en_cours: 'En cours', a_relancer: 'À relancer', valide: '✓ Validé', attente_facture: 'Att. facture',
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-auto overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
-              <Scale className="h-4 w-4 text-blue-600" />
-            </div>
-            <div>
-              <p className="font-bold text-gray-900">Comparatif des devis</p>
-              <p className="text-xs text-gray-400">{lot.emoji} {lot.nom} · {docs.length} offres reçues</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
-            <X className="h-4 w-4 text-gray-500" />
-          </button>
-        </div>
-
-        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
-          {/* Recommandation IA */}
-          {!loading && recommendation && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
-                  <Star className="h-4 w-4 text-amber-500 fill-amber-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600 mb-0.5">⭐ Recommandation</p>
-                  <p className="font-bold text-gray-900 text-sm truncate">{recommendation.nom}</p>
-                  <p className="text-xs text-amber-700 mt-0.5">{recommendation.reason}</p>
-                  {recommendation.ttc != null && (
-                    <p className="text-base font-extrabold text-gray-900 mt-1.5 tabular-nums">{fmtEur(recommendation.ttc)} TTC</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Tableau comparatif */}
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-3">Comparaison détaillée</p>
-            {loading ? (
-              <div className="flex items-center justify-center py-10">
-                <Loader2 className="h-6 w-6 text-blue-400 animate-spin" />
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {docs.map(doc => {
-                  const ad          = analysisData[doc.id];
-                  const isRecommended = recommendation?.id === doc.id;
-                  const scoreCfg    = ad?.score ? SCORE_CFG[ad.score] : null;
-                  const statutLabel = STATUT_LABELS[doc.devis_statut ?? 'en_cours'] ?? doc.devis_statut ?? 'En cours';
-
-                  return (
-                    <div key={doc.id}
-                      className={`rounded-xl border p-4 ${isRecommended ? 'border-amber-300 bg-amber-50/40' : 'border-gray-100 bg-gray-50/40'}`}>
-                      <div className="flex items-start gap-2.5">
-                        {isRecommended ? (
-                          <div className="shrink-0 w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center mt-0.5">
-                            <Star className="h-2.5 w-2.5 text-white fill-white" />
-                          </div>
-                        ) : (
-                          <div className="shrink-0 w-5 h-5 rounded-full bg-gray-100 mt-0.5" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap mb-2">
-                            {doc.signedUrl ? (
-                              <a href={doc.signedUrl} target="_blank" rel="noreferrer"
-                                className="font-bold text-sm text-blue-700 hover:underline truncate max-w-[200px] flex items-center gap-1">
-                                {doc.nom} <ExternalLink className="h-2.5 w-2.5 opacity-60 shrink-0" />
-                              </a>
-                            ) : (
-                              <span className="font-bold text-sm text-gray-900 truncate max-w-[200px]">{doc.nom}</span>
-                            )}
-                            {scoreCfg && (
-                              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${scoreCfg.bg}`}>{scoreCfg.label}</span>
-                            )}
-                          </div>
-                          <div className="grid grid-cols-3 gap-3">
-                            <div>
-                              <p className="text-[10px] text-gray-400">Prix TTC</p>
-                              {ad?.ttc != null
-                                ? <p className="text-sm font-extrabold text-gray-900 tabular-nums">{fmtEur(ad.ttc)}</p>
-                                : <p className="text-xs text-gray-300 italic">Non analysé</p>
-                              }
-                            </div>
-                            <div>
-                              <p className="text-[10px] text-gray-400">Statut</p>
-                              <p className="text-xs font-semibold text-gray-700">{statutLabel}</p>
-                            </div>
-                            {doc.analyse_id && (
-                              <div className="flex items-end">
-                                <a href={`/analyse/${doc.analyse_id}`} target="_blank" rel="noreferrer"
-                                  className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1">
-                                  Analyse VMD <ExternalLink className="h-2.5 w-2.5" />
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="px-6 py-3.5 border-t border-gray-100 bg-gray-50/60 shrink-0">
-          <p className="text-[10px] text-gray-400 text-center leading-relaxed">
-            Recommandation calculée sur le score d'analyse VMD et le prix TTC · Vérifiez toujours les garanties et délais avant signature
-          </p>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // ── Lot Intervenant Card (home) ────────────────────────────────────────────────
@@ -1605,40 +1407,20 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
 }) {
   const [sortKey,       setSortKey]       = useState<SortKey>('none');
   const [filterSt,      setFilterSt]      = useState<FilterStatus>('all');
-  const [analysisData,  setAnalysisData]  = useState<Record<string, { score: 'VERT' | 'ORANGE' | 'ROUGE' | null; ttc: number | null }>>({});
   const [comparingLot, setComparingLot]   = useState<{ lot: LotChantier; docs: DocumentChantier[] } | null>(null);
 
-  // Tous les devis de tous les lots (avec analyse_id) — fetch en une seule requête
-  useEffect(() => {
-    const allDevis = lots.flatMap(l => (docsByLot[l.id] ?? []).filter(d => d.document_type === 'devis' || d.document_type === 'facture'));
-    const withAnalyse = allDevis.filter(d => d.analyse_id);
-    if (!withAnalyse.length) return;
-    const ids = [...new Set(withAnalyse.map(d => d.analyse_id!))];
-    supabase.from('analyses').select('id, score, raw_text').in('id', ids).then(({ data }) => {
-      if (!data) return;
-      // score est un TEXT : 'VERT' | 'ORANGE' | 'ROUGE' (pas un nombre)
-      const m: Record<string, { score: 'VERT' | 'ORANGE' | 'ROUGE' | null; ttc: number | null }> = {};
-      data.forEach(a => {
-        // raw_text peut être TEXT (JSON string) ou JSONB selon la ligne — toujours parser
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let raw: any = a.raw_text;
-        if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = null; } }
-        const totaux = raw?.extracted?.totaux;
-        const scoreVal = a.score === 'VERT' || a.score === 'ORANGE' || a.score === 'ROUGE' ? a.score : null;
-        m[a.id] = {
-          score: scoreVal,
-          ttc:   totaux?.ttc != null && !isNaN(Number(totaux.ttc)) ? Number(totaux.ttc) : null,
-        };
-      });
-      withAnalyse.forEach(d => { if (d.analyse_id && m[d.analyse_id]) m[d.id] = m[d.analyse_id]; });
-      setAnalysisData(m);
-    });
-  }, [lots, docsByLot]);
+  // Tous les devis/factures de tous les lots
+  const allDevis = useMemo(() =>
+    lots.flatMap(l => getDevisEtFactures(docsByLot[l.id] ?? [])),
+  [lots, docsByLot]);
+
+  // Score + montant depuis les analyses (hook partagé — 1 seul appel)
+  const { data: analysisData } = useAnalysisScores(allDevis);
 
   // Construction des groupes (lot + ses devis)
   const groups = useMemo(() => {
     return lots.map(lot => {
-      const devisDocs = (docsByLot[lot.id] ?? []).filter(d => d.document_type === 'devis' || d.document_type === 'facture');
+      const devisDocs = getDevisEtFactures(docsByLot[lot.id] ?? []);
       return { lot, devisDocs, status: getLotListStatus(lot, devisDocs) };
     });
   }, [lots, docsByLot]);
@@ -1821,7 +1603,7 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
                         </div>
                         {/* Score fiabilité */}
                         <div className="px-4 py-3 flex items-center gap-2">
-                          <DocScoreCell doc={doc} chantierId={chantierId} token={token} score={data?.score} onAnalysed={(docId, analyseId) => { setAnalysisData(prev => ({ ...prev, [docId]: { score: null, ttc: null } })); }} variant="dot" />
+                          <DocScoreCell doc={doc} chantierId={chantierId} token={token} score={data?.score} variant="dot" />
                         </div>
                         {/* Actions */}
                         <div className="px-4 py-3 flex items-center justify-end gap-1.5">
@@ -2148,339 +1930,6 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
             ))}
             {/* Carte DIY — toujours présente, travaux réalisés par le client */}
             <DiyCard onAddDoc={onAddDoc} onGoToDiy={onGoToDiy} />
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Upload Modal ──────────────────────────────────────────────────────────────
-
-function UploadModal({ chantierId, token, lots, defaultLotId, defaultType, onClose, onSuccess }: {
-  chantierId: string; token: string; lots: LotChantier[];
-  defaultLotId?: string | null;
-  defaultType?: DocumentType;
-  onClose: () => void;
-  onSuccess: (doc: DocumentChantier) => void;
-}) {
-  const [tab, setTab]                   = useState<'file' | 'import'>('file');
-  const [dragging, setDragging]         = useState(false);
-  const [file, setFile]                 = useState<File | null>(null);
-  const [docName, setDocName]           = useState('');
-  const [docType, setDocType]           = useState<DocumentType>(defaultType ?? 'devis');
-  const [lotId, setLotId]               = useState(defaultLotId || '');
-  const [uploadState, setUploadState]   = useState<UploadState>('idle');
-  const [errorMsg, setErrorMsg]         = useState('');
-  const [savingsAmount, setSavingsAmount] = useState(0);
-  const [analyses, setAnalyses]         = useState<{
-    id: string; created_at: string; titre: string;
-    artisanNom: string | null; totalTtc: number | null; dateDevis: string | null;
-  }[]>([]);
-  const [loadingAnalyses, setLoadingAnalyses] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (tab !== 'import') return;
-    setLoadingAnalyses(true);
-    supabase.from('analyses').select('id, created_at, raw_text').eq('status', 'completed')
-      .order('created_at', { ascending: false }).limit(20)
-      .then(({ data }) => {
-        setAnalyses((data ?? []).map(a => {
-          let parsed: Record<string, any> = {};
-          try {
-            parsed = typeof a.raw_text === 'string' ? JSON.parse(a.raw_text) : (a.raw_text ?? {});
-          } catch {}
-          // raw_text structure : { extracted: { entreprise, totaux, dates, context, ... }, verified, scoring, ... }
-          const extracted   = parsed?.extracted ?? parsed; // rétrocompat si structure plate
-          const artisanNom  = extracted?.entreprise?.nom ?? null;
-          const totalTtc    = extracted?.totaux?.ttc ?? null;
-          const dateDevis   = extracted?.dates?.date_devis ?? null;
-          const typeChantier = extracted?.context?.type_chantier ?? null;
-          const titre = artisanNom
-            ? artisanNom
-            : typeChantier ?? `Analyse du ${fmtDate(a.created_at)}`;
-          return { id: a.id, created_at: a.created_at, titre, artisanNom, totalTtc, dateDevis };
-        }));
-      }).finally(() => setLoadingAnalyses(false));
-  }, [tab]);
-
-  function handleFile(f: File) {
-    setFile(f); setDocName(f.name.replace(/\.[^.]+$/, ''));
-    const lower = f.name.toLowerCase();
-    if (lower.includes('devis') || lower.includes('quote')) setDocType('devis');
-    else if (lower.includes('facture') || lower.includes('invoice')) setDocType('facture');
-    else if (/\.(jpg|jpeg|png|webp|heic)$/i.test(f.name)) setDocType('photo');
-  }
-
-  async function handleUpload() {
-    if (!file || !docName.trim()) return;
-    setUploadState('uploading'); setErrorMsg('');
-    try {
-      // Toujours récupérer un token frais pour éviter les 401 sur token expiré
-      const { data: { session } } = await supabase.auth.getSession();
-      const freshToken = session?.access_token ?? token;
-      if (!freshToken) {
-        setErrorMsg('Session expirée — rechargez la page');
-        setUploadState('error');
-        return;
-      }
-
-      // ── Étape 1 : obtenir une URL signée pour l'upload direct (bypass Vercel 4.5 Mo) ──
-      const urlRes = await fetch(`/api/chantier/${chantierId}/upload-url`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${freshToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: file.name }),
-      });
-      if (!urlRes.ok) {
-        const { error } = await urlRes.json().catch(() => ({ error: `Erreur ${urlRes.status}` }));
-        setErrorMsg(error ?? `Erreur ${urlRes.status}`);
-        setUploadState('error');
-        return;
-      }
-      const { signedUrl, bucketPath } = await urlRes.json();
-
-      // ── Étape 2 : upload direct navigateur → Supabase Storage (pas via Vercel) ──
-      const putRes = await fetch(signedUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type || 'application/octet-stream' },
-        body: file,
-      });
-      if (!putRes.ok) {
-        setErrorMsg(`Erreur upload fichier (${putRes.status})`);
-        setUploadState('error');
-        return;
-      }
-
-      // ── Étape 3 : enregistrer les métadonnées en base ──
-      const regRes = await fetch(`/api/chantier/${chantierId}/documents/register`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${freshToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nom: docName.trim(),
-          documentType: docType,
-          lotId: lotId || null,   // '' → null pour éviter erreur UUID PostgreSQL
-          bucketPath,
-          nomFichier: file.name,
-          mimeType: file.type || null,
-          tailleOctets: file.size || null,
-        }),
-      });
-      const rawText = await regRes.text();
-      let data: Record<string, unknown> = {};
-      try { data = JSON.parse(rawText); } catch { /* non-JSON */ }
-      if (!regRes.ok) { setErrorMsg((data.error as string) ?? `Erreur ${regRes.status}`); setUploadState('error'); return; }
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const doc: DocumentChantier = data.document as DocumentChantier;
-      if (docType === 'devis') {
-        setUploadState('analyzing');
-        try {
-          const aRes = await fetch(`/api/chantier/${chantierId}/documents/${doc.id}/analyser`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${freshToken}` },
-          });
-          if (aRes.ok) {
-            const aData = await aRes.json().catch(() => ({}));
-            setSavingsAmount(aData?.result?.economics?.savings ?? 0);
-            // Mettre à jour l'analyse_id sur le doc AVANT onSuccess
-            if (aData.analysisId) (doc as unknown as Record<string, unknown>).analyse_id = aData.analysisId;
-          } else { setSavingsAmount(0); }
-        } catch { setSavingsAmount(0); }
-      } else { setSavingsAmount(0); }
-      setUploadState('success');
-      onSuccess(doc);
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Erreur réseau.');
-      setUploadState('error');
-    }
-  }
-
-  async function handleImportAnalyse(analyseId: string, titre: string) {
-    setUploadState('uploading');
-    try {
-      const fd = new FormData();
-      fd.append('nom', titre); fd.append('documentType', 'devis');
-      fd.append('source', 'verifier_mon_devis'); fd.append('analyseId', analyseId);
-      if (lotId) fd.append('lotId', lotId);
-      const res = await fetch(`/api/chantier/${chantierId}/documents`, {
-        method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
-      });
-      const rawText = await res.text();
-      let data: Record<string, unknown> = {};
-      try { data = JSON.parse(rawText); } catch { /* non-JSON */ }
-      if (!res.ok) { setErrorMsg((data.error as string) ?? `Erreur ${res.status}`); setUploadState('error'); return; }
-      setSavingsAmount(0); setUploadState('success'); onSuccess(data.document as DocumentChantier);
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Erreur réseau.');
-      setUploadState('error');
-    }
-  }
-
-  const isUploading = uploadState === 'uploading' || uploadState === 'analyzing';
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={!isUploading ? onClose : undefined} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-          <h2 className="font-bold text-gray-900">Ajouter un document</h2>
-          {!isUploading && (
-            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
-              <X className="h-4 w-4 text-gray-500" />
-            </button>
-          )}
-        </div>
-        {uploadState === 'uploading' && (
-          <div className="px-6 py-12 flex flex-col items-center gap-4 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center">
-              <Loader2 className="h-7 w-7 text-blue-600 animate-spin" />
-            </div>
-            <p className="font-semibold text-gray-900">Téléversement en cours…</p>
-            <p className="text-sm text-gray-400">Ne fermez pas cette fenêtre</p>
-          </div>
-        )}
-        {uploadState === 'analyzing' && (
-          <div className="px-6 py-12 flex flex-col items-center gap-4 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-violet-50 flex items-center justify-center">
-              <Sparkles className="h-7 w-7 text-violet-600 animate-pulse" />
-            </div>
-            <p className="font-semibold text-gray-900">Analyse IA en cours…</p>
-            <p className="text-sm text-gray-400">Détection des surcoûts et économies</p>
-          </div>
-        )}
-        {uploadState === 'success' && (
-          <div className="px-6 py-8 flex flex-col items-center gap-4 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center">
-              <CheckCircle2 className="h-7 w-7 text-emerald-600" />
-            </div>
-            <p className="font-bold text-gray-900 text-lg">
-              {docType === 'devis' ? '✔ Devis analysé' : `${TYPE_LABELS[docType]} ajouté${FEMININE_TYPES.has(docType) ? 'e' : ''} ✓`}
-            </p>
-            {savingsAmount > 0 && (
-              <div className="w-full bg-emerald-50 border border-emerald-100 rounded-2xl px-5 py-4">
-                <p className="text-3xl font-extrabold text-emerald-600">+{fmtK(savingsAmount)}</p>
-                <p className="text-xs font-medium text-emerald-600 mt-1">détectés vs prix du marché 🎉</p>
-              </div>
-            )}
-            <div className="flex flex-col gap-2 w-full">
-              <button onClick={onClose} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl py-3 text-sm transition-colors">Parfait</button>
-              {docType === 'devis' && (
-                <button onClick={() => { setFile(null); setDocName(''); setSavingsAmount(0); setUploadState('idle'); }}
-                  className="text-sm font-medium text-blue-600 hover:text-blue-700 py-2">
-                  Ajouter un autre devis pour comparer →
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-        {uploadState === 'error' && (
-          <div className="px-6 py-10 flex flex-col items-center gap-4 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center">
-              <AlertCircle className="h-7 w-7 text-red-500" />
-            </div>
-            <p className="font-semibold text-gray-900">Erreur</p>
-            <p className="text-sm text-red-600">{errorMsg}</p>
-            <button onClick={() => setUploadState('idle')} className="text-sm font-medium text-blue-600">Réessayer</button>
-          </div>
-        )}
-        {uploadState === 'idle' && (
-          <div className="px-6 py-5">
-            <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-5">
-              {[{ id: 'file' as const, label: 'Importer un fichier' }, { id: 'import' as const, label: 'Depuis VerifierMonDevis' }].map(({ id, label }) => (
-                <button key={id} onClick={() => setTab(id)}
-                  className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-all ${tab === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                  {label}
-                </button>
-              ))}
-            </div>
-            {tab === 'file' && (
-              <div className="space-y-4">
-                <div
-                  onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
-                  onDragOver={e => { e.preventDefault(); setDragging(true); }}
-                  onDragLeave={() => setDragging(false)}
-                  onClick={() => inputRef.current?.click()}
-                  className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${dragging ? 'border-blue-400 bg-blue-50' : file ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'}`}>
-                  <input ref={inputRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
-                    onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
-                  {file ? (
-                    <><CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2" /><p className="font-semibold text-emerald-800 text-sm">{file.name}</p></>
-                  ) : (
-                    <><CloudUpload className="h-8 w-8 text-gray-300 mx-auto mb-2" /><p className="text-sm font-medium text-gray-700">Glissez votre fichier ici</p><p className="text-xs text-gray-400 mt-1">ou cliquez pour parcourir</p></>
-                  )}
-                </div>
-                {file && (
-                  <div className="space-y-3">
-                    <input value={docName} onChange={e => setDocName(e.target.value)} placeholder="Nom du document"
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300" />
-                    <div className="grid grid-cols-2 gap-3">
-                      <select value={docType} onChange={e => setDocType(e.target.value as DocumentType)}
-                        className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100">
-                        {Object.entries(TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                      </select>
-                      <select value={lotId} onChange={e => setLotId(e.target.value)}
-                        className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100">
-                        <option value="">— Aucun lot —</option>
-                        {lots.filter(l => !l.id.startsWith('fallback-')).map(l => <option key={l.id} value={l.id}>{l.emoji ?? '🔧'} {l.nom}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                )}
-                <button onClick={handleUpload} disabled={!file || !docName.trim()}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-30 text-white font-semibold rounded-xl py-3 text-sm transition-colors">
-                  Importer
-                </button>
-              </div>
-            )}
-            {tab === 'import' && (
-              <div className="space-y-3">
-                <select value={lotId} onChange={e => setLotId(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 mb-1">
-                  <option value="">— Aucun lot —</option>
-                  {lots.filter(l => !l.id.startsWith('fallback-')).map(l => <option key={l.id} value={l.id}>{l.emoji ?? '🔧'} {l.nom}</option>)}
-                </select>
-                {loadingAnalyses ? (
-                  <div className="py-8 flex justify-center"><Loader2 className="h-5 w-5 text-gray-300 animate-spin" /></div>
-                ) : analyses.length === 0 ? (
-                  <div className="py-8 text-center">
-                    <p className="text-sm text-gray-400 mb-2">Aucune analyse disponible</p>
-                    <a href="/nouvelle-analyse" className="text-sm font-medium text-blue-600">Analyser un devis →</a>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-gray-50 border border-gray-100 rounded-2xl overflow-hidden max-h-80 overflow-y-auto">
-                    {analyses.map(a => (
-                      <button key={a.id}
-                        onClick={() => handleImportAnalyse(a.id, a.titre ?? fmtDate(a.created_at))}
-                        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-blue-50 transition-colors text-left group">
-                        <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0 group-hover:bg-blue-100 transition-colors">
-                          <FileText className="h-4 w-4 text-blue-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          {/* Nom artisan */}
-                          <p className="text-sm font-semibold text-gray-900 truncate">
-                            {a.artisanNom ?? '—'}
-                          </p>
-                          {/* Montant TTC + date */}
-                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                            {a.totalTtc != null && a.totalTtc > 0 && (
-                              <span className="text-xs font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-full">
-                                {fmtK(a.totalTtc)} TTC
-                              </span>
-                            )}
-                            <span className="text-xs text-gray-400">
-                              Devis du {a.dateDevis
-                                ? new Date(a.dateDevis).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
-                                : fmtDate(a.created_at)}
-                            </span>
-                          </div>
-                        </div>
-                        <ChevronRight className="h-4 w-4 text-gray-300 shrink-0 group-hover:text-blue-400 transition-colors" />
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -3540,7 +2989,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
 
       {/* ── Upload modal ──────────────────────────────────────────────────── */}
       {uploadModal.open && chantierId && token && (
-        <UploadModal
+        <UploadDocumentModal
           chantierId={chantierId}
           token={token}
           lots={lots}
