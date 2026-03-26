@@ -2413,15 +2413,45 @@ function ComingSoon({ section, icon: Icon, description, cta }: {
 
 // ── Section Documents (all docs) ──────────────────────────────────────────────
 
-function DocumentsView({ documents, lots: lotsProp, chantierId, token, onAddDoc, onDeleteDoc, onDocUpdated, onDocLotUpdated }: {
+function DocumentsView({ documents, lots: lotsProp, chantierId, token, onAddDoc, onDeleteDoc, onDocUpdated, onDocLotUpdated, onDocNomUpdated, pendingDescribeIds = [] }: {
   documents: DocumentChantier[]; lots: LotChantier[];
   chantierId: string; token: string;
   onDocLotUpdated?: (docId: string, lotId: string | null) => void;
+  onDocNomUpdated?: (docId: string, nom: string) => void;
   onAddDoc: () => void; onDeleteDoc: (id: string) => void; onDocUpdated: () => void;
+  pendingDescribeIds?: string[];
 }) {
   const byType: Record<DocumentType, DocumentChantier[]> = {} as never;
   for (const doc of documents) (byType[doc.document_type] ??= []).push(doc);
   const typesWithDocs = Object.entries(byType).filter(([, docs]) => docs.length > 0);
+
+  // ── Renommage inline ─────────────────────────────────────────────────────────
+  const [editingId, setEditingId]     = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const [savingId, setSavingId]       = useState<string | null>(null);
+
+  async function saveRename(docId: string) {
+    const trimmed = editingName.trim();
+    if (!trimmed || savingId === docId) return;
+    setSavingId(docId);
+    try {
+      const res = await fetch(`/api/chantier/${chantierId}/documents/${docId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nom: trimmed }),
+      });
+      if (res.ok) {
+        onDocNomUpdated?.(docId, trimmed);
+      } else {
+        toast.error('Impossible de renommer le document');
+      }
+    } catch {
+      toast.error('Erreur réseau');
+    } finally {
+      setSavingId(null);
+      setEditingId(null);
+    }
+  }
 
   // Lots réels fetchés depuis la DB (garantit la cohérence avec la validation PATCH)
   const [dbLots, setDbLots] = useState<LotChantier[]>([]);
@@ -2490,15 +2520,67 @@ function DocumentsView({ documents, lots: lotsProp, chantierId, token, onAddDoc,
                 {docs.map(doc => {
                   const effectiveLotId = lotOverrides[doc.id] !== undefined ? lotOverrides[doc.id] : doc.lot_id;
                   const lot = realLots.find(l => l.id === effectiveLotId);
+                  const isEditing  = editingId === doc.id;
+                  const isSaving   = savingId === doc.id;
+                  const isDescribing = pendingDescribeIds.includes(doc.id);
                   return (
                     <div key={doc.id} className="flex items-center gap-3 px-5 py-4 group">
-                      <div className="w-9 h-9 rounded-xl bg-gray-50 flex items-center justify-center shrink-0">
-                        <FileText className="h-4 w-4 text-gray-400" />
+                      {/* Icône type */}
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                        doc.document_type === 'photo' ? 'bg-purple-50' : 'bg-gray-50'
+                      }`}>
+                        {doc.document_type === 'photo'
+                          ? <span className="text-base">📷</span>
+                          : <FileText className="h-4 w-4 text-gray-400" />}
                       </div>
+
+                      {/* Nom — éditable inline */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">{doc.nom}</p>
-                        <p className="text-xs text-gray-400">{fmtDate(doc.created_at)}</p>
+                        {isEditing ? (
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              autoFocus
+                              value={editingName}
+                              onChange={e => setEditingName(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') saveRename(doc.id);
+                                if (e.key === 'Escape') setEditingId(null);
+                              }}
+                              onBlur={() => saveRename(doc.id)}
+                              className="flex-1 min-w-0 text-sm font-medium text-gray-900 bg-blue-50 border border-blue-200 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-blue-300"
+                            />
+                            {isSaving && <Loader2 className="h-3.5 w-3.5 text-blue-400 animate-spin shrink-0" />}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 group/name">
+                            {isDescribing ? (
+                              <span className="flex items-center gap-1.5 text-sm text-blue-500 italic">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                IA en cours…
+                              </span>
+                            ) : (
+                              <p
+                                className="text-sm font-medium text-gray-800 truncate cursor-pointer hover:text-blue-600 transition-colors"
+                                title="Cliquer pour renommer"
+                                onClick={() => { setEditingId(doc.id); setEditingName(doc.nom); }}
+                              >
+                                {doc.nom}
+                              </p>
+                            )}
+                            {!isDescribing && (
+                              <button
+                                onClick={() => { setEditingId(doc.id); setEditingName(doc.nom); }}
+                                className="opacity-0 group-hover/name:opacity-100 transition-opacity p-0.5 rounded text-gray-300 hover:text-blue-500"
+                                title="Renommer"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        <p className="text-xs text-gray-400 mt-0.5">{fmtDate(doc.created_at)}</p>
                       </div>
+
                       {/* Sélecteur intervenant — lots réels uniquement */}
                       {(doc.document_type === 'devis' || doc.document_type === 'facture') && realLots.length > 0 && (
                         <select
@@ -2512,16 +2594,19 @@ function DocumentsView({ documents, lots: lotsProp, chantierId, token, onAddDoc,
                           {realLots.map(l => <option key={l.id} value={l.id}>{l.emoji} {l.nom}</option>)}
                         </select>
                       )}
-                      {doc.signedUrl && (
+
+                      {doc.signedUrl && !isEditing && (
                         <a href={doc.signedUrl} target="_blank" rel="noreferrer"
                           className="text-xs text-blue-600 hover:text-blue-700 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                           Ouvrir
                         </a>
                       )}
-                      <button onClick={() => onDeleteDoc(doc.id)}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all shrink-0">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {!isEditing && (
+                        <button onClick={() => onDeleteDoc(doc.id)}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -2986,6 +3071,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
   const [homeViewMode, setHomeViewMode]   = useState<'cards' | 'list'>('cards');
   const [mobileOpen, setMobileOpen]       = useState(false);
   const [documents, setDocuments]         = useState<DocumentChantier[]>([]);
+  const [pendingDescribeIds, setPendingDescribeIds] = useState<string[]>([]);
   const [selectedLotId, setSelectedLotId] = useState<string | null>(null);
   const [uploadModal, setUploadModal]     = useState<{ open: boolean; lotId?: string; defaultType?: DocumentType }>({ open: false });
   const lots = result.lots ?? [];
@@ -3232,6 +3318,10 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             onAddDoc={() => setUploadModal({ open: true })}
             onDeleteDoc={handleDeleteDoc}
             onDocUpdated={loadDocuments}
+            pendingDescribeIds={pendingDescribeIds}
+            onDocNomUpdated={(docId, nom) =>
+              setDocuments(prev => prev.map(d => d.id === docId ? { ...d, nom } : d))
+            }
             onDocLotUpdated={(docId, lotId) =>
               setDocuments(prev => prev.map(d => d.id === docId ? { ...d, lot_id: lotId } : d))
             }
@@ -3419,6 +3509,25 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
                   }
                 })
                 .catch(() => toast.dismiss(`analyse-${doc.id}`));
+            }
+            // 🤖 Auto-description IA pour photos et documents non-devis
+            const isVisual = doc.document_type === 'photo' ||
+              ['plan', 'autorisation', 'assurance', 'autre'].includes(doc.document_type);
+            if (isVisual && doc.bucket_path) {
+              setPendingDescribeIds(prev => [...prev, doc.id]);
+              fetch(`/api/chantier/${chantierId}/documents/${doc.id}/describe`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token ?? ''}` },
+              })
+                .then(r => r.json())
+                .then(({ nom }) => {
+                  if (nom) {
+                    setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, nom } : d));
+                    toast.success(`✨ Titre généré : "${nom}"`, { duration: 4000 });
+                  }
+                })
+                .catch(() => {})
+                .finally(() => setPendingDescribeIds(prev => prev.filter(id => id !== doc.id)));
             }
           }}
         />
