@@ -421,7 +421,17 @@ export default function LotDetail({
                 ) : (
                   <ul className="space-y-2">
                     {sectionDocs.map((doc) => (
-                      <DocumentRow key={doc.id} doc={doc} />
+                      <DocumentRow
+                        key={doc.id}
+                        doc={doc}
+                        chantierId={chantierId}
+                        token={token}
+                        onAnalysed={(docId, analyseId) => {
+                          setLocalDocuments(prev =>
+                            prev.map(d => d.id === docId ? { ...d, analyse_id: analyseId } : d),
+                          );
+                        }}
+                      />
                     ))}
                   </ul>
                 )}
@@ -783,37 +793,101 @@ function LotDecompositionSection({ lot }: { lot: LotChantier }) {
 
 // ── Sous-composant ligne document ─────────────────────────────────────────────
 
-function DocumentRow({ doc }: { doc: DocumentChantier }) {
+interface DocumentRowProps {
+  doc: DocumentChantier;
+  chantierId?: string;
+  token?: string;
+  onAnalysed?: (docId: string, analyseId: string) => void;
+}
+
+function DocumentRow({ doc, chantierId, token, onAnalysed }: DocumentRowProps) {
   const emoji = TYPE_EMOJI[doc.document_type] ?? '📄';
+  const [analysing, setAnalysing] = useState(false);
+  const [localDoc, setLocalDoc] = useState(doc);
+
+  // Sync si le parent rafraîchit
+  useEffect(() => { setLocalDoc(doc); }, [doc]);
+
+  const isDevis = localDoc.document_type === 'devis';
+  const isAnalysed = !!localDoc.analyse_id;
+  const canAnalyse = isDevis && !isAnalysed && !!chantierId && !!token;
 
   const handleOpen = () => {
-    if (doc.signedUrl) {
-      window.open(doc.signedUrl, '_blank', 'noopener,noreferrer');
+    if (localDoc.signedUrl) {
+      window.open(localDoc.signedUrl, '_blank', 'noopener,noreferrer');
     }
   };
+
+  async function handleAnalyser() {
+    if (!chantierId || !token) { toast.error('Session expirée — rechargez'); return; }
+    setAnalysing(true);
+    try {
+      const res = await fetch(`/api/chantier/${chantierId}/documents/${localDoc.id}/analyser`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok || res.status === 409) {
+        const analysisId: string = data.analysisId;
+        if (analysisId) {
+          setLocalDoc(prev => ({ ...prev, analyse_id: analysisId }));
+          onAnalysed?.(localDoc.id, analysisId);
+          toast.success('Analyse lancée — résultat dans quelques secondes');
+        }
+      } else {
+        toast.error(`Erreur analyse : ${data.error ?? res.status}`);
+      }
+    } catch {
+      toast.error("Erreur réseau lors de l'analyse");
+    } finally {
+      setAnalysing(false);
+    }
+  }
+
+  // Lien analyse avec param retour chantier
+  const analyseHref = localDoc.analyse_id
+    ? `/analyse/${localDoc.analyse_id}?from=chantier&chantierId=${chantierId}`
+    : undefined;
 
   return (
     <li className="flex items-start gap-2.5 bg-white/[0.03] border border-white/[0.05] rounded-xl p-3 hover:bg-white/[0.05] transition-colors">
       <span className="text-base shrink-0 mt-0.5">{emoji}</span>
       <div className="flex-1 min-w-0">
-        <p className="text-slate-200 text-xs font-medium truncate">{doc.nom}</p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-slate-200 text-xs font-medium truncate">{localDoc.nom}</p>
+          {isDevis && (
+            isAnalysed
+              ? <span className="text-[9px] font-semibold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-full">✓ Analysé</span>
+              : <span className="text-[9px] font-semibold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-full">Non analysé</span>
+          )}
+        </div>
         <p className="text-slate-600 text-[11px] mt-0.5">
-          {formatDate(doc.created_at)}
-          {doc.taille_octets ? ` · ${formatBytes(doc.taille_octets)}` : ''}
-          {doc.mime_type ? ` · ${doc.mime_type.split('/').pop()?.toUpperCase()}` : ''}
+          {formatDate(localDoc.created_at)}
+          {localDoc.taille_octets ? ` · ${formatBytes(localDoc.taille_octets)}` : ''}
+          {localDoc.mime_type ? ` · ${localDoc.mime_type.split('/').pop()?.toUpperCase()}` : ''}
         </p>
-        {/* Lien vers analyse si devis analysé */}
-        {doc.analyse_id && (
-          <a
-            href={`/analyse/${doc.analyse_id}`}
-            className="inline-flex items-center gap-1 mt-1.5 text-[11px] text-emerald-400 hover:text-emerald-300 font-medium transition-colors"
-          >
-            <ExternalLink className="h-3 w-3" />
-            Voir l'analyse
-          </a>
-        )}
+        {/* Boutons analyse */}
+        <div className="flex items-center gap-2 mt-1.5">
+          {isAnalysed && analyseHref && (
+            <a
+              href={analyseHref}
+              className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 font-medium transition-colors"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Voir l'analyse
+            </a>
+          )}
+          {canAnalyse && (
+            <button
+              onClick={handleAnalyser}
+              disabled={analysing}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-400 hover:text-blue-300 disabled:opacity-50 transition-colors"
+            >
+              {analysing ? <><Loader2 className="h-3 w-3 animate-spin" /> Analyse…</> : '⚡ Analyser'}
+            </button>
+          )}
+        </div>
       </div>
-      {doc.signedUrl && (
+      {localDoc.signedUrl && (
         <button
           onClick={handleOpen}
           className="shrink-0 p-1.5 text-slate-600 hover:text-blue-300 hover:bg-blue-500/10 rounded-lg transition-all"

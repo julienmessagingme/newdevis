@@ -73,6 +73,8 @@ const TYPE_LABELS: Record<DocumentType, string> = {
   plan: 'Plan', autorisation: 'Autorisation', assurance: 'Assurance', autre: 'Autre',
 };
 
+const FEMININE_TYPES: Set<DocumentType> = new Set(['facture', 'photo', 'autorisation', 'assurance']);
+
 const IS: Record<InsightItem['type'], { bg: string; text: string; border: string; accent: string }> = {
   success: { bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-100', accent: 'border-l-emerald-400' },
   warning: { bg: 'bg-amber-50',   text: 'text-amber-800',   border: 'border-amber-100',   accent: 'border-l-amber-400'   },
@@ -621,11 +623,15 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
     });
   }, [docs]);
 
+  function analyseUrl(analyseId: string) {
+    return `/analyse/${analyseId}?from=chantier&chantierId=${chantierId}`;
+  }
+
   function ScoreBadge({ score, analyseId }: { score: number | null | undefined; analyseId?: string | null }) {
     if (score == null) {
       // Pas encore analysé ou score absent
       return analyseId
-        ? <a href={`/analyse/${analyseId}`} target="_blank" rel="noreferrer"
+        ? <a href={analyseUrl(analyseId)}
             className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-500 hover:text-blue-700 hover:underline transition-colors">
             Voir l'analyse →
           </a>
@@ -641,7 +647,7 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
       </span>
     );
     return analyseId
-      ? <a href={`/analyse/${analyseId}`} target="_blank" rel="noreferrer">{badge}</a>
+      ? <a href={analyseUrl(analyseId)}>{badge}</a>
       : badge;
   }
 
@@ -2506,7 +2512,7 @@ function UploadModal({ chantierId, token, lots, defaultLotId, defaultType, onClo
               <CheckCircle2 className="h-7 w-7 text-emerald-600" />
             </div>
             <p className="font-bold text-gray-900 text-lg">
-              {docType === 'devis' ? '✔ Devis analysé' : `${TYPE_LABELS[docType]} ajouté ✓`}
+              {docType === 'devis' ? '✔ Devis analysé' : `${TYPE_LABELS[docType]} ajouté${FEMININE_TYPES.has(docType) ? 'e' : ''} ✓`}
             </p>
             {savingsAmount > 0 && (
               <div className="w-full bg-emerald-50 border border-emerald-100 rounded-2xl px-5 py-4">
@@ -2945,7 +2951,7 @@ function DevisCard({ doc: docProp, lot, insight, onDelete, chantierId, token, on
         <div className="flex items-center gap-2 shrink-0">
           {/* Lien vers l'analyse pour tout devis analysé */}
           {doc.analyse_id && (
-            <a href={`/analyse/${doc.analyse_id}`}
+            <a href={`/analyse/${doc.analyse_id}?from=chantier&chantierId=${chantierId}`}
               className="text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition-colors">
               Voir l'analyse →
             </a>

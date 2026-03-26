@@ -289,9 +289,20 @@ const AnalysisResult = () => {
   const { isPremium, lifetimeAnalysisCount } = usePremium();
 
   // Preview mode: ?preview=gate forces anonymous view for testing
-  const previewGate = new URLSearchParams(window.location.search).get("preview") === "gate";
+  const searchParams = new URLSearchParams(window.location.search);
+  const previewGate = searchParams.get("preview") === "gate";
   const isAnonymous = previewGate || rawIsAnonymous;
   const isPermanent = previewGate ? false : rawIsPermanent;
+
+  // Retour chantier — si l'analyse a été ouverte depuis un lot/chantier
+  const fromChantier = searchParams.get("from") === "chantier";
+  const chantierId = searchParams.get("chantierId");
+  const backHref = fromChantier && chantierId
+    ? `/mon-chantier/${chantierId}`
+    : isPermanent ? "/tableau-de-bord" : "/";
+  const backLabel = fromChantier && chantierId
+    ? "Retour au chantier"
+    : isPermanent ? "Retour au tableau de bord" : "Retour à l'accueil";
 
   const handleAuthConversion = () => {
     window.location.reload();
@@ -359,7 +370,7 @@ const AnalysisResult = () => {
 
     if (error || !data) {
       toast.error("Analyse non trouvée");
-      window.location.href = isPermanent ? "/tableau-de-bord" : "/";
+      window.location.href = backHref;
       return;
     }
 
@@ -488,10 +499,10 @@ const AnalysisResult = () => {
           <p className="text-muted-foreground text-sm">
             Cette analyse n'existe pas ou vous n'y avez pas accès.
           </p>
-          <a href={isPermanent ? "/tableau-de-bord" : "/"}>
+          <a href={backHref}>
             <Button variant="outline" size="lg">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              {isPermanent ? "Retour au tableau de bord" : "Retour à l'accueil"}
+              {backLabel}
             </Button>
           </a>
         </div>
@@ -697,9 +708,9 @@ const AnalysisResult = () => {
           </div>
         </header>
         <main className="container py-8 max-w-4xl">
-          <a href="/tableau-de-bord" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors">
+          <a href={backHref} className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors">
             <ArrowLeft className="h-4 w-4" />
-            Retour au tableau de bord
+            {backLabel}
           </a>
           <PassSereniteGate analysisCount={lifetimeAnalysisCount} />
         </main>
@@ -757,9 +768,9 @@ const AnalysisResult = () => {
         {/* Funnel Stepper */}
         <FunnelStepper currentStep={isPermanent ? 3 : 2} />
 
-        <a href={isPermanent ? "/tableau-de-bord" : "/"} className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors">
+        <a href={backHref} className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors">
           <ArrowLeft className="h-4 w-4" />
-          {isPermanent ? "Retour au tableau de bord" : "Retour à l'accueil"}
+          {backLabel}
         </a>
 
         {/* Score Hero */}

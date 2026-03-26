@@ -33,6 +33,8 @@ const TYPE_LABELS: Record<DocumentType, string> = {
   plan: 'Plan', autorisation: 'Autorisation', assurance: 'Assurance', autre: 'Autre',
 };
 
+const FEMININE_TYPES: Set<DocumentType> = new Set(['facture', 'photo', 'autorisation', 'assurance']);
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type NavItem = 'lots' | 'planning' | 'documents' | 'projet';
@@ -216,7 +218,7 @@ function UploadModal({ chantierId, token, lots, defaultLotId, onClose, onSuccess
         }
       } else {
         setSavingsAmount(0);
-        setResultMsg(`${TYPE_LABELS[docType]} ajouté ✓`);
+        setResultMsg(`${TYPE_LABELS[docType]} ajouté${FEMININE_TYPES.has(docType) ? 'e' : ''} ✓`);
       }
 
       setUploadState('success');
