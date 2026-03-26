@@ -1737,19 +1737,27 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
   const [filterSt,      setFilterSt]      = useState<FilterStatus>('all');
   const [analysisData,  setAnalysisData]  = useState<Record<string, { score: 'VERT' | 'ORANGE' | 'ROUGE' | null; ttc: number | null }>>({});
   const [statutOverrides, setStatutOverrides] = useState<Record<string, string>>({});
+  const [montantPayeOverrides, setMontantPayeOverrides] = useState<Record<string, number | null>>({});
+  const [editingMontant, setEditingMontant] = useState<string | null>(null);
   const [comparingLot, setComparingLot]   = useState<{ lot: LotChantier; docs: DocumentChantier[] } | null>(null);
 
-  async function handleStatutChange(docId: string, statut: string) {
+  async function handleStatutChange(docId: string, statut: string, isFacture: boolean) {
     if (!token) { toast.error('Session expirée — rechargez la page'); return; }
     setStatutOverrides(prev => ({ ...prev, [docId]: statut }));
+    const payload = isFacture ? { factureStatut: statut } : { devisStatut: statut };
     try {
       const res = await fetch(`/api/chantier/${chantierId}/documents/${docId}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ devisStatut: statut }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         onDocStatutUpdated?.(docId, statut);
+        if (isFacture && statut === 'payee_partiellement') {
+          setEditingMontant(docId);
+        } else {
+          setEditingMontant(null);
+        }
       } else {
         const body = await res.json().catch(() => ({}));
         toast.error(`Statut non sauvegardé : ${body.error ?? res.status}`);
@@ -1758,6 +1766,26 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
     } catch {
       toast.error('Erreur réseau — statut non sauvegardé');
       setStatutOverrides(prev => { const n = { ...prev }; delete n[docId]; return n; });
+    }
+  }
+
+  async function handleMontantPayeSave(docId: string, montant: number) {
+    if (!token) return;
+    setMontantPayeOverrides(prev => ({ ...prev, [docId]: montant }));
+    setEditingMontant(null);
+    try {
+      const res = await fetch(`/api/chantier/${chantierId}/documents/${docId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ montantPaye: montant }),
+      });
+      if (!res.ok) {
+        toast.error('Montant non sauvegardé');
+        setMontantPayeOverrides(prev => { const n = { ...prev }; delete n[docId]; return n; });
+      }
+    } catch {
+      toast.error('Erreur réseau');
+      setMontantPayeOverrides(prev => { const n = { ...prev }; delete n[docId]; return n; });
     }
   }
 
@@ -1937,13 +1965,22 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
                     const data    = analysisData[doc.id];
                     const score   = data?.score;
                     const ttc     = data?.ttc;
-                    const statut  = doc.devis_statut ?? 'en_cours';
-                    const statutCfg: Record<string, { bg: string; label: string }> = {
+                    const isFacture = doc.document_type === 'facture';
+                    const statut  = isFacture
+                      ? (doc.facture_statut ?? 'recue')
+                      : (doc.devis_statut ?? 'en_cours');
+                    const devisStatutCfg: Record<string, { bg: string; label: string }> = {
                       en_cours:        { bg: 'bg-blue-50 text-blue-700',    label: 'En cours' },
                       a_relancer:      { bg: 'bg-orange-50 text-orange-700',label: 'À relancer' },
                       valide:          { bg: 'bg-emerald-50 text-emerald-700', label: '✓ Validé' },
                       attente_facture: { bg: 'bg-violet-50 text-violet-700',label: 'Att. facture' },
                     };
+                    const factureStatutCfg: Record<string, { bg: string; label: string }> = {
+                      recue:                 { bg: 'bg-blue-50 text-blue-700',       label: 'Reçue' },
+                      payee:                 { bg: 'bg-emerald-50 text-emerald-700', label: '✓ Payée' },
+                      payee_partiellement:   { bg: 'bg-amber-50 text-amber-700',    label: '◐ Partiel' },
+                    };
+                    const statutCfg = isFacture ? factureStatutCfg : devisStatutCfg;
                     // score est TEXT : 'VERT' | 'ORANGE' | 'ROUGE'
                     const scoreCfg = score === 'VERT'   ? { bg: 'bg-emerald-50 text-emerald-700', label: '✅ Bon',    dot: 'bg-emerald-400' }
                       : score === 'ORANGE' ? { bg: 'bg-amber-50 text-amber-700',   label: '⚠️ Moyen',  dot: 'bg-amber-400' }
@@ -1953,6 +1990,7 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
                     const sc2 = statutCfg[effectiveStatut] ?? { bg: 'bg-gray-50 text-gray-500', label: effectiveStatut };
                     // VMD: dot color
                     const dotColor = scoreCfg?.dot ?? null;
+                    const effectiveMontantPaye = montantPayeOverrides[doc.id] ?? doc.montant_paye;
 
                     return (
                       <div key={doc.id}
@@ -1995,18 +2033,49 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
                             : <span className="text-xs text-gray-300">—</span>
                           }
                         </div>
-                        {/* Statut — dropdown éditable */}
-                        <div className="px-4 py-3 flex items-center">
+                        {/* Statut — dropdown éditable (différent devis vs facture) */}
+                        <div className="px-4 py-3 flex flex-col justify-center gap-1">
                           <select
                             value={effectiveStatut}
-                            onChange={e => handleStatutChange(doc.id, e.target.value)}
+                            onChange={e => handleStatutChange(doc.id, e.target.value, isFacture)}
                             className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border-0 focus:outline-none focus:ring-1 focus:ring-blue-200 cursor-pointer ${sc2.bg}`}
                           >
-                            <option value="en_cours">En cours</option>
-                            <option value="a_relancer">À relancer</option>
-                            <option value="valide">✓ Validé</option>
-                            <option value="attente_facture">Att. facture</option>
+                            {isFacture ? (
+                              <>
+                                <option value="recue">Reçue</option>
+                                <option value="payee">✓ Payée</option>
+                                <option value="payee_partiellement">◐ Partiel</option>
+                              </>
+                            ) : (
+                              <>
+                                <option value="en_cours">En cours</option>
+                                <option value="a_relancer">À relancer</option>
+                                <option value="valide">✓ Validé</option>
+                                <option value="attente_facture">Att. facture</option>
+                              </>
+                            )}
                           </select>
+                          {/* Input montant payé — affiché quand facture payée partiellement */}
+                          {isFacture && effectiveStatut === 'payee_partiellement' && (
+                            editingMontant === doc.id ? (
+                              <form onSubmit={e => {
+                                e.preventDefault();
+                                const val = parseFloat((e.currentTarget.elements.namedItem('mp') as HTMLInputElement).value);
+                                if (!isNaN(val) && val >= 0) handleMontantPayeSave(doc.id, val);
+                              }} className="flex items-center gap-1">
+                                <input name="mp" type="number" step="0.01" min="0" placeholder="€ payé"
+                                  defaultValue={effectiveMontantPaye ?? ''}
+                                  autoFocus
+                                  className="w-16 text-[11px] border border-gray-200 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-200" />
+                                <button type="submit" className="text-[10px] text-blue-600 font-semibold">OK</button>
+                              </form>
+                            ) : (
+                              <button onClick={() => setEditingMontant(doc.id)}
+                                className="text-[10px] text-amber-600 hover:text-amber-800 font-medium">
+                                {effectiveMontantPaye != null ? `${effectiveMontantPaye.toLocaleString('fr-FR')} € payé` : 'Saisir montant payé'}
+                              </button>
+                            )
+                          )}
                         </div>
                         {/* Analyse VMD — point coloré + Voir OU bouton Analyser */}
                         <div className="px-4 py-3 flex items-center gap-2">

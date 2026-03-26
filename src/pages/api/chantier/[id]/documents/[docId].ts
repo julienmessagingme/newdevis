@@ -109,8 +109,16 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   if (!doc) return new Response(JSON.stringify({ error: 'Document introuvable' }), { status: 404, headers: CORS });
 
   const VALID_DEVIS_STATUTS = new Set(['en_cours', 'a_relancer', 'valide', 'attente_facture']);
+  const VALID_FACTURE_STATUTS = new Set(['recue', 'payee', 'payee_partiellement']);
 
-  let body: { nom?: string; documentType?: DocumentType; lotId?: string | null; devisStatut?: string };
+  let body: {
+    nom?: string;
+    documentType?: DocumentType;
+    lotId?: string | null;
+    devisStatut?: string;
+    factureStatut?: string;
+    montantPaye?: number | null;
+  };
   try {
     body = await request.json();
   } catch {
@@ -144,6 +152,22 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     if (!VALID_DEVIS_STATUTS.has(body.devisStatut))
       return new Response(JSON.stringify({ error: 'Statut invalide' }), { status: 400, headers: CORS });
     updates.devis_statut = body.devisStatut;
+  }
+
+  if (body.factureStatut !== undefined) {
+    if (!VALID_FACTURE_STATUTS.has(body.factureStatut))
+      return new Response(JSON.stringify({ error: 'Statut facture invalide' }), { status: 400, headers: CORS });
+    updates.facture_statut = body.factureStatut;
+    // Si payée ou reçue, reset montant_paye (seul payee_partiellement l'utilise)
+    if (body.factureStatut !== 'payee_partiellement') {
+      updates.montant_paye = null;
+    }
+  }
+
+  if (body.montantPaye !== undefined) {
+    if (body.montantPaye !== null && (typeof body.montantPaye !== 'number' || body.montantPaye < 0))
+      return new Response(JSON.stringify({ error: 'Montant payé invalide' }), { status: 400, headers: CORS });
+    updates.montant_paye = body.montantPaye;
   }
 
   if (!Object.keys(updates).length)

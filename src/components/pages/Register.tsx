@@ -89,19 +89,23 @@ const Register = () => {
           toast.error(error.message);
         }
       } else {
-        // Send webhook via server-side API route (avoids CORS issues)
+        // Send webhook via server-side API route (await to ensure it fires before redirect)
         const phoneFormatted = countryCode + phoneLocal;
-        fetch("/api/webhook-registration", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email,
-            phone: phoneFormatted,
-            first_name: firstName,
-            last_name: lastName,
-            accept_commercial: acceptCommercial,
-          }),
-        }).catch(() => {}); // fire & forget
+        try {
+          await fetch("/api/webhook-registration", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email,
+              phone: phoneFormatted,
+              first_name: firstName,
+              last_name: lastName,
+              accept_commercial: acceptCommercial,
+            }),
+          });
+        } catch {
+          // Non-blocking: don't prevent redirect if webhook fails
+        }
 
         toast.success("Compte créé avec succès !");
         const params = new URLSearchParams(window.location.search);

@@ -13,6 +13,7 @@ export type DocumentType =
   | 'plan' | 'autorisation' | 'assurance' | 'autre';
 
 export type DevisStatut = 'en_cours' | 'a_relancer' | 'valide' | 'attente_facture';
+export type FactureStatut = 'recue' | 'payee' | 'payee_partiellement';
 
 export interface DocumentChantier {
   id: string;
@@ -23,6 +24,12 @@ export interface DocumentChantier {
   document_type: DocumentType;
   /** Statut du devis — uniquement pertinent pour document_type === 'devis' */
   devis_statut?: DevisStatut | null;
+  /** Statut de la facture — uniquement pertinent pour document_type === 'facture' */
+  facture_statut?: FactureStatut | null;
+  /** Montant total de la facture (HT ou TTC selon le document) */
+  montant?: number | null;
+  /** Montant effectivement payé — utile si facture_statut === 'payee_partiellement' */
+  montant_paye?: number | null;
   source: string;
   nom: string;
   nom_fichier: string;

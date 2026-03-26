@@ -19,8 +19,8 @@ CREATE TABLE IF NOT EXISTS public.chantier_conversations (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_conv_chantier_id  ON public.chantier_conversations(chantier_id);
-CREATE INDEX idx_conv_user_id      ON public.chantier_conversations(user_id);
+CREATE INDEX IF NOT EXISTS idx_conv_chantier_id  ON public.chantier_conversations(chantier_id);
+CREATE INDEX IF NOT EXISTS idx_conv_user_id      ON public.chantier_conversations(user_id);
 
 -- Messages (fil de discussion)
 CREATE TABLE IF NOT EXISTS public.chantier_messages (
@@ -35,8 +35,8 @@ CREATE TABLE IF NOT EXISTS public.chantier_messages (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_msg_conversation_id ON public.chantier_messages(conversation_id);
-CREATE INDEX idx_msg_created_at      ON public.chantier_messages(created_at);
+CREATE INDEX IF NOT EXISTS idx_msg_conversation_id ON public.chantier_messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_msg_created_at      ON public.chantier_messages(created_at);
 
 -- RLS
 ALTER TABLE public.chantier_conversations ENABLE ROW LEVEL SECURITY;
