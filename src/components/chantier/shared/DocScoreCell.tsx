@@ -93,7 +93,7 @@ function AnalyseButton({ docId, chantierId, token, onAnalysed }: {
   onAnalysed?: (docId: string, analyseId: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
+  const [resultId, setResultId] = useState<string | null>(null);
 
   async function handleClick() {
     setBusy(true);
@@ -105,7 +105,7 @@ function AnalyseButton({ docId, chantierId, token, onAnalysed }: {
       if (res.ok || res.status === 409) {
         const analysisId: string = data.analysisId;
         if (analysisId) {
-          setDone(true);
+          setResultId(analysisId);
           onAnalysed?.(docId, analysisId);
           toast.success('Analyse lancée — résultat dans quelques secondes');
         }
@@ -119,7 +119,14 @@ function AnalyseButton({ docId, chantierId, token, onAnalysed }: {
     }
   }
 
-  if (done) return <span className="text-[11px] text-emerald-600 font-semibold">✓ Lancée</span>;
+  if (resultId) {
+    return (
+      <a href={`/analyse/${resultId}?from=chantier&chantierId=${chantierId}`}
+        className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 hover:underline transition-colors">
+        ✓ Voir le résultat →
+      </a>
+    );
+  }
 
   return (
     <button onClick={handleClick} disabled={busy}
