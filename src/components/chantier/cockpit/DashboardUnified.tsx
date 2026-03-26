@@ -516,7 +516,7 @@ function LotCard({ lot, docs, insight, onAdd, onDetail }: {
 
 // ── Statuts devis ─────────────────────────────────────────────────────────────
 
-import type { DevisStatut } from '@/types/chantier-ia';
+import type { DevisStatut, FactureStatut } from '@/types/chantier-ia';
 
 const DEVIS_STATUT_OPTIONS: { value: DevisStatut; label: string }[] = [
   { value: 'en_cours',        label: 'En cours' },
@@ -525,12 +525,22 @@ const DEVIS_STATUT_OPTIONS: { value: DevisStatut; label: string }[] = [
   { value: 'attente_facture', label: 'En attente facture' },
 ];
 
-const DEVIS_STATUT_STYLE: Record<DevisStatut, string> = {
+const DEVIS_STATUT_STYLE: Record<string, string> = {
   en_cours:        'bg-blue-50 border-blue-200 text-blue-700',
   a_relancer:      'bg-orange-50 border-orange-200 text-orange-700',
   valide:          'bg-emerald-50 border-emerald-200 text-emerald-700',
   attente_facture: 'bg-violet-50 border-violet-200 text-violet-700',
+  // Facture statuts
+  recue:                 'bg-blue-50 border-blue-200 text-blue-700',
+  payee:                 'bg-emerald-50 border-emerald-200 text-emerald-700',
+  payee_partiellement:   'bg-amber-50 border-amber-200 text-amber-700',
 };
+
+const FACTURE_STATUT_OPTIONS: { value: FactureStatut; label: string }[] = [
+  { value: 'recue',               label: 'Reçue' },
+  { value: 'payee',               label: '✓ Payée' },
+  { value: 'payee_partiellement', label: '◐ Payée partiel.' },
+];
 
 // ── Lot Detail ────────────────────────────────────────────────────────────────
 
@@ -564,14 +574,15 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
     });
   }, [docs]);
 
-  async function updateStatut(docId: string, statut: DevisStatut) {
-    setStatutMap(prev => ({ ...prev, [docId]: statut }));
+  async function updateStatut(docId: string, statut: string, isFacture: boolean) {
+    setStatutMap(prev => ({ ...prev, [docId]: statut as DevisStatut }));
     if (!chantierId || !token) return;
+    const payload = isFacture ? { factureStatut: statut } : { devisStatut: statut };
     try {
       const res = await fetch(`/api/chantier/${chantierId}/documents/${docId}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ devisStatut: statut }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         onDocStatutUpdated?.(docId, statut);
@@ -627,15 +638,22 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
     return `/analyse/${analyseId}?from=chantier&chantierId=${chantierId}`;
   }
 
-  function ScoreBadge({ score, analyseId }: { score: number | null | undefined; analyseId?: string | null }) {
+  function ScoreBadge({ score, analyseId, docId, docType }: { score: number | null | undefined; analyseId?: string | null; docId: string; docType: DocumentType }) {
     if (score == null) {
-      // Pas encore analysé ou score absent
-      return analyseId
-        ? <a href={analyseUrl(analyseId)}
-            className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-500 hover:text-blue-700 hover:underline transition-colors">
-            Voir l'analyse →
-          </a>
-        : <span className="text-[11px] text-gray-300 italic">Non analysé</span>;
+      if (analyseId) {
+        return <a href={analyseUrl(analyseId)}
+          className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-500 hover:text-blue-700 hover:underline transition-colors">
+          Voir l'analyse →
+        </a>;
+      }
+      // Bouton analyser pour les devis non analysés
+      if (docType === 'devis') {
+        return <AnalyseInlineButton docId={docId} chantierId={chantierId!} token={token} onAnalysed={() => {
+          // Forcer un re-fetch des scores
+          setScoreMap(prev => ({ ...prev, [docId]: null }));
+        }} />;
+      }
+      return <span className="text-[11px] text-gray-300 italic">—</span>;
     }
     const cls = score >= 70 ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : score >= 45 ? 'bg-amber-50 text-amber-700 hover:bg-amber-100' : 'bg-red-50 text-red-600 hover:bg-red-100';
     const dot = score >= 70 ? 'bg-emerald-500' : score >= 45 ? 'bg-amber-500' : 'bg-red-500';
@@ -740,7 +758,8 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
               </thead>
               <tbody>
                 {devisDocs.map(doc => {
-                  const statut  = statutMap[doc.id] ?? doc.devis_statut ?? 'en_cours';
+                  const isFacture = doc.document_type === 'facture';
+                  const statut  = statutMap[doc.id] ?? (isFacture ? (doc.facture_statut ?? 'recue') : (doc.devis_statut ?? 'en_cours'));
                   const score   = scoreMap[doc.id];
                   const amounts = amountMap[doc.id];
                   return (
@@ -774,9 +793,9 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
                           </span>
                         )}
                       </td>
-                      {/* Score VMD — cliquable vers l'analyse */}
+                      {/* Score VMD — cliquable vers l'analyse OU bouton analyser */}
                       <td className="px-4 py-3.5">
-                        <ScoreBadge score={score} analyseId={doc.analyse_id} />
+                        <ScoreBadge score={score} analyseId={doc.analyse_id} docId={doc.id} docType={doc.document_type} />
                       </td>
                       {/* Montant TTC / HT */}
                       <td className="px-4 py-3.5 text-right">
@@ -791,14 +810,14 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
                           <span className="text-[11px] text-gray-300">—</span>
                         )}
                       </td>
-                      {/* Statut */}
+                      {/* Statut — différent pour devis vs facture */}
                       <td className="px-4 py-3.5">
                         <select
                           value={statut}
-                          onChange={e => updateStatut(doc.id, e.target.value as DevisStatut)}
-                          className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg border appearance-none cursor-pointer outline-none transition-colors ${DEVIS_STATUT_STYLE[statut]}`}
+                          onChange={e => updateStatut(doc.id, e.target.value, isFacture)}
+                          className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg border appearance-none cursor-pointer outline-none transition-colors ${DEVIS_STATUT_STYLE[statut] ?? 'bg-gray-50 border-gray-200 text-gray-700'}`}
                         >
-                          {DEVIS_STATUT_OPTIONS.map(o => (
+                          {(isFacture ? FACTURE_STATUT_OPTIONS : DEVIS_STATUT_OPTIONS).map(o => (
                             <option key={o.value} value={o.value}>{o.label}</option>
                           ))}
                         </select>
