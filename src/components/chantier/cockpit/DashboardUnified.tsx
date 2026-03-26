@@ -1847,7 +1847,8 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
 
 function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, refinedBreakdown, onAffineBudget,
   onAddDevisForLot, onAddDocForLot, onGoToLot, onGoToAnalyse, onGoToPlanning, onAddDoc,
-  onGoToAssistant, onAddIntervenant, onDeleteLot, onGoToDiy, chantierId, token, onDocStatutUpdated,
+  onGoToAssistant, onAddIntervenant, onDeleteLot, onDeleteDoc, onGoToDiy, chantierId, token,
+  viewMode, onViewModeChange, onDocStatutUpdated,
 }: {
   lots: LotChantier[];
   documents: DocumentChantier[];
