@@ -67,7 +67,29 @@ export const GET: APIRoute = async ({ params, request }) => {
     return new Response(JSON.stringify({ error: 'Erreur chargement events' }), { status: 500, headers: CORS });
   }
 
-  return new Response(JSON.stringify({ payment_events: data ?? [] }), { status: 200, headers: CORS });
+  // Enrichir avec nom du document source + nom du lot
+  const sourceIds = (data ?? []).map(e => e.source_id).filter(Boolean);
+  let docMap: Record<string, { file_name: string | null; lot_nom: string | null }> = {};
+  if (sourceIds.length > 0) {
+    const { data: docs } = await ctx.supabase
+      .from('documents_chantier')
+      .select('id, file_name, lots_chantier(nom)')
+      .in('id', sourceIds);
+    for (const d of docs ?? []) {
+      docMap[d.id] = {
+        file_name: d.file_name ?? null,
+        lot_nom: (d.lots_chantier as any)?.nom ?? null,
+      };
+    }
+  }
+
+  const enriched = (data ?? []).map(e => ({
+    ...e,
+    source_name: docMap[e.source_id]?.file_name ?? null,
+    lot_nom:     docMap[e.source_id]?.lot_nom ?? null,
+  }));
+
+  return new Response(JSON.stringify({ payment_events: enriched }), { status: 200, headers: CORS });
 };
 
 // ── POST /api/chantier/[id]/payment-events ────────────────────────────────────
@@ -131,12 +153,48 @@ export const POST: APIRoute = async ({ params, request }) => {
   );
 };
 
+// ── PATCH /api/chantier/[id]/payment-events ───────────────────────────────────
+// Modifie le statut d'un payment_event (paid ↔ pending).
+// Body: { id: string; status: 'paid' | 'pending' }
+
+export const PATCH: APIRoute = async ({ params, request }) => {
+  const ctx = await authenticate(request);
+  if (!ctx) return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
+
+  const chantierId = params.id!;
+  if (!await verifyOwnership(ctx.supabase, chantierId, ctx.user.id))
+    return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
+
+  let body: Record<string, unknown>;
+  try { body = await request.json(); }
+  catch { return new Response(JSON.stringify({ error: 'Corps invalide' }), { status: 400, headers: CORS }); }
+
+  const id     = typeof body.id === 'string' ? body.id : null;
+  const status = body.status === 'paid' ? 'paid' : body.status === 'pending' ? 'pending' : null;
+
+  if (!id || !status) {
+    return new Response(JSON.stringify({ error: 'id et status (paid|pending) requis' }), { status: 400, headers: CORS });
+  }
+
+  const { error } = await ctx.supabase
+    .from('payment_events')
+    .update({ status })
+    .eq('id', id)
+    .eq('project_id', chantierId);
+
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: CORS });
+  }
+
+  return new Response(JSON.stringify({ ok: true }), { status: 200, headers: CORS });
+};
+
 export const OPTIONS: APIRoute = () =>
   new Response(null, {
     status: 204,
     headers: {
       ...CORS,
-      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+      'Access-Control-Allow-Methods': 'GET,POST,PATCH,OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
   });

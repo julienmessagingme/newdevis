@@ -2,14 +2,15 @@
  * TresoreriePanel — module financier complet du cockpit chantier.
  *
  * Onglets :
- *   📅 Timeline    — échéancier de paiement trié + statuts
+ *   📅 Échéancier  — timeline de paiement trié + statuts
  *   📊 Trésorerie  — jauge budget réel + projection cashflow + alertes
  *   💳 Financement — simulateur crédit immobilier / travaux
  */
 import { useState, useMemo } from 'react';
 import {
   AlertTriangle, CheckCircle2, Clock, Calendar, TrendingUp, CreditCard,
-  ChevronRight, Loader2, RefreshCw, AlertCircle, Check,
+  ChevronRight, Loader2, RefreshCw, AlertCircle, Check, X, RotateCcw,
+  FileText, Info,
 } from 'lucide-react';
 import {
   usePaymentEvents,
@@ -24,7 +25,6 @@ import {
 const fmtEur = (n: number) =>
   new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
 
-/** Mensualité affichée avec 2 décimales pour cohérence avec le coût total */
 const fmtEurPrecis = (n: number) =>
   new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
@@ -32,6 +32,18 @@ function fmtDateFR(iso: string): string {
   return new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR', {
     day: '2-digit', month: 'short', year: 'numeric',
   });
+}
+
+function fmtDateShort(iso: string): string {
+  return new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR', {
+    day: '2-digit', month: 'short',
+  });
+}
+
+function daysUntil(iso: string): number {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const due   = new Date(iso + 'T00:00:00');
+  return Math.round((due.getTime() - today.getTime()) / 86400000);
 }
 
 // ── Tab bar ───────────────────────────────────────────────────────────────────
@@ -67,7 +79,7 @@ function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
 // ── Timeline ─────────────────────────────────────────────────────────────────
 
 const STATUS_CFG = {
-  paid:      { dot: 'bg-emerald-400', badge: 'bg-emerald-50 text-emerald-700 border-emerald-100', label: 'Payé',      icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> },
+  paid:      { dot: 'bg-emerald-400', badge: 'bg-emerald-50 text-emerald-700 border-emerald-100', label: 'Payé ✓',    icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> },
   late:      { dot: 'bg-red-400',     badge: 'bg-red-50 text-red-700 border-red-100',             label: 'En retard', icon: <AlertTriangle className="h-3.5 w-3.5 text-red-500" /> },
   pending:   { dot: 'bg-blue-400',    badge: 'bg-blue-50 text-blue-700 border-blue-100',           label: 'À venir',   icon: <Clock className="h-3.5 w-3.5 text-blue-500" /> },
   cancelled: { dot: 'bg-gray-300',    badge: 'bg-gray-50 text-gray-400 border-gray-100',           label: 'Annulé',    icon: null },
@@ -80,7 +92,10 @@ function PaymentTimeline({
   chantierId: string;
   token: string;
 }) {
-  const { events, loading, error, refresh, markPaid } = usePaymentEvents(chantierId, token);
+  const { events, loading, error, refresh, markPaid, markUnpaid } = usePaymentEvents(chantierId, token);
+
+  // Quel event est en attente de confirmation "marquer payé" ?
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   if (loading) {
     return (
@@ -118,7 +133,10 @@ function PaymentTimeline({
     );
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  // KPI globaux
+  const paidTotal = events.filter(e => e.status === 'paid').reduce((s, e) => s + (e.amount ?? 0), 0);
+  const lateTotal = events.filter(e => e.status === 'late').reduce((s, e) => s + (e.amount ?? 0), 0);
+  const pendingTotal = events.filter(e => e.status === 'pending').reduce((s, e) => s + (e.amount ?? 0), 0);
 
   // Groupe par mois
   const grouped = events.reduce<Record<string, typeof events>>((acc, ev) => {
@@ -131,79 +149,181 @@ function PaymentTimeline({
 
   return (
     <div className="space-y-5">
-      {/* KPI en retard */}
-      {(() => {
-        const lateCount = events.filter(e => e.status === 'late').length;
-        const lateTotal = events.filter(e => e.status === 'late').reduce((s, e) => s + (e.amount ?? 0), 0);
-        const paidTotal = events.filter(e => e.status === 'paid').reduce((s, e) => s + (e.amount ?? 0), 0);
-        if (!lateCount && !paidTotal) return null;
-        return (
-          <div className="grid grid-cols-2 gap-3">
-            {paidTotal > 0 && (
-              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
-                <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider">Payé</p>
-                <p className="text-lg font-extrabold text-emerald-700">{fmtEur(paidTotal)}</p>
-              </div>
-            )}
-            {lateCount > 0 && (
-              <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-center">
-                <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider">En retard</p>
-                <p className="text-lg font-extrabold text-red-700">{fmtEur(lateTotal)}</p>
-              </div>
-            )}
-          </div>
-        );
-      })()}
 
-      {/* Liste groupée par mois */}
+      {/* ── Intro pédagogique ── */}
+      <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex gap-2.5">
+        <Info className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
+        <p className="text-xs text-blue-700 leading-relaxed">
+          Cet échéancier regroupe <strong>tous les acomptes et règlements</strong> extraits de vos devis validés.
+          Cochez ✓ une ligne pour la marquer comme payée.
+        </p>
+      </div>
+
+      {/* ── KPI résumé ── */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
+          <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider mb-0.5">Payé</p>
+          <p className="text-base font-extrabold text-emerald-700">{paidTotal > 0 ? fmtEur(paidTotal) : '—'}</p>
+        </div>
+        <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
+          <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-0.5">À venir</p>
+          <p className="text-base font-extrabold text-blue-700">{pendingTotal > 0 ? fmtEur(pendingTotal) : '—'}</p>
+        </div>
+        {lateTotal > 0 ? (
+          <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-center">
+            <p className="text-[10px] font-bold text-red-500 uppercase tracking-wider mb-0.5">En retard</p>
+            <p className="text-base font-extrabold text-red-700">{fmtEur(lateTotal)}</p>
+          </div>
+        ) : (
+          <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Retard</p>
+            <p className="text-base font-extrabold text-gray-400">—</p>
+          </div>
+        )}
+      </div>
+
+      {/* ── Liste groupée par mois ── */}
       {Object.entries(grouped).map(([month, evts]) => (
         <div key={month}>
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 px-1">
             {month}
           </p>
-          <div className="bg-white border border-gray-100 rounded-2xl divide-y divide-gray-50 overflow-hidden">
+          <div className="bg-white border border-gray-100 rounded-2xl divide-y divide-gray-50 overflow-hidden shadow-sm">
             {evts.map(ev => {
-              const cfg = STATUS_CFG[ev.status] ?? STATUS_CFG.pending;
+              const cfg    = STATUS_CFG[ev.status] ?? STATUS_CFG.pending;
               const isLate = ev.status === 'late';
+              const isPaid = ev.status === 'paid';
+              const days   = ev.due_date ? daysUntil(ev.due_date) : null;
+              const isConfirming = confirmingId === ev.id;
+
+              // Libellé du délai
+              let delayLabel = '';
+              if (ev.due_date && !isPaid) {
+                if (isLate) {
+                  delayLabel = `En retard de ${Math.abs(days!)} j`;
+                } else if (days === 0) {
+                  delayLabel = "Aujourd'hui";
+                } else if (days === 1) {
+                  delayLabel = 'Demain';
+                } else if (days !== null && days <= 7) {
+                  delayLabel = `Dans ${days} jours`;
+                }
+              }
+
               return (
                 <div key={ev.id}
-                  className={`flex items-center gap-3 px-4 py-3.5 ${isLate ? 'bg-red-50/40' : ''}`}>
-                  {/* Dot statut */}
-                  <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${cfg.dot}`} />
+                  className={`px-4 py-3.5 ${isLate ? 'bg-red-50/40' : isPaid ? 'bg-emerald-50/30' : ''}`}>
 
-                  {/* Contenu */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 truncate leading-tight">{ev.label}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      {ev.due_date && (
-                        <span className={`text-xs ${isLate ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>
-                          {fmtDateFR(ev.due_date)}
-                          {isLate && ' — RETARD'}
+                  <div className="flex items-start gap-3">
+                    {/* Dot statut */}
+                    <div className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1.5 ${cfg.dot}`} />
+
+                    {/* Contenu principal */}
+                    <div className="flex-1 min-w-0">
+                      {/* Ligne 1 : label + montant */}
+                      <div className="flex items-baseline justify-between gap-2">
+                        <p className={`text-sm font-semibold leading-tight ${isPaid ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                          {ev.label}
+                        </p>
+                        {ev.amount !== null && (
+                          <span className={`text-sm font-bold tabular-nums shrink-0 ${
+                            isLate ? 'text-red-700' : isPaid ? 'text-gray-400' : 'text-gray-900'
+                          }`}>
+                            {fmtEur(ev.amount)}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Ligne 2 : source + date + badge + délai */}
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+                        {/* Source document */}
+                        {(ev.lot_nom || ev.source_name) && (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-gray-400 font-medium">
+                            <FileText className="h-2.5 w-2.5 shrink-0" />
+                            {ev.lot_nom ?? ev.source_name?.replace('.pdf', '')}
+                          </span>
+                        )}
+
+                        {/* Date */}
+                        {ev.due_date && (
+                          <span className={`text-[11px] font-medium ${isLate ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>
+                            {fmtDateFR(ev.due_date)}
+                          </span>
+                        )}
+
+                        {/* Badge statut */}
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${cfg.badge}`}>
+                          {cfg.label}
                         </span>
-                      )}
-                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${cfg.badge}`}>
-                        {cfg.label}
-                      </span>
-                    </div>
-                  </div>
 
-                  {/* Montant */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    {ev.amount !== null && (
-                      <span className={`text-sm font-bold tabular-nums ${isLate ? 'text-red-700' : 'text-gray-900'}`}>
-                        {fmtEur(ev.amount)}
-                      </span>
-                    )}
-                    {/* Bouton marquer payé */}
-                    {(ev.status === 'pending' || ev.status === 'late') && (
-                      <button
-                        onClick={() => markPaid(ev.id)}
-                        title="Marquer comme payé"
-                        className="p-1.5 rounded-lg text-gray-300 hover:text-emerald-600 hover:bg-emerald-50 transition-all"
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                      </button>
-                    )}
+                        {/* Urgence */}
+                        {delayLabel && (
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                            isLate
+                              ? 'bg-red-100 text-red-700'
+                              : days !== null && days <= 3
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-gray-100 text-gray-500'
+                          }`}>
+                            {delayLabel}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Confirmation marquer payé */}
+                      {isConfirming && (
+                        <div className="mt-2.5 flex items-center gap-2 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
+                          <p className="text-xs font-semibold text-emerald-700 flex-1">
+                            Confirmer le paiement de {ev.amount !== null ? fmtEur(ev.amount) : 'cette échéance'} ?
+                          </p>
+                          <button
+                            onClick={() => { markPaid(ev.id); setConfirmingId(null); }}
+                            className="flex items-center gap-1 text-xs font-bold bg-emerald-600 text-white rounded-lg px-2.5 py-1.5 hover:bg-emerald-700 transition-colors"
+                          >
+                            <Check className="h-3 w-3" /> Oui, payé
+                          </button>
+                          <button
+                            onClick={() => setConfirmingId(null)}
+                            className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-700 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 transition-colors"
+                          >
+                            <X className="h-3 w-3" /> Annuler
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                      {/* Marquer payé */}
+                      {(ev.status === 'pending' || ev.status === 'late') && !isConfirming && (
+                        <button
+                          onClick={() => setConfirmingId(ev.id)}
+                          title="Marquer comme payé"
+                          className="p-1.5 rounded-lg text-gray-300 hover:text-emerald-600 hover:bg-emerald-50 transition-all"
+                        >
+                          <Check className="h-4 w-4" />
+                        </button>
+                      )}
+                      {/* Annuler confirmation */}
+                      {isConfirming && (
+                        <button
+                          onClick={() => setConfirmingId(null)}
+                          className="p-1.5 rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-50 transition-all"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                      {/* Repasser en "À venir" */}
+                      {isPaid && (
+                        <button
+                          onClick={() => markUnpaid(ev.id)}
+                          title="Annuler ce paiement (repasser en À venir)"
+                          className="p-1.5 rounded-lg text-gray-200 hover:text-amber-500 hover:bg-amber-50 transition-all"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -258,67 +378,92 @@ function BudgetGaugeReal({
   totalEngaged,
   totalPaid,
   budgetMax,
+  lateAmount,
 }: {
   totalEngaged: number;
   totalPaid: number;
   budgetMax: number;
+  lateAmount: number;
 }) {
   const ref     = budgetMax > 0 ? budgetMax : (totalEngaged || 1);
   const paidPct = Math.min((totalPaid    / ref) * 100, 100);
   const engPct  = Math.min((totalEngaged / ref) * 100, 100);
   const isOver  = totalEngaged > ref && budgetMax > 0;
+  const remaining = budgetMax > 0 ? Math.max(0, budgetMax - totalEngaged) : null;
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4">
+    <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4 shadow-sm">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-gray-900 text-sm">Budget engagé</h3>
+        <h3 className="font-semibold text-gray-900 text-sm">Budget total engagé</h3>
         {budgetMax > 0 && (
           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
             isOver
               ? 'bg-red-50 text-red-600 border-red-100'
               : 'bg-gray-50 text-gray-500 border-gray-100'
           }`}>
-            Max · {fmtEur(budgetMax)}
+            Enveloppe max · {fmtEur(budgetMax)}
           </span>
         )}
       </div>
 
       {/* Barre */}
-      <div className="relative h-4 bg-gray-100 rounded-full overflow-hidden">
-        {/* Payé */}
-        <div
-          className="absolute left-0 h-full bg-emerald-400 rounded-full transition-all duration-700"
-          style={{ width: `${paidPct}%` }}
-        />
-        {/* Engagé non payé */}
-        {engPct > paidPct && (
+      <div className="space-y-1.5">
+        <div className="relative h-4 bg-gray-100 rounded-full overflow-hidden">
           <div
-            className={`absolute h-full rounded-full transition-all duration-700 ${isOver ? 'bg-red-400' : 'bg-blue-400'}`}
-            style={{ left: `${paidPct}%`, width: `${engPct - paidPct}%` }}
+            className="absolute left-0 h-full bg-emerald-400 rounded-full transition-all duration-700"
+            style={{ width: `${paidPct}%` }}
           />
-        )}
+          {engPct > paidPct && (
+            <div
+              className={`absolute h-full rounded-full transition-all duration-700 ${isOver ? 'bg-red-400' : 'bg-blue-400'}`}
+              style={{ left: `${paidPct}%`, width: `${engPct - paidPct}%` }}
+            />
+          )}
+        </div>
+        {/* Légende de la barre */}
+        <div className="flex items-center gap-3 text-[10px] text-gray-400">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" /> Payé</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" /> Engagé (reste à payer)</span>
+          {budgetMax > 0 && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-200 inline-block" /> Budget disponible</span>}
+        </div>
       </div>
 
-      {/* Légende */}
+      {/* 3 KPI */}
       <div className="grid grid-cols-3 gap-2 text-center">
-        <div className="bg-emerald-50 border border-emerald-100 rounded-xl py-2.5 px-3">
+        <div className="bg-emerald-50 border border-emerald-100 rounded-xl py-2.5 px-2">
           <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider mb-0.5">Payé</p>
           <p className="text-base font-extrabold text-emerald-700">{totalPaid > 0 ? fmtEur(totalPaid) : '—'}</p>
+          <p className="text-[10px] text-emerald-400 mt-0.5">versé aux artisans</p>
         </div>
-        <div className={`border rounded-xl py-2.5 px-3 ${isOver ? 'bg-red-50 border-red-100' : 'bg-blue-50 border-blue-100'}`}>
+        <div className={`border rounded-xl py-2.5 px-2 ${isOver ? 'bg-red-50 border-red-100' : 'bg-blue-50 border-blue-100'}`}>
           <p className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${isOver ? 'text-red-500' : 'text-blue-500'}`}>
             Engagé
           </p>
           <p className={`text-base font-extrabold ${isOver ? 'text-red-700' : 'text-blue-700'}`}>
             {totalEngaged > 0 ? fmtEur(totalEngaged) : '—'}
           </p>
+          <p className={`text-[10px] mt-0.5 ${isOver ? 'text-red-400' : 'text-blue-400'}`}>total devis signés</p>
         </div>
-        <div className="bg-gray-50 border border-gray-100 rounded-xl py-2.5 px-3">
+        <div className="bg-gray-50 border border-gray-100 rounded-xl py-2.5 px-2">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Restant</p>
           <p className="text-base font-extrabold text-gray-700">
-            {budgetMax > 0 ? fmtEur(Math.max(0, budgetMax - totalEngaged)) : '—'}
+            {remaining !== null ? fmtEur(remaining) : '—'}
+          </p>
+          <p className="text-[10px] text-gray-400 mt-0.5">
+            {remaining !== null ? 'budget non engagé' : 'budget non défini'}
           </p>
         </div>
+      </div>
+
+      {/* Explication "Engagé" */}
+      <div className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 flex gap-2">
+        <Info className="h-3.5 w-3.5 text-gray-400 shrink-0 mt-0.5" />
+        <p className="text-[11px] text-gray-500 leading-relaxed">
+          <strong className="text-gray-600">Engagé</strong> = somme de tous vos devis validés (acomptes déjà versés + ce qui reste à payer).
+          {lateAmount > 0 && (
+            <span className="text-red-600 font-semibold"> Dont {fmtEur(lateAmount)} en retard de paiement.</span>
+          )}
+        </p>
       </div>
     </div>
   );
@@ -326,41 +471,117 @@ function BudgetGaugeReal({
 
 // ── Projection cashflow ───────────────────────────────────────────────────────
 
-function CashflowProjection({ next7, next30, next60 }: { next7: number; next30: number; next60: number }) {
+function CashflowProjection({
+  next7, next30, next60, events,
+}: {
+  next7: number;
+  next30: number;
+  next60: number;
+  events: ReturnType<typeof usePaymentEvents>['events'];
+}) {
   const max = Math.max(next7, next30, next60, 1);
+  const [expanded, setExpanded] = useState<'7' | '30' | '60' | null>(null);
 
-  const rows: { label: string; days: string; value: number; color: string; bg: string }[] = [
-    { label: '7 prochains jours',  days: 'J+7',  value: next7,  color: 'bg-red-400',    bg: 'bg-red-50'    },
-    { label: '30 prochains jours', days: 'J+30', value: next30, color: 'bg-amber-400',  bg: 'bg-amber-50'  },
-    { label: '60 prochains jours', days: 'J+60', value: next60, color: 'bg-blue-400',   bg: 'bg-blue-50'   },
+  const today = new Date().toISOString().slice(0, 10);
+  const d7    = new Date(); d7.setDate(d7.getDate() + 7);
+  const d30   = new Date(); d30.setDate(d30.getDate() + 30);
+  const d60   = new Date(); d60.setDate(d60.getDate() + 60);
+
+  const active = events.filter(e => !e.is_override && e.status !== 'cancelled' && e.status !== 'paid' && e.due_date);
+
+  const evts7  = active.filter(e => e.due_date! >= today && e.due_date! <= d7.toISOString().slice(0, 10));
+  const evts30 = active.filter(e => e.due_date! >= today && e.due_date! <= d30.toISOString().slice(0, 10));
+  const evts60 = active.filter(e => e.due_date! >= today && e.due_date! <= d60.toISOString().slice(0, 10));
+
+  const rows: { key: '7' | '30' | '60'; label: string; sublabel: string; value: number; color: string; bg: string; evts: typeof active }[] = [
+    { key: '7',  label: '7 prochains jours',  sublabel: 'Paiements urgents',    value: next7,  color: 'bg-red-400',    bg: 'bg-red-50',    evts: evts7  },
+    { key: '30', label: '30 prochains jours', sublabel: 'Ce mois-ci',          value: next30, color: 'bg-amber-400',  bg: 'bg-amber-50',  evts: evts30 },
+    { key: '60', label: '60 prochains jours', sublabel: 'Dans les 2 mois',     value: next60, color: 'bg-blue-400',   bg: 'bg-blue-50',   evts: evts60 },
   ];
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-3">
-      <h3 className="font-semibold text-gray-900 text-sm">Projection trésorerie</h3>
+    <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-3 shadow-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h3 className="font-semibold text-gray-900 text-sm">Prévision de dépenses</h3>
+          <p className="text-[11px] text-gray-400 mt-0.5">Montants restant à verser par période</p>
+        </div>
+      </div>
+
       {rows.map(row => (
-        <div key={row.days} className={`${row.bg} rounded-xl px-4 py-3 space-y-1.5`}>
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-600">{row.label}</span>
-            <span className="text-sm font-extrabold text-gray-900 tabular-nums">
-              {row.value > 0 ? fmtEur(row.value) : <span className="text-gray-300 font-normal text-xs">Rien</span>}
-            </span>
-          </div>
-          {row.value > 0 && (
-            <div className="h-1.5 bg-white/60 rounded-full overflow-hidden">
-              <div
-                className={`h-full ${row.color} rounded-full transition-all duration-700`}
-                style={{ width: `${(row.value / max) * 100}%` }}
-              />
+        <div key={row.key} className={`${row.bg} rounded-xl overflow-hidden`}>
+          <button
+            className="w-full px-4 py-3 space-y-1.5 text-left"
+            onClick={() => setExpanded(expanded === row.key ? null : row.key)}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs font-semibold text-gray-700">{row.label}</span>
+                <span className="text-[10px] text-gray-400 ml-2">({row.sublabel})</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-extrabold text-gray-900 tabular-nums">
+                  {row.value > 0 ? fmtEur(row.value) : <span className="text-gray-300 font-normal text-xs">Rien</span>}
+                </span>
+                {row.evts.length > 0 && (
+                  <span className="text-[10px] text-gray-400">
+                    {expanded === row.key ? '▲' : '▼'}
+                  </span>
+                )}
+              </div>
+            </div>
+            {row.value > 0 && (
+              <div className="h-1.5 bg-white/60 rounded-full overflow-hidden">
+                <div
+                  className={`h-full ${row.color} rounded-full transition-all duration-700`}
+                  style={{ width: `${(row.value / max) * 100}%` }}
+                />
+              </div>
+            )}
+            {row.evts.length > 0 && (
+              <p className="text-[10px] text-gray-400">
+                {row.evts.length} paiement{row.evts.length > 1 ? 's' : ''} concerné{row.evts.length > 1 ? 's' : ''} — cliquez pour voir le détail
+              </p>
+            )}
+          </button>
+
+          {/* Détail des paiements */}
+          {expanded === row.key && row.evts.length > 0 && (
+            <div className="border-t border-white/50 divide-y divide-white/50 mx-3 mb-3">
+              {row.evts.map(ev => (
+                <div key={ev.id} className="flex items-center gap-2 py-2 px-1">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-semibold text-gray-700 truncate">{ev.label}</p>
+                    <p className="text-[10px] text-gray-400">
+                      {ev.lot_nom ?? ev.source_name?.replace('.pdf', '') ?? ''}
+                      {ev.due_date && ` · ${fmtDateShort(ev.due_date)}`}
+                    </p>
+                  </div>
+                  {ev.amount !== null && (
+                    <span className="text-[11px] font-bold text-gray-700 tabular-nums shrink-0">
+                      {fmtEur(ev.amount)}
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>
       ))}
-      {next30 === 0 && (
+
+      {next60 === 0 && (
         <p className="text-xs text-gray-400 text-center pt-1">
           Aucun paiement à prévoir dans les 60 prochains jours
         </p>
       )}
+
+      <div className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 flex gap-2">
+        <Info className="h-3.5 w-3.5 text-gray-400 shrink-0 mt-0.5" />
+        <p className="text-[11px] text-gray-500 leading-relaxed">
+          Ces montants sont <strong className="text-gray-600">cumulatifs</strong> : "30 prochains jours" inclut aussi les paiements des 7 premiers jours.
+          Seules les échéances non encore payées sont comptées.
+        </p>
+      </div>
     </div>
   );
 }
@@ -380,6 +601,7 @@ function CashflowTab({
 
   const totalEngaged = useMemo(() => computeTotalEngaged(events), [events]);
   const totalPaid    = useMemo(() => events.filter(e => e.status === 'paid').reduce((s, e) => s + (e.amount ?? 0), 0), [events]);
+  const lateAmount   = useMemo(() => events.filter(e => e.status === 'late').reduce((s, e) => s + (e.amount ?? 0), 0), [events]);
   const cashflow     = useMemo(() => computeCashflow(events), [events]);
   const alerts       = useMemo(() => computeAlerts(events, budgetMax || null), [events, budgetMax]);
 
@@ -407,15 +629,23 @@ function CashflowTab({
   return (
     <div className="space-y-4">
       <AlertsPanel alerts={alerts} />
-      <BudgetGaugeReal totalEngaged={totalEngaged} totalPaid={totalPaid} budgetMax={budgetMax} />
-      <CashflowProjection next7={cashflow.next7} next30={cashflow.next30} next60={cashflow.next60} />
+      <BudgetGaugeReal
+        totalEngaged={totalEngaged}
+        totalPaid={totalPaid}
+        budgetMax={budgetMax}
+        lateAmount={lateAmount}
+      />
+      <CashflowProjection
+        next7={cashflow.next7}
+        next30={cashflow.next30}
+        next60={cashflow.next60}
+        events={events}
+      />
     </div>
   );
 }
 
 // ── Simulateur de financement ─────────────────────────────────────────────────
-
-// ── Slider stylé ──────────────────────────────────────────────────────────────
 
 function SliderField({ label, value, min, max, step, onChange, display }: {
   label: string;
@@ -434,9 +664,7 @@ function SliderField({ label, value, min, max, step, onChange, display }: {
         <span className="text-sm font-extrabold text-blue-700 tabular-nums bg-blue-50 px-2.5 py-1 rounded-lg">{display}</span>
       </div>
       <div className="relative h-6 flex items-center">
-        {/* Track de fond */}
         <div className="absolute w-full h-2 rounded-full bg-gray-200" />
-        {/* Track rempli */}
         <div
           className="absolute h-2 rounded-full bg-blue-500 pointer-events-none"
           style={{ width: `${pct}%` }}
@@ -449,10 +677,7 @@ function SliderField({ label, value, min, max, step, onChange, display }: {
           value={value}
           onChange={e => onChange(parseFloat(e.target.value))}
           className="relative w-full h-2 appearance-none bg-transparent cursor-pointer"
-          style={{
-            // Thumb custom
-            WebkitAppearance: 'none',
-          }}
+          style={{ WebkitAppearance: 'none' }}
         />
       </div>
       <div className="flex justify-between text-[10px] text-gray-300 font-medium">
@@ -465,31 +690,23 @@ function SliderField({ label, value, min, max, step, onChange, display }: {
 
 function FinancingSimulator() {
   const [montant, setMontant] = useState('');
-  const [duree,   setDuree]   = useState(120);   // mois, réglette
-  const [taux,    setTaux]    = useState(3.5);    // %, réglette
+  const [duree,   setDuree]   = useState(120);
+  const [taux,    setTaux]    = useState(3.5);
 
   const result = useMemo(() => {
     const M = parseFloat(montant);
     const n = duree;
     const t = taux / 100;
-
     if (!M || M <= 0 || n <= 0) return null;
-
     if (t === 0) {
       const mensualite = M / n;
       return { mensualite, coutTotal: M, interets: 0 };
     }
-
     const r = t / 12;
     const mensualite = M * r / (1 - Math.pow(1 + r, -n));
     const coutTotal  = mensualite * n;
-    const interets   = coutTotal - M;
-
-    return { mensualite, coutTotal, interets };
+    return { mensualite, coutTotal, interets: coutTotal - M };
   }, [montant, duree, taux]);
-
-  // Label durée — toujours en mois
-  const dureeLabel = `${duree} mois`;
 
   return (
     <div className="space-y-5">
@@ -500,7 +717,6 @@ function FinancingSimulator() {
         </p>
       </div>
 
-      {/* Montant — champ libre (valeurs trop variables pour un slider) */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Montant à financer</label>
@@ -518,35 +734,23 @@ function FinancingSimulator() {
         </div>
       </div>
 
-      {/* Durée — réglette 1→360 mois, pas de 1 mois */}
       <SliderField
         label="Durée de remboursement"
-        value={duree}
-        min={1}
-        max={360}
-        step={1}
-        onChange={setDuree}
-        display={dureeLabel}
+        value={duree} min={1} max={360} step={1}
+        onChange={setDuree} display={`${duree} mois`}
       />
-
-      {/* Taux — réglette 0,5→12 % */}
       <SliderField
         label="Taux annuel"
-        value={taux}
-        min={0.5}
-        max={12}
-        step={0.1}
-        onChange={setTaux}
-        display={`${taux.toFixed(1)} %`}
+        value={taux} min={0.5} max={12} step={0.1}
+        onChange={setTaux} display={`${taux.toFixed(1)} %`}
       />
 
-      {/* Résultat — live */}
       {result ? (
         <div className="grid grid-cols-1 gap-3">
           <div className="bg-blue-600 rounded-2xl p-5 text-center text-white">
             <p className="text-xs font-bold uppercase tracking-wider opacity-70 mb-1">Mensualité estimée</p>
             <p className="text-4xl font-extrabold leading-none">{fmtEurPrecis(result.mensualite)}</p>
-            <p className="text-xs opacity-60 mt-1">par mois pendant {dureeLabel}</p>
+            <p className="text-xs opacity-60 mt-1">par mois pendant {duree} mois</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-white border border-gray-100 rounded-xl p-4 text-center">
@@ -558,19 +762,15 @@ function FinancingSimulator() {
               <p className="text-lg font-extrabold text-amber-700">{fmtEur(result.interets)}</p>
             </div>
           </div>
+          <p className="text-[10px] text-gray-400 text-center leading-relaxed border-t border-gray-50 pt-3">
+            Simulation indicative. Consultez votre banque ou un courtier pour une offre personnalisée.
+          </p>
         </div>
       ) : (
         <div className="text-center py-6">
           <CreditCard className="h-8 w-8 text-gray-200 mx-auto mb-2" />
           <p className="text-xs text-gray-400">Saisissez le montant pour simuler votre emprunt</p>
         </div>
-      )}
-
-      {/* Disclaimer */}
-      {result && (
-        <p className="text-[10px] text-gray-400 text-center leading-relaxed border-t border-gray-50 pt-3">
-          Simulation indicative. Consultez votre banque ou un courtier pour une offre personnalisée.
-        </p>
       )}
     </div>
   );
@@ -581,7 +781,7 @@ function FinancingSimulator() {
 interface TresoreeriePanelProps {
   chantierId: string;
   token: string;
-  budgetMax?: number;          // enveloppe max pour la jauge
+  budgetMax?: number;
 }
 
 export default function TresoreriePanel({ chantierId, token, budgetMax = 0 }: TresoreeriePanelProps) {
@@ -589,7 +789,6 @@ export default function TresoreriePanel({ chantierId, token, budgetMax = 0 }: Tr
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
-      {/* Header */}
       <div className="px-5 pt-5 pb-3 border-b border-gray-50">
         <div className="flex items-center gap-2 mb-3">
           <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center">
@@ -600,7 +799,6 @@ export default function TresoreriePanel({ chantierId, token, budgetMax = 0 }: Tr
         <TabBar active={tab} onChange={setTab} />
       </div>
 
-      {/* Contenu */}
       <div className="p-5">
         {tab === 'timeline'    && <PaymentTimeline    chantierId={chantierId} token={token} />}
         {tab === 'cashflow'    && <CashflowTab        chantierId={chantierId} token={token} budgetMax={budgetMax} />}

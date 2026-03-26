@@ -17,6 +17,9 @@ export interface PaymentEvent {
   is_override: boolean;
   label: string;
   created_at: string;
+  // Champs enrichis par l'API
+  source_name: string | null;     // nom du fichier source (devis PDF)
+  lot_nom: string | null;         // nom du lot/artisan
 }
 
 export interface UsePaymentEventsReturn {
@@ -25,6 +28,7 @@ export interface UsePaymentEventsReturn {
   error: string | null;
   refresh: () => void;
   markPaid: (id: string) => Promise<void>;
+  markUnpaid: (id: string) => Promise<void>;
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -79,25 +83,36 @@ export function usePaymentEvents(
   // ── Marquer un événement comme payé (PATCH optimiste) ─────────────────────
   const markPaid = useCallback(async (id: string) => {
     if (!chantierId || !token) return;
-
-    // Mise à jour optimiste locale
-    setEvents(prev =>
-      prev.map(ev => ev.id === id ? { ...ev, status: 'paid' as const } : ev),
-    );
-
+    setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'paid' as const } : ev));
     try {
-      await fetch(`/api/chantier/${chantierId}/payment-events`, {
+      const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, status: 'paid' }),
       });
+      if (!res.ok) refresh();
     } catch {
-      // Rollback si erreur
       refresh();
     }
   }, [chantierId, token, refresh]);
 
-  return { events, loading, error, refresh, markPaid };
+  // ── Annuler un paiement (repasser en "À venir") ─────────────────────────
+  const markUnpaid = useCallback(async (id: string) => {
+    if (!chantierId || !token) return;
+    setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'pending' as const } : ev));
+    try {
+      const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status: 'pending' }),
+      });
+      if (!res.ok) refresh();
+    } catch {
+      refresh();
+    }
+  }, [chantierId, token, refresh]);
+
+  return { events, loading, error, refresh, markPaid, markUnpaid };
 }
 
 // ── Calculs dérivés exportés (utilisables sans le hook) ─────────────────────
