@@ -10,7 +10,7 @@ import {
   Sparkles, Trash2, ArrowLeft, ChevronRight, Wrench, Wallet, Layers,
   FileSearch, Calendar, FolderOpen, Bot, Settings, Menu, ExternalLink,
   Receipt, Pencil, SlidersHorizontal, Users, MessageCircle, ArrowRight,
-  LayoutGrid, List, ChevronUp, ChevronDown, Filter, Mail, Star, Scale,
+  LayoutGrid, List, ChevronUp, ChevronDown, Filter, Mail, Star, Scale, HelpCircle,
 } from 'lucide-react';
 import type {
   ChantierIAResult, DocumentChantier, DocumentType, LotChantier, StatutArtisan,
@@ -718,7 +718,14 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
                 <tr className="bg-gray-50 border-b border-gray-100">
                   <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[22%]">Artisan / Société</th>
                   <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[10%]">Type</th>
-                  <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[16%]">Analyse VMD</th>
+                  <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[16%]">
+                    <span className="flex items-center gap-1">
+                      Score fiabilité
+                      <span title="Score VerifierMonDevis — analyse automatique du devis : clauses légales, prix du marché, solvabilité de l'artisan. 🟢 Bon · 🟡 Moyen · 🔴 Risqué" className="cursor-help inline-flex">
+                        <HelpCircle className="h-3 w-3 text-gray-300" />
+                      </span>
+                    </span>
+                  </th>
                   <th className="text-right text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[14%]">Montant</th>
                   <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[18%]">Statut</th>
                   <th className="text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-4 py-3 w-[12%]">Date</th>
@@ -1788,9 +1795,18 @@ function IntervenantsListView({ lots, docsByLot, documents, onAddDevisForLot, on
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         {/* En-tête colonnes */}
         <div className="grid grid-cols-[2fr_1.5fr_1.5fr_1fr_1.2fr_auto] gap-0 border-b border-gray-100 bg-gray-50">
-          {['Intervenant / Artisan', 'Lot', 'Prix TTC', 'Statut', 'Analyse VMD', ''].map((h, i) => (
+          {['Intervenant / Artisan', 'Lot', 'Prix TTC', 'Statut'].map((h, i) => (
             <div key={i} className="px-4 py-2.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">{h}</div>
           ))}
+          <div className="px-4 py-2.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+            <span className="flex items-center gap-1">
+              Score fiabilité
+              <span title="Score VerifierMonDevis — analyse automatique du devis : clauses légales, prix du marché, solvabilité de l'artisan. 🟢 Bon · 🟡 Moyen · 🔴 Risqué" className="cursor-help inline-flex">
+                <HelpCircle className="h-3 w-3 text-gray-300" />
+              </span>
+            </span>
+          </div>
+          <div />
         </div>
 
         {sorted.length === 0 ? (
@@ -2305,7 +2321,7 @@ function UploadModal({ chantierId, token, lots, defaultLotId, defaultType, onClo
   const [file, setFile]                 = useState<File | null>(null);
   const [docName, setDocName]           = useState('');
   const [docType, setDocType]           = useState<DocumentType>(defaultType ?? 'devis');
-  const [lotId, setLotId]               = useState(defaultLotId ?? '');
+  const [lotId, setLotId]               = useState(defaultLotId || '');
   const [uploadState, setUploadState]   = useState<UploadState>('idle');
   const [errorMsg, setErrorMsg]         = useState('');
   const [savingsAmount, setSavingsAmount] = useState(0);
@@ -2395,7 +2411,7 @@ function UploadModal({ chantierId, token, lots, defaultLotId, defaultType, onClo
         body: JSON.stringify({
           nom: docName.trim(),
           documentType: docType,
-          lotId: lotId ?? null,
+          lotId: lotId || null,   // '' → null pour éviter erreur UUID PostgreSQL
           bucketPath,
           nomFichier: file.name,
           mimeType: file.type || null,
@@ -3300,9 +3316,10 @@ interface Props {
   chantierId: string | null;
   token?: string | null;
   onLotStatutChange?: (lotId: string, statut: StatutArtisan) => void;
+  initialBudgetAffine?: { min: number; max: number; breakdown: unknown[] } | null;
 }
 
-export default function DashboardUnified({ result: resultProp, chantierId, token }: Props) {
+export default function DashboardUnified({ result: resultProp, chantierId, token, initialBudgetAffine }: Props) {
   const [result, setResult]               = useState(resultProp);
   const [showAmelioration, setShowAmelioration] = useState(false);
   const [showBudgetDetail, setShowBudgetDetail]   = useState(false);
@@ -3334,9 +3351,9 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
   const baseRangeMax = hasLotBudget
     ? lots.reduce((s, l) => s + (l.budget_max_ht ?? 0), 0)
     : hasBudgetTotal ? Math.round(result.budgetTotal * 1.15) : 0;
-  const [refinedRangeMin, setRefinedRangeMin] = useState<number | null>(null);
-  const [refinedRangeMax, setRefinedRangeMax] = useState<number | null>(null);
-  const [refinedBreakdown, setRefinedBreakdown] = useState<BreakdownItem[]>([]);
+  const [refinedRangeMin, setRefinedRangeMin] = useState<number | null>(initialBudgetAffine?.min ?? null);
+  const [refinedRangeMax, setRefinedRangeMax] = useState<number | null>(initialBudgetAffine?.max ?? null);
+  const [refinedBreakdown, setRefinedBreakdown] = useState<BreakdownItem[]>((initialBudgetAffine?.breakdown ?? []) as BreakdownItem[]);
   const [affineBudgetModal, setAffineBudgetModal] = useState(false);
   const [showAddIntervenant, setShowAddIntervenant] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -3453,6 +3470,14 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
                 setRefinedBreakdown(breakdown ?? []);
                 setShowBudgetDetail(false);
                 setAffineBudgetModal(false);
+                // Persister l'affinage en base (fire & forget)
+                if (chantierId && token) {
+                  fetch(`/api/chantier/${chantierId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ budgetAffine: { min, max, breakdown: breakdown ?? [] } }),
+                  }).catch(() => { /* non-bloquant */ });
+                }
               }}
               onModalClose={() => {
                 setShowBudgetDetail(false);

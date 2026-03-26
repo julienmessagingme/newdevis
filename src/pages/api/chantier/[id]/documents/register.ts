@@ -69,8 +69,8 @@ export const POST: APIRoute = async ({ params, request }) => {
   if (!VALID_TYPES.has(documentType)) return new Response(JSON.stringify({ error: 'Type invalide' }), { status: 400, headers: CORS });
   if (!bucketPath)                    return new Response(JSON.stringify({ error: 'bucketPath requis' }), { status: 400, headers: CORS });
 
-  // Validation lot
-  let lotId: string | null = body.lotId ?? null;
+  // Validation lot — '' → null pour éviter "invalid input syntax for type uuid"
+  let lotId: string | null = body.lotId || null;
   if (lotId) {
     const { data: lot } = await ctx.supabase
       .from('lots_chantier').select('id')

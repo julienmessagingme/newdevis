@@ -14,15 +14,17 @@ interface Props {
   onLotStatutChange?: (lotId: string, statut: StatutArtisan) => void;
   token?: string | null;
   userId?: string | null;
+  initialBudgetAffine?: { min: number; max: number; breakdown: unknown[] } | null;
 }
 
-export default function DashboardPremium({ result, chantierId, token, onLotStatutChange }: Props) {
+export default function DashboardPremium({ result, chantierId, token, onLotStatutChange, initialBudgetAffine }: Props) {
   return (
     <DashboardUnified
       result={result}
       chantierId={chantierId}
       token={token}
       onLotStatutChange={onLotStatutChange}
+      initialBudgetAffine={initialBudgetAffine}
     />
   );
 }

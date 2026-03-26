@@ -31,6 +31,7 @@ export default function ChantierDetail() {
   // false = chantier manuel sans plan IA détaillé
   const [isPlanComplet, setIsPlanComplet] = useState(true);
   const [projectMode, setProjectMode] = useState<ProjectMode | null>(null);
+  const [budgetAffine, setBudgetAffine] = useState<{ min: number; max: number; breakdown: unknown[] } | null>(null);
 
   const getToken = useCallback(async (): Promise<string | null> => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -93,6 +94,7 @@ export default function ChantierDetail() {
       setResult(data.result ?? null);
       setIsPlanComplet(data.isPlanComplet !== false); // false explicite uniquement
       setProjectMode(data.projectMode ?? null);
+      setBudgetAffine(data.budgetAffine ?? null);
       setChantierId(id);
       setLoading(false);
     })();
@@ -246,6 +248,7 @@ export default function ChantierDetail() {
         token={token}
         userId={userId}
         projectMode={projectMode}
+        initialBudgetAffine={budgetAffine}
         onProjectModeChange={async (mode) => {
           setProjectMode(mode);
           if (!chantierId || !token) return;

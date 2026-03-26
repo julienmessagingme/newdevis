@@ -187,7 +187,7 @@ export const GET: APIRoute = async ({ params, request }) => {
   if (!hasRichData) {
     const result = buildFallbackResult(chantier as Record<string, unknown>, taches);
     return new Response(
-      JSON.stringify({ result: { ...result, lots }, phase: chantier.phase, isPlanComplet: false }),
+      JSON.stringify({ result: { ...result, lots }, phase: chantier.phase, isPlanComplet: false, budgetAffine: meta.budget_affine ?? null }),
       { status: 200, headers: CORS },
     );
   }
@@ -256,7 +256,13 @@ export const GET: APIRoute = async ({ params, request }) => {
     );
 
   return new Response(
-    JSON.stringify({ result, phase: chantier.phase, isPlanComplet, projectMode: chantier.project_mode ?? null }),
+    JSON.stringify({
+      result,
+      phase: chantier.phase,
+      isPlanComplet,
+      projectMode: chantier.project_mode ?? null,
+      budgetAffine: meta.budget_affine ?? null,
+    }),
     { status: 200, headers: CORS },
   );
 };
@@ -375,7 +381,36 @@ export const PATCH: APIRoute = async ({ request, params }) => {
     return new Response(JSON.stringify({ success: true }), { status: 200, headers: CORS });
   }
 
-  // ── Branche 3 : mise à jour chantier (nom, emoji, phase, enveloppePrevue) ────
+  // ── Branche 3 : sauvegarde affinage budget ───────────────────────────────────
+  if ('budgetAffine' in body) {
+    const ba = body.budgetAffine as { min?: unknown; max?: unknown; breakdown?: unknown };
+    if (!ba || typeof ba.min !== 'number' || typeof ba.max !== 'number') {
+      return new Response(JSON.stringify({ error: 'budgetAffine invalide (min et max requis)' }), { status: 400, headers: CORS });
+    }
+    const { data: ch } = await supabase
+      .from('chantiers')
+      .select('metadonnees')
+      .eq('id', chantierId)
+      .eq('user_id', user.id)
+      .single();
+    if (!ch) return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let metaB: Record<string, any> = {};
+    try { metaB = JSON.parse((ch as Record<string, any>).metadonnees ?? '{}'); } catch { /* ignore */ }
+    metaB.budget_affine = { min: ba.min, max: ba.max, breakdown: ba.breakdown ?? [], saved_at: new Date().toISOString() };
+    const { error: saveError } = await supabase
+      .from('chantiers')
+      .update({ metadonnees: JSON.stringify(metaB) })
+      .eq('id', chantierId)
+      .eq('user_id', user.id);
+    if (saveError) {
+      console.error(`[api/chantier/${chantierId} PATCH budgetAffine] error:`, saveError.message);
+      return new Response(JSON.stringify({ error: saveError.message }), { status: 500, headers: CORS });
+    }
+    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: CORS });
+  }
+
+  // ── Branche 4 : mise à jour chantier (nom, emoji, phase, enveloppePrevue) ────
   const updatePayload = body as UpdateChantierPayload;
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
