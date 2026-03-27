@@ -161,6 +161,15 @@ const REVIEWS = [
     date: '27 mars 2026',
     stars: 5,
   },
+  {
+    id: 18,
+    author: 'JEAN PIERRE PATRAUD',
+    initials: 'JP',
+    title: "Ayant plusieurs devis il m'était difficile...",
+    body: "Ayant plusieurs devis il m'était difficile de faire mon choix tant il avait de disparités dans les différents devis. Vérifiermondevis m'a permis de faire le bon choix et je suis satisfait des travaux exécutés",
+    date: '19 février 2026',
+    stars: 5,
+  },
 ];
 
 const TRUSTPILOT_REVIEW_URL = 'https://fr.trustpilot.com/evaluate/verifiermondevis.fr';
@@ -305,7 +314,7 @@ export default function TrustpilotSection() {
               <span className="text-sm text-gray-500">·</span>
               <a href={TRUSTPILOT_PROFILE_URL} target="_blank" rel="noopener noreferrer"
                 className="text-sm text-gray-500 hover:text-gray-700 underline underline-offset-2 transition-colors">
-                18 avis vérifiés
+                19 avis vérifiés
               </a>
             </div>
           </div>
