@@ -2,7 +2,7 @@
  * usePaymentEvents — hook de récupération des payment_events depuis l'API.
  * Retourne la liste triée, les états loading/error, et une fonction de refresh.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -27,6 +27,10 @@ export interface PaymentEvent {
   source_name: string | null;     // nom du document source (devis PDF)
   lot_nom: string | null;         // nom du lot lié
   artisan_nom: string | null;     // nom de l'artisan (depuis devis_chantier)
+  // Justificatif de paiement
+  proof_doc_id: string | null;
+  proof_doc_name: string | null;
+  proof_signed_url: string | null;
 }
 
 export interface UsePaymentEventsReturn {
@@ -34,7 +38,7 @@ export interface UsePaymentEventsReturn {
   loading: boolean;
   error: string | null;
   refresh: () => void;
-  markPaid: (id: string) => Promise<void>;
+  markPaid: (id: string) => Promise<boolean>;
   markUnpaid: (id: string) => Promise<void>;
 }
 
@@ -50,6 +54,9 @@ export function usePaymentEvents(
   const [tick, setTick]       = useState(0);
 
   const refresh = useCallback(() => setTick(t => t + 1), []);
+
+  // Protège les mises à jour optimistes contre les re-fetchs concurrents
+  const pendingUpdates = useRef(new Map<string, PaymentEvent['status']>());
 
   useEffect(() => {
     if (!chantierId) return;
@@ -80,13 +87,17 @@ export function usePaymentEvents(
       .then((data: { payment_events: PaymentEvent[] } | null) => {
         if (cancelled || !data) return;
         // Auto-escalade : passe "pending" → "late" si due_date < aujourd'hui
+        // Les mises à jour optimistes en attente (pendingUpdates) prennent priorité
         const today = new Date().toISOString().slice(0, 10);
-        const enriched = (data.payment_events ?? []).map(ev => ({
-          ...ev,
-          status: ev.status === 'pending' && ev.due_date && ev.due_date < today
+        const enriched = (data.payment_events ?? []).map(ev => {
+          const autoStatus = ev.status === 'pending' && ev.due_date && ev.due_date < today
             ? 'late' as const
-            : ev.status,
-        }));
+            : ev.status;
+          const finalStatus = pendingUpdates.current.has(ev.id)
+            ? pendingUpdates.current.get(ev.id)!
+            : autoStatus;
+          return { ...ev, status: finalStatus };
+        });
         setEvents(enriched);
       })
       .catch(e => {
@@ -97,7 +108,11 @@ export function usePaymentEvents(
       });
 
     return () => { cancelled = true; };
-  }, [chantierId, token, tick]);
+  // NE PAS inclure `token` dans les deps : doFetch() appelle toujours getSession()
+  // pour un token frais. Inclure token causerait un re-fetch chaque fois que le parent
+  // rafraîchit sa session → race condition avec les mises à jour optimistes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chantierId, tick]);
 
   // ── Récupère un token valide (toujours frais — bypass cache prop) ────────
   const getFreshToken = useCallback(async (): Promise<string | null> => {
@@ -106,11 +121,12 @@ export function usePaymentEvents(
   }, [token]);
 
   // ── Marquer un événement comme payé ──────────────────────────────────────
-  const markPaid = useCallback(async (id: string) => {
-    if (!chantierId) return;
+  const markPaid = useCallback(async (id: string): Promise<boolean> => {
+    if (!chantierId) return false;
     const bearerToken = await getFreshToken();
-    if (!bearerToken) return;
-    // Optimiste
+    if (!bearerToken) return false;
+    // Mise à jour optimiste protégée par pendingUpdates (résiste aux re-fetchs concurrents)
+    pendingUpdates.current.set(id, 'paid');
     setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'paid' as const } : ev));
     try {
       const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
@@ -119,17 +135,22 @@ export function usePaymentEvents(
         body: JSON.stringify({ id, status: 'paid' }),
       });
       if (!res.ok) {
-        // Rollback + re-fetch pour afficher l'état réel
+        pendingUpdates.current.delete(id);
         refresh();
-        return;
+        return false;
       }
       const data = await res.json();
       if (!data.ok) {
-        // Le serveur indique que l'update n'a pas eu lieu
+        pendingUpdates.current.delete(id);
         refresh();
+        return false;
       }
+      pendingUpdates.current.delete(id);
+      return true;
     } catch {
+      pendingUpdates.current.delete(id);
       refresh();
+      return false;
     }
   }, [chantierId, getFreshToken, refresh]);
 
@@ -138,7 +159,7 @@ export function usePaymentEvents(
     if (!chantierId) return;
     const bearerToken = await getFreshToken();
     if (!bearerToken) return;
-    // Optimiste
+    pendingUpdates.current.set(id, 'pending');
     setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'pending' as const } : ev));
     try {
       const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
@@ -147,12 +168,19 @@ export function usePaymentEvents(
         body: JSON.stringify({ id, status: 'pending' }),
       });
       if (!res.ok) {
+        pendingUpdates.current.delete(id);
         refresh();
         return;
       }
       const data = await res.json();
-      if (!data.ok) refresh();
+      if (!data.ok) {
+        pendingUpdates.current.delete(id);
+        refresh();
+      } else {
+        pendingUpdates.current.delete(id);
+      }
     } catch {
+      pendingUpdates.current.delete(id);
       refresh();
     }
   }, [chantierId, getFreshToken, refresh]);

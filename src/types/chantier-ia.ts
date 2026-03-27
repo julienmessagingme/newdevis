@@ -10,7 +10,8 @@ export type PrioriteTache = 'urgent' | 'important' | 'normal';
 export type StatutArtisan = 'a_trouver' | 'a_contacter' | 'ok';
 export type DocumentType =
   | 'devis' | 'facture' | 'photo'
-  | 'plan' | 'autorisation' | 'assurance' | 'autre';
+  | 'plan' | 'autorisation' | 'assurance' | 'autre'
+  | 'preuve_paiement';
 
 export type DevisStatut = 'en_cours' | 'a_relancer' | 'valide' | 'attente_facture';
 export type FactureStatut = 'recue' | 'payee' | 'payee_partiellement';

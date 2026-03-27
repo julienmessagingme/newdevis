@@ -17,7 +17,7 @@ const CORS: Record<string, string> = {
 };
 
 const VALID_TYPES = new Set<DocumentType>([
-  'devis', 'facture', 'photo', 'plan', 'autorisation', 'assurance', 'autre',
+  'devis', 'facture', 'photo', 'plan', 'autorisation', 'assurance', 'autre', 'preuve_paiement',
 ]);
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -108,12 +108,14 @@ export const POST: APIRoute = async ({ params, request }) => {
     return new Response(JSON.stringify({ error: 'Corps de requête invalide' }), { status: 400, headers: CORS });
   }
 
-  const file         = formData.get('file') as File | null;
-  const nom          = (formData.get('nom') as string | null)?.trim() ?? '';
-  const documentType = (formData.get('documentType') as DocumentType | null) ?? 'autre';
-  const lotIdRaw     = (formData.get('lotId') as string | null) || null;
-  const source       = (formData.get('source') as string | null) ?? 'manual_upload';
-  const analyseId    = (formData.get('analyseId') as string | null) || null;
+  const file           = formData.get('file') as File | null;
+  const nom            = (formData.get('nom') as string | null)?.trim() ?? '';
+  const documentType   = (formData.get('documentType') as DocumentType | null) ?? 'autre';
+  const lotIdRaw       = (formData.get('lotId') as string | null) || null;
+  const source         = (formData.get('source') as string | null) ?? 'manual_upload';
+  const analyseId      = (formData.get('analyseId') as string | null) || null;
+  // Pour les justificatifs : l'ID du payment_event est stocké dans analyse_id
+  const paymentEventId = (formData.get('paymentEventId') as string | null) || null;
 
   // ── Import depuis VerifierMonDevis (pas de fichier) ───────────────────────
   if (source === 'verifier_mon_devis' && analyseId) {
@@ -304,12 +306,17 @@ export const POST: APIRoute = async ({ params, request }) => {
   }
 
   // ── Enregistrement métadonnées en DB ──────────────────────────────────────
+  // Pour preuve_paiement : type = 'autre' (safe pour contrainte DB), document_type = 'preuve_paiement'
+  // analyse_id contient le payment_event_id (convention interne pour le lien justificatif ↔ événement)
+  const dbType     = documentType === 'preuve_paiement' ? 'autre' : documentType;
+  const dbAnalyseId = documentType === 'preuve_paiement' ? paymentEventId : analyseId;
+
   const { data: doc, error: insertError } = await supabase
     .from('documents_chantier')
     .insert({
       chantier_id:   chantierId,
       lot_id:        lotId,
-      type:          documentType,   // colonne originale NOT NULL
+      type:          dbType,         // colonne originale NOT NULL
       document_type: documentType,   // colonne ajoutée par migration
       source:        'manual_upload',
       nom,
@@ -317,6 +324,7 @@ export const POST: APIRoute = async ({ params, request }) => {
       bucket_path:   bucketPath,
       taille_octets: actualSize,   // null si taille inconnue (évite CHECK taille > 0)
       mime_type:     file.type || null,
+      analyse_id:    dbAnalyseId,
     })
     .select()
     .single();

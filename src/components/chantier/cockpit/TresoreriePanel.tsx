@@ -6,11 +6,26 @@
  *   📊 Trésorerie  — jauge budget (enveloppe éditable) + sources de financement
  *   💳 Financement — simulateur aides (MaPrimeRénov/CEE/Éco-PTZ) + crédit travaux
  */
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+// Client léger pour récupérer un token frais lors des uploads de justificatifs
+const _supabase = createClient(
+  (import.meta as any).env.PUBLIC_SUPABASE_URL,
+  (import.meta as any).env.PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+);
+async function getFreshBearerToken(fallback: string): Promise<string> {
+  try {
+    const { data: { session } } = await _supabase.auth.getSession();
+    return session?.access_token ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
 import {
   AlertTriangle, CheckCircle2, Clock, Calendar, TrendingUp, CreditCard,
   ChevronRight, Loader2, RefreshCw, AlertCircle, Check, X, RotateCcw,
-  Info, Pencil, Euro,
+  Info, Pencil, Euro, Paperclip, Upload, ExternalLink,
 } from 'lucide-react';
 import {
   usePaymentEvents,
@@ -93,7 +108,11 @@ function PaymentTimeline({
   token: string;
 }) {
   const { events, loading, error, refresh, markPaid, markUnpaid } = usePaymentEvents(chantierId, token);
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId]     = useState<string | null>(null);
+  // Justificatif : après confirmation de paiement, proposer l'upload
+  const [proofPromptId, setProofPromptId]   = useState<string | null>(null);
+  const [proofUploading, setProofUploading] = useState(false);
+  const proofInputRef = useRef<HTMLInputElement>(null);
 
   if (loading) {
     return (
@@ -294,7 +313,11 @@ function PaymentTimeline({
                             Confirmer le paiement de {ev.amount !== null ? fmtEur(ev.amount) : 'cette échéance'} ?
                           </p>
                           <button
-                            onClick={() => { markPaid(ev.id); setConfirmingId(null); }}
+                            onClick={async () => {
+                              setConfirmingId(null);
+                              const ok = await markPaid(ev.id);
+                              if (ok) setProofPromptId(ev.id);
+                            }}
                             className="flex items-center gap-1 text-xs font-bold bg-emerald-600 text-white rounded-lg px-2.5 py-1.5 hover:bg-emerald-700 transition-colors"
                           >
                             <Check className="h-3 w-3" /> Oui, payé
@@ -305,6 +328,86 @@ function PaymentTimeline({
                           >
                             <X className="h-3 w-3" /> Annuler
                           </button>
+                        </div>
+                      )}
+
+                      {/* Prompt justificatif — affiché juste après confirmation de paiement */}
+                      {proofPromptId === ev.id && !ev.proof_doc_id && (
+                        <div className="mt-2.5 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 space-y-2">
+                          <p className="text-xs font-semibold text-blue-800">
+                            💳 Paiement confirmé — voulez-vous joindre un justificatif ?
+                          </p>
+                          <p className="text-[11px] text-blue-600 leading-relaxed">
+                            Virement, chèque, extrait de compte… (PDF ou image)
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => proofInputRef.current?.click()}
+                              disabled={proofUploading}
+                              className="flex items-center gap-1.5 text-xs font-bold bg-blue-600 text-white rounded-lg px-3 py-1.5 hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                            >
+                              {proofUploading
+                                ? <><Loader2 className="h-3 w-3 animate-spin" /> Envoi…</>
+                                : <><Upload className="h-3 w-3" /> Joindre</>}
+                            </button>
+                            <button
+                              onClick={() => setProofPromptId(null)}
+                              className="text-[11px] text-gray-400 hover:text-gray-600 transition-colors"
+                            >
+                              Plus tard
+                            </button>
+                          </div>
+                          <input
+                            ref={proofInputRef}
+                            type="file"
+                            accept="image/*,application/pdf"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              setProofUploading(true);
+                              try {
+                                const fd = new FormData();
+                                fd.append('file', file);
+                                fd.append('nom', `Justificatif — ${ev.label}`);
+                                fd.append('documentType', 'preuve_paiement');
+                                fd.append('paymentEventId', ev.id);
+                                const bearer = await getFreshBearerToken(token);
+                                const res = await fetch(`/api/chantier/${chantierId}/documents`, {
+                                  method: 'POST',
+                                  headers: { Authorization: `Bearer ${bearer}` },
+                                  body: fd,
+                                });
+                                if (res.ok) {
+                                  setProofPromptId(null);
+                                  refresh(); // re-fetch pour afficher le lien justificatif
+                                }
+                              } finally {
+                                setProofUploading(false);
+                                if (proofInputRef.current) proofInputRef.current.value = '';
+                              }
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {/* Lien vers le justificatif — affiché si un proof existe */}
+                      {isPaid && ev.proof_doc_id && (
+                        <div className="mt-1.5 flex items-center gap-1.5">
+                          <Paperclip className="h-3 w-3 text-gray-400 shrink-0" />
+                          {ev.proof_signed_url ? (
+                            <a
+                              href={ev.proof_signed_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] text-blue-600 hover:text-blue-800 font-medium underline-offset-2 hover:underline flex items-center gap-1"
+                            >
+                              {ev.proof_doc_name ?? 'Justificatif'}
+                              <ExternalLink className="h-2.5 w-2.5" />
+                            </a>
+                          ) : (
+                            <span className="text-[11px] text-gray-400">{ev.proof_doc_name ?? 'Justificatif joint'}</span>
+                          )}
                         </div>
                       )}
 

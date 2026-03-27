@@ -100,14 +100,56 @@ export const GET: APIRoute = async ({ params, request }) => {
     }
   }
 
+  // Enrichir avec les justificatifs de paiement (document_type = 'preuve_paiement')
+  // L'analyse_id du document de preuve contient l'ID du payment_event (convention interne)
+  const eventIds = (data ?? []).map(e => e.id);
+  let proofMap: Record<string, { id: string; nom: string | null; bucket_path: string | null }> = {};
+
+  if (eventIds.length > 0) {
+    const { data: proofDocs } = await ctx.supabase
+      .from('documents_chantier')
+      .select('id, nom, nom_fichier, analyse_id, bucket_path')
+      .eq('chantier_id', chantierId)
+      .eq('document_type', 'preuve_paiement')
+      .in('analyse_id', eventIds);
+
+    for (const pd of proofDocs ?? []) {
+      if (pd.analyse_id) {
+        proofMap[pd.analyse_id] = {
+          id:          pd.id,
+          nom:         pd.nom ?? pd.nom_fichier ?? null,
+          bucket_path: pd.bucket_path ?? null,
+        };
+      }
+    }
+  }
+
+  // Générer les URLs signées pour les justificatifs
+  const BUCKET   = 'chantier-documents';
+  const SIGN_TTL = 3600;
+  const proofUrlMap: Record<string, string | null> = {};
+  for (const [evId, proof] of Object.entries(proofMap)) {
+    if (proof.bucket_path && !proof.bucket_path.startsWith('analyse/')) {
+      const { data: s } = await ctx.supabase.storage
+        .from(BUCKET).createSignedUrl(proof.bucket_path, SIGN_TTL);
+      proofUrlMap[evId] = s?.signedUrl ?? null;
+    } else {
+      proofUrlMap[evId] = null;
+    }
+  }
+
   const enriched = (data ?? []).map(e => {
     const doc = docMap[e.source_id];
     const analyseId = doc?.analyse_id ?? null;
+    const proof = proofMap[e.id];
     return {
       ...e,
-      source_name:  doc?.nom ?? doc?.nom_fichier ?? null,
-      lot_nom:      doc?.lot_nom ?? null,
-      artisan_nom:  analyseId ? artisanMap[analyseId] ?? null : null,
+      source_name:      doc?.nom ?? doc?.nom_fichier ?? null,
+      lot_nom:          doc?.lot_nom ?? null,
+      artisan_nom:      analyseId ? artisanMap[analyseId] ?? null : null,
+      proof_doc_id:     proof?.id ?? null,
+      proof_doc_name:   proof?.nom ?? null,
+      proof_signed_url: proof ? (proofUrlMap[e.id] ?? null) : null,
     };
   });
 
@@ -198,21 +240,37 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     return new Response(JSON.stringify({ error: 'id et status (paid|pending) requis' }), { status: 400, headers: CORS });
   }
 
+  // Étape 1 : vérifier que l'event appartient bien à ce chantier (SELECT séparé)
+  const { data: existing } = await ctx.supabase
+    .from('payment_events')
+    .select('id, project_id')
+    .eq('id', id)
+    .single();
+
+  if (!existing) {
+    console.error('[api/payment-events] PATCH event introuvable — id:', id);
+    return new Response(JSON.stringify({ ok: false, error: 'Événement introuvable' }), { status: 404, headers: CORS });
+  }
+  if (existing.project_id !== chantierId) {
+    console.error('[api/payment-events] PATCH project_id mismatch — event.project_id:', existing.project_id, '| chantierId:', chantierId);
+    return new Response(JSON.stringify({ ok: false, error: 'Non autorisé' }), { status: 403, headers: CORS });
+  }
+
+  // Étape 2 : UPDATE par id uniquement (ownership vérifié ci-dessus + verifyOwnership en amont)
   const { data: updated, error } = await ctx.supabase
     .from('payment_events')
     .update({ status })
     .eq('id', id)
-    .eq('project_id', chantierId)
     .select('id, status');
 
   if (error) {
-    console.error('[api/payment-events] PATCH error:', error.message, '| id:', id, '| chantierId:', chantierId);
+    console.error('[api/payment-events] PATCH update error:', error.message);
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: CORS });
   }
 
   if (!updated || updated.length === 0) {
-    console.error('[api/payment-events] PATCH matched 0 rows — id:', id, '| project_id:', chantierId);
-    return new Response(JSON.stringify({ ok: false, error: 'Événement introuvable' }), { status: 404, headers: CORS });
+    console.error('[api/payment-events] PATCH update 0 rows — id:', id);
+    return new Response(JSON.stringify({ ok: false, error: 'Mise à jour échouée' }), { status: 500, headers: CORS });
   }
 
   return new Response(JSON.stringify({ ok: true, status: updated[0].status }), { status: 200, headers: CORS });

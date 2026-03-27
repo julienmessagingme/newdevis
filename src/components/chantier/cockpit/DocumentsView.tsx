@@ -19,17 +19,18 @@ const TYPE_CFG: Record<DocumentType, {
   label: string; plural: string; emoji: string;
   iconBg: string; iconText: string; tabBg: string; tabText: string; tabActiveBg: string; tabActiveText: string;
 }> = {
-  devis:        { label: 'Devis',        plural: 'Devis',          emoji: '📋', iconBg: 'bg-blue-50',    iconText: 'text-blue-500',   tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-blue-600',   tabActiveText: 'text-white' },
-  facture:      { label: 'Facture',      plural: 'Factures',       emoji: '🧾', iconBg: 'bg-emerald-50', iconText: 'text-emerald-500',tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-emerald-600',tabActiveText: 'text-white' },
-  photo:        { label: 'Photo',        plural: 'Photos',         emoji: '📷', iconBg: 'bg-violet-50',  iconText: 'text-violet-500', tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-violet-600', tabActiveText: 'text-white' },
-  plan:         { label: 'Plan',         plural: 'Plans',          emoji: '📐', iconBg: 'bg-amber-50',   iconText: 'text-amber-500',  tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-amber-500',  tabActiveText: 'text-white' },
-  autorisation: { label: 'Autorisation', plural: 'Autorisations',  emoji: '📜', iconBg: 'bg-orange-50',  iconText: 'text-orange-500', tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-orange-500', tabActiveText: 'text-white' },
-  assurance:    { label: 'Assurance',    plural: 'Assurances',     emoji: '🛡', iconBg: 'bg-indigo-50',  iconText: 'text-indigo-500', tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-indigo-600', tabActiveText: 'text-white' },
-  autre:        { label: 'Autre',        plural: 'Autres',         emoji: '📁', iconBg: 'bg-gray-50',    iconText: 'text-gray-400',   tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-gray-700',   tabActiveText: 'text-white' },
+  devis:           { label: 'Devis',              plural: 'Devis',                emoji: '📋', iconBg: 'bg-blue-50',    iconText: 'text-blue-500',   tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-blue-600',   tabActiveText: 'text-white' },
+  facture:         { label: 'Facture',            plural: 'Factures',             emoji: '🧾', iconBg: 'bg-emerald-50', iconText: 'text-emerald-500',tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-emerald-600',tabActiveText: 'text-white' },
+  photo:           { label: 'Photo',              plural: 'Photos',               emoji: '📷', iconBg: 'bg-violet-50',  iconText: 'text-violet-500', tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-violet-600', tabActiveText: 'text-white' },
+  plan:            { label: 'Plan',               plural: 'Plans',                emoji: '📐', iconBg: 'bg-amber-50',   iconText: 'text-amber-500',  tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-amber-500',  tabActiveText: 'text-white' },
+  autorisation:    { label: 'Autorisation',       plural: 'Autorisations',        emoji: '📜', iconBg: 'bg-orange-50',  iconText: 'text-orange-500', tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-orange-500', tabActiveText: 'text-white' },
+  assurance:       { label: 'Assurance',          plural: 'Assurances',           emoji: '🛡', iconBg: 'bg-indigo-50',  iconText: 'text-indigo-500', tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-indigo-600', tabActiveText: 'text-white' },
+  autre:           { label: 'Autre',              plural: 'Autres',               emoji: '📁', iconBg: 'bg-gray-50',    iconText: 'text-gray-400',   tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-gray-700',   tabActiveText: 'text-white' },
+  preuve_paiement: { label: 'Preuve de paiement', plural: 'Preuves de paiement',  emoji: '💳', iconBg: 'bg-teal-50',    iconText: 'text-teal-500',   tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-teal-600',   tabActiveText: 'text-white' },
 };
 
 // Ordre d'affichage des onglets
-const TAB_ORDER: DocumentType[] = ['devis', 'facture', 'photo', 'autorisation', 'assurance', 'plan', 'autre'];
+const TAB_ORDER: DocumentType[] = ['devis', 'facture', 'photo', 'autorisation', 'assurance', 'plan', 'preuve_paiement', 'autre'];
 
 // ── LotBadge — selector inline ────────────────────────────────────────────────
 
@@ -258,6 +259,8 @@ export default function DocumentsView({
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
     const base = docsWithOverrides.filter(doc => {
+      // preuve_paiement n'apparaît que dans son propre onglet (pas dans 'all')
+      if (activeTab === 'all' && doc.document_type === 'preuve_paiement') return false;
       if (activeTab !== 'all' && doc.document_type !== activeTab) return false;
       if (!q) return true;
       const lot = realLots.find(l => l.id === doc.lot_id);
