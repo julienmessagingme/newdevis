@@ -666,15 +666,15 @@ function getLotStatusLevel(lot: LotChantier, docs: DocumentChantier[]): {
 
 // ── Lot Intervenant Card (home) ────────────────────────────────────────────────
 
-function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail, onDelete }: {
+function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail, onDelete, onCompare }: {
   lot: LotChantier;
   docs: DocumentChantier[];
   onAddDevis: () => void;
   onAddDocument: () => void;
   onDetail: () => void;
   onDelete: () => void;
+  onCompare: (lot: LotChantier, docs: DocumentChantier[]) => void;
 }) {
-  const [showComparateur, setShowComparateur] = useState(false);
   const devisCnt  = docs.filter(d => d.document_type === 'devis').length;
   const photoCnt  = docs.filter(d => d.document_type === 'photo').length;
   const devisDocs = docs.filter(d => d.document_type === 'devis' || d.document_type === 'facture');
@@ -793,7 +793,7 @@ function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail, on
           Voir détails
         </button>
         {devisCnt >= 2 && (
-          <button onClick={() => setShowComparateur(true)}
+          <button onClick={() => onCompare(lot, devisDocs)}
             className="flex flex-col items-center gap-1 py-3.5 text-[11px] font-semibold text-amber-600 hover:bg-amber-50 transition-colors">
             <Scale className="h-3.5 w-3.5" />
             Comparer
@@ -806,13 +806,6 @@ function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail, on
         </button>
       </div>
 
-      {showComparateur && (
-        <ComparateurDevisModal
-          lot={lot}
-          docs={devisDocs}
-          onClose={() => setShowComparateur(false)}
-        />
-      )}
     </div>
   );
 }
@@ -1088,6 +1081,8 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
   onDocStatutUpdated?: (docId: string, statut: string) => void;
 }) {
 
+  const [comparingLot, setComparingLot] = useState<{ lot: LotChantier; docs: DocumentChantier[] } | null>(null);
+
   const total     = lots.length;
   const validated = lots.filter(l => ['ok', 'termine', 'en_cours', 'contrat_signe'].includes(l.statut ?? '')).length;
   const withDevis = lots.filter(l =>
@@ -1263,11 +1258,20 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
                 onAddDocument={() => onAddDocForLot(lot.id)}
                 onDetail={() => onGoToLot(lot.id)}
                 onDelete={() => onDeleteLot(lot.id)}
+                onCompare={(l, d) => setComparingLot({ lot: l, docs: d })}
               />
             ))}
             {/* Carte DIY — toujours présente, travaux réalisés par le client */}
             <DiyCard onAddDoc={onAddDoc} onGoToDiy={onGoToDiy} />
           </div>
+          {/* Modal comparateur — rendu hors de la grille pour éviter les problèmes de stacking context */}
+          {comparingLot && (
+            <ComparateurDevisModal
+              lot={comparingLot.lot}
+              docs={comparingLot.docs}
+              onClose={() => setComparingLot(null)}
+            />
+          )}
         )}
       </div>
     </div>
