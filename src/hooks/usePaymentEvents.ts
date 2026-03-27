@@ -102,37 +102,48 @@ export function usePaymentEvents(
     return () => { cancelled = true; };
   }, [chantierId, token, tick]);
 
+  // ── Récupère un token valide (frais si expiré) ────────────────────────────
+  const getFreshToken = useCallback(async (): Promise<string | null> => {
+    if (token) return token;
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token ?? null;
+  }, [token]);
+
   // ── Marquer un événement comme payé (PATCH optimiste) ─────────────────────
   const markPaid = useCallback(async (id: string) => {
-    if (!chantierId || !token) return;
+    if (!chantierId) return;
+    const bearerToken = await getFreshToken();
+    if (!bearerToken) return;
     setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'paid' as const } : ev));
     try {
       const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${bearerToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, status: 'paid' }),
       });
       if (!res.ok) refresh();
     } catch {
       refresh();
     }
-  }, [chantierId, token, refresh]);
+  }, [chantierId, getFreshToken, refresh]);
 
   // ── Annuler un paiement (repasser en "À venir") ─────────────────────────
   const markUnpaid = useCallback(async (id: string) => {
-    if (!chantierId || !token) return;
+    if (!chantierId) return;
+    const bearerToken = await getFreshToken();
+    if (!bearerToken) return;
     setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'pending' as const } : ev));
     try {
       const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${bearerToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, status: 'pending' }),
       });
       if (!res.ok) refresh();
     } catch {
       refresh();
     }
-  }, [chantierId, token, refresh]);
+  }, [chantierId, getFreshToken, refresh]);
 
   return { events, loading, error, refresh, markPaid, markUnpaid };
 }
