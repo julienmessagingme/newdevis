@@ -241,12 +241,16 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   }
 
   // Étape 1 : vérifier que l'event appartient bien à ce chantier (SELECT séparé)
-  const { data: existing } = await ctx.supabase
+  const { data: existing, error: selectErr } = await ctx.supabase
     .from('payment_events')
     .select('id, project_id')
     .eq('id', id)
-    .single();
+    .maybeSingle();
 
+  if (selectErr) {
+    console.error('[api/payment-events] PATCH select error:', selectErr.message);
+    return new Response(JSON.stringify({ ok: false, error: selectErr.message }), { status: 500, headers: CORS });
+  }
   if (!existing) {
     console.error('[api/payment-events] PATCH event introuvable — id:', id);
     return new Response(JSON.stringify({ ok: false, error: 'Événement introuvable' }), { status: 404, headers: CORS });
@@ -256,24 +260,18 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     return new Response(JSON.stringify({ ok: false, error: 'Non autorisé' }), { status: 403, headers: CORS });
   }
 
-  // Étape 2 : UPDATE par id uniquement (ownership vérifié ci-dessus + verifyOwnership en amont)
-  const { data: updated, error } = await ctx.supabase
+  // Étape 2 : UPDATE par id uniquement — sans .select() (évite instabilité Supabase v2 service role)
+  const { error } = await ctx.supabase
     .from('payment_events')
     .update({ status })
-    .eq('id', id)
-    .select('id, status');
+    .eq('id', id);
 
   if (error) {
     console.error('[api/payment-events] PATCH update error:', error.message);
-    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: CORS });
+    return new Response(JSON.stringify({ ok: false, error: error.message }), { status: 500, headers: CORS });
   }
 
-  if (!updated || updated.length === 0) {
-    console.error('[api/payment-events] PATCH update 0 rows — id:', id);
-    return new Response(JSON.stringify({ ok: false, error: 'Mise à jour échouée' }), { status: 500, headers: CORS });
-  }
-
-  return new Response(JSON.stringify({ ok: true, status: updated[0].status }), { status: 200, headers: CORS });
+  return new Response(JSON.stringify({ ok: true, status }), { status: 200, headers: CORS });
 };
 
 export const OPTIONS: APIRoute = () =>

@@ -135,12 +135,15 @@ export function usePaymentEvents(
         body: JSON.stringify({ id, status: 'paid' }),
       });
       if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        console.error('[markPaid] HTTP', res.status, body);
         pendingUpdates.current.delete(id);
         refresh();
         return false;
       }
       const data = await res.json();
       if (!data.ok) {
+        console.error('[markPaid] server error:', data.error ?? data);
         pendingUpdates.current.delete(id);
         refresh();
         return false;
