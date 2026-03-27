@@ -134,6 +134,33 @@ const REVIEWS = [
     date: '13 mars 2026',
     stars: 5,
   },
+  {
+    id: 15,
+    author: 'Be Fr',
+    initials: 'BF',
+    title: 'Rapide et intuitif',
+    body: 'Rapide et intuitif',
+    date: '27 mars 2026',
+    stars: 5,
+  },
+  {
+    id: 16,
+    author: 'julie dubois',
+    initials: 'JD',
+    title: 'Tres simple a utiliser',
+    body: "Tres simple a utiliser, j ai juste downloadé mon devis en format pdf. L analyse etait tres simple a comprendre et ca donne des pistes a pousuivre pour une discussion avec l artisan.",
+    date: '27 mars 2026',
+    stars: 5,
+  },
+  {
+    id: 17,
+    author: 'SANDRINE LONEY',
+    initials: 'SL',
+    title: "Simple d'utilisation",
+    body: "Simple d'utilisation, fluide, efficace,...je recommande ++++",
+    date: '27 mars 2026',
+    stars: 5,
+  },
 ];
 
 const TRUSTPILOT_REVIEW_URL = 'https://fr.trustpilot.com/evaluate/verifiermondevis.fr';
@@ -274,11 +301,11 @@ export default function TrustpilotSection() {
             </div>
             <div className="flex items-center gap-3">
               <Stars count={4.5} />
-              <span className="text-2xl font-extrabold text-gray-900 tabular-nums">4,5</span>
+              <span className="text-2xl font-extrabold text-gray-900 tabular-nums">4,6</span>
               <span className="text-sm text-gray-500">·</span>
               <a href={TRUSTPILOT_PROFILE_URL} target="_blank" rel="noopener noreferrer"
                 className="text-sm text-gray-500 hover:text-gray-700 underline underline-offset-2 transition-colors">
-                15 avis vérifiés
+                18 avis vérifiés
               </a>
             </div>
           </div>
