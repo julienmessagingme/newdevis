@@ -102,11 +102,10 @@ export function usePaymentEvents(
     return () => { cancelled = true; };
   }, [chantierId, token, tick]);
 
-  // ── Récupère un token valide (frais si expiré) ────────────────────────────
+  // ── Récupère un token valide (toujours frais — bypass cache prop) ────────
   const getFreshToken = useCallback(async (): Promise<string | null> => {
-    if (token) return token;
     const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token ?? null;
+    return session?.access_token ?? token ?? null;
   }, [token]);
 
   // ── Marquer un événement comme payé (PATCH optimiste) ─────────────────────
