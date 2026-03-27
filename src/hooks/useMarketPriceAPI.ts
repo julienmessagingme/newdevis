@@ -42,6 +42,8 @@ export interface JobTypeDisplayRow {
   prices: N8NPriceLine[];
   verdict: string | null;
   vsAvgPct: number | null;
+  /** True when the group is a lump-sum / forfait — price comparison is indicative only */
+  isForfait: boolean;
 }
 
 // ========================================
@@ -87,6 +89,47 @@ export interface UseMarketPriceAPIParams {
   filePath?: string;
   enabled?: boolean;
   cachedN8NData?: unknown;
+}
+
+// ========================================
+// FORFAIT DETECTION
+// ========================================
+
+const FORFAIT_UNIT_KEYWORDS = ["forfait", "global", "prestation", "ensemble", "installation complète"];
+const FORFAIT_DESC_KEYWORDS = ["forfait", "forfait global", "prestation globale", "au forfait", "tout compris"];
+
+// NEW — detect custom / bespoke work that makes unit-price comparison unreliable
+const CUSTOM_WORK_KEYWORDS = ["sur mesure", "fabrication sur mesure", "fabriqué sur mesure", "fabrication et pose", "fabrication & pose"];
+
+function detectForfait(item: {
+  main_unit?: string;
+  devis_lines?: Array<{ description?: string; unit?: string | null }>;
+}): boolean {
+  // 1. Unit declared by Gemini or the catalog is explicitly "forfait"
+  const unit = (item.main_unit || "").toLowerCase().trim();
+  if (FORFAIT_UNIT_KEYWORDS.some((kw) => unit === kw || unit.startsWith(kw))) return true;
+
+  // 2. Majority of devis lines carry forfait-like description or unit
+  const lines = item.devis_lines || [];
+  if (lines.length === 0) return false;
+  const forfaitLines = lines.filter((l) => {
+    const desc = (l.description || "").toLowerCase();
+    const lineUnit = (l.unit || "").toLowerCase();
+    return (
+      FORFAIT_DESC_KEYWORDS.some((kw) => desc.includes(kw)) ||
+      FORFAIT_UNIT_KEYWORDS.some((kw) => lineUnit === kw || lineUnit.startsWith(kw))
+    );
+  });
+  if (forfaitLines.length >= Math.ceil(lines.length * 0.6)) return true;
+
+  // 3. Description of any line explicitly mentions custom fabrication / bespoke work
+  const allDescs = (item.devis_lines || []).map((l: any) => (l.description || "").toLowerCase());
+  const hasCustomWork = allDescs.some((d: string) =>
+    CUSTOM_WORK_KEYWORDS.some((kw) => d.includes(kw))
+  );
+  if (hasCustomWork) return true;
+
+  return false;
 }
 
 // ========================================
@@ -158,10 +201,17 @@ export function processJobTypes(data: unknown): JobTypeDisplayRow[] {
     }
 
     const devisTotalHT = typeof item.devis_total_ht === "number" ? item.devis_total_ht : null;
+    const isForfait = detectForfait(item);
+
     // No verdict if no catalog prices matched
-    const { verdict, vsAvgPct } = prices.length > 0
+    // For forfait groups: keep vsAvgPct for the gauge but override the label
+    let { verdict, vsAvgPct } = prices.length > 0
       ? computeVerdict(devisTotalHT, theoreticalAvgHT)
       : { verdict: null, vsAvgPct: null };
+
+    if (isForfait && verdict !== null) {
+      verdict = "Comparaison indicative";
+    }
 
     // Build devis lines
     const devisLines: DevisLineDisplay[] = (item.devis_lines || []).map((line: {
@@ -191,6 +241,7 @@ export function processJobTypes(data: unknown): JobTypeDisplayRow[] {
       prices,
       verdict,
       vsAvgPct,
+      isForfait,
     });
   }
 

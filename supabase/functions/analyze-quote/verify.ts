@@ -41,6 +41,10 @@ export async function verifyData(
     rge_pertinent: false,
     rge_trouve: false,
     rge_qualifications: [],
+    qualibat_mentionne: false,
+    qualibat_verifie: false,
+    qualibat_certifie: null,
+    qualibat_qualifications: [],
     google_trouve: false,
     google_note: null,
     google_nb_avis: null,
@@ -327,6 +331,40 @@ export async function verifyData(
     } catch (error) {
       const safeMsg = error instanceof Error ? error.message : "Unknown error";
       console.error("RGE API error:", safeMsg);
+    }
+  }
+
+  // 4b. QUALIBAT — vérification si mentionné sur le devis
+  const qualibatMentionne = extracted.entreprise.certifications_mentionnees
+    ?.some((c: string) => c.toUpperCase().includes("QUALIBAT")) ?? false;
+  result.qualibat_mentionne = qualibatMentionne;
+
+  if (siren && qualibatMentionne) {
+    try {
+      // QUALIBAT public API (best-effort)
+      const qualibatUrl = `https://www.qualibat.com/annuaire/enterprise/${siren}/`;
+      const qualibatResp = await fetch(qualibatUrl, {
+        headers: { "Accept": "application/json", "User-Agent": "VerifierMonDevis/1.0" },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (qualibatResp.ok) {
+        const qData = await qualibatResp.json();
+        if (qData && (qData.certifications || qData.qualifications)) {
+          result.qualibat_verifie = true;
+          result.qualibat_certifie = true;
+          const certs = qData.certifications || qData.qualifications || [];
+          result.qualibat_qualifications = certs.map((c: any) => ({
+            code: c.code || c.numero || "",
+            libelle: c.libelle || c.nom || c.domaine || "",
+            date_fin: c.date_fin || c.date_echeance || undefined,
+          })).filter((c: any) => c.code || c.libelle);
+        } else {
+          result.qualibat_verifie = true;
+          result.qualibat_certifie = false;
+        }
+      }
+    } catch {
+      // API unavailable — keep qualibat_verifie = false (mention detected but not verified)
     }
   }
 

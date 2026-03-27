@@ -405,6 +405,62 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
             </div>
           )}
 
+          {/* ── Certification QUALIBAT ───────────────────────── */}
+          {companyData?.qualibat_mentionne && (
+            <div className="mb-4 p-3 sm:p-4 bg-background/40 rounded-xl border border-border/30">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm font-medium text-foreground">Certification QUALIBAT</span>
+                <InfoTooltip
+                  title="Qu'est-ce que QUALIBAT ?"
+                  content="QUALIBAT est l'organisme de qualification et de certification des entreprises du bâtiment. La certification atteste des compétences techniques, de la capacité financière et des références de l'entreprise pour une activité donnée."
+                />
+              </div>
+
+              {companyData.qualibat_certifie === true ? (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-500/10 border border-green-500/30 rounded-lg text-xs font-medium text-green-700">
+                      ✓ Certification vérifiée
+                    </span>
+                  </div>
+                  {companyData.qualibat_qualifications?.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {companyData.qualibat_qualifications.map((q: any, i: number) => (
+                        <div key={i} className="inline-flex flex-col px-2.5 py-1.5 bg-green-500/10 border border-green-500/20 rounded-lg">
+                          <span className="text-xs font-medium text-green-700">{q.code} — {q.libelle}</span>
+                          {q.date_fin && (
+                            <span className="text-xs text-muted-foreground">
+                              Valide jusqu'au {new Date(q.date_fin).toLocaleDateString("fr-FR")}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : companyData.qualibat_certifie === false ? (
+                <div className="flex items-start gap-2 p-2 bg-amber-500/8 border border-amber-500/25 rounded-lg">
+                  <span className="text-amber-600 text-sm">⚠️</span>
+                  <p className="text-xs text-amber-700">
+                    QUALIBAT revendiqué sur le devis mais <strong>non trouvé</strong> dans l'annuaire officiel.
+                    Demandez le certificat à l'artisan et vérifiez sur{" "}
+                    <a href="https://www.qualibat.com/annuaire/" target="_blank" rel="noopener noreferrer" className="underline">qualibat.com</a>.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  QUALIBAT mentionné sur le devis.{" "}
+                  <a href="https://www.qualibat.com/annuaire/" target="_blank" rel="noopener noreferrer" className="underline text-primary text-xs">
+                    Vérifier sur qualibat.com →
+                  </a>
+                  <span className="block text-xs mt-0.5 text-muted-foreground/70">
+                    Vérification automatique indisponible — contrôlez avec le SIRET de l'entreprise.
+                  </span>
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Réputation en ligne - ALWAYS VISIBLE */}
           <div className={`p-4 rounded-lg border ${getScoreBgClass(info.reputation?.score || "ORANGE")}`}>
             <div className="flex items-center gap-3 mb-2">

@@ -67,6 +67,8 @@ RÈGLES D'EXTRACTION:
    - "devis_manuscrit": true si le document est entièrement ou majoritairement manuscrit (rempli à la main, pas dactylographié). false si tapé/imprimé.
    - "materiaux_fournis_client": true si le devis précise que les matériaux seront fournis par le client (formulations : "matériaux fournis par le client", "MO uniquement", "main d'œuvre seule", "pose seule - fournitures client"). false sinon.
 
+10. Extrait la date de validité du devis ("date_validite" dans "dates") si mentionnée (ex: "valable jusqu'au XX/XX/XXXX", "validité jusqu'au", "devis valable jusqu'au"). Format YYYY-MM-DD. null si non mentionnée.
+
 Tu dois effectuer UNE SEULE extraction complète et structurée.`,
 
   marketPriceExpertPrompt: `Tu es un expert en travaux de bâtiment et rénovation.

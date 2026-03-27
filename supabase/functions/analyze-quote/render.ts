@@ -17,6 +17,21 @@ export function renderOutput(
   const alertes: string[] = [];
   const recommandations: string[] = [];
 
+  // BLOC 0: DATE VALIDITÉ DEVIS
+  if (extracted.dates?.date_validite) {
+    try {
+      const dateValidite = new Date(extracted.dates.date_validite);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (dateValidite < today) {
+        const formatted = dateValidite.toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+        alertes.push(`📅 Devis expiré : ce devis était valable jusqu'au ${formatted}. Demandez une mise à jour ou confirmation de validité à l'artisan avant de signer.`);
+      }
+    } catch {
+      // ignore invalid date
+    }
+  }
+
   // BLOC 1: ENTREPRISE
   if (verified.entreprise_immatriculee === true) {
     points_ok.push(`✓ Entreprise identifiée : ${verified.nom_officiel || extracted.entreprise.nom}`);
@@ -125,9 +140,22 @@ export function renderOutput(
     }
   }
 
+  // QUALIBAT mention + vérification
+  if (verified.qualibat_mentionne) {
+    if (verified.qualibat_certifie === true) {
+      points_ok.push(`✓ QUALIBAT : certification vérifiée dans l'annuaire officiel${verified.qualibat_qualifications.length > 0 ? ` (${verified.qualibat_qualifications.length} qualification(s))` : ""}`);
+    } else if (verified.qualibat_certifie === false) {
+      alertes.push("⚠️ QUALIBAT revendiqué sur le devis mais non trouvé dans l'annuaire officiel. Demandez le certificat original à l'artisan et vérifiez sur qualibat.com.");
+    } else {
+      // mentioned but not verified (API unavailable)
+      points_ok.push("ℹ️ QUALIBAT mentionné sur le devis — vérification automatique indisponible. Contrôlez sur qualibat.com avec le SIRET de l'entreprise.");
+    }
+  }
+
   // Certifications (domain-specific)
   for (const cert of config.certifications) {
     if (cert === "RGE") continue; // already handled above
+    if (cert === "QUALIBAT") continue; // already handled above
     if (extracted.entreprise.certifications_mentionnees.some(c => c.toUpperCase().includes(cert.toUpperCase()))) {
       points_ok.push(`🟢 Qualification ${cert} mentionnée sur le devis`);
     }

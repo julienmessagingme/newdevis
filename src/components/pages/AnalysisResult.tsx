@@ -98,6 +98,24 @@ const parseDocumentDetection = (rawText?: string): DocumentDetection | null => {
   return null;
 };
 
+/** Parse devis expiry date from raw_text JSON */
+function parseDevisExpiry(rawText?: string | null): { expired: boolean; dateStr: string } | null {
+  if (!rawText) return null;
+  try {
+    const parsed = JSON.parse(rawText);
+    const dateValidite = parsed?.extracted?.dates?.date_validite;
+    if (!dateValidite) return null;
+    const dateObj = new Date(dateValidite);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const expired = dateObj < today;
+    const dateStr = dateObj.toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+    return { expired, dateStr };
+  } catch {
+    return null;
+  }
+}
+
 const extractQuoteInfo = (analysis: Analysis) => {
   const rawText = analysis.raw_text || "";
   let nom_entreprise = "";
@@ -182,6 +200,11 @@ export interface CompanyDisplayData {
   rge_pertinent: boolean;
   rge_trouve: boolean;
   rge_qualifications: Array<{ nom: string; domaine?: string; date_fin?: string }>;
+  // Certification QUALIBAT
+  qualibat_mentionne: boolean;
+  qualibat_verifie: boolean;
+  qualibat_certifie: boolean | null;
+  qualibat_qualifications: Array<{ code: string; libelle: string; date_fin?: string }>;
 }
 
 const extractCompanyData = (analysis: Analysis): CompanyDisplayData | null => {
@@ -209,6 +232,10 @@ const extractCompanyData = (analysis: Analysis): CompanyDisplayData | null => {
       rge_pertinent: verified?.rge_pertinent ?? false,
       rge_trouve: verified?.rge_trouve ?? false,
       rge_qualifications: Array.isArray(verified?.rge_qualifications) ? verified.rge_qualifications : [],
+      qualibat_mentionne: verified?.qualibat_mentionne ?? false,
+      qualibat_verifie: verified?.qualibat_verifie ?? false,
+      qualibat_certifie: verified?.qualibat_certifie ?? null,
+      qualibat_qualifications: Array.isArray(verified?.qualibat_qualifications) ? verified.qualibat_qualifications : [],
     };
   } catch {
     return null;
@@ -857,6 +884,23 @@ const AnalysisResult = () => {
             currentUserId={authUser?.id}
           />
         </div>
+
+        {/* Date validité dépassée */}
+        {(() => {
+          const expiry = parseDevisExpiry(analysis.raw_text);
+          if (!expiry || !expiry.expired) return null;
+          return (
+            <div className="flex items-start gap-3 p-4 mb-4 bg-amber-50 border border-amber-300 rounded-xl">
+              <span className="text-xl flex-shrink-0">📅</span>
+              <div>
+                <p className="font-semibold text-amber-800 text-sm">Devis expiré</p>
+                <p className="text-sm text-amber-700 mt-0.5">
+                  Ce devis était valable jusqu'au <strong>{expiry.dateStr}</strong>. Demandez une confirmation de validité à l'artisan avant de signer.
+                </p>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* BLOC 1 — Entreprise & Fiabilité */}
         {visibleBlocks.includes("entreprise") && (

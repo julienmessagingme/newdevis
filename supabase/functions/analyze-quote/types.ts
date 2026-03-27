@@ -54,6 +54,7 @@ export interface ExtractedData {
   };
   dates: {
     date_devis: string | null;
+    date_validite: string | null;
     date_execution_max: string | null;
   };
   totaux: {
@@ -140,6 +141,12 @@ export interface RgeQualification {
   date_fin?: string;
 }
 
+export interface QualibatQualification {
+  code: string;
+  libelle: string;
+  date_fin?: string;
+}
+
 export interface VerificationResult {
   entreprise_immatriculee: boolean | null;
   entreprise_radiee: boolean | null;
@@ -162,6 +169,11 @@ export interface VerificationResult {
   rge_pertinent: boolean;
   rge_trouve: boolean;
   rge_qualifications: RgeQualification[];
+
+  qualibat_mentionne: boolean;
+  qualibat_verifie: boolean;
+  qualibat_certifie: boolean | null;
+  qualibat_qualifications: QualibatQualification[];
 
   google_trouve: boolean;
   google_note: number | null;
