@@ -10,6 +10,60 @@ import { ChevronLeft, ChevronRight, Star, ExternalLink } from 'lucide-react';
 const REVIEWS = [
   {
     id: 1,
+    author: 'Bertrand Loney',
+    initials: 'BL',
+    title: 'Devis très précis et fiable',
+    body: 'Devis très précis et fiable, merci!',
+    date: '26 mars 2026',
+    stars: 5,
+  },
+  {
+    id: 2,
+    author: 'Cécile',
+    initials: 'CÉ',
+    title: 'Rapide et efficace',
+    body: "Outil facile d'utilisation, et super utile pour aider à notre prise de décision finale",
+    date: '26 mars 2026',
+    stars: 5,
+  },
+  {
+    id: 3,
+    author: 'Virginie D',
+    initials: 'VD',
+    title: 'Très bonne expérience',
+    body: 'Très bonne expérience',
+    date: '26 mars 2026',
+    stars: 5,
+  },
+  {
+    id: 4,
+    author: 'patrice lamire',
+    initials: 'PL',
+    title: "Super simple d'utilisation !",
+    body: "Super simple d'utilisation ! Permet de se faire très rapidement un avis et de rechallenger le devis. Merci",
+    date: '26 mars 2026',
+    stars: 5,
+  },
+  {
+    id: 5,
+    author: 'Caroline Arnaud',
+    initials: 'CA',
+    title: 'Excellente plateforme',
+    body: "Excellente plateforme, sérieuse, rapide et fiable. Facile d'utilisation, cela m a énormément aidé dans mon projet. Je recommande à 200% !",
+    date: '25 mars 2026',
+    stars: 4,
+  },
+  {
+    id: 6,
+    author: 'cecile dumas',
+    initials: 'CD',
+    title: 'J\'étais perdue dans mes devis',
+    body: "J'étais perdue dans mes devis et comme je suis peu aguerrie j avais crainte de me faire avoir. Franchement merci. Cela m a aidé à faire mon choix entre plusieurs devis",
+    date: '26 mars 2026',
+    stars: 5,
+  },
+  {
+    id: 7,
     author: 'Noah B',
     initials: 'NB',
     title: 'Belle interface',
@@ -18,7 +72,7 @@ const REVIEWS = [
     stars: 5,
   },
   {
-    id: 2,
+    id: 8,
     author: 'Hélène Senaux',
     initials: 'HS',
     title: 'Utile et efficace',
@@ -27,16 +81,16 @@ const REVIEWS = [
     stars: 5,
   },
   {
-    id: 3,
+    id: 9,
     author: 'Lionel Humbert',
     initials: 'LH',
-    title: 'L\'interface est très fluide',
+    title: "L'interface est très fluide",
     body: "L'interface est très fluide et intuitive, on s'y retrouve en deux secondes. Il suffit de charger le devis et l'analyse arrive très rapidement. Avoir un retour sur la capacité financière de l'artisan ainsi que sur les avis de ses clients est juste essentiel avant de s'engager. Je recommande vivement",
     date: '3 mars 2026',
     stars: 5,
   },
   {
-    id: 4,
+    id: 10,
     author: 'Steph Steph',
     initials: 'SS',
     title: 'Très intuitif et complet',
@@ -45,16 +99,16 @@ const REVIEWS = [
     stars: 5,
   },
   {
-    id: 5,
+    id: 11,
     author: 'THOMAS BREHAMET',
     initials: 'TB',
-    title: 'Très facile d\'utilisation et très rapide',
+    title: "Très facile d'utilisation et très rapide",
     body: "Très facile d'utilisation et très rapide. Un outil indispensable avant de signer un devis.",
     date: '5 mars 2026',
     stars: 5,
   },
   {
-    id: 6,
+    id: 12,
     author: 'Sophie H',
     initials: 'SH',
     title: 'Intéressant',
@@ -63,7 +117,7 @@ const REVIEWS = [
     stars: 5,
   },
   {
-    id: 7,
+    id: 13,
     author: 'SB',
     initials: 'SB',
     title: 'Utile pour se faire une idée rapide',
@@ -72,10 +126,10 @@ const REVIEWS = [
     stars: 5,
   },
   {
-    id: 8,
+    id: 14,
     author: 'Pa Schmidt',
     initials: 'PS',
-    title: 'Vision complète d\'une entreprise',
+    title: "Vision complète d'une entreprise",
     body: "Les fourchettes de prix sont encore assez vastes mais l'interface est sympa et ça donne une vision complète d'une entreprise.",
     date: '13 mars 2026',
     stars: 5,
@@ -90,16 +144,26 @@ const TRUSTPILOT_PROFILE_URL = 'https://fr.trustpilot.com/review/verifiermondevi
 function Stars({ count = 5 }: { count?: number }) {
   return (
     <div className="flex gap-0.5">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div
-          key={i}
-          className={`w-5 h-5 flex items-center justify-center rounded-sm ${
-            i < count ? 'bg-[#00b67a]' : 'bg-gray-200'
-          }`}
-        >
-          <Star className="w-3 h-3 text-white fill-white" />
-        </div>
-      ))}
+      {Array.from({ length: 5 }).map((_, i) => {
+        const filled = i < Math.floor(count);
+        const half   = !filled && i < count;
+        return (
+          <div
+            key={i}
+            className={`w-5 h-5 flex items-center justify-center rounded-sm overflow-hidden relative ${
+              filled ? 'bg-[#00b67a]' : 'bg-gray-200'
+            }`}
+          >
+            {half && (
+              <>
+                <div className="absolute inset-0 left-0 w-1/2 bg-[#00b67a]" />
+                <div className="absolute inset-0 left-1/2 w-1/2 bg-gray-200" />
+              </>
+            )}
+            <Star className="w-3 h-3 text-white fill-white relative z-10" />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -209,12 +273,12 @@ export default function TrustpilotSection() {
               </a>
             </div>
             <div className="flex items-center gap-3">
-              <Stars count={5} />
-              <span className="text-2xl font-extrabold text-gray-900 tabular-nums">5,0</span>
+              <Stars count={4.5} />
+              <span className="text-2xl font-extrabold text-gray-900 tabular-nums">4,5</span>
               <span className="text-sm text-gray-500">·</span>
               <a href={TRUSTPILOT_PROFILE_URL} target="_blank" rel="noopener noreferrer"
                 className="text-sm text-gray-500 hover:text-gray-700 underline underline-offset-2 transition-colors">
-                8 avis vérifiés
+                15 avis vérifiés
               </a>
             </div>
           </div>
