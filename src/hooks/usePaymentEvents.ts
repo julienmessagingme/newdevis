@@ -58,13 +58,10 @@ export function usePaymentEvents(
     setLoading(true);
     setError(null);
 
-    // Toujours récupérer un token frais pour éviter les 401 sur token expiré
+    // Toujours récupérer un token frais — le token prop peut être expiré
     const doFetch = async () => {
-      let bearerToken = token;
-      if (!bearerToken) {
-        const { data: { session } } = await supabase.auth.getSession();
-        bearerToken = session?.access_token ?? null;
-      }
+      const { data: { session } } = await supabase.auth.getSession();
+      const bearerToken = session?.access_token ?? token ?? null;
       if (!bearerToken) {
         if (!cancelled) { setError('Non authentifié'); setLoading(false); }
         return;
@@ -108,11 +105,12 @@ export function usePaymentEvents(
     return session?.access_token ?? token ?? null;
   }, [token]);
 
-  // ── Marquer un événement comme payé (PATCH optimiste) ─────────────────────
+  // ── Marquer un événement comme payé ──────────────────────────────────────
   const markPaid = useCallback(async (id: string) => {
     if (!chantierId) return;
     const bearerToken = await getFreshToken();
     if (!bearerToken) return;
+    // Optimiste
     setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'paid' as const } : ev));
     try {
       const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
@@ -120,17 +118,27 @@ export function usePaymentEvents(
         headers: { Authorization: `Bearer ${bearerToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, status: 'paid' }),
       });
-      if (!res.ok) refresh();
+      if (!res.ok) {
+        // Rollback + re-fetch pour afficher l'état réel
+        refresh();
+        return;
+      }
+      const data = await res.json();
+      if (!data.ok) {
+        // Le serveur indique que l'update n'a pas eu lieu
+        refresh();
+      }
     } catch {
       refresh();
     }
   }, [chantierId, getFreshToken, refresh]);
 
-  // ── Annuler un paiement (repasser en "À venir") ─────────────────────────
+  // ── Annuler un paiement (repasser en "À venir") ───────────────────────────
   const markUnpaid = useCallback(async (id: string) => {
     if (!chantierId) return;
     const bearerToken = await getFreshToken();
     if (!bearerToken) return;
+    // Optimiste
     setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'pending' as const } : ev));
     try {
       const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
@@ -138,7 +146,12 @@ export function usePaymentEvents(
         headers: { Authorization: `Bearer ${bearerToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, status: 'pending' }),
       });
-      if (!res.ok) refresh();
+      if (!res.ok) {
+        refresh();
+        return;
+      }
+      const data = await res.json();
+      if (!data.ok) refresh();
     } catch {
       refresh();
     }

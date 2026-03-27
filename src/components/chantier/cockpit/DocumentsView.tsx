@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   FileText, FolderOpen, Loader2, Pencil, Plus, Trash2, Search, X,
   ExternalLink, ChevronDown, Image, Receipt, FileStack, Shield, BookOpen, File,
+  ArrowDownUp, CalendarDays, ALargeSmall, Wrench,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { DocumentChantier, DocumentType, LotChantier } from '@/types/chantier-ia';
@@ -231,6 +232,7 @@ export default function DocumentsView({
 }) {
   const [search, setSearch]         = useState('');
   const [activeTab, setActiveTab]   = useState<DocumentType | 'all'>('all');
+  const [sortBy, setSortBy]         = useState<'date' | 'alpha' | 'intervenant'>('date');
   const [lotOverrides, setLotOverrides] = useState<Record<string, string | null>>({});
 
   // Lots réels depuis la DB
@@ -252,10 +254,10 @@ export default function DocumentsView({
     })),
   [documents, lotOverrides]);
 
-  // Filtrage recherche + onglet
+  // Filtrage recherche + onglet + tri
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    return docsWithOverrides.filter(doc => {
+    const base = docsWithOverrides.filter(doc => {
       if (activeTab !== 'all' && doc.document_type !== activeTab) return false;
       if (!q) return true;
       const lot = realLots.find(l => l.id === doc.lot_id);
@@ -265,7 +267,19 @@ export default function DocumentsView({
         (lot?.nom.toLowerCase().includes(q) ?? false)
       );
     });
-  }, [docsWithOverrides, activeTab, search, realLots]);
+
+    return [...base].sort((a, b) => {
+      if (sortBy === 'alpha') return a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' });
+      if (sortBy === 'intervenant') {
+        const la = realLots.find(l => l.id === a.lot_id)?.nom ?? '';
+        const lb = realLots.find(l => l.id === b.lot_id)?.nom ?? '';
+        const cmp = la.localeCompare(lb, 'fr', { sensitivity: 'base' });
+        return cmp !== 0 ? cmp : a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' });
+      }
+      // date desc par défaut
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [docsWithOverrides, activeTab, search, sortBy, realLots]);
 
   // Compteurs par type
   const counts = useMemo(() => {
@@ -358,8 +372,9 @@ export default function DocumentsView({
         </div>
       </div>
 
-      {/* ── Onglets type ─────────────────────────────────────────────── */}
+      {/* ── Onglets type + contrôles de tri ─────────────────────────── */}
       <div className="flex items-center gap-1.5 px-6 py-3 border-b border-gray-100 bg-white overflow-x-auto">
+        {/* Onglets */}
         <button
           onClick={() => setActiveTab('all')}
           className={`flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-all whitespace-nowrap ${
@@ -385,6 +400,46 @@ export default function DocumentsView({
             </button>
           );
         })}
+
+        {/* Séparateur + tri */}
+        <div className="ml-auto flex items-center gap-1 shrink-0 pl-2 border-l border-gray-100">
+          <button
+            onClick={() => setSortBy('date')}
+            title="Trier par date de dépôt"
+            className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-1.5 rounded-lg transition-all ${
+              sortBy === 'date'
+                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+            }`}
+          >
+            <CalendarDays className="h-3 w-3" />
+            <span className="hidden sm:inline">Date</span>
+          </button>
+          <button
+            onClick={() => setSortBy('alpha')}
+            title="Trier par ordre alphabétique"
+            className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-1.5 rounded-lg transition-all ${
+              sortBy === 'alpha'
+                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+            }`}
+          >
+            <ALargeSmall className="h-3 w-3" />
+            <span className="hidden sm:inline">A→Z</span>
+          </button>
+          <button
+            onClick={() => setSortBy('intervenant')}
+            title="Grouper par intervenant"
+            className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-1.5 rounded-lg transition-all ${
+              sortBy === 'intervenant'
+                ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+            }`}
+          >
+            <Wrench className="h-3 w-3" />
+            <span className="hidden sm:inline">Intervenant</span>
+          </button>
+        </div>
       </div>
 
       {/* ── Liste documents ───────────────────────────────────────────── */}
@@ -401,6 +456,66 @@ export default function DocumentsView({
                 Effacer la recherche
               </button>
             )}
+          </div>
+        ) : activeTab === 'all' && sortBy === 'intervenant' ? (
+          // Mode "Tous" + tri intervenant : regroupé par lot
+          <div className="space-y-4">
+            {(() => {
+              const groups: { lotId: string | null; lot: LotChantier | null; docs: typeof filtered }[] = [];
+              const seen = new Set<string | null>();
+              for (const doc of filtered) {
+                const key = doc.lot_id ?? null;
+                if (!seen.has(key)) {
+                  seen.add(key);
+                  groups.push({
+                    lotId: key,
+                    lot: key ? (realLots.find(l => l.id === key) ?? null) : null,
+                    docs: [],
+                  });
+                }
+              }
+              // Rempli les docs dans chaque groupe
+              for (const doc of filtered) {
+                const g = groups.find(g => g.lotId === (doc.lot_id ?? null));
+                if (g) g.docs.push(doc);
+              }
+              // Trier groupes : lots nommés d'abord (alpha), puis "Sans intervenant"
+              groups.sort((a, b) => {
+                if (!a.lot && b.lot) return 1;
+                if (a.lot && !b.lot) return -1;
+                return (a.lot?.nom ?? '').localeCompare(b.lot?.nom ?? '', 'fr', { sensitivity: 'base' });
+              });
+              return groups.map(({ lot, docs }) => (
+                <div key={lot?.id ?? '__none__'} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-50 bg-purple-50/40">
+                    <span className="text-base leading-none">{lot ? (lot.emoji ?? '🔧') : '📁'}</span>
+                    <span className="font-bold text-gray-900 text-sm">
+                      {lot ? lot.nom : 'Sans intervenant'}
+                    </span>
+                    <span className="text-xs text-gray-400 font-normal ml-0.5">({docs.length})</span>
+                  </div>
+                  {docs.map(doc => (
+                    <DocRow
+                      key={doc.id}
+                      doc={doc}
+                      lots={realLots}
+                      chantierId={chantierId}
+                      token={token}
+                      onDelete={onDeleteDoc}
+                      onLotChange={handleChangeLot}
+                      onNomChange={(id, nom) => onDocNomUpdated?.(id, nom)}
+                      pendingDescribeIds={pendingDescribeIds}
+                    />
+                  ))}
+                </div>
+              ));
+            })()}
+            <button
+              onClick={onAddDoc}
+              className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-2xl py-4 text-sm text-gray-400 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-all"
+            >
+              <Plus className="h-4 w-4" /> Ajouter un document
+            </button>
           </div>
         ) : activeTab === 'all' ? (
           // Mode "Tous" : regroupé par type

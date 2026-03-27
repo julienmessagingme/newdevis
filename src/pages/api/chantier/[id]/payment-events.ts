@@ -198,17 +198,24 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     return new Response(JSON.stringify({ error: 'id et status (paid|pending) requis' }), { status: 400, headers: CORS });
   }
 
-  const { error } = await ctx.supabase
+  const { data: updated, error } = await ctx.supabase
     .from('payment_events')
     .update({ status })
     .eq('id', id)
-    .eq('project_id', chantierId);
+    .eq('project_id', chantierId)
+    .select('id, status');
 
   if (error) {
+    console.error('[api/payment-events] PATCH error:', error.message, '| id:', id, '| chantierId:', chantierId);
     return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: CORS });
   }
 
-  return new Response(JSON.stringify({ ok: true }), { status: 200, headers: CORS });
+  if (!updated || updated.length === 0) {
+    console.error('[api/payment-events] PATCH matched 0 rows — id:', id, '| project_id:', chantierId);
+    return new Response(JSON.stringify({ ok: false, error: 'Événement introuvable' }), { status: 404, headers: CORS });
+  }
+
+  return new Response(JSON.stringify({ ok: true, status: updated[0].status }), { status: 200, headers: CORS });
 };
 
 export const OPTIONS: APIRoute = () =>
