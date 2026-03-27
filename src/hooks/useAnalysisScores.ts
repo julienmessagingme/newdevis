@@ -25,6 +25,11 @@ export function useAnalysisScores(docs: DocumentChantier[]) {
   const [data, setData] = useState<Record<string, AnalysisScoreData>>({});
   const [loading, setLoading] = useState(false);
 
+  // Clé stable : on ne rejoue l'effet que si les analyse_id changent réellement.
+  // Passer `docs` directement causerait une boucle infinie car c'est un nouveau
+  // tableau à chaque render du parent.
+  const analyseKey = docs.map(d => `${d.id}:${d.analyse_id ?? ''}`).join(',');
+
   useEffect(() => {
     const withAnalyse = docs.filter(d => d.analyse_id);
     if (!withAnalyse.length) {
@@ -74,7 +79,8 @@ export function useAnalysisScores(docs: DocumentChantier[]) {
         setData(result);
         setLoading(false);
       });
-  }, [docs]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyseKey]);
 
   return { data, loading };
 }

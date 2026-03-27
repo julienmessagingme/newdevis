@@ -38,6 +38,7 @@ const fmt = (n: number | null | undefined) => {
 
 const verdictColor = (verdict: string | null): string => {
   if (!verdict) return "text-muted-foreground";
+  if (verdict === "Comparaison indicative") return "text-amber-600";
   if (verdict === "Bien placé" || verdict === "Inférieur à la moyenne") return "text-green-600";
   if (verdict === "Dans la norme") return "text-blue-600";
   if (verdict === "Légèrement élevé") return "text-amber-600";
@@ -46,6 +47,7 @@ const verdictColor = (verdict: string | null): string => {
 
 const verdictBg = (verdict: string | null): string => {
   if (!verdict) return "";
+  if (verdict === "Comparaison indicative") return "bg-amber-500/10";
   if (verdict === "Bien placé" || verdict === "Inférieur à la moyenne") return "bg-green-500/10";
   if (verdict === "Dans la norme") return "bg-blue-500/10";
   if (verdict === "Légèrement élevé") return "bg-amber-500/10";
@@ -236,6 +238,17 @@ const AnalysisCard = ({ row }: { row: JobTypeDisplayRow }) => {
       {/* Expanded: lines + gauge */}
       {expanded && (
         <div className="border-t border-border/50 p-4 space-y-4">
+          {/* Forfait warning banner */}
+          {row.isForfait && hasPrices && (
+            <div className="flex items-start gap-2 p-3 bg-amber-500/8 border border-amber-500/25 rounded-lg">
+              <Info className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-700 dark:text-amber-400 leading-snug">
+                <strong>Ce prix correspond à un forfait global.</strong>{" "}
+                La comparaison au marché est moins fiable — les fourchettes ci-dessous sont fournies à titre indicatif uniquement.
+              </p>
+            </div>
+          )}
+
           {row.devisLines.length > 0 && (
             <div className="space-y-1">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Lignes du devis</p>
@@ -248,12 +261,14 @@ const AnalysisCard = ({ row }: { row: JobTypeDisplayRow }) => {
             </div>
           )}
           {hasPrices ? (
-            <MarketPositionAnalysis
-              quote_total_ht={row.devisTotalHT}
-              market_min_ht={row.theoreticalMinHT}
-              market_avg_ht={row.theoreticalAvgHT}
-              market_max_ht={row.theoreticalMaxHT}
-            />
+            <div className={row.isForfait ? "opacity-70" : undefined}>
+              <MarketPositionAnalysis
+                quote_total_ht={row.devisTotalHT}
+                market_min_ht={row.theoreticalMinHT}
+                market_avg_ht={row.theoreticalAvgHT}
+                market_max_ht={row.theoreticalMaxHT}
+              />
+            </div>
           ) : (
             <p className="text-xs text-muted-foreground italic">
               Aucune donnée de référence marché pour ce type de travaux.

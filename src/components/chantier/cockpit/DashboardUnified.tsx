@@ -2172,6 +2172,8 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
           chantierId={chantierId}
           token={token}
           existingNoms={lots.map(l => l.nom)}
+          existingJobTypes={lots.map(l => l.job_type).filter(Boolean) as string[]}
+          projectName={result.nom ?? ''}
           onClose={() => setShowAddIntervenant(false)}
           onAdded={addLot}
         />
