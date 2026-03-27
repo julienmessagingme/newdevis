@@ -676,6 +676,7 @@ function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail, on
 }) {
   const [showComparateur, setShowComparateur] = useState(false);
   const devisCnt  = docs.filter(d => d.document_type === 'devis').length;
+  const photoCnt  = docs.filter(d => d.document_type === 'photo').length;
   const devisDocs = docs.filter(d => d.document_type === 'devis' || d.document_type === 'facture');
   const hasRef    = (lot.budget_min_ht ?? 0) > 0 || (lot.budget_max_ht ?? 0) > 0;
   const status    = getLotStatusLevel(lot, docs);
@@ -757,7 +758,7 @@ function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail, on
         </div>
       )}
 
-      {/* ── Compteur devis ──────────────────────────────── */}
+      {/* ── Compteur devis + photos ──────────────────────── */}
       <div className="px-5 pb-3 flex items-center gap-2 flex-wrap min-h-[24px]">
         {devisCnt > 0 ? (
           <span className="flex items-center gap-1 text-xs font-medium text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full">
@@ -765,6 +766,11 @@ function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail, on
           </span>
         ) : (
           <span className="text-xs text-gray-400 italic">Aucun devis reçu</span>
+        )}
+        {photoCnt > 0 && (
+          <span className="flex items-center gap-1 text-xs font-medium text-violet-700 bg-violet-50 px-2.5 py-1 rounded-full">
+            📷 {photoCnt} photo{photoCnt > 1 ? 's' : ''}
+          </span>
         )}
       </div>
 
@@ -1867,7 +1873,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             refinedBreakdown={refinedBreakdown}
             onAffineBudget={() => { setShowBudgetDetail(true); setAffineBudgetModal(true); }}
             onAddDevisForLot={(lotId) => setUploadModal({ open: true, lotId, defaultType: 'devis' })}
-            onAddDocForLot={(lotId) => setUploadModal({ open: true, lotId })}
+            onAddDocForLot={(lotId) => setUploadModal({ open: true, lotId, defaultType: 'photo' })}
             onGoToLot={(lotId) => { setSelectedLotId(lotId); navigateTo('lots'); }}
             onGoToAnalyse={() => navigateTo('analyse')}
             onGoToPlanning={() => navigateTo('planning')}

@@ -75,13 +75,24 @@ export const POST: APIRoute = async ({ params, request }) => {
     );
   }
 
+  // ── [5.5] Vérification bucket_path utilisable ────────────────────────────────
+  // Les documents importés depuis VerifierMonDevis ont bucket_path = 'analyse/{id}'
+  // (placeholder non-storage). Ils ont toujours analyse_id défini (bloqué au [5]).
+  // Si on arrive ici avec un bucket_path vide ou placeholder → erreur explicite.
+  if (!doc.bucket_path || doc.bucket_path.startsWith('analyse/')) {
+    return new Response(
+      JSON.stringify({ error: 'Ce document n\'a pas de fichier source uploadé — impossible de lancer l\'analyse' }),
+      { status: 400, headers: CORS },
+    );
+  }
+
   // ── [6] Téléchargement depuis chantier-documents ────────────────────────────
   const { data: fileData, error: downloadErr } = await ctx.supabase.storage
     .from(BUCKET_CHANTIER).download(doc.bucket_path);
   if (downloadErr || !fileData) {
-    console.error('[api/analyser] download error:', downloadErr?.message);
+    console.error('[api/analyser] download error:', downloadErr?.message, '| bucket_path:', doc.bucket_path);
     return new Response(
-      JSON.stringify({ error: 'Impossible de lire le fichier source' }),
+      JSON.stringify({ error: `Fichier source inaccessible : ${downloadErr?.message ?? 'introuvable dans le storage'}` }),
       { status: 500, headers: CORS },
     );
   }
