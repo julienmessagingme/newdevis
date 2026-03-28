@@ -1216,7 +1216,19 @@ function AidesTravaux() {
         </div>
 
         <div className="space-y-2">
-          <p className="text-xs font-bold text-gray-600">Revenu fiscal de référence annuel du foyer</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs font-bold text-gray-600">Revenu fiscal de référence annuel du foyer</p>
+            <div className="relative group/rfr">
+              <Info className="h-3.5 w-3.5 text-gray-400 hover:text-blue-500 cursor-help transition-colors" />
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 bg-gray-900 text-white text-[11px] leading-relaxed rounded-xl px-3.5 py-3 shadow-xl opacity-0 group-hover/rfr:opacity-100 pointer-events-none transition-opacity z-50">
+                <p className="font-semibold mb-1.5">📄 Où le trouver ?</p>
+                <p className="text-gray-300 mb-2">Sur votre <span className="text-white font-medium">avis d'imposition</span>, ligne <span className="text-white font-medium">« Revenu fiscal de référence »</span> en page 1 (en bas à gauche).</p>
+                <p className="font-semibold mb-1">📅 Quelle année ?</p>
+                <p className="text-gray-300">ANAH utilise l'avis <span className="text-white font-medium">N-2</span> (ex : pour une demande en 2025 → avis 2023 sur revenus 2022). En cas de doute, prenez le dernier avis reçu.</p>
+                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+              </div>
+            </div>
+          </div>
           <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
             <input
               type="text"

@@ -97,9 +97,12 @@ export default function IntervenantsListView({
     });
   }, [filtered, sortKey, analysisData]);
 
-  // Total : pour chaque lot, on prend le devis validé ou le moins cher (pas la somme de tous)
+  // Total : pour chaque lot, on prend le devis validé le plus récent ou le moins cher
   const totalEstimated = useMemo(() => sorted.reduce((acc, { devisDocs }) => {
-    const validated = devisDocs.find(d => d.devis_statut === 'valide');
+    const validatedAll = devisDocs.filter(d => d.devis_statut === 'valide');
+    const validated = validatedAll.length > 1
+      ? validatedAll.reduce((latest, d) => d.created_at > latest.created_at ? d : latest)
+      : validatedAll[0] ?? undefined;
     if (validated) return acc + (analysisData[validated.id]?.ttc ?? 0);
     const prices = devisDocs.map(d => analysisData[d.id]?.ttc ?? 0).filter(p => p > 0);
     return acc + (prices.length ? Math.min(...prices) : 0);
@@ -179,8 +182,12 @@ export default function IntervenantsListView({
         ) : (
           sorted.map(({ lot, devisDocs, status }) => {
             const cfg      = LOT_STATUS_CFG[status];
-            // Total du lot : devis validé ou plus bas prix (ne somme pas tous les devis)
-            const validated = devisDocs.find(d => d.devis_statut === 'valide');
+            // Total du lot : si plusieurs devis validés, prendre le plus récemment créé
+            // (évite que l'ancien validé prime sur un nouveau sélectionné)
+            const validatedAll = devisDocs.filter(d => d.devis_statut === 'valide');
+            const validated = validatedAll.length > 1
+              ? validatedAll.reduce((latest, d) => d.created_at > latest.created_at ? d : latest)
+              : validatedAll[0] ?? undefined;
             const lotPrice  = validated
               ? (analysisData[validated.id]?.ttc ?? 0)
               : (() => {
