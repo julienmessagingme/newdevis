@@ -48,10 +48,12 @@ export function usePaymentEvents(
   chantierId: string | null,
   token: string | null | undefined,
 ): UsePaymentEventsReturn {
-  const [events, setEvents]   = useState<PaymentEvent[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
-  const [tick, setTick]       = useState(0);
+  const [events, setEvents]       = useState<PaymentEvent[]>([]);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState<string | null>(null);
+  const [tick, setTick]           = useState(0);
+  // Distingue le premier chargement (spinner plein) des re-fetchs silencieux
+  const isFirstLoad = useRef(true);
 
   const refresh = useCallback(() => setTick(t => t + 1), []);
 
@@ -62,7 +64,11 @@ export function usePaymentEvents(
     if (!chantierId) return;
 
     let cancelled = false;
-    setLoading(true);
+    // Spinner plein uniquement au premier chargement — les re-fetch après
+    // markPaid/markUnpaid se font silencieusement (pas de flash de spinner)
+    if (isFirstLoad.current) {
+      setLoading(true);
+    }
     setError(null);
 
     // Toujours récupérer un token frais — le token prop peut être expiré
@@ -99,6 +105,7 @@ export function usePaymentEvents(
           return { ...ev, status: finalStatus };
         });
         setEvents(enriched);
+        isFirstLoad.current = false;
       })
       .catch(e => {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Erreur réseau');

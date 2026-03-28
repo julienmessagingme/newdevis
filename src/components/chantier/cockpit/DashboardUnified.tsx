@@ -1248,30 +1248,32 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
             onDocStatutUpdated={onDocStatutUpdated}
           />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {lots.map(lot => (
-              <LotIntervenantCard
-                key={lot.id}
-                lot={lot}
-                docs={docsByLot[lot.id] ?? []}
-                onAddDevis={() => onAddDevisForLot(lot.id)}
-                onAddDocument={() => onAddDocForLot(lot.id)}
-                onDetail={() => onGoToLot(lot.id)}
-                onDelete={() => onDeleteLot(lot.id)}
-                onCompare={(l, d) => setComparingLot({ lot: l, docs: d })}
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {lots.map(lot => (
+                <LotIntervenantCard
+                  key={lot.id}
+                  lot={lot}
+                  docs={docsByLot[lot.id] ?? []}
+                  onAddDevis={() => onAddDevisForLot(lot.id)}
+                  onAddDocument={() => onAddDocForLot(lot.id)}
+                  onDetail={() => onGoToLot(lot.id)}
+                  onDelete={() => onDeleteLot(lot.id)}
+                  onCompare={(l, d) => setComparingLot({ lot: l, docs: d })}
+                />
+              ))}
+              {/* Carte DIY — toujours présente, travaux réalisés par le client */}
+              <DiyCard onAddDoc={onAddDoc} onGoToDiy={onGoToDiy} />
+            </div>
+            {/* Modal comparateur — rendu hors de la grille pour éviter les problèmes de stacking context */}
+            {comparingLot && (
+              <ComparateurDevisModal
+                lot={comparingLot.lot}
+                docs={comparingLot.docs}
+                onClose={() => setComparingLot(null)}
               />
-            ))}
-            {/* Carte DIY — toujours présente, travaux réalisés par le client */}
-            <DiyCard onAddDoc={onAddDoc} onGoToDiy={onGoToDiy} />
-          </div>
-          {/* Modal comparateur — rendu hors de la grille pour éviter les problèmes de stacking context */}
-          {comparingLot && (
-            <ComparateurDevisModal
-              lot={comparingLot.lot}
-              docs={comparingLot.docs}
-              onClose={() => setComparingLot(null)}
-            />
-          )}
+            )}
+          </>
         )}
       </div>
     </div>

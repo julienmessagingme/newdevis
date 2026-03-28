@@ -76,6 +76,7 @@ function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
       {tabs.map(t => (
         <button
           key={t.id}
+          type="button"
           onClick={() => onChange(t.id)}
           className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-all ${
             active === t.id
@@ -128,7 +129,7 @@ function PaymentTimeline({
       <div className="flex flex-col items-center gap-3 py-10 text-center">
         <AlertCircle className="h-8 w-8 text-red-400" />
         <p className="text-sm text-gray-500">{error}</p>
-        <button onClick={refresh}
+        <button type="button" onClick={refresh}
           className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-semibold">
           <RefreshCw className="h-3.5 w-3.5" /> Réessayer
         </button>
@@ -298,7 +299,8 @@ function PaymentTimeline({
                       {/* CTA "Marquer payé" — pill visible pour les non-payés */}
                       {(ev.status === 'pending' || ev.status === 'late') && !isConfirming && (
                         <button
-                          onClick={() => setConfirmingId(ev.id)}
+                          type="button"
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmingId(ev.id); }}
                           className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 transition-colors"
                         >
                           <Check className="h-3 w-3" />
@@ -313,7 +315,10 @@ function PaymentTimeline({
                             Confirmer le paiement de {ev.amount !== null ? fmtEur(ev.amount) : 'cette échéance'} ?
                           </p>
                           <button
-                            onClick={async () => {
+                            type="button"
+                            onClick={async (e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
                               setConfirmingId(null);
                               const ok = await markPaid(ev.id);
                               if (ok) setProofPromptId(ev.id);
@@ -323,7 +328,8 @@ function PaymentTimeline({
                             <Check className="h-3 w-3" /> Oui, payé
                           </button>
                           <button
-                            onClick={() => setConfirmingId(null)}
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmingId(null); }}
                             className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-700 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 transition-colors"
                           >
                             <X className="h-3 w-3" /> Annuler
@@ -414,7 +420,8 @@ function PaymentTimeline({
                       {/* Annuler paiement (ligne payée) */}
                       {isPaid && (
                         <button
-                          onClick={() => markUnpaid(ev.id)}
+                          type="button"
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); markUnpaid(ev.id); }}
                           className="mt-2 inline-flex items-center gap-1 text-[10px] text-gray-400 hover:text-amber-600 transition-colors"
                         >
                           <RotateCcw className="h-3 w-3" />
@@ -430,7 +437,7 @@ function PaymentTimeline({
         </div>
       ))}
 
-      <button onClick={refresh}
+      <button type="button" onClick={refresh}
         className="w-full flex items-center justify-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 py-2 transition-colors">
         <RefreshCw className="h-3 w-3" /> Actualiser
       </button>
@@ -536,10 +543,10 @@ function BudgetGaugeReal({
                 className="w-24 text-xs font-bold text-blue-700 bg-transparent outline-none tabular-nums"
                 placeholder="99 300"
               />
-              <button onClick={confirmEdit} className="text-emerald-600 hover:text-emerald-700">
+              <button type="button" onClick={confirmEdit} className="text-emerald-600 hover:text-emerald-700">
                 <Check className="h-3.5 w-3.5" />
               </button>
-              <button onClick={cancelEdit} className="text-gray-400 hover:text-gray-600">
+              <button type="button" onClick={cancelEdit} className="text-gray-400 hover:text-gray-600">
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -552,6 +559,7 @@ function BudgetGaugeReal({
               }`}>
                 {budgetMax > 0 ? `Enveloppe · ${fmtEur(budgetMax)}` : 'Enveloppe non définie'}
                 <button
+                  type="button"
                   onClick={startEdit}
                   title="Modifier l'enveloppe"
                   className="ml-0.5 text-gray-400 hover:text-blue-600 transition-colors"
@@ -563,6 +571,7 @@ function BudgetGaugeReal({
               {/* Tooltip ℹ */}
               <div className="relative">
                 <button
+                  type="button"
                   onMouseEnter={() => setShowTooltip(true)}
                   onMouseLeave={() => setShowTooltip(false)}
                   onClick={() => setShowTooltip(v => !v)}
@@ -887,7 +896,7 @@ function CashflowTab({
       <div className="flex flex-col items-center gap-3 py-10 text-center">
         <AlertCircle className="h-8 w-8 text-red-400" />
         <p className="text-sm text-gray-500">{error}</p>
-        <button onClick={refresh} className="flex items-center gap-1.5 text-xs text-blue-600 font-semibold">
+        <button type="button" onClick={refresh} className="flex items-center gap-1.5 text-xs text-blue-600 font-semibold">
           <RefreshCw className="h-3.5 w-3.5" /> Réessayer
         </button>
       </div>
@@ -915,273 +924,371 @@ function CashflowTab({
   );
 }
 
-// ── Simulateur d'aides travaux (style EFFY) ───────────────────────────────────
+// ── Simulateur d'aides travaux (style EFFY) ──────────────────────────────────
 
-const WORK_TYPES = [
-  { key: 'isolation',   label: 'Isolation',          emoji: '🌡' },
-  { key: 'chauffage',   label: 'Chauffage / PAC',     emoji: '🔥' },
-  { key: 'fenetres',    label: 'Fenêtres / menuiseries', emoji: '🪟' },
-  { key: 'ventilation', label: 'VMC / Ventilation',   emoji: '💨' },
-  { key: 'autre',       label: 'Autres travaux',       emoji: '🏗' },
+const WORK_TYPES_EFFY = [
+  { key: 'isolation_combles', label: 'Isolation combles',   emoji: '🏠', desc: 'Combles perdus / aménagés' },
+  { key: 'isolation_murs',    label: 'Isolation murs',      emoji: '🧱', desc: 'ITE ou ITI' },
+  { key: 'pac',               label: 'PAC air/eau',         emoji: '🌀', desc: 'Pompe à chaleur' },
+  { key: 'biomasse',          label: 'Bois / granulés',     emoji: '🪵', desc: 'Chaudière ou poêle' },
+  { key: 'ballon_thermo',     label: 'Chauffe-eau thermo.', emoji: '💧', desc: 'Ballon thermodynamique' },
+  { key: 'vmc',               label: 'VMC double flux',     emoji: '💨', desc: 'Ventilation performante' },
+  { key: 'fenetres',          label: 'Fenêtres',            emoji: '🪟', desc: 'Double ou triple vitrage' },
+  { key: 'autre',             label: 'Autres travaux',      emoji: '🔨', desc: 'Rénovation non éligible MPR' },
 ] as const;
 
-type WorkTypeKey = typeof WORK_TYPES[number]['key'];
+type EffyWorkType = typeof WORK_TYPES_EFFY[number]['key'];
 
-const INCOME_BRACKETS = [
-  { key: 'tres_modestes',  label: 'Très modestes',    sublabel: '< 21 000 € / an' },
-  { key: 'modestes',       label: 'Modestes',         sublabel: '21 000 – 30 000 €' },
-  { key: 'intermediaires', label: 'Intermédiaires',   sublabel: '30 000 – 46 000 €' },
-  { key: 'superieurs',     label: 'Supérieurs',       sublabel: '> 46 000 €' },
-] as const;
-
-type IncomeBracket = typeof INCOME_BRACKETS[number]['key'];
-
-// Taux MaPrimeRénov' + plafond par type × tranche de revenu
-const MAPRIME_RATES: Record<WorkTypeKey, Record<IncomeBracket, number>> = {
-  isolation:   { tres_modestes: 0.75, modestes: 0.60, intermediaires: 0.40, superieurs: 0.15 },
-  chauffage:   { tres_modestes: 0.80, modestes: 0.60, intermediaires: 0.40, superieurs: 0.15 },
-  fenetres:    { tres_modestes: 0.50, modestes: 0.40, intermediaires: 0.20, superieurs: 0.10 },
-  ventilation: { tres_modestes: 0.50, modestes: 0.40, intermediaires: 0.20, superieurs: 0.10 },
-  autre:       { tres_modestes: 0,    modestes: 0,    intermediaires: 0,    superieurs: 0    },
+// Plafonds revenus fiscaux 2025 (hors Île-de-France) par taille ménage
+// [très_modeste, modeste, intermédiaire] — au-delà = supérieur
+const INCOME_THRESHOLDS_2025: Record<number, [number, number, number]> = {
+  1: [17173, 21986, 30063],
+  2: [25212, 32279, 44120],
+  3: [30313, 38814, 53035],
+  4: [35411, 45342, 61944],
+  5: [40522, 51884, 70860],
 };
-const MAPRIME_CAP: Record<WorkTypeKey, number> = {
-  isolation: 20000, chauffage: 12000, fenetres: 5000, ventilation: 3000, autre: 0,
-};
-const CEE_BASE: Record<WorkTypeKey, number> = {
-  isolation: 1200, chauffage: 800, fenetres: 300, ventilation: 200, autre: 0,
-};
-const ECO_PTZ_MAX = 50000;
 
-interface AidesResult {
-  maprime: number;
-  cee: number;
-  eco_ptz_eligible: boolean;
-  total: number;
-  reste: number;
+type MprBracket = 'tres_modestes' | 'modestes' | 'intermediaires' | 'superieurs';
+
+function detectBracket(householdSize: number, annualIncome: number): MprBracket {
+  const n = Math.max(1, Math.min(householdSize, 5));
+  const [tm, m, inter] = INCOME_THRESHOLDS_2025[n];
+  if (annualIncome <= tm)    return 'tres_modestes';
+  if (annualIncome <= m)     return 'modestes';
+  if (annualIncome <= inter) return 'intermediaires';
+  return 'superieurs';
 }
 
-function computeAides(workType: WorkTypeKey, income: IncomeBracket, cost: number): AidesResult {
-  const rate    = MAPRIME_RATES[workType][income];
-  const cap     = MAPRIME_CAP[workType];
-  const maprime = Math.min(Math.round(cost * rate), cap);
-  const cee     = CEE_BASE[workType];
-  const eligible = workType !== 'autre';
-  const total   = maprime + cee;
-  return { maprime, cee, eco_ptz_eligible: eligible, total, reste: Math.max(0, cost - total) };
+// Taux MPR 2025 par type × tranche (barème ANAH — gestes individuels)
+const MPR_RATES: Record<EffyWorkType, Record<MprBracket, number>> = {
+  isolation_combles: { tres_modestes: 0.75, modestes: 0.60, intermediaires: 0.40, superieurs: 0.15 },
+  isolation_murs:    { tres_modestes: 0.75, modestes: 0.60, intermediaires: 0.40, superieurs: 0.15 },
+  pac:               { tres_modestes: 0.80, modestes: 0.65, intermediaires: 0.45, superieurs: 0.20 },
+  biomasse:          { tres_modestes: 0.80, modestes: 0.65, intermediaires: 0.45, superieurs: 0.20 },
+  ballon_thermo:     { tres_modestes: 0.40, modestes: 0.30, intermediaires: 0.20, superieurs: 0    },
+  vmc:               { tres_modestes: 0.50, modestes: 0.35, intermediaires: 0.20, superieurs: 0    },
+  fenetres:          { tres_modestes: 0.40, modestes: 0.30, intermediaires: 0.15, superieurs: 0    },
+  autre:             { tres_modestes: 0,    modestes: 0,    intermediaires: 0,    superieurs: 0    },
+};
+const MPR_CAP: Record<EffyWorkType, number> = {
+  isolation_combles: 30000, isolation_murs: 30000, pac: 17000, biomasse: 12000,
+  ballon_thermo: 3000, vmc: 5000, fenetres: 15000, autre: 0,
+};
+const CEE_AMOUNT: Record<EffyWorkType, number> = {
+  isolation_combles: 1800, isolation_murs: 1500, pac: 1200, biomasse: 1000,
+  ballon_thermo: 200, vmc: 300, fenetres: 400, autre: 0,
+};
+const ECO_PTZ_ELIGIBLE: Record<EffyWorkType, boolean> = {
+  isolation_combles: true, isolation_murs: true, pac: true, biomasse: true,
+  ballon_thermo: true, vmc: true, fenetres: true, autre: false,
+};
+const ECO_PTZ_MAX_AMOUNT = 50000;
+
+const BRACKET_CFG: Record<MprBracket, { bg: string; text: string; border: string; label: string }> = {
+  tres_modestes:  { bg: 'bg-blue-100',   text: 'text-blue-800',   border: 'border-blue-200',   label: 'Ménage très modeste (Bleu)' },
+  modestes:       { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-200', label: 'Ménage modeste (Jaune)' },
+  intermediaires: { bg: 'bg-violet-100', text: 'text-violet-800', border: 'border-violet-200', label: 'Ménage intermédiaire (Violet)' },
+  superieurs:     { bg: 'bg-pink-100',   text: 'text-pink-800',   border: 'border-pink-200',   label: 'Ménage supérieur (Rose)' },
+};
+
+interface EffyResult {
+  maprime: number;
+  maprimeRate: number;
+  maprimeEligible: boolean;
+  cee: number;
+  ecoPtzEligible: boolean;
+  total: number;
+  reste: number;
+  bracket: MprBracket;
+  savingsPct: number;
+}
+
+function computeEffyAides(wt: EffyWorkType, bracket: MprBracket, cost: number, isOwner: boolean): EffyResult {
+  const rate        = MPR_RATES[wt][bracket];
+  const maprimeRate = isOwner ? rate : 0;
+  const maprime     = isOwner ? Math.min(Math.round(cost * maprimeRate), MPR_CAP[wt]) : 0;
+  const cee         = CEE_AMOUNT[wt];
+  const total       = maprime + cee;
+  const reste       = Math.max(0, cost - total);
+  const savingsPct  = cost > 0 ? Math.round((total / cost) * 100) : 0;
+  return {
+    maprime, maprimeRate, maprimeEligible: maprime > 0,
+    cee, ecoPtzEligible: ECO_PTZ_ELIGIBLE[wt] && isOwner,
+    total, reste, bracket, savingsPct,
+  };
 }
 
 function AidesTravaux() {
-  const [step,     setStep]     = useState<1 | 2>(1);
-  const [workType, setWorkType] = useState<WorkTypeKey | null>(null);
-  const [income,   setIncome]   = useState<IncomeBracket | null>(null);
-  const [cost,     setCost]     = useState('');
-  const [result,   setResult]   = useState<AidesResult | null>(null);
+  const [step,          setStep]          = useState<1 | 2 | 3>(1);
+  const [workType,      setWorkType]      = useState<EffyWorkType | null>(null);
+  const [cost,          setCost]          = useState('');
+  const [isOwner,       setIsOwner]       = useState<boolean | null>(null);
+  const [householdSize, setHouseholdSize] = useState(2);
+  const [annualIncome,  setAnnualIncome]  = useState('');
+  const [result,        setResult]        = useState<EffyResult | null>(null);
+
+  const costNum   = parseFloat(cost.replace(/\s/g, '').replace(',', '.'));
+  const incomeNum = parseFloat(annualIncome.replace(/\s/g, '').replace(',', '.'));
+  const canStep2  = workType !== null && !isNaN(costNum) && costNum > 0;
+  const canCalc   = isOwner !== null && !isNaN(incomeNum) && incomeNum > 0;
+
+  function goStep2() { if (canStep2) setStep(2); }
 
   function calculate() {
-    const c = parseFloat(cost.replace(/\s/g, '').replace(',', '.'));
-    if (!workType || !income || isNaN(c) || c <= 0) return;
-    setResult(computeAides(workType, income, c));
-    setStep(2);
+    if (!workType || !canCalc) return;
+    const bracket = detectBracket(householdSize, incomeNum);
+    setResult(computeEffyAides(workType, bracket, costNum, isOwner!));
+    setStep(3);
   }
 
-  const costNum = parseFloat(cost.replace(/\s/g, '').replace(',', '.'));
-  const canCalc = workType !== null && income !== null && !isNaN(costNum) && costNum > 0;
+  function reset() {
+    setStep(1); setWorkType(null); setCost(''); setIsOwner(null);
+    setHouseholdSize(2); setAnnualIncome(''); setResult(null);
+  }
 
-  if (step === 2 && result) {
-    const wt = WORK_TYPES.find(w => w.key === workType);
-    const inc = INCOME_BRACKETS.find(b => b.key === income);
+  const ProgressBar = () => (
+    <div className="flex items-center gap-1.5 mb-5">
+      {([1, 2, 3] as const).map(s => (
+        <div key={s} className="flex items-center gap-1.5 flex-1">
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 transition-all ${
+            step > s  ? 'bg-emerald-500 text-white' :
+            step === s ? 'bg-blue-600 text-white ring-4 ring-blue-100' :
+            'bg-gray-100 text-gray-400'
+          }`}>
+            {step > s ? <Check className="h-3 w-3" /> : s}
+          </div>
+          {s < 3 && <div className={`flex-1 h-0.5 rounded-full transition-all ${step > s ? 'bg-emerald-400' : 'bg-gray-100'}`} />}
+        </div>
+      ))}
+    </div>
+  );
+
+  // ── Étape 3 : résultats ──
+  if (step === 3 && result) {
+    const wt = WORK_TYPES_EFFY.find(w => w.key === workType);
+    const bc = BRACKET_CFG[result.bracket];
     return (
       <div className="space-y-4">
-        {/* En-tête résultats */}
-        <div className="flex items-center justify-between">
+        <ProgressBar />
+        <div className="flex items-start justify-between gap-2">
           <div>
-            <p className="text-xs font-bold text-gray-700">
-              {wt?.emoji} {wt?.label} · {fmtEur(costNum)} · {inc?.label}
-            </p>
-            <p className="text-[10px] text-gray-400">Simulation indicative 2025</p>
+            <p className="text-sm font-bold text-gray-800">{wt?.emoji} {wt?.label} · {fmtEur(costNum)}</p>
+            <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border mt-1 ${bc.bg} ${bc.text} ${bc.border}`}>
+              {bc.label}
+            </span>
           </div>
-          <button
-            onClick={() => { setStep(1); setResult(null); }}
-            className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1"
-          >
+          <button type="button" onClick={reset}
+            className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 shrink-0">
             <RotateCcw className="h-3 w-3" /> Modifier
           </button>
         </div>
 
-        {/* Cartes aides */}
-        <div className="space-y-3">
-          {/* MaPrimeRénov' */}
-          <div className={`rounded-xl border p-4 ${result.maprime > 0 ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100'}`}>
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-2">
-                <span className="text-base">🟢</span>
-                <span className={`text-xs font-bold ${result.maprime > 0 ? 'text-green-800' : 'text-gray-400'}`}>
-                  MaPrimeRénov'
-                </span>
-                {result.maprime > 0 && (
-                  <span className="text-[10px] font-semibold bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full">
-                    Éligible
-                  </span>
-                )}
+        <div className={`rounded-2xl p-4 text-center ${result.savingsPct > 0 ? 'bg-gradient-to-br from-emerald-500 to-blue-600' : 'bg-gray-100'}`}>
+          {result.savingsPct > 0 ? (
+            <>
+              <p className="text-xs font-bold text-white/70 uppercase tracking-wider mb-1">Économie estimée</p>
+              <p className="text-4xl font-extrabold text-white leading-none">{fmtEur(result.total)}</p>
+              <p className="text-sm text-white/80 mt-1">soit {result.savingsPct} % du coût des travaux</p>
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                <div className="bg-white/15 rounded-xl p-2.5">
+                  <p className="text-[10px] text-white/70 mb-0.5">Reste à charge</p>
+                  <p className="text-lg font-extrabold text-white">{fmtEur(result.reste)}</p>
+                </div>
+                <div className="bg-white/15 rounded-xl p-2.5">
+                  <p className="text-[10px] text-white/70 mb-0.5">Aides directes</p>
+                  <p className="text-lg font-extrabold text-white">{fmtEur(result.total)}</p>
+                </div>
               </div>
-              <span className={`text-base font-extrabold tabular-nums ${result.maprime > 0 ? 'text-green-700' : 'text-gray-300'}`}>
-                {result.maprime > 0 ? `jusqu'à ${fmtEur(result.maprime)}` : 'Non éligible'}
-              </span>
-            </div>
-            <p className="text-[10px] text-gray-500 leading-relaxed ml-7">
-              {result.maprime > 0
-                ? `Subvention de l'État — taux ${Math.round(MAPRIME_RATES[workType!][income!] * 100)} % du coût HT éligible, plafonné à ${fmtEur(MAPRIME_CAP[workType!])}.`
-                : "Ce type de travaux n'est pas éligible à MaPrimeRénov' pour cette tranche de revenu."}
-            </p>
-          </div>
-
-          {/* CEE */}
-          <div className={`rounded-xl border p-4 ${result.cee > 0 ? 'bg-yellow-50 border-yellow-100' : 'bg-gray-50 border-gray-100'}`}>
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-2">
-                <span className="text-base">💡</span>
-                <span className={`text-xs font-bold ${result.cee > 0 ? 'text-yellow-800' : 'text-gray-400'}`}>
-                  CEE (Certificats d'Économie d'Énergie)
-                </span>
-                {result.cee > 0 && (
-                  <span className="text-[10px] font-semibold bg-yellow-200 text-yellow-800 px-1.5 py-0.5 rounded-full">
-                    Cumulable
-                  </span>
-                )}
-              </div>
-              <span className={`text-base font-extrabold tabular-nums ${result.cee > 0 ? 'text-yellow-700' : 'text-gray-300'}`}>
-                {result.cee > 0 ? `~${fmtEur(result.cee)}` : '—'}
-              </span>
-            </div>
-            <p className="text-[10px] text-gray-500 leading-relaxed ml-7">
-              {result.cee > 0
-                ? 'Prime versée par les fournisseurs d\'énergie. Cumulable avec MaPrimeRénov\'. Montant indicatif.'
-                : "Ce type de travaux n'est pas concerné par les CEE."}
-            </p>
-          </div>
-
-          {/* Éco-PTZ */}
-          <div className={`rounded-xl border p-4 ${result.eco_ptz_eligible ? 'bg-violet-50 border-violet-100' : 'bg-gray-50 border-gray-100'}`}>
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-2">
-                <span className="text-base">🏠</span>
-                <span className={`text-xs font-bold ${result.eco_ptz_eligible ? 'text-violet-800' : 'text-gray-400'}`}>
-                  Éco-PTZ
-                </span>
-                {result.eco_ptz_eligible && (
-                  <span className="text-[10px] font-semibold bg-violet-200 text-violet-800 px-1.5 py-0.5 rounded-full">
-                    Sans intérêts
-                  </span>
-                )}
-              </div>
-              <span className={`text-base font-extrabold tabular-nums ${result.eco_ptz_eligible ? 'text-violet-700' : 'text-gray-300'}`}>
-                {result.eco_ptz_eligible ? `jusqu'à ${fmtEur(ECO_PTZ_MAX)}` : 'Non éligible'}
-              </span>
-            </div>
-            <p className="text-[10px] text-gray-500 leading-relaxed ml-7">
-              {result.eco_ptz_eligible
-                ? 'Prêt à taux 0 % pour financer le reste à charge. Durée jusqu\'à 20 ans. Cumulable avec les aides.'
-                : "Ce type de travaux n'est pas éligible à l'Éco-PTZ."}
-            </p>
-          </div>
-        </div>
-
-        {/* Récapitulatif */}
-        <div className="bg-blue-600 rounded-2xl p-5 text-white">
-          <p className="text-xs font-bold uppercase tracking-wider opacity-70 mb-3">Votre gain estimé</p>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div className="bg-white/10 rounded-xl p-3 text-center">
-              <p className="text-[10px] opacity-70 mb-0.5">Aides directes</p>
-              <p className="text-xl font-extrabold">{fmtEur(result.total)}</p>
-            </div>
-            <div className="bg-white/10 rounded-xl p-3 text-center">
-              <p className="text-[10px] opacity-70 mb-0.5">Reste à charge</p>
-              <p className="text-xl font-extrabold">{fmtEur(result.reste)}</p>
-            </div>
-          </div>
-          {result.eco_ptz_eligible && (
-            <p className="text-[11px] opacity-80 text-center">
-              + Éco-PTZ jusqu'à {fmtEur(ECO_PTZ_MAX)} sans intérêts pour financer le reste
-            </p>
+            </>
+          ) : (
+            <p className="text-sm font-semibold text-gray-500 py-2">Ces travaux ne sont pas éligibles aux aides énergétiques</p>
           )}
         </div>
 
-        <p className="text-[10px] text-gray-400 text-center leading-relaxed border-t border-gray-50 pt-3">
-          Simulation indicative. Montants soumis à conditions (artisan RGE, ancienneté du logement ≥ 2 ans, résidence principale, etc.).
-          Consultez un conseiller France Rénov' pour une estimation personnalisée.
+        <div className="space-y-2.5">
+          <div className={`rounded-xl border p-3.5 ${result.maprimeEligible ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100'}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">🟢</span>
+                <span className={`text-xs font-bold ${result.maprimeEligible ? 'text-green-800' : 'text-gray-400'}`}>MaPrimeRénov'</span>
+                {result.maprimeEligible && <span className="text-[10px] font-semibold bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full">Subvention État</span>}
+              </div>
+              <span className={`text-sm font-extrabold ${result.maprimeEligible ? 'text-green-700' : 'text-gray-300'}`}>
+                {result.maprimeEligible ? `~${fmtEur(result.maprime)}` : 'Non éligible'}
+              </span>
+            </div>
+            {result.maprimeEligible && (
+              <p className="text-[10px] text-gray-500 mt-1.5 ml-6">
+                Taux {Math.round(result.maprimeRate * 100)} % · plafond {fmtEur(MPR_CAP[workType!])} · artisan RGE requis
+              </p>
+            )}
+            {!result.maprimeEligible && !isOwner && (
+              <p className="text-[10px] text-amber-600 mt-1.5 ml-6">⚠ Réservée aux propriétaires occupants</p>
+            )}
+          </div>
+
+          <div className={`rounded-xl border p-3.5 ${result.cee > 0 ? 'bg-yellow-50 border-yellow-100' : 'bg-gray-50 border-gray-100'}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">💡</span>
+                <span className={`text-xs font-bold ${result.cee > 0 ? 'text-yellow-800' : 'text-gray-400'}`}>CEE</span>
+                {result.cee > 0 && <span className="text-[10px] font-semibold bg-yellow-200 text-yellow-800 px-1.5 py-0.5 rounded-full">Cumulable MPR</span>}
+              </div>
+              <span className={`text-sm font-extrabold ${result.cee > 0 ? 'text-yellow-700' : 'text-gray-300'}`}>
+                {result.cee > 0 ? `~${fmtEur(result.cee)}` : '—'}
+              </span>
+            </div>
+            {result.cee > 0 && (
+              <p className="text-[10px] text-gray-500 mt-1.5 ml-6">Prime versée par les fournisseurs d'énergie (Engie, EDF…)</p>
+            )}
+          </div>
+
+          <div className={`rounded-xl border p-3.5 ${result.ecoPtzEligible ? 'bg-violet-50 border-violet-100' : 'bg-gray-50 border-gray-100'}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">🏦</span>
+                <span className={`text-xs font-bold ${result.ecoPtzEligible ? 'text-violet-800' : 'text-gray-400'}`}>Éco-PTZ</span>
+                {result.ecoPtzEligible && <span className="text-[10px] font-semibold bg-violet-200 text-violet-800 px-1.5 py-0.5 rounded-full">0 % d'intérêts</span>}
+              </div>
+              <span className={`text-sm font-extrabold ${result.ecoPtzEligible ? 'text-violet-700' : 'text-gray-300'}`}>
+                {result.ecoPtzEligible ? `jusqu'à ${fmtEur(ECO_PTZ_MAX_AMOUNT)}` : 'Non éligible'}
+              </span>
+            </div>
+            {result.ecoPtzEligible && (
+              <p className="text-[10px] text-gray-500 mt-1.5 ml-6">Prêt sans intérêt pour financer le reste à charge — jusqu'à 20 ans</p>
+            )}
+          </div>
+        </div>
+
+        <p className="text-[10px] text-gray-400 text-center leading-relaxed pt-2 border-t border-gray-50">
+          Simulation indicative 2025 — barème ANAH. Montants soumis à conditions (artisan RGE, logement &gt; 2 ans, résidence principale).
+          {' '}Conseiller France Rénov'{' '}<strong>0 808 800 700</strong> (gratuit).
         </p>
       </div>
     );
   }
 
+  // ── Étape 2 : profil ──
+  if (step === 2) {
+    const previewBracket = !isNaN(incomeNum) && incomeNum > 0 ? detectBracket(householdSize, incomeNum) : null;
+    const pbc = previewBracket ? BRACKET_CFG[previewBracket] : null;
+    return (
+      <div className="space-y-5">
+        <ProgressBar />
+        <div>
+          <p className="text-sm font-bold text-gray-800 mb-0.5">Votre profil</p>
+          <p className="text-[11px] text-gray-400">Pour calculer votre tranche de revenus ANAH</p>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-gray-600">Vous êtes…</p>
+          <div className="grid grid-cols-2 gap-2">
+            {([{ v: true, label: 'Propriétaire', emoji: '🏠' }, { v: false, label: 'Locataire', emoji: '🔑' }] as const).map(o => (
+              <button key={String(o.v)} type="button" onClick={() => setIsOwner(o.v)}
+                className={`flex items-center gap-2 px-3 py-3 rounded-xl border text-left transition-all ${
+                  isOwner === o.v ? 'bg-blue-50 border-blue-300 text-blue-800 shadow-sm' : 'bg-white border-gray-200 text-gray-600 hover:border-blue-200'
+                }`}>
+                <span className="text-lg">{o.emoji}</span>
+                <span className="text-xs font-semibold">{o.label}</span>
+              </button>
+            ))}
+          </div>
+          {isOwner === false && (
+            <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+              ⚠ MaPrimeRénov' est réservée aux propriétaires. Vous pouvez toutefois bénéficier des CEE et de l'Éco-PTZ.
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-gray-600">Personnes dans le foyer fiscal</p>
+          <div className="flex gap-2">
+            {([1, 2, 3, 4, 5] as const).map(n => (
+              <button key={n} type="button" onClick={() => setHouseholdSize(n)}
+                className={`flex-1 py-2.5 rounded-xl border text-xs font-bold transition-all ${
+                  householdSize === n ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-white border-gray-200 text-gray-600 hover:border-blue-300'
+                }`}>
+                {n === 5 ? '5+' : n}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-gray-600">Revenu fiscal de référence annuel du foyer</p>
+          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+            <input
+              type="text"
+              inputMode="decimal"
+              value={annualIncome}
+              onChange={e => setAnnualIncome(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && canCalc) calculate(); }}
+              placeholder="ex : 32 000"
+              className="flex-1 bg-transparent text-sm font-semibold text-gray-900 outline-none placeholder:text-gray-300 placeholder:font-normal"
+            />
+            <span className="text-xs font-bold text-gray-400 shrink-0">€ / an</span>
+          </div>
+          {pbc && (
+            <p className={`text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border ${pbc.bg} ${pbc.text} ${pbc.border}`}>
+              Tranche estimée : {pbc.label}
+            </p>
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setStep(1)}
+            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 font-semibold bg-white border border-gray-200 rounded-xl px-4 py-2.5 transition-colors">
+            ← Retour
+          </button>
+          <button type="button" onClick={calculate} disabled={!canCalc}
+            className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-colors flex items-center justify-center gap-2">
+            <ChevronRight className="h-4 w-4" />
+            Calculer mes aides
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Étape 1 : travaux + coût ──
   return (
     <div className="space-y-5">
-      <div className="bg-green-50 border border-green-100 rounded-2xl px-4 py-3.5">
-        <p className="text-xs font-bold text-green-700 mb-1">🏠 Simulateur d'aides travaux 2025</p>
-        <p className="text-xs text-green-700 leading-relaxed">
-          Estimez vos droits à MaPrimeRénov', CEE et Éco-PTZ en quelques secondes.
-        </p>
+      <ProgressBar />
+      <div>
+        <p className="text-sm font-bold text-gray-800 mb-0.5">Vos travaux</p>
+        <p className="text-[11px] text-gray-400">Estimez vos droits à MaPrimeRénov', CEE et Éco-PTZ en 1 minute</p>
       </div>
 
-      {/* 1. Type de travaux */}
       <div className="space-y-2">
-        <p className="text-xs font-bold text-gray-600">1. Type de travaux</p>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {WORK_TYPES.map(wt => (
-            <button
-              key={wt.key}
-              onClick={() => setWorkType(wt.key)}
+        <p className="text-xs font-bold text-gray-600">Type de travaux</p>
+        <div className="grid grid-cols-2 gap-2">
+          {WORK_TYPES_EFFY.map(wt => (
+            <button key={wt.key} type="button" onClick={() => setWorkType(wt.key)}
               className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-left transition-all ${
                 workType === wt.key
-                  ? 'bg-blue-50 border-blue-300 text-blue-800 font-semibold shadow-sm'
-                  : 'bg-white border-gray-200 text-gray-600 hover:border-blue-200 hover:bg-blue-50/50'
-              }`}
-            >
-              <span className="text-base">{wt.emoji}</span>
-              <span className="text-xs font-medium leading-tight">{wt.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* 2. Revenus */}
-      <div className="space-y-2">
-        <p className="text-xs font-bold text-gray-600">2. Revenus du foyer (revenu fiscal de référence)</p>
-        <div className="space-y-1.5">
-          {INCOME_BRACKETS.map(b => (
-            <button
-              key={b.key}
-              onClick={() => setIncome(b.key)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all ${
-                income === b.key
-                  ? 'bg-blue-50 border-blue-300 shadow-sm'
-                  : 'bg-white border-gray-200 hover:border-blue-200 hover:bg-blue-50/50'
-              }`}
-            >
-              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                income === b.key ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
+                  ? 'bg-blue-50 border-blue-300 text-blue-800 shadow-sm'
+                  : 'bg-white border-gray-200 text-gray-600 hover:border-blue-200 hover:bg-blue-50/40'
               }`}>
-                {income === b.key && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-              </div>
-              <div>
-                <p className={`text-xs font-semibold ${income === b.key ? 'text-blue-800' : 'text-gray-700'}`}>{b.label}</p>
-                <p className="text-[10px] text-gray-400">{b.sublabel}</p>
+              <span className="text-base shrink-0">{wt.emoji}</span>
+              <div className="min-w-0">
+                <p className={`text-xs font-semibold leading-tight ${workType === wt.key ? 'text-blue-800' : 'text-gray-700'}`}>{wt.label}</p>
+                <p className="text-[10px] text-gray-400 leading-tight truncate">{wt.desc}</p>
               </div>
             </button>
           ))}
         </div>
       </div>
 
-      {/* 3. Coût estimé */}
       <div className="space-y-2">
-        <p className="text-xs font-bold text-gray-600">3. Coût estimé des travaux</p>
+        <p className="text-xs font-bold text-gray-600">Coût estimé des travaux (TTC)</p>
         <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
           <input
             type="text"
             inputMode="decimal"
             value={cost}
             onChange={e => setCost(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && canCalc) calculate(); }}
+            onKeyDown={e => { if (e.key === 'Enter' && canStep2) goStep2(); }}
             placeholder="ex : 15 000"
             className="flex-1 bg-transparent text-sm font-semibold text-gray-900 outline-none placeholder:text-gray-300 placeholder:font-normal"
           />
@@ -1189,17 +1296,16 @@ function AidesTravaux() {
         </div>
       </div>
 
-      <button
-        onClick={calculate}
-        disabled={!canCalc}
-        className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
-      >
+      <button type="button" onClick={goStep2} disabled={!canStep2}
+        className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-colors flex items-center justify-center gap-2">
         <ChevronRight className="h-4 w-4" />
-        Calculer mes aides
+        Suivant — Mon profil
       </button>
     </div>
   );
 }
+
+
 
 // ── Simulateur crédit travaux ─────────────────────────────────────────────────
 
@@ -1339,6 +1445,7 @@ function FinancementTab() {
       {/* Sous-nav */}
       <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
         <button
+          type="button"
           onClick={() => setSub('aides')}
           className={`flex-1 text-xs font-semibold px-3 py-2 rounded-lg transition-all ${
             sub === 'aides' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
@@ -1347,6 +1454,7 @@ function FinancementTab() {
           🏠 Aides travaux
         </button>
         <button
+          type="button"
           onClick={() => setSub('credit')}
           className={`flex-1 text-xs font-semibold px-3 py-2 rounded-lg transition-all ${
             sub === 'credit' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
