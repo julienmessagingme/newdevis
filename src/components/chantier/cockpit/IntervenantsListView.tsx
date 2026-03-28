@@ -105,9 +105,9 @@ export default function IntervenantsListView({
     return acc + (prices.length ? Math.min(...prices) : 0);
   }, 0), [sorted, analysisData]);
 
-  // DIY : uniquement les documents sans lot lié (vraie auto-construction)
+  // DIY : uniquement les factures de matériaux sans lot lié (achats faits par le client)
   const diyDocs = useMemo(() =>
-    documents.filter(d => !d.lot_id && (d.document_type === 'facture' || d.document_type === 'photo')),
+    documents.filter(d => !d.lot_id && d.document_type === 'facture'),
   [documents]);
 
   const filterOptions: { key: FilterStatus; label: string; dot?: string }[] = [
@@ -155,13 +155,13 @@ export default function IntervenantsListView({
 
         {/* En-tête colonnes */}
         <div className={`grid ${GRID} border-b border-gray-100 bg-gray-50`}>
-          <div className="px-4 py-2.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Intervenant / Artisan</div>
-          <div className="px-4 py-2.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Lot</div>
+          <div className="px-4 py-2.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Intervenant / Document</div>
+          <div className="px-4 py-2.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Type</div>
           <div className="px-4 py-2.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right">Prix TTC</div>
           <div className="px-4 py-2.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Statut</div>
           <div className="px-4 py-2.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
             <span className="flex items-center gap-1">
-              Score fiabilité
+              Score
               <span
                 title="Score VerifierMonDevis — analyse automatique du devis : clauses légales, prix marché, solvabilité. 🟢 Bon · 🟡 Moyen · 🔴 Risqué"
                 className="cursor-help inline-flex">
@@ -199,11 +199,10 @@ export default function IntervenantsListView({
                     <span className="text-base leading-none shrink-0">{lot.emoji ?? '🔧'}</span>
                     <span className="font-extrabold text-sm text-gray-900 truncate">{lot.nom}</span>
                   </div>
-                  {/* Statut lot */}
+                  {/* Col 2 : nb devis */}
                   <div className="px-4 py-3 flex items-center">
-                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border ${cfg.badge}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-                      {cfg.label}
+                    <span className="text-[11px] text-gray-400">
+                      {devisDocs.length} devis{devisDocs.length !== 1 ? '' : ''}
                     </span>
                   </div>
                   {/* Prix total lot — gras, droite */}
@@ -222,12 +221,17 @@ export default function IntervenantsListView({
                       <span className="text-sm text-gray-300 font-medium">—</span>
                     )}
                   </div>
-                  {/* Statut (vide au niveau lot) */}
-                  <div className="px-4 py-3" />
+                  {/* Col 4 : Statut du lot */}
+                  <div className="px-4 py-3 flex items-center">
+                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border ${cfg.badge}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                      {cfg.label}
+                    </span>
+                  </div>
                   {/* Score (vide au niveau lot) */}
                   <div className="px-4 py-3" />
                   {/* Actions lot */}
-                  <div className="px-4 py-3 flex items-center justify-end gap-1.5">
+                  <div className="px-4 py-3 flex items-center justify-end gap-1">
                     {devisDocs.length >= 2 && (
                       <button
                         onClick={() => setComparingLot({ lot, docs: devisDocs })}
@@ -346,24 +350,26 @@ export default function IntervenantsListView({
           })
         )}
 
-        {/* ── DIY — uniquement si des docs non-liés existent ── */}
+        {/* ── DIY — uniquement si des factures matériaux non-liées à un lot existent ── */}
         {diyDocs.length > 0 && (
           <div className="border-t border-dashed border-gray-200">
-            <div className={`grid ${GRID} bg-gray-50/60 border-l-4 border-l-gray-200`}>
-              <div className="px-4 py-3 pl-4 flex items-center gap-2.5">
-                <span className="text-base leading-none">🔧</span>
+            <div className={`grid ${GRID} bg-amber-50/40 border-l-4 border-l-amber-200`}>
+              <div className="px-4 py-3 flex items-center gap-2.5">
+                <span className="text-base leading-none">🛒</span>
                 <div className="min-w-0">
-                  <p className="font-bold text-sm text-gray-600 truncate">Auto-construction / DIY</p>
-                  <p className="text-[10px] text-gray-400">{diyDocs.length} document{diyDocs.length !== 1 ? 's' : ''} non-liés à un intervenant</p>
+                  <p className="font-bold text-sm text-amber-800 truncate">Achats matériaux (DIY)</p>
+                  <p className="text-[10px] text-amber-600">{diyDocs.length} facture{diyDocs.length !== 1 ? 's' : ''} · pose assurée par vous</p>
                 </div>
               </div>
-              <div className="px-4 py-3" />
+              <div className="px-4 py-3 flex items-center">
+                <span className="text-[11px] text-amber-600 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full font-semibold">Matériaux</span>
+              </div>
               <div className="px-4 py-3" />
               <div className="px-4 py-3" />
               <div className="px-4 py-3" />
               <div className="px-4 py-3 flex items-center justify-end">
                 <button onClick={onGoToDiy}
-                  className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap">
+                  className="text-[11px] font-semibold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap">
                   Voir →
                 </button>
               </div>
@@ -372,16 +378,17 @@ export default function IntervenantsListView({
         )}
 
         {/* ── Footer récap ── */}
-        <div className="px-5 py-3 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between gap-4">
+        <div className="px-5 py-3.5 bg-gray-50 border-t border-gray-200 flex items-center justify-between gap-4">
           <span className="text-[11px] text-gray-400">
             {sorted.length} intervenant{sorted.length > 1 ? 's' : ''} · {sorted.reduce((s, g) => s + g.devisDocs.length, 0)} devis
           </span>
           {totalEstimated > 0 && (
-            <div className="flex items-center gap-3">
-              <span className="text-[11px] text-gray-400">
-                Total estimé <span className="text-gray-300">(devis validés ou prix min par lot)</span>
+            <div className="flex items-center gap-2.5 bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm">
+              <span className="text-[11px] text-gray-400 whitespace-nowrap">
+                Total TTC estimé
               </span>
-              <span className="text-sm font-extrabold text-gray-900 tabular-nums">{fmtEur(totalEstimated)}</span>
+              <span className="text-[11px] text-gray-300 hidden sm:inline">(devis validés ou prix min)</span>
+              <span className="text-base font-extrabold text-gray-900 tabular-nums">{fmtEur(totalEstimated)}</span>
             </div>
           )}
         </div>
