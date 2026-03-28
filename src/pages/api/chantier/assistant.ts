@@ -50,6 +50,15 @@ interface AssistantRequestBody {
   planning?: { phase: string; statut: string }[];
 }
 
+export interface AssistantProposition {
+  id: string;
+  titre: string;
+  description: string;
+  action_type: 'analyse_devis' | 'budget_review' | 'add_devis';
+  cta_oui: string;
+  cta_non: string;
+}
+
 export interface AssistantResult {
   action_prioritaire: {
     titre: string;
@@ -63,47 +72,38 @@ export interface AssistantResult {
     cta: string;
   }[];
   conseil_metier: string;
+  propositions?: AssistantProposition[];
 }
 
 // ── System prompt ─────────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `Tu es un maître d'œuvre avec 20 ans d'expérience en travaux.
-Tu es propulsé par Gemini 2.0, la même intelligence artificielle utilisée sur la plateforme pour analyser les devis travaux. Tu dois garantir une cohérence totale avec les analyses réalisées (prix, anomalies, fiabilité).
-Ton rôle :
-Aider un particulier à piloter son chantier simplement, comme le ferait un vrai maître d'œuvre.
-Tu dois être :
-* concret
-* direct
-* utile immédiatement
-Règles STRICTES :
-* Pas de blabla
-* Pas de phrases longues
-* Maximum 12 mots par message
-* Toujours orienté action
-* Ne jamais inventer d'informations
-* Utiliser uniquement les données fournies
-* Être cohérent avec les analyses de devis existantes (scores, prix marché, anomalies)
-* Si une donnée est manquante → le signaler clairement
+const SYSTEM_PROMPT = `Tu es un maître d'œuvre professionnel avec 20 ans d'expérience en conduite de travaux.
+Tu pilotes ce chantier pour le compte du client. Tu es concret, direct, et toujours orienté action.
+
+RÈGLES DE COMMUNICATION :
+- Phrases courtes et percutantes (max 20 mots par champ texte)
+- Jamais de généralités ("restez vigilant", "choisissez bien vos artisans", "vérifiez les références")
+- Uniquement des faits concrets avec chiffres quand disponibles
+- Ne jamais inventer d'informations
+
 LOGIQUE MÉTIER :
-* 0 devis → chantier bloqué → critique
-* 1 devis → insuffisant → risque
-* ≥2 devis → comparaison possible → OK
-* devis > budget → alerte dépassement
-* devis cohérent marché → validation possible
+- 0 devis → chantier bloqué → action critique immédiate
+- Devis sans analyse IA → risque fort de payer trop cher → proposer l'analyse
+- Écart budget significatif (>15%) → alerte dépassement avec montant précis
+- Devis > prix marché → signaler le % d'écart
+- Score ROUGE sur un devis → alerte critique avec nom de l'artisan
+
 RÈGLE COHÉRENCE (PRIORITAIRE) :
-* Si [COHERENCE_DEVIS] contient "INCOHÉRENCE DÉTECTÉE" :
-  - Ne jamais valider ces devis
-  - Générer une alerte de type "critique" pour chaque devis hors périmètre
-  - Format exact : { "type": "critique", "message": "Devis [nom] hors périmètre projet", "cta": "Vérifier" }
-  - Proposer 2 actions dans conseil_metier : corriger le projet OU supprimer le devis
-* Si tous les devis sont cohérents → ne pas générer d'alerte cohérence
-Toujours :
-* expliquer simplement
-* guider vers UNE action claire
-* rester concret chantier (pas théorique)
-IMPORTANT :
-Ton objectif est d'être utile, pas intelligent.
-Tu es un maître d'œuvre terrain, pas un assistant générique.
+- Si [COHERENCE_DEVIS] contient "INCOHÉRENCE DÉTECTÉE" → alerte critique par devis hors périmètre
+- Format : { "type": "critique", "message": "Devis [nom] hors périmètre projet", "cta": "Vérifier" }
+
+PROPOSITIONS INTERACTIVES (champ "propositions") :
+- Si des devis n'ont PAS encore été analysés → TOUJOURS générer une proposition action_type="analyse_devis"
+- Si le budget estimé dépasse l'enveloppe → proposition action_type="budget_review"
+- Si aucun devis n'est déposé pour un lot important → proposition action_type="add_devis"
+- Maximum 2 propositions
+- Chaque proposition doit être une offre concrète du maître d'œuvre ("Je peux...", "Voulez-vous que je...")
+
 Réponds UNIQUEMENT avec un JSON valide, sans balises markdown, sans commentaires.`;
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -164,15 +164,23 @@ export const POST: APIRoute = async ({ request }) => {
       }).join('\n')
     : 'Aucun intervenant défini';
 
+  // Détecter les devis sans analyse IA
+  const devisNonAnalyses = devisEnrichis.filter(d => !d.analyse_id);
+  const devisAnalyses    = devisEnrichis.filter(d => !!d.analyse_id);
+
   const devisStr = devisEnrichis.length > 0
     ? devisEnrichis.map(d => {
-        let str = `- ${d.nom} [type: ${d.type}]`;
+        let str = `- ${d.nom} [type: ${d.type}, analysé: ${d.analyse_id ? 'OUI' : 'NON'}]`;
         if (d.montant != null) str += ` (${Math.round(d.montant / 1000)}k€)`;
         if (d.analysisScore) str += ` [score: ${d.analysisScore}]`;
         if (d.anomalies) str += ` ⚠ ${d.anomalies}`;
         return str;
       }).join('\n')
     : 'Aucun devis transmis';
+
+  const devisNonAnalysesStr = devisNonAnalyses.length > 0
+    ? `⚠ ${devisNonAnalyses.length} devis sans analyse IA : ${devisNonAnalyses.map(d => `"${d.nom}"`).join(', ')}`
+    : 'Tous les devis sont analysés';
 
   const elementsProjetStr = elementsProjet.length > 0
     ? elementsProjet.join(', ')
@@ -199,8 +207,11 @@ ${coherenceStr}
 [INTERVENANTS]
 ${lotsStr}
 
-[DEVIS] (${devisCount} total, ${lotsNoDev} lots sans devis)
+[DEVIS] (${devisCount} total, ${devisAnalyses.length} analysés, ${devisNonAnalyses.length} non analysés, ${lotsNoDev} lots sans devis)
 ${devisStr}
+
+[DEVIS_NON_ANALYSÉS]
+${devisNonAnalysesStr}
 
 [BUDGET] ${budgetStr}
 
@@ -210,24 +221,35 @@ ${planningStr}
 Retourne UNIQUEMENT ce JSON (pas de markdown, pas de texte avant ou après) :
 {
   "action_prioritaire": {
-    "titre": "titre court (max 8 mots)",
-    "raison": "explication courte (max 12 mots)",
-    "cta": "libellé du bouton d'action"
+    "titre": "titre concret (max 10 mots)",
+    "raison": "explication avec chiffres si dispo (max 20 mots)",
+    "cta": "libellé bouton action"
   },
   "insights": [
-    "insight 1 (max 12 mots)",
-    "insight 2 (max 12 mots)",
-    "insight 3 (max 12 mots)"
+    "observation concrète avec chiffres (max 20 mots)",
+    "observation concrète avec chiffres (max 20 mots)"
   ],
   "alertes": [
     {
       "type": "critique | risque | opportunité",
-      "message": "message court (max 12 mots)",
+      "message": "message précis avec montants/% si dispo (max 20 mots)",
       "cta": "action"
     }
   ],
-  "conseil_metier": "conseil terrain concret (max 20 mots)"
-}`;
+  "conseil_metier": "conseil terrain actionnable avec contexte spécifique (max 25 mots)",
+  "propositions": [
+    {
+      "id": "prop_1",
+      "titre": "Proposition courte (max 8 mots)",
+      "description": "Je peux... / Voulez-vous que je... (max 20 mots)",
+      "action_type": "analyse_devis | budget_review | add_devis",
+      "cta_oui": "Oui, lancer",
+      "cta_non": "Non merci"
+    }
+  ]
+}
+
+IMPORTANT : Ne génère la section "propositions" que si tu as une proposition concrète. Si aucune proposition pertinente, mets "propositions": [].`;
 
   // ── Appel Gemini 2.0-flash ────────────────────────────────────────────────
 
@@ -246,7 +268,7 @@ Retourne UNIQUEMENT ce JSON (pas de markdown, pas de texte avant ou après) :
             { role: 'system', content: SYSTEM_PROMPT },
             { role: 'user',   content: userMessage   },
           ],
-          max_tokens: 512,
+          max_tokens: 1024,
           temperature: 0.2, // bas pour rester factuel
         }),
       },

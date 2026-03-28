@@ -1028,16 +1028,29 @@ function computeEffyAides(wt: EffyWorkType, bracket: MprBracket, cost: number, i
   };
 }
 
-function AidesTravaux({ onImportAides }: {
+// ── Types simulation persistée ────────────────────────────────────────────────
+
+interface SimulationData {
+  workType: EffyWorkType;
+  cost: string;
+  isOwner: boolean;
+  householdSize: number;
+  annualIncome: string;
+  result: EffyResult;
+}
+
+function AidesTravaux({ onImportAides, initialSimulation, onSimulationSave }: {
   onImportAides: (values: Partial<Record<SourceKey, string>>) => void;
+  initialSimulation?: SimulationData | null;
+  onSimulationSave?: (data: SimulationData | null) => void;
 }) {
-  const [step,          setStep]          = useState<1 | 2 | 3>(1);
-  const [workType,      setWorkType]      = useState<EffyWorkType | null>(null);
-  const [cost,          setCost]          = useState('');
-  const [isOwner,       setIsOwner]       = useState<boolean | null>(null);
-  const [householdSize, setHouseholdSize] = useState(2);
-  const [annualIncome,  setAnnualIncome]  = useState('');
-  const [result,        setResult]        = useState<EffyResult | null>(null);
+  const [step,          setStep]          = useState<1 | 2 | 3>(initialSimulation ? 3 : 1);
+  const [workType,      setWorkType]      = useState<EffyWorkType | null>(initialSimulation?.workType ?? null);
+  const [cost,          setCost]          = useState(initialSimulation?.cost ?? '');
+  const [isOwner,       setIsOwner]       = useState<boolean | null>(initialSimulation?.isOwner ?? null);
+  const [householdSize, setHouseholdSize] = useState(initialSimulation?.householdSize ?? 2);
+  const [annualIncome,  setAnnualIncome]  = useState(initialSimulation?.annualIncome ?? '');
+  const [result,        setResult]        = useState<EffyResult | null>(initialSimulation?.result ?? null);
 
   const costNum   = parseFloat(cost.replace(/\s/g, '').replace(',', '.'));
   const incomeNum = parseFloat(annualIncome.replace(/\s/g, '').replace(',', '.'));
@@ -1049,13 +1062,16 @@ function AidesTravaux({ onImportAides }: {
   function calculate() {
     if (!workType || !canCalc) return;
     const bracket = detectBracket(householdSize, incomeNum);
-    setResult(computeEffyAides(workType, bracket, costNum, isOwner!));
+    const res = computeEffyAides(workType, bracket, costNum, isOwner!);
+    setResult(res);
     setStep(3);
+    onSimulationSave?.({ workType, cost, isOwner: isOwner!, householdSize, annualIncome, result: res });
   }
 
   function reset() {
     setStep(1); setWorkType(null); setCost(''); setIsOwner(null);
     setHouseholdSize(2); setAnnualIncome(''); setResult(null);
+    onSimulationSave?.(null);
   }
 
   const ProgressBar = () => (
@@ -1478,8 +1494,12 @@ function CreditSimulator() {
 
 function FinancementTab({
   onImportAides,
+  initialSimulation,
+  onSimulationSave,
 }: {
   onImportAides: (values: Partial<Record<SourceKey, string>>) => void;
+  initialSimulation?: SimulationData | null;
+  onSimulationSave?: (data: SimulationData | null) => void;
 }) {
   const [sub, setSub] = useState<'aides' | 'credit'>('aides');
   return (
@@ -1506,7 +1526,13 @@ function FinancementTab({
         </button>
       </div>
 
-      {sub === 'aides'  && <AidesTravaux onImportAides={onImportAides} />}
+      {sub === 'aides'  && (
+        <AidesTravaux
+          onImportAides={onImportAides}
+          initialSimulation={initialSimulation}
+          onSimulationSave={onSimulationSave}
+        />
+      )}
       {sub === 'credit' && <CreditSimulator />}
     </div>
   );
@@ -1518,23 +1544,73 @@ interface TresoreeriePanelProps {
   chantierId: string;
   token: string;
   budgetMax?: number;
+  initialFinancing?: Record<string, unknown> | null;
 }
 
-export default function TresoreriePanel({ chantierId, token, budgetMax: budgetMaxProp = 0 }: TresoreeriePanelProps) {
+export default function TresoreriePanel({
+  chantierId,
+  token,
+  budgetMax: budgetMaxProp = 0,
+  initialFinancing,
+}: TresoreeriePanelProps) {
   const [tab, setTab] = useState<Tab>('timeline');
   const [budgetOverride, setBudgetOverride] = useState<number | null>(null);
   const effectiveBudget = budgetOverride ?? budgetMaxProp;
 
-  // État partagé entre FinancingSources (onglet Trésorerie) et AidesTravaux (onglet Financement)
+  // Initialise depuis metadonnees.financing chargée par le parent
+  const initAmounts = (initialFinancing?.amounts as Partial<Record<SourceKey, string>> | undefined) ?? {};
   const [financingAmounts, setFinancingAmounts] = useState<Record<SourceKey, string>>({
-    apport: '', credit: '', maprime: '', cee: '', eco_ptz: '',
+    apport:   initAmounts.apport   ?? '',
+    credit:   initAmounts.credit   ?? '',
+    maprime:  initAmounts.maprime  ?? '',
+    cee:      initAmounts.cee      ?? '',
+    eco_ptz:  initAmounts.eco_ptz  ?? '',
   });
+  const [simulationData, setSimulationData] = useState<SimulationData | null>(
+    (initialFinancing?.simulation as SimulationData | null | undefined) ?? null,
+  );
+
+  // Débounce sauvegarde vers /api/chantier/[id] (PATCH financing)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function persistFinancing(amounts: Record<SourceKey, string>, simulation: SimulationData | null) {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        const t = await getFreshBearerToken(token);
+        await fetch(`/api/chantier/${chantierId}`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ financing: { amounts, simulation } }),
+        });
+      } catch { /* non-bloquant */ }
+    }, 800);
+  }
+
+  // Wrapping setter pour déclencher la sauvegarde à chaque changement de montants
+  function handleSetFinancingAmounts(updater: React.SetStateAction<Record<SourceKey, string>>) {
+    setFinancingAmounts(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      persistFinancing(next, simulationData);
+      return next;
+    });
+  }
 
   // Appelé depuis AidesTravaux étape 3 — remplit les aides et bascule sur Trésorerie
-  const handleImportAides = (values: Partial<Record<SourceKey, string>>) => {
-    setFinancingAmounts(prev => ({ ...prev, ...values }));
+  function handleImportAides(values: Partial<Record<SourceKey, string>>) {
+    setFinancingAmounts(prev => {
+      const next = { ...prev, ...values };
+      persistFinancing(next, simulationData);
+      return next;
+    });
     setTab('cashflow');
-  };
+  }
+
+  // Appelé depuis AidesTravaux quand la simulation est complète ou réinitialisée
+  function handleSimulationSave(data: SimulationData | null) {
+    setSimulationData(data);
+    persistFinancing(financingAmounts, data);
+  }
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
@@ -1557,10 +1633,16 @@ export default function TresoreriePanel({ chantierId, token, budgetMax: budgetMa
             budgetMax={effectiveBudget}
             onBudgetOverride={setBudgetOverride}
             financingAmounts={financingAmounts}
-            setFinancingAmounts={setFinancingAmounts}
+            setFinancingAmounts={handleSetFinancingAmounts}
           />
         )}
-        {tab === 'financement' && <FinancementTab onImportAides={handleImportAides} />}
+        {tab === 'financement' && (
+          <FinancementTab
+            onImportAides={handleImportAides}
+            initialSimulation={simulationData}
+            onSimulationSave={handleSimulationSave}
+          />
+        )}
       </div>
     </div>
   );

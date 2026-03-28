@@ -121,65 +121,56 @@ export function usePaymentEvents(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chantierId, tick]);
 
-  // ── Récupère un token valide (toujours frais — bypass cache prop) ────────
-  const getFreshToken = useCallback(async (): Promise<string | null> => {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token ?? token ?? null;
-  }, [token]);
-
-  // ── Marquer un événement comme payé ──────────────────────────────────────
-  // UPDATE direct via Supabase client (RLS FOR ALL couvre les updates)
-  // Bypasse l'API Vercel pour éviter les problèmes d'auth serveur
-  const markPaid = useCallback(async (id: string): Promise<boolean> => {
+  // ── RPC SECURITY DEFINER (bypasse RLS, vérifie ownership via auth.uid()) ─
+  // Utilise supabase.rpc() — le client gère le token de session automatiquement.
+  // La fonction PostgreSQL set_payment_event_status retourne TRUE si l'UPDATE
+  // a affecté une ligne, FALSE sinon (event introuvable ou non autorisé).
+  const patchStatus = useCallback(async (id: string, status: 'paid' | 'pending'): Promise<boolean> => {
     if (!chantierId) return false;
-    // Mise à jour optimiste protégée par pendingUpdates
-    pendingUpdates.current.set(id, 'paid');
-    setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'paid' as const } : ev));
     try {
-      const { error } = await supabase
-        .from('payment_events')
-        .update({ status: 'paid' })
-        .eq('id', id)
-        .eq('project_id', chantierId);
+      const { data, error } = await supabase.rpc('set_payment_event_status', {
+        p_event_id:    id,
+        p_chantier_id: chantierId,
+        p_status:      status,
+      });
       if (error) {
-        console.error('[markPaid] supabase error:', error.message);
-        pendingUpdates.current.delete(id);
-        refresh();
+        console.error(`[patchStatus] RPC error:`, error.message);
         return false;
       }
-      pendingUpdates.current.delete(id);
+      if (!data) {
+        console.error(`[patchStatus] RPC returned false — event introuvable ou non autorisé`);
+        return false;
+      }
       return true;
     } catch (e) {
-      console.error('[markPaid] exception:', e instanceof Error ? e.message : e);
-      pendingUpdates.current.delete(id);
+      console.error('[patchStatus] exception:', e instanceof Error ? e.message : e);
+      return false;
+    }
+  }, [chantierId]);
+
+  // ── Marquer un événement comme payé ──────────────────────────────────────
+  const markPaid = useCallback(async (id: string): Promise<boolean> => {
+    if (!chantierId) return false;
+    pendingUpdates.current.set(id, 'paid');
+    setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'paid' as const } : ev));
+    const ok = await patchStatus(id, 'paid');
+    pendingUpdates.current.delete(id);
+    if (!ok) {
       refresh();
       return false;
     }
-  }, [chantierId, refresh]);
+    return true;
+  }, [chantierId, patchStatus, refresh]);
 
   // ── Annuler un paiement (repasser en "À venir") ───────────────────────────
   const markUnpaid = useCallback(async (id: string) => {
     if (!chantierId) return;
     pendingUpdates.current.set(id, 'pending');
     setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'pending' as const } : ev));
-    try {
-      const { error } = await supabase
-        .from('payment_events')
-        .update({ status: 'pending' })
-        .eq('id', id)
-        .eq('project_id', chantierId);
-      if (error) {
-        console.error('[markUnpaid] supabase error:', error.message);
-        pendingUpdates.current.delete(id);
-        refresh();
-      } else {
-        pendingUpdates.current.delete(id);
-      }
-    } catch {
-      pendingUpdates.current.delete(id);
-      refresh();
-    }
-  }, [chantierId, refresh]);
+    const ok = await patchStatus(id, 'pending');
+    pendingUpdates.current.delete(id);
+    if (!ok) refresh();
+  }, [chantierId, patchStatus, refresh]);
 
   return { events, loading, error, refresh, markPaid, markUnpaid };
 }

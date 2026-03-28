@@ -187,7 +187,7 @@ export const GET: APIRoute = async ({ params, request }) => {
   if (!hasRichData) {
     const result = buildFallbackResult(chantier as Record<string, unknown>, taches);
     return new Response(
-      JSON.stringify({ result: { ...result, lots }, phase: chantier.phase, isPlanComplet: false, budgetAffine: meta.budget_affine ?? null }),
+      JSON.stringify({ result: { ...result, lots }, phase: chantier.phase, isPlanComplet: false, budgetAffine: meta.budget_affine ?? null, financing: meta.financing ?? null }),
       { status: 200, headers: CORS },
     );
   }
@@ -262,6 +262,7 @@ export const GET: APIRoute = async ({ params, request }) => {
       isPlanComplet,
       projectMode: chantier.project_mode ?? null,
       budgetAffine: meta.budget_affine ?? null,
+      financing: meta.financing ?? null,
     }),
     { status: 200, headers: CORS },
   );
@@ -410,7 +411,33 @@ export const PATCH: APIRoute = async ({ request, params }) => {
     return new Response(JSON.stringify({ ok: true }), { status: 200, headers: CORS });
   }
 
-  // ── Branche 4 : mise à jour chantier (nom, emoji, phase, enveloppePrevue) ────
+  // ── Branche 4 : sauvegarde sources de financement + simulation aides ─────────
+  if ('financing' in body) {
+    const fin = body.financing as Record<string, unknown>;
+    const { data: chF } = await supabase
+      .from('chantiers')
+      .select('metadonnees')
+      .eq('id', chantierId)
+      .eq('user_id', user.id)
+      .single();
+    if (!chF) return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let metaF: Record<string, any> = {};
+    try { metaF = JSON.parse((chF as Record<string, any>).metadonnees ?? '{}'); } catch { /* ignore */ }
+    metaF.financing = fin;
+    const { error: saveErrF } = await supabase
+      .from('chantiers')
+      .update({ metadonnees: JSON.stringify(metaF) })
+      .eq('id', chantierId)
+      .eq('user_id', user.id);
+    if (saveErrF) {
+      console.error(`[api/chantier/${chantierId} PATCH financing] error:`, saveErrF.message);
+      return new Response(JSON.stringify({ error: saveErrF.message }), { status: 500, headers: CORS });
+    }
+    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: CORS });
+  }
+
+  // ── Branche 5 : mise à jour chantier (nom, emoji, phase, enveloppePrevue) ────
   const updatePayload = body as UpdateChantierPayload;
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
 

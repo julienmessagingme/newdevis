@@ -1051,6 +1051,89 @@ function ViewToggle({ value, onChange }: { value: 'cards' | 'list'; onChange: (v
   );
 }
 
+// ── RDV reminder widget ───────────────────────────────────────────────────────
+
+interface RdvLight {
+  id: string;
+  titre: string;
+  date: string;   // YYYY-MM-DD
+  time?: string;  // HH:MM
+  type: 'artisan' | 'visite' | 'signature' | 'autre';
+}
+
+const RDV_EMOJI: Record<RdvLight['type'], string> = {
+  artisan: '👷', visite: '🏠', signature: '✍️', autre: '📅',
+};
+
+function RdvReminder({ chantierId, onGoToPlanning }: { chantierId: string; onGoToPlanning: () => void }) {
+  const [rdvs, setRdvs] = useState<RdvLight[]>([]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`rdvs_${chantierId}`);
+      if (!raw) return;
+      const today = new Date().toISOString().slice(0, 10);
+      const all: RdvLight[] = JSON.parse(raw);
+      const upcoming = all
+        .filter(r => r.date >= today)
+        .sort((a, b) => a.date.localeCompare(b.date) || (a.time ?? '').localeCompare(b.time ?? ''))
+        .slice(0, 3);
+      setRdvs(upcoming);
+    } catch { /* ignore */ }
+  }, [chantierId]);
+
+  if (rdvs.length === 0) return null;
+
+  const today    = new Date().toISOString().slice(0, 10);
+  const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  const hasUrgent = rdvs.some(r => r.date <= tomorrow);
+
+  function fmtRdvDate(iso: string, time?: string): string {
+    const label =
+      iso === today    ? "Aujourd'hui" :
+      iso === tomorrow ? 'Demain' :
+      new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+    return time ? `${label} à ${time}` : label;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onGoToPlanning}
+      className={`w-full flex items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all hover:shadow-sm ${
+        hasUrgent
+          ? 'bg-amber-50 border-amber-200 hover:bg-amber-100/70'
+          : 'bg-blue-50 border-blue-100 hover:bg-blue-100/70'
+      }`}
+    >
+      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+        hasUrgent ? 'bg-amber-100' : 'bg-blue-100'
+      }`}>
+        <Calendar className={`h-4 w-4 ${hasUrgent ? 'text-amber-600' : 'text-blue-500'}`} />
+      </div>
+
+      <div className="flex-1 min-w-0 space-y-0.5">
+        <p className={`text-xs font-bold leading-tight ${hasUrgent ? 'text-amber-700' : 'text-blue-700'}`}>
+          {rdvs.length === 1 ? '1 rendez-vous à venir' : `${rdvs.length} rendez-vous à venir`}
+        </p>
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+          {rdvs.map(r => (
+            <span key={r.id} className="text-[11px] text-gray-600 flex items-center gap-1">
+              <span>{RDV_EMOJI[r.type]}</span>
+              <span className="font-medium truncate max-w-[120px]">{r.titre}</span>
+              <span className={`shrink-0 ${r.date <= tomorrow ? 'text-amber-600 font-semibold' : 'text-gray-400'}`}>
+                · {fmtRdvDate(r.date, r.time)}
+              </span>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <ChevronRight className={`h-4 w-4 shrink-0 ${hasUrgent ? 'text-amber-400' : 'text-blue-300'}`} />
+    </button>
+  );
+}
+
 function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, refinedBreakdown, onAffineBudget,
   onAddDevisForLot, onAddDocForLot, onGoToLot, onGoToAnalyse, onGoToPlanning, onAddDoc,
   onGoToAssistant, onAddIntervenant, onDeleteLot, onDeleteDoc, onGoToDiy, chantierId, token,
@@ -1194,6 +1277,9 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
           </ul>
         </div>
       )}
+
+      {/* ── RDV à venir ─────────────────────────────────────── */}
+      <RdvReminder chantierId={chantierId} onGoToPlanning={onGoToPlanning} />
 
       {/* ── Recommandation IA (pleine largeur) ──────────────── */}
       <AssistantActiveBlock
@@ -1552,6 +1638,9 @@ function AssistantChantierSection({ result, documents, lots, chantierId, token, 
     chantierId, token, result, documents, lots, enabled: true,
   });
 
+  // État local des propositions (pending / accepted / declined)
+  const [propositionStates, setPropositionStates] = useState<Record<string, 'pending' | 'accepted' | 'declined'>>({});
+
   // Mapper le CTA texte → action réelle
   function resolveCtaAction(cta: string) {
     const c = cta.toLowerCase();
@@ -1560,6 +1649,22 @@ function AssistantChantierSection({ result, documents, lots, chantierId, token, 
     if (c.includes('budget') || c.includes('affin')) return onGoToBudget;
     if (c.includes('import') || c.includes('ajout') || c.includes('factur') || c.includes('photo')) return onAddDoc;
     return onGoToLots;
+  }
+
+  function resolvePropositionAction(actionType: string) {
+    if (actionType === 'analyse_devis') return onGoToAnalyse;
+    if (actionType === 'budget_review') return onGoToBudget;
+    if (actionType === 'add_devis') return onAddDoc;
+    return onGoToLots;
+  }
+
+  function handleAccept(prop: { id: string; action_type: string }) {
+    setPropositionStates(s => ({ ...s, [prop.id]: 'accepted' }));
+    resolvePropositionAction(prop.action_type)();
+  }
+
+  function handleDecline(id: string) {
+    setPropositionStates(s => ({ ...s, [id]: 'declined' }));
   }
 
   return (
@@ -1644,6 +1749,43 @@ function AssistantChantierSection({ result, documents, lots, chantierId, token, 
             </div>
           )}
 
+          {/* Propositions interactives */}
+          {data.propositions && data.propositions.length > 0 && (
+            <div className="space-y-2">
+              {data.propositions.map(prop => {
+                const state = propositionStates[prop.id] ?? 'pending';
+                if (state === 'declined') return null;
+                return (
+                  <div key={prop.id} className="bg-violet-50 border border-violet-200 rounded-2xl overflow-hidden">
+                    <div className="px-5 py-4">
+                      <div className="flex items-start gap-3 mb-3">
+                        <span className="text-lg shrink-0">🤝</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-violet-900 leading-snug mb-0.5">{prop.titre}</p>
+                          <p className="text-sm text-violet-700 leading-relaxed">{prop.description}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleAccept(prop)}
+                          className="flex-1 text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-xl px-4 py-2 transition-colors"
+                        >
+                          {prop.cta_oui} →
+                        </button>
+                        <button
+                          onClick={() => handleDecline(prop.id)}
+                          className="flex-1 text-sm font-medium text-violet-500 hover:text-violet-700 bg-white border border-violet-200 rounded-xl px-4 py-2 transition-colors"
+                        >
+                          {prop.cta_non}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* Insights */}
           {data.insights.length > 0 && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4">
@@ -1691,9 +1833,10 @@ interface Props {
   token?: string | null;
   onLotStatutChange?: (lotId: string, statut: StatutArtisan) => void;
   initialBudgetAffine?: { min: number; max: number; breakdown: unknown[] } | null;
+  initialFinancing?: Record<string, unknown> | null;
 }
 
-export default function DashboardUnified({ result: resultProp, chantierId, token, initialBudgetAffine }: Props) {
+export default function DashboardUnified({ result: resultProp, chantierId, token, initialBudgetAffine, initialFinancing }: Props) {
   const [result, setResult]               = useState(resultProp);
   const [showAmelioration, setShowAmelioration] = useState(false);
   const [showBudgetDetail, setShowBudgetDetail]   = useState(false);
@@ -2024,6 +2167,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
                 chantierId={chantierId}
                 token={token}
                 budgetMax={displayMax}
+                initialFinancing={initialFinancing}
               />
             ) : (
               <div className="flex items-center justify-center py-16 text-gray-400 text-sm">
