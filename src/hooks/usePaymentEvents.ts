@@ -128,62 +128,48 @@ export function usePaymentEvents(
   }, [token]);
 
   // ── Marquer un événement comme payé ──────────────────────────────────────
+  // UPDATE direct via Supabase client (RLS FOR ALL couvre les updates)
+  // Bypasse l'API Vercel pour éviter les problèmes d'auth serveur
   const markPaid = useCallback(async (id: string): Promise<boolean> => {
     if (!chantierId) return false;
-    const bearerToken = await getFreshToken();
-    if (!bearerToken) return false;
-    // Mise à jour optimiste protégée par pendingUpdates (résiste aux re-fetchs concurrents)
+    // Mise à jour optimiste protégée par pendingUpdates
     pendingUpdates.current.set(id, 'paid');
     setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'paid' as const } : ev));
     try {
-      const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${bearerToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status: 'paid' }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        console.error('[markPaid] HTTP', res.status, body);
-        pendingUpdates.current.delete(id);
-        refresh();
-        return false;
-      }
-      const data = await res.json();
-      if (!data.ok) {
-        console.error('[markPaid] server error:', data.error ?? data);
+      const { error } = await supabase
+        .from('payment_events')
+        .update({ status: 'paid' })
+        .eq('id', id)
+        .eq('project_id', chantierId);
+      if (error) {
+        console.error('[markPaid] supabase error:', error.message);
         pendingUpdates.current.delete(id);
         refresh();
         return false;
       }
       pendingUpdates.current.delete(id);
       return true;
-    } catch {
+    } catch (e) {
+      console.error('[markPaid] exception:', e instanceof Error ? e.message : e);
       pendingUpdates.current.delete(id);
       refresh();
       return false;
     }
-  }, [chantierId, getFreshToken, refresh]);
+  }, [chantierId, refresh]);
 
   // ── Annuler un paiement (repasser en "À venir") ───────────────────────────
   const markUnpaid = useCallback(async (id: string) => {
     if (!chantierId) return;
-    const bearerToken = await getFreshToken();
-    if (!bearerToken) return;
     pendingUpdates.current.set(id, 'pending');
     setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'pending' as const } : ev));
     try {
-      const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${bearerToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status: 'pending' }),
-      });
-      if (!res.ok) {
-        pendingUpdates.current.delete(id);
-        refresh();
-        return;
-      }
-      const data = await res.json();
-      if (!data.ok) {
+      const { error } = await supabase
+        .from('payment_events')
+        .update({ status: 'pending' })
+        .eq('id', id)
+        .eq('project_id', chantierId);
+      if (error) {
+        console.error('[markUnpaid] supabase error:', error.message);
         pendingUpdates.current.delete(id);
         refresh();
       } else {
@@ -193,7 +179,7 @@ export function usePaymentEvents(
       pendingUpdates.current.delete(id);
       refresh();
     }
-  }, [chantierId, getFreshToken, refresh]);
+  }, [chantierId, refresh]);
 
   return { events, loading, error, refresh, markPaid, markUnpaid };
 }
