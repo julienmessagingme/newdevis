@@ -777,10 +777,15 @@ const SOURCES_CFG = [
 
 type SourceKey = typeof SOURCES_CFG[number]['key'];
 
-function FinancingSources({ budgetMax }: { budgetMax: number }) {
-  const [amounts, setAmounts] = useState<Record<SourceKey, string>>({
-    apport: '', credit: '', maprime: '', cee: '', eco_ptz: '',
-  });
+function FinancingSources({
+  budgetMax,
+  amounts,
+  setAmounts,
+}: {
+  budgetMax: number;
+  amounts: Record<SourceKey, string>;
+  setAmounts: React.Dispatch<React.SetStateAction<Record<SourceKey, string>>>;
+}) {
 
   const total = Object.values(amounts).reduce((s, v) => {
     const n = parseFloat(v.replace(/\s/g, '').replace(',', '.'));
@@ -868,11 +873,15 @@ function CashflowTab({
   token,
   budgetMax,
   onBudgetOverride,
+  financingAmounts,
+  setFinancingAmounts,
 }: {
   chantierId: string;
   token: string;
   budgetMax: number;
   onBudgetOverride: (v: number | null) => void;
+  financingAmounts: Record<SourceKey, string>;
+  setFinancingAmounts: React.Dispatch<React.SetStateAction<Record<SourceKey, string>>>;
 }) {
   const { events, loading, error, refresh } = usePaymentEvents(chantierId, token);
 
@@ -919,7 +928,7 @@ function CashflowTab({
         next60={cashflow.next60}
         events={events}
       />
-      <FinancingSources budgetMax={budgetMax} />
+      <FinancingSources budgetMax={budgetMax} amounts={financingAmounts} setAmounts={setFinancingAmounts} />
     </div>
   );
 }
@@ -1019,7 +1028,9 @@ function computeEffyAides(wt: EffyWorkType, bracket: MprBracket, cost: number, i
   };
 }
 
-function AidesTravaux() {
+function AidesTravaux({ onImportAides }: {
+  onImportAides: (values: Partial<Record<SourceKey, string>>) => void;
+}) {
   const [step,          setStep]          = useState<1 | 2 | 3>(1);
   const [workType,      setWorkType]      = useState<EffyWorkType | null>(null);
   const [cost,          setCost]          = useState('');
@@ -1160,6 +1171,21 @@ function AidesTravaux() {
             )}
           </div>
         </div>
+
+        {/* Bouton import vers Sources de financement */}
+        {result.total > 0 && (
+          <button
+            type="button"
+            onClick={() => onImportAides({
+              maprime: result.maprimeEligible && result.maprime > 0 ? String(Math.round(result.maprime)) : '',
+              cee:     result.cee > 0 ? String(Math.round(result.cee)) : '',
+            })}
+            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-sm rounded-xl px-4 py-3 transition-colors shadow-sm"
+          >
+            <Check className="h-4 w-4" />
+            Importer vers Sources de financement →
+          </button>
+        )}
 
         <p className="text-[10px] text-gray-400 text-center leading-relaxed pt-2 border-t border-gray-50">
           Simulation indicative 2025 — barème ANAH. Montants soumis à conditions (artisan RGE, logement &gt; 2 ans, résidence principale).
@@ -1450,7 +1476,11 @@ function CreditSimulator() {
 
 // ── Onglet financement complet ────────────────────────────────────────────────
 
-function FinancementTab() {
+function FinancementTab({
+  onImportAides,
+}: {
+  onImportAides: (values: Partial<Record<SourceKey, string>>) => void;
+}) {
   const [sub, setSub] = useState<'aides' | 'credit'>('aides');
   return (
     <div className="space-y-4">
@@ -1476,7 +1506,7 @@ function FinancementTab() {
         </button>
       </div>
 
-      {sub === 'aides'  && <AidesTravaux />}
+      {sub === 'aides'  && <AidesTravaux onImportAides={onImportAides} />}
       {sub === 'credit' && <CreditSimulator />}
     </div>
   );
@@ -1492,9 +1522,19 @@ interface TresoreeriePanelProps {
 
 export default function TresoreriePanel({ chantierId, token, budgetMax: budgetMaxProp = 0 }: TresoreeriePanelProps) {
   const [tab, setTab] = useState<Tab>('timeline');
-  // Override utilisateur sur l'enveloppe max (null = utilise la valeur IA)
   const [budgetOverride, setBudgetOverride] = useState<number | null>(null);
   const effectiveBudget = budgetOverride ?? budgetMaxProp;
+
+  // État partagé entre FinancingSources (onglet Trésorerie) et AidesTravaux (onglet Financement)
+  const [financingAmounts, setFinancingAmounts] = useState<Record<SourceKey, string>>({
+    apport: '', credit: '', maprime: '', cee: '', eco_ptz: '',
+  });
+
+  // Appelé depuis AidesTravaux étape 3 — remplit les aides et bascule sur Trésorerie
+  const handleImportAides = (values: Partial<Record<SourceKey, string>>) => {
+    setFinancingAmounts(prev => ({ ...prev, ...values }));
+    setTab('cashflow');
+  };
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
@@ -1516,9 +1556,11 @@ export default function TresoreriePanel({ chantierId, token, budgetMax: budgetMa
             token={token}
             budgetMax={effectiveBudget}
             onBudgetOverride={setBudgetOverride}
+            financingAmounts={financingAmounts}
+            setFinancingAmounts={setFinancingAmounts}
           />
         )}
-        {tab === 'financement' && <FinancementTab />}
+        {tab === 'financement' && <FinancementTab onImportAides={handleImportAides} />}
       </div>
     </div>
   );
