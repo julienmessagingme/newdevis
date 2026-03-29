@@ -94,7 +94,7 @@ function LotBadge({ doc, lots, onChangeLot }: {
 
 // ── DocRow ────────────────────────────────────────────────────────────────────
 
-function DocRow({ doc, lots, chantierId, token, onDelete, onLotChange, onNomChange, onStatutChange, pendingDescribeIds }: {
+function DocRow({ doc, lots, chantierId, token, onDelete, onLotChange, onNomChange, onStatutChange, onMontantPayeChange, pendingDescribeIds }: {
   doc: DocumentChantier;
   lots: LotChantier[];
   chantierId: string;
@@ -103,6 +103,7 @@ function DocRow({ doc, lots, chantierId, token, onDelete, onLotChange, onNomChan
   onLotChange: (docId: string, lotId: string | null) => void;
   onNomChange: (docId: string, nom: string) => void;
   onStatutChange?: (docId: string, statut: string) => void;
+  onMontantPayeChange?: (docId: string, montantPaye: number) => void;
   pendingDescribeIds: string[];
 }) {
   const [editing, setEditing]   = useState(false);
@@ -189,7 +190,7 @@ function DocRow({ doc, lots, chantierId, token, onDelete, onLotChange, onNomChan
 
       {/* Statut devis / facture */}
       {(doc.document_type === 'devis' || doc.document_type === 'facture') && (
-        <DocStatusSelect doc={doc} chantierId={chantierId} token={token} onUpdated={onStatutChange} compact />
+        <DocStatusSelect doc={doc} chantierId={chantierId} token={token} onUpdated={onStatutChange} onMontantPayeUpdated={onMontantPayeChange} compact />
       )}
 
       {/* Actions */}
@@ -231,7 +232,7 @@ function DocRow({ doc, lots, chantierId, token, onDelete, onLotChange, onNomChan
 
 export default function DocumentsView({
   documents, lots: lotsProp, chantierId, token,
-  onAddDoc, onDeleteDoc, onDocUpdated, onDocLotUpdated, onDocNomUpdated, onDocStatutUpdated,
+  onAddDoc, onDeleteDoc, onDocUpdated, onDocLotUpdated, onDocNomUpdated, onDocStatutUpdated, onDocMontantPayeUpdated,
   pendingDescribeIds = [],
 }: {
   documents: DocumentChantier[];
@@ -244,6 +245,7 @@ export default function DocumentsView({
   onDocLotUpdated?: (docId: string, lotId: string | null) => void;
   onDocNomUpdated?: (docId: string, nom: string) => void;
   onDocStatutUpdated?: (docId: string, statut: string) => void;
+  onDocMontantPayeUpdated?: (docId: string, montantPaye: number) => void;
   pendingDescribeIds?: string[];
 }) {
   const [search, setSearch]         = useState('');
@@ -523,6 +525,7 @@ export default function DocumentsView({
                       onLotChange={handleChangeLot}
                       onNomChange={(id, nom) => onDocNomUpdated?.(id, nom)}
                       onStatutChange={onDocStatutUpdated}
+                      onMontantPayeChange={onDocMontantPayeUpdated}
                       pendingDescribeIds={pendingDescribeIds}
                     />
                   ))}
@@ -566,6 +569,7 @@ export default function DocumentsView({
                       onLotChange={handleChangeLot}
                       onNomChange={(id, nom) => onDocNomUpdated?.(id, nom)}
                       onStatutChange={onDocStatutUpdated}
+                      onMontantPayeChange={onDocMontantPayeUpdated}
                       pendingDescribeIds={pendingDescribeIds}
                     />
                   ))}
@@ -606,6 +610,7 @@ export default function DocumentsView({
                 onLotChange={handleChangeLot}
                 onNomChange={(id, nom) => onDocNomUpdated?.(id, nom)}
                 onStatutChange={onDocStatutUpdated}
+                onMontantPayeChange={onDocMontantPayeUpdated}
                 pendingDescribeIds={pendingDescribeIds}
               />
             ))}

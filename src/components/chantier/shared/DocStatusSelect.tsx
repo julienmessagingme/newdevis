@@ -34,13 +34,14 @@ interface Props {
   chantierId: string;
   token: string;
   onUpdated?: (docId: string, statut: string) => void;
+  onMontantPayeUpdated?: (docId: string, montantPaye: number) => void;
   /** Compact = no border, rounded-full (for table cells) */
   compact?: boolean;
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
 
-export default function DocStatusSelect({ doc, chantierId, token, onUpdated, compact = false }: Props) {
+export default function DocStatusSelect({ doc, chantierId, token, onUpdated, onMontantPayeUpdated, compact = false }: Props) {
   const isFacture = doc.document_type === 'facture';
   const defaultStatut = isFacture ? (doc.facture_statut ?? 'recue') : (doc.devis_statut ?? 'en_cours');
 
@@ -87,7 +88,9 @@ export default function DocStatusSelect({ doc, chantierId, token, onUpdated, com
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ montantPaye: val }),
       });
-      if (!res.ok) {
+      if (res.ok) {
+        onMontantPayeUpdated?.(doc.id, val);
+      } else {
         toast.error('Montant non sauvegardé');
       }
     } catch {

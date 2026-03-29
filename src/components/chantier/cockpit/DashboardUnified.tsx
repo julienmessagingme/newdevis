@@ -330,6 +330,9 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
                   : { ...d, devis_statut: statut as any };
               }))
             }
+            onDocMontantPayeUpdated={(docId, montantPaye) =>
+              setDocuments(prev => prev.map(d => d.id === docId ? { ...d, montant_paye: montantPaye } : d))
+            }
           />
         );
 
