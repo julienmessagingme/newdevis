@@ -27,7 +27,6 @@ export default function PlanningWidget({ lots, startDate, onGoToPlanning }: Prop
   );
 
   const totalWeeks = useMemo(() => getTotalWeeks(planningLots), [planningLots]);
-  const totalDays = useMemo(() => planningLots.reduce((sum, l) => sum + (l.duree_jours ?? 0), 0), [planningLots]);
 
   if (planningLots.length === 0 || !startDate) return null;
 

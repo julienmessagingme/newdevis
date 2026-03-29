@@ -4,10 +4,10 @@
  * Split layout: left column (lot names) is sticky, right area (Gantt bars) scrolls horizontally.
  */
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { Calendar, GripVertical, ChevronLeft, ChevronRight, Loader2, AlertCircle, Users } from 'lucide-react';
+import { Calendar, GripVertical, Loader2, AlertCircle, Users } from 'lucide-react';
 import type { LotChantier } from '@/types/chantier-ia';
 import { usePlanning } from '@/hooks/usePlanning';
-import { formatDuration, getWeekNumber, getWeekLabels, getTotalWeeks } from '@/lib/planningUtils';
+import { formatDuration, getWeekNumber, getWeekLabels } from '@/lib/planningUtils';
 
 // -- Couleurs par lot (cyclique) ----------------------------------------------
 
@@ -147,8 +147,6 @@ const PARALLEL_BADGE_HEIGHT = 26;
 interface Props {
   chantierId: string | null | undefined;
   token: string | null | undefined;
-  initialLots?: LotChantier[];
-  initialStartDate?: string | null;
 }
 
 export default function PlanningTimeline({ chantierId, token }: Props) {

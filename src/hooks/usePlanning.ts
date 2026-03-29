@@ -100,13 +100,15 @@ export function usePlanning(chantierId: string | null | undefined, token: string
 
   /** Met à jour la date de fin souhaitée → calcule la date de début en arrière */
   const updateEndDate = useCallback((endDate: Date) => {
+    let computedStartStr = '';
     setState(s => {
       const computedStart = computeStartDateFromEnd(s.lots, endDate);
+      computedStartStr = computedStart.toISOString().split('T')[0];
       const recomputed = computePlanningDates(s.lots, computedStart);
-      // Persist avec la date de début calculée
-      patchPlanning({ dateDebutChantier: computedStart.toISOString().split('T')[0] });
       return { ...s, startDate: computedStart, lots: recomputed, totalWeeks: getTotalWeeks(recomputed) };
     });
+    // Persist AFTER setState (no side effect inside updater)
+    if (computedStartStr) patchPlanning({ dateDebutChantier: computedStartStr });
   }, [patchPlanning]);
 
   /** Réordonne les lots (drag & drop) */
@@ -126,27 +128,31 @@ export function usePlanning(chantierId: string | null | undefined, token: string
 
   /** Déplace un lot de N jours ouvrés (positif = en avant, négatif = en arrière) */
   const moveLot = useCallback((lotId: string, deltaDays: number) => {
-    // Calculer les nouvelles dates
-    const lot = state.lots.find(l => l.id === lotId);
-    if (!lot?.date_debut || !lot?.date_fin) return;
+    let newDebutStr = '';
+    let newFinStr = '';
 
-    const fn = deltaDays > 0 ? addBusinessDays : subtractBusinessDays;
-    const newDebut = fn(new Date(lot.date_debut), Math.abs(deltaDays));
-    const newFin = addBusinessDays(newDebut, lot.duree_jours ?? 5);
-    const newDebutStr = newDebut.toISOString().split('T')[0];
-    const newFinStr = newFin.toISOString().split('T')[0];
-
-    // Optimistic update
+    // Functional setState to avoid stale closure
     setState(s => {
+      const lot = s.lots.find(l => l.id === lotId);
+      if (!lot?.date_debut || !lot?.date_fin) return s;
+
+      const fn = deltaDays > 0 ? addBusinessDays : subtractBusinessDays;
+      const newDebut = fn(new Date(lot.date_debut), Math.abs(deltaDays));
+      const newFin = addBusinessDays(newDebut, lot.duree_jours ?? 5);
+      newDebutStr = newDebut.toISOString().split('T')[0];
+      newFinStr = newFin.toISOString().split('T')[0];
+
       const updated = s.lots.map(l =>
         l.id === lotId ? { ...l, date_debut: newDebutStr, date_fin: newFinStr } : l
       );
       return { ...s, lots: updated, totalWeeks: getTotalWeeks(updated) };
     });
 
-    // Persist — envoie les dates explicites → le backend ne recalcule PAS ce lot
-    patchPlanning({ lots: [{ id: lotId, date_debut: newDebutStr, date_fin: newFinStr }] });
-  }, [state.lots, patchPlanning]);
+    // Persist AFTER setState — explicit dates so backend skips cascade recalc
+    if (newDebutStr && newFinStr) {
+      patchPlanning({ lots: [{ id: lotId, date_debut: newDebutStr, date_fin: newFinStr }] });
+    }
+  }, [patchPlanning]);
 
   return {
     ...state,
