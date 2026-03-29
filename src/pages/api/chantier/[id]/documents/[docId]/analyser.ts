@@ -1,29 +1,10 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
 
-const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
 const BUCKET_CHANTIER = 'chantier-documents';
 const BUCKET_DEVIS    = 'devis';
-
-const CORS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Content-Type': 'application/json',
-};
-
-function makeClient() {
-  return createClient(supabaseUrl, supabaseService);
-}
-
-async function authenticate(request: Request) {
-  const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return null;
-  const supabase = makeClient();
-  const { data: { user } } = await supabase.auth.getUser(auth.slice(7));
-  return user ? { user, supabase } : null;
-}
 
 // ── POST /api/chantier/[id]/documents/[docId]/analyser ───────────────────────
 //
@@ -41,49 +22,31 @@ async function authenticate(request: Request) {
 //   - doc.analyse_id déjà défini → 409 + analysisId existant (anti-double clic)
 
 export const POST: APIRoute = async ({ params, request }) => {
-  // ── [1] Authentification ────────────────────────────────────────────────────
-  const ctx = await authenticate(request);
-  if (!ctx) return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
+  // ── [1] Authentification + ownership ────────────────────────────────────────
+  const ctx = await requireChantierAuth(request, params.id!);
+  if (ctx instanceof Response) return ctx;
 
   const { id: chantierId, docId } = params;
 
-  // ── [2] Ownership chantier ──────────────────────────────────────────────────
-  const { data: chantier } = await ctx.supabase
-    .from('chantiers').select('id')
-    .eq('id', chantierId!).eq('user_id', ctx.user.id).single();
-  if (!chantier) return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
-
-  // ── [3] Ownership + chargement document ─────────────────────────────────────
+  // ── [2] Ownership + chargement document ─────────────────────────────────────
   const { data: doc } = await ctx.supabase
     .from('documents_chantier').select('*')
     .eq('id', docId!).eq('chantier_id', chantierId!).single();
-  if (!doc) return new Response(JSON.stringify({ error: 'Document introuvable' }), { status: 404, headers: CORS });
+  if (!doc) return jsonError('Document introuvable', 404);
 
-  // ── [4] Type devis obligatoire ──────────────────────────────────────────────
+  // ── [3] Type devis obligatoire ──────────────────────────────────────────────
   if (doc.document_type !== 'devis') {
-    return new Response(
-      JSON.stringify({ error: 'Ce document n\'est pas un devis' }),
-      { status: 400, headers: CORS },
-    );
+    return jsonError('Ce document n\'est pas un devis', 400);
   }
 
-  // ── [5] Idempotence — analyse déjà lancée ───────────────────────────────────
+  // ── [4] Idempotence — analyse déjà lancée ───────────────────────────────────
   if (doc.analyse_id) {
-    return new Response(
-      JSON.stringify({ analysisId: doc.analyse_id }),
-      { status: 409, headers: CORS },
-    );
+    return jsonOk({ analysisId: doc.analyse_id }, 409);
   }
 
   // ── [5.5] Vérification bucket_path utilisable ────────────────────────────────
-  // Les documents importés depuis VerifierMonDevis ont bucket_path = 'analyse/{id}'
-  // (placeholder non-storage). Ils ont toujours analyse_id défini (bloqué au [5]).
-  // Si on arrive ici avec un bucket_path vide ou placeholder → erreur explicite.
   if (!doc.bucket_path || doc.bucket_path.startsWith('analyse/')) {
-    return new Response(
-      JSON.stringify({ error: 'Ce document n\'a pas de fichier source uploadé — impossible de lancer l\'analyse' }),
-      { status: 400, headers: CORS },
-    );
+    return jsonError('Ce document n\'a pas de fichier source uploadé — impossible de lancer l\'analyse', 400);
   }
 
   // ── [6] Téléchargement depuis chantier-documents ────────────────────────────
@@ -91,13 +54,10 @@ export const POST: APIRoute = async ({ params, request }) => {
     .from(BUCKET_CHANTIER).download(doc.bucket_path);
   if (downloadErr || !fileData) {
     console.error('[api/analyser] download error:', downloadErr?.message, '| bucket_path:', doc.bucket_path);
-    return new Response(
-      JSON.stringify({ error: `Fichier source inaccessible : ${downloadErr?.message ?? 'introuvable dans le storage'}` }),
-      { status: 500, headers: CORS },
-    );
+    return jsonError(`Fichier source inaccessible : ${downloadErr?.message ?? 'introuvable'}`, 500);
   }
 
-  // ── [7] Copie vers bucket devis ─────────────────────────────────────────────
+  // ── [6] Copie vers bucket devis ─────────────────────────────────────────────
   // Chemin : {userId}/{timestamp}-chantier.{ext}  — cohérent avec NewAnalysis.tsx
   const ext       = doc.nom_fichier.includes('.')
     ? `.${doc.nom_fichier.split('.').pop()!.toLowerCase()}`
@@ -111,13 +71,10 @@ export const POST: APIRoute = async ({ params, request }) => {
     });
   if (uploadErr) {
     console.error('[api/analyser] upload to devis error:', uploadErr.message);
-    return new Response(
-      JSON.stringify({ error: 'Erreur lors de la copie du fichier' }),
-      { status: 500, headers: CORS },
-    );
+    return jsonError('Erreur lors de la copie du fichier', 500);
   }
 
-  // ── [8] INSERT analyses ─────────────────────────────────────────────────────
+  // ── [7] INSERT analyses ─────────────────────────────────────────────────────
   const { data: analysis, error: insertErr } = await ctx.supabase
     .from('analyses')
     .insert({
@@ -134,15 +91,12 @@ export const POST: APIRoute = async ({ params, request }) => {
     console.error('[api/analyser] insert analyses error:', insertErr?.message);
     // Rollback : supprimer le fichier copié
     await ctx.supabase.storage.from(BUCKET_DEVIS).remove([devisPath]);
-    return new Response(
-      JSON.stringify({ error: 'Erreur lors de la création de l\'analyse' }),
-      { status: 500, headers: CORS },
-    );
+    return jsonError('Erreur lors de la création de l\'analyse', 500);
   }
 
   const analysisId = analysis.id as string;
 
-  // ── [9] Liaison documents_chantier.analyse_id ───────────────────────────────
+  // ── [8] Liaison documents_chantier.analyse_id ───────────────────────────────
   // Rollback complet si échoue — on doit invoquer l'edge function APRÈS ce PATCH
   // pour garantir que l'état est cohérent avant tout traitement pipeline.
   const { error: patchErr } = await ctx.supabase
@@ -156,13 +110,10 @@ export const POST: APIRoute = async ({ params, request }) => {
     // Rollback complet
     await ctx.supabase.from('analyses').delete().eq('id', analysisId);
     await ctx.supabase.storage.from(BUCKET_DEVIS).remove([devisPath]);
-    return new Response(
-      JSON.stringify({ error: 'Erreur lors de la liaison du document' }),
-      { status: 500, headers: CORS },
-    );
+    return jsonError('Erreur lors de la liaison du document', 500);
   }
 
-  // ── [10] Déclenchement pipeline (fire-and-forget) ───────────────────────────
+  // ── [9] Déclenchement pipeline (fire-and-forget) ───────────────────────────
   // Pas d'await intentionnel — même pattern que NewAnalysis.tsx.
   // Si invoke throw : log uniquement, l'analyse reste "pending",
   // AnalysisResult.tsx gère le timeout et affiche un état d'erreur.
@@ -172,8 +123,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     console.error('[api/analyser] invoke error:', e instanceof Error ? e.message : String(e));
   });
 
-  return new Response(JSON.stringify({ analysisId }), { status: 200, headers: CORS });
+  return jsonOk({ analysisId });
 };
 
-export const OPTIONS: APIRoute = () =>
-  new Response(null, { status: 204, headers: { ...CORS, 'Access-Control-Allow-Methods': 'POST,OPTIONS' } });
+export const OPTIONS: APIRoute = () => optionsResponse();

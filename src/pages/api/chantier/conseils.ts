@@ -1,54 +1,28 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
+import { optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody } from '@/lib/apiHelpers';
 
-const CORS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Content-Type': 'application/json',
-};
-
-const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
 const googleApiKey    = import.meta.env.GOOGLE_API_KEY ?? import.meta.env.GOOGLE_AI_API_KEY;
-
-function getSupabase() {
-  return createClient(supabaseUrl, supabaseService);
-}
 
 /** POST /api/chantier/conseils — Génère des conseils de maître d'œuvre via Gemini */
 export const POST: APIRoute = async ({ request }) => {
-  // ── Auth ─────────────────────────────────────────────────────────────────
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
-  }
-
-  const token    = authHeader.slice(7);
-  const supabase = getSupabase();
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !user) {
-    return new Response(JSON.stringify({ error: 'Token invalide' }), { status: 401, headers: CORS });
-  }
+  const ctx = await requireAuth(request);
+  if (ctx instanceof Response) return ctx;
 
   if (!googleApiKey) {
-    return new Response(JSON.stringify({ error: 'Clé API non configurée' }), { status: 500, headers: CORS });
+    return jsonError('Clé API non configurée', 500);
   }
 
   // ── Body ─────────────────────────────────────────────────────────────────
-  let body: {
+  const body = await parseJsonBody<{
     nomChantier?: string;
     lignesBudget?: { label: string; montant: number }[];
     lots?: { nom: string; role?: string; statut?: string }[];
     artisans?: { metier: string; role?: string }[];
     roadmap?: { nom: string; detail: string; isCurrent?: boolean }[];
-  };
-  try {
-    body = await request.json();
-  } catch {
-    return new Response(JSON.stringify({ error: 'Corps invalide' }), { status: 400, headers: CORS });
-  }
+  }>(request);
+  if (body instanceof Response) return body;
 
   const { nomChantier = '', lignesBudget = [], lots = [], artisans = [], roadmap = [] } = body;
 
@@ -151,15 +125,11 @@ Note : economie_potentielle peut être null pour les types sans économie chiffr
 
     if (conseils.length === 0) throw new Error('No conseils returned');
 
-    return new Response(JSON.stringify({ conseils }), { status: 200, headers: CORS });
+    return jsonOk({ conseils });
   } catch (e) {
     console.error('[api/chantier/conseils] error:', (e as Error).message);
-    return new Response(
-      JSON.stringify({ error: 'Service temporairement indisponible' }),
-      { status: 503, headers: CORS },
-    );
+    return jsonError('Service temporairement indisponible', 503);
   }
 };
 
-export const OPTIONS: APIRoute = () =>
-  new Response(null, { status: 204, headers: { ...CORS, 'Access-Control-Allow-Methods': 'POST,OPTIONS' } });
+export const OPTIONS: APIRoute = () => optionsResponse('POST,OPTIONS');

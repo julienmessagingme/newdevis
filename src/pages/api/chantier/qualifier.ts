@@ -1,19 +1,12 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
+import { CORS, optionsResponse, requireAuth, parseJsonBody } from '@/lib/apiHelpers';
 import type { FollowUpQuestion } from '@/types/chantier-ia';
 
-const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
 const googleApiKey = import.meta.env.GOOGLE_AI_API_KEY ?? import.meta.env.GOOGLE_API_KEY;
 
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
-
-const CORS: Record<string, string> = {
-  'Content-Type': 'application/json',
-  'Access-Control-Allow-Origin': '*',
-};
 
 const SYSTEM_PROMPT_QUALIFIER = `
 Tu es un expert en travaux de construction et rénovation en France.
@@ -67,27 +60,15 @@ Règles de format :
 
 /** POST /api/chantier/qualifier — génère des questions contextuelles via Gemini */
 export const POST: APIRoute = async ({ request }) => {
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
-  }
-  const token = authHeader.slice(7);
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !user) {
-    return new Response(JSON.stringify({ error: 'Token invalide' }), { status: 401, headers: CORS });
-  }
+  const ctx = await requireAuth(request);
+  if (ctx instanceof Response) return ctx;
 
   if (!googleApiKey) {
     return new Response(JSON.stringify({ questions: [] }), { headers: CORS });
   }
 
-  let body: { description?: string };
-  try {
-    body = await request.json();
-  } catch {
-    return new Response(JSON.stringify({ error: 'Corps de requête invalide' }), { status: 400, headers: CORS });
-  }
+  const body = await parseJsonBody<{ description?: string }>(request);
+  if (body instanceof Response) return body;
 
   const description = body.description?.trim();
   if (!description) {
@@ -143,8 +124,4 @@ export const POST: APIRoute = async ({ request }) => {
   }
 };
 
-export const OPTIONS: APIRoute = () =>
-  new Response(null, {
-    status: 204,
-    headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST,OPTIONS' },
-  });
+export const OPTIONS: APIRoute = () => optionsResponse('POST,OPTIONS');

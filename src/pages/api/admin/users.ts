@@ -1,46 +1,15 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
-
-const CORS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Content-Type': 'application/json',
-};
+import { optionsResponse, jsonOk, jsonError, requireAuth } from '@/lib/apiHelpers';
 
 export const GET: APIRoute = async ({ request }) => {
-  if (!supabaseUrl || !supabaseServiceKey) {
-    return new Response(
-      JSON.stringify({ error: 'Configuration serveur manquante' }),
-      { status: 500, headers: CORS },
-    );
-  }
-
-  const authHeader = request.headers.get('authorization');
-  const token = authHeader?.replace('Bearer ', '');
-  if (!token) {
-    return new Response(
-      JSON.stringify({ error: 'Non authentifié' }),
-      { status: 401, headers: CORS },
-    );
-  }
-
-  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
-  // Verify caller identity
-  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-  if (authError || !user) {
-    return new Response(
-      JSON.stringify({ error: 'Token invalide' }),
-      { status: 401, headers: CORS },
-    );
-  }
+  const ctx = await requireAuth(request);
+  if (ctx instanceof Response) return ctx;
+  const { user, supabase } = ctx;
 
   // Check admin role
-  const { data: roleData } = await supabaseAdmin
+  const { data: roleData } = await supabase
     .from('user_roles')
     .select('role')
     .eq('user_id', user.id)
@@ -48,10 +17,7 @@ export const GET: APIRoute = async ({ request }) => {
     .maybeSingle();
 
   if (!roleData) {
-    return new Response(
-      JSON.stringify({ error: 'Accès refusé' }),
-      { status: 403, headers: CORS },
-    );
+    return jsonError('Accès refusé', 403);
   }
 
   try {
@@ -70,7 +36,7 @@ export const GET: APIRoute = async ({ request }) => {
     let hasMore = true;
 
     while (hasMore) {
-      const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers({
+      const { data: { users }, error: usersError } = await supabase.auth.admin.listUsers({
         page,
         perPage,
       });
@@ -96,7 +62,7 @@ export const GET: APIRoute = async ({ request }) => {
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     // Fetch all subscriptions linked to Stripe (any status)
-    const { data: subscriptions, error: subError } = await supabaseAdmin
+    const { data: subscriptions, error: subError } = await supabase
       .from('subscriptions')
       .select('user_id, status, stripe_customer_id, stripe_subscription_id, lifetime_analysis_count, created_at, current_period_end')
       .not('stripe_customer_id', 'is', null);
@@ -118,28 +84,24 @@ export const GET: APIRoute = async ({ request }) => {
       };
     }).sort((a, b) => new Date(b.subscribed_at).getTime() - new Date(a.subscribed_at).getTime());
 
-    return new Response(
-      JSON.stringify({
-        registered_users: registeredUsers.map(u => ({
-          id: u.id,
-          email: u.email,
-          first_name: (u.user_metadata?.first_name as string) || '',
-          last_name: (u.user_metadata?.last_name as string) || '',
-          phone: (u.user_metadata?.phone as string) || '',
-          created_at: u.created_at,
-          last_sign_in_at: u.last_sign_in_at,
-        })),
-        subscribers,
-        total_registered: registeredUsers.length,
-        total_subscribers: subscribers.length,
-      }),
-      { status: 200, headers: CORS },
-    );
+    return jsonOk({
+      registered_users: registeredUsers.map(u => ({
+        id: u.id,
+        email: u.email,
+        first_name: (u.user_metadata?.first_name as string) || '',
+        last_name: (u.user_metadata?.last_name as string) || '',
+        phone: (u.user_metadata?.phone as string) || '',
+        created_at: u.created_at,
+        last_sign_in_at: u.last_sign_in_at,
+      })),
+      subscribers,
+      total_registered: registeredUsers.length,
+      total_subscribers: subscribers.length,
+    });
   } catch (err) {
     console.error('Admin users error:', (err as Error).message);
-    return new Response(
-      JSON.stringify({ error: 'Erreur lors du chargement des utilisateurs' }),
-      { status: 500, headers: CORS },
-    );
+    return jsonError('Erreur lors du chargement des utilisateurs', 500);
   }
 };
+
+export const OPTIONS: APIRoute = () => optionsResponse('GET,OPTIONS');

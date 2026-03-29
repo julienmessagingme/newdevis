@@ -1,38 +1,20 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DocumentType } from '@/types/chantier-ia';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
 
-const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
 const BUCKET          = 'chantier-documents';
 const SIGNED_TTL      = 3_600;
-
-const CORS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Content-Type': 'application/json',
-};
 
 const VALID_TYPES = new Set<DocumentType>([
   'devis', 'facture', 'photo', 'plan', 'autorisation', 'assurance', 'autre',
 ]);
 
-function makeClient() {
-  return createClient(supabaseUrl, supabaseService);
-}
-
-async function authenticate(request: Request) {
-  const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return null;
-  const supabase = makeClient();
-  const { data: { user } } = await supabase.auth.getUser(auth.slice(7));
-  return user ? { user, supabase } : null;
-}
-
 /** Vérifie ownership du chantier puis charge le document. Double vérification explicite. */
 async function loadDocWithOwnership(
-  supabase: ReturnType<typeof makeClient>,
+  supabase: SupabaseClient,
   docId: string,
   chantierId: string,
   userId: string,
@@ -54,14 +36,14 @@ async function loadDocWithOwnership(
 // Retourne une URL signée fraîche (utile si celle en cache est expirée).
 
 export const GET: APIRoute = async ({ params, request }) => {
-  const ctx = await authenticate(request);
-  if (!ctx) return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
+  const ctx = await requireChantierAuth(request, params.id!);
+  if (ctx instanceof Response) return ctx;
 
   const doc = await loadDocWithOwnership(ctx.supabase, params.docId!, params.id!, ctx.user.id);
-  if (!doc) return new Response(JSON.stringify({ error: 'Document introuvable' }), { status: 404, headers: CORS });
+  if (!doc) return jsonError('Document introuvable', 404);
 
   const { data: s } = await ctx.supabase.storage.from(BUCKET).createSignedUrl(doc.bucket_path, SIGNED_TTL);
-  return new Response(JSON.stringify({ signedUrl: s?.signedUrl ?? null }), { status: 200, headers: CORS });
+  return jsonOk({ signedUrl: s?.signedUrl ?? null });
 };
 
 // ── DELETE /api/chantier/[id]/documents/[docId] ─────────────────────────────
@@ -69,11 +51,11 @@ export const GET: APIRoute = async ({ params, request }) => {
 // Si storage échoue : log + continue (évite record DB orphelin).
 
 export const DELETE: APIRoute = async ({ params, request }) => {
-  const ctx = await authenticate(request);
-  if (!ctx) return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
+  const ctx = await requireChantierAuth(request, params.id!);
+  if (ctx instanceof Response) return ctx;
 
   const doc = await loadDocWithOwnership(ctx.supabase, params.docId!, params.id!, ctx.user.id);
-  if (!doc) return new Response(JSON.stringify({ error: 'Document introuvable' }), { status: 404, headers: CORS });
+  if (!doc) return jsonError('Document introuvable', 404);
 
   // Étape 1 : Suppression Storage
   const { error: storageErr } = await ctx.supabase.storage.from(BUCKET).remove([doc.bucket_path]);
@@ -92,21 +74,21 @@ export const DELETE: APIRoute = async ({ params, request }) => {
 
   if (dbErr) {
     console.error('[api/documents] DELETE db error:', dbErr.message);
-    return new Response(JSON.stringify({ error: 'Erreur lors de la suppression' }), { status: 500, headers: CORS });
+    return jsonError('Erreur lors de la suppression', 500);
   }
 
-  return new Response(JSON.stringify({ success: true }), { status: 200, headers: CORS });
+  return jsonOk({ success: true });
 };
 
 // ── PATCH /api/chantier/[id]/documents/[docId] ──────────────────────────────
 // Mise à jour partielle : nom, document_type, lot_id.
 
 export const PATCH: APIRoute = async ({ params, request }) => {
-  const ctx = await authenticate(request);
-  if (!ctx) return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
+  const ctx = await requireChantierAuth(request, params.id!);
+  if (ctx instanceof Response) return ctx;
 
   const doc = await loadDocWithOwnership(ctx.supabase, params.docId!, params.id!, ctx.user.id);
-  if (!doc) return new Response(JSON.stringify({ error: 'Document introuvable' }), { status: 404, headers: CORS });
+  if (!doc) return jsonError('Document introuvable', 404);
 
   const VALID_DEVIS_STATUTS = new Set(['en_cours', 'a_relancer', 'valide', 'attente_facture']);
   const VALID_FACTURE_STATUTS = new Set(['recue', 'payee', 'payee_partiellement']);
@@ -122,7 +104,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   try {
     body = await request.json();
   } catch {
-    return new Response(JSON.stringify({ error: 'Corps invalide' }), { status: 400, headers: CORS });
+    return jsonError('Corps invalide', 400);
   }
 
   const updates: Record<string, unknown> = {};
@@ -132,7 +114,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 
   if (body.documentType !== undefined) {
     if (!VALID_TYPES.has(body.documentType))
-      return new Response(JSON.stringify({ error: 'Type invalide' }), { status: 400, headers: CORS });
+      return jsonError('Type invalide', 400);
     updates.document_type = body.documentType;
     updates.type = body.documentType; // sync colonne legacy NOT NULL
   }
@@ -143,20 +125,20 @@ export const PATCH: APIRoute = async ({ params, request }) => {
         .from('lots_chantier').select('id')
         .eq('id', body.lotId).eq('chantier_id', params.id!).single();
       if (!lot)
-        return new Response(JSON.stringify({ error: 'Lot invalide' }), { status: 400, headers: CORS });
+        return jsonError('Lot invalide', 400);
     }
     updates.lot_id = body.lotId ?? null;
   }
 
   if (body.devisStatut !== undefined) {
     if (!VALID_DEVIS_STATUTS.has(body.devisStatut))
-      return new Response(JSON.stringify({ error: 'Statut invalide' }), { status: 400, headers: CORS });
+      return jsonError('Statut invalide', 400);
     updates.devis_statut = body.devisStatut;
   }
 
   if (body.factureStatut !== undefined) {
     if (!VALID_FACTURE_STATUTS.has(body.factureStatut))
-      return new Response(JSON.stringify({ error: 'Statut facture invalide' }), { status: 400, headers: CORS });
+      return jsonError('Statut facture invalide', 400);
     updates.facture_statut = body.factureStatut;
     // Si payée ou reçue, reset montant_paye (seul payee_partiellement l'utilise)
     if (body.factureStatut !== 'payee_partiellement') {
@@ -166,12 +148,12 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 
   if (body.montantPaye !== undefined) {
     if (body.montantPaye !== null && (typeof body.montantPaye !== 'number' || body.montantPaye < 0))
-      return new Response(JSON.stringify({ error: 'Montant payé invalide' }), { status: 400, headers: CORS });
+      return jsonError('Montant payé invalide', 400);
     updates.montant_paye = body.montantPaye;
   }
 
   if (!Object.keys(updates).length)
-    return new Response(JSON.stringify({ error: 'Aucune modification fournie' }), { status: 400, headers: CORS });
+    return jsonError('Aucune modification fournie', 400);
 
   // Séparer update et fetch pour éviter PGRST116 (single() échoue si 0 lignes)
   const { error: updateErr } = await ctx.supabase
@@ -182,7 +164,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 
   if (updateErr) {
     console.error('[api/documents] PATCH error:', updateErr.message);
-    return new Response(JSON.stringify({ error: updateErr.message }), { status: 500, headers: CORS });
+    return jsonError(updateErr.message, 500);
   }
 
   const { data: updated, error: fetchErr } = await ctx.supabase
@@ -192,11 +174,10 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     .single();
 
   if (fetchErr || !updated) {
-    return new Response(JSON.stringify({ error: 'Document introuvable après mise à jour' }), { status: 404, headers: CORS });
+    return jsonError('Document introuvable après mise à jour', 404);
   }
 
-  return new Response(JSON.stringify({ document: updated }), { status: 200, headers: CORS });
+  return jsonOk({ document: updated });
 };
 
-export const OPTIONS: APIRoute = () =>
-  new Response(null, { status: 204, headers: { ...CORS, 'Access-Control-Allow-Methods': 'GET,DELETE,PATCH,OPTIONS' } });
+export const OPTIONS: APIRoute = () => optionsResponse();

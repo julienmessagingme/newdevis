@@ -1,46 +1,28 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
+import { optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody } from '@/lib/apiHelpers';
 import { SYSTEM_PROMPT_UPDATE } from '@/lib/prompts/chantier-ia';
 import type { ArtisanIA, FormaliteIA, TacheIA, ChangeItem } from '@/types/chantier-ia';
 
-const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
 const googleApiKey = import.meta.env.GOOGLE_AI_API_KEY ?? import.meta.env.GOOGLE_API_KEY;
 
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 
-const CORS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Content-Type': 'application/json',
-};
-
 /** POST /api/chantier/ameliorer — Amélioration IA d'un chantier existant */
 export const POST: APIRoute = async ({ request }) => {
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
-  }
-
-  const token = authHeader.slice(7);
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !user) {
-    return new Response(JSON.stringify({ error: 'Token invalide' }), { status: 401, headers: CORS });
-  }
+  const ctx = await requireAuth(request);
+  if (ctx instanceof Response) return ctx;
+  const { user, supabase } = ctx;
 
   if (!googleApiKey) {
-    return new Response(JSON.stringify({ error: 'Clé API Google AI non configurée' }), { status: 500, headers: CORS });
+    return jsonError('Clé API Google AI non configurée', 500);
   }
 
-  let body: { chantierId: string; modification: string };
-  try {
-    body = await request.json();
-    if (!body.chantierId || !body.modification) throw new Error('champs manquants');
-  } catch {
-    return new Response(JSON.stringify({ error: 'Corps de requête invalide' }), { status: 400, headers: CORS });
+  const body = await parseJsonBody<{ chantierId: string; modification: string }>(request);
+  if (body instanceof Response) return body;
+  if (!body.chantierId || !body.modification) {
+    return jsonError('Corps de requête invalide', 400);
   }
 
   // Vérifier ownership
@@ -52,7 +34,7 @@ export const POST: APIRoute = async ({ request }) => {
     .single();
 
   if (findError || !chantier) {
-    return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
+    return jsonError('Chantier introuvable', 404);
   }
 
   const prompt = `
@@ -79,7 +61,7 @@ Contexte actuel : ${chantier.metadonnees ?? '{}'}
   });
 
   if (!apiResponse.ok) {
-    return new Response(JSON.stringify({ error: 'Erreur API Anthropic' }), { status: 500, headers: CORS });
+    return jsonError('Erreur API Anthropic', 500);
   }
 
   const apiData = await apiResponse.json();
@@ -99,7 +81,7 @@ Contexte actuel : ${chantier.metadonnees ?? '{}'}
     updateData = JSON.parse(clean);
   } catch {
     console.error('[api/chantier/ameliorer] JSON parse error:', clean.slice(0, 200));
-    return new Response(JSON.stringify({ error: 'Erreur de parsing IA' }), { status: 500, headers: CORS });
+    return jsonError('Erreur de parsing IA', 500);
   }
 
   // Appliquer les changements en DB
@@ -162,19 +144,15 @@ Contexte actuel : ${chantier.metadonnees ?? '{}'}
     changes: JSON.stringify(updateData.changes ?? []),
   });
 
-  return new Response(
-    JSON.stringify({
-      success: true,
-      message: updateData.messageReponse ?? 'Plan mis à jour !',
-      changes: updateData.changes ?? [],
-      updatedFields: updateData.updatedFields ?? {},
-      newArtisans: updateData.newArtisans ?? [],
-      newFormalites: updateData.newFormalites ?? [],
-      newTaches: updateData.newTaches ?? [],
-    }),
-    { status: 200, headers: CORS }
-  );
+  return jsonOk({
+    success: true,
+    message: updateData.messageReponse ?? 'Plan mis à jour !',
+    changes: updateData.changes ?? [],
+    updatedFields: updateData.updatedFields ?? {},
+    newArtisans: updateData.newArtisans ?? [],
+    newFormalites: updateData.newFormalites ?? [],
+    newTaches: updateData.newTaches ?? [],
+  });
 };
 
-export const OPTIONS: APIRoute = () =>
-  new Response(null, { status: 204, headers: { ...CORS, 'Access-Control-Allow-Methods': 'POST,OPTIONS' } });
+export const OPTIONS: APIRoute = () => optionsResponse('POST,OPTIONS');

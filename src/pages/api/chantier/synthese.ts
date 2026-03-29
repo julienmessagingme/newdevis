@@ -1,15 +1,11 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
+import { optionsResponse, jsonOk, jsonError, parseJsonBody } from '@/lib/apiHelpers';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
-
-const CORS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Content-Type': 'application/json',
-};
 
 /** POST /api/chantier/synthese
  *  Génère une synthèse courte du chantier via Gemini.
@@ -32,15 +28,13 @@ interface SyntheseRequestBody {
 export const POST: APIRoute = async ({ request }) => {
   const googleApiKey = import.meta.env.GOOGLE_AI_API_KEY ?? import.meta.env.GOOGLE_API_KEY;
   if (!googleApiKey) {
-    return new Response(JSON.stringify({ error: 'Clé API Google AI non configurée' }), { status: 500, headers: CORS });
+    return jsonError('Clé API Google AI non configurée', 500);
   }
 
-  let body: SyntheseRequestBody;
-  try {
-    body = await request.json();
-    if (!body.nom) throw new Error('champ nom manquant');
-  } catch {
-    return new Response(JSON.stringify({ error: 'Corps de requête invalide' }), { status: 400, headers: CORS });
+  const body = await parseJsonBody<SyntheseRequestBody>(request);
+  if (body instanceof Response) return body;
+  if (!body.nom) {
+    return jsonError('Corps de requête invalide', 400);
   }
 
   const { nom, budgetTotal, dureeEstimeeMois, lignesBudget, roadmap,
@@ -89,26 +83,22 @@ RÈGLES DE RÉDACTION :
     if (!apiRes.ok) {
       const err = await apiRes.text().catch(() => '');
       console.error('[api/chantier/synthese] Gemini error:', apiRes.status, err.substring(0, 200));
-      return new Response(JSON.stringify({ error: 'Erreur API IA' }), { status: 502, headers: CORS });
+      return jsonError('Erreur API IA', 502);
     }
 
     const apiData = await apiRes.json();
     const synthese: string = apiData?.choices?.[0]?.message?.content?.trim() ?? '';
 
     if (!synthese) {
-      return new Response(JSON.stringify({ error: 'Réponse vide' }), { status: 502, headers: CORS });
+      return jsonError('Réponse vide', 502);
     }
 
-    return new Response(JSON.stringify({ synthese }), { status: 200, headers: CORS });
+    return jsonOk({ synthese });
 
   } catch (e) {
     console.error('[api/chantier/synthese] Unexpected error:', e instanceof Error ? e.message : e);
-    return new Response(JSON.stringify({ error: 'Erreur inattendue' }), { status: 500, headers: CORS });
+    return jsonError('Erreur inattendue', 500);
   }
 };
 
-export const OPTIONS: APIRoute = () =>
-  new Response(null, {
-    status: 204,
-    headers: { ...CORS, 'Access-Control-Allow-Methods': 'POST,OPTIONS' },
-  });
+export const OPTIONS: APIRoute = () => optionsResponse('POST,OPTIONS');

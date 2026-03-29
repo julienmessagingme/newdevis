@@ -2,65 +2,35 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import Stripe from 'stripe';
-import { createClient } from '@supabase/supabase-js';
-
-const CORS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Content-Type': 'application/json',
-};
+import { optionsResponse, jsonOk, jsonError, requireAuth } from '@/lib/apiHelpers';
 
 const stripeSecretKey = import.meta.env.STRIPE_SECRET_KEY;
-const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const PRICE_ID = 'price_1T9rrRF67GfPqM0XxH5rRrDM';
 
 export const POST: APIRoute = async ({ request }) => {
-  if (!stripeSecretKey || !supabaseUrl || !supabaseServiceKey) {
-    return new Response(
-      JSON.stringify({ error: 'Configuration serveur manquante' }),
-      { status: 500, headers: CORS },
-    );
+  if (!stripeSecretKey) {
+    return jsonError('Configuration serveur manquante', 500);
   }
 
   // Verify caller identity from JWT
-  const authHeader = request.headers.get('authorization');
-  const token = authHeader?.replace('Bearer ', '');
-  if (!token) {
-    return new Response(
-      JSON.stringify({ error: 'Non authentifié' }),
-      { status: 401, headers: CORS },
-    );
-  }
+  const ctx = await requireAuth(request);
+  if (ctx instanceof Response) return ctx;
+  const { user, supabase } = ctx;
 
-  const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey);
-  const { data: { user: callerUser }, error: authError } = await supabaseAuth.auth.getUser(token);
-  if (authError || !callerUser) {
-    return new Response(
-      JSON.stringify({ error: 'Token invalide' }),
-      { status: 401, headers: CORS },
-    );
-  }
-
-  // Use the authenticated user's ID and email — ignore body values
-  const userId = callerUser.id;
-  const userEmail = callerUser.email;
+  const userEmail = user.email;
   if (!userEmail) {
-    return new Response(
-      JSON.stringify({ error: 'Email utilisateur manquant' }),
-      { status: 400, headers: CORS },
-    );
+    return jsonError('Email utilisateur manquant', 400);
   }
 
   const stripe = new Stripe(stripeSecretKey);
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
     // Check if user already has a Stripe customer ID
     const { data: sub } = await supabase
       .from('subscriptions')
       .select('stripe_customer_id')
-      .eq('user_id', userId)
+      .eq('user_id', user.id)
       .maybeSingle();
 
     let customerId = sub?.stripe_customer_id;
@@ -69,7 +39,7 @@ export const POST: APIRoute = async ({ request }) => {
       // Create a new Stripe customer
       const customer = await stripe.customers.create({
         email: userEmail,
-        metadata: { supabase_user_id: userId },
+        metadata: { supabase_user_id: user.id },
       });
       customerId = customer.id;
 
@@ -77,7 +47,7 @@ export const POST: APIRoute = async ({ request }) => {
       await supabase
         .from('subscriptions')
         .upsert(
-          { user_id: userId, stripe_customer_id: customerId },
+          { user_id: user.id, stripe_customer_id: customerId },
           { onConflict: 'user_id' },
         );
     } else {
@@ -96,7 +66,7 @@ export const POST: APIRoute = async ({ request }) => {
           .from('subscriptions')
           .upsert(
             {
-              user_id: userId,
+              user_id: user.id,
               status: 'active',
               plan: 'pass_serenite',
               stripe_customer_id: customerId,
@@ -106,10 +76,7 @@ export const POST: APIRoute = async ({ request }) => {
             { onConflict: 'user_id' },
           );
 
-        return new Response(
-          JSON.stringify({ error: 'Vous avez déjà un abonnement Pass Sérénité actif.', already_subscribed: true }),
-          { status: 409, headers: CORS },
-        );
+        return jsonError('Vous avez déjà un abonnement Pass Sérénité actif.', 409);
       }
     }
 
@@ -123,22 +90,18 @@ export const POST: APIRoute = async ({ request }) => {
       allow_promotion_codes: true,
       success_url: `${origin}/pass-serenite?success=true`,
       cancel_url: `${origin}/pass-serenite?canceled=true`,
-      metadata: { supabase_user_id: userId },
+      metadata: { supabase_user_id: user.id },
       subscription_data: {
-        metadata: { supabase_user_id: userId },
+        metadata: { supabase_user_id: user.id },
       },
     });
 
-    return new Response(
-      JSON.stringify({ url: session.url }),
-      { status: 200, headers: CORS },
-    );
+    return jsonOk({ url: session.url });
   } catch (e) {
     const errMsg = (e as Error).message;
     console.error('[create-checkout-session] Error:', errMsg);
-    return new Response(
-      JSON.stringify({ error: 'Erreur lors de la création de la session', details: errMsg }),
-      { status: 500, headers: CORS },
-    );
+    return jsonError('Erreur lors de la création de la session', 500);
   }
 };
+
+export const OPTIONS: APIRoute = () => optionsResponse('POST,OPTIONS');

@@ -6,21 +6,10 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
+import { optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody } from '@/lib/apiHelpers';
 import { extractProjectElements, detectDevisType } from '@/utils/extractProjectElements';
 
-const CORS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Content-Type': 'application/json',
-};
-
-const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
 const googleApiKey    = import.meta.env.GOOGLE_API_KEY ?? import.meta.env.GOOGLE_AI_API_KEY;
-
-function getSupabase() {
-  return createClient(supabaseUrl, supabaseService);
-}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -109,27 +98,15 @@ Réponds UNIQUEMENT avec un JSON valide, sans balises markdown, sans commentaire
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 export const POST: APIRoute = async ({ request }) => {
-  // Auth
-  const authHeader = request.headers.get('Authorization');
-  if (authHeader?.startsWith('Bearer ') && supabaseService) {
-    const token    = authHeader.slice(7);
-    const supabase = getSupabase();
-    const { error } = await supabase.auth.getUser(token);
-    if (error) {
-      return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
-    }
-  }
+  const ctx = await requireAuth(request);
+  if (ctx instanceof Response) return ctx;
 
   if (!googleApiKey) {
-    return new Response(JSON.stringify({ error: 'Clé API non configurée' }), { status: 500, headers: CORS });
+    return jsonError('Clé API non configurée', 500);
   }
 
-  let body: AssistantRequestBody;
-  try {
-    body = await request.json();
-  } catch {
-    return new Response(JSON.stringify({ error: 'Corps invalide' }), { status: 400, headers: CORS });
-  }
+  const body = await parseJsonBody<AssistantRequestBody>(request);
+  if (body instanceof Response) return body;
 
   const { description, lots = [], devis = [], budgetMin, budgetMax, planning = [] } = body;
 
@@ -296,16 +273,12 @@ IMPORTANT : Ne génère la section "propositions" que si tu as une proposition c
       throw new Error('Invalid JSON from Gemini');
     }
 
-    return new Response(JSON.stringify(result), { status: 200, headers: CORS });
+    return jsonOk(result);
 
   } catch (e) {
     console.error('[api/chantier/assistant] error:', (e as Error).message);
-    return new Response(
-      JSON.stringify({ error: 'Service temporairement indisponible' }),
-      { status: 503, headers: CORS },
-    );
+    return jsonError('Service temporairement indisponible', 503);
   }
 };
 
-export const OPTIONS: APIRoute = () =>
-  new Response(null, { status: 204, headers: { ...CORS, 'Access-Control-Allow-Methods': 'POST,OPTIONS' } });
+export const OPTIONS: APIRoute = () => optionsResponse('POST,OPTIONS');

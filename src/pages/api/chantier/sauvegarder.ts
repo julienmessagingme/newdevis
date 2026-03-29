@@ -1,39 +1,21 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
+import { optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody } from '@/lib/apiHelpers';
 import type { ArtisanIA, ChantierIAResult } from '@/types/chantier-ia';
-
-const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
-
-const CORS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Content-Type': 'application/json',
-};
 
 /** POST /api/chantier/sauvegarder — Sauvegarde le résultat IA en base */
 export const POST: APIRoute = async ({ request }) => {
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
-  }
+  const ctx = await requireAuth(request);
+  if (ctx instanceof Response) return ctx;
+  const { user, supabase } = ctx;
 
-  const token = authHeader.slice(7);
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const rawBody = await parseJsonBody<{ result: ChantierIAResult }>(request);
+  if (rawBody instanceof Response) return rawBody;
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !user) {
-    return new Response(JSON.stringify({ error: 'Token invalide' }), { status: 401, headers: CORS });
-  }
-
-  let result: ChantierIAResult;
-  try {
-    const body = await request.json();
-    result = body.result;
-    if (!result?.nom) throw new Error('result.nom manquant');
-  } catch (e) {
-    return new Response(JSON.stringify({ error: 'Corps de requête invalide' }), { status: 400, headers: CORS });
+  const result = rawBody.result;
+  if (!result?.nom) {
+    return jsonError('Corps de requête invalide', 400);
   }
 
   const { artisans, aides, formalites, roadmap, taches, ...rest } = result;
@@ -72,7 +54,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   if (insertError || !chantier) {
     console.error('[api/chantier/sauvegarder] insert error:', insertError?.message);
-    return new Response(JSON.stringify({ error: 'Erreur lors de la création du chantier' }), { status: 500, headers: CORS });
+    return jsonError('Erreur lors de la création du chantier', 500);
   }
 
   const chantierId = chantier.id;
@@ -181,8 +163,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
   }
 
-  return new Response(JSON.stringify({ chantierId, success: true }), { status: 201, headers: CORS });
+  return jsonOk({ chantierId, success: true }, 201);
 };
 
-export const OPTIONS: APIRoute = () =>
-  new Response(null, { status: 204, headers: { ...CORS, 'Access-Control-Allow-Methods': 'POST,OPTIONS' } });
+export const OPTIONS: APIRoute = () => optionsResponse('POST,OPTIONS');

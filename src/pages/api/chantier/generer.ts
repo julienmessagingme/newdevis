@@ -1,12 +1,10 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
+import { requireAuth, parseJsonBody } from '@/lib/apiHelpers';
 import { SYSTEM_PROMPT_CHANTIER } from '@/lib/prompts/chantier-ia';
 import type { ChantierIAResult, SseEvent } from '@/types/chantier-ia';
 
-const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
 const googleApiKey = import.meta.env.GOOGLE_AI_API_KEY ?? import.meta.env.GOOGLE_API_KEY;
 
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
@@ -26,28 +24,15 @@ const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** POST /api/chantier/generer — Génération IA via SSE */
 export const POST: APIRoute = async ({ request }) => {
-  // Auth
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401 });
-  }
-  const token = authHeader.slice(7);
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !user) {
-    return new Response(JSON.stringify({ error: 'Token invalide' }), { status: 401 });
-  }
+  const ctx = await requireAuth(request);
+  if (ctx instanceof Response) return ctx;
 
   if (!googleApiKey) {
     return new Response(JSON.stringify({ error: 'Clé API Google AI non configurée' }), { status: 500 });
   }
 
-  let body: { description?: string; mode?: string; guidedForm?: Record<string, unknown> };
-  try {
-    body = await request.json();
-  } catch {
-    return new Response(JSON.stringify({ error: 'Corps de requête invalide' }), { status: 400 });
-  }
+  const body = await parseJsonBody<{ description?: string; mode?: string; guidedForm?: Record<string, unknown> }>(request);
+  if (body instanceof Response) return body;
 
   const { description, mode, guidedForm } = body;
 

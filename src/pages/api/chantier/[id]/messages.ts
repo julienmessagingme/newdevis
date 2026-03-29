@@ -1,56 +1,22 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
-
-const CORS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Content-Type': 'application/json',
-};
-
-function makeClient() {
-  return createClient(supabaseUrl, supabaseService);
-}
-
-async function authenticate(request: Request) {
-  const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return null;
-  const supabase = makeClient();
-  const { data: { user } } = await supabase.auth.getUser(auth.slice(7));
-  return user ? { user, supabase } : null;
-}
-
-async function verifyOwnership(
-  supabase: ReturnType<typeof makeClient>,
-  chantierId: string,
-  userId: string,
-) {
-  const { data } = await supabase
-    .from('chantiers').select('id')
-    .eq('id', chantierId).eq('user_id', userId).single();
-  return !!data;
-}
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
 
 // ── POST — send a message to a contact via SendGrid ──────────────────────
 
 export const POST: APIRoute = async ({ params, request }) => {
-  const ctx = await authenticate(request);
-  if (!ctx) return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
+  const ctx = await requireChantierAuth(request, params.id!);
+  if (ctx instanceof Response) return ctx;
 
   const chantierId = params.id!;
-  if (!await verifyOwnership(ctx.supabase, chantierId, ctx.user.id))
-    return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
-
   const body = await request.json();
   const contactId = body.contact_id;
   const subject   = (body.subject ?? '').trim();
   const bodyText  = (body.body ?? '').trim();
 
   if (!contactId || !subject || !bodyText)
-    return new Response(JSON.stringify({ error: 'contact_id, subject et body requis' }), { status: 400, headers: CORS });
+    return jsonError('contact_id, subject et body requis', 400);
 
   // Fetch contact (scoped to this chantier)
   const { data: contact, error: contactErr } = await ctx.supabase
@@ -61,10 +27,10 @@ export const POST: APIRoute = async ({ params, request }) => {
     .single();
 
   if (contactErr || !contact)
-    return new Response(JSON.stringify({ error: 'Contact introuvable' }), { status: 404, headers: CORS });
+    return jsonError('Contact introuvable', 404);
 
   if (!contact.email)
-    return new Response(JSON.stringify({ error: 'Ce contact n\'a pas d\'adresse email' }), { status: 400, headers: CORS });
+    return jsonError('Ce contact n\'a pas d\'adresse email', 400);
 
   // Find or create conversation
   const { data: existingConv } = await ctx.supabase
@@ -103,7 +69,7 @@ export const POST: APIRoute = async ({ params, request }) => {
       .single();
 
     if (convErr || !newConv)
-      return new Response(JSON.stringify({ error: convErr?.message ?? 'Erreur création conversation' }), { status: 500, headers: CORS });
+      return jsonError(convErr?.message ?? 'Erreur création conversation', 500);
 
     conversationId = newConv.id;
   }
@@ -122,7 +88,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     .single();
 
   if (msgErr || !message)
-    return new Response(JSON.stringify({ error: msgErr?.message ?? 'Erreur création message' }), { status: 500, headers: CORS });
+    return jsonError(msgErr?.message ?? 'Erreur création message', 500);
 
   // Build sender display name
   const firstName = ctx.user.user_metadata?.first_name ?? '';
@@ -170,19 +136,14 @@ export const POST: APIRoute = async ({ params, request }) => {
     .update({ last_message_at: new Date().toISOString() })
     .eq('id', conversationId);
 
-  return new Response(JSON.stringify({
+  return jsonOk({
     success: true,
     conversationId,
     messageId: message.id,
     ...(sendFailed ? { sendError } : {}),
-  }), { status: sendFailed ? 200 : 200, headers: CORS });
+  });
 };
 
 // ── OPTIONS ────────────────────────────────────────────────────────────────
 
-export const OPTIONS: APIRoute = async () => {
-  return new Response(null, {
-    status: 204,
-    headers: { ...CORS, 'Access-Control-Allow-Methods': 'POST,OPTIONS', 'Access-Control-Allow-Headers': 'Authorization,Content-Type' },
-  });
-};
+export const OPTIONS: APIRoute = () => optionsResponse();

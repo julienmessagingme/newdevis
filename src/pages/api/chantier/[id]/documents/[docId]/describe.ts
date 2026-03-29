@@ -10,29 +10,10 @@ export const prerender = false;
  */
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
 
-const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
 const GOOGLE_API_KEY  = import.meta.env.GOOGLE_API_KEY;
 const BUCKET          = 'chantier-documents';
-
-const CORS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Content-Type': 'application/json',
-};
-
-function makeClient() {
-  return createClient(supabaseUrl, supabaseService);
-}
-
-async function authenticate(request: Request) {
-  const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return null;
-  const supabase = makeClient();
-  const { data: { user } } = await supabase.auth.getUser(auth.slice(7));
-  return user ? { user, supabase } : null;
-}
 
 /** Prompt Gemini selon le type de document */
 function buildPrompt(documentType: string): string {
@@ -53,19 +34,13 @@ function buildPrompt(documentType: string): string {
 
 export const POST: APIRoute = async ({ params, request }) => {
   if (!GOOGLE_API_KEY) {
-    return new Response(JSON.stringify({ error: 'GOOGLE_API_KEY non configurée' }), { status: 500, headers: CORS });
+    return jsonError('GOOGLE_API_KEY non configurée', 500);
   }
 
-  const ctx = await authenticate(request);
-  if (!ctx) return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
+  const ctx = await requireChantierAuth(request, params.id!);
+  if (ctx instanceof Response) return ctx;
 
   const { id: chantierId, docId } = params;
-
-  // ── Ownership ────────────────────────────────────────────────────────────────
-  const { data: chantier } = await ctx.supabase
-    .from('chantiers').select('id')
-    .eq('id', chantierId!).eq('user_id', ctx.user.id).single();
-  if (!chantier) return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
 
   // ── Récupérer le document ────────────────────────────────────────────────────
   const { data: doc, error: docErr } = await ctx.supabase
@@ -76,11 +51,11 @@ export const POST: APIRoute = async ({ params, request }) => {
     .single();
 
   if (docErr || !doc) {
-    return new Response(JSON.stringify({ error: 'Document introuvable' }), { status: 404, headers: CORS });
+    return jsonError('Document introuvable', 404);
   }
 
   if (!doc.bucket_path) {
-    return new Response(JSON.stringify({ error: 'Fichier non disponible' }), { status: 400, headers: CORS });
+    return jsonError('Fichier non disponible', 400);
   }
 
   // ── Télécharger le fichier depuis Supabase Storage ───────────────────────────
@@ -89,7 +64,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     .download(doc.bucket_path);
 
   if (dlErr || !fileData) {
-    return new Response(JSON.stringify({ error: 'Impossible de télécharger le fichier' }), { status: 500, headers: CORS });
+    return jsonError('Impossible de télécharger le fichier', 500);
   }
 
   // ── Convertir en base64 ──────────────────────────────────────────────────────
@@ -157,7 +132,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   }
 
   if (!generatedNom) {
-    return new Response(JSON.stringify({ error: 'IA indisponible', nom: doc.nom }), { status: 200, headers: CORS });
+    return jsonOk({ error: 'IA indisponible', nom: doc.nom });
   }
 
   // ── Mettre à jour le nom en base ─────────────────────────────────────────────
@@ -166,11 +141,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     .update({ nom: generatedNom })
     .eq('id', docId!);
 
-  return new Response(JSON.stringify({ nom: generatedNom }), { status: 200, headers: CORS });
+  return jsonOk({ nom: generatedNom });
 };
 
-export const OPTIONS: APIRoute = () =>
-  new Response(null, {
-    status: 204,
-    headers: { ...CORS, 'Access-Control-Allow-Methods': 'POST,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' },
-  });
+export const OPTIONS: APIRoute = () => optionsResponse();

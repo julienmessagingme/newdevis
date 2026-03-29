@@ -15,15 +15,8 @@ export const prerender = false;
  */
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
 
-const CORS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Content-Type': 'application/json',
-};
-
-const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
 const googleApiKey    = import.meta.env.GOOGLE_API_KEY ?? import.meta.env.GOOGLE_AI_API_KEY;
 const GEMINI_URL      = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 
@@ -47,46 +40,31 @@ export interface InsightsResponse {
 // ── Route ─────────────────────────────────────────────────────────────────────
 
 export const POST: APIRoute = async ({ params, request }) => {
-  // ── Auth ───────────────────────────────────────────────────────────────────
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
-  }
+  const ctx = await requireChantierAuth(request, params.id!);
+  if (ctx instanceof Response) return ctx;
 
-  const token    = authHeader.slice(7);
-  const supabase = createClient(supabaseUrl, supabaseService);
+  const chantierId = params.id!;
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !user) {
-    return new Response(JSON.stringify({ error: 'Token invalide' }), { status: 401, headers: CORS });
-  }
-
-  const chantierId = params.id;
-  if (!chantierId) {
-    return new Response(JSON.stringify({ error: 'ID manquant' }), { status: 400, headers: CORS });
-  }
-
-  // ── Ownership ──────────────────────────────────────────────────────────────
-  const { data: chantier } = await supabase
+  // ── Reload chantier with full fields ──────────────────────────────────────
+  const { data: chantier } = await ctx.supabase
     .from('chantiers')
     .select('id, nom, budget, metadonnees, project_mode')
     .eq('id', chantierId)
-    .eq('user_id', user.id)
     .single();
 
   if (!chantier) {
-    return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
+    return jsonError('Chantier introuvable', 404);
   }
 
   // ── Chargement parallèle des données ──────────────────────────────────────
   const [lotsRes, docsRes] = await Promise.all([
-    supabase
+    ctx.supabase
       .from('lots_chantier')
       .select('id, nom, emoji, statut, budget_min_ht, budget_avg_ht, budget_max_ht, job_type')
       .eq('chantier_id', chantierId)
       .order('ordre'),
 
-    supabase
+    ctx.supabase
       .from('documents_chantier')
       .select('id, nom, document_type, lot_id, analyse_id, created_at')
       .eq('chantier_id', chantierId)
@@ -109,7 +87,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   }> = {};
 
   if (analyseIds.length > 0) {
-    const { data: analyses } = await supabase
+    const { data: analyses } = await ctx.supabase
       .from('analyses')
       .select('id, raw_text')
       .in('id', analyseIds);
@@ -281,7 +259,7 @@ Si un lot n'a pas de donnée significative, génère quand même un insight util
     }
 
     const response: InsightsResponse = { global: globalInsights, lots: lotsInsights };
-    return new Response(JSON.stringify(response), { status: 200, headers: CORS });
+    return jsonOk(response);
 
   } catch (e) {
     console.error('[insights] error:', (e as Error).message);
@@ -342,11 +320,7 @@ function buildStaticInsights(
     global: global.length > 0 ? global : [{ type: 'info', text: 'Données insuffisantes pour analyse', icon: '📊' }],
     lots: lotsMap,
   };
-  return new Response(JSON.stringify(response), { status: 200, headers: CORS });
+  return jsonOk(response);
 }
 
-export const OPTIONS: APIRoute = () =>
-  new Response(null, {
-    status: 204,
-    headers: { ...CORS, 'Access-Control-Allow-Methods': 'POST,OPTIONS' },
-  });
+export const OPTIONS: APIRoute = () => optionsResponse();

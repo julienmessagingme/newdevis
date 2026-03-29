@@ -1,36 +1,14 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
+import { CORS, optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody } from '@/lib/apiHelpers';
 import type { CreateChantierPayload } from '@/types/chantier-dashboard';
-
-const CORS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Content-Type': 'application/json',
-};
-
-const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
-
-function getSupabase() {
-  return createClient(supabaseUrl, supabaseServiceKey);
-}
 
 /** GET /api/chantier — Retourne tous les chantiers de l'utilisateur avec leurs devis */
 export const GET: APIRoute = async ({ request }) => {
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
-  }
-
-  const token = authHeader.slice(7);
-  const supabase = getSupabase();
-
-  // Vérifie le token et récupère l'utilisateur
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !user) {
-    return new Response(JSON.stringify({ error: 'Token invalide' }), { status: 401, headers: CORS });
-  }
+  const ctx = await requireAuth(request);
+  if (ctx instanceof Response) return ctx;
+  const { user, supabase } = ctx;
 
   // Récupère les chantiers
   const { data: chantiers, error: chantiersError } = await supabase
@@ -42,11 +20,11 @@ export const GET: APIRoute = async ({ request }) => {
 
   if (chantiersError) {
     console.error('[api/chantier GET] chantiers error:', chantiersError.message);
-    return new Response(JSON.stringify({ error: 'Erreur lors du chargement des chantiers' }), { status: 500, headers: CORS });
+    return jsonError('Erreur lors du chargement des chantiers', 500);
   }
 
   if (!chantiers || chantiers.length === 0) {
-    return new Response(JSON.stringify({ chantiers: [] }), { status: 200, headers: CORS });
+    return jsonOk({ chantiers: [] });
   }
 
   // Récupère tous les devis pour ces chantiers en une seule requête
@@ -58,7 +36,7 @@ export const GET: APIRoute = async ({ request }) => {
 
   if (devisError) {
     console.error('[api/chantier GET] devis error:', devisError.message);
-    return new Response(JSON.stringify({ error: 'Erreur lors du chargement des devis' }), { status: 500, headers: CORS });
+    return jsonError('Erreur lors du chargement des devis', 500);
   }
 
   // Récupère les 5 dernières activités (devis récents)
@@ -97,41 +75,25 @@ export const GET: APIRoute = async ({ request }) => {
     };
   });
 
-  return new Response(
-    JSON.stringify({ chantiers: chantiersAvecDevis, activiteRecente }),
-    { status: 200, headers: CORS },
-  );
+  return jsonOk({ chantiers: chantiersAvecDevis, activiteRecente });
 };
 
 /** POST /api/chantier — Crée un nouveau chantier */
 export const POST: APIRoute = async ({ request }) => {
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
-  }
+  const ctx = await requireAuth(request);
+  if (ctx instanceof Response) return ctx;
+  const { user, supabase } = ctx;
 
-  const token = authHeader.slice(7);
-  const supabase = getSupabase();
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !user) {
-    return new Response(JSON.stringify({ error: 'Token invalide' }), { status: 401, headers: CORS });
-  }
-
-  let body: CreateChantierPayload;
-  try {
-    body = await request.json();
-  } catch {
-    return new Response(JSON.stringify({ error: 'Corps de requête invalide' }), { status: 400, headers: CORS });
-  }
+  const body = await parseJsonBody<CreateChantierPayload>(request);
+  if (body instanceof Response) return body;
 
   const { nom, emoji, enveloppePrevue } = body;
 
   if (!nom?.trim()) {
-    return new Response(JSON.stringify({ error: 'Le nom du chantier est requis' }), { status: 400, headers: CORS });
+    return jsonError('Le nom du chantier est requis', 400);
   }
   if (typeof enveloppePrevue !== 'number' || enveloppePrevue < 0) {
-    return new Response(JSON.stringify({ error: 'L\'enveloppe budgétaire doit être un nombre positif' }), { status: 400, headers: CORS });
+    return jsonError("L'enveloppe budgétaire doit être un nombre positif", 400);
   }
 
   const { data, error } = await supabase
@@ -148,11 +110,10 @@ export const POST: APIRoute = async ({ request }) => {
 
   if (error) {
     console.error('[api/chantier POST] insert error:', error.message);
-    return new Response(JSON.stringify({ error: 'Erreur lors de la création du chantier' }), { status: 500, headers: CORS });
+    return jsonError('Erreur lors de la création du chantier', 500);
   }
 
-  return new Response(JSON.stringify({ chantier: { ...data, devis: [] } }), { status: 201, headers: CORS });
+  return jsonOk({ chantier: { ...data, devis: [] } }, 201);
 };
 
-export const OPTIONS: APIRoute = () =>
-  new Response(null, { status: 204, headers: { ...CORS, 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS' } });
+export const OPTIONS: APIRoute = () => optionsResponse('GET,POST,OPTIONS');

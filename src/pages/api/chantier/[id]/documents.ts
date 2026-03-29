@@ -1,60 +1,26 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
 import type { DocumentType } from '@/types/chantier-ia';
 import { generatePaymentEventsFromAnalyse } from '@/lib/paymentEvents';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth, createServiceClient } from '@/lib/apiHelpers';
 
-const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
 const BUCKET          = 'chantier-documents';
 const MAX_BYTES       = 10 * 1024 * 1024; // 10 Mo — cohérent avec bucket file_size_limit
 const SIGNED_TTL      = 3_600;            // 1h
-
-const CORS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Content-Type': 'application/json',
-};
 
 const VALID_TYPES = new Set<DocumentType>([
   'devis', 'facture', 'photo', 'plan', 'autorisation', 'assurance', 'autre', 'preuve_paiement',
 ]);
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-function makeClient() {
-  return createClient(supabaseUrl, supabaseService);
-}
-
-async function authenticate(request: Request) {
-  const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return null;
-  const supabase = makeClient();
-  const { data: { user } } = await supabase.auth.getUser(auth.slice(7));
-  return user ? { user, supabase } : null;
-}
-
-async function verifyChantierOwnership(
-  supabase: ReturnType<typeof makeClient>,
-  chantierId: string,
-  userId: string,
-): Promise<boolean> {
-  const { data } = await supabase
-    .from('chantiers').select('id')
-    .eq('id', chantierId).eq('user_id', userId).single();
-  return !!data;
-}
-
 // ── GET /api/chantier/[id]/documents ────────────────────────────────────────
 // Liste les documents du chantier avec URL signées (TTL 1h).
 
 export const GET: APIRoute = async ({ params, request }) => {
-  const ctx = await authenticate(request);
-  if (!ctx) return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
+  const ctx = await requireChantierAuth(request, params.id!);
+  if (ctx instanceof Response) return ctx;
 
   const chantierId = params.id!;
-  if (!await verifyChantierOwnership(ctx.supabase, chantierId, ctx.user.id))
-    return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
 
   const { data: docs, error } = await ctx.supabase
     .from('documents_chantier')
@@ -64,7 +30,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 
   if (error) {
     console.error('[api/documents] GET error:', error.message);
-    return new Response(JSON.stringify({ error: 'Erreur chargement documents' }), { status: 500, headers: CORS });
+    return jsonError('Erreur chargement documents', 500);
   }
 
   // Génération des URLs signées en batch (skip pour les imports VerifierMonDevis)
@@ -78,7 +44,7 @@ export const GET: APIRoute = async ({ params, request }) => {
     }),
   );
 
-  return new Response(JSON.stringify({ documents: enriched }), { status: 200, headers: CORS });
+  return jsonOk({ documents: enriched });
 };
 
 // ── POST /api/chantier/[id]/documents ───────────────────────────────────────
@@ -87,25 +53,18 @@ export const GET: APIRoute = async ({ params, request }) => {
 // Plus de dépendance à la RLS storage côté client.
 
 export const POST: APIRoute = async ({ params, request }) => {
-  const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer '))
-    return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
+  const ctx = await requireChantierAuth(request, params.id!);
+  if (ctx instanceof Response) return ctx;
 
-  const supabase = makeClient();
-  const { data: { user } } = await supabase.auth.getUser(auth.slice(7));
-  if (!user)
-    return new Response(JSON.stringify({ error: 'Token invalide' }), { status: 401, headers: CORS });
-
+  const { supabase, user } = ctx;
   const chantierId = params.id!;
-  if (!await verifyChantierOwnership(supabase, chantierId, user.id))
-    return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
 
   // ── Parse multipart/form-data ─────────────────────────────────────────────
   let formData: FormData;
   try {
     formData = await request.formData();
   } catch {
-    return new Response(JSON.stringify({ error: 'Corps de requête invalide' }), { status: 400, headers: CORS });
+    return jsonError('Corps de requête invalide', 400);
   }
 
   const file           = formData.get('file') as File | null;
@@ -124,7 +83,7 @@ export const POST: APIRoute = async ({ params, request }) => {
       .from('analyses').select('id')
       .eq('id', analyseId).eq('user_id', user.id).single();
     if (!analyse)
-      return new Response(JSON.stringify({ error: 'Analyse introuvable' }), { status: 404, headers: CORS });
+      return jsonError('Analyse introuvable', 404);
 
     // Idempotence : si ce document VMD a déjà été importé dans ce chantier, retourner l'existant
     const { data: existing } = await supabase
@@ -135,10 +94,7 @@ export const POST: APIRoute = async ({ params, request }) => {
       .eq('source', 'verifier_mon_devis')
       .maybeSingle();
     if (existing) {
-      return new Response(
-        JSON.stringify({ document: { ...existing, signedUrl: null } }),
-        { status: 200, headers: CORS },
-      );
+      return jsonOk({ document: { ...existing, signedUrl: null } });
     }
 
     // Validation lot
@@ -170,7 +126,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 
     if (insertError || !doc) {
       console.error('[api/documents] import insert error:', insertError?.message);
-      return new Response(JSON.stringify({ error: `Erreur DB : ${insertError?.message ?? 'insert failed'}` }), { status: 500, headers: CORS });
+      return jsonError(`Erreur DB : ${insertError?.message ?? 'insert failed'}`, 500);
     }
 
     // ── Génération payment_events (fire-and-forget) ───────────────────────
@@ -256,20 +212,17 @@ export const POST: APIRoute = async ({ params, request }) => {
       })
       .catch(() => {/* non-bloquant */});
 
-    return new Response(
-      JSON.stringify({ document: { ...doc, signedUrl: null } }),
-      { status: 201, headers: CORS },
-    );
+    return jsonOk({ document: { ...doc, signedUrl: null } }, 201);
   }
 
   if (!file || !(file instanceof File))
-    return new Response(JSON.stringify({ error: 'Fichier manquant' }), { status: 400, headers: CORS });
+    return jsonError('Fichier manquant', 400);
   if (!nom)
-    return new Response(JSON.stringify({ error: 'Nom du document requis' }), { status: 400, headers: CORS });
+    return jsonError('Nom du document requis', 400);
   if (!VALID_TYPES.has(documentType))
-    return new Response(JSON.stringify({ error: 'Type de document invalide' }), { status: 400, headers: CORS });
+    return jsonError('Type de document invalide', 400);
   if (file.size > MAX_BYTES)
-    return new Response(JSON.stringify({ error: 'Fichier trop volumineux (max 10 Mo)' }), { status: 400, headers: CORS });
+    return jsonError('Fichier trop volumineux (max 10 Mo)', 400);
 
   // ── Construire le chemin storage (user-scoped) ────────────────────────────
   const ext        = file.name.includes('.') ? `.${file.name.split('.').pop()!.toLowerCase()}` : '';
@@ -290,7 +243,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   if (uploadErr) {
     console.error('[api/documents] Storage upload error:', uploadErr.message);
-    return new Response(JSON.stringify({ error: `Erreur storage : ${uploadErr.message}` }), { status: 500, headers: CORS });
+    return jsonError(`Erreur storage : ${uploadErr.message}`, 500);
   }
 
   // ── Validation lot si fourni ──────────────────────────────────────────────
@@ -335,16 +288,12 @@ export const POST: APIRoute = async ({ params, request }) => {
     const errMsg = insertError?.message ?? 'insert failed';
     console.error('[api/documents] POST insert error:', errMsg);
     // Retourner le message exact pour faciliter le diagnostic
-    return new Response(JSON.stringify({ error: `Erreur DB : ${errMsg}` }), { status: 500, headers: CORS });
+    return jsonError(`Erreur DB : ${errMsg}`, 500);
   }
 
   const { data: s } = await supabase.storage.from(BUCKET).createSignedUrl(bucketPath, SIGNED_TTL);
 
-  return new Response(
-    JSON.stringify({ document: { ...doc, signedUrl: s?.signedUrl ?? null } }),
-    { status: 201, headers: CORS },
-  );
+  return jsonOk({ document: { ...doc, signedUrl: s?.signedUrl ?? null } }, 201);
 };
 
-export const OPTIONS: APIRoute = () =>
-  new Response(null, { status: 204, headers: { ...CORS, 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS' } });
+export const OPTIONS: APIRoute = () => optionsResponse();

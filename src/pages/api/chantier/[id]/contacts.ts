@@ -1,48 +1,15 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
-
-const CORS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Content-Type': 'application/json',
-};
-
-function makeClient() {
-  return createClient(supabaseUrl, supabaseService);
-}
-
-async function authenticate(request: Request) {
-  const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return null;
-  const supabase = makeClient();
-  const { data: { user } } = await supabase.auth.getUser(auth.slice(7));
-  return user ? { user, supabase } : null;
-}
-
-async function verifyOwnership(
-  supabase: ReturnType<typeof makeClient>,
-  chantierId: string,
-  userId: string,
-) {
-  const { data } = await supabase
-    .from('chantiers').select('id')
-    .eq('id', chantierId).eq('user_id', userId).single();
-  return !!data;
-}
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
 
 // ── GET — liste contacts du chantier + artisans des devis ──────────────────
 
 export const GET: APIRoute = async ({ params, request }) => {
-  const ctx = await authenticate(request);
-  if (!ctx) return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
+  const ctx = await requireChantierAuth(request, params.id!);
+  if (ctx instanceof Response) return ctx;
 
   const chantierId = params.id!;
-  if (!await verifyOwnership(ctx.supabase, chantierId, ctx.user.id))
-    return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
 
   // Contacts manuels
   const { data: contacts } = await ctx.supabase
@@ -207,26 +174,23 @@ export const GET: APIRoute = async ({ params, request }) => {
     .select('id, nom')
     .eq('chantier_id', chantierId);
 
-  return new Response(JSON.stringify({
+  return jsonOk({
     contacts: contacts ?? [],
     analyseArtisans,
     lots: lots ?? [],
-  }), { headers: CORS });
+  });
 };
 
 // ── POST — créer un contact ────────────────────────────────────────────────
 
 export const POST: APIRoute = async ({ params, request }) => {
-  const ctx = await authenticate(request);
-  if (!ctx) return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
+  const ctx = await requireChantierAuth(request, params.id!);
+  if (ctx instanceof Response) return ctx;
 
   const chantierId = params.id!;
-  if (!await verifyOwnership(ctx.supabase, chantierId, ctx.user.id))
-    return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
-
   const body = await request.json();
   const nom = (body.nom ?? '').trim();
-  if (!nom) return new Response(JSON.stringify({ error: 'Nom requis' }), { status: 400, headers: CORS });
+  if (!nom) return jsonError('Nom requis', 400);
 
   const { data, error } = await ctx.supabase
     .from('contacts_chantier')
@@ -247,22 +211,19 @@ export const POST: APIRoute = async ({ params, request }) => {
     .select()
     .single();
 
-  if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: CORS });
-  return new Response(JSON.stringify({ contact: data }), { status: 201, headers: CORS });
+  if (error) return jsonError(error.message, 500);
+  return jsonOk({ contact: data }, 201);
 };
 
 // ── PATCH — modifier un contact ────────────────────────────────────────────
 
 export const PATCH: APIRoute = async ({ params, request }) => {
-  const ctx = await authenticate(request);
-  if (!ctx) return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
+  const ctx = await requireChantierAuth(request, params.id!);
+  if (ctx instanceof Response) return ctx;
 
   const chantierId = params.id!;
-  if (!await verifyOwnership(ctx.supabase, chantierId, ctx.user.id))
-    return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
-
   const body = await request.json();
-  if (!body.contactId) return new Response(JSON.stringify({ error: 'contactId requis' }), { status: 400, headers: CORS });
+  if (!body.contactId) return jsonError('contactId requis', 400);
 
   const updates: Record<string, unknown> = {};
   if (body.nom !== undefined)       updates.nom       = body.nom.trim();
@@ -281,22 +242,19 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     .select()
     .single();
 
-  if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: CORS });
-  return new Response(JSON.stringify({ contact: data }), { headers: CORS });
+  if (error) return jsonError(error.message, 500);
+  return jsonOk({ contact: data });
 };
 
 // ── DELETE — supprimer un contact ──────────────────────────────────────────
 
 export const DELETE: APIRoute = async ({ params, request }) => {
-  const ctx = await authenticate(request);
-  if (!ctx) return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
+  const ctx = await requireChantierAuth(request, params.id!);
+  if (ctx instanceof Response) return ctx;
 
   const chantierId = params.id!;
-  if (!await verifyOwnership(ctx.supabase, chantierId, ctx.user.id))
-    return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
-
   const body = await request.json();
-  if (!body.contactId) return new Response(JSON.stringify({ error: 'contactId requis' }), { status: 400, headers: CORS });
+  if (!body.contactId) return jsonError('contactId requis', 400);
 
   const { error } = await ctx.supabase
     .from('contacts_chantier')
@@ -304,15 +262,10 @@ export const DELETE: APIRoute = async ({ params, request }) => {
     .eq('id', body.contactId)
     .eq('chantier_id', chantierId);
 
-  if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: CORS });
-  return new Response(JSON.stringify({ ok: true }), { headers: CORS });
+  if (error) return jsonError(error.message, 500);
+  return jsonOk({ ok: true });
 };
 
 // ── OPTIONS ────────────────────────────────────────────────────────────────
 
-export const OPTIONS: APIRoute = async () => {
-  return new Response(null, {
-    status: 204,
-    headers: { ...CORS, 'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Authorization,Content-Type' },
-  });
-};
+export const OPTIONS: APIRoute = () => optionsResponse();

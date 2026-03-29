@@ -1,35 +1,15 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
 import type { ArtisanIA, ChantierIAResult } from '@/types/chantier-ia';
-
-const CORS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Content-Type': 'application/json',
-};
-
-const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
-
-async function authCtx(request: Request, chantierId: string) {
-  const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return null;
-  const token = auth.slice(7);
-  const supabase = createClient(supabaseUrl, supabaseService);
-  const { data: { user } } = await supabase.auth.getUser(token);
-  if (!user) return null;
-  const { data: chantier } = await supabase
-    .from('chantiers').select('id').eq('id', chantierId).eq('user_id', user.id).single();
-  if (!chantier) return null;
-  return supabase;
-}
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
 
 /** PATCH /api/chantier/[id]/regenerer — Met à jour un chantier existant avec un nouveau résultat IA */
 export const PATCH: APIRoute = async ({ params, request }) => {
-  const id = params.id ?? '';
-  const sb = await authCtx(request, id);
-  if (!sb) return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
+  const ctx = await requireChantierAuth(request, params.id!);
+  if (ctx instanceof Response) return ctx;
+
+  const id = params.id!;
 
   let result: ChantierIAResult;
   try {
@@ -37,7 +17,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     result = body.result;
     if (!result?.nom) throw new Error('result.nom manquant');
   } catch {
-    return new Response(JSON.stringify({ error: 'Corps invalide' }), { status: 400, headers: CORS });
+    return jsonError('Corps invalide', 400);
   }
 
   const { artisans, aides, formalites, roadmap, taches, ..._ } = result;
@@ -56,7 +36,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   });
 
   // 1. Mettre à jour la table chantiers
-  const { error: updateError } = await sb
+  const { error: updateError } = await ctx.supabase
     .from('chantiers')
     .update({
       nom: result.nom,
@@ -70,14 +50,14 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     .eq('id', id);
 
   if (updateError) {
-    return new Response(JSON.stringify({ error: updateError.message }), { status: 500, headers: CORS });
+    return jsonError(updateError.message, 500);
   }
 
   // 2. Remplacer les lots : supprimer les anciens, insérer les nouveaux
-  await sb.from('lots_chantier').delete().eq('chantier_id', id);
+  await ctx.supabase.from('lots_chantier').delete().eq('chantier_id', id);
 
   if (Array.isArray(artisans) && artisans.length > 0) {
-    const { error: lotsError } = await sb.from('lots_chantier').insert(
+    const { error: lotsError } = await ctx.supabase.from('lots_chantier').insert(
       (artisans as ArtisanIA[]).map((a, i) => ({
         chantier_id: id,
         nom: a.metier,
@@ -98,7 +78,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
       );
       if (artisansWithJobType.length > 0) {
         const jobTypes = artisansWithJobType.map((a) => a.job_type as string);
-        const { data: prices } = await sb
+        const { data: prices } = await ctx.supabase
           .from('market_prices')
           .select(
             'job_type, unit, price_min_unit_ht, price_avg_unit_ht, price_max_unit_ht,' +
@@ -118,7 +98,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
             const sRM = rT >= 1 ? 0.40 : rM;
             const sRMO= rT >= 1 ? 0.55 : rMO;
             const calc = (u: number | null, f: number | null) => q * (Number(u) || 0) + (Number(f) || 0);
-            await sb.from('lots_chantier').update({
+            await ctx.supabase.from('lots_chantier').update({
               job_type:       artisan.job_type,
               quantite:       q,
               unite:          price.unit ?? null,
@@ -138,10 +118,10 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   }
 
   // 3. Remplacer les tâches
-  await sb.from('todo_chantier').delete().eq('chantier_id', id);
+  await ctx.supabase.from('todo_chantier').delete().eq('chantier_id', id);
 
   if (Array.isArray(taches) && taches.length > 0) {
-    await sb.from('todo_chantier').insert(
+    await ctx.supabase.from('todo_chantier').insert(
       taches.map((t, i) => ({
         chantier_id: id,
         titre: t.titre,
@@ -152,8 +132,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     );
   }
 
-  return new Response(JSON.stringify({ ok: true }), { status: 200, headers: CORS });
+  return jsonOk({ ok: true });
 };
 
-export const OPTIONS: APIRoute = () =>
-  new Response(null, { status: 204, headers: { ...CORS, 'Access-Control-Allow-Methods': 'PATCH,OPTIONS' } });
+export const OPTIONS: APIRoute = () => optionsResponse();

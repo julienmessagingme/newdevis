@@ -1,20 +1,9 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
+import { optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody } from '@/lib/apiHelpers';
 
-const CORS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Content-Type': 'application/json',
-};
-
-const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
 const googleApiKey    = import.meta.env.GOOGLE_API_KEY ?? import.meta.env.GOOGLE_AI_API_KEY;
-
-function getSupabase() {
-  return createClient(supabaseUrl, supabaseService);
-}
 
 interface MateriauxRequestBody {
   description: string;
@@ -64,29 +53,17 @@ Format exact :
 
 /** POST /api/chantier/materiaux — Génère 3 options matériaux via Gemini 2.0-flash */
 export const POST: APIRoute = async ({ request }) => {
-  // ── Auth optionnelle (données dans le body, pas en DB) ────────────────────
-  // On vérifie le token si présent mais on ne bloque pas si absent
-  const authHeader = request.headers.get('Authorization');
-  if (authHeader?.startsWith('Bearer ') && supabaseService) {
-    const token    = authHeader.slice(7);
-    const supabase = getSupabase();
-    const { error: authError } = await supabase.auth.getUser(token);
-    if (authError) {
-      console.warn('[api/chantier/materiaux] Token non valide, accès toléré:', authError.message);
-    }
-  }
+  // Auth required
+  const ctx = await requireAuth(request);
+  if (ctx instanceof Response) return ctx;
 
   if (!googleApiKey) {
-    return new Response(JSON.stringify({ error: 'Clé API non configurée' }), { status: 500, headers: CORS });
+    return jsonError('Clé API non configurée', 500);
   }
 
   // ── Body ─────────────────────────────────────────────────────────────────
-  let body: MateriauxRequestBody;
-  try {
-    body = await request.json();
-  } catch {
-    return new Response(JSON.stringify({ error: 'Corps invalide' }), { status: 400, headers: CORS });
-  }
+  const body = await parseJsonBody<MateriauxRequestBody>(request);
+  if (body instanceof Response) return body;
 
   const { description = '', lots = [], currentStep = '' } = body;
 
@@ -134,18 +111,11 @@ export const POST: APIRoute = async ({ request }) => {
       throw new Error('Réponse Gemini invalide : pas de matériaux');
     }
 
-    return new Response(JSON.stringify(data), { status: 200, headers: CORS });
+    return jsonOk(data);
   } catch (e) {
     console.error('[api/chantier/materiaux] error:', (e as Error).message);
-    return new Response(
-      JSON.stringify({ error: 'Service temporairement indisponible' }),
-      { status: 503, headers: CORS },
-    );
+    return jsonError('Service temporairement indisponible', 503);
   }
 };
 
-export const OPTIONS: APIRoute = () =>
-  new Response(null, {
-    status: 204,
-    headers: { ...CORS, 'Access-Control-Allow-Methods': 'POST,OPTIONS' },
-  });
+export const OPTIONS: APIRoute = () => optionsResponse('POST,OPTIONS');

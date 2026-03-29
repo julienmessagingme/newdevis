@@ -1,20 +1,9 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
+import { optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody } from '@/lib/apiHelpers';
 
-const CORS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Content-Type': 'application/json',
-};
-
-const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
 const googleApiKey    = import.meta.env.GOOGLE_API_KEY ?? import.meta.env.GOOGLE_AI_API_KEY;
-
-function getSupabase() {
-  return createClient(supabaseUrl, supabaseService);
-}
 
 interface ChatHistoryItem {
   role: 'user' | 'assistant';
@@ -59,35 +48,22 @@ interface ChatRequestBody {
 
 /** POST /api/chantier/chat — Assistant maître d'œuvre branché sur Gemini 2.0-flash */
 export const POST: APIRoute = async ({ request }) => {
-  // ── Auth optionnelle (le contexte projet est dans le body, pas en DB) ─────
-  // On vérifie le token si présent, mais on ne bloque pas si absent
-  const authHeader = request.headers.get('Authorization');
-  if (authHeader?.startsWith('Bearer ') && supabaseService) {
-    const token    = authHeader.slice(7);
-    const supabase = getSupabase();
-    const { error: authError } = await supabase.auth.getUser(token);
-    if (authError) {
-      // Token invalide mais on laisse passer quand même (données dans le body)
-      console.warn('[api/chantier/chat] Token invalide, accès toléré:', authError.message);
-    }
-  }
+  // Auth required
+  const ctx = await requireAuth(request);
+  if (ctx instanceof Response) return ctx;
 
   if (!googleApiKey) {
-    return new Response(JSON.stringify({ error: 'Clé API non configurée' }), { status: 500, headers: CORS });
+    return jsonError('Clé API non configurée', 500);
   }
 
   // ── Body ─────────────────────────────────────────────────────────────────
-  let body: ChatRequestBody;
-  try {
-    body = await request.json();
-  } catch {
-    return new Response(JSON.stringify({ error: 'Corps invalide' }), { status: 400, headers: CORS });
-  }
+  const body = await parseJsonBody<ChatRequestBody>(request);
+  if (body instanceof Response) return body;
 
   const { message, history = [], context, documents = [] } = body;
 
   if (!message?.trim()) {
-    return new Response(JSON.stringify({ error: 'Message vide' }), { status: 400, headers: CORS });
+    return jsonError('Message vide', 400);
   }
 
   // ── Construire le contexte projet ─────────────────────────────────────────
@@ -191,10 +167,6 @@ COMPORTEMENTS SPÉCIAUX :
 Tu es un copilote de chantier, pas un chatbot généraliste. Ton objectif est d'aider le client à sécuriser son chantier, éviter les erreurs et prendre les bonnes décisions.`;
 
   // ── Construire l'historique de conversation pour Gemini ────────────────────
-  const messages: { role: 'user' | 'model'; parts: { text: string }[] }[] = [];
-
-  // Historique précédent (on convertit 'assistant' → 'model' pour Gemini natif)
-  // On utilise le format OpenAI-compatible donc on garde 'assistant'
   const openAiMessages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
     { role: 'system', content: systemPrompt },
   ];
@@ -237,15 +209,11 @@ Tu es un copilote de chantier, pas un chatbot généraliste. Ton objectif est d'
 
     if (!reply) throw new Error('Empty reply from Gemini');
 
-    return new Response(JSON.stringify({ reply }), { status: 200, headers: CORS });
+    return jsonOk({ reply });
   } catch (e) {
     console.error('[api/chantier/chat] error:', (e as Error).message);
-    return new Response(
-      JSON.stringify({ error: 'Service temporairement indisponible' }),
-      { status: 503, headers: CORS },
-    );
+    return jsonError('Service temporairement indisponible', 503);
   }
 };
 
-export const OPTIONS: APIRoute = () =>
-  new Response(null, { status: 204, headers: { ...CORS, 'Access-Control-Allow-Methods': 'POST,OPTIONS' } });
+export const OPTIONS: APIRoute = () => optionsResponse('POST,OPTIONS');

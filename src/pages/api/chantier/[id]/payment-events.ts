@@ -1,52 +1,18 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
 import { generatePaymentEventsFromAnalyse } from '@/lib/paymentEvents';
-
-const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
-const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
-
-const CORS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Content-Type': 'application/json',
-};
-
-function makeClient() {
-  return createClient(supabaseUrl, supabaseService);
-}
-
-async function authenticate(request: Request) {
-  const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return null;
-  const supabase = makeClient();
-  const { data: { user } } = await supabase.auth.getUser(auth.slice(7));
-  return user ? { user, supabase } : null;
-}
-
-async function verifyOwnership(
-  supabase: ReturnType<typeof makeClient>,
-  chantierId: string,
-  userId: string,
-): Promise<boolean> {
-  const { data } = await supabase
-    .from('chantiers').select('id')
-    .eq('id', chantierId).eq('user_id', userId).single();
-  return !!data;
-}
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
 
 // ── GET /api/chantier/[id]/payment-events ─────────────────────────────────────
 // Retourne tous les payment_events du chantier, triés par due_date ASC.
 // Les événements annulés (is_override=true) sont exclus par défaut.
 
 export const GET: APIRoute = async ({ params, request }) => {
-  const ctx = await authenticate(request);
-  if (!ctx) return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
+  const ctx = await requireChantierAuth(request, params.id!);
+  if (ctx instanceof Response) return ctx;
 
   const chantierId = params.id!;
-  if (!await verifyOwnership(ctx.supabase, chantierId, ctx.user.id))
-    return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
-
   const url            = new URL(request.url);
   const includeOverride = url.searchParams.get('include_override') === 'true';
 
@@ -64,7 +30,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 
   if (error) {
     console.error('[api/payment-events] GET error:', error.message);
-    return new Response(JSON.stringify({ error: 'Erreur chargement events' }), { status: 500, headers: CORS });
+    return jsonError('Erreur chargement events', 500);
   }
 
   // Enrichir avec nom du document source + nom du lot + nom de l'artisan
@@ -153,7 +119,7 @@ export const GET: APIRoute = async ({ params, request }) => {
     };
   });
 
-  return new Response(JSON.stringify({ payment_events: enriched }), { status: 200, headers: CORS });
+  return jsonOk({ payment_events: enriched });
 };
 
 // ── POST /api/chantier/[id]/payment-events ────────────────────────────────────
@@ -167,18 +133,16 @@ export const GET: APIRoute = async ({ params, request }) => {
 // }
 
 export const POST: APIRoute = async ({ params, request }) => {
-  const ctx = await authenticate(request);
-  if (!ctx) return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
+  const ctx = await requireChantierAuth(request, params.id!);
+  if (ctx instanceof Response) return ctx;
 
   const chantierId = params.id!;
-  if (!await verifyOwnership(ctx.supabase, chantierId, ctx.user.id))
-    return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
 
   let body: Record<string, unknown>;
   try {
     body = await request.json();
   } catch {
-    return new Response(JSON.stringify({ error: 'Corps de requête invalide' }), { status: 400, headers: CORS });
+    return jsonError('Corps de requête invalide', 400);
   }
 
   const analyseId       = typeof body.analyseId === 'string'       ? body.analyseId       : null;
@@ -187,10 +151,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   const originalDevisId = typeof body.originalDevisId === 'string' ? body.originalDevisId : undefined;
 
   if (!analyseId || !sourceId) {
-    return new Response(
-      JSON.stringify({ error: 'analyseId et sourceId sont requis' }),
-      { status: 400, headers: CORS },
-    );
+    return jsonError('analyseId et sourceId sont requis', 400);
   }
 
   // Génération (non bloquante en interne, mais on attend la fin pour retourner le résultat)
@@ -211,10 +172,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     .eq('source_id', sourceId)
     .order('due_date', { ascending: true });
 
-  return new Response(
-    JSON.stringify({ payment_events: data ?? [], message: 'Timeline générée' }),
-    { status: 201, headers: CORS },
-  );
+  return jsonOk({ payment_events: data ?? [], message: 'Timeline générée' }, 201);
 };
 
 // ── PATCH /api/chantier/[id]/payment-events ───────────────────────────────────
@@ -222,22 +180,20 @@ export const POST: APIRoute = async ({ params, request }) => {
 // Body: { id: string; status: 'paid' | 'pending' }
 
 export const PATCH: APIRoute = async ({ params, request }) => {
-  const ctx = await authenticate(request);
-  if (!ctx) return new Response(JSON.stringify({ error: 'Non autorisé' }), { status: 401, headers: CORS });
+  const ctx = await requireChantierAuth(request, params.id!);
+  if (ctx instanceof Response) return ctx;
 
   const chantierId = params.id!;
-  if (!await verifyOwnership(ctx.supabase, chantierId, ctx.user.id))
-    return new Response(JSON.stringify({ error: 'Chantier introuvable' }), { status: 404, headers: CORS });
 
   let body: Record<string, unknown>;
   try { body = await request.json(); }
-  catch { return new Response(JSON.stringify({ error: 'Corps invalide' }), { status: 400, headers: CORS }); }
+  catch { return jsonError('Corps invalide', 400); }
 
   const id     = typeof body.id === 'string' ? body.id : null;
   const status = body.status === 'paid' ? 'paid' : body.status === 'pending' ? 'pending' : null;
 
   if (!id || !status) {
-    return new Response(JSON.stringify({ error: 'id et status (paid|pending) requis' }), { status: 400, headers: CORS });
+    return jsonError('id et status (paid|pending) requis', 400);
   }
 
   // Étape 1 : vérifier que l'event appartient bien à ce chantier (SELECT séparé)
@@ -249,15 +205,15 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 
   if (selectErr) {
     console.error('[api/payment-events] PATCH select error:', selectErr.message);
-    return new Response(JSON.stringify({ ok: false, error: selectErr.message }), { status: 500, headers: CORS });
+    return jsonError(selectErr.message, 500);
   }
   if (!existing) {
     console.error('[api/payment-events] PATCH event introuvable — id:', id);
-    return new Response(JSON.stringify({ ok: false, error: 'Événement introuvable' }), { status: 404, headers: CORS });
+    return jsonError('Événement introuvable', 404);
   }
   if (existing.project_id !== chantierId) {
     console.error('[api/payment-events] PATCH project_id mismatch — event.project_id:', existing.project_id, '| chantierId:', chantierId);
-    return new Response(JSON.stringify({ ok: false, error: 'Non autorisé' }), { status: 403, headers: CORS });
+    return jsonError('Non autorisé', 403);
   }
 
   // Étape 2 : UPDATE par id uniquement — sans .select() (évite instabilité Supabase v2 service role)
@@ -268,18 +224,10 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 
   if (error) {
     console.error('[api/payment-events] PATCH update error:', error.message);
-    return new Response(JSON.stringify({ ok: false, error: error.message }), { status: 500, headers: CORS });
+    return jsonError(error.message, 500);
   }
 
-  return new Response(JSON.stringify({ ok: true, status }), { status: 200, headers: CORS });
+  return jsonOk({ ok: true, status });
 };
 
-export const OPTIONS: APIRoute = () =>
-  new Response(null, {
-    status: 204,
-    headers: {
-      ...CORS,
-      'Access-Control-Allow-Methods': 'GET,POST,PATCH,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
-  });
+export const OPTIONS: APIRoute = () => optionsResponse();
