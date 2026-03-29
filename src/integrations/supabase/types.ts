@@ -1,4 +1,3 @@
-npm warn exec The following package was not found and will be installed: supabase@2.81.3
 export type Json =
   | string
   | number
@@ -221,6 +220,107 @@ export type Database = {
         }
         Relationships: []
       }
+      chantier_conversations: {
+        Row: {
+          chantier_id: string
+          contact_email: string
+          contact_id: string | null
+          contact_name: string
+          contact_phone: string | null
+          created_at: string
+          id: string
+          last_message_at: string | null
+          reply_address: string
+          unread_count: number
+          user_id: string
+        }
+        Insert: {
+          chantier_id: string
+          contact_email: string
+          contact_id?: string | null
+          contact_name: string
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          last_message_at?: string | null
+          reply_address: string
+          unread_count?: number
+          user_id: string
+        }
+        Update: {
+          chantier_id?: string
+          contact_email?: string
+          contact_id?: string | null
+          contact_name?: string
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          last_message_at?: string | null
+          reply_address?: string
+          unread_count?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chantier_conversations_chantier_id_fkey"
+            columns: ["chantier_id"]
+            isOneToOne: false
+            referencedRelation: "chantiers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chantier_conversations_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts_chantier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chantier_messages: {
+        Row: {
+          body_html: string | null
+          body_text: string
+          conversation_id: string
+          created_at: string
+          direction: string
+          id: string
+          sendgrid_id: string | null
+          status: string
+          subject: string | null
+        }
+        Insert: {
+          body_html?: string | null
+          body_text: string
+          conversation_id: string
+          created_at?: string
+          direction: string
+          id?: string
+          sendgrid_id?: string | null
+          status?: string
+          subject?: string | null
+        }
+        Update: {
+          body_html?: string | null
+          body_text?: string
+          conversation_id?: string
+          created_at?: string
+          direction?: string
+          id?: string
+          sendgrid_id?: string | null
+          status?: string
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chantier_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "chantier_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chantier_updates: {
         Row: {
           changes: string
@@ -261,8 +361,10 @@ export type Database = {
           created_at: string
           credit: number | null
           date_debut: string | null
+          date_debut_chantier: string | null
           date_debut_souhaitee: string | null
           date_fin: string | null
+          date_fin_souhaitee: string | null
           duree_credit: number | null
           emoji: string
           id: string
@@ -283,8 +385,10 @@ export type Database = {
           created_at?: string
           credit?: number | null
           date_debut?: string | null
+          date_debut_chantier?: string | null
           date_debut_souhaitee?: string | null
           date_fin?: string | null
+          date_fin_souhaitee?: string | null
           duree_credit?: number | null
           emoji?: string
           id?: string
@@ -305,8 +409,10 @@ export type Database = {
           created_at?: string
           credit?: number | null
           date_debut?: string | null
+          date_debut_chantier?: string | null
           date_debut_souhaitee?: string | null
           date_fin?: string | null
+          date_fin_souhaitee?: string | null
           duree_credit?: number | null
           emoji?: string
           id?: string
@@ -360,6 +466,86 @@ export type Database = {
           status?: string
         }
         Relationships: []
+      }
+      contacts_chantier: {
+        Row: {
+          analyse_id: string | null
+          chantier_id: string
+          created_at: string
+          devis_id: string | null
+          email: string | null
+          id: string
+          lot_id: string | null
+          nom: string
+          notes: string | null
+          role: string | null
+          siret: string | null
+          source: string
+          telephone: string | null
+          user_id: string
+        }
+        Insert: {
+          analyse_id?: string | null
+          chantier_id: string
+          created_at?: string
+          devis_id?: string | null
+          email?: string | null
+          id?: string
+          lot_id?: string | null
+          nom: string
+          notes?: string | null
+          role?: string | null
+          siret?: string | null
+          source?: string
+          telephone?: string | null
+          user_id: string
+        }
+        Update: {
+          analyse_id?: string | null
+          chantier_id?: string
+          created_at?: string
+          devis_id?: string | null
+          email?: string | null
+          id?: string
+          lot_id?: string | null
+          nom?: string
+          notes?: string | null
+          role?: string | null
+          siret?: string | null
+          source?: string
+          telephone?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contacts_chantier_analyse_id_fkey"
+            columns: ["analyse_id"]
+            isOneToOne: false
+            referencedRelation: "analyses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contacts_chantier_chantier_id_fkey"
+            columns: ["chantier_id"]
+            isOneToOne: false
+            referencedRelation: "chantiers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contacts_chantier_devis_id_fkey"
+            columns: ["devis_id"]
+            isOneToOne: false
+            referencedRelation: "devis_chantier"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contacts_chantier_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: false
+            referencedRelation: "lots_chantier"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       devis_chantier: {
         Row: {
@@ -601,17 +787,21 @@ export type Database = {
           chantier_id: string
           created_at: string
           date: string | null
+          devis_statut: string | null
           document_type: string
+          facture_statut: string | null
           id: string
           lot_id: string | null
           mime_type: string | null
           montant: number | null
+          montant_paye: number | null
           nom: string
           nom_fichier: string
           source: string
           statut: string
           taille_octets: number | null
           type: string
+          updated_at: string
           url: string
           user_id: string | null
         }
@@ -621,17 +811,21 @@ export type Database = {
           chantier_id: string
           created_at?: string
           date?: string | null
+          devis_statut?: string | null
           document_type?: string
+          facture_statut?: string | null
           id?: string
           lot_id?: string | null
           mime_type?: string | null
           montant?: number | null
+          montant_paye?: number | null
           nom: string
           nom_fichier: string
           source?: string
           statut?: string
           taille_octets?: number | null
           type?: string
+          updated_at?: string
           url?: string
           user_id?: string | null
         }
@@ -641,17 +835,21 @@ export type Database = {
           chantier_id?: string
           created_at?: string
           date?: string | null
+          devis_statut?: string | null
           document_type?: string
+          facture_statut?: string | null
           id?: string
           lot_id?: string | null
           mime_type?: string | null
           montant?: number | null
+          montant_paye?: number | null
           nom?: string
           nom_fichier?: string
           source?: string
           statut?: string
           taille_octets?: number | null
           type?: string
+          updated_at?: string
           url?: string
           user_id?: string | null
         }
@@ -850,7 +1048,10 @@ export type Database = {
           budget_min_ht: number | null
           chantier_id: string
           created_at: string
+          date_debut: string | null
+          date_fin: string | null
           divers_ht: number | null
+          duree_jours: number | null
           emoji: string | null
           id: string
           job_type: string | null
@@ -858,6 +1059,8 @@ export type Database = {
           materiaux_ht: number | null
           nom: string
           ordre: number
+          ordre_planning: number | null
+          parallel_group: number | null
           quantite: number | null
           role: string | null
           statut: string
@@ -870,7 +1073,10 @@ export type Database = {
           budget_min_ht?: number | null
           chantier_id: string
           created_at?: string
+          date_debut?: string | null
+          date_fin?: string | null
           divers_ht?: number | null
+          duree_jours?: number | null
           emoji?: string | null
           id?: string
           job_type?: string | null
@@ -878,6 +1084,8 @@ export type Database = {
           materiaux_ht?: number | null
           nom: string
           ordre?: number
+          ordre_planning?: number | null
+          parallel_group?: number | null
           quantite?: number | null
           role?: string | null
           statut?: string
@@ -890,7 +1098,10 @@ export type Database = {
           budget_min_ht?: number | null
           chantier_id?: string
           created_at?: string
+          date_debut?: string | null
+          date_fin?: string | null
           divers_ht?: number | null
+          duree_jours?: number | null
           emoji?: string | null
           id?: string
           job_type?: string | null
@@ -898,6 +1109,8 @@ export type Database = {
           materiaux_ht?: number | null
           nom?: string
           ordre?: number
+          ordre_planning?: number | null
+          parallel_group?: number | null
           quantite?: number | null
           role?: string | null
           statut?: string
@@ -1187,6 +1400,75 @@ export type Database = {
           id?: string
           source?: string | null
           subscribed_at?: string | null
+        }
+        Relationships: []
+      }
+      payment_events: {
+        Row: {
+          amount: number | null
+          created_at: string | null
+          due_date: string | null
+          id: string
+          is_override: boolean | null
+          label: string | null
+          payment_term_id: string | null
+          project_id: string | null
+          replaced_by: string | null
+          source_id: string | null
+          source_type: string | null
+          status: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string | null
+          due_date?: string | null
+          id?: string
+          is_override?: boolean | null
+          label?: string | null
+          payment_term_id?: string | null
+          project_id?: string | null
+          replaced_by?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          status?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string | null
+          due_date?: string | null
+          id?: string
+          is_override?: boolean | null
+          label?: string | null
+          payment_term_id?: string | null
+          project_id?: string | null
+          replaced_by?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
+      payments: {
+        Row: {
+          amount_paid: number | null
+          id: string
+          method: string | null
+          paid_at: string | null
+          payment_event_id: string | null
+        }
+        Insert: {
+          amount_paid?: number | null
+          id?: string
+          method?: string | null
+          paid_at?: string | null
+          payment_event_id?: string | null
+        }
+        Update: {
+          amount_paid?: number | null
+          id?: string
+          method?: string | null
+          paid_at?: string | null
+          payment_event_id?: string | null
         }
         Relationships: []
       }
@@ -1719,6 +2001,10 @@ export type Database = {
         Returns: undefined
       }
       is_admin: { Args: never; Returns: boolean }
+      set_payment_event_status: {
+        Args: { p_chantier_id: string; p_event_id: string; p_status: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
