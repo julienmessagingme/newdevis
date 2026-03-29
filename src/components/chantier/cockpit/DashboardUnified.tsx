@@ -435,7 +435,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             onMenuToggle={() => setMobileOpen(v => !v)}
             budgetEstime={displayMin > 0 ? `${fmtK(displayMin)} – ${fmtK(displayMax)}` : '—'}
             budgetValide={documents.filter(d => d.document_type === 'devis' && d.devis_statut === 'valide').reduce((s, d) => s + (d.montant ?? 0), 0)}
-            facture={documents.filter(d => d.document_type === 'facture').reduce((s, d) => s + (d.montant ?? 0), 0)}
+            facture={documents.filter(d => d.document_type === 'facture' && (d.facture_statut === 'payee' || d.facture_statut === 'payee_partiellement')).reduce((s, d) => s + (d.facture_statut === 'payee_partiellement' ? (d.montant_paye ?? 0) : (d.montant ?? 0)), 0)}
           />
         ) : (
           <PageHeader
@@ -499,6 +499,24 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
                   }
                 })
                 .catch(() => toast.dismiss(`analyse-${doc.id}`));
+            }
+            // 🧾 Auto-extraction montant pour les factures
+            if (doc.document_type === 'facture' && doc.bucket_path) {
+              toast.loading('Lecture de la facture…', { id: `invoice-${doc.id}` });
+              fetch(`/api/chantier/${chantierId}/documents/${doc.id}/extract-invoice`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token ?? ''}` },
+              })
+                .then(r => r.json())
+                .then(({ montant, nom }) => {
+                  if (montant != null || nom) {
+                    setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, montant: montant ?? d.montant, nom: nom ?? d.nom, facture_statut: 'recue' as const } : d));
+                    toast.success(`✨ Facture lue : ${montant ? montant.toLocaleString('fr-FR') + ' €' : 'montant non détecté'}`, { id: `invoice-${doc.id}`, duration: 5000 });
+                  } else {
+                    toast.dismiss(`invoice-${doc.id}`);
+                  }
+                })
+                .catch(() => toast.dismiss(`invoice-${doc.id}`));
             }
             // 🤖 Auto-description IA pour photos et documents non-devis
             const isVisual = doc.document_type === 'photo' ||
