@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { ArrowRight, Loader2, Plus, Trash2, HardHat, LayoutDashboard } from 'lucide-react';
 import { toast } from 'sonner';
-import AddChantierCard from '@/components/chantier/dashboard/AddChantierCard';
+import AddChantierCard from '@/components/chantier/shared/AddChantierCard';
 import { PHASE_LABELS, type PhaseChantier } from '@/types/chantier-dashboard';
 
 const supabase = createClient(

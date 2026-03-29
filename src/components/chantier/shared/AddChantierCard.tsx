@@ -1,10 +1,6 @@
 import { Plus, Sparkles } from "lucide-react";
 
-interface AddChantierCardProps {
-  delay?: number;
-}
-
-export default function AddChantierCard({ delay = 0 }: AddChantierCardProps) {
+export default function AddChantierCard({ delay = 0 }: { delay?: number }) {
   return (
     <a
       href="/mon-chantier/nouveau"
@@ -16,13 +12,10 @@ export default function AddChantierCard({ delay = 0 }: AddChantierCardProps) {
       style={{ animationDelay: `${delay}s`, animationFillMode: "both" }}
       aria-label="Créer un nouveau chantier"
     >
-      {/* Icône "+" */}
       <div className="w-12 h-12 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center transition-transform group-hover:scale-110 relative">
         <Plus className="h-6 w-6 text-blue-600" />
         <Sparkles className="h-3 w-3 text-cyan-500 absolute -top-0.5 -right-0.5" />
       </div>
-
-      {/* Texte */}
       <div className="text-center">
         <p className="font-display font-bold text-blue-600 text-sm group-hover:text-blue-700 transition-colors">
           Nouveau chantier
