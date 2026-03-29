@@ -103,10 +103,11 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     setState(s => {
       const computedStart = computeStartDateFromEnd(s.lots, endDate);
       const recomputed = computePlanningDates(s.lots, computedStart);
+      // Persist avec la date de début calculée
+      patchPlanning({ dateDebutChantier: computedStart.toISOString().split('T')[0] });
       return { ...s, startDate: computedStart, lots: recomputed, totalWeeks: getTotalWeeks(recomputed) };
     });
-    patchPlanning({ dateDebutChantier: computeStartDateFromEnd(lots, endDate).toISOString().split('T')[0] });
-  }, [patchPlanning, lots]);
+  }, [patchPlanning]);
 
   /** Réordonne les lots (drag & drop) */
   const reorderLots = useCallback((orderedIds: string[]) => {
