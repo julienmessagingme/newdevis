@@ -286,26 +286,44 @@ serve(async (req: Request) => {
     }
   }
 
-  // ── Date de début chantier — déduite des réponses de qualification ──────────
+  // ── Dates chantier — déduites des réponses de qualification ─────────────────
+  // 3 cas : "Je connais ma date de début", "Je connais ma date de fin souhaitée", "Je ne sais pas encore"
   let dateDebutChantier: string | undefined;
+  let dateFinSouhaitee: string | undefined;
   {
-    const dateAnswer = qualificationAnswers?.date_debut_chantier ?? qualificationAnswers?.date_debut;
+    const dateAnswer = qualificationAnswers?.date_chantier ?? qualificationAnswers?.date_debut_chantier ?? qualificationAnswers?.date_debut;
     if (dateAnswer && dateAnswer !== "Je ne sais pas encore") {
-      const today = new Date();
-      if (dateAnswer === "Le plus tôt possible") {
-        today.setDate(today.getDate() + 14);
-        dateDebutChantier = today.toISOString().slice(0, 10);
-      } else if (dateAnswer === "Dans 1-2 mois") {
-        today.setDate(today.getDate() + 45);
-        dateDebutChantier = today.toISOString().slice(0, 10);
-      } else if (dateAnswer === "Dans 3-6 mois") {
-        today.setDate(today.getDate() + 120);
-        dateDebutChantier = today.toISOString().slice(0, 10);
+      if (dateAnswer === "Je connais ma date de début" || dateAnswer === "Je connais ma date de fin souhaitée") {
+        // L'utilisateur a choisi une option mais doit ensuite saisir la date concrète
+        // La date réelle sera renseignée plus tard dans l'interface Planning
       } else {
-        // Try to parse as a date
+        // L'utilisateur a saisi une date en texte libre
         const parsed = new Date(dateAnswer);
         if (!isNaN(parsed.getTime())) {
-          dateDebutChantier = parsed.toISOString().slice(0, 10);
+          // Heuristique : si le texte contient "fin" ou "avant", c'est une date de fin
+          const lowerAnswer = dateAnswer.toLowerCase();
+          if (lowerAnswer.includes('fin') || lowerAnswer.includes('avant') || lowerAnswer.includes('terminé') || lowerAnswer.includes('livr')) {
+            dateFinSouhaitee = parsed.toISOString().slice(0, 10);
+          } else {
+            dateDebutChantier = parsed.toISOString().slice(0, 10);
+          }
+        } else {
+          // Essayer d'extraire un mois/année (ex: "juin 2026", "septembre prochain")
+          const monthMatch = dateAnswer.match(/(janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)\s*(\d{4})?/i);
+          if (monthMatch) {
+            const monthNames = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+            const monthIdx = monthNames.indexOf(monthMatch[1].toLowerCase());
+            const year = monthMatch[2] ? parseInt(monthMatch[2]) : new Date().getFullYear();
+            const d = new Date(year, monthIdx, 1);
+            if (!isNaN(d.getTime())) {
+              const lowerAnswer = dateAnswer.toLowerCase();
+              if (lowerAnswer.includes('fin') || lowerAnswer.includes('avant')) {
+                dateFinSouhaitee = d.toISOString().slice(0, 10);
+              } else {
+                dateDebutChantier = d.toISOString().slice(0, 10);
+              }
+            }
+          }
         }
       }
     }
@@ -417,6 +435,7 @@ serve(async (req: Request) => {
     generatedAt: new Date().toISOString(),
     estimationSignaux,
     ...(dateDebutChantier ? { dateDebutChantier } : {}),
+    ...(dateFinSouhaitee ? { dateFinSouhaitee } : {}),
   };
 
   return new Response(

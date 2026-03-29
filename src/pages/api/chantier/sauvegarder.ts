@@ -153,9 +153,14 @@ export const POST: APIRoute = async ({ request }) => {
     // ── Calcul des dates du planning ──────────────────────────────────────────
     try {
       const dateDebutChantier = result?.dateDebutChantier as string | null | undefined;
-      if (dateDebutChantier) {
-        // Stocker la date de début sur le chantier
-        await supabase.from('chantiers').update({ date_debut_chantier: dateDebutChantier }).eq('id', chantierId);
+      const dateFinSouhaitee = result?.dateFinSouhaitee as string | null | undefined;
+
+      if (dateDebutChantier || dateFinSouhaitee) {
+        // Stocker les dates sur le chantier
+        const chantierUpdate: Record<string, unknown> = {};
+        if (dateDebutChantier) chantierUpdate.date_debut_chantier = dateDebutChantier;
+        if (dateFinSouhaitee) chantierUpdate.date_fin_souhaitee = dateFinSouhaitee;
+        await supabase.from('chantiers').update(chantierUpdate).eq('id', chantierId);
 
         // Récupérer les lots créés pour calculer les dates
         const { data: lotsForPlanning } = await supabase
@@ -165,8 +170,21 @@ export const POST: APIRoute = async ({ request }) => {
           .order('ordre_planning', { ascending: true, nullsFirst: false });
 
         if (lotsForPlanning && lotsForPlanning.length > 0) {
-          const { computePlanningDates } = await import('@/lib/planningUtils');
-          const computed = computePlanningDates(lotsForPlanning as any, new Date(dateDebutChantier));
+          const { computePlanningDates, computeStartDateFromEnd } = await import('@/lib/planningUtils');
+
+          let startDate: Date;
+          if (dateDebutChantier) {
+            startDate = new Date(dateDebutChantier);
+          } else {
+            // Calcul en arrière depuis la date de fin souhaitée
+            startDate = computeStartDateFromEnd(lotsForPlanning as any, new Date(dateFinSouhaitee!));
+            // Stocker la date de début calculée
+            await supabase.from('chantiers')
+              .update({ date_debut_chantier: startDate.toISOString().slice(0, 10) })
+              .eq('id', chantierId);
+          }
+
+          const computed = computePlanningDates(lotsForPlanning as any, startDate);
           for (const lot of computed) {
             if (lot.date_debut && lot.date_fin) {
               await supabase.from('lots_chantier')

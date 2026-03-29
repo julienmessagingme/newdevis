@@ -14,7 +14,7 @@ export const GET: APIRoute = async ({ request, params }) => {
   // Date de début du chantier
   const { data: chantier } = await ctx.supabase
     .from('chantiers')
-    .select('date_debut_chantier')
+    .select('date_debut_chantier, date_fin_souhaitee')
     .eq('id', params.id!)
     .single();
 
@@ -33,6 +33,7 @@ export const GET: APIRoute = async ({ request, params }) => {
 
   return jsonOk({
     dateDebutChantier: chantier?.date_debut_chantier ?? null,
+    dateFinSouhaitee: chantier?.date_fin_souhaitee ?? null,
     lots: lots ?? [],
   });
 };

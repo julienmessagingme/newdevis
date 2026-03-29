@@ -184,6 +184,8 @@ export interface ChantierIAResult {
   estimationSignaux?: EstimationSignaux | null;
   /** Date de début du chantier (ISO date string) */
   dateDebutChantier?: string | null;
+  /** Date de fin souhaitée (ISO date string) — si renseignée, le planning est calculé en arrière */
+  dateFinSouhaitee?: string | null;
 }
 
 export interface ChantierGuideForm {

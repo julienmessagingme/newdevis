@@ -100,6 +100,54 @@ export function computePlanningDates(lots: LotChantier[], startDate: Date): LotC
   return [...result, ...withoutPlanning];
 }
 
+/**
+ * Calcul inverse : à partir d'une date de fin souhaitée, remonte en arrière
+ * pour calculer la date de début nécessaire. Retourne la startDate calculée.
+ */
+export function computeStartDateFromEnd(lots: LotChantier[], endDate: Date): Date {
+  const sorted = [...lots]
+    .filter(l => l.ordre_planning != null && l.duree_jours != null && l.duree_jours > 0)
+    .sort((a, b) => (a.ordre_planning ?? 0) - (b.ordre_planning ?? 0));
+
+  // Grouper
+  const groups: LotChantier[][] = [];
+  let currentGroup: LotChantier[] = [];
+  let currentPG: number | null | undefined = undefined;
+  for (const lot of sorted) {
+    const pg = lot.parallel_group;
+    if (pg != null && pg === currentPG) {
+      currentGroup.push(lot);
+    } else {
+      if (currentGroup.length > 0) groups.push(currentGroup);
+      currentGroup = [lot];
+      currentPG = pg;
+    }
+  }
+  if (currentGroup.length > 0) groups.push(currentGroup);
+
+  // Calculer la durée totale en jours ouvrés
+  let totalBusinessDays = 0;
+  for (const group of groups) {
+    const maxDays = Math.max(...group.map(l => l.duree_jours ?? 0));
+    totalBusinessDays += maxDays;
+  }
+
+  // Soustraire les jours ouvrés depuis la date de fin
+  return subtractBusinessDays(endDate, totalBusinessDays);
+}
+
+/** Soustrait N jours ouvrés d'une date (skip weekends) */
+export function subtractBusinessDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  let removed = 0;
+  while (removed < days) {
+    result.setDate(result.getDate() - 1);
+    const dow = result.getDay();
+    if (dow !== 0 && dow !== 6) removed++;
+  }
+  return result;
+}
+
 // ── Formatage ─────────────────────────────────────────────────────────────────
 
 /** "2 semaines", "3 jours", "1 semaine et 2 jours" */
