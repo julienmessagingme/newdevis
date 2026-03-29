@@ -195,7 +195,7 @@ function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail, on
         <button onClick={onAddDocument}
           className="flex flex-col items-center gap-1 py-3.5 text-[11px] font-semibold text-violet-600 hover:bg-violet-50 transition-colors">
           <Receipt className="h-3.5 w-3.5" />
-          Photo/Facture
+          Ajouter un document
         </button>
       </div>
 
