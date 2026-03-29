@@ -187,7 +187,7 @@ export default function AidesTravaux({ onImportAides, initialSimulation, onSimul
         )}
 
         <p className="text-[10px] text-gray-400 text-center leading-relaxed pt-2 border-t border-gray-50">
-          Simulation indicative 2025 — barème ANAH. Montants soumis à conditions (artisan RGE, logement &gt; 2 ans, résidence principale).
+          Simulation indicative — barème ANAH en vigueur. Montants soumis à conditions (artisan RGE, logement &gt; 2 ans, résidence principale).
           {' '}Conseiller France Rénov'{' '}<strong>0 808 800 700</strong> (gratuit).
         </p>
       </div>

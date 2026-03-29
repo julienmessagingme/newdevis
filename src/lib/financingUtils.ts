@@ -27,14 +27,14 @@ export function daysUntil(iso: string): number {
 // ── Simulateur d'aides travaux (style EFFY) ──────────────────────────────────
 
 export const WORK_TYPES_EFFY = [
-  { key: 'isolation_combles', label: 'Isolation combles',   emoji: '🏠', desc: 'Combles perdus / aménagés' },
-  { key: 'isolation_murs',    label: 'Isolation murs',      emoji: '🧱', desc: 'ITE ou ITI' },
-  { key: 'pac',               label: 'PAC air/eau',         emoji: '🌀', desc: 'Pompe à chaleur' },
-  { key: 'biomasse',          label: 'Bois / granulés',     emoji: '🪵', desc: 'Chaudière ou poêle' },
-  { key: 'ballon_thermo',     label: 'Chauffe-eau thermo.', emoji: '💧', desc: 'Ballon thermodynamique' },
-  { key: 'vmc',               label: 'VMC double flux',     emoji: '💨', desc: 'Ventilation performante' },
-  { key: 'fenetres',          label: 'Fenêtres',            emoji: '🪟', desc: 'Double ou triple vitrage' },
-  { key: 'autre',             label: 'Autres travaux',      emoji: '🔨', desc: 'Rénovation non éligible MPR' },
+  { key: 'isolation_combles', label: 'Isolation combles',         emoji: '🏠', desc: 'Plafond, toiture, grenier' },
+  { key: 'isolation_murs',    label: 'Isolation des murs',        emoji: '🧱', desc: 'Par l\'extérieur (bardage) ou l\'intérieur' },
+  { key: 'pac',               label: 'Pompe à chaleur',           emoji: '🌀', desc: 'Remplace la chaudière, très économique' },
+  { key: 'biomasse',          label: 'Bois / granulés',           emoji: '🪵', desc: 'Chaudière à granulés ou poêle à bois' },
+  { key: 'ballon_thermo',     label: 'Chauffe-eau thermodynamique', emoji: '💧', desc: 'Eau chaude sanitaire économique' },
+  { key: 'vmc',               label: 'Ventilation double flux',   emoji: '💨', desc: 'Renouvelle l\'air sans perdre la chaleur' },
+  { key: 'fenetres',          label: 'Fenêtres',                  emoji: '🪟', desc: 'Double ou triple vitrage' },
+  { key: 'autre',             label: 'Autres travaux',            emoji: '🔨', desc: 'Rénovation non éligible aux aides MPR' },
 ] as const;
 
 export type EffyWorkType = typeof WORK_TYPES_EFFY[number]['key'];
@@ -86,10 +86,10 @@ export const ECO_PTZ_ELIGIBLE: Record<EffyWorkType, boolean> = {
 export const ECO_PTZ_MAX_AMOUNT = 50000;
 
 export const BRACKET_CFG: Record<MprBracket, { bg: string; text: string; border: string; label: string }> = {
-  tres_modestes:  { bg: 'bg-blue-100',   text: 'text-blue-800',   border: 'border-blue-200',   label: 'Ménage très modeste (Bleu)' },
-  modestes:       { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-200', label: 'Ménage modeste (Jaune)' },
-  intermediaires: { bg: 'bg-violet-100', text: 'text-violet-800', border: 'border-violet-200', label: 'Ménage intermédiaire (Violet)' },
-  superieurs:     { bg: 'bg-pink-100',   text: 'text-pink-800',   border: 'border-pink-200',   label: 'Ménage supérieur (Rose)' },
+  tres_modestes:  { bg: 'bg-blue-100',   text: 'text-blue-800',   border: 'border-blue-200',   label: 'Tranche 1 sur 4' },
+  modestes:       { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-200', label: 'Tranche 2 sur 4' },
+  intermediaires: { bg: 'bg-violet-100', text: 'text-violet-800', border: 'border-violet-200', label: 'Tranche 3 sur 4' },
+  superieurs:     { bg: 'bg-pink-100',   text: 'text-pink-800',   border: 'border-pink-200',   label: 'Tranche 4 sur 4' },
 };
 
 export interface EffyResult {
