@@ -35,11 +35,11 @@ interface Props {
 }
 
 export default function PlanningTimeline({ chantierId, token }: Props) {
-  const { lots, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, reorderLots } = usePlanning(chantierId, token);
+  const { lots, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, reorderLots } = usePlanning(chantierId, token);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [editingDuration, setEditingDuration] = useState<string | null>(null);
-  const [editingDate, setEditingDate] = useState(false);
+  const [dateMode, setDateMode] = useState<null | 'start' | 'end'>(null);
 
   // Lots avec planning data, triés
   const planningLots = useMemo(() =>
@@ -148,7 +148,87 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
     );
   }
 
+  // ── Date picker (partagé entre empty state et header) ────────────────────
+
+  const datePicker = dateMode && (
+    <div className="bg-white rounded-2xl border border-blue-200 shadow-lg p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-bold text-gray-900">
+          {dateMode === 'start' ? '📅 Date de début du chantier' : '🏁 Date de fin souhaitée'}
+        </h3>
+        <button onClick={() => setDateMode(null)} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
+      </div>
+      <p className="text-sm text-gray-500">
+        {dateMode === 'start'
+          ? 'Le planning des intervenants sera calculé à partir de cette date.'
+          : 'Le planning sera calculé en remontant depuis cette date. La date de début sera déduite automatiquement.'}
+      </p>
+      <input
+        type="date"
+        autoFocus
+        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+          if (e.key === 'Escape') setDateMode(null);
+        }}
+        onBlur={(e) => {
+          if (!e.target.value) { setDateMode(null); return; }
+          const d = new Date(e.target.value);
+          if (dateMode === 'start') {
+            updateStartDate(d);
+          } else {
+            updateEndDate(d);
+          }
+          setDateMode(null);
+        }}
+      />
+      {dateMode === 'start' && (
+        <button onClick={() => setDateMode('end')} className="text-xs text-blue-600 hover:underline">
+          Je connais plutôt ma date de fin souhaitée →
+        </button>
+      )}
+      {dateMode === 'end' && (
+        <button onClick={() => setDateMode('start')} className="text-xs text-blue-600 hover:underline">
+          ← Je connais plutôt ma date de début
+        </button>
+      )}
+    </div>
+  );
+
   // ── Empty state : pas de planning ───────────────────────────────────────
+
+  if (planningLots.length === 0 && !startDate) {
+    return (
+      <div className="space-y-4">
+        {dateMode ? datePicker : (
+          <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
+              <Calendar className="h-7 w-7 text-blue-400" />
+            </div>
+            <h3 className="font-bold text-gray-900 text-lg mb-2">Planifiez vos travaux</h3>
+            <p className="text-sm text-gray-400 max-w-md mx-auto leading-relaxed mb-5">
+              Renseignez une date pour que le planning des intervenants se calcule automatiquement.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button
+                onClick={() => setDateMode('start')}
+                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-colors"
+              >
+                <Calendar className="h-4 w-4" />
+                Je connais ma date de début
+              </button>
+              <button
+                onClick={() => setDateMode('end')}
+                className="inline-flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 font-semibold rounded-xl px-5 py-2.5 text-sm border border-gray-200 transition-colors"
+              >
+                🏁 Je connais ma date de fin
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (planningLots.length === 0) {
     return (
@@ -156,22 +236,10 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
         <div className="w-14 h-14 mx-auto rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
           <Calendar className="h-7 w-7 text-blue-400" />
         </div>
-        <h3 className="font-bold text-gray-900 text-lg mb-2">Aucun planning disponible</h3>
+        <h3 className="font-bold text-gray-900 text-lg mb-2">Planning en attente</h3>
         <p className="text-sm text-gray-400 max-w-md mx-auto leading-relaxed">
-          {!startDate
-            ? 'Renseignez une date de début pour activer le planning. Le planning sera généré automatiquement lors de la création du prochain chantier.'
-            : 'Les durées d\'intervention seront calculées automatiquement lors de la prochaine mise à jour du chantier.'
-          }
+          Les durées d'intervention seront calculées automatiquement lors de la création du chantier avec l'IA.
         </p>
-        {!startDate && (
-          <button
-            onClick={() => setEditingDate(true)}
-            className="mt-4 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-colors"
-          >
-            <Calendar className="h-4 w-4" />
-            Définir la date de début
-          </button>
-        )}
       </div>
     );
   }
@@ -196,41 +264,34 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
             </div>
           </div>
 
-          {/* Date de début éditable */}
-          <div className="flex items-center gap-2">
-            {editingDate ? (
-              <input
-                type="date"
-                autoFocus
-                defaultValue={startDate?.toISOString().split('T')[0] ?? ''}
-                onBlur={(e) => {
-                  if (e.target.value) updateStartDate(new Date(e.target.value));
-                  setEditingDate(false);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                  if (e.key === 'Escape') setEditingDate(false);
-                }}
-                className="border border-blue-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              />
-            ) : (
-              <button
-                onClick={() => setEditingDate(true)}
-                className="flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
-              >
-                <Calendar className="h-3.5 w-3.5" />
-                {startDate
-                  ? `Début : ${startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`
-                  : 'Définir la date de début'
-                }
-              </button>
-            )}
+          {/* Date de début/fin éditable */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setDateMode('start')}
+              className="flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              {startDate
+                ? `Début : ${startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                : 'Définir la date de début'
+              }
+            </button>
+            <span className="text-gray-300">|</span>
+            <button
+              onClick={() => setDateMode('end')}
+              className="text-sm font-medium text-gray-500 hover:text-blue-600 transition-colors"
+            >
+              Modifier la date de fin
+            </button>
             {saving && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
           </div>
         </div>
       </div>
 
-      {/* ── Timeline Gantt ──────────────────────────────────────────────── */}
+      {/* ── Date picker modal ──────────────────────────────────────────── */}
+      {datePicker}
+
+      {/* ── Timeline Gantt ──────────────────────────────────────���───────── */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
         <div ref={scrollRef} className="overflow-x-auto">

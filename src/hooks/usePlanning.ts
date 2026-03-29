@@ -4,7 +4,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { LotChantier } from '@/types/chantier-ia';
-import { computePlanningDates, getTotalWeeks, parseDate } from '@/lib/planningUtils';
+import { computePlanningDates, computeStartDateFromEnd, getTotalWeeks, parseDate } from '@/lib/planningUtils';
 
 interface PlanningState {
   lots: LotChantier[];
@@ -98,6 +98,16 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     patchPlanning({ dateDebutChantier: date.toISOString().split('T')[0] });
   }, [patchPlanning]);
 
+  /** Met à jour la date de fin souhaitée → calcule la date de début en arrière */
+  const updateEndDate = useCallback((endDate: Date) => {
+    setState(s => {
+      const computedStart = computeStartDateFromEnd(s.lots, endDate);
+      const recomputed = computePlanningDates(s.lots, computedStart);
+      return { ...s, startDate: computedStart, lots: recomputed, totalWeeks: getTotalWeeks(recomputed) };
+    });
+    patchPlanning({ dateDebutChantier: computeStartDateFromEnd(lots, endDate).toISOString().split('T')[0] });
+  }, [patchPlanning, lots]);
+
   /** Réordonne les lots (drag & drop) */
   const reorderLots = useCallback((orderedIds: string[]) => {
     setState(s => {
@@ -117,6 +127,7 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     ...state,
     updateLot,
     updateStartDate,
+    updateEndDate,
     reorderLots,
     refetch: fetchPlanning,
   };
