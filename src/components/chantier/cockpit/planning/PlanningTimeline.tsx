@@ -25,6 +25,93 @@ function getLotColor(index: number) {
   return LOT_COLORS[index % LOT_COLORS.length];
 }
 
+// ── Barre Gantt redimensionnable ───────────────────────────────────────────────
+
+function GanttBar({ lot, color, left, width, weekWidth, onResize }: {
+  lot: LotChantier;
+  color: { bg: string; light: string; text: string; border: string };
+  left: number;
+  width: number;
+  weekWidth: number;
+  onResize: (deltaDays: number) => void;
+}) {
+  const barRef = useRef<HTMLDivElement>(null);
+  const [resizing, setResizing] = useState<'left' | 'right' | null>(null);
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(0);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent, side: 'left' | 'right') => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizing(side);
+    startXRef.current = e.clientX;
+    startWidthRef.current = width;
+
+    const onMove = (ev: MouseEvent) => {
+      if (!barRef.current) return;
+      const dx = ev.clientX - startXRef.current;
+      // 1 semaine = weekWidth px = 5 jours ouvrés
+      const pxPerDay = weekWidth / 5;
+      if (side === 'right') {
+        const newWidth = Math.max(pxPerDay * 1, startWidthRef.current + dx);
+        barRef.current.style.width = `${newWidth}px`;
+      } else {
+        const newWidth = Math.max(pxPerDay * 1, startWidthRef.current - dx);
+        barRef.current.style.width = `${newWidth}px`;
+        barRef.current.style.left = `${left + dx}px`;
+      }
+    };
+
+    const onUp = (ev: MouseEvent) => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      setResizing(null);
+      const dx = ev.clientX - startXRef.current;
+      const pxPerDay = weekWidth / 5;
+      const deltaDays = Math.round(dx / pxPerDay);
+      if (deltaDays !== 0) onResize(side === 'right' ? deltaDays : -deltaDays);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [width, left, weekWidth, onResize]);
+
+  return (
+    <div
+      ref={barRef}
+      className={`absolute top-2 h-7 rounded-lg ${color.bg} shadow-sm flex items-center text-white text-[11px] font-semibold truncate group/bar ${resizing ? '' : 'transition-all duration-200'}`}
+      style={{
+        left,
+        width: Math.max(width, 24),
+        minWidth: 24,
+        cursor: resizing ? 'col-resize' : 'default',
+      }}
+      title={`${lot.nom} — ${formatDuration(lot.duree_jours ?? 0)}`}
+    >
+      {/* Poignée gauche */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-2 cursor-w-resize opacity-0 group-hover/bar:opacity-100 flex items-center justify-center transition-opacity"
+        onMouseDown={(e) => handleResizeStart(e, 'left')}
+      >
+        <div className="w-0.5 h-3 bg-white/60 rounded" />
+      </div>
+
+      {/* Contenu */}
+      <span className="truncate px-2 pointer-events-none select-none">
+        {width > 80 ? `${lot.emoji} ${lot.nom}` : lot.emoji}
+      </span>
+
+      {/* Poignée droite */}
+      <div
+        className="absolute right-0 top-0 bottom-0 w-2 cursor-e-resize opacity-0 group-hover/bar:opacity-100 flex items-center justify-center transition-opacity"
+        onMouseDown={(e) => handleResizeStart(e, 'right')}
+      >
+        <div className="w-0.5 h-3 bg-white/60 rounded" />
+      </div>
+    </div>
+  );
+}
+
 // ── Composant principal ───────────────────────────────────────────────────────
 
 interface Props {
@@ -389,20 +476,18 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
                           ))}
                         </div>
 
-                        {/* Barre du lot */}
-                        <div
-                          className={`absolute top-2 h-7 rounded-lg ${color.bg} shadow-sm flex items-center px-2 text-white text-[11px] font-semibold truncate transition-all duration-200`}
-                          style={{
-                            left: barStyle.left,
-                            width: barStyle.width,
-                            minWidth: 48,
+                        {/* Barre du lot — redimensionnable + déplaçable */}
+                        <GanttBar
+                          lot={lot}
+                          color={color}
+                          left={barStyle.left}
+                          width={barStyle.width}
+                          weekWidth={WEEK_WIDTH}
+                          onResize={(deltaDays) => {
+                            const newDays = Math.max(1, Math.min(120, (lot.duree_jours ?? 5) + deltaDays));
+                            if (newDays !== lot.duree_jours) updateLot(lot.id, { duree_jours: newDays });
                           }}
-                          title={`${lot.nom} — ${formatDuration(lot.duree_jours ?? 0)}`}
-                        >
-                          {barStyle.width > 80 && (
-                            <span className="truncate">{lot.emoji} {lot.nom}</span>
-                          )}
-                        </div>
+                        />
                       </div>
                     </div>
                   );
@@ -416,7 +501,7 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
         {/* Footer légende */}
         <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
           <p className="text-[10px] text-gray-400">
-            Glissez les lignes pour réordonner · Cliquez sur la durée pour modifier
+            Glissez les lignes pour réordonner · Tirez les bords des barres pour ajuster la durée
           </p>
           {unplannedLots.length > 0 && (
             <p className="text-[10px] text-amber-500 flex items-center gap-1">
