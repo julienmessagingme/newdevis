@@ -9,6 +9,8 @@ import IntervenantsListView from '@/components/chantier/cockpit/IntervenantsList
 import ComparateurDevisModal from '@/components/chantier/cockpit/ComparateurDevisModal';
 import { fmtK } from '@/lib/dashboardHelpers';
 import type { BreakdownItem } from './BudgetTresorerie';
+import PlanningWidget from './planning/PlanningWidget';
+import { parseDate } from '@/lib/planningUtils';
 
 function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, refinedBreakdown, onAffineBudget,
   onAddDevisForLot, onAddDocForLot, onGoToLot, onGoToAnalyse, onGoToPlanning, onAddDoc,
@@ -153,6 +155,9 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
           </ul>
         </div>
       )}
+
+      {/* ── Planning résumé ───────────────────────────────────── */}
+      <PlanningWidget lots={lots} startDate={parseDate(lots[0]?.date_debut)} onGoToPlanning={onGoToPlanning} />
 
       {/* ── RDV à venir ─────────────────────────────────────── */}
       <RdvReminder chantierId={chantierId} onGoToPlanning={onGoToPlanning} />

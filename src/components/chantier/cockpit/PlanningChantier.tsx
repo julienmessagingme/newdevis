@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import type { ChantierIAResult, TacheIA, EtapeRoadmap } from '@/types/chantier-ia';
 import type { PrioriteTache } from '@/types/chantier-ia';
+import PlanningTimeline from './planning/PlanningTimeline';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -443,6 +444,10 @@ export default function PlanningChantier({ result, chantierId, token, initialTac
       {/* ── Tab Planning ───────────────────────────────────────────────── */}
       {tab === 'planning' && (
         <div className="space-y-6">
+          {/* Timeline Gantt des intervenants */}
+          <PlanningTimeline chantierId={chantierId} token={token} />
+
+          {/* Roadmap par phases (existante) */}
           {roadmap.length === 0 && (
             <div className="text-center py-10 text-gray-400 text-sm">
               Le planning sera disponible une fois le chantier généré.

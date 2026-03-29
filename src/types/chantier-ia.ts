@@ -62,6 +62,12 @@ export interface LotChantier {
   materiaux_ht?:   number | null;
   main_oeuvre_ht?: number | null;
   divers_ht?:      number | null;
+  // ── Planning (enrichi par sauvegarder.ts via planningUtils) ──────────────────
+  duree_jours?:      number | null;  // durée en jours ouvrés (5j = 1 semaine)
+  date_debut?:       string | null;  // ISO date string
+  date_fin?:         string | null;  // ISO date string
+  ordre_planning?:   number | null;  // ordre dans le planning (distinct de 'ordre' d'affichage)
+  parallel_group?:   number | null;  // lots avec même valeur = en parallèle, null = séquentiel
 }
 
 /** Signaux factuels calculés avant l'appel IA — aucun montant, aucune hallucination */
@@ -112,6 +118,13 @@ export interface ArtisanIA {
   job_type?: string;
   /** Quantité estimée dans l'unité du job_type (m², ml, unité…) */
   quantite?: number;
+  // ── Planning IA ──────────────────────────────────────────────────────────────
+  /** Durée estimée en jours ouvrés (5j = 1 semaine) */
+  duree_jours_estime?: number;
+  /** Ordre d'intervention (1 = premier). Logique métier : démolition → gros œuvre → etc. */
+  ordre_planning?: number;
+  /** Groupe parallèle : même numéro = même créneau, null = séquentiel */
+  parallel_group?: number | null;
 }
 
 export interface FormaliteIA {
@@ -169,6 +182,8 @@ export interface ChantierIAResult {
   promptOriginal: string;
   /** Signaux de fiabilité — présents pour les chantiers générés avec lot 8A+ */
   estimationSignaux?: EstimationSignaux | null;
+  /** Date de début du chantier (ISO date string) */
+  dateDebutChantier?: string | null;
 }
 
 export interface ChantierGuideForm {

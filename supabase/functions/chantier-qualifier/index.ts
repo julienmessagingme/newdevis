@@ -33,17 +33,18 @@ Format JSON strict :
 
 Règles de génération :
 1. Entre 2 et 4 questions — ni plus, ni moins
-2. NE PAS poser de question sur le budget, le financement, ou la date de démarrage — ces informations sont déjà collectées séparément en amont
+2. NE PAS poser de question sur le budget ou le financement — ces informations sont déjà collectées séparément en amont
 3. Si la localisation (ville, code postal, département) N'EST PAS mentionnée dans la description : ajouter une question id="code_postal", type="text", label="Dans quelle ville ou quel code postal se situe le chantier ?", placeholder="Ex: Paris, Lyon, 33000, 69001..."
-4. Prioriser par impact : surface/dimensions > type exact de travaux > matériaux/gamme > localisation
-5. Chaque type "single_choice" ou "text_or_choice" : toujours inclure "Je ne sais pas encore" comme DERNIÈRE option
-6. type "text" : pour localisation libre, dimensions libres (sans liste de choix, placeholder obligatoire)
-7. type "single_choice" : choix exclusifs (2-4 options + "Je ne sais pas encore")
-8. type "text_or_choice" : options prédéfinies ET possibilité de texte libre (2-3 options + "Je ne sais pas encore")
-9. Langage simple, rassurant, non-technique — pour des particuliers non-experts
-10. Maximum 4 options dans choices avant "Je ne sais pas encore"
-11. ids uniques en snake_case descriptif (ex: piscine_surface, terrasse_materiau, code_postal)
-12. Ne pas poser de question sur un élément déjà mentionné dans la description
+4. Tu DOIS toujours inclure une question sur la date de démarrage souhaitée du chantier, sauf si la description mentionne déjà explicitement une date. Question : id="date_debut_chantier", type="text_or_choice", label="À quelle date souhaitez-vous commencer les travaux ?", placeholder="Ex: juin 2026, septembre prochain...", choices=["Le plus tôt possible", "Dans 1-2 mois", "Dans 3-6 mois", "Je ne sais pas encore"], required=false, reason="Permet de planifier l'ordre d'intervention des artisans"
+5. Prioriser par impact : surface/dimensions > type exact de travaux > matériaux/gamme > localisation
+6. Chaque type "single_choice" ou "text_or_choice" : toujours inclure "Je ne sais pas encore" comme DERNIÈRE option
+7. type "text" : pour localisation libre, dimensions libres (sans liste de choix, placeholder obligatoire)
+8. type "single_choice" : choix exclusifs (2-4 options + "Je ne sais pas encore")
+9. type "text_or_choice" : options prédéfinies ET possibilité de texte libre (2-3 options + "Je ne sais pas encore")
+10. Langage simple, rassurant, non-technique — pour des particuliers non-experts
+11. Maximum 4 options dans choices avant "Je ne sais pas encore"
+12. ids uniques en snake_case descriptif (ex: piscine_surface, terrasse_materiau, code_postal)
+13. Ne pas poser de question sur un élément déjà mentionné dans la description
 `;
 
 serve(async (req: Request) => {

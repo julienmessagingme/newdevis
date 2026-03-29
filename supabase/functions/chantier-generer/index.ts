@@ -44,9 +44,9 @@ Structure JSON exacte à retourner :
     {"numero": 5, "nom": "Réception chantier", "detail": "Visite de conformité", "mois": "Septembre 2026", "phase": "reception", "isCurrent": false}
   ],
   "artisans": [
-    {"metier": "Charpentier / Menuisier", "role": "Structure pergola + assemblage", "emoji": "🪚", "statut": "a_trouver", "couleurBg": "rgba(96,165,250,0.1)"},
-    {"metier": "Poseur terrasse bois", "role": "Pose lambourdes + lames ipé", "emoji": "🪵", "statut": "a_trouver", "couleurBg": "rgba(6,214,199,0.1)"},
-    {"metier": "Électricien", "role": "Éclairage LED extérieur", "emoji": "⚡", "statut": "a_trouver", "couleurBg": "rgba(245,158,11,0.1)"}
+    {"metier": "Charpentier / Menuisier", "role": "Structure pergola + assemblage", "emoji": "🪚", "statut": "a_trouver", "couleurBg": "rgba(96,165,250,0.1)", "duree_jours_estime": 5, "ordre_planning": 1, "parallel_group": null},
+    {"metier": "Poseur terrasse bois", "role": "Pose lambourdes + lames ipé", "emoji": "🪵", "statut": "a_trouver", "couleurBg": "rgba(6,214,199,0.1)", "duree_jours_estime": 4, "ordre_planning": 2, "parallel_group": null},
+    {"metier": "Électricien", "role": "Éclairage LED extérieur", "emoji": "⚡", "statut": "a_trouver", "couleurBg": "rgba(245,158,11,0.1)", "duree_jours_estime": 2, "ordre_planning": 3, "parallel_group": null}
   ],
   "formalites": [
     {"nom": "Déclaration préalable de travaux", "detail": "Mairie · Pergola > 5m² · Délai 1 mois", "emoji": "📄", "obligatoire": true},
@@ -83,6 +83,7 @@ Règles métier France 2026 :
 - MaPrimeRénov' si isolation/chauffage (vérifier éligibilité selon revenus)
 - Durée réaliste selon complexité du projet
 - Artisans : TOUS les corps de métier nécessaires (jamais oublier électricien si éclairage)
+- Pour chaque artisan, estime aussi la durée d'intervention en jours ouvrés ("duree_jours_estime", 5j = 1 semaine), l'ordre d'intervention ("ordre_planning", 1 = premier) et le groupe parallèle ("parallel_group", même numéro = même créneau, null si séquentiel). Respecte la logique métier du bâtiment : démolition → gros œuvre → charpente → couverture → menuiseries extérieures → plomberie/électricité (parallèle) → plaquiste → carreleur → peintre → menuisier intérieur → nettoyage.
 - Roadmap : 4 à 7 phases selon complexité, la 1ère toujours isCurrent:true
 - Tâches : 5 à 8 tâches concrètes, toujours AU MOINS 1 "done":true (budget défini)
 - Lignes budget : 3 à 5 postes avec des couleurs distinctes
@@ -285,6 +286,31 @@ serve(async (req: Request) => {
     }
   }
 
+  // ── Date de début chantier — déduite des réponses de qualification ──────────
+  let dateDebutChantier: string | undefined;
+  {
+    const dateAnswer = qualificationAnswers?.date_debut_chantier ?? qualificationAnswers?.date_debut;
+    if (dateAnswer && dateAnswer !== "Je ne sais pas encore") {
+      const today = new Date();
+      if (dateAnswer === "Le plus tôt possible") {
+        today.setDate(today.getDate() + 14);
+        dateDebutChantier = today.toISOString().slice(0, 10);
+      } else if (dateAnswer === "Dans 1-2 mois") {
+        today.setDate(today.getDate() + 45);
+        dateDebutChantier = today.toISOString().slice(0, 10);
+      } else if (dateAnswer === "Dans 3-6 mois") {
+        today.setDate(today.getDate() + 120);
+        dateDebutChantier = today.toISOString().slice(0, 10);
+      } else {
+        // Try to parse as a date
+        const parsed = new Date(dateAnswer);
+        if (!isNaN(parsed.getTime())) {
+          dateDebutChantier = parsed.toISOString().slice(0, 10);
+        }
+      }
+    }
+  }
+
   // ── Signaux factuels — calculés AVANT l'appel Gemini, aucune IA ──────────────
   // hasLocalisation : zone enrichie par DB (mode libre) OU code postal dans description (mode guidé)
   const hasLocalisation =
@@ -390,6 +416,7 @@ serve(async (req: Request) => {
     promptOriginal: prompt,
     generatedAt: new Date().toISOString(),
     estimationSignaux,
+    ...(dateDebutChantier ? { dateDebutChantier } : {}),
   };
 
   return new Response(

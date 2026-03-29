@@ -69,6 +69,10 @@ export const POST: APIRoute = async ({ request }) => {
         ordre: i,
         emoji: a.emoji ?? null,
         role: a.role ?? null,
+        // Planning IA
+        duree_jours: a.duree_jours_estime ?? null,
+        ordre_planning: a.ordre_planning ?? (i + 1),
+        parallel_group: a.parallel_group ?? null,
       })),
     );
     if (lotsError) {
@@ -144,6 +148,36 @@ export const POST: APIRoute = async ({ request }) => {
     } catch (enrichError) {
       console.error('[api/chantier/sauvegarder] enrichissement budget error:', enrichError instanceof Error ? enrichError.message : String(enrichError));
       // Non-bloquant : le chantier est sauvegardé, l'enrichissement échoue silencieusement
+    }
+
+    // ── Calcul des dates du planning ──────────────────────────────────────────
+    try {
+      const dateDebutChantier = result?.dateDebutChantier as string | null | undefined;
+      if (dateDebutChantier) {
+        // Stocker la date de début sur le chantier
+        await supabase.from('chantiers').update({ date_debut_chantier: dateDebutChantier }).eq('id', chantierId);
+
+        // Récupérer les lots créés pour calculer les dates
+        const { data: lotsForPlanning } = await supabase
+          .from('lots_chantier')
+          .select('id, duree_jours, ordre_planning, parallel_group')
+          .eq('chantier_id', chantierId)
+          .order('ordre_planning', { ascending: true, nullsFirst: false });
+
+        if (lotsForPlanning && lotsForPlanning.length > 0) {
+          const { computePlanningDates } = await import('@/lib/planningUtils');
+          const computed = computePlanningDates(lotsForPlanning as any, new Date(dateDebutChantier));
+          for (const lot of computed) {
+            if (lot.date_debut && lot.date_fin) {
+              await supabase.from('lots_chantier')
+                .update({ date_debut: lot.date_debut, date_fin: lot.date_fin })
+                .eq('id', lot.id);
+            }
+          }
+        }
+      }
+    } catch (planningError) {
+      console.error('[api/chantier/sauvegarder] planning dates error:', planningError instanceof Error ? planningError.message : String(planningError));
     }
   }
 

@@ -1,0 +1,370 @@
+/**
+ * PlanningTimeline — vue Gantt horizontale par semaines.
+ * Barres colorées par lot, drag & drop HTML5 natif pour réordonner et redimensionner.
+ */
+import { useState, useRef, useCallback, useMemo } from 'react';
+import { Calendar, GripVertical, ChevronLeft, ChevronRight, Loader2, AlertCircle, Users } from 'lucide-react';
+import type { LotChantier } from '@/types/chantier-ia';
+import { usePlanning } from '@/hooks/usePlanning';
+import { formatDuration, getWeekNumber, getWeekLabels, getTotalWeeks } from '@/lib/planningUtils';
+
+// ── Couleurs par lot (cyclique) ───────────────────────────────────────────────
+
+const LOT_COLORS = [
+  { bg: 'bg-blue-500',    light: 'bg-blue-50',   text: 'text-blue-700',   border: 'border-blue-200' },
+  { bg: 'bg-emerald-500', light: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+  { bg: 'bg-amber-500',   light: 'bg-amber-50',  text: 'text-amber-700',  border: 'border-amber-200' },
+  { bg: 'bg-violet-500',  light: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200' },
+  { bg: 'bg-rose-500',    light: 'bg-rose-50',   text: 'text-rose-700',   border: 'border-rose-200' },
+  { bg: 'bg-cyan-500',    light: 'bg-cyan-50',   text: 'text-cyan-700',   border: 'border-cyan-200' },
+  { bg: 'bg-orange-500',  light: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
+  { bg: 'bg-indigo-500',  light: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
+];
+
+function getLotColor(index: number) {
+  return LOT_COLORS[index % LOT_COLORS.length];
+}
+
+// ── Composant principal ───────────────────────────────────────────────────────
+
+interface Props {
+  chantierId: string | null | undefined;
+  token: string | null | undefined;
+  initialLots?: LotChantier[];
+  initialStartDate?: string | null;
+}
+
+export default function PlanningTimeline({ chantierId, token }: Props) {
+  const { lots, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, reorderLots } = usePlanning(chantierId, token);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [editingDuration, setEditingDuration] = useState<string | null>(null);
+  const [editingDate, setEditingDate] = useState(false);
+
+  // Lots avec planning data, triés
+  const planningLots = useMemo(() =>
+    lots.filter(l => l.ordre_planning != null && l.duree_jours != null && l.duree_jours > 0)
+      .sort((a, b) => (a.ordre_planning ?? 0) - (b.ordre_planning ?? 0)),
+    [lots]
+  );
+
+  // Lots sans planning
+  const unplannedLots = useMemo(() =>
+    lots.filter(l => l.ordre_planning == null || l.duree_jours == null || l.duree_jours <= 0),
+    [lots]
+  );
+
+  // Semaines labels
+  const weeks = useMemo(() =>
+    startDate ? getWeekLabels(startDate, Math.max(totalWeeks, 1) + 1) : [],
+    [startDate, totalWeeks]
+  );
+
+  const WEEK_WIDTH = 96; // px par semaine
+
+  // ── Drag & drop handlers ────────────────────────────────────────────────
+
+  const handleDragStart = useCallback((e: React.DragEvent, lotId: string) => {
+    setDraggedId(lotId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', lotId);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    const sourceId = e.dataTransfer.getData('text/plain');
+    if (!sourceId || sourceId === targetId) { setDraggedId(null); return; }
+
+    // Réordonner : insérer sourceId à la position de targetId
+    const ids = planningLots.map(l => l.id);
+    const fromIdx = ids.indexOf(sourceId);
+    const toIdx = ids.indexOf(targetId);
+    if (fromIdx === -1 || toIdx === -1) { setDraggedId(null); return; }
+
+    ids.splice(fromIdx, 1);
+    ids.splice(toIdx, 0, sourceId);
+
+    reorderLots(ids);
+    setDraggedId(null);
+  }, [planningLots, reorderLots]);
+
+  const handleDragEnd = useCallback(() => setDraggedId(null), []);
+
+  // ── Duration edit ───────────────────────────────────────────────────────
+
+  const handleDurationChange = useCallback((lotId: string, newDays: number) => {
+    if (newDays < 1) newDays = 1;
+    if (newDays > 120) newDays = 120;
+    updateLot(lotId, { duree_jours: newDays });
+    setEditingDuration(null);
+  }, [updateLot]);
+
+  // ── Calcul position/largeur d'une barre ─────────────────────────────────
+
+  const getBarStyle = useCallback((lot: LotChantier) => {
+    if (!startDate || !lot.date_debut || !lot.date_fin) return { left: 0, width: WEEK_WIDTH };
+    const start = new Date(lot.date_debut);
+    const end = new Date(lot.date_fin);
+    const startOffset = (start.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000);
+    const duration = (end.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000);
+    return {
+      left: startOffset * WEEK_WIDTH,
+      width: Math.max(duration * WEEK_WIDTH, WEEK_WIDTH * 0.5), // min 0.5 semaine visible
+    };
+  }, [startDate]);
+
+  // ── Groupes parallèles pour l'affichage ─────────────────────────────────
+
+  const rows = useMemo(() => {
+    const result: { lots: LotChantier[]; isParallel: boolean }[] = [];
+    let i = 0;
+    while (i < planningLots.length) {
+      const lot = planningLots[i];
+      if (lot.parallel_group != null) {
+        const group = planningLots.filter(l => l.parallel_group === lot.parallel_group);
+        result.push({ lots: group, isParallel: true });
+        i += group.length;
+      } else {
+        result.push({ lots: [lot], isParallel: false });
+        i++;
+      }
+    }
+    return result;
+  }, [planningLots]);
+
+  // ── Loading state ───────────────────────────────────────────────────────
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+        <span className="ml-2 text-sm text-gray-500">Chargement du planning…</span>
+      </div>
+    );
+  }
+
+  // ── Empty state : pas de planning ───────────────────────────────────────
+
+  if (planningLots.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+        <div className="w-14 h-14 mx-auto rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
+          <Calendar className="h-7 w-7 text-blue-400" />
+        </div>
+        <h3 className="font-bold text-gray-900 text-lg mb-2">Aucun planning disponible</h3>
+        <p className="text-sm text-gray-400 max-w-md mx-auto leading-relaxed">
+          {!startDate
+            ? 'Renseignez une date de début pour activer le planning. Le planning sera généré automatiquement lors de la création du prochain chantier.'
+            : 'Les durées d\'intervention seront calculées automatiquement lors de la prochaine mise à jour du chantier.'
+          }
+        </p>
+        {!startDate && (
+          <button
+            onClick={() => setEditingDate(true)}
+            className="mt-4 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-colors"
+          >
+            <Calendar className="h-4 w-4" />
+            Définir la date de début
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // ── Main render ─────────────────────────────────────────────────────────
+
+  return (
+    <div className="space-y-4">
+
+      {/* ── Header : date de début + stats ──────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+              <Calendar className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Planning du chantier</p>
+              <p className="text-lg font-bold text-gray-900">
+                {totalWeeks} semaine{totalWeeks > 1 ? 's' : ''} · {planningLots.length} intervenant{planningLots.length > 1 ? 's' : ''}
+              </p>
+            </div>
+          </div>
+
+          {/* Date de début éditable */}
+          <div className="flex items-center gap-2">
+            {editingDate ? (
+              <input
+                type="date"
+                autoFocus
+                defaultValue={startDate?.toISOString().split('T')[0] ?? ''}
+                onBlur={(e) => {
+                  if (e.target.value) updateStartDate(new Date(e.target.value));
+                  setEditingDate(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                  if (e.key === 'Escape') setEditingDate(false);
+                }}
+                className="border border-blue-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              />
+            ) : (
+              <button
+                onClick={() => setEditingDate(true)}
+                className="flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
+              >
+                <Calendar className="h-3.5 w-3.5" />
+                {startDate
+                  ? `Début : ${startDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                  : 'Définir la date de début'
+                }
+              </button>
+            )}
+            {saving && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Timeline Gantt ──────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+
+        <div ref={scrollRef} className="overflow-x-auto">
+          <div style={{ minWidth: `${Math.max(weeks.length * WEEK_WIDTH + 200, 600)}px` }}>
+
+            {/* Entête semaines */}
+            <div className="flex border-b border-gray-100">
+              {/* Colonne labels */}
+              <div className="w-[200px] shrink-0 px-4 py-3 bg-gray-50 border-r border-gray-100">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Intervenant</p>
+              </div>
+              {/* Colonnes semaines */}
+              <div className="flex-1 flex">
+                {weeks.map((w, i) => (
+                  <div key={i} className="flex-none text-center border-r border-gray-50 py-2" style={{ width: WEEK_WIDTH }}>
+                    <p className="text-xs font-bold text-gray-600">{w.label}</p>
+                    <p className="text-[10px] text-gray-400">{w.date}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Lignes du planning */}
+            {rows.map((row, rowIdx) => (
+              <div key={rowIdx}>
+                {/* Badge groupe parallèle */}
+                {row.isParallel && row.lots.length > 1 && (
+                  <div className="flex items-center gap-1.5 px-4 py-1 bg-violet-50 border-b border-violet-100">
+                    <Users className="h-3 w-3 text-violet-500" />
+                    <span className="text-[10px] font-semibold text-violet-600 uppercase tracking-wider">
+                      Interventions parallèles
+                    </span>
+                  </div>
+                )}
+
+                {row.lots.map((lot, lotIdx) => {
+                  const color = getLotColor(planningLots.indexOf(lot));
+                  const barStyle = getBarStyle(lot);
+                  const weekStart = startDate && lot.date_debut ? getWeekNumber(new Date(lot.date_debut), startDate) : 0;
+                  const weekEnd = startDate && lot.date_fin ? getWeekNumber(new Date(lot.date_fin), startDate) : 0;
+                  const isDragged = draggedId === lot.id;
+
+                  return (
+                    <div
+                      key={lot.id}
+                      className={`flex border-b border-gray-50 transition-colors ${isDragged ? 'bg-blue-50 opacity-50' : 'hover:bg-gray-50'}`}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, lot.id)}
+                      onDragOver={handleDragOver}
+                      onDrop={(e) => handleDrop(e, lot.id)}
+                      onDragEnd={handleDragEnd}
+                    >
+                      {/* Label lot */}
+                      <div className="w-[200px] shrink-0 px-3 py-2.5 flex items-center gap-2 border-r border-gray-100 cursor-grab active:cursor-grabbing">
+                        <GripVertical className="h-3.5 w-3.5 text-gray-300 shrink-0" />
+                        <span className="text-base shrink-0">{lot.emoji}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-gray-800 truncate">{lot.nom}</p>
+                          <div className="flex items-center gap-2 text-[11px] text-gray-400">
+                            <span>S{weekStart}–S{weekEnd}</span>
+                            <span>·</span>
+                            {editingDuration === lot.id ? (
+                              <input
+                                type="number"
+                                autoFocus
+                                min={1}
+                                max={120}
+                                defaultValue={lot.duree_jours ?? 5}
+                                onBlur={(e) => handleDurationChange(lot.id, parseInt(e.target.value) || 5)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                  if (e.key === 'Escape') setEditingDuration(null);
+                                }}
+                                className="w-12 border border-blue-300 rounded px-1 py-0 text-[11px] text-center focus:ring-1 focus:ring-blue-500 outline-none"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            ) : (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setEditingDuration(lot.id); }}
+                                className="hover:text-blue-600 hover:underline transition-colors"
+                              >
+                                {formatDuration(lot.duree_jours ?? 0)}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Barre Gantt */}
+                      <div className="flex-1 relative py-2" style={{ minHeight: 44 }}>
+                        {/* Lignes grille semaines */}
+                        <div className="absolute inset-0 flex pointer-events-none">
+                          {weeks.map((_, i) => (
+                            <div key={i} className="flex-none border-r border-gray-50" style={{ width: WEEK_WIDTH }} />
+                          ))}
+                        </div>
+
+                        {/* Barre du lot */}
+                        <div
+                          className={`absolute top-2 h-7 rounded-lg ${color.bg} shadow-sm flex items-center px-2 text-white text-[11px] font-semibold truncate transition-all duration-200`}
+                          style={{
+                            left: barStyle.left,
+                            width: barStyle.width,
+                            minWidth: 48,
+                          }}
+                          title={`${lot.nom} — ${formatDuration(lot.duree_jours ?? 0)}`}
+                        >
+                          {barStyle.width > 80 && (
+                            <span className="truncate">{lot.emoji} {lot.nom}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+
+          </div>
+        </div>
+
+        {/* Footer légende */}
+        <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+          <p className="text-[10px] text-gray-400">
+            Glissez les lignes pour réordonner · Cliquez sur la durée pour modifier
+          </p>
+          {unplannedLots.length > 0 && (
+            <p className="text-[10px] text-amber-500 flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" />
+              {unplannedLots.length} intervenant{unplannedLots.length > 1 ? 's' : ''} sans planning
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
