@@ -1,6 +1,7 @@
 /**
  * PlanningTimeline — vue Gantt horizontale par semaines.
  * Barres colorées par lot, drag & drop HTML5 natif pour réordonner et redimensionner.
+ * Split layout: left column (lot names) is sticky, right area (Gantt bars) scrolls horizontally.
  */
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { Calendar, GripVertical, ChevronLeft, ChevronRight, Loader2, AlertCircle, Users } from 'lucide-react';
@@ -8,7 +9,7 @@ import type { LotChantier } from '@/types/chantier-ia';
 import { usePlanning } from '@/hooks/usePlanning';
 import { formatDuration, getWeekNumber, getWeekLabels, getTotalWeeks } from '@/lib/planningUtils';
 
-// ── Couleurs par lot (cyclique) ───────────────────────────────────────────────
+// -- Couleurs par lot (cyclique) ----------------------------------------------
 
 const LOT_COLORS = [
   { bg: 'bg-blue-500',    light: 'bg-blue-50',   text: 'text-blue-700',   border: 'border-blue-200' },
@@ -25,7 +26,7 @@ function getLotColor(index: number) {
   return LOT_COLORS[index % LOT_COLORS.length];
 }
 
-// ── Barre Gantt redimensionnable ───────────────────────────────────────────────
+// -- Barre Gantt redimensionnable ---------------------------------------------
 
 function GanttBar({ lot, color, left, width, weekWidth, onResize, onMove }: {
   lot: LotChantier;
@@ -136,7 +137,12 @@ function GanttBar({ lot, color, left, width, weekWidth, onResize, onMove }: {
   );
 }
 
-// ── Composant principal ───────────────────────────────────────────────────────
+// -- Row heights (shared constants) -------------------------------------------
+
+const LOT_ROW_HEIGHT = 44;
+const PARALLEL_BADGE_HEIGHT = 26;
+
+// -- Composant principal ------------------------------------------------------
 
 interface Props {
   chantierId: string | null | undefined;
@@ -173,7 +179,7 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
 
   const WEEK_WIDTH = 96; // px par semaine
 
-  // ── Drag & drop handlers ────────────────────────────────────────────────
+  // -- Drag & drop handlers ---------------------------------------------------
 
   const handleDragStart = useCallback((e: React.DragEvent, lotId: string) => {
     setDraggedId(lotId);
@@ -206,7 +212,7 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
 
   const handleDragEnd = useCallback(() => setDraggedId(null), []);
 
-  // ── Duration edit ───────────────────────────────────────────────────────
+  // -- Duration edit ----------------------------------------------------------
 
   const handleDurationChange = useCallback((lotId: string, newDays: number) => {
     if (newDays < 1) newDays = 1;
@@ -215,7 +221,7 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
     setEditingDuration(null);
   }, [updateLot]);
 
-  // ── Calcul position/largeur d'une barre ─────────────────────────────────
+  // -- Calcul position/largeur d'une barre -----------------------------------
 
   const getBarStyle = useCallback((lot: LotChantier) => {
     if (!startDate || !lot.date_debut || !lot.date_fin) return { left: 0, width: WEEK_WIDTH };
@@ -229,7 +235,7 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
     };
   }, [startDate]);
 
-  // ── Groupes parallèles pour l'affichage ─────────────────────────────────
+  // -- Groupes parallèles pour l'affichage -----------------------------------
 
   const rows = useMemo(() => {
     const result: { lots: LotChantier[]; isParallel: boolean }[] = [];
@@ -248,7 +254,7 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
     return result;
   }, [planningLots]);
 
-  // ── Loading state ───────────────────────────────────────────────────────
+  // -- Loading state ----------------------------------------------------------
 
   if (loading) {
     return (
@@ -259,7 +265,7 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
     );
   }
 
-  // ── Date picker (partagé entre empty state et header) ────────────────────
+  // -- Date picker (partagé entre empty state et header) ----------------------
 
   const datePicker = dateMode && (
     <div className="bg-white rounded-2xl border border-blue-200 shadow-lg p-6 space-y-4">
@@ -306,7 +312,7 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
     </div>
   );
 
-  // ── Empty state : pas de planning ───────────────────────────────────────
+  // -- Empty state : pas de planning -----------------------------------------
 
   if (planningLots.length === 0 && !startDate) {
     return (
@@ -355,12 +361,12 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
     );
   }
 
-  // ── Main render ─────────────────────────────────────────────────────────
+  // -- Main render ------------------------------------------------------------
 
   return (
     <div className="space-y-4">
 
-      {/* ── Header : date de début + stats ──────────────────────────────── */}
+      {/* -- Header : date de début + stats ---------------------------------- */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
@@ -399,38 +405,29 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
         </div>
       </div>
 
-      {/* ── Date picker modal ──────────────────────────────────────────── */}
+      {/* -- Date picker modal ----------------------------------------------- */}
       {datePicker}
 
-      {/* ── Timeline Gantt ──────────────────────────────────────���───────── */}
+      {/* -- Timeline Gantt (split layout) ----------------------------------- */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
-        <div ref={scrollRef} className="overflow-x-auto">
-          <div style={{ minWidth: `${Math.max(weeks.length * WEEK_WIDTH + 200, 600)}px` }}>
-
-            {/* Entête semaines */}
-            <div className="flex border-b border-gray-100">
-              {/* Colonne labels */}
-              <div className="w-[200px] shrink-0 px-4 py-3 bg-gray-50 border-r border-gray-100">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Intervenant</p>
-              </div>
-              {/* Colonnes semaines */}
-              <div className="flex-1 flex">
-                {weeks.map((w, i) => (
-                  <div key={i} className="flex-none text-center border-r border-gray-50 py-2" style={{ width: WEEK_WIDTH }}>
-                    <p className="text-xs font-bold text-gray-600">{w.label}</p>
-                    <p className="text-[10px] text-gray-400">{w.date}</p>
-                  </div>
-                ))}
-              </div>
+        <div className="flex">
+          {/* ====== LEFT: fixed column (lot names, sticky) ====== */}
+          <div className="w-[200px] shrink-0 border-r border-gray-100 bg-white z-10 sticky left-0">
+            {/* Header */}
+            <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Intervenant</p>
             </div>
 
-            {/* Lignes du planning */}
+            {/* Lot label rows */}
             {rows.map((row, rowIdx) => (
               <div key={rowIdx}>
                 {/* Badge groupe parallèle */}
                 {row.isParallel && row.lots.length > 1 && (
-                  <div className="flex items-center gap-1.5 px-4 py-1 bg-violet-50 border-b border-violet-100">
+                  <div
+                    className="flex items-center gap-1.5 px-4 bg-violet-50 border-b border-violet-100"
+                    style={{ height: PARALLEL_BADGE_HEIGHT }}
+                  >
                     <Users className="h-3 w-3 text-violet-500" />
                     <span className="text-[10px] font-semibold text-violet-600 uppercase tracking-wider">
                       Interventions parallèles
@@ -438,9 +435,7 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
                   </div>
                 )}
 
-                {row.lots.map((lot, lotIdx) => {
-                  const color = getLotColor(planningLots.indexOf(lot));
-                  const barStyle = getBarStyle(lot);
+                {row.lots.map((lot) => {
                   const weekStart = startDate && lot.date_debut ? getWeekNumber(new Date(lot.date_debut), startDate) : 0;
                   const weekEnd = startDate && lot.date_fin ? getWeekNumber(new Date(lot.date_fin), startDate) : 0;
                   const isDragged = draggedId === lot.id;
@@ -448,15 +443,15 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
                   return (
                     <div
                       key={lot.id}
-                      className={`flex border-b border-gray-50 transition-colors ${isDragged ? 'bg-blue-50 opacity-50' : 'hover:bg-gray-50'}`}
+                      className={`border-b border-gray-50 transition-colors ${isDragged ? 'bg-blue-50 opacity-50' : 'hover:bg-gray-50'}`}
+                      style={{ height: LOT_ROW_HEIGHT }}
                       draggable
                       onDragStart={(e) => handleDragStart(e, lot.id)}
                       onDragOver={handleDragOver}
                       onDrop={(e) => handleDrop(e, lot.id)}
                       onDragEnd={handleDragEnd}
                     >
-                      {/* Label lot */}
-                      <div className="w-[200px] shrink-0 px-3 py-2.5 flex items-center gap-2 border-r border-gray-100 cursor-grab active:cursor-grabbing">
+                      <div className="px-3 py-2.5 flex items-center gap-2 cursor-grab active:cursor-grabbing h-full">
                         <GripVertical className="h-3.5 w-3.5 text-gray-300 shrink-0" />
                         <span className="text-base shrink-0">{lot.emoji}</span>
                         <div className="min-w-0 flex-1">
@@ -490,17 +485,61 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
                           </div>
                         </div>
                       </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
 
-                      {/* Barre Gantt */}
-                      <div className="flex-1 relative py-2" style={{ minHeight: 44 }}>
-                        {/* Lignes grille semaines */}
+          {/* ====== RIGHT: scrollable Gantt area ====== */}
+          <div ref={scrollRef} className="flex-1 overflow-x-auto min-w-0">
+            <div style={{ minWidth: `${Math.max(weeks.length * WEEK_WIDTH, 300)}px` }}>
+              {/* Week headers */}
+              <div className="flex border-b border-gray-100">
+                {weeks.map((w, i) => (
+                  <div key={i} className="flex-none text-center border-r border-gray-50 py-2" style={{ width: WEEK_WIDTH }}>
+                    <p className="text-xs font-bold text-gray-600">{w.label}</p>
+                    <p className="text-[10px] text-gray-400">{w.date}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Gantt bar rows */}
+              {rows.map((row, rowIdx) => (
+                <div key={rowIdx}>
+                  {/* Parallel group badge spacer (matches left column height) */}
+                  {row.isParallel && row.lots.length > 1 && (
+                    <div
+                      className="bg-violet-50 border-b border-violet-100"
+                      style={{ height: PARALLEL_BADGE_HEIGHT }}
+                    />
+                  )}
+
+                  {row.lots.map((lot) => {
+                    const color = getLotColor(planningLots.indexOf(lot));
+                    const barStyle = getBarStyle(lot);
+                    const isDragged = draggedId === lot.id;
+
+                    return (
+                      <div
+                        key={lot.id}
+                        className={`border-b border-gray-50 transition-colors relative ${isDragged ? 'bg-blue-50 opacity-50' : 'hover:bg-gray-50'}`}
+                        style={{ height: LOT_ROW_HEIGHT }}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, lot.id)}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, lot.id)}
+                        onDragEnd={handleDragEnd}
+                      >
+                        {/* Week grid lines */}
                         <div className="absolute inset-0 flex pointer-events-none">
                           {weeks.map((_, i) => (
                             <div key={i} className="flex-none border-r border-gray-50" style={{ width: WEEK_WIDTH }} />
                           ))}
                         </div>
 
-                        {/* Barre du lot — redimensionnable + déplaçable */}
+                        {/* Gantt bar — resizable + movable */}
                         <GanttBar
                           lot={lot}
                           color={color}
@@ -517,12 +556,11 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
                           }}
                         />
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
