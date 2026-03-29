@@ -24,10 +24,11 @@ export interface SimulationData {
   result: EffyResult;
 }
 
-export default function AidesTravaux({ onImportAides, initialSimulation, onSimulationSave }: {
-  onImportAides: (values: Partial<Record<SourceKey, string>>) => void;
+export default function AidesTravaux({ onImportAides, initialSimulation, onSimulationSave, standalone }: {
+  onImportAides?: (values: Partial<Record<SourceKey, string>>) => void;
   initialSimulation?: SimulationData | null;
   onSimulationSave?: (data: SimulationData | null) => void;
+  standalone?: boolean;
 }) {
   const [step,            setStep]            = useState<1 | 2 | 3>(initialSimulation ? 3 : 1);
   const [workType,        setWorkType]        = useState<EffyWorkType | null>(initialSimulation?.workType ?? null);
@@ -181,19 +182,33 @@ export default function AidesTravaux({ onImportAides, initialSimulation, onSimul
           </div>
         </div>
 
-        {/* Bouton import vers Sources de financement */}
+        {/* Bouton import / CTA */}
         {result.total > 0 && (
-          <button
-            type="button"
-            onClick={() => onImportAides({
-              maprime: result.maprimeEligible && result.maprime > 0 ? String(Math.round(result.maprime)) : '',
-              cee:     result.cee > 0 ? String(Math.round(result.cee)) : '',
-            })}
-            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-sm rounded-xl px-4 py-3 transition-colors shadow-sm"
-          >
-            <Check className="h-4 w-4" />
-            Importer vers Sources de financement →
-          </button>
+          standalone ? (
+            <button
+              type="button"
+              onClick={() => onImportAides?.({
+                maprime: result.maprimeEligible && result.maprime > 0 ? String(Math.round(result.maprime)) : '',
+                cee:     result.cee > 0 ? String(Math.round(result.cee)) : '',
+              })}
+              className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold text-sm rounded-xl px-4 py-3 transition-colors shadow-sm"
+            >
+              <Check className="h-4 w-4" />
+              Créer mon plan de chantier →
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onImportAides?.({
+                maprime: result.maprimeEligible && result.maprime > 0 ? String(Math.round(result.maprime)) : '',
+                cee:     result.cee > 0 ? String(Math.round(result.cee)) : '',
+              })}
+              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-sm rounded-xl px-4 py-3 transition-colors shadow-sm"
+            >
+              <Check className="h-4 w-4" />
+              Importer vers Sources de financement →
+            </button>
+          )
         )}
 
         <p className="text-[10px] text-gray-400 text-center leading-relaxed pt-2 border-t border-gray-50">
