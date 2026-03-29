@@ -206,9 +206,8 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
       {/* ── Recommandation IA (pleine largeur) ──────────────── */}
       <AssistantActiveBlock
         lots={lots}
-        documents={documents}
+        docsByLot={docsByLot}
         onAddDevisForLot={onAddDevisForLot}
-        onGoToAnalyse={onGoToAnalyse}
         onGoToPlanning={onGoToPlanning}
         onAddDoc={onAddDoc}
         onGoToAssistant={onGoToAssistant}
