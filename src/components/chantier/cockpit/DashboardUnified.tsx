@@ -433,7 +433,9 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             emoji={result.emoji}
             typeProjet={result.typeProjet}
             onMenuToggle={() => setMobileOpen(v => !v)}
-            onAddDoc={() => setUploadModal({ open: true })}
+            budgetEstime={displayMin > 0 ? `${fmtK(displayMin)} – ${fmtK(displayMax)}` : '—'}
+            budgetValide={documents.filter(d => d.document_type === 'devis' && d.devis_statut === 'valide').reduce((s, d) => s + (d.montant ?? 0), 0)}
+            facture={documents.filter(d => d.document_type === 'facture').reduce((s, d) => s + (d.montant ?? 0), 0)}
           />
         ) : (
           <PageHeader

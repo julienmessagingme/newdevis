@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Menu, Plus } from 'lucide-react';
+import { ArrowLeft, Menu } from 'lucide-react';
 
 export function PageHeader({ title, sub, action, onMenuToggle, onBack }: {
   title: string; sub?: string; action?: React.ReactNode; onMenuToggle: () => void; onBack?: () => void;
@@ -31,14 +31,21 @@ export function PageHeader({ title, sub, action, onMenuToggle, onBack }: {
 
 // ── Budget Home Header (header premium section principale) ────────────────────
 
-export function BudgetHomeHeader({ nom, emoji, typeProjet, onMenuToggle, onAddDoc }: {
+function fmtBudget(n: number): string {
+  if (n <= 0) return '—';
+  if (n >= 1000) return `${Math.round(n / 1000)}k €`;
+  return `${Math.round(n)} €`;
+}
+
+export function BudgetHomeHeader({ nom, emoji, typeProjet, onMenuToggle, budgetEstime, budgetValide, facture }: {
   nom: string;
   emoji?: string | null;
   typeProjet?: string | null;
   onMenuToggle: () => void;
-  onAddDoc: () => void;
+  budgetEstime: string;
+  budgetValide: number;
+  facture: number;
 }) {
-  // Illustration selon le type de projet
   const illustrations: Record<string, string> = {
     renovation:      '🏠',
     construction:    '🏗️',
@@ -56,15 +63,15 @@ export function BudgetHomeHeader({ nom, emoji, typeProjet, onMenuToggle, onAddDo
   const illustration = emoji ?? illustrations[typeProjet ?? ''] ?? '🏗️';
 
   return (
-    <header className="bg-white border-b border-gray-100 px-5 py-5">
-      <div className="flex items-center gap-3">
+    <header className="bg-white border-b border-gray-100 px-5 py-4">
+      <div className="flex items-center gap-4">
         {/* Bouton menu mobile */}
         <button onClick={onMenuToggle} className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 shrink-0">
           <Menu className="h-4 w-4" />
         </button>
 
-        {/* Illustration + titre projet — gauche */}
-        <div className="flex items-center gap-3 w-64 shrink-0 min-w-0">
+        {/* Illustration + titre projet */}
+        <div className="flex items-center gap-3 min-w-0 shrink-0">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center text-xl shrink-0 shadow-sm">
             {illustration}
           </div>
@@ -74,20 +81,30 @@ export function BudgetHomeHeader({ nom, emoji, typeProjet, onMenuToggle, onAddDo
           </div>
         </div>
 
-        {/* CTA centré */}
-        <div className="flex-1 flex flex-col items-center gap-1">
-          <button
-            onClick={onAddDoc}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl px-5 py-2.5 transition-colors shadow-sm shadow-blue-200"
-          >
-            <Plus className="h-4 w-4" />
-            Ajouter un document
-          </button>
-          <p className="text-[11px] text-gray-400">devis · facture · photo · plan · ou importer depuis votre espace</p>
+        {/* KPIs budget — centré */}
+        <div className="flex-1 flex items-center justify-center gap-6">
+          <div className="text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Estimé</p>
+            <p className="text-sm font-extrabold text-gray-900 tabular-nums">{budgetEstime}</p>
+          </div>
+          <div className="w-px h-8 bg-gray-100" />
+          <div className="text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Validé</p>
+            <p className={`text-sm font-extrabold tabular-nums ${budgetValide > 0 ? 'text-blue-600' : 'text-gray-300'}`}>
+              {budgetValide > 0 ? fmtBudget(budgetValide) : '—'}
+            </p>
+          </div>
+          <div className="w-px h-8 bg-gray-100" />
+          <div className="text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Facturé</p>
+            <p className={`text-sm font-extrabold tabular-nums ${facture > 0 ? 'text-emerald-600' : 'text-gray-300'}`}>
+              {facture > 0 ? fmtBudget(facture) : '—'}
+            </p>
+          </div>
         </div>
 
-        {/* Espace équilibrant à droite */}
-        <div className="w-64 shrink-0 hidden lg:block" />
+        {/* Spacer droite pour équilibrage desktop */}
+        <div className="w-10 shrink-0 hidden lg:block" />
       </div>
     </header>
   );
