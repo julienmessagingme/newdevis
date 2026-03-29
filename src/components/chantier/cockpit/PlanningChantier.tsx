@@ -7,7 +7,7 @@ import {
   Plus, Check, Trash2, ChevronRight, Loader2, X,
   Star, Sparkles, Calendar, CheckSquare,
 } from 'lucide-react';
-import type { ChantierIAResult, TacheIA, EtapeRoadmap } from '@/types/chantier-ia';
+import type { ChantierIAResult, TacheIA } from '@/types/chantier-ia';
 import type { PrioriteTache } from '@/types/chantier-ia';
 import PlanningTimeline from './planning/PlanningTimeline';
 
@@ -29,14 +29,6 @@ const PRIO: Record<PrioriteTache, { label: string; cls: string }> = {
   normal:    { label: 'Normal',    cls: 'bg-gray-50 text-gray-500 border-gray-100'    },
 };
 
-const PHASE_CLS: Record<string, string> = {
-  preparation:   'bg-blue-50 text-blue-700',
-  autorisations: 'bg-amber-50 text-amber-700',
-  gros_oeuvre:   'bg-orange-50 text-orange-700',
-  second_oeuvre: 'bg-violet-50 text-violet-700',
-  finitions:     'bg-emerald-50 text-emerald-700',
-  reception:     'bg-teal-50 text-teal-700',
-};
 
 const RDV_CFG: Record<Rdv['type'], { label: string; emoji: string; cls: string }> = {
   artisan:   { label: 'Artisan',   emoji: '👷', cls: 'bg-blue-50 text-blue-700'   },
@@ -89,15 +81,6 @@ const AUTO_TASKS: Record<string, Array<{ titre: string; priorite: PrioriteTache 
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function groupByMonth(roadmap: EtapeRoadmap[]): Array<{ month: string; steps: EtapeRoadmap[] }> {
-  const map = new Map<string, EtapeRoadmap[]>();
-  for (const step of roadmap) {
-    const m = step.mois ?? 'Sans date';
-    if (!map.has(m)) map.set(m, []);
-    map.get(m)!.push(step);
-  }
-  return [...map.entries()].map(([month, steps]) => ({ month, steps }));
-}
 
 function fmtDate(iso: string) {
   try {
@@ -270,7 +253,6 @@ export default function PlanningChantier({ result, chantierId, token, initialTac
   const done         = taches.filter(t => t.done);
   const urgentTasks  = pending.filter(t => t.priorite === 'urgent').slice(0, 3);
   const weekTasks    = urgentTasks.length > 0 ? urgentTasks : pending.slice(0, 3);
-  const roadmap      = groupByMonth(result.roadmap ?? []);
   const upcomingRdvs = rdvs.filter(r => r.date >= today());
 
   // ── Styles partagés ───────────────────────────────────────────────────────
@@ -444,49 +426,7 @@ export default function PlanningChantier({ result, chantierId, token, initialTac
       {/* ── Tab Planning ───────────────────────────────────────────────── */}
       {tab === 'planning' && (
         <div className="space-y-6">
-          {/* Timeline Gantt des intervenants */}
           <PlanningTimeline chantierId={chantierId} token={token} />
-
-          {/* Roadmap par phases (existante) */}
-          {roadmap.length === 0 && (
-            <div className="text-center py-10 text-gray-400 text-sm">
-              Le planning sera disponible une fois le chantier généré.
-            </div>
-          )}
-          {roadmap.map(({ month, steps }) => (
-            <div key={month}>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="h-px flex-1 bg-gray-100" />
-                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">{month}</span>
-                <div className="h-px flex-1 bg-gray-100" />
-              </div>
-              <div className="space-y-2">
-                {steps.map((step, i) => {
-                  const pCls = PHASE_CLS[step.phase] ?? 'bg-gray-50 text-gray-500';
-                  return (
-                    <div key={i}
-                      className="bg-white rounded-xl border border-gray-100 px-4 py-3.5 flex items-center gap-3 hover:border-gray-200 transition-colors">
-                      <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-400 shrink-0">
-                        {step.numero ?? (i + 1)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 leading-snug">
-                          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                          {step.nom ?? (step as any).titre ?? '—'}
-                        </p>
-                        {step.detail && (
-                          <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{step.detail}</p>
-                        )}
-                      </div>
-                      <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${pCls}`}>
-                        {(step.phase ?? 'étape').replace('_', ' ')}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
         </div>
       )}
 
