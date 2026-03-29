@@ -4,7 +4,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { LotChantier } from '@/types/chantier-ia';
-import { computePlanningDates, computeStartDateFromEnd, getTotalWeeks, parseDate } from '@/lib/planningUtils';
+import { computePlanningDates, computeStartDateFromEnd, addBusinessDays, subtractBusinessDays, getTotalWeeks, parseDate } from '@/lib/planningUtils';
 
 interface PlanningState {
   lots: LotChantier[];
@@ -124,12 +124,39 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     });
   }, [patchPlanning]);
 
+  /** Déplace un lot de N jours ouvrés (positif = en avant, négatif = en arrière) */
+  const moveLot = useCallback((lotId: string, deltaDays: number) => {
+    setState(s => {
+      const updated = s.lots.map(l => {
+        if (l.id !== lotId || !l.date_debut || !l.date_fin) return l;
+        const fn = deltaDays > 0 ? addBusinessDays : subtractBusinessDays;
+        const newDebut = fn(new Date(l.date_debut), Math.abs(deltaDays));
+        const newFin = addBusinessDays(newDebut, l.duree_jours ?? 5);
+        return {
+          ...l,
+          date_debut: newDebut.toISOString().split('T')[0],
+          date_fin: newFin.toISOString().split('T')[0],
+        };
+      });
+      return { ...s, lots: updated, totalWeeks: getTotalWeeks(updated) };
+    });
+    // Persist avec les nouvelles dates — le backend ne recalculera pas en cascade
+    setState(s => {
+      const lot = s.lots.find(l => l.id === lotId);
+      if (lot?.date_debut && lot?.date_fin) {
+        patchPlanning({ lots: [{ id: lotId, date_debut: lot.date_debut, date_fin: lot.date_fin }] });
+      }
+      return s;
+    });
+  }, [patchPlanning]);
+
   return {
     ...state,
     updateLot,
     updateStartDate,
     updateEndDate,
     reorderLots,
+    moveLot,
     refetch: fetchPlanning,
   };
 }

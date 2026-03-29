@@ -83,6 +83,8 @@ export const PATCH: APIRoute = async ({ request, params }) => {
     if (typeof lot.duree_jours === 'number') update.duree_jours = lot.duree_jours;
     if (typeof lot.ordre_planning === 'number') update.ordre_planning = lot.ordre_planning;
     if ('parallel_group' in lot) update.parallel_group = lot.parallel_group;
+    if (typeof lot.date_debut === 'string') update.date_debut = lot.date_debut;
+    if (typeof lot.date_fin === 'string') update.date_fin = lot.date_fin;
 
     if (Object.keys(update).length === 0) continue;
 

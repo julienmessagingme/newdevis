@@ -27,86 +27,110 @@ function getLotColor(index: number) {
 
 // ── Barre Gantt redimensionnable ───────────────────────────────────────────────
 
-function GanttBar({ lot, color, left, width, weekWidth, onResize }: {
+function GanttBar({ lot, color, left, width, weekWidth, onResize, onMove }: {
   lot: LotChantier;
   color: { bg: string; light: string; text: string; border: string };
   left: number;
   width: number;
   weekWidth: number;
   onResize: (deltaDays: number) => void;
+  onMove: (deltaDays: number) => void;
 }) {
   const barRef = useRef<HTMLDivElement>(null);
-  const [resizing, setResizing] = useState<'left' | 'right' | null>(null);
+  const [interaction, setInteraction] = useState<'left' | 'right' | 'move' | null>(null);
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
+  const startLeftRef = useRef(0);
 
+  const pxPerDay = weekWidth / 5;
+
+  // Resize (bords gauche/droit)
   const handleResizeStart = useCallback((e: React.MouseEvent, side: 'left' | 'right') => {
     e.preventDefault();
     e.stopPropagation();
-    setResizing(side);
+    setInteraction(side);
     startXRef.current = e.clientX;
     startWidthRef.current = width;
+    startLeftRef.current = left;
 
-    const onMove = (ev: MouseEvent) => {
+    const onMouseMove = (ev: MouseEvent) => {
       if (!barRef.current) return;
       const dx = ev.clientX - startXRef.current;
-      // 1 semaine = weekWidth px = 5 jours ouvrés
-      const pxPerDay = weekWidth / 5;
       if (side === 'right') {
-        const newWidth = Math.max(pxPerDay * 1, startWidthRef.current + dx);
-        barRef.current.style.width = `${newWidth}px`;
+        barRef.current.style.width = `${Math.max(pxPerDay, startWidthRef.current + dx)}px`;
       } else {
-        const newWidth = Math.max(pxPerDay * 1, startWidthRef.current - dx);
-        barRef.current.style.width = `${newWidth}px`;
-        barRef.current.style.left = `${left + dx}px`;
+        barRef.current.style.width = `${Math.max(pxPerDay, startWidthRef.current - dx)}px`;
+        barRef.current.style.left = `${startLeftRef.current + dx}px`;
       }
     };
-
-    const onUp = (ev: MouseEvent) => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-      setResizing(null);
-      const dx = ev.clientX - startXRef.current;
-      const pxPerDay = weekWidth / 5;
-      const deltaDays = Math.round(dx / pxPerDay);
+    const onMouseUp = (ev: MouseEvent) => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      setInteraction(null);
+      const deltaDays = Math.round((ev.clientX - startXRef.current) / pxPerDay);
       if (deltaDays !== 0) onResize(side === 'right' ? deltaDays : -deltaDays);
     };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [width, left, pxPerDay, onResize]);
 
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  }, [width, left, weekWidth, onResize]);
+  // Move (centre de la barre = glisser horizontalement)
+  const handleMoveStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setInteraction('move');
+    startXRef.current = e.clientX;
+    startLeftRef.current = left;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!barRef.current) return;
+      const dx = ev.clientX - startXRef.current;
+      barRef.current.style.left = `${Math.max(0, startLeftRef.current + dx)}px`;
+    };
+    const onMouseUp = (ev: MouseEvent) => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      setInteraction(null);
+      const deltaDays = Math.round((ev.clientX - startXRef.current) / pxPerDay);
+      if (deltaDays !== 0) onMove(deltaDays);
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [left, pxPerDay, onMove]);
+
+  const cursorCls = interaction === 'move' ? 'cursor-grabbing' : interaction ? 'cursor-col-resize' : 'cursor-grab';
 
   return (
     <div
       ref={barRef}
-      className={`absolute top-2 h-7 rounded-lg ${color.bg} shadow-sm flex items-center text-white text-[11px] font-semibold truncate group/bar ${resizing ? '' : 'transition-all duration-200'}`}
+      className={`absolute top-2 h-7 rounded-lg ${color.bg} shadow-sm flex items-center text-white text-[11px] font-semibold truncate group/bar ${interaction ? '' : 'transition-all duration-200'} ${cursorCls}`}
       style={{
         left,
         width: Math.max(width, 24),
         minWidth: 24,
-        cursor: resizing ? 'col-resize' : 'default',
       }}
-      title={`${lot.nom} — ${formatDuration(lot.duree_jours ?? 0)}`}
+      title={`${lot.nom} — ${formatDuration(lot.duree_jours ?? 0)} · Glissez pour déplacer`}
+      onMouseDown={handleMoveStart}
     >
       {/* Poignée gauche */}
       <div
-        className="absolute left-0 top-0 bottom-0 w-2 cursor-w-resize opacity-0 group-hover/bar:opacity-100 flex items-center justify-center transition-opacity"
+        className="absolute left-0 top-0 bottom-0 w-2.5 cursor-w-resize z-10 opacity-0 group-hover/bar:opacity-100 flex items-center justify-center transition-opacity"
         onMouseDown={(e) => handleResizeStart(e, 'left')}
       >
-        <div className="w-0.5 h-3 bg-white/60 rounded" />
+        <div className="w-0.5 h-3.5 bg-white/70 rounded" />
       </div>
 
       {/* Contenu */}
-      <span className="truncate px-2 pointer-events-none select-none">
+      <span className="truncate px-3 pointer-events-none select-none">
         {width > 80 ? `${lot.emoji} ${lot.nom}` : lot.emoji}
       </span>
 
       {/* Poignée droite */}
       <div
-        className="absolute right-0 top-0 bottom-0 w-2 cursor-e-resize opacity-0 group-hover/bar:opacity-100 flex items-center justify-center transition-opacity"
+        className="absolute right-0 top-0 bottom-0 w-2.5 cursor-e-resize z-10 opacity-0 group-hover/bar:opacity-100 flex items-center justify-center transition-opacity"
         onMouseDown={(e) => handleResizeStart(e, 'right')}
       >
-        <div className="w-0.5 h-3 bg-white/60 rounded" />
+        <div className="w-0.5 h-3.5 bg-white/70 rounded" />
       </div>
     </div>
   );
@@ -122,7 +146,7 @@ interface Props {
 }
 
 export default function PlanningTimeline({ chantierId, token }: Props) {
-  const { lots, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, reorderLots } = usePlanning(chantierId, token);
+  const { lots, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, reorderLots, moveLot } = usePlanning(chantierId, token);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [editingDuration, setEditingDuration] = useState<string | null>(null);
@@ -486,6 +510,10 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
                           onResize={(deltaDays) => {
                             const newDays = Math.max(1, Math.min(120, (lot.duree_jours ?? 5) + deltaDays));
                             if (newDays !== lot.duree_jours) updateLot(lot.id, { duree_jours: newDays });
+                          }}
+                          onMove={(deltaDays) => {
+                            if (!lot.date_debut || deltaDays === 0) return;
+                            moveLot(lot.id, deltaDays);
                           }}
                         />
                       </div>
