@@ -99,60 +99,73 @@ export const PATCH: APIRoute = async ({ request, params }) => {
     }
   }
 
-  // 3. Recalculer les dates si on a une date de début
-  const { data: chantier } = await ctx.supabase
-    .from('chantiers')
-    .select('date_debut_chantier')
-    .eq('id', chantierId)
-    .single();
+  // 3. Recalculer les dates — SAUF pour les lots qui ont des dates explicites dans le body
+  //    (déplacement manuel = dates directes, pas de recalcul en cascade)
+  const lotsWithExplicitDates = new Set<string>();
+  for (const lot of lotUpdates) {
+    if (typeof lot.id === 'string' && (typeof lot.date_debut === 'string' || typeof lot.date_fin === 'string')) {
+      lotsWithExplicitDates.add(lot.id);
+    }
+  }
 
-  const startDateStr = typeof body.dateDebutChantier === 'string'
-    ? body.dateDebutChantier
-    : chantier?.date_debut_chantier;
+  // Si le body ne contient QUE des lots avec dates explicites (= move), pas de recalcul global
+  const needsGlobalRecalc = lotUpdates.length === 0
+    || lotUpdates.some(l => typeof l.id === 'string' && !lotsWithExplicitDates.has(l.id as string) && (typeof l.duree_jours === 'number' || typeof l.ordre_planning === 'number'))
+    || typeof body.dateDebutChantier === 'string';
 
-  if (startDateStr) {
-    // Récupérer tous les lots mis à jour
-    const { data: allLots } = await ctx.supabase
-      .from('lots_chantier')
-      .select('id, nom, emoji, role, job_type, duree_jours, ordre_planning, parallel_group, ordre')
-      .eq('chantier_id', chantierId)
-      .order('ordre', { ascending: true });
+  if (needsGlobalRecalc) {
+    const { data: chantier } = await ctx.supabase
+      .from('chantiers')
+      .select('date_debut_chantier')
+      .eq('id', chantierId)
+      .single();
 
-    if (allLots && allLots.length > 0) {
-      // Auto-estimer les durées et ordres manquants (lots créés avant la feature planning)
-      const lotsNeedEstimate = allLots.some(l => l.duree_jours == null || l.ordre_planning == null);
-      if (lotsNeedEstimate) {
-        const estimated = estimateMissingPlanningData(allLots as any);
-        for (const lot of estimated) {
-          const original = allLots.find(l => l.id === lot.id);
-          if (original && (original.duree_jours == null || original.ordre_planning == null)) {
-            await ctx.supabase
-              .from('lots_chantier')
-              .update({
-                duree_jours: lot.duree_jours,
-                ordre_planning: lot.ordre_planning,
-                parallel_group: lot.parallel_group,
-              })
-              .eq('id', lot.id);
-            // Mettre à jour localement pour le calcul des dates
-            original.duree_jours = lot.duree_jours;
-            original.ordre_planning = lot.ordre_planning;
-            original.parallel_group = lot.parallel_group;
+    const startDateStr = typeof body.dateDebutChantier === 'string'
+      ? body.dateDebutChantier
+      : chantier?.date_debut_chantier;
+
+    if (startDateStr) {
+      const { data: allLots } = await ctx.supabase
+        .from('lots_chantier')
+        .select('id, nom, emoji, role, job_type, duree_jours, ordre_planning, parallel_group, ordre')
+        .eq('chantier_id', chantierId)
+        .order('ordre', { ascending: true });
+
+      if (allLots && allLots.length > 0) {
+        // Auto-estimer les durées et ordres manquants
+        const lotsNeedEstimate = allLots.some(l => l.duree_jours == null || l.ordre_planning == null);
+        if (lotsNeedEstimate) {
+          const estimated = estimateMissingPlanningData(allLots as any);
+          for (const lot of estimated) {
+            const original = allLots.find(l => l.id === lot.id);
+            if (original && (original.duree_jours == null || original.ordre_planning == null)) {
+              await ctx.supabase
+                .from('lots_chantier')
+                .update({
+                  duree_jours: lot.duree_jours,
+                  ordre_planning: lot.ordre_planning,
+                  parallel_group: lot.parallel_group,
+                })
+                .eq('id', lot.id);
+              original.duree_jours = lot.duree_jours;
+              original.ordre_planning = lot.ordre_planning;
+              original.parallel_group = lot.parallel_group;
+            }
           }
         }
-      }
 
-      const { computePlanningDates } = await import('@/lib/planningUtils');
-      const startDate = new Date(startDateStr);
-      const computed = computePlanningDates(allLots as any, startDate);
+        const { computePlanningDates } = await import('@/lib/planningUtils');
+        const startDate = new Date(startDateStr);
+        const computed = computePlanningDates(allLots as any, startDate);
 
-      // Batch update des dates calculées
-      for (const lot of computed) {
-        if (lot.date_debut && lot.date_fin) {
-          await ctx.supabase
-            .from('lots_chantier')
-            .update({ date_debut: lot.date_debut, date_fin: lot.date_fin })
-            .eq('id', lot.id);
+        // Update dates — SAUF les lots déplacés manuellement
+        for (const lot of computed) {
+          if (lot.date_debut && lot.date_fin && !lotsWithExplicitDates.has(lot.id)) {
+            await ctx.supabase
+              .from('lots_chantier')
+              .update({ date_debut: lot.date_debut, date_fin: lot.date_fin })
+              .eq('id', lot.id);
+          }
         }
       }
     }

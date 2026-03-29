@@ -126,29 +126,27 @@ export function usePlanning(chantierId: string | null | undefined, token: string
 
   /** Déplace un lot de N jours ouvrés (positif = en avant, négatif = en arrière) */
   const moveLot = useCallback((lotId: string, deltaDays: number) => {
+    // Calculer les nouvelles dates
+    const lot = state.lots.find(l => l.id === lotId);
+    if (!lot?.date_debut || !lot?.date_fin) return;
+
+    const fn = deltaDays > 0 ? addBusinessDays : subtractBusinessDays;
+    const newDebut = fn(new Date(lot.date_debut), Math.abs(deltaDays));
+    const newFin = addBusinessDays(newDebut, lot.duree_jours ?? 5);
+    const newDebutStr = newDebut.toISOString().split('T')[0];
+    const newFinStr = newFin.toISOString().split('T')[0];
+
+    // Optimistic update
     setState(s => {
-      const updated = s.lots.map(l => {
-        if (l.id !== lotId || !l.date_debut || !l.date_fin) return l;
-        const fn = deltaDays > 0 ? addBusinessDays : subtractBusinessDays;
-        const newDebut = fn(new Date(l.date_debut), Math.abs(deltaDays));
-        const newFin = addBusinessDays(newDebut, l.duree_jours ?? 5);
-        return {
-          ...l,
-          date_debut: newDebut.toISOString().split('T')[0],
-          date_fin: newFin.toISOString().split('T')[0],
-        };
-      });
+      const updated = s.lots.map(l =>
+        l.id === lotId ? { ...l, date_debut: newDebutStr, date_fin: newFinStr } : l
+      );
       return { ...s, lots: updated, totalWeeks: getTotalWeeks(updated) };
     });
-    // Persist avec les nouvelles dates — le backend ne recalculera pas en cascade
-    setState(s => {
-      const lot = s.lots.find(l => l.id === lotId);
-      if (lot?.date_debut && lot?.date_fin) {
-        patchPlanning({ lots: [{ id: lotId, date_debut: lot.date_debut, date_fin: lot.date_fin }] });
-      }
-      return s;
-    });
-  }, [patchPlanning]);
+
+    // Persist — envoie les dates explicites → le backend ne recalcule PAS ce lot
+    patchPlanning({ lots: [{ id: lotId, date_debut: newDebutStr, date_fin: newFinStr }] });
+  }, [state.lots, patchPlanning]);
 
   return {
     ...state,
