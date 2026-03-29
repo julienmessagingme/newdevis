@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { toast } from 'sonner';
-import { Plus, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import type {
   ChantierIAResult, DocumentChantier, DocumentType, LotChantier, StatutArtisan,
 } from '@/types/chantier-ia';
@@ -23,7 +23,7 @@ import ChatDrawer from '@/components/chantier/cockpit/ChatDrawer';
 import DocumentsView from '@/components/chantier/cockpit/DocumentsView';
 import { fmtK } from '@/lib/dashboardHelpers';
 import Sidebar, { type Section, type NavBadge } from './Sidebar';
-import { PageHeader, BudgetHomeHeader } from './PageHeader';
+import { BudgetHomeHeader } from './PageHeader';
 import LotDetail from './LotDetail';
 import DashboardHome from './DashboardHome';
 import AnalyseDevisSection from './AnalyseDevisSection';
@@ -237,7 +237,12 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             viewMode={homeViewMode}
             onViewModeChange={setHomeViewMode}
             onDocStatutUpdated={(docId, statut) =>
-              setDocuments(prev => prev.map(d => d.id === docId ? { ...d, devis_statut: statut as any } : d))
+              setDocuments(prev => prev.map(d => {
+                if (d.id !== docId) return d;
+                return d.document_type === 'facture'
+                  ? { ...d, facture_statut: statut as any }
+                  : { ...d, devis_statut: statut as any };
+              }))
             }
           />
         );
@@ -256,7 +261,12 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             chantierId={chantierId}
             token={token}
             onDocStatutUpdated={(docId, statut) =>
-              setDocuments(prev => prev.map(d => d.id === docId ? { ...d, devis_statut: statut as any } : d))
+              setDocuments(prev => prev.map(d => {
+                if (d.id !== docId) return d;
+                return d.document_type === 'facture'
+                  ? { ...d, facture_statut: statut as any }
+                  : { ...d, devis_statut: statut as any };
+              }))
             }
           />
         );
@@ -313,7 +323,12 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
               setDocuments(prev => prev.map(d => d.id === docId ? { ...d, lot_id: lotId } : d))
             }
             onDocStatutUpdated={(docId, statut) =>
-              setDocuments(prev => prev.map(d => d.id === docId ? { ...d, facture_statut: statut as any, devis_statut: statut as any } : d))
+              setDocuments(prev => prev.map(d => {
+                if (d.id !== docId) return d;
+                return d.document_type === 'facture'
+                  ? { ...d, facture_statut: statut as any }
+                  : { ...d, devis_statut: statut as any };
+              }))
             }
           />
         );
@@ -430,36 +445,15 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
 
       {/* ── Contenu principal ──────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {activeSection === 'budget' && !showBudgetDetail ? (
-          <BudgetHomeHeader
-            nom={result.nom}
-            emoji={result.emoji}
-            typeProjet={result.typeProjet}
-            onMenuToggle={() => setMobileOpen(v => !v)}
-            budgetEstime={displayMin > 0 ? `${fmtK(displayMin)} – ${fmtK(displayMax)}` : '—'}
-            budgetValide={documents.filter(d => d.document_type === 'devis' && d.devis_statut === 'valide').reduce((s, d) => s + (d.montant ?? 0), 0)}
-            facture={documents.filter(d => d.document_type === 'facture' && (d.facture_statut === 'payee' || d.facture_statut === 'payee_partiellement')).reduce((s, d) => s + (d.facture_statut === 'payee_partiellement' ? (d.montant_paye ?? 0) : (d.montant ?? 0)), 0)}
-          />
-        ) : (
-          <PageHeader
-            title={SECTION_TITLES[activeSection]}
-            action={
-              <button
-                onClick={() => setUploadModal({ open: true })}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl px-4 py-2.5 transition-colors shadow-sm shadow-blue-200">
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Ajouter un document</span>
-                <span className="sm:hidden">Ajouter</span>
-              </button>
-            }
-            onMenuToggle={() => setMobileOpen(v => !v)}
-            onBack={
-              (activeSection !== 'budget' || showBudgetDetail)
-                ? () => { setShowBudgetDetail(false); if (activeSection !== 'budget') navigateTo('budget'); }
-                : undefined
-            }
-          />
-        )}
+        <BudgetHomeHeader
+          nom={result.nom}
+          emoji={result.emoji}
+          typeProjet={result.typeProjet}
+          onMenuToggle={() => setMobileOpen(v => !v)}
+          budgetEstime={displayMin > 0 ? `${fmtK(displayMin)} – ${fmtK(displayMax)}` : '—'}
+          budgetValide={documents.filter(d => d.document_type === 'devis' && d.devis_statut === 'valide').reduce((s, d) => s + (d.montant ?? 0), 0)}
+          facture={documents.filter(d => d.document_type === 'facture' && (d.facture_statut === 'payee' || d.facture_statut === 'payee_partiellement')).reduce((s, d) => s + (d.facture_statut === 'payee_partiellement' ? (d.montant_paye ?? 0) : (d.montant ?? 0)), 0)}
+        />
 
         <main className="flex-1 overflow-y-auto">
           {renderContent()}
