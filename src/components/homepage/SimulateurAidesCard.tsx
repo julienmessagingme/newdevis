@@ -1,9 +1,29 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import AidesTravaux from '@/components/chantier/cockpit/financing/AidesTravaux';
 
+const ADMIN_EMAILS = ['julien@messagingme.fr', 'bridey.johan@gmail.com'];
+
+function useIsAdmin() {
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    try {
+      const keys = Object.keys(localStorage).filter(k => k.includes('auth-token'));
+      for (const key of keys) {
+        const data = JSON.parse(localStorage.getItem(key) || '{}');
+        if (data?.user?.email && ADMIN_EMAILS.includes(data.user.email)) {
+          setIsAdmin(true);
+          break;
+        }
+      }
+    } catch {}
+  }, []);
+  return isAdmin;
+}
+
 export default function SimulateurAidesCard() {
   const [open, setOpen] = useState(false);
+  const isAdmin = useIsAdmin();
 
   return (
     <>
@@ -57,10 +77,12 @@ export default function SimulateurAidesCard() {
             {/* Contenu */}
             <div className="p-5">
               <AidesTravaux
-                onImportAides={() => {
-                  setOpen(false);
-                  window.location.href = '/mon-chantier/nouveau';
-                }}
+                {...(isAdmin ? {
+                  onImportAides: () => {
+                    setOpen(false);
+                    window.location.href = '/mon-chantier/nouveau';
+                  }
+                } : {})}
                 standalone
               />
             </div>

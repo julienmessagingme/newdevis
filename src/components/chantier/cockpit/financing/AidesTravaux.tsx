@@ -183,7 +183,7 @@ export default function AidesTravaux({ onImportAides, initialSimulation, onSimul
         </div>
 
         {/* Bouton import / CTA */}
-        {result.total > 0 && (
+        {result.total > 0 && onImportAides && (
           standalone ? (
             <button
               type="button"
@@ -391,7 +391,7 @@ export default function AidesTravaux({ onImportAides, initialSimulation, onSimul
               <span className="text-base shrink-0">{wt.emoji}</span>
               <div className="min-w-0">
                 <p className={`text-xs font-semibold leading-tight ${workType === wt.key ? 'text-blue-800' : 'text-gray-700'}`}>{wt.label}</p>
-                <p className="text-[10px] text-gray-400 leading-tight truncate">{wt.desc}</p>
+                <p className="text-[10px] text-gray-400 leading-tight line-clamp-2">{wt.desc}</p>
               </div>
             </button>
           ))}
