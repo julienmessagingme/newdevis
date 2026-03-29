@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { ArrowLeft, Loader2, MessageSquare, Download } from "lucide-react";
-import { generateConversationPdf } from "@/utils/generateConversationPdf";
+// generateConversationPdf chargé dynamiquement (jsPDF ~250 Ko évité au chargement initial)
 import MessageComposer from "./MessageComposer";
 
 interface ConversationThreadProps {
@@ -84,7 +84,7 @@ export default function ConversationThread({
           {messages.length > 0 && (
             <button
               type="button"
-              onClick={() => generateConversationPdf(conversation, messages, chantierNom, userName)}
+              onClick={async () => { const { generateConversationPdf } = await import("@/utils/generateConversationPdf"); generateConversationPdf(conversation, messages, chantierNom, userName); }}
               className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200 transition-colors"
               title="Exporter en PDF"
             >

@@ -20,7 +20,7 @@ import {
 import { getScoreIcon, getScoreLabel, getScoreBgClass, getScoreTextClass } from "@/lib/scoreUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { generatePdfReport } from "@/utils/generatePdfReport";
+// generatePdfReport chargé dynamiquement (jsPDF ~250 Ko évité au chargement initial)
 import {
   BlockEntreprise,
   BlockDevis,
@@ -772,8 +772,9 @@ const AnalysisResult = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
+              onClick={async () => {
                 if (isPremium) {
+                  const { generatePdfReport } = await import("@/utils/generatePdfReport");
                   generatePdfReport(analysis);
                 } else {
                   toast.info("Le rapport PDF est disponible avec le Pass Sérénité", {
