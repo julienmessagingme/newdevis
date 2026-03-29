@@ -104,17 +104,29 @@ export interface EffyResult {
   savingsPct: number;
 }
 
-export function computeEffyAides(wt: EffyWorkType, bracket: MprBracket, cost: number, isOwner: boolean): EffyResult {
+export function computeEffyAides(
+  wt: EffyWorkType,
+  bracket: MprBracket,
+  cost: number,
+  isOwner: boolean,
+  isOldEnough: boolean = true,
+  isMainResidence: boolean = true,
+): EffyResult {
+  // MPR : propriétaire + résidence principale + logement > 2 ans
+  const maprimeOk   = isOwner && isMainResidence && isOldEnough;
   const rate        = MPR_RATES[wt][bracket];
-  const maprimeRate = isOwner ? rate : 0;
-  const maprime     = isOwner ? Math.min(Math.round(cost * maprimeRate), MPR_CAP[wt]) : 0;
-  const cee         = CEE_AMOUNT[wt];
+  const maprimeRate = maprimeOk ? rate : 0;
+  const maprime     = maprimeOk ? Math.min(Math.round(cost * maprimeRate), MPR_CAP[wt]) : 0;
+  // CEE : logement existant (> 2 ans) — pas de condition résidence principale
+  const cee         = isOldEnough ? CEE_AMOUNT[wt] : 0;
+  // Éco-PTZ : propriétaire + résidence principale + logement > 2 ans
+  const ecoPtzOk    = ECO_PTZ_ELIGIBLE[wt] && isOwner && isMainResidence && isOldEnough;
   const total       = maprime + cee;
   const reste       = Math.max(0, cost - total);
   const savingsPct  = cost > 0 ? Math.round((total / cost) * 100) : 0;
   return {
     maprime, maprimeRate, maprimeEligible: maprime > 0,
-    cee, ecoPtzEligible: ECO_PTZ_ELIGIBLE[wt] && isOwner,
+    cee, ecoPtzEligible: ecoPtzOk,
     total, reste, bracket, savingsPct,
   };
 }

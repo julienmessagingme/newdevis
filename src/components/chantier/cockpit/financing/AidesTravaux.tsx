@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, ChevronRight, RotateCcw, Info } from 'lucide-react';
+import { Check, ChevronRight, RotateCcw, Info, X } from 'lucide-react';
 import {
   WORK_TYPES_EFFY,
   type EffyWorkType,
@@ -19,6 +19,8 @@ export interface SimulationData {
   isOwner: boolean;
   householdSize: number;
   annualIncome: string;
+  isOldEnough?: boolean;
+  isMainResidence?: boolean;
   result: EffyResult;
 }
 
@@ -27,33 +29,41 @@ export default function AidesTravaux({ onImportAides, initialSimulation, onSimul
   initialSimulation?: SimulationData | null;
   onSimulationSave?: (data: SimulationData | null) => void;
 }) {
-  const [step,          setStep]          = useState<1 | 2 | 3>(initialSimulation ? 3 : 1);
-  const [workType,      setWorkType]      = useState<EffyWorkType | null>(initialSimulation?.workType ?? null);
-  const [cost,          setCost]          = useState(initialSimulation?.cost ?? '');
-  const [isOwner,       setIsOwner]       = useState<boolean | null>(initialSimulation?.isOwner ?? null);
-  const [householdSize, setHouseholdSize] = useState(initialSimulation?.householdSize ?? 2);
-  const [annualIncome,  setAnnualIncome]  = useState(initialSimulation?.annualIncome ?? '');
-  const [result,        setResult]        = useState<EffyResult | null>(initialSimulation?.result ?? null);
+  const [step,            setStep]            = useState<1 | 2 | 3>(initialSimulation ? 3 : 1);
+  const [workType,        setWorkType]        = useState<EffyWorkType | null>(initialSimulation?.workType ?? null);
+  const [cost,            setCost]            = useState(initialSimulation?.cost ?? '');
+  const [isOwner,         setIsOwner]         = useState<boolean | null>(initialSimulation?.isOwner ?? null);
+  const [isOldEnough,     setIsOldEnough]     = useState<boolean | null>(initialSimulation?.isOldEnough ?? null);
+  const [isMainResidence, setIsMainResidence] = useState<boolean | null>(initialSimulation?.isMainResidence ?? null);
+  const [householdSize,   setHouseholdSize]   = useState(initialSimulation?.householdSize ?? 2);
+  const [annualIncome,    setAnnualIncome]    = useState(initialSimulation?.annualIncome ?? '');
+  const [result,          setResult]          = useState<EffyResult | null>(initialSimulation?.result ?? null);
+  const [showIncomeInfo,  setShowIncomeInfo]  = useState(false);
 
   const costNum   = parseFloat(cost.replace(/\s/g, '').replace(',', '.'));
   const incomeNum = parseFloat(annualIncome.replace(/\s/g, '').replace(',', '.'));
   const canStep2  = workType !== null && !isNaN(costNum) && costNum > 0;
-  const canCalc   = isOwner !== null && !isNaN(incomeNum) && incomeNum > 0;
+  const canCalc   = isOwner !== null && isOldEnough !== null && isMainResidence !== null && !isNaN(incomeNum) && incomeNum > 0;
 
   function goStep2() { if (canStep2) setStep(2); }
 
   function calculate() {
     if (!workType || !canCalc) return;
     const bracket = detectBracket(householdSize, incomeNum);
-    const res = computeEffyAides(workType, bracket, costNum, isOwner!);
+    const res = computeEffyAides(workType, bracket, costNum, isOwner!, isOldEnough!, isMainResidence!);
     setResult(res);
     setStep(3);
-    onSimulationSave?.({ workType, cost, isOwner: isOwner!, householdSize, annualIncome, result: res });
+    onSimulationSave?.({
+      workType, cost, isOwner: isOwner!, householdSize, annualIncome,
+      isOldEnough: isOldEnough!, isMainResidence: isMainResidence!, result: res,
+    });
   }
 
   function reset() {
     setStep(1); setWorkType(null); setCost(''); setIsOwner(null);
+    setIsOldEnough(null); setIsMainResidence(null);
     setHouseholdSize(2); setAnnualIncome(''); setResult(null);
+    setShowIncomeInfo(false);
     onSimulationSave?.(null);
   }
 
@@ -206,6 +216,7 @@ export default function AidesTravaux({ onImportAides, initialSimulation, onSimul
           <p className="text-[11px] text-gray-400">Pour calculer votre tranche de revenus ANAH</p>
         </div>
 
+        {/* Propriétaire / Locataire */}
         <div className="space-y-2">
           <p className="text-xs font-bold text-gray-600">Vous êtes…</p>
           <div className="grid grid-cols-2 gap-2">
@@ -226,6 +237,49 @@ export default function AidesTravaux({ onImportAides, initialSimulation, onSimul
           )}
         </div>
 
+        {/* Logement > 2 ans */}
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-gray-600">Votre logement a plus de 2 ans ?</p>
+          <div className="grid grid-cols-2 gap-2">
+            {([{ v: true, label: 'Oui', emoji: '✅' }, { v: false, label: 'Non', emoji: '🏗️' }] as const).map(o => (
+              <button key={String(o.v)} type="button" onClick={() => setIsOldEnough(o.v)}
+                className={`flex items-center gap-2 px-3 py-3 rounded-xl border text-left transition-all ${
+                  isOldEnough === o.v ? 'bg-blue-50 border-blue-300 text-blue-800 shadow-sm' : 'bg-white border-gray-200 text-gray-600 hover:border-blue-200'
+                }`}>
+                <span className="text-lg">{o.emoji}</span>
+                <span className="text-xs font-semibold">{o.label}</span>
+              </button>
+            ))}
+          </div>
+          {isOldEnough === false && (
+            <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+              ⚠ MaPrimeRénov', les CEE et l'Éco-PTZ sont réservés aux logements achevés depuis plus de 2 ans. Votre logement n'est pas éligible.
+            </p>
+          )}
+        </div>
+
+        {/* Résidence principale */}
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-gray-600">C'est votre résidence principale ?</p>
+          <div className="grid grid-cols-2 gap-2">
+            {([{ v: true, label: 'Oui', emoji: '🏡' }, { v: false, label: 'Non (secondaire / locatif)', emoji: '🔄' }] as const).map(o => (
+              <button key={String(o.v)} type="button" onClick={() => setIsMainResidence(o.v)}
+                className={`flex items-center gap-2 px-3 py-3 rounded-xl border text-left transition-all ${
+                  isMainResidence === o.v ? 'bg-blue-50 border-blue-300 text-blue-800 shadow-sm' : 'bg-white border-gray-200 text-gray-600 hover:border-blue-200'
+                }`}>
+                <span className="text-lg">{o.emoji}</span>
+                <span className="text-xs font-semibold">{o.label}</span>
+              </button>
+            ))}
+          </div>
+          {isMainResidence === false && (
+            <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+              ⚠ MaPrimeRénov' et l'Éco-PTZ sont réservés à la résidence principale. Seules les CEE restent accessibles pour ce logement.
+            </p>
+          )}
+        </div>
+
+        {/* Taille foyer */}
         <div className="space-y-2">
           <p className="text-xs font-bold text-gray-600">Personnes dans le foyer fiscal</p>
           <div className="flex gap-2">
@@ -240,20 +294,32 @@ export default function AidesTravaux({ onImportAides, initialSimulation, onSimul
           </div>
         </div>
 
+        {/* Revenu fiscal */}
         <div className="space-y-2">
           <div className="flex items-center gap-1.5">
             <p className="text-xs font-bold text-gray-600">Revenu fiscal de référence annuel du foyer</p>
-            <div className="relative group/rfr">
-              <Info className="h-3.5 w-3.5 text-gray-400 hover:text-blue-500 cursor-help transition-colors" />
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 bg-gray-900 text-white text-[11px] leading-relaxed rounded-xl px-3.5 py-3 shadow-xl opacity-0 group-hover/rfr:opacity-100 pointer-events-none transition-opacity z-50">
-                <p className="font-semibold mb-1.5">📄 Où le trouver ?</p>
-                <p className="text-gray-300 mb-2">Sur votre <span className="text-white font-medium">avis d'imposition</span>, ligne <span className="text-white font-medium">« Revenu fiscal de référence »</span> en page 1 (en bas à gauche).</p>
-                <p className="font-semibold mb-1">📅 Quelle année ?</p>
-                <p className="text-gray-300">ANAH utilise l'avis <span className="text-white font-medium">N-2</span> (ex : pour une demande en 2025 → avis 2023 sur revenus 2022). En cas de doute, prenez le dernier avis reçu.</p>
-                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowIncomeInfo(v => !v)}
+              className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center hover:bg-blue-100 transition-colors"
+              aria-label="Comment trouver mon revenu fiscal ?"
+            >
+              {showIncomeInfo
+                ? <X className="h-3 w-3 text-blue-500" />
+                : <Info className="h-3 w-3 text-blue-500" />
+              }
+            </button>
           </div>
+
+          {showIncomeInfo && (
+            <div className="bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-3 text-[11px] leading-relaxed">
+              <p className="font-semibold text-blue-800 mb-1.5">📄 Où trouver ce chiffre ?</p>
+              <p className="text-gray-600 mb-2">Sur votre <span className="font-semibold text-gray-800">avis d'imposition</span>, cherchez la ligne <span className="font-semibold text-gray-800">« Revenu fiscal de référence »</span> en première page (en bas à gauche).</p>
+              <p className="font-semibold text-blue-800 mb-1">📅 Quelle année ?</p>
+              <p className="text-gray-600">L'ANAH utilise l'avis <span className="font-semibold text-gray-800">N-2</span> — par exemple pour une demande aujourd'hui, prenez votre avis sur les revenus de 2022. En cas de doute, utilisez le dernier avis reçu.</p>
+            </div>
+          )}
+
           <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
             <input
               type="text"
