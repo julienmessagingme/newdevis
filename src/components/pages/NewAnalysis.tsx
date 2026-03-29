@@ -34,6 +34,10 @@ const NewAnalysis = () => {
   const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  // Multi-images : photos de pages séparées
+  const [sourceImages, setSourceImages] = useState<File[]>([]);
+  const [isMerging, setIsMerging] = useState(false);
+
   const { user, isAnonymous, isPermanent, signInAnonymously } = useAnonymousAuth();
 
   useEffect(() => {
@@ -53,11 +57,93 @@ const NewAnalysis = () => {
     setUploadError(null);
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      validateAndSetFile(selectedFile);
+  // Fusionne plusieurs images en un seul PDF via jsPDF
+  const mergeImagesIntoPdf = async (images: File[]): Promise<File> => {
+    const { default: jsPDF } = await import("jspdf");
+    const A4_W = 210;
+    const A4_H = 297;
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+    for (let i = 0; i < images.length; i++) {
+      const img = images[i];
+
+      // Lire en data URL (évite les problèmes de stack overflow avec btoa)
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target!.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(img);
+      });
+
+      // Récupérer les dimensions naturelles
+      const { width, height } = await new Promise<{ width: number; height: number }>((resolve) => {
+        const el = new Image();
+        el.onload = () => resolve({ width: el.naturalWidth, height: el.naturalHeight });
+        el.src = dataUrl;
+      });
+
+      // Ajuster aux dimensions A4 en conservant le ratio
+      let imgW = A4_W;
+      let imgH = (height / width) * A4_W;
+      if (imgH > A4_H) {
+        imgH = A4_H;
+        imgW = (width / height) * A4_H;
+      }
+      const x = (A4_W - imgW) / 2;
+      const y = (A4_H - imgH) / 2;
+
+      const format = img.type === "image/png" ? "PNG" : "JPEG";
+      if (i > 0) doc.addPage();
+      doc.addImage(dataUrl, format, x, y, imgW, imgH);
     }
+
+    const blob = doc.output("blob");
+    return new File([blob], "devis-pages.pdf", { type: "application/pdf" });
+  };
+
+  // Gère la sélection de plusieurs images
+  const handleMultipleImages = async (images: File[]) => {
+    resetUploadState();
+    setSourceImages(images);
+    setFile(null);
+    setIsMerging(true);
+
+    try {
+      const mergedPdf = await mergeImagesIntoPdf(images);
+      setFile(mergedPdf);
+      setIsMerging(false);
+      if (user) {
+        await uploadFile(mergedPdf);
+      }
+    } catch (err) {
+      console.error("Merge error:", err);
+      setIsMerging(false);
+      setSourceImages([]);
+      toast.error("Impossible de fusionner les images. Réessayez.");
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    if (files.length > 1) {
+      const filesArray = Array.from(files);
+      const hasInvalidType = filesArray.some((f) => {
+        const ext = f.name.split(".").pop()?.toLowerCase();
+        return !["jpg", "jpeg", "png"].includes(ext ?? "");
+      });
+      if (hasInvalidType) {
+        toast.error("Pour plusieurs fichiers, utilisez uniquement des photos JPG ou PNG.");
+      } else if (filesArray.length > 10) {
+        toast.error("Maximum 10 photos à la fois.");
+      } else {
+        handleMultipleImages(filesArray);
+      }
+    } else {
+      validateAndSetFile(files[0]);
+    }
+
     // Reset input pour permettre re-sélection du même fichier
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -123,9 +209,23 @@ const NewAnalysis = () => {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile) {
-      validateAndSetFile(droppedFile);
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    if (droppedFiles.length === 0) return;
+
+    if (droppedFiles.length > 1) {
+      const hasInvalidType = droppedFiles.some((f) => {
+        const ext = f.name.split(".").pop()?.toLowerCase();
+        return !["jpg", "jpeg", "png"].includes(ext ?? "");
+      });
+      if (hasInvalidType) {
+        toast.error("Pour plusieurs fichiers, utilisez uniquement des photos JPG ou PNG.");
+      } else if (droppedFiles.length > 10) {
+        toast.error("Maximum 10 photos à la fois.");
+      } else {
+        handleMultipleImages(droppedFiles);
+      }
+    } else {
+      validateAndSetFile(droppedFiles[0]);
     }
   };
 
@@ -252,9 +352,9 @@ const NewAnalysis = () => {
   };
 
   const handleRemoveFile = () => {
-    // Si un fichier a été uploadé, on pourrait le supprimer du storage
-    // Mais on garde simple pour l'instant
     setFile(null);
+    setSourceImages([]);
+    setIsMerging(false);
     resetUploadState();
   };
 
@@ -349,7 +449,7 @@ const NewAnalysis = () => {
     }
   };
 
-  const canSubmit = file && file.size > 0 && uploadStatus === "success" && uploadedFilePath && !loading;
+  const canSubmit = file && file.size > 0 && uploadStatus === "success" && uploadedFilePath && !loading && !isMerging;
 
   return (
     <div className="min-h-screen bg-background">
@@ -398,7 +498,8 @@ const NewAnalysis = () => {
           <div className="space-y-4">
             <Label className="text-base font-semibold">Votre devis</Label>
 
-            {!file ? (
+            {sourceImages.length === 0 && !file ? (
+              /* Zone de dépôt */
               <div
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={handleDragOver}
@@ -416,6 +517,7 @@ const NewAnalysis = () => {
                 <input
                   ref={fileInputRef}
                   type="file"
+                  multiple
                   accept=".pdf,.jpg,.jpeg,.png,.heic,application/pdf,image/jpeg,image/png,image/heic"
                   onChange={handleFileSelect}
                   className="hidden"
@@ -427,9 +529,89 @@ const NewAnalysis = () => {
                 <p className="text-sm text-muted-foreground mb-4">
                   ou cliquez pour sélectionner un fichier
                 </p>
-                <p className="text-xs text-muted-foreground">PDF, JPG ou PNG • Maximum 10 Mo</p>
+                <p className="text-xs text-muted-foreground">
+                  PDF, JPG ou PNG • Plusieurs photos acceptées • Maximum 10 Mo
+                </p>
+              </div>
+            ) : sourceImages.length > 0 ? (
+              /* Carte multi-photos */
+              <div className="bg-card border border-border rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <FileText className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">
+                        {sourceImages.length} photo{sourceImages.length > 1 ? "s" : ""} sélectionnée{sourceImages.length > 1 ? "s" : ""}
+                      </p>
+                      <p className="text-sm text-muted-foreground">Fusion en PDF automatique</p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleRemoveFile}
+                    disabled={loading || isMerging}
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+
+                {/* Liste des photos */}
+                <ul className="space-y-1 mb-3">
+                  {sourceImages.map((img, idx) => (
+                    <li key={idx} className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary flex-shrink-0">
+                        {idx + 1}
+                      </span>
+                      <span className="truncate min-w-0">{img.name}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Statut fusion / upload */}
+                <div className="pt-3 border-t border-border">
+                  {isMerging && (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-sm">Fusion des photos en cours...</span>
+                    </div>
+                  )}
+                  {!isMerging && uploadStatus === "uploading" && (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-sm">Téléversement en cours...</span>
+                    </div>
+                  )}
+                  {!isMerging && uploadStatus === "success" && (
+                    <div className="flex items-center gap-2 text-green-600">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span className="text-sm">Fichier prêt pour l'analyse</span>
+                    </div>
+                  )}
+                  {!isMerging && uploadStatus === "error" && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <span className="text-sm">{uploadError || "Erreur de téléversement"}</span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleRetryUpload}
+                        className="mt-2"
+                      >
+                        Réessayer le téléversement
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
+              /* Carte fichier unique (flow inchangé) */
               <div className="bg-card border border-border rounded-xl p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -437,9 +619,9 @@ const NewAnalysis = () => {
                       <FileText className="h-6 w-6 text-primary" />
                     </div>
                     <div>
-                      <p className="font-medium text-foreground">{file.name}</p>
+                      <p className="font-medium text-foreground">{file!.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {(file.size / 1024 / 1024).toFixed(2)} Mo
+                        {(file!.size / 1024 / 1024).toFixed(2)} Mo
                       </p>
                     </div>
                   </div>
@@ -534,7 +716,12 @@ const NewAnalysis = () => {
             </div>
           ) : (
             <Button type="submit" size="lg" className="w-full" disabled={!canSubmit}>
-              {uploadStatus === "uploading" ? (
+              {isMerging ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Fusion des photos...
+                </>
+              ) : uploadStatus === "uploading" ? (
                 <>
                   <Loader2 className="h-5 w-5 animate-spin" />
                   Téléversement...
