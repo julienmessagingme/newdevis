@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { DocumentChantier, DocumentType, LotChantier } from '@/types/chantier-ia';
+import DocStatusSelect from '@/components/chantier/shared/DocStatusSelect';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -93,7 +94,7 @@ function LotBadge({ doc, lots, onChangeLot }: {
 
 // ── DocRow ────────────────────────────────────────────────────────────────────
 
-function DocRow({ doc, lots, chantierId, token, onDelete, onLotChange, onNomChange, pendingDescribeIds }: {
+function DocRow({ doc, lots, chantierId, token, onDelete, onLotChange, onNomChange, onStatutChange, pendingDescribeIds }: {
   doc: DocumentChantier;
   lots: LotChantier[];
   chantierId: string;
@@ -101,6 +102,7 @@ function DocRow({ doc, lots, chantierId, token, onDelete, onLotChange, onNomChan
   onDelete: (id: string) => void;
   onLotChange: (docId: string, lotId: string | null) => void;
   onNomChange: (docId: string, nom: string) => void;
+  onStatutChange?: (docId: string, statut: string) => void;
   pendingDescribeIds: string[];
 }) {
   const [editing, setEditing]   = useState(false);
@@ -178,6 +180,18 @@ function DocRow({ doc, lots, chantierId, token, onDelete, onLotChange, onNomChan
       {/* Intervenant */}
       <LotBadge doc={doc} lots={lots} onChangeLot={onLotChange} />
 
+      {/* Montant facture */}
+      {doc.document_type === 'facture' && doc.montant != null && doc.montant > 0 && (
+        <span className="text-xs font-bold text-gray-700 tabular-nums shrink-0">
+          {doc.montant.toLocaleString('fr-FR')} €
+        </span>
+      )}
+
+      {/* Statut devis / facture */}
+      {(doc.document_type === 'devis' || doc.document_type === 'facture') && (
+        <DocStatusSelect doc={doc} chantierId={chantierId} token={token} onUpdated={onStatutChange} compact />
+      )}
+
       {/* Actions */}
       <div className="flex items-center gap-1 shrink-0">
         {doc.signedUrl && (
@@ -217,7 +231,7 @@ function DocRow({ doc, lots, chantierId, token, onDelete, onLotChange, onNomChan
 
 export default function DocumentsView({
   documents, lots: lotsProp, chantierId, token,
-  onAddDoc, onDeleteDoc, onDocUpdated, onDocLotUpdated, onDocNomUpdated,
+  onAddDoc, onDeleteDoc, onDocUpdated, onDocLotUpdated, onDocNomUpdated, onDocStatutUpdated,
   pendingDescribeIds = [],
 }: {
   documents: DocumentChantier[];
@@ -229,6 +243,7 @@ export default function DocumentsView({
   onDocUpdated: () => void;
   onDocLotUpdated?: (docId: string, lotId: string | null) => void;
   onDocNomUpdated?: (docId: string, nom: string) => void;
+  onDocStatutUpdated?: (docId: string, statut: string) => void;
   pendingDescribeIds?: string[];
 }) {
   const [search, setSearch]         = useState('');
@@ -507,6 +522,7 @@ export default function DocumentsView({
                       onDelete={onDeleteDoc}
                       onLotChange={handleChangeLot}
                       onNomChange={(id, nom) => onDocNomUpdated?.(id, nom)}
+                      onStatutChange={onDocStatutUpdated}
                       pendingDescribeIds={pendingDescribeIds}
                     />
                   ))}
@@ -549,6 +565,7 @@ export default function DocumentsView({
                       onDelete={onDeleteDoc}
                       onLotChange={handleChangeLot}
                       onNomChange={(id, nom) => onDocNomUpdated?.(id, nom)}
+                      onStatutChange={onDocStatutUpdated}
                       pendingDescribeIds={pendingDescribeIds}
                     />
                   ))}
@@ -588,6 +605,7 @@ export default function DocumentsView({
                 onDelete={onDeleteDoc}
                 onLotChange={handleChangeLot}
                 onNomChange={(id, nom) => onDocNomUpdated?.(id, nom)}
+                onStatutChange={onDocStatutUpdated}
                 pendingDescribeIds={pendingDescribeIds}
               />
             ))}

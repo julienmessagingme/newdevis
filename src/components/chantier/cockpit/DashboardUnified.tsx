@@ -312,6 +312,9 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             onDocLotUpdated={(docId, lotId) =>
               setDocuments(prev => prev.map(d => d.id === docId ? { ...d, lot_id: lotId } : d))
             }
+            onDocStatutUpdated={(docId, statut) =>
+              setDocuments(prev => prev.map(d => d.id === docId ? { ...d, facture_statut: statut as any, devis_statut: statut as any } : d))
+            }
           />
         );
 
