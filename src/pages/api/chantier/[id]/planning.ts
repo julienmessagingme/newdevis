@@ -2,6 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
+import { estimateMissingPlanningData } from '@/lib/planningUtils';
 
 /**
  * GET /api/chantier/[id]/planning
@@ -111,12 +112,34 @@ export const PATCH: APIRoute = async ({ request, params }) => {
     // Récupérer tous les lots mis à jour
     const { data: allLots } = await ctx.supabase
       .from('lots_chantier')
-      .select('id, duree_jours, ordre_planning, parallel_group')
+      .select('id, nom, emoji, role, job_type, duree_jours, ordre_planning, parallel_group, ordre')
       .eq('chantier_id', chantierId)
-      .order('ordre_planning', { ascending: true, nullsFirst: false });
+      .order('ordre', { ascending: true });
 
     if (allLots && allLots.length > 0) {
-      // Import dynamique pour éviter les problèmes de module dans Astro SSR
+      // Auto-estimer les durées et ordres manquants (lots créés avant la feature planning)
+      const lotsNeedEstimate = allLots.some(l => l.duree_jours == null || l.ordre_planning == null);
+      if (lotsNeedEstimate) {
+        const estimated = estimateMissingPlanningData(allLots as any);
+        for (const lot of estimated) {
+          const original = allLots.find(l => l.id === lot.id);
+          if (original && (original.duree_jours == null || original.ordre_planning == null)) {
+            await ctx.supabase
+              .from('lots_chantier')
+              .update({
+                duree_jours: lot.duree_jours,
+                ordre_planning: lot.ordre_planning,
+                parallel_group: lot.parallel_group,
+              })
+              .eq('id', lot.id);
+            // Mettre à jour localement pour le calcul des dates
+            original.duree_jours = lot.duree_jours;
+            original.ordre_planning = lot.ordre_planning;
+            original.parallel_group = lot.parallel_group;
+          }
+        }
+      }
+
       const { computePlanningDates } = await import('@/lib/planningUtils');
       const startDate = new Date(startDateStr);
       const computed = computePlanningDates(allLots as any, startDate);

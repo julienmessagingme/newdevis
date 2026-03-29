@@ -4,6 +4,99 @@
  */
 import type { LotChantier } from '@/types/chantier-ia';
 
+// ── Estimation automatique pour lots sans données planning ────────────────────
+
+/** Durées moyennes par métier (jours ouvrés). Clé = mot-clé dans le nom du lot. */
+const TRADE_DURATIONS: [RegExp, number, number][] = [
+  // [pattern, duree_jours, ordre dans la séquence BTP]
+  [/démol|dépose|démont/i,          3,  1],
+  [/maçon|gros.?œuvre|fondation/i, 15,  2],
+  [/charpent|ossature/i,           10,  3],
+  [/couvreur|toiture|couverture/i,  8,  4],
+  [/étanch/i,                       5,  5],
+  [/menuiseri.*ext|fenêtre|baie|volet/i, 5, 6],
+  [/plomb|sanitaire/i,              8,  7],
+  [/électri|câblage/i,              8,  7],  // parallèle avec plombier
+  [/chauffag|clim|pompe.*chaleur/i, 5,  7],  // parallèle aussi
+  [/plaquis|cloison|plâtr|doublage/i, 10, 8],
+  [/carrel|faïence/i,               8,  9],
+  [/peint|enduit.*int|ravalement/i,  8, 10],
+  [/menuiseri.*int|cuisine|dressing|placard/i, 5, 11],
+  [/sol.*souple|parquet|stratifié/i, 5, 10],
+  [/terrass/i,                       5,  2],
+  [/piscin/i,                       15,  3],
+  [/jardin|paysag|clôture/i,        5, 12],
+  [/nettoyage|fin.*chantier/i,      2, 13],
+  [/architect|maîtri/i,             3,  0],
+  [/façad/i,                         8,  6],
+  [/isol/i,                          8,  5],
+];
+
+/**
+ * Pour des lots sans duree_jours / ordre_planning, estime des valeurs raisonnables
+ * basées sur le nom du lot (détection du métier).
+ * Retourne les lots enrichis (les lots déjà renseignés restent inchangés).
+ */
+export function estimateMissingPlanningData(lots: LotChantier[]): LotChantier[] {
+  // D'abord, déterminer quels groupes parallèles existent déjà
+  let nextPG = 1;
+  const usedPGs = lots.filter(l => l.parallel_group != null).map(l => l.parallel_group!);
+  if (usedPGs.length > 0) nextPG = Math.max(...usedPGs) + 1;
+
+  // Mapper chaque lot
+  const enriched = lots.map((lot, idx) => {
+    if (lot.duree_jours != null && lot.duree_jours > 0 && lot.ordre_planning != null) {
+      return lot; // déjà renseigné
+    }
+
+    const nom = (lot.nom ?? '') + ' ' + (lot.role ?? '') + ' ' + (lot.job_type ?? '');
+    let duree = 5; // défaut : 1 semaine
+    let ordre = idx + 1;
+    let matchedOrdre: number | null = null;
+
+    for (const [pattern, d, o] of TRADE_DURATIONS) {
+      if (pattern.test(nom)) {
+        duree = d;
+        matchedOrdre = o;
+        break;
+      }
+    }
+
+    return {
+      ...lot,
+      duree_jours: lot.duree_jours ?? duree,
+      ordre_planning: lot.ordre_planning ?? (matchedOrdre ?? (idx + 1)),
+      parallel_group: lot.parallel_group ?? null,
+    };
+  });
+
+  // Détecter les lots qui ont le même ordre (potentiellement parallèles)
+  const ordreMap = new Map<number, LotChantier[]>();
+  for (const lot of enriched) {
+    const o = lot.ordre_planning ?? 0;
+    if (!ordreMap.has(o)) ordreMap.set(o, []);
+    ordreMap.get(o)!.push(lot);
+  }
+
+  // Assigner un parallel_group aux lots qui partagent le même ordre
+  for (const [, group] of ordreMap) {
+    if (group.length > 1) {
+      const needGroup = group.filter(l => l.parallel_group == null);
+      if (needGroup.length > 1) {
+        for (const lot of needGroup) {
+          lot.parallel_group = nextPG;
+        }
+        nextPG++;
+      }
+    }
+  }
+
+  // Re-trier par ordre_planning et réassigner des ordres séquentiels propres
+  enriched.sort((a, b) => (a.ordre_planning ?? 0) - (b.ordre_planning ?? 0));
+
+  return enriched;
+}
+
 // ── Jours ouvrés ──────────────────────────────────────────────────────────────
 
 /** Ajoute N jours ouvrés à une date (skip samedi/dimanche) */
