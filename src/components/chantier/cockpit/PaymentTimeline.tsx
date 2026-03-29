@@ -238,30 +238,32 @@ export default function PaymentTimeline({
 
                       {/* Confirmation marquer payé */}
                       {isConfirming && (
-                        <div className="mt-2.5 flex items-center gap-2 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
-                          <p className="text-xs font-semibold text-emerald-700 flex-1">
+                        <div className="mt-2.5 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5 space-y-2.5">
+                          <p className="text-xs font-semibold text-emerald-700">
                             Confirmer le paiement de {ev.amount !== null ? fmtEur(ev.amount) : 'cette échéance'} ?
                           </p>
-                          <button
-                            type="button"
-                            onClick={async (e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setConfirmingId(null);
-                              const ok = await markPaid(ev.id);
-                              if (ok) setProofPromptId(ev.id);
-                            }}
-                            className="flex items-center gap-1 text-xs font-bold bg-emerald-600 text-white rounded-lg px-2.5 py-1.5 hover:bg-emerald-700 transition-colors"
-                          >
-                            <Check className="h-3 w-3" /> Oui, payé
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmingId(null); }}
-                            className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-700 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 transition-colors"
-                          >
-                            <X className="h-3 w-3" /> Annuler
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setConfirmingId(null);
+                                const ok = await markPaid(ev.id);
+                                if (ok) setProofPromptId(ev.id);
+                              }}
+                              className="flex items-center gap-1 text-xs font-bold bg-emerald-600 text-white rounded-lg px-3 py-1.5 hover:bg-emerald-700 transition-colors"
+                            >
+                              <Check className="h-3 w-3" /> Oui, payé
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmingId(null); }}
+                              className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-700 bg-white border border-gray-200 rounded-lg px-3 py-1.5 transition-colors"
+                            >
+                              <X className="h-3 w-3" /> Annuler
+                            </button>
+                          </div>
                         </div>
                       )}
 

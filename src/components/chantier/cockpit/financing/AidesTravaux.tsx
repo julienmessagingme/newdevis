@@ -228,7 +228,7 @@ export default function AidesTravaux({ onImportAides, initialSimulation, onSimul
         <ProgressBar />
         <div>
           <p className="text-sm font-bold text-gray-800 mb-0.5">Votre profil</p>
-          <p className="text-[11px] text-gray-400">Pour calculer votre tranche de revenus ANAH</p>
+          <p className="text-[11px] text-gray-400">Pour calculer vos aides personnalisées</p>
         </div>
 
         {/* Propriétaire / Locataire */}

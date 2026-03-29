@@ -8,7 +8,7 @@
  */
 import { useState, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { TrendingUp, Calendar, CreditCard } from 'lucide-react';
+import { TrendingUp, Calendar, CreditCard, Check } from 'lucide-react';
 import PaymentTimeline from './PaymentTimeline';
 import CashflowTab from './CashflowTab';
 import FinancementTab from './financing/FinancementTab';
@@ -71,6 +71,8 @@ export default function TresoreriePanel({
 }: TresoreeriePanelProps) {
   const [tab, setTab] = useState<Tab>('timeline');
   const [budgetOverride, setBudgetOverride] = useState<number | null>(null);
+  const [savedIndicator, setSavedIndicator] = useState(false);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const effectiveBudget = budgetOverride ?? budgetMaxProp;
 
   // Initialise depuis metadonnees.financing chargée par le parent
@@ -94,13 +96,18 @@ export default function TresoreriePanel({
     saveTimerRef.current = setTimeout(async () => {
       try {
         const t = await getFreshBearerToken(token);
-        await fetch(`/api/chantier/${chantierId}`, {
+        const res = await fetch(`/api/chantier/${chantierId}`, {
           method: 'PATCH',
           headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ financing: { amounts, simulation } }),
         });
+        if (res.ok) {
+          setSavedIndicator(true);
+          if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+          savedTimerRef.current = setTimeout(() => setSavedIndicator(false), 2500);
+        }
       } catch { /* non-bloquant */ }
-    }, 800);
+    }, 300);
   }
 
   function handleSetFinancingAmounts(updater: React.SetStateAction<Record<SourceKey, string>>) {
@@ -133,6 +140,11 @@ export default function TresoreriePanel({
             <TrendingUp className="h-4 w-4 text-blue-500" />
           </div>
           <h2 className="font-bold text-gray-900 text-base">Budget & Trésorerie</h2>
+          {savedIndicator && (
+            <span className="ml-auto flex items-center gap-1 text-[10px] font-semibold text-emerald-600 animate-fade-in">
+              <Check className="h-3 w-3" /> Sauvegardé
+            </span>
+          )}
         </div>
         <TabBar active={tab} onChange={setTab} />
       </div>

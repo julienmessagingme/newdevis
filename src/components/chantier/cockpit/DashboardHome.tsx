@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Plus, SlidersHorizontal,
 } from 'lucide-react';
 import type { DocumentChantier, LotChantier } from '@/types/chantier-ia';
-import { KpiCard, ViewToggle, DiyCard, EtatChantierBlock, AssistantActiveBlock, RdvReminder } from './DashboardWidgets';
+import { KpiCard, ViewToggle, DiyCard, EtatChantierBlock, AssistantActiveBlock, RdvReminder, type RdvLight, RDV_EMOJI } from './DashboardWidgets';
 import LotIntervenantCard from './LotIntervenantCard';
 import IntervenantsListView from '@/components/chantier/cockpit/IntervenantsListView';
 import ComparateurDevisModal from '@/components/chantier/cockpit/ComparateurDevisModal';
@@ -44,6 +44,30 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
 
   const [comparingLot, setComparingLot] = useState<{ lot: LotChantier; docs: DocumentChantier[] } | null>(null);
 
+  // ── Prochain RDV depuis localStorage ──────────────────────────────────────
+  const [nextRdv, setNextRdv] = useState<RdvLight | null>(null);
+  useEffect(() => {
+    if (!chantierId) return;
+    try {
+      const raw = localStorage.getItem(`rdvs_${chantierId}`);
+      if (!raw) return;
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const all: RdvLight[] = JSON.parse(raw);
+      const upcoming = all
+        .filter(r => r.date >= todayStr)
+        .sort((a, b) => a.date.localeCompare(b.date) || (a.time ?? '').localeCompare(b.time ?? ''));
+      setNextRdv(upcoming[0] ?? null);
+    } catch { /* ignore */ }
+  }, [chantierId]);
+
+  function fmtRdvDate(iso: string): string {
+    const todayStr    = new Date().toISOString().slice(0, 10);
+    const tomorrowStr = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    if (iso === todayStr)    return "Aujourd'hui";
+    if (iso === tomorrowStr) return 'Demain';
+    return new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  }
+
   const total     = lots.length;
   const validated = lots.filter(l => ['ok', 'termine', 'en_cours', 'contrat_signe'].includes(l.statut ?? '')).length;
   const withDevis = lots.filter(l =>
@@ -57,8 +81,8 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
   return (
     <div className="px-5 py-5 space-y-5">
 
-      {/* ── 4 KPI cards ────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+      {/* ── KPI cards (4 + 1 RDV si planifié) ─────────────────── */}
+      <div className={`grid grid-cols-2 gap-3 ${nextRdv ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}`}>
         <KpiCard
           icon="💰" label="Budget estimé"
           value={displayMin > 0 ? `${fmtK(displayMin)}–${fmtK(displayMax)}` : '—'}
@@ -92,6 +116,23 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
           sub={blocked > 0 ? `intervenant${blocked > 1 ? 's' : ''} sans devis` : 'tout est suivi'}
           accent={blocked > 0 ? 'red' : 'emerald'}
         />
+        {nextRdv && (
+          <KpiCard
+            icon={RDV_EMOJI[nextRdv.type]}
+            label="Prochain RDV"
+            value={fmtRdvDate(nextRdv.date)}
+            sub={nextRdv.titre + (nextRdv.time ? ` · ${nextRdv.time}` : '')}
+            accent={nextRdv.date <= new Date(Date.now() + 86_400_000).toISOString().slice(0, 10) ? 'amber' : 'blue'}
+            action={
+              <button
+                onClick={onGoToPlanning}
+                className="flex items-center gap-1 text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1 transition-colors"
+              >
+                Voir planning →
+              </button>
+            }
+          />
+        )}
       </div>
 
       {/* ── Barre de progression globale ────────────────────── */}
