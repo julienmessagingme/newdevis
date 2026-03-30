@@ -14,6 +14,15 @@ interface Contact {
   role?: string;
 }
 
+interface AnalyseArtisan {
+  analyse_id: string;
+  nom: string;
+  email: string | null;
+  telephone: string | null;
+  siret: string | null;
+  lot_id: string | null;
+}
+
 interface MessagerieSectionProps {
   chantierId: string;
   chantierNom: string;
@@ -26,14 +35,49 @@ export default function MessagerieSection({
   token,
 }: MessagerieSectionProps) {
   const [contacts, setContacts] = useState<Contact[]>([]);
+  // Keep a ref to raw artisan data so we can create DB rows on demand
+  const artisanMapRef = React.useRef<Map<string, AnalyseArtisan>>(new Map());
 
   useEffect(() => {
     if (!chantierId || !token) return;
     fetch(`/api/chantier/${chantierId}/contacts`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => r.ok ? r.json() : { contacts: [] })
-      .then((data) => setContacts(data.contacts ?? []))
+      .then((r) => r.ok ? r.json() : { contacts: [], analyseArtisans: [] })
+      .then((data) => {
+        const dbContacts: Contact[] = data.contacts ?? [];
+        const artisans: AnalyseArtisan[] = data.analyseArtisans ?? [];
+
+        // Build siret+name sets from real DB contacts to avoid duplicates
+        const seenSiretValues = new Set(
+          dbContacts
+            .map((c) => (c as unknown as { siret?: string }).siret)
+            .filter((s): s is string => !!s)
+        );
+        const seenNames = new Set(dbContacts.map((c) => c.nom.toLowerCase()));
+
+        // Build artisan map (keyed by synthetic id) for on-demand DB creation
+        const newArtisanMap = new Map<string, AnalyseArtisan>();
+        const artisanContacts: Contact[] = artisans
+          .filter((a) => {
+            if (a.siret && seenSiretValues.has(a.siret)) return false;
+            if (seenNames.has(a.nom.toLowerCase())) return false;
+            return true;
+          })
+          .map((a) => {
+            const syntheticId = `analyse-${a.analyse_id}`;
+            newArtisanMap.set(syntheticId, a);
+            return {
+              id: syntheticId,
+              nom: a.nom,
+              email: a.email ?? undefined,
+              telephone: a.telephone ?? undefined,
+            };
+          });
+
+        artisanMapRef.current = newArtisanMap;
+        setContacts([...dbContacts, ...artisanContacts]);
+      })
       .catch(() => {});
   }, [chantierId, token]);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
@@ -116,15 +160,59 @@ export default function MessagerieSection({
     setShowNewMessage(true);
   };
 
-  const handleSelectContact = (contactId: string) => {
+  const handleSelectContact = async (contactId: string) => {
+    let resolvedId = contactId;
+
+    // If this is a synthetic artisan id, create a real contacts_chantier row first
+    if (contactId.startsWith("analyse-")) {
+      const artisan = artisanMapRef.current.get(contactId);
+      if (artisan) {
+        try {
+          const res = await fetch(`/api/chantier/${chantierId}/contacts`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              nom: artisan.nom,
+              email: artisan.email,
+              telephone: artisan.telephone,
+              siret: artisan.siret,
+              lot_id: artisan.lot_id,
+              source: "analyse",
+              analyse_id: artisan.analyse_id,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const newId: string = data.contact?.id;
+            if (newId) {
+              // Replace the synthetic entry in contacts state with the real DB row
+              setContacts((prev) =>
+                prev.map((c) =>
+                  c.id === contactId ? { ...c, id: newId } : c
+                )
+              );
+              artisanMapRef.current.delete(contactId);
+              resolvedId = newId;
+            }
+          }
+        } catch {
+          // If creation fails, fall through with the synthetic id — the send will fail
+          // gracefully at the API level
+        }
+      }
+    }
+
     // Check if a conversation already exists for this contact
-    const existing = conversations.find((c) => c.contact_id === contactId);
+    const existing = conversations.find((c) => c.contact_id === resolvedId);
     if (existing) {
       setSelectedConvId(existing.id);
       setShowNewMessage(false);
       setNewMsgContactId(null);
     } else {
-      setNewMsgContactId(contactId);
+      setNewMsgContactId(resolvedId);
       setSelectedConvId(null);
       setShowNewMessage(false);
     }
