@@ -14,7 +14,7 @@ export default function AdminHeader({ onRefresh, refreshing }: AdminHeaderProps)
           <img
             alt="VerifierMonDevis.fr"
             className="h-12 w-12 sm:h-16 sm:w-16 object-contain drop-shadow-md"
-            src="/images/logo detouré.png"
+            src="/images/logo-detoure.webp"
             width={64}
             height={64}
           />

@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0B1F3A;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#122e54;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#1a56db;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F97316;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="accentFade" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#1a56db;stop-opacity:0.15" />
+      <stop offset="100%" style="stop-color:#F97316;stop-opacity:0.08" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)" />
+
+  <!-- Subtle grid pattern -->
+  <g opacity="0.04">
+    <line x1="0" y1="0" x2="0" y2="630" stroke="white" stroke-width="1" />
+    <line x1="100" y1="0" x2="100" y2="630" stroke="white" stroke-width="1" />
+    <line x1="200" y1="0" x2="200" y2="630" stroke="white" stroke-width="1" />
+    <line x1="300" y1="0" x2="300" y2="630" stroke="white" stroke-width="1" />
+    <line x1="400" y1="0" x2="400" y2="630" stroke="white" stroke-width="1" />
+    <line x1="500" y1="0" x2="500" y2="630" stroke="white" stroke-width="1" />
+    <line x1="600" y1="0" x2="600" y2="630" stroke="white" stroke-width="1" />
+    <line x1="700" y1="0" x2="700" y2="630" stroke="white" stroke-width="1" />
+    <line x1="800" y1="0" x2="800" y2="630" stroke="white" stroke-width="1" />
+    <line x1="900" y1="0" x2="900" y2="630" stroke="white" stroke-width="1" />
+    <line x1="1000" y1="0" x2="1000" y2="630" stroke="white" stroke-width="1" />
+    <line x1="1100" y1="0" x2="1100" y2="630" stroke="white" stroke-width="1" />
+    <line x1="1200" y1="0" x2="1200" y2="630" stroke="white" stroke-width="1" />
+  </g>
+
+  <!-- Decorative circle top-right -->
+  <circle cx="1050" cy="100" r="200" fill="none" stroke="#1a56db" stroke-width="1" opacity="0.12" />
+  <circle cx="1050" cy="100" r="150" fill="none" stroke="#1a56db" stroke-width="1" opacity="0.08" />
+  <circle cx="1050" cy="100" r="100" fill="none" stroke="#1a56db" stroke-width="1" opacity="0.05" />
+
+  <!-- Decorative circle bottom-left -->
+  <circle cx="150" cy="530" r="180" fill="none" stroke="#F97316" stroke-width="1" opacity="0.10" />
+  <circle cx="150" cy="530" r="130" fill="none" stroke="#F97316" stroke-width="1" opacity="0.06" />
+
+  <!-- Gradient accent bar top -->
+  <rect x="0" y="0" width="1200" height="6" fill="url(#accent)" />
+
+  <!-- Shield / checkmark icon -->
+  <g transform="translate(600, 185)" opacity="0.95">
+    <!-- Shield shape -->
+    <path d="M0,-65 L45,-45 L45,10 C45,40 25,60 0,72 C-25,60 -45,40 -45,10 L-45,-45 Z"
+          fill="none" stroke="#1a56db" stroke-width="3" />
+    <path d="M0,-65 L45,-45 L45,10 C45,40 25,60 0,72 C-25,60 -45,40 -45,10 L-45,-45 Z"
+          fill="#1a56db" opacity="0.15" />
+    <!-- Checkmark -->
+    <path d="M-16,5 L-5,16 L18,-8" fill="none" stroke="#F97316" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+
+  <!-- Brand name -->
+  <text x="600" y="310" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="56" font-weight="700" fill="white" letter-spacing="-1">
+    VerifierMonDevis.fr
+  </text>
+
+  <!-- Accent underline below brand -->
+  <rect x="420" y="328" width="360" height="3" rx="1.5" fill="url(#accent)" />
+
+  <!-- Tagline -->
+  <text x="600" y="390" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="28" font-weight="400" fill="#94a3b8" letter-spacing="0.5">
+    Analysez vos devis de travaux en 5 minutes
+  </text>
+
+  <!-- Three small feature dots -->
+  <g transform="translate(600, 450)" opacity="0.7">
+    <circle cx="-180" cy="0" r="4" fill="#F97316" />
+    <text x="-165" y="5" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" fill="#cbd5e1">Gratuit</text>
+
+    <circle cx="-20" cy="0" r="4" fill="#F97316" />
+    <text x="-5" y="5" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" fill="#cbd5e1">Fiable</text>
+
+    <circle cx="130" cy="0" r="4" fill="#F97316" />
+    <text x="145" y="5" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" fill="#cbd5e1">Rapide</text>
+  </g>
+
+  <!-- Bottom gradient bar -->
+  <rect x="0" y="624" width="1200" height="6" fill="url(#accent)" />
+</svg>

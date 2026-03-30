@@ -5,7 +5,7 @@ const Footer = () => {
           {/* Logo & Description */}
           <div className="md:col-span-2">
             <a href="/" className="flex items-center gap-2 mb-4">
-              <img alt="VerifierMonDevis.fr" className="h-12 w-12 object-contain" src="/images/logo-footer.png" width={48} height={48} loading="lazy" />
+              <img alt="VerifierMonDevis.fr" className="h-12 w-12 object-contain" src="/images/logo.webp" width={48} height={48} loading="lazy" />
               <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
             </a>
             <p className="text-muted-foreground text-sm max-w-md">

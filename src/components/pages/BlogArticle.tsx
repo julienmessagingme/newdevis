@@ -189,7 +189,7 @@ const BlogArticle = () => {
       name: "VerifierMonDevis.fr",
       logo: {
         "@type": "ImageObject",
-        url: "https://www.verifiermondevis.fr/logo.png",
+        url: "https://www.verifiermondevis.fr/images/logo.webp",
       },
     },
     mainEntityOfPage: {
