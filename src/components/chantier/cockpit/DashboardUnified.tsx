@@ -17,6 +17,7 @@ import ContactsSection from './ContactsSection';
 import ScreenEditPrompt from '@/components/chantier/nouveau/ScreenEditPrompt';
 import MessagerieSection from './MessagerieSection';
 import { useConversations } from '@/hooks/useConversations';
+import { useChantierAssistant } from '@/hooks/useChantierAssistant';
 import UploadDocumentModal from '@/components/chantier/cockpit/UploadDocumentModal';
 import AddIntervenantModal from '@/components/chantier/cockpit/AddIntervenantModal';
 import ChatDrawer from '@/components/chantier/cockpit/ChatDrawer';
@@ -117,13 +118,34 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
     return idx;
   }, [documents]);
 
+  // ── Assistant — badge sidebar (alertes IA proactives) ────────────────────
+  const { data: assistantData } = useChantierAssistant({
+    chantierId, token, result, documents, lots, enabled: true,
+  });
+  const assistantAlertCount = assistantData?.alertes?.length ?? 0;
+  const assistantAlertLevel = assistantData?.alertes?.find(a => a.type === 'critique')
+    ? 'critique'
+    : assistantData?.alertes?.find(a => a.type === 'risque') ? 'risque' : null;
+
   // ── Badges sidebar ────────────────────────────────────────────────────────
   const navBadges = useMemo<Partial<Record<Section, NavBadge>>>(() => {
     return {
-      documents: documents.length > 0 ? { text: `${documents.length}`, style: 'bg-gray-100 text-gray-600' } : undefined,
-      messagerie: msgUnread > 0 ? { text: `${msgUnread}`, style: 'bg-blue-100 text-blue-700' } : undefined,
+      documents:  documents.length > 0
+        ? { text: `${documents.length}`, style: 'bg-gray-100 text-gray-600' }
+        : undefined,
+      messagerie: msgUnread > 0
+        ? { text: `${msgUnread}`, style: 'bg-blue-100 text-blue-700' }
+        : undefined,
+      assistant:  assistantAlertCount > 0
+        ? {
+            text: `${assistantAlertCount}`,
+            style: assistantAlertLevel === 'critique'
+              ? 'bg-red-500 text-white'
+              : 'bg-amber-400 text-white',
+          }
+        : undefined,
     };
-  }, [documents, msgUnread]);
+  }, [documents, msgUnread, assistantAlertCount, assistantAlertLevel]);
 
   const selectedLot = lots.find(l => l.id === selectedLotId);
   const hasDiyOpportunity = lots.some(l => l.statut === 'a_trouver');
