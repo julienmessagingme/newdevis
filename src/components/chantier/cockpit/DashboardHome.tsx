@@ -68,12 +68,24 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
     return new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
   }
 
+  const STATUTS_VALIDES = ['ok', 'termine', 'en_cours', 'contrat_signe'];
+
   const total     = lots.length;
-  const validated = lots.filter(l => ['ok', 'termine', 'en_cours', 'contrat_signe'].includes(l.statut ?? '')).length;
-  const withDevis = lots.filter(l =>
-    (docsByLot[l.id] ?? []).some(d => d.document_type === 'devis') &&
-    !['ok', 'termine', 'en_cours', 'contrat_signe'].includes(l.statut ?? ''),
-  ).length;
+  const validated = lots.filter(l => {
+    // Lot explicitement validé
+    if (STATUTS_VALIDES.includes(l.statut ?? '')) return true;
+    // Ou lot avec au moins un devis marqué "valide"
+    return (docsByLot[l.id] ?? []).some(
+      d => d.document_type === 'devis' && d.devis_statut === 'valide',
+    );
+  }).length;
+  const withDevis = lots.filter(l => {
+    if (STATUTS_VALIDES.includes(l.statut ?? '')) return false;
+    const docs = docsByLot[l.id] ?? [];
+    const hasValidated = docs.some(d => d.document_type === 'devis' && d.devis_statut === 'valide');
+    if (hasValidated) return false; // déjà compté dans validated
+    return docs.some(d => d.document_type === 'devis');
+  }).length;
   const blocked   = Math.max(0, total - validated - withDevis);
   const pct       = total > 0 ? Math.round((validated / total) * 100) : 0;
   const totalDocs = documents.length;

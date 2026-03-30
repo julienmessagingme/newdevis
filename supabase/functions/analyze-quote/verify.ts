@@ -289,7 +289,9 @@ export async function verifyData(
   const googleApiKey = Deno.env.get("GOOGLE_PLACES_API_KEY");
   if (googleApiKey && extracted.entreprise.nom) {
     try {
-      const searchQuery = encodeURIComponent(`${extracted.entreprise.nom} entreprise`);
+      const city = result.ville_officielle || extracted.entreprise.ville || "";
+      const searchQuery = encodeURIComponent(`${extracted.entreprise.nom}${city ? ` ${city}` : ""}`);
+
       const placesUrl = `${GOOGLE_PLACES_API_URL}?input=${searchQuery}&inputtype=textquery&fields=name,rating,user_ratings_total&key=${googleApiKey}`;
 
       const placesResponse = await fetch(placesUrl);
