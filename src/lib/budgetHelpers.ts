@@ -5,9 +5,8 @@ export function fmtK(n: number): string {
   return `${Math.round(n)} €`;
 }
 
-export function fmtFull(n: number): string {
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
-}
+/** @deprecated Use fmtEur from financingUtils instead */
+export { fmtEur as fmtFull } from '@/lib/financingUtils';
 
 export const PHASE_LABELS: Record<string, string> = {
   preparation: 'Préparation', autorisations: 'Autorisations',
