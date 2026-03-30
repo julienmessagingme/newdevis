@@ -12,29 +12,48 @@ import type { BreakdownItem } from './BudgetTresorerie';
 
 function BudgetBreakdownPopover({ items }: { items: BreakdownItem[] }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  function handleOpen() {
+    if (open) { setOpen(false); return; }
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 8, left: r.left });
+    }
+    setOpen(true);
+  }
 
   useEffect(() => {
     if (!open) return;
-    function onClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    function onDown(e: MouseEvent) {
+      if (
+        panelRef.current && !panelRef.current.contains(e.target as Node) &&
+        btnRef.current && !btnRef.current.contains(e.target as Node)
+      ) setOpen(false);
     }
-    document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
   return (
-    <div className="relative" ref={ref}>
+    <>
       <button
-        onClick={() => setOpen(v => !v)}
+        ref={btnRef}
+        onClick={handleOpen}
         className="flex items-center gap-0.5 text-xs font-semibold text-blue-600 hover:text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 rounded-lg px-2 py-1 transition-colors"
         title="Détail par poste"
       >
         <HelpCircle className="h-3 w-3" />
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-8 z-50 w-72 bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden">
+      {open && pos && (
+        <div
+          ref={panelRef}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+          className="w-72 bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden"
+        >
           <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
             <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Estimation par poste</p>
             <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600">
@@ -44,8 +63,8 @@ function BudgetBreakdownPopover({ items }: { items: BreakdownItem[] }) {
           <ul className="divide-y divide-gray-50 max-h-64 overflow-y-auto">
             {items.map(item => {
               const rel =
-                item.reliability === 'haute'   ? { dot: 'bg-emerald-400', text: 'text-emerald-600', label: 'Haute' } :
-                item.reliability === 'moyenne' ? { dot: 'bg-amber-400',   text: 'text-amber-600',   label: 'Moy.'  } :
+                item.reliability === 'haute'   ? { dot: 'bg-emerald-400', text: 'text-emerald-600', label: 'Haute'  } :
+                item.reliability === 'moyenne' ? { dot: 'bg-amber-400',   text: 'text-amber-600',   label: 'Moy.'   } :
                                                  { dot: 'bg-gray-300',    text: 'text-gray-400',    label: 'Faible' };
               return (
                 <li key={item.id} className="px-4 py-2.5 flex items-center gap-2">
@@ -64,7 +83,7 @@ function BudgetBreakdownPopover({ items }: { items: BreakdownItem[] }) {
           </ul>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
