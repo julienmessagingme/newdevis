@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import {
-  ChevronDown, ChevronUp, Filter, HelpCircle, Scale, Trash2, ExternalLink,
+  ChevronDown, ChevronUp, Filter, HelpCircle, Scale, Trash2, ExternalLink, GripVertical,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import type { DocumentChantier, LotChantier } from '@/types/chantier-ia';
 import DocScoreCell from '@/components/chantier/shared/DocScoreCell';
 import DocStatusSelect from '@/components/chantier/shared/DocStatusSelect';
@@ -54,7 +55,7 @@ type FilterStatus = 'all' | LotListStatus;
 
 export default function IntervenantsListView({
   lots, docsByLot, documents, onAddDevisForLot, onGoToLot, onGoToDiy,
-  onDeleteDoc, chantierId, token, onDocStatutUpdated,
+  onDeleteDoc, chantierId, token, onDocStatutUpdated, onDocMoved,
 }: {
   lots: LotChantier[];
   docsByLot: Record<string, DocumentChantier[]>;
@@ -66,9 +67,31 @@ export default function IntervenantsListView({
   chantierId: string;
   token: string | null | undefined;
   onDocStatutUpdated?: (docId: string, statut: string) => void;
+  onDocMoved?: (docId: string, newLotId: string) => void;
 }) {
   const [sortKey,      setSortKey]      = useState<SortKey>('none');
   const [filterSt,     setFilterSt]     = useState<FilterStatus>('all');
+  const [draggingDocId, setDraggingDocId] = useState<string | null>(null);
+  const [dragOverLotId, setDragOverLotId] = useState<string | null>(null);
+
+  async function moveDocToLot(docId: string, newLotId: string) {
+    if (!chantierId || !token) return;
+    try {
+      const res = await fetch(`/api/chantier/${chantierId}/documents/${docId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lotId: newLotId }),
+      });
+      if (res.ok) {
+        onDocMoved?.(docId, newLotId);
+        toast.success('Devis déplacé');
+      } else {
+        toast.error('Impossible de déplacer le devis');
+      }
+    } catch {
+      toast.error('Erreur réseau');
+    }
+  }
   const [comparingLot, setComparingLot] = useState<{ lot: LotChantier; docs: DocumentChantier[] } | null>(null);
 
   const allDevis = useMemo(() =>
@@ -200,7 +223,19 @@ export default function IntervenantsListView({
               <div key={lot.id} className="border-b border-gray-100 last:border-0">
 
                 {/* ── Ligne lot (header de groupe) ── */}
-                <div className={`grid ${GRID} border-b border-gray-100 border-l-4 ${cfg.leftBorder} ${cfg.rowBg} group/lot`}>
+                <div
+                  className={`grid ${GRID} border-b border-gray-100 border-l-4 ${cfg.leftBorder} ${cfg.rowBg} group/lot transition-colors ${
+                    dragOverLotId === lot.id ? 'ring-2 ring-inset ring-blue-400 bg-blue-50/40' : ''
+                  }`}
+                  onDragOver={e => { e.preventDefault(); setDragOverLotId(lot.id); }}
+                  onDragLeave={() => setDragOverLotId(null)}
+                  onDrop={e => {
+                    e.preventDefault();
+                    setDragOverLotId(null);
+                    const docId = e.dataTransfer.getData('docId');
+                    if (docId) moveDocToLot(docId, lot.id);
+                  }}
+                >
                   {/* Nom intervenant */}
                   <div className="px-4 py-3 flex items-center gap-2.5">
                     <span className="text-base leading-none shrink-0">{lot.emoji ?? '🔧'}</span>
@@ -228,13 +263,8 @@ export default function IntervenantsListView({
                       <span className="text-sm text-gray-300 font-medium">—</span>
                     )}
                   </div>
-                  {/* Col 4 : Statut du lot */}
-                  <div className="px-4 py-3 flex items-center">
-                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border ${cfg.badge}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-                      {cfg.label}
-                    </span>
-                  </div>
+                  {/* Col 4 : vide au niveau lot — la couleur de bordure suffit */}
+                  <div className="px-4 py-3" />
                   {/* Score (vide au niveau lot) */}
                   <div className="px-4 py-3" />
                   {/* Actions lot */}
@@ -282,12 +312,23 @@ export default function IntervenantsListView({
 
                     return (
                       <div key={doc.id}
-                        className={`grid ${GRID} transition-colors hover:bg-gray-50/70 ${
+                        draggable
+                        onDragStart={e => {
+                          e.dataTransfer.setData('docId', doc.id);
+                          e.dataTransfer.effectAllowed = 'move';
+                          setDraggingDocId(doc.id);
+                        }}
+                        onDragEnd={() => { setDraggingDocId(null); setDragOverLotId(null); }}
+                        className={`grid ${GRID} transition-colors hover:bg-gray-50/70 cursor-grab active:cursor-grabbing ${
                           isSelected ? 'bg-emerald-50/30' : ''
-                        } ${!isLast ? 'border-b border-gray-50' : ''}`}>
+                        } ${!isLast ? 'border-b border-gray-50' : ''} ${
+                          draggingDocId === doc.id ? 'opacity-40' : ''
+                        }`}>
 
                         {/* Nom artisan / document — indenté */}
-                        <div className="px-4 py-2.5 pl-10 flex flex-col justify-center">
+                        <div className="px-4 py-2.5 pl-6 flex items-center gap-1.5">
+                          <GripVertical className="h-3.5 w-3.5 text-gray-300 shrink-0 cursor-grab" />
+                          <div className="flex flex-col justify-center min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 min-w-0">
                             {isSelected && (
                               <span className="text-emerald-500 text-[10px] font-bold shrink-0">✓</span>
@@ -308,7 +349,8 @@ export default function IntervenantsListView({
                               <span className="text-sm text-gray-700 truncate max-w-[190px]">{doc.nom}</span>
                             )}
                           </div>
-                          <span className="text-[10px] text-gray-400 mt-0.5 pl-3.5">{fmtDate(doc.created_at)}</span>
+                          <span className="text-[10px] text-gray-400 mt-0.5">{fmtDate(doc.created_at)}</span>
+                          </div>
                         </div>
 
                         {/* Type de doc */}

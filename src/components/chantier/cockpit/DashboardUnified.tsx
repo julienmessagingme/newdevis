@@ -107,8 +107,19 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
       const res = await fetch(`/api/chantier/${chantierId}/documents/${docId}`, {
         method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) setDocuments(prev => prev.filter(d => d.id !== docId));
-    } catch {}
+      if (res.ok) {
+        setDocuments(prev => prev.filter(d => d.id !== docId));
+        toast.success('Document supprimé');
+      } else {
+        toast.error('Impossible de supprimer ce document');
+      }
+    } catch {
+      toast.error('Erreur réseau');
+    }
+  }
+
+  function handleDocMoved(docId: string, newLotId: string) {
+    setDocuments(prev => prev.map(d => d.id === docId ? { ...d, lot_id: newLotId } : d));
   }
 
   // ── Index docs par lot ────────────────────────────────────────────────────
@@ -266,6 +277,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
                   : { ...d, devis_statut: statut as any };
               }))
             }
+            onDocMoved={handleDocMoved}
           />
         );
 

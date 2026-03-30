@@ -92,7 +92,7 @@ function BudgetBreakdownPopover({ items }: { items: BreakdownItem[] }) {
 function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, refinedBreakdown, onAffineBudget,
   onAddDevisForLot, onAddDocForLot, onGoToLot, onGoToAnalyse, onGoToPlanning, onAddDoc,
   onGoToAssistant, onAddIntervenant, onDeleteLot, onDeleteDoc, onGoToDiy, chantierId, token,
-  viewMode, onViewModeChange, onDocStatutUpdated,
+  viewMode, onViewModeChange, onDocStatutUpdated, onDocMoved,
 }: {
   lots: LotChantier[];
   documents: DocumentChantier[];
@@ -117,6 +117,7 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
   viewMode: 'cards' | 'list';
   onViewModeChange: (v: 'cards' | 'list') => void;
   onDocStatutUpdated?: (docId: string, statut: string) => void;
+  onDocMoved?: (docId: string, newLotId: string) => void;
 }) {
 
   const [comparingLot, setComparingLot] = useState<{ lot: LotChantier; docs: DocumentChantier[] } | null>(null);
@@ -272,6 +273,7 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
             chantierId={chantierId}
             token={token}
             onDocStatutUpdated={onDocStatutUpdated}
+            onDocMoved={onDocMoved}
           />
         ) : (
           <>
