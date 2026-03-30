@@ -125,14 +125,14 @@ export default function ConversationThread({
                 className={`flex ${isOutbound ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`rounded-xl px-3 py-2 max-w-[80%] ${
+                  className={`rounded-2xl px-4 py-2.5 max-w-[80%] shadow-sm ${
                     isOutbound
-                      ? "bg-blue-50 ml-auto"
-                      : "bg-gray-50"
+                      ? "bg-blue-600 text-white ml-auto"
+                      : "bg-white border border-gray-200 text-gray-900"
                   }`}
                 >
                   {msg.subject && (
-                    <p className="font-semibold text-sm mb-1">{msg.subject}</p>
+                    <p className={`font-semibold text-sm mb-1 ${isOutbound ? "text-blue-100" : "text-gray-700"}`}>{msg.subject}</p>
                   )}
 
                   {!isOutbound && msg.body_html ? (
@@ -144,8 +144,8 @@ export default function ConversationThread({
                     <p className="text-sm whitespace-pre-wrap">{msg.body_text}</p>
                   )}
 
-                  <p className="text-xs text-gray-400 mt-1">
-                    {formatTime(msg.created_at)}
+                  <p className={`text-[10px] mt-1.5 ${isOutbound ? "text-blue-200" : "text-gray-400"}`}>
+                    {isOutbound ? "Vous · " : ""}{formatTime(msg.created_at)}
                   </p>
                 </div>
               </div>

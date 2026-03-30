@@ -357,14 +357,7 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
                         </span>
                       )}
                     </div>
-                    {row.hasConversation && row.lastMessagePreview ? (
-                      <p className={`text-xs truncate mt-0.5 ${hasUnread ? "text-gray-700 font-medium" : "text-gray-500"}`}>
-                        {row.lastMessageDirection === "outbound" ? "Vous: " : ""}
-                        {row.lastMessagePreview}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-gray-400 mt-0.5 truncate">{row.email}</p>
-                    )}
+                    <p className="text-xs text-gray-400 mt-0.5 truncate">{row.email}</p>
                   </div>
 
                   {/* Right: date or "new" badge */}
