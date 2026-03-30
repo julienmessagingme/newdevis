@@ -2,19 +2,19 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://www.verifiermondevis.fr/</loc>
-    <lastmod>2026-02-27</lastmod>
+    <lastmod>2026-03-30</lastmod>
   </url>
   <url>
     <loc>https://www.verifiermondevis.fr/blog</loc>
-    <lastmod>2026-02-27</lastmod>
+    <lastmod>2026-03-30</lastmod>
   </url>
   <url>
     <loc>https://www.verifiermondevis.fr/faq</loc>
-    <lastmod>2026-02-15</lastmod>
+    <lastmod>2026-03-15</lastmod>
   </url>
   <url>
     <loc>https://www.verifiermondevis.fr/qui-sommes-nous</loc>
-    <lastmod>2026-02-15</lastmod>
+    <lastmod>2026-03-30</lastmod>
   </url>
   <url>
     <loc>https://www.verifiermondevis.fr/comprendre-score</loc>
@@ -23,6 +23,18 @@
   <url>
     <loc>https://www.verifiermondevis.fr/contact</loc>
     <lastmod>2026-02-15</lastmod>
+  </url>
+  <url>
+    <loc>https://www.verifiermondevis.fr/pass-serenite</loc>
+    <lastmod>2026-03-30</lastmod>
+  </url>
+  <url>
+    <loc>https://www.verifiermondevis.fr/simulateur-valorisation-travaux</loc>
+    <lastmod>2026-02-25</lastmod>
+  </url>
+  <url>
+    <loc>https://www.verifiermondevis.fr/valorisation-travaux-immobiliers</loc>
+    <lastmod>2026-02-25</lastmod>
   </url>
   <url>
     <loc>https://www.verifiermondevis.fr/cgu</loc>
@@ -35,13 +47,5 @@
   <url>
     <loc>https://www.verifiermondevis.fr/confidentialite</loc>
     <lastmod>2026-02-15</lastmod>
-  </url>
-  <url>
-    <loc>https://www.verifiermondevis.fr/valorisation-travaux-immobiliers</loc>
-    <lastmod>2026-02-25</lastmod>
-  </url>
-  <url>
-    <loc>https://www.verifiermondevis.fr/simulateur-valorisation-travaux</loc>
-    <lastmod>2026-02-25</lastmod>
   </url>
 </urlset>

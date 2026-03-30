@@ -3,20 +3,28 @@
 User-agent: Googlebot
 Allow: /
 Disallow: /admin
+Disallow: /api/
 Disallow: /tableau-de-bord
 Disallow: /analyse/
 Disallow: /parametres
 Disallow: /reset-password
 Disallow: /mot-de-passe-oublie
+Disallow: /connexion
+Disallow: /inscription
+Disallow: /mon-chantier
 
 User-agent: Bingbot
 Allow: /
 Disallow: /admin
+Disallow: /api/
 Disallow: /tableau-de-bord
 Disallow: /analyse/
 Disallow: /parametres
 Disallow: /reset-password
 Disallow: /mot-de-passe-oublie
+Disallow: /connexion
+Disallow: /inscription
+Disallow: /mon-chantier
 
 User-agent: Twitterbot
 Allow: /
@@ -27,11 +35,15 @@ Allow: /
 User-agent: *
 Allow: /
 Disallow: /admin
+Disallow: /api/
 Disallow: /tableau-de-bord
 Disallow: /analyse/
 Disallow: /parametres
 Disallow: /reset-password
 Disallow: /mot-de-passe-oublie
+Disallow: /connexion
+Disallow: /inscription
+Disallow: /mon-chantier
 
 # Sitemaps
 Sitemap: https://www.verifiermondevis.fr/sitemap.xml

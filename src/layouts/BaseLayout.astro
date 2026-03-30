@@ -90,7 +90,24 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
         "height": 128
       },
       "email": "contact@verifiermondevis.fr",
-      "description": "Service gratuit d'analyse de devis d'artisans. Score de fiabilité, vérification entreprise, comparaison prix marché."
+      "description": "Service gratuit d'analyse de devis d'artisans. Score de fiabilité, vérification entreprise, comparaison prix marché.",
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "email": "contact@verifiermondevis.fr",
+        "contactType": "customer service",
+        "availableLanguage": "French"
+      }
+    })} />
+
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "@id": "https://www.verifiermondevis.fr/#website",
+      "name": "VerifierMonDevis.fr",
+      "url": "https://www.verifiermondevis.fr",
+      "description": "Analysez vos devis de travaux en 5 minutes. Score de fiabilité, vérification entreprise, comparaison prix marché.",
+      "publisher": { "@id": "https://www.verifiermondevis.fr/#organization" },
+      "inLanguage": "fr-FR"
     })} />
 
     <script src="https://ai.messagingme.app/widget/f236879w135897.js" async="async"></script>
