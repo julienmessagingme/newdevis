@@ -2,7 +2,7 @@ import {
   Plus, ChevronRight, FileText, Trash2, Receipt, Scale, Calendar,
 } from 'lucide-react';
 import type { LotChantier, DocumentChantier } from '@/types/chantier-ia';
-import { formatDuration, getWeekNumber } from '@/lib/planningUtils';
+import { formatDuration } from '@/lib/planningUtils';
 import { fmtK, IS } from '@/lib/dashboardHelpers';
 import type { InsightItem } from './useInsights';
 
@@ -152,12 +152,12 @@ function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail, on
         </div>
       )}
 
-      {/* ── Planning (semaines) ────────────────────────────── */}
+      {/* ── Planning (dates + durée) ──────────────────────── */}
       {lot.duree_jours != null && lot.duree_jours > 0 && lot.date_debut && lot.date_fin && (
         <div className="px-5 pb-2 flex items-center gap-1.5 text-xs text-gray-500">
           <Calendar className="h-3 w-3 text-gray-400" />
           <span className="font-medium">
-            S{getWeekNumber(new Date(lot.date_debut), new Date(lot.date_debut))}–S{getWeekNumber(new Date(lot.date_fin), new Date(lot.date_debut))}
+            {new Date(lot.date_debut).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} → {new Date(lot.date_fin).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
           </span>
           <span className="text-gray-300">·</span>
           <span>{formatDuration(lot.duree_jours)}</span>
