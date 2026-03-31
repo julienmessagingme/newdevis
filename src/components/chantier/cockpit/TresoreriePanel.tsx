@@ -14,6 +14,7 @@ import {
   ArrowRight, Shield, Info, TrendingDown, Pencil,
 } from 'lucide-react';
 import PaymentTimeline from './PaymentTimeline';
+import BudgetTab from './BudgetTab';
 import type { SourceKey } from './FinancingSources';
 import type { SimulationData } from './financing/AidesTravaux';
 import {
@@ -100,13 +101,14 @@ function buildProjection(
 // TAB BAR
 // ══════════════════════════════════════════════════════════════════════════════
 
-type Tab = 'cockpit' | 'timeline' | 'financement';
+type Tab = 'budget' | 'cockpit' | 'timeline' | 'financement';
 
 function TabBar({ active, onChange, lateCount }: { active: Tab; onChange: (t: Tab) => void; lateCount: number }) {
   const tabs: { id: Tab; icon: React.ReactNode; label: string }[] = [
+    { id: 'budget',      icon: <CreditCard className="h-3.5 w-3.5" />, label: 'Budget' },
     { id: 'cockpit',     icon: <TrendingUp className="h-3.5 w-3.5" />, label: 'Tresorerie' },
     { id: 'timeline',   icon: <Calendar className="h-3.5 w-3.5" />,   label: 'Echeancier' },
-    { id: 'financement', icon: <CreditCard className="h-3.5 w-3.5" />, label: 'Financement' },
+    { id: 'financement', icon: <Shield className="h-3.5 w-3.5" />,     label: 'Preuves' },
   ];
   return (
     <div className="flex border-b border-gray-100 bg-white px-2 sticky top-0 z-10">
@@ -1174,7 +1176,7 @@ export default function TresoreriePanel({
   budgetMax: budgetMaxProp = 0,
   initialFinancing,
 }: TresoreeriePanelProps) {
-  const [tab,              setTab]              = useState<Tab>('cockpit');
+  const [tab,              setTab]              = useState<Tab>('budget');
   const [selectedArtisan, setSelectedArtisan]  = useState<ArtisanSummary | null>(null);
 
   const [financingAmounts, setFinancingAmounts] = useState<Record<SourceKey, string>>(() => ({
@@ -1212,7 +1214,14 @@ export default function TresoreriePanel({
 
       <TabBar active={tab} onChange={setTab} lateCount={lateCount} />
 
-      {/* ── Cockpit ─────────────────────────────────────────────────────────── */}
+      {/* ── Budget ──────────────────────────────────────────────────────────── */}
+      {tab === 'budget' && (
+        <div className="flex-1 overflow-y-auto">
+          <BudgetTab chantierId={chantierId} token={token} />
+        </div>
+      )}
+
+      {/* ── Cockpit Tresorerie ───────────────────────────────────────────────── */}
       {tab === 'cockpit' && (
         <div className="flex-1 overflow-y-auto">
           {error && (
@@ -1237,18 +1246,51 @@ export default function TresoreriePanel({
         </div>
       )}
 
-      {/* ── Financement ─────────────────────────────────────────────────────── */}
+      {/* ── Preuves (Phase 3 — à venir) ─────────────────────────────────────── */}
       {tab === 'financement' && (
         <div className="flex-1 overflow-y-auto">
-          <div className="p-4 pb-8">
-            <FinancementPanel
-              budgetMax={budgetMaxProp}
-              financingAmounts={financingAmounts}
-              setFinancingAmounts={setFinancingAmounts}
-              simulationData={simulationData}
-              setSimulationData={setSimulationData}
-              onPersist={persistFinancing}
-            />
+          <div className="p-4 pb-8 space-y-4">
+            {/* Explication */}
+            <div className="bg-indigo-50 border border-indigo-100 rounded-2xl px-5 py-5">
+              <p className="text-[13px] font-black text-indigo-900 mb-2">Pourquoi conserver ses preuves ?</p>
+              {[
+                { icon: '⚖️', text: 'En cas de litige avec un artisan — le virement fait foi' },
+                { icon: '🏠', text: 'Pour activer la garantie decennale (valable 10 ans apres reception)' },
+                { icon: '💰', text: 'Pour debloquer des aides (MaPrimeRenov, CEE) — elles exigent la facture acquittee' },
+                { icon: '📈', text: 'En cas de revente — prouver la valeur des travaux realises' },
+              ].map(r => (
+                <div key={r.icon} className="flex items-start gap-2 mt-2">
+                  <span className="text-base shrink-0">{r.icon}</span>
+                  <p className="text-[11px] text-indigo-800 leading-relaxed">{r.text}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Financement conservé ici temporairement */}
+            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider px-5 pt-4 pb-2">
+                Simulateur de pret travaux
+              </p>
+              <div className="px-5 pb-5">
+                <FinancementPanel
+                  budgetMax={budgetMaxProp}
+                  financingAmounts={financingAmounts}
+                  setFinancingAmounts={setFinancingAmounts}
+                  simulationData={simulationData}
+                  setSimulationData={setSimulationData}
+                  onPersist={persistFinancing}
+                />
+              </div>
+            </div>
+
+            {/* Prochainement */}
+            <div className="bg-gray-50 border border-gray-100 rounded-2xl px-5 py-6 text-center">
+              <p className="text-2xl mb-2">🗂</p>
+              <p className="text-[13px] font-bold text-gray-600">Mes preuves de paiement</p>
+              <p className="text-[11px] text-gray-400 mt-1 max-w-[260px] mx-auto leading-relaxed">
+                Bientot disponible : deposez et retrouvez rapidement vos virements, recus, attestations et PV de reception.
+              </p>
+            </div>
           </div>
         </div>
       )}
