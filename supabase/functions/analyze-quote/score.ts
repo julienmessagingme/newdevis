@@ -27,14 +27,21 @@ export function calculateScore(
   }
 
   // Santé financière via ratios data.economie.gouv.fr
-  if (verified.finances.length > 0) {
+  // ── Guard auto-entrepreneur ──────────────────────────────────────────────────
+  // Les auto-entrepreneurs (TVA non applicable, art. 293 B) ne sont pas soumis
+  // à l'obligation de dépôt annuel des comptes. La règle "données périmées" ne
+  // s'applique donc pas à eux et serait trompeuse. Si des données financières
+  // existent quand même (ex : changement de statut SARL → AE), on les ignore
+  // pour les règles de péremption.
+  const isAutoEntrepreneur = extracted.tva_non_applicable === true;
+
+  if (verified.finances.length > 0 && !isAutoEntrepreneur) {
     const latest = verified.finances[0];
 
     // ── Règle : données financières périmées ──────────────────────────────────
-    // Une SARL a l'obligation légale de déposer ses comptes chaque année.
-    // Des données > 2 ans = non-conformité répétée OU situation financière masquée.
-    // Des données > 4 ans = signal orange fort, impossibilité d'évaluer la solvabilité.
-    // Des données > 6 ans = signal rouge, risque de structure fantôme ou fragilité cachée.
+    // Une société (SARL, SAS, EURL…) a l'obligation légale de déposer ses comptes
+    // chaque année. Des données > 2 ans = non-conformité répétée OU situation
+    // financière masquée. Des données > 4 ans = signal orange fort. > 6 ans = rouge.
     if (latest.date_cloture) {
       const anneeExercice = parseInt(latest.date_cloture.substring(0, 4), 10);
       const anneeActuelle = new Date().getFullYear();
@@ -116,7 +123,7 @@ export function calculateScore(
     oranges.push(`Entreprise récente (${verified.anciennete_annees} an${verified.anciennete_annees > 1 ? "s" : ""}) - ancienneté à prendre en compte`);
   }
 
-  if (verified.finances.length > 0) {
+  if (verified.finances.length > 0 && !isAutoEntrepreneur) {
     const latest = verified.finances[0];
     const anneeExOrange = latest.date_cloture ? parseInt(latest.date_cloture.substring(0, 4), 10) : 0;
     const donneesRecentes2 = anneeExOrange >= new Date().getFullYear() - 2;
@@ -185,6 +192,7 @@ export function calculateScore(
   // Auto-entrepreneur TVA non applicable
   if (extracted.tva_non_applicable === true) {
     oranges.push("TVA non applicable (art. 293 B) — vérifiez que l'artisan ne dépasse pas le seuil de franchise (77 700 €/an)");
+    informatifs.push("ℹ️ Auto-entrepreneur non soumis à l'obligation de dépôt des comptes annuels — l'absence de données financières publiées est normale pour ce statut");
   }
 
   // Devis manuscrit
@@ -233,7 +241,7 @@ export function calculateScore(
     verts.push(`Entreprise établie (${verified.anciennete_annees} ans d'ancienneté)`);
   }
 
-  if (verified.finances.length > 0) {
+  if (verified.finances.length > 0 && !isAutoEntrepreneur) {
     const latest = verified.finances[0];
     const anneeExVert = latest.date_cloture ? parseInt(latest.date_cloture.substring(0, 4), 10) : 0;
     const donneesRecentes3 = anneeExVert >= new Date().getFullYear() - 2;
