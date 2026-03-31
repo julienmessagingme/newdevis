@@ -154,8 +154,15 @@ export async function verifyData(
               ageYears = Math.floor((Date.now() - created.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
             }
 
-            const isActive = entreprise.etat_administratif === "A";
             const siege = entreprise.siege || {};
+            // Check both legal entity status AND establishment status.
+            // etat_administratif "A" = actif, "C" = cessé (unité légale)
+            // siege.etat_administratif "A" = actif, "F" = fermé (établissement)
+            // A radiated establishment (SIRET) can have siege.etat_administratif "F"
+            // even if the parent legal entity still shows "A" in some edge cases.
+            const uniteLegaleActive = entreprise.etat_administratif === "A";
+            const siegeFerme = siege.etat_administratif === "F" || !!siege.date_fermeture;
+            const isActive = uniteLegaleActive && !siegeFerme;
 
             const payload: CompanyPayload = {
               date_creation: dateCreation,
@@ -167,7 +174,12 @@ export async function verifyData(
               procedure_collective: entreprise.est_en_procedure_collective === true,
             };
 
-            // Cache the result
+            // Cache the result.
+            // Inactive/radiated companies are re-checked more often (3 days) in case
+            // they get reactivated, and to avoid serving stale "active" data.
+            const cacheTtlMs = isActive
+              ? 30 * 24 * 60 * 60 * 1000   // 30 days for active companies
+              : 3 * 24 * 60 * 60 * 1000;   // 3 days for inactive/radiated
             await supabase.from("company_cache").upsert({
               siret,
               siren,
@@ -175,7 +187,7 @@ export async function verifyData(
               payload,
               status: "ok",
               fetched_at: new Date().toISOString(),
-              expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+              expires_at: new Date(Date.now() + cacheTtlMs).toISOString(),
             }, { onConflict: "siret" });
 
             result.entreprise_immatriculee = payload.is_active;

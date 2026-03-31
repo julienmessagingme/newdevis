@@ -50,6 +50,20 @@ export function renderOutput(
     if (verified.finances.length > 0) {
       const latest = verified.finances[0];
       const year = latest.date_cloture ? latest.date_cloture.substring(0, 4) : "?";
+
+      // Staleness check — must be emitted before other financial alerts so that
+      // extractEntrepriseData (frontend) sees the 🔴 and scores the block ROUGE.
+      if (latest.date_cloture) {
+        const retardAns = new Date().getFullYear() - parseInt(latest.date_cloture.substring(0, 4), 10);
+        if (retardAns >= 6) {
+          alertes.push(`🔴 Comptes non déposés depuis ${retardAns} ans (dernier exercice connu : ${year}) — une société commerciale a l'obligation légale de déposer ses comptes chaque année. Cette absence prolongée peut masquer une situation financière préoccupante.`);
+        } else if (retardAns >= 4) {
+          alertes.push(`🟠 Données financières très anciennes (dernier exercice : ${year}, il y a ${retardAns} ans) — impossible d'évaluer la solvabilité actuelle de l'entreprise.`);
+        } else if (retardAns >= 2) {
+          alertes.push(`🟠 Données financières non récentes (dernier exercice : ${year}) — interpréter les indicateurs ci-dessous avec prudence.`);
+        }
+      }
+
       points_ok.push(`✓ Données financières disponibles (${verified.finances.length} exercice(s), dernier : ${year})`);
 
       if (latest.chiffre_affaires !== null && latest.chiffre_affaires > 0) {
@@ -87,6 +101,16 @@ export function renderOutput(
       alertes.push("🔴 Procédure collective en cours (confirmée via BODACC). Cela indique une situation de redressement ou liquidation judiciaire.");
     } else if (verified.procedure_collective === false) {
       points_ok.push("✓ Aucune procédure collective en cours");
+    }
+
+  } else if (verified.entreprise_radiee === true) {
+    // Company was found in the registry but is no longer active (radiated/closed)
+    alertes.push(`🔴 Entreprise radiée — ce SIRET (${extracted.entreprise.siret || verified.nom_officiel || "inconnu"}) correspond à une entreprise qui n'est plus active. Ne signez pas ce devis sans en avoir discuté avec l'artisan. Vérifiez sur societe.com ou infogreffe.fr.`);
+    if (verified.nom_officiel) {
+      points_ok.push(`ℹ️ Entreprise identifiée : ${verified.nom_officiel}`);
+    }
+    if (verified.anciennete_annees !== null) {
+      points_ok.push(`ℹ️ Créée il y a ${verified.anciennete_annees} ans — radiation détectée`);
     }
 
   } else if (verified.lookup_status === "not_found") {

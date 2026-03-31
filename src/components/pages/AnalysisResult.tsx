@@ -647,6 +647,14 @@ const AnalysisResult = () => {
   // Parse document detection from raw_text
   const documentDetection = parseDocumentDetection(analysis.raw_text);
 
+  // Extract scoring criteria for the interpretation section
+  const criteresRouges: string[] = (() => {
+    try {
+      const parsed = JSON.parse(analysis.raw_text || "");
+      return parsed?.scoring?.criteres_rouges ?? [];
+    } catch { return []; }
+  })();
+
   // Check if document was rejected (facture ou autre)
   const isRejectedDocument = analysis.status === "completed" && (
     documentDetection?.analysis_mode === "rejected" ||
@@ -1021,8 +1029,21 @@ const AnalysisResult = () => {
           <div className="text-xs text-muted-foreground space-y-2">
             <p>Le score global résulte d'une <strong className="text-foreground">application stricte de règles prédéfinies</strong>.</p>
             <p>Un score <strong className="text-score-orange">ORANGE</strong> indique des informations non trouvées dans le devis. <strong className="text-foreground">Vous pouvez les ajouter directement</strong>.</p>
-            <p>Un score <strong className="text-score-red">ROUGE</strong> est réservé à des <strong className="text-foreground">situations factuellement critiques</strong> (entreprise radiée, procédure collective, paiement en espèces, acompte &gt; 50%).</p>
+            <p>Un score <strong className="text-score-red">ROUGE</strong> est réservé à des <strong className="text-foreground">situations factuellement critiques</strong> : entreprise radiée, procédure collective, paiement en espèces, acompte &gt; 50%, ou <strong className="text-foreground">non-dépôt des comptes annuels depuis plus de 6 ans</strong> (obligation légale).</p>
           </div>
+          {analysis.score === "ROUGE" && criteresRouges.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-border/40">
+              <p className="text-xs font-medium text-red-700 mb-2">Motif(s) du score rouge :</p>
+              <ul className="space-y-1">
+                {criteresRouges.map((critere, i) => (
+                  <li key={i} className="text-xs text-red-700 flex items-start gap-1.5">
+                    <span className="mt-0.5 shrink-0">•</span>
+                    <span>{critere}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         {/* OCR Debug Panel - Admin Only (lazy-loaded, hidden for anonymous users) */}

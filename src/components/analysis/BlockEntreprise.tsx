@@ -73,6 +73,20 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
     companyData?.entreprise_radiee ?? null
   );
 
+  // Retard de publication des comptes — calculé directement depuis les données brutes
+  // pour fonctionner même sur les analyses existantes (avant le fix render.ts).
+  const retardAns = financialHealth.dernier_exercice_year
+    ? new Date().getFullYear() - parseInt(financialHealth.dernier_exercice_year, 10)
+    : 0;
+  const isFinanciallyStaleRouge = retardAns >= 6 && finances.length > 0;
+
+  // Score effectif du bloc : ROUGE si non-dépôt des comptes >= 6 ans,
+  // sinon score calculé à partir des alertes (info.score).
+  const effectiveScore = isFinanciallyStaleRouge ? "ROUGE" as const : info.score;
+
+  // Statut affiché dans la sous-section "Santé financière"
+  const financialDisplayStatus = isFinanciallyStaleRouge ? "ROUGE" as const : financialHealth.status;
+
   // Check if we have any meaningful data
   const hasData = info.siren_siret || info.anciennete || info.financesDisponibles !== null ||
                   info.chiffreAffaires || info.procedureCollective !== null || info.reputation || companyData;
@@ -90,7 +104,7 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
   const lookupStatus = companyData?.lookup_status || null;
 
   return (
-    <div className={`border-2 rounded-2xl p-3 sm:p-6 mb-6 ${getScoreBgClass(info.score)}`}>
+    <div className={`border-2 rounded-2xl p-3 sm:p-6 mb-6 ${getScoreBgClass(effectiveScore)}`}>
       <div className="flex items-start gap-3 sm:gap-4">
         <div className="p-2 sm:p-3 bg-background/50 rounded-xl flex-shrink-0">
           <Building2 className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
@@ -101,7 +115,7 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
             className="w-full flex items-center gap-3 text-left cursor-pointer"
           >
             <h2 className="font-bold text-foreground text-xl">Entreprise & Fiabilité</h2>
-            {getScoreIcon(info.score, "h-6 w-6")}
+            {getScoreIcon(effectiveScore, "h-6 w-6")}
             <ChevronDown className={`h-5 w-5 ml-auto text-muted-foreground transition-transform flex-shrink-0 ${isOpen ? "rotate-180" : ""}`} />
           </button>
 
@@ -186,15 +200,15 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
                 )}
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0">
-                {financialHealth.status === "NO_DATA" ? (
+                {financialDisplayStatus === "NO_DATA" ? (
                   <span className="text-xs text-muted-foreground">Non disponible</span>
                 ) : (
                   <>
-                    {getScoreIcon(financialHealth.status, "h-4 w-4")}
-                    <span className={`text-xs font-medium ${getScoreTextClass(financialHealth.status)}`}>
-                      {financialHealth.status === "VERT" && "Positif"}
-                      {financialHealth.status === "ORANGE" && "À vérifier"}
-                      {financialHealth.status === "ROUGE" && "Critique"}
+                    {getScoreIcon(financialDisplayStatus, "h-4 w-4")}
+                    <span className={`text-xs font-medium ${getScoreTextClass(financialDisplayStatus)}`}>
+                      {financialDisplayStatus === "VERT" && "Positif"}
+                      {financialDisplayStatus === "ORANGE" && "À vérifier"}
+                      {financialDisplayStatus === "ROUGE" && "Critique"}
                     </span>
                   </>
                 )}
@@ -551,12 +565,16 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
 
           {/* Score explanation with pedagogic message */}
           <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-            <p className={`text-sm font-medium ${getScoreTextClass(info.score)}`}>
-              {info.score === "VERT" && "✓ Entreprise avec des indicateurs de fiabilité positifs."}
-              {info.score === "ORANGE" && "ℹ️ Certains indicateurs invitent à une vérification complémentaire."}
-              {info.score === "ROUGE" && "⚠️ Certains indicateurs nécessitent une attention particulière."}
+            <p className={`text-sm font-medium ${getScoreTextClass(effectiveScore)}`}>
+              {effectiveScore === "VERT" && "✓ Entreprise avec des indicateurs de fiabilité positifs."}
+              {effectiveScore === "ORANGE" && "ℹ️ Certains indicateurs invitent à une vérification complémentaire."}
+              {effectiveScore === "ROUGE" && (
+                isFinanciallyStaleRouge
+                  ? `⚠️ Comptes annuels non déposés depuis ${retardAns} ans (dernier exercice connu\u00a0: ${financialHealth.dernier_exercice_year})\u00a0— une société commerciale a l'obligation légale de déposer ses comptes chaque année. Cette absence prolongée peut masquer une situation financière préoccupante.`
+                  : "⚠️ Des éléments critiques ont été détectés — vérifiez les alertes ci-dessus avant de signer."
+              )}
             </p>
-            {info.score === "ORANGE" && (
+            {effectiveScore === "ORANGE" && (
               <p className="text-xs text-muted-foreground mt-2">
                 Aucun élément critique n'a été détecté. Les points signalés sont des invitations à vérifier, non des alertes.
               </p>

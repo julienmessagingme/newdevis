@@ -331,7 +331,7 @@ export default function AidesTravaux({ onImportAides, initialSimulation, onSimul
               <p className="font-semibold text-blue-800 mb-1.5">📄 Où trouver ce chiffre ?</p>
               <p className="text-gray-600 mb-2">Sur votre <span className="font-semibold text-gray-800">avis d'imposition</span>, cherchez la ligne <span className="font-semibold text-gray-800">« Revenu fiscal de référence »</span> en première page (en bas à gauche).</p>
               <p className="font-semibold text-blue-800 mb-1">📅 Quelle année ?</p>
-              <p className="text-gray-600">L'ANAH utilise l'avis <span className="font-semibold text-gray-800">N-2</span> — par exemple pour une demande aujourd'hui, prenez votre avis sur les revenus de 2022. En cas de doute, utilisez le dernier avis reçu.</p>
+              <p className="text-gray-600">L'ANAH utilise l'avis <span className="font-semibold text-gray-800">N-2</span> — pour une demande en 2026, prenez votre <span className="font-semibold text-gray-800">avis d'imposition 2024</span> (revenus 2023). En cas de doute, utilisez le dernier avis reçu.</p>
             </div>
           )}
 
