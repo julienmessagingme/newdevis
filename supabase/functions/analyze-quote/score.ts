@@ -29,13 +29,56 @@ export function calculateScore(
   // Santé financière via ratios data.economie.gouv.fr
   if (verified.finances.length > 0) {
     const latest = verified.finances[0];
-    if (latest.taux_endettement !== null && latest.taux_endettement > 200) {
-      rouges.push(`Taux d'endettement très élevé (${latest.taux_endettement.toFixed(0)}%)`);
+
+    // ── Règle : données financières périmées ──────────────────────────────────
+    // Une SARL a l'obligation légale de déposer ses comptes chaque année.
+    // Des données > 2 ans = non-conformité répétée OU situation financière masquée.
+    // Des données > 4 ans = signal orange fort, impossibilité d'évaluer la solvabilité.
+    // Des données > 6 ans = signal rouge, risque de structure fantôme ou fragilité cachée.
+    if (latest.date_cloture) {
+      const anneeExercice = parseInt(latest.date_cloture.substring(0, 4), 10);
+      const anneeActuelle = new Date().getFullYear();
+      const retardAns = anneeActuelle - anneeExercice;
+
+      if (retardAns >= 6) {
+        rouges.push(
+          `Comptes non déposés depuis ${retardAns} ans (dernier exercice : ${anneeExercice}) — ` +
+          `obligation légale non respectée, situation financière réelle inconnue et potentiellement préoccupante`
+        );
+      } else if (retardAns >= 4) {
+        oranges.push(
+          `Données financières très anciennes (dernier exercice : ${anneeExercice}, il y a ${retardAns} ans) — ` +
+          `impossible d'évaluer la solvabilité actuelle de l'entreprise`
+        );
+      } else if (retardAns >= 2) {
+        oranges.push(
+          `Données financières non récentes (dernier exercice : ${anneeExercice}) — ` +
+          `interpréter les indicateurs ci-dessous avec prudence`
+        );
+      }
     }
-    if (latest.resultat_net !== null && latest.resultat_net < 0 && latest.chiffre_affaires !== null && latest.chiffre_affaires > 0) {
-      const pertesPct = Math.abs(latest.resultat_net / latest.chiffre_affaires * 100);
-      if (pertesPct > 20) {
-        rouges.push(`Pertes importantes au dernier exercice (${pertesPct.toFixed(0)}% du CA)`);
+
+    // ── Règle : badge vert uniquement si données récentes (≤ 2 ans) ──────────
+    // Les critères financiers positifs (résultat net, autonomie) ne peuvent
+    // valider l'entreprise que si les données sont exploitables.
+    const anneeExercice = latest.date_cloture ? parseInt(latest.date_cloture.substring(0, 4), 10) : 0;
+    const donneesRecentes = anneeExercice >= new Date().getFullYear() - 2;
+
+    if (donneesRecentes) {
+      if (latest.taux_endettement !== null && latest.taux_endettement > 200) {
+        rouges.push(`Taux d'endettement très élevé (${latest.taux_endettement.toFixed(0)}%)`);
+      }
+      if (latest.resultat_net !== null && latest.resultat_net < 0 && latest.chiffre_affaires !== null && latest.chiffre_affaires > 0) {
+        const pertesPct = Math.abs(latest.resultat_net / latest.chiffre_affaires * 100);
+        if (pertesPct > 20) {
+          rouges.push(`Pertes importantes au dernier exercice (${pertesPct.toFixed(0)}% du CA)`);
+        }
+      }
+    } else {
+      // Données trop anciennes pour déclencher des critères rouges sur les ratios,
+      // mais on peut quand même signaler les ratios périmés si très dégradés
+      if (latest.taux_endettement !== null && latest.taux_endettement > 200) {
+        oranges.push(`Taux d'endettement très élevé au dernier exercice connu (${latest.taux_endettement.toFixed(0)}% en ${anneeExercice}) — données à actualiser`);
       }
     }
   }
@@ -75,11 +118,17 @@ export function calculateScore(
 
   if (verified.finances.length > 0) {
     const latest = verified.finances[0];
-    if (latest.taux_endettement !== null && latest.taux_endettement > 100 && latest.taux_endettement <= 200) {
-      oranges.push(`Taux d'endettement élevé (${latest.taux_endettement.toFixed(0)}%)`);
-    }
-    if (latest.ratio_liquidite !== null && latest.ratio_liquidite < 80) {
-      oranges.push(`Ratio de liquidité faible (${latest.ratio_liquidite.toFixed(0)}%)`);
+    const anneeExOrange = latest.date_cloture ? parseInt(latest.date_cloture.substring(0, 4), 10) : 0;
+    const donneesRecentes2 = anneeExOrange >= new Date().getFullYear() - 2;
+
+    // Ratios dégradés — seulement si données récentes (sinon déjà signalé par la règle périmé)
+    if (donneesRecentes2) {
+      if (latest.taux_endettement !== null && latest.taux_endettement > 100 && latest.taux_endettement <= 200) {
+        oranges.push(`Taux d'endettement élevé (${latest.taux_endettement.toFixed(0)}%)`);
+      }
+      if (latest.ratio_liquidite !== null && latest.ratio_liquidite < 80) {
+        oranges.push(`Ratio de liquidité faible (${latest.ratio_liquidite.toFixed(0)}%)`);
+      }
     }
   }
 
@@ -186,12 +235,21 @@ export function calculateScore(
 
   if (verified.finances.length > 0) {
     const latest = verified.finances[0];
-    if (latest.resultat_net !== null && latest.resultat_net > 0) {
-      verts.push("Résultat net positif au dernier exercice");
+    const anneeExVert = latest.date_cloture ? parseInt(latest.date_cloture.substring(0, 4), 10) : 0;
+    const donneesRecentes3 = anneeExVert >= new Date().getFullYear() - 2;
+
+    // Les ratios positifs ne valident l'entreprise QUE si les données sont récentes.
+    // Des comptes vieux de 9 ans avec résultat positif ne disent rien de la santé actuelle.
+    if (donneesRecentes3) {
+      if (latest.resultat_net !== null && latest.resultat_net > 0) {
+        verts.push("Résultat net positif au dernier exercice");
+      }
+      if (latest.autonomie_financiere !== null && latest.autonomie_financiere > 30) {
+        verts.push(`Bonne autonomie financière (${latest.autonomie_financiere.toFixed(0)}%)`);
+      }
     }
-    if (latest.autonomie_financiere !== null && latest.autonomie_financiere > 30) {
-      verts.push(`Bonne autonomie financière (${latest.autonomie_financiere.toFixed(0)}%)`);
-    }
+    // Si données périmées : on n'ajoute aucun critère vert sur la santé financière
+    // (le warning périmé est déjà dans oranges ou rouges selon l'ancienneté)
   }
 
   if (config.insuranceChecks.primary === "assurance_decennale" && extracted.entreprise.assurance_decennale_mentionnee === true) {
