@@ -1,119 +1,125 @@
 /**
- * TresoreriePanel — cockpit financier premium du chantier.
+ * TresoreriePanel v3 — cockpit financier orienté décision.
  *
- * ① Hero    — situation globale en 3 secondes (computed from real payment events)
- * ② Onglets — Échéancier · Trésorerie · Financement
+ * Onglet 1 (Trésorerie)  : Hero · Graph 60j · Capacité mensuelle · Actions · Artisans + Drawer
+ * Onglet 2 (Échéancier)  : PaymentTimeline réel
+ * Onglet 3 (Financement) : Sources budget + Simulateur crédit
  */
-import { useState, useRef, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Calendar, TrendingUp, CreditCard, Check, Zap } from 'lucide-react';
+import {
+  TrendingUp, Calendar, CreditCard,
+  AlertTriangle, CheckCircle2, Clock,
+  ChevronRight, X, Check, Loader2, Paperclip,
+  ArrowRight, Shield, Info, TrendingDown, Pencil,
+} from 'lucide-react';
 import PaymentTimeline from './PaymentTimeline';
-import CashflowTab from './CashflowTab';
-import FinancementTab from './financing/FinancementTab';
 import type { SourceKey } from './FinancingSources';
 import type { SimulationData } from './financing/AidesTravaux';
 import {
   usePaymentEvents,
-  computeAlerts,
   type PaymentEvent,
 } from '@/hooks/usePaymentEvents';
-import { fmtEur, daysUntil } from '@/lib/financingUtils';
+import { fmtEur, fmtDateShort, daysUntil } from '@/lib/financingUtils';
 
-// ── Supabase (token refresh) ──────────────────────────────────────────────────
+// ── Supabase ──────────────────────────────────────────────────────────────────
 
 const _supabase = createClient(
   (import.meta as any).env.PUBLIC_SUPABASE_URL,
   (import.meta as any).env.PUBLIC_SUPABASE_PUBLISHABLE_KEY,
 );
-async function getFreshBearerToken(fallback: string): Promise<string> {
-  try {
-    const { data: { session } } = await _supabase.auth.getSession();
-    return session?.access_token ?? fallback;
-  } catch {
-    return fallback;
-  }
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface ArtisanSummary {
+  nom: string;
+  paid: number;
+  late: number;
+  pending: number;
+  total: number;
+  events: PaymentEvent[];
 }
+
+interface MonthlyData {
+  revenus: number;
+  charges: number;
+}
+
+type StatusLevel = 'equilibre' | 'tension' | 'risque';
+type MensuelStatus = 'safe' | 'tension' | 'critique';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function computeHeroStatus(events: PaymentEvent[], budgetMax: number): {
-  level: 'ok' | 'warn' | 'danger';
-  label: string;
-  message: string;
-} {
+function groupByArtisan(events: PaymentEvent[]): ArtisanSummary[] {
+  const map = new Map<string, ArtisanSummary>();
+  for (const ev of events.filter(e => e.status !== 'cancelled')) {
+    const key = ev.artisan_nom ?? ev.lot_nom ?? '—';
+    if (!map.has(key)) map.set(key, { nom: key, paid: 0, late: 0, pending: 0, total: 0, events: [] });
+    const a = map.get(key)!;
+    const amt = ev.amount ?? 0;
+    a.events.push(ev);
+    a.total += amt;
+    if (ev.status === 'paid')        a.paid    += amt;
+    else if (ev.status === 'late')   { a.late += amt; a.pending += amt; }
+    else if (ev.status === 'pending') a.pending += amt;
+  }
+  return [...map.values()]
+    .filter(a => a.total > 0)
+    .sort((a, b) => b.late - a.late || b.pending - a.pending || b.total - a.total);
+}
+
+function artisanStatusConfig(a: ArtisanSummary): { level: 'danger' | 'warn' | 'ok'; label: string } {
+  if (a.late > 0) return { level: 'danger', label: 'En retard' };
   const today = new Date().toISOString().slice(0, 10);
   const in7   = new Date(); in7.setDate(in7.getDate() + 7);
-  const in7S  = in7.toISOString().slice(0, 10);
-
-  const active = events.filter(e => e.status !== 'cancelled');
-  const lateEvts = active.filter(e => e.status === 'late');
-  const soonEvts = active.filter(
-    e => e.status === 'pending' && e.due_date && e.due_date >= today && e.due_date <= in7S,
+  const soon  = a.events.some(
+    e => e.status === 'pending' && e.due_date && e.due_date >= today && e.due_date <= in7.toISOString().slice(0, 10),
   );
-
-  if (lateEvts.length > 0) {
-    const total = lateEvts.reduce((s, e) => s + (e.amount ?? 0), 0);
-    return {
-      level: 'danger',
-      label: 'Paiement en retard',
-      message: `${lateEvts.length} paiement${lateEvts.length > 1 ? 's' : ''} en retard — ${fmtEur(total)} à régulariser`,
-    };
-  }
-  if (soonEvts.length > 0) {
-    const next = soonEvts.sort((a, b) => (a.due_date ?? '').localeCompare(b.due_date ?? ''))[0];
-    const days = next.due_date ? daysUntil(next.due_date) : null;
-    const dayLabel = days === 0 ? "aujourd'hui" : days === 1 ? 'demain' : `dans ${days} jours`;
-    return {
-      level: 'warn',
-      label: `Échéance ${dayLabel}`,
-      message: `${soonEvts.length} paiement${soonEvts.length > 1 ? 's' : ''} à venir dans les 7 jours`,
-    };
-  }
-  const totalEngaged = active.filter(e => e.status !== 'paid').reduce((s, e) => s + (e.amount ?? 0), 0);
-  if (budgetMax > 0 && totalEngaged > budgetMax * 0.9) {
-    return { level: 'warn', label: 'Budget sous surveillance', message: 'Vous avez engagé plus de 90 % de votre enveloppe' };
-  }
-  return { level: 'ok', label: 'Tout est sous contrôle', message: 'Aucun retard ni tension de trésorerie détectés' };
+  return soon ? { level: 'warn', label: 'A surveiller' } : { level: 'ok', label: 'OK' };
 }
 
-function nextDueEvent(events: PaymentEvent[]): PaymentEvent | null {
-  const today = new Date().toISOString().slice(0, 10);
-  const pending = events
-    .filter(e => (e.status === 'pending' || e.status === 'late') && e.due_date)
-    .sort((a, b) => (a.due_date ?? '').localeCompare(b.due_date ?? ''));
-  // late first, otherwise nearest
-  return pending[0] ?? null;
+function buildProjection(
+  events: PaymentEvent[],
+  startBalance: number,
+): { day: number; date: string; balance: number; evts: PaymentEvent[] }[] {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const pending = events.filter(e => (e.status === 'pending' || e.status === 'late') && e.due_date);
+  let balance = startBalance;
+  const points = [];
+  for (let d = 0; d <= 60; d++) {
+    const dt = new Date(today.getTime() + d * 86_400_000);
+    const ds = dt.toISOString().slice(0, 10);
+    const due = pending.filter(e => e.due_date === ds);
+    balance -= due.reduce((s, e) => s + (e.amount ?? 0), 0);
+    points.push({ day: d, date: ds, balance, evts: due });
+  }
+  return points;
 }
 
-// ── Tab bar ───────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB BAR
+// ══════════════════════════════════════════════════════════════════════════════
 
-type Tab = 'timeline' | 'cashflow' | 'financement';
+type Tab = 'cockpit' | 'timeline' | 'financement';
 
-function TabBar({ active, onChange, lateCount }: {
-  active: Tab;
-  onChange: (t: Tab) => void;
-  lateCount: number;
-}) {
-  const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: 'timeline',    label: 'Échéancier',  icon: <Calendar className="h-3.5 w-3.5" /> },
-    { id: 'cashflow',    label: 'Trésorerie',  icon: <TrendingUp className="h-3.5 w-3.5" /> },
-    { id: 'financement', label: 'Financement', icon: <CreditCard className="h-3.5 w-3.5" /> },
+function TabBar({ active, onChange, lateCount }: { active: Tab; onChange: (t: Tab) => void; lateCount: number }) {
+  const tabs: { id: Tab; icon: React.ReactNode; label: string }[] = [
+    { id: 'cockpit',     icon: <TrendingUp className="h-3.5 w-3.5" />, label: 'Tresorerie' },
+    { id: 'timeline',   icon: <Calendar className="h-3.5 w-3.5" />,   label: 'Echeancier' },
+    { id: 'financement', icon: <CreditCard className="h-3.5 w-3.5" />, label: 'Financement' },
   ];
   return (
-    <div className="flex gap-0 px-5 border-b border-gray-100">
+    <div className="flex border-b border-gray-100 bg-white px-2 sticky top-0 z-10">
       {tabs.map(t => (
-        <button key={t.id} type="button" onClick={() => onChange(t.id)}
-          className={`flex items-center gap-1.5 px-4 py-3 text-xs font-semibold border-b-2 transition-all whitespace-nowrap ${
+        <button key={t.id} onClick={() => onChange(t.id)}
+          className={`flex items-center gap-1.5 px-4 py-3.5 text-[12px] font-semibold border-b-2 transition-all whitespace-nowrap ${
             active === t.id
-              ? 'border-gray-900 text-gray-900'
+              ? 'border-indigo-600 text-indigo-700'
               : 'border-transparent text-gray-400 hover:text-gray-600'
           }`}>
-          {t.icon}
-          {t.label}
+          {t.icon}{t.label}
           {t.id === 'timeline' && lateCount > 0 && (
-            <span className="flex items-center justify-center w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold">
-              {lateCount}
-            </span>
+            <span className="flex items-center justify-center w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold">{lateCount}</span>
           )}
         </button>
       ))}
@@ -121,128 +127,183 @@ function TabBar({ active, onChange, lateCount }: {
   );
 }
 
-// ── Hero ──────────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// HERO CARD — statut · solde · reste à payer · prochaine échéance · jauge · reco
+// ══════════════════════════════════════════════════════════════════════════════
 
-function HeroSituation({
-  events,
-  budgetMax,
-  loading,
-}: {
-  events: PaymentEvent[];
-  budgetMax: number;
-  loading: boolean;
-}) {
-  const status = useMemo(() => computeHeroStatus(events, budgetMax), [events, budgetMax]);
-  const next   = useMemo(() => nextDueEvent(events), [events]);
+function HeroCard({ events, budgetMax, loading }: { events: PaymentEvent[]; budgetMax: number; loading: boolean }) {
+  const totalPaid = useMemo(() =>
+    events.filter(e => e.status === 'paid').reduce((s, e) => s + (e.amount ?? 0), 0), [events]);
+  const totalRemaining = useMemo(() =>
+    events.filter(e => e.status === 'pending' || e.status === 'late').reduce((s, e) => s + (e.amount ?? 0), 0), [events]);
+  const lateAmount = useMemo(() =>
+    events.filter(e => e.status === 'late').reduce((s, e) => s + (e.amount ?? 0), 0), [events]);
 
-  const totalPaid      = useMemo(() => events.filter(e => e.status === 'paid').reduce((s, e) => s + (e.amount ?? 0), 0), [events]);
-  const totalRemaining = useMemo(() => events.filter(e => e.status === 'pending' || e.status === 'late').reduce((s, e) => s + (e.amount ?? 0), 0), [events]);
-  const lateAmount     = useMemo(() => events.filter(e => e.status === 'late').reduce((s, e) => s + (e.amount ?? 0), 0), [events]);
-  const lateCount      = useMemo(() => events.filter(e => e.status === 'late').length, [events]);
+  const next = useMemo(() => {
+    const active = events.filter(e => (e.status === 'pending' || e.status === 'late') && e.due_date);
+    return active.sort((a, b) => (a.due_date ?? '').localeCompare(b.due_date ?? ''))[0] ?? null;
+  }, [events]);
 
-  // Progression globale (0-100)
-  const total    = totalPaid + totalRemaining;
-  const progress = total > 0 ? Math.round((totalPaid / total) * 100) : 0;
+  // Solde restant = budget projet - déjà payé
+  const solde = budgetMax > 0 ? budgetMax - totalPaid : null;
+  const progress = budgetMax > 0
+    ? Math.min(Math.round((totalPaid / budgetMax) * 100), 100)
+    : (totalPaid + totalRemaining > 0
+      ? Math.round((totalPaid / (totalPaid + totalRemaining)) * 100)
+      : 0);
 
-  const nextLabel = next
-    ? (next.artisan_nom ?? next.lot_nom ?? next.label)
-    : null;
-  const nextAmt   = next?.amount ?? null;
-  const nextDate  = next?.due_date
-    ? new Date(next.due_date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
-    : null;
+  const status: StatusLevel = lateAmount > 0
+    ? 'risque'
+    : (() => {
+      const today = new Date().toISOString().slice(0, 10);
+      const in14  = new Date(); in14.setDate(in14.getDate() + 14);
+      const hasSoon = events.some(
+        e => e.status === 'pending' && e.due_date
+          && e.due_date >= today && e.due_date <= in14.toISOString().slice(0, 10),
+      );
+      return hasSoon ? 'tension' : 'equilibre';
+    })();
 
-  // Couleurs status
-  const statusColors = {
-    ok:     { pill: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30', dot: 'bg-emerald-400' },
-    warn:   { pill: 'bg-amber-500/20 text-amber-300 border-amber-500/30',       dot: 'bg-amber-400' },
-    danger: { pill: 'bg-red-500/20 text-red-300 border-red-500/30',             dot: 'bg-red-400' },
+  const nextDays = next?.due_date ? daysUntil(next.due_date) : null;
+
+  type StatusConfig = { bar: string; pill: string; pillText: string; dot: string; label: string; icon: React.ReactNode; reco: string };
+  const statusMap: Record<StatusLevel, StatusConfig> = {
+    equilibre: {
+      bar: 'bg-emerald-500',
+      pill: 'bg-emerald-50 border border-emerald-200',
+      pillText: 'text-emerald-700',
+      dot: 'bg-emerald-500',
+      label: 'Equilibre',
+      icon: <Shield className="h-3.5 w-3.5" />,
+      reco: 'Votre situation financiere est saine. Continuez a valider vos paiements au fil des etapes.',
+    },
+    tension: {
+      bar: 'bg-amber-400',
+      pill: 'bg-amber-50 border border-amber-200',
+      pillText: 'text-amber-700',
+      dot: 'bg-amber-400',
+      label: 'Tension',
+      icon: <Clock className="h-3.5 w-3.5" />,
+      reco: next
+        ? `Prochain paiement le ${fmtDateShort(next.due_date!)} — preparez le virement maintenant.`
+        : 'Des echeances arrivent dans les 14 jours. Anticipez vos virements.',
+    },
+    risque: {
+      bar: 'bg-red-500',
+      pill: 'bg-red-50 border border-red-200',
+      pillText: 'text-red-700',
+      dot: 'bg-red-500',
+      label: 'Risque',
+      icon: <AlertTriangle className="h-3.5 w-3.5" />,
+      reco: lateAmount > 0
+        ? `${fmtEur(lateAmount)} en retard — regularisez rapidement pour debloquer la suite des travaux.`
+        : 'Votre solde ne couvre pas toutes les echeances restantes.',
+    },
   };
-  const sc = statusColors[status.level];
+  const s = statusMap[status];
 
   return (
-    <div className="relative overflow-hidden rounded-none" style={{
-      background: 'linear-gradient(135deg, #0c1421 0%, #162236 55%, #0c1d30 100%)',
-    }}>
-      {/* Glow décoratif */}
-      <div className="pointer-events-none absolute -top-16 -right-16 w-56 h-56 rounded-full"
-        style={{ background: 'radial-gradient(circle, rgba(0,180,120,.16) 0%, transparent 65%)' }} />
+    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+      {/* Bande de couleur statut */}
+      <div className={`h-1.5 w-full ${s.bar}`} />
 
-      <div className="px-5 pt-5 pb-4 space-y-4">
-
+      <div className="p-5 space-y-4">
         {/* Pill statut */}
-        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold ${sc.pill}`}>
-          <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${sc.dot}`} />
-          {loading ? 'Chargement…' : status.label}
+        <div className="flex items-center justify-between">
+          <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold ${s.pill} ${s.pillText}`}>
+            {s.icon}
+            {loading ? 'Chargement...' : s.label}
+            <span className={`w-2 h-2 rounded-full ${s.dot} ${status !== 'equilibre' ? 'animate-pulse' : ''}`} />
+          </div>
+          {!loading && budgetMax > 0 && (
+            <span className="text-[10px] text-gray-400">Budget projet : {fmtEur(budgetMax)}</span>
+          )}
         </div>
 
-        {/* KPIs */}
+        {/* Metriques */}
         {loading ? (
           <div className="grid grid-cols-3 gap-3">
-            {[0,1,2].map(i => (
-              <div key={i} className="bg-white/6 rounded-xl p-3 animate-pulse">
-                <div className="h-2 bg-white/10 rounded mb-2 w-16" />
-                <div className="h-5 bg-white/15 rounded w-20" />
+            {[0, 1, 2].map(i => (
+              <div key={i} className="space-y-2 animate-pulse">
+                <div className="h-2.5 bg-gray-100 rounded w-16" />
+                <div className="h-7 bg-gray-100 rounded w-24" />
               </div>
             ))}
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-3">
-            <div className="bg-white/[.07] border border-white/10 rounded-xl p-3">
-              <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-1">Déjà payé</p>
-              <p className={`text-lg font-black tracking-tight ${totalPaid > 0 ? 'text-emerald-300' : 'text-white/40'}`}>
-                {totalPaid > 0 ? fmtEur(totalPaid) : '—'}
+            {/* Solde restant */}
+            <div>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Solde restant</p>
+              <p className={`text-[22px] font-black tracking-tight leading-none ${
+                solde !== null && solde < 0 ? 'text-red-600' : status === 'risque' ? 'text-red-600' : status === 'tension' ? 'text-amber-600' : 'text-gray-900'
+              }`}>
+                {solde !== null ? fmtEur(solde) : '—'}
               </p>
+              {solde !== null && <p className="text-[9px] text-gray-400 mt-0.5">{fmtEur(totalPaid)} deja regle</p>}
             </div>
-            <div className="bg-white/[.07] border border-white/10 rounded-xl p-3">
-              <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-1">Reste à payer</p>
-              <p className={`text-lg font-black tracking-tight ${lateAmount > 0 ? 'text-red-300' : totalRemaining > 0 ? 'text-amber-200' : 'text-white/40'}`}>
+
+            {/* Reste a payer */}
+            <div>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Reste a payer</p>
+              <p className={`text-[22px] font-black tracking-tight leading-none ${
+                lateAmount > 0 ? 'text-red-600' : totalRemaining > 0 ? 'text-gray-900' : 'text-gray-300'
+              }`}>
                 {totalRemaining > 0 ? fmtEur(totalRemaining) : '—'}
               </p>
+              {lateAmount > 0 && (
+                <p className="text-[9px] text-red-500 font-semibold mt-0.5">{fmtEur(lateAmount)} en retard</p>
+              )}
             </div>
-            <div className="bg-white/[.07] border border-white/10 rounded-xl p-3">
-              <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-1">Prochaine éch.</p>
+
+            {/* Prochaine echeance */}
+            <div>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Prochaine ech.</p>
               {next ? (
                 <>
-                  <p className={`text-lg font-black tracking-tight ${next.status === 'late' ? 'text-red-300' : 'text-white'}`}>
-                    {nextAmt ? fmtEur(nextAmt) : '—'}
+                  <p className={`text-[18px] font-black tracking-tight leading-none ${
+                    nextDays !== null && nextDays < 0
+                      ? 'text-red-600'
+                      : nextDays !== null && nextDays <= 7
+                      ? 'text-amber-600'
+                      : 'text-gray-900'
+                  }`}>
+                    {fmtDateShort(next.due_date!)}
                   </p>
-                  {nextDate && <p className="text-[9px] text-white/35 mt-0.5 truncate">{nextLabel} · {nextDate}</p>}
+                  <p className="text-[9px] text-gray-400 mt-0.5 truncate max-w-[90px]">
+                    {next.artisan_nom ?? next.lot_nom ?? next.label}
+                  </p>
                 </>
               ) : (
-                <p className="text-lg font-black tracking-tight text-white/40">—</p>
+                <p className="text-[22px] font-black text-gray-300">—</p>
               )}
             </div>
           </div>
         )}
 
-        {/* Barre de progression */}
-        {!loading && total > 0 && (
-          <div>
-            <div className="flex justify-between mb-1">
-              <span className="text-[10px] text-white/35 font-semibold">Avancement paiements</span>
-              <span className="text-[10px] text-white/50 font-bold">{progress}%</span>
+        {/* Jauge d'avancement */}
+        {!loading && (totalPaid > 0 || totalRemaining > 0) && (
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-[10px] text-gray-400">
+              <span>Avancement des paiements</span>
+              <span className="font-bold text-gray-700">{progress}%</span>
             </div>
-            <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
               <div
-                className="h-full rounded-full transition-all duration-700"
-                style={{
-                  width: `${progress}%`,
-                  background: 'linear-gradient(90deg, #4ade80, #00bf8e)',
-                }}
+                className={`h-full rounded-full transition-all duration-700 ${
+                  progress >= 80 ? 'bg-emerald-500' : progress >= 40 ? 'bg-indigo-500' : 'bg-gray-400'
+                }`}
+                style={{ width: `${progress}%` }}
               />
             </div>
           </div>
         )}
 
-        {/* Alerte retard */}
-        {!loading && lateCount > 0 && (
-          <div className="flex items-center gap-2.5 bg-red-500/15 border border-red-500/25 rounded-xl px-3 py-2.5">
-            <Zap className="h-3.5 w-3.5 text-red-300 shrink-0" />
-            <p className="text-xs text-red-200 font-medium flex-1">
-              <span className="font-bold">{lateCount} paiement{lateCount > 1 ? 's' : ''} en retard</span>
-              {lateAmount > 0 && ` — ${fmtEur(lateAmount)} à régulariser`}
-            </p>
+        {/* Recommandation */}
+        {!loading && (
+          <div className={`flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl text-[11px] leading-relaxed ${s.pill} ${s.pillText}`}>
+            <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span>{s.reco}</span>
           </div>
         )}
       </div>
@@ -250,7 +311,855 @@ function HeroSituation({
   );
 }
 
-// ── Composant principal ───────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// CASHFLOW GRAPH — courbe SVG 60j · zones couleur · point minimum · insight
+// ══════════════════════════════════════════════════════════════════════════════
+
+function CashflowGraph({ events, budgetMax, loading }: { events: PaymentEvent[]; budgetMax: number; loading: boolean }) {
+  const totalPaid = events.filter(e => e.status === 'paid').reduce((s, e) => s + (e.amount ?? 0), 0);
+  const totalRemaining = events.filter(e => e.status !== 'cancelled').reduce((s, e) => s + (e.amount ?? 0), 0) - totalPaid;
+  const startBalance = budgetMax > 0 ? budgetMax - totalPaid : totalRemaining;
+
+  const points = useMemo(() => buildProjection(events, startBalance), [events, startBalance]);
+
+  const minPt      = useMemo(() => points.reduce((a, b) => b.balance < a.balance ? b : a, points[0]), [points]);
+  const maxBalance = Math.max(...points.map(p => p.balance), 1);
+  const minBalance = Math.min(...points.map(p => p.balance), 0);
+  const range      = maxBalance - minBalance || 1;
+
+  const W = 560; const H = 120;
+  const PAD_T = 10; const PAD_B = 20;
+  const gH = H - PAD_T - PAD_B;
+
+  const xOf = (d: number) => (d / 60) * W;
+  const yOf = (b: number) => PAD_T + ((maxBalance - b) / range) * gH;
+  const zeroY = yOf(0);
+  const isNegative = minBalance < 0;
+
+  const pathD = points.map((p, i) =>
+    `${i === 0 ? 'M' : 'L'}${xOf(p.day).toFixed(1)},${yOf(p.balance).toFixed(1)}`
+  ).join(' ');
+  const fillD = pathD
+    + ` L${xOf(60).toFixed(1)},${H} L${xOf(0).toFixed(1)},${H} Z`;
+
+  const daysUntilNeg = isNegative ? (points.find(p => p.balance < 0)?.day ?? null) : null;
+
+  if (loading) {
+    return (
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
+        <div className="h-2.5 bg-gray-100 rounded w-40 mb-4 animate-pulse" />
+        <div className="h-[120px] bg-gray-50 rounded-xl animate-pulse" />
+      </div>
+    );
+  }
+
+  if (events.filter(e => e.status !== 'cancelled').length === 0) {
+    return (
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 text-center py-10">
+        <TrendingDown className="h-8 w-8 text-gray-200 mx-auto mb-2" />
+        <p className="text-sm font-semibold text-gray-400">Aucun flux a projeter</p>
+        <p className="text-xs text-gray-300 mt-1">Ajoutez des echeances pour voir la courbe</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+      <div className="px-5 pt-4 pb-2 flex items-center justify-between">
+        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+          Projection tresorerie · 60 jours
+        </p>
+        {daysUntilNeg !== null && (
+          <span className="text-[10px] font-bold text-red-600 bg-red-50 border border-red-100 px-2 py-0.5 rounded-full animate-pulse">
+            Deficit dans {daysUntilNeg}j
+          </span>
+        )}
+      </div>
+
+      <div className="px-4 pb-1">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 120 }}>
+          <defs>
+            <linearGradient id="cfGradPos" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#6366f1" stopOpacity="0.2" />
+              <stop offset="100%" stopColor="#6366f1" stopOpacity="0.02" />
+            </linearGradient>
+            <linearGradient id="cfGradNeg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#ef4444" stopOpacity="0.2" />
+              <stop offset="100%" stopColor="#ef4444" stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
+
+          {/* Zone verte (au-dessus zero) */}
+          {maxBalance > 0 && (
+            <rect x="0" y={PAD_T} width={W} height={Math.max(0, zeroY - PAD_T)} fill="#f0fdf4" opacity="0.6" />
+          )}
+          {/* Zone rouge (en-dessous zero) */}
+          {isNegative && (
+            <rect x="0" y={zeroY} width={W} height={H - zeroY - PAD_B} fill="#fef2f2" opacity="0.7" />
+          )}
+          {/* Ligne zero */}
+          {isNegative && (
+            <line x1="0" y1={zeroY} x2={W} y2={zeroY}
+              stroke="#ef4444" strokeWidth="1" strokeDasharray="4 3" opacity="0.5" />
+          )}
+
+          {/* Fill gradient sous la courbe */}
+          <path d={fillD} fill={isNegative ? 'url(#cfGradNeg)' : 'url(#cfGradPos)'} />
+          {/* Courbe */}
+          <path d={pathD} fill="none"
+            stroke={isNegative ? '#ef4444' : '#6366f1'}
+            strokeWidth="2.5" strokeLinejoin="round" />
+
+          {/* Points aux jours avec echeances */}
+          {points.filter(p => p.evts.length > 0).map(p => (
+            <circle key={p.day}
+              cx={xOf(p.day)} cy={yOf(p.balance)}
+              r="4" fill="white"
+              stroke={p.balance < 0 ? '#ef4444' : '#6366f1'}
+              strokeWidth="2" />
+          ))}
+
+          {/* Point minimum */}
+          <circle cx={xOf(minPt.day)} cy={yOf(minPt.balance)} r="5.5"
+            fill={minPt.balance < 0 ? '#ef4444' : '#6366f1'} />
+          <line
+            x1={xOf(minPt.day)} y1={yOf(minPt.balance) + 7}
+            x2={xOf(minPt.day)} y2={H - PAD_B}
+            stroke={minPt.balance < 0 ? '#ef4444' : '#6366f1'}
+            strokeWidth="1" strokeDasharray="2 2" opacity="0.4" />
+
+          {/* Labels axe X */}
+          {[0, 15, 30, 45, 60].map(d => (
+            <text key={d} x={xOf(d)} y={H - 4}
+              textAnchor={d === 0 ? 'start' : d === 60 ? 'end' : 'middle'}
+              fontSize="8" fill="#9ca3af">
+              {d === 0 ? 'Auj.' : `J+${d}`}
+            </text>
+          ))}
+        </svg>
+      </div>
+
+      {/* Insight strip */}
+      <div className={`mx-4 mb-4 px-3.5 py-2.5 rounded-xl flex items-center gap-2 text-[11px] font-medium ${
+        daysUntilNeg !== null
+          ? 'bg-red-50 border border-red-100 text-red-700'
+          : minPt.balance < maxBalance * 0.15
+          ? 'bg-amber-50 border border-amber-100 text-amber-700'
+          : 'bg-emerald-50 border border-emerald-100 text-emerald-700'
+      }`}>
+        <span className="text-base shrink-0">
+          {daysUntilNeg !== null ? '⚠️' : minPt.balance < maxBalance * 0.15 ? '📊' : '✅'}
+        </span>
+        <span>
+          {daysUntilNeg !== null
+            ? `Vous passez en negatif dans ${daysUntilNeg} jours — ${fmtEur(Math.abs(minPt.balance))} de decouvert estime`
+            : minPt.balance < maxBalance * 0.15
+            ? `Solde minimum projete : ${fmtEur(minPt.balance)} a J+${minPt.day} — marge limitee`
+            : `Solde minimum projete a ${fmtEur(minPt.balance)} (J+${minPt.day}) — situation confortable`}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CAPACITÉ MENSUELLE — revenus · charges · travaux du mois · reste · projection
+// ══════════════════════════════════════════════════════════════════════════════
+
+function CapaciteMensuelle({ events, chantierId }: { events: PaymentEvent[]; chantierId: string }) {
+  const storageKey = `tresorerie_monthly_${chantierId}`;
+
+  const [data, setData] = useState<MonthlyData>(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      return saved ? JSON.parse(saved) : { revenus: 0, charges: 0 };
+    } catch { return { revenus: 0, charges: 0 }; }
+  });
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<MonthlyData>(data);
+
+  // Travaux du mois courant (echeances pending/late dues ce mois)
+  const travauxMois = useMemo(() => {
+    const monthStr = new Date().toISOString().slice(0, 7);
+    return events
+      .filter(e => (e.status === 'pending' || e.status === 'late') && e.due_date?.startsWith(monthStr))
+      .reduce((s, e) => s + (e.amount ?? 0), 0);
+  }, [events]);
+
+  // Travaux mois suivant
+  const travauxMoisSuivant = useMemo(() => {
+    const now  = new Date();
+    const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const monthStr = next.toISOString().slice(0, 7);
+    return events
+      .filter(e => (e.status === 'pending' || e.status === 'late') && e.due_date?.startsWith(monthStr))
+      .reduce((s, e) => s + (e.amount ?? 0), 0);
+  }, [events]);
+
+  const resteMois       = data.revenus - data.charges - travauxMois;
+  const resteMoisSuivant = data.revenus - data.charges - travauxMoisSuivant;
+
+  const mensuelStatus: MensuelStatus = resteMois < 0
+    ? 'critique'
+    : resteMois < data.revenus * 0.1
+    ? 'tension'
+    : 'safe';
+
+  const mensuelStatusMap: Record<MensuelStatus, { label: string; cls: string; dot: string }> = {
+    safe:     { label: 'Confortable', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
+    tension:  { label: 'Tension',     cls: 'bg-amber-50 text-amber-700 border-amber-100',      dot: 'bg-amber-400' },
+    critique: { label: 'Critique',    cls: 'bg-red-50 text-red-700 border-red-100',            dot: 'bg-red-500' },
+  };
+  const sm = mensuelStatusMap[mensuelStatus];
+
+  function save() {
+    setData(draft);
+    localStorage.setItem(storageKey, JSON.stringify(draft));
+    setEditing(false);
+  }
+
+  const hasData = data.revenus > 0 || data.charges > 0;
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+      <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-gray-50">
+        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Capacite mensuelle</p>
+        <button
+          onClick={() => { setDraft(data); setEditing(!editing); }}
+          className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
+          <Pencil className="h-3 w-3" />
+          {editing ? 'Annuler' : hasData ? 'Modifier' : 'Renseigner'}
+        </button>
+      </div>
+
+      {editing ? (
+        <div className="px-5 py-4 space-y-3">
+          <p className="text-[11px] text-gray-500">
+            Entrez vos revenus et charges mensuels pour calculer votre capacite reelle de financement.
+          </p>
+          {([
+            { label: 'Revenus nets mensuels', key: 'revenus' as const },
+            { label: 'Charges fixes mensuelles', key: 'charges' as const },
+          ] as { label: string; key: keyof MonthlyData }[]).map(f => (
+            <div key={f.key}>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">{f.label} (€)</p>
+              <input
+                type="number" min="0" step="100"
+                value={draft[f.key] || ''}
+                onChange={e => setDraft(prev => ({ ...prev, [f.key]: parseFloat(e.target.value) || 0 }))}
+                className="w-full text-right text-[16px] font-bold px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-400 outline-none transition-colors font-mono"
+                placeholder="0"
+              />
+            </div>
+          ))}
+          <button
+            onClick={save}
+            className="w-full py-2.5 bg-indigo-600 text-white text-[12px] font-bold rounded-xl hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
+            <Check className="h-4 w-4" /> Enregistrer
+          </button>
+        </div>
+      ) : !hasData ? (
+        <div className="px-5 py-8 text-center">
+          <p className="text-sm font-semibold text-gray-400">Donnees non renseignees</p>
+          <p className="text-xs text-gray-300 mt-1">Cliquez sur "Renseigner" pour calculer votre capacite</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-gray-50">
+          {[
+            { label: 'Revenus nets',     value:  data.revenus,  color: 'text-emerald-600' },
+            { label: 'Charges fixes',    value: -data.charges,  color: 'text-gray-700' },
+            { label: 'Travaux ce mois',  value: -travauxMois,   color: travauxMois > 0 ? 'text-indigo-700' : 'text-gray-400' },
+          ].map(row => (
+            <div key={row.label} className="flex items-center justify-between px-5 py-2.5">
+              <span className="text-[12px] text-gray-500">{row.label}</span>
+              <span className={`text-[13px] font-bold font-mono ${row.color}`}>
+                {row.value >= 0 ? '+' : ''}{fmtEur(row.value)}
+              </span>
+            </div>
+          ))}
+
+          {/* Reste mensuel */}
+          <div className="flex items-center justify-between px-5 py-3.5 bg-gray-50">
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-black text-gray-900">Reste mensuel</span>
+              <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-bold ${sm.cls}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${sm.dot}`} />
+                {sm.label}
+              </div>
+            </div>
+            <span className={`text-[18px] font-black font-mono ${
+              resteMois < 0 ? 'text-red-600' : resteMois < data.revenus * 0.1 ? 'text-amber-600' : 'text-emerald-600'
+            }`}>
+              {resteMois >= 0 ? '+' : ''}{fmtEur(resteMois)}
+            </span>
+          </div>
+
+          {/* Projection mois suivant */}
+          <div className="flex items-center justify-between px-5 py-2.5">
+            <div>
+              <span className="text-[11px] font-semibold text-gray-400">Projection mois suivant</span>
+              {travauxMoisSuivant > 0 && (
+                <span className="ml-1.5 text-[10px] text-gray-400">({fmtEur(travauxMoisSuivant)} de travaux)</span>
+              )}
+            </div>
+            <span className={`text-[13px] font-bold font-mono ${resteMoisSuivant < 0 ? 'text-red-500' : 'text-gray-600'}`}>
+              {resteMoisSuivant >= 0 ? '+' : ''}{fmtEur(resteMoisSuivant)}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ACTIONS PRIORITAIRES — triées par urgence, avec CTA marquer payé
+// ══════════════════════════════════════════════════════════════════════════════
+
+interface ActionItem {
+  id: string;
+  priority: 0 | 1 | 2;
+  icon: React.ReactNode;
+  label: string;
+  sublabel?: string;
+  amount?: number;
+  cta: string;
+  ctaCls: string;
+  canPay: boolean;
+  ev: PaymentEvent;
+}
+
+function ActionsPrioritaires({ events, markPaid }: { events: PaymentEvent[]; markPaid: (id: string) => Promise<boolean> }) {
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [doneIds,   setDoneIds]   = useState<Set<string>>(new Set());
+
+  const actions = useMemo<ActionItem[]>(() => {
+    const result: ActionItem[] = [];
+    const today = new Date().toISOString().slice(0, 10);
+    const in7   = new Date(); in7.setDate(in7.getDate() + 7);
+    const in7s  = in7.toISOString().slice(0, 10);
+
+    for (const ev of events) {
+      if (doneIds.has(ev.id)) continue;
+
+      if (ev.status === 'late') {
+        result.push({
+          id: ev.id, priority: 0, canPay: true,
+          icon: <AlertTriangle className="h-3.5 w-3.5" />,
+          label: ev.label,
+          sublabel: ev.artisan_nom ?? ev.lot_nom ?? undefined,
+          amount: ev.amount ?? undefined,
+          cta: 'Payer maintenant',
+          ctaCls: 'bg-red-600 text-white hover:bg-red-700',
+          ev,
+        });
+      } else if (ev.status === 'pending' && ev.due_date && ev.due_date >= today && ev.due_date <= in7s) {
+        result.push({
+          id: ev.id, priority: 1, canPay: true,
+          icon: <Clock className="h-3.5 w-3.5" />,
+          label: ev.label,
+          sublabel: `Avant le ${fmtDateShort(ev.due_date)}${ev.artisan_nom ? ` · ${ev.artisan_nom}` : ''}`,
+          amount: ev.amount ?? undefined,
+          cta: 'Regler',
+          ctaCls: 'bg-amber-500 text-white hover:bg-amber-600',
+          ev,
+        });
+      } else if (ev.status === 'paid' && !ev.proof_doc_id) {
+        result.push({
+          id: ev.id, priority: 2, canPay: false,
+          icon: <Paperclip className="h-3.5 w-3.5" />,
+          label: ev.label,
+          sublabel: 'Justificatif manquant',
+          cta: 'Verifier',
+          ctaCls: 'bg-gray-100 text-gray-700',
+          ev,
+        });
+      }
+    }
+    return result.sort((a, b) => a.priority - b.priority).slice(0, 6);
+  }, [events, doneIds]);
+
+  const priorityCls: Record<0 | 1 | 2, { border: string; icon: string }> = {
+    0: { border: 'border-l-red-500',   icon: 'text-red-500' },
+    1: { border: 'border-l-amber-400', icon: 'text-amber-500' },
+    2: { border: 'border-l-gray-300',  icon: 'text-gray-400' },
+  };
+
+  if (actions.length === 0) {
+    return (
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm px-5 py-5 flex items-center gap-3">
+        <div className="w-9 h-9 bg-emerald-50 rounded-xl flex items-center justify-center shrink-0">
+          <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+        </div>
+        <div>
+          <p className="text-[13px] font-bold text-gray-700">Aucune action urgente</p>
+          <p className="text-[11px] text-gray-400">Tous vos paiements sont a jour</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+      <div className="px-5 pt-4 pb-2">
+        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+          Actions prioritaires · {actions.length}
+        </p>
+      </div>
+      <div className="divide-y divide-gray-50">
+        {actions.map(action => {
+          const pcls      = priorityCls[action.priority];
+          const isLoading = loadingId === action.id;
+          return (
+            <div key={action.id}
+              className={`flex items-center gap-3 px-5 py-3.5 border-l-[3px] ${pcls.border}`}>
+              <div className={`shrink-0 ${pcls.icon}`}>{action.icon}</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-bold text-gray-900 truncate">{action.label}</p>
+                {action.sublabel && (
+                  <p className="text-[10px] text-gray-400 mt-0.5">{action.sublabel}</p>
+                )}
+                {action.amount && (
+                  <p className="text-[11px] font-bold text-gray-600 mt-0.5">{fmtEur(action.amount)}</p>
+                )}
+              </div>
+              {action.canPay ? (
+                <button
+                  onClick={async () => {
+                    setLoadingId(action.id);
+                    const ok = await markPaid(action.id);
+                    setLoadingId(null);
+                    if (ok) setDoneIds(prev => new Set([...prev, action.id]));
+                  }}
+                  disabled={isLoading}
+                  className={`shrink-0 text-[10px] font-bold px-3 py-1.5 rounded-full transition-colors flex items-center gap-1 ${action.ctaCls} disabled:opacity-50`}>
+                  {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArrowRight className="h-3 w-3" />}
+                  {action.cta}
+                </button>
+              ) : (
+                <span className="shrink-0 text-[10px] font-semibold text-gray-500 bg-gray-50 border border-gray-100 px-2 py-1 rounded-full">
+                  {action.cta}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ARTISAN DRAWER — slide-in avec detail echeances + marquer paye
+// ══════════════════════════════════════════════════════════════════════════════
+
+function ArtisanDrawer({
+  artisan, markPaid, markUnpaid, onClose,
+}: {
+  artisan: ArtisanSummary;
+  markPaid: (id: string) => Promise<boolean>;
+  markUnpaid: (id: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+
+  const evCfg = (status: PaymentEvent['status']) => {
+    if (status === 'paid')    return { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', badge: 'Paye' };
+    if (status === 'late')    return { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200',     badge: 'En retard' };
+    if (status === 'pending') return { bg: 'bg-gray-50',    text: 'text-gray-600',    border: 'border-gray-200',    badge: 'A venir' };
+    return { bg: 'bg-gray-50', text: 'text-gray-400', border: 'border-gray-100', badge: '—' };
+  };
+
+  const progress = artisan.total > 0 ? Math.round((artisan.paid / artisan.total) * 100) : 0;
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/30 z-40 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="fixed inset-y-0 right-0 w-full max-w-[420px] bg-white shadow-2xl z-50 flex flex-col"
+        style={{ animation: 'slideInRight 0.22s ease-out' }}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center text-xl">🔧</div>
+            <div>
+              <p className="text-[14px] font-black text-gray-900 leading-tight">{artisan.nom}</p>
+              <p className="text-[10px] text-gray-400">{artisan.events.length} echeance{artisan.events.length > 1 ? 's' : ''}</p>
+            </div>
+          </div>
+          <button onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors">
+            <X className="h-4 w-4 text-gray-500" />
+          </button>
+        </div>
+
+        {/* KPIs + jauge */}
+        <div className="px-5 py-4 border-b border-gray-50 bg-gray-50 space-y-3">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            {[
+              { label: 'Total',  value: fmtEur(artisan.total),           cls: 'text-gray-900' },
+              { label: 'Paye',   value: fmtEur(artisan.paid),            cls: 'text-emerald-600' },
+              { label: 'Reste',  value: fmtEur(artisan.pending),         cls: artisan.late > 0 ? 'text-red-600' : 'text-gray-700' },
+            ].map(m => (
+              <div key={m.label}>
+                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{m.label}</p>
+                <p className={`text-[15px] font-black mt-0.5 ${m.cls}`}>{m.value}</p>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-1">
+            <div className="flex justify-between text-[10px] text-gray-400">
+              <span>Avancement</span><span className="font-bold">{progress}%</span>
+            </div>
+            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden flex">
+              <div className="bg-emerald-400 rounded-full" style={{ width: `${progress}%` }} />
+              {artisan.late > 0 && (
+                <div className="bg-red-400"
+                  style={{ width: `${Math.round((artisan.late / artisan.total) * 100)}%` }} />
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Liste echeances */}
+        <div className="flex-1 overflow-y-auto py-1">
+          {artisan.events
+            .sort((a, b) => (a.due_date ?? '').localeCompare(b.due_date ?? ''))
+            .map(ev => {
+              const cfg        = evCfg(ev.status);
+              const isConf     = confirmId === ev.id;
+              const isLoading  = loadingId === ev.id;
+              return (
+                <div key={ev.id} className="px-5 py-3 border-b border-gray-50 last:border-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12px] font-bold text-gray-800 leading-snug truncate">{ev.label}</p>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <p className="text-[11px] font-black text-gray-700">{fmtEur(ev.amount ?? 0)}</p>
+                        {ev.due_date && <p className="text-[10px] text-gray-400">{fmtDateShort(ev.due_date)}</p>}
+                      </div>
+                    </div>
+                    <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${cfg.bg} ${cfg.border} ${cfg.text}`}>
+                      {cfg.badge}
+                    </span>
+                  </div>
+
+                  {/* CTA */}
+                  {(ev.status === 'pending' || ev.status === 'late') && !isConf && (
+                    <button onClick={() => setConfirmId(ev.id)}
+                      className="mt-2 flex items-center gap-1.5 text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 px-3 py-1.5 rounded-full transition-colors">
+                      <Check className="h-3 w-3" /> Marquer paye
+                    </button>
+                  )}
+                  {ev.status === 'paid' && !isConf && (
+                    <button onClick={() => setConfirmId(ev.id)}
+                      className="mt-2 flex items-center gap-1.5 text-[11px] font-medium text-gray-400 hover:text-gray-600 px-3 py-1.5 rounded-full hover:bg-gray-50 transition-colors">
+                      <X className="h-3 w-3" /> Annuler paiement
+                    </button>
+                  )}
+
+                  {isConf && (
+                    <div className="mt-2 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5">
+                      <p className="text-[11px] font-semibold text-gray-700 mb-2">Confirmer ?</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={async () => {
+                            setConfirmId(null); setLoadingId(ev.id);
+                            if (ev.status === 'paid') await markUnpaid(ev.id);
+                            else await markPaid(ev.id);
+                            setLoadingId(null);
+                          }}
+                          disabled={isLoading}
+                          className={`flex items-center gap-1 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 ${
+                            ev.status === 'paid' ? 'bg-gray-700 text-white' : 'bg-emerald-600 text-white'
+                          }`}>
+                          {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                          Confirmer
+                        </button>
+                        <button onClick={() => setConfirmId(null)}
+                          className="text-[11px] font-semibold text-gray-500 bg-white border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50">
+                          Annuler
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {ev.status === 'paid' && ev.proof_signed_url && (
+                    <a href={ev.proof_signed_url} target="_blank" rel="noopener noreferrer"
+                      className="mt-1.5 flex items-center gap-1 text-[10px] text-blue-600 hover:underline">
+                      <Paperclip className="h-3 w-3" /> {ev.proof_doc_name ?? 'Justificatif'}
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+        </div>
+
+        <div className="px-5 py-4 border-t border-gray-100">
+          <button onClick={onClose}
+            className="w-full py-2.5 rounded-xl bg-gray-100 text-[12px] font-bold text-gray-700 hover:bg-gray-200 transition-colors">
+            Fermer
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LISTE ARTISANS — cartes avec statut · impact · progression · reste · action
+// ══════════════════════════════════════════════════════════════════════════════
+
+function ArtisanList({ events, onSelect }: { events: PaymentEvent[]; onSelect: (a: ArtisanSummary) => void }) {
+  const artisans = useMemo(() => groupByArtisan(events), [events]);
+
+  if (artisans.length === 0) {
+    return (
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm px-5 py-8 text-center">
+        <p className="text-sm font-semibold text-gray-500">Aucun artisan detecte</p>
+        <p className="text-xs text-gray-400 mt-1">Ajoutez des devis valides pour voir le suivi par artisan</p>
+      </div>
+    );
+  }
+
+  const levelBorder = { ok: 'border-l-emerald-400', warn: 'border-l-orange-400', danger: 'border-l-red-500' };
+  const levelBadge  = { ok: 'bg-emerald-50 text-emerald-700', warn: 'bg-orange-50 text-orange-700', danger: 'bg-red-50 text-red-700' };
+  const levelAvatar = { ok: 'bg-indigo-50', warn: 'bg-orange-50', danger: 'bg-red-50' };
+  const impactOf    = (a: ArtisanSummary) =>
+    a.total > 5000 ? { label: 'Impact eleve', cls: 'bg-red-50 text-red-600 border-red-100' } :
+    a.total > 2000 ? { label: 'Impact moyen', cls: 'bg-amber-50 text-amber-600 border-amber-100' } :
+                     { label: 'Impact faible', cls: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+      <div className="px-5 pt-4 pb-2 flex items-center justify-between">
+        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+          Artisans · {artisans.length} intervenant{artisans.length > 1 ? 's' : ''}
+        </p>
+        <p className="text-[10px] text-gray-400">Cliquez pour le detail</p>
+      </div>
+      <div className="divide-y divide-gray-50">
+        {artisans.map(a => {
+          const { level, label } = artisanStatusConfig(a);
+          const imp     = impactOf(a);
+          const progress = a.total > 0 ? Math.round((a.paid / a.total) * 100) : 0;
+          const nextEv  = a.events
+            .filter(e => e.status === 'pending' || e.status === 'late')
+            .sort((x, y) => (x.due_date ?? '').localeCompare(y.due_date ?? ''))[0];
+          return (
+            <button key={a.nom} onClick={() => onSelect(a)}
+              className={`w-full flex items-start gap-3 px-5 py-3.5 text-left hover:bg-gray-50 transition-colors border-l-[3px] ${levelBorder[level]}`}>
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0 ${levelAvatar[level]}`}>
+                🔧
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+                  <span className="text-[13px] font-black text-gray-900 truncate">{a.nom}</span>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${levelBadge[level]}`}>{label}</span>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${imp.cls}`}>{imp.label}</span>
+                </div>
+                <div className="flex justify-between text-[10px] text-gray-400 mb-1">
+                  <span>{progress}% regle</span>
+                  <span className="font-bold text-gray-600">{fmtEur(a.total - a.paid)} restant</span>
+                </div>
+                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden flex">
+                  <div className="bg-emerald-400 rounded-full" style={{ width: `${progress}%` }} />
+                  {a.late > 0 && (
+                    <div className="bg-red-400"
+                      style={{ width: `${Math.round((a.late / a.total) * 100)}%` }} />
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-1 shrink-0">
+                {a.late > 0 && (
+                  <span className="text-[10px] font-bold text-red-600 bg-red-50 rounded-full px-2 py-0.5">Retard</span>
+                )}
+                {nextEv?.due_date && !a.late && (
+                  <span className="text-[10px] text-gray-400 bg-gray-50 rounded-full px-2 py-0.5">
+                    Ech. {fmtDateShort(nextEv.due_date)}
+                  </span>
+                )}
+                <ChevronRight className="h-4 w-4 text-gray-300 mt-1" />
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FINANCEMENT PANEL — sources de budget + simulateur de pret
+// ══════════════════════════════════════════════════════════════════════════════
+
+function FinancementPanel({
+  budgetMax,
+  financingAmounts,
+  setFinancingAmounts,
+  simulationData,
+  setSimulationData,
+  onPersist,
+}: {
+  budgetMax: number;
+  financingAmounts: Record<SourceKey, string>;
+  setFinancingAmounts: React.Dispatch<React.SetStateAction<Record<SourceKey, string>>>;
+  simulationData: SimulationData | null;
+  setSimulationData: (d: SimulationData | null) => void;
+  onPersist: (amounts: Record<SourceKey, string>, sim: SimulationData | null) => void;
+}) {
+  const apport  = parseFloat(financingAmounts.apport)  || 0;
+  const credit  = parseFloat(financingAmounts.credit)  || 0;
+  const maprime = parseFloat(financingAmounts.maprime) || 0;
+  const cee     = parseFloat(financingAmounts.cee)     || 0;
+  const eco_ptz = parseFloat(financingAmounts.eco_ptz) || 0;
+  const totalFin = apport + credit + maprime + cee + eco_ptz;
+  const reste    = Math.max(budgetMax - totalFin, 0);
+  const couv     = budgetMax > 0 ? Math.min(Math.round((totalFin / budgetMax) * 100), 100) : 0;
+
+  function update(key: SourceKey, val: string) {
+    setFinancingAmounts(prev => {
+      const next = { ...prev, [key]: val };
+      onPersist(next, simulationData);
+      return next;
+    });
+  }
+
+  const [simMontant, setSimMontant] = useState(String(simulationData?.amount ?? ''));
+  const [simDuree,   setSimDuree]   = useState(String(simulationData?.months ?? '60'));
+  const [simTaux,    setSimTaux]    = useState(String(simulationData?.rate   ?? '4.2'));
+
+  const simResult = useMemo(() => {
+    const m = parseFloat(simMontant) || 0;
+    const n = parseFloat(simDuree)   || 1;
+    const r = (parseFloat(simTaux)   || 0) / 100 / 12;
+    if (m <= 0) return null;
+    const men = r === 0 ? m / n : m * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+    const tot = men * n;
+    return { men: Math.round(men), tot: Math.round(tot), int: Math.round(tot - m) };
+  }, [simMontant, simDuree, simTaux]);
+
+  const sources: { key: SourceKey; label: string; icon: string; color: string; bg: string }[] = [
+    { key: 'apport',  label: 'Apport personnel',  icon: '💰', color: 'bg-emerald-400', bg: 'bg-emerald-50' },
+    { key: 'credit',  label: 'Pret travaux',       icon: '🏦', color: 'bg-blue-400',    bg: 'bg-blue-50' },
+    { key: 'maprime', label: "MaPrimeRenov'",      icon: '🌿', color: 'bg-orange-400',  bg: 'bg-orange-50' },
+    { key: 'cee',     label: 'CEE',                icon: '⚡', color: 'bg-purple-400',  bg: 'bg-purple-50' },
+    { key: 'eco_ptz', label: 'Eco-PTZ',            icon: '🏠', color: 'bg-teal-400',    bg: 'bg-teal-50' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* KPIs */}
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          { l: 'Budget total',     v: budgetMax > 0 ? fmtEur(budgetMax) : '—', cls: '' },
+          { l: 'Finance',          v: totalFin > 0  ? fmtEur(totalFin)  : '—', cls: totalFin > 0 ? 'bg-emerald-50 border-emerald-100' : '' },
+          { l: 'Reste a financer', v: budgetMax > 0 && reste > 0 ? fmtEur(reste) : reste > 0 ? fmtEur(reste) : '—', cls: reste > 0 ? 'bg-orange-50 border-orange-100' : '' },
+          { l: 'Couverture',       v: totalFin > 0  ? `${couv} %` : '—', cls: couv >= 100 ? 'bg-emerald-50 border-emerald-100' : '' },
+        ].map(k => (
+          <div key={k.l} className={`border rounded-xl px-4 py-3 bg-white ${k.cls || 'border-gray-100'}`}>
+            <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400 mb-1">{k.l}</p>
+            <p className="text-[17px] font-black tracking-tight leading-none">{k.v}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Barre couverture */}
+      {budgetMax > 0 && totalFin > 0 && (
+        <div className="bg-white border border-gray-100 rounded-xl px-4 py-3">
+          <div className="flex justify-between mb-2">
+            <span className="text-[11px] font-semibold text-gray-600">Taux de couverture</span>
+            <span className="text-[13px] font-black text-emerald-600">{couv} %</span>
+          </div>
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-full rounded-full transition-all duration-700"
+              style={{ width: `${couv}%`, background: 'linear-gradient(90deg,#4ade80,#00bf8e)' }} />
+          </div>
+          {reste > 0 && (
+            <p className="text-[11px] text-orange-600 font-medium mt-2">
+              Il vous manque {fmtEur(reste)} pour couvrir l'integralite du projet
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Sources */}
+      <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider px-5 pt-4 pb-2">
+          Sources de financement
+        </p>
+        <div className="divide-y divide-gray-50">
+          {sources.map(s => {
+            const val = parseFloat(financingAmounts[s.key]) || 0;
+            const pct = totalFin > 0 ? Math.round((val / totalFin) * 100) : 0;
+            return (
+              <div key={s.key} className="flex items-center gap-3 px-5 py-3.5">
+                <div className={`w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center text-base shrink-0`}>
+                  {s.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] font-bold text-gray-800">{s.label}</p>
+                  {val > 0 && (
+                    <div className="mt-1.5 h-1 bg-gray-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${s.color}`} style={{ width: `${pct}%` }} />
+                    </div>
+                  )}
+                </div>
+                <input
+                  type="number" min="0" placeholder="0"
+                  value={financingAmounts[s.key]}
+                  onChange={e => update(s.key, e.target.value)}
+                  className="w-28 text-right text-[13px] font-bold px-3 py-1.5 border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-gray-400 outline-none transition-colors"
+                />
+                <span className="text-[11px] text-gray-400 w-4">€</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Simulateur credit */}
+      <div className="bg-white border border-gray-100 rounded-2xl px-5 py-4">
+        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-4">Simulateur de pret travaux</p>
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          {[
+            { label: 'Montant (€)',     val: simMontant, set: setSimMontant, step: '500' },
+            { label: 'Duree (mois)',    val: simDuree,   set: setSimDuree,   step: '6' },
+            { label: 'Taux annuel (%)', val: simTaux,    set: setSimTaux,    step: '0.1' },
+          ].map(f => (
+            <div key={f.label}>
+              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">{f.label}</p>
+              <input type="number" min="0" step={f.step} value={f.val}
+                onChange={e => f.set(e.target.value)}
+                className="w-full text-right text-[14px] font-bold px-3 py-2 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:border-gray-400 outline-none transition-colors font-mono"
+              />
+            </div>
+          ))}
+        </div>
+        {simResult && (
+          <div className="grid grid-cols-3 gap-2 bg-gray-50 rounded-xl p-3">
+            {[
+              { l: 'Mensualite', v: fmtEur(simResult.men), accent: true },
+              { l: 'Cout total', v: fmtEur(simResult.tot) },
+              { l: 'Interets',   v: fmtEur(simResult.int) },
+            ].map(r => (
+              <div key={r.l} className="text-center">
+                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{r.l}</p>
+                <p className={`text-[16px] font-black mt-1 ${r.accent ? 'text-emerald-600' : 'text-gray-900'}`}>{r.v}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// COMPOSANT PRINCIPAL
+// ══════════════════════════════════════════════════════════════════════════════
 
 interface TresoreeriePanelProps {
   chantierId: string;
@@ -265,114 +1174,94 @@ export default function TresoreriePanel({
   budgetMax: budgetMaxProp = 0,
   initialFinancing,
 }: TresoreeriePanelProps) {
-  const [tab, setTab]                       = useState<Tab>('timeline');
-  const [budgetOverride, setBudgetOverride] = useState<number | null>(null);
-  const [savedIndicator, setSavedIndicator] = useState(false);
-  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const effectiveBudget = budgetOverride ?? budgetMaxProp;
+  const [tab,              setTab]              = useState<Tab>('cockpit');
+  const [selectedArtisan, setSelectedArtisan]  = useState<ArtisanSummary | null>(null);
 
-  // Données pour le Hero (appel léger, partagé avec les onglets enfants)
-  const { events, loading: heroLoading } = usePaymentEvents(chantierId, token);
+  const [financingAmounts, setFinancingAmounts] = useState<Record<SourceKey, string>>(() => ({
+    apport:  String((initialFinancing as any)?.apport  ?? ''),
+    credit:  String((initialFinancing as any)?.credit  ?? ''),
+    maprime: String((initialFinancing as any)?.maprime ?? ''),
+    cee:     String((initialFinancing as any)?.cee     ?? ''),
+    eco_ptz: String((initialFinancing as any)?.eco_ptz ?? ''),
+  }));
+  const [simulationData, setSimulationData] = useState<SimulationData | null>(null);
+
+  const { events, loading, error, markPaid, markUnpaid } = usePaymentEvents(chantierId, token);
   const lateCount = useMemo(() => events.filter(e => e.status === 'late').length, [events]);
 
-  // Financement
-  const initAmounts = (initialFinancing?.amounts as Partial<Record<SourceKey, string>> | undefined) ?? {};
-  const [financingAmounts, setFinancingAmounts] = useState<Record<SourceKey, string>>({
-    apport:  initAmounts.apport  ?? '',
-    credit:  initAmounts.credit  ?? '',
-    maprime: initAmounts.maprime ?? '',
-    cee:     initAmounts.cee     ?? '',
-    eco_ptz: initAmounts.eco_ptz ?? '',
-  });
-  const [simulationData, setSimulationData] = useState<SimulationData | null>(
-    (initialFinancing?.simulation as SimulationData | null | undefined) ?? null,
-  );
-
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  function persistFinancing(amounts: Record<SourceKey, string>, simulation: SimulationData | null) {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(async () => {
-      try {
-        const t = await getFreshBearerToken(token);
-        const res = await fetch(`/api/chantier/${chantierId}`, {
-          method: 'PATCH',
-          headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ financing: { amounts, simulation } }),
-        });
-        if (res.ok) {
-          setSavedIndicator(true);
-          if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-          savedTimerRef.current = setTimeout(() => setSavedIndicator(false), 2500);
-        }
-      } catch { /* non-bloquant */ }
-    }, 300);
-  }
-
-  function handleSetFinancingAmounts(updater: React.SetStateAction<Record<SourceKey, string>>) {
-    setFinancingAmounts(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      persistFinancing(next, simulationData);
-      return next;
-    });
-  }
-
-  function handleImportAides(values: Partial<Record<SourceKey, string>>) {
-    setFinancingAmounts(prev => {
-      const next = { ...prev, ...values };
-      persistFinancing(next, simulationData);
-      return next;
-    });
-    setTab('cashflow');
-  }
-
-  function handleSimulationSave(data: SimulationData | null) {
-    setSimulationData(data);
-    persistFinancing(financingAmounts, data);
+  async function persistFinancing(amounts: Record<SourceKey, string>, sim: SimulationData | null) {
+    try {
+      const { data: { session } } = await _supabase.auth.getSession();
+      const bearerToken = session?.access_token ?? token;
+      await fetch(`/api/chantier/${chantierId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearerToken}` },
+        body: JSON.stringify({ metadonnees: { financing: amounts, simulation: sim } }),
+      });
+    } catch { /* silencieux */ }
   }
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
+    <div className="flex flex-col h-full">
+      <style>{`
+        @keyframes slideInRight {
+          from { transform: translateX(100%); opacity: 0; }
+          to   { transform: translateX(0);    opacity: 1; }
+        }
+      `}</style>
 
-      {/* ① Hero situation */}
-      <HeroSituation events={events} budgetMax={effectiveBudget} loading={heroLoading} />
-
-      {/* Header titre + badge sauvegarde */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-50">
-        <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Budget & Trésorerie</span>
-        {savedIndicator && (
-          <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600">
-            <Check className="h-3 w-3" /> Sauvegardé
-          </span>
-        )}
-      </div>
-
-      {/* ② Tab bar */}
       <TabBar active={tab} onChange={setTab} lateCount={lateCount} />
 
-      {/* ③ Contenu onglets */}
-      <div className="p-5">
-        {tab === 'timeline' && (
+      {/* ── Cockpit ─────────────────────────────────────────────────────────── */}
+      {tab === 'cockpit' && (
+        <div className="flex-1 overflow-y-auto">
+          {error && (
+            <div className="mx-4 mt-4 px-4 py-3 bg-red-50 border border-red-100 rounded-xl text-[12px] text-red-700">
+              Erreur : {error}
+            </div>
+          )}
+          <div className="p-4 space-y-4 pb-8">
+            <HeroCard    events={events} budgetMax={budgetMaxProp} loading={loading} />
+            <CashflowGraph events={events} budgetMax={budgetMaxProp} loading={loading} />
+            <CapaciteMensuelle events={events} chantierId={chantierId} />
+            <ActionsPrioritaires events={events} markPaid={markPaid} />
+            <ArtisanList events={events} onSelect={setSelectedArtisan} />
+          </div>
+        </div>
+      )}
+
+      {/* ── Echeancier ──────────────────────────────────────────────────────── */}
+      {tab === 'timeline' && (
+        <div className="flex-1 overflow-y-auto">
           <PaymentTimeline chantierId={chantierId} token={token} />
-        )}
-        {tab === 'cashflow' && (
-          <CashflowTab
-            chantierId={chantierId}
-            token={token}
-            budgetMax={effectiveBudget}
-            onBudgetOverride={setBudgetOverride}
-            financingAmounts={financingAmounts}
-            setFinancingAmounts={handleSetFinancingAmounts}
-          />
-        )}
-        {tab === 'financement' && (
-          <FinancementTab
-            onImportAides={handleImportAides}
-            initialSimulation={simulationData}
-            onSimulationSave={handleSimulationSave}
-          />
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* ── Financement ─────────────────────────────────────────────────────── */}
+      {tab === 'financement' && (
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-4 pb-8">
+            <FinancementPanel
+              budgetMax={budgetMaxProp}
+              financingAmounts={financingAmounts}
+              setFinancingAmounts={setFinancingAmounts}
+              simulationData={simulationData}
+              setSimulationData={setSimulationData}
+              onPersist={persistFinancing}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── Artisan Drawer ──────────────────────────────────────────────────── */}
+      {selectedArtisan && (
+        <ArtisanDrawer
+          artisan={selectedArtisan}
+          markPaid={markPaid}
+          markUnpaid={markUnpaid}
+          onClose={() => setSelectedArtisan(null)}
+        />
+      )}
     </div>
   );
 }

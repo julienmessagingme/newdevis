@@ -422,7 +422,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
 
       case 'tresorerie':
         return (
-          <div className="max-w-3xl mx-auto px-4 py-7">
+          <div className="max-w-5xl mx-auto px-4 py-7">
             {chantierId && token ? (
               <TresoreriePanel
                 chantierId={chantierId}
