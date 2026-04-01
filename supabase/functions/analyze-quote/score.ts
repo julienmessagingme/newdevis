@@ -288,7 +288,7 @@ export function calculateScore(
   }
 
   const scores_blocs = {
-    entreprise: rouges.some(r => r.includes("Entreprise") || r.includes("Procédure") || r.includes("endettement") || r.includes("Pertes"))
+    entreprise: rouges.some(r => r.includes("Entreprise") || r.includes("Procédure") || r.includes("endettement") || r.includes("Pertes") || r.includes("Comptes non déposés"))
       ? "ROUGE" as ScoringColor
       : oranges.some(o => o.includes("Entreprise") || o.includes("SIRET") || o.includes("récente") || o.includes("Note Google") || o.includes("endettement") || o.includes("liquidité"))
         ? "ORANGE" as ScoringColor

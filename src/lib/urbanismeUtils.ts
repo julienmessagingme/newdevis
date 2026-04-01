@@ -343,7 +343,7 @@ const DETECTION_KEYWORDS: Record<DetectedCategory, string[]> = {
     "surelevation",
     "annexe",
   ],
-  piscine: ["piscine", "spa", "jacuzzi", "bassin de nage", "bassin extérieur"],
+  piscine: ["piscine", "spa de nage", "spa extérieur", "jacuzzi extérieur", "bassin de nage", "bassin extérieur", "pool"],
   cloture: ["clôture", "cloture", "portail", "grillage", "muret"],
   abri_jardin: [
     "abri de jardin",
