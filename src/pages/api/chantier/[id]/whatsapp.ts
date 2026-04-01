@@ -16,11 +16,12 @@ async function getContactPhones(supabase: any, chantierId: string): Promise<stri
     .filter((p: string) => p.length >= 10);
 }
 
-async function getClientPhone(supabase: any, userId: string): Promise<string | null> {
-  const { data } = await supabase.auth.admin.getUserById(userId);
+async function getClientPhone(supabase: any, token: string): Promise<string | null> {
+  // getUser(token) retourne les user_metadata complets — plus fiable que auth.admin
+  const { data } = await supabase.auth.getUser(token);
   const phone =
-    data?.user?.phone ??
     data?.user?.user_metadata?.phone ??
+    data?.user?.phone ??
     null;
   return phone ? formatPhone(phone) : null;
 }
@@ -28,6 +29,7 @@ async function getClientPhone(supabase: any, userId: string): Promise<string | n
 export const OPTIONS: APIRoute = () => optionsResponse('POST,PATCH,OPTIONS');
 
 export const POST: APIRoute = async ({ params, request }) => {
+  const token = request.headers.get('Authorization')?.slice(7) ?? '';
   const ctx = await requireChantierAuth(request, params.id!);
   if (ctx instanceof Response) return ctx;
 
@@ -43,7 +45,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   if (chantier.whatsapp_group_id) return jsonError('Un groupe WhatsApp existe déjà', 409);
 
   const artisanPhones = await getContactPhones(ctx.supabase, chantierId);
-  const clientPhone = await getClientPhone(ctx.supabase, ctx.user.id);
+  const clientPhone = await getClientPhone(ctx.supabase, token);
 
   const participants = [
     ...artisanPhones,
