@@ -34,6 +34,8 @@ export interface GlobalAnalysis {
   nbLegerementEleve: number;
   nbSurvalue: number;
   nbAnomalie: number;
+  /** Postes facturés au forfait global — exclus de l'analyse comparative */
+  nbForfait: number;
   /** Surcoût brut (Σ price - marketMax pour les postes au-dessus) */
   surcoutEstime: number;
   /** Fourchette basse du surcoût (×0.7) */
@@ -44,7 +46,7 @@ export interface GlobalAnalysis {
   anomalieItems: ClassifiedItem[];
   /** Postes classifiés comme "survalue" */
   survalueItems: ClassifiedItem[];
-  /** Nombre total de postes ayant une référence marché analysés */
+  /** Nombre total de postes ayant une référence marché analysés (hors forfaits) */
   totalItemsAnalyzed: number;
 }
 
@@ -82,9 +84,20 @@ export function classifyItem(price: number, marketMax: number): ItemClassificati
  * Les postes "Autre" (hors catalogue) et les lignes vides sont exclus.
  */
 export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
-  // Filtrer les postes comparables
+  // Forfaits : présents dans le catalogue mais comparaison non fiable → exclus du verdict
+  const forfaitRows = rows.filter(
+    (row) =>
+      row.isForfait &&
+      row.devisLines.length > 0 &&
+      row.jobTypeLabel !== "Autre" &&
+      row.theoreticalMaxHT > 0 &&
+      row.devisTotalHT !== null,
+  );
+
+  // Filtrer les postes comparables (hors forfaits)
   const analyzable = rows.filter(
     (row) =>
+      !row.isForfait &&
       row.devisLines.length > 0 &&
       row.jobTypeLabel !== "Autre" &&
       row.theoreticalMaxHT > 0 &&
@@ -151,6 +164,7 @@ export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
     nbLegerementEleve,
     nbSurvalue,
     nbAnomalie,
+    nbForfait: forfaitRows.length,
     surcoutEstime: Math.round(surcoutEstime),
     surcoutMin: Math.round(surcoutEstime * 0.7),
     surcoutMax: Math.round(surcoutEstime * 1.3),
@@ -172,6 +186,7 @@ export function classifyRow(
   row: JobTypeDisplayRow,
 ): ItemClassification | null {
   if (
+    row.isForfait ||
     row.jobTypeLabel === "Autre" ||
     row.theoreticalMaxHT <= 0 ||
     row.devisTotalHT === null

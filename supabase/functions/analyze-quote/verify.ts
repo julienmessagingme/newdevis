@@ -91,18 +91,23 @@ export async function verifyData(
 
   // 1. RECHERCHE ENTREPRISES API GOUV — Company verification
   const rawSiret = extracted.entreprise.siret;
-  // Validate SIRET format (14 digits) to prevent URL injection from AI output
-  const siret = rawSiret && /^\d{14}$/.test(rawSiret.replace(/\s/g, '')) ? rawSiret.replace(/\s/g, '') : null;
-  const siren = siret ? extractSiren(siret) : null;
+  const cleanRaw = rawSiret?.replace(/\s/g, '') ?? null;
+  // Accept 14-digit SIRET or 9-digit SIREN (AI sometimes extracts only the SIREN part)
+  const siret = cleanRaw && /^\d{14}$/.test(cleanRaw) ? cleanRaw : null;
+  const siren = siret
+    ? extractSiren(siret)
+    : (cleanRaw && /^\d{9}$/.test(cleanRaw) ? cleanRaw : null);
+  // Use SIRET if available, fall back to SIREN as lookup/cache key
+  const lookupKey = siret ?? siren;
 
-  if (siret && siren) {
+  if (lookupKey && siren) {
     result.debug!.provider_calls.entreprise.enabled = true;
 
     // Check cache first
     const { data: cached } = await supabase
       .from("company_cache")
       .select("*")
-      .eq("siret", siret)
+      .eq("siret", lookupKey)
       .gt("expires_at", new Date().toISOString())
       .single();
 
@@ -134,7 +139,7 @@ export async function verifyData(
       const startTime = Date.now();
 
       try {
-        const apiUrl = `${RECHERCHE_ENTREPRISES_API_URL}?q=${encodeURIComponent(siret)}&page=1&per_page=1`;
+        const apiUrl = `${RECHERCHE_ENTREPRISES_API_URL}?q=${encodeURIComponent(lookupKey)}&page=1&per_page=1`;
         const response = await fetch(apiUrl);
 
         result.debug!.provider_calls.entreprise.http_status = response.status;
@@ -181,7 +186,7 @@ export async function verifyData(
               ? 30 * 24 * 60 * 60 * 1000   // 30 days for active companies
               : 3 * 24 * 60 * 60 * 1000;   // 3 days for inactive/radiated
             await supabase.from("company_cache").upsert({
-              siret,
+              siret: lookupKey,
               siren,
               provider: "recherche-entreprises",
               payload,
@@ -205,7 +210,7 @@ export async function verifyData(
             result.lookup_status = "not_found";
 
             await supabase.from("company_cache").upsert({
-              siret,
+              siret: lookupKey,
               siren,
               provider: "recherche-entreprises",
               payload: {},

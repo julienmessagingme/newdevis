@@ -91,6 +91,7 @@ export function GlobalAnalysisCard({ analysis }: GlobalAnalysisCardProps) {
     nbLegerementEleve,
     nbSurvalue,
     nbAnomalie,
+    nbForfait,
     surcoutEstime,
     surcoutMin,
     surcoutMax,
@@ -99,8 +100,36 @@ export function GlobalAnalysisCard({ analysis }: GlobalAnalysisCardProps) {
     totalItemsAnalyzed,
   } = analysis;
 
-  // N'affiche rien s'il n'y a aucun poste comparable
-  if (totalItemsAnalyzed === 0) return null;
+  // N'affiche rien s'il n'y a aucun poste comparable ET aucun forfait
+  if (totalItemsAnalyzed === 0 && nbForfait === 0) return null;
+
+  // Si tous les postes sont des forfaits, on ne peut pas porter de verdict fiable
+  const allForfait = totalItemsAnalyzed === 0 && nbForfait > 0;
+
+  // Si tous les postes sont forfaitaires → affichage spécifique sans verdict
+  if (allForfait) {
+    return (
+      <div
+        className="rounded-2xl border-2 p-4 sm:p-6 mb-5 bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800"
+        role="region"
+        aria-label="Analyse globale du devis"
+      >
+        <div className="flex items-start gap-3">
+          <span className="text-2xl leading-none flex-shrink-0 mt-0.5" aria-hidden="true">ℹ️</span>
+          <div className="min-w-0">
+            <h3 className="font-bold text-base sm:text-lg leading-tight text-blue-800 dark:text-blue-300">
+              Devis au forfait global — comparaison indicative
+            </h3>
+            <p className="text-sm text-blue-700/80 dark:text-blue-400/80 mt-1.5 leading-relaxed">
+              Ce devis est structuré en prestation(s) forfaitaire(s) globale(s).
+              La comparaison ligne par ligne avec les prix unitaires marché est moins pertinente —
+              demandez le détail des postes à l'artisan pour comparer efficacement.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const cfg = STATUS_CONFIG[status];
 
@@ -123,6 +152,9 @@ export function GlobalAnalysisCard({ analysis }: GlobalAnalysisCardProps) {
             Basé sur{" "}
             <strong>{totalItemsAnalyzed}</strong>{" "}
             poste{totalItemsAnalyzed > 1 ? "s" : ""} avec référence marché
+            {nbForfait > 0 && (
+              <> · <span className="text-blue-600 dark:text-blue-400">{nbForfait} forfait{nbForfait > 1 ? "s" : ""} exclu{nbForfait > 1 ? "s" : ""}</span></>
+            )}
           </p>
         </div>
       </div>
@@ -176,36 +208,45 @@ export function GlobalAnalysisCard({ analysis }: GlobalAnalysisCardProps) {
           </section>
         )}
 
-        {/* ── Plan d'action ────────────────────────────────────── */}
-        <section>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
-            Plan d'action
-          </p>
-          <ul className="space-y-2">
-            {nbAnomalie > 0 && (
-              <ActionItem
-                text={
-                  anomalieItems.length === 1
-                    ? `Demandez des explications détaillées pour le poste "${anomalieItems[0].label}" (prix anormalement élevé)`
-                    : `Demandez des explications détaillées pour les ${nbAnomalie} postes anormalement élevés`
-                }
-              />
-            )}
-            {nbSurvalue > 0 && (
-              <ActionItem
-                text={
-                  survalueItems.length === 1
-                    ? `Négociez le poste "${survalueItems[0].label}" ou comparez avec d'autres devis`
-                    : `Négociez les ${nbSurvalue} postes surévalués ou comparez avec d'autres devis`
-                }
-              />
-            )}
-            <ActionItem
-              text="Nous recommandons de ne pas signer sans clarification des écarts identifiés"
-              emphasis
-            />
-          </ul>
-        </section>
+        {/* ── Plan d'action (uniquement si des écarts existent) ── */}
+        {(nbAnomalie > 0 || nbSurvalue > 0 || nbForfait > 0 || status !== "correct") && (
+          <section>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
+              Plan d'action
+            </p>
+            <ul className="space-y-2">
+              {nbAnomalie > 0 && (
+                <ActionItem
+                  text={
+                    anomalieItems.length === 1
+                      ? `Demandez des explications détaillées pour le poste "${anomalieItems[0].label}" (prix anormalement élevé)`
+                      : `Demandez des explications détaillées pour les ${nbAnomalie} postes anormalement élevés`
+                  }
+                />
+              )}
+              {nbSurvalue > 0 && (
+                <ActionItem
+                  text={
+                    survalueItems.length === 1
+                      ? `Négociez le poste "${survalueItems[0].label}" ou comparez avec d'autres devis`
+                      : `Négociez les ${nbSurvalue} postes surévalués ou comparez avec d'autres devis`
+                  }
+                />
+              )}
+              {nbForfait > 0 && (
+                <ActionItem
+                  text={`Demandez le détail du forfait${nbForfait > 1 ? " de chaque prestation" : ""} à l'artisan — la comparaison au prix unitaire marché est indicative`}
+                />
+              )}
+              {status !== "correct" && (
+                <ActionItem
+                  text="Nous recommandons de ne pas signer sans clarification des écarts identifiés"
+                  emphasis
+                />
+              )}
+            </ul>
+          </section>
+        )}
 
       </div>
     </div>
