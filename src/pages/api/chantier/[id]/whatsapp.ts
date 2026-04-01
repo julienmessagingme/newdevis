@@ -2,9 +2,8 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
-import { formatPhone, createWhatsAppGroup, addGroupParticipants } from '@/lib/whapiUtils';
+import { formatPhone, createWhatsAppGroup, addGroupParticipants } from '@/lib/whapiUtils'; // addGroupParticipants utilisé dans PATCH
 
-const GERER_MON_CHANTIER_PHONE = '33633921577';
 
 async function getContactPhones(supabase: any, chantierId: string): Promise<string[]> {
   const { data } = await supabase
@@ -55,7 +54,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   try {
     const { groupId, inviteLink } = await createWhatsAppGroup(subject, participants);
-    await addGroupParticipants(groupId, [GERER_MON_CHANTIER_PHONE]);
+    // +33633921577 (GérerMonChantier) est le compte whapi — déjà admin du groupe automatiquement
 
     await ctx.supabase
       .from('chantiers')
