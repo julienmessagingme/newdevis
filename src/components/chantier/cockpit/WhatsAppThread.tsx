@@ -1,5 +1,5 @@
 // src/components/chantier/cockpit/WhatsAppThread.tsx
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, ArrowLeft, MessageCircle, FileText, Mic } from 'lucide-react';
 
 interface WaMessage {
@@ -48,21 +48,27 @@ export default function WhatsAppThread({ chantierId, chantierNom, token, contact
   const [loading, setLoading] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Build phone → name map from contacts
-  const phoneMap = new Map<string, string>();
-  for (const c of contacts) {
-    if (c.telephone) {
-      // normalize: strip spaces/dashes, handle leading 0 → 33
-      const digits = c.telephone.replace(/\D/g, '');
-      const normalized = digits.startsWith('0') && digits.length === 10
-        ? '33' + digits.slice(1)
-        : digits;
-      phoneMap.set(normalized, c.nom);
+  // Build phone → name map from contacts (memoized to avoid rebuilding on every render)
+  const phoneMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of contacts) {
+      if (c.telephone) {
+        // normalize: strip spaces/dashes, handle leading 0 → 33
+        const digits = c.telephone.replace(/\D/g, '');
+        const normalized = digits.startsWith('0') && digits.length === 10
+          ? '33' + digits.slice(1)
+          : digits;
+        map.set(normalized, c.nom);
+      }
     }
-  }
+    return map;
+  }, [contacts]);
 
   useEffect(() => {
-    if (!chantierId || !token) return;
+    if (!chantierId || !token) {
+      setLoading(false);
+      return;
+    }
     fetch(`/api/chantier/${chantierId}/whatsapp-messages`, {
       headers: { Authorization: `Bearer ${token}` },
     })
