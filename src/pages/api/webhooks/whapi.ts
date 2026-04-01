@@ -40,8 +40,10 @@ export const POST: APIRoute = async ({ request }) => {
   const supabase = makeClient();
 
   for (const msg of messages) {
-    // Only process group messages (to ends with @g.us)
-    if (!msg.to?.endsWith('@g.us')) continue;
+    // whapi uses chat_id for the group JID (not "to")
+    const groupId = msg.chat_id ?? msg.to;
+    // Only process group messages (chat_id ends with @g.us)
+    if (!groupId?.endsWith('@g.us')) continue;
     // Skip non-message events (status updates etc.)
     if (!msg.id || !msg.type) continue;
 
@@ -49,7 +51,7 @@ export const POST: APIRoute = async ({ request }) => {
     const { data: chantier } = await supabase
       .from('chantiers')
       .select('id')
-      .eq('whatsapp_group_id', msg.to)
+      .eq('whatsapp_group_id', groupId)
       .single();
 
     if (!chantier) continue; // unknown group, skip
@@ -93,7 +95,7 @@ export const POST: APIRoute = async ({ request }) => {
       .upsert({
         id:          msg.id,
         chantier_id: chantier.id,
-        group_id:    msg.to,
+        group_id:    groupId,
         from_number: String(msg.from ?? ''),
         from_me:     msg.from_me ?? false,
         type:        msg.type,
