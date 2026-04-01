@@ -21,3 +21,4 @@ export { default as AdaptedAnalysisBanner } from './AdaptedAnalysisBanner';
 export { default as ExtractionBlocker, ExtractionIncompleteWarning, useExtractionStatus } from './ExtractionBlocker';
 export { MissingDataBanner, MissingDataButton, FACTUAL_TEXTS } from './MissingDataActions';
 export { default as BlockUrbanisme } from './BlockUrbanisme';
+export { ConclusionIA } from './ConclusionIA';

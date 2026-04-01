@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { Receipt, MapPin, Info, ChevronDown, ChevronUp, GripVertical, CheckCircle2, Pencil, RotateCcw, ListChecks, BarChart3 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,8 @@ import { useMarketPriceAPI, type MarketPriceTableRow, type JobTypeDisplayRow } f
 import { useMarketPriceEditor } from "@/hooks/useMarketPriceEditor";
 import MarketPositionAnalysis from "./MarketPositionAnalysis";
 import PremiumGate from "@/components/funnel/PremiumGate";
+import { GlobalAnalysisCard } from "./GlobalAnalysisCard";
+import { analyzeQuoteGlobal, classifyRow } from "@/lib/quoteGlobalAnalysis";
 
 // =======================
 // TYPES
@@ -194,7 +196,13 @@ const AssignmentCard = ({ row, onDrop, onQuantityChange }: AssignmentCardProps) 
 // PHASE 2 : ANALYSIS CARD (verdict + gauge, read-only)
 // =======================
 
-const AnalysisCard = ({ row }: { row: JobTypeDisplayRow }) => {
+interface AnalysisCardProps {
+  row: JobTypeDisplayRow;
+  /** Badge de synthèse globale (bonus) — null = aucun badge additionnel */
+  globalBadge?: "anomalie" | "survalue" | null;
+}
+
+const AnalysisCard = ({ row, globalBadge }: AnalysisCardProps) => {
   const [expanded, setExpanded] = useState(false);
   const hasPrices = row.prices.length > 0;
 
@@ -207,7 +215,7 @@ const AnalysisCard = ({ row }: { row: JobTypeDisplayRow }) => {
         className="w-full text-left p-4 hover:bg-muted/20 transition-colors"
       >
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
             <h3 className="font-semibold text-foreground text-sm truncate">{row.jobTypeLabel}</h3>
             {row.verdict ? (
               <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${verdictColor(row.verdict)} ${verdictBg(row.verdict)}`}>
@@ -218,6 +226,17 @@ const AnalysisCard = ({ row }: { row: JobTypeDisplayRow }) => {
                 Pas de référence marché
               </span>
             ) : null}
+            {/* Bonus badge synthèse globale */}
+            {globalBadge === "anomalie" && (
+              <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap text-red-700 bg-red-100 border border-red-200 dark:text-red-300 dark:bg-red-900/30 dark:border-red-800">
+                🔴 Anomalie marché
+              </span>
+            )}
+            {globalBadge === "survalue" && (
+              <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap text-orange-700 bg-orange-100 border border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-800">
+                🟠 Surévalué
+              </span>
+            )}
           </div>
           {expanded
             ? <ChevronUp className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -532,6 +551,12 @@ const BlockPrixMarche = ({
     savedOverrides: marketPriceOverrides as { quantity_overrides: Record<string, number>; line_reassignments: Record<string, string>; validated_at: string } | null,
   });
 
+  // Synthèse globale — calculée au niveau du composant (respect des règles des hooks)
+  const globalAnalysis = useMemo(
+    () => analyzeQuoteGlobal(editor.rows),
+    [editor.rows],
+  );
+
   const renderContent = () => {
     if (error) {
       return (
@@ -588,10 +613,26 @@ const BlockPrixMarche = ({
             </button>
           </div>
 
+          {/* ── Carte de synthèse globale (au-dessus du détail) ── */}
+          <GlobalAnalysisCard analysis={globalAnalysis} />
+
           {analysisRows.length > 0 ? (
-            analysisRows.map((row, idx) => (
-              <AnalysisCard key={`${row.jobTypeLabel}-${idx}`} row={row} />
-            ))
+            analysisRows.map((row, idx) => {
+              // Badge bonus : classification individuelle pour "anomalie" et "survalue"
+              const cls = classifyRow(row);
+              const globalBadge =
+                cls === "anomalie" ? "anomalie"
+                : cls === "survalue" ? "survalue"
+                : null;
+
+              return (
+                <AnalysisCard
+                  key={`${row.jobTypeLabel}-${idx}`}
+                  row={row}
+                  globalBadge={globalBadge}
+                />
+              );
+            })
           ) : (
             <p className="text-sm text-muted-foreground italic py-4 text-center">
               Aucun poste avec référence de prix marché.

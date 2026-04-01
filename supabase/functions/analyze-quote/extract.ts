@@ -183,8 +183,12 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
   try {
     console.log(`Extraction attempt ${retryCount + 1}/${MAX_RETRIES + 1}`);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 55_000); // 55s → avant le kill Supabase à 60s
+
     const aiResponse = await fetch(GEMINI_AI_URL, {
       method: "POST",
+      signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${googleApiKey}`,
@@ -206,6 +210,7 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
         temperature: 0,
       }),
     });
+    clearTimeout(timeoutId);
 
     if (!aiResponse.ok) {
       const details = await aiResponse.text().catch(() => "");
@@ -357,9 +362,18 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
   } catch (error) {
     if (isPipelineError(error)) throw error;
 
+    // Timeout AbortError → erreur claire plutôt qu'un hang silencieux
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new PipelineError({
+        status: 504,
+        code: "AI_TIMEOUT",
+        publicMessage: "Le service d'analyse a mis trop de temps à répondre. Veuillez réessayer.",
+      });
+    }
+
     if (retryCount < MAX_RETRIES) {
       console.log(`Error occurred, retrying (attempt ${retryCount + 2})...`);
-      return extractDataFromDocument(base64Content, mimeType, googleApiKey, retryCount + 1);
+      return extractDataFromDocument(base64Content, mimeType, googleApiKey, config, retryCount + 1);
     }
 
     throw error;

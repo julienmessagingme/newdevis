@@ -37,7 +37,8 @@ import {
   DocumentRejectionScreen,
   AdaptedAnalysisBanner,
   ExtractionBlocker,
-  ExtractionIncompleteWarning
+  ExtractionIncompleteWarning,
+  ConclusionIA,
 } from "@/components/analysis";
 import { PostSignatureTrackingSection } from "@/components/tracking";
 const OcrDebugPanel = lazy(() => import("@/components/analysis/OcrDebugPanel").then(m => ({ default: m.OcrDebugPanel })));
@@ -78,6 +79,7 @@ type Analysis = {
   work_type?: string;
   market_price_overrides?: Record<string, unknown> | null;
   domain?: string;
+  conclusion_ia?: string | null;
 };
 
 // Pure helper functions — extracted outside component
@@ -937,6 +939,14 @@ const AnalysisResult = () => {
             onAuthSuccess={handleAuthConversion}
             convertToPermanent={convertToPermanent}
             currentUserId={authUser?.id}
+          />
+        )}
+
+        {/* CONCLUSION IA — Verdict expert narratif */}
+        {visibleBlocks.includes("prix_marche") && cachedN8NData && (
+          <ConclusionIA
+            analysisId={analysis.id}
+            conclusionIaRaw={analysis.conclusion_ia ?? null}
           />
         )}
 
