@@ -273,11 +273,8 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
     if (!contactId) return;
     const ok = await sendMessage(contactId, subject, body);
     if (ok) {
+      setNewMsgContactId(null);
       await refreshConvs();
-      if (newMsgContactId) {
-        setNewMsgContactId(null);
-        await refreshConvs();
-      }
     }
   };
 
@@ -337,36 +334,35 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
           </div>
         </div>
 
-        {/* WhatsApp group entries */}
-        {waGroups.map((group) => (
-          <button
-            key={group.id}
-            onClick={() => {
-              setActiveWaGroupJid(group.group_jid);
-              setShowWaThread(true);
-              setSelectedConvId(null);
-              setNewMsgContactId(null);
-            }}
-            className={`w-full text-left px-3 py-3 flex items-center gap-3 transition-colors border-l-2 border-b border-gray-100 ${
-              showWaThread && activeWaGroupJid === group.group_jid
-                ? "bg-green-50 border-[#25D366]"
-                : "border-transparent hover:bg-gray-50"
-            }`}
-          >
-            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-[#25D366] flex items-center justify-center">
-              <MessageCircle className="h-5 w-5 text-white" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-800">{group.name}</p>
-              <p className="text-xs text-gray-400 truncate">
-                {group.members?.filter((m) => m.status === "active").length ?? 0} membres actifs
-              </p>
-            </div>
-          </button>
-        ))}
-
-        {/* Contact rows */}
+        {/* Contact rows + WhatsApp group entries */}
         <div className="flex-1 overflow-y-auto">
+          {/* WhatsApp group entries (inside scroll so they don't push contacts off-screen) */}
+          {waGroups.map((group) => (
+            <button
+              key={group.id}
+              onClick={() => {
+                setActiveWaGroupJid(group.group_jid);
+                setShowWaThread(true);
+                setSelectedConvId(null);
+                setNewMsgContactId(null);
+              }}
+              className={`w-full text-left px-3 py-3 flex items-center gap-3 transition-colors border-l-2 border-b border-gray-100 ${
+                showWaThread && activeWaGroupJid === group.group_jid
+                  ? "bg-green-50 border-[#25D366]"
+                  : "border-transparent hover:bg-gray-50"
+              }`}
+            >
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-[#25D366] flex items-center justify-center">
+                <MessageCircle className="h-5 w-5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-800">{group.name}</p>
+                <p className="text-xs text-gray-400 truncate">
+                  {group.members?.filter((m) => m.status === "active").length ?? 0} membres actifs
+                </p>
+              </div>
+            </button>
+          ))}
           {convsLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-5 h-5 animate-spin text-gray-400" />

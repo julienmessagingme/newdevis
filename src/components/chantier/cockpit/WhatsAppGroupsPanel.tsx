@@ -258,7 +258,7 @@ export default function WhatsAppGroupsPanel({
                         </span>
                       </div>
                     ))}
-                    {group.members.length === 0 && (
+                    {(group.members ?? []).length === 0 && (
                       <p className="text-xs text-gray-400 py-1">Aucun membre</p>
                     )}
                   </div>
