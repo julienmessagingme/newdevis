@@ -8,12 +8,13 @@ const GMC_PHONE = '33633921577';
 
 // ── Private helpers ──────────────────────────────────────────────────────────
 
-async function getContactPhones(supabase: any, chantierId: string): Promise<{ phone: string; name: string }[]> {
-  const { data } = await supabase
+async function getContactPhones(supabase: any, chantierId: string): Promise<{ phone: string; name: string }[] | null> {
+  const { data, error } = await supabase
     .from('contacts_chantier')
     .select('telephone, nom')
     .eq('chantier_id', chantierId)
     .not('telephone', 'is', null);
+  if (error) return null;
   return (data ?? [])
     .map((c: any) => ({ phone: formatPhone(c.telephone), name: c.nom as string }))
     .filter((c: { phone: string; name: string }) => c.phone.length >= 10);
@@ -44,6 +45,9 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   const groupName = body.name?.trim() || 'Groupe principal';
 
+  // Fetch client phone once — used both for participant list and role assignment
+  const clientPhone = await getClientPhone(ctx.supabase, token);
+
   // Determine participants
   let participantPhones: string[];
   let phoneToName: Map<string, string>;
@@ -53,7 +57,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     phoneToName = new Map(participantPhones.map((p) => [p, p]));
   } else {
     const contacts = await getContactPhones(ctx.supabase, chantierId);
-    const clientPhone = await getClientPhone(ctx.supabase, token);
+    if (contacts === null) return jsonError('Erreur DB (contacts)', 500);
     phoneToName = new Map(contacts.map((c) => [c.phone, c.name]));
     if (clientPhone) phoneToName.set(clientPhone, clientPhone);
     participantPhones = Array.from(phoneToName.keys());
@@ -61,8 +65,6 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   // Deduplicate
   participantPhones = [...new Set(participantPhones)];
-
-  const clientPhone = await getClientPhone(ctx.supabase, token);
 
   try {
     const { groupId, inviteLink } = await createWhatsAppGroup(groupName, participantPhones);
