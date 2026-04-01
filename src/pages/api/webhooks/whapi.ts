@@ -2,6 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { createClient } from '@supabase/supabase-js';
+import { formatPhone } from '@/lib/whapiUtils';
 
 const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
 const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -118,7 +119,7 @@ export const POST: APIRoute = async ({ request }) => {
     if (!group) continue;
 
     if (event.type === 'group.participants.remove') {
-      const phones: string[] = event.participants ?? [];
+      const phones: string[] = (event.participants ?? []).map((p: string) => formatPhone(p));
       if (phones.length > 0) {
         await supabase
           .from('chantier_whatsapp_members')
@@ -129,7 +130,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     if (event.type === 'group.participants.add') {
-      const phones: string[] = event.participants ?? [];
+      const phones: string[] = (event.participants ?? []).map((p: string) => formatPhone(p));
       const upsertRows = phones.map((phone: string) => ({
         group_id: group.id,
         phone,

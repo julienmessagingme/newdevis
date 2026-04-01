@@ -54,7 +54,15 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   if (body.selectedPhones && body.selectedPhones.length > 0) {
     participantPhones = body.selectedPhones.map((p) => formatPhone(p)).filter((p) => p.length >= 10);
-    phoneToName = new Map(participantPhones.map((p) => [p, p]));
+    // Always include the client phone even if not in selectedPhones (UI guarantee)
+    if (clientPhone && !participantPhones.includes(clientPhone)) {
+      participantPhones.push(clientPhone);
+    }
+    // Resolve contact names server-side so members get real names, not raw phone strings
+    const contacts = await getContactPhones(ctx.supabase, chantierId);
+    const contactNameMap = new Map((contacts ?? []).map((c) => [c.phone, c.name]));
+    phoneToName = new Map(participantPhones.map((p) => [p, contactNameMap.get(p) ?? p]));
+    if (clientPhone) phoneToName.set(clientPhone, phoneToName.get(clientPhone) ?? clientPhone);
   } else {
     const contacts = await getContactPhones(ctx.supabase, chantierId);
     if (contacts === null) return jsonError('Erreur DB (contacts)', 500);
