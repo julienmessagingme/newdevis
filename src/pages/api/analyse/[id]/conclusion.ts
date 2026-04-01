@@ -279,7 +279,7 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
         model:           "gemini-2.0-flash",
         messages:        [{ role: "user", content: userPrompt }],
         response_format: { type: "json_object" },
-        max_tokens:      1800,
+        max_tokens:      4096,
         temperature:     0.1,
       }),
     });
@@ -303,6 +303,12 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     const start = jsonStr.indexOf("{");
     const end   = jsonStr.lastIndexOf("}");
     if (start !== -1 && end > start) jsonStr = jsonStr.slice(start, end + 1);
+
+    // Vérification troncature (JSON mal fermé = max_tokens atteint)
+    if (!jsonStr.endsWith("}")) {
+      console.error("[conclusion] JSON tronqué — max_tokens probablement atteint. Longueur:", jsonStr.length);
+      return jsonError("La réponse IA est incomplète. Réessayez.", 502);
+    }
 
     const parsed = JSON.parse(jsonStr);
 
@@ -367,8 +373,12 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     if (msg.includes("abort") || msg.includes("AbortError")) {
       return jsonError("L'analyse a pris trop de temps. Réessayez.", 504);
     }
-    console.error("[conclusion] Parse error:", msg);
-    return jsonError("Impossible d'analyser la réponse IA", 502);
+    if (msg.includes("JSON") || msg.includes("SyntaxError") || msg.includes("parse")) {
+      console.error("[conclusion] JSON parse error:", msg);
+      return jsonError("La réponse IA était malformée. Réessayez.", 502);
+    }
+    console.error("[conclusion] Unexpected error:", msg);
+    return jsonError("Erreur inattendue. Réessayez.", 502);
   }
 
   // ── Persistance ───────────────────────────────────────────────────────────
