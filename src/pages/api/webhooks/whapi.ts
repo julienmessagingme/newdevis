@@ -29,6 +29,11 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response('OK', { status: 200 }); // always return 200 to whapi
   }
 
+  if (!supabaseUrl || !supabaseService) {
+    console.error('[whapi] Missing Supabase config');
+    return new Response('OK', { status: 200 });
+  }
+
   const messages: any[] = payload?.messages ?? [];
   if (messages.length === 0) return new Response('OK', { status: 200 });
 
@@ -83,7 +88,7 @@ export const POST: APIRoute = async ({ request }) => {
       : new Date().toISOString();
 
     // Upsert — idempotent: whapi may retry on non-2xx
-    await supabase
+    const { error: upsertErr } = await supabase
       .from('chantier_whatsapp_messages')
       .upsert({
         id:          msg.id,
@@ -96,6 +101,7 @@ export const POST: APIRoute = async ({ request }) => {
         media_url,
         timestamp,
       }, { onConflict: 'id' });
+    if (upsertErr) console.error('[whapi] upsert error:', upsertErr.message);
   }
 
   return new Response('OK', { status: 200 });
