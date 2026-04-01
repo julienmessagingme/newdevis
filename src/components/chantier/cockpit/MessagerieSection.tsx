@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { MessageSquare, Mail, Search, Loader2, User, Send } from "lucide-react";
+import { MessageSquare, Mail, Search, Loader2, User, Send, MessageCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useConversations } from "@/hooks/useConversations";
 import { useMessages } from "@/hooks/useMessages";
 import ConversationThread from "./ConversationThread";
 import WhatsAppGroupCard from "./WhatsAppGroupCard";
+import WhatsAppThread from './WhatsAppThread';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -77,6 +78,7 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
   const [userName, setUserName] = useState("");
   const [waGroupId, setWaGroupId] = useState<string | null>(null);
   const [waInviteLink, setWaInviteLink] = useState<string | null>(null);
+  const [showWaThread, setShowWaThread] = useState(false);
 
   // ── Fetch contacts ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -285,6 +287,7 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
   const handleBack = () => {
     setSelectedConvId(null);
     setNewMsgContactId(null);
+    setShowWaThread(false);
   };
 
   const threadConv = selectedConv
@@ -297,7 +300,7 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
     client_nom: userName,
   }), [chantierNom, threadConv?.contact_name, userName]);
 
-  const mobileShowThread = !!(selectedConvId || newMsgContactId);
+  const mobileShowThread = !!(selectedConvId || newMsgContactId || showWaThread);
   const activeContactId = selectedConv?.contact_id ?? newMsgContactId;
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -339,6 +342,30 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
             />
           </div>
         </div>
+
+        {/* WhatsApp group entry */}
+        {waGroupId && (
+          <button
+            onClick={() => {
+              setShowWaThread(true);
+              setSelectedConvId(null);
+              setNewMsgContactId(null);
+            }}
+            className={`w-full text-left px-3 py-3 flex items-center gap-3 transition-colors border-l-2 border-b border-gray-100 ${
+              showWaThread
+                ? 'bg-green-50 border-[#25D366]'
+                : 'border-transparent hover:bg-gray-50'
+            }`}
+          >
+            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-[#25D366] flex items-center justify-center">
+              <MessageCircle className="h-5 w-5 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-800">Groupe WhatsApp</p>
+              <p className="text-xs text-gray-400 truncate">Messages du groupe</p>
+            </div>
+          </button>
+        )}
 
         {/* Contact rows */}
         <div className="flex-1 overflow-y-auto">
@@ -413,7 +440,15 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
 
       {/* ── Right: thread or empty state ──────────────────────────────────── */}
       <div className={`flex-1 min-w-0 h-full ${mobileShowThread ? "block" : "hidden lg:block"}`}>
-        {threadConv ? (
+        {showWaThread ? (
+          <WhatsAppThread
+            chantierId={chantierId}
+            chantierNom={chantierNom}
+            token={token}
+            contacts={contacts}
+            onBack={handleBack}
+          />
+        ) : threadConv ? (
           <ConversationThread
             conversation={threadConv}
             messages={newMsgContact ? [] : messages}
