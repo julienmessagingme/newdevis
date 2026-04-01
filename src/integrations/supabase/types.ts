@@ -377,6 +377,8 @@ export type Database = {
           type_projet: string | null
           updated_at: string
           user_id: string
+          whatsapp_group_id: string | null
+          whatsapp_invite_link: string | null
         }
         Insert: {
           adresse?: string | null
@@ -401,6 +403,8 @@ export type Database = {
           type_projet?: string | null
           updated_at?: string
           user_id: string
+          whatsapp_group_id?: string | null
+          whatsapp_invite_link?: string | null
         }
         Update: {
           adresse?: string | null
@@ -425,6 +429,8 @@ export type Database = {
           type_projet?: string | null
           updated_at?: string
           user_id?: string
+          whatsapp_group_id?: string | null
+          whatsapp_invite_link?: string | null
         }
         Relationships: []
       }
@@ -797,6 +803,7 @@ export type Database = {
           montant_paye: number | null
           nom: string
           nom_fichier: string
+          payment_terms: Json | null
           source: string
           statut: string
           taille_octets: number | null
@@ -821,6 +828,7 @@ export type Database = {
           montant_paye?: number | null
           nom: string
           nom_fichier: string
+          payment_terms?: Json | null
           source?: string
           statut?: string
           taille_octets?: number | null
@@ -845,6 +853,7 @@ export type Database = {
           montant_paye?: number | null
           nom?: string
           nom_fichier?: string
+          payment_terms?: Json | null
           source?: string
           statut?: string
           taille_octets?: number | null
@@ -1343,45 +1352,6 @@ export type Database = {
         }
         Relationships: []
       }
-      materials: {
-        Row: {
-          advantages: Json | null
-          category: string | null
-          disadvantages: Json | null
-          id: string
-          image_path: string | null
-          impact_budget: string | null
-          label: string | null
-          lifetime: string | null
-          price_max: number | null
-          price_min: number | null
-        }
-        Insert: {
-          advantages?: Json | null
-          category?: string | null
-          disadvantages?: Json | null
-          id: string
-          image_path?: string | null
-          impact_budget?: string | null
-          label?: string | null
-          lifetime?: string | null
-          price_max?: number | null
-          price_min?: number | null
-        }
-        Update: {
-          advantages?: Json | null
-          category?: string | null
-          disadvantages?: Json | null
-          id?: string
-          image_path?: string | null
-          impact_budget?: string | null
-          label?: string | null
-          lifetime?: string | null
-          price_max?: number | null
-          price_min?: number | null
-        }
-        Relationships: []
-      }
       newsletter_subscriptions: {
         Row: {
           email: string
@@ -1408,6 +1378,7 @@ export type Database = {
           amount: number | null
           created_at: string | null
           due_date: string | null
+          financing_source: string | null
           id: string
           is_override: boolean | null
           label: string | null
@@ -1422,6 +1393,7 @@ export type Database = {
           amount?: number | null
           created_at?: string | null
           due_date?: string | null
+          financing_source?: string | null
           id?: string
           is_override?: boolean | null
           label?: string | null
@@ -1436,6 +1408,7 @@ export type Database = {
           amount?: number | null
           created_at?: string | null
           due_date?: string | null
+          financing_source?: string | null
           id?: string
           is_override?: boolean | null
           label?: string | null
