@@ -61,7 +61,7 @@ const Login = () => {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <a href="/" className="inline-flex items-center gap-2 mb-6">
-              <img src="/images/logo detouré.png" alt="VerifierMonDevis.fr" className="h-12 w-12 object-contain" />
+              <img src="/images/logo-detoure.webp" alt="VerifierMonDevis.fr" className="h-12 w-12 object-contain" />
               <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
             </a>
             <h1 className="text-2xl font-bold text-foreground mb-2">
@@ -155,7 +155,7 @@ const Login = () => {
       <div className="hidden lg:flex flex-1 hero-gradient items-center justify-center p-8">
         <div className="max-w-md text-center text-primary-foreground">
           <div className="mb-8">
-            <img src="/images/logo detouré.png" alt="VerifierMonDevis.fr" className="h-20 w-20 object-contain mx-auto mb-6 drop-shadow-lg" />
+            <img src="/images/logo-detoure.webp" alt="VerifierMonDevis.fr" className="h-20 w-20 object-contain mx-auto mb-6 drop-shadow-lg" />
             <h2 className="text-2xl font-bold mb-4">
               Sécurisez vos projets de travaux
             </h2>

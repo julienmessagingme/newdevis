@@ -60,7 +60,12 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 | `/api/create-portal-session` | `api/create-portal-session.ts` | Portail client Stripe |
 | `/api/stripe-webhook` | `api/stripe-webhook.ts` | Webhook Stripe (souscription, annulation, échec paiement) |
 | `/api/premium/*` | `api/premium/` | Statut et essai premium |
-| `/api/chantier/*` | `api/chantier/` | Module chantier complet (21 routes dont lots, devis, contacts, messagerie, chat, matériaux — voir `DOCUMENTATION.md` §20) |
+| `/api/chantier/*` | `api/chantier/` | Module chantier complet (26 routes dont lots, devis, contacts, messagerie, chat, matériaux, planning, whatsapp — voir `DOCUMENTATION.md` §20) |
+| `/api/chantier/[id]/planning` | `api/chantier/[id]/planning.ts` | GET lots + date_debut_chantier / PATCH recalcul cascade dates via computePlanningDates (Promise.all batch) |
+| `/api/chantier/[id]/whatsapp` | `api/chantier/[id]/whatsapp.ts` | POST créer groupe whapi + membres / PATCH ajouter participants |
+| `/api/chantier/[id]/whatsapp-groups` | `api/chantier/[id]/whatsapp-groups.ts` | GET groupes avec membres imbriqués (2 requêtes, pas de N+1) |
+| `/api/chantier/[id]/whatsapp-messages` | `api/chantier/[id]/whatsapp-messages.ts` | GET messages filtrés par `?groupJid=` — limit 200 |
+| `/api/webhooks/whapi` | `api/webhooks/whapi.ts` | Webhook whapi : messages entrants + events (join/leave/remove/delete groupe). Toujours 200. |
 | `/api/webhooks/inbound-email` | `api/webhooks/inbound-email.ts` | Webhook SendGrid Inbound Parse (réception réponses artisans) |
 
 ## Ajouter une page
@@ -73,29 +78,35 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 
 - **`lib/*Utils.ts`** : Logique métier externalisée par domaine (`entrepriseUtils`, `devisUtils`, `securiteUtils`, `contexteUtils`, `urbanismeUtils`, `architecteUtils`, `blogUtils`, `scoreUtils`). `lib/constants.ts` contient les constantes partagées. Les composants `analysis/Block*.tsx` importent depuis ces fichiers.
 - **`components/admin/`** : Module blog admin complet (`BlogPostList`, `BlogPostEditor`, `BlogDialogs`, `AiGenerationPanel`, `ManualWriteEditor`, `RichTextToolbar`, `ImageManagement`, `blogTypes`)
-- **`components/chantier/`** : Module gestion de chantier complet (~30 composants). Création IA (ScreenModeSelection → ScreenPrompt → Qualification → Génération), dashboard (budget, lots, contacts, timeline, documents, conseils IA, chat expert, matériaux). Sous-dossiers : `cockpit/` (CockpitV1, ConceptionPage, PanneauDetail, SimulateurOptions, TimelineHorizontale, ContactsSection), `lots/` (LotCard, LotGrid, LotDetail), `nouveau/` (DashboardChantier, MaterialSelector, ScreenModeSelection, etc.). Voir `DOCUMENTATION.md` §20 pour le détail.
+- **`components/chantier/`** : Module gestion de chantier complet (~45 composants). Création IA (ScreenModeSelection → ScreenPrompt → Qualification → Génération), dashboard (budget, lots, contacts, timeline, documents, conseils IA, chat expert, matériaux, planning). Sous-dossiers : `cockpit/` (CockpitV1, ConceptionPage, PanneauDetail, SimulateurOptions, TimelineHorizontale, ContactsSection), `cockpit/budget/` (12 sous-compos extraits de BudgetTresorerie : BudgetAffinageModal, BudgetGauge, LotBreakdown, AlertesIA, TresoreriePhases, FacturesPaiements, QuickActions, ProjectHeader, ReliabilityBadge, BudgetComparaison, BudgetExplication, BudgetKpiCard), `cockpit/planning/` (PlanningTimeline — Gantt drag/resize sticky col gauche, PlanningWidget — mini-résumé vue d'ensemble), `lots/` (LotCard, LotGrid, LotDetail), `nouveau/` (DashboardChantier, MaterialSelector, ScreenModeSelection, etc.). Voir `DOCUMENTATION.md` §20 pour le détail.
 - **`components/funnel/`** : Tunnel de conversion (`FunnelStepper`, `PremiumGate`, `PassSereniteGate`). PremiumGate est intégré dans `BlockPrixMarche` via props (`showGate`, `onAuthSuccess`, `convertToPermanent`) — affiché uniquement quand le bloc est collapsé et l'utilisateur anonyme.
 - **`components/analysis/`** : 20 composants dont `DocumentRejectionScreen`, `ExtractionBlocker`, `OcrDebugPanel` (lazy-loaded via `React.lazy` + `Suspense` dans `AnalysisResult.tsx`), `StrategicBadge` (affichage scores IVP/IPI), `UrbanismeAssistant` (assistant urbanisme). `BlockPrixMarche` inclut un `StepIndicator` interne (stepper visuel 2 étapes : Affectation des postes → Analyse des prix).
 - **`supabase/functions/analyze-quote/`** : Pipeline modulaire (10 fichiers : `index`, `extract`, `verify`, `score`, `render`, `summarize`, `market-prices`, `domain-config`, `utils`, `types`)
 - **`utils/generatePdfReport.ts`** : Génération PDF côté client via `jsPDF`. Structuré par blocs (entreprise, devis, sécurité, contexte) en miroir du frontend. Utilise les mêmes utils métier (`entrepriseUtils`, `securiteUtils`, etc.).
 - **`lib/domainConfig.ts`** : Registre frontend des blocs visibles par domaine (`travaux`, `auto`, `dentaire`). Conditionne l'affichage des blocs dans `AnalysisResult`.
+- **`lib/budgetAffinageData.ts`** — ELEMENT_DEFS, TRADE_QUESTION_DEFS, computeRefinedRange, computeScore (pure TS, extrait du monolithe BudgetTresorerie)
+- **`lib/budgetHelpers.ts`** — fmtK, fmtFull, PHASE_LABELS/COLORS
+- **`lib/planningUtils.ts`** — computePlanningDates(), computeStartDateFromEnd(), addBusinessDays(), formatDuration() (pure TS, partagé entre `usePlanning.ts` et l'API route planning)
 - **`data/MATERIALS_MAP.ts`** : Catalogue statique de 17 types de chantier × 3+ options matériaux (prix, durabilité, entretien, images). Auto-détection via `detectChantierType()`.
-- **Hooks** : 9 hooks dont `useAnonymousAuth.ts` (auth anonyme), `useMarketPriceEditor.ts` (édition interactive prix marché), `useMaterialAI.ts` (suggestions matériaux Gemini), `useMaterialDetection.ts` (détection type catalogue), `useMaterialSuggestions.ts` (catalogue matériaux dynamique)
+- **Hooks** : 11 hooks dont `useAnonymousAuth.ts` (auth anonyme), `useMarketPriceEditor.ts` (édition interactive prix marché), `useMaterialAI.ts` (suggestions matériaux Gemini), `useMaterialDetection.ts` (détection type catalogue), `useMaterialSuggestions.ts` (catalogue matériaux dynamique), `usePlanning.ts` (lots + dates planning, moveLot, updateEndDate, recompute)
 
 ## Supabase
 
-### Tables (23)
+### Tables (26)
 - `analyses` — analyses de devis (table principale). Colonne `market_price_overrides` (JSONB) pour les éditions utilisateur sur les prix marché. Colonne `domain` (TEXT, default `'travaux'`) pour le multi-vertical. **Limite 10 par utilisateur** : les plus anciennes sont purgées automatiquement par le pipeline.
 - `analysis_work_items` — lignes de travaux détaillées par analyse. Colonne `job_type_group` (TEXT) pour le rattachement au job type IA.
 - `blog_posts` — articles de blog (avec workflow IA, images cover + mid)
-- `chantiers` — projets de chantier (nom, emoji, budget, phase, type_projet, project_mode, metadonnees JSON). Colonne `project_mode` (TEXT, CHECK: 'guided'|'flexible'|'investor'). Voir `DOCUMENTATION.md` §20.
-- `lots_chantier` — lots de travaux par chantier (nom, statut, job_type, budget min/avg/max). FK chantiers CASCADE.
+- `chantiers` — projets de chantier (nom, emoji, budget, phase, type_projet, project_mode, metadonnees JSON, `date_debut_chantier DATE`). Colonne `project_mode` (TEXT, CHECK: 'guided'|'flexible'|'investor'). Voir `DOCUMENTATION.md` §20.
+- `lots_chantier` — lots de travaux par chantier (nom, statut, job_type, budget min/avg/max). Colonnes planning : `duree_jours INT`, `date_debut DATE`, `date_fin DATE`, `ordre_planning INT`, `parallel_group INT`. FK chantiers CASCADE.
 - `todo_chantier` — checklist par chantier (titre, priorité, done). FK chantiers CASCADE.
 - `chantier_updates` — journal des modifications IA par chantier. FK chantiers CASCADE.
 - `documents_chantier` — documents attachés aux chantiers (devis, factures, photos, plans). FK chantiers CASCADE.
 - `contacts_chantier` — carnet de contacts par chantier (nom, email, téléphone, SIRET, rôle, notes). FK chantiers CASCADE, FK lots_chantier SET NULL. Source : 'manual'|'devis'|'facture'. RLS user-scoped.
 - `chantier_conversations` — conversations email par chantier (1 par contact). Contient reply_address unique pour SendGrid Inbound Parse. FK chantiers CASCADE, FK contacts_chantier SET NULL. RLS user-scoped.
 - `chantier_messages` — messages email (outbound/inbound). FK chantier_conversations CASCADE. Direction, subject, body_text, body_html, status. RLS via join sur conversations.user_id.
+- `chantier_whatsapp_groups` — groupes WhatsApp par chantier (N groupes possibles). Colonnes : `group_jid TEXT` (JID whapi), `invite_link`, `name`. UNIQUE(group_jid). FK chantiers CASCADE. RLS user-scoped via chantiers.
+- `chantier_whatsapp_members` — membres par groupe. Colonnes : `phone TEXT`, `name`, `role` (gmc/client/artisan), `status` (active/left/removed), `left_at`. UNIQUE(group_id, phone). FK groups CASCADE.
+- `chantier_whatsapp_messages` — messages WhatsApp reçus via webhook whapi. `id TEXT PK` (whapi msg id — idempotent). `group_id TEXT` = JID brut (**pas une FK UUID** — intentionnel, antérieur aux groups table). RLS user-scoped via chantiers.
 - `company_cache` — cache vérification entreprise (recherche-entreprises.api.gouv.fr). Purge auto quotidienne via cron.
 - `document_extractions` — cache OCR par hash SHA-256 du fichier (provider, parsed_data, quality_score)
 - `dvf_prices` — cache prix immobiliers DVF par commune (code INSEE, prix/m² maison et appartement, nb ventes). Source : data.gouv.fr. RLS lecture publique.
@@ -149,6 +160,10 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 - `idx_price_obs_domain` — `price_observations(domain)` — filtrage multi-vertical
 - `idx_strategic_matrix_job_type` — `strategic_matrix(job_type)` — lookup scores IVP/IPI
 - `idx_dvf_prices_code_insee` — `dvf_prices(code_insee)` — lookup prix immobiliers par commune
+- `idx_lots_planning` — `lots_chantier(chantier_id, ordre_planning)` — tri planning par chantier
+- `idx_wa_members_group_id` — `chantier_whatsapp_members(group_id)` — webhook + RLS + CASCADE
+- `idx_conv_contact_id` — `chantier_conversations(contact_id)` — ON DELETE SET NULL
+- `idx_contacts_lot_id` / `idx_contacts_devis_id` / `idx_contacts_analyse_id` — FK SET NULL sur contacts_chantier
 
 ### Régénérer les types
 ```bash
@@ -310,14 +325,23 @@ Phase 2 du pipeline — 100% appels API déterministes, pas d'IA. Aucune API pay
 - **Astro 5 `output: 'hybrid'` supprimé** : L'option `hybrid` n'existe plus en Astro 5. Utiliser `output: 'static'` avec un adapter — les pages avec `export const prerender = false` seront rendues côté serveur automatiquement.
 - **Variables d'env Vercel côté client** : En Astro sur Vercel, seules les variables préfixées `PUBLIC_` sont exposées au client. `VITE_SUPABASE_URL` ne marche pas → utiliser `PUBLIC_SUPABASE_URL` et `PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
 - **React hooks après conditional return (Error #310)** : Dans `AnalysisResult.tsx`, les hooks (`useState`, `useRef`) doivent être déclarés AVANT tout `if (loading) return` ou `if (!data) return`. Sinon React voit un nombre de hooks différent entre les renders → crash production "Too many re-renders" (Error #310).
+- **Planning — stale closure dans setState** : dans `usePlanning.ts`, toujours `setState(s => ...)` pour lire l'état courant dans les callbacks (moveLot, etc.) — fermer sur la variable d'état donne une version figée au moment de l'appel.
+- **Planning API — batch DB** : utiliser `Promise.all` pour les UPDATE simultanés sur `lots_chantier`. Les boucles `for` séquentielles peuvent provoquer des deadlocks Postgres sous charge.
+- **WhatsApp messages — group_id TEXT** : `chantier_whatsapp_messages.group_id` est un TEXT stockant le JID brut (ex: `120363xxxxx@g.us`), **pas** un UUID FK vers `chantier_whatsapp_groups`. Intentionnel — la table messages est antérieure à la table groups. Ne pas essayer de le migrer en UUID FK sans plan de migration des données.
+- **RLS nouvelles tables — toujours wrapper** : `auth.uid()` appelé seul = 1 éval par ligne. Toujours écrire `(select auth.uid())` dans les nouvelles policies. Voir migrations 20260226 et 20260401400000 pour les patterns corrects.
 
 ## SEO et données structurées
 
 ### BaseLayout.astro — props SEO
 `BaseLayout.astro` accepte des props SEO optionnelles : `canonical`, `ogType`, `ogImage`, `jsonLd` (objet Schema.org), `breadcrumbs` (tableau `{name, url}`). Toute page qui a besoin de données structurées les passe via ces props.
 
+### Assets SEO
+- OG image : `public/og-image.png` 1200×630 — référencé dans BaseLayout.astro. **Ne pas reconvertir en SVG.**
+- Logos : `public/images/logo.webp` + `logo-detoure.webp` (-87% vs PNG). **Ne pas reconvertir en PNG.**
+- robots.txt : Disallow `/api/`, règles AI crawlers (GPTBot, CCBot, ClaudeBot, etc.)
+
 ### JSON-LD par page
-- **Global** (toutes les pages) : `Organization` (logo, email, description)
+- **Global** (toutes les pages) : `Organization` (logo, email, description) + `WebSite` (SearchAction)
 - **Global** (si `breadcrumbs` fourni) : `BreadcrumbList` automatique
 - `/faq` : `FAQPage` avec `mainEntity` généré depuis le tableau `faqs`
 - `/qui-sommes-nous` : `AboutPage` avec `Organization` en `mainEntity`
@@ -326,7 +350,7 @@ Phase 2 du pipeline — 100% appels API déterministes, pas d'IA. Aucune API pay
 - `/blog/:slug` : `Article` (titre, auteur, dates, image) — données récupérées côté serveur dans le frontmatter Astro via `supabase.from("blog_posts").select()`
 
 ### Sitemaps
-- `public/sitemap.xml` — pages statiques (12 URLs)
+- `public/sitemap.xml` — pages statiques (16 URLs — dont /pass-serenite, /premium, /calculette-travaux, /simulateur-valorisation-travaux)
 - `src/pages/sitemap-blog.xml.ts` — endpoint SSR dynamique, requête les `blog_posts` publiés dans Supabase
 - `public/robots.txt` référence les deux sitemaps
 
@@ -440,14 +464,13 @@ Script chat widget chargé dans `<head>` de `BaseLayout.astro` : `<script src="h
 
 ## Messagerie chantier (SendGrid)
 
-Onglet "Messagerie" dans la sidebar du dashboard chantier. Permet aux clients d'envoyer/recevoir des emails avec les artisans, et d'envoyer des liens WhatsApp.
+Onglet "Messagerie" dans la sidebar du dashboard chantier. Emails (SendGrid) + groupes WhatsApp réels (whapi.cloud).
 
-### Architecture
+### Architecture email
 
 - **Envoi** : API route `POST /api/chantier/[id]/messages` → SendGrid Mail API
 - **Réception** : SendGrid Inbound Parse → webhook `POST /api/webhooks/inbound-email`
 - **Reply-to** : adresse unique par conversation `chantier-{id}+{convId}@{REPLY_EMAIL_DOMAIN}`
-- **WhatsApp** : lien `wa.me/{numéro}?text={message}` (pas d'API, ouverture dans nouvel onglet)
 - **Templates** : fichier statique `src/data/MESSAGE_TEMPLATES.ts` avec interpolation de variables
 
 ### API Routes messagerie
@@ -481,6 +504,18 @@ Onglet "Messagerie" dans la sidebar du dashboard chantier. Permet aux clients d'
 - `MessageComposer.tsx` — zone de saisie + templates + WhatsApp
 - `TemplateSelector.tsx` — dropdown de templates avec interpolation
 - `useConversations.ts` / `useMessages.ts` — hooks de données
+
+### WhatsApp groupes (whapi.cloud)
+
+Intégration whapi pour créer de vrais groupes WhatsApp depuis le cockpit chantier. N groupes par chantier.
+
+- **Création** : `POST /api/chantier/[id]/whatsapp` → `createWhatsAppGroup()` dans `whapiUtils.ts` → INSERT `chantier_whatsapp_groups` + `chantier_whatsapp_members`
+- **Participants** : sélection dans une modale (contacts du chantier). Client + GMC (33633921577) toujours inclus. Rôles : `gmc` / `client` / `artisan`.
+- **Webhook** : `POST /api/webhooks/whapi` reçoit messages (`payload.messages[]`) + events (`payload.events[]`). Lookup groupe via `group_jid`. Toujours répondre 200 (whapi retry sur non-2xx).
+- **Thread** : `WhatsAppThread.tsx` — bulles colorées par rôle : gmc→`#DCF8C6` droite, client→`#DBEAFE` droite, artisan→blanc gauche. Props : `userPhone`, `groupJid`, `groupName`.
+- **Panel** : `WhatsAppGroupsPanel.tsx` — liste groupes + membres dépliables + modale création. `onGroupCreated: () => void` → re-fetch complet (pas d'append partiel).
+- **Pattern fetch** : `fetchWaGroups` = `useCallback([chantierId, token])` dans `MessagerieSection.tsx` — évite la boucle infinie si on met `waGroups` en dépendance.
+- **Env** : `WHAPI_TOKEN` (Vercel) — utilisé dans `whapiUtils.ts`
 
 ## Email marketing (SMTP OVH + MessagingMe)
 
@@ -542,3 +577,15 @@ Onglet "Messagerie" dans la sidebar du dashboard chantier. Permet aux clients d'
 - **Interface** en français, **code** en anglais
 - **Params dynamiques** : `[id].astro` et `[slug].astro` — les composants React extraient les params de `window.location.pathname`
 - **Commandes** : `npm run dev` | `npm run build` | `npm run preview` | `npm run lint`
+
+## TODO — prochaine session
+
+### 🔴 Tester WhatsApp multi-groupes (feature complète, non testée en prod)
+Fichiers clés : `WhatsAppGroupsPanel.tsx`, `MessagerieSection.tsx`, `WhatsAppThread.tsx`, `api/chantier/[id]/whatsapp.ts`, `api/webhooks/whapi.ts`
+Scénarios : créer groupe → membres visibles → message entrant → bulles par rôle → filtre par groupe
+
+### 🟡 Planning — 4 tâches restantes (voir `.claude/plans/shimmying-marinating-hickey.md`)
+1. `supabase/functions/chantier-qualifier/index.ts` — ajouter question date de démarrage
+2. `LotIntervenantCard.tsx` — affichage "S3–S5 · 2 semaines"
+3. `LotDetail.tsx` — section Planning éditable (durée inline + recalcul cascade)
+4. `DashboardHome.tsx` — intégrer `PlanningWidget` entre progression et reco IA
