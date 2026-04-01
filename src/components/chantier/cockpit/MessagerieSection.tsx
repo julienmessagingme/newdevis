@@ -136,7 +136,7 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
   }, []);
 
   // ── Fetch WhatsApp groups ─────────────────────────────────────────────────
-  useEffect(() => {
+  const fetchWaGroups = React.useCallback(() => {
     if (!chantierId || !token) return;
     fetch(`/api/chantier/${chantierId}/whatsapp-groups`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -144,6 +144,8 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
       .then((r) => (r.ok ? r.json() : { groups: [] }))
       .then((data) => setWaGroups(data.groups ?? []));
   }, [chantierId, token]);
+
+  useEffect(() => { fetchWaGroups(); }, [fetchWaGroups]);
 
   // ── Conversations & messages ──────────────────────────────────────────────
   const { conversations, isLoading: convsLoading, refresh: refreshConvs } = useConversations(chantierId);
@@ -317,7 +319,7 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
           token={token}
           groups={waGroups}
           contacts={contacts}
-          onGroupCreated={(group) => setWaGroups((prev) => [...prev, group])}
+          onGroupCreated={fetchWaGroups}
         />
 
         {/* Search */}

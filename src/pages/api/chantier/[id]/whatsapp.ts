@@ -60,7 +60,8 @@ export const POST: APIRoute = async ({ params, request }) => {
     }
     // Resolve contact names server-side so members get real names, not raw phone strings
     const contacts = await getContactPhones(ctx.supabase, chantierId);
-    const contactNameMap = new Map((contacts ?? []).map((c) => [c.phone, c.name]));
+    if (contacts === null) return jsonError('Erreur DB (contacts)', 500);
+    const contactNameMap = new Map(contacts.map((c) => [c.phone, c.name]));
     phoneToName = new Map(participantPhones.map((p) => [p, contactNameMap.get(p) ?? p]));
     if (clientPhone) phoneToName.set(clientPhone, phoneToName.get(clientPhone) ?? clientPhone);
   } else {
@@ -145,13 +146,17 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   const phones = body.phones.map((p: string) => formatPhone(p)).filter((p: string) => p.length >= 10);
   if (phones.length === 0) return jsonOk({ added: 0 });
 
+  // Resolve contact names for the phones being added
+  const contactsForPatch = await getContactPhones(ctx.supabase, chantierId);
+  const patchNameMap = new Map((contactsForPatch ?? []).map((c) => [c.phone, c.name]));
+
   try {
     await addGroupParticipants(group.group_jid, phones);
 
     const upsertRows = phones.map((phone: string) => ({
       group_id: group.id,
       phone,
-      name: phone,
+      name: patchNameMap.get(phone) ?? phone,
       role: 'artisan',
       status: 'active',
       left_at: null,

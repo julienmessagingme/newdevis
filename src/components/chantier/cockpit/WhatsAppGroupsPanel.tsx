@@ -42,7 +42,7 @@ interface WhatsAppGroupsPanelProps {
   token: string;
   groups: WaGroup[];
   contacts: Contact[];
-  onGroupCreated: (group: WaGroup) => void;
+  onGroupCreated: () => void;  // called after creation so parent can re-fetch full groups+members
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -140,7 +140,7 @@ export default function WhatsAppGroupsPanel({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Erreur inconnue");
-      onGroupCreated(data.group);
+      onGroupCreated();
       setModalOpen(false);
     } catch (e: any) {
       setCreateError(e.message);

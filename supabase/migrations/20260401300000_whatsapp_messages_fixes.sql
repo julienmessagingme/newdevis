@@ -1,6 +1,9 @@
 -- supabase/migrations/20260401300000_whatsapp_messages_fixes.sql
 -- Add missing RLS SELECT policy and composite index on chantier_whatsapp_messages
 
+-- Defensive: ensure RLS is enabled before adding the policy
+ALTER TABLE chantier_whatsapp_messages ENABLE ROW LEVEL SECURITY;
+
 -- RLS SELECT policy (was missing — all existing API routes use service_role so this
 -- doesn't break anything, but protects against future anon-key queries)
 CREATE POLICY "Users can read their own wa messages"

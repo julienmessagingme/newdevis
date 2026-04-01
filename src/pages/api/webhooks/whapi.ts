@@ -96,6 +96,9 @@ export const POST: APIRoute = async ({ request }) => {
       : new Date().toISOString();
 
     // Upsert — idempotent: whapi may retry on non-2xx
+    // Note: chantier_whatsapp_messages.group_id is TEXT storing the raw JID (intentional —
+    // messages table predates the groups table and keeps the JID for direct filtering).
+    // It is NOT a UUID FK; orphaned messages are retained if the group is deleted.
     const { error: upsertErr } = await supabase
       .from('chantier_whatsapp_messages')
       .upsert({
