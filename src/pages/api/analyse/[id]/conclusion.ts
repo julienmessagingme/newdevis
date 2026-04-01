@@ -24,6 +24,25 @@ export type { AnomalieConclusion, ConclusionData } from "@/lib/conclusionTypes";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+const FORFAIT_UNIT_KEYWORDS = ["forfait", "global", "prestation", "ensemble", "installation complète"];
+const FORFAIT_DESC_KEYWORDS = ["forfait", "forfait global", "prestation globale", "au forfait", "tout compris"];
+
+function isForfaitGroup(g: any): boolean {
+  const unit = (g.main_unit || "").toLowerCase().trim();
+  if (FORFAIT_UNIT_KEYWORDS.some((kw) => unit === kw || unit.startsWith(kw))) return true;
+  const lines: any[] = g.devis_lines || [];
+  if (lines.length === 0) return false;
+  const forfaitLines = lines.filter((l: any) => {
+    const desc = (l.description || "").toLowerCase();
+    const lineUnit = (l.unit || "").toLowerCase();
+    return (
+      FORFAIT_DESC_KEYWORDS.some((kw) => desc.includes(kw)) ||
+      FORFAIT_UNIT_KEYWORDS.some((kw) => lineUnit === kw || lineUnit.startsWith(kw))
+    );
+  });
+  return forfaitLines.length >= Math.ceil(lines.length * 0.6);
+}
+
 function buildGroupSummary(priceData: unknown[]): string {
   if (!Array.isArray(priceData) || priceData.length === 0) return "Aucune donnée de poste disponible.";
 
@@ -35,8 +54,26 @@ function buildGroupSummary(priceData: unknown[]): string {
       const total: number = g.devis_total_ht || 0;
       const unitPrice: number = qty > 0 ? total / qty : 0;
       const prices: any[] = g.prices || [];
+      const forfait = isForfaitGroup(g);
 
-      // Theoretical range (sum across matched catalog entries)
+      const lignes: string = (g.devis_lines || [])
+        .slice(0, 4)
+        .map((l: any) => `"${l.description}"${l.amount_ht ? ` (${l.amount_ht}€)` : ""}`)
+        .join(" | ");
+
+      // Pour les forfaits globaux, on ne calcule PAS de fourchette unitaire
+      // car la comparaison est non pertinente (prix global ≠ prix unitaire catalogue)
+      if (forfait) {
+        return [
+          `POSTE: ${g.job_type_label} [FORFAIT GLOBAL — comparaison unitaire NON APPLICABLE]`,
+          `  Facturation: forfait global`,
+          `  Total devis: ${total.toFixed(0)} €`,
+          `  Note: Ce poste est facturé en forfait. Le prix unitaire marché ne s'applique PAS ici.`,
+          `  Lignes: ${lignes || "—"}`,
+        ].join("\n");
+      }
+
+      // Poste à prix unitaire : calcul normal
       let minHT = 0;
       let maxHT = 0;
       let unitMin = 0;
@@ -52,11 +89,6 @@ function buildGroupSummary(priceData: unknown[]): string {
       const ecartVsMax = hasMarket && maxHT > 0
         ? `${total > maxHT ? "+" : ""}${Math.round(((total - maxHT) / maxHT) * 100)}% vs max`
         : "hors catalogue";
-
-      const lignes: string = (g.devis_lines || [])
-        .slice(0, 4)
-        .map((l: any) => `"${l.description}"${l.amount_ht ? ` (${l.amount_ht}€)` : ""}`)
-        .join(" | ");
 
       return [
         `POSTE: ${g.job_type_label}`,
@@ -195,8 +227,9 @@ MISSION — produis 6 éléments :
    - Si aucune anomalie, les actions portent sur les bonnes pratiques contractuelles
 
 RÈGLES STRICTES:
+- INTERDIT : signaler un poste marqué [FORFAIT GLOBAL] comme anomalie de prix. Un forfait global ne peut PAS être comparé à un prix unitaire catalogue. Ces postes sont à commenter uniquement si le montant total semble disproportionné au regard de la prestation décrite.
 - NE PAS signaler comme anomalie ce qui s'explique par la localisation, l'étage, des matériaux premium COHÉRENTS, ou une complexité technique réelle.
-- Surcoût = total_devis_poste − fourchette_max_marché (jamais négatif, 0 si dans la fourchette).
+- Surcoût = total_devis_poste − fourchette_max_marché (jamais négatif, 0 si dans la fourchette). Pour les forfaits : surcoût = 0 sauf incohérence flagrante sur le montant total.
 - Si aucune anomalie → anomalies: [], has_anomalies: false, verdict_decisionnel: "signer" ou "signer_avec_negociation".
 - Les 3 actions doivent être différentes et couvrir l'essentiel : vérification prix + négociation + protection juridique/technique.
 - Sois factuel, direct, écris pour un particulier non-expert.
