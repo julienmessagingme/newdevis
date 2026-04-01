@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useConversations } from "@/hooks/useConversations";
 import { useMessages } from "@/hooks/useMessages";
 import ConversationThread from "./ConversationThread";
+import WhatsAppGroupCard from "./WhatsAppGroupCard";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -74,6 +75,8 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [newMsgContactId, setNewMsgContactId] = useState<string | null>(null);
   const [userName, setUserName] = useState("");
+  const [waGroupId, setWaGroupId] = useState<string | null>(null);
+  const [waInviteLink, setWaInviteLink] = useState<string | null>(null);
 
   // ── Fetch contacts ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -119,6 +122,20 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
       }
     });
   }, []);
+
+  // ── Fetch WhatsApp group data ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!chantierId || !token) return;
+    fetch(`/api/chantier/${chantierId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return;
+        setWaGroupId(data.whatsapp_group_id ?? null);
+        setWaInviteLink(data.whatsapp_invite_link ?? null);
+      });
+  }, [chantierId, token]);
 
   // ── Conversations & messages ──────────────────────────────────────────────
   const { conversations, isLoading: convsLoading, refresh: refreshConvs } = useConversations(chantierId);
@@ -295,6 +312,19 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
           <h2 className="font-semibold text-sm text-gray-900">Messagerie</h2>
           <p className="text-xs text-gray-400 mt-0.5">Cliquez sur un contact pour démarrer ou voir la conversation</p>
         </div>
+
+        {/* WhatsApp group */}
+        <WhatsAppGroupCard
+          chantierId={chantierId}
+          chantierNom={chantierNom}
+          token={token}
+          groupId={waGroupId}
+          inviteLink={waInviteLink}
+          onGroupCreated={(id, link) => {
+            setWaGroupId(id);
+            setWaInviteLink(link);
+          }}
+        />
 
         {/* Search */}
         <div className="px-3 py-2">

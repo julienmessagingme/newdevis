@@ -82,7 +82,7 @@ export const GET: APIRoute = async ({ params, request }) => {
   // Chargement avec vérification ownership
   const { data: chantier, error: chantierError } = await supabase
     .from('chantiers')
-    .select('id, nom, emoji, budget, phase, type_projet, mensualite, duree_credit, metadonnees, created_at, project_mode')
+    .select('id, nom, emoji, budget, phase, type_projet, mensualite, duree_credit, metadonnees, created_at, project_mode, whatsapp_group_id, whatsapp_invite_link')
     .eq('id', chantierId)
     .eq('user_id', user.id)
     .single();
@@ -187,7 +187,7 @@ export const GET: APIRoute = async ({ params, request }) => {
   if (!hasRichData) {
     const result = buildFallbackResult(chantier as Record<string, unknown>, taches);
     return new Response(
-      JSON.stringify({ result: { ...result, lots }, phase: chantier.phase, isPlanComplet: false, budgetAffine: meta.budget_affine ?? null, financing: meta.financing ?? null }),
+      JSON.stringify({ result: { ...result, lots }, phase: chantier.phase, isPlanComplet: false, budgetAffine: meta.budget_affine ?? null, financing: meta.financing ?? null, whatsapp_group_id: (chantier as any).whatsapp_group_id ?? null, whatsapp_invite_link: (chantier as any).whatsapp_invite_link ?? null }),
       { status: 200, headers: CORS },
     );
   }
@@ -263,6 +263,8 @@ export const GET: APIRoute = async ({ params, request }) => {
       projectMode: chantier.project_mode ?? null,
       budgetAffine: meta.budget_affine ?? null,
       financing: meta.financing ?? null,
+      whatsapp_group_id: (chantier as any).whatsapp_group_id ?? null,
+      whatsapp_invite_link: (chantier as any).whatsapp_invite_link ?? null,
     }),
     { status: 200, headers: CORS },
   );
