@@ -1,3 +1,4 @@
+npm warn exec The following package was not found and will be installed: supabase@2.84.6
 export type Json =
   | string
   | number
@@ -23,6 +24,7 @@ export type Database = {
           attestation_comparison: Json | null
           attestation_decennale_url: string | null
           attestation_rcpro_url: string | null
+          conclusion_ia: string | null
           created_at: string
           domain: string
           error_message: string | null
@@ -49,6 +51,7 @@ export type Database = {
           attestation_comparison?: Json | null
           attestation_decennale_url?: string | null
           attestation_rcpro_url?: string | null
+          conclusion_ia?: string | null
           created_at?: string
           domain?: string
           error_message?: string | null
@@ -75,6 +78,7 @@ export type Database = {
           attestation_comparison?: Json | null
           attestation_decennale_url?: string | null
           attestation_rcpro_url?: string | null
+          conclusion_ia?: string | null
           created_at?: string
           domain?: string
           error_message?: string | null
@@ -353,6 +357,126 @@ export type Database = {
           },
         ]
       }
+      chantier_whatsapp_groups: {
+        Row: {
+          chantier_id: string
+          created_at: string
+          group_jid: string
+          id: string
+          invite_link: string | null
+          name: string
+        }
+        Insert: {
+          chantier_id: string
+          created_at?: string
+          group_jid: string
+          id?: string
+          invite_link?: string | null
+          name?: string
+        }
+        Update: {
+          chantier_id?: string
+          created_at?: string
+          group_jid?: string
+          id?: string
+          invite_link?: string | null
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chantier_whatsapp_groups_chantier_id_fkey"
+            columns: ["chantier_id"]
+            isOneToOne: false
+            referencedRelation: "chantiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chantier_whatsapp_members: {
+        Row: {
+          group_id: string
+          id: string
+          joined_at: string
+          left_at: string | null
+          name: string
+          phone: string
+          role: string
+          status: string
+        }
+        Insert: {
+          group_id: string
+          id?: string
+          joined_at?: string
+          left_at?: string | null
+          name: string
+          phone: string
+          role?: string
+          status?: string
+        }
+        Update: {
+          group_id?: string
+          id?: string
+          joined_at?: string
+          left_at?: string | null
+          name?: string
+          phone?: string
+          role?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chantier_whatsapp_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "chantier_whatsapp_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chantier_whatsapp_messages: {
+        Row: {
+          body: string | null
+          chantier_id: string
+          from_me: boolean
+          from_number: string
+          group_id: string
+          id: string
+          media_url: string | null
+          timestamp: string
+          type: string
+        }
+        Insert: {
+          body?: string | null
+          chantier_id: string
+          from_me?: boolean
+          from_number: string
+          group_id: string
+          id: string
+          media_url?: string | null
+          timestamp?: string
+          type?: string
+        }
+        Update: {
+          body?: string | null
+          chantier_id?: string
+          from_me?: boolean
+          from_number?: string
+          group_id?: string
+          id?: string
+          media_url?: string | null
+          timestamp?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chantier_whatsapp_messages_chantier_id_fkey"
+            columns: ["chantier_id"]
+            isOneToOne: false
+            referencedRelation: "chantiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chantiers: {
         Row: {
           adresse: string | null
@@ -377,8 +501,6 @@ export type Database = {
           type_projet: string | null
           updated_at: string
           user_id: string
-          whatsapp_group_id: string | null
-          whatsapp_invite_link: string | null
         }
         Insert: {
           adresse?: string | null
@@ -403,8 +525,6 @@ export type Database = {
           type_projet?: string | null
           updated_at?: string
           user_id: string
-          whatsapp_group_id?: string | null
-          whatsapp_invite_link?: string | null
         }
         Update: {
           adresse?: string | null
@@ -429,8 +549,6 @@ export type Database = {
           type_projet?: string | null
           updated_at?: string
           user_id?: string
-          whatsapp_group_id?: string | null
-          whatsapp_invite_link?: string | null
         }
         Relationships: []
       }
