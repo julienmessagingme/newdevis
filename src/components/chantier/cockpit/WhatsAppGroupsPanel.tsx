@@ -346,7 +346,7 @@ export default function WhatsAppGroupsPanel({
             </Button>
             <Button
               onClick={handleCreate}
-              disabled={creating || !groupName.trim()}
+              disabled={creating || !groupName.trim() || checkedPhones.size === 0}
               className="bg-[#25D366] hover:bg-[#1da851] text-white gap-2"
             >
               {creating && <Loader2 className="h-4 w-4 animate-spin" />}
