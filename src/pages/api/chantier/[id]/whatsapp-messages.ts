@@ -16,7 +16,7 @@ export const GET: APIRoute = async ({ params, request }) => {
     .order('timestamp', { ascending: true })
     .limit(50);
 
-  if (error) return jsonError('Erreur base de données', 500);
+  if (error) return jsonError(error.message, 500);
 
   return jsonOk({ messages: data ?? [] });
 };
