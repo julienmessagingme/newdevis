@@ -10,6 +10,15 @@ function makeClient() {
   return createClient(supabaseUrl, supabaseService);
 }
 
+async function lookupGroupByJid(supabase: ReturnType<typeof makeClient>, groupJid: string) {
+  const { data } = await supabase
+    .from('chantier_whatsapp_groups')
+    .select('id, chantier_id')
+    .eq('group_jid', groupJid)
+    .single();
+  return data ?? null;
+}
+
 // whapi may send OPTIONS before POST
 export const OPTIONS: APIRoute = () =>
   new Response(null, {
@@ -35,7 +44,8 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const messages: any[] = payload?.messages ?? [];
-  if (messages.length === 0) return new Response('OK', { status: 200 });
+  const events: any[] = payload?.events ?? [];
+  if (messages.length === 0 && events.length === 0) return new Response('OK', { status: 200 });
 
   const supabase = makeClient();
 
@@ -47,14 +57,9 @@ export const POST: APIRoute = async ({ request }) => {
     // Skip non-message events (status updates etc.)
     if (!msg.id || !msg.type) continue;
 
-    // Find chantier by group JID
-    const { data: chantier } = await supabase
-      .from('chantiers')
-      .select('id')
-      .eq('whatsapp_group_id', groupId)
-      .single();
-
-    if (!chantier) continue; // unknown group, skip
+    // Find chantier by group JID via new table
+    const group = await lookupGroupByJid(supabase, groupId);
+    if (!group) continue; // unknown group, skip
 
     // Extract body and media_url based on message type
     let body: string | null = null;
@@ -94,7 +99,7 @@ export const POST: APIRoute = async ({ request }) => {
       .from('chantier_whatsapp_messages')
       .upsert({
         id:          msg.id,
-        chantier_id: chantier.id,
+        chantier_id: group.chantier_id,
         group_id:    groupId,
         from_number: String(msg.from ?? ''),
         from_me:     msg.from_me ?? false,
@@ -104,6 +109,48 @@ export const POST: APIRoute = async ({ request }) => {
         timestamp,
       }, { onConflict: 'id' });
     if (upsertErr) console.error('[whapi] upsert error:', upsertErr.message);
+  }
+
+  for (const event of events) {
+    const eventGroupJid = event.chat_id ?? event.group_id;
+    if (!eventGroupJid) continue;
+    const group = await lookupGroupByJid(supabase, eventGroupJid);
+    if (!group) continue;
+
+    if (event.type === 'group.participants.remove') {
+      const phones: string[] = event.participants ?? [];
+      if (phones.length > 0) {
+        await supabase
+          .from('chantier_whatsapp_members')
+          .update({ status: 'removed', left_at: new Date().toISOString() })
+          .eq('group_id', group.id)
+          .in('phone', phones);
+      }
+    }
+
+    if (event.type === 'group.participants.add') {
+      const phones: string[] = event.participants ?? [];
+      const upsertRows = phones.map((phone: string) => ({
+        group_id: group.id,
+        phone,
+        name: phone,
+        role: 'artisan',
+        status: 'active',
+        left_at: null,
+      }));
+      if (upsertRows.length > 0) {
+        await supabase
+          .from('chantier_whatsapp_members')
+          .upsert(upsertRows, { onConflict: 'group_id,phone' });
+      }
+    }
+
+    if (event.type === 'group.delete') {
+      await supabase
+        .from('chantier_whatsapp_groups')
+        .delete()
+        .eq('id', group.id);
+    }
   }
 
   return new Response('OK', { status: 200 });
