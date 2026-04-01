@@ -30,6 +30,7 @@ import DashboardHome from './DashboardHome';
 import AnalyseDevisSection from './AnalyseDevisSection';
 import TravauxDIYSection from './TravauxDIYSection';
 import AssistantChantierSection from './AssistantChantierSection';
+import UserCoordonnees from './UserCoordonnees';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 
@@ -396,27 +397,32 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
 
       case 'settings':
         return (
-          <div className="max-w-xl mx-auto px-6 py-7">
-            <h2 className="font-semibold text-gray-900 mb-5">Paramètres du chantier</h2>
-            <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50">
-              {[
-                { label: 'Nom du projet', value: result.nom },
-                { label: 'Budget observé', value: `${fmtK(displayMin)} – ${fmtK(displayMax)}` },
-                { label: 'Durée estimée', value: result.dureeEstimee ?? '—' },
-                { label: 'Nombre de lots', value: `${lots.length} lot${lots.length > 1 ? 's' : ''}` },
-                { label: 'Documents', value: `${documents.length}` },
-              ].map(({ label, value }) => (
-                <div key={label} className="flex items-center justify-between px-5 py-4">
-                  <span className="text-sm text-gray-500">{label}</span>
-                  <span className="text-sm font-semibold text-gray-900">{value}</span>
-                </div>
-              ))}
+          <div className="max-w-xl mx-auto px-6 py-7 space-y-6">
+            {/* Infos chantier */}
+            <div>
+              <h2 className="font-semibold text-gray-900 mb-3">Paramètres du chantier</h2>
+              <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50">
+                {[
+                  { label: 'Nom du projet', value: result.nom },
+                  { label: 'Budget observé', value: `${fmtK(displayMin)} – ${fmtK(displayMax)}` },
+                  { label: 'Durée estimée', value: result.dureeEstimee ?? '—' },
+                  { label: 'Nombre de lots', value: `${lots.length} lot${lots.length > 1 ? 's' : ''}` },
+                  { label: 'Documents', value: `${documents.length}` },
+                ].map(({ label, value }) => (
+                  <div key={label} className="flex items-center justify-between px-5 py-4">
+                    <span className="text-sm text-gray-500">{label}</span>
+                    <span className="text-sm font-semibold text-gray-900">{value}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="mt-5">
-              <a href="/mon-chantier" className="flex items-center justify-center gap-2 text-sm text-gray-400 hover:text-gray-600 py-3 transition-colors">
-                <ArrowLeft className="h-4 w-4" /> Retour à tous mes chantiers
-              </a>
-            </div>
+
+            {/* Coordonnées personnelles */}
+            <UserCoordonnees supabase={supabase} />
+
+            <a href="/mon-chantier" className="flex items-center justify-center gap-2 text-sm text-gray-400 hover:text-gray-600 py-3 transition-colors">
+              <ArrowLeft className="h-4 w-4" /> Retour à tous mes chantiers
+            </a>
           </div>
         );
 
