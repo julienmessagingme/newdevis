@@ -81,7 +81,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   const token = authHeader?.replace("Bearer ", "").trim();
   if (!token) return jsonError("Non autorisé", 401);
 
-  const supabaseUrl   = import.meta.env.SUPABASE_URL;
+  const supabaseUrl   = import.meta.env.PUBLIC_SUPABASE_URL;
   const serviceKey    = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
   const googleApiKey  = import.meta.env.GOOGLE_API_KEY;
 
