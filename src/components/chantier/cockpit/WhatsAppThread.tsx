@@ -10,6 +10,7 @@ interface WaMessage {
   body: string | null;
   media_url: string | null;
   timestamp: string;
+  group_id?: string;
 }
 
 interface Contact {
@@ -17,15 +18,26 @@ interface Contact {
   nom: string;
 }
 
+type SenderRole = 'gmc' | 'client' | 'artisan';
+
 interface Props {
   chantierId: string;
   chantierNom: string;
   token: string;
-  contacts: Contact[];     // to resolve sender names from phone numbers
+  contacts: Contact[];      // to resolve sender names from phone numbers
+  userPhone: string;        // normalized phone of the logged-in user (33XXXXXXXXX format)
+  groupJid?: string;        // JID of the group to display — filters messages
+  groupName?: string;       // display name shown in the header
   onBack: () => void;
 }
 
-function formatPhone(raw: string): string {
+function normalizePhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  if (digits.startsWith('0') && digits.length === 10) return '33' + digits.slice(1);
+  return digits;
+}
+
+function formatPhoneDisplay(raw: string): string {
   // "33612345678" → "06 12 34 56 78"
   if (raw.startsWith('33') && raw.length === 11) {
     const local = '0' + raw.slice(2);
@@ -39,26 +51,40 @@ function formatTime(iso: string): string {
   const now = new Date();
   const isToday = d.toDateString() === now.toDateString();
   if (isToday) return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' ' +
-    d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return (
+    d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) +
+    ' ' +
+    d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+  );
 }
 
-export default function WhatsAppThread({ chantierId, chantierNom, token, contacts, onBack }: Props) {
+// Bubble styling per role
+const BUBBLE_CLASSES: Record<SenderRole, string> = {
+  gmc:     'bg-[#DCF8C6] text-gray-800 rounded-tr-none',
+  client:  'bg-[#DBEAFE] text-gray-800 rounded-tr-none',
+  artisan: 'bg-white      text-gray-800 rounded-tl-none',
+};
+
+export default function WhatsAppThread({
+  chantierId,
+  chantierNom,
+  token,
+  contacts,
+  userPhone,
+  groupJid,
+  groupName,
+  onBack,
+}: Props) {
   const [messages, setMessages] = useState<WaMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Build phone → name map from contacts (memoized to avoid rebuilding on every render)
+  // Build phone → name map (normalized)
   const phoneMap = useMemo(() => {
     const map = new Map<string, string>();
     for (const c of contacts) {
       if (c.telephone) {
-        // normalize: strip spaces/dashes, handle leading 0 → 33
-        const digits = c.telephone.replace(/\D/g, '');
-        const normalized = digits.startsWith('0') && digits.length === 10
-          ? '33' + digits.slice(1)
-          : digits;
-        map.set(normalized, c.nom);
+        map.set(normalizePhone(c.telephone), c.nom);
       }
     }
     return map;
@@ -69,16 +95,18 @@ export default function WhatsAppThread({ chantierId, chantierNom, token, contact
       setLoading(false);
       return;
     }
-    fetch(`/api/chantier/${chantierId}/whatsapp-messages`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    const url = groupJid
+      ? `/api/chantier/${chantierId}/whatsapp-messages?groupJid=${encodeURIComponent(groupJid)}`
+      : `/api/chantier/${chantierId}/whatsapp-messages`;
+
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => (r.ok ? r.json() : { messages: [] }))
       .then((data) => {
         setMessages(data.messages ?? []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [chantierId, token]);
+  }, [chantierId, token, groupJid]);
 
   // Auto-scroll to bottom when messages load
   useEffect(() => {
@@ -87,9 +115,15 @@ export default function WhatsAppThread({ chantierId, chantierNom, token, contact
     }
   }, [loading, messages.length]);
 
+  function getSenderRole(msg: WaMessage): SenderRole {
+    if (msg.from_me) return 'gmc';
+    if (userPhone && msg.from_number === userPhone) return 'client';
+    return 'artisan';
+  }
+
   function getSenderName(msg: WaMessage): string {
-    if (msg.from_me) return 'Moi';
-    return phoneMap.get(msg.from_number) ?? formatPhone(msg.from_number);
+    if (msg.from_me) return 'GérerMonChantier';
+    return phoneMap.get(msg.from_number) ?? formatPhoneDisplay(msg.from_number);
   }
 
   function renderMessageContent(msg: WaMessage) {
@@ -142,7 +176,7 @@ export default function WhatsAppThread({ chantierId, chantierNom, token, contact
           <MessageCircle className="h-5 w-5 text-white" />
         </div>
         <div className="min-w-0">
-          <p className="font-semibold text-sm text-gray-900">Groupe WhatsApp</p>
+          <p className="font-semibold text-sm text-gray-900">{groupName ?? 'Groupe WhatsApp'}</p>
           <p className="text-xs text-gray-400 truncate">{chantierNom}</p>
         </div>
         <p className="text-xs text-gray-400 ml-auto flex-shrink-0">Lecture seule</p>
@@ -159,28 +193,27 @@ export default function WhatsAppThread({ chantierId, chantierNom, token, contact
             Aucun message WhatsApp reçu pour l'instant
           </div>
         ) : (
-          messages.map((msg) => (
-            <div key={msg.id} className={`flex flex-col ${msg.from_me ? 'items-end' : 'items-start'}`}>
-              {/* Sender name (only for others) */}
-              {!msg.from_me && (
-                <p className="text-[10px] font-medium text-gray-500 mb-0.5 ml-1">
-                  {getSenderName(msg)}
-                </p>
-              )}
-              <div
-                className={`max-w-[75%] px-3 py-2 rounded-lg shadow-sm ${
-                  msg.from_me
-                    ? 'bg-[#DCF8C6] text-gray-800 rounded-tr-none'
-                    : 'bg-white text-gray-800 rounded-tl-none'
-                }`}
-              >
-                {renderMessageContent(msg)}
-                <p className={`text-[10px] text-gray-400 mt-1 ${msg.from_me ? 'text-right' : 'text-left'}`}>
-                  {formatTime(msg.timestamp)}
-                </p>
+          messages.map((msg) => {
+            const role = getSenderRole(msg);
+            const isRight = role === 'gmc' || role === 'client';
+
+            return (
+              <div key={msg.id} className={`flex flex-col ${isRight ? 'items-end' : 'items-start'}`}>
+                {/* Sender name (hidden for gmc "from_me" messages) */}
+                {role !== 'gmc' && (
+                  <p className="text-[10px] font-medium text-gray-500 mb-0.5 ml-1">
+                    {getSenderName(msg)}
+                  </p>
+                )}
+                <div className={`max-w-[75%] px-3 py-2 rounded-lg shadow-sm ${BUBBLE_CLASSES[role]}`}>
+                  {renderMessageContent(msg)}
+                  <p className={`text-[10px] text-gray-400 mt-1 ${isRight ? 'text-right' : 'text-left'}`}>
+                    {formatTime(msg.timestamp)}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
         <div ref={bottomRef} />
       </div>
