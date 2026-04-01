@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { MessageSquare, Mail, Search, Loader2, User, Send, MessageCircle } from "lucide-react";
+import { MessageSquare, Mail, Search, Loader2, Send, MessageCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useConversations } from "@/hooks/useConversations";
 import { useMessages } from "@/hooks/useMessages";
 import ConversationThread from "./ConversationThread";
-import WhatsAppGroupCard from "./WhatsAppGroupCard";
+import WhatsAppGroupsPanel, { WaGroup } from "./WhatsAppGroupsPanel";
 import WhatsAppThread from './WhatsAppThread';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -76,8 +76,9 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [newMsgContactId, setNewMsgContactId] = useState<string | null>(null);
   const [userName, setUserName] = useState("");
-  const [waGroupId, setWaGroupId] = useState<string | null>(null);
-  const [waInviteLink, setWaInviteLink] = useState<string | null>(null);
+  const [userPhone, setUserPhone] = useState("");
+  const [waGroups, setWaGroups] = useState<WaGroup[]>([]);
+  const [activeWaGroupJid, setActiveWaGroupJid] = useState<string | null>(null);
   const [showWaThread, setShowWaThread] = useState(false);
 
   // ── Fetch contacts ────────────────────────────────────────────────────────
@@ -115,28 +116,33 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
       .catch(() => {});
   }, [chantierId, token]);
 
-  // ── Fetch user name ───────────────────────────────────────────────────────
+  // ── Fetch user name + phone ───────────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         const m = user.user_metadata || {};
         setUserName([m.first_name, m.last_name].filter(Boolean).join(" ") || user.email || "");
+        const rawPhone = m.phone ?? (user as any).phone ?? "";
+        if (rawPhone) {
+          const digits = rawPhone.replace(/\D/g, "");
+          setUserPhone(
+            digits.startsWith("0") && digits.length === 10
+              ? "33" + digits.slice(1)
+              : digits
+          );
+        }
       }
     });
   }, []);
 
-  // ── Fetch WhatsApp group data ─────────────────────────────────────────────
+  // ── Fetch WhatsApp groups ─────────────────────────────────────────────────
   useEffect(() => {
     if (!chantierId || !token) return;
-    fetch(`/api/chantier/${chantierId}`, {
+    fetch(`/api/chantier/${chantierId}/whatsapp-groups`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!data) return;
-        setWaGroupId(data.whatsapp_group_id ?? null);
-        setWaInviteLink(data.whatsapp_invite_link ?? null);
-      });
+      .then((r) => (r.ok ? r.json() : { groups: [] }))
+      .then((data) => setWaGroups(data.groups ?? []));
   }, [chantierId, token]);
 
   // ── Conversations & messages ──────────────────────────────────────────────
@@ -146,8 +152,6 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
   const selectedConv = conversations.find((c) => c.id === selectedConvId);
 
   // ── Build unified contact list ────────────────────────────────────────────
-  // Each contact shows: avatar, name, role, last message preview (if conversation exists)
-  // Contacts WITH conversations first, then contacts without
 
   type ContactRow = {
     contactId: string;
@@ -166,7 +170,6 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
   const contactRows = useMemo(() => {
     const emailContacts = contacts.filter((c) => c.email);
 
-    // Map contact id → conversation
     const convByContactId = new Map<string, (typeof conversations)[0]>();
     for (const conv of conversations) {
       if (conv.contact_id) convByContactId.set(conv.contact_id, conv);
@@ -189,7 +192,6 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
       };
     });
 
-    // Also add conversations whose contact is NOT in the contacts list (edge case)
     const seenContactIds = new Set(emailContacts.map((c) => c.id));
     for (const conv of conversations) {
       if (conv.contact_id && !seenContactIds.has(conv.contact_id)) {
@@ -208,7 +210,6 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
       }
     }
 
-    // Sort: conversations with unread first, then by last message date, then alphabetical
     rows.sort((a, b) => {
       if (a.unreadCount > 0 && b.unreadCount === 0) return -1;
       if (b.unreadCount > 0 && a.unreadCount === 0) return 1;
@@ -231,11 +232,9 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
 
   const handleSelectRow = async (row: ContactRow) => {
     if (row.convId) {
-      // Has conversation → show thread
       setSelectedConvId(row.convId);
       setNewMsgContactId(null);
     } else {
-      // No conversation → resolve artisan if needed, then open composer
       let resolvedId = row.contactId;
       if (row.contactId.startsWith("analyse-")) {
         const artisan = artisanMapRef.current.get(row.contactId);
@@ -275,11 +274,9 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
     const ok = await sendMessage(contactId, subject, body);
     if (ok) {
       await refreshConvs();
-      // Select the newly created conversation
       if (newMsgContactId) {
         setNewMsgContactId(null);
-        // Refresh will have the new conversation — select it
-        const updatedConvs = await refreshConvs();
+        await refreshConvs();
       }
     }
   };
@@ -288,6 +285,7 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
     setSelectedConvId(null);
     setNewMsgContactId(null);
     setShowWaThread(false);
+    setActiveWaGroupJid(null);
   };
 
   const threadConv = selectedConv
@@ -316,17 +314,13 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
           <p className="text-xs text-gray-400 mt-0.5">Cliquez sur un contact pour démarrer ou voir la conversation</p>
         </div>
 
-        {/* WhatsApp group */}
-        <WhatsAppGroupCard
+        {/* WhatsApp groups panel */}
+        <WhatsAppGroupsPanel
           chantierId={chantierId}
-          chantierNom={chantierNom}
           token={token}
-          groupId={waGroupId}
-          inviteLink={waInviteLink}
-          onGroupCreated={(id, link) => {
-            setWaGroupId(id);
-            setWaInviteLink(link);
-          }}
+          groups={waGroups}
+          contacts={contacts}
+          onGroupCreated={(group) => setWaGroups((prev) => [...prev, group])}
         />
 
         {/* Search */}
@@ -343,29 +337,33 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
           </div>
         </div>
 
-        {/* WhatsApp group entry */}
-        {waGroupId && (
+        {/* WhatsApp group entries */}
+        {waGroups.map((group) => (
           <button
+            key={group.id}
             onClick={() => {
+              setActiveWaGroupJid(group.group_jid);
               setShowWaThread(true);
               setSelectedConvId(null);
               setNewMsgContactId(null);
             }}
             className={`w-full text-left px-3 py-3 flex items-center gap-3 transition-colors border-l-2 border-b border-gray-100 ${
-              showWaThread
-                ? 'bg-green-50 border-[#25D366]'
-                : 'border-transparent hover:bg-gray-50'
+              showWaThread && activeWaGroupJid === group.group_jid
+                ? "bg-green-50 border-[#25D366]"
+                : "border-transparent hover:bg-gray-50"
             }`}
           >
             <div className="flex-shrink-0 w-10 h-10 rounded-full bg-[#25D366] flex items-center justify-center">
               <MessageCircle className="h-5 w-5 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-800">Groupe WhatsApp</p>
-              <p className="text-xs text-gray-400 truncate">Messages du groupe</p>
+              <p className="text-sm font-medium text-gray-800">{group.name}</p>
+              <p className="text-xs text-gray-400 truncate">
+                {group.members?.filter((m) => m.status === "active").length ?? 0} membres actifs
+              </p>
             </div>
           </button>
-        )}
+        ))}
 
         {/* Contact rows */}
         <div className="flex-1 overflow-y-auto">
@@ -440,12 +438,15 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
 
       {/* ── Right: thread or empty state ──────────────────────────────────── */}
       <div className={`flex-1 min-w-0 h-full ${mobileShowThread ? "block" : "hidden lg:block"}`}>
-        {showWaThread ? (
+        {showWaThread && activeWaGroupJid ? (
           <WhatsAppThread
             chantierId={chantierId}
             chantierNom={chantierNom}
             token={token}
             contacts={contacts}
+            userPhone={userPhone}
+            groupJid={activeWaGroupJid}
+            groupName={waGroups.find((g) => g.group_jid === activeWaGroupJid)?.name}
             onBack={handleBack}
           />
         ) : threadConv ? (
