@@ -147,6 +147,16 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
 
   useEffect(() => { fetchWaGroups(); }, [fetchWaGroups]);
 
+  // Reset WA thread if the active group was deleted
+  const waGroupsLoadedRef = React.useRef(false);
+  useEffect(() => {
+    if (!waGroupsLoadedRef.current) { waGroupsLoadedRef.current = true; return; }
+    if (activeWaGroupJid && !waGroups.find((g) => g.group_jid === activeWaGroupJid)) {
+      setShowWaThread(false);
+      setActiveWaGroupJid(null);
+    }
+  }, [waGroups]);
+
   // ── Conversations & messages ──────────────────────────────────────────────
   const { conversations, isLoading: convsLoading, refresh: refreshConvs } = useConversations(chantierId);
   const { messages, isLoading: msgsLoading, sendMessage, sending, refresh: refreshMsgs } = useMessages(chantierId, selectedConvId);
