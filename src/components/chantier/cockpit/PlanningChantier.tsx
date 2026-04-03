@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Plus, Check, Trash2, ChevronRight, Loader2, X,
-  Star, Sparkles, Calendar, CheckSquare,
+  Star, Sparkles, Calendar, CheckSquare, Pencil,
 } from 'lucide-react';
 import type { ChantierIAResult, TacheIA } from '@/types/chantier-ia';
 import type { PrioriteTache } from '@/types/chantier-ia';
@@ -119,6 +119,7 @@ export default function PlanningChantier({ result, chantierId, token, initialTac
   const [rdvs,         setRdvs]         = useState<Rdv[]>([]);
   const [showAddRdv,   setShowAddRdv]   = useState(false);
   const [newRdv,       setNewRdv]       = useState<Partial<Rdv>>({ type: 'artisan' });
+  const [editingRdv,   setEditingRdv]   = useState<Rdv | null>(null);
   const addRef = useRef<HTMLInputElement>(null);
 
   // ── RDV — localStorage ────────────────────────────────────────────────────
@@ -233,18 +234,32 @@ export default function PlanningChantier({ result, chantierId, token, initialTac
     setDeleting(null);
   };
 
-  const addRdv = () => {
+  const saveRdv = () => {
     if (!newRdv.titre?.trim() || !newRdv.date) return;
-    const rdv: Rdv = {
-      id: crypto.randomUUID(),
-      titre: newRdv.titre!,
-      date: newRdv.date!,
-      time: newRdv.time,
-      type: newRdv.type ?? 'autre',
-    };
-    persistRdvs([...rdvs, rdv]);
+    if (editingRdv) {
+      persistRdvs(rdvs.map(r => r.id === editingRdv.id
+        ? { ...r, titre: newRdv.titre!, date: newRdv.date!, time: newRdv.time, type: newRdv.type ?? 'autre' }
+        : r
+      ));
+      setEditingRdv(null);
+    } else {
+      const rdv: Rdv = {
+        id: crypto.randomUUID(),
+        titre: newRdv.titre!,
+        date: newRdv.date!,
+        time: newRdv.time,
+        type: newRdv.type ?? 'autre',
+      };
+      persistRdvs([...rdvs, rdv]);
+    }
     setNewRdv({ type: 'artisan' });
     setShowAddRdv(false);
+  };
+
+  const startEditRdv = (rdv: Rdv) => {
+    setEditingRdv(rdv);
+    setNewRdv({ titre: rdv.titre, date: rdv.date, time: rdv.time ?? '', type: rdv.type });
+    setShowAddRdv(true);
   };
 
   // ── Derived ───────────────────────────────────────────────────────────────
@@ -435,7 +450,9 @@ export default function PlanningChantier({ result, chantierId, token, initialTac
         <div className="space-y-4">
           {showAddRdv ? (
             <div className="bg-white rounded-2xl border border-blue-200 shadow-sm p-5 space-y-4">
-              <p className="font-semibold text-gray-900 text-sm">Nouveau rendez-vous</p>
+              <p className="font-semibold text-gray-900 text-sm">
+                {editingRdv ? 'Modifier le rendez-vous' : 'Nouveau rendez-vous'}
+              </p>
               <div>
                 <label className="text-xs font-medium text-gray-500 mb-1 block">Titre *</label>
                 <input
@@ -448,7 +465,7 @@ export default function PlanningChantier({ result, chantierId, token, initialTac
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium text-gray-500 mb-1 block">Date *</label>
-                  <input type="date" min={today()} value={newRdv.date ?? ''}
+                  <input type="date" min={editingRdv ? undefined : today()} value={newRdv.date ?? ''}
                     onChange={e => setNewRdv(p => ({ ...p, date: e.target.value }))}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400"
                   />
@@ -476,14 +493,14 @@ export default function PlanningChantier({ result, chantierId, token, initialTac
               </div>
               <div className="flex gap-2 pt-1">
                 <button
-                  onClick={addRdv}
+                  onClick={saveRdv}
                   disabled={!newRdv.titre?.trim() || !newRdv.date}
                   className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl py-2.5 disabled:opacity-50 transition-colors"
                 >
-                  Ajouter
+                  {editingRdv ? 'Enregistrer' : 'Ajouter'}
                 </button>
                 <button
-                  onClick={() => { setShowAddRdv(false); setNewRdv({ type: 'artisan' }); }}
+                  onClick={() => { setShowAddRdv(false); setNewRdv({ type: 'artisan' }); setEditingRdv(null); }}
                   className="px-4 text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-xl transition-colors"
                 >
                   Annuler
@@ -518,12 +535,20 @@ export default function PlanningChantier({ result, chantierId, token, initialTac
                     {fmtDate(rdv.date)}{rdv.time ? ` à ${rdv.time}` : ''} · {cfg.label}
                   </p>
                 </div>
-                <button
-                  onClick={() => persistRdvs(rdvs.filter(r => r.id !== rdv.id))}
-                  className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all p-1 rounded-lg hover:bg-red-50"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                  <button
+                    onClick={() => startEditRdv(rdv)}
+                    className="text-gray-300 hover:text-blue-500 p-1 rounded-lg hover:bg-blue-50 transition-colors"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => persistRdvs(rdvs.filter(r => r.id !== rdv.id))}
+                    className="text-gray-300 hover:text-red-500 p-1 rounded-lg hover:bg-red-50 transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             );
           })}

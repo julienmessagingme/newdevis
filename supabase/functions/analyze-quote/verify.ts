@@ -93,10 +93,13 @@ export async function verifyData(
   const rawSiret = extracted.entreprise.siret;
   const cleanRaw = rawSiret?.replace(/\s/g, '') ?? null;
   // Accept 14-digit SIRET or 9-digit SIREN (AI sometimes extracts only the SIREN part)
+  // Also handle 13-digit OCR artifacts: PDF imprimé avec un 0 manquant dans le NIC
+  // → les 9 premiers chiffres sont toujours le SIREN valide
   const siret = cleanRaw && /^\d{14}$/.test(cleanRaw) ? cleanRaw : null;
   const siren = siret
     ? extractSiren(siret)
-    : (cleanRaw && /^\d{9}$/.test(cleanRaw) ? cleanRaw : null);
+    : (cleanRaw && /^\d{9}$/.test(cleanRaw) ? cleanRaw : null)
+    ?? (cleanRaw && /^\d{13}$/.test(cleanRaw) ? cleanRaw.substring(0, 9) : null);
   // Use SIRET if available, fall back to SIREN as lookup/cache key
   const lookupKey = siret ?? siren;
 
@@ -333,17 +336,27 @@ export async function verifyData(
 
   if (siren) {
     try {
-      const rgeResponse = await fetch(`${ADEME_RGE_API_URL}?q=${siren}&size=10`);
+      // Filtre sur le champ siret (préfixe SIREN = 9 premiers chiffres du SIRET)
+      // ?qs=siret:... utilise la syntaxe Lucene du moteur data.ademe.fr
+      const siretFilter = siret ? siret : `${siren}*`;
+      const rgeResponse = await fetch(
+        `${ADEME_RGE_API_URL}?qs=siret:${encodeURIComponent(siretFilter)}&size=20`,
+      );
       if (rgeResponse.ok) {
         const rgeData = await rgeResponse.json();
         if (rgeData.results && rgeData.results.length > 0) {
           result.rge_trouve = true;
           result.rge_qualifications = rgeData.results
-            .map((r: any) => ({
-              nom: r.nom_qualification || r.qualification || "",
-              domaine: r.domaine || r.code_qualification || undefined,
-              date_fin: r.date_fin_validite || undefined,
-            }))
+            .map((r: any) => {
+              const organisme = r.organisme || "";
+              const nomQual = r.nom_qualification || r.qualification || "";
+              const nom = nomQual || organisme;
+              return {
+                nom: organisme && nomQual ? `${organisme} — ${nomQual}` : nom,
+                domaine: r.domaine || r.code_qualification || undefined,
+                date_fin: r.date_fin_validite || undefined,
+              };
+            })
             .filter((q: any) => q.nom);
         }
       }
@@ -353,39 +366,12 @@ export async function verifyData(
     }
   }
 
-  // 4b. QUALIBAT — vérification si mentionné sur le devis
+  // 4b. QUALIBAT — détection mention sur le devis (pas d'API JSON disponible côté Qualibat)
   const qualibatMentionne = extracted.entreprise.certifications_mentionnees
     ?.some((c: string) => c.toUpperCase().includes("QUALIBAT")) ?? false;
   result.qualibat_mentionne = qualibatMentionne;
-
-  if (siren && qualibatMentionne) {
-    try {
-      // QUALIBAT public API (best-effort)
-      const qualibatUrl = `https://www.qualibat.com/annuaire/enterprise/${siren}/`;
-      const qualibatResp = await fetch(qualibatUrl, {
-        headers: { "Accept": "application/json", "User-Agent": "VerifierMonDevis/1.0" },
-        signal: AbortSignal.timeout(5000),
-      });
-      if (qualibatResp.ok) {
-        const qData = await qualibatResp.json();
-        if (qData && (qData.certifications || qData.qualifications)) {
-          result.qualibat_verifie = true;
-          result.qualibat_certifie = true;
-          const certs = qData.certifications || qData.qualifications || [];
-          result.qualibat_qualifications = certs.map((c: any) => ({
-            code: c.code || c.numero || "",
-            libelle: c.libelle || c.nom || c.domaine || "",
-            date_fin: c.date_fin || c.date_echeance || undefined,
-          })).filter((c: any) => c.code || c.libelle);
-        } else {
-          result.qualibat_verifie = true;
-          result.qualibat_certifie = false;
-        }
-      }
-    } catch {
-      // API unavailable — keep qualibat_verifie = false (mention detected but not verified)
-    }
-  }
+  // Pas de vérification automatique possible — qualibat.com ne propose pas d'API JSON publique.
+  // qualibat_verifie reste false → UI affiche "mention détectée, vérifiez manuellement".
 
   // 5. Géorisques - Site context
   const codePostal = extracted.client.code_postal;

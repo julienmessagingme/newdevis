@@ -4,6 +4,7 @@ import {
   ScoreEvolutionChart,
   ScoreDistributionPieChart,
   UsersEvolutionChart,
+  WorkTypeDistributionChart,
 } from "@/components/admin/AdminCharts";
 import type { KPIs } from "@/types/admin";
 
@@ -31,12 +32,18 @@ export default function ChartsSection({ kpis }: ChartsSectionProps) {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        <ScoreEvolutionChart 
-          evolutionDaily={kpis.charts.evolution_daily} 
-          evolutionWeekly={kpis.charts.evolution_weekly} 
+        <ScoreEvolutionChart
+          evolutionDaily={kpis.charts.evolution_daily}
+          evolutionWeekly={kpis.charts.evolution_weekly}
         />
-        <ScoreDistributionPieChart 
-          scoreDistribution={kpis.charts.score_distribution} 
+        <ScoreDistributionPieChart
+          scoreDistribution={kpis.charts.score_distribution}
+        />
+      </div>
+
+      <div className="mt-6">
+        <WorkTypeDistributionChart
+          workTypeDistribution={kpis.charts.work_type_distribution}
         />
       </div>
     </section>

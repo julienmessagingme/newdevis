@@ -207,8 +207,8 @@ MISSION — produis 6 éléments :
 
 3. VERDICT DÉCISIONNEL (choisir UNE seule option) :
    - "signer" → prix cohérent, aucune anomalie réelle, risque faible, le particulier peut signer en confiance
-   - "signer_avec_negociation" → quelques postes élevés mais le devis reste acceptable après négociation, risque modéré
-   - "ne_pas_signer" → anomalies graves non justifiées OU surcoût > 15% du total OU incohérences majeures, risque élevé
+   - "signer_avec_negociation" → 1 anomalie isolée OU quelques postes élevés mais le reste du devis est acceptable — la négociation suffit à corriger l'écart
+   - "ne_pas_signer" → UNIQUEMENT si : 2 anomalies ou plus ET non justifiées, OU surcoût > 30% du total HT, OU incohérences majeures sur plusieurs postes. UNE seule anomalie isolée ne justifie PAS "ne_pas_signer" sauf si elle représente à elle seule > 50% du total HT.
 
 4. SURCOÛT GLOBAL (fourchette min/max en €) :
    - Somme estimée des surcoûts récupérables par la négociation
@@ -217,8 +217,8 @@ MISSION — produis 6 éléments :
 
 5. NIVEAU DE RISQUE :
    - "faible" → devis cohérent, entreprise identifiée, prix dans le marché
-   - "modéré" → quelques écarts, négociation utile, à surveiller
-   - "élevé" → anomalies graves, incohérences multiples, risque financier réel
+   - "modéré" → 1 anomalie isolée ou quelques écarts — négociation utile, à surveiller mais pas alarmant
+   - "élevé" → UNIQUEMENT si 2 anomalies ou plus non justifiées, OU surcoût > 30% du total HT. Une seule anomalie isolée = "modéré" au maximum.
 
 6. ACTIONS AVANT SIGNATURE (exactement 3 actions concrètes, formulées pour un particulier) :
    - Actions réalistes et actionnables IMMÉDIATEMENT (appel, email, demande de document)
