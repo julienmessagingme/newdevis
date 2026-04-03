@@ -1726,6 +1726,137 @@ Score affiché en pourcentage avec libellé (Estimation approximative → Estima
 
 Compare plusieurs devis rattachés au même lot. Utilise `compareQuotes.ts` pour extraire et aligner les postes de travaux depuis les analyses liées.
 
+### WhatsApp multi-groupes
+
+Intégration whapi.cloud pour créer et gérer de vrais groupes WhatsApp depuis le cockpit chantier. N groupes par chantier.
+
+#### Tables
+
+| Table | Colonnes clés | Notes |
+|---|---|---|
+| `chantier_whatsapp_groups` | `id UUID PK`, `chantier_id UUID FK`, `name TEXT`, `group_jid TEXT UNIQUE`, `invite_link TEXT`, `created_at` | Un chantier peut avoir N groupes |
+| `chantier_whatsapp_members` | `id UUID PK`, `group_id UUID FK→chantier_whatsapp_groups`, `phone TEXT`, `name TEXT`, `role TEXT` (gmc/client/artisan), `status TEXT` (active/left/removed), `joined_at`, `left_at` | UNIQUE(group_id, phone). Cascade delete si groupe supprimé. |
+| `chantier_whatsapp_messages` | `id TEXT PK` (whapi msg id — idempotent), `chantier_id UUID`, `group_id TEXT` (JID brut, **pas FK UUID**), `from_number TEXT`, `from_me BOOLEAN`, `type TEXT`, `body TEXT`, `media_url TEXT`, `timestamp TIMESTAMPTZ` | RLS SELECT via `chantier_id`. `group_id` est un TEXT JID brut (ex: `120363xxxxx@g.us`) — intentionnel, antérieur à la table groups. |
+
+> **Point important** : `chantier_whatsapp_messages.group_id` n'est pas une FK UUID vers `chantier_whatsapp_groups`. Les messages orphelins persistent si un groupe est supprimé. Ne pas migrer en UUID FK sans plan de migration des données.
+
+#### API Routes
+
+| Méthode | Route | Description |
+|---|---|---|
+| GET | `/api/chantier/:id/whatsapp-groups` | Groupes + membres imbriqués (2 requêtes, pas de N+1) |
+| DELETE | `/api/chantier/:id/whatsapp-groups?groupId=<uuid>` | Supprime groupe (membres supprimés en cascade) |
+| POST | `/api/chantier/:id/whatsapp` | Crée groupe whapi + INSERT `chantier_whatsapp_groups` + `chantier_whatsapp_members` |
+| PATCH | `/api/chantier/:id/whatsapp` | Ajoute participants à un groupe existant |
+| GET | `/api/chantier/:id/whatsapp-messages?groupJid=<jid>` | Messages filtrés par groupe, limit 200 |
+| POST | `/api/webhooks/whapi` | Webhook whapi : messages entrants + events (join/leave/remove/delete). Toujours 200. |
+
+**Webhook whapi events** : `group.participants.add` via PUT, `group.participants.remove` via PATCH. Whapi ne supporte pas l'event delete de groupe côté webhook.
+
+**Config webhook whapi** : URL `https://www.verifiermondevis.fr/api/webhooks/whapi`, events actifs : messages POST + groups POST/PUT/PATCH.
+
+#### Composants
+
+- `WhatsAppGroupsPanel.tsx` — liste groupes, membres dépliables, modale création avec sélection participants, bouton supprimer groupe
+- `WhatsAppThread.tsx` — bulles colorées par rôle : gmc→`#DCF8C6` droite, client→`#DBEAFE` droite, artisan→blanc gauche. Props : `userPhone`, `groupJid`, `groupName`
+- `MessagerieSection.tsx` — orchestrateur messagerie (email + WhatsApp). `fetchWaGroups` = `useCallback([chantierId, token])`. Reset automatique du thread actif si le groupe est supprimé (useEffect sur `waGroups`).
+
+#### Lib
+
+- `src/lib/whapiUtils.ts` — `formatPhone()`, `createWhatsAppGroup()`, `addGroupParticipants()`
+- `GMC_PHONE = '33633921577'` — toujours inclus dans les groupes, rôle `'gmc'`
+
+---
+
+### Planning / Gantt
+
+Planification temporelle des lots de chantier avec vue Gantt drag/resize.
+
+#### Migration
+
+`supabase/migrations/20260329120000_add_planning_columns.sql` :
+- `lots_chantier` : `duree_jours INT`, `date_debut DATE`, `date_fin DATE`, `ordre_planning INT`, `parallel_group INT`
+- `chantiers` : `date_debut_chantier DATE`
+- Index : `idx_lots_planning ON lots_chantier(chantier_id, ordre_planning)`
+
+#### Lib partagée (`src/lib/planningUtils.ts`)
+
+| Fonction | Signature | Description |
+|---|---|---|
+| `addBusinessDays` | `(date, days) → Date` | Ajoute N jours ouvrés (skip weekends) |
+| `computePlanningDates` | `(lots, startDate) → lots[]` | Recalcule toutes les dates, gère `parallel_group` |
+| `computeStartDateFromEnd` | `(lots, endDate) → lots[]` | Calcul inverse depuis date de fin |
+| `formatDuration` | `(days) → string` | "2 semaines", "3 jours" |
+| `getWeekNumber` | `(date, startDate) → number` | Numéro semaine relative S1, S2… |
+
+#### API Route (`src/pages/api/chantier/[id]/planning.ts`)
+
+- `GET` → lots avec champs planning + `date_debut_chantier`
+- `PATCH` → body `{ lots: [{id, duree_jours?, ordre_planning?, parallel_group?}], date_debut_chantier? }` → `computePlanningDates()` → UPDATE batch via `Promise.all` (évite les deadlocks séquentiels)
+
+#### Hook (`src/hooks/usePlanning.ts`)
+
+State : `lots`, `startDate`, `totalWeeks`, `loading`. Actions : `moveLot()`, `updateEndDate()`, `recompute()`. Utilise `setState(s => ...)` pour éviter les stale closures dans les callbacks.
+
+#### Composants (`components/chantier/cockpit/planning/`)
+
+- `PlanningTimeline.tsx` — Gantt drag/resize, colonnes hebdomadaires S1..Sn, colonne gauche sticky, scroll horizontal mobile
+- `PlanningWidget.tsx` — mini-résumé vue d'ensemble : durée totale, date début→fin, mini-barres colorées, lien "Voir le planning"
+
+#### Intégration IA
+
+L'edge function `chantier-generer` génère `duree_jours_estime`, `ordre_planning`, `parallel_group` pour chaque lot. `sauvegarder.ts` stocke ces valeurs et appelle `computePlanningDates()` si `date_debut_chantier` est disponible.
+
+---
+
+### BudgetTresorerie — 12 sous-composants
+
+Le composant `BudgetTresorerie` a été refactorisé. Les 12 sous-composants vivent dans `components/chantier/cockpit/budget/` :
+
+| Composant | Rôle |
+|---|---|
+| `BudgetAffinageModal` | Modal d'affinage budget (questions par corps de métier) |
+| `BudgetGauge` | Jauge visuelle budget consommé/restant |
+| `LotBreakdown` | Détail budget par lot |
+| `AlertesIA` | Alertes générées par l'IA sur le budget |
+| `TresoreriePhases` | Trésorerie par phase de chantier |
+| `FacturesPaiements` | Suivi factures et paiements |
+| `QuickActions` | Actions rapides budget |
+| `ProjectHeader` | En-tête projet avec infos clés |
+| `ReliabilityBadge` | Badge fiabilité estimation |
+| `BudgetComparaison` | Comparaison budget initial vs réel |
+| `BudgetExplication` | Explication détaillée du budget IA |
+| `BudgetKpiCard` | Carte KPI budget (réutilisable) |
+
+Données partagées :
+- `src/lib/budgetAffinageData.ts` — `ELEMENT_DEFS`, `TRADE_QUESTION_DEFS`, `computeRefinedRange()`, `computeScore()` (pure TS, extrait du monolithe `BudgetTresorerie`)
+- `src/lib/budgetHelpers.ts` — `fmtK()`, `fmtFull()`, `PHASE_LABELS`, `PHASE_COLORS`
+
+---
+
+### Contacts chantier — colonnes et index supplémentaires
+
+La table `contacts_chantier` a été enrichie :
+
+| Colonne | Type | Comportement | Description |
+|---|---|---|---|
+| `lot_id` | UUID FK → `lots_chantier` | ON DELETE SET NULL | Lot rattaché au contact |
+| `devis_id` | UUID FK | ON DELETE SET NULL | Devis d'origine |
+| `analyse_id` | UUID FK | ON DELETE SET NULL | Analyse source |
+| `source` | TEXT | CHECK ('manual','devis','facture') | Origine du contact |
+
+Index FK associés : `idx_contacts_lot_id`, `idx_contacts_devis_id`, `idx_contacts_analyse_id`.
+
+---
+
+### Messagerie email — précisions SendGrid Inbound Parse
+
+La table `chantier_conversations` expose une colonne `reply_address` : adresse unique de la forme `chantier-{id}+{convId}@{REPLY_EMAIL_DOMAIN}`. Cette adresse est utilisée comme `Reply-To` sur les emails sortants, ce qui permet à SendGrid Inbound Parse de router les réponses des artisans vers le webhook `POST /api/webhooks/inbound-email`.
+
+**Flux réception** : artisan répond à l'email → SendGrid détecte le sous-domaine `reply.verifiermondevis.fr` → POST multipart vers `/api/webhooks/inbound-email` → parsing de l'adresse `reply_address` → INSERT dans `chantier_messages` (direction `inbound`).
+
+---
+
 ### Liens formalités (`formalitesLinks.ts`)
 
 Catalogue de ~15 mappings mot-clé → URL officielle .gouv.fr pour les formalités administratives (déclaration préalable, permis de construire, Consuel, DT-DICT, etc.). Chaque entrée contient un lien primaire (formulaire CERFA) et optionnellement un lien secondaire (fiche pratique).
