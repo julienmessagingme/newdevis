@@ -91,7 +91,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   if (!doc) return jsonError('Document introuvable', 404);
 
   const VALID_DEVIS_STATUTS = new Set(['en_cours', 'a_relancer', 'valide', 'attente_facture']);
-  const VALID_FACTURE_STATUTS = new Set(['recue', 'payee', 'payee_partiellement']);
+  const VALID_FACTURE_STATUTS = new Set(['recue', 'payee', 'payee_partiellement', 'en_litige']);
 
   let body: {
     nom?: string;
@@ -140,8 +140,8 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     if (!VALID_FACTURE_STATUTS.has(body.factureStatut))
       return jsonError('Statut facture invalide', 400);
     updates.facture_statut = body.factureStatut;
-    // Si payée ou reçue, reset montant_paye (seul payee_partiellement l'utilise)
-    if (body.factureStatut !== 'payee_partiellement') {
+    // Reset montant_paye sauf pour les statuts où un montant partiel est pertinent
+    if (body.factureStatut !== 'payee_partiellement' && body.factureStatut !== 'en_litige') {
       updates.montant_paye = null;
     }
   }

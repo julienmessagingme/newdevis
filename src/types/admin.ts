@@ -15,10 +15,6 @@ export interface ScoreDistribution {
   color: string;
 }
 
-export interface WorkTypeDistribution {
-  categorie: string;
-  nb_analyses: number;
-}
 
 export interface RegisteredUser {
   id: string;
@@ -101,6 +97,5 @@ export interface KPIs {
     evolution_daily: EvolutionData[];
     evolution_weekly: EvolutionData[];
     score_distribution: ScoreDistribution[];
-    work_type_distribution: WorkTypeDistribution[];
   };
 }

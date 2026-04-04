@@ -4,7 +4,6 @@ import {
   ScoreEvolutionChart,
   ScoreDistributionPieChart,
   UsersEvolutionChart,
-  WorkTypeDistributionChart,
 } from "@/components/admin/AdminCharts";
 import type { KPIs } from "@/types/admin";
 
@@ -41,11 +40,6 @@ export default function ChartsSection({ kpis }: ChartsSectionProps) {
         />
       </div>
 
-      <div className="mt-6">
-        <WorkTypeDistributionChart
-          workTypeDistribution={kpis.charts.work_type_distribution}
-        />
-      </div>
     </section>
   );
 }

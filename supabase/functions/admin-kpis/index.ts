@@ -66,7 +66,6 @@ serve(async (req) => {
       weeklyResult,
       alertsResult,
       documentsResult,
-      workTypeResult,
     ] = await Promise.all([
       adminClient.from("admin_kpis_usage").select("*").single(),
       adminClient.from("admin_kpis_scoring").select("*").single(),
@@ -76,7 +75,6 @@ serve(async (req) => {
       adminClient.from("admin_kpis_weekly_evolution").select("*"),
       adminClient.from("admin_kpis_alerts").select("*"),
       adminClient.from("admin_kpis_documents").select("*").single(),
-      adminClient.from("admin_kpis_work_type_distribution").select("*"),
     ]);
 
     // === BUILD RESPONSE FROM VIEW DATA ===
@@ -197,10 +195,6 @@ serve(async (req) => {
           evolution_daily: evolutionDaily,
           evolution_weekly: evolutionWeekly,
           score_distribution: scoreDistribution,
-          work_type_distribution: (workTypeResult.data || []).map((r: Record<string, unknown>) => ({
-            categorie: String(r.categorie ?? ""),
-            nb_analyses: Number(r.nb_analyses ?? 0),
-          })),
         },
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }

@@ -61,6 +61,9 @@ interface BudgetLot {
     devis_valides: number;
     facture: number;
     paye: number;
+    acompte: number;
+    litige: number;
+    a_payer: number;
   };
 }
 
@@ -230,18 +233,23 @@ export const GET: APIRoute = async ({ params, request }) => {
 
     // ── 6. Groupage par lot ─────────────────────────────────────────────────
     const lotMap = new Map<string, BudgetLot>();
+    const emptyTotaux = () => ({
+      devis_recus: 0, devis_valides: 0,
+      facture: 0, paye: 0, acompte: 0, litige: 0, a_payer: 0,
+    });
+
     for (const lot of lotsRaw ?? []) {
       lotMap.set(lot.id, {
         id: lot.id, nom: lot.nom, emoji: lot.emoji ?? null,
         devis: [], factures: [],
-        totaux: { devis_recus: 0, devis_valides: 0, facture: 0, paye: 0 },
+        totaux: emptyTotaux(),
       });
     }
 
     const sanslot: BudgetLot = {
       id: 'sans_lot', nom: 'Sans intervenant', emoji: null,
       devis: [], factures: [],
-      totaux: { devis_recus: 0, devis_valides: 0, facture: 0, paye: 0 },
+      totaux: emptyTotaux(),
     };
 
     for (const doc of docs ?? []) {
@@ -251,11 +259,15 @@ export const GET: APIRoute = async ({ params, request }) => {
         : sanslot;
 
       if (doc.document_type === 'devis') {
+        // N'afficher sur l'écran budget que les devis acceptés
+        const statut = doc.devis_statut ?? 'en_cours';
+        if (statut !== 'valide' && statut !== 'attente_facture') continue;
+
         bucket.devis.push({
           id:             doc.id,
           nom:            doc.nom,
           montant:        doc.montant       ?? null,
-          devis_statut:   doc.devis_statut  ?? null,
+          devis_statut:   statut,
           analyse_id:     doc.analyse_id    ?? null,
           analyse_status: analyse?.status   ?? null,
           analyse_score:  analyse?.score    ?? null,
@@ -263,28 +275,38 @@ export const GET: APIRoute = async ({ params, request }) => {
           signed_url:     urlMap.get(doc.id) ?? null,
           created_at:     doc.created_at,
         });
-        bucket.totaux.devis_recus += doc.montant ?? 0;
-        if (doc.devis_statut === 'valide' || doc.devis_statut === 'attente_facture') {
-          bucket.totaux.devis_valides += doc.montant ?? 0;
-        }
+        bucket.totaux.devis_recus   += doc.montant ?? 0;
+        bucket.totaux.devis_valides += doc.montant ?? 0;
       } else if (doc.document_type === 'facture') {
+        const montant = doc.montant ?? 0;
         const paye =
-          doc.facture_statut === 'payee'               ? (doc.montant      ?? 0)
+          doc.facture_statut === 'payee'               ? montant
           : doc.facture_statut === 'payee_partiellement' ? (doc.montant_paye ?? 0)
+          : 0;
+        const acompte =
+          doc.facture_statut === 'payee_partiellement' ? (doc.montant_paye ?? 0) : 0;
+        const litige =
+          doc.facture_statut === 'en_litige' ? montant : 0;
+        const a_payer =
+          doc.facture_statut === 'recue'               ? montant
+          : doc.facture_statut === 'payee_partiellement' ? montant - (doc.montant_paye ?? 0)
           : 0;
 
         bucket.factures.push({
           id:             doc.id,
           nom:            doc.nom,
-          montant:        doc.montant          ?? null,
+          montant:        montant || null,
           montant_paye:   paye,
-          facture_statut: doc.facture_statut   ?? null,
-          payment_terms:  (doc.payment_terms   ?? null) as BudgetFacture['payment_terms'],
-          signed_url:     urlMap.get(doc.id)   ?? null,
+          facture_statut: doc.facture_statut ?? null,
+          payment_terms:  (doc.payment_terms ?? null) as BudgetFacture['payment_terms'],
+          signed_url:     urlMap.get(doc.id) ?? null,
           created_at:     doc.created_at,
         });
-        bucket.totaux.facture += doc.montant ?? 0;
-        bucket.totaux.paye    += paye;
+        bucket.totaux.facture += montant;
+        bucket.totaux.paye    += doc.facture_statut === 'payee' ? montant : 0;
+        bucket.totaux.acompte += acompte;
+        bucket.totaux.litige  += litige;
+        bucket.totaux.a_payer += a_payer;
       }
     }
 
@@ -295,6 +317,9 @@ export const GET: APIRoute = async ({ params, request }) => {
       devis_valides: allBuckets.reduce((s, b) => s + b.totaux.devis_valides, 0),
       facture:       allBuckets.reduce((s, b) => s + b.totaux.facture,       0),
       paye:          allBuckets.reduce((s, b) => s + b.totaux.paye,          0),
+      acompte:       allBuckets.reduce((s, b) => s + b.totaux.acompte,       0),
+      litige:        allBuckets.reduce((s, b) => s + b.totaux.litige,        0),
+      a_payer:       allBuckets.reduce((s, b) => s + b.totaux.a_payer,       0),
     };
 
     // ── 8. Preuves de paiement ──────────────────────────────────────────────

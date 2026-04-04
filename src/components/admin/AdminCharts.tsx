@@ -41,16 +41,10 @@ interface ScoreDistribution {
   color: string;
 }
 
-interface WorkTypeDistribution {
-  categorie: string;
-  nb_analyses: number;
-}
-
 interface AdminChartsProps {
   evolutionDaily: EvolutionData[];
   evolutionWeekly: EvolutionData[];
   scoreDistribution: ScoreDistribution[];
-  workTypeDistribution: WorkTypeDistribution[];
 }
 
 const COLORS = {
@@ -292,95 +286,6 @@ export const ScoreDistributionPieChart = ({ scoreDistribution }: Pick<AdminChart
             </PieChart>
           </ResponsiveContainer>
         </div>
-      </CardContent>
-    </Card>
-  );
-};
-
-const WORK_TYPE_COLORS = [
-  "#6366f1", "#f97316", "#22c55e", "#ef4444", "#3b82f6",
-  "#a855f7", "#eab308", "#14b8a6", "#f43f5e", "#84cc16",
-  "#06b6d4", "#ec4899", "#8b5cf6", "#fb923c", "#10b981",
-];
-
-const capitalize = (s: string) =>
-  s.length === 0 ? s : s.charAt(0).toUpperCase() + s.slice(1);
-
-export const WorkTypeDistributionChart = ({ workTypeDistribution }: { workTypeDistribution: WorkTypeDistribution[] }) => {
-  const total = workTypeDistribution.reduce((sum, d) => sum + d.nb_analyses, 0);
-
-  const data = workTypeDistribution.map((d, i) => ({
-    name: capitalize(d.categorie),
-    value: d.nb_analyses,
-    pct: total > 0 ? Math.round((d.nb_analyses / total) * 1000) / 10 : 0,
-    color: WORK_TYPE_COLORS[i % WORK_TYPE_COLORS.length],
-  }));
-
-  const RADIAN = Math.PI / 180;
-  const renderLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
-    if (percent < 0.04) return null;
-    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-    const x = cx + radius * Math.cos(-midAngle * RADIAN);
-    const y = cy + radius * Math.sin(-midAngle * RADIAN);
-    return (
-      <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={600}>
-        {`${(percent * 100).toFixed(0)}%`}
-      </text>
-    );
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Types de travaux analysés</CardTitle>
-        <CardDescription>Répartition par catégorie dominante (hors admins) — {total} analyse{total > 1 ? "s" : ""}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {data.length === 0 ? (
-          <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">
-            Aucune donnée disponible
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4">
-            <div className="h-[260px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={data}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={renderLabel}
-                    outerRadius={110}
-                    dataKey="value"
-                  >
-                    {data.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: number, name: string) => [
-                      `${value} analyse${value > 1 ? "s" : ""}`,
-                      name,
-                    ]}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-              {data.map((entry, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm min-w-0">
-                  <span
-                    className="shrink-0 w-2.5 h-2.5 rounded-full"
-                    style={{ backgroundColor: entry.color }}
-                  />
-                  <span className="truncate text-muted-foreground">{entry.name}</span>
-                  <span className="ml-auto shrink-0 font-medium text-foreground">{entry.pct}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
