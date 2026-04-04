@@ -11,9 +11,9 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
-  Search, Plus, Paperclip, X, ExternalLink, Download,
+  Search, Plus, Paperclip, X, Download,
   AlertCircle, Loader2, RotateCw, AlertTriangle,
-  Check, Clock, ChevronDown, Scale, Pencil, TrendingUp,
+  Check, Clock, ChevronDown, ChevronRight, Scale, Pencil, TrendingUp,
 } from 'lucide-react';
 import { fmtEur } from '@/lib/financingUtils';
 import AddDocumentModal from './AddDocumentModal';
@@ -836,13 +836,14 @@ function ArtisanDrawer({
 // ── Tableau squelette ─────────────────────────────────────────────────────────
 
 const TH = 'px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider';
+const COLS = 8;
 
 function TableSkeleton() {
   return (
     <>
       {[0, 1, 2].map(i => (
         <tr key={i} className="border-b border-gray-50">
-          {Array.from({ length: 9 }).map((_, j) => (
+          {Array.from({ length: COLS }).map((_, j) => (
             <td key={j} className="px-4 py-3.5">
               <div className="h-3 bg-gray-100 rounded animate-pulse" style={{ width: j === 0 ? '80%' : '60%' }} />
             </td>
@@ -851,6 +852,17 @@ function TableSkeleton() {
       ))}
     </>
   );
+}
+
+// ── Coherence helper ──────────────────────────────────────────────────────────
+
+function factureCoherence(factureName: string, devis: { nom: string }[]): boolean | null {
+  const fNomLow = factureName.toLowerCase();
+  const tokens = devis.flatMap(d =>
+    d.nom.toLowerCase().split(/[\s\-_.,\/]+/).filter(t => t.length > 3),
+  );
+  if (tokens.length === 0) return null;
+  return tokens.some(t => fNomLow.includes(t));
 }
 
 // ── Composant principal ────────────────────────────────────────────────────────
@@ -874,6 +886,9 @@ export default function BudgetTab({
   const [sortBy,       setSortBy]       = useState<SortBy>('default');
   const [selected,     setSelected]     = useState<BudgetRow | null>(null);
   const [showAddDoc,   setShowAddDoc]   = useState(false);
+  const [expanded,     setExpanded]     = useState<Set<string>>(new Set());
+  const [changingId,   setChangingId]   = useState<string | null>(null);
+  const [openMenu,     setOpenMenu]     = useState<string | null>(null);
 
   // Overrides locaux des statuts factures (optimistic updates)
   const [statutOverrides, setStatutOverrides] = useState<Record<string, FactureStatut>>({});
@@ -937,13 +952,39 @@ export default function BudgetTab({
 
   const handleStatutChange = useCallback((factureId: string, statut: FactureStatut) => {
     setStatutOverrides(prev => ({ ...prev, [factureId]: statut }));
-    // Re-sélectionner la ligne mise à jour (optimistic)
     setSelected(prev => {
       if (!prev) return prev;
       const updated = prev.lot.factures.map(f =>
         f.id === factureId ? { ...f, facture_statut: statut } : f,
       );
       return buildRow({ ...prev.lot, factures: updated });
+    });
+  }, []);
+
+  const changeStatut = useCallback(async (factureId: string, statut: FactureStatut, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setChangingId(factureId);
+    setOpenMenu(null);
+    try {
+      const bearer = await freshToken(token);
+      await fetch(`/api/chantier/${chantierId}/documents/${factureId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
+        body: JSON.stringify({ factureStatut: statut }),
+      });
+      handleStatutChange(factureId, statut);
+      refresh();
+      setStatutOverrides({});
+    } catch { /* silencieux */ }
+    setChangingId(null);
+  }, [chantierId, token, handleStatutChange, refresh]);
+
+  const toggleExpand = useCallback((lotId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(lotId)) next.delete(lotId); else next.add(lotId);
+      return next;
     });
   }, []);
 
@@ -984,23 +1025,22 @@ export default function BudgetTab({
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
-              <th className={`${TH} w-[160px]`}>Artisan</th>
-              <th className={TH}>Poste</th>
-              <th className={`${TH} text-right`}>Devis</th>
+              <th className={`${TH} w-[200px]`}>Artisan / Lot</th>
+              <th className={`${TH} text-right`}>Devis validé</th>
               <th className={TH}>Statut devis</th>
-              <th className={`${TH} text-right`}>Factures</th>
-              <th className={TH}>Statut</th>
+              <th className={`${TH} text-right`}>Total facturé</th>
+              <th className={TH}>Paiement</th>
               <th className={`${TH} text-right`}>Reste à payer</th>
-              <th className={`${TH} w-[120px]`}>Progression</th>
-              <th className={`${TH} text-center w-[60px]`}>Docs</th>
+              <th className={`${TH} w-[130px]`}>Progression</th>
+              <th className={`${TH} text-center w-[56px]`}>Docs</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody>
             {loading ? (
               <TableSkeleton />
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={9} className="py-16 text-center">
+                <td colSpan={COLS} className="py-16 text-center">
                   <p className="text-[13px] text-gray-400">
                     {search ? `Aucun résultat pour "${search}"` : 'Aucun artisan pour ce chantier'}
                   </p>
@@ -1008,156 +1048,279 @@ export default function BudgetTab({
               </tr>
             ) : (
               rows.map(row => {
-                const ds      = DEVIS_STATUS[row.devisStatut];
-                const ps      = PAY_STATUS[row.payStatut];
-                const docCount = row.lot.devis.filter(d => d.signed_url).length
-                               + row.lot.factures.filter(f => f.signed_url).length;
-                const firstDevisUrl = row.lot.devis.find(d => d.signed_url)?.signed_url;
-                const factureCount  = row.lot.factures.length;
+                const ds         = DEVIS_STATUS[row.devisStatut];
+                const ps         = PAY_STATUS[row.payStatut];
+                const isExpanded = expanded.has(row.lot.id);
+                const docCount   = row.lot.devis.filter(d => d.signed_url).length
+                                 + row.lot.factures.filter(f => f.signed_url).length;
+                const hasChildren = row.lot.devis.length > 0 || row.lot.factures.length > 0;
+
+                // Warn si au moins une facture ne correspond à aucun devis
+                const hasCoherenceIssue = row.lot.factures.some(f =>
+                  factureCoherence(f.nom, row.lot.devis) === false,
+                );
 
                 return (
-                  <tr
-                    key={row.lot.id}
-                    onClick={() => setSelected(row)}
-                    className="hover:bg-gray-50/70 cursor-pointer transition-colors"
-                  >
-                    {/* Artisan */}
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-2">
-                        {row.lot.emoji && <span className="text-[15px] leading-none shrink-0">{row.lot.emoji}</span>}
-                        <p className="text-[12px] font-semibold text-gray-800 truncate">{row.lot.nom}</p>
-                      </div>
-                    </td>
+                  <tbody key={row.lot.id} className={isExpanded ? 'bg-slate-50/40' : ''}>
+                    {/* ── Ligne principale ── */}
+                    <tr className="border-b border-gray-50 hover:bg-indigo-50/30 transition-colors">
 
-                    {/* Poste */}
-                    <td className="px-4 py-3.5">
-                      {row.lot.devis.length === 0 ? (
-                        <span className="text-[11px] text-gray-300">—</span>
-                      ) : row.lot.devis.length === 1 ? (
-                        <p className="text-[11px] text-gray-500 truncate max-w-[140px]">
-                          {row.lot.devis[0].nom}
-                        </p>
-                      ) : (
-                        <div className="max-w-[140px]">
-                          <p className="text-[11px] text-gray-500 truncate">{row.lot.devis[0].nom}</p>
-                          {row.lot.devis.length === 2 ? (
-                            <p className="text-[10px] text-gray-400 truncate">{row.lot.devis[1].nom}</p>
-                          ) : (
-                            <p className="text-[10px] text-indigo-400">+{row.lot.devis.length - 1} autres</p>
-                          )}
+                      {/* Artisan + expand */}
+                      <td className="px-3 py-3.5">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={e => toggleExpand(row.lot.id, e)}
+                            className={`shrink-0 p-0.5 rounded transition-colors ${
+                              hasChildren
+                                ? 'text-gray-400 hover:text-indigo-600 hover:bg-indigo-50'
+                                : 'text-gray-200 cursor-default'
+                            }`}
+                            title={isExpanded ? 'Réduire' : 'Voir les documents'}
+                          >
+                            {isExpanded
+                              ? <ChevronDown className="h-4 w-4" />
+                              : <ChevronRight className="h-4 w-4" />}
+                          </button>
+                          {row.lot.emoji && <span className="text-[15px] leading-none shrink-0">{row.lot.emoji}</span>}
+                          <div className="min-w-0">
+                            <button
+                              onClick={() => setSelected(row)}
+                              className="text-[12px] font-semibold text-gray-800 hover:text-indigo-600 transition-colors truncate block text-left"
+                            >
+                              {row.lot.nom}
+                            </button>
+                            <p className="text-[10px] text-gray-400 mt-0.5">
+                              {row.lot.devis.length > 0 && `${row.lot.devis.length} devis`}
+                              {row.lot.devis.length > 0 && row.lot.factures.length > 0 && ' · '}
+                              {row.lot.factures.length > 0 && `${row.lot.factures.length} facture${row.lot.factures.length > 1 ? 's' : ''}`}
+                              {hasCoherenceIssue && (
+                                <span className="ml-1.5 text-amber-500 font-bold">⚠</span>
+                              )}
+                            </p>
+                          </div>
                         </div>
-                      )}
-                    </td>
+                      </td>
 
-                    {/* Devis + icône téléchargement */}
-                    <td className="px-4 py-3.5 text-right">
-                      {row.devisAmount !== null ? (
-                        <div className="flex flex-col items-end gap-1">
+                      {/* Devis validé */}
+                      <td className="px-4 py-3.5 text-right">
+                        {row.devisAmount !== null ? (
                           <span className="text-[12px] font-bold text-gray-800">{fmtEur(row.devisAmount)}</span>
-                          {firstDevisUrl && (
-                            <a
-                              href={firstDevisUrl} target="_blank" rel="noopener noreferrer"
-                              onClick={e => e.stopPropagation()}
-                              className="flex items-center gap-0.5 text-[10px] text-gray-400 hover:text-indigo-600 transition-colors"
-                              title="Télécharger le devis"
-                            >
-                              <Download className="h-3 w-3" />
-                              <span>Devis</span>
-                            </a>
-                          )}
-                        </div>
-                      ) : row.devisAmountGrey !== null ? (
-                        <div className="flex flex-col items-end gap-1">
+                        ) : row.devisAmountGrey !== null ? (
                           <span className="text-[12px] text-gray-400">{fmtEur(row.devisAmountGrey)}</span>
-                          {firstDevisUrl && (
-                            <a
-                              href={firstDevisUrl} target="_blank" rel="noopener noreferrer"
-                              onClick={e => e.stopPropagation()}
-                              className="flex items-center gap-0.5 text-[10px] text-gray-400 hover:text-indigo-600 transition-colors"
-                            >
-                              <Download className="h-3 w-3" />
-                            </a>
+                        ) : (
+                          <span className="text-[12px] text-gray-300">—</span>
+                        )}
+                      </td>
+
+                      {/* Statut devis */}
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-1.5">
+                          <Badge label={ds.label} cls={ds.cls} />
+                          {row.alertOverrun && (
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0"
+                              title="Facture supérieure au devis validé" />
                           )}
                         </div>
-                      ) : (
-                        <span className="text-[12px] text-gray-300">—</span>
-                      )}
-                    </td>
+                      </td>
 
-                    {/* Statut devis + alerte dépassement */}
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-1.5">
-                        <Badge label={ds.label} cls={ds.cls} />
-                        {row.alertOverrun && (
-                          <AlertTriangle
-                            className="h-3.5 w-3.5 text-amber-500 shrink-0"
-                            title="Facture supérieure au devis validé"
-                          />
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Factures */}
-                    <td className="px-4 py-3.5 text-right">
-                      <div className="flex flex-col items-end gap-1">
+                      {/* Total facturé */}
+                      <td className="px-4 py-3.5 text-right">
                         {row.facture > 0 ? (
                           <span className="text-[12px] font-semibold text-gray-700">{fmtEur(row.facture)}</span>
                         ) : (
                           <span className="text-[12px] text-gray-300">—</span>
                         )}
-                        {factureCount > 0 && (
-                          <span className="text-[10px] text-gray-400">
-                            {factureCount} facture{factureCount > 1 ? 's' : ''}
-                          </span>
+                      </td>
+
+                      {/* Statut paiement */}
+                      <td className="px-4 py-3.5">
+                        {row.payStatut !== 'none' ? (
+                          <Badge label={ps.label} cls={ps.cls} icon={ps.icon} />
+                        ) : (
+                          <span className="text-[12px] text-gray-300">—</span>
                         )}
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Statut paiement */}
-                    <td className="px-4 py-3.5">
-                      {row.payStatut !== 'none' ? (
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${ps.cls}`}
-                          onClick={e => { e.stopPropagation(); setSelected(row); }}
-                        >
-                          {ps.icon}{ps.label}
-                        </span>
-                      ) : (
-                        <span className="text-[12px] text-gray-300">—</span>
-                      )}
-                    </td>
+                      {/* Reste à payer */}
+                      <td className="px-4 py-3.5 text-right">
+                        {row.reste > 0 ? (
+                          <span className="text-[12px] font-bold text-amber-700">{fmtEur(row.reste)}</span>
+                        ) : row.facture > 0 ? (
+                          <span className="text-[11px] text-emerald-600 font-semibold">Soldé</span>
+                        ) : (
+                          <span className="text-[12px] text-gray-300">—</span>
+                        )}
+                      </td>
 
-                    {/* Reste à payer */}
-                    <td className="px-4 py-3.5 text-right">
-                      {row.reste > 0 ? (
-                        <span className="text-[12px] font-bold text-amber-700">{fmtEur(row.reste)}</span>
-                      ) : row.facture > 0 ? (
-                        <span className="text-[11px] text-emerald-600 font-semibold">Soldé</span>
-                      ) : (
-                        <span className="text-[12px] text-gray-300">—</span>
-                      )}
-                    </td>
+                      {/* Progression */}
+                      <td className="px-4 py-3.5">
+                        <ProgressBar paye={row.paye + row.lot.totaux.acompte} facture={row.facture} />
+                      </td>
 
-                    {/* Progression */}
-                    <td className="px-4 py-3.5">
-                      <ProgressBar paye={row.paye + row.lot.totaux.acompte} facture={row.facture} />
-                    </td>
+                      {/* Docs */}
+                      <td className="px-4 py-3.5 text-center">
+                        {docCount > 0 ? (
+                          <button onClick={e => { e.stopPropagation(); toggleExpand(row.lot.id, e); }}
+                            className="inline-flex items-center gap-1 text-gray-400 hover:text-indigo-600 transition-colors">
+                            <Paperclip className="h-3.5 w-3.5" />
+                            <span className="text-[10px] font-semibold">{docCount}</span>
+                          </button>
+                        ) : (
+                          <span className="text-gray-200">—</span>
+                        )}
+                      </td>
+                    </tr>
 
-                    {/* Documents */}
-                    <td className="px-4 py-3.5 text-center">
-                      {docCount > 0 ? (
-                        <button
-                          onClick={e => { e.stopPropagation(); setSelected(row); }}
-                          className="inline-flex items-center gap-1 text-gray-400 hover:text-indigo-600 transition-colors"
-                        >
-                          <Paperclip className="h-3.5 w-3.5" />
-                          <span className="text-[10px] font-semibold">{docCount}</span>
-                        </button>
-                      ) : (
-                        <span className="text-gray-200">—</span>
-                      )}
-                    </td>
-                  </tr>
+                    {/* ── Lignes expandées ── */}
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={COLS} className="px-0 pt-0 pb-2">
+                          <div className="mx-3 rounded-xl border border-gray-100 overflow-hidden bg-white shadow-sm">
+
+                            {/* Devis */}
+                            {row.lot.devis.length > 0 && (
+                              <div>
+                                <div className="px-4 py-2 bg-indigo-50/60 border-b border-indigo-100 flex items-center gap-2">
+                                  <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">
+                                    📋 Devis ({row.lot.devis.length})
+                                  </span>
+                                  {row.lot.totaux.devis_valides > 0 && row.lot.devis.length > 1 && (
+                                    <span className="ml-auto text-[11px] font-black text-indigo-700">
+                                      Total validé : {fmtEur(row.lot.totaux.devis_valides)}
+                                    </span>
+                                  )}
+                                </div>
+                                {row.lot.devis.map((d, idx) => (
+                                  <div key={d.id}
+                                    className={`flex items-center gap-3 px-4 py-2.5 ${idx < row.lot.devis.length - 1 || row.lot.factures.length > 0 ? 'border-b border-gray-50' : ''}`}>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-[12px] font-medium text-gray-800 truncate">{d.nom}</p>
+                                      {d.devis_statut && (
+                                        <p className="text-[10px] text-gray-400 mt-0.5">
+                                          {DEVIS_STATUT_LABEL[d.devis_statut] ?? d.devis_statut}
+                                        </p>
+                                      )}
+                                    </div>
+                                    {d.montant !== null && (
+                                      <span className="text-[12px] font-bold text-gray-700 tabular-nums shrink-0">
+                                        {fmtEur(d.montant)}
+                                      </span>
+                                    )}
+                                    {d.signed_url ? (
+                                      <a href={d.signed_url} target="_blank" rel="noopener noreferrer"
+                                        onClick={e => e.stopPropagation()}
+                                        className="shrink-0 p-1 hover:bg-indigo-50 rounded transition-colors" title="Télécharger">
+                                        <Download className="h-3.5 w-3.5 text-indigo-400" />
+                                      </a>
+                                    ) : (
+                                      <span className="shrink-0 text-[10px] text-gray-300 w-[26px] text-center">—</span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Factures */}
+                            {row.lot.factures.length > 0 && (
+                              <div>
+                                <div className="px-4 py-2 bg-emerald-50/60 border-b border-emerald-100 flex items-center gap-2">
+                                  <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">
+                                    🧾 Factures ({row.lot.factures.length})
+                                  </span>
+                                  {row.lot.factures.length > 1 && (
+                                    <span className="ml-auto text-[11px] font-black text-emerald-700">
+                                      Total : {fmtEur(row.lot.totaux.facture)}
+                                    </span>
+                                  )}
+                                </div>
+                                {row.lot.factures.map((f, idx) => {
+                                  const statut     = (f.facture_statut ?? 'recue') as FactureStatut;
+                                  const cfg        = FACTURE_STATUT_CFG[statut] ?? FACTURE_STATUT_CFG.recue;
+                                  const coherent   = factureCoherence(f.nom, row.lot.devis);
+                                  const isChanging = changingId === f.id;
+                                  const label      = smartFactureLabel(f);
+
+                                  return (
+                                    <div key={f.id}
+                                      className={`flex items-center gap-3 px-4 py-2.5 ${idx < row.lot.factures.length - 1 ? 'border-b border-gray-50' : ''}`}>
+
+                                      {/* Nom + cohérence */}
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <p className="text-[12px] font-medium text-gray-800 truncate">{label}</p>
+                                          {coherent === false && (
+                                            <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5"
+                                              title="Le nom de la facture ne correspond pas aux devis enregistrés">
+                                              <AlertTriangle className="h-2.5 w-2.5" /> Vérifier
+                                            </span>
+                                          )}
+                                          {coherent === true && (
+                                            <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-1.5 py-0.5">
+                                              <Check className="h-2.5 w-2.5" /> OK
+                                            </span>
+                                          )}
+                                        </div>
+                                        <p className="text-[10px] text-gray-400 mt-0.5 truncate">{f.nom}</p>
+                                      </div>
+
+                                      {/* Montant */}
+                                      {f.montant !== null && (
+                                        <span className="text-[12px] font-bold text-gray-700 tabular-nums shrink-0">
+                                          {fmtEur(f.montant)}
+                                        </span>
+                                      )}
+
+                                      {/* Statut cliquable */}
+                                      <div className="relative shrink-0">
+                                        <button
+                                          disabled={isChanging}
+                                          onClick={e => { e.stopPropagation(); setOpenMenu(openMenu === f.id ? null : f.id); }}
+                                          className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border transition-all ${cfg.cls}`}
+                                        >
+                                          {isChanging ? <Loader2 className="h-3 w-3 animate-spin" /> : cfg.icon}
+                                          {cfg.short}
+                                          <ChevronDown className="h-2.5 w-2.5" />
+                                        </button>
+                                        {openMenu === f.id && (
+                                          <div className="absolute right-0 bottom-full mb-1 w-48 bg-white rounded-xl shadow-lg border border-gray-100 z-30 overflow-hidden">
+                                            {(Object.entries(FACTURE_STATUT_CFG) as [FactureStatut, typeof FACTURE_STATUT_CFG[FactureStatut]][]).map(([s, c]) => (
+                                              <button key={s}
+                                                onClick={e => changeStatut(f.id, s, e)}
+                                                className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${
+                                                  s === statut ? 'text-indigo-600 bg-indigo-50/50' : 'text-gray-700'
+                                                }`}>
+                                                <span>{c.icon}</span>{c.label}
+                                                {s === statut && <Check className="h-3 w-3 ml-auto text-indigo-500" />}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* Télécharger */}
+                                      {f.signed_url ? (
+                                        <a href={f.signed_url} target="_blank" rel="noopener noreferrer"
+                                          onClick={e => e.stopPropagation()}
+                                          className="shrink-0 p-1 hover:bg-emerald-50 rounded transition-colors" title="Télécharger">
+                                          <Download className="h-3.5 w-3.5 text-emerald-500" />
+                                        </a>
+                                      ) : (
+                                        <span className="shrink-0 text-[10px] text-gray-300 w-[26px] text-center">—</span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {row.lot.devis.length === 0 && row.lot.factures.length === 0 && (
+                              <p className="text-[12px] text-gray-400 text-center py-5">Aucun document</p>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
                 );
               })
             )}
@@ -1170,13 +1333,18 @@ export default function BudgetTab({
         <div className="px-5 py-2.5 border-t border-gray-100 flex items-center justify-between">
           <p className="text-[11px] text-gray-400">
             {rows.length} intervenant{rows.length !== 1 ? 's' : ''}
-            {totalDocs > 0 && ` · ${totalDocs} document${totalDocs !== 1 ? 's' : ''}`}
+            {totalDocs > 0 && ` · ${totalDocs} document${totalDocs !== 1 ? 's' : ''} téléchargeable${totalDocs !== 1 ? 's' : ''}`}
           </p>
           <button onClick={refresh} className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-600 transition-colors">
             <RotateCw className="h-3 w-3" />
             Actualiser
           </button>
         </div>
+      )}
+
+      {/* Overlay fermeture menu statut */}
+      {openMenu && (
+        <div className="fixed inset-0 z-20" onClick={() => setOpenMenu(null)} />
       )}
 
       {/* ── Drawer artisan ────────────────────────────────────────────────── */}
