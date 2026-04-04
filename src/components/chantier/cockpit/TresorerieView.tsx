@@ -155,13 +155,14 @@ function DonutRing({ pct, color, track = '#f1f5f9', size = 56, stroke = 5 }: {
 // ── Section 1 : Plan de financement ──────────────────────────────────────────
 
 function FinancementSection({
-  cfg, setCfg, syncServer, budgetRef, data,
+  cfg, setCfg, syncServer, budgetRef, data, devisValides,
 }: {
-  cfg:        FinancingConfig;
-  setCfg:     (u: (p: FinancingConfig) => FinancingConfig) => void;
-  syncServer: (c: FinancingConfig) => void;
-  budgetRef:  number;
-  data:       BudgetData | null;
+  cfg:          FinancingConfig;
+  setCfg:       (u: (p: FinancingConfig) => FinancingConfig) => void;
+  syncServer:   (c: FinancingConfig) => void;
+  budgetRef:    number;
+  data:         BudgetData | null;
+  devisValides: number;
 }) {
   // Panneaux ouverts
   const [creditOpen, setCreditOpen] = useState(false);
@@ -212,6 +213,14 @@ function FinancementSection({
   const slCout       = Math.round(slMens * slDuree * 12 - slMontant);
   const slIntercalaire = Math.round(slMontant * (slTaux / 100) / 12);
   const curIntercalaire = Math.round(cfg.creditMontant * (cfg.creditTaux / 100) / 12);
+
+  // Conflit : budget choisi par le client < total devis validés
+  const conflict     = cfg.budgetReel !== null && devisValides > 0 && devisValides > (cfg.budgetReel ?? 0) * 1.01;
+  const conflictDiff = conflict ? Math.round(devisValides - (cfg.budgetReel ?? 0)) : 0;
+
+  function adjustToDevis() {
+    setCfg(p => { const n = { ...p, budgetReel: devisValides }; syncServer(n); return n; });
+  }
 
   // PEE eligible : vérifie si des lots contiennent des mots clés rénovation
   const peeLots = useMemo(() => {
@@ -286,6 +295,37 @@ function FinancementSection({
           </span>
         </div>
       </div>
+
+      {/* ── Bannière conflit ── */}
+      {conflict && (
+        <div className="mx-5 mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-3">
+          <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-bold text-amber-800">
+              Budget en dépassement de {fmtEur(conflictDiff)}
+            </p>
+            <p className="text-[10px] text-amber-700 mt-0.5 leading-relaxed">
+              Les devis validés totalisent <strong>{fmtEur(devisValides)}</strong>, soit {fmtEur(conflictDiff)} de plus
+              que votre budget de <strong>{fmtEur(cfg.budgetReel ?? 0)}</strong>.
+              Souhaitez-vous ajuster votre budget ou revoir les devis ?
+            </p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={adjustToDevis}
+              className="px-3 py-1.5 text-[11px] font-bold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors whitespace-nowrap"
+            >
+              Ajuster à {fmtEur(devisValides)}
+            </button>
+            <button
+              onClick={() => setEditingBudget(true)}
+              className="px-3 py-1.5 text-[11px] font-semibold rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-100 transition-colors whitespace-nowrap"
+            >
+              Modifier le budget
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Gauge principale ── */}
       <div className="px-5 pb-3">
@@ -790,7 +830,7 @@ export interface TresorerieViewProps {
 export default function TresorerieView({
   chantierId, token, rangeMin, rangeMax, initialFinancing,
 }: TresorerieViewProps) {
-  const { data, loading }         = useBudget(chantierId, token);
+  const { data, loading }           = useBudget(chantierId, token);
   const { cfg, setCfg, syncServer } = useFinancingConfig(chantierId, token, initialFinancing);
 
   const lots = useMemo(() => [
@@ -798,8 +838,17 @@ export default function TresorerieView({
     ...(data?.sans_lot ? [data.sans_lot] : []),
   ], [data]);
 
-  // Budget de référence : budgetReel éditable > rangeMax > rangeMin > budget_ia
+  const devisValides = data?.totaux.devis_valides ?? 0;
+
+  // Auto-init : pré-remplit budgetReel avec le total des devis validés au premier chargement
+  useEffect(() => {
+    if (cfg.budgetReel !== null || devisValides <= 0) return;
+    setCfg(p => ({ ...p, budgetReel: devisValides }));
+  }, [devisValides]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Budget de référence : budgetReel > devisValides > rangeMax > rangeMin > budget_ia
   const budgetRef = cfg.budgetReel
+    ?? (devisValides > 0 ? devisValides : null)
     ?? rangeMax
     ?? rangeMin
     ?? (data?.budget_ia ?? 0);
@@ -818,6 +867,7 @@ export default function TresorerieView({
         syncServer={syncServer}
         budgetRef={budgetRef}
         data={data}
+        devisValides={devisValides}
       />
 
       {/* Section 2 — Projection */}

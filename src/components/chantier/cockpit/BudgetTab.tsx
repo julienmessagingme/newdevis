@@ -310,6 +310,22 @@ function BudgetKpiDashboard({
     setEditing(false);
   }
 
+  // Auto-init : pré-remplit budgetReel avec le total des devis validés au premier chargement
+  useEffect(() => {
+    if (budgetReel !== null || devisValides <= 0) return;
+    setBudgetReel(devisValides);
+    try { localStorage.setItem(storageKey, String(devisValides)); } catch {}
+  }, [devisValides]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Détection conflit : budget choisi < devis validés (tolérance 1%)
+  const conflict      = budgetReel !== null && devisValides > 0 && devisValides > (budgetReel ?? 0) * 1.01;
+  const conflictDiff  = conflict ? Math.round(devisValides - (budgetReel ?? 0)) : 0;
+
+  function adjustToDevis() {
+    setBudgetReel(devisValides);
+    try { localStorage.setItem(storageKey, String(devisValides)); } catch {}
+  }
+
   if (loading) return (
     <div className="px-5 py-5 border-b border-gray-100">
       <div className="grid grid-cols-4 gap-5">
@@ -477,6 +493,37 @@ function BudgetKpiDashboard({
         </div>
 
       </div>
+
+      {/* ── Bannière conflit budget ────────────────────────────────────────────── */}
+      {conflict && (
+        <div className="mx-5 mb-4 mt-1 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-3">
+          <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-bold text-amber-800">
+              Budget en dépassement de {fmtEur(conflictDiff)}
+            </p>
+            <p className="text-[10px] text-amber-700 mt-0.5 leading-relaxed">
+              Les devis validés totalisent <strong>{fmtEur(devisValides)}</strong>, soit {fmtEur(conflictDiff)} de plus
+              que votre budget de <strong>{fmtEur(budgetReel ?? 0)}</strong>.
+              Souhaitez-vous ajuster votre budget ou revoir les devis ?
+            </p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={adjustToDevis}
+              className="px-3 py-1.5 text-[11px] font-bold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors whitespace-nowrap"
+            >
+              Ajuster à {fmtEur(devisValides)}
+            </button>
+            <button
+              onClick={startEdit}
+              className="px-3 py-1.5 text-[11px] font-semibold rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-100 transition-colors whitespace-nowrap"
+            >
+              Modifier le budget
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
