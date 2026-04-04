@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import PaymentTimeline from './PaymentTimeline';
 import BudgetTab from './BudgetTab';
+import TresorerieView from './TresorerieView';
 import type { SourceKey } from './FinancingSources';
 import type { SimulationData } from './financing/AidesTravaux';
 import {
@@ -1225,21 +1226,16 @@ export default function TresoreriePanel({
         </div>
       )}
 
-      {/* ── Cockpit Tresorerie ───────────────────────────────────────────────── */}
+      {/* ── Trésorerie (nouveau) ─────────────────────────────────────────────── */}
       {tab === 'cockpit' && (
         <div className="flex-1 overflow-y-auto">
-          {error && (
-            <div className="mx-4 mt-4 px-4 py-3 bg-red-50 border border-red-100 rounded-xl text-[12px] text-red-700">
-              Erreur : {error}
-            </div>
-          )}
-          <div className="p-4 space-y-4 pb-8">
-            <HeroCard    events={events} budgetMax={budgetMaxProp} loading={loading} />
-            <CashflowGraph events={events} budgetMax={budgetMaxProp} loading={loading} />
-            <CapaciteMensuelle events={events} chantierId={chantierId} />
-            <ActionsPrioritaires events={events} markPaid={markPaid} />
-            <ArtisanList events={events} onSelect={setSelectedArtisan} />
-          </div>
+          <TresorerieView
+            chantierId={chantierId}
+            token={token}
+            rangeMin={rangeMin}
+            rangeMax={rangeMax}
+            initialFinancing={initialFinancing as Record<string, unknown> | null}
+          />
         </div>
       )}
 
