@@ -65,21 +65,21 @@ function useBudget(chantierId: string, token: string) {
 // ── Hook config financement (localStorage + sync serveur) ─────────────────────
 
 interface FinancingConfig {
-  budgetReel:   number | null;
+  budgetReel:    number | null;
   creditMontant: number;
   creditTaux:    number;
   creditDuree:   number;
   maprime:       number; maprimeOn: boolean;
   cee:           number; ceeOn:     boolean;
-  ecoptz:        number; ecoptzOn:  boolean;
-  tva:           number; tvaOn:     boolean;
+  ecoptz:        number; ecoptzOn:  boolean; ecoptzDuree: number;
 }
 
 function defaultConfig(initial?: Record<string, unknown> | null): FinancingConfig {
-  const m = parseFloat(String((initial as any)?.maprime ?? '0')) || 0;
-  const c = parseFloat(String((initial as any)?.cee     ?? '0')) || 0;
-  const e = parseFloat(String((initial as any)?.eco_ptz ?? '0')) || 0;
+  const m  = parseFloat(String((initial as any)?.maprime ?? '0')) || 0;
+  const c  = parseFloat(String((initial as any)?.cee     ?? '0')) || 0;
+  const e  = parseFloat(String((initial as any)?.eco_ptz ?? '0')) || 0;
   const cr = parseFloat(String((initial as any)?.credit  ?? '0')) || 0;
+  const ed = parseFloat(String((initial as any)?.ecoptzDuree ?? '15')) || 15;
   return {
     budgetReel:    null,
     creditMontant: cr,
@@ -87,8 +87,7 @@ function defaultConfig(initial?: Record<string, unknown> | null): FinancingConfi
     creditDuree:   20,
     maprime: m, maprimeOn: m > 0,
     cee:     c, ceeOn:     c > 0,
-    ecoptz:  e, ecoptzOn:  e > 0,
-    tva:     0, tvaOn:     false,
+    ecoptz:  e, ecoptzOn:  e > 0, ecoptzDuree: ed,
   };
 }
 
@@ -190,12 +189,43 @@ function FinancementSection({
     maprime: cfg.maprime, maprimeOn: cfg.maprimeOn,
     cee:     cfg.cee,     ceeOn:     cfg.ceeOn,
     ecoptz:  cfg.ecoptz,  ecoptzOn:  cfg.ecoptzOn,
-    tva:     cfg.tva,     tvaOn:     cfg.tvaOn,
+    ecoptzDuree: cfg.ecoptzDuree,
   });
 
+  // Eco-PTZ : durée slider (local)
+  const [slEcoptzDuree, setSlEcoptzDuree] = useState(cfg.ecoptzDuree);
+
+  // MaPrimeRénov' calculateur inline
+  type RevenuTranche = 'tres_modeste' | 'modeste' | 'intermediaire' | 'superieur';
+  type TravauxType   = 'isolation' | 'chauffage' | 'fenetres' | 'ventilation';
+  const MAPRIME_RATES: Record<TravauxType, Record<RevenuTranche, number>> = {
+    isolation:   { tres_modeste: 0.75, modeste: 0.60, intermediaire: 0.40, superieur: 0.15 },
+    chauffage:   { tres_modeste: 0.70, modeste: 0.50, intermediaire: 0.30, superieur: 0.15 },
+    fenetres:    { tres_modeste: 0.40, modeste: 0.30, intermediaire: 0.15, superieur: 0 },
+    ventilation: { tres_modeste: 0.50, modeste: 0.40, intermediaire: 0.20, superieur: 0 },
+  };
+  const [mpTranche,  setMpTranche]  = useState<RevenuTranche>('modeste');
+  const [mpTravaux,  setMpTravaux]  = useState<TravauxType>('isolation');
+  const [mpMontant,  setMpMontant]  = useState(0);
+  const [mpCalcOpen, setMpCalcOpen] = useState(false);
+
+  // CEE calculateur inline
+  type ZoneClim = 'H1' | 'H2' | 'H3';
+  const CEE_RATES: Record<TravauxType, Record<ZoneClim, { unit: string; rate: number }>> = {
+    isolation:   { H1: { unit: 'm²', rate: 4 },    H2: { unit: 'm²', rate: 3 },      H3: { unit: 'm²', rate: 2 } },
+    chauffage:   { H1: { unit: 'forfait', rate: 700 }, H2: { unit: 'forfait', rate: 500 }, H3: { unit: 'forfait', rate: 350 } },
+    fenetres:    { H1: { unit: 'fenêtre', rate: 60 },  H2: { unit: 'fenêtre', rate: 50 },  H3: { unit: 'fenêtre', rate: 35 } },
+    ventilation: { H1: { unit: 'forfait', rate: 350 }, H2: { unit: 'forfait', rate: 280 }, H3: { unit: 'forfait', rate: 200 } },
+  };
+  const [ceeZone,    setCeeZone]    = useState<ZoneClim>('H2');
+  const [ceeTravaux, setCeeTravaux] = useState<TravauxType>('isolation');
+  const [ceeQte,     setCeeQte]     = useState(0);
+  const [ceeCalcOpen, setCeeCalcOpen] = useState(false);
+
   // Computed
-  const totalAides  = (cfg.maprimeOn ? cfg.maprime : 0) + (cfg.ceeOn ? cfg.cee : 0)
-                    + (cfg.ecoptzOn ? cfg.ecoptz : 0) + (cfg.tvaOn ? cfg.tva : 0);
+  const totalAides = (cfg.maprimeOn ? cfg.maprime : 0)
+                   + (cfg.ceeOn     ? cfg.cee     : 0)
+                   + (cfg.ecoptzOn  ? cfg.ecoptz  : 0);
   const apport      = Math.max(0, budgetRef - cfg.creditMontant - totalAides);
   const totalCouvert = apport + cfg.creditMontant + totalAides;
   const pctApport   = budgetRef > 0 ? Math.round((apport           / budgetRef) * 100) : 0;
@@ -247,8 +277,15 @@ function FinancementSection({
   }
 
   function applyAides() {
+    const ecoptzDureeVal = slEcoptzDuree;
     setCfg(p => {
-      const n = { ...p, ...aLocal };
+      const n = {
+        ...p,
+        maprime: aLocal.maprime, maprimeOn: aLocal.maprimeOn,
+        cee:     aLocal.cee,     ceeOn:     aLocal.ceeOn,
+        ecoptz:  aLocal.ecoptz,  ecoptzOn:  aLocal.ecoptzOn,
+        ecoptzDuree: ecoptzDureeVal,
+      };
       syncServer(n);
       return n;
     });
@@ -470,49 +507,222 @@ function FinancementSection({
           <p className="text-[18px] font-black leading-none" style={{ color: C.aides.text }}>{fmtEur(totalAides)}</p>
           <p className="text-[10px] text-gray-400 mt-0.5">
             {totalAides > 0
-              ? [cfg.maprimeOn && "MaPrimeRénov'", cfg.ceeOn && 'CEE', cfg.ecoptzOn && 'Eco-PTZ', cfg.tvaOn && 'TVA 5,5%'].filter(Boolean).join(' + ')
+              ? [cfg.maprimeOn && "MaPrimeRénov'", cfg.ceeOn && 'CEE', cfg.ecoptzOn && `Éco-PTZ ${cfg.ecoptzDuree} ans`].filter(Boolean).join(' + ')
               : 'Aucune aide saisie'}
           </p>
 
           {aidesOpen && (
-            <div className="mt-3">
-              {([
-                { key: 'maprime', label: "MaPrimeRénov'", on: aLocal.maprimeOn, val: aLocal.maprime,
-                  onToggle: (v: boolean) => setALocal(p => ({ ...p, maprimeOn: v })),
-                  onVal:   (v: number) => setALocal(p => ({ ...p, maprime: v })) },
-                { key: 'cee', label: 'CEE',       on: aLocal.ceeOn,     val: aLocal.cee,
-                  onToggle: (v: boolean) => setALocal(p => ({ ...p, ceeOn: v })),
-                  onVal:   (v: number) => setALocal(p => ({ ...p, cee: v })) },
-                { key: 'ecoptz', label: 'Eco-PTZ',  on: aLocal.ecoptzOn,  val: aLocal.ecoptz,
-                  onToggle: (v: boolean) => setALocal(p => ({ ...p, ecoptzOn: v })),
-                  onVal:   (v: number) => setALocal(p => ({ ...p, ecoptz: v })) },
-                { key: 'tva', label: 'TVA 5,5%',  on: aLocal.tvaOn,     val: aLocal.tva,
-                  onToggle: (v: boolean) => setALocal(p => ({ ...p, tvaOn: v })),
-                  onVal:   (v: number) => setALocal(p => ({ ...p, tva: v })) },
-              ]).map(aide => (
-                <div key={aide.key} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                  <label className="flex items-center gap-2 cursor-pointer text-[11px] font-semibold text-gray-700 flex-1">
-                    <input type="checkbox" checked={aide.on} onChange={e => aide.onToggle(e.target.checked)}
-                      style={{ accentColor: C.aides.main, width: 14, height: 14, cursor: 'pointer' }} />
-                    {aide.label}
-                  </label>
-                  <div className="flex items-center gap-1">
-                    <input type="number" value={aide.val || ''} placeholder="0"
-                      onChange={e => aide.onVal(parseFloat(e.target.value) || 0)}
-                      className="w-20 text-[11px] font-black text-right border-b border-gray-200 outline-none bg-transparent py-0.5 focus:border-emerald-400"
-                      style={{ color: C.aides.text }} />
-                    <span className="text-[10px] text-gray-400">€</span>
+            <div className="mt-3 space-y-3">
+
+              {/* ── MaPrimeRénov' ── */}
+              <div className="rounded-xl border border-gray-100 overflow-hidden">
+                <label className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors">
+                  <input type="checkbox" checked={aLocal.maprimeOn}
+                    onChange={e => { setALocal(p => ({ ...p, maprimeOn: e.target.checked })); setMpCalcOpen(e.target.checked); }}
+                    style={{ accentColor: C.aides.main, width: 14, height: 14, cursor: 'pointer' }} />
+                  <span className="text-[11px] font-bold text-gray-800 flex-1">MaPrimeRénov'</span>
+                  <span className="text-[11px] font-black" style={{ color: C.aides.text }}>{aLocal.maprime ? `${fmtEur(aLocal.maprime)}` : '—'}</span>
+                  <button onClick={() => setMpCalcOpen(v => !v)}
+                    className="text-[10px] px-2 py-0.5 rounded-full border transition-colors ml-1"
+                    style={{ borderColor: C.aides.border, color: C.aides.text, background: mpCalcOpen ? C.aides.light : 'transparent' }}>
+                    Calculer
+                  </button>
+                </label>
+                {mpCalcOpen && (
+                  <div className="px-3 pb-3 border-t border-gray-50 pt-3 space-y-2.5">
+                    {/* Tranche revenus */}
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-500 mb-1.5">Tranche de revenus</p>
+                      <div className="grid grid-cols-2 gap-1">
+                        {([
+                          { k: 'tres_modeste',   l: 'Très modestes', hint: '< 23 500 €' },
+                          { k: 'modeste',        l: 'Modestes',       hint: '< 28 700 €' },
+                          { k: 'intermediaire',  l: 'Intermédiaires', hint: '< 40 000 €' },
+                          { k: 'superieur',      l: 'Supérieurs',     hint: '> 40 000 €' },
+                        ] as const).map(({ k, l, hint }) => (
+                          <button key={k} onClick={() => setMpTranche(k)}
+                            className="text-left px-2 py-1.5 rounded-lg border text-[10px] transition-colors"
+                            style={{
+                              borderColor: mpTranche === k ? C.aides.main : '#e5e7eb',
+                              background:  mpTranche === k ? C.aides.light : 'white',
+                              fontWeight:  mpTranche === k ? 700 : 400,
+                              color:       mpTranche === k ? C.aides.text : '#6b7280',
+                            }}>
+                            {l}<br /><span style={{ opacity: 0.6 }}>{hint}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Type de travaux */}
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-500 mb-1.5">Type de travaux</p>
+                      <select value={mpTravaux} onChange={e => setMpTravaux(e.target.value as TravauxType)}
+                        className="w-full text-[11px] border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-emerald-400 bg-white">
+                        <option value="isolation">Isolation (combles / murs / planchers)</option>
+                        <option value="chauffage">Chauffage renouvelable (PAC, biomasse…)</option>
+                        <option value="fenetres">Menuiseries (fenêtres, portes-fenêtres)</option>
+                        <option value="ventilation">Ventilation (VMC double flux)</option>
+                      </select>
+                    </div>
+                    {/* Montant travaux */}
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-500 mb-1">Montant travaux HT (€)</p>
+                      <input type="number" value={mpMontant || ''} placeholder="Ex: 15000"
+                        onChange={e => setMpMontant(parseFloat(e.target.value) || 0)}
+                        className="w-full text-[11px] border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-emerald-400" />
+                    </div>
+                    {/* Résultat */}
+                    {mpMontant > 0 && (() => {
+                      const rate = MAPRIME_RATES[mpTravaux][mpTranche];
+                      const est  = Math.round(mpMontant * rate);
+                      return (
+                        <div className="rounded-lg px-3 py-2.5 flex items-center justify-between"
+                             style={{ background: C.aides.light, border: `1px solid ${C.aides.border}` }}>
+                          <div>
+                            <p className="text-[10px] text-gray-500">Aide estimée ({Math.round(rate*100)}% des travaux)</p>
+                            <p className="text-[14px] font-black" style={{ color: C.aides.text }}>{fmtEur(est)}</p>
+                          </div>
+                          <button onClick={() => setALocal(p => ({ ...p, maprime: est, maprimeOn: true }))}
+                            className="text-[10px] font-bold px-3 py-1.5 rounded-lg text-white transition-colors"
+                            style={{ background: C.aides.main }}>
+                            Utiliser
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
-                </div>
-              ))}
-              <div className="mt-2 text-[10px] text-gray-400 text-center">
-                Calculateur détaillé →{' '}
-                <a href="/simulateur-valorisation-travaux" className="font-bold" style={{ color: C.aides.text }}>
-                  Simulateur VerifierMonDevis
-                </a>
+                )}
               </div>
+
+              {/* ── CEE ── */}
+              <div className="rounded-xl border border-gray-100 overflow-hidden">
+                <label className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors">
+                  <input type="checkbox" checked={aLocal.ceeOn}
+                    onChange={e => { setALocal(p => ({ ...p, ceeOn: e.target.checked })); setCeeCalcOpen(e.target.checked); }}
+                    style={{ accentColor: C.aides.main, width: 14, height: 14, cursor: 'pointer' }} />
+                  <span className="text-[11px] font-bold text-gray-800 flex-1">CEE (Certificats d'Économies d'Énergie)</span>
+                  <span className="text-[11px] font-black" style={{ color: C.aides.text }}>{aLocal.cee ? fmtEur(aLocal.cee) : '—'}</span>
+                  <button onClick={() => setCeeCalcOpen(v => !v)}
+                    className="text-[10px] px-2 py-0.5 rounded-full border transition-colors ml-1"
+                    style={{ borderColor: C.aides.border, color: C.aides.text, background: ceeCalcOpen ? C.aides.light : 'transparent' }}>
+                    Calculer
+                  </button>
+                </label>
+                {ceeCalcOpen && (
+                  <div className="px-3 pb-3 border-t border-gray-50 pt-3 space-y-2.5">
+                    {/* Zone climatique */}
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-500 mb-1.5">Zone climatique</p>
+                      <div className="flex gap-1.5">
+                        {(['H1','H2','H3'] as ZoneClim[]).map(z => (
+                          <button key={z} onClick={() => setCeeZone(z)}
+                            className="flex-1 py-1.5 rounded-lg border text-[11px] font-bold transition-colors"
+                            style={{
+                              borderColor: ceeZone === z ? C.aides.main : '#e5e7eb',
+                              background:  ceeZone === z ? C.aides.light : 'white',
+                              color:       ceeZone === z ? C.aides.text : '#6b7280',
+                            }}>
+                            {z}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[9px] text-gray-400 mt-1">H1 = Nord-Est · H2 = Centre-Ouest · H3 = Sud / Méditerranée</p>
+                    </div>
+                    {/* Type travaux */}
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-500 mb-1.5">Type de travaux</p>
+                      <select value={ceeTravaux} onChange={e => setCeeTravaux(e.target.value as TravauxType)}
+                        className="w-full text-[11px] border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-emerald-400 bg-white">
+                        <option value="isolation">Isolation (combles / murs)</option>
+                        <option value="chauffage">Chauffage renouvelable (PAC, chaudière…)</option>
+                        <option value="fenetres">Menuiseries (par fenêtre)</option>
+                        <option value="ventilation">Ventilation VMC double flux</option>
+                      </select>
+                    </div>
+                    {/* Quantité */}
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-500 mb-1">
+                        Quantité ({CEE_RATES[ceeTravaux][ceeZone].unit})
+                      </p>
+                      <input type="number" value={ceeQte || ''} placeholder="Ex: 80"
+                        onChange={e => setCeeQte(parseFloat(e.target.value) || 0)}
+                        className="w-full text-[11px] border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-emerald-400" />
+                    </div>
+                    {/* Résultat */}
+                    {ceeQte > 0 && (() => {
+                      const { rate, unit } = CEE_RATES[ceeTravaux][ceeZone];
+                      const est = Math.round(rate * ceeQte);
+                      return (
+                        <div className="rounded-lg px-3 py-2.5 flex items-center justify-between"
+                             style={{ background: C.aides.light, border: `1px solid ${C.aides.border}` }}>
+                          <div>
+                            <p className="text-[10px] text-gray-500">{fmtEur(rate)} × {ceeQte} {unit}</p>
+                            <p className="text-[14px] font-black" style={{ color: C.aides.text }}>{fmtEur(est)}</p>
+                          </div>
+                          <button onClick={() => setALocal(p => ({ ...p, cee: est, ceeOn: true }))}
+                            className="text-[10px] font-bold px-3 py-1.5 rounded-lg text-white transition-colors"
+                            style={{ background: C.aides.main }}>
+                            Utiliser
+                          </button>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+
+              {/* ── Éco-PTZ ── */}
+              <div className="rounded-xl border border-gray-100 overflow-hidden">
+                <label className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors">
+                  <input type="checkbox" checked={aLocal.ecoptzOn}
+                    onChange={e => setALocal(p => ({ ...p, ecoptzOn: e.target.checked }))}
+                    style={{ accentColor: C.aides.main, width: 14, height: 14, cursor: 'pointer' }} />
+                  <span className="text-[11px] font-bold text-gray-800 flex-1">Éco-PTZ <span className="font-normal text-gray-400">(prêt à 0 %)</span></span>
+                  <span className="text-[11px] font-black" style={{ color: C.aides.text }}>{aLocal.ecoptz ? fmtEur(aLocal.ecoptz) : '—'}</span>
+                </label>
+                {aLocal.ecoptzOn && (
+                  <div className="px-3 pb-3 border-t border-gray-50 pt-3 space-y-2.5">
+                    <div>
+                      <div className="flex justify-between text-[11px] mb-1">
+                        <span className="text-gray-500 font-semibold">Montant emprunté</span>
+                        <span className="font-black" style={{ color: C.aides.text }}>{fmtEur(aLocal.ecoptz)}</span>
+                      </div>
+                      <input type="range" min={0} max={50000} step={500} value={aLocal.ecoptz}
+                        onChange={e => setALocal(p => ({ ...p, ecoptz: parseFloat(e.target.value) }))}
+                        className="w-full h-1 rounded cursor-pointer" style={{ accentColor: C.aides.main }} />
+                      <div className="flex justify-between text-[9px] text-gray-400 mt-0.5"><span>0 €</span><span>50 000 € max</span></div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-[11px] mb-1">
+                        <span className="text-gray-500 font-semibold">Durée de remboursement</span>
+                        <span className="font-black" style={{ color: C.aides.text }}>{slEcoptzDuree} ans</span>
+                      </div>
+                      <input type="range" min={5} max={20} step={1} value={slEcoptzDuree}
+                        onChange={e => setSlEcoptzDuree(parseInt(e.target.value))}
+                        className="w-full h-1 rounded cursor-pointer" style={{ accentColor: C.aides.main }} />
+                      <div className="flex justify-between text-[9px] text-gray-400 mt-0.5"><span>5 ans</span><span>20 ans</span></div>
+                    </div>
+                    {aLocal.ecoptz > 0 && (
+                      <div className="rounded-lg px-3 py-2 flex items-center justify-between"
+                           style={{ background: C.aides.light, border: `1px solid ${C.aides.border}` }}>
+                        <div>
+                          <p className="text-[10px] text-gray-500">Mensualité à 0 %</p>
+                          <p className="text-[14px] font-black" style={{ color: C.aides.text }}>
+                            {Math.round(aLocal.ecoptz / (slEcoptzDuree * 12))} €/mois
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] text-gray-400">Coût total du crédit</p>
+                          <p className="text-[11px] font-bold text-emerald-600">0 € d'intérêts</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <button onClick={applyAides}
-                className="w-full mt-3 py-2 rounded-lg text-[11px] font-bold text-white transition-colors"
+                className="w-full py-2 rounded-lg text-[11px] font-bold text-white transition-colors"
                 style={{ background: C.aides.main }}>
                 ✓ Appliquer ces aides
               </button>
@@ -521,6 +731,41 @@ function FinancementSection({
         </div>
 
       </div>
+
+      {/* ── Carte Éco-PTZ crédit (si activé) ── */}
+      {cfg.ecoptzOn && cfg.ecoptz > 0 && (
+        <div className="border-t border-gray-100 px-4 py-3.5"
+             style={{ background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)' }}>
+          <div className="flex items-center gap-3">
+            <span className="w-8 h-8 rounded-xl flex items-center justify-center text-[16px] shrink-0"
+                  style={{ background: '#bbf7d0' }}>🌱</span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-[12px] font-black" style={{ color: C.aides.text }}>Éco-PTZ — Crédit à taux zéro</p>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                      style={{ background: C.aides.border, color: C.aides.text }}>0 %</span>
+              </div>
+              <p className="text-[10px] text-gray-500 mt-0.5">
+                {fmtEur(cfg.ecoptz)} sur {cfg.ecoptzDuree} ans ·{' '}
+                <strong style={{ color: C.aides.text }}>
+                  {Math.round(cfg.ecoptz / (cfg.ecoptzDuree * 12))} €/mois
+                </strong>{' '}
+                · 0 € d'intérêts
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-[18px] font-black leading-none" style={{ color: C.aides.text }}>{fmtEur(cfg.ecoptz)}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">montant du prêt</p>
+            </div>
+          </div>
+          <div className="mt-2.5 h-1.5 rounded-full overflow-hidden" style={{ background: '#bbf7d0' }}>
+            <div className="h-full rounded-full transition-all" style={{ background: C.aides.main, width: '15%' }} />
+          </div>
+          <p className="text-[9px] text-gray-400 mt-1">
+            Déblocage progressif au fil des travaux · Remboursement démarrant à la livraison
+          </p>
+        </div>
+      )}
     </div>
   );
 }
