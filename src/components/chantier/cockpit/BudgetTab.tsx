@@ -327,15 +327,15 @@ function BudgetKpiDashboard({
   }
 
   if (loading) return (
-    <div className="px-5 py-5 border-b border-gray-100">
-      <div className="grid grid-cols-4 gap-5">
+    <div className="px-7 py-6 border-b border-gray-100">
+      <div className="grid grid-cols-4 gap-6">
         {[0,1,2,3].map(i => (
-          <div key={i} className="flex items-center gap-3">
-            <div className="h-14 w-14 rounded-full bg-gray-100 animate-pulse shrink-0" />
+          <div key={i} className="flex items-center gap-4">
+            <div className="h-20 w-20 rounded-full bg-gray-100 animate-pulse shrink-0" />
             <div className="space-y-2 flex-1">
-              <div className="h-2 w-20 bg-gray-100 rounded animate-pulse" />
-              <div className="h-4 w-16 bg-gray-100 rounded animate-pulse" />
-              <div className="h-2 w-12 bg-gray-100 rounded animate-pulse" />
+              <div className="h-2.5 w-24 bg-gray-100 rounded animate-pulse" />
+              <div className="h-5 w-20 bg-gray-100 rounded animate-pulse" />
+              <div className="h-2.5 w-14 bg-gray-100 rounded animate-pulse" />
             </div>
           </div>
         ))}
@@ -348,28 +348,28 @@ function BudgetKpiDashboard({
       <div className="grid grid-cols-4 divide-x divide-gray-100">
 
         {/* ── 1. Budget IA ─────────────────────────────── */}
-        <div className="px-5 py-4">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Budget estimé IA</p>
+        <div className="px-7 py-6">
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4">Budget estimé IA</p>
           {(rangeMin && rangeMax) ? (
             <div>
-              <div className="flex items-baseline gap-1 mb-3">
-                <span className="text-[14px] font-black text-gray-800">{fmtEur(rangeMin)}</span>
-                <span className="text-[11px] text-gray-300 mx-0.5">–</span>
-                <span className="text-[14px] font-black text-gray-800">{fmtEur(rangeMax)}</span>
+              <div className="flex items-baseline gap-1.5 mb-4">
+                <span className="text-[18px] font-black text-gray-800">{fmtEur(rangeMin)}</span>
+                <span className="text-[13px] text-gray-300 mx-0.5">–</span>
+                <span className="text-[18px] font-black text-gray-800">{fmtEur(rangeMax)}</span>
               </div>
               {/* Range bar avec marqueur devis validé */}
-              <div className="relative h-2 bg-indigo-50 rounded-full overflow-visible mb-2">
+              <div className="relative h-2.5 bg-indigo-50 rounded-full overflow-visible mb-2.5">
                 <div className="absolute inset-0 rounded-full"
                      style={{ background: 'linear-gradient(90deg, #c7d2fe 0%, #818cf8 100%)' }} />
                 {markerPct >= 0 && (
                   <div
-                    className="absolute top-1/2 w-3.5 h-3.5 bg-indigo-600 rounded-full shadow border-2 border-white"
+                    className="absolute top-1/2 w-4 h-4 bg-indigo-600 rounded-full shadow border-2 border-white"
                     style={{ left: `${markerPct}%`, transform: 'translate(-50%, -50%)', zIndex: 1 }}
                     title={`Devis validé : ${fmtEur(devisValides)}`}
                   />
                 )}
               </div>
-              <div className="flex justify-between text-[9px] text-gray-400">
+              <div className="flex justify-between text-[10px] text-gray-400">
                 <span>Minimum</span>
                 {markerPct >= 0 && (
                   <span className="text-indigo-500 font-semibold">{fmtEur(devisValides)} engagé</span>
@@ -378,31 +378,31 @@ function BudgetKpiDashboard({
               </div>
             </div>
           ) : data?.budget_ia ? (
-            <p className="text-[15px] font-black text-gray-800">{fmtEur(data.budget_ia)}</p>
+            <p className="text-[19px] font-black text-gray-800">{fmtEur(data.budget_ia)}</p>
           ) : (
-            <p className="text-[13px] text-gray-300 flex items-center gap-1.5">
-              <TrendingUp className="h-4 w-4" /> Non estimé
+            <p className="text-[14px] text-gray-300 flex items-center gap-1.5">
+              <TrendingUp className="h-5 w-5" /> Non estimé
             </p>
           )}
         </div>
 
         {/* ── 2. Budget réel (éditable) ─────────────────── */}
-        <div className="px-5 py-4">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Budget réel</p>
+        <div className="px-7 py-6">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Budget réel</p>
             {!editing && (
               <button onClick={startEdit}
-                      className="flex items-center gap-1 text-[9px] text-gray-400 hover:text-indigo-500 transition-colors">
-                <Pencil className="h-2.5 w-2.5" />
+                      className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-indigo-500 transition-colors">
+                <Pencil className="h-3 w-3" />
                 Modifier
               </button>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <div className="relative shrink-0">
-              <DonutRing pct={pctEngagement} color={colorEngagement} />
+              <DonutRing pct={pctEngagement} color={colorEngagement} size={80} stroke={7} />
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-[10px] font-black text-gray-700">{pctEngagement}%</span>
+                <span className="text-[12px] font-black text-gray-700">{pctEngagement}%</span>
               </div>
             </div>
             <div className="min-w-0">
@@ -415,19 +415,19 @@ function BudgetKpiDashboard({
                     onChange={e => setEditVal(e.target.value)}
                     onBlur={commitEdit}
                     onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(false); }}
-                    className="w-24 text-[13px] font-black border-b-2 border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5"
+                    className="w-28 text-[16px] font-black border-b-2 border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5"
                     placeholder="Ex: 45000"
                   />
-                  <span className="text-[11px] text-gray-400">€</span>
+                  <span className="text-[13px] text-gray-400">€</span>
                 </div>
               ) : (
                 <button onClick={startEdit} className="group text-left">
-                  <p className="text-[14px] font-black text-gray-800 group-hover:text-indigo-600 transition-colors">
-                    {effectiveReel ? fmtEur(effectiveReel) : <span className="text-gray-300 text-[12px]">Cliquer pour définir</span>}
+                  <p className="text-[18px] font-black text-gray-800 group-hover:text-indigo-600 transition-colors leading-none">
+                    {effectiveReel ? fmtEur(effectiveReel) : <span className="text-gray-300 text-[13px]">Cliquer pour définir</span>}
                   </p>
                 </button>
               )}
-              <p className="text-[10px] text-gray-400 mt-0.5">
+              <p className="text-[11px] text-gray-400 mt-1.5">
                 {pctEngagement > 0
                   ? <span className={pctEngagement > 100 ? 'text-red-500 font-semibold' : ''}>{pctEngagement}% engagé</span>
                   : 'devis en cours'}
@@ -437,25 +437,25 @@ function BudgetKpiDashboard({
         </div>
 
         {/* ── 3. Total facturé ──────────────────────────── */}
-        <div className="px-5 py-4">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Total facturé</p>
-          <div className="flex items-center gap-3">
+        <div className="px-7 py-6">
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4">Total facturé</p>
+          <div className="flex items-center gap-4">
             <div className="relative shrink-0">
-              <DonutRing pct={pctFacture} color={colorFacture} />
+              <DonutRing pct={pctFacture} color={colorFacture} size={80} stroke={7} />
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-[10px] font-black text-gray-700">{pctFacture}%</span>
+                <span className="text-[12px] font-black text-gray-700">{pctFacture}%</span>
               </div>
             </div>
             <div>
-              <p className="text-[14px] font-black text-gray-800">{facture > 0 ? fmtEur(facture) : '—'}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">
+              <p className="text-[18px] font-black text-gray-800 leading-none">{facture > 0 ? fmtEur(facture) : '—'}</p>
+              <p className="text-[11px] text-gray-400 mt-1.5">
                 {effectiveReel && effectiveReel > 0 && facture > 0
                   ? `sur ${fmtEur(effectiveReel)}`
                   : facture > 0 ? 'du budget réel' : 'Aucune facture'}
               </p>
               {pctFacture > 100 && (
-                <p className="text-[10px] text-red-500 mt-0.5 flex items-center gap-1 font-semibold">
-                  <AlertTriangle className="h-2.5 w-2.5" />Dépassement
+                <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1 font-semibold">
+                  <AlertTriangle className="h-3 w-3" />Dépassement
                 </p>
               )}
             </div>
@@ -463,29 +463,29 @@ function BudgetKpiDashboard({
         </div>
 
         {/* ── 4. Total payé ─────────────────────────────── */}
-        <div className="px-5 py-4">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Total payé</p>
-          <div className="flex items-center gap-3">
+        <div className="px-7 py-6">
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4">Total payé</p>
+          <div className="flex items-center gap-4">
             <div className="relative shrink-0">
-              <DonutRing pct={pctPaye} color={colorPaye} />
+              <DonutRing pct={pctPaye} color={colorPaye} size={80} stroke={7} />
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-[10px] font-black text-gray-700">{pctPaye}%</span>
+                <span className="text-[12px] font-black text-gray-700">{pctPaye}%</span>
               </div>
             </div>
             <div>
-              <p className="text-[14px] font-black text-gray-800">{paye > 0 ? fmtEur(paye) : '—'}</p>
+              <p className="text-[18px] font-black text-gray-800 leading-none">{paye > 0 ? fmtEur(paye) : '—'}</p>
               {litige > 0 ? (
-                <p className="text-[10px] text-red-500 mt-0.5 flex items-center gap-1 font-semibold">
-                  <Scale className="h-2.5 w-2.5" />{fmtEur(litige)} en litige
+                <p className="text-[11px] text-red-500 mt-1.5 flex items-center gap-1 font-semibold">
+                  <Scale className="h-3 w-3" />{fmtEur(litige)} en litige
                 </p>
               ) : (
-                <p className="text-[10px] text-gray-400 mt-0.5">
+                <p className="text-[11px] text-gray-400 mt-1.5">
                   {facture > 0 ? `sur ${fmtEur(facture)}` : 'des factures'}
                 </p>
               )}
               {pctPaye >= 100 && facture > 0 && (
-                <p className="text-[10px] text-emerald-600 font-semibold mt-0.5 flex items-center gap-1">
-                  <Check className="h-2.5 w-2.5" />Tout soldé
+                <p className="text-[11px] text-emerald-600 font-semibold mt-1 flex items-center gap-1">
+                  <Check className="h-3 w-3" />Tout soldé
                 </p>
               )}
             </div>

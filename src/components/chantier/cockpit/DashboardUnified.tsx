@@ -428,7 +428,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
 
       case 'tresorerie':
         return (
-          <div className="max-w-5xl mx-auto px-4 py-7">
+          <div className="h-full flex flex-col">
             {chantierId && token ? (
               <TresoreriePanel
                 chantierId={chantierId}
@@ -500,7 +500,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
           facture={documents.filter(d => d.document_type === 'facture' && (d.facture_statut === 'payee' || d.facture_statut === 'payee_partiellement')).reduce((s, d) => s + (d.facture_statut === 'payee_partiellement' ? (d.montant_paye ?? 0) : (d.montant ?? 0)), 0)}
         />
 
-        <main className="flex-1 overflow-y-auto">
+        <main className={`flex-1 ${activeSection === 'tresorerie' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
           {renderContent()}
         </main>
       </div>
