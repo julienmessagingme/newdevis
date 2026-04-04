@@ -13,7 +13,7 @@ import { createClient } from '@supabase/supabase-js';
 import {
   Search, Plus, Paperclip, X, ExternalLink, Download,
   AlertCircle, Loader2, RotateCw, AlertTriangle,
-  Check, Clock, ChevronDown, Scale,
+  Check, Clock, ChevronDown, Scale, Pencil, TrendingUp,
 } from 'lucide-react';
 import { fmtEur } from '@/lib/financingUtils';
 import AddDocumentModal from './AddDocumentModal';
@@ -236,47 +236,246 @@ function ProgressBar({ paye, facture }: { paye: number; facture: number }) {
   );
 }
 
-// ── Header KPIs ───────────────────────────────────────────────────────────────
+// ── SVG Donut ─────────────────────────────────────────────────────────────────
 
-function HeaderKpis({
-  data, loading, rangeMin, rangeMax,
-}: {
-  data: BudgetData | null;
-  loading: boolean;
-  rangeMin?: number;
-  rangeMax?: number;
+function DonutRing({ pct, color, size = 56, stroke = 5 }: {
+  pct: number; color: string; size?: number; stroke?: number;
 }) {
-  const budgetEstime = (() => {
-    if (rangeMin && rangeMax && rangeMin > 0) {
-      return `${fmtEur(rangeMin)} – ${fmtEur(rangeMax)}`;
-    }
-    if (data?.budget_ia && data.budget_ia > 0) return fmtEur(data.budget_ia);
-    return '—';
-  })();
-
-  const kpis = [
-    { label: 'Budget estimé',  value: budgetEstime,                                                                       sub: rangeMin && rangeMax ? 'fourchette IA' : undefined },
-    { label: 'Budget validé',  value: data && data.totaux.devis_valides > 0 ? fmtEur(data.totaux.devis_valides) : '—',    sub: undefined },
-    { label: 'Total facturé',  value: data && data.totaux.facture > 0 ? fmtEur(data.totaux.facture) : '—',                sub: undefined },
-    { label: 'Total payé',     value: data && data.totaux.paye > 0 ? fmtEur(data.totaux.paye) : '—',                      sub: data && data.totaux.litige > 0 ? `${fmtEur(data.totaux.litige)} en litige` : undefined },
-  ];
-
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const filled = Math.min(Math.max(pct, 0), 100) / 100 * circ;
   return (
-    <div className="px-5 pt-4 pb-4 border-b border-gray-100">
-      <div className="grid grid-cols-4 gap-6">
-        {kpis.map(kpi => (
-          <div key={kpi.label}>
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">{kpi.label}</p>
-            {loading ? (
-              <div className="h-5 w-20 bg-gray-100 rounded animate-pulse" />
-            ) : (
-              <>
-                <p className="text-[15px] font-black text-gray-800 leading-none">{kpi.value}</p>
-                {kpi.sub && <p className="text-[10px] text-gray-400 mt-0.5">{kpi.sub}</p>}
-              </>
-            )}
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}
+         style={{ transform: 'rotate(-90deg)', display: 'block' }}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#f1f5f9" strokeWidth={stroke} />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+        strokeDasharray={`${filled} ${circ - filled}`} strokeLinecap="round"
+        style={{ transition: 'stroke-dasharray 0.55s ease' }}
+      />
+    </svg>
+  );
+}
+
+// ── KPI Dashboard ─────────────────────────────────────────────────────────────
+
+function BudgetKpiDashboard({
+  data, loading, rangeMin, rangeMax, chantierId,
+}: {
+  data:        BudgetData | null;
+  loading:     boolean;
+  rangeMin?:   number;
+  rangeMax?:   number;
+  chantierId:  string;
+}) {
+  const storageKey = `budget_reel_${chantierId}`;
+
+  const [budgetReel, setBudgetReel] = useState<number | null>(() => {
+    try { const s = localStorage.getItem(storageKey); return s ? parseFloat(s) : null; }
+    catch { return null; }
+  });
+  const [editing,  setEditing]  = useState(false);
+  const [editVal,  setEditVal]  = useState('');
+
+  const totaux         = data?.totaux;
+  const facture        = totaux?.facture      ?? 0;
+  const paye           = (totaux?.paye ?? 0) + (totaux?.acompte ?? 0);
+  const litige         = totaux?.litige       ?? 0;
+  const devisValides   = totaux?.devis_valides ?? 0;
+  const effectiveReel  = budgetReel ?? (devisValides > 0 ? devisValides : null);
+
+  const pctEngagement = effectiveReel && effectiveReel > 0 ? Math.round((devisValides / effectiveReel) * 100) : 0;
+  const pctFacture    = effectiveReel && effectiveReel > 0 ? Math.round((facture / effectiveReel) * 100) : 0;
+  const pctPaye       = facture > 0 ? Math.round((paye / facture) * 100) : 0;
+
+  // Couleurs dynamiques
+  const colorEngagement = pctEngagement > 100 ? '#ef4444' : pctEngagement > 80 ? '#f59e0b' : '#6366f1';
+  const colorFacture    = pctFacture > 100 ? '#ef4444' : pctFacture > 80 ? '#f59e0b' : '#f59e0b';
+  const colorPaye       = pctPaye >= 100 ? '#10b981' : pctPaye > 0 ? '#3b82f6' : '#d1d5db';
+
+  // Marker position sur la range bar
+  const rangeWidth  = (rangeMax ?? 0) - (rangeMin ?? 0);
+  const markerPct   = rangeWidth > 0 && devisValides > (rangeMin ?? 0)
+    ? Math.min(((devisValides - (rangeMin ?? 0)) / rangeWidth) * 100, 100) : -1;
+
+  function startEdit() {
+    setEditVal(effectiveReel ? String(Math.round(effectiveReel)) : '');
+    setEditing(true);
+  }
+  function commitEdit() {
+    const v = parseFloat(editVal.replace(/\s/g, '').replace(',', '.'));
+    if (!isNaN(v) && v > 0) {
+      setBudgetReel(v);
+      try { localStorage.setItem(storageKey, String(v)); } catch {}
+    }
+    setEditing(false);
+  }
+
+  if (loading) return (
+    <div className="px-5 py-5 border-b border-gray-100">
+      <div className="grid grid-cols-4 gap-5">
+        {[0,1,2,3].map(i => (
+          <div key={i} className="flex items-center gap-3">
+            <div className="h-14 w-14 rounded-full bg-gray-100 animate-pulse shrink-0" />
+            <div className="space-y-2 flex-1">
+              <div className="h-2 w-20 bg-gray-100 rounded animate-pulse" />
+              <div className="h-4 w-16 bg-gray-100 rounded animate-pulse" />
+              <div className="h-2 w-12 bg-gray-100 rounded animate-pulse" />
+            </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="border-b border-gray-100 bg-white">
+      <div className="grid grid-cols-4 divide-x divide-gray-100">
+
+        {/* ── 1. Budget IA ─────────────────────────────── */}
+        <div className="px-5 py-4">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Budget estimé IA</p>
+          {(rangeMin && rangeMax) ? (
+            <div>
+              <div className="flex items-baseline gap-1 mb-3">
+                <span className="text-[14px] font-black text-gray-800">{fmtEur(rangeMin)}</span>
+                <span className="text-[11px] text-gray-300 mx-0.5">–</span>
+                <span className="text-[14px] font-black text-gray-800">{fmtEur(rangeMax)}</span>
+              </div>
+              {/* Range bar avec marqueur devis validé */}
+              <div className="relative h-2 bg-indigo-50 rounded-full overflow-visible mb-2">
+                <div className="absolute inset-0 rounded-full"
+                     style={{ background: 'linear-gradient(90deg, #c7d2fe 0%, #818cf8 100%)' }} />
+                {markerPct >= 0 && (
+                  <div
+                    className="absolute top-1/2 w-3.5 h-3.5 bg-indigo-600 rounded-full shadow border-2 border-white"
+                    style={{ left: `${markerPct}%`, transform: 'translate(-50%, -50%)', zIndex: 1 }}
+                    title={`Devis validé : ${fmtEur(devisValides)}`}
+                  />
+                )}
+              </div>
+              <div className="flex justify-between text-[9px] text-gray-400">
+                <span>Minimum</span>
+                {markerPct >= 0 && (
+                  <span className="text-indigo-500 font-semibold">{fmtEur(devisValides)} engagé</span>
+                )}
+                <span>Maximum</span>
+              </div>
+            </div>
+          ) : data?.budget_ia ? (
+            <p className="text-[15px] font-black text-gray-800">{fmtEur(data.budget_ia)}</p>
+          ) : (
+            <p className="text-[13px] text-gray-300 flex items-center gap-1.5">
+              <TrendingUp className="h-4 w-4" /> Non estimé
+            </p>
+          )}
+        </div>
+
+        {/* ── 2. Budget réel (éditable) ─────────────────── */}
+        <div className="px-5 py-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Budget réel</p>
+            {!editing && (
+              <button onClick={startEdit}
+                      className="flex items-center gap-1 text-[9px] text-gray-400 hover:text-indigo-500 transition-colors">
+                <Pencil className="h-2.5 w-2.5" />
+                Modifier
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="relative shrink-0">
+              <DonutRing pct={pctEngagement} color={colorEngagement} />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-[10px] font-black text-gray-700">{pctEngagement}%</span>
+              </div>
+            </div>
+            <div className="min-w-0">
+              {editing ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    autoFocus
+                    type="number"
+                    value={editVal}
+                    onChange={e => setEditVal(e.target.value)}
+                    onBlur={commitEdit}
+                    onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(false); }}
+                    className="w-24 text-[13px] font-black border-b-2 border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5"
+                    placeholder="Ex: 45000"
+                  />
+                  <span className="text-[11px] text-gray-400">€</span>
+                </div>
+              ) : (
+                <button onClick={startEdit} className="group text-left">
+                  <p className="text-[14px] font-black text-gray-800 group-hover:text-indigo-600 transition-colors">
+                    {effectiveReel ? fmtEur(effectiveReel) : <span className="text-gray-300 text-[12px]">Cliquer pour définir</span>}
+                  </p>
+                </button>
+              )}
+              <p className="text-[10px] text-gray-400 mt-0.5">
+                {pctEngagement > 0
+                  ? <span className={pctEngagement > 100 ? 'text-red-500 font-semibold' : ''}>{pctEngagement}% engagé</span>
+                  : 'devis en cours'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── 3. Total facturé ──────────────────────────── */}
+        <div className="px-5 py-4">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Total facturé</p>
+          <div className="flex items-center gap-3">
+            <div className="relative shrink-0">
+              <DonutRing pct={pctFacture} color={colorFacture} />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-[10px] font-black text-gray-700">{pctFacture}%</span>
+              </div>
+            </div>
+            <div>
+              <p className="text-[14px] font-black text-gray-800">{facture > 0 ? fmtEur(facture) : '—'}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">
+                {effectiveReel && effectiveReel > 0 && facture > 0
+                  ? `sur ${fmtEur(effectiveReel)}`
+                  : facture > 0 ? 'du budget réel' : 'Aucune facture'}
+              </p>
+              {pctFacture > 100 && (
+                <p className="text-[10px] text-red-500 mt-0.5 flex items-center gap-1 font-semibold">
+                  <AlertTriangle className="h-2.5 w-2.5" />Dépassement
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── 4. Total payé ─────────────────────────────── */}
+        <div className="px-5 py-4">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Total payé</p>
+          <div className="flex items-center gap-3">
+            <div className="relative shrink-0">
+              <DonutRing pct={pctPaye} color={colorPaye} />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-[10px] font-black text-gray-700">{pctPaye}%</span>
+              </div>
+            </div>
+            <div>
+              <p className="text-[14px] font-black text-gray-800">{paye > 0 ? fmtEur(paye) : '—'}</p>
+              {litige > 0 ? (
+                <p className="text-[10px] text-red-500 mt-0.5 flex items-center gap-1 font-semibold">
+                  <Scale className="h-2.5 w-2.5" />{fmtEur(litige)} en litige
+                </p>
+              ) : (
+                <p className="text-[10px] text-gray-400 mt-0.5">
+                  {facture > 0 ? `sur ${fmtEur(facture)}` : 'des factures'}
+                </p>
+              )}
+              {pctPaye >= 100 && facture > 0 && (
+                <p className="text-[10px] text-emerald-600 font-semibold mt-0.5 flex items-center gap-1">
+                  <Check className="h-2.5 w-2.5" />Tout soldé
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   );
@@ -351,13 +550,14 @@ function ActionBar({
 // ── Drawer détail artisan ─────────────────────────────────────────────────────
 
 function ArtisanDrawer({
-  row, chantierId, token, onClose, onStatutChange,
+  row, chantierId, token, onClose, onStatutChange, onRefresh,
 }: {
   row:             BudgetRow;
   chantierId:      string;
   token:           string;
   onClose:         () => void;
   onStatutChange?: (factureId: string, statut: FactureStatut) => void;
+  onRefresh?:      () => void;
 }) {
   const { lot } = row;
   const [changingId, setChangingId] = useState<string | null>(null);
@@ -374,6 +574,7 @@ function ArtisanDrawer({
         body: JSON.stringify({ factureStatut: statut }),
       });
       onStatutChange?.(factureId, statut);
+      onRefresh?.();
     } catch { /* silencieux */ }
     setChangingId(null);
   }
@@ -651,7 +852,7 @@ export default function BudgetTab({
 
   const handleStatutChange = useCallback((factureId: string, statut: FactureStatut) => {
     setStatutOverrides(prev => ({ ...prev, [factureId]: statut }));
-    // Re-sélectionner la ligne mise à jour
+    // Re-sélectionner la ligne mise à jour (optimistic)
     setSelected(prev => {
       if (!prev) return prev;
       const updated = prev.lot.factures.map(f =>
@@ -660,6 +861,13 @@ export default function BudgetTab({
       return buildRow({ ...prev.lot, factures: updated });
     });
   }, []);
+
+  // Sync drawer row quand les données serveur se rechargent
+  useEffect(() => {
+    if (!selected || !data) return;
+    const freshLot = [...data.lots, ...(data.sans_lot ? [data.sans_lot] : [])].find(l => l.id === selected.lot.id);
+    if (freshLot) setSelected(buildRow(freshLot));
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error) {
     return (
@@ -675,7 +883,7 @@ export default function BudgetTab({
     <div className="flex flex-col h-full bg-white">
 
       {/* ── KPIs ──────────────────────────────────────────────────────────── */}
-      <HeaderKpis data={data} loading={loading} rangeMin={rangeMin} rangeMax={rangeMax} />
+      <BudgetKpiDashboard data={data} loading={loading} rangeMin={rangeMin} rangeMax={rangeMax} chantierId={chantierId} />
 
       {/* ── Barre d'actions ───────────────────────────────────────────────── */}
       <ActionBar
@@ -880,6 +1088,7 @@ export default function BudgetTab({
           token={token}
           onClose={() => setSelected(null)}
           onStatutChange={handleStatutChange}
+          onRefresh={() => { refresh(); setStatutOverrides({}); }}
         />
       )}
 
