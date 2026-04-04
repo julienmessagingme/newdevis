@@ -688,16 +688,31 @@ function ArtisanDrawer({
                       {d.montant !== null && (
                         <span className="text-[12px] font-bold text-gray-700">{fmtEur(d.montant)}</span>
                       )}
-                      {d.signed_url && (
+                      {d.signed_url ? (
                         <a href={d.signed_url} target="_blank" rel="noopener noreferrer"
                            className="p-1 hover:bg-gray-100 rounded transition-colors" title="Télécharger">
                           <Download className="h-3.5 w-3.5 text-gray-400" />
                         </a>
+                      ) : (
+                        <span className="w-[26px]" />
                       )}
                     </div>
                   </div>
                 ))}
               </div>
+
+              {/* Total devis */}
+              {lot.devis.length > 1 && (() => {
+                const totalDevis = lot.devis.reduce((s, d) => s + (d.montant ?? 0), 0);
+                return totalDevis > 0 ? (
+                  <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-gray-100">
+                    <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+                      Total devis
+                    </span>
+                    <span className="text-[12px] font-black text-gray-800">{fmtEur(totalDevis)}</span>
+                  </div>
+                ) : null;
+              })()}
 
               {/* Alerte dépassement */}
               {row.alertOverrun && (
@@ -721,10 +736,33 @@ function ArtisanDrawer({
                   const resteF     = Math.max(0, (f.montant ?? 0) - (f.montant_paye ?? 0));
                   const isChanging = changingId === f.id;
 
+                  // Coherence: does facture nom share a significant token with any devis nom?
+                  const fNomLow = f.nom.toLowerCase();
+                  const devisTokens = lot.devis.flatMap(d =>
+                    d.nom.toLowerCase().split(/[\s\-_.,\/]+/).filter(t => t.length > 3),
+                  );
+                  const coherent = devisTokens.length > 0
+                    ? devisTokens.some(t => fNomLow.includes(t))
+                    : null; // no devis → can't judge
+
                   return (
                     <div key={f.id} className="flex items-center justify-between py-2.5 border-b border-gray-50 last:border-0">
                       <div className="flex-1 min-w-0 mr-3">
-                        <p className="text-[12px] text-gray-800 truncate font-medium">{label}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-[12px] text-gray-800 truncate font-medium">{label}</p>
+                          {coherent === true && (
+                            <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-1.5 py-0.5">
+                              <Check className="h-2.5 w-2.5" />OK
+                            </span>
+                          )}
+                          {coherent === false && (
+                            <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5"
+                                  title="Le nom de la facture ne correspond pas aux devis enregistrés">
+                              <AlertTriangle className="h-2.5 w-2.5" />Vérifier
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-0.5 truncate" title={f.nom}>{f.nom}</p>
                         {statut === 'payee_partiellement' && f.montant_paye != null && (
                           <p className="text-[10px] text-blue-500 mt-0.5">
                             {fmtEur(f.montant_paye)} versé · {fmtEur(resteF)} restant
@@ -972,7 +1010,8 @@ export default function BudgetTab({
               rows.map(row => {
                 const ds      = DEVIS_STATUS[row.devisStatut];
                 const ps      = PAY_STATUS[row.payStatut];
-                const docCount = row.lot.devis.length + row.lot.factures.length;
+                const docCount = row.lot.devis.filter(d => d.signed_url).length
+                               + row.lot.factures.filter(f => f.signed_url).length;
                 const firstDevisUrl = row.lot.devis.find(d => d.signed_url)?.signed_url;
                 const factureCount  = row.lot.factures.length;
 
@@ -992,9 +1031,22 @@ export default function BudgetTab({
 
                     {/* Poste */}
                     <td className="px-4 py-3.5">
-                      <p className="text-[11px] text-gray-400 truncate max-w-[140px]">
-                        {row.lot.devis[0]?.nom ?? '—'}
-                      </p>
+                      {row.lot.devis.length === 0 ? (
+                        <span className="text-[11px] text-gray-300">—</span>
+                      ) : row.lot.devis.length === 1 ? (
+                        <p className="text-[11px] text-gray-500 truncate max-w-[140px]">
+                          {row.lot.devis[0].nom}
+                        </p>
+                      ) : (
+                        <div className="max-w-[140px]">
+                          <p className="text-[11px] text-gray-500 truncate">{row.lot.devis[0].nom}</p>
+                          {row.lot.devis.length === 2 ? (
+                            <p className="text-[10px] text-gray-400 truncate">{row.lot.devis[1].nom}</p>
+                          ) : (
+                            <p className="text-[10px] text-indigo-400">+{row.lot.devis.length - 1} autres</p>
+                          )}
+                        </div>
+                      )}
                     </td>
 
                     {/* Devis + icône téléchargement */}
