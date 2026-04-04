@@ -434,6 +434,8 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
                 chantierId={chantierId}
                 token={token}
                 budgetMax={displayMax}
+                rangeMin={displayMin}
+                rangeMax={displayMax}
                 initialFinancing={initialFinancing}
               />
             ) : (

@@ -1167,6 +1167,8 @@ interface TresoreeriePanelProps {
   chantierId: string;
   token: string;
   budgetMax?: number;
+  rangeMin?: number;
+  rangeMax?: number;
   initialFinancing?: Record<string, unknown> | null;
 }
 
@@ -1174,6 +1176,8 @@ export default function TresoreriePanel({
   chantierId,
   token,
   budgetMax: budgetMaxProp = 0,
+  rangeMin,
+  rangeMax,
   initialFinancing,
 }: TresoreeriePanelProps) {
   const [tab,              setTab]              = useState<Tab>('budget');
@@ -1217,7 +1221,7 @@ export default function TresoreriePanel({
       {/* ── Budget ──────────────────────────────────────────────────────────── */}
       {tab === 'budget' && (
         <div className="flex-1 overflow-y-auto">
-          <BudgetTab chantierId={chantierId} token={token} />
+          <BudgetTab chantierId={chantierId} token={token} rangeMin={rangeMin} rangeMax={rangeMax} />
         </div>
       )}
 

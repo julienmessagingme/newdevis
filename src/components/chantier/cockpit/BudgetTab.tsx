@@ -1,21 +1,22 @@
 /**
- * BudgetTab v2 — Tableau de suivi budget par artisan.
+ * BudgetTab v3 — Tableau de suivi budget par artisan.
  *
  * Structure :
- *   1. Header KPIs (4 indicateurs légers, pas de cartes lourdes)
- *   2. Barre d'actions (recherche, filtres, tri, + devis)
+ *   1. Header KPIs (Budget estimé fourchette · Budget validé · Total facturé · Total payé)
+ *   2. Barre d'actions (recherche, filtres, tri, + Ajouter un document)
  *   3. Tableau principal (1 ligne = 1 artisan/lot)
- *   4. Drawer détail artisan (devis + factures + liens)
- *
- * Zéro logique trésorerie, échéancier ou financement.
+ *      Colonnes : Artisan · Poste · Devis + dl · Statut devis · Factures · Statut · Reste · Progression · Docs
+ *   4. Drawer détail artisan (devis + factures avec statut cliquable)
  */
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
-  Search, Plus, Paperclip, X, ExternalLink,
-  AlertCircle, Loader2, RotateCw,
+  Search, Plus, Paperclip, X, ExternalLink, Download,
+  AlertCircle, Loader2, RotateCw, AlertTriangle,
+  Check, Clock, ChevronDown, Scale,
 } from 'lucide-react';
 import { fmtEur } from '@/lib/financingUtils';
+import AddDocumentModal from './AddDocumentModal';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 
@@ -32,99 +33,107 @@ async function freshToken(fallback: string): Promise<string> {
 // ── Types (miroir de l'API /budget) ───────────────────────────────────────────
 
 interface BudgetDevis {
-  id: string;
-  nom: string;
-  montant: number | null;
-  devis_statut: string | null;
-  analyse_id: string | null;
-  analyse_score: number | null;
+  id:             string;
+  nom:            string;
+  montant:        number | null;
+  devis_statut:   string | null;
+  analyse_id:     string | null;
+  analyse_score:  number | null;
   analyse_signal: string | null;
-  signed_url: string | null;
-  created_at: string;
+  signed_url:     string | null;
+  created_at:     string;
 }
 
 interface BudgetFacture {
-  id: string;
-  nom: string;
-  montant: number | null;
-  montant_paye: number | null;
+  id:             string;
+  nom:            string;
+  montant:        number | null;
+  montant_paye:   number | null;
   facture_statut: string | null;
-  payment_terms: {
-    type_facture: string;
-    pct: number;
-    delai_jours: number;
+  depense_type:   string | null;
+  payment_terms:  {
+    type_facture:   string;
+    pct:            number;
+    delai_jours:    number;
     numero_facture: string | null;
   } | null;
-  signed_url: string | null;
-  created_at: string;
+  signed_url:     string | null;
+  created_at:     string;
+}
+
+interface BudgetLotTotaux {
+  devis_recus:   number;
+  devis_valides: number;
+  facture:       number;
+  paye:          number;
+  acompte:       number;
+  litige:        number;
+  a_payer:       number;
 }
 
 interface BudgetLot {
-  id: string;
-  nom: string;
-  emoji: string | null;
-  devis: BudgetDevis[];
+  id:       string;
+  nom:      string;
+  emoji:    string | null;
+  devis:    BudgetDevis[];
   factures: BudgetFacture[];
-  totaux: {
-    devis_recus: number;
-    devis_valides: number;
-    facture: number;
-    paye: number;
-  };
+  totaux:   BudgetLotTotaux;
 }
 
 interface BudgetData {
-  budget_ia: number;
-  lots: BudgetLot[];
-  sans_lot: BudgetLot | null;
-  totaux: { devis_recus: number; devis_valides: number; facture: number; paye: number };
+  budget_ia:  number;
+  lots:       BudgetLot[];
+  sans_lot:   BudgetLot | null;
+  totaux:     BudgetLotTotaux;
   type_projet: string;
 }
 
 // ── Ligne enrichie ────────────────────────────────────────────────────────────
 
+type FactureStatut = 'payee' | 'recue' | 'payee_partiellement' | 'en_litige';
+type DevisStatut   = 'validated' | 'received' | 'pending';
+type PayStatut     = 'paid' | 'litige' | 'partial' | 'unpaid' | 'none';
+
 interface BudgetRow {
-  lot: BudgetLot;
-  devisAmount: number | null;       // montant devis validé
-  devisAmountGrey: number | null;   // montant devis non validé (affiché grisé)
-  devisStatut: 'validated' | 'received' | 'pending';
-  facture: number;
-  paye: number;
-  reste: number;
-  payStatut: 'paid' | 'partial' | 'unpaid';
-  alertOverrun: boolean;   // facture > devis validé
-  alertUnpaid: boolean;    // factures non payées
+  lot:             BudgetLot;
+  devisAmount:     number | null;
+  devisAmountGrey: number | null;
+  devisStatut:     DevisStatut;
+  facture:         number;
+  paye:            number;
+  reste:           number;
+  payStatut:       PayStatut;
+  alertOverrun:    boolean;
 }
 
 function buildRow(lot: BudgetLot): BudgetRow {
   const { devis_valides, devis_recus, facture, paye } = lot.totaux;
   const reste = Math.max(0, facture - paye);
 
-  // Statut devis : dérivé depuis les statuts individuels
   const statuses = lot.devis.map(d => d.devis_statut);
-  let devisStatut: BudgetRow['devisStatut'] = 'pending';
+  let devisStatut: DevisStatut = 'pending';
   if (statuses.some(s => s === 'valide' || s === 'attente_facture')) devisStatut = 'validated';
   else if (statuses.some(s => s === 'en_cours')) devisStatut = 'received';
 
-  // Statut paiement
-  let payStatut: BudgetRow['payStatut'] = 'unpaid';
-  if (facture > 0 && paye >= facture) payStatut = 'paid';
-  else if (paye > 0) payStatut = 'partial';
-
-  const devisAmount     = devis_valides > 0 ? devis_valides : null;
-  const devisAmountGrey = devis_valides === 0 && devis_recus > 0 ? devis_recus : null;
+  // Statut paiement agrégé : pire cas
+  let payStatut: PayStatut = 'none';
+  if (lot.factures.length > 0) {
+    if (lot.totaux.litige > 0)                                   payStatut = 'litige';
+    else if (facture > 0 && paye >= facture)                     payStatut = 'paid';
+    else if (lot.totaux.acompte > 0 || paye > 0)                 payStatut = 'partial';
+    else if (facture > 0)                                        payStatut = 'unpaid';
+  }
 
   return {
     lot,
-    devisAmount,
-    devisAmountGrey,
+    devisAmount:     devis_valides > 0 ? devis_valides : null,
+    devisAmountGrey: devis_valides === 0 && devis_recus > 0 ? devis_recus : null,
     devisStatut,
     facture,
     paye,
     reste,
     payStatut,
     alertOverrun: devis_valides > 0 && facture > devis_valides * 1.05,
-    alertUnpaid:  facture > 0 && reste > 0,
   };
 }
 
@@ -158,37 +167,57 @@ function useBudgetData(chantierId: string, token: string) {
 
 // ── Configs statuts ───────────────────────────────────────────────────────────
 
-const DEVIS_STATUS: Record<BudgetRow['devisStatut'], { label: string; cls: string }> = {
+const DEVIS_STATUS: Record<DevisStatut, { label: string; cls: string }> = {
   validated: { label: 'Validé',     cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   received:  { label: 'Reçu',       cls: 'bg-blue-50 text-blue-700 border-blue-200' },
   pending:   { label: 'En attente', cls: 'bg-gray-100 text-gray-500 border-gray-200' },
 };
 
-const PAY_STATUS: Record<BudgetRow['payStatut'], { label: string; cls: string }> = {
-  paid:    { label: 'Payé',     cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  partial: { label: 'Partiel',  cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-  unpaid:  { label: 'Non payé', cls: 'bg-gray-100 text-gray-500 border-gray-200' },
+const PAY_STATUS: Record<PayStatut, { label: string; cls: string; icon: React.ReactNode }> = {
+  paid:    { label: 'Payé',     cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: <Check className="h-3 w-3" /> },
+  litige:  { label: 'Litige',   cls: 'bg-red-50 text-red-700 border-red-200',            icon: <Scale className="h-3 w-3" /> },
+  partial: { label: 'Partiel',  cls: 'bg-blue-50 text-blue-700 border-blue-200',         icon: <ChevronDown className="h-3 w-3" /> },
+  unpaid:  { label: 'À payer',  cls: 'bg-amber-50 text-amber-700 border-amber-200',      icon: <Clock className="h-3 w-3" /> },
+  none:    { label: '—',        cls: 'text-gray-300',                                    icon: null },
+};
+
+const FACTURE_STATUT_CFG: Record<FactureStatut, { label: string; short: string; cls: string; icon: React.ReactNode }> = {
+  payee:               { label: 'Payée intégralement', short: 'Payée',   cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: <Check className="h-3 w-3" /> },
+  recue:               { label: 'Reçue — à payer',     short: 'À payer', cls: 'bg-amber-50 text-amber-700 border-amber-200',      icon: <Clock className="h-3 w-3" /> },
+  payee_partiellement: { label: 'Acompte versé',        short: 'Acompte', cls: 'bg-blue-50 text-blue-700 border-blue-200',         icon: <ChevronDown className="h-3 w-3" /> },
+  en_litige:           { label: 'En litige',            short: 'Litige',  cls: 'bg-red-50 text-red-700 border-red-200',            icon: <Scale className="h-3 w-3" /> },
 };
 
 const DEVIS_STATUT_LABEL: Record<string, string> = {
-  en_cours:        'Reçu',
-  a_relancer:      'À relancer',
-  valide:          'Validé',
-  attente_facture: 'Att. facture',
+  en_cours: 'Reçu', a_relancer: 'À relancer', valide: 'Validé', attente_facture: 'Att. facture',
 };
 
-const FACTURE_STATUT_LABEL: Record<string, string> = {
-  recue:               'Reçue',
-  payee:               'Payée',
-  payee_partiellement: 'Partielle',
-};
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-// ── Sous-composants ────────────────────────────────────────────────────────────
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+}
 
-function Badge({ label, cls }: { label: string; cls: string }) {
+function smartFactureLabel(f: BudgetFacture): string {
+  const terms = f.payment_terms;
+  if (terms) {
+    const type = terms.type_facture === 'acompte' ? 'Acompte'
+               : terms.type_facture === 'solde'   ? 'Solde'
+               : 'Facture';
+    return `${type} ${terms.pct > 0 ? terms.pct + '%' : ''} · ${fmtDate(f.created_at)}`.trim();
+  }
+  const n = f.nom.toLowerCase();
+  if (n.includes('acompte') || n.includes('accompte')) return `Acompte · ${fmtDate(f.created_at)}`;
+  if (n.includes('solde'))                             return `Solde · ${fmtDate(f.created_at)}`;
+  return `${f.nom} · ${fmtDate(f.created_at)}`;
+}
+
+// ── Sub-composants ────────────────────────────────────────────────────────────
+
+function Badge({ label, cls, icon }: { label: string; cls: string; icon?: React.ReactNode }) {
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${cls}`}>
-      {label}
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${cls}`}>
+      {icon}{label}
     </span>
   );
 }
@@ -209,12 +238,27 @@ function ProgressBar({ paye, facture }: { paye: number; facture: number }) {
 
 // ── Header KPIs ───────────────────────────────────────────────────────────────
 
-function HeaderKpis({ data, loading }: { data: BudgetData | null; loading: boolean }) {
+function HeaderKpis({
+  data, loading, rangeMin, rangeMax,
+}: {
+  data: BudgetData | null;
+  loading: boolean;
+  rangeMin?: number;
+  rangeMax?: number;
+}) {
+  const budgetEstime = (() => {
+    if (rangeMin && rangeMax && rangeMin > 0) {
+      return `${fmtEur(rangeMin)} – ${fmtEur(rangeMax)}`;
+    }
+    if (data?.budget_ia && data.budget_ia > 0) return fmtEur(data.budget_ia);
+    return '—';
+  })();
+
   const kpis = [
-    { label: 'Budget estimé',  value: data?.budget_ia && data.budget_ia > 0 ? fmtEur(data.budget_ia) : '—' },
-    { label: 'Budget validé',  value: data && data.totaux.devis_valides > 0 ? fmtEur(data.totaux.devis_valides) : '—' },
-    { label: 'Total facturé',  value: data && data.totaux.facture > 0 ? fmtEur(data.totaux.facture) : '—' },
-    { label: 'Total payé',     value: data && data.totaux.paye > 0 ? fmtEur(data.totaux.paye) : '—' },
+    { label: 'Budget estimé',  value: budgetEstime,                                                                       sub: rangeMin && rangeMax ? 'fourchette IA' : undefined },
+    { label: 'Budget validé',  value: data && data.totaux.devis_valides > 0 ? fmtEur(data.totaux.devis_valides) : '—',    sub: undefined },
+    { label: 'Total facturé',  value: data && data.totaux.facture > 0 ? fmtEur(data.totaux.facture) : '—',                sub: undefined },
+    { label: 'Total payé',     value: data && data.totaux.paye > 0 ? fmtEur(data.totaux.paye) : '—',                      sub: data && data.totaux.litige > 0 ? `${fmtEur(data.totaux.litige)} en litige` : undefined },
   ];
 
   return (
@@ -222,11 +266,14 @@ function HeaderKpis({ data, loading }: { data: BudgetData | null; loading: boole
       <div className="grid grid-cols-4 gap-6">
         {kpis.map(kpi => (
           <div key={kpi.label}>
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">{kpi.label}</p>
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">{kpi.label}</p>
             {loading ? (
               <div className="h-5 w-20 bg-gray-100 rounded animate-pulse" />
             ) : (
-              <p className="text-[17px] font-black text-gray-800 leading-none">{kpi.value}</p>
+              <>
+                <p className="text-[15px] font-black text-gray-800 leading-none">{kpi.value}</p>
+                {kpi.sub && <p className="text-[10px] text-gray-400 mt-0.5">{kpi.sub}</p>}
+              </>
             )}
           </div>
         ))}
@@ -238,84 +285,64 @@ function HeaderKpis({ data, loading }: { data: BudgetData | null; loading: boole
 // ── Action bar ────────────────────────────────────────────────────────────────
 
 type FilterDevis = 'all' | 'pending' | 'received' | 'validated';
-type FilterPay   = 'all' | 'unpaid' | 'partial' | 'paid';
+type FilterPay   = 'all' | 'unpaid' | 'partial' | 'paid' | 'litige';
 type SortBy      = 'default' | 'amount' | 'reste' | 'nom';
-
-interface ActionBarProps {
-  search: string;
-  onSearch: (v: string) => void;
-  filterDevis: FilterDevis;
-  onFilterDevis: (v: FilterDevis) => void;
-  filterPay: FilterPay;
-  onFilterPay: (v: FilterPay) => void;
-  sortBy: SortBy;
-  onSort: (v: SortBy) => void;
-  onAddDevis?: () => void;
-}
 
 function ActionBar({
   search, onSearch,
   filterDevis, onFilterDevis,
   filterPay, onFilterPay,
   sortBy, onSort,
-  onAddDevis,
-}: ActionBarProps) {
-  const selectCls = 'text-[12px] border border-gray-200 rounded-lg px-2.5 py-2 bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-300';
-
+  onAddDocument,
+}: {
+  search: string; onSearch: (v: string) => void;
+  filterDevis: FilterDevis; onFilterDevis: (v: FilterDevis) => void;
+  filterPay: FilterPay; onFilterPay: (v: FilterPay) => void;
+  sortBy: SortBy; onSort: (v: SortBy) => void;
+  onAddDocument?: () => void;
+}) {
+  const sel = 'text-[12px] border border-gray-200 rounded-lg px-2.5 py-2 bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-300';
   return (
     <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-3 flex-wrap">
-      {/* Recherche */}
       <div className="relative flex-1 min-w-[180px] max-w-xs">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
         <input
-          value={search}
-          onChange={e => onSearch(e.target.value)}
-          placeholder="Rechercher un artisan ou un poste..."
+          value={search} onChange={e => onSearch(e.target.value)}
+          placeholder="Rechercher un artisan…"
           className="w-full pl-8 pr-7 py-2 text-[12px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300 placeholder:text-gray-400"
         />
         {search && (
-          <button
-            onClick={() => onSearch('')}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5"
-          >
+          <button onClick={() => onSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5">
             <X className="h-3 w-3 text-gray-400 hover:text-gray-600" />
           </button>
         )}
       </div>
-
-      {/* Filtre statut devis */}
-      <select value={filterDevis} onChange={e => onFilterDevis(e.target.value as FilterDevis)} className={selectCls}>
+      <select value={filterDevis} onChange={e => onFilterDevis(e.target.value as FilterDevis)} className={sel}>
         <option value="all">Tous statuts devis</option>
         <option value="pending">En attente</option>
         <option value="received">Reçu</option>
         <option value="validated">Validé</option>
       </select>
-
-      {/* Filtre paiement */}
-      <select value={filterPay} onChange={e => onFilterPay(e.target.value as FilterPay)} className={selectCls}>
+      <select value={filterPay} onChange={e => onFilterPay(e.target.value as FilterPay)} className={sel}>
         <option value="all">Tous paiements</option>
-        <option value="unpaid">Non payé</option>
+        <option value="unpaid">À payer</option>
         <option value="partial">Partiel</option>
         <option value="paid">Payé</option>
+        <option value="litige">En litige</option>
       </select>
-
-      {/* Tri */}
-      <select value={sortBy} onChange={e => onSort(e.target.value as SortBy)} className={selectCls}>
+      <select value={sortBy} onChange={e => onSort(e.target.value as SortBy)} className={sel}>
         <option value="default">Tri par défaut</option>
         <option value="amount">Montant devis</option>
         <option value="reste">Reste à payer</option>
         <option value="nom">Nom artisan</option>
       </select>
-
       <div className="flex-1" />
-
-      {/* Ajouter un devis */}
       <button
-        onClick={onAddDevis}
+        onClick={onAddDocument}
         className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600 text-white text-[12px] font-semibold hover:bg-indigo-700 transition-colors shrink-0"
       >
         <Plus className="h-3.5 w-3.5" />
-        Ajouter un devis
+        Ajouter un document
       </button>
     </div>
   );
@@ -323,13 +350,42 @@ function ActionBar({
 
 // ── Drawer détail artisan ─────────────────────────────────────────────────────
 
-function ArtisanDrawer({ row, onClose }: { row: BudgetRow; onClose: () => void }) {
+function ArtisanDrawer({
+  row, chantierId, token, onClose, onStatutChange,
+}: {
+  row:             BudgetRow;
+  chantierId:      string;
+  token:           string;
+  onClose:         () => void;
+  onStatutChange?: (factureId: string, statut: FactureStatut) => void;
+}) {
   const { lot } = row;
+  const [changingId, setChangingId] = useState<string | null>(null);
+  const [openMenu,   setOpenMenu]   = useState<string | null>(null);
+
+  async function changeStatut(factureId: string, statut: FactureStatut) {
+    setChangingId(factureId);
+    setOpenMenu(null);
+    try {
+      const bearer = await freshToken(token);
+      await fetch(`/api/chantier/${chantierId}/documents/${factureId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
+        body: JSON.stringify({ factureStatut: statut }),
+      });
+      onStatutChange?.(factureId, statut);
+    } catch { /* silencieux */ }
+    setChangingId(null);
+  }
+
+  const totalFacture = lot.totaux.facture;
+  const totalPaye    = lot.totaux.paye + lot.totaux.acompte;
 
   return (
     <>
       <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
-      <div className="fixed right-0 top-0 bottom-0 w-[380px] max-w-full bg-white shadow-2xl z-50 flex flex-col">
+      <div className="fixed right-0 top-0 bottom-0 w-[400px] max-w-full bg-white shadow-2xl z-50 flex flex-col">
+
         {/* En-tête */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2 min-w-0">
@@ -337,7 +393,7 @@ function ArtisanDrawer({ row, onClose }: { row: BudgetRow; onClose: () => void }
             <div className="min-w-0">
               <p className="text-[14px] font-black text-gray-900 truncate">{lot.nom}</p>
               <p className="text-[11px] text-gray-400">
-                {lot.devis.length} devis · {lot.factures.length} facture{lot.factures.length > 1 ? 's' : ''}
+                {lot.devis.length} devis · {lot.factures.length} facture{lot.factures.length !== 1 ? 's' : ''}
               </p>
             </div>
           </div>
@@ -346,12 +402,12 @@ function ArtisanDrawer({ row, onClose }: { row: BudgetRow; onClose: () => void }
           </button>
         </div>
 
-        {/* Totaux mini */}
+        {/* Totaux */}
         <div className="grid grid-cols-3 border-b border-gray-100 divide-x divide-gray-100">
           {[
-            { label: 'Facturé', value: fmtEur(lot.totaux.facture), red: false },
-            { label: 'Payé',    value: fmtEur(lot.totaux.paye),    red: false },
-            { label: 'Reste',   value: fmtEur(row.reste),          red: row.reste > 0 },
+            { label: 'Facturé', value: fmtEur(totalFacture), red: false },
+            { label: 'Payé',    value: fmtEur(totalPaye),    red: false },
+            { label: 'Reste',   value: fmtEur(row.reste),    red: row.reste > 0 },
           ].map(item => (
             <div key={item.label} className="px-4 py-3 text-center">
               <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">{item.label}</p>
@@ -362,7 +418,7 @@ function ArtisanDrawer({ row, onClose }: { row: BudgetRow; onClose: () => void }
           ))}
         </div>
 
-        {/* Contenu scrollable */}
+        {/* Contenu */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
 
           {/* Devis */}
@@ -385,20 +441,23 @@ function ArtisanDrawer({ row, onClose }: { row: BudgetRow; onClose: () => void }
                         <span className="text-[12px] font-bold text-gray-700">{fmtEur(d.montant)}</span>
                       )}
                       {d.signed_url && (
-                        <a
-                          href={d.signed_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1 hover:bg-gray-100 rounded transition-colors"
-                          title="Ouvrir le document"
-                        >
-                          <ExternalLink className="h-3.5 w-3.5 text-gray-400" />
+                        <a href={d.signed_url} target="_blank" rel="noopener noreferrer"
+                           className="p-1 hover:bg-gray-100 rounded transition-colors" title="Télécharger">
+                          <Download className="h-3.5 w-3.5 text-gray-400" />
                         </a>
                       )}
                     </div>
                   </div>
                 ))}
               </div>
+
+              {/* Alerte dépassement */}
+              {row.alertOverrun && (
+                <div className="mt-2 flex items-center gap-1.5 text-[11px] text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  Le total facturé dépasse le devis validé
+                </div>
+              )}
             </div>
           )}
 
@@ -408,37 +467,62 @@ function ArtisanDrawer({ row, onClose }: { row: BudgetRow; onClose: () => void }
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Factures</p>
               <div className="space-y-0">
                 {lot.factures.map(f => {
-                  const payeF  = f.montant_paye ?? 0;
-                  const resteF = Math.max(0, (f.montant ?? 0) - payeF);
+                  const statut     = (f.facture_statut ?? 'recue') as FactureStatut;
+                  const cfg        = FACTURE_STATUT_CFG[statut] ?? FACTURE_STATUT_CFG.recue;
+                  const label      = smartFactureLabel(f);
+                  const resteF     = Math.max(0, (f.montant ?? 0) - (f.montant_paye ?? 0));
+                  const isChanging = changingId === f.id;
+
                   return (
                     <div key={f.id} className="flex items-center justify-between py-2.5 border-b border-gray-50 last:border-0">
                       <div className="flex-1 min-w-0 mr-3">
-                        <p className="text-[12px] text-gray-800 truncate">{f.nom}</p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">
-                          {f.facture_statut ? (FACTURE_STATUT_LABEL[f.facture_statut] ?? f.facture_statut) : '—'}
-                          {f.payment_terms && (
-                            <> · {f.payment_terms.type_facture === 'acompte' ? 'Acompte' : f.payment_terms.type_facture === 'solde' ? 'Solde' : 'Facture'} {f.payment_terms.pct}%</>
-                          )}
-                        </p>
+                        <p className="text-[12px] text-gray-800 truncate font-medium">{label}</p>
+                        {statut === 'payee_partiellement' && f.montant_paye != null && (
+                          <p className="text-[10px] text-blue-500 mt-0.5">
+                            {fmtEur(f.montant_paye)} versé · {fmtEur(resteF)} restant
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <div className="text-right">
-                          {f.montant !== null && (
-                            <p className="text-[12px] font-bold text-gray-700">{fmtEur(f.montant)}</p>
-                          )}
-                          {resteF > 0 && (
-                            <p className="text-[10px] text-amber-600">Reste {fmtEur(resteF)}</p>
+                        {f.montant !== null && (
+                          <span className="text-[12px] font-bold text-gray-700">{fmtEur(f.montant)}</span>
+                        )}
+
+                        {/* Badge statut cliquable */}
+                        <div className="relative">
+                          <button
+                            disabled={isChanging}
+                            onClick={() => setOpenMenu(openMenu === f.id ? null : f.id)}
+                            className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border transition-all ${cfg.cls}`}
+                          >
+                            {isChanging ? <Loader2 className="h-3 w-3 animate-spin" /> : cfg.icon}
+                            {cfg.short}
+                            <ChevronDown className="h-2.5 w-2.5" />
+                          </button>
+
+                          {openMenu === f.id && (
+                            <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-100 z-20 overflow-hidden">
+                              {(Object.entries(FACTURE_STATUT_CFG) as [FactureStatut, typeof FACTURE_STATUT_CFG[FactureStatut]][]).map(([s, c]) => (
+                                <button
+                                  key={s}
+                                  onClick={() => changeStatut(f.id, s)}
+                                  className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${
+                                    s === statut ? 'text-indigo-600 bg-indigo-50/50' : 'text-gray-700'
+                                  }`}
+                                >
+                                  <span>{c.icon}</span>
+                                  {c.label}
+                                  {s === statut && <Check className="h-3 w-3 ml-auto text-indigo-500" />}
+                                </button>
+                              ))}
+                            </div>
                           )}
                         </div>
+
                         {f.signed_url && (
-                          <a
-                            href={f.signed_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-1 hover:bg-gray-100 rounded transition-colors"
-                            title="Ouvrir le document"
-                          >
-                            <ExternalLink className="h-3.5 w-3.5 text-gray-400" />
+                          <a href={f.signed_url} target="_blank" rel="noopener noreferrer"
+                             className="p-1 hover:bg-gray-100 rounded transition-colors" title="Télécharger">
+                            <Download className="h-3.5 w-3.5 text-gray-400" />
                           </a>
                         )}
                       </div>
@@ -454,11 +538,16 @@ function ArtisanDrawer({ row, onClose }: { row: BudgetRow; onClose: () => void }
           )}
         </div>
       </div>
+
+      {/* Overlay fermeture dropdown */}
+      {openMenu && (
+        <div className="fixed inset-0 z-[45]" onClick={() => setOpenMenu(null)} />
+      )}
     </>
   );
 }
 
-// ── Tableau principal ─────────────────────────────────────────────────────────
+// ── Tableau squelette ─────────────────────────────────────────────────────────
 
 const TH = 'px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider';
 
@@ -483,29 +572,46 @@ function TableSkeleton() {
 export default function BudgetTab({
   chantierId,
   token,
-  onAddDevis,
+  rangeMin,
+  rangeMax,
 }: {
   chantierId: string;
-  token: string;
-  onAddDevis?: () => void;
+  token:      string;
+  rangeMin?:  number;
+  rangeMax?:  number;
 }) {
   const { data, loading, error, refresh } = useBudgetData(chantierId, token);
 
-  const [search,      setSearch]      = useState('');
-  const [filterDevis, setFilterDevis] = useState<FilterDevis>('all');
-  const [filterPay,   setFilterPay]   = useState<FilterPay>('all');
-  const [sortBy,      setSortBy]      = useState<SortBy>('default');
-  const [selected,    setSelected]    = useState<BudgetRow | null>(null);
+  const [search,       setSearch]       = useState('');
+  const [filterDevis,  setFilterDevis]  = useState<FilterDevis>('all');
+  const [filterPay,    setFilterPay]    = useState<FilterPay>('all');
+  const [sortBy,       setSortBy]       = useState<SortBy>('default');
+  const [selected,     setSelected]     = useState<BudgetRow | null>(null);
+  const [showAddDoc,   setShowAddDoc]   = useState(false);
 
-  // Tous les lots (avec sans_lot en dernier)
+  // Overrides locaux des statuts factures (optimistic updates)
+  const [statutOverrides, setStatutOverrides] = useState<Record<string, FactureStatut>>({});
+
   const allLots = useMemo(() => {
     if (!data) return [];
     return [...data.lots, ...(data.sans_lot ? [data.sans_lot] : [])];
   }, [data]);
 
-  // Lignes filtrées + triées
+  // Lots pour AddDocumentModal
+  const lotsForModal = useMemo(() => allLots.map(l => ({
+    id: l.id, nom: l.nom, emoji: l.emoji,
+  })), [allLots]);
+
+  // Lignes avec overrides appliqués
+  const lotsEnriched = useMemo(() => allLots.map(lot => ({
+    ...lot,
+    factures: lot.factures.map(f =>
+      statutOverrides[f.id] ? { ...f, facture_statut: statutOverrides[f.id] } : f
+    ),
+  })), [allLots, statutOverrides]);
+
   const rows = useMemo<BudgetRow[]>(() => {
-    let result = allLots.map(buildRow);
+    let result = lotsEnriched.map(buildRow);
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -522,8 +628,7 @@ export default function BudgetTab({
       case 'amount':
         result.sort((a, b) =>
           (b.devisAmount ?? b.devisAmountGrey ?? 0) - (a.devisAmount ?? a.devisAmountGrey ?? 0),
-        );
-        break;
+        ); break;
       case 'reste':
         result.sort((a, b) => b.reste - a.reste);
         break;
@@ -531,20 +636,30 @@ export default function BudgetTab({
         result.sort((a, b) => a.lot.nom.localeCompare(b.lot.nom, 'fr'));
         break;
       default:
-        // Reste > 0 en premier, puis facturé, puis sans activité
         result.sort((a, b) => {
           const score = (r: BudgetRow) => r.reste > 0 ? 2 : r.facture > 0 ? 1 : 0;
           return score(b) - score(a) || b.reste - a.reste;
         });
     }
-
     return result;
-  }, [allLots, search, filterDevis, filterPay, sortBy]);
+  }, [lotsEnriched, search, filterDevis, filterPay, sortBy]);
 
   const totalDocs = useMemo(
     () => allLots.reduce((s, l) => s + l.devis.length + l.factures.length, 0),
     [allLots],
   );
+
+  const handleStatutChange = useCallback((factureId: string, statut: FactureStatut) => {
+    setStatutOverrides(prev => ({ ...prev, [factureId]: statut }));
+    // Re-sélectionner la ligne mise à jour
+    setSelected(prev => {
+      if (!prev) return prev;
+      const updated = prev.lot.factures.map(f =>
+        f.id === factureId ? { ...f, facture_statut: statut } : f,
+      );
+      return buildRow({ ...prev.lot, factures: updated });
+    });
+  }, []);
 
   if (error) {
     return (
@@ -560,7 +675,7 @@ export default function BudgetTab({
     <div className="flex flex-col h-full bg-white">
 
       {/* ── KPIs ──────────────────────────────────────────────────────────── */}
-      <HeaderKpis data={data} loading={loading} />
+      <HeaderKpis data={data} loading={loading} rangeMin={rangeMin} rangeMax={rangeMax} />
 
       {/* ── Barre d'actions ───────────────────────────────────────────────── */}
       <ActionBar
@@ -568,7 +683,7 @@ export default function BudgetTab({
         filterDevis={filterDevis} onFilterDevis={setFilterDevis}
         filterPay={filterPay}     onFilterPay={setFilterPay}
         sortBy={sortBy}           onSort={setSortBy}
-        onAddDevis={onAddDevis}
+        onAddDocument={() => setShowAddDoc(true)}
       />
 
       {/* ── Tableau ───────────────────────────────────────────────────────── */}
@@ -576,14 +691,14 @@ export default function BudgetTab({
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
-              <th className={`${TH} w-[180px]`}>Artisan</th>
+              <th className={`${TH} w-[160px]`}>Artisan</th>
               <th className={TH}>Poste</th>
               <th className={`${TH} text-right`}>Devis</th>
               <th className={TH}>Statut devis</th>
-              <th className={`${TH} text-right`}>Facturé</th>
-              <th className={`${TH} text-right`}>Payé</th>
+              <th className={`${TH} text-right`}>Factures</th>
+              <th className={TH}>Statut</th>
               <th className={`${TH} text-right`}>Reste à payer</th>
-              <th className={`${TH} w-[130px]`}>Progression</th>
+              <th className={`${TH} w-[120px]`}>Progression</th>
               <th className={`${TH} text-center w-[60px]`}>Docs</th>
             </tr>
           </thead>
@@ -601,7 +716,10 @@ export default function BudgetTab({
             ) : (
               rows.map(row => {
                 const ds      = DEVIS_STATUS[row.devisStatut];
+                const ps      = PAY_STATUS[row.payStatut];
                 const docCount = row.lot.devis.length + row.lot.factures.length;
+                const firstDevisUrl = row.lot.devis.find(d => d.signed_url)?.signed_url;
+                const factureCount  = row.lot.factures.length;
 
                 return (
                   <tr
@@ -612,56 +730,91 @@ export default function BudgetTab({
                     {/* Artisan */}
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2">
-                        {row.lot.emoji && (
-                          <span className="text-[15px] leading-none shrink-0">{row.lot.emoji}</span>
-                        )}
+                        {row.lot.emoji && <span className="text-[15px] leading-none shrink-0">{row.lot.emoji}</span>}
                         <p className="text-[12px] font-semibold text-gray-800 truncate">{row.lot.nom}</p>
                       </div>
                     </td>
 
-                    {/* Poste — premier devis ou — */}
+                    {/* Poste */}
                     <td className="px-4 py-3.5">
-                      <p className="text-[11px] text-gray-400 truncate max-w-[150px]">
+                      <p className="text-[11px] text-gray-400 truncate max-w-[140px]">
                         {row.lot.devis[0]?.nom ?? '—'}
                       </p>
                     </td>
 
-                    {/* Devis */}
+                    {/* Devis + icône téléchargement */}
                     <td className="px-4 py-3.5 text-right">
                       {row.devisAmount !== null ? (
-                        <span className="text-[12px] font-bold text-gray-800">{fmtEur(row.devisAmount)}</span>
-                      ) : row.devisAmountGrey !== null ? (
-                        <span className="text-[12px] text-gray-400">{fmtEur(row.devisAmountGrey)}</span>
-                      ) : (
-                        <span className="text-[12px] text-gray-300">—</span>
-                      )}
-                    </td>
-
-                    {/* Statut devis */}
-                    <td className="px-4 py-3.5">
-                      <Badge label={ds.label} cls={ds.cls} />
-                    </td>
-
-                    {/* Facturé */}
-                    <td className="px-4 py-3.5 text-right">
-                      {row.facture > 0 ? (
-                        <span className={`text-[12px] font-semibold ${row.alertOverrun ? 'text-amber-600' : 'text-gray-700'}`}>
-                          {fmtEur(row.facture)}
-                          {row.alertOverrun && (
-                            <span className="ml-1.5 text-[9px] bg-amber-50 text-amber-600 border border-amber-200 px-1 py-0.5 rounded font-bold">
-                              dépassé
-                            </span>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="text-[12px] font-bold text-gray-800">{fmtEur(row.devisAmount)}</span>
+                          {firstDevisUrl && (
+                            <a
+                              href={firstDevisUrl} target="_blank" rel="noopener noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              className="flex items-center gap-0.5 text-[10px] text-gray-400 hover:text-indigo-600 transition-colors"
+                              title="Télécharger le devis"
+                            >
+                              <Download className="h-3 w-3" />
+                              <span>Devis</span>
+                            </a>
                           )}
-                        </span>
+                        </div>
+                      ) : row.devisAmountGrey !== null ? (
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="text-[12px] text-gray-400">{fmtEur(row.devisAmountGrey)}</span>
+                          {firstDevisUrl && (
+                            <a
+                              href={firstDevisUrl} target="_blank" rel="noopener noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              className="flex items-center gap-0.5 text-[10px] text-gray-400 hover:text-indigo-600 transition-colors"
+                            >
+                              <Download className="h-3 w-3" />
+                            </a>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-[12px] text-gray-300">—</span>
                       )}
                     </td>
 
-                    {/* Payé */}
+                    {/* Statut devis + alerte dépassement */}
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-1.5">
+                        <Badge label={ds.label} cls={ds.cls} />
+                        {row.alertOverrun && (
+                          <AlertTriangle
+                            className="h-3.5 w-3.5 text-amber-500 shrink-0"
+                            title="Facture supérieure au devis validé"
+                          />
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Factures */}
                     <td className="px-4 py-3.5 text-right">
-                      {row.paye > 0 ? (
-                        <span className="text-[12px] text-gray-700">{fmtEur(row.paye)}</span>
+                      <div className="flex flex-col items-end gap-1">
+                        {row.facture > 0 ? (
+                          <span className="text-[12px] font-semibold text-gray-700">{fmtEur(row.facture)}</span>
+                        ) : (
+                          <span className="text-[12px] text-gray-300">—</span>
+                        )}
+                        {factureCount > 0 && (
+                          <span className="text-[10px] text-gray-400">
+                            {factureCount} facture{factureCount > 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Statut paiement */}
+                    <td className="px-4 py-3.5">
+                      {row.payStatut !== 'none' ? (
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${ps.cls}`}
+                          onClick={e => { e.stopPropagation(); setSelected(row); }}
+                        >
+                          {ps.icon}{ps.label}
+                        </span>
                       ) : (
                         <span className="text-[12px] text-gray-300">—</span>
                       )}
@@ -680,7 +833,7 @@ export default function BudgetTab({
 
                     {/* Progression */}
                     <td className="px-4 py-3.5">
-                      <ProgressBar paye={row.paye} facture={row.facture} />
+                      <ProgressBar paye={row.paye + row.lot.totaux.acompte} facture={row.facture} />
                     </td>
 
                     {/* Documents */}
@@ -689,7 +842,6 @@ export default function BudgetTab({
                         <button
                           onClick={e => { e.stopPropagation(); setSelected(row); }}
                           className="inline-flex items-center gap-1 text-gray-400 hover:text-indigo-600 transition-colors"
-                          title={`${docCount} document${docCount > 1 ? 's' : ''}`}
                         >
                           <Paperclip className="h-3.5 w-3.5" />
                           <span className="text-[10px] font-semibold">{docCount}</span>
@@ -713,19 +865,33 @@ export default function BudgetTab({
             {rows.length} intervenant{rows.length !== 1 ? 's' : ''}
             {totalDocs > 0 && ` · ${totalDocs} document${totalDocs !== 1 ? 's' : ''}`}
           </p>
-          <button
-            onClick={refresh}
-            className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-600 transition-colors"
-          >
+          <button onClick={refresh} className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-600 transition-colors">
             <RotateCw className="h-3 w-3" />
             Actualiser
           </button>
         </div>
       )}
 
-      {/* ── Drawer ────────────────────────────────────────────────────────── */}
+      {/* ── Drawer artisan ────────────────────────────────────────────────── */}
       {selected && (
-        <ArtisanDrawer row={selected} onClose={() => setSelected(null)} />
+        <ArtisanDrawer
+          row={selected}
+          chantierId={chantierId}
+          token={token}
+          onClose={() => setSelected(null)}
+          onStatutChange={handleStatutChange}
+        />
+      )}
+
+      {/* ── Modal ajout document ──────────────────────────────────────────── */}
+      {showAddDoc && (
+        <AddDocumentModal
+          chantierId={chantierId}
+          token={token}
+          lots={lotsForModal}
+          onClose={() => setShowAddDoc(false)}
+          onSuccess={() => { setShowAddDoc(false); refresh(); }}
+        />
       )}
     </div>
   );
