@@ -889,6 +889,8 @@ export default function BudgetTab({
   const [expanded,     setExpanded]     = useState<Set<string>>(new Set());
   const [changingId,   setChangingId]   = useState<string | null>(null);
   const [openMenu,     setOpenMenu]     = useState<string | null>(null);
+  // Acompte avec saisie montant inline
+  const [acompteInput, setAcompteInput] = useState<{ factureId: string; value: string } | null>(null);
 
   // Overrides locaux des statuts factures (optimistic updates)
   const [statutOverrides, setStatutOverrides] = useState<Record<string, FactureStatut>>({});
@@ -961,16 +963,24 @@ export default function BudgetTab({
     });
   }, []);
 
-  const changeStatut = useCallback(async (factureId: string, statut: FactureStatut, e?: React.MouseEvent) => {
+  const changeStatut = useCallback(async (
+    factureId: string,
+    statut: FactureStatut,
+    e?: React.MouseEvent,
+    montantPaye?: number | null,
+  ) => {
     e?.stopPropagation();
     setChangingId(factureId);
     setOpenMenu(null);
+    setAcompteInput(null);
     try {
       const bearer = await freshToken(token);
+      const body: Record<string, unknown> = { factureStatut: statut };
+      if (montantPaye !== undefined) body.montantPaye = montantPaye;
       await fetch(`/api/chantier/${chantierId}/documents/${factureId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
-        body: JSON.stringify({ factureStatut: statut }),
+        body: JSON.stringify(body),
       });
       handleStatutChange(factureId, statut);
       refresh();
@@ -1022,17 +1032,27 @@ export default function BudgetTab({
 
       {/* ── Tableau ───────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-auto">
-        <table className="w-full text-left border-collapse">
+        <table className="w-full text-left border-collapse table-fixed">
+          <colgroup>
+            <col style={{ width: 220 }} />
+            <col style={{ width: 115 }} />
+            <col style={{ width: 115 }} />
+            <col style={{ width: 110 }} />
+            <col style={{ width: 145 }} />
+            <col style={{ width: 110 }} />
+            <col style={{ width: 130 }} />
+            <col style={{ width: 80 }} />
+          </colgroup>
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
-              <th className={`${TH} w-[200px]`}>Artisan / Lot</th>
+              <th className={TH}>Artisan / Lot</th>
               <th className={`${TH} text-right`}>Devis validé</th>
               <th className={TH}>Statut devis</th>
               <th className={`${TH} text-right`}>Total facturé</th>
               <th className={TH}>Paiement</th>
               <th className={`${TH} text-right`}>Reste à payer</th>
-              <th className={`${TH} w-[130px]`}>Progression</th>
-              <th className={`${TH} text-center w-[56px]`}>Docs</th>
+              <th className={TH}>Progression</th>
+              <th className={`${TH} text-center`}>Docs</th>
             </tr>
           </thead>
           <tbody>
@@ -1132,9 +1152,87 @@ export default function BudgetTab({
                         )}
                       </td>
 
-                      {/* Statut paiement */}
+                      {/* Statut paiement — cliquable si 1 seule facture */}
                       <td className="px-4 py-3.5">
-                        {row.payStatut !== 'none' ? (
+                        {row.lot.factures.length === 1 ? (() => {
+                          const f0      = row.lot.factures[0];
+                          const f0Stat  = (f0.facture_statut ?? 'recue') as FactureStatut;
+                          const f0Cfg   = FACTURE_STATUT_CFG[f0Stat] ?? FACTURE_STATUT_CFG.recue;
+                          const isChg   = changingId === f0.id;
+                          const menuKey = f0.id + '_main';
+                          return (
+                            <div className="relative">
+                              <button
+                                disabled={isChg}
+                                onClick={e => { e.stopPropagation(); setOpenMenu(openMenu === menuKey ? null : menuKey); setAcompteInput(null); }}
+                                className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border transition-all ${f0Cfg.cls}`}
+                              >
+                                {isChg ? <Loader2 className="h-3 w-3 animate-spin" /> : f0Cfg.icon}
+                                {f0Cfg.short}
+                                <ChevronDown className="h-2.5 w-2.5" />
+                              </button>
+                              {openMenu === menuKey && (
+                                <div className="absolute left-0 top-full mt-1 w-52 bg-white rounded-xl shadow-lg border border-gray-100 z-30 overflow-hidden">
+                                  {(Object.entries(FACTURE_STATUT_CFG) as [FactureStatut, typeof FACTURE_STATUT_CFG[FactureStatut]][]).map(([s, c]) => {
+                                    if (s === 'payee_partiellement') {
+                                      const pt = f0.payment_terms;
+                                      const autoMontant = pt?.type_facture === 'acompte' && pt?.pct > 0 && f0.montant
+                                        ? Math.round(f0.montant * pt.pct / 100)
+                                        : null;
+                                      const isExpanded = acompteInput?.factureId === f0.id;
+                                      return (
+                                        <div key={s}>
+                                          <button
+                                            onClick={e => { e.stopPropagation(); setAcompteInput(isExpanded ? null : { factureId: f0.id, value: String(autoMontant ?? '') }); }}
+                                            className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${s === f0Stat ? 'text-indigo-600 bg-indigo-50/50' : 'text-gray-700'}`}
+                                          >
+                                            <span>{c.icon}</span>{c.label}
+                                            {s === f0Stat && <Check className="h-3 w-3 ml-auto text-indigo-500" />}
+                                          </button>
+                                          {isExpanded && (
+                                            <div className="px-3 pb-2.5 space-y-1.5 bg-blue-50 border-t border-blue-100">
+                                              <p className="text-[10px] text-blue-700 font-semibold pt-2">Montant versé (€)</p>
+                                              <div className="flex gap-1.5">
+                                                <input
+                                                  autoFocus
+                                                  type="number"
+                                                  value={acompteInput!.value}
+                                                  onChange={e2 => setAcompteInput(p => p ? { ...p, value: e2.target.value } : p)}
+                                                  onClick={e2 => e2.stopPropagation()}
+                                                  placeholder={autoMontant ? String(autoMontant) : 'Ex: 2000'}
+                                                  className="flex-1 text-[11px] border border-blue-200 rounded-lg px-2 py-1.5 outline-none focus:border-blue-400 bg-white"
+                                                />
+                                                <button
+                                                  onClick={e2 => {
+                                                    e2.stopPropagation();
+                                                    const v = parseFloat(acompteInput!.value);
+                                                    changeStatut(f0.id, 'payee_partiellement', e2, isNaN(v) ? null : v);
+                                                  }}
+                                                  className="px-2 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-lg transition-colors"
+                                                >
+                                                  OK
+                                                </button>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    }
+                                    return (
+                                      <button key={s}
+                                        onClick={e => changeStatut(f0.id, s, e)}
+                                        className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${s === f0Stat ? 'text-indigo-600 bg-indigo-50/50' : 'text-gray-700'}`}
+                                      >
+                                        <span>{c.icon}</span>{c.label}
+                                        {s === f0Stat && <Check className="h-3 w-3 ml-auto text-indigo-500" />}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })() : row.payStatut !== 'none' ? (
                           <Badge label={ps.label} cls={ps.cls} icon={ps.icon} />
                         ) : (
                           <span className="text-[12px] text-gray-300">—</span>
@@ -1158,12 +1256,16 @@ export default function BudgetTab({
                       </td>
 
                       {/* Docs */}
-                      <td className="px-4 py-3.5 text-center">
+                      <td className="px-3 py-3.5 text-center">
                         {docCount > 0 ? (
                           <button onClick={e => { e.stopPropagation(); toggleExpand(row.lot.id, e); }}
-                            className="inline-flex items-center gap-1 text-gray-400 hover:text-indigo-600 transition-colors">
-                            <Paperclip className="h-3.5 w-3.5" />
-                            <span className="text-[10px] font-semibold">{docCount}</span>
+                            className={`inline-flex items-center gap-1 text-[10px] font-semibold rounded-full px-2 py-1 transition-colors ${
+                              isExpanded
+                                ? 'bg-indigo-100 text-indigo-700'
+                                : 'bg-gray-100 text-gray-500 hover:bg-indigo-100 hover:text-indigo-700'
+                            }`}>
+                            {isExpanded ? <ChevronDown className="h-3 w-3" /> : <Paperclip className="h-3 w-3" />}
+                            {docCount}
                           </button>
                         ) : (
                           <span className="text-gray-200">—</span>
@@ -1274,7 +1376,7 @@ export default function BudgetTab({
                                       <div className="relative shrink-0">
                                         <button
                                           disabled={isChanging}
-                                          onClick={e => { e.stopPropagation(); setOpenMenu(openMenu === f.id ? null : f.id); }}
+                                          onClick={e => { e.stopPropagation(); setOpenMenu(openMenu === f.id ? null : f.id); setAcompteInput(null); }}
                                           className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border transition-all ${cfg.cls}`}
                                         >
                                           {isChanging ? <Loader2 className="h-3 w-3 animate-spin" /> : cfg.icon}
@@ -1282,17 +1384,53 @@ export default function BudgetTab({
                                           <ChevronDown className="h-2.5 w-2.5" />
                                         </button>
                                         {openMenu === f.id && (
-                                          <div className="absolute right-0 bottom-full mb-1 w-48 bg-white rounded-xl shadow-lg border border-gray-100 z-30 overflow-hidden">
-                                            {(Object.entries(FACTURE_STATUT_CFG) as [FactureStatut, typeof FACTURE_STATUT_CFG[FactureStatut]][]).map(([s, c]) => (
-                                              <button key={s}
-                                                onClick={e => changeStatut(f.id, s, e)}
-                                                className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${
-                                                  s === statut ? 'text-indigo-600 bg-indigo-50/50' : 'text-gray-700'
-                                                }`}>
-                                                <span>{c.icon}</span>{c.label}
-                                                {s === statut && <Check className="h-3 w-3 ml-auto text-indigo-500" />}
-                                              </button>
-                                            ))}
+                                          <div className="absolute right-0 bottom-full mb-1 w-52 bg-white rounded-xl shadow-lg border border-gray-100 z-30 overflow-hidden">
+                                            {(Object.entries(FACTURE_STATUT_CFG) as [FactureStatut, typeof FACTURE_STATUT_CFG[FactureStatut]][]).map(([s, c]) => {
+                                              if (s === 'payee_partiellement') {
+                                                const pt = f.payment_terms;
+                                                const autoMontant = pt?.type_facture === 'acompte' && pt?.pct > 0 && f.montant
+                                                  ? Math.round(f.montant * pt.pct / 100) : null;
+                                                const isExp = acompteInput?.factureId === f.id;
+                                                return (
+                                                  <div key={s}>
+                                                    <button
+                                                      onClick={e2 => { e2.stopPropagation(); setAcompteInput(isExp ? null : { factureId: f.id, value: String(autoMontant ?? '') }); }}
+                                                      className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${s === statut ? 'text-indigo-600 bg-indigo-50/50' : 'text-gray-700'}`}
+                                                    >
+                                                      <span>{c.icon}</span>{c.label}
+                                                      {s === statut && <Check className="h-3 w-3 ml-auto text-indigo-500" />}
+                                                    </button>
+                                                    {isExp && (
+                                                      <div className="px-3 pb-2.5 space-y-1.5 bg-blue-50 border-t border-blue-100">
+                                                        <p className="text-[10px] text-blue-700 font-semibold pt-2">Montant versé (€)</p>
+                                                        <div className="flex gap-1.5">
+                                                          <input
+                                                            autoFocus type="number"
+                                                            value={acompteInput!.value}
+                                                            onChange={e2 => setAcompteInput(p => p ? { ...p, value: e2.target.value } : p)}
+                                                            onClick={e2 => e2.stopPropagation()}
+                                                            placeholder={autoMontant ? String(autoMontant) : 'Ex: 2000'}
+                                                            className="flex-1 text-[11px] border border-blue-200 rounded-lg px-2 py-1.5 outline-none focus:border-blue-400 bg-white"
+                                                          />
+                                                          <button
+                                                            onClick={e2 => { e2.stopPropagation(); const v = parseFloat(acompteInput!.value); changeStatut(f.id, 'payee_partiellement', e2, isNaN(v) ? null : v); }}
+                                                            className="px-2 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-lg transition-colors"
+                                                          >OK</button>
+                                                        </div>
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                );
+                                              }
+                                              return (
+                                                <button key={s}
+                                                  onClick={e => changeStatut(f.id, s, e)}
+                                                  className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${s === statut ? 'text-indigo-600 bg-indigo-50/50' : 'text-gray-700'}`}>
+                                                  <span>{c.icon}</span>{c.label}
+                                                  {s === statut && <Check className="h-3 w-3 ml-auto text-indigo-500" />}
+                                                </button>
+                                              );
+                                            })}
                                           </div>
                                         )}
                                       </div>
@@ -1344,7 +1482,7 @@ export default function BudgetTab({
 
       {/* Overlay fermeture menu statut */}
       {openMenu && (
-        <div className="fixed inset-0 z-20" onClick={() => setOpenMenu(null)} />
+        <div className="fixed inset-0 z-20" onClick={() => { setOpenMenu(null); setAcompteInput(null); }} />
       )}
 
       {/* ── Drawer artisan ────────────────────────────────────────────────── */}

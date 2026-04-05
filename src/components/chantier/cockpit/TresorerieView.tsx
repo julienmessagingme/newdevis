@@ -16,7 +16,11 @@ import {
   Pencil, Check, ChevronDown, ChevronUp, AlertTriangle,
   ExternalLink, Loader2, TrendingUp,
 } from 'lucide-react';
-import { fmtEur } from '@/lib/financingUtils';
+import {
+  fmtEur,
+  WORK_TYPES_EFFY, type EffyWorkType, detectBracket,
+  MPR_RATES, MPR_CAP, CEE_AMOUNT, type MprBracket,
+} from '@/lib/financingUtils';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 
@@ -195,32 +199,15 @@ function FinancementSection({
   // Eco-PTZ : durée slider (local)
   const [slEcoptzDuree, setSlEcoptzDuree] = useState(cfg.ecoptzDuree);
 
-  // MaPrimeRénov' calculateur inline
-  type RevenuTranche = 'tres_modeste' | 'modeste' | 'intermediaire' | 'superieur';
-  type TravauxType   = 'isolation' | 'chauffage' | 'fenetres' | 'ventilation';
-  const MAPRIME_RATES: Record<TravauxType, Record<RevenuTranche, number>> = {
-    isolation:   { tres_modeste: 0.75, modeste: 0.60, intermediaire: 0.40, superieur: 0.15 },
-    chauffage:   { tres_modeste: 0.70, modeste: 0.50, intermediaire: 0.30, superieur: 0.15 },
-    fenetres:    { tres_modeste: 0.40, modeste: 0.30, intermediaire: 0.15, superieur: 0 },
-    ventilation: { tres_modeste: 0.50, modeste: 0.40, intermediaire: 0.20, superieur: 0 },
-  };
-  const [mpTranche,  setMpTranche]  = useState<RevenuTranche>('modeste');
-  const [mpTravaux,  setMpTravaux]  = useState<TravauxType>('isolation');
-  const [mpMontant,  setMpMontant]  = useState(0);
-  const [mpCalcOpen, setMpCalcOpen] = useState(false);
+  // MaPrimeRénov' calculateur inline — utilise MPR_RATES ANAH 2025 + detectBracket
+  const [mpTravaux,       setMpTravaux]       = useState<EffyWorkType>('isolation_combles');
+  const [mpHouseholdSize, setMpHouseholdSize] = useState(2);
+  const [mpIncome,        setMpIncome]        = useState(0);
+  const [mpMontant,       setMpMontant]       = useState(0);
+  const [mpCalcOpen,      setMpCalcOpen]      = useState(false);
 
-  // CEE calculateur inline
-  type ZoneClim = 'H1' | 'H2' | 'H3';
-  const CEE_RATES: Record<TravauxType, Record<ZoneClim, { unit: string; rate: number }>> = {
-    isolation:   { H1: { unit: 'm²', rate: 4 },    H2: { unit: 'm²', rate: 3 },      H3: { unit: 'm²', rate: 2 } },
-    chauffage:   { H1: { unit: 'forfait', rate: 700 }, H2: { unit: 'forfait', rate: 500 }, H3: { unit: 'forfait', rate: 350 } },
-    fenetres:    { H1: { unit: 'fenêtre', rate: 60 },  H2: { unit: 'fenêtre', rate: 50 },  H3: { unit: 'fenêtre', rate: 35 } },
-    ventilation: { H1: { unit: 'forfait', rate: 350 }, H2: { unit: 'forfait', rate: 280 }, H3: { unit: 'forfait', rate: 200 } },
-  };
-  const [ceeZone,    setCeeZone]    = useState<ZoneClim>('H2');
-  const [ceeTravaux, setCeeTravaux] = useState<TravauxType>('isolation');
-  const [ceeQte,     setCeeQte]     = useState(0);
-  const [ceeCalcOpen, setCeeCalcOpen] = useState(false);
+  // CEE calculateur inline — montant forfaitaire par type (CEE_AMOUNT)
+  const [ceeTravaux, setCeeTravaux] = useState<EffyWorkType>('isolation_combles');
 
   // Computed
   const totalAides = (cfg.maprimeOn ? cfg.maprime : 0)
@@ -421,8 +408,8 @@ function FinancementSection({
             </div>
           )}
 
-          {/* Intérêts intercalaires */}
-          {cfg.creditMontant > 0 && (
+          {/* Intérêts intercalaires — affiché seulement si taux > 0% */}
+          {cfg.creditMontant > 0 && curIntercalaire > 0 && (
             <div className="mt-2 rounded-lg p-3 text-[11px] leading-relaxed"
                  style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#14532d' }}>
               <strong>📐 Économisez les intérêts intercalaires</strong>
@@ -530,56 +517,72 @@ function FinancementSection({
                 </label>
                 {mpCalcOpen && (
                   <div className="px-3 pb-3 border-t border-gray-50 pt-3 space-y-2.5">
-                    {/* Tranche revenus */}
+                    {/* Type de travaux */}
                     <div>
-                      <p className="text-[10px] font-semibold text-gray-500 mb-1.5">Tranche de revenus</p>
-                      <div className="grid grid-cols-2 gap-1">
-                        {([
-                          { k: 'tres_modeste',   l: 'Très modestes', hint: '< 23 500 €' },
-                          { k: 'modeste',        l: 'Modestes',       hint: '< 28 700 €' },
-                          { k: 'intermediaire',  l: 'Intermédiaires', hint: '< 40 000 €' },
-                          { k: 'superieur',      l: 'Supérieurs',     hint: '> 40 000 €' },
-                        ] as const).map(({ k, l, hint }) => (
-                          <button key={k} onClick={() => setMpTranche(k)}
-                            className="text-left px-2 py-1.5 rounded-lg border text-[10px] transition-colors"
+                      <p className="text-[10px] font-semibold text-gray-500 mb-1.5">Type de travaux</p>
+                      <select value={mpTravaux} onChange={e => setMpTravaux(e.target.value as EffyWorkType)}
+                        className="w-full text-[11px] border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-emerald-400 bg-white">
+                        {WORK_TYPES_EFFY.filter(wt => MPR_RATES[wt.key]['tres_modestes'] > 0).map(wt => (
+                          <option key={wt.key} value={wt.key}>{wt.emoji} {wt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {/* Foyer fiscal */}
+                    <div>
+                      <p className="text-[10px] font-semibold text-gray-500 mb-1.5">Personnes dans le foyer fiscal</p>
+                      <div className="flex gap-1">
+                        {([1, 2, 3, 4, 5] as const).map(n => (
+                          <button key={n} type="button" onClick={() => setMpHouseholdSize(n)}
+                            className="flex-1 py-1.5 rounded-lg border text-[11px] font-bold transition-colors"
                             style={{
-                              borderColor: mpTranche === k ? C.aides.main : '#e5e7eb',
-                              background:  mpTranche === k ? C.aides.light : 'white',
-                              fontWeight:  mpTranche === k ? 700 : 400,
-                              color:       mpTranche === k ? C.aides.text : '#6b7280',
+                              borderColor: mpHouseholdSize === n ? C.aides.main : '#e5e7eb',
+                              background:  mpHouseholdSize === n ? C.aides.light : 'white',
+                              color:       mpHouseholdSize === n ? C.aides.text : '#6b7280',
                             }}>
-                            {l}<br /><span style={{ opacity: 0.6 }}>{hint}</span>
+                            {n === 5 ? '5+' : n}
                           </button>
                         ))}
                       </div>
                     </div>
-                    {/* Type de travaux */}
+                    {/* Revenu fiscal de référence */}
                     <div>
-                      <p className="text-[10px] font-semibold text-gray-500 mb-1.5">Type de travaux</p>
-                      <select value={mpTravaux} onChange={e => setMpTravaux(e.target.value as TravauxType)}
-                        className="w-full text-[11px] border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-emerald-400 bg-white">
-                        <option value="isolation">Isolation (combles / murs / planchers)</option>
-                        <option value="chauffage">Chauffage renouvelable (PAC, biomasse…)</option>
-                        <option value="fenetres">Menuiseries (fenêtres, portes-fenêtres)</option>
-                        <option value="ventilation">Ventilation (VMC double flux)</option>
-                      </select>
+                      <p className="text-[10px] font-semibold text-gray-500 mb-1">Revenu fiscal de référence (€/an)</p>
+                      <input type="number" value={mpIncome || ''} placeholder="Ex: 32 000"
+                        onChange={e => setMpIncome(parseFloat(e.target.value) || 0)}
+                        className="w-full text-[11px] border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-emerald-400" />
+                      {mpIncome > 0 && (() => {
+                        const br = detectBracket(mpHouseholdSize, mpIncome);
+                        const labels: Record<string, string> = {
+                          tres_modestes: 'Très modestes', modestes: 'Modestes',
+                          intermediaires: 'Intermédiaires', superieurs: 'Supérieurs',
+                        };
+                        return <p className="text-[10px] text-gray-400 mt-0.5">Tranche détectée : <strong style={{ color: C.aides.text }}>{labels[br]}</strong></p>;
+                      })()}
                     </div>
                     {/* Montant travaux */}
                     <div>
                       <p className="text-[10px] font-semibold text-gray-500 mb-1">Montant travaux HT (€)</p>
-                      <input type="number" value={mpMontant || ''} placeholder="Ex: 15000"
+                      <input type="number" value={mpMontant || ''} placeholder="Ex: 15 000"
                         onChange={e => setMpMontant(parseFloat(e.target.value) || 0)}
                         className="w-full text-[11px] border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-emerald-400" />
                     </div>
                     {/* Résultat */}
-                    {mpMontant > 0 && (() => {
-                      const rate = MAPRIME_RATES[mpTravaux][mpTranche];
-                      const est  = Math.round(mpMontant * rate);
+                    {mpMontant > 0 && mpIncome > 0 && (() => {
+                      const bracket = detectBracket(mpHouseholdSize, mpIncome);
+                      const rate    = MPR_RATES[mpTravaux][bracket];
+                      const est     = rate > 0 ? Math.min(Math.round(mpMontant * rate), MPR_CAP[mpTravaux]) : 0;
+                      if (rate === 0) return (
+                        <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                          Ces travaux ne sont pas éligibles à MaPrimeRénov' pour cette tranche de revenus.
+                        </p>
+                      );
                       return (
                         <div className="rounded-lg px-3 py-2.5 flex items-center justify-between"
                              style={{ background: C.aides.light, border: `1px solid ${C.aides.border}` }}>
                           <div>
-                            <p className="text-[10px] text-gray-500">Aide estimée ({Math.round(rate*100)}% des travaux)</p>
+                            <p className="text-[10px] text-gray-500">
+                              {Math.round(rate * 100)} % · plafonné à {fmtEur(MPR_CAP[mpTravaux])}
+                            </p>
                             <p className="text-[14px] font-black" style={{ color: C.aides.text }}>{fmtEur(est)}</p>
                           </div>
                           <button onClick={() => setALocal(p => ({ ...p, maprime: est, maprimeOn: true }))}
@@ -598,65 +601,29 @@ function FinancementSection({
               <div className="rounded-xl border border-gray-100 overflow-hidden">
                 <label className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors">
                   <input type="checkbox" checked={aLocal.ceeOn}
-                    onChange={e => { setALocal(p => ({ ...p, ceeOn: e.target.checked })); setCeeCalcOpen(e.target.checked); }}
+                    onChange={e => setALocal(p => ({ ...p, ceeOn: e.target.checked }))}
                     style={{ accentColor: C.aides.main, width: 14, height: 14, cursor: 'pointer' }} />
                   <span className="text-[11px] font-bold text-gray-800 flex-1">CEE (Certificats d'Économies d'Énergie)</span>
                   <span className="text-[11px] font-black" style={{ color: C.aides.text }}>{aLocal.cee ? fmtEur(aLocal.cee) : '—'}</span>
-                  <button onClick={() => setCeeCalcOpen(v => !v)}
-                    className="text-[10px] px-2 py-0.5 rounded-full border transition-colors ml-1"
-                    style={{ borderColor: C.aides.border, color: C.aides.text, background: ceeCalcOpen ? C.aides.light : 'transparent' }}>
-                    Calculer
-                  </button>
                 </label>
-                {ceeCalcOpen && (
+                {aLocal.ceeOn && (
                   <div className="px-3 pb-3 border-t border-gray-50 pt-3 space-y-2.5">
-                    {/* Zone climatique */}
-                    <div>
-                      <p className="text-[10px] font-semibold text-gray-500 mb-1.5">Zone climatique</p>
-                      <div className="flex gap-1.5">
-                        {(['H1','H2','H3'] as ZoneClim[]).map(z => (
-                          <button key={z} onClick={() => setCeeZone(z)}
-                            className="flex-1 py-1.5 rounded-lg border text-[11px] font-bold transition-colors"
-                            style={{
-                              borderColor: ceeZone === z ? C.aides.main : '#e5e7eb',
-                              background:  ceeZone === z ? C.aides.light : 'white',
-                              color:       ceeZone === z ? C.aides.text : '#6b7280',
-                            }}>
-                            {z}
-                          </button>
-                        ))}
-                      </div>
-                      <p className="text-[9px] text-gray-400 mt-1">H1 = Nord-Est · H2 = Centre-Ouest · H3 = Sud / Méditerranée</p>
-                    </div>
-                    {/* Type travaux */}
                     <div>
                       <p className="text-[10px] font-semibold text-gray-500 mb-1.5">Type de travaux</p>
-                      <select value={ceeTravaux} onChange={e => setCeeTravaux(e.target.value as TravauxType)}
+                      <select value={ceeTravaux} onChange={e => setCeeTravaux(e.target.value as EffyWorkType)}
                         className="w-full text-[11px] border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-emerald-400 bg-white">
-                        <option value="isolation">Isolation (combles / murs)</option>
-                        <option value="chauffage">Chauffage renouvelable (PAC, chaudière…)</option>
-                        <option value="fenetres">Menuiseries (par fenêtre)</option>
-                        <option value="ventilation">Ventilation VMC double flux</option>
+                        {WORK_TYPES_EFFY.filter(wt => CEE_AMOUNT[wt.key] > 0).map(wt => (
+                          <option key={wt.key} value={wt.key}>{wt.emoji} {wt.label}</option>
+                        ))}
                       </select>
                     </div>
-                    {/* Quantité */}
-                    <div>
-                      <p className="text-[10px] font-semibold text-gray-500 mb-1">
-                        Quantité ({CEE_RATES[ceeTravaux][ceeZone].unit})
-                      </p>
-                      <input type="number" value={ceeQte || ''} placeholder="Ex: 80"
-                        onChange={e => setCeeQte(parseFloat(e.target.value) || 0)}
-                        className="w-full text-[11px] border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-emerald-400" />
-                    </div>
-                    {/* Résultat */}
-                    {ceeQte > 0 && (() => {
-                      const { rate, unit } = CEE_RATES[ceeTravaux][ceeZone];
-                      const est = Math.round(rate * ceeQte);
+                    {(() => {
+                      const est = CEE_AMOUNT[ceeTravaux];
                       return (
                         <div className="rounded-lg px-3 py-2.5 flex items-center justify-between"
                              style={{ background: C.aides.light, border: `1px solid ${C.aides.border}` }}>
                           <div>
-                            <p className="text-[10px] text-gray-500">{fmtEur(rate)} × {ceeQte} {unit}</p>
+                            <p className="text-[10px] text-gray-500">Prime versée par les fournisseurs d'énergie</p>
                             <p className="text-[14px] font-black" style={{ color: C.aides.text }}>{fmtEur(est)}</p>
                           </div>
                           <button onClick={() => setALocal(p => ({ ...p, cee: est, ceeOn: true }))}
@@ -667,6 +634,7 @@ function FinancementSection({
                         </div>
                       );
                     })()}
+                    <p className="text-[9px] text-gray-400">Montant indicatif — cumulable avec MaPrimeRénov'</p>
                   </div>
                 )}
               </div>

@@ -144,6 +144,14 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     if (body.factureStatut !== 'payee_partiellement' && body.factureStatut !== 'en_litige') {
       updates.montant_paye = null;
     }
+    // Auto-calcul montant_paye depuis payment_terms quand passage à acompte sans montant explicite
+    if (body.factureStatut === 'payee_partiellement' && body.montantPaye === undefined) {
+      const pt = (doc as any).payment_terms;
+      const docMontant = (doc as any).montant;
+      if (pt?.type_facture === 'acompte' && pt?.pct > 0 && docMontant) {
+        updates.montant_paye = Math.round(docMontant * pt.pct / 100 * 100) / 100;
+      }
+    }
   }
 
   if (body.montantPaye !== undefined) {
