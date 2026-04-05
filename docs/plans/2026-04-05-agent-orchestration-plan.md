@@ -513,6 +513,18 @@ export interface ChantierContext {
   // Risk alerts computed here (message silence, no devis, approaching deadlines)
   risk_alerts: Array<{ lot_nom: string; risk: string; details: string }>;
   recent_insights: Array<{ type: string; title: string; created_at: string }>;
+  // For digest: complete insights with actions taken by the AI
+  todays_insights_with_actions: Array<{
+    type: string; severity: string; title: string; body: string;
+    actions_taken: Array<{ tool: string; summary: string }>;  // e.g. [{tool: "update_planning", summary: "Lot Plomberie décalé 14→21 avril"}]
+    source_event: Record<string, unknown>;
+    created_at: string;
+  }>;
+  // Tasks (todo_chantier) for the digest
+  taches: Array<{
+    titre: string; priorite: string; done: boolean;
+    created_today: boolean;  // true if created since midnight
+  }>;
 }
 
 export async function buildContext(
@@ -697,6 +709,33 @@ export async function buildContext(
     overdue_payments: overduePayments,
     risk_alerts: riskAlerts,
     recent_insights: insightsRes.data ?? [],
+
+    // Full insights with actions for digest context
+    todays_insights_with_actions: await (async () => {
+      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+      const { data } = await supabase
+        .from("agent_insights")
+        .select("type, severity, title, body, actions_taken, source_event, created_at")
+        .eq("chantier_id", chantierId)
+        .gte("created_at", todayStart.toISOString())
+        .neq("type", "digest")
+        .order("created_at", { ascending: true });
+      return data ?? [];
+    })(),
+
+    // Tasks for digest
+    taches: await (async () => {
+      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+      const { data } = await supabase
+        .from("todo_chantier")
+        .select("titre, priorite, done, created_at")
+        .eq("chantier_id", chantierId)
+        .order("ordre", { ascending: true });
+      return (data ?? []).map(t => ({
+        ...t,
+        created_today: new Date(t.created_at) >= todayStart,
+      }));
+    })(),
   };
 }
 ```
@@ -759,13 +798,73 @@ ${ctx.overdue_payments.length > 0
 RISQUES DÉTECTÉS :
 ${ctx.risk_alerts.length > 0
   ? ctx.risk_alerts.map(r => `⚠️ ${r.lot_nom} : ${r.details}`).join('\n')
-  : '✅ Aucun risque'}`;
+  : '✅ Aucun risque'}
+
+${runType === "evening" ? `
+ACTIONS DE L'IA AUJOURD'HUI :
+${ctx.todays_insights_with_actions.length > 0
+  ? ctx.todays_insights_with_actions.map(i => {
+      const actions = (i.actions_taken ?? []).map((a: any) => `  🤖 ${a.summary || a.tool}`).join('\n');
+      return `[${i.created_at}] ${i.title}${actions ? '\n' + actions : ''}`;
+    }).join('\n')
+  : 'Aucune action IA aujourd\'hui'}
+
+TÂCHES (checklist) :
+${(() => {
+  const pending = ctx.taches.filter(t => !t.done);
+  const doneToday = ctx.taches.filter(t => t.done && t.created_today);
+  const lines: string[] = [];
+  if (pending.length > 0) {
+    lines.push(...pending.map(t => \`- [\${t.priorite}] \${t.titre}\${t.created_today ? ' ← CRÉÉE PAR L\\'IA' : ''}\`));
+  }
+  if (doneToday.length > 0) {
+    lines.push(...doneToday.map(t => \`- ✅ \${t.titre} (complétée aujourd'hui)\`));
+  }
+  return lines.length > 0 ? lines.join('\\n') : 'Aucune tâche active';
+})()}
+` : ''}`;
 }
 ```
 
 ### Step 3: Tools schema (`tools.ts`)
 
-Same as previous version: `update_planning`, `update_lot_status`, `create_task`, `complete_task`, `log_insight`. Tools call API routes via `X-Agent-Key`.
+6 tools, all call API routes via `X-Agent-Key`. Key change vs previous version: `log_insight` now includes `actions_summary` — a human-readable list of what the AI did, used in the evening digest/journal.
+
+```typescript
+// log_insight tool — the actions_summary field is critical for the journal
+{
+  type: "function",
+  function: {
+    name: "log_insight",
+    description: "Enregistre ton analyse ET les actions que tu as prises. TOUJOURS appeler en dernier.",
+    parameters: {
+      type: "object",
+      properties: {
+        type: { type: "string", enum: ["planning_impact", "budget_alert", "conversation_summary", "risk_detected", "lot_status_change", "needs_clarification"] },
+        severity: { type: "string", enum: ["info", "warning", "critical"] },
+        title: { type: "string", description: "Titre court" },
+        body: { type: "string", description: "Détail en markdown" },
+        needs_confirmation: { type: "boolean" },
+        actions_summary: {
+          type: "array",
+          description: "Résumé lisible de chaque action prise. Ex: [{tool:'update_planning', summary:'Lot Plomberie décalé 14→21 avril'}]",
+          items: {
+            type: "object",
+            properties: {
+              tool: { type: "string" },
+              summary: { type: "string", description: "Description lisible en français" },
+            },
+            required: ["tool", "summary"],
+          },
+        },
+      },
+      required: ["type", "severity", "title", "body"],
+    },
+  },
+}
+```
+
+The `actions_summary` is stored in `agent_insights.actions_taken` and read by the digest cron to generate the journal. Other tools unchanged: `update_planning`, `update_lot_status`, `create_task`, `complete_task`, `request_clarification`.
 
 ### Step 4: Main orchestrator (`index.ts`)
 
