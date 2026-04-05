@@ -1857,6 +1857,91 @@ La table `chantier_conversations` expose une colonne `reply_address` : adresse u
 
 ---
 
+### TresorerieView
+
+`components/chantier/cockpit/TresorerieView.tsx` (1093 lignes) — remplace l'onglet "Trésorerie" dans `TresoreriePanel`. Données chargées depuis `/api/chantier/[id]/budget`.
+
+#### 3 sections
+
+- **Plan de financement** — grande jauge colorée + 3 cartes : Apport (`#6366f1`), Crédit (`#f97316`), Aides (`#10b981`). Config persistée en localStorage avec sync serveur via PATCH `metadonnees`.
+- **Projection trésorerie** — graphique SVG multi-courbes par artisan (palette 8 couleurs).
+- **Consommation par source** — 3 donuts restants + barres artisans.
+
+#### Hooks internes
+
+| Hook | Source | Description |
+|---|---|---|
+| `useBudget(chantierId, token)` | interne | Fetch `/api/chantier/[id]/budget` |
+| `useFinancingConfig(chantierId, token, initial)` | interne | localStorage `tresorerie_v3_{chantierId}` + `budget_reel_{chantierId}`, sync PATCH metadonnees |
+
+#### Lib associée (`src/lib/financingUtils.ts`)
+
+| Export | Type | Description |
+|---|---|---|
+| `fmtEur` | fonction | Formatage montant en euros |
+| `WORK_TYPES_EFFY` | constante | Types de travaux éligibles Effy |
+| `detectBracket` | fonction | Détection tranche revenus MPR |
+| `MPR_RATES` | constante | Taux d'aide MaPrimeRénov' par tranche |
+| `MPR_CAP` | constante | Plafonds MPR |
+| `CEE_AMOUNT` | constante | Montants forfaitaires CEE |
+| `EffyWorkType` | type | Union des types de travaux Effy |
+| `MprBracket` | type | Union des tranches de revenus MPR |
+
+---
+
+### AddDocumentModal et DepenseRapideModal
+
+#### `AddDocumentModal` (`cockpit/AddDocumentModal.tsx`)
+
+Modal d'ajout de document avec deux modes :
+- **Upload fichier classique** — sélection + upload vers bucket `chantier-documents`
+- **Dépense rapide sans fichier** — délègue à `DepenseRapideModal`
+
+#### `DepenseRapideModal` (`cockpit/budget/DepenseRapideModal.tsx`)
+
+Modal pour enregistrer une dépense sans fichier attaché.
+
+| Champ | Valeurs possibles |
+|---|---|
+| `documentType` (type de dépense) | `facture` \| `ticket_caisse` \| `achat_materiaux` |
+| `factureStatut` (statut) | `recue` \| `payee` \| `payee_partiellement` \| `en_litige` |
+
+---
+
+### API Routes documents (nouvelles — 2026-04-03)
+
+| Méthode | Route | Description |
+|---|---|---|
+| POST | `/api/chantier/:id/documents/extract-invoice` | Extraction Gemini d'une facture uploadée : `artisan_nom`, `montant_total`, `type_facture` (acompte/solde/facture), `pct_acompte`, `date_facture`. Body : `{ bucketPath }`. Non-bloquant, `confidence: 'low'` si échec. Modèle : gemini-2.0-flash, timeout 8s. |
+| POST | `/api/chantier/:id/documents/depense-rapide` | Enregistre une dépense rapide sans fichier. Body : `{ nom, documentType, depenseType, montant, factureStatut, lotId?, montantPaye? }` |
+| POST | `/api/chantier/:id/documents/register` | Enregistre un document en base après upload storage |
+
+---
+
+### Migrations 2026-04-03
+
+#### `20260403120000_add_menuiserie_accessoires.sql`
+
+3 nouveaux prix dans `market_prices` :
+
+| `job_type` | Label | Unité | Prix min–max HT |
+|---|---|---|---|
+| `grille_entree_air` | Grille d'entrée d'air auto-réglable | unité | 14–45 € |
+| `mortaise_grille_ventilation` | Mortaise menuiserie existante + grille | forfait | 60–180 € |
+| `differentiel_disjoncteur_lot` | Lot différentiel 30mA + disjoncteur | forfait | 100–280 € |
+
+#### `20260403130000_add_work_type_distribution_view.sql`
+
+Vue `admin_kpis_work_type_distribution` : répartition des types de travaux analysés (exclut 2 comptes admin), dominant type par analyse, top 30.
+
+#### `20260403140000_add_facture_statut_litige.sql`
+
+Table `documents_chantier` :
+- Contrainte `facture_statut` mise à jour : ajout de `'en_litige'` (existaient déjà `recue` / `payee` / `payee_partiellement`)
+- Nouvelle colonne `depense_type TEXT DEFAULT 'facture'` CHECK (`facture` | `ticket_caisse` | `achat_materiaux`)
+
+---
+
 ### Liens formalités (`formalitesLinks.ts`)
 
 Catalogue de ~15 mappings mot-clé → URL officielle .gouv.fr pour les formalités administratives (déclaration préalable, permis de construire, Consuel, DT-DICT, etc.). Chaque entrée contient un lien primaire (formulaire CERFA) et optionnellement un lien secondaire (fiche pratique).
