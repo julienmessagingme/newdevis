@@ -578,11 +578,11 @@ export async function buildContext(
   const waMessages = waMessagesRes.data ?? [];
 
   // ── Build phone → contact → lot mapping ───────────────────────
-  const phoneToContact = new Map<string, { nom: string; lot_id: string | null; metier: string }>();
+  const phoneToContact = new Map<string, { nom: string; lot_id: string | null; metier: string; role: string }>();
   for (const c of contacts) {
     if (c.phone) {
       const norm = c.phone.replace(/^\+/, "").replace(/^0/, "33");
-      phoneToContact.set(norm, { nom: c.nom, lot_id: c.lot_id, metier: c.metier ?? "" });
+      phoneToContact.set(norm, { nom: c.nom, lot_id: c.lot_id, metier: c.metier ?? "", role: c.role ?? "" });
     }
   }
 
@@ -634,7 +634,8 @@ export async function buildContext(
       body: m.body ?? "",
       timestamp: m.timestamp,
       matched_lot: lotName,
-      is_known_contact: !!contact,  // true = contact exists (with or without lot)
+      is_known_contact: !!contact,
+      contact_role: contact?.role ?? null,  // "architecte", "maitre_oeuvre", "artisan", etc.
     };
   });
 
@@ -758,10 +759,11 @@ RÈGLES :
 IDENTIFICATION DU LOT — 3 cas possibles :
 A) Le message vient d'un contact AVEC un lot assigné (indiqué par "→ lot X" dans les messages).
    → Tu peux agir directement sur ce lot (update_planning, update_lot_status).
-B) Le message vient d'un contact SANS lot (architecte, maître d'œuvre, particulier...).
-   → Analyse le contenu. S'il mentionne un lot spécifique ("la plomberie"), agis sur ce lot.
-   → S'il concerne le chantier entier ("on repousse tout"), modifie dateDebutChantier.
-   → S'il est général (conversation courante), log un insight "info" sans action planning.
+B) Le message vient d'un contact SANS lot (architecte, maître d'œuvre, client, conjoint...).
+   Le rôle du contact est indiqué entre crochets dans les messages : [architecte], [maitre_oeuvre], etc.
+   → ARCHITECTE ou MAÎTRE D'ŒUVRE : a autorité sur le chantier entier. S'il dit "on repousse", c'est fiable → modifie dateDebutChantier ou les lots concernés. S'il mentionne un lot spécifique → agis sur ce lot.
+   → AUTRE RÔLE (client, conjoint, voisin...) : log un insight "info", pas d'action planning directe.
+   → S'il est général (conversation courante, banalités), log un insight "info" sans action.
 C) Le message vient d'un numéro INCONNU (pas dans les contacts).
    → Appelle request_clarification. NE modifie RIEN.
 
@@ -781,7 +783,7 @@ ${ctx.lots.map(l =>
 MESSAGES DEPUIS LE DERNIER RUN (${ctx.messages_since_last_run.length}) :
 ${ctx.messages_since_last_run.length > 0
   ? ctx.messages_since_last_run.map(m =>
-      `[${m.timestamp}] ${m.from_name} (${m.from_phone}${m.matched_lot ? ` → lot "${m.matched_lot}"` : m.is_known_contact ? ' → pas de lot assigné' : ' → NUMÉRO INCONNU'}) : "${m.body}"`
+      `[${m.timestamp}] ${m.from_name}${m.contact_role ? ` [${m.contact_role}]` : ''} (${m.from_phone}${m.matched_lot ? ` → lot "${m.matched_lot}"` : m.is_known_contact ? ' → pas de lot assigné' : ' → NUMÉRO INCONNU'}) : "${m.body}"`
     ).join('\n')
   : 'Aucun nouveau message'}
 
