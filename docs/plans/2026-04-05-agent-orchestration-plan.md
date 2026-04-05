@@ -332,6 +332,68 @@ serve(async (req) => {
     }
   }
 
+  // ── CHECK 4: Factures en litige ────────────────────────────────
+  if (docs) {
+    const litiges = docs.filter(d => d.document_type === "facture" && d.facture_statut === "en_litige");
+    for (const doc of litiges) {
+      const lot = lots?.find(l => l.id === doc.lot_id);
+      insights.push({
+        chantier_id, user_id: userId,
+        type: "budget_alert", severity: "critical",
+        title: `Facture en litige${lot ? ` — ${lot.nom}` : ""}`,
+        body: `Une facture de ${doc.montant?.toFixed(0) ?? "?"}€ est en litige.`,
+        source_event: { check: "facture_litige", document_id: doc.id },
+      });
+    }
+  }
+
+  // ── CHECK 5: Budget global dépassé (devis > budget IA × 1.08) ─
+  const budgetIA = chantier?.metadonnees?.budgetTotal;
+  if (budgetIA && budgetIA > 0 && docs) {
+    const totalDevisValides = docs
+      .filter(d => d.document_type === "devis" && ["valide", "attente_facture"].includes(d.devis_statut ?? ""))
+      .reduce((sum, d) => sum + (d.montant ?? 0), 0);
+    if (totalDevisValides > budgetIA * 1.08) {
+      const ecart = Math.round(totalDevisValides - budgetIA);
+      insights.push({
+        chantier_id, user_id: userId,
+        type: "budget_alert", severity: "warning",
+        title: `Budget global dépassé de ${ecart}€`,
+        body: `Les devis validés totalisent ${totalDevisValides.toFixed(0)}€ pour un budget estimé de ${budgetIA.toFixed(0)}€ (+${Math.round((ecart / budgetIA) * 100)}%).`,
+        source_event: { check: "budget_global_overrun" },
+      });
+    }
+  }
+
+  // ── CHECK 6: Devis à relancer ────────────────────────────────
+  if (docs) {
+    const aRelancer = docs.filter(d => d.document_type === "devis" && d.devis_statut === "a_relancer");
+    if (aRelancer.length > 0) {
+      insights.push({
+        chantier_id, user_id: userId,
+        type: "risk_detected", severity: "info",
+        title: `${aRelancer.length} devis à relancer`,
+        body: `Des devis sont en attente de relance artisan.`,
+        source_event: { check: "devis_a_relancer", count: aRelancer.length },
+      });
+    }
+  }
+
+  // ── CHECK 7: Paiements sans preuve (payé mais pas de justificatif) ─
+  if (docs) {
+    const facPayees = docs.filter(d => d.document_type === "facture" && d.facture_statut === "payee");
+    const preuves = docs.filter(d => d.document_type === "preuve_paiement");
+    if (facPayees.length > 0 && preuves.length === 0) {
+      insights.push({
+        chantier_id, user_id: userId,
+        type: "risk_detected", severity: "warning",
+        title: "Aucune preuve de paiement conservée",
+        body: `${facPayees.length} facture(s) payée(s) mais aucun justificatif uploadé. Conservez vos preuves pour les garanties et litiges.`,
+        source_event: { check: "missing_proofs" },
+      });
+    }
+  }
+
   // ── INSERT all insights (deduplicate by title within 24h) ────
   const yesterday = new Date(Date.now() - 86400000).toISOString();
   let inserted = 0;
