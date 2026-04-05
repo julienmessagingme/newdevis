@@ -452,24 +452,12 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
                     </div>
                   )}
                 </div>
-              ) : companyData.qualibat_certifie === false ? (
-                <div className="flex items-start gap-2 p-2 bg-amber-500/8 border border-amber-500/25 rounded-lg">
-                  <span className="text-amber-600 text-sm">⚠️</span>
-                  <p className="text-xs text-amber-700">
-                    QUALIBAT revendiqué sur le devis mais <strong>non trouvé</strong> dans l'annuaire officiel.
-                    Demandez le certificat à l'artisan et vérifiez sur{" "}
-                    <a href="https://www.qualibat.com/annuaire/" target="_blank" rel="noopener noreferrer" className="underline">qualibat.com</a>.
-                  </p>
-                </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  QUALIBAT mentionné sur le devis.{" "}
-                  <a href="https://www.qualibat.com/annuaire/" target="_blank" rel="noopener noreferrer" className="underline text-primary text-xs">
-                    Vérifier sur qualibat.com →
+                  QUALIBAT mentionné sur le devis — vérifiez manuellement avec le SIRET de l'entreprise :{" "}
+                  <a href="https://www.qualibat.com" target="_blank" rel="noopener noreferrer" className="underline text-primary text-xs">
+                    qualibat.com →
                   </a>
-                  <span className="block text-xs mt-0.5 text-muted-foreground/70">
-                    Vérification automatique indisponible — contrôlez avec le SIRET de l'entreprise.
-                  </span>
                 </p>
               )}
             </div>

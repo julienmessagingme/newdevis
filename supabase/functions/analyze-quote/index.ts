@@ -942,15 +942,36 @@ serve(async (req) => {
       console.error("[PaymentEvents] erreur inattendue:", paymentErr instanceof Error ? paymentErr.message : paymentErr);
     }
 
-    // ============ PURGE OLD ANALYSES (keep max 10 per user) ============
+    // ============ PURGE OLD ANALYSES (keep max 10 — or 30 for premium/admin) ============
     if (analysis.user_id) {
       try {
+        // Déterminer la limite selon le statut de l'utilisateur
+        let maxAnalyses = 10;
+
+        // Vérifier abonnement actif (Pass Sérénité)
+        const { data: sub } = await supabase
+          .from("subscriptions")
+          .select("status")
+          .eq("user_id", analysis.user_id)
+          .single();
+        if (sub?.status === "active") maxAnalyses = 30;
+
+        // Vérifier rôle admin (toujours 30 quelle que soit la souscription)
+        if (maxAnalyses < 30) {
+          const { data: role } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", analysis.user_id)
+            .single();
+          if (role?.role === "admin") maxAnalyses = 30;
+        }
+
         const { data: oldAnalyses } = await supabase
           .from("analyses")
           .select("id, file_path")
           .eq("user_id", analysis.user_id)
           .order("created_at", { ascending: false })
-          .range(10, 999);
+          .range(maxAnalyses, 999);
 
         if (oldAnalyses && oldAnalyses.length > 0) {
           const idsToDelete = oldAnalyses.map((a) => a.id);
@@ -962,7 +983,7 @@ serve(async (req) => {
           // Delete analyses (CASCADE deletes analysis_work_items + document_extractions)
           // price_observations survives (no FK)
           await supabase.from("analyses").delete().in("id", idsToDelete);
-          console.log("[Purge] Deleted", idsToDelete.length, "old analyses for user", analysis.user_id);
+          console.log("[Purge] Deleted", idsToDelete.length, "old analyses for user", analysis.user_id, `(limit: ${maxAnalyses})`);
         }
       } catch (purgeError) {
         // Non-blocking: don't fail the pipeline if purge fails

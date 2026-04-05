@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mockup — Onglet Trésorerie v3</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; color: #1e293b; }
+
+  /* ── Layout ── */
+  .shell { max-width: 1100px; margin: 0 auto; padding: 24px 16px; display: flex; flex-direction: column; gap: 20px; }
+  .card { background: #fff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; }
+  .card-header { padding: 18px 22px 14px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between; }
+  .card-title { font-size: 13px; font-weight: 800; color: #0f172a; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; }
+  .badge-indigo { background: #eef2ff; color: #4f46e5; }
+  .badge-orange    { background: #fff7ed; color: #ea580c; }
+  .badge-green  { background: #dcfce7; color: #16a34a; }
+  .badge-amber  { background: #fef3c7; color: #d97706; }
+  .badge-red    { background: #fee2e2; color: #dc2626; }
+  .badge-gray   { background: #f1f5f9; color: #64748b; }
+
+  /* ── Section titre ── */
+  .section-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; }
+
+  /* ── Gauge financement ── */
+  .gauge-wrap { padding: 22px 22px 0; }
+  .gauge-bar-outer { height: 40px; border-radius: 12px; overflow: hidden; display: flex; background: #f1f5f9; }
+  .gauge-segment { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #fff; transition: width 0.6s cubic-bezier(.4,0,.2,1); position: relative; overflow: hidden; cursor: pointer; }
+  .gauge-segment:hover { filter: brightness(1.07); }
+  .gauge-segment.indigo { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+  .gauge-segment.orange    { background: linear-gradient(135deg, #f97316, #ea580c); }
+  .gauge-segment.green  { background: linear-gradient(135deg, #34d399, #059669); }
+  .gauge-segment.gray   { background: #e2e8f0; }
+
+  .gauge-legend { display: flex; gap: 20px; padding: 14px 22px 18px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap-8px; gap: 6px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+  /* ── Sources grid ── */
+  .sources-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; padding: 0 22px 22px; }
+  .source-card { border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 16px; cursor: pointer; transition: all 0.2s; position: relative; }
+  .source-card:hover { border-color: #c7d2fe; box-shadow: 0 4px 16px rgba(99,102,241,0.08); }
+  .source-card.active { border-color: #6366f1; background: #fafafe; }
+  .source-card.orange.active { border-color: #ea580c; background: #f0faff; }
+  .source-card.green.active { border-color: #059669; background: #f0fdf8; }
+  .source-amount { font-size: 20px; font-weight: 900; color: #0f172a; line-height: 1; margin: 8px 0 4px; }
+  .source-sub { font-size: 10px; color: #94a3b8; }
+  .source-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; margin-bottom: 10px; }
+  .icon-indigo { background: #eef2ff; }
+  .icon-orange    { background: #fff7ed; }
+  .icon-green  { background: #dcfce7; }
+
+  /* ── Tip box ── */
+  .tip-box { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 12px; margin-top: 10px; font-size: 11px; color: #92400e; line-height: 1.5; display: flex; gap: 8px; align-items: flex-start; }
+  .tip-box a { color: #d97706; font-weight: 700; text-decoration: underline; cursor: pointer; }
+  .tip-box.pee { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+  .tip-box.pee a { color: #2563eb; }
+  .tip-box.intercalaire { background: #f0fdf4; border-color: #bbf7d0; color: #14532d; }
+
+  /* ── Crédit slider panel ── */
+  .credit-panel { margin-top: 12px; border-top: 1px solid #e2e8f0; padding-top: 12px; display: none; }
+  .credit-panel.open { display: block; }
+  .slider-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+  .slider-label { display: flex; justify-content: space-between; font-size: 11px; color: #475569; font-weight: 600; }
+  input[type=range] { width: 100%; accent-color: #ea580c; height: 4px; cursor: pointer; }
+  .credit-result { background: #fff7ed; border-radius: 8px; padding: 10px 12px; margin-top: 4px; }
+  .credit-result-row { display: flex; justify-content: space-between; font-size: 11px; }
+  .credit-result-row .val { font-weight: 800; color: #ea580c; }
+  .btn-apply { width: 100%; margin-top: 10px; padding: 8px; background: #ea580c; color: #fff; border: none; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; }
+  .btn-apply:hover { background: #c2410c; }
+
+  /* ── Aides panel ── */
+  .aides-panel { margin-top: 12px; border-top: 1px solid #e2e8f0; padding-top: 12px; display: none; }
+  .aides-panel.open { display: block; }
+  .aide-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f1f5f9; }
+  .aide-row:last-child { border-bottom: none; }
+  .aide-name { font-size: 11px; font-weight: 600; color: #334155; }
+  .aide-check { width: 16px; height: 16px; accent-color: #059669; cursor: pointer; }
+  .aide-amount { font-size: 11px; font-weight: 800; color: #059669; }
+  .btn-apply-green { width: 100%; margin-top: 10px; padding: 8px; background: #059669; color: #fff; border: none; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; }
+  .btn-apply-green:hover { background: #047857; }
+
+  /* ── Projection chart ── */
+  .chart-area { padding: 22px; }
+  .chart-container { position: relative; height: 280px; }
+  .chart-legend { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+  .chart-legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: #475569; }
+  .chart-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* ── Consommation gauge ── */
+  .conso-section { padding: 0 22px 22px; }
+  .conso-artisan { margin-bottom: 14px; }
+  .conso-artisan-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .conso-artisan-name { font-size: 12px; font-weight: 700; color: #334155; display: flex; align-items: center; gap: 6px; }
+  .conso-artisan-total { font-size: 11px; color: #64748b; }
+  .conso-bar-outer { height: 10px; border-radius: 99px; overflow: hidden; display: flex; background: #f1f5f9; }
+  .conso-seg { height: 100%; transition: width 0.5s ease; }
+  .conso-seg.indigo { background: #6366f1; }
+  .conso-seg.orange    { background: #f97316; }
+  .conso-seg.green  { background: #34d399; }
+  .conso-tags { display: flex; gap: 8px; margin-top: 5px; }
+  .conso-tag { font-size: 10px; color: #94a3b8; display: flex; align-items: center; gap: 3px; }
+
+  /* ── Budget restant ── */
+  .remaining-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; padding: 0 22px 22px; }
+  .remaining-card { background: #f8fafc; border-radius: 10px; padding: 14px; text-align: center; border: 1px solid #e2e8f0; }
+  .remaining-title { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+  .remaining-donut { position: relative; width: 60px; height: 60px; margin: 0 auto 8px; }
+  .remaining-pct { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; }
+  .remaining-amount { font-size: 14px; font-weight: 900; color: #0f172a; }
+  .remaining-sub { font-size: 10px; color: #94a3b8; margin-top: 2px; }
+
+  /* ── Misc ── */
+  .divider { height: 1px; background: #f1f5f9; margin: 0 22px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 600; cursor: pointer; border: 1px solid transparent; transition: all 0.15s; }
+  .chip:hover { background: #f1f5f9; }
+  .watermark { font-size: 10px; color: #cbd5e1; text-align: center; padding: 16px 0 4px; }
+
+  /* ── Responsive ── */
+  @media (max-width: 700px) {
+    .sources-grid { grid-template-columns: 1fr; }
+    .remaining-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ─────────────── HEADER ─────────────── -->
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px;">
+    <div>
+      <h1 style="font-size:20px;font-weight:900;color:#0f172a;letter-spacing:-0.02em;">Trésorerie & Financement</h1>
+      <p style="font-size:12px;color:#94a3b8;margin-top:3px;">Comment financez-vous vos travaux ? Allez-vous avoir des problèmes de trésorerie ?</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <span class="badge badge-indigo">📊 Mise à jour auto</span>
+      <span style="font-size:11px;color:#94a3b8;">Budget de référence :</span>
+      <span style="font-size:14px;font-weight:900;color:#0f172a;">45 000 €</span>
+    </div>
+  </div>
+
+  <!-- ─────────────── CARD 1 : FINANCEMENT ─────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">
+        <span style="width:28px;height:28px;background:#eef2ff;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;">💰</span>
+        Plan de financement
+      </span>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span class="badge badge-gray">Budget max : 45 000 €</span>
+        <span id="coverage-badge" class="badge badge-green">✓ Financement complet</span>
+      </div>
+    </div>
+
+    <!-- Gauge principale -->
+    <div class="gauge-wrap">
+      <div class="gauge-bar-outer" id="main-gauge">
+        <div class="gauge-segment indigo" id="seg-apport" style="width:40%;" title="Apport personnel">
+          <span id="seg-apport-label">40% · 18 000 €</span>
+        </div>
+        <div class="gauge-segment orange" id="seg-credit" style="width:35%;" title="Crédit banque">
+          <span id="seg-credit-label">35% · 15 750 €</span>
+        </div>
+        <div class="gauge-segment green" id="seg-aides" style="width:25%;" title="Aides">
+          <span id="seg-aides-label">25% · 11 250 €</span>
+        </div>
+      </div>
+
+      <div class="gauge-legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#6366f1;"></div>
+          <span style="font-size:11px;font-weight:600;color:#475569;">Apport personnel</span>
+          <span style="font-size:11px;font-weight:900;color:#4f46e5;" id="legend-apport">18 000 €</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#ea580c;"></div>
+          <span style="font-size:11px;font-weight:600;color:#475569;">Crédit banque</span>
+          <span style="font-size:11px;font-weight:900;color:#ea580c;" id="legend-credit">15 750 €</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#059669;"></div>
+          <span style="font-size:11px;font-weight:600;color:#475569;">Aides & subventions</span>
+          <span style="font-size:11px;font-weight:900;color:#059669;" id="legend-aides">11 250 €</span>
+        </div>
+        <div style="flex:1;"></div>
+        <div style="font-size:11px;color:#94a3b8;">Total couvert : <strong style="color:#0f172a;" id="legend-total">45 000 €</strong> / 45 000 €</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Sources cards -->
+    <div class="sources-grid">
+
+      <!-- APPORT PERSONNEL -->
+      <div class="source-card" id="card-apport">
+        <div class="source-icon icon-indigo">🏦</div>
+        <div class="section-label">Apport personnel</div>
+        <div class="source-amount" id="apport-amount">18 000 €</div>
+        <div class="source-sub" id="apport-sub">Calculé automatiquement (budget - crédit - aides)</div>
+
+        <div class="tip-box pee" style="margin-top:12px;">
+          <span style="font-size:14px;flex-shrink:0;">💡</span>
+          <div>
+            <strong>Déblocage PEE éligible</strong> — Vos travaux de rénovation (pose carrelage · peinture · électricité) permettent un déblocage anticipé de votre PEE.
+            <br/><a href="https://www.service-public.fr/particuliers/vosdroits/F2765" target="_blank">→ Motifs officiels de déblocage</a>
+          </div>
+        </div>
+
+        <div class="tip-box intercalaire" style="margin-top:8px;">
+          <span style="font-size:14px;flex-shrink:0;">📐</span>
+          <div>
+            <strong>Économisez des intérêts intercalaires</strong> — Utilisez votre apport <em>en premier</em> pour retarder le déblocage de votre crédit.
+            <br/><span id="intercalaire-calc" style="font-weight:700;color:#15803d;">Exemple : 1 mois de crédit non débloqué = <strong>45 € d'économie</strong></span>
+            <br/><span style="font-size:10px;opacity:0.8;">Un intérêt intercalaire = ce que vous payez à la banque sur la somme débloquée <em>avant</em> que la 1ʳᵉ mensualité ne commence.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CRÉDIT BANQUE -->
+      <div class="source-card orange" id="card-credit" onclick="toggleCredit()">
+        <div class="source-icon icon-orange">🏛️</div>
+        <div class="section-label">Crédit immobilier / travaux</div>
+        <div class="source-amount" id="credit-amount">15 750 €</div>
+        <div class="source-sub" id="credit-sub">3,5 % · 20 ans · 92 €/mois</div>
+
+        <div class="credit-panel" id="credit-panel">
+          <div class="slider-row">
+            <div class="slider-label"><span>Montant emprunté</span><span id="sl-montant-val" style="color:#ea580c;font-weight:800;">15 750 €</span></div>
+            <input type="range" id="sl-montant" min="5000" max="45000" step="500" value="15750" oninput="updateCredit()" />
+          </div>
+          <div class="slider-row">
+            <div class="slider-label"><span>Taux annuel</span><span id="sl-taux-val" style="color:#ea580c;font-weight:800;">3,5 %</span></div>
+            <input type="range" id="sl-taux" min="0.5" max="8" step="0.1" value="3.5" oninput="updateCredit()" />
+          </div>
+          <div class="slider-row">
+            <div class="slider-label"><span>Durée</span><span id="sl-duree-val" style="color:#ea580c;font-weight:800;">20 ans</span></div>
+            <input type="range" id="sl-duree" min="5" max="25" step="1" value="20" oninput="updateCredit()" />
+          </div>
+          <div class="credit-result">
+            <div class="credit-result-row"><span>Mensualité</span><span class="val" id="cr-mensualite">92 €/mois</span></div>
+            <div class="credit-result-row" style="margin-top:4px;"><span>Coût total crédit</span><span class="val" id="cr-cout">6 330 €</span></div>
+            <div class="credit-result-row" style="margin-top:4px;"><span>Intérêts intercalaires (1 mois)</span><span class="val" id="cr-intercalaire">46 €</span></div>
+          </div>
+          <button class="btn-apply" onclick="applyCredit(event)">✓ Appliquer ce montant</button>
+        </div>
+        <div style="margin-top:10px;font-size:10px;color:#ea580c;font-weight:600;" id="credit-cta">▼ Configurer le crédit</div>
+      </div>
+
+      <!-- AIDES -->
+      <div class="source-card green" id="card-aides" onclick="toggleAides()">
+        <div class="source-icon icon-green">🌿</div>
+        <div class="section-label">Aides & subventions</div>
+        <div class="source-amount" id="aides-amount">11 250 €</div>
+        <div class="source-sub" id="aides-sub">MaPrimeRénov' + CEE + Anah</div>
+
+        <div class="aides-panel" id="aides-panel">
+          <p style="font-size:10px;color:#94a3b8;margin-bottom:10px;">Sélectionnez les aides calculées pour votre projet :</p>
+
+          <div class="aide-row">
+            <span class="aide-name">🟢 MaPrimeRénov' — Isolation combles</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="aide-amount">6 500 €</span>
+              <input type="checkbox" class="aide-check" onchange="updateAides()" checked />
+            </div>
+          </div>
+          <div class="aide-row">
+            <span class="aide-name">🟢 CEE — Fenêtres double vitrage</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="aide-amount">3 200 €</span>
+              <input type="checkbox" class="aide-check" onchange="updateAides()" checked />
+            </div>
+          </div>
+          <div class="aide-row">
+            <span class="aide-name">🟡 Eco-PTZ — Travaux groupés</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="aide-amount">1 550 €</span>
+              <input type="checkbox" class="aide-check" onchange="updateAides()" />
+            </div>
+          </div>
+          <div class="aide-row">
+            <span class="aide-name">🔵 TVA 5,5 % — Économie estimée</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="aide-amount">890 €</span>
+              <input type="checkbox" class="aide-check" onchange="updateAides()" />
+            </div>
+          </div>
+          <button class="btn-apply-green" onclick="applyAides(event)">✓ Appliquer ces aides</button>
+          <p style="font-size:10px;color:#94a3b8;margin-top:6px;text-align:center;">Simulateur complet → <a href="#" style="color:#059669;font-weight:700;">VerifierMonDevis.fr/calculette</a></p>
+        </div>
+        <div style="margin-top:10px;font-size:10px;color:#059669;font-weight:600;" id="aides-cta">▼ Voir les aides disponibles</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─────────────── CARD 2 : PROJECTION TRÉSORERIE ─────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">
+        <span style="width:28px;height:28px;background:#fef3c7;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;">📈</span>
+        Projection de trésorerie
+      </span>
+      <div style="display:flex;gap:8px;">
+        <span class="chip" style="background:#f1f5f9;border-color:#e2e8f0;font-size:10px;font-weight:600;color:#64748b;">Basé sur vos factures</span>
+        <span class="badge badge-green">✓ Pas d'alerte</span>
+      </div>
+    </div>
+    <div class="chart-area">
+      <div class="chart-legend">
+        <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#6366f1;"></div>Maçonnerie · Dupont</div>
+        <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#f59e0b;"></div>Électricité · Renault</div>
+        <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#0ea5e9;"></div>Plomberie · Martin</div>
+        <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#ec4899;"></div>Menuiserie · Giraud</div>
+        <div style="flex:1;"></div>
+        <div class="chart-legend-item" style="gap:4px;">
+          <div style="width:20px;height:2px;background:#94a3b8;border-top:2px dashed #94a3b8;"></div>
+          <span style="font-size:10px;color:#94a3b8;">Budget disponible</span>
+        </div>
+      </div>
+      <div class="chart-container" id="projectionChart" style="background:#fff;border-radius:12px;border:1px solid #f1f5f9;overflow:hidden;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:16px;">
+        <div style="background:#fef9ee;border:1px solid #fde68a;border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:#92400e;margin-bottom:4px;">⚠ Point de vigilance</div>
+          <div style="font-size:12px;font-weight:800;color:#d97706;">Juillet 2025</div>
+          <div style="font-size:10px;color:#92400e;margin-top:2px;">Maçonnerie + Électricité simultanés — prévoir +8 000 €</div>
+        </div>
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:#14532d;margin-bottom:4px;">✓ Trésorerie positive</div>
+          <div style="font-size:12px;font-weight:800;color:#059669;">Tout le projet</div>
+          <div style="font-size:10px;color:#14532d;margin-top:2px;">Votre plan de financement couvre tous les décaissements</div>
+        </div>
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:#1e40af;margin-bottom:4px;">📅 Prochain paiement</div>
+          <div style="font-size:12px;font-weight:800;color:#2563eb;">15 mai 2025</div>
+          <div style="font-size:10px;color:#1e40af;margin-top:2px;">Acompte Maçonnerie · Dupont : 4 200 €</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────── CARD 3 : CONSOMMATION PAR SOURCE ─────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">
+        <span style="width:28px;height:28px;background:#f0fdf4;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;">🎯</span>
+        Consommation du budget par artisan & source
+      </span>
+      <span class="badge badge-amber">7 891 € décaissés / 45 000 €</span>
+    </div>
+
+    <!-- Budget restant par source -->
+    <div class="remaining-grid">
+      <div class="remaining-card">
+        <div class="remaining-title">Apport restant</div>
+        <div class="remaining-donut">
+          <svg viewBox="0 0 60 60" width="60" height="60" style="transform:rotate(-90deg)">
+            <circle cx="30" cy="30" r="24" fill="none" stroke="#e2e8f0" stroke-width="5"/>
+            <circle cx="30" cy="30" r="24" fill="none" stroke="#6366f1" stroke-width="5"
+              stroke-dasharray="90 150" stroke-linecap="round"
+              style="transition:stroke-dasharray .5s ease"/>
+          </svg>
+          <div class="remaining-pct" style="color:#4f46e5;">61%</div>
+        </div>
+        <div class="remaining-amount" style="color:#4f46e5;">10 967 €</div>
+        <div class="remaining-sub">sur 18 000 € · 7 033 € utilisé</div>
+      </div>
+      <div class="remaining-card">
+        <div class="remaining-title">Crédit restant</div>
+        <div class="remaining-donut">
+          <svg viewBox="0 0 60 60" width="60" height="60" style="transform:rotate(-90deg)">
+            <circle cx="30" cy="30" r="24" fill="none" stroke="#e2e8f0" stroke-width="5"/>
+            <circle cx="30" cy="30" r="24" fill="none" stroke="#f97316" stroke-width="5"
+              stroke-dasharray="136 150" stroke-linecap="round"
+              style="transition:stroke-dasharray .5s ease"/>
+          </svg>
+          <div class="remaining-pct" style="color:#ea580c;">91%</div>
+        </div>
+        <div class="remaining-amount" style="color:#ea580c;">14 292 €</div>
+        <div class="remaining-sub">sur 15 750 € · 1 458 € utilisé</div>
+      </div>
+      <div class="remaining-card">
+        <div class="remaining-title">Aides restantes</div>
+        <div class="remaining-donut">
+          <svg viewBox="0 0 60 60" width="60" height="60" style="transform:rotate(-90deg)">
+            <circle cx="30" cy="30" r="24" fill="none" stroke="#e2e8f0" stroke-width="5"/>
+            <circle cx="30" cy="30" r="24" fill="none" stroke="#34d399" stroke-width="5"
+              stroke-dasharray="150 150" stroke-linecap="round"
+              style="transition:stroke-dasharray .5s ease"/>
+          </svg>
+          <div class="remaining-pct" style="color:#059669;">100%</div>
+        </div>
+        <div class="remaining-amount" style="color:#059669;">11 250 €</div>
+        <div class="remaining-sub">sur 11 250 € · 0 € utilisé</div>
+      </div>
+    </div>
+
+    <div class="divider" style="margin-bottom:16px;"></div>
+
+    <!-- Consommation par artisan -->
+    <div class="conso-section">
+      <p class="section-label" style="margin-bottom:14px;">Détail des paiements effectués</p>
+
+      <div class="conso-artisan">
+        <div class="conso-artisan-header">
+          <div class="conso-artisan-name">
+            <div style="width:10px;height:10px;border-radius:50%;background:#6366f1;flex-shrink:0;"></div>
+            🧱 Maçonnerie · Dupont
+          </div>
+          <span class="conso-artisan-total">Payé : 4 800 € sur 18 000 €</span>
+        </div>
+        <div class="conso-bar-outer">
+          <div class="conso-seg indigo" style="width:28%;"></div>
+        </div>
+        <div class="conso-tags">
+          <span class="conso-tag"><span style="display:inline-block;width:7px;height:7px;border-radius:2px;background:#6366f1;"></span>Apport : 4 800 €</span>
+        </div>
+      </div>
+
+      <div class="conso-artisan">
+        <div class="conso-artisan-header">
+          <div class="conso-artisan-name">
+            <div style="width:10px;height:10px;border-radius:50%;background:#f59e0b;flex-shrink:0;"></div>
+            ⚡ Électricité · Renault
+          </div>
+          <span class="conso-artisan-total">Payé : 2 091 € sur 8 500 €</span>
+        </div>
+        <div class="conso-bar-outer">
+          <div class="conso-seg indigo" style="width:16%;"></div>
+          <div class="conso-seg orange" style="width:8%;"></div>
+        </div>
+        <div class="conso-tags">
+          <span class="conso-tag"><span style="display:inline-block;width:7px;height:7px;border-radius:2px;background:#6366f1;"></span>Apport : 1 633 €</span>
+          <span class="conso-tag"><span style="display:inline-block;width:7px;height:7px;border-radius:2px;background:#f97316;"></span>Crédit : 458 €</span>
+        </div>
+      </div>
+
+      <div class="conso-artisan">
+        <div class="conso-artisan-header">
+          <div class="conso-artisan-name">
+            <div style="width:10px;height:10px;border-radius:50%;background:#0ea5e9;flex-shrink:0;"></div>
+            🔧 Plomberie · Martin
+          </div>
+          <span class="conso-artisan-total">Payé : 1 000 € sur 6 200 €</span>
+        </div>
+        <div class="conso-bar-outer">
+          <div class="conso-seg orange" style="width:16%;"></div>
+        </div>
+        <div class="conso-tags">
+          <span class="conso-tag"><span style="display:inline-block;width:7px;height:7px;border-radius:2px;background:#f97316;"></span>Crédit : 1 000 €</span>
+        </div>
+      </div>
+
+      <div class="conso-artisan">
+        <div class="conso-artisan-header">
+          <div class="conso-artisan-name">
+            <div style="width:10px;height:10px;border-radius:50%;background:#ec4899;flex-shrink:0;"></div>
+            🪟 Menuiserie · Giraud
+          </div>
+          <span class="conso-artisan-total">Payé : 0 € sur 12 300 €</span>
+        </div>
+        <div class="conso-bar-outer">
+          <div class="conso-seg gray" style="width:0%;background:#e2e8f0;"></div>
+        </div>
+        <div class="conso-tags">
+          <span class="conso-tag" style="color:#cbd5e1;">Aucun paiement effectué</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="watermark">Mockup — VerifierMonDevis.fr · Onglet Trésorerie v3</div>
+</div>
+
+<script>
+// ── Config données ──────────────────────────────────────────────────────────
+let creditMontant = 15750;
+let creditTaux    = 3.5;
+let creditDuree   = 20;
+let aidesMontant  = 11250;
+const budgetTotal = 45000;
+
+function fmt(n) {
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
+}
+
+// ── Crédit ──────────────────────────────────────────────────────────────────
+function toggleCredit() {
+  const p = document.getElementById('credit-panel');
+  const cta = document.getElementById('credit-cta');
+  const open = p.classList.toggle('open');
+  cta.textContent = open ? '▲ Masquer' : '▼ Configurer le crédit';
+}
+
+function calcMensualite(montant, taux, dureeAns) {
+  const r = (taux / 100) / 12;
+  const n = dureeAns * 12;
+  if (r === 0) return montant / n;
+  return montant * r * Math.pow(1+r,n) / (Math.pow(1+r,n)-1);
+}
+
+function updateCredit() {
+  const montant = parseInt(document.getElementById('sl-montant').value);
+  const taux    = parseFloat(document.getElementById('sl-taux').value);
+  const duree   = parseInt(document.getElementById('sl-duree').value);
+
+  document.getElementById('sl-montant-val').textContent = fmt(montant);
+  document.getElementById('sl-taux-val').textContent    = taux.toFixed(1) + ' %';
+  document.getElementById('sl-duree-val').textContent   = duree + ' ans';
+
+  const m         = calcMensualite(montant, taux, duree);
+  const cout      = m * duree * 12 - montant;
+  const intercal  = montant * (taux / 100) / 12;
+
+  document.getElementById('cr-mensualite').textContent   = Math.round(m) + ' €/mois';
+  document.getElementById('cr-cout').textContent         = fmt(Math.round(cout));
+  document.getElementById('cr-intercalaire').textContent = Math.round(intercal) + ' €';
+}
+
+function applyCredit(e) {
+  e.stopPropagation();
+  creditMontant = parseInt(document.getElementById('sl-montant').value);
+  creditTaux    = parseFloat(document.getElementById('sl-taux').value);
+  creditDuree   = parseInt(document.getElementById('sl-duree').value);
+  document.getElementById('credit-amount').textContent = fmt(creditMontant);
+  const m = calcMensualite(creditMontant, creditTaux, creditDuree);
+  document.getElementById('credit-sub').textContent = `${creditTaux}% · ${creditDuree} ans · ${Math.round(m)} €/mois`;
+  updateGauge();
+  document.getElementById('credit-panel').classList.remove('open');
+  document.getElementById('credit-cta').textContent = '▼ Configurer le crédit';
+}
+
+// ── Aides ───────────────────────────────────────────────────────────────────
+function toggleAides() {
+  const p   = document.getElementById('aides-panel');
+  const cta = document.getElementById('aides-cta');
+  const open = p.classList.toggle('open');
+  cta.textContent = open ? '▲ Masquer' : '▼ Voir les aides disponibles';
+}
+
+function updateAides() {
+  const amounts = [6500, 3200, 1550, 890];
+  const boxes   = document.querySelectorAll('.aide-check');
+  let total = 0;
+  boxes.forEach((b, i) => { if (b.checked) total += amounts[i]; });
+  aidesMontant = total;
+}
+
+function applyAides(e) {
+  e.stopPropagation();
+  updateAides();
+  document.getElementById('aides-amount').textContent = fmt(aidesMontant);
+  updateGauge();
+  document.getElementById('aides-panel').classList.remove('open');
+  document.getElementById('aides-cta').textContent = '▼ Voir les aides disponibles';
+}
+
+// ── Gauge principale ─────────────────────────────────────────────────────────
+function updateGauge() {
+  const apport = Math.max(0, budgetTotal - creditMontant - aidesMontant);
+  const total  = apport + creditMontant + aidesMontant;
+
+  const pApport = (apport / budgetTotal * 100).toFixed(1);
+  const pCredit = (creditMontant / budgetTotal * 100).toFixed(1);
+  const pAides  = (aidesMontant / budgetTotal * 100).toFixed(1);
+
+  document.getElementById('seg-apport').style.width = pApport + '%';
+  document.getElementById('seg-credit').style.width = pCredit + '%';
+  document.getElementById('seg-aides').style.width  = pAides  + '%';
+
+  document.getElementById('seg-apport-label').textContent = `${Math.round(pApport)}% · ${fmt(apport)}`;
+  document.getElementById('seg-credit-label').textContent = `${Math.round(pCredit)}% · ${fmt(creditMontant)}`;
+  document.getElementById('seg-aides-label').textContent  = `${Math.round(pAides)}% · ${fmt(aidesMontant)}`;
+
+  document.getElementById('legend-apport').textContent = fmt(apport);
+  document.getElementById('legend-credit').textContent = fmt(creditMontant);
+  document.getElementById('legend-aides').textContent  = fmt(aidesMontant);
+  document.getElementById('legend-total').textContent  = fmt(total);
+
+  document.getElementById('apport-amount').textContent = fmt(apport);
+
+  // Intercalaire exemple
+  const intercal = Math.round(creditMontant * (creditTaux / 100) / 12);
+  document.getElementById('intercalaire-calc').innerHTML =
+    `Exemple : 1 mois de crédit non débloqué = <strong>${intercal} € d'économie</strong>`;
+
+  // Badge couverture
+  const badge = document.getElementById('coverage-badge');
+  if (total >= budgetTotal) {
+    badge.className = 'badge badge-green';
+    badge.textContent = '✓ Financement complet';
+  } else {
+    badge.className = 'badge badge-red';
+    badge.textContent = `⚠ Manque ${fmt(budgetTotal - total)}`;
+  }
+}
+
+// ── SVG Line Chart ───────────────────────────────────────────────────────────
+(function drawChart() {
+  const W = 1040, H = 260, PAD = { t: 12, r: 20, b: 32, l: 52 };
+  const CW = W - PAD.l - PAD.r, CH = H - PAD.t - PAD.b;
+  const ACTUAL_IDX = 2;
+
+  const months = ['Avr','Mai','Jun','Juil','Août','Sep','Oct','Nov','Déc','Jan','Fév'];
+  const series = [
+    { label:'Maçonnerie · Dupont', color:'#6366f1', data:[4200,8400,12600,14200,14200,14200,18000,18000,18000,18000,18000] },
+    { label:'Électricité · Renault', color:'#f59e0b', data:[0,2100,4200,8500,8500,8500,8500,8500,8500,8500,8500] },
+    { label:'Plomberie · Martin',   color:'#0ea5e9', data:[0,0,1200,3600,6200,6200,6200,6200,6200,6200,6200] },
+    { label:'Menuiserie · Giraud',  color:'#ec4899', data:[0,0,0,0,0,4100,8200,12300,12300,12300,12300] },
+  ];
+  const MAX_Y = 48000;
+  const N = months.length;
+
+  function px(i) { return PAD.l + i * CW / (N - 1); }
+  function py(v) { return PAD.t + CH - (v / MAX_Y) * CH; }
+
+  function smooth(pts) {
+    if (pts.length < 2) return '';
+    let d = `M ${pts[0][0]} ${pts[0][1]}`;
+    for (let i = 1; i < pts.length; i++) {
+      const cp1x = pts[i-1][0] + (pts[i][0] - pts[i-1][0]) * 0.4;
+      const cp1y = pts[i-1][1];
+      const cp2x = pts[i][0] - (pts[i][0] - pts[i-1][0]) * 0.4;
+      const cp2y = pts[i][1];
+      d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${pts[i][0]} ${pts[i][1]}`;
+    }
+    return d;
+  }
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block;">
+  <defs>`;
+  series.forEach((s,si) => {
+    svg += `<linearGradient id="g${si}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${s.color}" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="${s.color}" stop-opacity="0.01"/>
+    </linearGradient>`;
+  });
+  svg += `</defs>`;
+
+  // Grid Y
+  [0, 10000, 20000, 30000, 40000].forEach(v => {
+    const y = py(v);
+    svg += `<line x1="${PAD.l}" y1="${y}" x2="${W-PAD.r}" y2="${y}" stroke="#f1f5f9" stroke-width="1"/>`;
+    svg += `<text x="${PAD.l - 6}" y="${y + 4}" font-size="10" fill="#94a3b8" text-anchor="end">${v === 0 ? '0' : (v/1000)+'k'}</text>`;
+  });
+
+  // Budget line (dashed)
+  const budgetY = py(45000);
+  svg += `<line x1="${PAD.l}" y1="${budgetY}" x2="${W-PAD.r}" y2="${budgetY}" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="6 4"/>`;
+  svg += `<text x="${W-PAD.r+4}" y="${budgetY+4}" font-size="9" fill="#94a3b8">45k</text>`;
+
+  // X axis labels
+  months.forEach((m, i) => {
+    svg += `<text x="${px(i)}" y="${H - 6}" font-size="10" fill="#94a3b8" text-anchor="middle">${m}</text>`;
+  });
+
+  // Separator actuel / projeté
+  const sepX = px(ACTUAL_IDX) + CW / (N - 1) * 0.5;
+  svg += `<line x1="${sepX}" y1="${PAD.t}" x2="${sepX}" y2="${H - PAD.b}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3 3"/>`;
+  svg += `<text x="${sepX - 4}" y="${PAD.t + 10}" font-size="9" fill="#94a3b8" text-anchor="end">Réel</text>`;
+  svg += `<text x="${sepX + 4}" y="${PAD.t + 10}" font-size="9" fill="#94a3b8" text-anchor="start">Projeté</text>`;
+
+  // Series : area + line (solid actual, dashed projected)
+  series.forEach((s, si) => {
+    const pts = s.data.map((v, i) => [px(i), py(v)]);
+    const ptsActual    = pts.slice(0, ACTUAL_IDX + 1);
+    const ptsProjected = pts.slice(ACTUAL_IDX);
+
+    // Area fill (projected zone)
+    const areaPath = `${smooth(ptsProjected)} L ${pts[pts.length-1][0]} ${py(0)} L ${px(ACTUAL_IDX)} ${py(0)} Z`;
+    svg += `<path d="${areaPath}" fill="url(#g${si})"/>`;
+
+    // Actual line (solid)
+    svg += `<path d="${smooth(ptsActual)}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+    // Projected line (dashed)
+    svg += `<path d="${smooth(ptsProjected)}" fill="none" stroke="${s.color}" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round"/>`;
+
+    // Dots
+    pts.forEach(([x, y], i) => {
+      const filled = i <= ACTUAL_IDX;
+      svg += `<circle cx="${x}" cy="${y}" r="${i === ACTUAL_IDX ? 5 : 3}" fill="${filled ? s.color : '#fff'}" stroke="${s.color}" stroke-width="2"/>`;
+    });
+  });
+
+  svg += `</svg>`;
+
+  document.getElementById('projectionChart').innerHTML = svg;
+})();
+
+// Init
+updateCredit();
+updateGauge();
+</script>
+</body>
+</html>

@@ -14,7 +14,8 @@ export type DocumentType =
   | 'preuve_paiement';
 
 export type DevisStatut = 'en_cours' | 'a_relancer' | 'valide' | 'attente_facture';
-export type FactureStatut = 'recue' | 'payee' | 'payee_partiellement';
+export type FactureStatut = 'recue' | 'payee' | 'payee_partiellement' | 'en_litige';
+export type DepenseType = 'facture' | 'ticket_caisse' | 'achat_materiaux';
 
 export interface DocumentChantier {
   id: string;
@@ -29,8 +30,10 @@ export interface DocumentChantier {
   facture_statut?: FactureStatut | null;
   /** Montant total de la facture (HT ou TTC selon le document) */
   montant?: number | null;
-  /** Montant effectivement payé — utile si facture_statut === 'payee_partiellement' */
+  /** Montant effectivement payé — utile si facture_statut === 'payee_partiellement' ou 'en_litige' */
   montant_paye?: number | null;
+  /** Type de dépense — uniquement pertinent pour document_type === 'facture' */
+  depense_type?: DepenseType | null;
   source: string;
   nom: string;
   nom_fichier: string;

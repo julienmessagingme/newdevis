@@ -509,6 +509,26 @@ const AnalysisResult = () => {
     };
   }, [analysis?.status]);
 
+  // ---- Stuck detection: if step hasn't changed for 3 min, show error ----
+  const STUCK_TIMEOUT_MS = 3 * 60 * 1000;
+  const [isStuck, setIsStuck] = useState(false);
+  const stuckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (analysis?.status !== "pending" && analysis?.status !== "processing") {
+      setIsStuck(false);
+      if (stuckTimerRef.current) clearTimeout(stuckTimerRef.current);
+      return;
+    }
+    // Reset timer each time the step message changes
+    setIsStuck(false);
+    if (stuckTimerRef.current) clearTimeout(stuckTimerRef.current);
+    stuckTimerRef.current = setTimeout(() => setIsStuck(true), STUCK_TIMEOUT_MS);
+    return () => {
+      if (stuckTimerRef.current) clearTimeout(stuckTimerRef.current);
+    };
+  }, [analysis?.status, analysis?.error_message]);
+
   if (loading || authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -623,10 +643,27 @@ const AnalysisResult = () => {
             })}
           </div>
 
-          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground/50">
-            <RefreshCw className="h-3 w-3 animate-spin" />
-            Mise à jour automatique
-          </div>
+          {isStuck ? (
+            <div className="mt-4 p-4 bg-destructive/10 border border-destructive/30 rounded-xl text-left">
+              <p className="text-sm font-semibold text-destructive mb-1">L'analyse semble bloquée</p>
+              <p className="text-xs text-muted-foreground mb-3">
+                L'étape en cours dure depuis plus de 3 minutes. Cela peut être dû à une surcharge temporaire du service d'IA.
+              </p>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => window.location.reload()}
+              >
+                <RefreshCw className="h-3 w-3 mr-2" />
+                Recharger la page
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground/50">
+              <RefreshCw className="h-3 w-3 animate-spin" />
+              Mise à jour automatique
+            </div>
+          )}
         </main>
       </div>
     );

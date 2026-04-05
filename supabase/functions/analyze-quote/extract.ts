@@ -126,7 +126,7 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
   "type_document": "devis_travaux | facture | diagnostic_immobilier | autre",
   "entreprise": {
     "nom": "nom exact ou null",
-    "siret": "numéro SIRET 14 chiffres sans espaces ou null — CHERCHE PARTOUT dans le document (en-tête, pied de page, mentions légales, bas du document, tampons)",
+    "siret": "numéro SIRET EXACTEMENT 14 chiffres sans espaces ou null — CHERCHE PARTOUT (en-tête, pied de page, mentions légales, tampons). COMPTE les chiffres : un SIRET valide = 9 chiffres SIREN + 5 chiffres NIC = 14 au total. Si tu vois 13 chiffres, il manque probablement un zéro dans le NIC (ex: '8312285800021' → vrai SIRET '83122858000021'). Restitue les 14 chiffres exacts.",
     "adresse": "adresse complète ou null",
     "email": "adresse email de l'entreprise trouvée dans le document (en-tête, pied de page, mentions légales, site web) ou null",
     "telephone": "numéro de téléphone de l'entreprise trouvé dans le document (en-tête, pied de page, mentions légales) ou null",

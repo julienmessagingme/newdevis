@@ -31,14 +31,15 @@ export default function ChartsSection({ kpis }: ChartsSectionProps) {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        <ScoreEvolutionChart 
-          evolutionDaily={kpis.charts.evolution_daily} 
-          evolutionWeekly={kpis.charts.evolution_weekly} 
+        <ScoreEvolutionChart
+          evolutionDaily={kpis.charts.evolution_daily}
+          evolutionWeekly={kpis.charts.evolution_weekly}
         />
-        <ScoreDistributionPieChart 
-          scoreDistribution={kpis.charts.score_distribution} 
+        <ScoreDistributionPieChart
+          scoreDistribution={kpis.charts.score_distribution}
         />
       </div>
+
     </section>
   );
 }

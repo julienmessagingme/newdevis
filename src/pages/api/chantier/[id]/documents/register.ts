@@ -23,6 +23,9 @@ const VALID_TYPES = new Set<DocumentType>([
 //   nomFichier   string
 //   mimeType     string | null
 //   tailleOctets number | null
+//   montant      number | null
+//   factureStatut string | null   ← 'recue' par défaut pour les factures
+//   paymentTerms  { type_facture, pct, delai_jours, numero_facture } | null
 
 export const POST: APIRoute = async ({ params, request }) => {
   const ctx = await requireChantierAuth(request, params.id!);
@@ -33,6 +36,9 @@ export const POST: APIRoute = async ({ params, request }) => {
   let body: {
     nom?: string; documentType?: DocumentType; lotId?: string | null;
     bucketPath?: string; nomFichier?: string; mimeType?: string | null; tailleOctets?: number | null;
+    montant?: number | null;
+    factureStatut?: string | null;
+    paymentTerms?: { type_facture: string; pct: number; delai_jours: number; numero_facture: string | null } | null;
   };
   try { body = await request.json(); }
   catch { return jsonError('Corps invalide', 400); }
@@ -54,6 +60,18 @@ export const POST: APIRoute = async ({ params, request }) => {
     if (!lot) lotId = null;
   }
 
+  // Calcul montant_paye si l'IA a détecté un acompte avec pourcentage
+  const montant      = typeof body.montant === 'number' ? body.montant : null;
+  const paymentTerms = body.paymentTerms ?? null;
+  const isAcompte    = paymentTerms?.type_facture === 'acompte' && (paymentTerms?.pct ?? 0) > 0;
+  const montantPaye  = isAcompte && montant ? Math.round(montant * paymentTerms!.pct / 100 * 100) / 100 : null;
+
+  // Si acompte détecté par l'IA → statut 'payee_partiellement', sinon utiliser ce qui est fourni
+  const VALID_STATUTS = new Set(['recue', 'payee', 'payee_partiellement', 'en_litige']);
+  const factureStatut = isAcompte
+    ? 'payee_partiellement'
+    : (body.factureStatut && VALID_STATUTS.has(body.factureStatut) ? body.factureStatut : null);
+
   const { data: doc, error: insertErr } = await ctx.supabase
     .from('documents_chantier')
     .insert({
@@ -67,6 +85,10 @@ export const POST: APIRoute = async ({ params, request }) => {
       bucket_path:   bucketPath,
       taille_octets: body.tailleOctets ?? null,
       mime_type:     body.mimeType ?? null,
+      montant,
+      facture_statut: factureStatut,
+      montant_paye:  montantPaye,
+      payment_terms: paymentTerms,
     })
     .select()
     .single();

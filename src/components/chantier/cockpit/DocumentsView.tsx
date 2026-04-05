@@ -1,12 +1,21 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+/**
+ * DocumentsView — bibliothèque de documents du chantier.
+ *
+ * Vue "réceptacle" : aucune action de workflow (statut, relance, paiement).
+ * Seules actions : renommer, changer l'intervenant, ouvrir, supprimer.
+ *
+ * Sections dépliables :
+ *   📋 Devis · 🧾 Factures · 🛒 Achats & tickets · 📷 Photos · 📐 Plans · 📁 Docs administratifs
+ *
+ * Photos : miniature img à la place de l'icône emoji.
+ */
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  FileText, FolderOpen, Loader2, Pencil, Plus, Trash2, Search, X,
-  ExternalLink, ChevronDown, Image, Receipt, FileStack, Shield, BookOpen, File,
-  ArrowDownUp, CalendarDays, ALargeSmall, Wrench,
+  FolderOpen, Plus, Search, X, ExternalLink, Pencil,
+  Loader2, Trash2, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { DocumentChantier, DocumentType, LotChantier } from '@/types/chantier-ia';
-import DocStatusSelect from '@/components/chantier/shared/DocStatusSelect';
+import type { DocumentChantier, LotChantier } from '@/types/chantier-ia';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -14,31 +23,94 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' });
 }
 
-// ── Config types ──────────────────────────────────────────────────────────────
+function fmtSize(bytes: number | null | undefined): string {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} o`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} ko`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
+}
 
-const TYPE_CFG: Record<DocumentType, {
-  label: string; plural: string; emoji: string;
-  iconBg: string; iconText: string; tabBg: string; tabText: string; tabActiveBg: string; tabActiveText: string;
-}> = {
-  devis:           { label: 'Devis',              plural: 'Devis',                emoji: '📋', iconBg: 'bg-blue-50',    iconText: 'text-blue-500',   tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-blue-600',   tabActiveText: 'text-white' },
-  facture:         { label: 'Facture',            plural: 'Factures',             emoji: '🧾', iconBg: 'bg-emerald-50', iconText: 'text-emerald-500',tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-emerald-600',tabActiveText: 'text-white' },
-  photo:           { label: 'Photo',              plural: 'Photos',               emoji: '📷', iconBg: 'bg-violet-50',  iconText: 'text-violet-500', tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-violet-600', tabActiveText: 'text-white' },
-  plan:            { label: 'Plan',               plural: 'Plans',                emoji: '📐', iconBg: 'bg-amber-50',   iconText: 'text-amber-500',  tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-amber-500',  tabActiveText: 'text-white' },
-  autorisation:    { label: 'Autorisation',       plural: 'Autorisations',        emoji: '📜', iconBg: 'bg-orange-50',  iconText: 'text-orange-500', tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-orange-500', tabActiveText: 'text-white' },
-  assurance:       { label: 'Assurance',          plural: 'Assurances',           emoji: '🛡', iconBg: 'bg-indigo-50',  iconText: 'text-indigo-500', tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-indigo-600', tabActiveText: 'text-white' },
-  autre:           { label: 'Autre',              plural: 'Autres',               emoji: '📁', iconBg: 'bg-gray-50',    iconText: 'text-gray-400',   tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-gray-700',   tabActiveText: 'text-white' },
-  preuve_paiement: { label: 'Preuve de paiement', plural: 'Preuves de paiement',  emoji: '💳', iconBg: 'bg-teal-50',    iconText: 'text-teal-500',   tabBg: 'bg-white', tabText: 'text-gray-500', tabActiveBg: 'bg-teal-600',   tabActiveText: 'text-white' },
-};
+function isImageMime(mime: string | null | undefined): boolean {
+  if (!mime) return false;
+  return mime.startsWith('image/');
+}
 
-// Ordre d'affichage des onglets
-const TAB_ORDER: DocumentType[] = ['devis', 'facture', 'photo', 'autorisation', 'assurance', 'plan', 'preuve_paiement', 'autre'];
+// ── Sections config ───────────────────────────────────────────────────────────
 
-// ── LotBadge — selector inline ────────────────────────────────────────────────
+type SectionKey = 'devis' | 'factures' | 'achats' | 'photos' | 'plans' | 'admin';
+
+interface Section {
+  key:         SectionKey;
+  label:       string;
+  emoji:       string;
+  headerCls:   string;
+  countCls:    string;
+  filter:      (doc: DocumentChantier) => boolean;
+}
+
+const SECTIONS: Section[] = [
+  {
+    key:       'devis',
+    label:     'Devis',
+    emoji:     '📋',
+    headerCls: 'bg-blue-50/60 hover:bg-blue-50',
+    countCls:  'bg-blue-100 text-blue-700',
+    filter:    d => d.document_type === 'devis',
+  },
+  {
+    key:       'factures',
+    label:     'Factures',
+    emoji:     '🧾',
+    headerCls: 'bg-emerald-50/60 hover:bg-emerald-50',
+    countCls:  'bg-emerald-100 text-emerald-700',
+    filter:    d =>
+      d.document_type === 'facture' &&
+      (!('depense_type' in d) || !(d as any).depense_type ||
+       (d as any).depense_type === 'facture'),
+  },
+  {
+    key:       'achats',
+    label:     'Achats & tickets',
+    emoji:     '🛒',
+    headerCls: 'bg-purple-50/60 hover:bg-purple-50',
+    countCls:  'bg-purple-100 text-purple-700',
+    filter:    d =>
+      d.document_type === 'facture' &&
+      ('depense_type' in d) &&
+      ((d as any).depense_type === 'ticket_caisse' || (d as any).depense_type === 'achat_materiaux'),
+  },
+  {
+    key:       'photos',
+    label:     'Photos',
+    emoji:     '📷',
+    headerCls: 'bg-violet-50/60 hover:bg-violet-50',
+    countCls:  'bg-violet-100 text-violet-700',
+    filter:    d => d.document_type === 'photo',
+  },
+  {
+    key:       'plans',
+    label:     'Plans',
+    emoji:     '📐',
+    headerCls: 'bg-amber-50/60 hover:bg-amber-50',
+    countCls:  'bg-amber-100 text-amber-700',
+    filter:    d => d.document_type === 'plan',
+  },
+  {
+    key:       'admin',
+    label:     'Documents administratifs',
+    emoji:     '📁',
+    headerCls: 'bg-gray-50/80 hover:bg-gray-100',
+    countCls:  'bg-gray-100 text-gray-600',
+    filter:    d => ['autorisation', 'assurance', 'autre', 'preuve_paiement'].includes(d.document_type),
+  },
+];
+
+// ── LotBadge ──────────────────────────────────────────────────────────────────
 
 function LotBadge({ doc, lots, onChangeLot }: {
-  doc: DocumentChantier;
-  lots: LotChantier[];
-  onChangeLot: (docId: string, lotId: string | null) => void;
+  doc:          DocumentChantier;
+  lots:         LotChantier[];
+  onChangeLot:  (docId: string, lotId: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -57,28 +129,28 @@ function LotBadge({ doc, lots, onChangeLot }: {
     <div ref={ref} className="relative shrink-0">
       <button
         onClick={() => setOpen(o => !o)}
-        className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors whitespace-nowrap ${
+        className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-lg border transition-colors whitespace-nowrap ${
           lot
             ? 'border-purple-200 text-purple-700 bg-purple-50 hover:bg-purple-100'
             : 'border-gray-200 text-gray-400 bg-gray-50 hover:bg-gray-100 hover:text-gray-600'
         }`}
       >
-        <span>{lot ? `${lot.emoji ?? '🔧'} ${lot.nom}` : '— Aucun intervenant'}</span>
-        <ChevronDown className="h-3 w-3 opacity-60" />
+        <span className="text-[10px]">{lot ? `${lot.emoji ?? '🔧'} ${lot.nom}` : '—'}</span>
+        <ChevronDown className="h-2.5 w-2.5 opacity-60" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-30 bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden min-w-[200px]">
+        <div className="absolute left-0 bottom-full mb-1 z-30 bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden min-w-[180px]">
           <button
             onClick={() => { onChangeLot(doc.id, null); setOpen(false); }}
-            className="w-full text-left px-4 py-2.5 text-xs text-gray-400 hover:bg-gray-50 transition-colors"
+            className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:bg-gray-50 transition-colors"
           >
-            — Aucun intervenant
+            — Sans intervenant
           </button>
           {lots.map(l => (
             <button
               key={l.id}
               onClick={() => { onChangeLot(doc.id, l.id); setOpen(false); }}
-              className={`w-full text-left px-4 py-2.5 text-xs font-medium transition-colors flex items-center gap-2 ${
+              className={`w-full text-left px-3 py-2 text-xs font-medium transition-colors flex items-center gap-2 ${
                 l.id === doc.lot_id ? 'bg-purple-50 text-purple-700' : 'text-gray-700 hover:bg-gray-50'
               }`}
             >
@@ -92,24 +164,43 @@ function LotBadge({ doc, lots, onChangeLot }: {
   );
 }
 
+// ── PhotoThumb ────────────────────────────────────────────────────────────────
+
+function PhotoThumb({ url, nom }: { url: string | null | undefined; nom: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!url || failed) {
+    return (
+      <div className="w-10 h-10 rounded-lg bg-violet-50 flex items-center justify-center shrink-0 text-lg">
+        📷
+      </div>
+    );
+  }
+  return (
+    <img
+      src={url}
+      alt={nom}
+      onError={() => setFailed(true)}
+      className="w-10 h-10 rounded-lg object-cover shrink-0 border border-gray-100"
+    />
+  );
+}
+
 // ── DocRow ────────────────────────────────────────────────────────────────────
 
-function DocRow({ doc, lots, chantierId, token, onDelete, onLotChange, onNomChange, onStatutChange, onMontantPayeChange, pendingDescribeIds }: {
-  doc: DocumentChantier;
-  lots: LotChantier[];
-  chantierId: string;
-  token: string;
-  onDelete: (id: string) => void;
-  onLotChange: (docId: string, lotId: string | null) => void;
-  onNomChange: (docId: string, nom: string) => void;
-  onStatutChange?: (docId: string, statut: string) => void;
-  onMontantPayeChange?: (docId: string, montantPaye: number) => void;
+function DocRow({ doc, lots, chantierId, token, sectionKey, onDelete, onLotChange, onNomChange, pendingDescribeIds }: {
+  doc:                DocumentChantier;
+  lots:               LotChantier[];
+  chantierId:         string;
+  token:              string;
+  sectionKey:         SectionKey;
+  onDelete:           (id: string) => void;
+  onLotChange:        (docId: string, lotId: string | null) => void;
+  onNomChange:        (docId: string, nom: string) => void;
   pendingDescribeIds: string[];
 }) {
-  const [editing, setEditing]   = useState(false);
+  const [editing,  setEditing]  = useState(false);
   const [editName, setEditName] = useState('');
-  const [saving, setSaving]     = useState(false);
-  const cfg = TYPE_CFG[doc.document_type];
+  const [saving,   setSaving]   = useState(false);
   const isDescribing = pendingDescribeIds.includes(doc.id);
 
   async function saveRename() {
@@ -122,20 +213,28 @@ function DocRow({ doc, lots, chantierId, token, onDelete, onLotChange, onNomChan
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ nom: trimmed }),
       });
-      if (res.ok) { onNomChange(doc.id, trimmed); }
-      else { toast.error('Impossible de renommer'); }
+      if (res.ok) onNomChange(doc.id, trimmed);
+      else toast.error('Impossible de renommer');
     } catch { toast.error('Erreur réseau'); }
     finally { setSaving(false); setEditing(false); }
   }
 
-  return (
-    <div className="group flex items-center gap-3 px-4 py-3 hover:bg-gray-50/60 transition-colors border-b border-gray-50 last:border-0">
-      {/* Icône type */}
-      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${cfg.iconBg}`}>
-        <span className="text-base leading-none">{cfg.emoji}</span>
-      </div>
+  const isPhoto   = sectionKey === 'photos';
+  const isFacture = doc.document_type === 'facture';
 
-      {/* Nom + date */}
+  return (
+    <div className="group flex items-center gap-3 px-4 py-3 hover:bg-gray-50/50 transition-colors border-b border-gray-50 last:border-0">
+
+      {/* Icône / miniature */}
+      {isPhoto ? (
+        <PhotoThumb url={doc.signedUrl} nom={doc.nom} />
+      ) : (
+        <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 bg-gray-50 text-lg border border-gray-100">
+          {SECTIONS.find(s => s.key === sectionKey)?.emoji ?? '📄'}
+        </div>
+      )}
+
+      {/* Nom + meta + badge */}
       <div className="flex-1 min-w-0">
         {editing ? (
           <div className="flex items-center gap-2">
@@ -175,35 +274,32 @@ function DocRow({ doc, lots, chantierId, token, onDelete, onLotChange, onNomChan
             )}
           </div>
         )}
-        <p className="text-[11px] text-gray-400 mt-0.5">{fmtDate(doc.created_at)}</p>
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          <p className="text-[11px] text-gray-400">{fmtDate(doc.created_at)}</p>
+          {doc.taille_octets && (
+            <p className="text-[11px] text-gray-300">{fmtSize(doc.taille_octets)}</p>
+          )}
+          {isFacture && doc.montant != null && doc.montant > 0 && (
+            <p className="text-[11px] font-semibold text-gray-600 tabular-nums">
+              {doc.montant.toLocaleString('fr-FR')} €
+            </p>
+          )}
+          <LotBadge doc={doc} lots={lots} onChangeLot={onLotChange} />
+        </div>
       </div>
 
-      {/* Intervenant */}
-      <LotBadge doc={doc} lots={lots} onChangeLot={onLotChange} />
-
-      {/* Montant facture */}
-      {doc.document_type === 'facture' && doc.montant != null && doc.montant > 0 && (
-        <span className="text-xs font-bold text-gray-700 tabular-nums shrink-0">
-          {doc.montant.toLocaleString('fr-FR')} €
-        </span>
-      )}
-
-      {/* Statut devis / facture */}
-      {(doc.document_type === 'devis' || doc.document_type === 'facture') && (
-        <DocStatusSelect doc={doc} chantierId={chantierId} token={token} onUpdated={onStatutChange} onMontantPayeUpdated={onMontantPayeChange} compact />
-      )}
-
       {/* Actions */}
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
         {doc.signedUrl && (
           <a
             href={doc.signedUrl}
             target="_blank"
             rel="noreferrer"
             className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors"
-            title="Ouvrir le fichier"
+            title="Ouvrir"
           >
-            Ouvrir <ExternalLink className="h-3 w-3" />
+            <ExternalLink className="h-3 w-3" />
+            <span>Ouvrir</span>
           </a>
         )}
         {doc.analyse_id && (
@@ -228,29 +324,88 @@ function DocRow({ doc, lots, chantierId, token, onDelete, onLotChange, onNomChan
   );
 }
 
-// ── Component principal ───────────────────────────────────────────────────────
+// ── SectionBlock ──────────────────────────────────────────────────────────────
+
+function SectionBlock({ section, docs, lots, chantierId, token, open, onToggle, onDelete, onLotChange, onNomChange, pendingDescribeIds }: {
+  section:            Section;
+  docs:               DocumentChantier[];
+  lots:               LotChantier[];
+  chantierId:         string;
+  token:              string;
+  open:               boolean;
+  onToggle:           () => void;
+  onDelete:           (id: string) => void;
+  onLotChange:        (docId: string, lotId: string | null) => void;
+  onNomChange:        (docId: string, nom: string) => void;
+  pendingDescribeIds: string[];
+}) {
+  if (docs.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      {/* Header cliquable */}
+      <button
+        onClick={onToggle}
+        className={`w-full flex items-center gap-3 px-4 py-3.5 transition-colors text-left ${section.headerCls}`}
+      >
+        <span className="text-lg leading-none shrink-0">{section.emoji}</span>
+        <span className="font-bold text-gray-900 text-sm flex-1">{section.label}</span>
+        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${section.countCls}`}>
+          {docs.length}
+        </span>
+        {open
+          ? <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" />
+          : <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
+        }
+      </button>
+
+      {/* Contenu dépliable */}
+      {open && (
+        <div className="divide-y divide-gray-50">
+          {docs.map(doc => (
+            <DocRow
+              key={doc.id}
+              doc={doc}
+              lots={lots}
+              chantierId={chantierId}
+              token={token}
+              sectionKey={section.key}
+              onDelete={onDelete}
+              onLotChange={onLotChange}
+              onNomChange={onNomChange}
+              pendingDescribeIds={pendingDescribeIds}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Composant principal ───────────────────────────────────────────────────────
 
 export default function DocumentsView({
   documents, lots: lotsProp, chantierId, token,
-  onAddDoc, onDeleteDoc, onDocUpdated, onDocLotUpdated, onDocNomUpdated, onDocStatutUpdated, onDocMontantPayeUpdated,
+  onAddDoc, onDeleteDoc, onDocUpdated, onDocLotUpdated, onDocNomUpdated,
   pendingDescribeIds = [],
 }: {
-  documents: DocumentChantier[];
-  lots: LotChantier[];
-  chantierId: string;
-  token: string;
-  onAddDoc: () => void;
-  onDeleteDoc: (id: string) => void;
-  onDocUpdated: () => void;
-  onDocLotUpdated?: (docId: string, lotId: string | null) => void;
-  onDocNomUpdated?: (docId: string, nom: string) => void;
+  documents:           DocumentChantier[];
+  lots:                LotChantier[];
+  chantierId:          string;
+  token:               string;
+  onAddDoc:            () => void;
+  onDeleteDoc:         (id: string) => void;
+  onDocUpdated:        () => void;
+  onDocLotUpdated?:    (docId: string, lotId: string | null) => void;
+  onDocNomUpdated?:    (docId: string, nom: string) => void;
   onDocStatutUpdated?: (docId: string, statut: string) => void;
   onDocMontantPayeUpdated?: (docId: string, montantPaye: number) => void;
   pendingDescribeIds?: string[];
 }) {
-  const [search, setSearch]         = useState('');
-  const [activeTab, setActiveTab]   = useState<DocumentType | 'all'>('all');
-  const [sortBy, setSortBy]         = useState<'date' | 'alpha' | 'intervenant'>('date');
+  const [search,      setSearch]      = useState('');
+  const [openSections, setOpenSections] = useState<Set<SectionKey>>(
+    () => new Set(['devis', 'factures']),
+  );
   const [lotOverrides, setLotOverrides] = useState<Record<string, string | null>>({});
 
   // Lots réels depuis la DB
@@ -264,7 +419,7 @@ export default function DocumentsView({
   }, [chantierId, token]);
   const realLots = (dbLots.length > 0 ? dbLots : lotsProp).filter(l => !l.id.startsWith('fallback-'));
 
-  // Documents avec overrides de lot appliqués
+  // Documents avec overrides de lot
   const docsWithOverrides = useMemo(() =>
     documents.map(d => ({
       ...d,
@@ -272,43 +427,34 @@ export default function DocumentsView({
     })),
   [documents, lotOverrides]);
 
-  // Filtrage recherche + onglet + tri
+  // Filtrage par recherche
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    const base = docsWithOverrides.filter(doc => {
-      // preuve_paiement n'apparaît que dans son propre onglet (pas dans 'all')
-      if (activeTab === 'all' && doc.document_type === 'preuve_paiement') return false;
-      if (activeTab !== 'all' && doc.document_type !== activeTab) return false;
-      if (!q) return true;
+    if (!q) return docsWithOverrides;
+    return docsWithOverrides.filter(doc => {
       const lot = realLots.find(l => l.id === doc.lot_id);
       return (
         doc.nom.toLowerCase().includes(q) ||
-        doc.document_type.includes(q) ||
         (lot?.nom.toLowerCase().includes(q) ?? false)
       );
     });
+  }, [docsWithOverrides, search, realLots]);
 
-    return [...base].sort((a, b) => {
-      if (sortBy === 'alpha') return a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' });
-      if (sortBy === 'intervenant') {
-        const la = realLots.find(l => l.id === a.lot_id)?.nom ?? '';
-        const lb = realLots.find(l => l.id === b.lot_id)?.nom ?? '';
-        const cmp = la.localeCompare(lb, 'fr', { sensitivity: 'base' });
-        return cmp !== 0 ? cmp : a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' });
-      }
-      // date desc par défaut
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  // Docs par section
+  const docsBySection = useMemo(() =>
+    SECTIONS.map(s => ({ section: s, docs: filtered.filter(s.filter) })),
+  [filtered]);
+
+  const totalVisible = docsBySection.reduce((n, g) => n + g.docs.length, 0);
+
+  function toggleSection(key: SectionKey) {
+    setOpenSections(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
     });
-  }, [docsWithOverrides, activeTab, search, sortBy, realLots]);
-
-  // Compteurs par type
-  const counts = useMemo(() => {
-    const c: Partial<Record<DocumentType, number>> = {};
-    for (const d of docsWithOverrides) c[d.document_type] = (c[d.document_type] ?? 0) + 1;
-    return c;
-  }, [docsWithOverrides]);
-
-  const tabs = TAB_ORDER.filter(t => (counts[t] ?? 0) > 0);
+  }
 
   async function handleChangeLot(docId: string, lotId: string | null) {
     setLotOverrides(prev => ({ ...prev, [docId]: lotId }));
@@ -318,9 +464,8 @@ export default function DocumentsView({
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ lotId }),
       });
-      if (res.ok) {
-        onDocLotUpdated?.(docId, lotId);
-      } else {
+      if (res.ok) { onDocLotUpdated?.(docId, lotId); }
+      else {
         toast.error("Impossible d'affecter l'intervenant");
         setLotOverrides(prev => { const n = { ...prev }; delete n[docId]; return n; });
       }
@@ -331,6 +476,7 @@ export default function DocumentsView({
   }
 
   // ── Empty state ───────────────────────────────────────────────────────────
+
   if (documents.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center px-6">
@@ -349,273 +495,89 @@ export default function DocumentsView({
     );
   }
 
-  // ── Stats bar ─────────────────────────────────────────────────────────────
-  const statsOrder: DocumentType[] = ['devis', 'facture', 'photo', 'autorisation', 'assurance', 'plan', 'autre'];
-
   return (
     <div className="flex flex-col h-full">
 
-      {/* ── Barre de recherche + stats ───────────────────────────────── */}
+      {/* ── Barre de recherche ──────────────────────────────────────────── */}
       <div className="px-6 pt-4 pb-3 border-b border-gray-100 bg-white">
-        {/* Stats chips */}
+        {/* Chips résumé */}
         <div className="flex items-center gap-2 flex-wrap mb-3">
-          {statsOrder.filter(t => (counts[t] ?? 0) > 0).map(t => {
-            const cfg = TYPE_CFG[t];
-            return (
-              <span key={t} className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full ${cfg.iconBg} ${cfg.iconText}`}>
-                {cfg.emoji} {counts[t]} {cfg.plural}
-              </span>
-            );
-          })}
+          {docsBySection.filter(g => g.docs.length > 0).map(({ section, docs }) => (
+            <button
+              key={section.key}
+              onClick={() => {
+                setOpenSections(prev => {
+                  const next = new Set(prev);
+                  next.add(section.key);
+                  return next;
+                });
+                // Scroll to section (simple UX)
+              }}
+              className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full ${section.countCls} hover:opacity-80 transition-opacity`}
+            >
+              {section.emoji} {docs.length}
+            </button>
+          ))}
           <span className="text-[11px] text-gray-400 ml-auto">
-            {documents.length} document{documents.length > 1 ? 's' : ''} au total
+            {documents.length} document{documents.length > 1 ? 's' : ''}
           </span>
         </div>
 
-        {/* Search */}
+        {/* Recherche */}
         <div className="relative">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Rechercher un constat, permis de construire, photo, artisan…"
+            placeholder="Rechercher un document, un artisan…"
             className="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
           />
           {search && (
-            <button
-              onClick={() => setSearch('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
-            >
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500">
               <X className="h-4 w-4" />
             </button>
           )}
         </div>
       </div>
 
-      {/* ── Onglets type + contrôles de tri ─────────────────────────── */}
-      <div className="flex items-center gap-1.5 px-6 py-3 border-b border-gray-100 bg-white overflow-x-auto">
-        {/* Onglets */}
-        <button
-          onClick={() => setActiveTab('all')}
-          className={`flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-all whitespace-nowrap ${
-            activeTab === 'all'
-              ? 'bg-gray-900 text-white'
-              : 'text-gray-500 hover:bg-gray-100'
-          }`}
-        >
-          Tous ({documents.length})
-        </button>
-        {tabs.map(t => {
-          const cfg = TYPE_CFG[t];
-          const active = activeTab === t;
-          return (
-            <button
-              key={t}
-              onClick={() => setActiveTab(t)}
-              className={`flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-all whitespace-nowrap ${
-                active ? `${cfg.tabActiveBg} ${cfg.tabActiveText}` : 'text-gray-500 hover:bg-gray-100'
-              }`}
-            >
-              {cfg.emoji} {cfg.plural} ({counts[t]})
-            </button>
-          );
-        })}
+      {/* ── Sections dépliables ──────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
 
-        {/* Séparateur + tri */}
-        <div className="ml-auto flex items-center gap-1 shrink-0 pl-2 border-l border-gray-100">
-          <button
-            onClick={() => setSortBy('date')}
-            title="Trier par date de dépôt"
-            className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-1.5 rounded-lg transition-all ${
-              sortBy === 'date'
-                ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
-            }`}
-          >
-            <CalendarDays className="h-3 w-3" />
-            <span className="hidden sm:inline">Date</span>
-          </button>
-          <button
-            onClick={() => setSortBy('alpha')}
-            title="Trier par ordre alphabétique"
-            className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-1.5 rounded-lg transition-all ${
-              sortBy === 'alpha'
-                ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
-            }`}
-          >
-            <ALargeSmall className="h-3 w-3" />
-            <span className="hidden sm:inline">A→Z</span>
-          </button>
-          <button
-            onClick={() => setSortBy('intervenant')}
-            title="Grouper par intervenant"
-            className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-1.5 rounded-lg transition-all ${
-              sortBy === 'intervenant'
-                ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
-            }`}
-          >
-            <Wrench className="h-3 w-3" />
-            <span className="hidden sm:inline">Intervenant</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ── Liste documents ───────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
-        {filtered.length === 0 ? (
+        {search && totalVisible === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Search className="h-8 w-8 text-gray-200 mb-3" />
             <p className="font-semibold text-gray-700 mb-1">Aucun résultat</p>
-            <p className="text-sm text-gray-400">
-              {search ? `Aucun document ne correspond à « ${search} »` : 'Aucun document dans cette catégorie'}
-            </p>
-            {search && (
-              <button onClick={() => setSearch('')} className="mt-3 text-sm text-blue-600 hover:text-blue-700 font-medium">
-                Effacer la recherche
-              </button>
-            )}
-          </div>
-        ) : activeTab === 'all' && sortBy === 'intervenant' ? (
-          // Mode "Tous" + tri intervenant : regroupé par lot
-          <div className="space-y-4">
-            {(() => {
-              const groups: { lotId: string | null; lot: LotChantier | null; docs: typeof filtered }[] = [];
-              const seen = new Set<string | null>();
-              for (const doc of filtered) {
-                const key = doc.lot_id ?? null;
-                if (!seen.has(key)) {
-                  seen.add(key);
-                  groups.push({
-                    lotId: key,
-                    lot: key ? (realLots.find(l => l.id === key) ?? null) : null,
-                    docs: [],
-                  });
-                }
-              }
-              // Rempli les docs dans chaque groupe
-              for (const doc of filtered) {
-                const g = groups.find(g => g.lotId === (doc.lot_id ?? null));
-                if (g) g.docs.push(doc);
-              }
-              // Trier groupes : lots nommés d'abord (alpha), puis "Sans intervenant"
-              groups.sort((a, b) => {
-                if (!a.lot && b.lot) return 1;
-                if (a.lot && !b.lot) return -1;
-                return (a.lot?.nom ?? '').localeCompare(b.lot?.nom ?? '', 'fr', { sensitivity: 'base' });
-              });
-              return groups.map(({ lot, docs }) => (
-                <div key={lot?.id ?? '__none__'} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                  <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-50 bg-purple-50/40">
-                    <span className="text-base leading-none">{lot ? (lot.emoji ?? '🔧') : '📁'}</span>
-                    <span className="font-bold text-gray-900 text-sm">
-                      {lot ? lot.nom : 'Sans intervenant'}
-                    </span>
-                    <span className="text-xs text-gray-400 font-normal ml-0.5">({docs.length})</span>
-                  </div>
-                  {docs.map(doc => (
-                    <DocRow
-                      key={doc.id}
-                      doc={doc}
-                      lots={realLots}
-                      chantierId={chantierId}
-                      token={token}
-                      onDelete={onDeleteDoc}
-                      onLotChange={handleChangeLot}
-                      onNomChange={(id, nom) => onDocNomUpdated?.(id, nom)}
-                      onStatutChange={onDocStatutUpdated}
-                      onMontantPayeChange={onDocMontantPayeUpdated}
-                      pendingDescribeIds={pendingDescribeIds}
-                    />
-                  ))}
-                </div>
-              ));
-            })()}
-            <button
-              onClick={onAddDoc}
-              className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-2xl py-4 text-sm text-gray-400 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-all"
-            >
-              <Plus className="h-4 w-4" /> Ajouter un document
+            <p className="text-sm text-gray-400">Aucun document ne correspond à « {search} »</p>
+            <button onClick={() => setSearch('')} className="mt-3 text-sm text-blue-600 hover:text-blue-700 font-medium">
+              Effacer la recherche
             </button>
-          </div>
-        ) : activeTab === 'all' ? (
-          // Mode "Tous" : regroupé par type
-          <div className="space-y-4">
-            {TAB_ORDER.filter(t => filtered.some(d => d.document_type === t)).map(t => {
-              const cfg = TYPE_CFG[t];
-              const group = filtered.filter(d => d.document_type === t);
-              return (
-                <div key={t} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                  <div className={`flex items-center gap-2 px-4 py-3 border-b border-gray-50`}>
-                    <span className="text-base leading-none">{cfg.emoji}</span>
-                    <span className="font-bold text-gray-900 text-sm">{cfg.plural}</span>
-                    <span className="text-xs text-gray-400 font-normal ml-0.5">({group.length})</span>
-                    <button
-                      onClick={() => setActiveTab(t)}
-                      className="ml-auto text-[11px] text-blue-600 hover:text-blue-800 font-semibold"
-                    >
-                      Voir tous →
-                    </button>
-                  </div>
-                  {group.map(doc => (
-                    <DocRow
-                      key={doc.id}
-                      doc={doc}
-                      lots={realLots}
-                      chantierId={chantierId}
-                      token={token}
-                      onDelete={onDeleteDoc}
-                      onLotChange={handleChangeLot}
-                      onNomChange={(id, nom) => onDocNomUpdated?.(id, nom)}
-                      onStatutChange={onDocStatutUpdated}
-                      onMontantPayeChange={onDocMontantPayeUpdated}
-                      pendingDescribeIds={pendingDescribeIds}
-                    />
-                  ))}
-                </div>
-              );
-            })}
-            {/* Bouton ajout en bas */}
-            <button
-              onClick={onAddDoc}
-              className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-2xl py-4 text-sm text-gray-400 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-all"
-            >
-              <Plus className="h-4 w-4" /> Ajouter un document
-            </button>
-          </div>
-        ) : (
-          // Mode onglet spécifique : liste plate
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            {/* Header du groupe */}
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/60">
-              <span className="text-base">{TYPE_CFG[activeTab].emoji}</span>
-              <span className="font-bold text-gray-900 text-sm">{TYPE_CFG[activeTab].plural}</span>
-              <span className="text-xs text-gray-400">({filtered.length})</span>
-            </div>
-            {/* En-tête colonnes */}
-            <div className="grid grid-cols-[1fr_auto_auto] gap-4 px-4 py-2 border-b border-gray-50 bg-gray-50/40">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Document</span>
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Intervenant</span>
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Actions</span>
-            </div>
-            {filtered.map(doc => (
-              <DocRow
-                key={doc.id}
-                doc={doc}
-                lots={realLots}
-                chantierId={chantierId}
-                token={token}
-                onDelete={onDeleteDoc}
-                onLotChange={handleChangeLot}
-                onNomChange={(id, nom) => onDocNomUpdated?.(id, nom)}
-                onStatutChange={onDocStatutUpdated}
-                onMontantPayeChange={onDocMontantPayeUpdated}
-                pendingDescribeIds={pendingDescribeIds}
-              />
-            ))}
           </div>
         )}
+
+        {docsBySection.map(({ section, docs }) => (
+          <SectionBlock
+            key={section.key}
+            section={section}
+            docs={docs}
+            lots={realLots}
+            chantierId={chantierId}
+            token={token}
+            open={openSections.has(section.key)}
+            onToggle={() => toggleSection(section.key)}
+            onDelete={onDeleteDoc}
+            onLotChange={handleChangeLot}
+            onNomChange={(id, nom) => onDocNomUpdated?.(id, nom)}
+            pendingDescribeIds={pendingDescribeIds}
+          />
+        ))}
+
+        {/* Bouton ajouter */}
+        <button
+          onClick={onAddDoc}
+          className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-2xl py-4 text-sm text-gray-400 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50/30 transition-all"
+        >
+          <Plus className="h-4 w-4" /> Ajouter un document
+        </button>
       </div>
     </div>
   );

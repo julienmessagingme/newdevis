@@ -15,6 +15,7 @@ export interface ScoreDistribution {
   color: string;
 }
 
+
 export interface RegisteredUser {
   id: string;
   email: string;

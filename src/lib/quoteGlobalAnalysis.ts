@@ -152,7 +152,7 @@ export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
   let status: GlobalStatus;
   if (nbAnomalie >= 2) {
     status = "risque_eleve";
-  } else if (nbSurvalue >= 5) {
+  } else if (nbAnomalie >= 1 || nbSurvalue >= 3) {
     status = "a_negocier";
   } else {
     status = "correct";
