@@ -185,6 +185,20 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     return jsonError('Document introuvable après mise à jour', 404);
   }
 
+  // Fire-and-forget: re-trigger agent when lot assignment or statut changes
+  if ('lot_id' in updates || 'devis_statut' in updates || 'facture_statut' in updates) {
+    const _sbUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+    const _sbKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
+    fetch(`${_sbUrl}/functions/v1/agent-checks`, {
+      method: 'POST', headers: { 'Authorization': `Bearer ${_sbKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chantier_id: params.id }),
+    }).catch(() => {});
+    fetch(`${_sbUrl}/functions/v1/agent-orchestrator`, {
+      method: 'POST', headers: { 'Authorization': `Bearer ${_sbKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chantier_id: params.id, run_type: 'morning' }),
+    }).catch(() => {});
+  }
+
   return jsonOk({ document: updated });
 };
 
