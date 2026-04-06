@@ -794,6 +794,7 @@ export type Database = {
         Row: {
           analyse_id: string | null
           chantier_id: string
+          contact_category: string | null
           created_at: string
           devis_id: string | null
           email: string | null
@@ -810,6 +811,7 @@ export type Database = {
         Insert: {
           analyse_id?: string | null
           chantier_id: string
+          contact_category?: string | null
           created_at?: string
           devis_id?: string | null
           email?: string | null
@@ -826,6 +828,7 @@ export type Database = {
         Update: {
           analyse_id?: string | null
           chantier_id?: string
+          contact_category?: string | null
           created_at?: string
           devis_id?: string | null
           email?: string | null

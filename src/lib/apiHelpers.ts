@@ -136,6 +136,62 @@ export async function authenticateUserOrAgent(
   return { ...ctx, isAgent: false };
 }
 
+// ── OpenClaw real-time trigger (fire-and-forget) ───────────────────────────
+
+/**
+ * Trigger l'agent OpenClaw en temps réel (si l'utilisateur est en mode openclaw).
+ * Edge function users → rien (traité par cron).
+ * Appelé fire-and-forget depuis les webhooks (whapi, inbound-email).
+ */
+export async function triggerAgentIfOpenClaw(event: {
+  event_type: string;
+  chantier_id: string;
+  user_id: string;
+  payload: Record<string, unknown>;
+}) {
+  try {
+    const supabase = createServiceClient();
+    const { data: config } = await supabase
+      .from('agent_config')
+      .select('agent_mode, openclaw_url, openclaw_token, openclaw_agent_id')
+      .eq('user_id', event.user_id)
+      .single();
+
+    if (config?.agent_mode !== 'openclaw' || !config.openclaw_url || !config.openclaw_token) return;
+
+    const url = config.openclaw_url.replace(/\/$/, '');
+    const p = event.payload as Record<string, string>;
+
+    let message: string;
+    switch (event.event_type) {
+      case 'whatsapp_message':
+        message = `[GererMonChantier] Message WhatsApp chantier ${event.chantier_id}\nDe: ${p.from}\nMessage: ${p.body}\n\nUtilise tes skills chantier-* pour analyser et agir.`;
+        break;
+      case 'inbound_email':
+        message = `[GererMonChantier] Email reçu chantier ${event.chantier_id}\nDe: ${p.from}\nSujet: ${p.subject}\nContenu: ${p.body}\n\nUtilise tes skills chantier-*.`;
+        break;
+      case 'document_uploaded':
+        message = `[GererMonChantier] Document uploadé chantier ${event.chantier_id}\nNom: ${p.nom}\nType: ${p.document_type}\n\nUtilise tes skills chantier-*.`;
+        break;
+      default:
+        message = `[GererMonChantier] Event ${event.event_type} chantier ${event.chantier_id}\n${JSON.stringify(p)}`;
+    }
+
+    fetch(`${url}/hooks/agent`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${config.openclaw_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        name: 'GererMonChantier',
+        agentId: config.openclaw_agent_id ?? undefined,
+        sessionKey: `hook:chantier:${event.chantier_id}`,
+        wakeMode: 'now',
+        deliver: false,
+      }),
+    }).catch(() => {});
+  } catch { /* silent fail — fire and forget */ }
+}
+
 // ── Body parsing ────────────────────────────────────────────────────────────
 
 export async function parseJsonBody<T = Record<string, unknown>>(request: Request): Promise<T | Response> {

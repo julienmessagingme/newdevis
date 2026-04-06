@@ -221,15 +221,48 @@ export default function ContactsSection({ chantierId, token }: Props) {
 
   async function handleSave(form: {
     nom: string; email: string; telephone: string; siret: string;
-    role: string; lot_id: string; notes: string; contactId?: string;
-    source?: string; devis_id?: string; analyse_id?: string;
+    role: string; contact_category?: string; lot_id: string; notes: string;
+    contactId?: string; source?: string; devis_id?: string; analyse_id?: string;
   }) {
     setSaving(true);
+    let lotId = form.lot_id;
+    const cat = form.contact_category ?? 'artisan';
+
+    // Auto-create virtual lot for architecte/MOE/BET if no lot selected
+    if (['architecte', 'maitre_oeuvre', 'bureau_etudes'].includes(cat) && !lotId) {
+      const lotNames: Record<string, string> = {
+        architecte: 'Architecte',
+        maitre_oeuvre: "Maître d'oeuvre",
+        bureau_etudes: "Bureau d'études",
+      };
+      // Check if a lot with this name already exists
+      const existingLot = lots.find(l =>
+        l.nom.toLowerCase().includes(lotNames[cat]!.toLowerCase())
+      );
+      if (existingLot) {
+        lotId = existingLot.id;
+      } else {
+        const lotRes = await fetch(`/api/chantier/${chantierId}/lots`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nom: lotNames[cat],
+            budget_min_ht: 0, budget_avg_ht: 0, budget_max_ht: 0,
+          }),
+        });
+        if (lotRes.ok) {
+          const newLot = await lotRes.json();
+          lotId = newLot.lot?.id ?? newLot.id ?? '';
+        }
+      }
+    }
+
+    const payload = { ...form, lot_id: lotId };
     const isUpdate = !!form.contactId;
     const res = await fetch(`/api/chantier/${chantierId}/contacts`, {
       method: isUpdate ? 'PATCH' : 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(isUpdate ? { contactId: form.contactId, ...form } : form),
+      body: JSON.stringify(isUpdate ? { contactId: form.contactId, ...payload } : payload),
     });
     setSaving(false);
     if (res.ok) {
@@ -563,13 +596,14 @@ function ContactFormModal({ contact, lots, saving, onSave, onClose }: {
   const [telephone, setTelephone] = useState(contact?.telephone ?? '');
   const [siret, setSiret]         = useState(contact?.siret ?? '');
   const [role, setRole]           = useState(contact?.role ?? '');
+  const [category, setCategory]   = useState(contact?.dbContact?.contact_category ?? 'artisan');
   const [lotId, setLotId]         = useState(contact?.lotId ?? '');
   const [notes, setNotes]         = useState(contact?.dbContact?.notes ?? '');
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     onSave({
-      nom, email, telephone, siret, role, lot_id: lotId, notes,
+      nom, email, telephone, siret, role, contact_category: category, lot_id: lotId, notes,
       ...(isEdit ? { contactId: contact!.id } : {}),
       // If creating from a devis-sourced contact, link it
       ...(!isEdit && contact?.devisId ? {
@@ -622,22 +656,43 @@ function ContactFormModal({ contact, lots, saving, onSave, onClose }: {
             </div>
           </div>
 
-          {/* SIRET + Rôle */}
+          {/* SIRET */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">SIRET</label>
+            <input
+              type="text" value={siret} onChange={e => setSiret(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+              placeholder="12345678901234"
+            />
+          </div>
+
+          {/* Catégorie (pour l'agent IA) + Métier libre */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">SIRET</label>
-              <input
-                type="text" value={siret} onChange={e => setSiret(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
-                placeholder="12345678901234"
-              />
+              <label className="block text-xs font-medium text-gray-500 mb-1">Catégorie</label>
+              <select
+                value={category} onChange={e => {
+                  setCategory(e.target.value);
+                  if (e.target.value === 'architecte' && !role) setRole('Architecte');
+                  if (e.target.value === 'maitre_oeuvre' && !role) setRole("Maître d'oeuvre");
+                  if (e.target.value === 'bureau_etudes' && !role) setRole("Bureau d'études");
+                }}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 bg-white"
+              >
+                <option value="artisan">Artisan / Entreprise</option>
+                <option value="architecte">Architecte</option>
+                <option value="maitre_oeuvre">Maître d'oeuvre</option>
+                <option value="bureau_etudes">Bureau d'études</option>
+                <option value="client">Client / Particulier</option>
+                <option value="autre">Autre</option>
+              </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Métier / Rôle</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Métier / Spécialité</label>
               <input
                 type="text" value={role} onChange={e => setRole(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
-                placeholder="Ex: Électricien, Plombier..."
+                placeholder={category === 'artisan' ? 'Ex: Électricien, Plombier...' : 'Ex: DPLG, OPC...'}
               />
             </div>
           </div>

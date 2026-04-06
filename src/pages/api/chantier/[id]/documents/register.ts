@@ -101,6 +101,13 @@ export const POST: APIRoute = async ({ params, request }) => {
   const { data: s } = await ctx.supabase.storage
     .from(BUCKET).createSignedUrl(bucketPath, SIGNED_TTL);
 
+  // Fire-and-forget: trigger deterministic agent checks ($0)
+  fetch(`${import.meta.env.PUBLIC_SUPABASE_URL}/functions/v1/agent-checks`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${import.meta.env.SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chantier_id: id }),
+  }).catch(() => {});
+
   return jsonOk({ document: { ...doc, signedUrl: s?.signedUrl ?? null } }, 201);
 };
 

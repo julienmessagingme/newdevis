@@ -202,6 +202,7 @@ export const POST: APIRoute = async ({ params, request }) => {
       telephone: body.telephone?.trim() || null,
       siret: body.siret?.trim() || null,
       role: body.role?.trim() || null,
+      contact_category: ['artisan','architecte','maitre_oeuvre','bureau_etudes','client','autre'].includes(body.contact_category) ? body.contact_category : 'artisan',
       lot_id: body.lot_id || null,
       notes: body.notes?.trim() || null,
       source: body.source ?? 'manual',
@@ -231,6 +232,9 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   if (body.telephone !== undefined) updates.telephone = body.telephone?.trim() || null;
   if (body.siret !== undefined)     updates.siret     = body.siret?.trim() || null;
   if (body.role !== undefined)      updates.role      = body.role?.trim() || null;
+  if (body.contact_category !== undefined && ['artisan','architecte','maitre_oeuvre','bureau_etudes','client','autre'].includes(body.contact_category)) {
+    updates.contact_category = body.contact_category;
+  }
   if (body.lot_id !== undefined)    updates.lot_id    = body.lot_id || null;
   if (body.notes !== undefined)     updates.notes     = body.notes?.trim() || null;
 

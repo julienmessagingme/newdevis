@@ -2,6 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { createClient } from '@supabase/supabase-js';
+import { triggerAgentIfOpenClaw } from '@/lib/apiHelpers';
 
 const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
 const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -216,6 +217,14 @@ async function processInbound(
     // Non-blocking — log but don't fail the webhook
     console.error('[inbound-email] Notification email failed:', err instanceof Error ? err.message : err);
   }
+
+  // Real-time trigger for OpenClaw users (edge_function users get cron)
+  triggerAgentIfOpenClaw({
+    event_type: 'inbound_email',
+    chantier_id: conversation.chantier_id,
+    user_id: conversation.user_id,
+    payload: { from: fields.from, subject: fields.subject, body: cleanedText },
+  });
 
   console.log(`[inbound-email] Message stored for conversation ${conversation.id}`);
   return ok({ success: true, conversationId: conversation.id });

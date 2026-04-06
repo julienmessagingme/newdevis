@@ -3,6 +3,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { createClient } from '@supabase/supabase-js';
 import { formatPhone } from '@/lib/whapiUtils';
+import { triggerAgentIfOpenClaw } from '@/lib/apiHelpers';
 
 const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
 const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -113,6 +114,20 @@ export const POST: APIRoute = async ({ request }) => {
         timestamp,
       }, { onConflict: 'id' });
     if (upsertErr) console.error('[whapi] upsert error:', upsertErr.message);
+
+    // Real-time trigger for OpenClaw users (edge_function users get cron)
+    if (!msg.from_me) {
+      const { data: chantierOwner } = await supabase
+        .from('chantiers').select('user_id').eq('id', group.chantier_id).single();
+      if (chantierOwner) {
+        triggerAgentIfOpenClaw({
+          event_type: 'whatsapp_message',
+          chantier_id: group.chantier_id,
+          user_id: chantierOwner.user_id,
+          payload: { from: String(msg.from ?? ''), body: body ?? '', type: msg.type, timestamp },
+        });
+      }
+    }
   }
 
   for (const event of events) {
