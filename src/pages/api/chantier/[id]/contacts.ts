@@ -213,6 +213,13 @@ export const POST: APIRoute = async ({ params, request }) => {
     .single();
 
   if (error) return jsonError(error.message, 500);
+
+  // Invalidate agent context cache (new contact = stale phone→lot mapping)
+  ctx.supabase.from('agent_context_cache')
+    .update({ invalidated: true })
+    .eq('chantier_id', chantierId)
+    .then(() => {}).catch(() => {});
+
   return jsonOk({ contact: data }, 201);
 };
 
@@ -247,6 +254,13 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     .single();
 
   if (error) return jsonError(error.message, 500);
+
+  // Invalidate agent context cache (updated contact = stale phone→lot mapping)
+  ctx.supabase.from('agent_context_cache')
+    .update({ invalidated: true })
+    .eq('chantier_id', chantierId)
+    .then(() => {}).catch(() => {});
+
   return jsonOk({ contact: data });
 };
 

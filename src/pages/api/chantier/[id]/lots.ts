@@ -41,6 +41,12 @@ export const POST: APIRoute = async ({ request, params }) => {
     return jsonError('Erreur lors de la création du lot', 500);
   }
 
+  // Invalidate agent context cache (new lot = stale context)
+  ctx.supabase.from('agent_context_cache')
+    .update({ invalidated: true })
+    .eq('chantier_id', params.id!)
+    .then(() => {}).catch(() => {});
+
   return jsonOk({ lot: data }, 201);
 };
 
