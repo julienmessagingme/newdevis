@@ -105,7 +105,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   fetch(`${import.meta.env.PUBLIC_SUPABASE_URL}/functions/v1/agent-checks`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${import.meta.env.SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chantier_id: id }),
+    body: JSON.stringify({ chantier_id: chantierId }),
   }).catch(() => {});
 
   return jsonOk({ document: { ...doc, signedUrl: s?.signedUrl ?? null } }, 201);

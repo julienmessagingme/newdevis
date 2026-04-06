@@ -18,6 +18,7 @@ interface Contact {
   telephone: string | null;
   siret: string | null;
   role: string | null;
+  contact_category: string | null;
   lot_id: string | null;
   notes: string | null;
   source: 'manual' | 'devis' | 'facture';
@@ -585,8 +586,8 @@ function ContactFormModal({ contact, lots, saving, onSave, onClose }: {
   saving: boolean;
   onSave: (form: {
     nom: string; email: string; telephone: string; siret: string;
-    role: string; lot_id: string; notes: string; contactId?: string;
-    source?: string; devis_id?: string; analyse_id?: string;
+    role: string; contact_category?: string; lot_id: string; notes: string;
+    contactId?: string; source?: string; devis_id?: string; analyse_id?: string;
   }) => void;
   onClose: () => void;
 }) {
@@ -596,7 +597,9 @@ function ContactFormModal({ contact, lots, saving, onSave, onClose }: {
   const [telephone, setTelephone] = useState(contact?.telephone ?? '');
   const [siret, setSiret]         = useState(contact?.siret ?? '');
   const [role, setRole]           = useState(contact?.role ?? '');
-  const [category, setCategory]   = useState(contact?.dbContact?.contact_category ?? 'artisan');
+  const [category, setCategory]   = useState(
+    contact?.dbContact?.contact_category ?? (contact as any)?.contact_category ?? 'artisan'
+  );
   const [lotId, setLotId]         = useState(contact?.lotId ?? '');
   const [notes, setNotes]         = useState(contact?.dbContact?.notes ?? '');
 

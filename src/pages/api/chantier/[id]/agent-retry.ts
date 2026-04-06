@@ -51,7 +51,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     },
     body: JSON.stringify({
       chantier_id: chantierId,
-      run_type: 'morning',  // real-time analysis, not digest
+      run_type: 'morning',  // morning = analyse messages & agir. evening = digest journal.
     }),
   }).catch(() => {});
 

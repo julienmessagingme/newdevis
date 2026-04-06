@@ -50,6 +50,7 @@ export const POST: APIRoute = async ({ request }) => {
   if (messages.length === 0 && events.length === 0) return new Response('OK', { status: 200 });
 
   const supabase = makeClient();
+  const chantierOwnerCache = new Map<string, string>(); // chantier_id → user_id
 
   for (const msg of messages) {
     // whapi uses chat_id for the group JID (not "to")
@@ -117,13 +118,17 @@ export const POST: APIRoute = async ({ request }) => {
 
     // Real-time trigger for OpenClaw users (edge_function users get cron)
     if (!msg.from_me) {
-      const { data: chantierOwner } = await supabase
-        .from('chantiers').select('user_id').eq('id', group.chantier_id).single();
-      if (chantierOwner) {
+      let ownerId = chantierOwnerCache.get(group.chantier_id);
+      if (!ownerId) {
+        const { data: chantierOwner } = await supabase
+          .from('chantiers').select('user_id').eq('id', group.chantier_id).single();
+        if (chantierOwner) { ownerId = chantierOwner.user_id; chantierOwnerCache.set(group.chantier_id, ownerId); }
+      }
+      if (ownerId) {
         triggerAgentIfOpenClaw({
           event_type: 'whatsapp_message',
           chantier_id: group.chantier_id,
-          user_id: chantierOwner.user_id,
+          user_id: ownerId,
           payload: { from: String(msg.from ?? ''), body: body ?? '', type: msg.type, timestamp },
         });
       }
