@@ -279,7 +279,7 @@ export default function IntervenantsListView({
                     <button
                       onClick={() => onAddDevisForLot(lot.id)}
                       className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg transition-colors whitespace-nowrap">
-                      + Devis
+                      + Ajouter un document
                     </button>
                     <button
                       onClick={() => onGoToLot(lot.id)}
@@ -299,7 +299,7 @@ export default function IntervenantsListView({
                       <button
                         onClick={() => onAddDevisForLot(lot.id)}
                         className="text-[11px] font-semibold text-blue-600 bg-white hover:bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg transition-colors">
-                        + Ajouter
+                        + Ajouter un document
                       </button>
                     </div>
                   </div>
