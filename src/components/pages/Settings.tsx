@@ -16,10 +16,17 @@ import {
   CheckCircle2,
   ExternalLink,
   Crown,
+  Bot,
+  ChevronDown,
+  Zap,
+  Globe,
+  Key,
+  Info,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { usePremium } from "@/hooks/usePremium";
+import { useAgentConfig } from "@/hooks/useAgentConfig";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 const formatPhoneNumber = (value: string) => {
@@ -535,9 +542,267 @@ const Settings = () => {
             </Button>
           </form>
         </div>
+
+        {/* ── Agent IA ──────────────────────────────────────────────── */}
+        <AgentConfigCard />
       </main>
     </div>
   );
 };
+
+// ── Agent IA Configuration Card ─────────────────────────────────────────────
+
+function AgentConfigCard() {
+  const { config, isLoading, isSaving, error, save } = useAgentConfig();
+  const [mode, setMode] = useState<string>('edge_function');
+  const [openclawUrl, setOpenclawUrl] = useState('');
+  const [openclawToken, setOpenclawToken] = useState('');
+  const [openclawAgentId, setOpenclawAgentId] = useState('');
+  const [showGuide, setShowGuide] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+
+  // Sync local state from fetched config
+  useEffect(() => {
+    if (!isLoading && !initialized) {
+      setMode(config.agent_mode);
+      setOpenclawUrl(config.openclaw_url ?? '');
+      setOpenclawAgentId(config.openclaw_agent_id ?? '');
+      setInitialized(true);
+    }
+  }, [isLoading, config, initialized]);
+
+  async function handleSave() {
+    const updates: Record<string, unknown> = { agent_mode: mode };
+    if (mode === 'openclaw') {
+      updates.openclaw_url = openclawUrl;
+      updates.openclaw_token = openclawToken;
+      updates.openclaw_agent_id = openclawAgentId || undefined;
+    }
+    const ok = await save(updates as any);
+    if (ok) toast.success('Configuration agent sauvegardee');
+    // Error is displayed inline below the button via {error && ...}
+  }
+
+  async function handleToggle() {
+    const newMode = config.agent_mode === 'disabled' ? 'edge_function' : 'disabled';
+    const ok = await save({ agent_mode: newMode as any });
+    if (ok) {
+      setMode(newMode);
+      toast.success(newMode === 'disabled' ? 'Agent desactive' : 'Agent active');
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="bg-card border border-border rounded-xl p-6 mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Bot className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">Agent IA</h2>
+        </div>
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-6 mb-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Bot className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">Agent IA — Pilote de Chantier</h2>
+        </div>
+        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+          config.agent_mode === 'disabled'
+            ? 'bg-gray-100 text-gray-500'
+            : config.agent_mode === 'openclaw'
+              ? 'bg-purple-100 text-purple-700'
+              : 'bg-green-100 text-green-700'
+        }`}>
+          {config.agent_mode === 'disabled' ? 'Desactive' : config.agent_mode === 'openclaw' ? 'OpenClaw' : 'Actif'}
+        </span>
+      </div>
+
+      {/* Description */}
+      <p className="text-sm text-muted-foreground mb-5">
+        L'agent IA surveille vos messages WhatsApp et emails, detecte les impacts sur le planning et le budget, et produit un journal de chantier quotidien.
+      </p>
+
+      {/* Toggle actif/inactif */}
+      <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl mb-5">
+        <div>
+          <p className="text-sm font-medium">Activer l'agent</p>
+          <p className="text-xs text-muted-foreground">Analyse automatique des messages et documents</p>
+        </div>
+        <button
+          onClick={handleToggle}
+          disabled={isSaving}
+          className={`relative w-11 h-6 rounded-full transition-colors ${
+            config.agent_mode !== 'disabled' ? 'bg-primary' : 'bg-gray-300'
+          }`}
+        >
+          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+            config.agent_mode !== 'disabled' ? 'translate-x-5' : ''
+          }`} />
+        </button>
+      </div>
+
+      {/* Mode selector (only when active) */}
+      {config.agent_mode !== 'disabled' && (
+        <>
+          <div className="space-y-3 mb-5">
+            <Label className="text-sm font-medium">Mode de fonctionnement</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Edge function */}
+              <button
+                type="button"
+                onClick={() => setMode('edge_function')}
+                className={`p-4 rounded-xl border-2 text-left transition-all ${
+                  mode === 'edge_function' ? 'border-primary bg-primary/5' : 'border-border hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Zap className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-semibold">Standard</span>
+                  <span className="text-[10px] font-medium bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Gratuit</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Analyse temps reel de chaque message. Digest quotidien a 19h. Nous payons les tokens.
+                </p>
+              </button>
+
+              {/* OpenClaw */}
+              <button
+                type="button"
+                onClick={() => setMode('openclaw')}
+                className={`p-4 rounded-xl border-2 text-left transition-all ${
+                  mode === 'openclaw' ? 'border-purple-500 bg-purple-50' : 'border-border hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Globe className="h-4 w-4 text-purple-600" />
+                  <span className="text-sm font-semibold">OpenClaw</span>
+                  <span className="text-[10px] font-medium bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">Avance</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Votre instance OpenClaw. Contexte vivant, multi-tour, proactif. Vous payez vos tokens.
+                </p>
+              </button>
+            </div>
+          </div>
+
+          {/* OpenClaw fields */}
+          {mode === 'openclaw' && (
+            <div className="space-y-4 p-4 bg-purple-50/50 rounded-xl border border-purple-100 mb-5">
+              <div className="space-y-2">
+                <Label htmlFor="openclaw-url" className="text-sm">URL de votre instance</Label>
+                <div className="relative">
+                  <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="openclaw-url"
+                    type="url"
+                    placeholder="https://mon-openclaw.example.com"
+                    value={openclawUrl}
+                    onChange={e => setOpenclawUrl(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="openclaw-token" className="text-sm">Token d'authentification</Label>
+                <div className="relative">
+                  <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="openclaw-token"
+                    type="password"
+                    placeholder="Votre token OpenClaw"
+                    value={openclawToken}
+                    onChange={e => setOpenclawToken(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="openclaw-agent" className="text-sm">Agent ID <span className="text-muted-foreground">(optionnel)</span></Label>
+                <Input
+                  id="openclaw-agent"
+                  type="text"
+                  placeholder="ID de l'agent (laisser vide pour defaut)"
+                  value={openclawAgentId}
+                  onChange={e => setOpenclawAgentId(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Save button */}
+          {mode !== config.agent_mode || (mode === 'openclaw' && (openclawUrl !== (config.openclaw_url ?? '') || openclawToken || openclawAgentId !== (config.openclaw_agent_id ?? ''))) ? (
+            <Button onClick={handleSave} disabled={isSaving} className="mb-5">
+              {isSaving ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Sauvegarde...</> : 'Sauvegarder'}
+            </Button>
+          ) : null}
+
+          {error && <p className="text-sm text-red-500 mb-4">{error}</p>}
+
+          {/* Guide OpenClaw (accordion) */}
+          {mode === 'openclaw' && (
+            <div className="border border-border rounded-xl overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowGuide(!showGuide)}
+                className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/30 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Guide de configuration OpenClaw</span>
+                </div>
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${showGuide ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showGuide && (
+                <div className="px-4 pb-4 space-y-3 text-sm text-muted-foreground">
+                  <div className="flex gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">1</span>
+                    <p>Installez OpenClaw sur votre serveur ou utilisez une instance cloud.</p>
+                  </div>
+                  <div className="flex gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">2</span>
+                    <p>Copiez les 5 skills depuis <code className="text-xs bg-muted px-1 py-0.5 rounded">docs/openclaw-skills/</code> dans votre workspace OpenClaw.</p>
+                  </div>
+                  <div className="flex gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">3</span>
+                    <p>Activez les hooks dans <code className="text-xs bg-muted px-1 py-0.5 rounded">openclaw.json</code> avec la source <code className="text-xs bg-muted px-1 py-0.5 rounded">GererMonChantier</code>.</p>
+                  </div>
+                  <div className="flex gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">4</span>
+                    <p>Renseignez l'URL et le token ci-dessus, puis sauvegardez.</p>
+                  </div>
+                  <div className="flex gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">5</span>
+                    <p>Envoyez un message dans un groupe WhatsApp pour tester. L'agent reagira en temps reel.</p>
+                  </div>
+
+                  <div className="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-100">
+                    <p className="font-medium text-purple-700 text-xs mb-1">Avantages OpenClaw vs Standard :</p>
+                    <ul className="text-xs space-y-1 text-purple-600">
+                      <li>Contexte vivant qui s'enrichit message apres message</li>
+                      <li>Multi-tour : attend la reponse d'un artisan, relance si besoin</li>
+                      <li>Proactif : peut envoyer des messages WhatsApp de sa propre initiative</li>
+                      <li>Memoire long terme entre les sessions</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
 
 export default Settings;
