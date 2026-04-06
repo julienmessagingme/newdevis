@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import type { ChantierIAResult, DocumentChantier, LotChantier } from '@/types/chantier-ia';
 import { ExpertAvatar } from '@/components/chantier/MATERIAL_IMAGES';
-import { useChantierAssistant } from '@/hooks/useChantierAssistant';
 import { useTaches } from '@/hooks/useTaches';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -30,6 +29,10 @@ interface Props {
   chantierId: string | null;
   token: string | null | undefined;
   agentInsights?: AgentInsightsData;
+  assistantData?: { action_prioritaire?: any; alertes?: any[]; insights?: string[]; conseil_metier?: string } | null;
+  assistantLoading?: boolean;
+  assistantError?: string | null;
+  assistantRefresh?: () => void;
   onAddDoc: () => void;
   onGoToLots: () => void;
   onGoToAnalyse: () => void;
@@ -74,11 +77,9 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
 
 function AssistantChantierSection({
   result, documents, lots, chantierId, token,
-  agentInsights, onAddDoc, onGoToLots, onGoToAnalyse, onGoToBudget, onGoToJournal, onOpenChat,
+  agentInsights, assistantData: data, assistantLoading: loading, assistantError: error, assistantRefresh: refresh,
+  onAddDoc, onGoToLots, onGoToAnalyse, onGoToBudget, onGoToJournal, onOpenChat,
 }: Props) {
-  const { data, loading, error, refresh } = useChantierAssistant({
-    chantierId, token, result, documents, lots, enabled: true,
-  });
   const taches = useTaches(chantierId, token);
   const [newTask, setNewTask] = useState('');
   const [showAllTasks, setShowAllTasks] = useState(false);
@@ -175,7 +176,7 @@ function AssistantChantierSection({
           <p className="text-xs text-gray-400">Votre assistant IA</p>
         </div>
         <button
-          onClick={() => { refresh(); taches.refresh(); }}
+          onClick={() => { refresh?.(); taches.refresh(); }}
           className="text-xs text-gray-400 hover:text-primary transition-colors px-2.5 py-1.5 rounded-lg hover:bg-primary/5"
         >
           <RefreshCw className="h-3.5 w-3.5" />
@@ -197,7 +198,7 @@ function AssistantChantierSection({
         <div className="bg-gray-50 rounded-xl px-5 py-5 text-center">
           <Bot className="h-7 w-7 text-gray-300 mx-auto mb-2" />
           <p className="text-sm text-gray-500 mb-2">{error}</p>
-          <button onClick={refresh} className="text-sm font-medium text-primary hover:underline">Réessayer</button>
+          <button onClick={() => refresh?.()} className="text-sm font-medium text-primary hover:underline">Réessayer</button>
         </div>
       )}
 

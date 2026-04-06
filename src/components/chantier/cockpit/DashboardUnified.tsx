@@ -133,7 +133,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
   }, [documents]);
 
   // ── Assistant — badge sidebar (alertes IA proactives) ────────────────────
-  const { data: assistantData } = useChantierAssistant({
+  const { data: assistantData, loading: assistantLoading, error: assistantError, refresh: assistantRefresh } = useChantierAssistant({
     chantierId, token, result, documents, lots, enabled: true,
   });
   const assistantAlertCount = assistantData?.alertes?.length ?? 0;
@@ -396,6 +396,10 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             chantierId={chantierId}
             token={token}
             agentInsights={agentInsights}
+            assistantData={assistantData}
+            assistantLoading={assistantLoading}
+            assistantError={assistantError}
+            assistantRefresh={assistantRefresh}
             onAddDoc={() => setUploadModal({ open: true })}
             onGoToLots={() => navigateTo('lots')}
             onGoToAnalyse={() => navigateTo('analyse')}
