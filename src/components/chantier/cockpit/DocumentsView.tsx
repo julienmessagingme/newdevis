@@ -120,7 +120,7 @@ function LotBadge({ doc, lots, onChangeLot, chantierId, token }: {
   const [newName, setNewName] = useState('');
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
   const lot = lots.find(l => l.id === doc.lot_id);
 
   // Position the dropdown using fixed positioning (portal-like, floats above everything)
@@ -129,11 +129,12 @@ function LotBadge({ doc, lots, onChangeLot, chantierId, token }: {
     const rect = triggerRef.current.getBoundingClientRect();
     const spaceBelow = window.innerHeight - rect.bottom;
     const spaceAbove = rect.top;
-    // Open below if enough space, otherwise above
+    // Open below if enough space (220px), otherwise open above
     if (spaceBelow >= 220 || spaceBelow >= spaceAbove) {
       setPos({ top: rect.bottom + 4, left: rect.left });
     } else {
-      setPos({ top: rect.top - 4, left: rect.left }); // will use bottom anchor via CSS
+      // Anchor bottom of dropdown to top of trigger
+      setPos({ bottom: window.innerHeight - rect.top + 4, left: rect.left });
     }
   }, [open]);
 
@@ -180,7 +181,7 @@ function LotBadge({ doc, lots, onChangeLot, chantierId, token }: {
       {open && pos && (
         <div
           ref={dropRef}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+          style={{ position: 'fixed', top: pos.top, bottom: pos.bottom, left: pos.left, zIndex: 9999 }}
           className="bg-white border border-gray-100 rounded-xl shadow-xl overflow-hidden min-w-[200px] max-w-[280px]"
         >
           <div className="max-h-52 overflow-y-auto">
