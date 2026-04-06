@@ -451,7 +451,7 @@ git commit -m "feat: agent-checks deterministic budget/payment/risk checks ($0 c
 
 ---
 
-## Task 4: Edge function — `agent-orchestrator` (LLM, 2x/day)
+## Task 4: Edge function — `agent-orchestrator` (LLM, real-time + cache + digest soir)
 
 **This is Layer 2** — cron 8h + 19h. Reads accumulated messages, builds rich context, calls Gemini 2.5 Flash with function calling, updates planning, generates digest.
 
@@ -1483,34 +1483,86 @@ git commit -m "feat: LOT INCONNU pipeline — clarification workflow with retry"
 ## Architecture diagram
 
 ```
-REAL-TIME (every event, $0):                    2x/DAY (cron, $0.002/call):
+REAL-TIME (every event):
 
-Document upload                                  Cron 8h (morning)
-    ↓                                            Cron 19h (evening)
-agent-checks (SQL)                                   ↓
-    ↓                                           agent-orchestrator
-Budget overrun? → agent_insights                     ↓
-Payment late?   → agent_insights                Build rich context (SQL)
-No devis?       → agent_insights                  - lots + contacts + budget
-                                                  - messages since last run
-                                                  - pre-computed alerts
-OpenClaw users only:                                 ↓
-WhatsApp msg → triggerAgentIfOpenClaw            Gemini 2.5 Flash (function calling)
-Email        → triggerAgentIfOpenClaw              - update_planning
-                ↓                                  - update_lot_status
-            OpenClaw /hooks/agent                  - create_task
-            (user's LLM, user's cost)              - log_insight
-                                                     ↓
-                                                 Evening: send digest
-                                                   - WhatsApp (Whapi)
-                                                   - Email (SendGrid)
-                                                   - In-app (agent_insights)
+WhatsApp msg / Email
+    ↓
+Mode edge_function:              Mode openclaw:
+    ↓                               ↓
+agent-orchestrator               triggerAgentIfOpenClaw
+    ↓                               ↓
+Check context cache              POST /hooks/agent
+(hit: 1.5K tokens)              (user's LLM, user's cost)
+(miss: hydrate 6K, cache)
+    ↓
+Gemini 2.5 Flash (function calling)
+  - update_planning (cascade)
+  - update_lot_status
+  - create_task
+  - request_clarification (LOT INCONNU)
+  - log_insight (with actions_summary)
+    ↓
+agent_insights (with actions taken by AI)
+
+Document upload:
+    ↓
+agent-checks (SQL, $0)
+    ↓
+7 checks: budget overrun, payment late,
+  facture litige, budget global, no devis,
+  devis a relancer, missing proofs
+    ↓
+agent_insights
+
+Cron 19h (digest):
+    ↓
+Read today's insights + actions + taches
+    ↓
+Gemini rédige le digest
+    ↓
+chantier_journal (livre, 1 page/jour)
++ WhatsApp (Whapi) + Email (SendGrid)
 ```
+
+## Task 10: Frontend — JournalChantier (livre avec navigation)
+
+**Files:**
+- Create: `src/components/chantier/cockpit/JournalChantier.tsx` — book-like component
+- Create: `src/pages/api/chantier/[id]/journal.ts` — GET journal entries
+
+### Step 1: API route
+
+```typescript
+// GET /api/chantier/[id]/journal?date=2026-04-07
+// Returns a single journal page. If no date, returns latest.
+// Also supports: ?from=2026-04-01&to=2026-04-07 for a range (calendar dots)
+```
+
+### Step 2: Component
+
+```tsx
+// JournalChantier.tsx
+// - Arrow left (← Hier) / Arrow right (Demain →)
+// - Date display centered (Lundi 7 avril 2026)
+// - Body: markdown rendered digest
+// - If no entry for the day: "📖 Rien à signaler ce jour-là"
+// - Bottom: severity dot (green/orange/red) matching max_severity
+// - Optional: mini calendar strip showing dots for days with entries
+```
+
+### Step 3: Commit
+
+```bash
+git add src/components/chantier/cockpit/JournalChantier.tsx src/pages/api/chantier/[id]/journal.ts
+git commit -m "feat: JournalChantier book UI with daily page navigation"
+```
+
+---
 
 ## Cost comparison
 
-| Scenario | Old design | New design |
-|----------|-----------|------------|
-| 1 chantier actif, 20 msgs/jour | $0.30/jour = $9/mois | $0.004/jour = **$0.12/mois** |
-| 10 users actifs | $90/mois | **$1.20/mois** |
-| 100 users actifs | $900/mois | **$12/mois** |
+| Scenario | Sans cache | Avec cache (design final) |
+|----------|-----------|--------------------------|
+| 1 chantier actif, 20 msgs/jour | $0.30/jour = $9/mois | $0.005/jour = **$0.15/mois** |
+| 10 users actifs | $90/mois | **$1.50/mois** |
+| 100 users actifs | $900/mois | **$15/mois** |
