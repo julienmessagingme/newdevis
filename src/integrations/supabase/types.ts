@@ -1,4 +1,3 @@
-npm warn exec The following package was not found and will be installed: supabase@2.84.6
 export type Json =
   | string
   | number
@@ -15,6 +14,162 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_config: {
+        Row: {
+          agent_mode: string
+          created_at: string | null
+          id: string
+          openclaw_agent_id: string | null
+          openclaw_token: string | null
+          openclaw_url: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          agent_mode?: string
+          created_at?: string | null
+          id?: string
+          openclaw_agent_id?: string | null
+          openclaw_token?: string | null
+          openclaw_url?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          agent_mode?: string
+          created_at?: string | null
+          id?: string
+          openclaw_agent_id?: string | null
+          openclaw_token?: string | null
+          openclaw_url?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      agent_context_cache: {
+        Row: {
+          chantier_id: string
+          context_json: Json
+          hydrated_at: string
+          invalidated: boolean | null
+        }
+        Insert: {
+          chantier_id: string
+          context_json: Json
+          hydrated_at: string
+          invalidated?: boolean | null
+        }
+        Update: {
+          chantier_id?: string
+          context_json?: Json
+          hydrated_at?: string
+          invalidated?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_context_cache_chantier_id_fkey"
+            columns: ["chantier_id"]
+            isOneToOne: true
+            referencedRelation: "chantiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_insights: {
+        Row: {
+          actions_taken: Json | null
+          body: string
+          chantier_id: string
+          created_at: string | null
+          id: string
+          needs_confirmation: boolean | null
+          read_by_user: boolean | null
+          severity: string | null
+          source_event: Json | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          actions_taken?: Json | null
+          body: string
+          chantier_id: string
+          created_at?: string | null
+          id?: string
+          needs_confirmation?: boolean | null
+          read_by_user?: boolean | null
+          severity?: string | null
+          source_event?: Json | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          actions_taken?: Json | null
+          body?: string
+          chantier_id?: string
+          created_at?: string | null
+          id?: string
+          needs_confirmation?: boolean | null
+          read_by_user?: boolean | null
+          severity?: string | null
+          source_event?: Json | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_insights_chantier_id_fkey"
+            columns: ["chantier_id"]
+            isOneToOne: false
+            referencedRelation: "chantiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_runs: {
+        Row: {
+          actions_taken: Json | null
+          chantier_id: string
+          created_at: string | null
+          id: string
+          insights_created: number | null
+          messages_analyzed: number | null
+          run_type: string
+          tokens_used: number | null
+        }
+        Insert: {
+          actions_taken?: Json | null
+          chantier_id: string
+          created_at?: string | null
+          id?: string
+          insights_created?: number | null
+          messages_analyzed?: number | null
+          run_type: string
+          tokens_used?: number | null
+        }
+        Update: {
+          actions_taken?: Json | null
+          chantier_id?: string
+          created_at?: string | null
+          id?: string
+          insights_created?: number | null
+          messages_analyzed?: number | null
+          run_type?: string
+          tokens_used?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_runs_chantier_id_fkey"
+            columns: ["chantier_id"]
+            isOneToOne: false
+            referencedRelation: "chantiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       analyses: {
         Row: {
           alertes: Json | null
@@ -277,6 +432,50 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts_chantier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chantier_journal: {
+        Row: {
+          alerts_count: number | null
+          body: string
+          chantier_id: string
+          created_at: string | null
+          id: string
+          journal_date: string
+          max_severity: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          alerts_count?: number | null
+          body: string
+          chantier_id: string
+          created_at?: string | null
+          id?: string
+          journal_date: string
+          max_severity?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          alerts_count?: number | null
+          body?: string
+          chantier_id?: string
+          created_at?: string | null
+          id?: string
+          journal_date?: string
+          max_severity?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chantier_journal_chantier_id_fkey"
+            columns: ["chantier_id"]
+            isOneToOne: false
+            referencedRelation: "chantiers"
             referencedColumns: ["id"]
           },
         ]
@@ -911,6 +1110,7 @@ export type Database = {
           chantier_id: string
           created_at: string
           date: string | null
+          depense_type: string | null
           devis_statut: string | null
           document_type: string
           facture_statut: string | null
@@ -936,6 +1136,7 @@ export type Database = {
           chantier_id: string
           created_at?: string
           date?: string | null
+          depense_type?: string | null
           devis_statut?: string | null
           document_type?: string
           facture_statut?: string | null
@@ -961,6 +1162,7 @@ export type Database = {
           chantier_id?: string
           created_at?: string
           date?: string | null
+          depense_type?: string | null
           devis_statut?: string | null
           document_type?: string
           facture_statut?: string | null
@@ -2075,6 +2277,13 @@ export type Database = {
           users: number | null
           vert: number | null
           week: string | null
+        }
+        Relationships: []
+      }
+      admin_kpis_work_type_distribution: {
+        Row: {
+          categorie: string | null
+          nb_analyses: number | null
         }
         Relationships: []
       }

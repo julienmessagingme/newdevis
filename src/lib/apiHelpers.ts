@@ -13,7 +13,7 @@ export function optionsResponse(methods = 'GET,POST,PATCH,DELETE,OPTIONS') {
     headers: {
       ...CORS,
       'Access-Control-Allow-Methods': methods,
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Agent-Key',
     },
   });
 }
@@ -100,6 +100,40 @@ export async function requireChantierAuth(
   const owns = await verifyChantierOwnership(ctx.supabase, chantierId, ctx.user.id);
   if (!owns) return jsonError('Chantier introuvable', 404);
   return ctx;
+}
+
+// ── Agent authentication (edge functions → API routes) ─────────────────────
+
+/**
+ * Vérifie le header X-Agent-Key pour l'authentification inter-service.
+ * Utilisé par les edge functions (agent-orchestrator, agent-checks) pour appeler
+ * les API routes sans JWT utilisateur.
+ * Retourne un SupabaseClient service_role si la clé est valide, null sinon.
+ */
+export function authenticateAgentKey(request: Request): SupabaseClient | null {
+  const agentKey = request.headers.get('X-Agent-Key');
+  const expectedKey = import.meta.env.AGENT_SECRET_KEY;
+  if (!agentKey || !expectedKey || agentKey !== expectedKey) return null;
+  return createServiceClient();
+}
+
+/**
+ * Authentifie soit par JWT (user) soit par X-Agent-Key (agent).
+ * Pour les routes qui doivent être accessibles aux deux.
+ * Retourne { user, supabase, isAgent } ou null.
+ */
+export async function authenticateUserOrAgent(
+  request: Request,
+): Promise<(AuthContext & { isAgent: boolean }) | null> {
+  // Try agent key first (faster — no DB call)
+  const agentClient = authenticateAgentKey(request);
+  if (agentClient) {
+    return { user: { id: 'agent', email: 'agent@system' }, supabase: agentClient, isAgent: true };
+  }
+  // Fall back to JWT
+  const ctx = await authenticate(request);
+  if (!ctx) return null;
+  return { ...ctx, isAgent: false };
 }
 
 // ── Body parsing ────────────────────────────────────────────────────────────
