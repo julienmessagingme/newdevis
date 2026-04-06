@@ -143,11 +143,16 @@ Réponds UNIQUEMENT avec ce JSON valide, sans texte avant ni après :
       .update(update)
       .eq('id', docId!);
 
-    // Fire-and-forget: trigger deterministic agent checks ($0)
-    fetch(`${import.meta.env.PUBLIC_SUPABASE_URL}/functions/v1/agent-checks`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${import.meta.env.SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json' },
+    // Fire-and-forget: deterministic checks ($0) + real-time LLM analysis
+    const _sbUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+    const _sbKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
+    fetch(`${_sbUrl}/functions/v1/agent-checks`, {
+      method: 'POST', headers: { 'Authorization': `Bearer ${_sbKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ chantier_id: params.id }),
+    }).catch(() => {});
+    fetch(`${_sbUrl}/functions/v1/agent-orchestrator`, {
+      method: 'POST', headers: { 'Authorization': `Bearer ${_sbKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chantier_id: params.id, run_type: 'morning' }),
     }).catch(() => {});
 
     return jsonOk({

@@ -116,7 +116,9 @@ export const POST: APIRoute = async ({ request }) => {
       }, { onConflict: 'id' });
     if (upsertErr) console.error('[whapi] upsert error:', upsertErr.message);
 
-    // Real-time trigger for OpenClaw users (edge_function users get cron)
+    // Real-time agent trigger on every inbound message
+    // Edge function mode: call agent-orchestrator (Gemini, ~$0.0002/msg with context cache)
+    // OpenClaw mode: call user's OpenClaw instance instead
     if (!msg.from_me) {
       let ownerId = chantierOwnerCache.get(group.chantier_id);
       if (!ownerId) {
@@ -125,12 +127,26 @@ export const POST: APIRoute = async ({ request }) => {
         if (chantierOwner) { ownerId = chantierOwner.user_id; chantierOwnerCache.set(group.chantier_id, ownerId); }
       }
       if (ownerId) {
-        triggerAgentIfOpenClaw({
-          event_type: 'whatsapp_message',
-          chantier_id: group.chantier_id,
-          user_id: ownerId,
-          payload: { from: String(msg.from ?? ''), body: body ?? '', type: msg.type, timestamp },
-        });
+        // Check agent mode
+        const { data: agentCfg } = await supabase
+          .from('agent_config').select('agent_mode').eq('user_id', ownerId).single();
+        const mode = agentCfg?.agent_mode ?? 'edge_function';
+
+        if (mode === 'openclaw') {
+          triggerAgentIfOpenClaw({
+            event_type: 'whatsapp_message',
+            chantier_id: group.chantier_id,
+            user_id: ownerId,
+            payload: { from: String(msg.from ?? ''), body: body ?? '', type: msg.type, timestamp },
+          });
+        } else if (mode === 'edge_function') {
+          // Fire-and-forget: real-time Gemini analysis
+          fetch(`${supabaseUrl}/functions/v1/agent-orchestrator`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${supabaseService}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chantier_id: group.chantier_id, run_type: 'morning' }),
+          }).catch(() => {});
+        }
       }
     }
   }

@@ -218,13 +218,25 @@ async function processInbound(
     console.error('[inbound-email] Notification email failed:', err instanceof Error ? err.message : err);
   }
 
-  // Real-time trigger for OpenClaw users (edge_function users get cron)
-  triggerAgentIfOpenClaw({
-    event_type: 'inbound_email',
-    chantier_id: conversation.chantier_id,
-    user_id: conversation.user_id,
-    payload: { from: fields.from, subject: fields.subject, body: cleanedText },
-  });
+  // Real-time agent trigger on every inbound email
+  const { data: agentCfg } = await supabase
+    .from('agent_config').select('agent_mode').eq('user_id', conversation.user_id).single();
+  const agentMode = agentCfg?.agent_mode ?? 'edge_function';
+
+  if (agentMode === 'openclaw') {
+    triggerAgentIfOpenClaw({
+      event_type: 'inbound_email',
+      chantier_id: conversation.chantier_id,
+      user_id: conversation.user_id,
+      payload: { from: fields.from, subject: fields.subject, body: cleanedText },
+    });
+  } else if (agentMode === 'edge_function') {
+    fetch(`${supabaseUrl}/functions/v1/agent-orchestrator`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${supabaseService}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chantier_id: conversation.chantier_id, run_type: 'morning' }),
+    }).catch(() => {});
+  }
 
   console.log(`[inbound-email] Message stored for conversation ${conversation.id}`);
   return ok({ success: true, conversationId: conversation.id });

@@ -80,11 +80,16 @@ export const POST: APIRoute = async ({ params, request }) => {
     return jsonError('Erreur lors de l\'enregistrement', 500);
   }
 
-  // Fire-and-forget: trigger deterministic agent checks ($0)
-  fetch(`${import.meta.env.PUBLIC_SUPABASE_URL}/functions/v1/agent-checks`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${import.meta.env.SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json' },
+  // Fire-and-forget: deterministic checks ($0) + real-time LLM analysis
+  const _sbUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+  const _sbKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
+  fetch(`${_sbUrl}/functions/v1/agent-checks`, {
+    method: 'POST', headers: { 'Authorization': `Bearer ${_sbKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ chantier_id: chantierId }),
+  }).catch(() => {});
+  fetch(`${_sbUrl}/functions/v1/agent-orchestrator`, {
+    method: 'POST', headers: { 'Authorization': `Bearer ${_sbKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chantier_id: chantierId, run_type: 'morning' }),
   }).catch(() => {});
 
   return jsonOk({ document: doc }, 201);
