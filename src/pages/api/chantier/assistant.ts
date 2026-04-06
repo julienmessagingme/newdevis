@@ -82,14 +82,9 @@ LOGIQUE MÉTIER :
 - Devis > prix marché → signaler le % d'écart
 - Score ROUGE sur un devis → alerte critique avec nom de l'artisan
 
-RÈGLE COHÉRENCE (PRIORITAIRE) :
-- Si [COHERENCE_DEVIS] contient "INCOHÉRENCE DÉTECTÉE" → alerte critique par devis hors périmètre
-- Format : { "type": "critique", "message": "Devis [nom] hors périmètre projet", "cta": "Vérifier" }
-
-PROPOSITIONS INTERACTIVES (champ "propositions") :
-- Si des devis n'ont PAS encore été analysés → TOUJOURS générer une proposition action_type="analyse_devis"
-- Si le budget estimé dépasse l'enveloppe → proposition action_type="budget_review"
-- Si aucun devis n'est déposé pour un lot important → proposition action_type="add_devis"
+RÈGLE COHÉRENCE DEVIS ↔ LOT :
+- Si [COHERENCE_DEVIS] contient "AFFECTATION DOUTEUSE" → alerte risque : "Devis [nom] affecté au lot [lot] — êtes-vous sûr ?"
+- Si [COHERENCE_DEVIS] contient des devis "non affectés" → observation info, pas d'alerte
 - Maximum 2 propositions
 - Chaque proposition doit être une offre concrète du maître d'œuvre ("Je peux...", "Voulez-vous que je...")
 
@@ -114,24 +109,26 @@ export const POST: APIRoute = async ({ request }) => {
 
   const elementsProjet = extractProjectElements(description ?? '');
 
-  // Also extract elements from lot names (user may have created lots not mentioned in description)
-  const elementsFromLots = lots.flatMap(l => {
-    const detected = detectDevisType(l.nom);
-    return detected !== 'autre' ? [detected] : [];
-  });
-  const allProjectElements = [...new Set([...elementsProjet, ...elementsFromLots])];
-
   // Enrichir chaque devis avec son type détecté
   const devisEnrichis = devis.map(d => ({
     ...d,
     type: detectDevisType(d.nom),
   }));
 
-  // Détecter les incohérences : devis dont le type n'est pas dans les éléments projet NI dans les lots
-  // (on ignore 'autre' — pas assez d'info pour trancher)
-  const devisHorsProjet = allProjectElements.length > 0
-    ? devisEnrichis.filter(d => d.type !== 'autre' && !allProjectElements.includes(d.type))
-    : [];
+  // ── Coherence devis ↔ lot (new logic) ─────────────────────────────────────
+  // 1. Devis assigned to a lot → check if devis type matches the lot type
+  //    If mismatch → "are you sure it's assigned to the right lot?"
+  // 2. Devis NOT assigned to a lot → simple info "devis non affecté à un lot"
+  const devisNonAffectes = devisEnrichis.filter(d => !d.lot_id);
+  const devisMalAffectes: Array<{ nom: string; type: string; lotNom: string; lotType: string }> = [];
+
+  for (const d of devisEnrichis) {
+    if (!d.lot_id || !d.lot_nom || d.type === 'autre') continue;
+    const lotType = detectDevisType(d.lot_nom);
+    if (lotType !== 'autre' && lotType !== d.type) {
+      devisMalAffectes.push({ nom: d.nom, type: d.type, lotNom: d.lot_nom, lotType });
+    }
+  }
 
   // ── Construire le contexte projet ─────────────────────────────────────────
 
@@ -170,10 +167,19 @@ export const POST: APIRoute = async ({ request }) => {
     ? elementsProjet.join(', ')
     : 'non détectés (description insuffisante)';
 
-  const coherenceStr = devisHorsProjet.length > 0
-    ? `⚠ INCOHÉRENCE DÉTECTÉE — ${devisHorsProjet.length} devis hors périmètre projet :\n` +
-      devisHorsProjet.map(d => `  - "${d.nom}" (type: ${d.type}) n'appartient pas au projet`).join('\n')
-    : 'OK — tous les devis sont cohérents avec le périmètre projet';
+  const coherenceLines: string[] = [];
+  if (devisMalAffectes.length > 0) {
+    coherenceLines.push(`⚠ AFFECTATION DOUTEUSE — ${devisMalAffectes.length} devis possiblement mal affectés :`);
+    for (const d of devisMalAffectes) {
+      coherenceLines.push(`  - "${d.nom}" (type détecté: ${d.type}) est affecté au lot "${d.lotNom}" (type: ${d.lotType}) — à vérifier`);
+    }
+  }
+  if (devisNonAffectes.length > 0) {
+    coherenceLines.push(`ℹ ${devisNonAffectes.length} devis non affecté(s) à un lot : ${devisNonAffectes.map(d => `"${d.nom}"`).join(', ')}`);
+  }
+  const coherenceStr = coherenceLines.length > 0
+    ? coherenceLines.join('\n')
+    : 'OK — tous les devis sont affectés et cohérents avec leurs lots';
 
   const planningStr = planning.length > 0
     ? planning.map(p => `- ${p.phase}: ${p.statut}`).join('\n')

@@ -43,13 +43,18 @@ export function useChantierAssistant({
   const buildBody = useCallback(() => {
     const devis = documents
       .filter(d => d.document_type === 'devis')
-      .map(d => ({
-        nom:           d.nom,
-        montant:       null as number | null,
-        analyse_id:    d.analyse_id ?? null,
-        analysisScore: null as string | null,
-        anomalies:     null as string | null,
-      }));
+      .map(d => {
+        const lot = d.lot_id ? lots.find(l => l.id === d.lot_id) : null;
+        return {
+          nom:           d.nom,
+          montant:       null as number | null,
+          analyse_id:    d.analyse_id ?? null,
+          analysisScore: null as string | null,
+          anomalies:     null as string | null,
+          lot_id:        d.lot_id ?? null,
+          lot_nom:       lot?.nom ?? null,
+        };
+      });
 
     const lotsWithCount = lots.map(l => ({
       nom:            l.nom,
