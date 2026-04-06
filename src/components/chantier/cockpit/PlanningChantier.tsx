@@ -100,22 +100,14 @@ interface Props {
   result: ChantierIAResult;
   chantierId: string | null;
   token: string | null;
-  initialTaches: TacheIA[];
+  initialTaches?: TacheIA[]; // kept for backward compat, no longer used (tasks moved to Assistant)
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-export default function PlanningChantier({ result, chantierId, token, initialTaches }: Props) {
-  const [taches,       setTaches]       = useState<TacheIA[]>(initialTaches);
-  const [tab,          setTab]          = useState<'taches' | 'planning' | 'rdv'>('planning');
-  const [showAdd,      setShowAdd]      = useState(false);
-  const [newTitre,     setNewTitre]     = useState('');
-  const [newPrio,      setNewPrio]      = useState<PrioriteTache>('normal');
-  const [saving,       setSaving]       = useState(false);
-  const [toggling,     setToggling]     = useState<string | null>(null);
-  const [deleting,     setDeleting]     = useState<string | null>(null);
-  const [selected,     setSelected]     = useState<TacheIA | null>(null);
-  const [generating,   setGenerating]   = useState(false);
+export default function PlanningChantier({ result, chantierId, token }: Props) {
+  const [tab,          setTab]          = useState<'planning' | 'rdv'>('planning');
+  // Task state removed — tasks now live in AssistantChantierSection via useTaches hook
   const [rdvs,         setRdvs]         = useState<Rdv[]>([]);
   const [showAddRdv,   setShowAddRdv]   = useState(false);
   const [newRdv,       setNewRdv]       = useState<Partial<Rdv>>({ type: 'artisan' });
