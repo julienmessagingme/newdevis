@@ -107,7 +107,7 @@ interface Props {
 
 export default function PlanningChantier({ result, chantierId, token, initialTaches }: Props) {
   const [taches,       setTaches]       = useState<TacheIA[]>(initialTaches);
-  const [tab,          setTab]          = useState<'taches' | 'planning' | 'rdv'>('taches');
+  const [tab,          setTab]          = useState<'taches' | 'planning' | 'rdv'>('planning');
   const [showAdd,      setShowAdd]      = useState(false);
   const [newTitre,     setNewTitre]     = useState('');
   const [newPrio,      setNewPrio]      = useState<PrioriteTache>('normal');
@@ -281,39 +281,11 @@ export default function PlanningChantier({ result, chantierId, token, initialTac
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-5">
 
-      {/* ── Cette semaine ──────────────────────────────────────────────── */}
-      {weekTasks.length > 0 && (
-        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Star className="h-4 w-4 text-blue-500 shrink-0" />
-            <h3 className="font-semibold text-blue-900 text-sm">Priorités cette semaine</h3>
-          </div>
-          <div className="space-y-2">
-            {weekTasks.map(task => (
-              <div key={task.id}
-                className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-blue-100 cursor-pointer hover:border-blue-200 transition-colors"
-                onClick={() => setSelected(task)}
-              >
-                <button
-                  onClick={e => { e.stopPropagation(); toggleDone(task); }}
-                  className="w-5 h-5 rounded-md border-2 border-blue-300 flex items-center justify-center shrink-0 hover:border-blue-500 transition-colors"
-                >
-                  {toggling === task.id && <Loader2 className="h-3 w-3 animate-spin text-blue-400" />}
-                </button>
-                <span className="flex-1 text-sm font-medium text-gray-800 min-w-0 truncate">{task.titre}</span>
-                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${PRIO[task.priorite].cls}`}>
-                  {PRIO[task.priorite].label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Tâches déplacées dans l'onglet Assistant chantier */}
 
       {/* ── Tabs ───────────────────────────────────────────────────────── */}
       <div className="flex gap-1 bg-gray-100 rounded-2xl p-1">
         {([
-          ['taches',   `Tâches (${pending.length})`, CheckSquare],
           ['planning', 'Planning',                   Calendar   ],
           ['rdv',      `RDV (${upcomingRdvs.length})`, Calendar ],
         ] as const).map(([id, label, Icon]) => (
