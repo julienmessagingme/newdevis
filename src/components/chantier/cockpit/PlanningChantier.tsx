@@ -148,12 +148,8 @@ export default function PlanningChantier({ result, chantierId, token, initialTac
 
   // ── Auto-génération si aucune tâche ───────────────────────────────────────
 
-  useEffect(() => {
-    if (initialTaches.length === 0 && chantierId && token) {
-      generateTasks();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Auto-generation of generic tasks removed — tasks are now created
+  // contextually by the agent IA or manually by the user in the Assistant tab.
 
   // ── API helpers ───────────────────────────────────────────────────────────
 
