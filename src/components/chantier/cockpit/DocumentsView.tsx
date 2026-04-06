@@ -159,7 +159,7 @@ function LotBadge({ doc, lots, onChangeLot, chantierId, token }: {
         <ChevronDown className="h-2.5 w-2.5 opacity-60" />
       </button>
       {open && (
-        <div className="absolute left-0 bottom-full mb-1 z-30 bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden min-w-[180px]">
+        <div className="absolute left-0 top-full mt-1 z-30 bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden min-w-[180px]">
           <div className="max-h-48 overflow-y-auto">
             <button
               onClick={() => { onChangeLot(doc.id, null); setOpen(false); }}

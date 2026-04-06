@@ -33,7 +33,10 @@ export function PageHeader({ title, sub, action, onMenuToggle, onBack }: {
 
 function fmtBudget(n: number): string {
   if (n <= 0) return '—';
-  if (n >= 1000) return `${Math.round(n / 1000)}k €`;
+  if (n >= 1000) {
+    const k = n / 1000;
+    return k === Math.floor(k) ? `${k}k €` : `${k.toFixed(1).replace('.', ',')}k €`;
+  }
   return `${Math.round(n)} €`;
 }
 
