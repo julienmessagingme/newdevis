@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
   X, Loader2, CheckCircle2, AlertCircle, CloudUpload, FileText,
-  Sparkles, ChevronRight,
+  Sparkles, ChevronRight, Plus,
 } from 'lucide-react';
 import type { DocumentChantier, DocumentType, LotChantier } from '@/types/chantier-ia';
 
@@ -58,6 +58,7 @@ export default function UploadDocumentModal({
   const [docName, setDocName]           = useState('');
   const [docType, setDocType]           = useState<DocumentType>(defaultType ?? 'devis');
   const [lotId, setLotId]               = useState(defaultLotId || '');
+  const [newLotName, setNewLotName]     = useState('');
   const [uploadState, setUploadState]   = useState<UploadState>('idle');
   const [errorMsg, setErrorMsg]         = useState('');
   const [savingsAmount, setSavingsAmount] = useState(0);
@@ -140,6 +141,24 @@ export default function UploadDocumentModal({
         return;
       }
 
+      // ── Étape 2b : créer un nouveau lot si demandé ──
+      let finalLotId = lotId;
+      if (lotId === '__new__' && newLotName.trim()) {
+        const lotRes = await fetch(`/api/chantier/${chantierId}/lots`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${freshToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nom: newLotName.trim(), budget_min_ht: 0, budget_avg_ht: 0, budget_max_ht: 0 }),
+        });
+        if (lotRes.ok) {
+          const lotData = await lotRes.json();
+          finalLotId = lotData.lot?.id ?? lotData.id ?? '';
+        } else {
+          finalLotId = '';  // Fallback: pas de lot
+        }
+      } else if (lotId === '__new__') {
+        finalLotId = '';  // User selected "new" but didn't type a name
+      }
+
       // ── Étape 3 : enregistrer les métadonnées en base ──
       const regRes = await fetch(`/api/chantier/${chantierId}/documents/register`, {
         method: 'POST',
@@ -147,7 +166,7 @@ export default function UploadDocumentModal({
         body: JSON.stringify({
           nom: docName.trim(),
           documentType: docType,
-          lotId: lotId || null,   // '' → null pour éviter erreur UUID PostgreSQL
+          lotId: finalLotId || null,   // '' → null pour éviter erreur UUID PostgreSQL
           bucketPath,
           nomFichier: file.name,
           mimeType: file.type || null,
@@ -306,12 +325,21 @@ export default function UploadDocumentModal({
                         className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100">
                         {Object.entries(TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                       </select>
-                      <select value={lotId} onChange={e => setLotId(e.target.value)}
+                      <select value={lotId} onChange={e => { setLotId(e.target.value); if (e.target.value !== '__new__') setNewLotName(''); }}
                         className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100">
                         <option value="">— Aucun lot —</option>
                         {lots.filter(l => !l.id.startsWith('fallback-')).map(l => <option key={l.id} value={l.id}>{l.emoji ?? '🔧'} {l.nom}</option>)}
+                        <option value="__new__">+ Nouveau lot</option>
                       </select>
                     </div>
+                    {lotId === '__new__' && (
+                      <div className="flex items-center gap-2">
+                        <Plus className="h-4 w-4 text-blue-400 shrink-0" />
+                        <input value={newLotName} onChange={e => setNewLotName(e.target.value)} placeholder="Nom du nouveau lot"
+                          className="flex-1 border border-blue-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                          autoFocus />
+                      </div>
+                    )}
                   </div>
                 )}
                 <button onClick={handleUpload} disabled={!file || !docName.trim()}
@@ -322,11 +350,20 @@ export default function UploadDocumentModal({
             )}
             {tab === 'import' && (
               <div className="space-y-3">
-                <select value={lotId} onChange={e => setLotId(e.target.value)}
+                <select value={lotId} onChange={e => { setLotId(e.target.value); if (e.target.value !== '__new__') setNewLotName(''); }}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 mb-1">
                   <option value="">— Aucun lot —</option>
                   {lots.filter(l => !l.id.startsWith('fallback-')).map(l => <option key={l.id} value={l.id}>{l.emoji ?? '🔧'} {l.nom}</option>)}
+                  <option value="__new__">+ Nouveau lot</option>
                 </select>
+                {lotId === '__new__' && (
+                  <div className="flex items-center gap-2 mb-1">
+                    <Plus className="h-4 w-4 text-blue-400 shrink-0" />
+                    <input value={newLotName} onChange={e => setNewLotName(e.target.value)} placeholder="Nom du nouveau lot"
+                      className="flex-1 border border-blue-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+                      autoFocus />
+                  </div>
+                )}
                 {loadingAnalyses ? (
                   <div className="py-8 flex justify-center"><Loader2 className="h-5 w-5 text-gray-300 animate-spin" /></div>
                 ) : analyses.length === 0 ? (

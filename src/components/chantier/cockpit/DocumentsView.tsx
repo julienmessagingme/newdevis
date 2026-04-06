@@ -107,23 +107,42 @@ const SECTIONS: Section[] = [
 
 // ── LotBadge ──────────────────────────────────────────────────────────────────
 
-function LotBadge({ doc, lots, onChangeLot }: {
+function LotBadge({ doc, lots, onChangeLot, chantierId, token }: {
   doc:          DocumentChantier;
   lots:         LotChantier[];
   onChangeLot:  (docId: string, lotId: string | null) => void;
+  chantierId:   string;
+  token:        string;
 }) {
   const [open, setOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   const lot = lots.find(l => l.id === doc.lot_id);
 
   useEffect(() => {
     if (!open) return;
     function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setCreating(false); setNewName(''); }
     }
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
+
+  async function handleCreateLot() {
+    if (!newName.trim()) return;
+    const res = await fetch(`/api/chantier/${chantierId}/lots`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nom: newName.trim(), budget_min_ht: 0, budget_avg_ht: 0, budget_max_ht: 0 }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const newId = data.lot?.id ?? data.id;
+      if (newId) onChangeLot(doc.id, newId);
+    }
+    setOpen(false); setCreating(false); setNewName('');
+  }
 
   return (
     <div ref={ref} className="relative shrink-0">
@@ -158,6 +177,25 @@ function LotBadge({ doc, lots, onChangeLot }: {
               <span className="truncate">{l.nom}</span>
             </button>
           ))}
+          {!creating ? (
+            <button
+              onClick={() => setCreating(true)}
+              className="w-full text-left px-3 py-2 text-xs font-medium text-blue-600 hover:bg-blue-50 transition-colors flex items-center gap-1.5 border-t border-gray-50"
+            >
+              <Plus className="h-3 w-3" /> Nouveau lot
+            </button>
+          ) : (
+            <div className="p-2 border-t border-gray-50">
+              <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Nom du lot"
+                onKeyDown={e => { if (e.key === 'Enter') handleCreateLot(); if (e.key === 'Escape') { setCreating(false); setNewName(''); } }}
+                className="w-full border border-blue-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-300 mb-1.5"
+                autoFocus />
+              <button onClick={handleCreateLot} disabled={!newName.trim()}
+                className="w-full text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-30 rounded-lg py-1.5 transition-colors">
+                Créer
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -284,7 +322,7 @@ function DocRow({ doc, lots, chantierId, token, sectionKey, onDelete, onLotChang
               {doc.montant.toLocaleString('fr-FR')} €
             </p>
           )}
-          <LotBadge doc={doc} lots={lots} onChangeLot={onLotChange} />
+          <LotBadge doc={doc} lots={lots} onChangeLot={onLotChange} chantierId={chantierId} token={token} />
         </div>
       </div>
 
