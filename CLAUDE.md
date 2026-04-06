@@ -352,6 +352,9 @@ Phase 2 du pipeline — 100% appels API déterministes, pas d'IA. Aucune API pay
 - **React hooks après conditional return (Error #310)** : Dans `AnalysisResult.tsx`, les hooks (`useState`, `useRef`) doivent être déclarés AVANT tout `if (loading) return` ou `if (!data) return`. Sinon React voit un nombre de hooks différent entre les renders → crash production "Too many re-renders" (Error #310).
 - **Planning — stale closure dans setState** : dans `usePlanning.ts`, toujours `setState(s => ...)` pour lire l'état courant dans les callbacks (moveLot, etc.) — fermer sur la variable d'état donne une version figée au moment de l'appel.
 - **Planning API — batch DB** : utiliser `Promise.all` pour les UPDATE simultanés sur `lots_chantier`. Les boucles `for` séquentielles peuvent provoquer des deadlocks Postgres sous charge.
+- **contacts_chantier colonnes** : la colonne téléphone est `telephone` (pas `phone`), le rôle est `role` (pas `metier`). Les API routes retournent `select('*')` donc les champs existent mais avec les noms DB. `context.ts` agent doit utiliser `c.telephone` et `c.role`.
+- **paymentEventsRes clé** : GET `/payment-events` retourne `{ payment_events: [...] }`, pas `{ data: [...] }`. Toujours accéder via `res?.payment_events`.
+- **tools.ts priorite** : l'enum doit être `["urgent", "important", "normal"]` — jamais `"low"` (rejeté silencieusement par `taches.ts`).
 - **WhatsApp messages — group_id TEXT** : `chantier_whatsapp_messages.group_id` est un TEXT stockant le JID brut (ex: `120363xxxxx@g.us`), **pas** un UUID FK vers `chantier_whatsapp_groups`. Intentionnel — la table messages est antérieure à la table groups. Ne pas essayer de le migrer en UUID FK sans plan de migration des données.
 - **RLS nouvelles tables — toujours wrapper** : `auth.uid()` appelé seul = 1 éval par ligne. Toujours écrire `(select auth.uid())` dans les nouvelles policies. Voir migrations 20260226 et 20260401400000 pour les patterns corrects.
 
@@ -623,23 +626,48 @@ Détection basée sur le **contenu** (pas le nom de fichier). Points de détecti
 - Utilise `detectDevisType()` de `utils/extractProjectElements.ts` partout. Edge function réplique le mapping inline (Deno, pas d'import TS).
 
 ### Cache contexte
-- `agent_context_cache` table — hydraté depuis les API routes (budget, planning, contacts, payment-events). TTL 4h.
-- **Invalidé** quand : POST/PATCH/DELETE contacts, POST lots, PATCH planning, POST agent-retry.
-- Coût : ~$0.0002/event (cache hit 1.5K tokens) ou ~$0.0004 (cache miss 6K tokens).
+- `agent_context_cache` table — `context.ts` lit le cache (TTL 4h), rebuild si invalidé ou expiré, UPSERT après rebuild.
+- Données **cachées** (static) : budget_conseils, lots enrichis, contacts (+phoneToContact map), payment_events, overdue_payments.
+- Données **toujours fresh** (dynamic) : messages WhatsApp, insights du jour, tâches, risk_alerts, owner_pending_questions.
+- **Invalidé** quand : POST/PATCH/DELETE contacts, POST lots, PATCH planning, POST agent-retry, DELETE/PATCH documents, POST payment-events, POST depense-rapide.
+- **Attention colonnes** : `contacts_chantier` a `telephone` (pas `phone`) et `role` (pas `metier`). `context.ts` utilise les bons noms.
+
+### Optimisations coût
+- **Debounce WhatsApp** (`whapi.ts`) : `Set<string> agentTriggerChantierIds` → 1 trigger/chantier/batch webhook (pas 1/message).
+- **Cooldown 60s** (`index.ts`) : skip si `lastRun < 60s` pour `morning` (pas `evening`). Loggé.
+- **Cron soir** : `chantiers WHERE phase != 'reception'` (tous actifs). Early-exit `morning` only — soir toujours digest.
+- **Parallélisation cron** : `Promise.allSettled` par batches de 3.
+- **max_tokens** : 16384 (pas 4096 — thinking budget gemini-2.5-flash).
+
+### Auth agent → API routes
+- `requireChantierAuthOrAgent` (`apiHelpers.ts`) : accepte JWT (user) OU X-Agent-Key (agent inter-service).
+- Routes migrées : `budget.ts` GET, `contacts.ts` GET, `payment-events.ts` GET, `taches.ts` CRUD, `planning.ts` GET/PATCH, `lots.ts` GET/POST/PATCH.
+- `tools.ts` appelle `/agent-insights` (pas `/insights` legacy) et `/taches` (pas `/todos`).
+- `tools.ts` priorite enum : `[urgent, important, normal]` (aligné avec `taches.ts`).
 
 ### Dual-mode
-- `edge_function` (défaut) : Gemini 2.5 Flash, on paie. ~$0.15/mois/user.
+- `edge_function` (défaut) : Gemini 2.5 Flash, on paie.
 - `openclaw` : instance user, user paie. Stateful, multi-tour, proactif.
 - Config : `/api/chantier/agent-config` + Settings page (`AgentConfigCard`).
 
+### Utilitaires agent
+- `src/lib/lotUtils.ts` — `getSemanticEmoji(lotName)` : emoji sémantique par keyword matching (🏠 toiture, ⚡ élec, 🚿 plomberie, etc.). Fallback 📦. Utilisé dans 3 composants (UploadDocumentModal, DocumentsView, AddDocumentModal).
+- `paymentEventsRes` clé de réponse API : `payment_events` (pas `.data`).
+
 ## TODO — prochaine session
 
-### 🔴 Tester l'agent IA en prod
-Uploader un devis + l'affecter au mauvais lot → vérifier que l'insight "affectation douteuse" apparaît dans l'onglet Assistant. Tester le cron digest 19h → vérifier qu'une entrée journal est créée.
+### 🔴 Vérifier cron digest 19h (premier tir ce soir)
+Le pg_cron `agent-orchestrator-evening-digest` est en place (17h UTC = 19h Paris). Vérifier demain matin : `SELECT * FROM chantier_journal ORDER BY created_at DESC LIMIT 5`. Si vide → checker les logs edge-function.
 
 ### 🔴 Tester WhatsApp multi-groupes (feature complète, non testée en prod)
 Fichiers clés : `WhatsAppGroupsPanel.tsx`, `MessagerieSection.tsx`, `WhatsAppThread.tsx`, `api/chantier/[id]/whatsapp.ts`, `api/webhooks/whapi.ts`
 Scénarios : créer groupe → membres visibles → message entrant → bulles par rôle → filtre par groupe
+
+### 🟡 Cron timeout >10 chantiers — fan-out pattern
+Actuellement batches de 3 séquentiels. 10+ chantiers = timeout edge function 60s. Solution : edge function "dispatcher" qui fire N appels indépendants.
+
+### 🟡 assistant.ts DevisInfo interface manque lot_id/lot_nom (type debt)
+Le spread runtime fonctionne mais le type TS ne déclare pas ces champs → mismatch detection silencieusement cassée au niveau type. Fix : ajouter `lot_id?: string | null; lot_nom?: string | null` à l'interface `DevisInfo`.
 
 ### 🟡 Migrer useInsights (legacy) vers agent_insights
 6 composants dépendent de `cockpit/useInsights.ts` (Gemini MOE call éphémère). À terme, remplacer par des agent_insights persistants. Composants : BudgetTresorerie, AnalyseDevisSection, LotCard, LotIntervenantCard, BudgetKpiCard, dashboardHelpers.
