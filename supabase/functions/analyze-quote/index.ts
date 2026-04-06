@@ -955,10 +955,16 @@ serve(async (req) => {
           ? `${artisanNom}${resume ? ' — ' + resume.slice(0, 60) : ''}`
           : resume ? resume.slice(0, 80) : null;
 
-        if (enrichedNom) {
+        // Write back montant TTC (or HT) to documents_chantier — needed for budget header
+        const devisMontant = extracted.totaux?.ttc ?? extracted.totaux?.ht ?? null;
+        const docUpdate: Record<string, unknown> = {};
+        if (enrichedNom) docUpdate.nom = enrichedNom.slice(0, 100);
+        if (devisMontant != null && devisMontant > 0) docUpdate.montant = devisMontant;
+
+        if (Object.keys(docUpdate).length > 0) {
           await supabase
             .from("documents_chantier")
-            .update({ nom: enrichedNom.slice(0, 100) })
+            .update(docUpdate)
             .eq("id", docLinked.id);
 
           // Check lot mismatch with the enriched name
@@ -1004,7 +1010,7 @@ serve(async (req) => {
                 return "autre";
               }
 
-              const docType = detectType(enrichedNom);
+              const docType = detectType(enrichedNom ?? '');
               const lotType = detectType(lotData.nom);
 
               if (docType !== "autre" && lotType !== "autre" && docType !== lotType) {
