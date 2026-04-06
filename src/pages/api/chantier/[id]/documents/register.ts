@@ -2,7 +2,8 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import type { DocumentType } from '@/types/chantier-ia';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth, createServiceClient } from '@/lib/apiHelpers';
+import { detectDevisType } from '@/utils/extractProjectElements';
 
 const BUCKET          = 'chantier-documents';
 const SIGNED_TTL      = 3_600;
@@ -53,11 +54,13 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   // Validation lot — '' → null pour éviter "invalid input syntax for type uuid"
   let lotId: string | null = body.lotId || null;
+  let lotNom: string | null = null;
   if (lotId) {
     const { data: lot } = await ctx.supabase
-      .from('lots_chantier').select('id')
+      .from('lots_chantier').select('id, nom')
       .eq('id', lotId).eq('chantier_id', chantierId).single();
     if (!lot) lotId = null;
+    else lotNom = lot.nom;
   }
 
   // Calcul montant_paye si l'IA a détecté un acompte avec pourcentage
@@ -100,6 +103,24 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   const { data: s } = await ctx.supabase.storage
     .from(BUCKET).createSignedUrl(bucketPath, SIGNED_TTL);
+
+  // ── Lot mismatch detection on registration ─────────────────────────────────
+  if (lotId && lotNom && nom) {
+    const docType = detectDevisType(nom);
+    const lotType = detectDevisType(lotNom);
+    if (docType !== 'autre' && lotType !== 'autre' && docType !== lotType) {
+      const serviceClient = createServiceClient();
+      serviceClient.from('agent_insights').insert({
+        chantier_id: chantierId,
+        user_id: ctx.user.id,
+        type: 'risk_detected',
+        severity: 'warning',
+        title: `Affectation douteuse : "${nom.slice(0, 40)}" dans lot "${lotNom}"`,
+        body: `Ce document semble concerner "${docType}" mais est affecté au lot "${lotNom}" (type "${lotType}"). Vérifiez l'affectation.`,
+        source_event: { check: 'lot_mismatch', document_id: doc.id, detected_type: docType, lot_type: lotType },
+      }).then(() => {}).catch(() => {});
+    }
+  }
 
   // Fire-and-forget: deterministic checks ($0) + real-time LLM analysis
   const _sbUrl = import.meta.env.PUBLIC_SUPABASE_URL;

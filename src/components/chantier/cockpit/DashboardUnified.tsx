@@ -539,6 +539,8 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
           onSuccess={(doc) => {
             setDocuments(prev => [doc, ...prev]);
             refreshInsights();
+            // Refresh agent insights after upload (mismatch detection may have created one)
+            setTimeout(() => agentInsights.refresh(), 2000);
             // Auto-analyse : déclencher l'analyse VMD pour les devis uploadés manuellement
             if (
               doc.document_type === 'devis' &&
