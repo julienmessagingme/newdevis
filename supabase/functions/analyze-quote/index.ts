@@ -853,16 +853,17 @@ serve(async (req) => {
       );
     }
 
+    // ============ LINKED DOCUMENT — shared by PAYMENT EVENTS and ENRICH blocks ============
+    const { data: docLinked } = await supabase
+      .from("documents_chantier")
+      .select("id, chantier_id, document_type, lot_id")
+      .eq("analyse_id", analysisId)
+      .maybeSingle();
+
     // ============ PAYMENT EVENTS — génération timeline de paiement ============
     // Déclenché après la sauvegarde réussie de l'analyse.
-    // Cherche le document chantier lié (via analyse_id) pour obtenir le project_id.
     // Non-bloquant : les erreurs sont loggées mais n'échouent pas le pipeline.
     try {
-      const { data: docLinked } = await supabase
-        .from("documents_chantier")
-        .select("id, chantier_id, document_type, lot_id")
-        .eq("analyse_id", analysisId)
-        .maybeSingle();
 
       if (docLinked?.chantier_id) {
         const conditions = extracted.paiement?.conditions_paiement ?? [];

@@ -541,30 +541,10 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             refreshInsights();
             // Refresh agent insights after upload (mismatch detection may have created one)
             setTimeout(() => agentInsights.refresh(), 2000);
-            // Auto-analyse : déclencher l'analyse VMD pour les devis uploadés manuellement
-            if (
-              doc.document_type === 'devis' &&
-              doc.source !== 'verifier_mon_devis' &&
-              doc.bucket_path &&
-              !doc.bucket_path.startsWith('analyse/')
-            ) {
-              toast.loading('Analyse VMD en cours…', { id: `analyse-${doc.id}`, duration: 30_000 });
-              fetch(`/api/chantier/${chantierId}/documents/${doc.id}/analyser`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token ?? ''}` },
-              })
-                .then(r => r.json())
-                .then(({ analysisId }) => {
-                  if (analysisId) {
-                    setDocuments(prev => prev.map(d =>
-                      d.id === doc.id ? { ...d, analyse_id: analysisId } : d,
-                    ));
-                    toast.success('Analyse lancée — résultat dans quelques instants', { id: `analyse-${doc.id}` });
-                  } else {
-                    toast.dismiss(`analyse-${doc.id}`);
-                  }
-                })
-                .catch(() => toast.dismiss(`analyse-${doc.id}`));
+            // Auto-analyse for devis: already triggered by UploadDocumentModal (line 167)
+            // which sets doc.analyse_id before calling onSuccess. No need to call again.
+            if (doc.document_type === 'devis' && doc.analyse_id) {
+              toast.success('Analyse VMD en cours…', { id: `analyse-${doc.id}`, duration: 30_000 });
             }
             // 🧾 Auto-extraction montant pour les factures
             if (doc.document_type === 'facture' && doc.bucket_path) {
