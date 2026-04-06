@@ -198,6 +198,16 @@ export const PATCH: APIRoute = async ({ params, request }) => {
       .then(() => {}).catch(() => {});
   }
 
+  // ── Auto-dismiss old "Affectation douteuse" alerts when lot is reassigned ──
+  if ('lot_id' in updates) {
+    ctx.supabase.from('agent_insights')
+      .update({ read_by_user: true })
+      .eq('chantier_id', params.id!)
+      .eq('type', 'risk_detected')
+      .like('source_event->>document_id', params.docId!)
+      .then(() => {}).catch(() => {});
+  }
+
   // ── Lot assignment coherence check (uses document name enriched by extraction) ──
   if ('lot_id' in updates && updates.lot_id) {
     const docName = updated.nom ?? '';
