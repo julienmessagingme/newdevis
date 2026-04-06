@@ -201,7 +201,13 @@ function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail, on
           <Receipt className="h-3.5 w-3.5" />
           Ajouter un document
         </button>
-        <button onClick={() => { if (window.confirm(`Supprimer le lot "${lot.nom}" ?`)) onDelete(); }}
+        <button onClick={() => {
+          const n = docs.length;
+          const msg = n > 0
+            ? `Ce lot contient ${n} document${n > 1 ? 's' : ''} (${docs.map(d => d.document_type).filter((v, i, a) => a.indexOf(v) === i).join(', ')}). En le supprimant, ces documents seront conservés mais désaffectés.\n\nSupprimer le lot "${lot.nom}" ?`
+            : `Supprimer le lot "${lot.nom}" ?`;
+          if (window.confirm(msg)) onDelete();
+        }}
           className="flex flex-col items-center gap-1 py-3.5 text-[11px] font-semibold text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">
           <Trash2 className="h-3.5 w-3.5" />
           Supprimer
