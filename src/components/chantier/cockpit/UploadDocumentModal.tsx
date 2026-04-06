@@ -5,6 +5,7 @@ import {
   Sparkles, ChevronRight, Plus,
 } from 'lucide-react';
 import type { DocumentChantier, DocumentType, LotChantier } from '@/types/chantier-ia';
+import { getSemanticEmoji } from '@/lib/lotUtils';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 
@@ -147,7 +148,7 @@ export default function UploadDocumentModal({
         const lotRes = await fetch(`/api/chantier/${chantierId}/lots`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${freshToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nom: newLotName.trim(), budget_min_ht: 0, budget_avg_ht: 0, budget_max_ht: 0 }),
+          body: JSON.stringify({ nom: newLotName.trim(), emoji: getSemanticEmoji(newLotName.trim()), budget_min_ht: 0, budget_avg_ht: 0, budget_max_ht: 0 }),
         });
         if (lotRes.ok) {
           const lotData = await lotRes.json();

@@ -82,6 +82,12 @@ LOGIQUE MÉTIER :
 - Devis > prix marché → signaler le % d'écart
 - Score ROUGE sur un devis → alerte critique avec nom de l'artisan
 
+RÈGLE ALERTES — PAS DE DOUBLONS GLOBAL/UNITAIRE :
+- Ne mélange JAMAIS une alerte globale (ex: "6 lots sans devis") avec des alertes unitaires (ex: "lot Électricité sans devis")
+- Choisis UN seul niveau de granularité par sujet : soit global, soit unitaire
+- Si le nombre de lots concernés est ≤ 2, utilise des alertes unitaires
+- Si le nombre de lots est ≥ 3, utilise une seule alerte globale résumant le tout
+
 RÈGLE COHÉRENCE DEVIS ↔ LOT :
 - Si [COHERENCE_DEVIS] contient "AFFECTATION DOUTEUSE" → alerte risque : "Devis [nom] affecté au lot [lot] — êtes-vous sûr ?"
 - Si [COHERENCE_DEVIS] contient des devis "non affectés" → observation info, pas d'alerte

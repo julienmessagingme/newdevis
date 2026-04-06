@@ -2,7 +2,7 @@
  * DashboardUnified — cockpit chantier avec sidebar premium.
  * Orchestrateur : routing entre sections, state management, modals.
  */
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import { ArrowLeft } from 'lucide-react';
@@ -145,6 +145,32 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
   const agentInsights = useAgentInsights(chantierId, token);
   const totalAlertCount = assistantAlertCount + agentInsights.unreadCount;
   const hasCriticalInsight = agentInsights.insights.some(i => !i.read_by_user && i.severity === 'critical');
+
+  // ── Toast notifications for recent agent alerts (not historical) ──────────
+  const toastedIds = useRef(new Set<string>());
+  useEffect(() => {
+    if (!agentInsights.insights.length) return;
+    const fiveMinAgo = Date.now() - 5 * 60 * 1000;
+    const recent = agentInsights.insights.filter(
+      i => !i.read_by_user
+        && (i.severity === 'warning' || i.severity === 'critical')
+        && new Date(i.created_at).getTime() > fiveMinAgo
+        && !toastedIds.current.has(i.id)
+    );
+    if (recent.length === 0) return;
+    const toShow = recent.slice(0, 3);
+    for (const ins of toShow) {
+      toastedIds.current.add(ins.id);
+      if (ins.severity === 'critical') {
+        toast.error(ins.title, { duration: 8000 });
+      } else {
+        toast.warning(ins.title, { duration: 6000 });
+      }
+    }
+    if (recent.length > 3) {
+      toast.info(`+ ${recent.length - 3} alertes dans l'onglet Assistant`, { duration: 5000 });
+    }
+  }, [agentInsights.insights]);
 
   // ── Badges sidebar ────────────────────────────────────────────────────────
   const navBadges = useMemo<Partial<Record<Section, NavBadge>>>(() => {
@@ -517,7 +543,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
           typeProjet={result.typeProjet}
           onMenuToggle={() => setMobileOpen(v => !v)}
           budgetEstime={displayMin > 0 ? `${fmtK(displayMin)} – ${fmtK(displayMax)}` : '—'}
-          budgetValide={documents.filter(d => d.document_type === 'devis' && d.devis_statut === 'valide').reduce((s, d) => s + (d.montant ?? 0), 0)}
+          budgetValide={documents.filter(d => d.document_type === 'devis' && (d.devis_statut === 'valide' || d.devis_statut === 'attente_facture')).reduce((s, d) => s + (d.montant ?? 0), 0)}
           facture={documents.filter(d => d.document_type === 'facture' && (d.facture_statut === 'payee' || d.facture_statut === 'payee_partiellement')).reduce((s, d) => s + (d.facture_statut === 'payee_partiellement' ? (d.montant_paye ?? 0) : (d.montant ?? 0)), 0)}
         />
 

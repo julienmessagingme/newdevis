@@ -259,13 +259,13 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
   const validated = lots.filter(l => {
     if (STATUTS_VALIDES.includes(l.statut ?? '')) return true;
     return (docsByLot[l.id] ?? []).some(
-      d => d.document_type === 'devis' && d.devis_statut === 'valide',
+      d => d.document_type === 'devis' && (d.devis_statut === 'valide' || d.devis_statut === 'attente_facture'),
     );
   }).length;
   const withDevis = lots.filter(l => {
     if (STATUTS_VALIDES.includes(l.statut ?? '')) return false;
     const docs = docsByLot[l.id] ?? [];
-    const hasValidated = docs.some(d => d.document_type === 'devis' && d.devis_statut === 'valide');
+    const hasValidated = docs.some(d => d.document_type === 'devis' && (d.devis_statut === 'valide' || d.devis_statut === 'attente_facture'));
     if (hasValidated) return false;
     return docs.some(d => d.document_type === 'devis');
   }).length;

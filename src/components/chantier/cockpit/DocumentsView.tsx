@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { DocumentChantier, LotChantier } from '@/types/chantier-ia';
+import { getSemanticEmoji } from '@/lib/lotUtils';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -134,7 +135,7 @@ function LotBadge({ doc, lots, onChangeLot, chantierId, token }: {
     const res = await fetch(`/api/chantier/${chantierId}/lots`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nom: newName.trim(), budget_min_ht: 0, budget_avg_ht: 0, budget_max_ht: 0 }),
+      body: JSON.stringify({ nom: newName.trim(), emoji: getSemanticEmoji(newName.trim()), budget_min_ht: 0, budget_avg_ht: 0, budget_max_ht: 0 }),
     });
     if (res.ok) {
       const data = await res.json();
@@ -159,24 +160,26 @@ function LotBadge({ doc, lots, onChangeLot, chantierId, token }: {
       </button>
       {open && (
         <div className="absolute left-0 bottom-full mb-1 z-30 bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden min-w-[180px]">
-          <button
-            onClick={() => { onChangeLot(doc.id, null); setOpen(false); }}
-            className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:bg-gray-50 transition-colors"
-          >
-            — Sans intervenant
-          </button>
-          {lots.map(l => (
+          <div className="max-h-48 overflow-y-auto">
             <button
-              key={l.id}
-              onClick={() => { onChangeLot(doc.id, l.id); setOpen(false); }}
-              className={`w-full text-left px-3 py-2 text-xs font-medium transition-colors flex items-center gap-2 ${
-                l.id === doc.lot_id ? 'bg-purple-50 text-purple-700' : 'text-gray-700 hover:bg-gray-50'
-              }`}
+              onClick={() => { onChangeLot(doc.id, null); setOpen(false); }}
+              className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:bg-gray-50 transition-colors"
             >
-              <span>{l.emoji ?? '🔧'}</span>
-              <span className="truncate">{l.nom}</span>
+              — Sans intervenant
             </button>
-          ))}
+            {lots.map(l => (
+              <button
+                key={l.id}
+                onClick={() => { onChangeLot(doc.id, l.id); setOpen(false); }}
+                className={`w-full text-left px-3 py-2 text-xs font-medium transition-colors flex items-center gap-2 ${
+                  l.id === doc.lot_id ? 'bg-purple-50 text-purple-700' : 'text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <span>{l.emoji ?? '🔧'}</span>
+                <span className="truncate">{l.nom}</span>
+              </button>
+            ))}
+          </div>
           {!creating ? (
             <button
               onClick={() => setCreating(true)}
@@ -272,6 +275,19 @@ function DocRow({ doc, lots, chantierId, token, sectionKey, onDelete, onLotChang
         </div>
       )}
 
+      {/* Ouvrir — à gauche, toujours visible */}
+      {doc.signedUrl && (
+        <a
+          href={doc.signedUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-lg transition-colors shrink-0"
+          title="Ouvrir le fichier"
+        >
+          <ExternalLink className="h-3 w-3" />
+        </a>
+      )}
+
       {/* Nom + meta + badge */}
       <div className="flex-1 min-w-0">
         {editing ? (
@@ -326,20 +342,8 @@ function DocRow({ doc, lots, chantierId, token, sectionKey, onDelete, onLotChang
         </div>
       </div>
 
-      {/* Actions */}
+      {/* Actions (Ouvrir moved to left of file name) */}
       <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-        {doc.signedUrl && (
-          <a
-            href={doc.signedUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors"
-            title="Ouvrir"
-          >
-            <ExternalLink className="h-3 w-3" />
-            <span>Ouvrir</span>
-          </a>
-        )}
         {doc.analyse_id && (
           <a
             href={`/analyse/${doc.analyse_id}`}
@@ -442,7 +446,7 @@ export default function DocumentsView({
 }) {
   const [search,      setSearch]      = useState('');
   const [openSections, setOpenSections] = useState<Set<SectionKey>>(
-    () => new Set(['devis', 'factures']),
+    () => new Set(['devis', 'factures', 'photos']),
   );
   const [lotOverrides, setLotOverrides] = useState<Record<string, string | null>>({});
 

@@ -48,7 +48,7 @@ function LotCard({ lot, docs, insight, onAdd, onDetail }: {
       <div className="flex border-t border-gray-50">
         <button onClick={onDetail} className="flex-1 flex items-center justify-center gap-1 py-3 text-xs font-medium text-blue-600 hover:bg-blue-50 transition-colors">Voir <ChevronRight className="h-3 w-3" /></button>
         <div className="w-px bg-gray-50" />
-        <button onClick={onAdd} className="flex-1 flex items-center justify-center gap-1 py-3 text-xs font-medium text-gray-500 hover:bg-gray-50 transition-colors"><Plus className="h-3 w-3" /> Ajouter</button>
+        <button onClick={onAdd} className="flex-1 flex items-center justify-center gap-1 py-3 text-xs font-medium text-gray-500 hover:bg-gray-50 transition-colors"><Plus className="h-3 w-3" /> Ajouter un document</button>
       </div>
     </div>
   );

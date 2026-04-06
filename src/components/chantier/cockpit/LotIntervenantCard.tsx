@@ -55,7 +55,7 @@ export function getLotStatusLevel(lot: LotChantier, docs: DocumentChantier[]): {
   if (statut === 'a_contacter') {
     return { level: 'insufficient', label: 'En attente', msg: 'Devis demandé, pas encore reçu', dotColor: 'bg-amber-400', textColor: 'text-amber-700', bgColor: 'bg-amber-50' };
   }
-  return { level: 'blocked', label: 'Bloqué', msg: 'Aucun artisan contacté — action requise', dotColor: 'bg-red-400', textColor: 'text-red-700', bgColor: 'bg-red-50' };
+  return { level: 'blocked', label: 'Bloqué', msg: 'Aucun devis reçu — ajoutez un document', dotColor: 'bg-red-400', textColor: 'text-red-700', bgColor: 'bg-red-50' };
 }
 
 // ── Lot Intervenant Card (home) ────────────────────────────────────────────────
@@ -103,21 +103,12 @@ function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail, on
       ? { text: '📋 Obtenez un 2e devis pour comparer', cls: 'text-amber-600' } :
     statut === 'a_contacter'
       ? { text: '📞 Contacter des artisans', cls: 'text-red-600'     } :
-      { text: '🎯 Chercher des artisans',    cls: 'text-red-600'     };
+      { text: '📋 Demander des devis',        cls: 'text-red-600'     };
 
   return (
     <div className="relative group bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col">
 
-      {/* Delete button */}
-      <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-        <button
-          onClick={e => { e.stopPropagation(); onDelete(); }}
-          className="w-6 h-6 flex items-center justify-center rounded-lg bg-white shadow-sm border border-gray-100 text-gray-300 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all"
-          title="Supprimer cet intervenant"
-        >
-          <Trash2 className="h-3 w-3" />
-        </button>
-      </div>
+      {/* Delete button removed from hover — now in action bar with window.confirm */}
 
       {/* ── Zone cliquable principale ──────────────────── */}
       <button onClick={onDetail} className="p-5 pb-3 flex items-start gap-3 text-left hover:bg-gray-50/60 transition-colors group">
@@ -192,7 +183,7 @@ function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail, on
       </div>
 
       {/* ── Actions ─────────────────────────────────────── */}
-      <div className={`border-t border-gray-50 grid divide-x divide-gray-50 mt-auto ${devisCnt >= 2 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+      <div className={`border-t border-gray-50 grid divide-x divide-gray-50 mt-auto ${devisCnt >= 2 ? 'grid-cols-4' : 'grid-cols-3'}`}>
         <button onClick={onDetail}
           className="flex flex-col items-center gap-1 py-3.5 text-[11px] font-semibold text-blue-600 hover:bg-blue-50 transition-colors">
           <ChevronRight className="h-3.5 w-3.5" />
@@ -209,6 +200,11 @@ function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail, on
           className="flex flex-col items-center gap-1 py-3.5 text-[11px] font-semibold text-violet-600 hover:bg-violet-50 transition-colors">
           <Receipt className="h-3.5 w-3.5" />
           Ajouter un document
+        </button>
+        <button onClick={() => { if (window.confirm(`Supprimer le lot "${lot.nom}" ?`)) onDelete(); }}
+          className="flex flex-col items-center gap-1 py-3.5 text-[11px] font-semibold text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+          <Trash2 className="h-3.5 w-3.5" />
+          Supprimer
         </button>
       </div>
 

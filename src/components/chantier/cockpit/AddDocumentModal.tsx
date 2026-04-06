@@ -15,6 +15,7 @@ import {
   X, FileUp, Receipt, ShoppingCart, Wrench, FileText,
   Loader2, Check, AlertTriangle, Plus, ChevronDown, Sparkles,
 } from 'lucide-react';
+import { getSemanticEmoji } from '@/lib/lotUtils';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 
@@ -239,7 +240,7 @@ export default function AddDocumentModal({
         const lotRes = await fetch(`/api/chantier/${chantierId}/lots`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nom: newLotName.trim(), emoji: '🔧' }),
+          body: JSON.stringify({ nom: newLotName.trim(), emoji: getSemanticEmoji(newLotName.trim()) }),
         });
         if (lotRes.ok) {
           const lotData = await lotRes.json();
