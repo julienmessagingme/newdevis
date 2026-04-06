@@ -860,7 +860,7 @@ serve(async (req) => {
     try {
       const { data: docLinked } = await supabase
         .from("documents_chantier")
-        .select("id, chantier_id, document_type")
+        .select("id, chantier_id, document_type, lot_id")
         .eq("analyse_id", analysisId)
         .maybeSingle();
 
@@ -940,6 +940,76 @@ serve(async (req) => {
       }
     } catch (paymentErr) {
       console.error("[PaymentEvents] erreur inattendue:", paymentErr instanceof Error ? paymentErr.message : paymentErr);
+    }
+
+    // ============ ENRICH DOCUMENT NAME + LOT MISMATCH CHECK ============
+    // After successful analysis, write back the artisan name + summary to documents_chantier.nom.
+    // This enables lot mismatch detection even for opaque filenames (xy.pdf, scan123.pdf).
+    // Zero additional AI cost — reuses data already extracted by this pipeline.
+    try {
+      if (docLinked?.id) {
+        const artisanNom = extracted.entreprise?.nom ?? '';
+        const resume = extracted.resume_factuel ?? '';
+        const enrichedNom = artisanNom
+          ? `${artisanNom}${resume ? ' — ' + resume.slice(0, 60) : ''}`
+          : resume ? resume.slice(0, 80) : null;
+
+        if (enrichedNom) {
+          await supabase
+            .from("documents_chantier")
+            .update({ nom: enrichedNom.slice(0, 100) })
+            .eq("id", docLinked.id);
+
+          // Check lot mismatch with the enriched name
+          if (docLinked.lot_id) {
+            const { data: lotData } = await supabase
+              .from("lots_chantier")
+              .select("nom")
+              .eq("id", docLinked.lot_id)
+              .single();
+
+            if (lotData) {
+              // Simple keyword-based type detection (same logic as frontend detectDevisType)
+              const LOT_KEYWORDS: Record<string, string> = {
+                menuiserie: "fenetres", menuisier: "fenetres", fenetre: "fenetres", vitr: "fenetres", baie: "fenetres", volet: "fenetres",
+                plombi: "plomberie", chauffag: "plomberie", chaudier: "plomberie",
+                electri: "electricite", tableau: "electricite", eclairag: "electricite",
+                macon: "maconnerie", beton: "maconnerie", parpaing: "maconnerie",
+                carrelag: "carrelage", parquet: "carrelage",
+                peintur: "peinture", ravalement: "peinture",
+                toitur: "toiture", couvreur: "toiture", charpent: "toiture",
+                isolat: "isolation", terras: "terrasse", cuisin: "cuisine",
+              };
+
+              function detectType(text: string): string {
+                const lower = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                for (const [kw, type] of Object.entries(LOT_KEYWORDS)) {
+                  if (lower.includes(kw)) return type;
+                }
+                return "autre";
+              }
+
+              const docType = detectType(enrichedNom);
+              const lotType = detectType(lotData.nom);
+
+              if (docType !== "autre" && lotType !== "autre" && docType !== lotType) {
+                await supabase.from("agent_insights").insert({
+                  chantier_id: docLinked.chantier_id,
+                  user_id: analysis.user_id,
+                  type: "risk_detected",
+                  severity: "warning",
+                  title: `Affectation douteuse : "${enrichedNom.slice(0, 40)}" dans lot "${lotData.nom}"`,
+                  body: `Après analyse du contenu, ce devis semble concerner "${docType}" mais est affecté au lot "${lotData.nom}" (${lotType}). Vérifiez l'affectation.`,
+                  source_event: { check: "lot_mismatch_post_analysis", document_id: docLinked.id, detected_type: docType, lot_type: lotType },
+                });
+                console.log(`[LotMismatch] "${enrichedNom.slice(0, 30)}" (${docType}) in lot "${lotData.nom}" (${lotType})`);
+              }
+            }
+          }
+        }
+      }
+    } catch (enrichErr) {
+      console.error("[EnrichDocName] non-blocking error:", enrichErr instanceof Error ? enrichErr.message : enrichErr);
     }
 
     // ============ PURGE OLD ANALYSES (keep max 10 — or 30 for premium/admin) ============
