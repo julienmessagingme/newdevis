@@ -114,16 +114,23 @@ export const POST: APIRoute = async ({ request }) => {
 
   const elementsProjet = extractProjectElements(description ?? '');
 
+  // Also extract elements from lot names (user may have created lots not mentioned in description)
+  const elementsFromLots = lots.flatMap(l => {
+    const detected = detectDevisType(l.nom);
+    return detected !== 'autre' ? [detected] : [];
+  });
+  const allProjectElements = [...new Set([...elementsProjet, ...elementsFromLots])];
+
   // Enrichir chaque devis avec son type détecté
   const devisEnrichis = devis.map(d => ({
     ...d,
     type: detectDevisType(d.nom),
   }));
 
-  // Détecter les incohérences : devis dont le type n'est pas dans les éléments projet
+  // Détecter les incohérences : devis dont le type n'est pas dans les éléments projet NI dans les lots
   // (on ignore 'autre' — pas assez d'info pour trancher)
-  const devisHorsProjet = elementsProjet.length > 0
-    ? devisEnrichis.filter(d => d.type !== 'autre' && !elementsProjet.includes(d.type))
+  const devisHorsProjet = allProjectElements.length > 0
+    ? devisEnrichis.filter(d => d.type !== 'autre' && !allProjectElements.includes(d.type))
     : [];
 
   // ── Construire le contexte projet ─────────────────────────────────────────
