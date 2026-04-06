@@ -166,6 +166,18 @@ export const POST: APIRoute = async ({ params, request }) => {
     }
   }
 
+  // Fire-and-forget: agent-checks ($0) + agent-orchestrator (Gemini)
+  const _sbUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+  const _sbKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
+  fetch(`${_sbUrl}/functions/v1/agent-checks`, {
+    method: 'POST', headers: { 'Authorization': `Bearer ${_sbKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chantier_id: chantierId }),
+  }).catch(() => {});
+  fetch(`${_sbUrl}/functions/v1/agent-orchestrator`, {
+    method: 'POST', headers: { 'Authorization': `Bearer ${_sbKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chantier_id: chantierId, run_type: 'morning' }),
+  }).catch(() => {});
+
   return jsonOk({ nom: generatedNom });
 };
 

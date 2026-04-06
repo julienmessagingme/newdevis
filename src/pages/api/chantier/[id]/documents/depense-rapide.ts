@@ -80,6 +80,11 @@ export const POST: APIRoute = async ({ params, request }) => {
     return jsonError('Erreur lors de l\'enregistrement', 500);
   }
 
+  // Invalidate agent context cache (new expense = stale context)
+  ctx.supabase.from('agent_context_cache')
+    .update({ invalidated: true }).eq('chantier_id', chantierId)
+    .then(() => {}).catch(() => {});
+
   // Fire-and-forget: deterministic SQL checks only ($0)
   const _sbUrl = import.meta.env.PUBLIC_SUPABASE_URL;
   const _sbKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;

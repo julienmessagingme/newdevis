@@ -971,15 +971,29 @@ serve(async (req) => {
 
             if (lotData) {
               // Simple keyword-based type detection (same logic as frontend detectDevisType)
+              // Partial copy of src/utils/extractProjectElements.ts LOT_TYPE_MAP (57 full keywords → 17 types).
+              // This Deno version uses ~40 prefix stems for the same coverage. Update both if adding types.
+              // Deno edge functions cannot import from src/ — this is an intentional copy.
               const LOT_KEYWORDS: Record<string, string> = {
-                menuiserie: "fenetres", menuisier: "fenetres", fenetre: "fenetres", vitr: "fenetres", baie: "fenetres", volet: "fenetres",
-                plombi: "plomberie", chauffag: "plomberie", chaudier: "plomberie",
+                menuiserie: "fenetres", menuisier: "fenetres", fenetre: "fenetres", vitr: "fenetres",
+                baie: "fenetres", volet: "fenetres", vitrage: "fenetres", survitrage: "fenetres",
+                plombi: "plomberie", plombier: "plomberie", chauffag: "plomberie", chaudier: "plomberie",
                 electri: "electricite", tableau: "electricite", eclairag: "electricite",
-                macon: "maconnerie", beton: "maconnerie", parpaing: "maconnerie",
-                carrelag: "carrelage", parquet: "carrelage",
-                peintur: "peinture", ravalement: "peinture",
-                toitur: "toiture", couvreur: "toiture", charpent: "toiture",
-                isolat: "isolation", terras: "terrasse", cuisin: "cuisine",
+                macon: "maconnerie", maconnerie: "maconnerie", beton: "maconnerie", parpaing: "maconnerie",
+                carrelag: "carrelage", carreleur: "carrelage", parquet: "carrelage",
+                peintur: "peinture", peintre: "peinture", ravalement: "peinture",
+                toitur: "toiture", couvreur: "toiture", charpent: "toiture", toit: "toiture",
+                ardoise: "toiture", tuile: "toiture",
+                isolat: "isolation", isolant: "isolation",
+                terras: "terrasse", deck: "terrasse", dalle: "terrasse",
+                cuisin: "cuisine",
+                portail: "portail", portillon: "portail",
+                cloture: "cloture", grillage: "cloture",
+                piscine: "piscine", bassin: "piscine",
+                pergola: "pergola", veranda: "pergola",
+                salle: "salle_bain", sanitaire: "salle_bain",
+                terrassier: "terrassement", terrassement: "terrassement",
+                amenagement: "amenagement",
               };
 
               function detectType(text: string): string {
@@ -1008,6 +1022,14 @@ serve(async (req) => {
             }
           }
         }
+      }
+      // ── Fire agent-orchestrator after devis content extraction ──
+      if (docLinked?.chantier_id) {
+        fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/agent-orchestrator`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ chantier_id: docLinked.chantier_id, run_type: "morning" }),
+        }).catch(() => {});
       }
     } catch (enrichErr) {
       console.error("[EnrichDocName] non-blocking error:", enrichErr instanceof Error ? enrichErr.message : enrichErr);

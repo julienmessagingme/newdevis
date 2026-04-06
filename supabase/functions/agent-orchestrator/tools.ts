@@ -44,7 +44,7 @@ export const TOOLS_SCHEMA = [
         type: "object",
         properties: {
           titre: { type: "string", description: "Titre de la tâche" },
-          priorite: { type: "string", enum: ["urgent", "normal", "low"], description: "Priorité" },
+          priorite: { type: "string", enum: ["urgent", "important", "normal"], description: "Priorité" },
         },
         required: ["titre", "priorite"],
       },
@@ -127,15 +127,13 @@ export async function executeTool(
   try {
     switch (toolName) {
       case "update_planning": {
+        const lotUpdate: Record<string, unknown> = { id: args.lot_id };
+        if (args.date_debut) lotUpdate.date_debut = args.date_debut;
+        if (args.duree_jours) lotUpdate.duree_jours = args.duree_jours;
         const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/planning`, {
           method: "PATCH",
           headers,
-          body: JSON.stringify({
-            lot_id: args.lot_id,
-            date_debut: args.date_debut,
-            duree_jours: args.duree_jours,
-            raison: args.raison,
-          }),
+          body: JSON.stringify({ lots: [lotUpdate] }),
         });
         const data = await res.json();
         return JSON.stringify({ ok: res.ok, data });
@@ -156,7 +154,7 @@ export async function executeTool(
       }
 
       case "create_task": {
-        const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/todos`, {
+        const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/taches`, {
           method: "POST",
           headers,
           body: JSON.stringify({
@@ -169,7 +167,7 @@ export async function executeTool(
       }
 
       case "complete_task": {
-        const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/todos`, {
+        const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/taches`, {
           method: "PATCH",
           headers,
           body: JSON.stringify({
@@ -182,7 +180,7 @@ export async function executeTool(
       }
 
       case "log_insight": {
-        const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/insights`, {
+        const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/agent-insights`, {
           method: "POST",
           headers,
           body: JSON.stringify({
@@ -201,7 +199,7 @@ export async function executeTool(
 
       case "request_clarification": {
         // Creates both an insight AND a task
-        const insightRes = await fetch(`${API_BASE}/api/chantier/${chantierId}/insights`, {
+        const insightRes = await fetch(`${API_BASE}/api/chantier/${chantierId}/agent-insights`, {
           method: "POST",
           headers,
           body: JSON.stringify({
@@ -214,7 +212,7 @@ export async function executeTool(
           }),
         });
 
-        const taskRes = await fetch(`${API_BASE}/api/chantier/${chantierId}/todos`, {
+        const taskRes = await fetch(`${API_BASE}/api/chantier/${chantierId}/taches`, {
           method: "POST",
           headers,
           body: JSON.stringify({

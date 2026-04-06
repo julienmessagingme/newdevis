@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuthOrAgent } from '@/lib/apiHelpers';
 import { estimateMissingPlanningData, computePlanningDates } from '@/lib/planningUtils';
 
 /**
@@ -9,7 +9,7 @@ import { estimateMissingPlanningData, computePlanningDates } from '@/lib/plannin
  * Retourne les lots avec champs planning + date_debut_chantier.
  */
 export const GET: APIRoute = async ({ request, params }) => {
-  const ctx = await requireChantierAuth(request, params.id!);
+  const ctx = await requireChantierAuthOrAgent(request, params.id!);
   if (ctx instanceof Response) return ctx;
 
   // Date de début du chantier
@@ -49,7 +49,7 @@ export const GET: APIRoute = async ({ request, params }) => {
  * Recalcule automatiquement les date_debut/date_fin de chaque lot.
  */
 export const PATCH: APIRoute = async ({ request, params }) => {
-  const ctx = await requireChantierAuth(request, params.id!);
+  const ctx = await requireChantierAuthOrAgent(request, params.id!);
   if (ctx instanceof Response) return ctx;
 
   let body: Record<string, unknown>;

@@ -1,12 +1,12 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuthOrAgent } from '@/lib/apiHelpers';
 
 // ── GET — liste des tâches ─────────────────────────────────────────────────────
 
 export const GET: APIRoute = async ({ params, request }) => {
-  const ctx = await requireChantierAuth(request, params.id!);
+  const ctx = await requireChantierAuthOrAgent(request, params.id!);
   if (ctx instanceof Response) return ctx;
 
   const id = params.id!;
@@ -22,7 +22,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 // ── POST — créer une tâche (ou bulk) ──────────────────────────────────────────
 
 export const POST: APIRoute = async ({ params, request }) => {
-  const ctx = await requireChantierAuth(request, params.id!);
+  const ctx = await requireChantierAuthOrAgent(request, params.id!);
   if (ctx instanceof Response) return ctx;
 
   const id = params.id!;
@@ -81,7 +81,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 // ── PATCH — modifier une tâche ─────────────────────────────────────────────────
 
 export const PATCH: APIRoute = async ({ params, request }) => {
-  const ctx = await requireChantierAuth(request, params.id!);
+  const ctx = await requireChantierAuthOrAgent(request, params.id!);
   if (ctx instanceof Response) return ctx;
 
   const id = params.id!;
@@ -90,8 +90,22 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   try { body = await request.json(); }
   catch { return jsonError('Corps invalide', 400); }
 
-  const todoId = typeof body.id === 'string' ? body.id : '';
-  if (!todoId) return jsonError('ID tâche requis', 400);
+  let todoId = typeof body.id === 'string' ? body.id : '';
+
+  // Title-based lookup fallback (agent IA sends { titre, done } without knowing the ID)
+  if (!todoId && typeof body.titre === 'string' && body.titre.trim()) {
+    const { data: found } = await ctx.supabase
+      .from('todo_chantier')
+      .select('id')
+      .eq('chantier_id', id)
+      .ilike('titre', body.titre.trim())
+      .eq('done', false)
+      .limit(1)
+      .single();
+    if (found) todoId = found.id;
+  }
+
+  if (!todoId) return jsonError('ID ou titre de tâche requis', 400);
 
   const patch: Record<string, unknown> = {};
   if (typeof body.done === 'boolean') patch.done = body.done;
@@ -112,7 +126,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 // ── DELETE — supprimer une tâche ───────────────────────────────────────────────
 
 export const DELETE: APIRoute = async ({ params, request }) => {
-  const ctx = await requireChantierAuth(request, params.id!);
+  const ctx = await requireChantierAuthOrAgent(request, params.id!);
   if (ctx instanceof Response) return ctx;
 
   const id = params.id!;

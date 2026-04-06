@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuthOrAgent } from '@/lib/apiHelpers';
 
 /**
  * POST /api/chantier/[id]/lots
@@ -9,7 +9,7 @@ import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/a
  * Body: { nom: string, emoji?: string, jobType?: string }
  */
 export const POST: APIRoute = async ({ request, params }) => {
-  const ctx = await requireChantierAuth(request, params.id!);
+  const ctx = await requireChantierAuthOrAgent(request, params.id!);
   if (ctx instanceof Response) return ctx;
 
   let body: Record<string, unknown>;
@@ -50,11 +50,55 @@ export const POST: APIRoute = async ({ request, params }) => {
   return jsonOk({ lot: data }, 201);
 };
 
+/**
+ * PATCH /api/chantier/[id]/lots
+ * Met à jour un lot (statut, nom). Utilisé par l'agent IA via update_lot_status.
+ * Body: { lot_id: string, statut?: string, nom?: string }
+ */
+export const PATCH: APIRoute = async ({ request, params }) => {
+  const ctx = await requireChantierAuthOrAgent(request, params.id!);
+  if (ctx instanceof Response) return ctx;
+
+  let body: Record<string, unknown>;
+  try { body = await request.json(); } catch { return jsonError('Corps invalide', 400); }
+
+  const lotId = typeof body.lot_id === 'string' ? body.lot_id : '';
+  if (!lotId) return jsonError('lot_id requis', 400);
+
+  const VALID_STATUTS = ['a_trouver', 'a_faire', 'en_cours', 'termine'];
+  const patch: Record<string, unknown> = {};
+  if (typeof body.statut === 'string' && VALID_STATUTS.includes(body.statut)) patch.statut = body.statut;
+  if (typeof body.nom === 'string' && body.nom.trim()) patch.nom = body.nom.trim();
+
+  if (Object.keys(patch).length === 0) return jsonError('Aucun champ valide à mettre à jour', 400);
+
+  const { data, error } = await ctx.supabase
+    .from('lots_chantier')
+    .update(patch)
+    .eq('id', lotId)
+    .eq('chantier_id', params.id!)
+    .select('id, nom, statut')
+    .single();
+
+  if (error) {
+    console.error('[api/chantier/lots PATCH] error:', error.message);
+    return jsonError('Erreur lors de la mise à jour du lot', 500);
+  }
+
+  // Invalidate agent context cache
+  ctx.supabase.from('agent_context_cache')
+    .update({ invalidated: true })
+    .eq('chantier_id', params.id!)
+    .then(() => {}).catch(() => {});
+
+  return jsonOk({ lot: data });
+};
+
 // ── GET /api/chantier/[id]/lots ──────────────────────────────────────────────
 // Liste les lots réels du chantier depuis lots_chantier (pas les fallback metadata).
 
 export const GET: APIRoute = async ({ request, params }) => {
-  const ctx = await requireChantierAuth(request, params.id!);
+  const ctx = await requireChantierAuthOrAgent(request, params.id!);
   if (ctx instanceof Response) return ctx;
 
   const { data: lots, error } = await ctx.supabase

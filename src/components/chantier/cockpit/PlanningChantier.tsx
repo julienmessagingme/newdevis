@@ -1,14 +1,13 @@
 /**
- * PlanningChantier — assistant chantier interactif.
- * Tâches CRUD + Planning par mois + Rendez-vous.
+ * PlanningChantier — Planning Gantt + Rendez-vous.
+ * Tasks live in AssistantChantierSection via useTaches hook.
  */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  Plus, Check, Trash2, ChevronRight, Loader2, X,
-  Star, Sparkles, Calendar, CheckSquare, Pencil,
+  Plus, Trash2, Loader2,
+  Calendar, Pencil,
 } from 'lucide-react';
-import type { ChantierIAResult, TacheIA } from '@/types/chantier-ia';
-import type { PrioriteTache } from '@/types/chantier-ia';
+import type { ChantierIAResult } from '@/types/chantier-ia';
 import PlanningTimeline from './planning/PlanningTimeline';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -23,13 +22,6 @@ interface Rdv {
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const PRIO: Record<PrioriteTache, { label: string; cls: string }> = {
-  urgent:    { label: 'Urgent',    cls: 'bg-red-50 text-red-700 border-red-100'       },
-  important: { label: 'Important', cls: 'bg-amber-50 text-amber-700 border-amber-100' },
-  normal:    { label: 'Normal',    cls: 'bg-gray-50 text-gray-500 border-gray-100'    },
-};
-
-
 const RDV_CFG: Record<Rdv['type'], { label: string; emoji: string; cls: string }> = {
   artisan:   { label: 'Artisan',   emoji: '👷', cls: 'bg-blue-50 text-blue-700'   },
   visite:    { label: 'Visite',    emoji: '🏠', cls: 'bg-purple-50 text-purple-700' },
@@ -37,50 +29,7 @@ const RDV_CFG: Record<Rdv['type'], { label: string; emoji: string; cls: string }
   autre:     { label: 'Autre',     emoji: '📅', cls: 'bg-gray-50 text-gray-600'   },
 };
 
-// Tâches auto-générées par type de projet
-const AUTO_TASKS: Record<string, Array<{ titre: string; priorite: PrioriteTache }>> = {
-  extension: [
-    { titre: 'Déposer le permis de construire en mairie', priorite: 'urgent' },
-    { titre: 'Consulter un architecte (obligatoire si > 150 m²)', priorite: 'urgent' },
-    { titre: 'Obtenir 3 devis gros œuvre', priorite: 'urgent' },
-    { titre: 'Souscrire une assurance dommages-ouvrage', priorite: 'important' },
-    { titre: 'Planifier le raccordement aux réseaux', priorite: 'normal' },
-  ],
-  renovation_maison: [
-    { titre: 'Obtenir 3 devis par corps d\'état', priorite: 'urgent' },
-    { titre: 'Vérifier la décennale de chaque artisan', priorite: 'urgent' },
-    { titre: 'Planifier l\'ordre des interventions', priorite: 'important' },
-    { titre: 'Prévoir une solution de relogement si nécessaire', priorite: 'normal' },
-  ],
-  salle_de_bain: [
-    { titre: 'Obtenir 2-3 devis plombier + carreleur', priorite: 'urgent' },
-    { titre: 'Choisir les équipements sanitaires', priorite: 'important' },
-    { titre: 'Planifier la coupure d\'eau', priorite: 'important' },
-  ],
-  cuisine: [
-    { titre: 'Commander la cuisine (délai ~8 semaines)', priorite: 'urgent' },
-    { titre: 'Obtenir devis plombier + électricien', priorite: 'urgent' },
-    { titre: 'Prévoir le stockage temporaire', priorite: 'normal' },
-  ],
-  piscine: [
-    { titre: 'Demander une déclaration préalable en mairie', priorite: 'urgent' },
-    { titre: 'Obtenir 3 devis piscinistes', priorite: 'urgent' },
-    { titre: 'Prévoir terrassement et évacuation des terres', priorite: 'important' },
-  ],
-  terrasse: [
-    { titre: 'Obtenir 2-3 devis terrasse', priorite: 'urgent' },
-    { titre: 'Choisir le matériau (composite vs naturel)', priorite: 'important' },
-    { titre: 'Vérifier la résistance de la dalle support', priorite: 'important' },
-  ],
-  autre: [
-    { titre: 'Obtenir 3 devis comparatifs', priorite: 'urgent' },
-    { titre: 'Vérifier les assurances des artisans (décennale)', priorite: 'important' },
-    { titre: 'Définir le planning d\'intervention', priorite: 'normal' },
-  ],
-};
-
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
 
 function fmtDate(iso: string) {
   try {
@@ -100,19 +49,16 @@ interface Props {
   result: ChantierIAResult;
   chantierId: string | null;
   token: string | null;
-  initialTaches?: TacheIA[]; // kept for backward compat, no longer used (tasks moved to Assistant)
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function PlanningChantier({ result, chantierId, token }: Props) {
   const [tab,          setTab]          = useState<'planning' | 'rdv'>('planning');
-  // Task state removed — tasks now live in AssistantChantierSection via useTaches hook
   const [rdvs,         setRdvs]         = useState<Rdv[]>([]);
   const [showAddRdv,   setShowAddRdv]   = useState(false);
   const [newRdv,       setNewRdv]       = useState<Partial<Rdv>>({ type: 'artisan' });
   const [editingRdv,   setEditingRdv]   = useState<Rdv | null>(null);
-  const addRef = useRef<HTMLInputElement>(null);
 
   // ── RDV — localStorage ────────────────────────────────────────────────────
 
@@ -130,96 +76,6 @@ export default function PlanningChantier({ result, chantierId, token }: Props) {
     if (chantierId) {
       try { localStorage.setItem(`rdvs_${chantierId}`, JSON.stringify(sorted)); } catch {}
     }
-  };
-
-  // ── Auto-focus ─────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (showAdd) setTimeout(() => addRef.current?.focus(), 40);
-  }, [showAdd]);
-
-  // ── Auto-génération si aucune tâche ───────────────────────────────────────
-
-  // Auto-generation of generic tasks removed — tasks are now created
-  // contextually by the agent IA or manually by the user in the Assistant tab.
-
-  // ── API helpers ───────────────────────────────────────────────────────────
-
-  const base    = chantierId ? `/api/chantier/${chantierId}/taches` : null;
-  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token ?? ''}` };
-
-  async function generateTasks() {
-    if (!base || generating) return;
-    const templates = AUTO_TASKS[result.typeProjet] ?? AUTO_TASKS['autre'];
-    if (!templates?.length) return;
-    setGenerating(true);
-    try {
-      const res = await fetch(base, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ bulk: true, taches: templates }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const created: TacheIA[] = (data.taches ?? []).map((t: Record<string, unknown>) => ({
-          id: t.id as string, titre: t.titre as string,
-          priorite: t.priorite as PrioriteTache, done: false,
-        }));
-        if (created.length) setTaches(created);
-      }
-    } catch { /* silent */ }
-    setGenerating(false);
-  }
-
-  const toggleDone = useCallback(async (task: TacheIA) => {
-    if (!base || !task.id) return;
-    setToggling(task.id);
-    const nd = !task.done;
-    setTaches(prev => prev.map(t => t.id === task.id ? { ...t, done: nd } : t));
-    try {
-      await fetch(base, { method: 'PATCH', headers, body: JSON.stringify({ id: task.id, done: nd }) });
-    } catch {
-      setTaches(prev => prev.map(t => t.id === task.id ? { ...t, done: task.done } : t));
-    }
-    setToggling(null);
-  }, [base, token]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const addTask = async () => {
-    if (!newTitre.trim() || !base) return;
-    setSaving(true);
-    try {
-      const res = await fetch(base, {
-        method: 'POST', headers,
-        body: JSON.stringify({ titre: newTitre.trim(), priorite: newPrio }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setTaches(prev => [...prev, {
-          id: data.tache.id, titre: data.tache.titre,
-          priorite: data.tache.priorite as PrioriteTache, done: false,
-        }]);
-        setNewTitre('');
-        setNewPrio('normal');
-        setShowAdd(false);
-      }
-    } catch { /* silent */ }
-    setSaving(false);
-  };
-
-  const deleteTask = async (task: TacheIA) => {
-    if (!base || !task.id) return;
-    setDeleting(task.id);
-    setTaches(prev => prev.filter(t => t.id !== task.id));
-    if (selected?.id === task.id) setSelected(null);
-    try {
-      await fetch(`${base}?todoId=${task.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token ?? ''}` },
-      });
-    } catch {
-      setTaches(prev => [...prev, task]); // rollback
-    }
-    setDeleting(null);
   };
 
   const saveRdv = () => {
@@ -252,24 +108,12 @@ export default function PlanningChantier({ result, chantierId, token }: Props) {
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
-  const pending      = taches.filter(t => !t.done);
-  const done         = taches.filter(t => t.done);
-  const urgentTasks  = pending.filter(t => t.priorite === 'urgent').slice(0, 3);
-  const weekTasks    = urgentTasks.length > 0 ? urgentTasks : pending.slice(0, 3);
   const upcomingRdvs = rdvs.filter(r => r.date >= today());
-
-  // ── Styles partagés ───────────────────────────────────────────────────────
-
-  const BTN_PRIO_BASE = 'px-3 py-1.5 rounded-xl border-2 text-xs font-semibold transition-all';
-  const BTN_ON        = 'border-blue-500 bg-blue-50 text-blue-700';
-  const BTN_OFF       = 'border-gray-100 hover:border-blue-200 text-gray-500';
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-5">
-
-      {/* Tâches déplacées dans l'onglet Assistant chantier */}
 
       {/* ── Tabs ───────────────────────────────────────────────────────── */}
       <div className="flex gap-1 bg-gray-100 rounded-2xl p-1">
@@ -288,115 +132,6 @@ export default function PlanningChantier({ result, chantierId, token }: Props) {
           </button>
         ))}
       </div>
-
-      {/* ── Tab Tâches ─────────────────────────────────────────────────── */}
-      {tab === 'taches' && (
-        <div className="space-y-4">
-          {/* Formulaire ajout */}
-          {showAdd ? (
-            <div className="bg-white rounded-2xl border border-blue-200 shadow-sm p-4 space-y-3">
-              <input
-                ref={addRef}
-                value={newTitre}
-                onChange={e => setNewTitre(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addTask(); }
-                  if (e.key === 'Escape') { setShowAdd(false); setNewTitre(''); }
-                }}
-                placeholder="Décrire la tâche…"
-                className="w-full text-sm text-gray-900 placeholder-gray-400 outline-none bg-transparent"
-              />
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-gray-400 shrink-0">Priorité :</span>
-                {(['urgent', 'important', 'normal'] as PrioriteTache[]).map(p => (
-                  <button key={p} onClick={() => setNewPrio(p)}
-                    className={`${BTN_PRIO_BASE} ${newPrio === p ? BTN_ON : BTN_OFF}`}>
-                    {PRIO[p].label}
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-2 pt-1">
-                <button
-                  onClick={addTask}
-                  disabled={!newTitre.trim() || saving}
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl py-2.5 disabled:opacity-50 transition-colors"
-                >
-                  {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                  Ajouter
-                </button>
-                <button
-                  onClick={() => { setShowAdd(false); setNewTitre(''); setNewPrio('normal'); }}
-                  className="px-4 text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-xl transition-colors"
-                >
-                  Annuler
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setShowAdd(true)}
-              className="w-full flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-2xl px-4 py-3 transition-all">
-              <Plus className="h-4 w-4" />
-              Ajouter une tâche
-            </button>
-          )}
-
-          {/* Auto-génération */}
-          {taches.length === 0 && !generating && !showAdd && (
-            <button onClick={generateTasks}
-              className="w-full flex items-center justify-center gap-2 text-sm text-gray-500 hover:text-gray-700 bg-white border border-gray-200 hover:border-gray-300 rounded-2xl px-4 py-3 transition-all">
-              <Sparkles className="h-4 w-4 text-blue-400" />
-              Générer des tâches recommandées pour ce projet
-            </button>
-          )}
-
-          {generating && (
-            <div className="flex items-center justify-center gap-2 py-6 text-sm text-gray-400">
-              <Loader2 className="h-4 w-4 animate-spin" />Génération en cours…
-            </div>
-          )}
-
-          {/* Pending */}
-          {pending.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-1">
-                À faire · {pending.length}
-              </p>
-              {pending.map(task => (
-                <TaskRow
-                  key={task.id} task={task}
-                  toggling={toggling} deleting={deleting}
-                  onToggle={toggleDone} onDelete={deleteTask}
-                  onClick={() => setSelected(task)}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Done */}
-          {done.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-1">
-                Terminées · {done.length}
-              </p>
-              {done.map(task => (
-                <TaskRow
-                  key={task.id} task={task}
-                  toggling={toggling} deleting={deleting}
-                  onToggle={toggleDone} onDelete={deleteTask}
-                  onClick={() => setSelected(task)}
-                  faded
-                />
-              ))}
-            </div>
-          )}
-
-          {taches.length === 0 && !generating && (
-            <div className="text-center py-10 text-gray-400 text-sm">
-              Aucune tâche pour le moment.
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ── Tab Planning ───────────────────────────────────────────────── */}
       {tab === 'planning' && (
@@ -418,7 +153,7 @@ export default function PlanningChantier({ result, chantierId, token }: Props) {
                 <input
                   value={newRdv.titre ?? ''}
                   onChange={e => setNewRdv(p => ({ ...p, titre: e.target.value }))}
-                  placeholder="Ex : Visite de chantier, RDV plombier…"
+                  placeholder="Ex : Visite de chantier, RDV plombier..."
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400"
                 />
               </div>
@@ -477,7 +212,7 @@ export default function PlanningChantier({ result, chantierId, token }: Props) {
 
           {rdvs.length === 0 && !showAddRdv && (
             <div className="text-center py-10 text-gray-400 text-sm">
-              Aucun rendez-vous planifié. Ajoutez vos visites, RDV artisans, signatures…
+              Aucun rendez-vous planifi. Ajoutez vos visites, RDV artisans, signatures...
             </div>
           )}
 
@@ -492,7 +227,7 @@ export default function PlanningChantier({ result, chantierId, token }: Props) {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-800 truncate">{rdv.titre}</p>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    {fmtDate(rdv.date)}{rdv.time ? ` à ${rdv.time}` : ''} · {cfg.label}
+                    {fmtDate(rdv.date)}{rdv.time ? ` a ${rdv.time}` : ''} · {cfg.label}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
@@ -514,136 +249,6 @@ export default function PlanningChantier({ result, chantierId, token }: Props) {
           })}
         </div>
       )}
-
-      {/* ── Drawer détail tâche ─────────────────────────────────────────── */}
-      {selected && (
-        <TaskDetail
-          task={selected}
-          onClose={() => setSelected(null)}
-          onToggle={() => { toggleDone(selected); setSelected(null); }}
-          onDelete={() => deleteTask(selected)}
-        />
-      )}
-    </div>
-  );
-}
-
-// ── TaskRow ────────────────────────────────────────────────────────────────────
-
-function TaskRow({ task, toggling, deleting, onToggle, onDelete, onClick, faded }: {
-  task: TacheIA; toggling: string | null; deleting: string | null;
-  onToggle: (t: TacheIA) => void; onDelete: (t: TacheIA) => void;
-  onClick: () => void; faded?: boolean;
-}) {
-  return (
-    <div
-      onClick={onClick}
-      className={`group bg-white rounded-xl border px-4 py-3 flex items-center gap-3 cursor-pointer transition-all ${
-        faded ? 'border-gray-100 opacity-60' : 'border-gray-100 hover:border-blue-200 hover:shadow-sm'
-      }`}
-    >
-      <button
-        onClick={e => { e.stopPropagation(); onToggle(task); }}
-        className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${
-          task.done ? 'border-emerald-500 bg-emerald-500' : 'border-gray-300 hover:border-blue-400'
-        }`}
-      >
-        {toggling === task.id
-          ? <Loader2 className="h-3 w-3 animate-spin text-gray-400" />
-          : task.done && <Check className="h-3 w-3 text-white" />}
-      </button>
-
-      <span className={`flex-1 text-sm font-medium min-w-0 truncate ${task.done ? 'line-through text-gray-400' : 'text-gray-800'}`}>
-        {task.titre}
-      </span>
-
-      {!task.done && (
-        <span className={`hidden sm:inline-flex text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${PRIO[task.priorite].cls}`}>
-          {PRIO[task.priorite].label}
-        </span>
-      )}
-
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-        <ChevronRight className="h-3.5 w-3.5 text-gray-300" />
-        <button
-          onClick={e => { e.stopPropagation(); onDelete(task); }}
-          className="p-1.5 text-gray-300 hover:text-red-500 rounded-lg hover:bg-red-50 transition-all"
-        >
-          {deleting === task.id
-            ? <Loader2 className="h-3 w-3 animate-spin" />
-            : <Trash2 className="h-3 w-3" />}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── TaskDetail drawer ──────────────────────────────────────────────────────────
-
-function TaskDetail({ task, onClose, onToggle, onDelete }: {
-  task: TacheIA; onClose: () => void;
-  onToggle: () => void; onDelete: () => void;
-}) {
-  const WHY: Record<PrioriteTache, string> = {
-    urgent:    'Cette tâche est critique — la retarder peut bloquer d\'autres étapes du chantier.',
-    important: 'Cette tâche contribue significativement au bon déroulement du projet.',
-    normal:    'Cette tâche peut être planifiée librement selon vos disponibilités.',
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-end">
-      <div className="flex-1 bg-black/30" onClick={onClose} />
-      <div className="w-full max-w-sm bg-white shadow-2xl flex flex-col" style={{ animation: 'slideIn .22s cubic-bezier(.22,1,.36,1) both' }}>
-
-        {/* Header */}
-        <div className="px-5 py-5 border-b border-gray-100 flex items-start gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="font-bold text-gray-900 text-base leading-snug">{task.titre}</p>
-            <span className={`inline-flex mt-2 text-[11px] font-semibold px-2.5 py-1 rounded-full border ${PRIO[task.priorite].cls}`}>
-              {PRIO[task.priorite].label}
-            </span>
-          </div>
-          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 shrink-0 mt-0.5">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 p-5 overflow-y-auto">
-          <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
-            <p className="text-xs font-semibold text-amber-700 mb-1">Pourquoi c'est important ?</p>
-            <p className="text-sm text-amber-900 leading-relaxed">{WHY[task.priorite]}</p>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="px-5 py-4 border-t border-gray-100 flex gap-2">
-          <button
-            onClick={onToggle}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-all ${
-              task.done
-                ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-            }`}
-          >
-            <Check className="h-4 w-4" />
-            {task.done ? 'Rouvrir la tâche' : 'Marquer terminée'}
-          </button>
-          <button
-            onClick={onDelete}
-            className="w-11 h-11 flex items-center justify-center rounded-xl border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-
-      <style>{`
-        @keyframes slideIn {
-          from { transform: translateX(100%); opacity: 0; }
-          to   { transform: translateX(0);    opacity: 1; }
-        }
-      `}</style>
     </div>
   );
 }

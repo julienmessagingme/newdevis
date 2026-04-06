@@ -119,14 +119,21 @@ function AssistantChantierSection({
   }
 
   // 3. Gemini alertes
+  const extractKeywords = (s: string) => new Set(
+    s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+     .split(/\s+/).filter(w => w.length > 3)
+  );
   if (data?.alertes) {
     for (const alerte of data.alertes) {
       const sev = alerte.type === 'critique' ? 'critical' : alerte.type === 'risque' ? 'warning' : 'success';
-      // Deduplicate: skip if agent already has an insight with similar title
-      const isDuplicate = unifiedAlerts.some(a =>
-        a.title.toLowerCase().includes(alerte.message.toLowerCase().slice(0, 20)) ||
-        alerte.message.toLowerCase().includes(a.title.toLowerCase().slice(0, 20))
-      );
+      // Deduplicate: skip if agent already has an insight with similar keywords (60% overlap)
+      const alerteKw = extractKeywords(alerte.message);
+      const isDuplicate = unifiedAlerts.some(a => {
+        const existingKw = extractKeywords(a.title);
+        if (existingKw.size === 0 || alerteKw.size === 0) return false;
+        const common = [...alerteKw].filter(w => existingKw.has(w)).length;
+        return common >= Math.min(existingKw.size, alerteKw.size) * 0.6;
+      });
       if (!isDuplicate) {
         unifiedAlerts.push({
           id: `gemini-${alerte.type}-${alerte.message.slice(0, 20)}`,

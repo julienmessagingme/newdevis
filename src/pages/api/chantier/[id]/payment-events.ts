@@ -2,14 +2,14 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { generatePaymentEventsFromAnalyse } from '@/lib/paymentEvents';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth, requireChantierAuthOrAgent } from '@/lib/apiHelpers';
 
 // ── GET /api/chantier/[id]/payment-events ─────────────────────────────────────
 // Retourne tous les payment_events du chantier, triés par due_date ASC.
 // Les événements annulés (is_override=true) sont exclus par défaut.
 
 export const GET: APIRoute = async ({ params, request }) => {
-  const ctx = await requireChantierAuth(request, params.id!);
+  const ctx = await requireChantierAuthOrAgent(request, params.id!);
   if (ctx instanceof Response) return ctx;
 
   const chantierId = params.id!;
@@ -171,6 +171,11 @@ export const POST: APIRoute = async ({ params, request }) => {
     .eq('project_id', chantierId)
     .eq('source_id', sourceId)
     .order('due_date', { ascending: true });
+
+  // Invalidate agent context cache (new payment events = stale context)
+  ctx.supabase.from('agent_context_cache')
+    .update({ invalidated: true }).eq('chantier_id', chantierId)
+    .then(() => {}).catch(() => {});
 
   return jsonOk({ payment_events: data ?? [], message: 'Timeline générée' }, 201);
 };

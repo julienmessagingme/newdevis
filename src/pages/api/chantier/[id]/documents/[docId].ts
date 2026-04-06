@@ -78,6 +78,11 @@ export const DELETE: APIRoute = async ({ params, request }) => {
     return jsonError('Erreur lors de la suppression', 500);
   }
 
+  // Invalidate agent context cache (document deleted = stale context)
+  ctx.supabase.from('agent_context_cache')
+    .update({ invalidated: true }).eq('chantier_id', params.id!)
+    .then(() => {}).catch(() => {});
+
   return jsonOk({ success: true });
 };
 
@@ -186,6 +191,13 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     return jsonError('Document introuvable après mise à jour', 404);
   }
 
+  // Invalidate agent context cache (document status/lot changed = stale context)
+  if ('lot_id' in updates || 'devis_statut' in updates || 'facture_statut' in updates) {
+    ctx.supabase.from('agent_context_cache')
+      .update({ invalidated: true }).eq('chantier_id', params.id!)
+      .then(() => {}).catch(() => {});
+  }
+
   // ── Lot assignment coherence check (uses document name enriched by extraction) ──
   if ('lot_id' in updates && updates.lot_id) {
     const docName = updated.nom ?? '';
@@ -198,7 +210,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
         if (lotType !== 'autre' && lotType !== detectedType) {
           const serviceClient = createServiceClient();
           serviceClient.from('agent_insights').insert({
-            chantier_id: params.id,
+            chantier_id: params.id!,
             user_id: ctx.user.id,
             type: 'risk_detected',
             severity: 'warning',

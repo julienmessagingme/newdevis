@@ -14,7 +14,7 @@ export const prerender = false;
  */
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuthOrAgent } from '@/lib/apiHelpers';
 
 const BUCKET   = 'chantier-documents';
 const URL_TTL  = 3600; // 1h
@@ -158,7 +158,7 @@ function buildConseils(opts: {
 // ── Route principale ──────────────────────────────────────────────────────────
 
 export const GET: APIRoute = async ({ params, request }) => {
-  const ctx = await requireChantierAuth(request, params.id!);
+  const ctx = await requireChantierAuthOrAgent(request, params.id!);
   if (ctx instanceof Response) return ctx;
 
   const chantierId = params.id!;

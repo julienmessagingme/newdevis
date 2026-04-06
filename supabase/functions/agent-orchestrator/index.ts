@@ -23,19 +23,22 @@ serve(async (req) => {
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  // Find active chantiers (with messages or documents in last 24h)
+  // Find chantiers to process
   let chantierIds: string[];
 
   if (singleChantierId) {
+    // Real-time trigger: single chantier
     chantierIds = [singleChantierId];
   } else {
-    const since = new Date(Date.now() - 86400000).toISOString();
+    // Cron (evening): ALL non-reception chantiers get a daily digest.
+    // Valid phases: preparation, gros_oeuvre, second_oeuvre, finitions, reception.
+    // "reception" = chantier terminé, no more daily digest needed.
     const { data: activeChantiers } = await supabase
-      .from("chantier_whatsapp_messages")
-      .select("chantier_id")
-      .gte("timestamp", since);
+      .from("chantiers")
+      .select("id")
+      .not("phase", "eq", "reception");
 
-    chantierIds = [...new Set((activeChantiers ?? []).map((c: any) => c.chantier_id))];
+    chantierIds = (activeChantiers ?? []).map((c: any) => c.id);
   }
 
   if (chantierIds.length === 0) {
@@ -45,107 +48,133 @@ serve(async (req) => {
     });
   }
 
-  let processed = 0;
+  // ── Process a single chantier (extracted for parallel execution) ──────
+  async function processChantier(chantierId: string): Promise<boolean> {
+    // Get last run time
+    const { data: lastRun } = await supabase
+      .from("agent_runs")
+      .select("created_at")
+      .eq("chantier_id", chantierId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
 
-  for (const chantierId of chantierIds) {
-    try {
-      // Get last run time
-      const { data: lastRun } = await supabase
-        .from("agent_runs")
-        .select("created_at")
-        .eq("chantier_id", chantierId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-
-      // Build rich context (5 API calls + 3 direct Supabase)
-      const ctx = await buildContext(
-        supabase,
-        chantierId,
-        lastRun?.created_at ?? null,
-        agentSecretKey,
-        apiBase,
-      );
-
-      // Skip if no messages and no alerts
-      if (
-        ctx.messages_since_last_run.length === 0 &&
-        ctx.budget_conseils.length === 0 &&
-        ctx.risk_alerts.length === 0
-      ) {
-        continue;
-      }
-
-      // Call Gemini with function calling
-      const messages: Array<Record<string, unknown>> = [
-        { role: "system", content: buildSystemPrompt(ctx, runType) },
-        { role: "user", content: runType === "morning"
-          ? "Analyse les messages reçus et détecte les impacts sur le planning et le budget."
-          : "Génère le digest de la journée. Résume les événements, les alertes, et les prochaines actions." },
-      ];
-
-      let rounds = 0;
-      const totalActions: Array<Record<string, unknown>> = [];
-
-      while (rounds < MAX_TOOL_ROUNDS) {
-        rounds++;
-        const res = await fetch(GEMINI_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${geminiKey}` },
-          body: JSON.stringify({ model: "gemini-2.5-flash", messages, tools: TOOLS_SCHEMA, max_tokens: 4096 }),
-        });
-
-        const data = await res.json();
-        const choice = data.choices?.[0]?.message;
-        if (!choice?.tool_calls || choice.tool_calls.length === 0) break;
-
-        messages.push({ role: "assistant", content: choice.content, tool_calls: choice.tool_calls });
-
-        for (const tc of choice.tool_calls) {
-          const args = JSON.parse(tc.function.arguments);
-          const result = await executeTool(chantierId, tc.function.name, args, { run_type: runType });
-          totalActions.push({ tool: tc.function.name, args, result });
-          messages.push({ role: "tool", tool_call_id: tc.id, content: result });
+    // Cooldown 60s: skip if a run happened recently (real-time only, not evening digest)
+    if (runType === "morning" && lastRun) {
+      const elapsed = Date.now() - new Date(lastRun.created_at).getTime();
+      if (elapsed < 60_000) {
+          console.log(`[agent] Cooldown skip ${chantierId}: last run ${Math.round(elapsed / 1000)}s ago`);
+          return false;
         }
-      }
+    }
 
-      // If evening run, generate digest and send to user
-      if (runType === "evening") {
-        // Get the final text content from the last assistant message
-        let digestContent = "";
-        for (let i = messages.length - 1; i >= 0; i--) {
-          if (messages[i].role === "assistant" && typeof messages[i].content === "string") {
-            digestContent = messages[i].content as string;
-            break;
-          }
-        }
+    // Build rich context (cached static + fresh dynamic)
+    const ctx = await buildContext(
+      supabase,
+      chantierId,
+      lastRun?.created_at ?? null,
+      agentSecretKey,
+      apiBase,
+    );
 
-        if (digestContent && digestContent.length > 20) {
-          // Compute severity stats from today's insights
-          const insightsCount = ctx.todays_insights_with_actions.length;
-          const severities = ctx.todays_insights_with_actions.map(i => i.severity);
-          const maxSeverity = severities.includes("critical") ? "critical"
-            : severities.includes("warning") ? "warning" : "info";
+    // Skip if no activity AND no alerts (morning real-time only).
+    // Evening digest always runs — even "journée calme" has value (upcoming deadlines, current state).
+    if (runType === "morning" &&
+      ctx.messages_since_last_run.length === 0 &&
+      ctx.budget_conseils.length === 0 &&
+      ctx.risk_alerts.length === 0
+    ) {
+      return false;
+    }
 
-          await sendDigest(
-            supabase, chantierId, ctx.chantier.user_id, ctx.chantier.nom,
-            ctx.chantier.emoji, digestContent, insightsCount, maxSeverity,
-          );
-        }
-      }
+    // Call Gemini with function calling
+    const messages: Array<Record<string, unknown>> = [
+      { role: "system", content: buildSystemPrompt(ctx, runType) },
+      { role: "user", content: runType === "morning"
+        ? "Analyse les messages reçus et détecte les impacts sur le planning et le budget."
+        : "Génère le digest de la journée. Résume les événements, les alertes, et les prochaines actions." },
+    ];
 
-      // Log the run
-      await supabase.from("agent_runs").insert({
-        chantier_id: chantierId,
-        run_type: runType,
-        messages_analyzed: ctx.messages_since_last_run.length,
-        insights_created: totalActions.filter(a => a.tool === "log_insight").length,
-        actions_taken: totalActions,
+    let rounds = 0;
+    const totalActions: Array<Record<string, unknown>> = [];
+
+    while (rounds < MAX_TOOL_ROUNDS) {
+      rounds++;
+      const res = await fetch(GEMINI_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${geminiKey}` },
+        body: JSON.stringify({ model: "gemini-2.5-flash", messages, tools: TOOLS_SCHEMA, max_tokens: 16384 }),
       });
 
-      processed++;
+      const data = await res.json();
+      const choice = data.choices?.[0]?.message;
+      if (!choice?.tool_calls || choice.tool_calls.length === 0) break;
+
+      messages.push({ role: "assistant", content: choice.content, tool_calls: choice.tool_calls });
+
+      for (const tc of choice.tool_calls) {
+        const args = JSON.parse(tc.function.arguments);
+        const result = await executeTool(chantierId, tc.function.name, args, { run_type: runType });
+        totalActions.push({ tool: tc.function.name, args, result });
+        messages.push({ role: "tool", tool_call_id: tc.id, content: result });
+      }
+    }
+
+    // If evening run, generate digest and send to user
+    if (runType === "evening") {
+      let digestContent = "";
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === "assistant" && typeof messages[i].content === "string") {
+          digestContent = messages[i].content as string;
+          break;
+        }
+      }
+
+      if (digestContent && digestContent.length > 20) {
+        const insightsCount = ctx.todays_insights_with_actions.length;
+        const severities = ctx.todays_insights_with_actions.map(i => i.severity);
+        const maxSeverity = severities.includes("critical") ? "critical"
+          : severities.includes("warning") ? "warning" : "info";
+
+        await sendDigest(
+          supabase, chantierId, ctx.chantier.user_id, ctx.chantier.nom,
+          ctx.chantier.emoji, digestContent, insightsCount, maxSeverity,
+        );
+      }
+    }
+
+    // Log the run
+    await supabase.from("agent_runs").insert({
+      chantier_id: chantierId,
+      run_type: runType,
+      messages_analyzed: ctx.messages_since_last_run.length,
+      insights_created: totalActions.filter(a => a.tool === "log_insight").length,
+      actions_taken: totalActions,
+    });
+
+    return true;
+  }
+
+  // ── Execute: parallel batches of 3 for cron (evening), sequential for real-time ──
+  let processed = 0;
+
+  if (singleChantierId) {
+    // Real-time trigger: single chantier, no parallelism needed
+    try {
+      if (await processChantier(singleChantierId)) processed++;
     } catch (err) {
-      console.error(`[agent] Error processing ${chantierId}:`, err instanceof Error ? err.message : err);
+      console.error(`[agent] Error processing ${singleChantierId}:`, err instanceof Error ? err.message : err);
+    }
+  } else {
+    // Cron (evening): parallel batches of 3 to stay within edge function timeout
+    const CONCURRENCY = 3;
+    for (let i = 0; i < chantierIds.length; i += CONCURRENCY) {
+      const batch = chantierIds.slice(i, i + CONCURRENCY);
+      const results = await Promise.allSettled(batch.map(id => processChantier(id)));
+      for (const r of results) {
+        if (r.status === "fulfilled" && r.value) processed++;
+        if (r.status === "rejected") console.error("[agent] batch error:", r.reason instanceof Error ? r.reason.message : String(r.reason));
+      }
     }
   }
 

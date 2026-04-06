@@ -343,7 +343,6 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             result={result}
             chantierId={chantierId ?? null}
             token={token ?? null}
-            initialTaches={result.taches ?? []}
           />
         );
 

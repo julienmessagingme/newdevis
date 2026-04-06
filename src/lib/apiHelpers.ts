@@ -136,6 +136,39 @@ export async function authenticateUserOrAgent(
   return { ...ctx, isAgent: false };
 }
 
+// ── Agent-aware chantier auth (JWT or X-Agent-Key) ───────────────────────
+
+/**
+ * Authentifie par JWT (user ownership) ou par X-Agent-Key (agent inter-service).
+ * Pour les routes que l'agent IA appelle via tools.ts (taches, planning, lots).
+ * - Agent: vérifie clé + chantier exists → retourne { user: { id: chantier.user_id }, supabase, isAgent: true }
+ * - User: même logique que requireChantierAuth (JWT + ownership)
+ * Retourne le contexte OU une Response d'erreur.
+ */
+export async function requireChantierAuthOrAgent(
+  request: Request,
+  chantierId: string,
+): Promise<(AuthContext & { isAgent: boolean }) | Response> {
+  // Try agent key first (faster — no DB call for auth)
+  const agentClient = authenticateAgentKey(request);
+  if (agentClient) {
+    // Agent needs to know the chantier owner's user_id for RLS-scoped operations
+    const { data: chantier } = await agentClient
+      .from('chantiers')
+      .select('user_id')
+      .eq('id', chantierId)
+      .single();
+    if (!chantier) return jsonError('Chantier introuvable', 404);
+    return { user: { id: chantier.user_id }, supabase: agentClient, isAgent: true };
+  }
+  // Fall back to JWT + ownership check
+  const ctx = await requireAuth(request);
+  if (ctx instanceof Response) return ctx;
+  const owns = await verifyChantierOwnership(ctx.supabase, chantierId, ctx.user.id);
+  if (!owns) return jsonError('Chantier introuvable', 404);
+  return { ...ctx, isAgent: false };
+}
+
 // ── OpenClaw real-time trigger (fire-and-forget) ───────────────────────────
 
 /**
