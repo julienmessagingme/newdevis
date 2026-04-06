@@ -2,8 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import type { DocumentType } from '@/types/chantier-ia';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth, createServiceClient } from '@/lib/apiHelpers';
-import { detectDevisType } from '@/utils/extractProjectElements';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
 
 const BUCKET          = 'chantier-documents';
 const SIGNED_TTL      = 3_600;
@@ -104,34 +103,20 @@ export const POST: APIRoute = async ({ params, request }) => {
   const { data: s } = await ctx.supabase.storage
     .from(BUCKET).createSignedUrl(bucketPath, SIGNED_TTL);
 
-  // ── Lot mismatch detection on registration ─────────────────────────────────
-  if (lotId && lotNom && nom) {
-    const docType = detectDevisType(nom);
-    const lotType = detectDevisType(lotNom);
-    if (docType !== 'autre' && lotType !== 'autre' && docType !== lotType) {
-      const serviceClient = createServiceClient();
-      serviceClient.from('agent_insights').insert({
-        chantier_id: chantierId,
-        user_id: ctx.user.id,
-        type: 'risk_detected',
-        severity: 'warning',
-        title: `Affectation douteuse : "${nom.slice(0, 40)}" dans lot "${lotNom}"`,
-        body: `Ce document semble concerner "${docType}" mais est affecté au lot "${lotNom}" (type "${lotType}"). Vérifiez l'affectation.`,
-        source_event: { check: 'lot_mismatch', document_id: doc.id, detected_type: docType, lot_type: lotType },
-      }).then(() => {}).catch(() => {});
-    }
-  }
+  // Mismatch detection removed from register.ts — the document name is not yet
+  // enriched at this stage (raw filename like "xy.pdf"). Detection fires AFTER
+  // content extraction: analyze-quote (devis), extract-invoice (facture),
+  // describe (photo/plan), or [docId].ts PATCH (lot reassignment).
 
-  // Fire-and-forget: deterministic checks ($0) + real-time LLM analysis
+  // Fire-and-forget: deterministic SQL checks only ($0).
+  // Agent-orchestrator is NOT called here — it fires AFTER content extraction
+  // (analyze-quote for devis, extract-invoice for factures, describe for photos)
+  // to avoid triple-triggering on the same upload event.
   const _sbUrl = import.meta.env.PUBLIC_SUPABASE_URL;
   const _sbKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
   fetch(`${_sbUrl}/functions/v1/agent-checks`, {
     method: 'POST', headers: { 'Authorization': `Bearer ${_sbKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ chantier_id: chantierId }),
-  }).catch(() => {});
-  fetch(`${_sbUrl}/functions/v1/agent-orchestrator`, {
-    method: 'POST', headers: { 'Authorization': `Bearer ${_sbKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chantier_id: chantierId, run_type: 'morning' }),
   }).catch(() => {});
 
   return jsonOk({ document: { ...doc, signedUrl: s?.signedUrl ?? null } }, 201);

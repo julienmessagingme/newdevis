@@ -281,6 +281,13 @@ export const DELETE: APIRoute = async ({ params, request }) => {
     .eq('chantier_id', chantierId);
 
   if (error) return jsonError(error.message, 500);
+
+  // Invalidate agent context cache (deleted contact = stale phone→lot mapping)
+  ctx.supabase.from('agent_context_cache')
+    .update({ invalidated: true })
+    .eq('chantier_id', chantierId)
+    .then(() => {}).catch(() => {});
+
   return jsonOk({ ok: true });
 };
 

@@ -173,6 +173,12 @@ export const PATCH: APIRoute = async ({ request, params }) => {
     .order('ordre_planning', { ascending: true, nullsFirst: false })
     .order('ordre', { ascending: true });
 
+  // Invalidate agent context cache (planning dates changed)
+  ctx.supabase.from('agent_context_cache')
+    .update({ invalidated: true })
+    .eq('chantier_id', chantierId)
+    .then(() => {}).catch(() => {});
+
   return jsonOk({
     dateDebutChantier: startDateStr ?? null,
     lots: updatedLots ?? [],

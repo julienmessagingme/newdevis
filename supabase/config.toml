@@ -35,3 +35,9 @@ verify_jwt = false
 
 [functions.chantier-generer]
 verify_jwt = false
+
+[functions.agent-checks]
+verify_jwt = false
+
+[functions.agent-orchestrator]
+verify_jwt = false
