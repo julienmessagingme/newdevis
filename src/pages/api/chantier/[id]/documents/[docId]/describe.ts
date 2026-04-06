@@ -10,7 +10,8 @@ export const prerender = false;
  */
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth, createServiceClient } from '@/lib/apiHelpers';
+import { detectDevisType } from '@/utils/extractProjectElements';
 
 const GOOGLE_API_KEY  = import.meta.env.GOOGLE_API_KEY;
 const BUCKET          = 'chantier-documents';
@@ -45,7 +46,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   // ── Récupérer le document ────────────────────────────────────────────────────
   const { data: doc, error: docErr } = await ctx.supabase
     .from('documents_chantier')
-    .select('id, nom, nom_fichier, document_type, bucket_path, mime_type')
+    .select('id, nom, nom_fichier, document_type, bucket_path, mime_type, lot_id')
     .eq('id', docId!)
     .eq('chantier_id', chantierId!)
     .single();
@@ -140,6 +141,30 @@ export const POST: APIRoute = async ({ params, request }) => {
     .from('documents_chantier')
     .update({ nom: generatedNom })
     .eq('id', docId!);
+
+  // ── Lot mismatch check (reuses detectDevisType, zero extra AI cost) ─────────
+  if (doc.lot_id) {
+    const detectedType = detectDevisType(generatedNom);
+    if (detectedType !== 'autre') {
+      const { data: lot } = await ctx.supabase
+        .from('lots_chantier').select('nom').eq('id', doc.lot_id).single();
+      if (lot) {
+        const lotType = detectDevisType(lot.nom);
+        if (lotType !== 'autre' && lotType !== detectedType) {
+          const serviceClient = createServiceClient();
+          serviceClient.from('agent_insights').insert({
+            chantier_id: chantierId,
+            user_id: ctx.user.id,
+            type: 'risk_detected',
+            severity: 'warning',
+            title: `Affectation douteuse : "${generatedNom.slice(0, 40)}" dans lot "${lot.nom}"`,
+            body: `La photo/document semble concerner "${detectedType}" mais est affecté au lot "${lot.nom}" (${lotType}). Vérifiez l'affectation.`,
+            source_event: { check: 'lot_mismatch_describe', document_id: docId, detected_type: detectedType, lot_type: lotType },
+          }).then(() => {}).catch(() => {});
+        }
+      }
+    }
+  }
 
   return jsonOk({ nom: generatedNom });
 };
