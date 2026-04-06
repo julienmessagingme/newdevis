@@ -8,7 +8,7 @@
  *      Colonnes : Artisan · Poste · Devis + dl · Statut devis · Factures · Statut · Reste · Progression · Docs
  *   4. Drawer détail artisan (devis + factures avec statut cliquable)
  */
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, Fragment } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
   Search, Plus, Paperclip, X, Download,
@@ -1081,9 +1081,9 @@ export default function BudgetTab({
                 );
 
                 return (
-                  <tbody key={row.lot.id} className={isExpanded ? 'bg-slate-50/40' : ''}>
+                  <Fragment key={row.lot.id}>
                     {/* ── Ligne principale ── */}
-                    <tr className="border-b border-gray-50 hover:bg-indigo-50/30 transition-colors">
+                    <tr className={`border-b border-gray-50 hover:bg-indigo-50/30 transition-colors${isExpanded ? ' bg-slate-50/40' : ''}`}>
 
                       {/* Artisan + expand */}
                       <td className="px-3 py-3.5">
@@ -1458,7 +1458,7 @@ export default function BudgetTab({
                         </td>
                       </tr>
                     )}
-                  </tbody>
+                  </Fragment>
                 );
               })
             )}

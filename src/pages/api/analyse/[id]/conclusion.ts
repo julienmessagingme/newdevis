@@ -25,6 +25,58 @@ export type { AnomalieConclusion, ConclusionData } from "@/lib/conclusionTypes";
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const FORFAIT_UNIT_KEYWORDS = ["forfait", "global", "prestation", "ensemble", "installation complète"];
+
+/**
+ * Calcule le surcoût total côté serveur depuis les données brutes priceData,
+ * en utilisant la même formule que quoteGlobalAnalysis.ts (côté client).
+ * Garantit la cohérence entre GlobalAnalysisCard et ConclusionIA.
+ *
+ * Surcoût = Σ (devis_total_ht − theoreticalMaxHT) pour les postes où devis > max
+ * theoreticalMaxHT = Σ (price_max_unit_ht × qty + fixed_max_ht)
+ */
+function computeServerSurcout(priceData: unknown[]): { min: number; max: number } {
+  if (!Array.isArray(priceData)) return { min: 0, max: 0 };
+
+  let surcoutEstime = 0;
+
+  for (const g of priceData) {
+    if (!g || typeof g !== "object") continue;
+    const group = g as Record<string, any>;
+
+    if (group.job_type_label === "Autre") continue;
+
+    const devisTotal: number = typeof group.devis_total_ht === "number" ? group.devis_total_ht : 0;
+    if (devisTotal <= 0) continue;
+
+    const prices: any[] = Array.isArray(group.prices) ? group.prices : [];
+    if (prices.length === 0) continue;
+
+    // Exclure les forfaits (comparaison non fiable)
+    const unit = ((group.main_unit as string) || "").toLowerCase().trim();
+    if (FORFAIT_UNIT_KEYWORDS.some((kw) => unit === kw || unit.startsWith(kw))) continue;
+
+    const qty: number = typeof group.main_quantity === "number" && group.main_quantity > 0
+      ? group.main_quantity : 1;
+
+    // Calcule theoreticalMaxHT (identique à useMarketPriceAPI.ts)
+    let theoreticalMaxHT = 0;
+    for (const p of prices) {
+      theoreticalMaxHT +=
+        (typeof p.price_max_unit_ht === "number" ? p.price_max_unit_ht : 0) * qty +
+        (typeof p.fixed_max_ht      === "number" ? p.fixed_max_ht      : 0);
+    }
+    if (theoreticalMaxHT <= 0) continue;
+
+    if (devisTotal > theoreticalMaxHT) {
+      surcoutEstime += devisTotal - theoreticalMaxHT;
+    }
+  }
+
+  return {
+    min: Math.round(surcoutEstime * 0.7),
+    max: Math.round(surcoutEstime * 1.3),
+  };
+}
 const FORFAIT_DESC_KEYWORDS = ["forfait", "forfait global", "prestation globale", "au forfait", "tout compris"];
 
 function isForfaitGroup(g: any): boolean {
@@ -211,14 +263,17 @@ MISSION — produis 6 éléments :
    - "ne_pas_signer" → UNIQUEMENT si : 2 anomalies ou plus ET non justifiées, OU surcoût > 30% du total HT, OU incohérences majeures sur plusieurs postes. UNE seule anomalie isolée ne justifie PAS "ne_pas_signer" sauf si elle représente à elle seule > 50% du total HT.
 
 4. SURCOÛT GLOBAL (fourchette min/max en €) :
-   - Somme estimée des surcoûts récupérables par la négociation
-   - min = estimation basse, max = estimation haute
-   - Si aucune anomalie → min: 0, max: 0
+   - Formule : Σ (total_devis_poste − total_fourchette_max_marché) pour chaque poste anormal.
+   - IMPORTANT : utilise les TOTAUX HT (chiffre entre parenthèses "total: X–Y €"), PAS les prix unitaires.
+   - Exemple : poste à 12 275€ avec fourchette marché total 900–2800€ → surcoût = 12 275 − 2 800 = 9 475€.
+   - min = somme brute × 0.7 (hypothèse basse), max = somme brute × 1.3 (hypothèse haute).
+   - Si aucune anomalie → min: 0, max: 0.
 
-5. NIVEAU DE RISQUE :
-   - "faible" → devis cohérent, entreprise identifiée, prix dans le marché
-   - "modéré" → 1 anomalie isolée ou quelques écarts — négociation utile, à surveiller mais pas alarmant
-   - "élevé" → UNIQUEMENT si 2 anomalies ou plus non justifiées, OU surcoût > 30% du total HT. Une seule anomalie isolée = "modéré" au maximum.
+5. NIVEAU DE RISQUE — DOIT être cohérent avec verdict_global (règle stricte) :
+   - verdict_global "dans_la_norme" → niveau_risque: "faible"
+   - verdict_global "eleve_justifie" → niveau_risque: "modéré"
+   - verdict_global "a_negocier"    → niveau_risque: "modéré"
+   - verdict_global "a_risque"      → niveau_risque: "élevé" (OBLIGATOIRE)
 
 6. ACTIONS AVANT SIGNATURE (exactement 3 actions concrètes, formulées pour un particulier) :
    - Actions réalistes et actionnables IMMÉDIATEMENT (appel, email, demande de document)
@@ -229,7 +284,8 @@ MISSION — produis 6 éléments :
 RÈGLES STRICTES:
 - INTERDIT : signaler un poste marqué [FORFAIT GLOBAL] comme anomalie de prix. Un forfait global ne peut PAS être comparé à un prix unitaire catalogue. Ces postes sont à commenter uniquement si le montant total semble disproportionné au regard de la prestation décrite.
 - NE PAS signaler comme anomalie ce qui s'explique par la localisation, l'étage, des matériaux premium COHÉRENTS, ou une complexité technique réelle.
-- Surcoût = total_devis_poste − fourchette_max_marché (jamais négatif, 0 si dans la fourchette). Pour les forfaits : surcoût = 0 sauf incohérence flagrante sur le montant total.
+- Surcoût = total_devis_poste − total_fourchette_max_marché (TOTAUX, jamais prix unitaires). Jamais négatif, 0 si dans la fourchette. Pour les forfaits : surcoût = 0 sauf incohérence flagrante sur le montant total.
+- COHÉRENCE OBLIGATOIRE : verdict_global et niveau_risque DOIVENT être alignés (voir règle 5). Ne jamais retourner "a_risque" avec niveau_risque "modéré" ou "faible".
 - Si aucune anomalie → anomalies: [], has_anomalies: false, verdict_decisionnel: "signer" ou "signer_avec_negociation".
 - Les 3 actions doivent être différentes et couvrir l'essentiel : vérification prix + négociation + protection juridique/technique.
 - Sois factuel, direct, écris pour un particulier non-expert.
@@ -332,14 +388,25 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
           }))
       : [];
 
-    // Surcoût global : utilise la réponse IA si valide, sinon recalcule depuis les anomalies
-    const rawSurcout = parsed.surcout_global;
-    const surcoutMin = (rawSurcout && typeof rawSurcout.min === "number" && rawSurcout.min >= 0)
-      ? rawSurcout.min
-      : Math.round(sanitizedAnomalies.reduce((s, a) => s + (a.surcout_estime ?? 0), 0) * 0.7);
-    const surcoutMax = (rawSurcout && typeof rawSurcout.max === "number" && rawSurcout.max >= 0)
-      ? rawSurcout.max
-      : Math.round(sanitizedAnomalies.reduce((s, a) => s + (a.surcout_estime ?? 0), 0) * 1.3);
+    // Surcoût global — source de vérité : calcul serveur (miroir de quoteGlobalAnalysis.ts)
+    // Le calcul serveur est plus fiable que Gemini qui confond prix unitaires et totaux.
+    const serverSurcout = computeServerSurcout(priceData);
+    const surcoutMin = serverSurcout.max > 0
+      ? serverSurcout.min
+      : (() => {
+          const rawSurcout = parsed.surcout_global;
+          return (rawSurcout && typeof rawSurcout.min === "number" && rawSurcout.min >= 0)
+            ? rawSurcout.min
+            : Math.round(sanitizedAnomalies.reduce((s, a) => s + (a.surcout_estime ?? 0), 0) * 0.7);
+        })();
+    const surcoutMax = serverSurcout.max > 0
+      ? serverSurcout.max
+      : (() => {
+          const rawSurcout = parsed.surcout_global;
+          return (rawSurcout && typeof rawSurcout.max === "number" && rawSurcout.max >= 0)
+            ? rawSurcout.max
+            : Math.round(sanitizedAnomalies.reduce((s, a) => s + (a.surcout_estime ?? 0), 0) * 1.3);
+        })();
 
     // Actions : garde exactement 3, complète avec des valeurs par défaut si nécessaire
     const rawActions: string[] = Array.isArray(parsed.actions_avant_signature)
@@ -355,15 +422,48 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     ];
     while (rawActions.length < 3) rawActions.push(DEFAULT_ACTIONS[rawActions.length]);
 
+    const verdictGlobal    = validVerdicts.includes(parsed.verdict_global)       ? parsed.verdict_global       : "a_negocier";
+    const phraseIntro      = typeof parsed.phrase_intro  === "string"            ? parsed.phrase_intro.trim()  : "";
+    const justifications   = typeof parsed.justifications === "string"           ? parsed.justifications.trim() : "";
+    let   verdictDecision  = validDecisions.includes(parsed.verdict_decisionnel) ? parsed.verdict_decisionnel  : "signer_avec_negociation";
+
+    // ── Cohérence forcée : niveau_risque DOIT correspondre à verdict_global ──
+    // Gemini génère parfois "a_risque" + "modéré" ou "a_negocier" + "élevé" de façon incohérente.
+    const RISQUE_FORCED: Record<string, "faible" | "modéré" | "élevé"> = {
+      dans_la_norme:  "faible",
+      eleve_justifie: "modéré",
+      a_negocier:     "modéré",
+      a_risque:       "élevé",
+    };
+    const niveauRisque: "faible" | "modéré" | "élevé" = RISQUE_FORCED[verdictGlobal] ?? "modéré";
+
+    // ── Cohérence verdict_decisionnel ──────────────────────────────────────────
+    // Empêche "signer" avec un verdict négatif, et "ne_pas_signer" sur un verdict correct
+    if (verdictGlobal === "dans_la_norme") {
+      verdictDecision = "signer";
+    } else if ((verdictGlobal === "a_negocier" || verdictGlobal === "eleve_justifie") && verdictDecision === "signer") {
+      verdictDecision = "signer_avec_negociation";
+    } else if (verdictGlobal === "a_risque") {
+      // "ne_pas_signer" uniquement si 2+ anomalies réelles ou surcoût > 30% du total HT
+      const totalHTNum = typeof totalHT === "number" ? totalHT : 0;
+      const surcoutRatio = totalHTNum > 0 ? surcoutMax / totalHTNum : 0;
+      if (sanitizedAnomalies.length >= 2 || surcoutRatio > 0.30) {
+        verdictDecision = "ne_pas_signer";
+      } else {
+        // 1 seule anomalie → on recommande de négocier, pas de bloquer
+        if (verdictDecision === "signer") verdictDecision = "signer_avec_negociation";
+      }
+    }
+
     conclusionData = {
-      verdict_global:          validVerdicts.includes(parsed.verdict_global)   ? parsed.verdict_global   : "a_negocier",
-      phrase_intro:            typeof parsed.phrase_intro  === "string" ? parsed.phrase_intro.trim()  : "",
+      verdict_global:          verdictGlobal,
+      phrase_intro:            phraseIntro,
       anomalies:               sanitizedAnomalies,
-      justifications:          typeof parsed.justifications === "string" ? parsed.justifications.trim() : "",
+      justifications,
       has_anomalies:           sanitizedAnomalies.length > 0,
-      verdict_decisionnel:     validDecisions.includes(parsed.verdict_decisionnel)   ? parsed.verdict_decisionnel   : "signer_avec_negociation",
+      verdict_decisionnel:     verdictDecision as "signer" | "signer_avec_negociation" | "ne_pas_signer",
       surcout_global:          { min: surcoutMin, max: surcoutMax },
-      niveau_risque:           validRisques.includes(parsed.niveau_risque)     ? parsed.niveau_risque     : "modéré",
+      niveau_risque:           niveauRisque,
       actions_avant_signature: rawActions,
       generated_at:            new Date().toISOString(),
     };

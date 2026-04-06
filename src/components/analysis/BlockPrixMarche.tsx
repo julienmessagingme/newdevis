@@ -217,16 +217,17 @@ const AnalysisCard = ({ row, globalBadge }: AnalysisCardProps) => {
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
             <h3 className="font-semibold text-foreground text-sm truncate">{row.jobTypeLabel}</h3>
-            {row.verdict ? (
+            {/* Le badge anomalie/survalue (globalBadge) est prioritaire sur le verdict de position marché */}
+            {!globalBadge && row.verdict ? (
               <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${verdictColor(row.verdict)} ${verdictBg(row.verdict)}`}>
                 {row.verdict}
               </span>
-            ) : !hasPrices ? (
+            ) : !globalBadge && !hasPrices ? (
               <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap text-muted-foreground bg-muted/50">
                 Pas de référence marché
               </span>
             ) : null}
-            {/* Bonus badge synthèse globale */}
+            {/* Badge synthèse globale — seul signal affiché quand anomalie ou surévalué */}
             {globalBadge === "anomalie" && (
               <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap text-red-700 bg-red-100 border border-red-200 dark:text-red-300 dark:bg-red-900/30 dark:border-red-800">
                 🔴 Anomalie marché

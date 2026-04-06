@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Plus, SlidersHorizontal, HelpCircle, X } from 'lucide-react';
 import type { DocumentChantier, LotChantier } from '@/types/chantier-ia';
 import { KpiCard, ViewToggle, DiyCard, RDV_EMOJI } from './DashboardWidgets';
@@ -87,6 +87,106 @@ function BudgetBreakdownPopover({ items }: { items: BreakdownItem[] }) {
   );
 }
 
+// ── Budget donut card ─────────────────────────────────────────────────────────
+
+function BudgetDonutCard({
+  devisTotal, iaMin, iaMax, refinedBreakdown, onAffineBudget, hasRefinedBreakdown,
+}: {
+  devisTotal: number;
+  iaMin: number;
+  iaMax: number;
+  refinedBreakdown: BreakdownItem[];
+  onAffineBudget: () => void;
+  hasRefinedBreakdown: boolean;
+}) {
+  const size = 68;
+  const stroke = 7;
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+
+  // Ratio: devis vs IA max (upper bound)
+  const pct = iaMax > 0 && devisTotal > 0 ? Math.min((devisTotal / iaMax) * 100, 100) : 0;
+  const displayPct = iaMax > 0 && devisTotal > 0 ? Math.round((devisTotal / iaMax) * 100) : 0;
+  const filled = (pct / 100) * circ;
+
+  // Color coding
+  const isOver = devisTotal > iaMax;
+  const isNear = devisTotal > iaMax * 0.85;
+  const color = devisTotal === 0 ? '#cbd5e1'
+    : isOver  ? '#ef4444'
+    : isNear  ? '#f59e0b'
+    : '#6366f1';
+
+  const statusLabel = devisTotal === 0 ? null
+    : isOver  ? 'au-dessus de la fourchette'
+    : isNear  ? 'proche du plafond'
+    : 'dans la fourchette';
+  const statusCls = devisTotal === 0 ? '' : isOver ? 'text-red-500' : isNear ? 'text-amber-500' : 'text-indigo-500';
+
+  const fmtEurShort = (n: number) => n >= 1000 ? `${fmtK(n)}` : `${n} €`;
+
+  return (
+    <div className="bg-blue-50 rounded-2xl px-4 py-4 flex items-center gap-3 col-span-2 xl:col-span-1">
+      {/* Donut SVG */}
+      {iaMax > 0 && (
+        <div className="relative shrink-0" style={{ width: size, height: size }}>
+          <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}
+               style={{ transform: 'rotate(-90deg)', display: 'block' }}>
+            <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#dbeafe" strokeWidth={stroke} />
+            {devisTotal > 0 && (
+              <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+                strokeDasharray={`${filled} ${circ - filled}`} strokeLinecap="round"
+                style={{ transition: 'stroke-dasharray 0.65s ease' }}
+              />
+            )}
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-[11px] font-extrabold leading-none" style={{ color: devisTotal > 0 ? color : '#94a3b8' }}>
+              {devisTotal > 0 ? `${displayPct}%` : '—'}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Text info */}
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Budget chantier</p>
+
+        <div className="space-y-1.5">
+          <div>
+            <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Fourchette IA</p>
+            <p className="text-lg font-extrabold text-blue-700 leading-tight tabular-nums">
+              {iaMin > 0 ? `${fmtK(iaMin)}–${fmtK(iaMax)}` : '—'}
+            </p>
+          </div>
+          <div>
+            <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Devis déposés</p>
+            <p className={`text-sm font-bold leading-tight tabular-nums ${devisTotal > 0 ? 'text-gray-800' : 'text-gray-300'}`}>
+              {devisTotal > 0 ? fmtEurShort(devisTotal) : '—'}
+            </p>
+            {statusLabel && (
+              <p className={`text-[10px] font-semibold mt-0.5 ${statusCls}`}>{statusLabel}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-2 flex items-center gap-1.5">
+          {refinedBreakdown.length > 0 && (
+            <BudgetBreakdownPopover items={refinedBreakdown} />
+          )}
+          <button
+            onClick={onAffineBudget}
+            className="flex items-center gap-1 text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1 transition-colors"
+          >
+            <SlidersHorizontal className="h-3 w-3" />
+            {hasRefinedBreakdown ? 'Recalculer' : 'Affiner'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── DashboardHome ─────────────────────────────────────────────────────────────
 
 function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, refinedBreakdown, onAffineBudget,
@@ -121,6 +221,13 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
 }) {
 
   const [comparingLot, setComparingLot] = useState<{ lot: LotChantier; docs: DocumentChantier[] } | null>(null);
+
+  const devisTotal = useMemo(() =>
+    documents
+      .filter(d => d.document_type === 'devis' && d.montant != null)
+      .reduce((sum, d) => sum + (d.montant ?? 0), 0),
+    [documents],
+  );
 
   // ── Prochain RDV depuis localStorage ──────────────────────────────────────
   const [nextRdv, setNextRdv] = useState<{ titre: string; date: string; time?: string; type: string } | null>(null);
@@ -171,26 +278,14 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
       {/* ── KPI cards ──────────────────────────────────────────── */}
       <div className={`grid grid-cols-2 gap-3 ${nextRdv ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}`}>
 
-        {/* Budget estimé + tooltip breakdown */}
-        <KpiCard
-          icon="💰" label="Budget estimé"
-          value={displayMin > 0 ? `${fmtK(displayMin)}–${fmtK(displayMax)}` : '—'}
-          sub={displayMin > 0 ? 'fourchette estimée' : 'à estimer'}
-          accent="blue"
-          action={
-            <div className="flex items-center gap-1.5">
-              {refinedBreakdown.length > 0 && (
-                <BudgetBreakdownPopover items={refinedBreakdown} />
-              )}
-              <button
-                onClick={onAffineBudget}
-                className="flex items-center gap-1 text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1 transition-colors"
-              >
-                <SlidersHorizontal className="h-3 w-3" />
-                {refinedBreakdown.length > 0 ? 'Recalculer' : 'Affiner'}
-              </button>
-            </div>
-          }
+        {/* Budget chantier — donut devis vs IA */}
+        <BudgetDonutCard
+          devisTotal={devisTotal}
+          iaMin={displayMin}
+          iaMax={displayMax}
+          refinedBreakdown={refinedBreakdown}
+          onAffineBudget={onAffineBudget}
+          hasRefinedBreakdown={refinedBreakdown.length > 0}
         />
 
         <KpiCard
