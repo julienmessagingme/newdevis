@@ -267,16 +267,28 @@ function AnalyseDevisCard({
 
 // ── Composant principal ───────────────────────────────────────────────────────
 
-function AssistantChantierSection({ result, documents, lots, chantierId, token, onAddDoc, onGoToLots, onGoToAnalyse, onGoToBudget, onOpenChat }: {
+function AssistantChantierSection({ result, documents, lots, chantierId, token, agentInsights, onAddDoc, onGoToLots, onGoToAnalyse, onGoToBudget, onGoToJournal, onOpenChat }: {
   result: ChantierIAResult;
   documents: DocumentChantier[];
   lots: LotChantier[];
   chantierId: string | null;
   token: string | null | undefined;
+  agentInsights?: {
+    insights: Array<{
+      id: string; type: string; severity: string; title: string; body: string;
+      actions_taken: Array<{ tool: string; summary: string }>;
+      needs_confirmation: boolean; read_by_user: boolean; created_at: string;
+    }>;
+    unreadCount: number;
+    loading: boolean;
+    markAsRead: (id: string) => Promise<void>;
+    markAllRead: () => Promise<void>;
+  };
   onAddDoc: () => void;
   onGoToLots: () => void;
   onGoToAnalyse: () => void;
   onGoToBudget: () => void;
+  onGoToJournal?: () => void;
   onOpenChat: () => void;
 }) {
   const { data, loading, error, refresh } = useChantierAssistant({
@@ -326,6 +338,17 @@ function AssistantChantierSection({ result, documents, lots, chantierId, token, 
           Actualiser
         </button>
       </div>
+
+      {/* ── Agent Insights temps réel ─────────────────────── */}
+      {agentInsights && !agentInsights.loading && agentInsights.insights.length > 0 && (
+        <AgentInsightsBlock
+          insights={agentInsights.insights}
+          markAsRead={agentInsights.markAsRead}
+          markAllRead={agentInsights.markAllRead}
+          onGoToLots={onGoToLots}
+          onGoToJournal={onGoToJournal}
+        />
+      )}
 
       {/* ── Loading ─────────────────────────────────────────── */}
       {loading && !data && (
@@ -479,6 +502,115 @@ function AssistantChantierSection({ result, documents, lots, chantierId, token, 
         </>
       )}
     </div>
+  );
+}
+
+// ── Sub-component: Agent Insights Block (extracted from IIFE for hooks safety) ─
+
+const SEVERITY_STYLE: Record<string, { bg: string; border: string; dot: string }> = {
+  critical: { bg: 'bg-red-50', border: 'border-red-200', dot: 'bg-red-500' },
+  warning:  { bg: 'bg-amber-50', border: 'border-amber-200', dot: 'bg-amber-400' },
+  info:     { bg: 'bg-blue-50', border: 'border-blue-200', dot: 'bg-blue-400' },
+};
+
+const TYPE_ICON: Record<string, string> = {
+  planning_impact: '\uD83D\uDCC5', budget_alert: '\uD83D\uDCB0', payment_overdue: '\u23F0',
+  conversation_summary: '\uD83D\uDCAC', risk_detected: '\u26A0\uFE0F', lot_status_change: '\uD83D\uDD04',
+  needs_clarification: '\u2753', digest: '\uD83D\uDCD6',
+};
+
+function AgentInsightsBlock({ insights, markAsRead, markAllRead, onGoToLots, onGoToJournal }: {
+  insights: Array<{
+    id: string; type: string; severity: string; title: string; body: string;
+    actions_taken: Array<{ tool: string; summary: string }>;
+    needs_confirmation: boolean; read_by_user: boolean; created_at: string;
+  }>;
+  markAsRead: (id: string) => Promise<void>;
+  markAllRead: () => Promise<void>;
+  onGoToLots: () => void;
+  onGoToJournal?: () => void;
+}) {
+  const clarifications = insights.filter(i => i.needs_confirmation && !i.read_by_user);
+  const unread = insights.filter(i => !i.read_by_user && !i.needs_confirmation);
+
+  return (
+    <>
+      {/* Clarifications urgentes */}
+      {clarifications.length > 0 && (
+        <div className="space-y-2">
+          {clarifications.map(c => (
+            <div key={c.id} className="bg-orange-50 border border-orange-200 rounded-2xl px-5 py-4">
+              <div className="flex items-start gap-2">
+                <span className="text-lg leading-none">{'\u2753'}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-wider text-orange-500 mb-1">Clarification demandée</p>
+                  <p className="text-sm font-semibold text-gray-900 mb-1">{c.title}</p>
+                  <p className="text-sm text-gray-600 leading-relaxed">{c.body}</p>
+                  <div className="flex gap-2 mt-3">
+                    <button onClick={onGoToLots} className="text-xs font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-xl px-3 py-1.5 transition-colors">
+                      Affecter à un lot
+                    </button>
+                    <button onClick={() => markAsRead(c.id)} className="text-xs font-medium text-gray-400 hover:text-gray-600 px-3 py-1.5 transition-colors">
+                      Ignorer
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Insights non lus */}
+      {unread.length > 0 && (
+        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-50">
+            <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Activité agent IA ({unread.length})</p>
+            <button onClick={markAllRead} className="text-[10px] text-gray-400 hover:text-blue-600 transition-colors">
+              Tout marquer comme lu
+            </button>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {unread.slice(0, 5).map(ins => {
+              const sev = SEVERITY_STYLE[ins.severity] ?? SEVERITY_STYLE.info;
+              return (
+                <button key={ins.id} onClick={() => markAsRead(ins.id)} className={`w-full text-left px-5 py-3 hover:bg-gray-50/50 transition-colors ${sev.bg}`}>
+                  <div className="flex items-start gap-2.5">
+                    <span className="text-sm leading-none mt-0.5">{TYPE_ICON[ins.type] ?? '\uD83D\uDD14'}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-1.5 h-1.5 rounded-full ${sev.dot}`} />
+                        <p className="text-sm font-semibold text-gray-900 truncate">{ins.title}</p>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{ins.body}</p>
+                      {ins.actions_taken.length > 0 && (
+                        <div className="mt-1.5 space-y-0.5">
+                          {ins.actions_taken.map((a, j) => (
+                            <p key={j} className="text-[10px] text-primary flex items-center gap-1">
+                              <Bot className="h-3 w-3 inline-block" /> {a.summary}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-gray-300 whitespace-nowrap mt-0.5">
+                      {new Date(ins.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Lien journal */}
+      {onGoToJournal && (
+        <button onClick={onGoToJournal} className="w-full text-center py-2.5 text-xs text-primary hover:text-primary/80 hover:bg-primary/5 rounded-xl transition-colors">
+          Voir le journal de chantier du jour →
+        </button>
+      )}
+    </>
   );
 }
 

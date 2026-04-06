@@ -30,7 +30,9 @@ import DashboardHome from './DashboardHome';
 import AnalyseDevisSection from './AnalyseDevisSection';
 import TravauxDIYSection from './TravauxDIYSection';
 import AssistantChantierSection from './AssistantChantierSection';
+import JournalChantierSection from './JournalChantierSection';
 import UserCoordonnees from './UserCoordonnees';
+import { useAgentInsights } from '@/hooks/useAgentInsights';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 
@@ -139,6 +141,11 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
     ? 'critique'
     : assistantData?.alertes?.find(a => a.type === 'risque') ? 'risque' : null;
 
+  // ── Agent insights — badge + data for assistant section ────────────────
+  const agentInsights = useAgentInsights(chantierId, token);
+  const totalAlertCount = assistantAlertCount + agentInsights.unreadCount;
+  const hasCriticalInsight = agentInsights.insights.some(i => !i.read_by_user && i.severity === 'critical');
+
   // ── Badges sidebar ────────────────────────────────────────────────────────
   const navBadges = useMemo<Partial<Record<Section, NavBadge>>>(() => {
     return {
@@ -148,16 +155,16 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
       messagerie: msgUnread > 0
         ? { text: `${msgUnread}`, style: 'bg-blue-100 text-blue-700' }
         : undefined,
-      assistant:  assistantAlertCount > 0
+      assistant:  totalAlertCount > 0
         ? {
-            text: `${assistantAlertCount}`,
-            style: assistantAlertLevel === 'critique'
+            text: `${totalAlertCount}`,
+            style: (assistantAlertLevel === 'critique' || hasCriticalInsight)
               ? 'bg-red-500 text-white'
               : 'bg-amber-400 text-white',
           }
         : undefined,
     };
-  }, [documents, msgUnread, assistantAlertCount, assistantAlertLevel]);
+  }, [documents, msgUnread, totalAlertCount, assistantAlertLevel, hasCriticalInsight]);
 
   const selectedLot = lots.find(l => l.id === selectedLotId);
   const hasDiyOpportunity = lots.some(l => l.statut === 'a_trouver');
@@ -371,6 +378,15 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
           />
         );
 
+      case 'journal':
+        return (
+          <JournalChantierSection
+            chantierId={chantierId}
+            token={token}
+            onGoToAssistant={() => navigateTo('assistant')}
+          />
+        );
+
       case 'assistant':
         return (
           <AssistantChantierSection
@@ -379,10 +395,12 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             lots={lots}
             chantierId={chantierId}
             token={token}
+            agentInsights={agentInsights}
             onAddDoc={() => setUploadModal({ open: true })}
             onGoToLots={() => navigateTo('lots')}
             onGoToAnalyse={() => navigateTo('analyse')}
             onGoToBudget={() => navigateTo('budget')}
+            onGoToJournal={() => navigateTo('journal')}
             onOpenChat={() => setChatOpen(true)}
           />
         );
@@ -455,7 +473,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
     budget: showBudgetDetail ? 'Affinage du budget' : result.nom,
     tresorerie: 'Budget & Trésorerie',
     lots: 'Intervenants', contacts: 'Contacts', messagerie: 'Messagerie', analyse: 'Analyse des devis',
-    planning: 'Planning', documents: 'Documents', assistant: 'Assistant chantier',
+    planning: 'Planning', documents: 'Documents', journal: 'Journal de chantier', assistant: 'Assistant chantier',
     diy: 'Travaux réalisés par vous', settings: 'Paramètres',
   };
 

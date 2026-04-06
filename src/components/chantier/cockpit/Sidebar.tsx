@@ -1,11 +1,11 @@
 import React from 'react';
 import {
   ArrowLeft, Pencil, Wallet, Layers,
-  FileSearch, Calendar, FolderOpen, Bot, Settings, Users, Mail,
+  FileSearch, Calendar, FolderOpen, Bot, Settings, Users, Mail, BookOpen,
 } from 'lucide-react';
 import type { ChantierIAResult } from '@/types/chantier-ia';
 
-export type Section = 'budget' | 'lots' | 'contacts' | 'messagerie' | 'analyse' | 'planning' | 'documents' | 'assistant' | 'diy' | 'settings' | 'tresorerie';
+export type Section = 'budget' | 'lots' | 'contacts' | 'messagerie' | 'analyse' | 'planning' | 'documents' | 'journal' | 'assistant' | 'diy' | 'settings' | 'tresorerie';
 
 export interface NavBadge { text: string; style: string }
 
@@ -29,6 +29,7 @@ export const NAV_ITEMS: { id: Section; label: string; icon: React.ElementType }[
   { id: 'analyse',    label: 'Analyse des devis',   icon: FileSearch  },
   { id: 'planning',   label: 'Planning',             icon: Calendar    },
   { id: 'documents',  label: 'Documents',            icon: FolderOpen  },
+  { id: 'journal',    label: 'Journal de chantier', icon: BookOpen    },
   { id: 'assistant',  label: 'Assistant chantier',  icon: Bot         },
 ];
 
