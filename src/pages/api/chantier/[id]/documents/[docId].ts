@@ -3,7 +3,8 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DocumentType } from '@/types/chantier-ia';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth, createServiceClient } from '@/lib/apiHelpers';
+import { detectDevisType } from '@/utils/extractProjectElements';
 
 const BUCKET          = 'chantier-documents';
 const SIGNED_TTL      = 3_600;
@@ -183,6 +184,31 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 
   if (fetchErr || !updated) {
     return jsonError('Document introuvable après mise à jour', 404);
+  }
+
+  // ── Lot assignment coherence check (uses document name enriched by extraction) ──
+  if ('lot_id' in updates && updates.lot_id) {
+    const docName = updated.nom ?? '';
+    const detectedType = detectDevisType(docName);
+    if (detectedType !== 'autre') {
+      const { data: lot } = await ctx.supabase
+        .from('lots_chantier').select('nom').eq('id', updates.lot_id as string).single();
+      if (lot) {
+        const lotType = detectDevisType(lot.nom);
+        if (lotType !== 'autre' && lotType !== detectedType) {
+          const serviceClient = createServiceClient();
+          serviceClient.from('agent_insights').insert({
+            chantier_id: params.id,
+            user_id: ctx.user.id,
+            type: 'risk_detected',
+            severity: 'warning',
+            title: `Affectation douteuse : "${docName.slice(0, 40)}" dans lot "${lot.nom}"`,
+            body: `Ce document semble concerner "${detectedType}" mais est affecté au lot "${lot.nom}" (type "${lotType}"). Vérifiez l'affectation.`,
+            source_event: { check: 'lot_mismatch', document_id: params.docId, detected_type: detectedType, lot_type: lotType },
+          }).then(() => {}).catch(() => {});
+        }
+      }
+    }
   }
 
   // Fire-and-forget: re-trigger agent when lot assignment or statut changes

@@ -14,7 +14,8 @@ export const prerender = false;
  */
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth, createServiceClient } from '@/lib/apiHelpers';
+import { detectDevisType } from '@/utils/extractProjectElements';
 
 const GOOGLE_API_KEY = import.meta.env.GOOGLE_API_KEY;
 const BUCKET = 'chantier-documents';
@@ -142,6 +143,33 @@ Réponds UNIQUEMENT avec ce JSON valide, sans texte avant ni après :
       .from('documents_chantier')
       .update(update)
       .eq('id', docId!);
+
+    // ── Detect content type from extracted data (not filename) ────────────
+    // Use objet + entreprise + nom to detect what the document is really about
+    const contentForDetection = [donnees.objet, donnees.entreprise, nom].filter(Boolean).join(' ');
+    const detectedType = detectDevisType(contentForDetection);
+
+    // Check lot assignment coherence if document is assigned to a lot
+    if (detectedType !== 'autre' && doc.lot_id) {
+      const { data: lot } = await ctx.supabase
+        .from('lots_chantier').select('nom').eq('id', doc.lot_id).single();
+      if (lot) {
+        const lotType = detectDevisType(lot.nom);
+        if (lotType !== 'autre' && lotType !== detectedType) {
+          // Mismatch: document content doesn't match the lot it's assigned to
+          const serviceClient = createServiceClient();
+          await serviceClient.from('agent_insights').insert({
+            chantier_id: params.id,
+            user_id: ctx.user.id,
+            type: 'risk_detected',
+            severity: 'warning',
+            title: `Affectation douteuse : "${nom?.slice(0, 40)}" dans lot "${lot.nom}"`,
+            body: `Le contenu extrait (${donnees.objet ?? 'non précisé'}) semble concerner des travaux de type "${detectedType}" mais le document est affecté au lot "${lot.nom}" (type "${lotType}"). Vérifiez l'affectation.`,
+            source_event: { check: 'lot_mismatch', document_id: docId, detected_type: detectedType, lot_type: lotType },
+          }).then(() => {}).catch(() => {});
+        }
+      }
+    }
 
     // Fire-and-forget: deterministic checks ($0) + real-time LLM analysis
     const _sbUrl = import.meta.env.PUBLIC_SUPABASE_URL;
