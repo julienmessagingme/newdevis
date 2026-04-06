@@ -1261,7 +1261,138 @@ git commit -m "feat: agent orchestration V1 complete"
 
 ---
 
-## Task 8: Pipeline "LOT INCONNU" — clarification workflow
+## Task 8: Contact roles + virtual lots (architecte, maître d'oeuvre)
+
+**Problem:** Currently, the "Métier / Rôle" field on contacts is free text. The agent needs to know if someone is an architect (authority over whole project) vs. an artisan (authority over their lot). Also, when adding an architect, there's no lot to attach them to.
+
+**Files:**
+- Modify: `src/components/chantier/cockpit/ContactsSection.tsx` — replace free text role with select + auto-create lot
+- Modify: `src/pages/api/chantier/[id]/contacts.ts` — handle virtual lot creation on POST
+- Create: `supabase/migrations/20260405130000_contact_roles.sql` — add predefined roles
+
+### Step 1: Migration — predefined contact categories
+
+```sql
+-- Add contact_category column with predefined values
+-- Keep the existing 'role' column as free-text métier (plombier, électricien...)
+-- New 'contact_category' column = the agent-relevant classification
+ALTER TABLE contacts_chantier
+  ADD COLUMN IF NOT EXISTS contact_category TEXT
+  DEFAULT 'artisan'
+  CHECK (contact_category IN ('artisan', 'architecte', 'maitre_oeuvre', 'bureau_etudes', 'client', 'autre'));
+
+-- Backfill: detect existing roles that match categories
+UPDATE contacts_chantier SET contact_category = 'architecte'
+  WHERE role ILIKE '%architecte%' AND contact_category = 'artisan';
+UPDATE contacts_chantier SET contact_category = 'maitre_oeuvre'
+  WHERE (role ILIKE '%maitre%' OR role ILIKE '%maître%') AND contact_category = 'artisan';
+```
+
+### Step 2: Frontend — ContactsSection.tsx
+
+Replace the free text "Métier / Rôle" input with two fields:
+
+```tsx
+{/* Catégorie (for the agent) */}
+<div>
+  <label className="block text-xs font-medium text-gray-500 mb-1">Catégorie</label>
+  <select
+    value={category} onChange={e => {
+      setCategory(e.target.value);
+      // Auto-suggest role based on category
+      if (e.target.value === 'architecte' && !role) setRole('Architecte');
+      if (e.target.value === 'maitre_oeuvre' && !role) setRole("Maître d'œuvre");
+    }}
+    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
+  >
+    <option value="artisan">🔧 Artisan / Entreprise</option>
+    <option value="architecte">📐 Architecte</option>
+    <option value="maitre_oeuvre">🏗️ Maître d'œuvre</option>
+    <option value="bureau_etudes">📊 Bureau d'études</option>
+    <option value="client">👤 Client / Particulier</option>
+    <option value="autre">📋 Autre</option>
+  </select>
+</div>
+
+{/* Métier libre (for display) */}
+<div>
+  <label className="block text-xs font-medium text-gray-500 mb-1">Métier / Spécialité</label>
+  <input
+    type="text" value={role} onChange={e => setRole(e.target.value)}
+    placeholder={category === 'artisan' ? 'Ex: Électricien, Plombier...' : 'Ex: DPLG, OPC...'}
+  />
+</div>
+```
+
+### Step 3: Auto-create virtual lot
+
+When category is `architecte`, `maitre_oeuvre`, or `bureau_etudes` AND no lot is selected, auto-create a lot with that name:
+
+```tsx
+// In the save handler, before POST /contacts:
+if (['architecte', 'maitre_oeuvre', 'bureau_etudes'].includes(category) && !lotId) {
+  // Check if a lot with this name already exists
+  const existingLot = lots.find(l =>
+    l.nom.toLowerCase().includes(category === 'maitre_oeuvre' ? "maître d'œuvre" : category)
+  );
+
+  if (existingLot) {
+    lotId = existingLot.id;
+  } else {
+    // Create a virtual lot
+    const lotNames: Record<string, string> = {
+      architecte: '📐 Architecte',
+      maitre_oeuvre: "🏗️ Maître d'œuvre",
+      bureau_etudes: '📊 Bureau d\'études',
+    };
+    const res = await fetch(`/api/chantier/${chantierId}/lots`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nom: lotNames[category],
+        emoji: category === 'architecte' ? '📐' : category === 'maitre_oeuvre' ? '🏗️' : '📊',
+        // Budget 0 — virtual lot, not a work package
+        budget_min_ht: 0, budget_avg_ht: 0, budget_max_ht: 0,
+      }),
+    });
+    const newLot = await res.json();
+    lotId = newLot.id;
+    // Refresh lots list
+    onRefresh?.();
+  }
+}
+```
+
+### Step 4: Update agent context
+
+The `contact_category` field is now available in the context builder. Update the prompt to use it instead of the free-text `role`:
+
+In `context.ts`, the phoneToContact map already includes `role`. Now also include `contact_category`:
+
+```typescript
+phoneToContact.set(norm, {
+  nom: c.nom, lot_id: c.lot_id,
+  metier: c.metier ?? "", role: c.role ?? "",
+  category: c.contact_category ?? "artisan",
+});
+```
+
+In the prompt, show `[architecte]` from `contact_category`, not from `role`:
+
+```
+[10:23] Marc Leroy [architecte] (0698765432 → lot "📐 Architecte") : "on repousse d'une semaine"
+```
+
+### Step 5: Commit
+
+```bash
+git add supabase/migrations/20260405130000_contact_roles.sql src/components/chantier/cockpit/ContactsSection.tsx src/pages/api/chantier/[id]/contacts.ts
+git commit -m "feat: predefined contact categories (architecte, MOE) with auto-create virtual lot"
+```
+
+---
+
+## Task 9: Pipeline "LOT INCONNU" — clarification workflow
 
 **Problem:** A WhatsApp message comes from a number not in `contacts_chantier`, or from a contact without `lot_id`. The agent can't act on planning without knowing the lot. This is the most common case for new chantiers.
 
@@ -1346,7 +1477,8 @@ git commit -m "feat: LOT INCONNU pipeline — clarification workflow with retry"
 | 6 | OpenClaw skills + guide (avantages, contexte, HEARTBEAT) | — | 7 docs |
 | 7 | Deploy + test | — | Config |
 | 8 | Pipeline "LOT INCONNU" (clarification workflow + retry) | — | 2 routes + 1 component |
-| 9 | Frontend: JournalChantier (livre, navigation fleches) | — | 2 components |
+| 9 | Contact roles + virtual lots (architecte, MOE) | — | 2 modifs + 1 migration |
+| 10 | Frontend: JournalChantier (livre, navigation fleches) | — | 2 components |
 
 ## Architecture diagram
 
