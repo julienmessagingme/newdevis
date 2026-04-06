@@ -69,6 +69,13 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 | `/api/webhooks/inbound-email` | `api/webhooks/inbound-email.ts` | Webhook SendGrid Inbound Parse (réception réponses artisans) |
 | `/api/chantier/[id]/agent-insights` | `api/chantier/[id]/agent-insights.ts` | GET (list + unread_count, filtres ?unread/type/limit), POST (create avec dedup 24h, auth X-Agent-Key ou JWT), PATCH (mark read single/all) |
 | `/api/chantier/agent-config` | `api/chantier/agent-config.ts` | GET config agent (defaults edge_function), PUT upsert mode + credentials OpenClaw |
+| `/api/chantier/[id]/journal` | `api/chantier/[id]/journal.ts` | GET journal entries (?date, ?from&to range, default latest) |
+| `/api/chantier/[id]/agent-retry` | `api/chantier/[id]/agent-retry.ts` | POST re-trigger agent après clarification (invalidate cache + re-run) |
+| `/api/chantier/[id]/taches` | `api/chantier/[id]/taches.ts` | GET/POST/PATCH/DELETE checklist tâches |
+| `/api/chantier/[id]/budget` | `api/chantier/[id]/budget.ts` | GET budget avec buildConseils() (6 types de conseils) |
+| `/api/chantier/assistant` | `api/chantier/assistant.ts` | POST analyse Gemini MOE (action prioritaire, alertes, recommandations). Détection mismatch devis↔lot via `detectDevisType`. |
+| `/api/chantier/[id]/documents/register` | `api/chantier/[id]/documents/register.ts` | POST enregistrement document + trigger agent-checks |
+| `/api/chantier/[id]/documents/[docId]/describe` | `api/chantier/[id]/documents/[docId]/describe.ts` | POST Gemini Vision auto-description (photo/plan/assurance) + mismatch lot |
 
 ## Ajouter une page
 
@@ -90,7 +97,10 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 - **`lib/budgetHelpers.ts`** — fmtK, fmtFull, PHASE_LABELS/COLORS
 - **`lib/planningUtils.ts`** — computePlanningDates(), computeStartDateFromEnd(), addBusinessDays(), formatDuration() (pure TS, partagé entre `usePlanning.ts` et l'API route planning)
 - **`data/MATERIALS_MAP.ts`** : Catalogue statique de 17 types de chantier × 3+ options matériaux (prix, durabilité, entretien, images). Auto-détection via `detectChantierType()`.
-- **Hooks** : 11 hooks dont `useAnonymousAuth.ts` (auth anonyme), `useMarketPriceEditor.ts` (édition interactive prix marché), `useMaterialAI.ts` (suggestions matériaux Gemini), `useMaterialDetection.ts` (détection type catalogue), `useMaterialSuggestions.ts` (catalogue matériaux dynamique), `usePlanning.ts` (lots + dates planning, moveLot, updateEndDate, recompute)
+- **Hooks** : 15+ hooks dont `useAnonymousAuth.ts` (auth anonyme), `useMarketPriceEditor.ts` (édition interactive prix marché), `useMaterialAI.ts` (suggestions matériaux Gemini), `useMaterialDetection.ts` (détection type catalogue), `useMaterialSuggestions.ts` (catalogue matériaux dynamique), `usePlanning.ts` (lots + dates planning, moveLot, updateEndDate, recompute), `useAgentInsights.ts` (agent insights CRUD), `useChantierJournal.ts` (journal navigation ← →), `useTaches.ts` (tâches checklist), `useAgentConfig.ts` (config agent mode)
+- **Legacy** : `cockpit/useInsights.ts` — ancien système Gemini MOE (insights per-lot éphémères). Utilisé par 6 composants (BudgetTresorerie, AnalyseDevisSection, LotCard, LotIntervenantCard, BudgetKpiCard, dashboardHelpers). **Ne pas supprimer** — à migrer vers `agent_insights` dans une future itération.
+- **`components/chantier/cockpit/AssistantChantierSection.tsx`** : Centre de pilotage IA refactoré — clarifications urgentes, tâches (via useTaches), alertes unifiées (merge Gemini + agent insights dédupliqué), recommandations, liens journal/chat.
+- **`components/chantier/cockpit/JournalChantierSection.tsx`** : Journal de chantier UX livre — navigation flèches ← →, mini calendrier 14j avec dots sévérité, markdown body du digest IA quotidien.
 
 ## Supabase
 
@@ -103,7 +113,7 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 - `todo_chantier` — checklist par chantier (titre, priorité, done). FK chantiers CASCADE.
 - `chantier_updates` — journal des modifications IA par chantier. FK chantiers CASCADE.
 - `documents_chantier` — documents attachés aux chantiers (devis, factures, photos, plans). FK chantiers CASCADE.
-- `contacts_chantier` — carnet de contacts par chantier (nom, email, téléphone, SIRET, rôle, notes). FK chantiers CASCADE, FK lots_chantier SET NULL. Source : 'manual'|'devis'|'facture'. RLS user-scoped.
+- `contacts_chantier` — carnet de contacts par chantier (nom, email, téléphone, SIRET, rôle, notes). Colonne `contact_category` (artisan|architecte|maitre_oeuvre|bureau_etudes|client|autre). FK chantiers CASCADE, FK lots_chantier SET NULL. Source : 'manual'|'devis'|'facture'. RLS user-scoped.
 - `chantier_conversations` — conversations email par chantier (1 par contact). Contient reply_address unique pour SendGrid Inbound Parse. FK chantiers CASCADE, FK contacts_chantier SET NULL. RLS user-scoped.
 - `chantier_messages` — messages email (outbound/inbound). FK chantier_conversations CASCADE. Direction, subject, body_text, body_html, status. RLS via join sur conversations.user_id.
 - `chantier_whatsapp_groups` — groupes WhatsApp par chantier (N groupes possibles). Colonnes : `group_jid TEXT` (JID whapi), `invite_link`, `name`. UNIQUE(group_jid). FK chantiers CASCADE. RLS user-scoped via chantiers.
@@ -127,10 +137,10 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 - `chantier_journal` — journal de chantier, 1 page/jour (livre UX). Body markdown (digest IA), alerts_count, max_severity. UNIQUE(chantier_id, journal_date). RLS user-scoped.
 - `agent_context_cache` — cache du contexte hydraté (JSON). Invalidé quand documents/planning/contacts changent. TTL 4h. Pas de RLS (service_role only).
 
-### Edge Functions (12)
+### Edge Functions (14)
 | Fonction | JWT | Rôle |
 |---|---|---|
-| `analyze-quote` | false | Pipeline principal d'analyse de devis |
+| `analyze-quote` | false | Pipeline principal d'analyse de devis. Enrichit `documents_chantier.nom` post-analyse + détection mismatch lot. |
 | `extract-document` | false | OCR et extraction de texte (interne) |
 | `parse-quote` | false | Parsing structuré via Gemini |
 | `analyze-attestation` | false | Analyse d'attestations d'assurance |
@@ -142,6 +152,8 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 | `chantier-qualifier` | false | Questions contextuelles pour qualifier un projet |
 | `system-alerts` | false | Alertes système |
 | `read-invoice` | false | Lecture/extraction factures |
+| `agent-checks` | false | 7 checks SQL déterministes ($0) : budget overrun, paiements en retard, lots sans devis, facture litige, budget global, devis à relancer, preuves manquantes. Trigger : upload document. |
+| `agent-orchestrator` | false | Agent IA temps réel Gemini 2.5 Flash. Context builder (from_me, group→lot mapping, cache 4h). 6 tools function calling. Cron 19h → digest journal. |
 
 > **`verify_jwt = false` sur TOUTES les fonctions** : Supabase Auth signe les JWT avec ES256, mais le runtime edge `verify_jwt` ne supporte pas cet algorithme → "Invalid JWT". Chaque fonction admin vérifie le rôle en interne via `user_roles`.
 
@@ -153,6 +165,7 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 ### Crons
 - `purge-expired-company-cache` — quotidien 03h UTC, nettoie les entrées expirées
 - `publish-scheduled-blog-posts` — toutes les 15 min, publie les articles programmés
+- `agent-orchestrator-evening-digest` — quotidien 17h UTC (19h Paris), digest journal de chantier
 
 ### Index de performance
 - `idx_analyses_user_status_created` — `analyses(user_id, status, created_at DESC)` — dashboard utilisateur
@@ -591,24 +604,47 @@ Intégration whapi pour créer de vrais groupes WhatsApp depuis le cockpit chant
 - **Params dynamiques** : `[id].astro` et `[slug].astro` — les composants React extraient les params de `window.location.pathname`
 - **Commandes** : `npm run dev` | `npm run build` | `npm run preview` | `npm run lint`
 
+## Agent IA — Pilote de Chantier
+
+Architecture temps réel + digest quotidien. Design doc : `docs/plans/2026-04-05-agent-orchestration-design.md`. Plan : `docs/plans/2026-04-05-agent-orchestration-plan.md`.
+
+### Triggers temps réel
+- **Upload document** → `agent-checks` (SQL, $0) fire-and-forget depuis `register.ts`/`depense-rapide.ts`. L'`agent-orchestrator` (Gemini) fire après extraction IA (`analyze-quote`/`extract-invoice`/`describe`).
+- **Message WhatsApp** → `agent-orchestrator` fire-and-forget depuis `whapi.ts` (mode edge_function) ou `triggerAgentIfOpenClaw` (mode openclaw).
+- **Email entrant** → `agent-orchestrator` fire-and-forget depuis `inbound-email.ts`.
+- **Affectation lot (PATCH [docId])** → `agent-checks` + `agent-orchestrator` + mismatch detection via `detectDevisType`.
+
+### Mismatch detection (document ↔ lot)
+Détection basée sur le **contenu** (pas le nom de fichier). Points de détection :
+- `analyze-quote/index.ts` — post-analyse devis : enrichit `documents_chantier.nom` (artisan + résumé) + compare avec lot
+- `extract-invoice.ts` — post-extraction facture : même logique
+- `describe.ts` — post-description photo/plan/assurance : même logique
+- `[docId].ts` PATCH — réaffectation lot : compare nom enrichi vs nouveau lot
+- Utilise `detectDevisType()` de `utils/extractProjectElements.ts` partout. Edge function réplique le mapping inline (Deno, pas d'import TS).
+
+### Cache contexte
+- `agent_context_cache` table — hydraté depuis les API routes (budget, planning, contacts, payment-events). TTL 4h.
+- **Invalidé** quand : POST/PATCH/DELETE contacts, POST lots, PATCH planning, POST agent-retry.
+- Coût : ~$0.0002/event (cache hit 1.5K tokens) ou ~$0.0004 (cache miss 6K tokens).
+
+### Dual-mode
+- `edge_function` (défaut) : Gemini 2.5 Flash, on paie. ~$0.15/mois/user.
+- `openclaw` : instance user, user paie. Stateful, multi-tour, proactif.
+- Config : `/api/chantier/agent-config` + Settings page (`AgentConfigCard`).
+
 ## TODO — prochaine session
 
-### 🔴 Agent orchestration — Tasks 3-10 (voir `docs/plans/2026-04-05-agent-orchestration-plan.md`)
-Tasks 1-2 terminées (migration + API routes). Reste :
-3. Edge function `agent-checks` — 7 checks SQL déterministes ($0) sur upload document
-4. Edge function `agent-orchestrator` — Gemini 2.5 Flash temps réel + cache contexte + digest 19h. Context builder avec `from_me` (proprio) + group→lot mapping + questions sans réponse
-5. Dual-mode routing — `triggerAgentIfOpenClaw()` dans webhooks whapi/email
-6. OpenClaw skills (5 SKILL.md) + guide setup
-7. Deploy + env vars + tests
-8. Contact categories (architecte/MOE/BET) + lots virtuels auto-créés
-9. Pipeline "LOT INCONNU" — clarification workflow + agent-retry + ClarificationCard
-10. Frontend JournalChantier (livre avec navigation flèches, 1 page/jour)
+### 🔴 Tester l'agent IA en prod
+Uploader un devis + l'affecter au mauvais lot → vérifier que l'insight "affectation douteuse" apparaît dans l'onglet Assistant. Tester le cron digest 19h → vérifier qu'une entrée journal est créée.
 
 ### 🔴 Tester WhatsApp multi-groupes (feature complète, non testée en prod)
 Fichiers clés : `WhatsAppGroupsPanel.tsx`, `MessagerieSection.tsx`, `WhatsAppThread.tsx`, `api/chantier/[id]/whatsapp.ts`, `api/webhooks/whapi.ts`
 Scénarios : créer groupe → membres visibles → message entrant → bulles par rôle → filtre par groupe
 
-### 🟡 Planning — 4 tâches restantes (voir `.claude/plans/shimmying-marinating-hickey.md`)
+### 🟡 Migrer useInsights (legacy) vers agent_insights
+6 composants dépendent de `cockpit/useInsights.ts` (Gemini MOE call éphémère). À terme, remplacer par des agent_insights persistants. Composants : BudgetTresorerie, AnalyseDevisSection, LotCard, LotIntervenantCard, BudgetKpiCard, dashboardHelpers.
+
+### 🟡 Planning — 4 tâches restantes
 1. `supabase/functions/chantier-qualifier/index.ts` — ajouter question date de démarrage
 2. `LotIntervenantCard.tsx` — affichage "S3–S5 · 2 semaines"
 3. `LotDetail.tsx` — section Planning éditable (durée inline + recalcul cascade)
