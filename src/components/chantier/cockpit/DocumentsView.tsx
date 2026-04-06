@@ -118,13 +118,31 @@ function LotBadge({ doc, lots, onChangeLot, chantierId, token }: {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
-  const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const lot = lots.find(l => l.id === doc.lot_id);
+
+  // Position the dropdown using fixed positioning (portal-like, floats above everything)
+  useEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    // Open below if enough space, otherwise above
+    if (spaceBelow >= 220 || spaceBelow >= spaceAbove) {
+      setPos({ top: rect.bottom + 4, left: rect.left });
+    } else {
+      setPos({ top: rect.top - 4, left: rect.left }); // will use bottom anchor via CSS
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setCreating(false); setNewName(''); }
+      const t = e.target as Node;
+      if (triggerRef.current?.contains(t) || dropRef.current?.contains(t)) return;
+      setOpen(false); setCreating(false); setNewName('');
     }
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -146,8 +164,9 @@ function LotBadge({ doc, lots, onChangeLot, chantierId, token }: {
   }
 
   return (
-    <div ref={ref} className="relative shrink-0">
+    <div className="shrink-0">
       <button
+        ref={triggerRef}
         onClick={() => setOpen(o => !o)}
         className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-lg border transition-colors whitespace-nowrap ${
           lot
@@ -158,9 +177,13 @@ function LotBadge({ doc, lots, onChangeLot, chantierId, token }: {
         <span className="text-[10px]">{lot ? `${lot.emoji ?? '🔧'} ${lot.nom}` : '—'}</span>
         <ChevronDown className="h-2.5 w-2.5 opacity-60" />
       </button>
-      {open && (
-        <div className="absolute left-0 top-full mt-1 z-30 bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden min-w-[180px]">
-          <div className="max-h-48 overflow-y-auto">
+      {open && pos && (
+        <div
+          ref={dropRef}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+          className="bg-white border border-gray-100 rounded-xl shadow-xl overflow-hidden min-w-[200px] max-w-[280px]"
+        >
+          <div className="max-h-52 overflow-y-auto">
             <button
               onClick={() => { onChangeLot(doc.id, null); setOpen(false); }}
               className="w-full text-left px-3 py-2 text-xs text-gray-400 hover:bg-gray-50 transition-colors"
