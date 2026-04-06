@@ -67,6 +67,8 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 | `/api/chantier/[id]/whatsapp-messages` | `api/chantier/[id]/whatsapp-messages.ts` | GET messages filtrés par `?groupJid=` — limit 200 |
 | `/api/webhooks/whapi` | `api/webhooks/whapi.ts` | Webhook whapi : messages entrants + events (join/leave/remove/delete groupe). Toujours 200. |
 | `/api/webhooks/inbound-email` | `api/webhooks/inbound-email.ts` | Webhook SendGrid Inbound Parse (réception réponses artisans) |
+| `/api/chantier/[id]/agent-insights` | `api/chantier/[id]/agent-insights.ts` | GET (list + unread_count, filtres ?unread/type/limit), POST (create avec dedup 24h, auth X-Agent-Key ou JWT), PATCH (mark read single/all) |
+| `/api/chantier/agent-config` | `api/chantier/agent-config.ts` | GET config agent (defaults edge_function), PUT upsert mode + credentials OpenClaw |
 
 ## Ajouter une page
 
@@ -92,7 +94,7 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 
 ## Supabase
 
-### Tables (26)
+### Tables (31)
 - `analyses` — analyses de devis (table principale). Colonne `market_price_overrides` (JSONB) pour les éditions utilisateur sur les prix marché. Colonne `domain` (TEXT, default `'travaux'`) pour le multi-vertical. **Limite 10 par utilisateur** : les plus anciennes sont purgées automatiquement par le pipeline.
 - `analysis_work_items` — lignes de travaux détaillées par analyse. Colonne `job_type_group` (TEXT) pour le rattachement au job type IA.
 - `blog_posts` — articles de blog (avec workflow IA, images cover + mid)
@@ -119,6 +121,11 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 - `subscriptions` — abonnements premium (stripe_customer_id, stripe_subscription_id, lifetime_analysis_count)
 - `user_roles` — rôles (admin/moderator/user)
 - `zones_geographiques` — coefficients géographiques par code postal
+- `agent_insights` — observations de l'agent IA (checks SQL + LLM). Types : planning_impact, budget_alert, payment_overdue, conversation_summary, risk_detected, digest, lot_status_change, needs_clarification. Sévérité info/warning/critical. RLS user-scoped + INSERT scoped. Index dedup unique `(chantier_id, title, day)`.
+- `agent_config` — configuration dual-mode par user. `agent_mode` : edge_function (défaut) | openclaw | disabled. Credentials OpenClaw optionnels. RLS user-scoped.
+- `agent_runs` — log des runs LLM par chantier (morning/evening). Messages analysés, insights créés, actions prises, tokens consommés.
+- `chantier_journal` — journal de chantier, 1 page/jour (livre UX). Body markdown (digest IA), alerts_count, max_severity. UNIQUE(chantier_id, journal_date). RLS user-scoped.
+- `agent_context_cache` — cache du contexte hydraté (JSON). Invalidé quand documents/planning/contacts changent. TTL 4h. Pas de RLS (service_role only).
 
 ### Edge Functions (12)
 | Fonction | JWT | Rôle |
@@ -164,6 +171,11 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 - `idx_wa_members_group_id` — `chantier_whatsapp_members(group_id)` — webhook + RLS + CASCADE
 - `idx_conv_contact_id` — `chantier_conversations(contact_id)` — ON DELETE SET NULL
 - `idx_contacts_lot_id` / `idx_contacts_devis_id` / `idx_contacts_analyse_id` — FK SET NULL sur contacts_chantier
+- `idx_insights_chantier` — `agent_insights(chantier_id, created_at DESC)` — liste insights par chantier
+- `idx_insights_unread` — `agent_insights(chantier_id, read_by_user) WHERE NOT read_by_user` — badge unread
+- `idx_insights_dedup` — `agent_insights(chantier_id, title, date_trunc('day', created_at AT TIME ZONE 'UTC'))` UNIQUE — déduplication
+- `idx_agent_runs_chantier` — `agent_runs(chantier_id, created_at DESC)` — dernier run par chantier
+- `idx_journal_chantier` — `chantier_journal(chantier_id, journal_date DESC)` — navigation journal
 
 ### Régénérer les types
 ```bash
@@ -567,6 +579,7 @@ Intégration whapi pour créer de vrais groupes WhatsApp depuis le cockpit chant
 | `SUPABASE_SERVICE_ROLE_KEY` | Oui | Bypass RLS dans les API routes |
 | `GOOGLE_API_KEY` | Oui | Gemini (extraction, groupement, résumé) |
 | `GOOGLE_PLACES_API_KEY` | Oui | Notes et avis Google Places |
+| `AGENT_SECRET_KEY` | Oui (quand agent actif) | Auth inter-service edge functions → API routes (header `X-Agent-Key`) |
 
 ## Règles importantes
 
@@ -579,6 +592,17 @@ Intégration whapi pour créer de vrais groupes WhatsApp depuis le cockpit chant
 - **Commandes** : `npm run dev` | `npm run build` | `npm run preview` | `npm run lint`
 
 ## TODO — prochaine session
+
+### 🔴 Agent orchestration — Tasks 3-10 (voir `docs/plans/2026-04-05-agent-orchestration-plan.md`)
+Tasks 1-2 terminées (migration + API routes). Reste :
+3. Edge function `agent-checks` — 7 checks SQL déterministes ($0) sur upload document
+4. Edge function `agent-orchestrator` — Gemini 2.5 Flash temps réel + cache contexte + digest 19h. Context builder avec `from_me` (proprio) + group→lot mapping + questions sans réponse
+5. Dual-mode routing — `triggerAgentIfOpenClaw()` dans webhooks whapi/email
+6. OpenClaw skills (5 SKILL.md) + guide setup
+7. Deploy + env vars + tests
+8. Contact categories (architecte/MOE/BET) + lots virtuels auto-créés
+9. Pipeline "LOT INCONNU" — clarification workflow + agent-retry + ClarificationCard
+10. Frontend JournalChantier (livre avec navigation flèches, 1 page/jour)
 
 ### 🔴 Tester WhatsApp multi-groupes (feature complète, non testée en prod)
 Fichiers clés : `WhatsAppGroupsPanel.tsx`, `MessagerieSection.tsx`, `WhatsAppThread.tsx`, `api/chantier/[id]/whatsapp.ts`, `api/webhooks/whapi.ts`
