@@ -91,11 +91,12 @@ function BudgetBreakdownPopover({ items }: { items: BreakdownItem[] }) {
 // ── Budget donut card ─────────────────────────────────────────────────────────
 
 function BudgetDonutCard({
-  devisTotal, iaMin, iaMax, refinedBreakdown, onAffineBudget, hasRefinedBreakdown,
+  devisTotal, iaMin, iaMax, budgetReel, refinedBreakdown, onAffineBudget, hasRefinedBreakdown,
 }: {
   devisTotal: number;
   iaMin: number;
   iaMax: number;
+  budgetReel?: number | null;
   refinedBreakdown: BreakdownItem[];
   onAffineBudget: () => void;
   hasRefinedBreakdown: boolean;
@@ -105,31 +106,41 @@ function BudgetDonutCard({
   const r = (size - stroke) / 2;
   const circ = 2 * Math.PI * r;
 
-  // Ratio: devis vs IA max (upper bound)
-  const pct = iaMax > 0 && devisTotal > 0 ? Math.min((devisTotal / iaMax) * 100, 100) : 0;
-  const displayPct = iaMax > 0 && devisTotal > 0 ? Math.round((devisTotal / iaMax) * 100) : 0;
+  // Référence : budget réel si défini, sinon borne haute IA
+  const ref = (budgetReel && budgetReel > 0) ? budgetReel : iaMax;
+  const usesBudgetReel = !!(budgetReel && budgetReel > 0);
+
+  const pct = ref > 0 && devisTotal > 0 ? Math.min((devisTotal / ref) * 100, 100) : 0;
+  const displayPct = ref > 0 && devisTotal > 0 ? Math.round((devisTotal / ref) * 100) : 0;
   const filled = (pct / 100) * circ;
 
-  // Color coding
-  const isOver = devisTotal > iaMax;
-  const isNear = devisTotal > iaMax * 0.85;
+  const isOver = devisTotal > ref;
+  const isNear = !isOver && devisTotal > ref * 0.85;
   const color = devisTotal === 0 ? '#cbd5e1'
     : isOver  ? '#ef4444'
     : isNear  ? '#f59e0b'
     : '#6366f1';
 
-  const statusLabel = devisTotal === 0 ? null
-    : isOver  ? 'au-dessus de la fourchette'
-    : isNear  ? 'proche du plafond'
-    : 'dans la fourchette';
-  const statusCls = devisTotal === 0 ? '' : isOver ? 'text-red-500' : isNear ? 'text-amber-500' : 'text-indigo-500';
-
   const fmtEurShort = (n: number) => n >= 1000 ? `${fmtK(n)}` : `${n} €`;
+
+  // Labels selon le mode
+  const mainLabel  = usesBudgetReel ? 'Budget cible' : 'Fourchette IA';
+  const mainValue  = usesBudgetReel
+    ? fmtEurShort(budgetReel!)
+    : (iaMin > 0 ? `${fmtK(iaMin)}–${fmtK(iaMax)}` : '—');
+  const mainCls    = usesBudgetReel ? 'text-gray-900' : 'text-blue-700';
+
+  const secLabel   = usesBudgetReel ? 'Engagé' : 'Devis déposés';
+  const statusLabel = devisTotal === 0 ? null
+    : isOver  ? (usesBudgetReel ? `dépassement +${fmtEurShort(devisTotal - ref)}` : 'au-dessus de la fourchette')
+    : isNear  ? 'proche du plafond'
+    : (usesBudgetReel ? 'dans le budget' : 'dans la fourchette');
+  const statusCls = devisTotal === 0 ? '' : isOver ? 'text-red-500' : isNear ? 'text-amber-500' : 'text-indigo-500';
 
   return (
     <div className="bg-blue-50 rounded-2xl px-4 py-4 flex items-center gap-3 col-span-2 xl:col-span-1">
       {/* Donut SVG */}
-      {iaMax > 0 && (
+      {ref > 0 && (
         <div className="relative shrink-0" style={{ width: size, height: size }}>
           <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}
                style={{ transform: 'rotate(-90deg)', display: 'block' }}>
@@ -155,13 +166,11 @@ function BudgetDonutCard({
 
         <div className="space-y-1.5">
           <div>
-            <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Fourchette IA</p>
-            <p className="text-lg font-extrabold text-blue-700 leading-tight tabular-nums">
-              {iaMin > 0 ? `${fmtK(iaMin)}–${fmtK(iaMax)}` : '—'}
-            </p>
+            <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">{mainLabel}</p>
+            <p className={`text-lg font-extrabold leading-tight tabular-nums ${mainCls}`}>{mainValue}</p>
           </div>
           <div>
-            <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">Devis déposés</p>
+            <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">{secLabel}</p>
             <p className={`text-sm font-bold leading-tight tabular-nums ${devisTotal > 0 ? 'text-gray-800' : 'text-gray-300'}`}>
               {devisTotal > 0 ? fmtEurShort(devisTotal) : '—'}
             </p>
@@ -172,7 +181,7 @@ function BudgetDonutCard({
         </div>
 
         <div className="mt-2 flex items-center gap-1.5">
-          {refinedBreakdown.length > 0 && (
+          {refinedBreakdown.length > 0 && !usesBudgetReel && (
             <BudgetBreakdownPopover items={refinedBreakdown} />
           )}
           <button
@@ -190,7 +199,7 @@ function BudgetDonutCard({
 
 // ── DashboardHome ─────────────────────────────────────────────────────────────
 
-function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, refinedBreakdown, onAffineBudget,
+function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, budgetReel, refinedBreakdown, onAffineBudget,
   onAddDevisForLot, onAddDocForLot, onGoToLot, onGoToAnalyse, onGoToPlanning, onAddDoc,
   onGoToAssistant, onAddIntervenant, onDeleteLot, onDeleteDoc, onGoToDiy, chantierId, token,
   viewMode, onViewModeChange, onDocStatutUpdated, onDocMoved,
@@ -200,6 +209,7 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
   docsByLot: Record<string, DocumentChantier[]>;
   displayMin: number;
   displayMax: number;
+  budgetReel?: number | null;
   refinedBreakdown: BreakdownItem[];
   onAffineBudget: () => void;
   onAddDevisForLot: (lotId: string) => void;
@@ -289,6 +299,7 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
           devisTotal={devisTotal}
           iaMin={displayMin}
           iaMax={displayMax}
+          budgetReel={budgetReel}
           refinedBreakdown={refinedBreakdown}
           onAffineBudget={onAffineBudget}
           hasRefinedBreakdown={refinedBreakdown.length > 0}

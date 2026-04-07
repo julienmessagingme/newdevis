@@ -306,6 +306,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             docsByLot={docsByLot}
             displayMin={displayMin}
             displayMax={displayMax}
+            budgetReel={budgetReel}
             refinedBreakdown={refinedBreakdown}
             onAffineBudget={() => { setShowBudgetDetail(true); setAffineBudgetModal(true); }}
             onAddDevisForLot={(lotId) => setUploadModal({ open: true, lotId, defaultType: 'devis' })}
