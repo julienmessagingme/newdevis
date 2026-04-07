@@ -79,11 +79,46 @@ export async function callExtractDocument(
 }
 
 // ============================================================
-// PHASE 1: EXTRACTION VIA AI (fallback if extract-document unavailable)
+// GEMINI FILES API — upload binaire direct (évite le base64 inline
+// qui fait exploser la taille du body JSON et provoque des timeouts)
+// ============================================================
+
+const GEMINI_FILES_URL = "https://generativelanguage.googleapis.com/upload/v1beta/files";
+const GEMINI_GENERATE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+
+async function uploadToGeminiFiles(
+  fileBytes: Uint8Array,
+  mimeType: string,
+  googleApiKey: string,
+): Promise<string> {
+  const response = await fetch(`${GEMINI_FILES_URL}?key=${googleApiKey}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": mimeType,
+      "X-Goog-Upload-Command": "upload, finalize",
+      "X-Goog-Upload-Header-Content-Length": fileBytes.length.toString(),
+      "X-Goog-Upload-Header-Content-Type": mimeType,
+    },
+    body: fileBytes,
+  });
+  if (!response.ok) {
+    const txt = await response.text().catch(() => "");
+    throw new Error(`Files API upload failed (${response.status}): ${txt.substring(0, 200)}`);
+  }
+  const result = await response.json();
+  const uri: string | undefined = result.file?.uri;
+  if (!uri) throw new Error("Files API: no file URI in response");
+  return uri;
+}
+
+// ============================================================
+// PHASE 1: EXTRACTION VIA AI
+// Stratégie : Files API (upload binaire) + thinkingBudget limité.
+// Évite le gros payload base64 inline et le thinking illimité → timeout.
 // ============================================================
 
 export async function extractDataFromDocument(
-  base64Content: string,
+  fileBytes: Uint8Array,
   mimeType: string,
   googleApiKey: string,
   config: DomainConfig,
@@ -183,40 +218,60 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
   try {
     console.log(`Extraction attempt ${retryCount + 1}/${MAX_RETRIES + 1}`);
 
-    // Timeout à 35s : laisse 25s de marge pour le cleanup avant le hard kill Supabase à 60s.
-    // Gemini 2.5-flash avec thinking peut prendre 40-60s sur gros PDF → crash silencieux sans cleanup.
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 35_000);
+    // ── Étape 1 : upload du fichier binaire vers Gemini Files API ─────────────
+    // Avantage vs base64 inline : body HTTP tiny, pas de JSON serialization,
+    // Gemini lit depuis son storage → 2-3x plus rapide.
+    // Timeout upload : 20s (fichier binaire direct, typiquement < 1s pour un PDF standard)
+    const uploadController = new AbortController();
+    const uploadTimeout = setTimeout(() => uploadController.abort(), 20_000);
+    let fileUri: string;
+    try {
+      fileUri = await uploadToGeminiFiles(fileBytes, mimeType, googleApiKey);
+      console.log("Files API upload OK, uri:", fileUri);
+    } catch (uploadErr) {
+      clearTimeout(uploadTimeout);
+      console.error("Files API upload failed:", uploadErr instanceof Error ? uploadErr.message : uploadErr);
+      throw new PipelineError({
+        status: 502,
+        code: "AI_GATEWAY_ERROR",
+        publicMessage: "Le service d'analyse est temporairement indisponible. Veuillez réessayer plus tard.",
+      });
+    }
+    clearTimeout(uploadTimeout);
 
-    const aiResponse = await fetch(GEMINI_AI_URL, {
+    // ── Étape 2 : appel generateContent (native API) avec thinkingBudget ──────
+    // thinkingBudget: 2048 → limite le thinking mode de Gemini 2.5-flash
+    // (sans limite, il peut penser 20-30s → dépasse le timeout Supabase de 60s)
+    // Timeout generate : 40s (body tiny, juste la référence URI)
+    const genController = new AbortController();
+    const genTimeout = setTimeout(() => genController.abort(), 40_000);
+
+    const aiResponse = await fetch(`${GEMINI_GENERATE_URL}?key=${googleApiKey}`, {
       method: "POST",
-      signal: controller.signal,
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${googleApiKey}`,
-      },
+      signal: genController.signal,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: userPrompt },
-              { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Content}` } },
-            ],
-          },
-        ],
-        response_format: { type: "json_object" },
-        max_tokens: 32768,
-        temperature: 0,
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents: [{
+          role: "user",
+          parts: [
+            { text: userPrompt },
+            { file_data: { mime_type: mimeType, file_uri: fileUri } },
+          ],
+        }],
+        generationConfig: {
+          response_mime_type: "application/json",
+          max_output_tokens: 32768,
+          temperature: 0,
+          thinking_config: { thinking_budget: 2048 },
+        },
       }),
     });
-    clearTimeout(timeoutId);
+    clearTimeout(genTimeout);
 
     if (!aiResponse.ok) {
       const details = await aiResponse.text().catch(() => "");
-      const safeDetails = details.replace(/Bearer\s+[a-zA-Z0-9_.-]+/gi, "Bearer ***").substring(0, 500);
+      const safeDetails = details.replace(/key=[^&\s"]+/gi, "key=***").substring(0, 500);
       console.error("Extract AI error:", aiResponse.status, safeDetails);
 
       if (aiResponse.status === 402) {
@@ -243,7 +298,8 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
     }
 
     const aiResult = await aiResponse.json();
-    const content = aiResult.choices?.[0]?.message?.content;
+    // Native API: candidates[0].content.parts[0].text
+    const content = aiResult.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text;
     if (!content) throw new Error("Empty AI response");
 
     let parsed: any;

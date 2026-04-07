@@ -351,15 +351,6 @@ serve(async (req) => {
       }
     }
 
-    // Convert to base64 for AI extraction
-    const chunkSize = 8192;
-    let binaryString = "";
-    for (let i = 0; i < uint8Array.length; i += chunkSize) {
-      const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
-      binaryString += String.fromCharCode(...chunk);
-    }
-    const base64Content = btoa(binaryString);
-
     let mimeType = "application/pdf";
     const fileName = analysis.file_name.toLowerCase();
     if (fileName.endsWith(".png")) mimeType = "image/png";
@@ -392,7 +383,7 @@ serve(async (req) => {
             .eq("id", extractionId);
         }
 
-        extracted = await extractDataFromDocument(base64Content, mimeType, googleApiKey, domainConfig);
+        extracted = await extractDataFromDocument(uint8Array, mimeType, googleApiKey, domainConfig);
 
         // Update status to extracted with ocr_status = success
         if (extractionId) {
