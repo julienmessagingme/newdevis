@@ -33,6 +33,7 @@ import AssistantChantierSection from './AssistantChantierSection';
 import JournalChantierSection from './JournalChantierSection';
 import UserCoordonnees from './UserCoordonnees';
 import { useAgentInsights } from '@/hooks/useAgentInsights';
+import { useAnalysisScores } from '@/hooks/useAnalysisScores';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 
@@ -103,6 +104,10 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
   }, [chantierId, token]);
 
   useEffect(() => { loadDocuments(); }, [loadDocuments]);
+
+  // ── Analysis scores (TTC depuis les analyses) ─────────────────────────────
+  const allDevisForScores = useMemo(() => documents.filter(d => d.document_type === 'devis'), [documents]);
+  const { data: docAnalysisData } = useAnalysisScores(allDevisForScores);
 
   async function handleDeleteDoc(docId: string) {
     if (!chantierId || !token) return;
@@ -543,7 +548,10 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
           typeProjet={result.typeProjet}
           onMenuToggle={() => setMobileOpen(v => !v)}
           budgetEstime={displayMin > 0 ? `${fmtK(displayMin)} – ${fmtK(displayMax)}` : '—'}
-          budgetValide={documents.filter(d => d.document_type === 'devis' && (d.devis_statut === 'valide' || d.devis_statut === 'attente_facture')).reduce((s, d) => s + (d.montant ?? 0), 0)}
+          budgetValide={documents.filter(d => d.document_type === 'devis' && (d.devis_statut === 'valide' || d.devis_statut === 'attente_facture')).reduce((s, d) => {
+            const ttc = docAnalysisData[d.id]?.ttc;
+            return s + (ttc != null && ttc > 0 ? ttc : (d.montant ?? 0));
+          }, 0)}
           facture={documents.filter(d => d.document_type === 'facture' && (d.facture_statut === 'payee' || d.facture_statut === 'payee_partiellement')).reduce((s, d) => s + (d.facture_statut === 'payee_partiellement' ? (d.montant_paye ?? 0) : (d.montant ?? 0)), 0)}
         />
 

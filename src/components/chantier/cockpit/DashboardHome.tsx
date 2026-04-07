@@ -7,6 +7,7 @@ import IntervenantsListView from '@/components/chantier/cockpit/IntervenantsList
 import ComparateurDevisModal from '@/components/chantier/cockpit/ComparateurDevisModal';
 import { fmtK } from '@/lib/dashboardHelpers';
 import type { BreakdownItem } from './BudgetTresorerie';
+import { useAnalysisScores } from '@/hooks/useAnalysisScores';
 
 // ── Tooltip breakdown budget ──────────────────────────────────────────────────
 
@@ -222,11 +223,16 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, ref
 
   const [comparingLot, setComparingLot] = useState<{ lot: LotChantier; docs: DocumentChantier[] } | null>(null);
 
+  const allDevis = useMemo(() => documents.filter(d => d.document_type === 'devis'), [documents]);
+  const { data: analysisData } = useAnalysisScores(allDevis);
+
   const devisTotal = useMemo(() =>
-    documents
-      .filter(d => d.document_type === 'devis' && d.montant != null)
-      .reduce((sum, d) => sum + (d.montant ?? 0), 0),
-    [documents],
+    allDevis.reduce((sum, d) => {
+      const ttc = analysisData[d.id]?.ttc;
+      if (ttc != null && ttc > 0) return sum + ttc;
+      return sum + (d.montant ?? 0);
+    }, 0),
+    [allDevis, analysisData],
   );
 
   // ── Prochain RDV depuis localStorage ──────────────────────────────────────
