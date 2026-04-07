@@ -88,6 +88,20 @@ function BudgetBreakdownPopover({ items }: { items: BreakdownItem[] }) {
   );
 }
 
+// ── Info label avec tooltip ───────────────────────────────────────────────────
+
+function InfoLabel({ label, tip }: { label: string; tip: string }) {
+  return (
+    <span className="group relative flex items-center gap-1 shrink-0">
+      <span className="text-[10px] text-gray-400">{label}</span>
+      <HelpCircle className="h-3 w-3 text-gray-300 hover:text-gray-500 cursor-help transition-colors" />
+      <span className="pointer-events-none absolute bottom-full left-0 mb-1.5 w-48 rounded-xl bg-gray-900 px-3 py-2 text-[11px] leading-snug text-white opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 shadow-lg">
+        {tip}
+      </span>
+    </span>
+  );
+}
+
 // ── Budget donut card ─────────────────────────────────────────────────────────
 
 function BudgetDonutCard({
@@ -155,16 +169,16 @@ function BudgetDonutCard({
         <div className="space-y-1">
 
           {/* Budget cible */}
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-[10px] text-gray-400 shrink-0">Budget cible</span>
+          <div className="flex items-center justify-between gap-2">
+            <InfoLabel label="Budget cible" tip="Montant maximum que vous souhaitez ne pas dépasser pour ce chantier. Modifiable dans l'onglet Budget." />
             <span className="text-sm font-extrabold text-gray-900 tabular-nums">
               {budgetReel && budgetReel > 0 ? fmtEurShort(budgetReel) : (iaMin > 0 ? `${fmtK(iaMin)}–${fmtK(iaMax)}` : '—')}
             </span>
           </div>
 
           {/* Engagé */}
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-[10px] text-gray-400 shrink-0">Engagé</span>
+          <div className="flex items-start justify-between gap-2">
+            <InfoLabel label="Engagé" tip="Somme des devis que vous avez acceptés et signés. Ce montant sera dû à vos artisans." />
             <div className="text-right">
               <span className={`text-sm font-bold tabular-nums ${budgetEngage > 0 ? 'text-gray-800' : 'text-gray-300'}`}>
                 {budgetEngage > 0 ? fmtEurShort(budgetEngage) : '—'}
@@ -176,8 +190,8 @@ function BudgetDonutCard({
           </div>
 
           {/* Payé */}
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-[10px] text-gray-400 shrink-0">Payé</span>
+          <div className="flex items-center justify-between gap-2">
+            <InfoLabel label="Payé" tip="Somme des factures déjà réglées (virements, chèques…). Ce qui est sorti de votre compte." />
             <span className={`text-sm font-bold tabular-nums ${totalPaye > 0 ? 'text-emerald-600' : 'text-gray-300'}`}>
               {totalPaye > 0 ? fmtEurShort(totalPaye) : '—'}
             </span>
