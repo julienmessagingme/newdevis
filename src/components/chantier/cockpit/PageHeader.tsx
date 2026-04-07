@@ -40,11 +40,12 @@ function fmtBudget(n: number): string {
   return `${Math.round(n)} €`;
 }
 
-export function BudgetHomeHeader({ nom, emoji, typeProjet, onMenuToggle, budgetEstime, budgetValide, facture }: {
+export function BudgetHomeHeader({ nom, emoji, typeProjet, onMenuToggle, budgetReel, budgetEstime, budgetValide, facture }: {
   nom: string;
   emoji?: string | null;
   typeProjet?: string | null;
   onMenuToggle: () => void;
+  budgetReel?: number | null;
   budgetEstime: string;
   budgetValide: number;
   facture: number;
@@ -87,19 +88,23 @@ export function BudgetHomeHeader({ nom, emoji, typeProjet, onMenuToggle, budgetE
         {/* KPIs budget — centré */}
         <div className="flex-1 flex items-center justify-center gap-6">
           <div className="text-center">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Estimé</p>
-            <p className="text-sm font-extrabold text-gray-900 tabular-nums">{budgetEstime}</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+              {budgetReel && budgetReel > 0 ? 'Budget' : 'Estimé IA'}
+            </p>
+            <p className="text-sm font-extrabold text-gray-900 tabular-nums">
+              {budgetReel && budgetReel > 0 ? fmtBudget(budgetReel) : budgetEstime}
+            </p>
           </div>
           <div className="w-px h-8 bg-gray-100" />
           <div className="text-center">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Validé</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Engagé</p>
             <p className={`text-sm font-extrabold tabular-nums ${budgetValide > 0 ? 'text-blue-600' : 'text-gray-300'}`}>
               {budgetValide > 0 ? fmtBudget(budgetValide) : '—'}
             </p>
           </div>
           <div className="w-px h-8 bg-gray-100" />
           <div className="text-center">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Facturé</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Payé</p>
             <p className={`text-sm font-extrabold tabular-nums ${facture > 0 ? 'text-emerald-600' : 'text-gray-300'}`}>
               {facture > 0 ? fmtBudget(facture) : '—'}
             </p>

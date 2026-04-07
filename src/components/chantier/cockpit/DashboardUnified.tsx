@@ -92,6 +92,21 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
   const displayMin = refinedRangeMin ?? baseRangeMin;
   const displayMax = refinedRangeMax ?? baseRangeMax;
 
+  // ── Budget réel (synchronisé avec BudgetTab via custom event) ────────────
+  const [budgetReel, setBudgetReel] = useState<number | null>(() => {
+    if (!chantierId) return null;
+    try { const s = localStorage.getItem(`budget_reel_${chantierId}`); return s ? parseFloat(s) : null; }
+    catch { return null; }
+  });
+  useEffect(() => {
+    function handler(e: Event) {
+      const { chantierId: cid, value } = (e as CustomEvent).detail;
+      if (cid === chantierId) setBudgetReel(value);
+    }
+    window.addEventListener('budgetReelChanged', handler);
+    return () => window.removeEventListener('budgetReelChanged', handler);
+  }, [chantierId]);
+
   // ── Documents ─────────────────────────────────────────────────────────────
   const loadDocuments = useCallback(async () => {
     if (!chantierId || !token) return;
@@ -547,6 +562,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
           emoji={result.emoji}
           typeProjet={result.typeProjet}
           onMenuToggle={() => setMobileOpen(v => !v)}
+          budgetReel={budgetReel}
           budgetEstime={displayMin > 0 ? `${fmtK(displayMin)} – ${fmtK(displayMax)}` : '—'}
           budgetValide={documents.filter(d => d.document_type === 'devis' && (d.devis_statut === 'valide' || d.devis_statut === 'attente_facture')).reduce((s, d) => {
             const ttc = docAnalysisData[d.id]?.ttc;

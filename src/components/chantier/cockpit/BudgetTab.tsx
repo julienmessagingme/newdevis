@@ -13,7 +13,7 @@ import { createClient } from '@supabase/supabase-js';
 import {
   Search, Plus, Paperclip, X, Download,
   AlertCircle, Loader2, RotateCw, AlertTriangle,
-  Check, Clock, ChevronDown, ChevronRight, Scale, Pencil, TrendingUp,
+  Check, Clock, ChevronDown, ChevronRight, Scale, Pencil,
 } from 'lucide-react';
 import { fmtEur } from '@/lib/financingUtils';
 import AddDocumentModal from './AddDocumentModal';
@@ -259,13 +259,12 @@ function DonutRing({ pct, color, size = 56, stroke = 5 }: {
 // ── KPI Dashboard ─────────────────────────────────────────────────────────────
 
 function BudgetKpiDashboard({
-  data, loading, rangeMin, rangeMax, chantierId,
+  data, loading, chantierId, token,
 }: {
   data:        BudgetData | null;
   loading:     boolean;
-  rangeMin?:   number;
-  rangeMax?:   number;
   chantierId:  string;
+  token:       string;
 }) {
   const storageKey = `budget_reel_${chantierId}`;
 
@@ -292,44 +291,47 @@ function BudgetKpiDashboard({
   const colorFacture    = pctFacture > 100 ? '#ef4444' : pctFacture > 80 ? '#f59e0b' : '#f59e0b';
   const colorPaye       = pctPaye >= 100 ? '#10b981' : pctPaye > 0 ? '#3b82f6' : '#d1d5db';
 
-  // Marker position sur la range bar
-  const rangeWidth  = (rangeMax ?? 0) - (rangeMin ?? 0);
-  const markerPct   = rangeWidth > 0 && devisValides > (rangeMin ?? 0)
-    ? Math.min(((devisValides - (rangeMin ?? 0)) / rangeWidth) * 100, 100) : -1;
-
   function startEdit() {
     setEditVal(effectiveReel ? String(Math.round(effectiveReel)) : '');
     setEditing(true);
   }
+
+  function persistBudgetReel(v: number) {
+    setBudgetReel(v);
+    try { localStorage.setItem(storageKey, String(v)); } catch {}
+    window.dispatchEvent(new CustomEvent('budgetReelChanged', { detail: { chantierId, value: v } }));
+    // Persist to DB (fire & forget)
+    freshToken(token).then(tk => {
+      fetch(`/api/chantier/${chantierId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tk}` },
+        body: JSON.stringify({ enveloppePrevue: v }),
+      }).catch(() => {});
+    }).catch(() => {});
+  }
+
   function commitEdit() {
     const v = parseFloat(editVal.replace(/\s/g, '').replace(',', '.'));
-    if (!isNaN(v) && v > 0) {
-      setBudgetReel(v);
-      try { localStorage.setItem(storageKey, String(v)); } catch {}
-    }
+    if (!isNaN(v) && v > 0) persistBudgetReel(v);
     setEditing(false);
   }
 
   // Auto-init : pré-remplit budgetReel avec le total des devis validés au premier chargement
   useEffect(() => {
     if (budgetReel !== null || devisValides <= 0) return;
-    setBudgetReel(devisValides);
-    try { localStorage.setItem(storageKey, String(devisValides)); } catch {}
+    persistBudgetReel(devisValides);
   }, [devisValides]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Détection conflit : budget choisi < devis validés (tolérance 1%)
   const conflict      = budgetReel !== null && devisValides > 0 && devisValides > (budgetReel ?? 0) * 1.01;
   const conflictDiff  = conflict ? Math.round(devisValides - (budgetReel ?? 0)) : 0;
 
-  function adjustToDevis() {
-    setBudgetReel(devisValides);
-    try { localStorage.setItem(storageKey, String(devisValides)); } catch {}
-  }
+  function adjustToDevis() { persistBudgetReel(devisValides); }
 
   if (loading) return (
     <div className="px-7 py-6 border-b border-gray-100">
-      <div className="grid grid-cols-4 gap-6">
-        {[0,1,2,3].map(i => (
+      <div className="grid grid-cols-3 gap-6">
+        {[0,1,2].map(i => (
           <div key={i} className="flex items-center gap-4">
             <div className="h-20 w-20 rounded-full bg-gray-100 animate-pulse shrink-0" />
             <div className="space-y-2 flex-1">
@@ -345,48 +347,9 @@ function BudgetKpiDashboard({
 
   return (
     <div className="border-b border-gray-100 bg-white">
-      <div className="grid grid-cols-4 divide-x divide-gray-100">
+      <div className="grid grid-cols-3 divide-x divide-gray-100">
 
-        {/* ── 1. Budget IA ─────────────────────────────── */}
-        <div className="px-7 py-6">
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4">Budget estimé IA</p>
-          {(rangeMin && rangeMax) ? (
-            <div>
-              <div className="flex items-baseline gap-1.5 mb-4">
-                <span className="text-[18px] font-black text-gray-800">{fmtEur(rangeMin)}</span>
-                <span className="text-[13px] text-gray-300 mx-0.5">–</span>
-                <span className="text-[18px] font-black text-gray-800">{fmtEur(rangeMax)}</span>
-              </div>
-              {/* Range bar avec marqueur devis validé */}
-              <div className="relative h-2.5 bg-indigo-50 rounded-full overflow-visible mb-2.5">
-                <div className="absolute inset-0 rounded-full"
-                     style={{ background: 'linear-gradient(90deg, #c7d2fe 0%, #818cf8 100%)' }} />
-                {markerPct >= 0 && (
-                  <div
-                    className="absolute top-1/2 w-4 h-4 bg-indigo-600 rounded-full shadow border-2 border-white"
-                    style={{ left: `${markerPct}%`, transform: 'translate(-50%, -50%)', zIndex: 1 }}
-                    title={`Devis validé : ${fmtEur(devisValides)}`}
-                  />
-                )}
-              </div>
-              <div className="flex justify-between text-[10px] text-gray-400">
-                <span>Minimum</span>
-                {markerPct >= 0 && (
-                  <span className="text-indigo-500 font-semibold">{fmtEur(devisValides)} engagé</span>
-                )}
-                <span>Maximum</span>
-              </div>
-            </div>
-          ) : data?.budget_ia ? (
-            <p className="text-[19px] font-black text-gray-800">{fmtEur(data.budget_ia)}</p>
-          ) : (
-            <p className="text-[14px] text-gray-300 flex items-center gap-1.5">
-              <TrendingUp className="h-5 w-5" /> Non estimé
-            </p>
-          )}
-        </div>
-
-        {/* ── 2. Budget réel (éditable) ─────────────────── */}
+        {/* ── 1. Budget réel (éditable) ─────────────────── */}
         <div className="px-7 py-6">
           <div className="flex items-center justify-between mb-4">
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Budget réel</p>
@@ -1019,7 +982,7 @@ export default function BudgetTab({
     <div className="flex flex-col h-full bg-white">
 
       {/* ── KPIs ──────────────────────────────────────────────────────────── */}
-      <BudgetKpiDashboard data={data} loading={loading} rangeMin={rangeMin} rangeMax={rangeMax} chantierId={chantierId} />
+      <BudgetKpiDashboard data={data} loading={loading} chantierId={chantierId} token={token} />
 
       {/* ── Barre d'actions ───────────────────────────────────────────────── */}
       <ActionBar
