@@ -95,7 +95,7 @@ function InfoLabel({ label, tip }: { label: string; tip: string }) {
     <span className="group relative flex items-center gap-1 shrink-0">
       <span className="text-[10px] text-gray-400">{label}</span>
       <HelpCircle className="h-3 w-3 text-gray-300 hover:text-gray-500 cursor-help transition-colors" />
-      <span className="pointer-events-none absolute bottom-full left-0 mb-1.5 w-48 rounded-xl bg-gray-900 px-3 py-2 text-[11px] leading-snug text-white opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 shadow-lg">
+      <span className="pointer-events-none absolute top-full left-0 mt-1.5 w-48 rounded-xl bg-gray-900 px-3 py-2 text-[11px] leading-snug text-white opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50 shadow-lg">
         {tip}
       </span>
     </span>
