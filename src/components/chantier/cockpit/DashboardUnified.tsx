@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { toast } from 'sonner';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Menu } from 'lucide-react';
 import type {
   ChantierIAResult, DocumentChantier, DocumentType, LotChantier, StatutArtisan,
 } from '@/types/chantier-ia';
@@ -24,7 +24,6 @@ import ChatDrawer from '@/components/chantier/cockpit/ChatDrawer';
 import DocumentsView from '@/components/chantier/cockpit/DocumentsView';
 import { fmtK } from '@/lib/dashboardHelpers';
 import Sidebar, { type Section, type NavBadge } from './Sidebar';
-import { BudgetHomeHeader } from './PageHeader';
 import LotDetail from './LotDetail';
 import DashboardHome from './DashboardHome';
 import AnalyseDevisSection from './AnalyseDevisSection';
@@ -558,19 +557,22 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
 
       {/* ── Contenu principal ──────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <BudgetHomeHeader
-          nom={result.nom}
-          emoji={result.emoji}
-          typeProjet={result.typeProjet}
-          onMenuToggle={() => setMobileOpen(v => !v)}
-          budgetReel={budgetReel}
-          budgetEstime={displayMin > 0 ? `${fmtK(displayMin)} – ${fmtK(displayMax)}` : '—'}
-          budgetValide={documents.filter(d => d.document_type === 'devis' && (d.devis_statut === 'valide' || d.devis_statut === 'attente_facture')).reduce((s, d) => {
-            const ttc = docAnalysisData[d.id]?.ttc;
-            return s + (ttc != null && ttc > 0 ? ttc : (d.montant ?? 0));
-          }, 0)}
-          facture={documents.filter(d => d.document_type === 'facture' && (d.facture_statut === 'payee' || d.facture_statut === 'payee_partiellement')).reduce((s, d) => s + (d.facture_statut === 'payee_partiellement' ? (d.montant_paye ?? 0) : (d.montant ?? 0)), 0)}
-        />
+        {/* ── Header minimal : nom chantier + menu mobile ─────────────────── */}
+        <header className="bg-white border-b border-gray-100 px-5 py-3 shrink-0">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setMobileOpen(v => !v)}
+              className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 shrink-0">
+              <Menu className="h-4 w-4" />
+            </button>
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center text-lg shrink-0">
+              {result.emoji ?? '🏗️'}
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Mon chantier</p>
+              <h1 className="font-bold text-gray-900 text-sm leading-tight truncate">{result.nom}</h1>
+            </div>
+          </div>
+        </header>
 
         <main className={`flex-1 ${activeSection === 'tresorerie' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
           {renderContent()}

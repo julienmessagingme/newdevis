@@ -91,12 +91,13 @@ function BudgetBreakdownPopover({ items }: { items: BreakdownItem[] }) {
 // ── Budget donut card ─────────────────────────────────────────────────────────
 
 function BudgetDonutCard({
-  devisTotal, iaMin, iaMax, budgetReel, refinedBreakdown, onAffineBudget, hasRefinedBreakdown,
+  budgetReel, budgetEngage, totalPaye, iaMin, iaMax, refinedBreakdown, onAffineBudget, hasRefinedBreakdown,
 }: {
-  devisTotal: number;
+  budgetReel?: number | null;
+  budgetEngage: number;
+  totalPaye: number;
   iaMin: number;
   iaMax: number;
-  budgetReel?: number | null;
   refinedBreakdown: BreakdownItem[];
   onAffineBudget: () => void;
   hasRefinedBreakdown: boolean;
@@ -106,88 +107,87 @@ function BudgetDonutCard({
   const r = (size - stroke) / 2;
   const circ = 2 * Math.PI * r;
 
-  // Référence : budget réel si défini, sinon borne haute IA
   const ref = (budgetReel && budgetReel > 0) ? budgetReel : iaMax;
-  const usesBudgetReel = !!(budgetReel && budgetReel > 0);
-
-  const pct = ref > 0 && devisTotal > 0 ? Math.min((devisTotal / ref) * 100, 100) : 0;
-  const displayPct = ref > 0 && devisTotal > 0 ? Math.round((devisTotal / ref) * 100) : 0;
+  const pct = ref > 0 && budgetEngage > 0 ? Math.min((budgetEngage / ref) * 100, 100) : 0;
+  const displayPct = ref > 0 && budgetEngage > 0 ? Math.round((budgetEngage / ref) * 100) : 0;
   const filled = (pct / 100) * circ;
 
-  const isOver = devisTotal > ref;
-  const isNear = !isOver && devisTotal > ref * 0.85;
-  const color = devisTotal === 0 ? '#cbd5e1'
-    : isOver  ? '#ef4444'
-    : isNear  ? '#f59e0b'
-    : '#6366f1';
+  const isOver = budgetEngage > ref && ref > 0;
+  const isNear = !isOver && ref > 0 && budgetEngage > ref * 0.85;
+  const color = budgetEngage === 0 ? '#cbd5e1' : isOver ? '#ef4444' : isNear ? '#f59e0b' : '#6366f1';
 
   const fmtEurShort = (n: number) => n >= 1000 ? `${fmtK(n)}` : `${n} €`;
 
-  // Labels selon le mode
-  const mainLabel  = usesBudgetReel ? 'Budget cible' : 'Fourchette IA';
-  const mainValue  = usesBudgetReel
-    ? fmtEurShort(budgetReel!)
-    : (iaMin > 0 ? `${fmtK(iaMin)}–${fmtK(iaMax)}` : '—');
-  const mainCls    = usesBudgetReel ? 'text-gray-900' : 'text-blue-700';
-
-  const secLabel   = usesBudgetReel ? 'Engagé' : 'Devis déposés';
-  const statusLabel = devisTotal === 0 ? null
-    : isOver  ? (usesBudgetReel ? `dépassement +${fmtEurShort(devisTotal - ref)}` : 'au-dessus de la fourchette')
+  const statusLabel = budgetEngage === 0 ? null
+    : isOver  ? `dépassement +${fmtEurShort(budgetEngage - ref)}`
     : isNear  ? 'proche du plafond'
-    : (usesBudgetReel ? 'dans le budget' : 'dans la fourchette');
-  const statusCls = devisTotal === 0 ? '' : isOver ? 'text-red-500' : isNear ? 'text-amber-500' : 'text-indigo-500';
+    : 'dans le budget';
+  const statusCls = isOver ? 'text-red-500' : isNear ? 'text-amber-500' : 'text-indigo-500';
+
+  const hasBudgetRef = ref > 0;
 
   return (
     <div className="bg-blue-50 rounded-2xl px-4 py-4 flex items-center gap-3 col-span-2 xl:col-span-1">
-      {/* Donut SVG */}
-      {ref > 0 && (
+      {/* Donut */}
+      {hasBudgetRef && (
         <div className="relative shrink-0" style={{ width: size, height: size }}>
           <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}
                style={{ transform: 'rotate(-90deg)', display: 'block' }}>
             <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#dbeafe" strokeWidth={stroke} />
-            {devisTotal > 0 && (
+            {budgetEngage > 0 && (
               <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
                 strokeDasharray={`${filled} ${circ - filled}`} strokeLinecap="round"
                 style={{ transition: 'stroke-dasharray 0.65s ease' }}
               />
             )}
           </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-[11px] font-extrabold leading-none" style={{ color: devisTotal > 0 ? color : '#94a3b8' }}>
-              {devisTotal > 0 ? `${displayPct}%` : '—'}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-[11px] font-extrabold" style={{ color: budgetEngage > 0 ? color : '#94a3b8' }}>
+              {budgetEngage > 0 ? `${displayPct}%` : '—'}
             </span>
           </div>
         </div>
       )}
 
-      {/* Text info */}
+      {/* 3 lignes */}
       <div className="min-w-0 flex-1">
         <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Budget chantier</p>
+        <div className="space-y-1">
 
-        <div className="space-y-1.5">
-          <div>
-            <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">{mainLabel}</p>
-            <p className={`text-lg font-extrabold leading-tight tabular-nums ${mainCls}`}>{mainValue}</p>
+          {/* Budget cible */}
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-[10px] text-gray-400 shrink-0">Budget cible</span>
+            <span className="text-sm font-extrabold text-gray-900 tabular-nums">
+              {budgetReel && budgetReel > 0 ? fmtEurShort(budgetReel) : (iaMin > 0 ? `${fmtK(iaMin)}–${fmtK(iaMax)}` : '—')}
+            </span>
           </div>
-          <div>
-            <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">{secLabel}</p>
-            <p className={`text-sm font-bold leading-tight tabular-nums ${devisTotal > 0 ? 'text-gray-800' : 'text-gray-300'}`}>
-              {devisTotal > 0 ? fmtEurShort(devisTotal) : '—'}
-            </p>
-            {statusLabel && (
-              <p className={`text-[10px] font-semibold mt-0.5 ${statusCls}`}>{statusLabel}</p>
-            )}
+
+          {/* Engagé */}
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-[10px] text-gray-400 shrink-0">Engagé</span>
+            <div className="text-right">
+              <span className={`text-sm font-bold tabular-nums ${budgetEngage > 0 ? 'text-gray-800' : 'text-gray-300'}`}>
+                {budgetEngage > 0 ? fmtEurShort(budgetEngage) : '—'}
+              </span>
+              {statusLabel && (
+                <p className={`text-[10px] font-semibold ${statusCls}`}>{statusLabel}</p>
+              )}
+            </div>
           </div>
+
+          {/* Payé */}
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-[10px] text-gray-400 shrink-0">Payé</span>
+            <span className={`text-sm font-bold tabular-nums ${totalPaye > 0 ? 'text-emerald-600' : 'text-gray-300'}`}>
+              {totalPaye > 0 ? fmtEurShort(totalPaye) : '—'}
+            </span>
+          </div>
+
         </div>
 
-        <div className="mt-2 flex items-center gap-1.5">
-          {refinedBreakdown.length > 0 && !usesBudgetReel && (
-            <BudgetBreakdownPopover items={refinedBreakdown} />
-          )}
-          <button
-            onClick={onAffineBudget}
-            className="flex items-center gap-1 text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1 transition-colors"
-          >
+        <div className="mt-2">
+          <button onClick={onAffineBudget}
+            className="flex items-center gap-1 text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1 transition-colors">
             <SlidersHorizontal className="h-3 w-3" />
             {hasRefinedBreakdown ? 'Recalculer' : 'Affiner'}
           </button>
@@ -236,13 +236,23 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
   const allDevis = useMemo(() => documents.filter(d => d.document_type === 'devis'), [documents]);
   const { data: analysisData } = useAnalysisScores(allDevis);
 
-  const devisTotal = useMemo(() =>
-    allDevis.reduce((sum, d) => {
+  // Devis validés uniquement (engagé = budget réellement signé)
+  const devisValides = useMemo(() =>
+    allDevis.filter(d => d.devis_statut === 'valide' || d.devis_statut === 'attente_facture'),
+    [allDevis],
+  );
+  const budgetEngage = useMemo(() =>
+    devisValides.reduce((sum, d) => {
       const ttc = analysisData[d.id]?.ttc;
-      if (ttc != null && ttc > 0) return sum + ttc;
-      return sum + (d.montant ?? 0);
+      return sum + (ttc != null && ttc > 0 ? ttc : (d.montant ?? 0));
     }, 0),
-    [allDevis, analysisData],
+    [devisValides, analysisData],
+  );
+  const totalPaye = useMemo(() =>
+    documents
+      .filter(d => d.document_type === 'facture' && (d.facture_statut === 'payee' || d.facture_statut === 'payee_partiellement'))
+      .reduce((sum, d) => sum + (d.facture_statut === 'payee_partiellement' ? (d.montant_paye ?? 0) : (d.montant ?? 0)), 0),
+    [documents],
   );
 
   // ── Prochain RDV depuis localStorage ──────────────────────────────────────
@@ -296,10 +306,11 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
 
         {/* Budget chantier — donut devis vs IA */}
         <BudgetDonutCard
-          devisTotal={devisTotal}
+          budgetReel={budgetReel}
+          budgetEngage={budgetEngage}
+          totalPaye={totalPaye}
           iaMin={displayMin}
           iaMax={displayMax}
-          budgetReel={budgetReel}
           refinedBreakdown={refinedBreakdown}
           onAffineBudget={onAffineBudget}
           hasRefinedBreakdown={refinedBreakdown.length > 0}
