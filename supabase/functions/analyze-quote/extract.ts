@@ -260,10 +260,10 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
           ],
         }],
         generationConfig: {
-          response_mime_type: "application/json",
-          max_output_tokens: 32768,
+          responseMimeType: "application/json",
+          maxOutputTokens: 32768,
           temperature: 0,
-          thinking_config: { thinking_budget: 2048 },
+          thinkingConfig: { thinkingBudget: 2048 },
         },
       }),
     });
@@ -298,9 +298,13 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
     }
 
     const aiResult = await aiResponse.json();
-    // Native API: candidates[0].content.parts[0].text
-    const content = aiResult.candidates?.[0]?.content?.parts?.find((p: any) => p.text)?.text;
-    if (!content) throw new Error("Empty AI response");
+    console.log("Generate response status:", aiResponse.status, "candidates:", aiResult.candidates?.length);
+    // Native API: filtrer les thinking parts (thought:true) pour ne garder que la réponse finale
+    const content = aiResult.candidates?.[0]?.content?.parts?.find((p: any) => p.text && !p.thought)?.text;
+    if (!content) {
+      console.error("Empty AI response, full result:", JSON.stringify(aiResult).substring(0, 500));
+      throw new Error("Empty AI response");
+    }
 
     let parsed: any;
     try {
