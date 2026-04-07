@@ -645,17 +645,29 @@ const AnalysisResult = () => {
 
           {isStuck ? (
             <div className="mt-4 p-4 bg-destructive/10 border border-destructive/30 rounded-xl text-left">
-              <p className="text-sm font-semibold text-destructive mb-1">L'analyse semble bloquée</p>
+              <p className="text-sm font-semibold text-destructive mb-1">L'analyse est bloquée</p>
               <p className="text-xs text-muted-foreground mb-3">
-                L'étape en cours dure depuis plus de 3 minutes. Cela peut être dû à une surcharge temporaire du service d'IA.
+                Le service d'IA n'a pas répondu à temps. Relancez une nouvelle analyse avec le même fichier.
               </p>
               <Button
                 size="sm"
                 variant="destructive"
-                onClick={() => window.location.reload()}
+                onClick={async () => {
+                  try {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (session?.access_token && id) {
+                      await fetch(`/api/analyse/${id}/mark-failed`, {
+                        method: "POST",
+                        headers: { "Authorization": `Bearer ${session.access_token}` },
+                      }).catch(() => {});
+                    }
+                  } finally {
+                    window.location.href = "/nouvelle-analyse";
+                  }
+                }}
               >
                 <RefreshCw className="h-3 w-3 mr-2" />
-                Recharger la page
+                Nouvelle analyse
               </Button>
             </div>
           ) : (

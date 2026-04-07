@@ -183,8 +183,10 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
   try {
     console.log(`Extraction attempt ${retryCount + 1}/${MAX_RETRIES + 1}`);
 
+    // Timeout à 35s : laisse 25s de marge pour le cleanup avant le hard kill Supabase à 60s.
+    // Gemini 2.5-flash avec thinking peut prendre 40-60s sur gros PDF → crash silencieux sans cleanup.
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 55_000); // 55s → avant le kill Supabase à 60s
+    const timeoutId = setTimeout(() => controller.abort(), 35_000);
 
     const aiResponse = await fetch(GEMINI_AI_URL, {
       method: "POST",
