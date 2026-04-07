@@ -95,6 +95,72 @@ function isForfaitGroup(g: any): boolean {
   return forfaitLines.length >= Math.ceil(lines.length * 0.6);
 }
 
+interface MarketPosition {
+  isBelowAverage: boolean;
+  isAboveMax: boolean;
+  globalLabel: "inférieur_au_marché" | "dans_la_norme" | "au_dessus_de_la_moyenne" | "au_dessus_du_max" | "hors_catalogue";
+  totalDevis: number;
+  totalMarketMin: number;
+  totalMarketAvg: number;
+  totalMarketMax: number;
+}
+
+function computeServerMarketPosition(priceData: unknown[]): MarketPosition {
+  if (!Array.isArray(priceData)) return { isBelowAverage: false, isAboveMax: false, globalLabel: "hors_catalogue", totalDevis: 0, totalMarketMin: 0, totalMarketAvg: 0, totalMarketMax: 0 };
+
+  let totalDevis = 0;
+  let totalMarketMin = 0;
+  let totalMarketAvg = 0;
+  let totalMarketMax = 0;
+  let hasMarketData = false;
+
+  for (const g of priceData) {
+    if (!g || typeof g !== "object") continue;
+    const group = g as Record<string, any>;
+    if (group.job_type_label === "Autre") continue;
+    if (isForfaitGroup(group)) continue;
+
+    const devisTotal: number = typeof group.devis_total_ht === "number" ? group.devis_total_ht : 0;
+    if (devisTotal <= 0) continue;
+
+    const prices: any[] = Array.isArray(group.prices) ? group.prices : [];
+    if (prices.length === 0) continue;
+
+    const qty: number = typeof group.main_quantity === "number" && group.main_quantity > 0 ? group.main_quantity : 1;
+
+    let minHT = 0;
+    let maxHT = 0;
+    for (const p of prices) {
+      minHT += (typeof p.price_min_unit_ht === "number" ? p.price_min_unit_ht : 0) * qty + (typeof p.fixed_min_ht === "number" ? p.fixed_min_ht : 0);
+      maxHT += (typeof p.price_max_unit_ht === "number" ? p.price_max_unit_ht : 0) * qty + (typeof p.fixed_max_ht === "number" ? p.fixed_max_ht : 0);
+    }
+    if (maxHT <= 0) continue;
+
+    hasMarketData = true;
+    totalDevis     += devisTotal;
+    totalMarketMin += minHT;
+    totalMarketMax += maxHT;
+    totalMarketAvg += (minHT + maxHT) / 2;
+  }
+
+  if (!hasMarketData || totalMarketMax <= 0) {
+    return { isBelowAverage: false, isAboveMax: false, globalLabel: "hors_catalogue", totalDevis, totalMarketMin, totalMarketAvg, totalMarketMax };
+  }
+
+  const isBelowAverage = totalDevis < totalMarketAvg;
+  const isBelowMin     = totalDevis < totalMarketMin;
+  const isAboveMax     = totalDevis > totalMarketMax;
+  const isAboveAvg     = totalDevis > totalMarketAvg;
+
+  let globalLabel: MarketPosition["globalLabel"];
+  if (isBelowMin || isBelowAverage) globalLabel = "inférieur_au_marché";
+  else if (isAboveMax)               globalLabel = "au_dessus_du_max";
+  else if (isAboveAvg)               globalLabel = "au_dessus_de_la_moyenne";
+  else                               globalLabel = "dans_la_norme";
+
+  return { isBelowAverage, isAboveMax, globalLabel, totalDevis, totalMarketMin, totalMarketAvg, totalMarketMax };
+}
+
 function buildGroupSummary(priceData: unknown[]): string {
   if (!Array.isArray(priceData) || priceData.length === 0) return "Aucune donnée de poste disponible.";
 
@@ -136,21 +202,29 @@ function buildGroupSummary(priceData: unknown[]): string {
         unitMin += p.price_min_unit_ht || 0;
         unitMax += p.price_max_unit_ht || 0;
       }
+      const avgHT = (minHT + maxHT) / 2;
 
       const hasMarket = prices.length > 0 && maxHT > 0;
-      const ecartVsMax = hasMarket && maxHT > 0
-        ? `${total > maxHT ? "+" : ""}${Math.round(((total - maxHT) / maxHT) * 100)}% vs max`
+      const ecartVsAvg = hasMarket && avgHT > 0
+        ? `${total > avgHT ? "+" : ""}${Math.round(((total - avgHT) / avgHT) * 100)}% vs moyenne`
         : "hors catalogue";
+      const positionLabel = hasMarket
+        ? total < minHT ? " [TRÈS BAS — sous le min marché]"
+          : total < avgHT ? " [BAS — sous la moyenne marché]"
+          : total > maxHT ? " [ÉLEVÉ — au-dessus du max marché]"
+          : total > avgHT ? " [LÉGÈREMENT ÉLEVÉ — au-dessus de la moyenne]"
+          : ""
+        : "";
 
       return [
-        `POSTE: ${g.job_type_label}`,
+        `POSTE: ${g.job_type_label}${positionLabel}`,
         `  Quantité: ${qty} ${unit}`,
         `  Prix unitaire devis: ${unitPrice.toFixed(2)} €/${unit}`,
         `  Total devis: ${total.toFixed(0)} €`,
         hasMarket
-          ? `  Référence marché unitaire: ${unitMin.toFixed(0)}–${unitMax.toFixed(0)} €/${unit} (total: ${minHT.toFixed(0)}–${maxHT.toFixed(0)} €)`
+          ? `  Référence marché unitaire: ${unitMin.toFixed(0)}–${unitMax.toFixed(0)} €/${unit} (total: ${minHT.toFixed(0)}–${maxHT.toFixed(0)} €, moyenne: ${avgHT.toFixed(0)} €)`
           : "  Référence marché: hors catalogue",
-        `  Écart: ${ecartVsMax}`,
+        `  Écart vs moyenne: ${ecartVsAvg}`,
         `  Lignes: ${lignes || "—"}`,
       ].join("\n");
     })
@@ -234,6 +308,14 @@ export const POST: APIRoute = async ({ params, request }) => {
   const nomEntreprise = (entreprise.nom as string) || "";
 
   const groupsSummary = buildGroupSummary(priceData);
+  const marketPosition = computeServerMarketPosition(priceData);
+
+  const marketPositionContext = marketPosition.globalLabel !== "hors_catalogue"
+    ? `\nPOSITIONNEMENT GLOBAL DU DEVIS vs MARCHÉ:
+- Total devis (postes comparables): ${marketPosition.totalDevis.toFixed(0)} €
+- Fourchette marché totale: ${marketPosition.totalMarketMin.toFixed(0)} – ${marketPosition.totalMarketMax.toFixed(0)} € (moyenne: ${marketPosition.totalMarketAvg.toFixed(0)} €)
+- Position: ${marketPosition.globalLabel === "inférieur_au_marché" ? "INFÉRIEUR À LA MOYENNE — le devis est attractif" : marketPosition.globalLabel === "au_dessus_du_max" ? "AU-DESSUS DU MAX — prix anormalement élevé" : marketPosition.globalLabel === "au_dessus_de_la_moyenne" ? "AU-DESSUS DE LA MOYENNE" : "DANS LA NORME"}`
+    : "";
 
   // ── Prompt Gemini ─────────────────────────────────────────────────────────
   const userPrompt = `Tu es un expert en rénovation immobilière. Analyse ce devis et aide un particulier à décider s'il doit signer ou non.
@@ -245,7 +327,7 @@ CONTEXTE DU DEVIS:
 - TVA: ${tauxTVA ? `${tauxTVA}%` : "inconnue"}
 - Ville: ${ville || "inconnue"}${codePostal ? ` (${codePostal})` : ""}
 - Type de travaux: ${workType || "rénovation"}
-- Résumé du devis: ${resume || "non disponible"}
+- Résumé du devis: ${resume || "non disponible"}${marketPositionContext}
 
 ANALYSE PAR POSTE (déjà calculée):
 ${groupsSummary}
@@ -282,6 +364,8 @@ MISSION — produis 6 éléments :
    - Si aucune anomalie, les actions portent sur les bonnes pratiques contractuelles
 
 RÈGLES STRICTES:
+- PRIX ATTRACTIF : si le POSITIONNEMENT GLOBAL est "INFÉRIEUR À LA MOYENNE", c'est une bonne affaire. Sauf anomalie réelle (prix unitaire > 2× le max OU incohérence flagrante), le verdict doit être "signer". Ne jamais recommander de "négocier le prix" dans les actions quand le devis est déjà sous la moyenne du marché — c'est incohérent. Les actions doivent porter sur les vérifications qualité, assurances, et clauses contractuelles.
+- Des variations de prix ENTRE LIGNES du même type (ex: volets à des prix différents selon dimensions/options) ne sont PAS des anomalies si le total global est dans ou sous la fourchette marché.
 - INTERDIT : signaler un poste marqué [FORFAIT GLOBAL] comme anomalie de prix. Un forfait global ne peut PAS être comparé à un prix unitaire catalogue. Ces postes sont à commenter uniquement si le montant total semble disproportionné au regard de la prestation décrite.
 - NE PAS signaler comme anomalie ce qui s'explique par la localisation, l'étage, des matériaux premium COHÉRENTS, ou une complexité technique réelle.
 - Surcoût = total_devis_poste − total_fourchette_max_marché (TOTAUX, jamais prix unitaires). Jamais négatif, 0 si dans la fourchette. Pour les forfaits : surcoût = 0 sauf incohérence flagrante sur le montant total.
@@ -422,20 +506,10 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     ];
     while (rawActions.length < 3) rawActions.push(DEFAULT_ACTIONS[rawActions.length]);
 
-    const verdictGlobal    = validVerdicts.includes(parsed.verdict_global)       ? parsed.verdict_global       : "a_negocier";
+    let verdictGlobal    = validVerdicts.includes(parsed.verdict_global)       ? parsed.verdict_global       : "a_negocier";
     const phraseIntro      = typeof parsed.phrase_intro  === "string"            ? parsed.phrase_intro.trim()  : "";
     const justifications   = typeof parsed.justifications === "string"           ? parsed.justifications.trim() : "";
     let   verdictDecision  = validDecisions.includes(parsed.verdict_decisionnel) ? parsed.verdict_decisionnel  : "signer_avec_negociation";
-
-    // ── Cohérence forcée : niveau_risque DOIT correspondre à verdict_global ──
-    // Gemini génère parfois "a_risque" + "modéré" ou "a_negocier" + "élevé" de façon incohérente.
-    const RISQUE_FORCED: Record<string, "faible" | "modéré" | "élevé"> = {
-      dans_la_norme:  "faible",
-      eleve_justifie: "modéré",
-      a_negocier:     "modéré",
-      a_risque:       "élevé",
-    };
-    const niveauRisque: "faible" | "modéré" | "élevé" = RISQUE_FORCED[verdictGlobal] ?? "modéré";
 
     // ── Cohérence verdict_decisionnel ──────────────────────────────────────────
     // Empêche "signer" avec un verdict négatif, et "ne_pas_signer" sur un verdict correct
@@ -454,6 +528,32 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
         if (verdictDecision === "signer") verdictDecision = "signer_avec_negociation";
       }
     }
+
+    // ── Override : prix sous la moyenne marché + aucune anomalie → signer ─────
+    // Gemini peut dire "négociez" même quand le devis est attractif car il détecte
+    // des variations de prix entre lignes. Si le total est sous la moyenne marché
+    // et qu'il n'y a aucune vraie anomalie, on force "signer".
+    if (
+      marketPosition.isBelowAverage &&
+      sanitizedAnomalies.length === 0 &&
+      verdictDecision !== "signer"
+    ) {
+      verdictDecision = "signer";
+      // Ajuste également le verdict global si Gemini a été trop conservateur
+      if (verdictGlobal === "a_negocier" || verdictGlobal === "eleve_justifie") {
+        verdictGlobal = "dans_la_norme";
+      }
+    }
+
+    // ── Cohérence forcée : niveau_risque DOIT correspondre à verdict_global ──
+    // Calculé après les overrides pour refléter le verdict final.
+    const RISQUE_FORCED: Record<string, "faible" | "modéré" | "élevé"> = {
+      dans_la_norme:  "faible",
+      eleve_justifie: "modéré",
+      a_negocier:     "modéré",
+      a_risque:       "élevé",
+    };
+    const niveauRisque: "faible" | "modéré" | "élevé" = RISQUE_FORCED[verdictGlobal] ?? "modéré";
 
     conclusionData = {
       verdict_global:          verdictGlobal,
