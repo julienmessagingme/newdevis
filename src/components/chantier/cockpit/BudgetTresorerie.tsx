@@ -3,24 +3,21 @@
  * Orchestrateur : budget estimé → devis validés → dépenses & paiements → trésorerie.
  */
 import { useState, useCallback } from 'react';
-import { Wallet, SlidersHorizontal, ChevronRight, FileCheck, Receipt, ExternalLink } from 'lucide-react';
+import { Wallet, FileCheck, ExternalLink } from 'lucide-react';
 import type { ChantierIAResult, DocumentChantier, FactureStatut } from '@/types/chantier-ia';
 import type { InsightsData } from './useInsights';
 import TresoreriePanel from './TresoreriePanel';
 import { fmtK, fmtFull } from '@/lib/budgetHelpers';
 import { type BreakdownItem } from '@/lib/budgetAffinageData';
-import KpiCard from './budget/BudgetKpiCard';
-import BudgetGauge from './budget/BudgetGauge';
 import LotBreakdown from './budget/LotBreakdown';
 import AlertesIA from './budget/AlertesIA';
 import TresoreriePhases from './budget/TresoreriePhases';
 import FacturesPaiements from './budget/FacturesPaiements';
 import DepenseRapideModal from './budget/DepenseRapideModal';
-import ProjectHeader from './budget/ProjectHeader';
-import ReliabilityBadge from './budget/ReliabilityBadge';
 import BudgetComparaison from './budget/BudgetComparaison';
 import BudgetExplication from './budget/BudgetExplication';
 import BudgetAffinageModal, { ScoreBadge } from './budget/BudgetAffinageModal';
+import BudgetBandeau from './budget/BudgetBandeau';
 
 // Re-export for consumers (DashboardUnified imports BreakdownItem from here)
 export type { BreakdownItem };
@@ -55,7 +52,7 @@ interface Props {
 }
 
 export default function BudgetTresorerie({
-  result, documents, chantierId, token, insights, insightsLoading,
+  result, documents, chantierId, token,
   baseRangeMin, baseRangeMax, onAddDoc, onGoToAnalyse, onGoToLots, onGoToLot,
   onRangeRefined, onAmeliorer, autoOpenModal, onModalClose, onDocumentsRefresh,
 }: Props) {
@@ -97,10 +94,6 @@ export default function BudgetTresorerie({
   );
 
   const devisCount    = devisValides.length;
-  const factureCount  = factures.length;
-  const lotsAvecDevis = lots.filter(l => devisValides.some(d => d.lot_id === l.id)).length;
-  const lotsManquants = lots.length - lotsAvecDevis;
-  const alertsCount   = insights?.global.filter(i => i.type === 'alert' || i.type === 'warning').length ?? 0;
 
   const totalDevisValides = devisValides.reduce((s, d) => s + (d.montant ?? 0), 0);
   const totalPaye         = factures.filter(d => {
@@ -122,8 +115,19 @@ export default function BudgetTresorerie({
   return (
     <div className="max-w-5xl mx-auto px-6 py-7 space-y-5">
 
-      {/* ── Header projet ─────────────────────────────────────────────────── */}
-      <ProjectHeader emoji={result.emoji} nom={result.nom} hasAnyBudget={hasAnyBudget} onAmeliorer={onAmeliorer} />
+      {/* ── Bandeau budget ────────────────────────────────────────────────── */}
+      <BudgetBandeau
+        emoji={result.emoji}
+        nom={result.nom}
+        rangeMin={rangeMin}
+        rangeMax={rangeMax}
+        totalDevisValides={totalDevisValides}
+        totalPaye={totalPaye}
+        hasRange={hasRange}
+        isRefined={isRefined}
+        onAmeliorer={onAmeliorer}
+        onOpenModal={hasAnyBudget ? () => setModalOpen(true) : undefined}
+      />
 
       {/* ── Prochaine action ──────────────────────────────────────────────── */}
       <NextActionBanner
@@ -148,32 +152,6 @@ export default function BudgetTresorerie({
             Construire mon budget
           </a>
         </div>
-      )}
-
-      {/* ── Fourchette budget cliquable ───────────────────────────────────── */}
-      {hasAnyBudget && hasRange && (
-        <button onClick={() => setModalOpen(true)}
-          className="w-full bg-white rounded-2xl border border-gray-100 p-5 text-left hover:shadow-md hover:scale-[1.01] transition-all duration-200 cursor-pointer group">
-          <div className="flex items-start justify-between gap-3 mb-3">
-            <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
-                {isRefined ? '✅ Budget affiné' : 'Fourchette estimée'}
-              </p>
-              <p className="text-3xl font-extrabold text-gray-900 leading-none">
-                {fmtK(rangeMin)} – {fmtK(rangeMax)}
-              </p>
-            </div>
-            {isRefined
-              ? <ScoreBadge score={affinageScore} />
-              : <ReliabilityBadge signaux={result.estimationSignaux} />}
-          </div>
-          <p className="text-xs text-gray-400">Basé sur les prix du marché réels. Cliquez pour affiner.</p>
-          <div className="mt-3 pt-3 border-t border-gray-50 flex items-center gap-2 text-blue-600 group-hover:text-blue-700 transition-colors">
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            <span className="text-xs font-semibold">Affiner mon estimation</span>
-            <ChevronRight className="h-3.5 w-3.5 ml-auto" />
-          </div>
-        </button>
       )}
 
       {/* ── Modal affinage ────────────────────────────────────────────────── */}
@@ -210,42 +188,6 @@ export default function BudgetTresorerie({
             <span className="text-base font-extrabold text-emerald-800">{fmtK(rangeMin)} – {fmtK(rangeMax)}</span>
           </div>
         </div>
-      )}
-
-      {/* ── KPI Row ───────────────────────────────────────────────────────── */}
-      {hasAnyBudget && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard
-            label="Devis validés"
-            value={devisCount > 0 ? fmtK(totalDevisValides) : '—'}
-            sub={devisCount > 0 ? `${devisCount} devis accepté${devisCount > 1 ? 's' : ''}` : 'Aucun devis validé'}
-            color={devisCount > 0 ? 'green' : 'default'}
-          />
-          <KpiCard
-            label="Payé"
-            value={totalPaye > 0 ? fmtK(totalPaye) : '—'}
-            sub={factureCount > 0 ? `${factureCount} dépense${factureCount > 1 ? 's' : ''} enregistrée${factureCount > 1 ? 's' : ''}` : 'Aucune dépense'}
-            color={totalPaye > 0 ? 'green' : 'default'}
-          />
-          <KpiCard
-            label="Alertes actives"
-            value={insightsLoading ? '…' : alertsCount > 0 ? `${alertsCount}` : '✓'}
-            sub={alertsCount > 0 ? 'points à surveiller' : 'Tout est sous contrôle'}
-            color={alertsCount > 0 ? 'red' : 'green'}
-            trend={alertsCount > 0 ? 'down' : 'up'}
-          />
-          <KpiCard
-            label="Lots"
-            value={`${lots.length}`}
-            sub={lotsManquants > 0 ? `${lotsManquants} sans devis validé` : 'Tous couverts'}
-            color={lotsManquants > 0 ? 'amber' : 'green'}
-          />
-        </div>
-      )}
-
-      {/* ── Gauge avec montants réels ─────────────────────────────────────── */}
-      {hasAnyBudget && hasRange && (
-        <BudgetGauge rangeMin={rangeMin} rangeMax={rangeMax} documents={documentsEnriched} />
       )}
 
       {/* ── Section devis validés ─────────────────────────────────────────── */}

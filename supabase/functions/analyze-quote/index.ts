@@ -383,7 +383,20 @@ serve(async (req) => {
             .eq("id", extractionId);
         }
 
-        extracted = await extractDataFromDocument(uint8Array, mimeType, googleApiKey, domainConfig);
+        // Promise.race : timeout dur 90s (execution_timeout_s = 150 dans config.toml).
+        // AbortController seul ne suffit pas — response.json() peut hanger après réception des headers.
+        // 90s laisse ~50s de marge pour le setup + les phases 3-5 dans la fenêtre de 150s.
+        const hardTimeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new PipelineError({
+            status: 504,
+            code: "AI_TIMEOUT",
+            publicMessage: "Le service d'analyse a mis trop de temps à répondre. Veuillez réessayer.",
+          })), 90_000)
+        );
+        extracted = await Promise.race([
+          extractDataFromDocument(uint8Array, mimeType, googleApiKey, domainConfig),
+          hardTimeout,
+        ]);
 
         // Update status to extracted with ocr_status = success
         if (extractionId) {

@@ -90,9 +90,11 @@ async function uploadToGeminiFiles(
   fileBytes: Uint8Array,
   mimeType: string,
   googleApiKey: string,
+  signal?: AbortSignal,
 ): Promise<string> {
   const response = await fetch(`${GEMINI_FILES_URL}?key=${googleApiKey}`, {
     method: "POST",
+    signal,
     headers: {
       "Content-Type": mimeType,
       "X-Goog-Upload-Command": "upload, finalize",
@@ -125,7 +127,7 @@ export async function extractDataFromDocument(
   retryCount: number = 0
 ): Promise<ExtractedData> {
 
-  const MAX_RETRIES = 2;
+  const MAX_RETRIES = 0; // Pas de retry dans la même invocation — chaque tentative = ~40s, budget Supabase = 60s
 
   const systemPrompt = config.extractionSystemPrompt;
 
@@ -223,10 +225,10 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
     // Gemini lit depuis son storage → 2-3x plus rapide.
     // Timeout upload : 20s (fichier binaire direct, typiquement < 1s pour un PDF standard)
     const uploadController = new AbortController();
-    const uploadTimeout = setTimeout(() => uploadController.abort(), 20_000);
+    const uploadTimeout = setTimeout(() => uploadController.abort(), 10_000); // 10s max upload (binaire direct, PDF standard < 2s)
     let fileUri: string;
     try {
-      fileUri = await uploadToGeminiFiles(fileBytes, mimeType, googleApiKey);
+      fileUri = await uploadToGeminiFiles(fileBytes, mimeType, googleApiKey, uploadController.signal);
       console.log("Files API upload OK, uri:", fileUri);
     } catch (uploadErr) {
       clearTimeout(uploadTimeout);
@@ -244,7 +246,7 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
     // (sans limite, il peut penser 20-30s → dépasse le timeout Supabase de 60s)
     // Timeout generate : 40s (body tiny, juste la référence URI)
     const genController = new AbortController();
-    const genTimeout = setTimeout(() => genController.abort(), 40_000);
+    const genTimeout = setTimeout(() => genController.abort(), 50_000); // 50s max
 
     const aiResponse = await fetch(`${GEMINI_GENERATE_URL}?key=${googleApiKey}`, {
       method: "POST",
@@ -263,7 +265,7 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
           responseMimeType: "application/json",
           maxOutputTokens: 32768,
           temperature: 0,
-          thinkingConfig: { thinkingBudget: 2048 },
+          thinkingConfig: { thinkingBudget: 0 }, // Désactivé : extraction = lecture de tableau, pas de raisonnement. Gain ~15-30s sur gros PDFs.
         },
       }),
     });
@@ -336,7 +338,7 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
 
         if (retryCount < MAX_RETRIES) {
           console.log(`Retrying extraction (attempt ${retryCount + 2})...`);
-          return extractDataFromDocument(base64Content, mimeType, googleApiKey, config, retryCount + 1);
+          return extractDataFromDocument(fileBytes, mimeType, googleApiKey, config, retryCount + 1);
         }
 
         throw new Error(`Failed to parse AI response as JSON after ${MAX_RETRIES + 1} attempts`);
@@ -435,7 +437,7 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
 
     if (retryCount < MAX_RETRIES) {
       console.log(`Error occurred, retrying (attempt ${retryCount + 2})...`);
-      return extractDataFromDocument(base64Content, mimeType, googleApiKey, config, retryCount + 1);
+      return extractDataFromDocument(fileBytes, mimeType, googleApiKey, config, retryCount + 1);
     }
 
     throw error;

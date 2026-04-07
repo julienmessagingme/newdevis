@@ -129,13 +129,21 @@ AFFECTATION :
 
 CALCUL DE main_quantity :
 - main_unit = l'unité principale du groupe (m2, ml, u, forfait, etc.)
-- main_quantity = SOMME des quantités de TOUTES les lignes du groupe ayant cette unité.
-  Exemple : lignes de 75,72 m² + 33,33 m² + 5,00 m² + 15,24 m² = main_quantity 129,29
-  Exemple : 3 lignes à 1 fft = main_quantity 1 (forfait global, pas de somme)
-  Exemple : 2 radiateurs + 1 radiateur + 1 radiateur = main_quantity 4
-- Si les lignes ont des quantités différentes mais la même unité, SOMME-les.
+- main_quantity = la quantité PHYSIQUE totale du groupe, c'est-à-dire la surface ou le nombre d'éléments RÉELS.
+
+RÈGLE CRITIQUE — éviter le double comptage :
+Quand plusieurs opérations s'appliquent à la MÊME surface physique (ex: "Enduisage 56.7 m²" + "Peinture 56.7 m²" sur le même mur), cette surface ne compte QU'UNE SEULE FOIS.
+La main_quantity = somme des surfaces DISTINCTES, pas la somme de toutes les lignes.
+→ [enduisage cuisine 56.7m² + peinture cuisine 56.7m²] + [enduisage salon 54m² + peinture salon 54m²] = 56.7 + 54 = 110.7 m² ✓ (PAS 56.7+56.7+54+54 = 221.4 m² ✗)
+
+Comment identifier les lignes sur la MÊME surface : elles ont une quantité identique ou très proche ET se rapportent au même poste/pièce (préparation + finition sur même zone).
+
+Exemples :
+- 3 lignes à 1 fft = main_quantity 1 (forfait global, pas de somme)
+- 14 radiateurs × 1U chacun → main_quantity = 14U (items distincts, on somme)
+- Enduisage 25.7m² + Peinture 25.7m² (même plafond) → main_quantity = 25.7m² (même surface, PAS 51.4)
+- Peinture cuisine 56.7m² + Peinture salon 54m² + Peinture chambre 36.4m² → main_quantity = 147.1m² (surfaces distinctes, on somme)
 - Si le groupe est un forfait global sans quantité explicite, main_quantity = 1.
-- NE JAMAIS mettre main_quantity = 1 quand les lignes détaillent des surfaces en m² : additionne-les.
 
 Réponds UNIQUEMENT en JSON (pas de markdown) :
 [
@@ -259,9 +267,10 @@ export async function lookupMarketPrices(
 
   console.log(`[MarketPrices] ${workItems.length} work items, ${jobTypes.length} job types from Gemini`);
 
-  // 3b. Override main_quantity with actual sum from devis lines when all lines share the same unit.
-  // Fixes cases where Gemini returns main_quantity=1 for groups with multiple unit-based lines
-  // (e.g., 3 volets roulants each with qty=1 → Gemini sometimes says 1 instead of 3).
+  // 3b. Override main_quantity UNIQUEMENT pour les items dénombrables (U/unité/pce).
+  // Corrige le cas où Gemini retourne main_quantity=1 pour N éléments distincts (ex: 3 volets roulants × 1U → doit être 3).
+  // NE PAS appliquer aux surfaces (m², ml) : Gemini gère le déduplication préparation+finition sur même surface.
+  const SURFACE_UNITS = new Set(["m2", "m²", "ml", "ML", "m", "M", "m3", "m³"]);
   for (const jt of jobTypes) {
     const lines = jt.work_items.map((idx) => workItems[idx]).filter(Boolean);
     const linesWithQty = lines.filter(
@@ -269,14 +278,16 @@ export async function lookupMarketPrices(
     );
     if (linesWithQty.length > 1) {
       const uniqueUnits = new Set(linesWithQty.map((l) => l.unit));
-      if (uniqueUnits.size === 1) {
+      const unit = linesWithQty[0].unit as string;
+      // Seulement pour les unités dénombrables, pas les surfaces
+      if (uniqueUnits.size === 1 && !SURFACE_UNITS.has(unit)) {
         const sumQty = linesWithQty.reduce((sum, l) => sum + (l.quantity || 0), 0);
         if (sumQty > 0 && sumQty !== jt.main_quantity) {
           console.log(
-            `[MarketPrices] Auto-correcting main_quantity for "${jt.job_type_label}": Gemini=${jt.main_quantity} → devis lines sum=${sumQty} ${linesWithQty[0].unit}`,
+            `[MarketPrices] Auto-correcting main_quantity (countable) for "${jt.job_type_label}": Gemini=${jt.main_quantity} → sum=${sumQty} ${unit}`,
           );
           jt.main_quantity = sumQty;
-          jt.main_unit = linesWithQty[0].unit as string;
+          jt.main_unit = unit;
         }
       }
     }
