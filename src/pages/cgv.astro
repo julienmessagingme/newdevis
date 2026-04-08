@@ -1,0 +1,263 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AstroHeader from '@/components/astro/Header.astro';
+import AstroFooter from '@/components/astro/Footer.astro';
+---
+
+<BaseLayout
+  title="Conditions Générales de Vente | VerifierMonDevis.fr"
+  description="CGV de VerifierMonDevis.fr : conditions de vente du Pass Sérénité, droit de rétractation 14 jours, paiement, résiliation et médiation."
+  canonical="https://www.verifiermondevis.fr/cgv"
+  breadcrumbs={[
+    { name: "Accueil", url: "https://www.verifiermondevis.fr/" },
+    { name: "CGV", url: "https://www.verifiermondevis.fr/cgv" }
+  ]}
+>
+  <div class="min-h-screen flex flex-col">
+    <AstroHeader />
+    <main class="flex-1 py-12">
+      <div class="container max-w-3xl">
+        <a
+          href="/"
+          class="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8 transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+          </svg>
+          Retour à l'accueil
+        </a>
+
+        <h1 class="text-3xl font-bold text-foreground mb-2">
+          Conditions Générales de Vente
+        </h1>
+        <p class="text-sm text-muted-foreground mb-8">VerifierMonDevis.fr — Dernière mise à jour : avril 2025</p>
+
+        {/* Encart identité vendeur */}
+        <div class="bg-muted/40 border border-border rounded-xl p-5 mb-8 text-sm text-muted-foreground space-y-1">
+          <p><strong class="text-foreground">Vendeur :</strong> Julien Bridey, entrepreneur individuel</p>
+          <p><strong class="text-foreground">SIRET :</strong> [à compléter]</p>
+          <p><strong class="text-foreground">Adresse :</strong> [à compléter]</p>
+          <p><strong class="text-foreground">Email :</strong> <a href="mailto:contact@verifiermondevis.fr" class="text-primary hover:underline">contact@verifiermondevis.fr</a></p>
+        </div>
+
+        <div class="space-y-8">
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">1. Objet et champ d'application</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>
+                Les présentes Conditions Générales de Vente (CGV) régissent exclusivement la vente du service numérique
+                <strong class="text-foreground">Pass Sérénité</strong> proposé par VerifierMonDevis.fr.
+              </p>
+              <p>
+                Elles s'appliquent à tout achat effectué par un consommateur (personne physique agissant à titre non professionnel)
+                sur le site <strong>https://www.verifiermondevis.fr</strong>.
+                Elles complètent les <a href="/cgu" class="text-primary hover:underline">Conditions Générales d'Utilisation</a>.
+              </p>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">2. Description du service et tarif</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>
+                Le <strong class="text-foreground">Pass Sérénité</strong> est un abonnement mensuel donnant accès aux
+                fonctionnalités premium de VerifierMonDevis.fr, notamment :
+              </p>
+              <ul class="list-disc pl-5 space-y-1">
+                <li>Analyses de devis illimitées</li>
+                <li>Rapport PDF téléchargeable</li>
+                <li>Tri avancé des résultats par type de travaux</li>
+                <li>Accès complet au module de gestion de chantier</li>
+              </ul>
+              <div class="bg-muted/50 rounded-lg p-4 mt-3">
+                <p class="font-semibold text-foreground">Tarif : 4,99 € TTC / mois</p>
+                <p class="text-sm mt-1">TVA applicable selon la réglementation en vigueur. Prix susceptibles d'évoluer — modification notifiée 30 jours avant prise d'effet.</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">3. Processus de commande</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>La souscription s'effectue en ligne :</p>
+              <ol class="list-decimal pl-5 space-y-1">
+                <li>Connexion à votre compte VerifierMonDevis.fr</li>
+                <li>Sélection du Pass Sérénité depuis la page <a href="/pass-serenite" class="text-primary hover:underline">/pass-serenite</a></li>
+                <li>Renseignement des informations de paiement sur la page sécurisée Stripe</li>
+                <li>Validation — un email de confirmation vous est envoyé immédiatement</li>
+              </ol>
+              <p>
+                La commande est définitive à réception de l'email de confirmation.
+                Le paiement est traité par <strong class="text-foreground">Stripe</strong> (certifié PCI-DSS niveau 1).
+                Aucune donnée bancaire n'est stockée sur nos serveurs.
+              </p>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6 border-l-4 border-l-blue-400">
+            <h2 class="text-xl font-semibold text-foreground mb-4">4. Droit de rétractation (14 jours)</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>
+                Conformément à l'article L.221-18 du Code de la consommation, vous disposez d'un
+                <strong class="text-foreground">droit de rétractation de 14 jours</strong> à compter de la date de souscription,
+                sans avoir à motiver votre décision ni supporter de pénalité.
+              </p>
+
+              <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm">
+                <p class="font-semibold text-amber-900 mb-1">⚠️ Exception — service commencé avant la fin du délai</p>
+                <p class="text-amber-800">
+                  Conformément à l'article L.221-28 du Code de la consommation, <strong>si vous demandez expressément
+                  l'exécution immédiate du service et que le service est pleinement exécuté avant la fin du délai de
+                  rétractation, vous perdez votre droit de rétractation</strong>.
+                  En souscrivant, vous reconnaissez être informé de cette exception et demandez l'accès immédiat aux
+                  fonctionnalités premium.
+                </p>
+              </div>
+
+              <p class="font-medium text-foreground mt-2">Comment exercer votre droit de rétractation :</p>
+              <p>
+                Envoyez votre demande avant l'expiration du délai à
+                <a href="mailto:contact@verifiermondevis.fr" class="text-primary hover:underline">contact@verifiermondevis.fr</a>
+                en mentionnant votre adresse email de compte et votre demande de rétractation.
+                Vous pouvez utiliser le modèle ci-dessous.
+              </p>
+
+              <details class="mt-3">
+                <summary class="cursor-pointer text-sm font-medium text-foreground hover:text-primary">
+                  Modèle de formulaire de rétractation (cliquer pour afficher)
+                </summary>
+                <div class="mt-3 bg-muted/50 rounded-lg p-4 text-sm font-mono whitespace-pre-wrap border border-border">
+À l'attention de VerifierMonDevis.fr
+Email : contact@verifiermondevis.fr
+
+Je soussigné(e) [Nom Prénom], titulaire du compte [adresse email],
+vous notifie par la présente ma rétractation du contrat de fourniture
+du service Pass Sérénité souscrit le [date].
+
+Fait à [ville], le [date]
+
+Signature : [Nom Prénom]
+                </div>
+              </details>
+
+              <p class="text-sm">
+                En cas de rétractation valide, le remboursement sera effectué dans un délai de
+                <strong class="text-foreground">14 jours</strong> sur le moyen de paiement utilisé lors de la commande.
+              </p>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">5. Paiement et renouvellement</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>
+                L'abonnement est à <strong class="text-foreground">renouvellement automatique mensuel</strong>.
+                Le montant est prélevé chaque mois à la date anniversaire de souscription.
+              </p>
+              <p>
+                En cas d'échec de paiement, un email vous est envoyé. Après plusieurs tentatives infructueuses,
+                l'accès premium est suspendu automatiquement.
+              </p>
+              <p>
+                Vous pouvez gérer votre abonnement (mise à jour de la carte, annulation) depuis le portail de facturation
+                accessible via la page <a href="/parametres" class="text-primary hover:underline">Paramètres</a>.
+              </p>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">6. Résiliation</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>
+                Vous pouvez résilier votre abonnement à tout moment depuis vos
+                <a href="/parametres" class="text-primary hover:underline">Paramètres</a> (portail Stripe).
+                La résiliation prend effet à la fin de la période mensuelle en cours — vous conservez l'accès premium
+                jusqu'à cette date. <strong class="text-foreground">Aucun remboursement proratisé</strong> n'est effectué
+                pour la période en cours, sauf exercice du droit de rétractation dans les conditions de l'article 4.
+              </p>
+              <p>
+                L'éditeur peut résilier l'abonnement en cas de non-respect des
+                <a href="/cgu" class="text-primary hover:underline">CGU</a>, notamment en cas d'utilisation frauduleuse ou abusive du service.
+              </p>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">7. Responsabilité et garanties</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>
+                L'éditeur s'engage à fournir le service avec soin et compétence. En cas de défaillance technique,
+                l'accès sera rétabli dans les meilleurs délais.
+              </p>
+              <p>
+                Conformément à l'article L.217-1 et suivants du Code de la consommation, le consommateur bénéficie
+                de la <strong class="text-foreground">garantie légale de conformité</strong> pour les contenus numériques fournis
+                dans le cadre de l'abonnement.
+              </p>
+              <p>
+                La responsabilité de l'éditeur ne saurait être engagée au-delà du montant total des sommes effectivement
+                payées par l'utilisateur au cours des 3 mois précédant le fait générateur du litige.
+              </p>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">8. Données personnelles</h2>
+            <p class="text-muted-foreground">
+              Le traitement des données personnelles dans le cadre de la vente est régi par notre
+              <a href="/confidentialite" class="text-primary hover:underline">politique de confidentialité</a>.
+            </p>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">9. Médiation et règlement des litiges</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>
+                En cas de litige, l'utilisateur est invité à contacter en premier lieu le service client :
+                <a href="mailto:contact@verifiermondevis.fr" class="text-primary hover:underline">contact@verifiermondevis.fr</a>.
+              </p>
+              <p>
+                En l'absence de résolution amiable dans un délai de 60 jours, le consommateur peut recourir gratuitement
+                à la médiation de la consommation conformément aux articles L.611-1 et suivants du Code de la consommation :
+              </p>
+              <div class="bg-muted/50 rounded-lg p-4 text-sm">
+                <p class="font-semibold text-foreground">Médiateur du e-commerce de la FEVAD</p>
+                <p>60, rue la Boétie — 75008 Paris</p>
+                <p>
+                  <a href="https://www.mediateurfevad.fr" target="_blank" rel="noreferrer" class="text-primary hover:underline">
+                    www.mediateurfevad.fr
+                  </a>
+                </p>
+              </div>
+              <p>
+                Plateforme européenne de règlement en ligne des litiges :
+                <a href="https://ec.europa.eu/consumers/odr" target="_blank" rel="noreferrer" class="text-primary hover:underline">
+                  https://ec.europa.eu/consumers/odr
+                </a>
+              </p>
+              <p>
+                À défaut, les tribunaux français seront seuls compétents, sous réserve des dispositions d'ordre public
+                protégeant les consommateurs.
+              </p>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">10. Droit applicable</h2>
+            <p class="text-muted-foreground">
+              Les présentes CGV sont soumises au droit français. En cas de conflit entre les présentes CGV et les CGU,
+              les CGV prévalent pour tout ce qui concerne les aspects commerciaux de la relation contractuelle.
+            </p>
+          </section>
+
+        </div>
+
+        <p class="text-sm text-muted-foreground text-center mt-12">
+          Dernière mise à jour : avril 2025
+        </p>
+      </div>
+    </main>
+    <AstroFooter />
+  </div>
+</BaseLayout>
