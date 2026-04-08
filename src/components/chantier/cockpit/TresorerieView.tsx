@@ -401,7 +401,7 @@ function FinancementSection({
               <strong>💡 Déblocage PEE possible</strong>
               <br />Vos lots ({peeLots.slice(0,2).join(' · ')}{peeLots.length > 2 ? ` +${peeLots.length-2}` : ''}) sont éligibles au déblocage anticipé de votre Plan d'Épargne Entreprise pour travaux sur la résidence principale.
               <br />
-              <a href="https://www.service-public.fr/particuliers/vosdroits/F2765" target="_blank" rel="noopener noreferrer"
+              <a href="https://www.service-public.fr/particuliers/vosdroits/F31622" target="_blank" rel="noopener noreferrer"
                  className="font-bold inline-flex items-center gap-1 mt-1" style={{ color: '#2563eb' }}>
                 → Motifs officiels déblocage PEE <ExternalLink className="h-2.5 w-2.5" />
               </a>
