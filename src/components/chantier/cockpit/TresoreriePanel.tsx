@@ -11,8 +11,9 @@ import {
   TrendingUp, Calendar, CreditCard,
   AlertTriangle, CheckCircle2, Clock,
   ChevronRight, X, Check, Loader2, Paperclip,
-  ArrowRight, Shield, Info, TrendingDown, Pencil,
+  ArrowRight, Shield, Info, TrendingDown, Pencil, FileText,
 } from 'lucide-react';
+import PVReceptionModal from './PVReceptionModal';
 import PaymentTimeline from './PaymentTimeline';
 import BudgetTab from './BudgetTab';
 import TresorerieView from './TresorerieView';
@@ -1164,6 +1165,180 @@ function FinancementPanel({
 // COMPOSANT PRINCIPAL
 // ══════════════════════════════════════════════════════════════════════════════
 
+// ══════════════════════════════════════════════════════════════════════════════
+// PREUVES TAB — preuves de paiement + PV de réception par artisan
+// ══════════════════════════════════════════════════════════════════════════════
+
+const PROOF_TYPE_CFG: Record<string, { label: string; icon: string; accept: string }> = {
+  virement:  { label: 'Extrait bancaire / virement',  icon: '🏦', accept: '.pdf,.jpg,.jpeg,.png' },
+  cheque:    { label: 'Copie chèque',                 icon: '📄', accept: '.pdf,.jpg,.jpeg,.png' },
+  especes:   { label: 'Reçu de paiement',             icon: '🧾', accept: '.pdf,.jpg,.jpeg,.png' },
+  autre:     { label: 'Autre document',               icon: '📎', accept: '.pdf,.jpg,.jpeg,.png,.docx' },
+};
+
+function PreuvesTab({ events, chantierId, token }: {
+  events: PaymentEvent[];
+  chantierId: string;
+  token: string;
+}) {
+  const [pvArtisan, setPvArtisan] = useState<{ nom: string; lots: string[] } | null>(null);
+  const artisans = useMemo(() => groupByArtisan(events), [events]);
+
+  const paidArtisans = artisans.filter(a => a.paid > 0);
+  const allArtisans  = artisans;
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <div className="p-4 pb-8 space-y-5">
+
+        {/* Rappel légal */}
+        <div className="bg-indigo-50 border border-indigo-100 rounded-2xl px-5 py-4">
+          <p className="text-[13px] font-black text-indigo-900 mb-2">Pourquoi conserver ses preuves ?</p>
+          {[
+            { icon: '⚖️', text: 'En cas de litige avec un artisan — le virement fait foi' },
+            { icon: '🏠', text: 'Pour activer la garantie décennale (valable 10 ans après réception)' },
+            { icon: '💰', text: 'Pour débloquer des aides (MaPrimeRenov, CEE) — elles exigent la facture acquittée' },
+            { icon: '📈', text: 'En cas de revente — prouver la valeur des travaux réalisés' },
+          ].map(r => (
+            <div key={r.icon} className="flex items-start gap-2 mt-2">
+              <span className="text-base shrink-0">{r.icon}</span>
+              <p className="text-[11px] text-indigo-800 leading-relaxed">{r.text}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Preuves de paiement */}
+        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-5 pt-4 pb-2 flex items-center justify-between">
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+              Preuves de paiement
+            </p>
+          </div>
+
+          <div className="px-5 pb-4 space-y-2">
+            <p className="text-[11px] text-gray-500 leading-relaxed">
+              Déposez vos justificatifs de paiement directement dans l'onglet <strong>Documents</strong> de chaque lot
+              (extraits bancaires, copies de chèques, confirmations de virement).
+              Ils sont associés automatiquement à l'artisan concerné.
+            </p>
+
+            <div className="grid grid-cols-2 gap-2 mt-3">
+              {Object.entries(PROOF_TYPE_CFG).map(([, cfg]) => (
+                <div key={cfg.label}
+                  className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5">
+                  <span className="text-base">{cfg.icon}</span>
+                  <span className="text-[11px] text-gray-600 font-medium leading-tight">{cfg.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Récap preuves existantes (proof_signed_url dans les events) */}
+          {events.filter(e => e.proof_signed_url).length > 0 && (
+            <div className="border-t border-gray-50">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-5 pt-3 pb-2">
+                Justificatifs déjà attachés
+              </p>
+              <div className="divide-y divide-gray-50 pb-2">
+                {events.filter(e => e.proof_signed_url).map(e => (
+                  <div key={e.id} className="flex items-center gap-3 px-5 py-2.5">
+                    <Paperclip className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-medium text-gray-700 truncate">
+                        {e.proof_doc_name ?? 'Justificatif'}
+                      </p>
+                      <p className="text-[10px] text-gray-400">{e.artisan_nom ?? e.lot_nom ?? '—'}</p>
+                    </div>
+                    <a href={e.proof_signed_url!} target="_blank" rel="noopener noreferrer"
+                      className="text-[11px] font-semibold text-blue-600 hover:underline shrink-0">
+                      Voir →
+                    </a>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* PV de réception par artisan */}
+        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-5 pt-4 pb-2">
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+              Procès-Verbaux de réception
+            </p>
+            <p className="text-[11px] text-gray-400 mt-1">
+              Générez un PV officiel par artisan — document légal à signer en fin de chantier.
+            </p>
+          </div>
+
+          {allArtisans.length === 0 ? (
+            <div className="px-5 pb-5 pt-2 text-center">
+              <p className="text-[12px] text-gray-400 italic">
+                Aucun artisan détecté — ajoutez des devis validés pour activer cette fonctionnalité.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {allArtisans.map(a => {
+                const lots = [...new Set(a.events.map(e => e.lot_nom).filter(Boolean))] as string[];
+                const isPaid = a.paid >= a.total && a.total > 0;
+                const isPending = a.pending > 0 || a.late > 0;
+                return (
+                  <div key={a.nom} className="flex items-center gap-3 px-5 py-3.5">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-base shrink-0">
+                      🔧
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12px] font-bold text-gray-800 truncate">{a.nom}</p>
+                      <p className="text-[10px] text-gray-400 truncate">{lots.join(' · ') || '—'}</p>
+                      <div className="mt-1">
+                        {isPaid && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">
+                            <CheckCircle2 className="h-2.5 w-2.5" /> Soldé — PV recommandé
+                          </span>
+                        )}
+                        {!isPaid && isPending && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full">
+                            <Clock className="h-2.5 w-2.5" /> En cours
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setPvArtisan({ nom: a.nom, lots })}
+                      className="flex items-center gap-1.5 text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-xl transition-colors whitespace-nowrap shrink-0">
+                      <FileText className="h-3.5 w-3.5" />
+                      Générer PV
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Info légale */}
+          <div className="mx-5 mb-4 mt-1 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-[10px] text-gray-500 leading-relaxed">
+            📋 <strong>Mentions obligatoires du PV :</strong> identité des parties, assurance décennale + n° de police,
+            référence au devis signé, date de visite, date de réception, adresse du chantier, nature des travaux,
+            réserves éventuelles avec délai de levée, signatures des deux parties.
+          </div>
+        </div>
+
+      </div>
+
+      {/* Modal PV */}
+      {pvArtisan && (
+        <PVReceptionModal
+          artisanNom={pvArtisan.nom}
+          lotNoms={pvArtisan.lots}
+          chantierId={chantierId}
+          onClose={() => setPvArtisan(null)}
+        />
+      )}
+    </div>
+  );
+}
+
 interface TresoreeriePanelProps {
   chantierId: string;
   token: string;
@@ -1246,53 +1421,13 @@ export default function TresoreriePanel({
         </div>
       )}
 
-      {/* ── Preuves (Phase 3 — à venir) ─────────────────────────────────────── */}
+      {/* ── Preuves ──────────────────────────────────────────────────────────── */}
       {tab === 'financement' && (
-        <div className="flex-1 overflow-y-auto">
-          <div className="p-4 pb-8 space-y-4">
-            {/* Explication */}
-            <div className="bg-indigo-50 border border-indigo-100 rounded-2xl px-5 py-5">
-              <p className="text-[13px] font-black text-indigo-900 mb-2">Pourquoi conserver ses preuves ?</p>
-              {[
-                { icon: '⚖️', text: 'En cas de litige avec un artisan — le virement fait foi' },
-                { icon: '🏠', text: 'Pour activer la garantie decennale (valable 10 ans apres reception)' },
-                { icon: '💰', text: 'Pour debloquer des aides (MaPrimeRenov, CEE) — elles exigent la facture acquittee' },
-                { icon: '📈', text: 'En cas de revente — prouver la valeur des travaux realises' },
-              ].map(r => (
-                <div key={r.icon} className="flex items-start gap-2 mt-2">
-                  <span className="text-base shrink-0">{r.icon}</span>
-                  <p className="text-[11px] text-indigo-800 leading-relaxed">{r.text}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Financement conservé ici temporairement */}
-            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider px-5 pt-4 pb-2">
-                Simulateur de pret travaux
-              </p>
-              <div className="px-5 pb-5">
-                <FinancementPanel
-                  budgetMax={budgetMaxProp}
-                  financingAmounts={financingAmounts}
-                  setFinancingAmounts={setFinancingAmounts}
-                  simulationData={simulationData}
-                  setSimulationData={setSimulationData}
-                  onPersist={persistFinancing}
-                />
-              </div>
-            </div>
-
-            {/* Prochainement */}
-            <div className="bg-gray-50 border border-gray-100 rounded-2xl px-5 py-6 text-center">
-              <p className="text-2xl mb-2">🗂</p>
-              <p className="text-[13px] font-bold text-gray-600">Mes preuves de paiement</p>
-              <p className="text-[11px] text-gray-400 mt-1 max-w-[260px] mx-auto leading-relaxed">
-                Bientot disponible : deposez et retrouvez rapidement vos virements, recus, attestations et PV de reception.
-              </p>
-            </div>
-          </div>
-        </div>
+        <PreuvesTab
+          events={events}
+          chantierId={chantierId}
+          token={token}
+        />
       )}
 
       {/* ── Artisan Drawer ──────────────────────────────────────────────────── */}
