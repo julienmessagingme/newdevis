@@ -159,15 +159,41 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
                     <span className="text-foreground">{[adresse, ville].filter(Boolean).join(", ")}</span>
                   </div>
                 )}
-                {ancienneteAnnees !== null && ancienneteAnnees > 0 && (
+                {ancienneteAnnees !== null && ancienneteAnnees >= 0 && (
                   <div className="text-muted-foreground">
                     <span className="text-xs uppercase tracking-wide block mb-0.5">Ancienneté</span>
-                    <span className="text-foreground">
-                      {ancienneteAnnees} an{ancienneteAnnees > 1 ? "s" : ""} d'existence
-                      {dateCreation && <span className="text-muted-foreground text-xs ml-1">(créée le {new Date(dateCreation).toLocaleDateString("fr-FR")})</span>}
-                    </span>
+                    {ancienneteAnnees < 3 ? (
+                      <span className="inline-flex items-center gap-1.5 font-medium text-amber-700">
+                        <span>⚠️</span>
+                        <span>
+                          {ancienneteAnnees < 1
+                            ? "Moins d'un an d'existence"
+                            : `${ancienneteAnnees} an${ancienneteAnnees > 1 ? "s" : ""} d'existence`}
+                          {dateCreation && <span className="text-amber-600/80 text-xs ml-1">(créée le {new Date(dateCreation).toLocaleDateString("fr-FR")})</span>}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-foreground">
+                        {ancienneteAnnees} an{ancienneteAnnees > 1 ? "s" : ""} d'existence
+                        {dateCreation && <span className="text-muted-foreground text-xs ml-1">(créée le {new Date(dateCreation).toLocaleDateString("fr-FR")})</span>}
+                      </span>
+                    )}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Alerte entreprise jeune — affiché même si le bloc global est orange ou vert */}
+            {ancienneteAnnees !== null && ancienneteAnnees < 3 && isImmatriculee === true && (
+              <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5">
+                <span className="text-amber-500 text-base flex-shrink-0 mt-px">⚠️</span>
+                <div className="text-xs text-amber-800 leading-relaxed">
+                  <span className="font-semibold block mb-0.5">
+                    Entreprise de moins de 3 ans
+                  </span>
+                  Sans historique financier vérifiable et avec peu ou pas d'avis clients, il est impossible d'évaluer la solidité de cette entreprise.
+                  Demandez des références de chantiers récents et vérifiez ses assurances (décennale + RC Pro) avant de signer.
+                </div>
               </div>
             )}
 
@@ -364,7 +390,7 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
                           {signal === "stale" &&
                             "Données non récentes — les comptes disponibles datent de plus de 2 ans. Indicateur à interpréter avec prudence."}
                           {signal === "recent" &&
-                            "Entreprise récente — l'historique financier est limité, ce qui rend l'évaluation plus incertaine."}
+                            "Entreprise de moins de 3 ans — pas d'historique financier vérifiable, peu ou pas d'avis clients. Impossible d'évaluer sa solidité sans références."}
                           {signal === "ca_decline_2y" &&
                             "Chiffre d'affaires en baisse sur 2 exercices consécutifs — signal à surveiller, sans conclure à une fragilité."}
                           {signal === "resultat_turned_negative" &&

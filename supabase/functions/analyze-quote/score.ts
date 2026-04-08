@@ -119,8 +119,13 @@ export function calculateScore(
     oranges.push(`Note Google inférieure au seuil de confort (${verified.google_note}/5)`);
   }
 
-  if (verified.entreprise_immatriculee === true && verified.anciennete_annees !== null && verified.anciennete_annees < 2) {
-    oranges.push(`Entreprise récente (${verified.anciennete_annees} an${verified.anciennete_annees > 1 ? "s" : ""}) - ancienneté à prendre en compte`);
+  if (verified.entreprise_immatriculee === true && verified.anciennete_annees !== null && verified.anciennete_annees < 3) {
+    const ans = verified.anciennete_annees;
+    oranges.push(
+      ans < 1
+        ? "Entreprise de moins d'un an — aucun historique financier, aucun avis client vérifiable"
+        : `Entreprise de ${ans} an${ans > 1 ? "s" : ""} — historique financier insuffisant et peu d'avis clients disponibles`
+    );
   }
 
   if (verified.finances.length > 0 && !isAutoEntrepreneur) {

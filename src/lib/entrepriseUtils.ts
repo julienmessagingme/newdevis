@@ -318,7 +318,7 @@ export interface FinancialHealthData {
  * Does NOT affect the global block score (info.score from extractEntrepriseData).
  *
  * ROUGE  : procédure collective OR entreprise radiée
- * ORANGE : ancienneté < 2 ans | données >= 2 ans | CA en baisse 2 exercices consécutifs | résultat net passé de positif à négatif
+ * ORANGE : ancienneté < 3 ans | données >= 2 ans | CA en baisse 2 exercices consécutifs | résultat net passé de positif à négatif
  * VERT   : sinon
  * NO_DATA: aucun exercice disponible (micro-entreprise, bilan non publié…)
  */
@@ -374,8 +374,8 @@ export const computeFinancialHealth = (
     orangeSignals.push("stale");
   }
 
-  // Signal 2 : entreprise récente (< 2 ans)
-  if (anciennete_annees !== null && anciennete_annees < 2) {
+  // Signal 2 : entreprise récente (< 3 ans)
+  if (anciennete_annees !== null && anciennete_annees < 3) {
     orangeSignals.push("recent");
   }
 

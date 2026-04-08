@@ -26,6 +26,35 @@ export type { AnomalieConclusion, ConclusionData } from "@/lib/conclusionTypes";
 
 const FORFAIT_UNIT_KEYWORDS = ["forfait", "global", "prestation", "ensemble", "installation complète"];
 
+// Postes dont la comparaison marché se fait en m² mais que l'artisan peut facturer en U/forfait
+const SURFACE_WORK_KEYWORDS = [
+  "cloison", "doublage", "contre-cloison", "peinture", "enduit", "lasure",
+  "carrelage", "faïence", "parquet", "plancher", "ragréage", "chape",
+  "isolation", "isol", "plafond", "toile de verre", "papier peint",
+  "revêtement sol", "revêtement mur", "sol stratifié", "moquette",
+];
+const M2_UNITS = ["m²", "m2", "m ²", "mètre carré", "metre carre", "m2 ht", "m² ht"];
+const UNIT_LIKE = ["u", "unité", "unité", "unite", "forfait", "ens", "ensemble",
+                   "prestation", "pce", "pièce", "piece", "lot", "global", "art", "article"];
+
+function hasSurfaceUnitMismatch(group: Record<string, any>): boolean {
+  const label = (group.job_type_label || "").toLowerCase();
+  const unit  = (group.main_unit || "").toLowerCase().trim();
+  const lines: any[] = group.devis_lines || [];
+
+  // Le poste doit être de nature surfacique
+  const isSurfaceWork = SURFACE_WORK_KEYWORDS.some(kw => label.includes(kw)) ||
+    lines.some((l: any) => SURFACE_WORK_KEYWORDS.some(kw =>
+      (l.description || "").toLowerCase().includes(kw)
+    ));
+  if (!isSurfaceWork) return false;
+
+  // L'unité ne doit PAS être m²
+  const isM2 = M2_UNITS.some(u => unit.includes(u));
+  const isUnitLike = UNIT_LIKE.some(u => unit === u || unit.startsWith(u + " "));
+  return !isM2 && isUnitLike;
+}
+
 /**
  * Calcule le surcoût total côté serveur depuis les données brutes priceData,
  * en utilisant la même formule que quoteGlobalAnalysis.ts (côté client).
@@ -51,9 +80,10 @@ function computeServerSurcout(priceData: unknown[]): { min: number; max: number 
     const prices: any[] = Array.isArray(group.prices) ? group.prices : [];
     if (prices.length === 0) continue;
 
-    // Exclure les forfaits (comparaison non fiable)
+    // Exclure les forfaits et les mismatches surface/unité (comparaison non fiable)
     const unit = ((group.main_unit as string) || "").toLowerCase().trim();
     if (FORFAIT_UNIT_KEYWORDS.some((kw) => unit === kw || unit.startsWith(kw))) continue;
+    if (hasSurfaceUnitMismatch(group)) continue;
 
     const qty: number = typeof group.main_quantity === "number" && group.main_quantity > 0
       ? group.main_quantity : 1;
@@ -119,6 +149,7 @@ function computeServerMarketPosition(priceData: unknown[]): MarketPosition {
     const group = g as Record<string, any>;
     if (group.job_type_label === "Autre") continue;
     if (isForfaitGroup(group)) continue;
+    if (hasSurfaceUnitMismatch(group)) continue;
 
     const devisTotal: number = typeof group.devis_total_ht === "number" ? group.devis_total_ht : 0;
     if (devisTotal <= 0) continue;
@@ -187,6 +218,18 @@ function buildGroupSummary(priceData: unknown[]): string {
           `  Facturation: forfait global`,
           `  Total devis: ${total.toFixed(0)} €`,
           `  Note: Ce poste est facturé en forfait. Le prix unitaire marché ne s'applique PAS ici.`,
+          `  Lignes: ${lignes || "—"}`,
+        ].join("\n");
+      }
+
+      // Mismatch surface/unité : l'artisan a facturé en U/forfait un poste normalement en m²
+      // → la comparaison unitaire est impossible, on signale explicitement
+      if (hasSurfaceUnitMismatch(g)) {
+        return [
+          `POSTE: ${g.job_type_label} [⚠️ MISMATCH UNITÉ — comparaison impossible]`,
+          `  Facturation: ${qty} ${unit} (mais le catalogue raisonne en m²)`,
+          `  Total devis: ${total.toFixed(0)} €`,
+          `  ⚠️ IMPORTANT: L'unité "${unit}" est incompatible avec le catalogue m². NE PAS signaler ce poste comme anomalie de prix. Action requise : demander la surface en m² à l'artisan pour pouvoir comparer.`,
           `  Lignes: ${lignes || "—"}`,
         ].join("\n");
       }
@@ -367,6 +410,7 @@ RÈGLES STRICTES:
 - PRIX ATTRACTIF : si le POSITIONNEMENT GLOBAL est "INFÉRIEUR À LA MOYENNE", c'est une bonne affaire. Sauf anomalie réelle (prix unitaire > 2× le max OU incohérence flagrante), le verdict doit être "signer". Ne jamais recommander de "négocier le prix" dans les actions quand le devis est déjà sous la moyenne du marché — c'est incohérent. Les actions doivent porter sur les vérifications qualité, assurances, et clauses contractuelles.
 - Des variations de prix ENTRE LIGNES du même type (ex: volets à des prix différents selon dimensions/options) ne sont PAS des anomalies si le total global est dans ou sous la fourchette marché.
 - INTERDIT : signaler un poste marqué [FORFAIT GLOBAL] comme anomalie de prix. Un forfait global ne peut PAS être comparé à un prix unitaire catalogue. Ces postes sont à commenter uniquement si le montant total semble disproportionné au regard de la prestation décrite.
+- MISMATCH D'UNITÉ : un poste marqué [⚠️ MISMATCH UNITÉ] (ex: cloison ou peinture facturé en U plutôt qu'en m²) ne peut PAS être comparé au catalogue marché — n'inclure AUCUNE anomalie de prix pour ces postes. Dans les actions_avant_signature, inclure UNE action du type : "Demandez la surface exacte en m² pour [nom du poste] — facturé en U sans surface indiquée, impossible de comparer au marché. Si < 8 m² le prix est élevé, négociez ; si > 12 m² le prix est cohérent."
 - NE PAS signaler comme anomalie ce qui s'explique par la localisation, l'étage, des matériaux premium COHÉRENTS, ou une complexité technique réelle.
 - Surcoût = total_devis_poste − total_fourchette_max_marché (TOTAUX, jamais prix unitaires). Jamais négatif, 0 si dans la fourchette. Pour les forfaits : surcoût = 0 sauf incohérence flagrante sur le montant total.
 - COHÉRENCE OBLIGATOIRE : verdict_global et niveau_risque DOIVENT être alignés (voir règle 5). Ne jamais retourner "a_risque" avec niveau_risque "modéré" ou "faible".
@@ -493,18 +537,34 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
         })();
 
     // Actions : garde exactement 3, complète avec des valeurs par défaut si nécessaire
-    const rawActions: string[] = Array.isArray(parsed.actions_avant_signature)
+    const geminiActions: string[] = Array.isArray(parsed.actions_avant_signature)
       ? parsed.actions_avant_signature
           .filter((a: unknown) => typeof a === "string" && a.trim().length > 0)
           .map((a: string) => a.trim())
           .slice(0, 3)
       : [];
+
+    // Détection mismatch surface/unité — injecte une action spécifique si pertinent
+    const surfaceMismatchGroups = Array.isArray(priceData)
+      ? (priceData as Record<string, any>[]).filter(
+          g => g && typeof g === "object" && g.job_type_label !== "Autre" && hasSurfaceUnitMismatch(g)
+        )
+      : [];
+    const surfaceActions: string[] = surfaceMismatchGroups.map(g => {
+      const posteName = (g.job_type_label as string) || "ce poste";
+      const unitUsed  = (g.main_unit as string) || "U";
+      return `Demandez la surface exacte en m² pour "${posteName}" — facturé en ${unitUsed} sans surface précisée, impossible de comparer au marché. Si < 8 m² le prix est élevé, négociez ; si > 12 m² le prix est cohérent.`;
+    });
+
+    // Merge : actions surface en tête, puis Gemini, puis défauts
+    const mergedActions: string[] = [...surfaceActions, ...geminiActions];
     const DEFAULT_ACTIONS = [
       "Vérifiez les assurances décennale et RC Pro de l'entreprise avant de signer.",
       "Demandez un échéancier de paiement détaillé et ne versez pas plus de 30 % à la commande.",
       "Faites inscrire dans le contrat la date de début et la durée prévisionnelle des travaux.",
     ];
-    while (rawActions.length < 3) rawActions.push(DEFAULT_ACTIONS[rawActions.length]);
+    while (mergedActions.length < 3) mergedActions.push(DEFAULT_ACTIONS[mergedActions.length % DEFAULT_ACTIONS.length]);
+    const rawActions = mergedActions.slice(0, 3);
 
     let verdictGlobal    = validVerdicts.includes(parsed.verdict_global)       ? parsed.verdict_global       : "a_negocier";
     const phraseIntro      = typeof parsed.phrase_intro  === "string"            ? parsed.phrase_intro.trim()  : "";

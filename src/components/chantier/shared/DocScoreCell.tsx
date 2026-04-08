@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { DocumentChantier } from '@/types/chantier-ia';
@@ -22,7 +22,7 @@ function numericToText(score: ScoreNum): ScoreText | null {
 // ── Props ───────────────────────────────────────────────────────────────────
 
 interface Props {
-  doc: DocumentChantier;
+  doc: DocumentChantier & { created_at?: string | null };
   chantierId?: string;
   token?: string | null;
   /** Score as TEXT ('VERT'|'ORANGE'|'ROUGE') or numeric (0-100) */
@@ -77,7 +77,13 @@ export default function DocScoreCell({ doc, chantierId, token, score, onAnalysed
 
   // ── Not analyzed: show ⚡ Analyser for devis ────────────────────────────
   if (doc.document_type === 'devis' && chantierId && token) {
-    return <AnalyseButton docId={doc.id} chantierId={chantierId} token={token} onAnalysed={onAnalysed} />;
+    return <AnalyseButton
+      docId={doc.id}
+      chantierId={chantierId}
+      token={token}
+      onAnalysed={onAnalysed}
+      createdAt={doc.created_at ?? undefined}
+    />;
   }
 
   // ── Facture / other without analysis ────────────────────────────────────
@@ -86,15 +92,65 @@ export default function DocScoreCell({ doc, chantierId, token, score, onAnalysed
 
 // ── Inline Analyse Button ───────────────────────────────────────────────────
 
-function AnalyseButton({ docId, chantierId, token, onAnalysed }: {
+// Délai d'auto-check en ms : on laisse quelques secondes à l'auto-analyse
+// déclenchée par register.ts pour finir sa mise en place avant de poller.
+const AUTO_CHECK_DELAY_MS = 4_000;
+// Fenêtre de récence : si le document a été créé il y a moins de X minutes,
+// on tente l'auto-check même sans clic utilisateur.
+const RECENT_WINDOW_MS = 8 * 60 * 1000; // 8 minutes
+
+function AnalyseButton({ docId, chantierId, token, onAnalysed, createdAt }: {
   docId: string;
   chantierId: string;
   token: string;
   onAnalysed?: (docId: string, analyseId: string) => void;
+  createdAt?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [resultId, setResultId] = useState<string | null>(null);
+  // État "en cours" déclenché par l'auto-check silencieux
+  const [autoChecking, setAutoChecking] = useState(false);
+  const calledRef = useRef(false);
 
+  // ── Auto-check pour les documents récemment uploadés ────────────────────
+  // register.ts a probablement déjà déclenché l'analyse. On attend quelques
+  // secondes puis on appelle analyser.ts : soit l'analyse est déjà prête
+  // (409 → ID existant), soit elle n'a pas encore démarré (200 → démarre).
+  // Silencieux : pas de toast si c'est l'auto-check qui démarre l'analyse.
+  useEffect(() => {
+    if (calledRef.current || resultId) return;
+
+    const isRecent = createdAt
+      ? (Date.now() - new Date(createdAt).getTime()) < RECENT_WINDOW_MS
+      : false;
+    if (!isRecent) return;
+
+    calledRef.current = true;
+    setAutoChecking(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/chantier/${chantierId}/documents/${docId}/analyser`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if ((res.ok || res.status === 409) && data.analysisId) {
+          setResultId(data.analysisId);
+          onAnalysed?.(docId, data.analysisId);
+          // Pas de toast : l'analyse a été auto-déclenchée, l'utilisateur n'a rien demandé
+        }
+      } catch {
+        // Silencieux — l'utilisateur peut toujours cliquer "Analyser" manuellement
+      } finally {
+        setAutoChecking(false);
+      }
+    }, AUTO_CHECK_DELAY_MS);
+
+    return () => { clearTimeout(timer); };
+  }, []); // intentionally empty deps — run once on mount
+
+  // ── Clic manuel ─────────────────────────────────────────────────────────
   async function handleClick() {
     setBusy(true);
     try {
@@ -119,12 +175,23 @@ function AnalyseButton({ docId, chantierId, token, onAnalysed }: {
     }
   }
 
+  // ── Affichage ────────────────────────────────────────────────────────────
+
   if (resultId) {
     return (
       <a href={`/analyse/${resultId}?from=chantier&chantierId=${chantierId}`}
         className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 hover:underline transition-colors">
         ✓ Voir le résultat →
       </a>
+    );
+  }
+
+  if (autoChecking) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[11px] text-amber-600 font-medium">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Analyse en cours…
+      </span>
     );
   }
 

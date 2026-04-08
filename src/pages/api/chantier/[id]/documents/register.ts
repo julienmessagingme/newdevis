@@ -119,6 +119,22 @@ export const POST: APIRoute = async ({ params, request }) => {
     body: JSON.stringify({ chantier_id: chantierId }),
   }).catch(() => {});
 
+  // ── Auto-analyse : déclenche immédiatement l'analyse pour chaque devis uploadé ──
+  // L'utilisateur n'a pas à cliquer "Analyser" manuellement.
+  // analyser.ts est idempotent : si une analyse existe déjà (doc.analyse_id) → 409 + ID existant.
+  // Rollback géré dans analyser.ts. Bucket_path ne doit pas être un ancien path d'analyse.
+  if (documentType === 'devis' && bucketPath && !bucketPath.startsWith('analyse/')) {
+    const reqUrl = new URL(request.url);
+    const analyserUrl = `${reqUrl.origin}/api/chantier/${chantierId}/documents/${(doc as any).id}/analyser`;
+    const authHeader = request.headers.get('Authorization') ?? '';
+    fetch(analyserUrl, {
+      method: 'POST',
+      headers: { Authorization: authHeader },
+    }).catch((e) => {
+      console.error('[register] auto-analyse fire-and-forget error:', e instanceof Error ? e.message : String(e));
+    });
+  }
+
   return jsonOk({ document: { ...doc, signedUrl: s?.signedUrl ?? null } }, 201);
 };
 

@@ -233,7 +233,55 @@ export async function verifyData(
       }
     }
 
-    // 1b. DATA.ECONOMIE.GOUV.FR — Financial ratios
+    // 1b. NAME FALLBACK — si le SIRET/SIREN n'a pas permis de retrouver l'entreprise,
+    // on tente une recherche textuelle par nom (recherche-entreprises supporte le texte libre)
+    if (result.lookup_status !== "ok") {
+      const nomEntreprise = extracted.entreprise?.nom?.trim() ?? "";
+      if (nomEntreprise.length >= 3) {
+        console.log("[Verify] Trying name fallback for:", nomEntreprise);
+        try {
+          const nameUrl = `${RECHERCHE_ENTREPRISES_API_URL}?q=${encodeURIComponent(nomEntreprise)}&page=1&per_page=3`;
+          const nameResp = await fetch(nameUrl);
+          if (nameResp.ok) {
+            const nameData = await nameResp.json();
+            const match = nameData.results?.[0];
+            if (match) {
+              const siege = match.siege || {};
+              const uniteLegaleActive = match.etat_administratif === "A";
+              const siegeFerme = siege.etat_administratif === "F" || !!siege.date_fermeture;
+              const isActive = uniteLegaleActive && !siegeFerme;
+
+              const dateCreation = match.date_creation || null;
+              let ageYears: number | null = null;
+              if (dateCreation) {
+                const created = new Date(dateCreation);
+                ageYears = Math.floor((Date.now() - created.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+              }
+
+              result.entreprise_immatriculee = isActive;
+              result.entreprise_radiee = !isActive;
+              result.procedure_collective = match.est_en_procedure_collective === true;
+              result.date_creation = dateCreation;
+              result.anciennete_annees = ageYears;
+              result.nom_officiel = match.nom_complet || match.nom_raison_sociale || null;
+              result.adresse_officielle = siege.adresse || (siege.libelle_voie
+                ? `${siege.numero_voie || ""} ${siege.type_voie || ""} ${siege.libelle_voie || ""}`.trim()
+                : null);
+              result.ville_officielle = siege.libelle_commune || siege.commune || null;
+              result.lookup_status = "ok";
+
+              console.log("[Verify] Name fallback found:", result.nom_officiel, "| active:", isActive, "| age:", ageYears, "years");
+            } else {
+              console.log("[Verify] Name fallback: no result for:", nomEntreprise);
+            }
+          }
+        } catch (nameErr) {
+          console.log("[Verify] Name fallback error:", nameErr instanceof Error ? nameErr.message : "Unknown");
+        }
+      }
+    }
+
+    // 1c. DATA.ECONOMIE.GOUV.FR — Financial ratios
     if (siren) {
       result.debug!.provider_calls.finances.enabled = true;
       result.debug!.provider_calls.finances.attempted = true;
@@ -282,7 +330,48 @@ export async function verifyData(
       }
     }
   } else {
+    // Pas de SIRET/SIREN trouvé dans le document — on tente directement par nom
     result.lookup_status = "no_siret";
+    const nomEntrepriseDirect = extracted.entreprise?.nom?.trim() ?? "";
+    if (nomEntrepriseDirect.length >= 3) {
+      console.log("[Verify] No SIRET — trying direct name lookup for:", nomEntrepriseDirect);
+      try {
+        const nameUrl = `${RECHERCHE_ENTREPRISES_API_URL}?q=${encodeURIComponent(nomEntrepriseDirect)}&page=1&per_page=3`;
+        const nameResp = await fetch(nameUrl);
+        if (nameResp.ok) {
+          const nameData = await nameResp.json();
+          const match = nameData.results?.[0];
+          if (match) {
+            const siege = match.siege || {};
+            const uniteLegaleActive = match.etat_administratif === "A";
+            const siegeFerme = siege.etat_administratif === "F" || !!siege.date_fermeture;
+            const isActive = uniteLegaleActive && !siegeFerme;
+
+            const dateCreation = match.date_creation || null;
+            let ageYears: number | null = null;
+            if (dateCreation) {
+              const created = new Date(dateCreation);
+              ageYears = Math.floor((Date.now() - created.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+            }
+
+            result.entreprise_immatriculee = isActive;
+            result.entreprise_radiee = !isActive;
+            result.procedure_collective = match.est_en_procedure_collective === true;
+            result.date_creation = dateCreation;
+            result.anciennete_annees = ageYears;
+            result.nom_officiel = match.nom_complet || match.nom_raison_sociale || null;
+            result.adresse_officielle = siege.adresse || (siege.libelle_voie
+              ? `${siege.numero_voie || ""} ${siege.type_voie || ""} ${siege.libelle_voie || ""}`.trim()
+              : null);
+            result.ville_officielle = siege.libelle_commune || siege.commune || null;
+            result.lookup_status = "ok";
+            console.log("[Verify] Direct name lookup found:", result.nom_officiel, "| active:", isActive);
+          }
+        }
+      } catch (nameErr) {
+        console.log("[Verify] Direct name lookup error:", nameErr instanceof Error ? nameErr.message : "Unknown");
+      }
+    }
   }
 
   // 2. OpenIBAN - IBAN validation

@@ -163,7 +163,7 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
   "type_document": "devis_travaux | facture | diagnostic_immobilier | autre",
   "entreprise": {
     "nom": "nom exact ou null",
-    "siret": "numéro SIRET EXACTEMENT 14 chiffres sans espaces ou null — CHERCHE PARTOUT (en-tête, pied de page, mentions légales, tampons). COMPTE les chiffres : un SIRET valide = 9 chiffres SIREN + 5 chiffres NIC = 14 au total. Si tu vois 13 chiffres, il manque probablement un zéro dans le NIC (ex: '8312285800021' → vrai SIRET '83122858000021'). Restitue les 14 chiffres exacts.",
+    "siret": "numéro d'identification de l'entreprise, SANS ESPACES. CHERCHE PARTOUT (en-tête, pied de page, tampons, mentions légales bas de page). PRIORITÉ D'EXTRACTION : 1) Si tu trouves un SIRET 14 chiffres (label 'SIRET', 'N° SIRET', ou 14 chiffres groupés en 9+5) → restitue les 14 chiffres. Si tu vois 13 chiffres il manque un zéro dans le NIC (ex: '8312285800021' → '83122858000021'). 2) Si pas de SIRET mais qu'une ligne 'RCS [Ville] N° XXX XXX XXX', 'RCS de [Ville] XXX XXX XXX', ou 'Immatriculée RCS XXX XXX XXX' contient 9 chiffres → ce sont les 9 chiffres du SIREN, restitue-les. 3) Si une ligne 'SIREN N° XXX XXX XXX' contient 9 chiffres (distinctement groupés en 3×3) → restitue ces 9 chiffres. 4) Sinon null.",
     "adresse": "adresse complète ou null",
     "email": "adresse email de l'entreprise trouvée dans le document (en-tête, pied de page, mentions légales, site web) ou null",
     "telephone": "numéro de téléphone de l'entreprise trouvé dans le document (en-tête, pied de page, mentions légales) ou null",

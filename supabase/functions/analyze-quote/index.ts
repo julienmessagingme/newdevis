@@ -1077,16 +1077,46 @@ serve(async (req) => {
           .range(maxAnalyses, 999);
 
         if (oldAnalyses && oldAnalyses.length > 0) {
-          const idsToDelete = oldAnalyses.map((a) => a.id);
-          // Delete stored files
-          const filePaths = oldAnalyses.map((a) => a.file_path).filter(Boolean);
-          if (filePaths.length > 0) {
-            await supabase.storage.from("devis").remove(filePaths);
+          const candidateIds = oldAnalyses.map((a) => a.id);
+
+          // ── Protection : ne jamais purger les analyses liées à un document de chantier ──
+          // Ces analyses sont sauvegardées volontairement par l'utilisateur dans son espace
+          // chantier. La purge ne s'applique qu'aux analyses "autonomes" du tableau de bord.
+          const { data: linkedDocs } = await supabase
+            .from("documents_chantier")
+            .select("analyse_id")
+            .in("analyse_id", candidateIds);
+
+          const protectedIds = new Set(
+            (linkedDocs ?? []).map((d: any) => d.analyse_id).filter(Boolean)
+          );
+
+          const idsToDelete = candidateIds.filter((id) => !protectedIds.has(id));
+
+          if (idsToDelete.length > 0) {
+            // Delete stored files for unprotected analyses only
+            const filePaths = oldAnalyses
+              .filter((a) => idsToDelete.includes(a.id))
+              .map((a) => a.file_path)
+              .filter(Boolean);
+            if (filePaths.length > 0) {
+              await supabase.storage.from("devis").remove(filePaths);
+            }
+            // Delete analyses (CASCADE deletes analysis_work_items + document_extractions)
+            // price_observations survives (no FK)
+            await supabase.from("analyses").delete().in("id", idsToDelete);
+            console.log(
+              "[Purge] Deleted", idsToDelete.length, "unlinked analyses",
+              "| protected (chantier-linked):", protectedIds.size,
+              "| limit:", maxAnalyses,
+              "| user:", analysis.user_id,
+            );
+          } else {
+            console.log(
+              "[Purge] All candidates protected (linked to chantier documents)",
+              "| count:", protectedIds.size,
+            );
           }
-          // Delete analyses (CASCADE deletes analysis_work_items + document_extractions)
-          // price_observations survives (no FK)
-          await supabase.from("analyses").delete().in("id", idsToDelete);
-          console.log("[Purge] Deleted", idsToDelete.length, "old analyses for user", analysis.user_id, `(limit: ${maxAnalyses})`);
         }
       } catch (purgeError) {
         // Non-blocking: don't fail the pipeline if purge fails
