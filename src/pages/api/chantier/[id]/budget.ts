@@ -207,10 +207,12 @@ export const GET: APIRoute = async ({ params, request }) => {
     const analysesMap = new Map<string, { status: string; score: number | null; signal: string | null; montant: number | null }>();
 
     if (analyseIds.length > 0) {
-      const { data: analyses } = await ctx.supabase
+      const { data: analyses, error: analysesErr } = await ctx.supabase
         .from('analyses')
         .select('id, status, score, signal, raw_text')
         .in('id', analyseIds);
+
+      if (analysesErr) console.error('[GET /budget] analyses fetch error:', analysesErr.message);
 
       for (const a of analyses ?? []) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -227,6 +229,28 @@ export const GET: APIRoute = async ({ params, request }) => {
           signal:  a.signal ?? null,
           montant,
         });
+      }
+
+      // ── Write-through : backfill documents_chantier.montant depuis l'analyse ──
+      // Si doc.montant est null mais que l'analyse a un TTC, on le persiste
+      // pour que les prochains appels (et la Vue d'ensemble) soient cohérents.
+      const backfills: Promise<unknown>[] = [];
+      for (const doc of docs ?? []) {
+        if (doc.document_type !== 'devis') continue;
+        if (doc.montant != null && doc.montant > 0) continue;          // déjà ok
+        if (!doc.analyse_id) continue;
+        const am = analysesMap.get(doc.analyse_id);
+        if (!am?.montant) continue;
+        backfills.push(
+          ctx.supabase
+            .from('documents_chantier')
+            .update({ montant: am.montant })
+            .eq('id', doc.id)
+            .eq('chantier_id', chantierId),
+        );
+      }
+      if (backfills.length > 0) {
+        Promise.allSettled(backfills).catch(() => {});
       }
     }
 
