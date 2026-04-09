@@ -1138,6 +1138,47 @@ export default function BudgetTab({
                           <span className="text-[12px] font-bold text-gray-800">{fmtEur(row.devisAmount)}</span>
                         ) : row.devisAmountGrey !== null ? (
                           <span className="text-[12px] text-gray-400">{fmtEur(row.devisAmountGrey)}</span>
+                        ) : row.lot.devis.length === 1 && row.lot.devis[0].montant === null ? (
+                          // Devis unique sans montant : saisie inline directe
+                          editingMontant?.devisId === row.lot.devis[0].id ? (
+                            <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                              <input
+                                autoFocus
+                                type="number"
+                                value={editingMontant.value}
+                                onChange={e => setEditingMontant({ devisId: row.lot.devis[0].id, value: e.target.value })}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') saveMontantDevis(row.lot.devis[0].id, editingMontant.value);
+                                  if (e.key === 'Escape') setEditingMontant(null);
+                                }}
+                                onBlur={() => saveMontantDevis(row.lot.devis[0].id, editingMontant.value)}
+                                className="w-20 text-[11px] font-bold border-b border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5 text-right"
+                                placeholder="Ex: 4500"
+                              />
+                              <span className="text-[10px] text-gray-400">€</span>
+                            </div>
+                          ) : savingMontant === row.lot.devis[0].id ? (
+                            <Loader2 className="h-3.5 w-3.5 text-indigo-400 animate-spin ml-auto" />
+                          ) : (
+                            <button
+                              onClick={e => { e.stopPropagation(); setEditingMontant({ devisId: row.lot.devis[0].id, value: '' }); }}
+                              className="flex items-center justify-end gap-1 text-[11px] text-indigo-400 hover:text-indigo-600 transition-colors w-full"
+                              title="Saisir le montant du devis"
+                            >
+                              <Pencil className="h-3 w-3" />
+                              <span>Saisir</span>
+                            </button>
+                          )
+                        ) : row.lot.devis.some(d => d.montant === null) ? (
+                          // Plusieurs devis dont certains sans montant : ouvrir le drawer
+                          <button
+                            onClick={e => { e.stopPropagation(); setSelected(row); }}
+                            className="flex items-center justify-end gap-1 text-[11px] text-indigo-400 hover:text-indigo-600 transition-colors w-full"
+                            title="Saisir les montants"
+                          >
+                            <Pencil className="h-3 w-3" />
+                            <span>Saisir</span>
+                          </button>
                         ) : (
                           <span className="text-[12px] text-gray-300">—</span>
                         )}
