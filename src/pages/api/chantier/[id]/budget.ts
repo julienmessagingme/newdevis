@@ -204,19 +204,28 @@ export const GET: APIRoute = async ({ params, request }) => {
       .map(d => d.analyse_id)
       .filter((x): x is string => !!x);
 
-    const analysesMap = new Map<string, { status: string; score: number | null; signal: string | null }>();
+    const analysesMap = new Map<string, { status: string; score: number | null; signal: string | null; montant: number | null }>();
 
     if (analyseIds.length > 0) {
       const { data: analyses } = await ctx.supabase
         .from('analyses')
-        .select('id, status, score, signal')
+        .select('id, status, score, signal, raw_text')
         .in('id', analyseIds);
 
       for (const a of analyses ?? []) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let raw: any = a.raw_text;
+        if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = null; } }
+        const totaux = raw?.extracted?.totaux;
+        const montant = totaux?.ttc != null && !isNaN(Number(totaux.ttc)) ? Number(totaux.ttc)
+                      : totaux?.ht  != null && !isNaN(Number(totaux.ht))  ? Number(totaux.ht)
+                      : null;
+
         analysesMap.set(a.id, {
-          status: a.status ?? null,
-          score:  a.score  ?? null,
-          signal: a.signal ?? null,
+          status:  a.status ?? null,
+          score:   a.score  ?? null,
+          signal:  a.signal ?? null,
+          montant,
         });
       }
     }
@@ -263,10 +272,15 @@ export const GET: APIRoute = async ({ params, request }) => {
         const statut = doc.devis_statut ?? 'en_cours';
         if (statut !== 'valide' && statut !== 'attente_facture') continue;
 
+        // Montant : doc.montant (write-back pipeline) ou fallback raw_text analyse
+        const montant = (doc.montant != null && doc.montant > 0)
+          ? doc.montant
+          : (analyse?.montant ?? null);
+
         bucket.devis.push({
           id:             doc.id,
           nom:            doc.nom,
-          montant:        doc.montant       ?? null,
+          montant,
           devis_statut:   statut,
           analyse_id:     doc.analyse_id    ?? null,
           analyse_status: analyse?.status   ?? null,
@@ -275,8 +289,8 @@ export const GET: APIRoute = async ({ params, request }) => {
           signed_url:     urlMap.get(doc.id) ?? null,
           created_at:     doc.created_at,
         });
-        bucket.totaux.devis_recus   += doc.montant ?? 0;
-        bucket.totaux.devis_valides += doc.montant ?? 0;
+        bucket.totaux.devis_recus   += montant ?? 0;
+        bucket.totaux.devis_valides += montant ?? 0;
       } else if (doc.document_type === 'facture') {
         const montant = doc.montant ?? 0;
         const paye =

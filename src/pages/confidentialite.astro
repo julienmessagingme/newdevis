@@ -6,7 +6,7 @@ import AstroFooter from '@/components/astro/Footer.astro';
 
 <BaseLayout
   title="Politique de confidentialité | VerifierMonDevis.fr"
-  description="Politique de confidentialité de VerifierMonDevis.fr : données collectées, finalités, durée de conservation, droits des utilisateurs (RGPD)."
+  description="Politique de confidentialité de VerifierMonDevis.fr : données collectées, finalités, bases légales, durée de conservation et droits RGPD."
   canonical="https://www.verifiermondevis.fr/confidentialite"
   breadcrumbs={[
     { name: "Accueil", url: "https://www.verifiermondevis.fr/" },
@@ -27,97 +27,256 @@ import AstroFooter from '@/components/astro/Footer.astro';
           Retour à l'accueil
         </a>
 
-        <h1 class="text-3xl font-bold text-foreground mb-8">Politique de confidentialité</h1>
+        <h1 class="text-3xl font-bold text-foreground mb-2">Politique de confidentialité</h1>
+        <p class="text-sm text-muted-foreground mb-8">Dernière mise à jour : avril 2025</p>
 
         <div class="space-y-8">
+
+          {/* 1. Responsable du traitement */}
           <section class="bg-card border border-border rounded-xl p-6">
             <h2 class="text-xl font-semibold text-foreground mb-4">1. Responsable du traitement</h2>
             <div class="text-muted-foreground space-y-2">
-              <p>Le responsable du traitement des données personnelles est l'éditeur du site VerifierMonDevis.fr.</p>
-              <p><strong class="text-foreground">Contact :</strong> <a href="mailto:contact@verifiermondevis.fr" class="text-primary hover:underline">contact@verifiermondevis.fr</a></p>
+              <p>
+                Le responsable du traitement est <strong class="text-foreground">Julien Bridey</strong>,
+                entrepreneur individuel, exploitant le site VerifierMonDevis.fr.
+              </p>
+              <p>
+                <strong class="text-foreground">Contact :</strong>{' '}
+                <a href="mailto:contact@verifiermondevis.fr" class="text-primary hover:underline">contact@verifiermondevis.fr</a>
+              </p>
+              <p class="text-sm">
+                Pour toute question relative à vos données personnelles, écrivez à l'adresse ci-dessus.
+                Nous répondons dans un délai d'<strong class="text-foreground">un mois</strong> à compter de la réception de votre demande
+                (délai pouvant être prolongé de deux mois supplémentaires en cas de demande complexe).
+              </p>
             </div>
           </section>
 
+          {/* 2. Données collectées et bases légales */}
           <section class="bg-card border border-border rounded-xl p-6">
-            <h2 class="text-xl font-semibold text-foreground mb-4">2. Données collectées</h2>
-            <div class="text-muted-foreground space-y-3">
-              <p>Nous collectons les données suivantes :</p>
-              <ul class="list-disc pl-5 space-y-2">
-                <li><strong class="text-foreground">Données de compte</strong> : adresse email, nom, prénom, téléphone (lors de l'inscription)</li>
-                <li><strong class="text-foreground">Documents transmis</strong> : devis et attestations d'assurance téléchargés pour analyse</li>
-                <li><strong class="text-foreground">Données d'analyse</strong> : résultats de l'analyse, score, points de vigilance</li>
-                <li><strong class="text-foreground">Données de navigation</strong> : pages visitées, durée de session (via cookies techniques)</li>
-              </ul>
+            <h2 class="text-xl font-semibold text-foreground mb-4">2. Données collectées et bases légales (art. 6 RGPD)</h2>
+            <div class="text-muted-foreground space-y-4">
+
+              <div>
+                <p class="font-semibold text-foreground mb-1">a) Données de compte</p>
+                <p>Adresse email, nom, prénom, téléphone collectés lors de l'inscription.</p>
+                <p class="text-sm mt-1"><span class="font-medium text-foreground">Base légale :</span> exécution du contrat (art. 6.1.b RGPD).</p>
+              </div>
+
+              <div>
+                <p class="font-semibold text-foreground mb-1">b) Documents transmis pour analyse</p>
+                <p>Devis, factures, photos de chantier et attestations d'assurance uploadés par l'utilisateur.</p>
+                <p class="text-sm mt-1"><span class="font-medium text-foreground">Base légale :</span> exécution du contrat (art. 6.1.b) — ces documents sont nécessaires au service.</p>
+              </div>
+
+              <div>
+                <p class="font-semibold text-foreground mb-1">c) Données d'analyse et de chantier</p>
+                <p>Résultats d'analyse, scores de risque, données de chantier (lots, contacts artisans, planning, budget).</p>
+                <p class="text-sm mt-1"><span class="font-medium text-foreground">Base légale :</span> exécution du contrat (art. 6.1.b).</p>
+              </div>
+
+              <div>
+                <p class="font-semibold text-foreground mb-1">d) Données agrégées de benchmarking prix</p>
+                <p>Observations de prix anonymisées (type de travaux, montant HT, code postal) extraites des analyses.</p>
+                <p class="text-sm mt-1"><span class="font-medium text-foreground">Base légale :</span> intérêt légitime (art. 6.1.f) — amélioration du référentiel de prix marché, sans identification individuelle possible.</p>
+              </div>
+
+              <div>
+                <p class="font-semibold text-foreground mb-1">e) Données de paiement</p>
+                <p>La gestion des paiements est entièrement déléguée à <strong class="text-foreground">Stripe</strong>. Nous ne conservons aucun numéro de carte. Nous recevons uniquement l'identifiant client Stripe et le statut de l'abonnement.</p>
+                <p class="text-sm mt-1"><span class="font-medium text-foreground">Base légale :</span> exécution du contrat (art. 6.1.b).</p>
+              </div>
+
+              <div>
+                <p class="font-semibold text-foreground mb-1">f) Données de navigation (cookies)</p>
+                <p>Cookies techniques (session, authentification) et, avec votre consentement, cookies analytiques (Google Analytics, Meta Pixel).</p>
+                <p class="text-sm mt-1"><span class="font-medium text-foreground">Base légale :</span> consentement (art. 6.1.a) pour les cookies non essentiels — obligation légale (art. 6.1.c) pour les cookies de sécurité.</p>
+              </div>
+
             </div>
           </section>
 
+          {/* 3. Finalités */}
           <section class="bg-card border border-border rounded-xl p-6">
             <h2 class="text-xl font-semibold text-foreground mb-4">3. Finalités du traitement</h2>
-            <div class="text-muted-foreground space-y-3">
-              <p>Vos données sont utilisées exclusivement pour :</p>
+            <div class="text-muted-foreground">
               <ul class="list-disc pl-5 space-y-2">
-                <li><strong class="text-foreground">Fournir le service</strong> : analyser les devis, générer les rapports, afficher les résultats</li>
-                <li><strong class="text-foreground">Gérer votre compte</strong> : authentification, tableau de bord, historique des analyses</li>
-                <li><strong class="text-foreground">Améliorer le service</strong> : statistiques agrégées et anonymisées sur les prix du marché</li>
+                <li>Fournir le service d'analyse de devis et de gestion de chantier</li>
+                <li>Gérer votre compte (authentification, tableau de bord, historique)</li>
+                <li>Gérer votre abonnement Pass Sérénité (facturation, accès premium)</li>
+                <li>Améliorer le référentiel de prix marché par agrégation anonymisée</li>
+                <li>Assurer la sécurité et la continuité du service</li>
+                <li>Répondre à vos demandes et réclamations</li>
+                <li>Mesurer la fréquentation et améliorer l'expérience utilisateur (avec consentement)</li>
               </ul>
-              <p class="pt-2"><strong class="text-foreground">Nous ne vendons, ne louons et ne partageons jamais vos données personnelles avec des tiers</strong> à des fins commerciales.</p>
+              <p class="pt-3 font-medium text-foreground">
+                Nous ne vendons, ne louons et ne partageons jamais vos données personnelles avec des tiers à des fins commerciales.
+              </p>
             </div>
           </section>
 
+          {/* 4. Durée de conservation */}
           <section class="bg-card border border-border rounded-xl p-6">
             <h2 class="text-xl font-semibold text-foreground mb-4">4. Durée de conservation</h2>
-            <div class="text-muted-foreground space-y-3">
+            <div class="text-muted-foreground">
               <ul class="list-disc pl-5 space-y-2">
-                <li><strong class="text-foreground">Documents téléchargés</strong> : supprimés automatiquement lorsque le nombre d'analyses dépasse 10 par utilisateur</li>
-                <li><strong class="text-foreground">Données de compte</strong> : conservées tant que le compte est actif, supprimées sur demande</li>
-                <li><strong class="text-foreground">Données agrégées</strong> : les observations de prix anonymisées sont conservées sans limite pour le benchmarking</li>
+                <li><strong class="text-foreground">Données de compte</strong> : conservées pendant toute la durée d'activité du compte, puis supprimées dans un délai de 3 ans après la dernière connexion (ou sur demande).</li>
+                <li><strong class="text-foreground">Documents et analyses</strong> : les analyses autonomes sont conservées dans la limite de 30 par utilisateur actif (purge automatique des plus anciennes). Les analyses liées à un chantier sont conservées tant que le chantier est actif.</li>
+                <li><strong class="text-foreground">Données de chantier</strong> : conservées tant que le compte est actif, supprimées sur demande.</li>
+                <li><strong class="text-foreground">Données de paiement (Stripe)</strong> : conservées conformément aux obligations comptables légales (10 ans).</li>
+                <li><strong class="text-foreground">Observations de prix agrégées</strong> : conservées sans limite de durée — elles sont anonymisées et ne permettent pas d'identifier un individu.</li>
+                <li><strong class="text-foreground">Logs techniques</strong> : 30 jours maximum.</li>
               </ul>
             </div>
           </section>
 
+          {/* 5. Sous-traitants */}
           <section class="bg-card border border-border rounded-xl p-6">
-            <h2 class="text-xl font-semibold text-foreground mb-4">5. Sous-traitants</h2>
+            <h2 class="text-xl font-semibold text-foreground mb-4">5. Sous-traitants et transferts hors UE</h2>
             <div class="text-muted-foreground space-y-3">
-              <p>Nous utilisons les services suivants pour le fonctionnement du site :</p>
-              <ul class="list-disc pl-5 space-y-2">
-                <li><strong class="text-foreground">Supabase</strong> (hébergement base de données et authentification) — données hébergées en Europe</li>
-                <li><strong class="text-foreground">Vercel</strong> (hébergement du site web)</li>
-                <li><strong class="text-foreground">Google Gemini</strong> (analyse IA des documents) — les documents sont envoyés pour extraction uniquement, non conservés par Google</li>
-              </ul>
+              <p>Nous faisons appel aux prestataires suivants :</p>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse">
+                  <thead>
+                    <tr class="border-b border-border">
+                      <th class="text-left py-2 pr-4 font-semibold text-foreground">Prestataire</th>
+                      <th class="text-left py-2 pr-4 font-semibold text-foreground">Rôle</th>
+                      <th class="text-left py-2 font-semibold text-foreground">Localisation</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-border/50">
+                    <tr>
+                      <td class="py-2 pr-4 font-medium text-foreground">Supabase</td>
+                      <td class="py-2 pr-4">Base de données & authentification</td>
+                      <td class="py-2">Europe (EU West) ✅</td>
+                    </tr>
+                    <tr>
+                      <td class="py-2 pr-4 font-medium text-foreground">Vercel</td>
+                      <td class="py-2 pr-4">Hébergement du site web</td>
+                      <td class="py-2">USA (clauses contractuelles types)</td>
+                    </tr>
+                    <tr>
+                      <td class="py-2 pr-4 font-medium text-foreground">Google (Gemini)</td>
+                      <td class="py-2 pr-4">Analyse IA des documents</td>
+                      <td class="py-2">USA (clauses contractuelles types)</td>
+                    </tr>
+                    <tr>
+                      <td class="py-2 pr-4 font-medium text-foreground">Stripe</td>
+                      <td class="py-2 pr-4">Paiements en ligne</td>
+                      <td class="py-2">USA — certifié PCI-DSS</td>
+                    </tr>
+                    <tr>
+                      <td class="py-2 pr-4 font-medium text-foreground">SendGrid (Twilio)</td>
+                      <td class="py-2 pr-4">Envoi d'emails</td>
+                      <td class="py-2">USA (clauses contractuelles types)</td>
+                    </tr>
+                    <tr>
+                      <td class="py-2 pr-4 font-medium text-foreground">Trustpilot</td>
+                      <td class="py-2 pr-4">Avis clients vérifiés</td>
+                      <td class="py-2">Europe ✅</td>
+                    </tr>
+                    <tr>
+                      <td class="py-2 pr-4 font-medium text-foreground">WhatsApp (Meta)</td>
+                      <td class="py-2 pr-4">Communication chantier (optionnel)</td>
+                      <td class="py-2">USA (clauses contractuelles types)</td>
+                    </tr>
+                    <tr>
+                      <td class="py-2 pr-4 font-medium text-foreground">OVH</td>
+                      <td class="py-2 pr-4">Messagerie email</td>
+                      <td class="py-2">France ✅</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="text-sm">
+                Les transferts hors UE vers des pays ne bénéficiant pas d'une décision d'adéquation sont encadrés par des
+                <strong class="text-foreground">clauses contractuelles types</strong> approuvées par la Commission européenne (art. 46 RGPD).
+              </p>
+              <p class="text-sm">
+                Les documents transmis à Google Gemini pour analyse ne sont pas conservés par Google au-delà du traitement
+                immédiat conformément à leur politique API.
+              </p>
             </div>
           </section>
 
+          {/* 6. Vos droits */}
           <section class="bg-card border border-border rounded-xl p-6">
-            <h2 class="text-xl font-semibold text-foreground mb-4">6. Vos droits (RGPD)</h2>
+            <h2 class="text-xl font-semibold text-foreground mb-4">6. Vos droits (RGPD, art. 15 à 22)</h2>
             <div class="text-muted-foreground space-y-3">
-              <p>Conformément au Règlement Général sur la Protection des Données (RGPD), vous disposez des droits suivants :</p>
+              <p>Conformément au RGPD, vous disposez des droits suivants :</p>
               <ul class="list-disc pl-5 space-y-2">
-                <li><strong class="text-foreground">Droit d'accès</strong> : obtenir une copie de vos données personnelles</li>
-                <li><strong class="text-foreground">Droit de rectification</strong> : corriger vos données inexactes ou incomplètes</li>
-                <li><strong class="text-foreground">Droit de suppression</strong> : demander la suppression de vos données et de votre compte</li>
-                <li><strong class="text-foreground">Droit à la portabilité</strong> : recevoir vos données dans un format structuré</li>
-                <li><strong class="text-foreground">Droit d'opposition</strong> : vous opposer au traitement de vos données</li>
+                <li><strong class="text-foreground">Droit d'accès (art. 15)</strong> : obtenir une copie de vos données personnelles que nous traitons.</li>
+                <li><strong class="text-foreground">Droit de rectification (art. 16)</strong> : corriger vos données inexactes ou incomplètes (depuis vos paramètres de compte).</li>
+                <li><strong class="text-foreground">Droit à l'effacement (art. 17)</strong> : demander la suppression de votre compte et de vos données, sauf obligation légale de conservation.</li>
+                <li><strong class="text-foreground">Droit à la limitation (art. 18)</strong> : demander la suspension temporaire du traitement en cas de contestation.</li>
+                <li><strong class="text-foreground">Droit à la portabilité (art. 20)</strong> : recevoir vos données dans un format structuré et lisible par machine.</li>
+                <li><strong class="text-foreground">Droit d'opposition (art. 21)</strong> : vous opposer au traitement fondé sur notre intérêt légitime.</li>
+                <li><strong class="text-foreground">Droit de retirer votre consentement</strong> : à tout moment pour les traitements basés sur le consentement (cookies analytiques).</li>
               </ul>
-              <p class="pt-2">Pour exercer ces droits, contactez-nous à <a href="mailto:contact@verifiermondevis.fr" class="text-primary hover:underline">contact@verifiermondevis.fr</a>.</p>
+              <div class="bg-muted/50 rounded-lg p-4 mt-3">
+                <p class="font-medium text-foreground mb-1">Exercer vos droits</p>
+                <p>
+                  Contactez-nous à <a href="mailto:contact@verifiermondevis.fr" class="text-primary hover:underline">contact@verifiermondevis.fr</a> en précisant votre demande.
+                  Nous répondrons dans un délai d'<strong>un mois</strong>.
+                </p>
+                <p class="mt-2">
+                  En cas de réponse insatisfaisante, vous pouvez introduire une réclamation auprès de la
+                  <strong class="text-foreground">CNIL</strong> : <a href="https://www.cnil.fr/fr/plaintes" target="_blank" rel="noreferrer" class="text-primary hover:underline">www.cnil.fr/fr/plaintes</a>
+                  ou par courrier : CNIL — 3, place de Fontenoy — TSA 80715 — 75334 Paris Cedex 07.
+                </p>
+              </div>
             </div>
           </section>
 
+          {/* 7. Cookies */}
           <section class="bg-card border border-border rounded-xl p-6">
             <h2 class="text-xl font-semibold text-foreground mb-4">7. Cookies</h2>
             <div class="text-muted-foreground space-y-3">
               <p>Le site utilise deux catégories de cookies :</p>
               <ul class="list-disc pl-5 space-y-2">
-                <li><strong class="text-foreground">Cookies techniques</strong> (obligatoires) : authentification, session utilisateur. Ces cookies sont nécessaires au fonctionnement du service et ne requièrent pas votre consentement.</li>
-                <li><strong class="text-foreground">Cookies d'analyse</strong> (optionnels) : Google Analytics et Meta Pixel, utilisés pour mesurer la fréquentation et améliorer le service. Ces cookies ne sont déposés qu'avec votre <strong class="text-foreground">consentement explicite</strong>.</li>
+                <li>
+                  <strong class="text-foreground">Cookies strictement nécessaires</strong> : authentification, session utilisateur.
+                  Ces cookies sont indispensables au fonctionnement du service et ne requièrent pas votre consentement.
+                  Durée : session ou 7 jours selon les cas.
+                </li>
+                <li>
+                  <strong class="text-foreground">Cookies d'analyse et de mesure d'audience</strong> (optionnels) :
+                  Google Analytics et Meta Pixel. Déposés uniquement avec votre <strong class="text-foreground">consentement explicite</strong>
+                  via le bandeau affiché lors de votre première visite. Durée : 13 mois maximum.
+                </li>
               </ul>
-              <p>Vous pouvez modifier votre choix à tout moment en supprimant vos cookies de navigation ou via le bandeau de consentement affiché lors de votre première visite.</p>
+              <p>
+                Vous pouvez modifier votre choix à tout moment en supprimant vos cookies de navigation ou via le bandeau de
+                consentement. Le retrait du consentement n'affecte pas la licéité du traitement antérieur.
+              </p>
             </div>
           </section>
 
+          {/* 8. Sécurité */}
           <section class="bg-card border border-border rounded-xl p-6">
-            <h2 class="text-xl font-semibold text-foreground mb-4">8. Modifications</h2>
-            <p class="text-muted-foreground">Nous nous réservons le droit de modifier cette politique de confidentialité. Toute modification sera publiée sur cette page avec une date de mise à jour.</p>
+            <h2 class="text-xl font-semibold text-foreground mb-4">8. Sécurité des données</h2>
+            <div class="text-muted-foreground space-y-2">
+              <p>Nous mettons en œuvre les mesures techniques et organisationnelles suivantes :</p>
+              <ul class="list-disc pl-5 space-y-1">
+                <li>Chiffrement des données en transit (HTTPS/TLS)</li>
+                <li>Chiffrement des données au repos (Supabase AES-256)</li>
+                <li>Contrôle d'accès par règles RLS (Row Level Security) — chaque utilisateur n'accède qu'à ses propres données</li>
+                <li>Authentification sécurisée via Supabase Auth (JWT)</li>
+                <li>Accès aux clés secrètes limité aux services techniques (Vercel, Supabase)</li>
+              </ul>
+            </div>
           </section>
+
+          {/* 9. Modifications */}
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">9. Modifications de cette politique</h2>
+            <p class="text-muted-foreground">
+              Nous nous réservons le droit de modifier cette politique de confidentialité pour tenir compte de l'évolution
+              du service ou de la réglementation. Toute modification substantielle vous sera notifiée par email ou via le
+              site. La date de dernière mise à jour est indiquée en haut de cette page.
+            </p>
+          </section>
+
         </div>
       </div>
     </main>

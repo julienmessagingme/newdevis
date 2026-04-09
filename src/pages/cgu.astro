@@ -2,13 +2,11 @@
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import AstroHeader from '@/components/astro/Header.astro';
 import AstroFooter from '@/components/astro/Footer.astro';
-
-const lastUpdated = new Date().toLocaleDateString('fr-FR');
 ---
 
 <BaseLayout
   title="Conditions Générales d'Utilisation | VerifierMonDevis.fr"
-  description="Consultez les CGU de VerifierMonDevis.fr : nature du service, responsabilités, données utilisées. Service d'analyse indicatif et non contractuel."
+  description="CGU de VerifierMonDevis.fr : conditions d'utilisation du service d'analyse de devis et de gestion de chantier."
   canonical="https://www.verifiermondevis.fr/cgu"
   breadcrumbs={[
     { name: "Accueil", url: "https://www.verifiermondevis.fr/" },
@@ -29,62 +27,198 @@ const lastUpdated = new Date().toLocaleDateString('fr-FR');
           Retour à l'accueil
         </a>
 
-        <h1 class="text-3xl font-bold text-foreground mb-8">
+        <h1 class="text-3xl font-bold text-foreground mb-2">
           Conditions Générales d'Utilisation
         </h1>
-        <p class="text-muted-foreground mb-8">VerifierMonDevis.fr</p>
+        <p class="text-sm text-muted-foreground mb-8">VerifierMonDevis.fr — Dernière mise à jour : avril 2025</p>
 
         <div class="space-y-8">
+
           <section class="bg-card border border-border rounded-xl p-6">
-            <h2 class="text-xl font-semibold text-foreground mb-4">1. Objet du service</h2>
+            <h2 class="text-xl font-semibold text-foreground mb-4">1. Objet</h2>
             <div class="text-muted-foreground space-y-3">
-              <p>VerifierMonDevis.fr propose un service d'analyse automatisée de devis d'artisans à destination des particuliers.</p>
-              <p>Le service a pour unique vocation de fournir des <strong class="text-foreground">indicateurs de vigilance</strong> et d'<strong class="text-foreground">information</strong>.</p>
+              <p>
+                Les présentes Conditions Générales d'Utilisation (CGU) régissent l'accès et l'utilisation du site
+                <strong class="text-foreground">VerifierMonDevis.fr</strong>, exploité par Julien Bridey, entrepreneur individuel.
+              </p>
+              <p>
+                Le service propose :
+              </p>
+              <ul class="list-disc pl-5 space-y-1">
+                <li>une <strong class="text-foreground">analyse automatisée et indicative</strong> de devis d'artisans à destination des particuliers,</li>
+                <li>un <strong class="text-foreground">outil de gestion de chantier</strong> (« Mon Chantier ») permettant de centraliser devis, factures, contacts et planning.</li>
+              </ul>
+              <p>
+                L'utilisation du service implique l'acceptation pleine et entière des présentes CGU.
+                Les <a href="/cgv" class="text-primary hover:underline">Conditions Générales de Vente</a> s'appliquent en complément pour les services payants.
+              </p>
             </div>
           </section>
 
           <section class="bg-card border border-border rounded-xl p-6">
-            <h2 class="text-xl font-semibold text-foreground mb-4">2. Nature des informations fournies</h2>
+            <h2 class="text-xl font-semibold text-foreground mb-4">2. Création de compte</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>
+                L'accès au service nécessite la création d'un compte avec une adresse email valide et un mot de passe.
+                L'utilisateur s'engage à :
+              </p>
+              <ul class="list-disc pl-5 space-y-1">
+                <li>fournir des informations exactes et à les tenir à jour,</li>
+                <li>maintenir la confidentialité de ses identifiants,</li>
+                <li>ne pas créer de compte pour le compte d'un tiers sans autorisation,</li>
+                <li>signaler immédiatement toute utilisation non autorisée de son compte.</li>
+              </ul>
+              <p>
+                Un seul compte par personne physique est autorisé. L'éditeur se réserve le droit de suspendre ou supprimer
+                tout compte dont l'utilisation contreviendrait aux présentes CGU.
+              </p>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">3. Nature des informations fournies</h2>
             <div class="text-muted-foreground space-y-3">
               <p>Les résultats affichés sont :</p>
               <ul class="list-disc pl-5 space-y-1">
-                <li><strong class="text-foreground">indicatifs</strong>,</li>
-                <li><strong class="text-foreground">non contractuels</strong>,</li>
-                <li>basés sur des <strong class="text-foreground">données publiques et déclaratives</strong>.</li>
+                <li><strong class="text-foreground">indicatifs et non contractuels</strong>,</li>
+                <li>basés sur des <strong class="text-foreground">données publiques et des algorithmes automatisés</strong>,</li>
+                <li>sujets à des mises à jour sans préavis.</li>
               </ul>
-              <p class="pt-2">VerifierMonDevis.fr ne garantit ni l'exactitude, ni l'exhaustivité des informations analysées.</p>
+              <p>
+                VerifierMonDevis.fr ne garantit ni l'exactitude, ni l'exhaustivité, ni la complétude des informations analysées.
+                Les résultats ne constituent en aucun cas un conseil juridique, financier ou technique certifié.
+              </p>
             </div>
           </section>
 
           <section class="bg-card border border-border rounded-xl p-6">
-            <h2 class="text-xl font-semibold text-foreground mb-4">3. Absence de responsabilité</h2>
+            <h2 class="text-xl font-semibold text-foreground mb-4">4. Responsabilité de l'utilisateur</h2>
             <div class="text-muted-foreground space-y-3">
-              <p>L'utilisateur demeure <strong class="text-foreground">seul décisionnaire</strong> quant au choix de l'artisan et à la réalisation des travaux.</p>
-              <p>VerifierMonDevis.fr ne saurait être tenu responsable des conséquences financières, techniques ou juridiques résultant de l'utilisation du service.</p>
+              <p>
+                L'utilisateur demeure <strong class="text-foreground">seul décisionnaire</strong> quant au choix de l'artisan
+                et à la réalisation des travaux. VerifierMonDevis.fr ne saurait être tenu responsable des conséquences
+                financières, techniques ou juridiques résultant de l'utilisation du service.
+              </p>
+              <p>
+                L'utilisateur s'engage à n'uploader que des documents dont il est le destinataire légitime.
+                Il est interdit d'utiliser le service à des fins frauduleuses, illégales ou portant atteinte aux droits des tiers.
+              </p>
             </div>
           </section>
 
           <section class="bg-card border border-border rounded-xl p-6">
-            <h2 class="text-xl font-semibold text-foreground mb-4">4. Absence de notation des artisans</h2>
+            <h2 class="text-xl font-semibold text-foreground mb-4">5. Absence de notation des artisans</h2>
             <div class="text-muted-foreground space-y-3">
-              <p>VerifierMonDevis.fr <strong class="text-foreground">n'attribue aucune note, classement ou appréciation</strong> aux artisans ou entreprises analysés.</p>
-              <p>Le service porte exclusivement sur l'analyse d'un devis à un instant donné.</p>
+              <p>
+                VerifierMonDevis.fr <strong class="text-foreground">n'attribue aucune note, classement ou appréciation directe</strong>
+                aux artisans ou entreprises analysés. Le score affiché porte exclusivement sur le document (devis) à un instant donné,
+                sur la base de données publiques disponibles.
+              </p>
+              <p>
+                Les données affichées proviennent de sources publiques (INSEE, BODACC, ADEME, Infogreffe, Géorisques, Google Places).
+                Tout professionnel estimant qu'une information est inexacte peut demander une rectification via le
+                <a href="/contact" class="text-primary hover:underline">formulaire de contact</a>.
+              </p>
             </div>
           </section>
 
           <section class="bg-card border border-border rounded-xl p-6">
-            <h2 class="text-xl font-semibold text-foreground mb-4">5. Données et sources</h2>
-            <p class="text-muted-foreground">Les données utilisées proviennent de <strong class="text-foreground">sources publiques</strong> (INSEE, BODACC, ADEME, etc.) et des documents transmis par l'utilisateur.</p>
+            <h2 class="text-xl font-semibold text-foreground mb-4">6. Pass Sérénité (service premium)</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>
+                L'accès aux fonctionnalités premium est soumis à la souscription du
+                <strong class="text-foreground">Pass Sérénité</strong> (abonnement mensuel).
+                Les conditions tarifaires, de paiement, de rétractation et de résiliation sont définies dans les
+                <a href="/cgv" class="text-primary hover:underline">Conditions Générales de Vente</a>.
+              </p>
+              <p>
+                L'offre gratuite donne accès à <strong class="text-foreground">5 analyses</strong> à vie.
+                Au-delà, l'accès aux résultats nécessite l'abonnement.
+              </p>
+            </div>
           </section>
 
           <section class="bg-card border border-border rounded-xl p-6">
-            <h2 class="text-xl font-semibold text-foreground mb-4">6. Réclamations et signalements</h2>
-            <p class="text-muted-foreground">Tout professionnel estimant qu'une information est inexacte peut demander une rectification via le <a href="/contact" class="text-primary hover:underline">formulaire de contact</a>.</p>
+            <h2 class="text-xl font-semibold text-foreground mb-4">7. Propriété intellectuelle</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>
+                L'ensemble des contenus du site (textes, algorithmes, prompts IA, base de prix, code source, logo, design)
+                est protégé par le droit de la propriété intellectuelle et demeure la propriété exclusive de l'éditeur.
+              </p>
+              <p>
+                Toute reproduction ou utilisation sans autorisation écrite préalable est interdite.
+              </p>
+              <p>
+                Les documents uploadés par l'utilisateur demeurent sa propriété. Il accorde à VerifierMonDevis.fr une
+                licence temporaire et limitée pour traiter ces documents aux seules fins d'exécution du service.
+              </p>
+            </div>
           </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">8. Disponibilité et modifications du service</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>
+                L'éditeur s'efforce d'assurer la disponibilité du service 24h/24, 7j/7, mais ne peut garantir une disponibilité
+                ininterrompue. Des interruptions pour maintenance ou incidents techniques peuvent survenir.
+              </p>
+              <p>
+                L'éditeur se réserve le droit de <strong class="text-foreground">modifier, suspendre ou interrompre</strong> tout ou partie
+                des fonctionnalités du service, y compris les fonctionnalités gratuites, sans préavis.
+                Les modifications substantielles affectant les utilisateurs abonnés feront l'objet d'un préavis raisonnable.
+              </p>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">9. Résiliation et suppression du compte</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>
+                L'utilisateur peut supprimer son compte à tout moment depuis la page
+                <a href="/parametres" class="text-primary hover:underline">Paramètres</a> ou en contactant le support.
+                La suppression entraîne l'effacement de toutes les données personnelles dans les conditions définies à la
+                <a href="/confidentialite" class="text-primary hover:underline">politique de confidentialité</a>.
+              </p>
+              <p>
+                En cas de non-respect des présentes CGU, l'éditeur se réserve le droit de suspendre ou résilier le compte
+                sans préavis ni indemnité.
+              </p>
+            </div>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">10. Force majeure</h2>
+            <p class="text-muted-foreground">
+              L'éditeur ne saurait être tenu responsable des défaillances ou interruptions de service résultant de cas de
+              force majeure au sens de l'article 1218 du Code civil (catastrophe naturelle, coupure de réseau, cyberattaque
+              d'ampleur, panne de prestataire tiers, etc.).
+            </p>
+          </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">11. Médiation et droit applicable</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>Les présentes CGU sont soumises au droit français.</p>
+              <p>
+                En cas de litige, l'utilisateur est invité à contacter en premier lieu le service client à
+                <a href="mailto:contact@verifiermondevis.fr" class="text-primary hover:underline">contact@verifiermondevis.fr</a>.
+              </p>
+              <p>
+                Conformément à l'article L.616-1 du Code de la consommation, en cas de litige non résolu, le consommateur
+                peut recourir gratuitement à la médiation :
+                <strong class="text-foreground">Médiateur du e-commerce de la FEVAD</strong> —
+                <a href="https://www.mediateurfevad.fr" target="_blank" rel="noreferrer" class="text-primary hover:underline">www.mediateurfevad.fr</a>.
+              </p>
+              <p>
+                À défaut de résolution amiable, les tribunaux français seront seuls compétents.
+              </p>
+            </div>
+          </section>
+
         </div>
 
         <p class="text-sm text-muted-foreground text-center mt-12">
-          Dernière mise à jour : {lastUpdated}
+          Dernière mise à jour : avril 2025
         </p>
       </div>
     </main>

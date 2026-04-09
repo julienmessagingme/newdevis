@@ -1,0 +1,1560 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — Budget & Trésorerie</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --border: #e8eaed;
+  --border-light: #f0f2f5;
+  --text-primary: #0f1923;
+  --text-secondary: #5c6370;
+  --text-muted: #9aa0ac;
+  --green: #00c896;
+  --green-bg: #e8faf5;
+  --green-dark: #00a87e;
+  --orange: #ff8c42;
+  --orange-bg: #fff4ec;
+  --red: #ef4444;
+  --red-bg: #fef2f2;
+  --blue: #3b82f6;
+  --blue-bg: #eff6ff;
+  --purple: #8b5cf6;
+  --purple-bg: #f5f3ff;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --shadow: 0 4px 16px rgba(0,0,0,.07), 0 1px 4px rgba(0,0,0,.04);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,.10), 0 4px 12px rgba(0,0,0,.06);
+  --radius: 16px;
+  --radius-sm: 10px;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text-primary);
+  padding: 40px 20px 80px;
+  line-height: 1.5;
+}
+
+/* ── Page wrapper ── */
+.page { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+.page-header { text-align: center; }
+.page-header h1 { font-size: 24px; font-weight: 800; color: var(--text-primary); letter-spacing: -.5px; }
+.page-header p { font-size: 13px; color: var(--text-muted); margin-top: 6px; }
+
+/* ── Screen frame ── */
+.screen-label {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--text-primary); color: #f8fafc;
+  font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  padding: 6px 14px; border-radius: 8px 8px 0 0;
+}
+.screen-label .dot { width: 6px; height: 6px; border-radius: 50%; }
+.dot-green { background: var(--green); }
+.dot-orange { background: var(--orange); }
+.dot-blue { background: var(--blue); }
+.screen-wrap {
+  border: 2px solid var(--border);
+  border-radius: 0 var(--radius) var(--radius) var(--radius);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* ── App chrome ── */
+.app-bar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.app-bar-title { font-size: 17px; font-weight: 700; color: var(--text-primary); }
+.app-bar-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.app-bar-actions { display: flex; gap: 8px; }
+.btn-icon {
+  width: 36px; height: 36px; border-radius: var(--radius-sm);
+  background: var(--bg); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 14px;
+}
+
+/* ── Tabs ── */
+.tabs-bar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  display: flex; gap: 0;
+}
+.tab {
+  padding: 14px 20px; font-size: 13px; font-weight: 600;
+  color: var(--text-muted); border-bottom: 2.5px solid transparent;
+  cursor: pointer; white-space: nowrap;
+  transition: all .2s;
+}
+.tab.active { color: var(--text-primary); border-bottom-color: var(--text-primary); }
+.tab-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--red); color: white; font-size: 10px; font-weight: 700;
+  width: 16px; height: 16px; border-radius: 8px; margin-left: 6px;
+}
+
+/* ── Tab content ── */
+.tab-content { padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+
+/* ── Cards ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 20px 0;
+}
+.card-title { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .08em; }
+.card-body { padding: 16px 20px 20px; }
+
+/* ── HERO BLOCK ── */
+.hero-card {
+  background: linear-gradient(135deg, #0f1923 0%, #1a2738 50%, #0d2137 100%);
+  border: none;
+  border-radius: var(--radius);
+  padding: 28px 28px 24px;
+  color: white;
+  position: relative;
+  overflow: hidden;
+}
+.hero-card::before {
+  content: '';
+  position: absolute; top: -60px; right: -60px;
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, rgba(0,200,150,.15) 0%, transparent 70%);
+  border-radius: 50%;
+}
+.hero-status {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,.1); backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 24px; padding: 6px 14px;
+  font-size: 12px; font-weight: 600; color: white;
+  margin-bottom: 20px;
+}
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .6; transform: scale(.85); }
+}
+.status-ok { background: var(--green); }
+.status-warn { background: var(--orange); }
+.status-danger { background: var(--red); }
+
+.hero-message { font-size: 22px; font-weight: 800; color: white; letter-spacing: -.5px; line-height: 1.25; margin-bottom: 28px; }
+.hero-message span { color: var(--green); }
+
+.hero-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.hero-kpi {
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 12px; padding: 14px 16px;
+}
+.hero-kpi-label { font-size: 10px; font-weight: 600; color: rgba(255,255,255,.5); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+.hero-kpi-value { font-size: 20px; font-weight: 800; color: white; letter-spacing: -.5px; }
+.hero-kpi-sub { font-size: 11px; color: rgba(255,255,255,.45); margin-top: 3px; }
+.hero-kpi.danger .hero-kpi-value { color: #fca5a5; }
+.hero-kpi.warn .hero-kpi-value { color: #fdba74; }
+.hero-kpi.ok .hero-kpi-value { color: #6ee7b7; }
+
+/* Jauge */
+.hero-gauge { margin-top: 20px; }
+.gauge-bar { height: 6px; background: rgba(255,255,255,.1); border-radius: 99px; overflow: hidden; }
+.gauge-fill { height: 100%; border-radius: 99px; transition: width .6s ease; }
+.gauge-labels { display: flex; justify-content: space-between; margin-top: 6px; font-size: 10px; color: rgba(255,255,255,.35); }
+
+/* ── Graph block ── */
+.graph-card .card-body { padding: 16px 20px 20px; }
+.graph-meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.graph-period {
+  display: flex; gap: 4px;
+}
+.period-btn {
+  padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 600;
+  background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+  cursor: pointer;
+}
+.period-btn.active { background: var(--text-primary); color: white; border-color: transparent; }
+.graph-alert {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--red-bg); border: 1px solid #fecaca;
+  border-radius: 8px; padding: 5px 12px;
+  font-size: 11px; font-weight: 600; color: var(--red);
+}
+.chart-wrap { position: relative; height: 180px; }
+
+/* ── Legend dots ── */
+.legend { display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-secondary); }
+.legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── Artisan list ── */
+.artisans-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 4px;
+}
+.artisans-sort { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
+.artisan-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  display: flex; align-items: center; gap: 14px;
+  cursor: pointer;
+  transition: box-shadow .15s, border-color .15s;
+  margin-bottom: 8px;
+}
+.artisan-card:last-child { margin-bottom: 0; }
+.artisan-card:hover { box-shadow: var(--shadow); border-color: #d1d5db; }
+.artisan-card.problem { border-left: 3px solid var(--red); }
+.artisan-card.warning { border-left: 3px solid var(--orange); }
+.artisan-card.ok { border-left: 3px solid var(--green); }
+
+.artisan-avatar {
+  width: 40px; height: 40px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0;
+}
+.avatar-red { background: var(--red-bg); }
+.avatar-orange { background: var(--orange-bg); }
+.avatar-green { background: var(--green-bg); }
+.avatar-blue { background: var(--blue-bg); }
+.avatar-purple { background: var(--purple-bg); }
+
+.artisan-info { flex: 1; min-width: 0; }
+.artisan-name-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.artisan-name { font-size: 14px; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700;
+  white-space: nowrap; flex-shrink: 0;
+}
+.badge-ok { background: var(--green-bg); color: var(--green-dark); }
+.badge-warn { background: var(--orange-bg); color: #c2410c; }
+.badge-danger { background: var(--red-bg); color: #dc2626; }
+.badge-blue { background: var(--blue-bg); color: #1d4ed8; }
+
+.progress-wrap { margin-bottom: 6px; }
+.progress-bar { height: 5px; background: var(--border-light); border-radius: 99px; overflow: hidden; display: flex; }
+.progress-paid { background: var(--green); border-radius: 99px; }
+.progress-engaged { background: var(--blue); border-radius: 99px; }
+
+.artisan-amounts { display: flex; gap: 16px; }
+.amount-item { display: flex; flex-direction: column; }
+.amount-label { font-size: 10px; color: var(--text-muted); font-weight: 600; }
+.amount-value { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.amount-value.green { color: var(--green-dark); }
+.amount-value.red { color: var(--red); }
+
+.artisan-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+.next-action {
+  font-size: 11px; font-weight: 600; color: var(--text-secondary);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 5px 10px; white-space: nowrap;
+}
+.alert-chip {
+  font-size: 10px; font-weight: 700; color: var(--red);
+  background: var(--red-bg); border-radius: 99px; padding: 2px 8px;
+}
+
+/* ── DRAWER ── */
+.drawer-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.3); z-index: 100;
+  opacity: 0; pointer-events: none; transition: opacity .25s;
+}
+.drawer-overlay.open { opacity: 1; pointer-events: all; }
+.drawer {
+  position: fixed; right: 0; top: 0; bottom: 0; width: 420px;
+  background: var(--surface); box-shadow: var(--shadow-lg);
+  z-index: 101; transform: translateX(100%);
+  transition: transform .3s cubic-bezier(.16,1,.3,1);
+  overflow-y: auto; display: flex; flex-direction: column;
+}
+.drawer.open { transform: translateX(0); }
+.drawer-header {
+  padding: 20px 24px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-start; justify-content: space-between;
+  position: sticky; top: 0; background: var(--surface); z-index: 1;
+}
+.drawer-title { font-size: 16px; font-weight: 800; color: var(--text-primary); }
+.drawer-sub { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+.drawer-close {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: var(--bg); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 16px; color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.drawer-body { padding: 20px 24px; flex: 1; display: flex; flex-direction: column; gap: 20px; }
+
+.drawer-section-title { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px; }
+.payment-row {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  margin-bottom: 8px; background: var(--surface);
+}
+.payment-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+.payment-info { flex: 1; min-width: 0; }
+.payment-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.payment-date { font-size: 11px; color: var(--text-muted); }
+.payment-amount { font-size: 14px; font-weight: 800; color: var(--text-primary); flex-shrink: 0; }
+.payment-status { padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; }
+.ps-paid { background: var(--green-bg); color: var(--green-dark); }
+.ps-pending { background: var(--orange-bg); color: #c2410c; }
+.ps-overdue { background: var(--red-bg); color: var(--red); }
+.ps-planned { background: var(--blue-bg); color: var(--blue); }
+
+.drawer-actions { display: flex; gap: 8px; padding: 16px 24px; border-top: 1px solid var(--border); }
+.btn-primary {
+  flex: 1; padding: 12px; border-radius: 10px;
+  background: var(--text-primary); color: white;
+  font-size: 13px; font-weight: 700; border: none; cursor: pointer;
+  transition: opacity .2s;
+}
+.btn-primary:hover { opacity: .85; }
+.btn-secondary {
+  flex: 1; padding: 12px; border-radius: 10px;
+  background: var(--bg); color: var(--text-primary);
+  font-size: 13px; font-weight: 700;
+  border: 1px solid var(--border); cursor: pointer;
+}
+
+.justificatif-row {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; margin-bottom: 6px;
+}
+.justificatif-icon { font-size: 16px; flex-shrink: 0; }
+.justificatif-info { flex: 1; min-width: 0; }
+.justificatif-name { font-size: 12px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.justificatif-meta { font-size: 10px; color: var(--text-muted); }
+.justificatif-action { font-size: 11px; color: var(--blue); font-weight: 600; cursor: pointer; flex-shrink: 0; }
+
+/* ── ONGLET 2 — ÉCHÉANCIER ── */
+.timeline-group { margin-bottom: 20px; }
+.timeline-group-label {
+  font-size: 11px; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .08em;
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 10px;
+}
+.timeline-group-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.timeline-item {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  cursor: pointer; transition: box-shadow .15s;
+}
+.timeline-item:hover { box-shadow: var(--shadow); }
+.timeline-item.overdue { border-left: 3px solid var(--red); }
+.timeline-date-badge {
+  display: flex; flex-direction: column; align-items: center;
+  min-width: 44px; padding: 6px 8px;
+  background: var(--bg); border-radius: 8px; text-align: center;
+}
+.date-day { font-size: 18px; font-weight: 800; line-height: 1; color: var(--text-primary); }
+.date-month { font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
+.date-badge-overdue { background: var(--red-bg); }
+.date-badge-overdue .date-day, .date-badge-overdue .date-month { color: var(--red); }
+.timeline-info { flex: 1; min-width: 0; }
+.timeline-artisan { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.timeline-label { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.timeline-amount { font-size: 15px; font-weight: 800; color: var(--text-primary); flex-shrink: 0; }
+.timeline-mark-btn {
+  padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700;
+  background: var(--green-bg); color: var(--green-dark);
+  border: 1px solid #a7f3d0; cursor: pointer;
+  flex-shrink: 0; white-space: nowrap;
+}
+.timeline-item.paid { opacity: .55; }
+.timeline-item.paid .timeline-amount { color: var(--green-dark); }
+
+/* ── ONGLET 3 — FINANCEMENT ── */
+.fin-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.fin-kpi {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 14px 16px;
+}
+.fin-kpi-label { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+.fin-kpi-value { font-size: 20px; font-weight: 800; color: var(--text-primary); letter-spacing: -.5px; }
+.fin-kpi-sub { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+.fin-kpi.highlight { background: var(--green-bg); border-color: #a7f3d0; }
+.fin-kpi.highlight .fin-kpi-value { color: var(--green-dark); }
+.fin-kpi.alert-kpi { background: var(--orange-bg); border-color: #fed7aa; }
+.fin-kpi.alert-kpi .fin-kpi-value { color: #c2410c; }
+
+.coverage-bar { margin-top: 12px; }
+.coverage-track { height: 8px; background: var(--border-light); border-radius: 99px; overflow: hidden; }
+.coverage-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--green), #00e5aa); }
+.coverage-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); margin-top: 5px; font-weight: 600; }
+
+.fin-source-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 16px 18px;
+  margin-bottom: 10px; display: flex; align-items: center; gap: 14px;
+}
+.fin-source-icon { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.fin-source-info { flex: 1; min-width: 0; }
+.fin-source-name { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.fin-source-detail { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.fin-source-bar { height: 5px; background: var(--border-light); border-radius: 99px; overflow: hidden; margin-top: 8px; }
+.fin-source-fill { height: 100%; border-radius: 99px; }
+.fin-source-right { text-align: right; flex-shrink: 0; }
+.fin-source-amount { font-size: 16px; font-weight: 800; color: var(--text-primary); }
+.fin-source-used { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+.tip-card {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: var(--blue-bg); border: 1px solid #bfdbfe;
+  border-radius: var(--radius-sm); padding: 12px 14px;
+  margin-top: 8px;
+}
+.tip-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.tip-text { font-size: 12px; color: #1e40af; line-height: 1.5; }
+.tip-text strong { font-weight: 700; }
+
+/* Simulateur */
+.simulator-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+.simulator-title { font-size: 13px; font-weight: 800; color: var(--text-primary); margin-bottom: 16px; }
+.sim-inputs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+.sim-input-wrap { display: flex; flex-direction: column; gap: 5px; }
+.sim-input-label { font-size: 11px; font-weight: 600; color: var(--text-muted); }
+.sim-input {
+  padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+  font-size: 14px; font-weight: 700; color: var(--text-primary);
+  font-family: inherit; background: var(--bg); text-align: right;
+}
+.sim-input:focus { outline: none; border-color: var(--text-primary); background: white; }
+.sim-results {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  background: var(--bg); border-radius: 10px; padding: 14px;
+  margin-bottom: 14px;
+}
+.sim-result { text-align: center; }
+.sim-result-label { font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+.sim-result-value { font-size: 18px; font-weight: 800; color: var(--text-primary); margin-top: 4px; }
+.sim-result-value.accent { color: var(--green-dark); }
+.sim-reco {
+  display: flex; align-items: center; gap: 10px;
+  background: linear-gradient(90deg, #ecfdf5, #f0fdf4);
+  border: 1px solid #a7f3d0; border-radius: 10px; padding: 12px 14px;
+}
+.sim-reco-icon { font-size: 18px; flex-shrink: 0; }
+.sim-reco-text { font-size: 12px; color: #065f46; }
+.sim-reco-text strong { font-weight: 800; font-size: 13px; }
+
+/* ── Alert banner ── */
+.alert-banner {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; border-radius: var(--radius-sm);
+  font-size: 12px; font-weight: 600;
+}
+.alert-banner.danger { background: var(--red-bg); border: 1px solid #fecaca; color: #dc2626; }
+.alert-banner.warning { background: var(--orange-bg); border: 1px solid #fed7aa; color: #c2410c; }
+.alert-banner.info { background: var(--blue-bg); border: 1px solid #bfdbfe; color: #1d4ed8; }
+.alert-icon { font-size: 16px; flex-shrink: 0; }
+.alert-text { flex: 1; line-height: 1.4; }
+.alert-action { font-size: 11px; font-weight: 700; cursor: pointer; text-decoration: underline; white-space: nowrap; }
+
+/* ── Separator ── */
+hr.section-sep { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+
+/* ── Misc ── */
+.col2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.divider-text { text-align: center; font-size: 11px; color: var(--text-muted); position: relative; margin: 8px 0; }
+.divider-text::before, .divider-text::after { content: ''; position: absolute; top: 50%; width: 44%; height: 1px; background: var(--border); }
+.divider-text::before { left: 0; }
+.divider-text::after { right: 0; }
+.flex-between { display: flex; align-items: center; justify-content: space-between; }
+.text-sm-muted { font-size: 11px; color: var(--text-muted); }
+.text-sm-primary { font-size: 11px; font-weight: 700; color: var(--text-primary); }
+
+/* ── Annotation boxes (for context) ── */
+.anno {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #fffbeb; border: 1px dashed #f59e0b;
+  border-radius: 6px; padding: 4px 10px;
+  font-size: 10px; color: #92400e; font-weight: 600;
+  margin-bottom: 8px; font-style: italic;
+}
+
+/* hidden tabs */
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <div class="page-header">
+    <h1>Budget & Trésorerie — Mockup complet</h1>
+    <p>Renovation cuisine + salle de bain · Budget total 42 500 €</p>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       ONGLET 1 — TRÉSORERIE (cockpit principal)
+  ════════════════════════════════════════ -->
+  <div>
+    <div class="screen-label"><span class="dot dot-green"></span> Onglet 1 — Trésorerie · Cockpit principal</div>
+    <div class="screen-wrap">
+
+      <!-- App bar -->
+      <div class="app-bar">
+        <div>
+          <div class="app-bar-title">Budget & Trésorerie</div>
+          <div class="app-bar-sub">Rénovation cuisine + salle de bain · Mis à jour il y a 2 min</div>
+        </div>
+        <div class="app-bar-actions">
+          <div class="btn-icon">📤</div>
+          <div class="btn-icon">⚙️</div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs-bar">
+        <div class="tab active">Trésorerie</div>
+        <div class="tab">Échéancier <span class="tab-badge">3</span></div>
+        <div class="tab">Financement</div>
+      </div>
+
+      <div class="tab-content">
+
+        <!-- ① HERO -->
+        <div class="anno">① Bloc HERO — situation globale en 3 secondes</div>
+        <div class="hero-card">
+          <div class="hero-status">
+            <span class="status-dot status-warn"></span>
+            Tension dans 18 jours
+          </div>
+          <div class="hero-message">
+            Votre trésorerie tient jusqu'au<br><span>19 avril 2026</span>
+          </div>
+          <div class="hero-kpis">
+            <div class="hero-kpi ok">
+              <div class="hero-kpi-label">Solde projet</div>
+              <div class="hero-kpi-value">14 200 €</div>
+              <div class="hero-kpi-sub">apport + prêt débloqué</div>
+            </div>
+            <div class="hero-kpi warn">
+              <div class="hero-kpi-label">Reste à payer</div>
+              <div class="hero-kpi-value">18 750 €</div>
+              <div class="hero-kpi-sub">sur 6 artisans</div>
+            </div>
+            <div class="hero-kpi danger">
+              <div class="hero-kpi-label">Prochaine échéance</div>
+              <div class="hero-kpi-value">4 500 €</div>
+              <div class="hero-kpi-sub">Plomberie SARL · 14 avr.</div>
+            </div>
+          </div>
+          <div class="hero-gauge">
+            <div class="gauge-bar">
+              <div class="gauge-fill" style="width: 61%; background: linear-gradient(90deg, #00c896, #00e5aa 60%, #ff8c42);"></div>
+            </div>
+            <div class="gauge-labels">
+              <span>0 €</span>
+              <span>Solde actuel : 14 200 €</span>
+              <span>Budget total : 42 500 €</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Alert banner -->
+        <div class="alert-banner warning">
+          <span class="alert-icon">⚡</span>
+          <span class="alert-text"><strong>Débloquer votre prêt maintenant</strong> couvrirait les 3 prochaines échéances et éviterait la tension du 19 avril.</span>
+          <span class="alert-action">Simuler →</span>
+        </div>
+
+        <!-- ② GRAPHIQUE -->
+        <div class="anno">② Graphique — prévision de trésorerie sur 30 jours</div>
+        <div class="card graph-card">
+          <div class="card-header">
+            <span class="card-title">Prévision trésorerie</span>
+            <div class="graph-period">
+              <button class="period-btn active">30j</button>
+              <button class="period-btn">60j</button>
+              <button class="period-btn">90j</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="graph-meta">
+              <div class="text-sm-muted">Solde minimum prévu : <strong style="color:var(--red)">−2 200 € le 22 avr.</strong></div>
+              <div class="graph-alert">⚠️ Risque découvert</div>
+            </div>
+            <div class="chart-wrap">
+              <canvas id="tresoChart"></canvas>
+            </div>
+            <div class="legend">
+              <div class="legend-item"><span class="legend-dot" style="background:var(--green)"></span>Solde positif</div>
+              <div class="legend-item"><span class="legend-dot" style="background:var(--orange)"></span>Zone tension</div>
+              <div class="legend-item"><span class="legend-dot" style="background:var(--red)"></span>Découvert</div>
+              <div class="legend-item"><span class="legend-dot" style="background:var(--blue)"></span>Financement prévu</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ③ LISTE ARTISANS -->
+        <div class="anno">③ Liste artisans — tri automatique (problèmes en premier)</div>
+        <div class="artisans-header">
+          <span class="card-title" style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;">Artisans · 6 entreprises</span>
+          <span class="artisans-sort">⬇ Problèmes en premier</span>
+        </div>
+
+        <!-- Artisan 1 – PROBLÈME -->
+        <div class="artisan-card problem" onclick="openDrawer()">
+          <div class="artisan-avatar avatar-red">🔧</div>
+          <div class="artisan-info">
+            <div class="artisan-name-row">
+              <span class="artisan-name">Plomberie SARL Martin</span>
+              <span class="badge badge-danger">⚠ Facture en retard</span>
+            </div>
+            <div class="progress-wrap">
+              <div class="flex-between" style="margin-bottom:4px">
+                <span class="text-sm-muted">Avancement</span>
+                <span class="text-sm-muted">6 000 € payé · 4 500 € dû</span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-paid" style="width:44%"></div>
+                <div class="progress-engaged" style="width:13%"></div>
+              </div>
+            </div>
+            <div class="artisan-amounts">
+              <div class="amount-item">
+                <span class="amount-label">Payé</span>
+                <span class="amount-value green">6 000 €</span>
+              </div>
+              <div class="amount-item">
+                <span class="amount-label">Restant</span>
+                <span class="amount-value red">4 500 €</span>
+              </div>
+              <div class="amount-item">
+                <span class="amount-label">Total devis</span>
+                <span class="amount-value">13 500 €</span>
+              </div>
+            </div>
+          </div>
+          <div class="artisan-right">
+            <span class="alert-chip">+12 jours de retard</span>
+            <span class="next-action">Payer auj.</span>
+          </div>
+        </div>
+
+        <!-- Artisan 2 – SURVEILLANCE -->
+        <div class="artisan-card warning" onclick="openDrawer()">
+          <div class="artisan-avatar avatar-orange">🪟</div>
+          <div class="artisan-info">
+            <div class="artisan-name-row">
+              <span class="artisan-name">Menuiseries Dupont</span>
+              <span class="badge badge-warn">À surveiller</span>
+            </div>
+            <div class="progress-wrap">
+              <div class="flex-between" style="margin-bottom:4px">
+                <span class="text-sm-muted">Avancement</span>
+                <span class="text-sm-muted">3 500 € payé · 3 500 € dû</span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-paid" style="width:50%"></div>
+                <div class="progress-engaged" style="width:15%"></div>
+              </div>
+            </div>
+            <div class="artisan-amounts">
+              <div class="amount-item"><span class="amount-label">Payé</span><span class="amount-value green">3 500 €</span></div>
+              <div class="amount-item"><span class="amount-label">Restant</span><span class="amount-value red">3 500 €</span></div>
+              <div class="amount-item"><span class="amount-label">Total devis</span><span class="amount-value">7 000 €</span></div>
+            </div>
+          </div>
+          <div class="artisan-right">
+            <span class="badge badge-warn">Éch. 18 avr.</span>
+            <span class="next-action">Vérifier avancement</span>
+          </div>
+        </div>
+
+        <!-- Artisan 3 – OK -->
+        <div class="artisan-card ok">
+          <div class="artisan-avatar avatar-green">🏗️</div>
+          <div class="artisan-info">
+            <div class="artisan-name-row">
+              <span class="artisan-name">Carrelage Pro · Lopez</span>
+              <span class="badge badge-ok">✓ OK</span>
+            </div>
+            <div class="progress-wrap">
+              <div class="flex-between" style="margin-bottom:4px">
+                <span class="text-sm-muted">Avancement</span>
+                <span class="text-sm-muted">5 200 € payé · 2 800 € dû</span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-paid" style="width:65%"></div>
+                <div class="progress-engaged" style="width:10%"></div>
+              </div>
+            </div>
+            <div class="artisan-amounts">
+              <div class="amount-item"><span class="amount-label">Payé</span><span class="amount-value green">5 200 €</span></div>
+              <div class="amount-item"><span class="amount-label">Restant</span><span class="amount-value">2 800 €</span></div>
+              <div class="amount-item"><span class="amount-label">Total devis</span><span class="amount-value">8 000 €</span></div>
+            </div>
+          </div>
+          <div class="artisan-right">
+            <span class="badge badge-blue">Éch. 2 mai</span>
+            <span class="next-action">RAS</span>
+          </div>
+        </div>
+
+        <!-- Artisan 4 – OK -->
+        <div class="artisan-card ok">
+          <div class="artisan-avatar avatar-blue">⚡</div>
+          <div class="artisan-info">
+            <div class="artisan-name-row">
+              <span class="artisan-name">Électricité Bernard</span>
+              <span class="badge badge-ok">✓ OK</span>
+            </div>
+            <div class="progress-wrap">
+              <div class="flex-between" style="margin-bottom:4px">
+                <span class="text-sm-muted">Avancement</span>
+                <span class="text-sm-muted">0 € payé · 6 200 € dû</span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-paid" style="width:0%"></div>
+                <div class="progress-engaged" style="width:25%"></div>
+              </div>
+            </div>
+            <div class="artisan-amounts">
+              <div class="amount-item"><span class="amount-label">Payé</span><span class="amount-value">0 €</span></div>
+              <div class="amount-item"><span class="amount-label">Restant</span><span class="amount-value">6 200 €</span></div>
+              <div class="amount-item"><span class="amount-label">Total devis</span><span class="amount-value">6 200 €</span></div>
+            </div>
+          </div>
+          <div class="artisan-right">
+            <span class="badge badge-blue">Démarre 2 mai</span>
+            <span class="next-action">Signer devis</span>
+          </div>
+        </div>
+
+        <!-- Artisan 5 – OK -->
+        <div class="artisan-card ok">
+          <div class="artisan-avatar avatar-purple">🖌️</div>
+          <div class="artisan-info">
+            <div class="artisan-name-row">
+              <span class="artisan-name">Peinture & Finitions Leroy</span>
+              <span class="badge badge-ok">✓ OK</span>
+            </div>
+            <div class="progress-wrap">
+              <div class="flex-between" style="margin-bottom:4px">
+                <span class="text-sm-muted">Avancement</span>
+                <span class="text-sm-muted">2 000 € payé · 2 300 € dû</span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-paid" style="width:46%"></div>
+              </div>
+            </div>
+            <div class="artisan-amounts">
+              <div class="amount-item"><span class="amount-label">Payé</span><span class="amount-value green">2 000 €</span></div>
+              <div class="amount-item"><span class="amount-label">Restant</span><span class="amount-value">2 300 €</span></div>
+              <div class="amount-item"><span class="amount-label">Total devis</span><span class="amount-value">4 300 €</span></div>
+            </div>
+          </div>
+          <div class="artisan-right">
+            <span class="badge badge-blue">Éch. 15 mai</span>
+            <span class="next-action">RAS</span>
+          </div>
+        </div>
+
+      </div><!-- /tab-content -->
+    </div><!-- /screen-wrap -->
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       ONGLET 2 — ÉCHÉANCIER
+  ════════════════════════════════════════ -->
+  <div>
+    <div class="screen-label"><span class="dot dot-orange"></span> Onglet 2 — Échéancier · Vue paiements</div>
+    <div class="screen-wrap">
+
+      <div class="app-bar">
+        <div>
+          <div class="app-bar-title">Échéancier</div>
+          <div class="app-bar-sub">3 paiements urgents · Total restant 18 750 €</div>
+        </div>
+        <div class="app-bar-actions">
+          <div class="btn-icon">🔍</div>
+          <div class="btn-icon">⬇️</div>
+        </div>
+      </div>
+
+      <div class="tabs-bar">
+        <div class="tab">Trésorerie</div>
+        <div class="tab active">Échéancier <span class="tab-badge">3</span></div>
+        <div class="tab">Financement</div>
+      </div>
+
+      <div class="tab-content">
+
+        <!-- En retard -->
+        <div class="timeline-group">
+          <div class="timeline-group-label">🔴 En retard · 1 paiement</div>
+
+          <div class="timeline-item overdue">
+            <div class="date-badge date-badge-overdue timeline-date-badge">
+              <div class="date-day">01</div>
+              <div class="date-month">Avr</div>
+            </div>
+            <div class="timeline-info">
+              <div class="timeline-artisan">Plomberie SARL Martin</div>
+              <div class="timeline-label">Facture intermédiaire #2 · +12 jours de retard</div>
+            </div>
+            <div class="timeline-amount">4 500 €</div>
+            <span class="badge badge-danger" style="flex-shrink:0">En retard</span>
+            <button class="timeline-mark-btn">✓ Marquer payé</button>
+          </div>
+        </div>
+
+        <!-- Aujourd'hui / 7 jours -->
+        <div class="timeline-group">
+          <div class="timeline-group-label">🟡 Cette semaine · 2 paiements</div>
+
+          <div class="timeline-item">
+            <div class="timeline-date-badge">
+              <div class="date-day">14</div>
+              <div class="date-month">Avr</div>
+            </div>
+            <div class="timeline-info">
+              <div class="timeline-artisan">Menuiseries Dupont</div>
+              <div class="timeline-label">Acompte 50% · Pose programmée 16 avr.</div>
+            </div>
+            <div class="timeline-amount">3 500 €</div>
+            <span class="badge badge-warn" style="flex-shrink:0">Dans 3j</span>
+            <button class="timeline-mark-btn">✓ Marquer payé</button>
+          </div>
+
+          <div class="timeline-item">
+            <div class="timeline-date-badge">
+              <div class="date-day">18</div>
+              <div class="date-month">Avr</div>
+            </div>
+            <div class="timeline-info">
+              <div class="timeline-artisan">Carrelage Pro · Lopez</div>
+              <div class="timeline-label">Solde facture finale · Réception prévue 16 avr.</div>
+            </div>
+            <div class="timeline-amount">2 800 €</div>
+            <span class="badge badge-blue" style="flex-shrink:0">Dans 7j</span>
+            <button class="timeline-mark-btn">✓ Marquer payé</button>
+          </div>
+        </div>
+
+        <!-- 30 jours -->
+        <div class="timeline-group">
+          <div class="timeline-group-label">🟢 Les 30 prochains jours · 3 paiements</div>
+
+          <div class="timeline-item">
+            <div class="timeline-date-badge">
+              <div class="date-day">02</div>
+              <div class="date-month">Mai</div>
+            </div>
+            <div class="timeline-info">
+              <div class="timeline-artisan">Électricité Bernard</div>
+              <div class="timeline-label">Acompte 30% à la commande de matériel</div>
+            </div>
+            <div class="timeline-amount">1 860 €</div>
+            <span class="badge badge-blue" style="flex-shrink:0">Planifié</span>
+            <button class="timeline-mark-btn">✓ Marquer payé</button>
+          </div>
+
+          <div class="timeline-item">
+            <div class="timeline-date-badge">
+              <div class="date-day">15</div>
+              <div class="date-month">Mai</div>
+            </div>
+            <div class="timeline-info">
+              <div class="timeline-artisan">Peinture & Finitions Leroy</div>
+              <div class="timeline-label">Facture intermédiaire · 50% travaux restants</div>
+            </div>
+            <div class="timeline-amount">2 300 €</div>
+            <span class="badge badge-blue" style="flex-shrink:0">Planifié</span>
+            <button class="timeline-mark-btn">✓ Marquer payé</button>
+          </div>
+
+          <div class="timeline-item">
+            <div class="timeline-date-badge">
+              <div class="date-day">28</div>
+              <div class="date-month">Mai</div>
+            </div>
+            <div class="timeline-info">
+              <div class="timeline-artisan">Électricité Bernard</div>
+              <div class="timeline-label">Solde facture finale après réception</div>
+            </div>
+            <div class="timeline-amount">4 340 €</div>
+            <span class="badge badge-blue" style="flex-shrink:0">Planifié</span>
+            <button class="timeline-mark-btn">✓ Marquer payé</button>
+          </div>
+        </div>
+
+        <!-- Payés -->
+        <div class="timeline-group">
+          <div class="timeline-group-label" style="color:#9ca3af">✓ Déjà payés · 5 paiements</div>
+
+          <div class="timeline-item paid">
+            <div class="timeline-date-badge" style="background:var(--green-bg)">
+              <div class="date-day" style="color:var(--green-dark)">22</div>
+              <div class="date-month" style="color:var(--green-dark)">Mar</div>
+            </div>
+            <div class="timeline-info">
+              <div class="timeline-artisan">Plomberie SARL Martin</div>
+              <div class="timeline-label">Acompte 30% · Virement BNP #REF42</div>
+            </div>
+            <div class="timeline-amount" style="color:var(--green-dark)">4 050 €</div>
+            <span class="badge badge-ok" style="flex-shrink:0">✓ Payé</span>
+          </div>
+
+          <div class="timeline-item paid">
+            <div class="timeline-date-badge" style="background:var(--green-bg)">
+              <div class="date-day" style="color:var(--green-dark)">10</div>
+              <div class="date-month" style="color:var(--green-dark)">Mar</div>
+            </div>
+            <div class="timeline-info">
+              <div class="timeline-artisan">Carrelage Pro · Lopez</div>
+              <div class="timeline-label">Acompte 40% · Virement BNP #REF38</div>
+            </div>
+            <div class="timeline-amount" style="color:var(--green-dark)">3 200 €</div>
+            <span class="badge badge-ok" style="flex-shrink:0">✓ Payé</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       ONGLET 3 — FINANCEMENT
+  ════════════════════════════════════════ -->
+  <div>
+    <div class="screen-label"><span class="dot dot-blue"></span> Onglet 3 — Financement · Stratégie & simulation</div>
+    <div class="screen-wrap">
+
+      <div class="app-bar">
+        <div>
+          <div class="app-bar-title">Financement</div>
+          <div class="app-bar-sub">Couverture 82% · Reste à financer 7 700 €</div>
+        </div>
+        <div class="app-bar-actions">
+          <div class="btn-icon">➕</div>
+          <div class="btn-icon">📊</div>
+        </div>
+      </div>
+
+      <div class="tabs-bar">
+        <div class="tab">Trésorerie</div>
+        <div class="tab">Échéancier <span class="tab-badge">3</span></div>
+        <div class="tab active">Financement</div>
+      </div>
+
+      <div class="tab-content">
+
+        <!-- ① SYNTHÈSE FINANCIÈRE -->
+        <div class="anno">① Synthèse financière — couverture globale</div>
+
+        <div class="fin-kpis">
+          <div class="fin-kpi">
+            <div class="fin-kpi-label">Coût total projet</div>
+            <div class="fin-kpi-value">42 500 €</div>
+            <div class="fin-kpi-sub">6 artisans · 5 lots</div>
+          </div>
+          <div class="fin-kpi highlight">
+            <div class="fin-kpi-label">Montant financé</div>
+            <div class="fin-kpi-value">34 800 €</div>
+            <div class="fin-kpi-sub">82% du budget</div>
+          </div>
+          <div class="fin-kpi alert-kpi">
+            <div class="fin-kpi-label">Reste à financer</div>
+            <div class="fin-kpi-value">7 700 €</div>
+            <div class="fin-kpi-sub">prêt pas encore débloqué</div>
+          </div>
+          <div class="fin-kpi">
+            <div class="fin-kpi-label">Déjà payé</div>
+            <div class="fin-kpi-value">16 700 €</div>
+            <div class="fin-kpi-sub">39% du total</div>
+          </div>
+        </div>
+
+        <div class="coverage-bar">
+          <div class="flex-between" style="margin-bottom:6px">
+            <span class="text-sm-muted" style="font-weight:700">Taux de couverture</span>
+            <span style="font-size:14px;font-weight:800;color:var(--green-dark)">82%</span>
+          </div>
+          <div class="coverage-track">
+            <div class="coverage-fill" style="width:82%"></div>
+          </div>
+          <div class="coverage-labels">
+            <span>0 €</span>
+            <span>Financé : 34 800 €</span>
+            <span>Objectif : 42 500 €</span>
+          </div>
+        </div>
+
+        <div class="alert-banner warning">
+          <span class="alert-icon">🏦</span>
+          <span class="alert-text"><strong>Il vous manque 7 700 €.</strong> Le déblocage de votre prêt travaux couvrirait exactement ce montant et sécuriserait votre trésorerie jusqu'à la réception.</span>
+          <span class="alert-action">Voir simulation →</span>
+        </div>
+
+        <hr class="section-sep">
+
+        <!-- ② SOURCES DE FINANCEMENT -->
+        <div class="anno">② Sources de financement — apport, crédit, aides</div>
+
+        <div class="card-title" style="margin-bottom:12px">Sources de financement</div>
+
+        <!-- Apport -->
+        <div class="fin-source-card">
+          <div class="fin-source-icon avatar-green">💰</div>
+          <div class="fin-source-info">
+            <div class="fin-source-name">Apport personnel</div>
+            <div class="fin-source-detail">Compte courant BNP · Utilisé à 84%</div>
+            <div class="fin-source-bar"><div class="fin-source-fill" style="width:84%;background:var(--green)"></div></div>
+          </div>
+          <div class="fin-source-right">
+            <div class="fin-source-amount">20 000 €</div>
+            <div class="fin-source-used">16 800 € utilisés</div>
+          </div>
+        </div>
+
+        <!-- Prêt travaux -->
+        <div class="fin-source-card">
+          <div class="fin-source-icon avatar-blue">🏦</div>
+          <div class="fin-source-info">
+            <div class="fin-source-name">Prêt travaux Crédit Agricole</div>
+            <div class="fin-source-detail">25 000 € · 4,2% · 60 mois · Débloqué à 28%</div>
+            <div class="fin-source-bar"><div class="fin-source-fill" style="width:28%;background:var(--blue)"></div></div>
+          </div>
+          <div class="fin-source-right">
+            <div class="fin-source-amount">25 000 €</div>
+            <div class="fin-source-used">7 000 € débloqués</div>
+          </div>
+        </div>
+
+        <!-- MaPrimeRénov -->
+        <div class="fin-source-card">
+          <div class="fin-source-icon avatar-orange">🌿</div>
+          <div class="fin-source-info">
+            <div class="fin-source-name">MaPrimeRénov' — ANAH</div>
+            <div class="fin-source-detail">Dossier déposé le 10 mars · En attente validation</div>
+            <div class="fin-source-bar"><div class="fin-source-fill" style="width:0%;background:var(--orange)"></div></div>
+          </div>
+          <div class="fin-source-right">
+            <div class="fin-source-amount" style="color:var(--orange)">4 500 €</div>
+            <div class="fin-source-used">En attente</div>
+          </div>
+        </div>
+
+        <!-- CEE -->
+        <div class="fin-source-card">
+          <div class="fin-source-icon avatar-purple">⚡</div>
+          <div class="fin-source-info">
+            <div class="fin-source-name">CEE — Certificats d'Économies d'Énergie</div>
+            <div class="fin-source-detail">À activer avant démarrage chantier électricité</div>
+            <div class="fin-source-bar"><div class="fin-source-fill" style="width:0%;background:var(--purple)"></div></div>
+          </div>
+          <div class="fin-source-right">
+            <div class="fin-source-amount" style="color:var(--purple)">1 200 €</div>
+            <div class="fin-source-used">Non activé</div>
+          </div>
+        </div>
+
+        <!-- Conseils intelligents -->
+        <div class="tip-card">
+          <span class="tip-icon">💡</span>
+          <span class="tip-text"><strong>Conseil :</strong> Débloquez votre prêt avant le 12 avril pour couvrir la facture Plomberie en retard. Votre CEE peut être activé gratuitement via votre artisan RGE — cela représente <strong>1 200 € supplémentaires</strong>.</span>
+        </div>
+
+        <hr class="section-sep">
+
+        <!-- ③ SIMULATEUR CRÉDIT -->
+        <div class="anno">③ Simulateur crédit — mensualité, coût total, recommandation</div>
+
+        <div class="simulator-card">
+          <div class="simulator-title">Simulateur de prêt travaux</div>
+          <div class="sim-inputs">
+            <div class="sim-input-wrap">
+              <label class="sim-input-label">Montant (€)</label>
+              <input class="sim-input" type="number" value="7700" oninput="updateSimulator(this)">
+            </div>
+            <div class="sim-input-wrap">
+              <label class="sim-input-label">Durée (mois)</label>
+              <input class="sim-input" type="number" value="60" oninput="updateSimulator(this)">
+            </div>
+            <div class="sim-input-wrap">
+              <label class="sim-input-label">Taux annuel (%)</label>
+              <input class="sim-input" type="number" value="4.2" step="0.1" oninput="updateSimulator(this)">
+            </div>
+          </div>
+          <div class="sim-results">
+            <div class="sim-result">
+              <div class="sim-result-label">Mensualité</div>
+              <div class="sim-result-value accent" id="sim-mensualite">142 €</div>
+            </div>
+            <div class="sim-result">
+              <div class="sim-result-label">Coût total</div>
+              <div class="sim-result-value" id="sim-total">8 523 €</div>
+            </div>
+            <div class="sim-result">
+              <div class="sim-result-label">Intérêts</div>
+              <div class="sim-result-value" id="sim-interets">823 €</div>
+            </div>
+          </div>
+          <div class="sim-reco">
+            <span class="sim-reco-icon">🎯</span>
+            <span class="sim-reco-text">
+              <strong>Vous économisez 823 €</strong><br>
+              En mobilisant d'abord votre apport personnel pour les paiements courants, puis en activant le prêt uniquement pour le solde, vous réduisez la durée du crédit et les intérêts totaux.
+            </span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       DRAWER — Détail artisan
+  ════════════════════════════════════════ -->
+  <div>
+    <div class="screen-label">④ Drawer — Détail avancé artisan (cliquer sur une carte artisan)</div>
+    <div class="screen-wrap" style="min-height:320px;position:relative;overflow:visible">
+
+      <!-- Simuler le contexte -->
+      <div style="padding:20px;background:var(--bg)">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Contexte : liste des artisans vue de dessus</div>
+        <div class="artisan-card problem" onclick="openDrawerDemo()" style="max-width:500px">
+          <div class="artisan-avatar avatar-red">🔧</div>
+          <div class="artisan-info">
+            <div class="artisan-name-row">
+              <span class="artisan-name">Plomberie SARL Martin</span>
+              <span class="badge badge-danger">⚠ En retard</span>
+            </div>
+            <div class="text-sm-muted">Cliquer pour ouvrir le drawer →</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Drawer embedded demo -->
+      <div id="drawerOverlay" class="drawer-overlay" onclick="closeDrawerDemo()"></div>
+      <div id="mainDrawer" class="drawer">
+        <div class="drawer-header">
+          <div>
+            <div class="drawer-title">Plomberie SARL Martin</div>
+            <div class="drawer-sub">SIRET 83912345600012 · Cuisine + SDB · 13 500 €</div>
+          </div>
+          <div class="drawer-close" onclick="closeDrawerDemo()">×</div>
+        </div>
+
+        <div class="drawer-body">
+
+          <!-- Résumé financier -->
+          <div>
+            <div class="drawer-section-title">Résumé financier</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+              <div style="background:var(--green-bg);border:1px solid #a7f3d0;border-radius:10px;padding:12px;text-align:center">
+                <div class="amount-label" style="color:var(--green-dark)">Payé</div>
+                <div style="font-size:18px;font-weight:800;color:var(--green-dark)">6 000 €</div>
+              </div>
+              <div style="background:var(--red-bg);border:1px solid #fecaca;border-radius:10px;padding:12px;text-align:center">
+                <div class="amount-label" style="color:var(--red)">En retard</div>
+                <div style="font-size:18px;font-weight:800;color:var(--red)">4 500 €</div>
+              </div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
+                <div class="amount-label">Restant</div>
+                <div style="font-size:18px;font-weight:800;color:var(--text-primary)">3 000 €</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Détail paiements -->
+          <div>
+            <div class="drawer-section-title">Détail des paiements</div>
+
+            <div class="payment-row">
+              <div class="payment-icon" style="background:var(--green-bg)">✅</div>
+              <div class="payment-info">
+                <div class="payment-name">Acompte 30%</div>
+                <div class="payment-date">Payé le 22 mars 2026 · Virement #REF42</div>
+              </div>
+              <div>
+                <div class="payment-amount">4 050 €</div>
+                <div class="payment-status ps-paid">✓ Payé</div>
+              </div>
+            </div>
+
+            <div class="payment-row">
+              <div class="payment-icon" style="background:var(--green-bg)">✅</div>
+              <div class="payment-info">
+                <div class="payment-name">Facture intermédiaire #1</div>
+                <div class="payment-date">Payé le 15 mars 2026 · Virement #REF49</div>
+              </div>
+              <div>
+                <div class="payment-amount">1 950 €</div>
+                <div class="payment-status ps-paid">✓ Payé</div>
+              </div>
+            </div>
+
+            <div class="payment-row" style="border-color:#fecaca;background:#fffafa">
+              <div class="payment-icon" style="background:var(--red-bg)">⏰</div>
+              <div class="payment-info">
+                <div class="payment-name">Facture intermédiaire #2</div>
+                <div class="payment-date">Échéance : 01 avr. 2026 · +12 jours de retard</div>
+              </div>
+              <div>
+                <div class="payment-amount" style="color:var(--red)">4 500 €</div>
+                <div class="payment-status ps-overdue">⚠ En retard</div>
+              </div>
+            </div>
+
+            <div class="payment-row">
+              <div class="payment-icon" style="background:var(--blue-bg)">📅</div>
+              <div class="payment-info">
+                <div class="payment-name">Solde final · réception travaux</div>
+                <div class="payment-date">Prévu : 30 mai 2026</div>
+              </div>
+              <div>
+                <div class="payment-amount">3 000 €</div>
+                <div class="payment-status ps-planned">Planifié</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Justificatifs -->
+          <div>
+            <div class="drawer-section-title">Justificatifs</div>
+            <div class="justificatif-row">
+              <span class="justificatif-icon">📄</span>
+              <div class="justificatif-info">
+                <div class="justificatif-name">Devis_Plomberie_Martin_2026.pdf</div>
+                <div class="justificatif-meta">Devis · 13 500 € · 20 févr. 2026 · 245 Ko</div>
+              </div>
+              <span class="justificatif-action">Voir</span>
+            </div>
+            <div class="justificatif-row">
+              <span class="justificatif-icon">🧾</span>
+              <div class="justificatif-info">
+                <div class="justificatif-name">Facture_interim1_Martin.pdf</div>
+                <div class="justificatif-meta">Facture · 1 950 € · 15 mars 2026 · 112 Ko</div>
+              </div>
+              <span class="justificatif-action">Voir</span>
+            </div>
+            <div class="justificatif-row" style="border-style:dashed;cursor:pointer">
+              <span class="justificatif-icon">➕</span>
+              <div class="justificatif-info">
+                <div class="justificatif-name" style="color:var(--blue)">Ajouter un justificatif</div>
+                <div class="justificatif-meta">PDF, image · max 10 Mo</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Financement lié -->
+          <div>
+            <div class="drawer-section-title">Financement associé</div>
+            <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--blue-bg);border:1px solid #bfdbfe;border-radius:10px">
+              <span style="font-size:16px">🏦</span>
+              <div style="flex:1">
+                <div style="font-size:13px;font-weight:700;color:#1e40af">Prêt travaux Crédit Agricole</div>
+                <div style="font-size:11px;color:#3b82f6">7 000 € débloqués sur 25 000 €</div>
+              </div>
+              <div style="font-size:12px;font-weight:700;color:#1e40af">28%</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="drawer-actions">
+          <button class="btn-primary">✓ Marquer facture payée</button>
+          <button class="btn-secondary">💬 Contacter</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       GUIDE STRUCTURE COMPOSANTS
+  ════════════════════════════════════════ -->
+  <div style="background:white;border:1px solid var(--border);border-radius:var(--radius);padding:28px 32px">
+    <h2 style="font-size:16px;font-weight:800;margin-bottom:20px;color:var(--text-primary)">Structure composants — prête à développer</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;font-family:'SF Mono',monospace;font-size:11px">
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Onglet Trésorerie</div>
+        <pre style="background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:14px;line-height:1.8;color:#374151"><span style="color:#6366f1">BudgetTresorerie</span>
+  ├─ <span style="color:#0891b2">TresorerieTab</span>
+  │   ├─ <span style="color:#059669">HeroSituation</span>          ← statut + 3 KPIs + jauge
+  │   ├─ <span style="color:#059669">AlertBanner</span>            ← conseils IA dynamiques
+  │   ├─ <span style="color:#059669">TresorerieGraph</span>        ← Chart.js courbe 30j
+  │   └─ <span style="color:#059669">ArtisanList</span>
+  │       └─ <span style="color:#d97706">ArtisanCard</span>        ← statut + progressbar + actions
+  │           └─ <span style="color:#d97706">ArtisanDrawer</span>   ← drawer latéral détail
+  │               ├─ PaymentDetail
+  │               ├─ JustificatifList
+  │               └─ FinancementLink</pre>
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Onglets secondaires</div>
+        <pre style="background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:14px;line-height:1.8;color:#374151">  ├─ <span style="color:#0891b2">EcheancierTab</span>
+  │   └─ <span style="color:#059669">TimelineGroup</span>          ← groupé par période
+  │       └─ <span style="color:#d97706">TimelineItem</span>       ← date + artisan + statut + CTA
+  │
+  └─ <span style="color:#0891b2">FinancementTab</span>
+      ├─ <span style="color:#059669">FinSyntheseKPIs</span>        ← 4 métriques + barre
+      ├─ <span style="color:#059669">FinSourceList</span>
+      │   └─ <span style="color:#d97706">FinSourceCard</span>      ← apport / prêt / aide
+      ├─ <span style="color:#059669">IntelligentTips</span>        ← conseils contextuels
+      └─ <span style="color:#059669">CreditSimulator</span>        ← inputs + résultats + reco</pre>
+      </div>
+    </div>
+
+    <div style="margin-top:20px;padding:16px;background:#f8fafc;border:1px solid var(--border);border-radius:10px">
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Logique des statuts paiement</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:11px">
+        <span class="badge badge-danger">en_retard · red · urgence max</span>
+        <span class="badge badge-warn">a_venir · orange · échéance proche</span>
+        <span class="badge badge-blue">planifie · blue · date connue</span>
+        <span class="badge badge-ok">paye · green · clôturé</span>
+        <span class="badge" style="background:var(--purple-bg);color:#6d28d9">en_attente_financement · purple · bloquant</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Drawer overlay global -->
+<div id="globalOverlay" class="drawer-overlay" onclick="closeDrawer()"></div>
+<div id="globalDrawer" class="drawer">
+  <div class="drawer-header">
+    <div>
+      <div class="drawer-title">Plomberie SARL Martin</div>
+      <div class="drawer-sub">SIRET 83912345600012 · 13 500 €</div>
+    </div>
+    <div class="drawer-close" onclick="closeDrawer()">×</div>
+  </div>
+  <div class="drawer-body">
+    <div>
+      <div class="drawer-section-title">Résumé financier</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+        <div style="background:var(--green-bg);border:1px solid #a7f3d0;border-radius:10px;padding:12px;text-align:center">
+          <div class="amount-label" style="color:var(--green-dark)">Payé</div>
+          <div style="font-size:18px;font-weight:800;color:var(--green-dark)">6 000 €</div>
+        </div>
+        <div style="background:var(--red-bg);border:1px solid #fecaca;border-radius:10px;padding:12px;text-align:center">
+          <div class="amount-label" style="color:var(--red)">En retard</div>
+          <div style="font-size:18px;font-weight:800;color:var(--red)">4 500 €</div>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
+          <div class="amount-label">Restant</div>
+          <div style="font-size:18px;font-weight:800;color:var(--text-primary)">3 000 €</div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="drawer-section-title">Détail des paiements</div>
+      <div class="payment-row">
+        <div class="payment-icon" style="background:var(--green-bg)">✅</div>
+        <div class="payment-info"><div class="payment-name">Acompte 30%</div><div class="payment-date">Payé le 22 mars 2026</div></div>
+        <div><div class="payment-amount">4 050 €</div><div class="payment-status ps-paid">✓ Payé</div></div>
+      </div>
+      <div class="payment-row" style="border-color:#fecaca;background:#fffafa">
+        <div class="payment-icon" style="background:var(--red-bg)">⏰</div>
+        <div class="payment-info"><div class="payment-name">Facture intermédiaire #2</div><div class="payment-date">+12 jours de retard</div></div>
+        <div><div class="payment-amount" style="color:var(--red)">4 500 €</div><div class="payment-status ps-overdue">⚠ En retard</div></div>
+      </div>
+      <div class="payment-row">
+        <div class="payment-icon" style="background:var(--blue-bg)">📅</div>
+        <div class="payment-info"><div class="payment-name">Solde final</div><div class="payment-date">Prévu 30 mai 2026</div></div>
+        <div><div class="payment-amount">3 000 €</div><div class="payment-status ps-planned">Planifié</div></div>
+      </div>
+    </div>
+    <div>
+      <div class="drawer-section-title">Justificatifs</div>
+      <div class="justificatif-row">
+        <span class="justificatif-icon">📄</span>
+        <div class="justificatif-info"><div class="justificatif-name">Devis_Plomberie_Martin_2026.pdf</div><div class="justificatif-meta">13 500 € · 20 févr. 2026</div></div>
+        <span class="justificatif-action">Voir</span>
+      </div>
+      <div class="justificatif-row" style="border-style:dashed;cursor:pointer">
+        <span class="justificatif-icon">➕</span>
+        <div class="justificatif-info"><div class="justificatif-name" style="color:var(--blue)">Ajouter un justificatif</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="drawer-actions">
+    <button class="btn-primary">✓ Marquer payé</button>
+    <button class="btn-secondary">💬 Contacter</button>
+  </div>
+</div>
+
+<script>
+// ── Drawer ──
+function openDrawer() {
+  document.getElementById('globalOverlay').classList.add('open');
+  document.getElementById('globalDrawer').classList.add('open');
+}
+function closeDrawer() {
+  document.getElementById('globalOverlay').classList.remove('open');
+  document.getElementById('globalDrawer').classList.remove('open');
+}
+function openDrawerDemo() {
+  document.getElementById('drawerOverlay').classList.add('open');
+  document.getElementById('mainDrawer').classList.add('open');
+}
+function closeDrawerDemo() {
+  document.getElementById('drawerOverlay').classList.remove('open');
+  document.getElementById('mainDrawer').classList.remove('open');
+}
+
+// ── Chart.js — courbe trésorerie ──
+const ctx = document.getElementById('tresoChart').getContext('2d');
+
+// Données : solde sur 30 jours avec événements clés
+const labels = [];
+const today = new Date(2026, 2, 31); // 31 mars 2026
+for (let i = 0; i <= 30; i++) {
+  const d = new Date(today);
+  d.setDate(d.getDate() + i);
+  labels.push(d.getDate() + '/' + (d.getMonth()+1));
+}
+
+// Solde de départ : 14 200 €
+// Événements :
+//  J+1 : -4500 (facture Martin retard)
+//  J+14 : -3500 (Menuiseries Dupont acompte)
+//  J+18 : -2800 (Carrelage Lopez)
+//  J+22 : +10000 (déblocage prêt)
+//  J+32 : -1860 (électricité acompte)
+
+let solde = 14200;
+const events = {
+  1: -4500,   // paiement Martin
+  14: -3500,  // Dupont acompte
+  18: -2800,  // Lopez solde
+  22: 10000,  // déblocage prêt
+};
+
+const data = [solde];
+for (let i = 1; i <= 30; i++) {
+  if (events[i]) solde += events[i];
+  data.push(solde);
+}
+
+// Gradient pour les zones
+const gradient = ctx.createLinearGradient(0, 0, 0, 180);
+gradient.addColorStop(0, 'rgba(0, 200, 150, 0.12)');
+gradient.addColorStop(0.5, 'rgba(255, 140, 66, 0.08)');
+gradient.addColorStop(1, 'rgba(239, 68, 68, 0.15)');
+
+// Couleur de point par valeur
+const pointColors = data.map(v => v < 0 ? '#ef4444' : v < 5000 ? '#ff8c42' : '#00c896');
+const borderColors = data.map(v => v < 0 ? '#ef4444' : v < 5000 ? '#ff8c42' : '#00c896');
+
+// Créer segment par segment
+const segmentColors = data.map((v, i) => {
+  if (i === 0) return '#00c896';
+  const avg = (v + data[i-1]) / 2;
+  return avg < 0 ? '#ef4444' : avg < 5000 ? '#ff8c42' : '#00c896';
+});
+
+new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [{
+      label: 'Solde projet',
+      data,
+      borderColor: '#00c896',
+      borderWidth: 2.5,
+      backgroundColor: gradient,
+      fill: true,
+      tension: 0.4,
+      pointRadius: data.map((v, i) => events[i] ? 5 : 0),
+      pointBackgroundColor: pointColors,
+      pointBorderColor: 'white',
+      pointBorderWidth: 2,
+      segment: {
+        borderColor: ctx2 => {
+          const avg = (ctx2.p0.parsed.y + ctx2.p1.parsed.y) / 2;
+          return avg < 0 ? '#ef4444' : avg < 5000 ? '#ff8c42' : '#00c896';
+        }
+      }
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#0f1923',
+        titleColor: '#f8fafc',
+        bodyColor: '#94a3b8',
+        padding: 12,
+        cornerRadius: 8,
+        callbacks: {
+          label: ctx => {
+            const v = ctx.parsed.y;
+            const labels = {1:'Paiement Martin (retard)', 14:'Dupont acompte', 18:'Lopez solde', 22:'Déblocage prêt CA'};
+            const event = labels[ctx.dataIndex] ? ` · ${labels[ctx.dataIndex]}` : '';
+            return `Solde : ${v.toLocaleString('fr-FR')} €${event}`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: { color: '#f0f2f5', lineWidth: 1 },
+        ticks: { color: '#9aa0ac', font: { size: 10 }, maxTicksLimit: 8 }
+      },
+      y: {
+        grid: { color: '#f0f2f5' },
+        ticks: {
+          color: '#9aa0ac', font: { size: 10 },
+          callback: v => (v >= 0 ? '' : '−') + Math.abs(v/1000).toFixed(0) + 'k€'
+        }
+      }
+    },
+    interaction: { intersect: false, mode: 'index' }
+  }
+});
+
+// ── Simulateur crédit ──
+function updateSimulator() {
+  const inputs = document.querySelectorAll('.sim-input');
+  const montant = parseFloat(inputs[0].value) || 0;
+  const duree = parseFloat(inputs[1].value) || 1;
+  const taux = (parseFloat(inputs[2].value) || 0) / 100 / 12;
+
+  let mensualite = 0;
+  if (taux === 0) {
+    mensualite = montant / duree;
+  } else {
+    mensualite = montant * (taux * Math.pow(1+taux, duree)) / (Math.pow(1+taux, duree) - 1);
+  }
+
+  const total = mensualite * duree;
+  const interets = total - montant;
+
+  document.getElementById('sim-mensualite').textContent = Math.round(mensualite).toLocaleString('fr-FR') + ' €';
+  document.getElementById('sim-total').textContent = Math.round(total).toLocaleString('fr-FR') + ' €';
+  document.getElementById('sim-interets').textContent = Math.round(interets).toLocaleString('fr-FR') + ' €';
+}
+</script>
+</body>
+</html>

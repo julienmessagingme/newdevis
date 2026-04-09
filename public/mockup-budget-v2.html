@@ -1,0 +1,1574 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Budget & Trésorerie v2 — Mockup premium</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+<style>
+/* ════════════════════════════════════════════
+   TOKENS
+════════════════════════════════════════════ */
+:root {
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-2: #fafbfc;
+  --border: #e8eaed;
+  --border-light: #f0f2f5;
+  --ink-1: #0c1421;
+  --ink-2: #4b5563;
+  --ink-3: #9ca3af;
+  --green: #00bf8e;
+  --green-light: #e6faf4;
+  --green-mid: rgba(0,191,142,.12);
+  --orange: #f97316;
+  --orange-light: #fff4ec;
+  --orange-mid: rgba(249,115,22,.10);
+  --red: #ef4444;
+  --red-light: #fef2f2;
+  --red-mid: rgba(239,68,68,.10);
+  --blue: #3b82f6;
+  --blue-light: #eff6ff;
+  --blue-mid: rgba(59,130,246,.10);
+  --purple: #8b5cf6;
+  --purple-light: #f5f3ff;
+  --amber: #f59e0b;
+  --amber-light: #fffbeb;
+  --r: 16px;
+  --r-sm: 10px;
+  --r-xs: 7px;
+  --sh-sm: 0 1px 4px rgba(0,0,0,.05),0 1px 2px rgba(0,0,0,.04);
+  --sh: 0 4px 16px rgba(0,0,0,.07),0 1px 4px rgba(0,0,0,.04);
+  --sh-lg: 0 16px 48px rgba(0,0,0,.12),0 4px 12px rgba(0,0,0,.06);
+}
+
+/* ════════════════════════════════════════════
+   RESET / BASE
+════════════════════════════════════════════ */
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
+  background:var(--bg);color:var(--ink-1);
+  padding:40px 20px 100px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit;cursor:pointer}
+
+/* ════════════════════════════════════════════
+   PAGE SCAFFOLD
+════════════════════════════════════════════ */
+.page{max-width:1060px;margin:0 auto;display:flex;flex-direction:column;gap:64px}
+.ph{text-align:center;margin-bottom:8px}
+.ph h1{font-size:22px;font-weight:800;letter-spacing:-.4px}
+.ph p{font-size:13px;color:var(--ink-3);margin-top:5px}
+
+/* screen frame */
+.slabel{
+  display:inline-flex;align-items:center;gap:8px;
+  background:var(--ink-1);color:#f8fafc;
+  font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  padding:6px 14px;border-radius:8px 8px 0 0;
+}
+.sdot{width:6px;height:6px;border-radius:50%;display:inline-block}
+.sw{border:2px solid var(--border);border-radius:0 var(--r) var(--r) var(--r);background:var(--bg);overflow:hidden}
+
+/* ════════════════════════════════════════════
+   APP CHROME
+════════════════════════════════════════════ */
+.appbar{
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:15px 24px;display:flex;align-items:center;justify-content:space-between;
+}
+.appbar-info h2{font-size:16px;font-weight:800;letter-spacing:-.3px}
+.appbar-info p{font-size:11px;color:var(--ink-3);margin-top:2px}
+.appbar-right{display:flex;gap:8px;align-items:center}
+.icon-btn{
+  width:34px;height:34px;border-radius:var(--r-xs);
+  background:var(--bg);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;font-size:13px;
+}
+.live-badge{
+  display:flex;align-items:center;gap:5px;
+  background:var(--green-light);border:1px solid #a7f3d0;
+  border-radius:99px;padding:4px 10px;font-size:11px;font-weight:600;color:#065f46;
+}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ════════════════════════════════════════════
+   TABS
+════════════════════════════════════════════ */
+.tabs{
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:0 24px;display:flex;gap:0;overflow-x:auto;
+}
+.tabs::-webkit-scrollbar{display:none}
+.tab{
+  padding:13px 18px;font-size:13px;font-weight:600;
+  color:var(--ink-3);border-bottom:2.5px solid transparent;
+  white-space:nowrap;transition:all .18s;
+}
+.tab.on{color:var(--ink-1);border-bottom-color:var(--ink-1)}
+.tbadge{
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--red);color:white;font-size:9px;font-weight:800;
+  width:15px;height:15px;border-radius:8px;margin-left:5px;
+}
+
+/* ════════════════════════════════════════════
+   CONTENT
+════════════════════════════════════════════ */
+.content{padding:20px;display:flex;flex-direction:column;gap:16px}
+
+/* ════════════════════════════════════════════
+   1. HERO CARD
+════════════════════════════════════════════ */
+.hero{
+  background:linear-gradient(135deg,#0c1421 0%,#162236 55%,#0c1d30 100%);
+  border-radius:var(--r);padding:24px 26px 22px;color:white;
+  position:relative;overflow:hidden;
+}
+.hero::after{
+  content:'';position:absolute;top:-80px;right:-80px;
+  width:240px;height:240px;border-radius:50%;
+  background:radial-gradient(circle,rgba(0,200,150,.18) 0%,transparent 65%);
+  pointer-events:none;
+}
+.hero-pill{
+  display:inline-flex;align-items:center;gap:7px;
+  background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.14);
+  border-radius:99px;padding:5px 12px;font-size:11px;font-weight:700;
+  margin-bottom:16px;letter-spacing:.01em;
+}
+.hero-title{font-size:21px;font-weight:900;letter-spacing:-.6px;line-height:1.2;margin-bottom:22px}
+.hero-title em{color:#4ade80;font-style:normal}
+.hero-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+.hkpi{
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);
+  border-radius:12px;padding:13px 15px;
+}
+.hkpi-label{font-size:9px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px}
+.hkpi-val{font-size:19px;font-weight:900;letter-spacing:-.5px}
+.hkpi-sub{font-size:10px;color:rgba(255,255,255,.35);margin-top:3px}
+.hkpi.v-ok .hkpi-val{color:#4ade80}
+.hkpi.v-warn .hkpi-val{color:#fb923c}
+.hkpi.v-danger .hkpi-val{color:#f87171}
+
+/* Gauge */
+.gauge-wrap{margin-bottom:14px}
+.gauge-track{
+  height:7px;border-radius:99px;
+  background:linear-gradient(90deg,
+    rgba(74,222,128,.3) 0%,
+    rgba(251,146,60,.3) 50%,
+    rgba(248,113,113,.3) 100%);
+  position:relative;overflow:visible;
+}
+.gauge-fill{
+  height:100%;border-radius:99px;
+  background:linear-gradient(90deg,#4ade80,#fb923c 65%);
+  transition:width .7s cubic-bezier(.16,1,.3,1);
+  position:relative;
+}
+.gauge-cursor{
+  position:absolute;right:-2px;top:-4px;
+  width:15px;height:15px;border-radius:50%;
+  background:white;border:2.5px solid #fb923c;
+  box-shadow:0 2px 8px rgba(0,0,0,.4);
+}
+.gauge-zones{display:flex;justify-content:space-between;margin-top:5px;font-size:9px;color:rgba(255,255,255,.3);font-weight:600}
+
+/* Hero reco */
+.hero-reco{
+  display:flex;align-items:flex-start;gap:9px;
+  background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);
+  border-radius:var(--r-xs);padding:10px 13px;font-size:11px;line-height:1.5;
+}
+.reco-icon{font-size:14px;flex-shrink:0;margin-top:1px}
+.reco-text strong{font-weight:700;color:#93c5fd}
+
+/* ════════════════════════════════════════════
+   2. GRAPH CARD
+════════════════════════════════════════════ */
+.graph-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.graph-header{padding:16px 20px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.graph-title{font-size:13px;font-weight:800;color:var(--ink-1)}
+.graph-sub{font-size:11px;color:var(--ink-3);margin-top:2px}
+.period-pills{display:flex;gap:4px}
+.pp{
+  padding:4px 10px;border-radius:99px;font-size:11px;font-weight:600;
+  background:transparent;border:1px solid var(--border);color:var(--ink-3);
+}
+.pp.on{background:var(--ink-1);color:white;border-color:transparent}
+
+/* Insight strip */
+.insight-strip{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  margin:12px 20px 0;padding:10px 14px;
+  background:linear-gradient(135deg,var(--red-light),#fff5f5);
+  border:1px solid #fecaca;border-radius:var(--r-xs);
+}
+.is-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  background:var(--red);color:white;
+  font-size:10px;font-weight:800;padding:3px 8px;border-radius:99px;white-space:nowrap;
+}
+.is-text{font-size:12px;color:#7f1d1d;font-weight:500;flex:1}
+.is-text strong{font-weight:800;color:var(--red)}
+
+/* Chart area */
+.chart-area{padding:12px 20px 16px;position:relative}
+.chart-wrap{height:200px;position:relative}
+
+/* Graph summary */
+.graph-summary{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  border-top:1px solid var(--border-light);
+}
+.gs-item{padding:12px 20px;border-right:1px solid var(--border-light)}
+.gs-item:last-child{border-right:none}
+.gs-label{font-size:10px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px}
+.gs-val{font-size:16px;font-weight:800;color:var(--ink-1);letter-spacing:-.3px}
+.gs-val.warn{color:var(--orange)}
+.gs-val.danger{color:var(--red)}
+.gs-val.ok{color:#059669}
+.gs-sub{font-size:10px;color:var(--ink-3);margin-top:2px}
+
+/* ════════════════════════════════════════════
+   3. ACTIONS PRIORITAIRES
+════════════════════════════════════════════ */
+.actions-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.actions-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 20px 12px;border-bottom:1px solid var(--border-light);
+}
+.actions-title{font-size:13px;font-weight:800;color:var(--ink-1)}
+.actions-count{
+  font-size:11px;font-weight:700;color:var(--red);
+  background:var(--red-light);border:1px solid #fecaca;
+  border-radius:99px;padding:2px 8px;
+}
+.action-row{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 20px;border-bottom:1px solid var(--border-light);
+  transition:background .12s;cursor:pointer;
+}
+.action-row:last-child{border-bottom:none}
+.action-row:hover{background:var(--bg)}
+.action-urgency{
+  width:4px;height:36px;border-radius:99px;flex-shrink:0;
+}
+.u-urgent{background:var(--red)}
+.u-important{background:var(--orange)}
+.u-normal{background:var(--blue)}
+.action-icon{
+  width:34px;height:34px;border-radius:var(--r-xs);
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;flex-shrink:0;
+}
+.action-info{flex:1;min-width:0}
+.action-label{font-size:13px;font-weight:700;color:var(--ink-1)}
+.action-sub{font-size:11px;color:var(--ink-3);margin-top:2px}
+.action-amount{font-size:14px;font-weight:800;flex-shrink:0}
+.action-amount.danger{color:var(--red)}
+.action-amount.warn{color:var(--orange)}
+.action-amount.blue{color:var(--blue)}
+.action-cta{
+  padding:6px 12px;border-radius:var(--r-xs);font-size:11px;font-weight:700;
+  border:none;white-space:nowrap;flex-shrink:0;
+}
+.cta-red{background:var(--red);color:white}
+.cta-orange{background:var(--orange-light);color:#c2410c;border:1px solid #fed7aa}
+.cta-blue{background:var(--blue-light);color:#1d4ed8;border:1px solid #bfdbfe}
+
+/* ════════════════════════════════════════════
+   4. ARTISAN CARDS
+════════════════════════════════════════════ */
+.artisans-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.section-label{font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.09em}
+.sort-label{font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:4px}
+
+.acard{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:14px 16px;
+  display:flex;align-items:flex-start;gap:12px;
+  cursor:pointer;transition:box-shadow .15s,border-color .15s;
+  margin-bottom:8px;
+}
+.acard:last-child{margin-bottom:0}
+.acard:hover{box-shadow:var(--sh);border-color:#d1d5db}
+.acard.problem{border-left:3.5px solid var(--red)}
+.acard.warning{border-left:3.5px solid var(--orange)}
+.acard.ok{border-left:3.5px solid var(--green)}
+.acard.highlighted{
+  box-shadow:0 0 0 2px var(--blue),var(--sh);
+  border-color:var(--blue);
+  animation:highlight-pulse .6s ease;
+}
+@keyframes highlight-pulse{
+  0%{box-shadow:0 0 0 0 rgba(59,130,246,.6),var(--sh)}
+  50%{box-shadow:0 0 0 6px rgba(59,130,246,.15),var(--sh)}
+  100%{box-shadow:0 0 0 2px var(--blue),var(--sh)}
+}
+.avat{
+  width:38px;height:38px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;
+}
+.ainfo{flex:1;min-width:0}
+.arow1{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:7px}
+.aname{font-size:13px;font-weight:800;color:var(--ink-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* badges */
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:99px;font-size:10px;font-weight:700;white-space:nowrap;flex-shrink:0}
+.b-ok{background:var(--green-light);color:#065f46}
+.b-warn{background:var(--orange-light);color:#c2410c}
+.b-danger{background:var(--red-light);color:#dc2626}
+.b-blue{background:var(--blue-light);color:#1d4ed8}
+.b-purple{background:var(--purple-light);color:#6d28d9}
+.b-amber{background:var(--amber-light);color:#92400e}
+
+/* impact */
+.impact{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:99px;font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+.imp-h{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}
+.imp-m{background:#fffbeb;color:#92400e;border:1px solid #fde68a}
+.imp-l{background:var(--green-light);color:#065f46;border:1px solid #a7f3d0}
+
+.prog-wrap{margin-bottom:7px}
+.prog-bar{height:5px;background:var(--border-light);border-radius:99px;overflow:hidden;display:flex}
+.prog-paid{background:var(--green);border-radius:99px}
+.prog-eng{background:var(--blue);border-radius:99px}
+
+.amts{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap}
+.amt{display:flex;flex-direction:column;gap:1px}
+.amt-l{font-size:9px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em}
+.amt-v{font-size:13px;font-weight:800;color:var(--ink-1)}
+.amt-v.ok{color:#059669}
+.amt-v.red{color:var(--red)}
+
+.aright{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0}
+.next-action{font-size:11px;font-weight:600;color:var(--ink-2);background:var(--bg);border:1px solid var(--border);border-radius:var(--r-xs);padding:4px 10px;white-space:nowrap}
+.alert-tag{font-size:10px;font-weight:700;color:var(--red);background:var(--red-light);border-radius:99px;padding:2px 8px}
+
+/* ════════════════════════════════════════════
+   DRAWER
+════════════════════════════════════════════ */
+.d-overlay{position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:200;opacity:0;pointer-events:none;transition:opacity .25s}
+.d-overlay.open{opacity:1;pointer-events:all}
+.drawer{
+  position:fixed;right:0;top:0;bottom:0;width:440px;
+  background:var(--surface);z-index:201;
+  transform:translateX(100%);transition:transform .3s cubic-bezier(.16,1,.3,1);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.drawer.open{transform:translateX(0);box-shadow:var(--sh-lg)}
+.d-head{
+  padding:18px 22px 14px;border-bottom:1px solid var(--border);
+  display:flex;align-items:flex-start;justify-content:space-between;
+  background:var(--surface);position:sticky;top:0;z-index:1;
+}
+.d-title{font-size:15px;font-weight:900;letter-spacing:-.3px}
+.d-sub{font-size:11px;color:var(--ink-3);margin-top:3px}
+.d-close{width:30px;height:30px;border-radius:8px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;color:var(--ink-2)}
+.d-body{flex:1;overflow-y:auto;padding:18px 22px;display:flex;flex-direction:column;gap:18px}
+
+/* Drawer impact tréso */
+.d-impact{
+  display:flex;align-items:center;gap:10px;
+  background:linear-gradient(135deg,#fff1f2,#fef2f2);
+  border:1px solid #fecaca;border-radius:var(--r-xs);padding:12px 14px;
+}
+.di-icon{font-size:20px;flex-shrink:0}
+.di-text{font-size:12px;color:#7f1d1d;line-height:1.5}
+.di-text strong{font-size:15px;font-weight:900;display:block;margin-bottom:2px}
+
+/* Drawer summary */
+.d-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.dk{background:var(--bg);border:1px solid var(--border);border-radius:var(--r-xs);padding:11px 13px;text-align:center}
+.dk-l{font-size:9px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px}
+.dk-v{font-size:17px;font-weight:900;letter-spacing:-.4px}
+.dk-v.ok{color:#059669}
+.dk-v.red{color:var(--red)}
+
+.d-sec-title{font-size:10px;font-weight:800;color:var(--ink-3);text-transform:uppercase;letter-spacing:.09em;margin-bottom:10px}
+
+/* Payment rows */
+.prow{
+  display:flex;align-items:center;gap:10px;
+  padding:11px 13px;border:1px solid var(--border);border-radius:var(--r-xs);
+  margin-bottom:7px;background:var(--surface);
+}
+.prow:last-child{margin-bottom:0}
+.prow.overdue{border-color:#fecaca;background:#fffafa}
+.prow.pending{border-color:#fed7aa;background:#fffdf9}
+.prow-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.prow-info{flex:1;min-width:0}
+.prow-name{font-size:12px;font-weight:700;color:var(--ink-1)}
+.prow-date{font-size:10px;color:var(--ink-3);margin-top:2px}
+.prow-right{text-align:right;flex-shrink:0}
+.prow-amt{font-size:13px;font-weight:900;color:var(--ink-1)}
+.prow-amt.danger{color:var(--red)}
+.ps{padding:2px 7px;border-radius:99px;font-size:9px;font-weight:800;margin-top:3px;display:inline-block}
+.ps-paid{background:var(--green-light);color:#065f46}
+.ps-overdue{background:var(--red-light);color:#dc2626}
+.ps-planned{background:var(--blue-light);color:#1d4ed8}
+.ps-pending{background:var(--orange-light);color:#c2410c}
+.ps-waiting{background:var(--purple-light);color:#6d28d9}
+
+/* Justificatifs */
+.jrow{display:flex;align-items:center;gap:9px;padding:9px 11px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-xs);margin-bottom:6px}
+.jrow.add{border-style:dashed;cursor:pointer}
+.jrow.add:hover{background:var(--blue-light);border-color:var(--blue)}
+.j-icon{font-size:15px;flex-shrink:0}
+.j-info{flex:1;min-width:0}
+.j-name{font-size:11px;font-weight:700;color:var(--ink-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.j-meta{font-size:10px;color:var(--ink-3)}
+.j-action{font-size:11px;color:var(--blue);font-weight:700;flex-shrink:0;cursor:pointer}
+
+/* Financement drawer */
+.fin-source{display:flex;align-items:center;gap:10px;padding:11px 13px;border:1px solid var(--border);border-radius:var(--r-xs);margin-bottom:7px}
+.fs-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.fs-info{flex:1;min-width:0}
+.fs-name{font-size:12px;font-weight:700;color:var(--ink-1)}
+.fs-bar{height:4px;background:var(--border-light);border-radius:99px;overflow:hidden;margin-top:5px}
+.fs-fill{height:100%;border-radius:99px}
+.fs-right{text-align:right;flex-shrink:0}
+.fs-amt{font-size:13px;font-weight:800}
+.fs-used{font-size:10px;color:var(--ink-3);margin-top:2px}
+
+.d-foot{padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:8px}
+.btn-p{flex:1;padding:11px;border-radius:var(--r-xs);background:var(--ink-1);color:white;font-size:13px;font-weight:700;border:none}
+.btn-p:hover{opacity:.85}
+.btn-s{flex:1;padding:11px;border-radius:var(--r-xs);background:var(--bg);color:var(--ink-1);font-size:13px;font-weight:700;border:1px solid var(--border)}
+
+/* ════════════════════════════════════════════
+   ONGLET 2 — ÉCHÉANCIER
+════════════════════════════════════════════ */
+.tl-group{margin-bottom:18px}
+.tl-sep{
+  font-size:10px;font-weight:800;color:var(--ink-3);text-transform:uppercase;letter-spacing:.09em;
+  display:flex;align-items:center;gap:8px;margin-bottom:10px;
+}
+.tl-sep::after{content:'';flex:1;height:1px;background:var(--border)}
+
+.tl-item{
+  display:flex;align-items:center;gap:12px;
+  padding:13px 16px;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-sm);margin-bottom:7px;cursor:pointer;
+  transition:box-shadow .15s;
+}
+.tl-item:hover{box-shadow:var(--sh)}
+.tl-item.late{border-left:3px solid var(--red)}
+.tl-date-box{
+  display:flex;flex-direction:column;align-items:center;
+  min-width:42px;padding:6px 7px;border-radius:8px;text-align:center;
+  background:var(--bg);
+}
+.tl-day{font-size:17px;font-weight:900;line-height:1;color:var(--ink-1)}
+.tl-mon{font-size:9px;font-weight:700;color:var(--ink-3);text-transform:uppercase;margin-top:2px}
+.tl-date-box.late-box{background:var(--red-light)}
+.tl-date-box.late-box .tl-day,.tl-date-box.late-box .tl-mon{color:var(--red)}
+.tl-info{flex:1;min-width:0}
+.tl-who{font-size:13px;font-weight:700;color:var(--ink-1)}
+.tl-what{font-size:11px;color:var(--ink-3);margin-top:2px}
+.tl-amount{font-size:15px;font-weight:900;letter-spacing:-.3px;flex-shrink:0}
+.tl-item.done{opacity:.5}
+.tl-item.done .tl-amount{color:#059669}
+.mark-btn{padding:5px 11px;border-radius:var(--r-xs);font-size:11px;font-weight:700;background:var(--green-light);color:#065f46;border:1px solid #a7f3d0;flex-shrink:0;white-space:nowrap}
+
+/* ════════════════════════════════════════════
+   ONGLET 3 — FINANCEMENT
+════════════════════════════════════════════ */
+.fin-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.fkpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:13px 15px}
+.fkpi-l{font-size:9px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}
+.fkpi-v{font-size:19px;font-weight:900;letter-spacing:-.5px}
+.fkpi-s{font-size:10px;color:var(--ink-3);margin-top:3px}
+.fkpi.hl{background:var(--green-light);border-color:#a7f3d0}
+.fkpi.hl .fkpi-v{color:#059669}
+.fkpi.al{background:var(--orange-light);border-color:#fed7aa}
+.fkpi.al .fkpi-v{color:#c2410c}
+
+.cov-track{height:8px;background:var(--border-light);border-radius:99px;overflow:hidden;margin:10px 0 6px}
+.cov-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--green),#4ade80)}
+.cov-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--ink-3);font-weight:600}
+
+.alert-bar{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:11px 14px;border-radius:var(--r-xs);margin-bottom:14px;
+  font-size:12px;line-height:1.5;font-weight:500;
+}
+.ab-danger{background:var(--red-light);border:1px solid #fecaca;color:#7f1d1d}
+.ab-warn{background:var(--orange-light);border:1px solid #fed7aa;color:#7c2d12}
+.ab-info{background:var(--blue-light);border:1px solid #bfdbfe;color:#1e3a8a}
+.ab-icon{font-size:15px;flex-shrink:0;margin-top:1px}
+.ab-act{font-size:11px;font-weight:800;text-decoration:underline;cursor:pointer;flex-shrink:0}
+
+.fs-card{display:flex;align-items:center;gap:13px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:9px}
+.fs-card-icon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.fs-card-info{flex:1;min-width:0}
+.fs-card-name{font-size:13px;font-weight:800;color:var(--ink-1)}
+.fs-card-sub{font-size:11px;color:var(--ink-3);margin-top:2px}
+.fs-prog{height:5px;background:var(--border-light);border-radius:99px;overflow:hidden;margin-top:8px}
+.fs-fill{height:100%;border-radius:99px}
+.fs-right{text-align:right;flex-shrink:0}
+.fs-total{font-size:16px;font-weight:900;letter-spacing:-.4px}
+.fs-util{font-size:10px;color:var(--ink-3);margin-top:3px}
+
+.tip{display:flex;align-items:flex-start;gap:9px;background:var(--blue-light);border:1px solid #bfdbfe;border-radius:var(--r-xs);padding:11px 13px;margin-top:8px}
+.tip-ico{font-size:14px;flex-shrink:0;margin-top:1px}
+.tip-txt{font-size:11px;color:#1e3a8a;line-height:1.55}
+.tip-txt strong{font-weight:800}
+
+.sim-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px}
+.sim-title{font-size:13px;font-weight:800;margin-bottom:14px}
+.sim-inputs{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.sim-field{display:flex;flex-direction:column;gap:4px}
+.sim-label{font-size:10px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.07em}
+.sim-input{padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-weight:700;font-family:inherit;background:var(--bg);text-align:right;color:var(--ink-1);transition:border-color .15s}
+.sim-input:focus{outline:none;border-color:var(--ink-1);background:white}
+.sim-outputs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:var(--bg);border-radius:var(--r-xs);padding:13px;margin-bottom:12px}
+.so{text-align:center}
+.so-l{font-size:9px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.07em}
+.so-v{font-size:17px;font-weight:900;letter-spacing:-.4px;margin-top:3px}
+.so-v.accent{color:#059669}
+.sim-reco{display:flex;align-items:center;gap:9px;background:linear-gradient(135deg,#ecfdf5,#f0fdf4);border:1px solid #a7f3d0;border-radius:var(--r-xs);padding:11px 13px}
+.sr-ico{font-size:17px;flex-shrink:0}
+.sr-txt{font-size:11px;color:#065f46;line-height:1.5}
+.sr-txt strong{font-weight:800;font-size:13px;display:block;margin-bottom:2px}
+
+/* ════════════════════════════════════════════
+   COMPONENT MAP (bottom)
+════════════════════════════════════════════ */
+.comp-map{background:white;border:1px solid var(--border);border-radius:var(--r);padding:26px 28px}
+.comp-map h2{font-size:15px;font-weight:800;margin-bottom:18px}
+.comp-cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+pre{background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:14px;font-size:10.5px;line-height:1.9;color:#374151;font-family:'SF Mono','Fira Code',monospace;overflow-x:auto}
+.cl-purple{color:#7c3aed}
+.cl-teal{color:#0891b2}
+.cl-green{color:#059669}
+.cl-amber{color:#d97706}
+.status-pills{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px}
+</style>
+</head>
+<body>
+
+<div class="page">
+<div class="ph">
+  <h1>Budget & Trésorerie v2 — Mockup premium</h1>
+  <p>Rénovation cuisine + salle de bain · Budget 42 500 € · 6 artisans</p>
+</div>
+
+<!-- ╔══════════════════════════════════════════════╗
+     ║  ONGLET 1 — TRÉSORERIE (COCKPIT)            ║
+     ╚══════════════════════════════════════════════╝ -->
+<div>
+  <div class="slabel"><span class="sdot" style="background:#4ade80"></span>Onglet 1 — Trésorerie · Cockpit principal</div>
+  <div class="sw">
+
+    <div class="appbar">
+      <div class="appbar-info">
+        <h2>Budget & Trésorerie</h2>
+        <p>Rénovation cuisine + salle de bain · 6 artisans · 42 500 €</p>
+      </div>
+      <div class="appbar-right">
+        <div class="live-badge"><span class="live-dot"></span>Mis à jour</div>
+        <div class="icon-btn">📤</div>
+        <div class="icon-btn">⚙️</div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab on">Trésorerie</div>
+      <div class="tab">Échéancier <span class="tbadge">3</span></div>
+      <div class="tab">Financement</div>
+    </div>
+
+    <div class="content">
+
+      <!-- ① HERO -->
+      <div class="hero">
+        <div class="hero-pill">
+          <span class="live-dot"></span>
+          Tension dans 18 jours
+        </div>
+        <div class="hero-title">
+          Trésorerie sous contrôle<br>jusqu'au <em>19 avril 2026</em>
+        </div>
+        <div class="hero-kpis">
+          <div class="hkpi v-ok">
+            <div class="hkpi-label">Solde projet</div>
+            <div class="hkpi-val">14 200 €</div>
+            <div class="hkpi-sub">disponible maintenant</div>
+          </div>
+          <div class="hkpi v-warn">
+            <div class="hkpi-label">Reste à payer</div>
+            <div class="hkpi-val">18 750 €</div>
+            <div class="hkpi-sub">sur 6 artisans</div>
+          </div>
+          <div class="hkpi v-danger">
+            <div class="hkpi-label">Prochaine échéance</div>
+            <div class="hkpi-val">4 500 €</div>
+            <div class="hkpi-sub">Plomberie · en retard</div>
+          </div>
+        </div>
+        <div class="gauge-wrap">
+          <div class="gauge-track">
+            <div class="gauge-fill" style="width:61%">
+              <div class="gauge-cursor"></div>
+            </div>
+          </div>
+          <div class="gauge-zones">
+            <span>🟢 Sécurisé</span>
+            <span>🟡 Tension  →  61%</span>
+            <span>🔴 Critique</span>
+          </div>
+        </div>
+        <div class="hero-reco">
+          <span class="reco-icon">💡</span>
+          <span class="reco-text">
+            <strong>Débloquer votre prêt maintenant</strong> couvrirait vos 3 prochaines échéances et repousserait tout risque de découvert au-delà du 30 mai.
+          </span>
+        </div>
+      </div>
+
+      <!-- ② GRAPHIQUE -->
+      <div class="graph-card">
+        <div class="graph-header">
+          <div>
+            <div class="graph-title">Trésorerie prévisionnelle</div>
+            <div class="graph-sub">Solde projet · flux prévus + financements</div>
+          </div>
+          <div class="period-pills">
+            <button class="pp on">30j</button>
+            <button class="pp">60j</button>
+            <button class="pp">90j</button>
+          </div>
+        </div>
+
+        <!-- Insight automatique -->
+        <div class="insight-strip">
+          <span class="is-badge">⚡ Alerte</span>
+          <span class="is-text">
+            <strong>Vous passez en négatif dans 11 jours</strong> — 3 paiements provoquent cette baisse : Plomberie (4 500 €), Menuiseries (3 500 €), Carrelage (2 800 €).
+          </span>
+        </div>
+
+        <div class="chart-area">
+          <div class="chart-wrap">
+            <canvas id="tresoChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Résumé sous graphique -->
+        <div class="graph-summary">
+          <div class="gs-item">
+            <div class="gs-label">Total à payer / 30j</div>
+            <div class="gs-val warn">−10 800 €</div>
+            <div class="gs-sub">4 échéances artisans</div>
+          </div>
+          <div class="gs-item">
+            <div class="gs-label">Financements disponibles</div>
+            <div class="gs-val ok">+10 000 €</div>
+            <div class="gs-sub">déblocage prêt planifié</div>
+          </div>
+          <div class="gs-item">
+            <div class="gs-label">Manque de trésorerie</div>
+            <div class="gs-val danger">−2 200 €</div>
+            <div class="gs-sub">pic le 22 avr. sans prêt</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ ACTIONS PRIORITAIRES -->
+      <div class="actions-card">
+        <div class="actions-header">
+          <div class="actions-title">⚡ À faire maintenant</div>
+          <span class="actions-count">5 actions</span>
+        </div>
+
+        <!-- URGENT -->
+        <div class="action-row" onclick="openDrawer()">
+          <div class="action-urgency u-urgent"></div>
+          <div class="action-icon" style="background:var(--red-light)">🔧</div>
+          <div class="action-info">
+            <div class="action-label">Payer la facture Plomberie SARL Martin</div>
+            <div class="action-sub">En retard de 12 jours · Risque de blocage chantier</div>
+          </div>
+          <div class="action-amount danger">4 500 €</div>
+          <button class="action-cta cta-red" onclick="event.stopPropagation()">Payer</button>
+        </div>
+
+        <div class="action-row">
+          <div class="action-urgency u-urgent"></div>
+          <div class="action-icon" style="background:var(--orange-light)">🏦</div>
+          <div class="action-info">
+            <div class="action-label">Débloquer le prêt travaux Crédit Agricole</div>
+            <div class="action-sub">Couvre les 3 prochaines échéances · Évite le découvert du 22 avr.</div>
+          </div>
+          <div class="action-amount warn">7 700 €</div>
+          <button class="action-cta cta-orange">Débloquer</button>
+        </div>
+
+        <!-- IMPORTANT -->
+        <div class="action-row">
+          <div class="action-urgency u-important"></div>
+          <div class="action-icon" style="background:var(--amber-light)">🪟</div>
+          <div class="action-info">
+            <div class="action-label">Acompte Menuiseries Dupont à prévoir</div>
+            <div class="action-sub">Échéance dans 3 jours · 14 avril 2026</div>
+          </div>
+          <div class="action-amount warn">3 500 €</div>
+          <button class="action-cta cta-orange">Planifier</button>
+        </div>
+
+        <div class="action-row">
+          <div class="action-urgency u-important"></div>
+          <div class="action-icon" style="background:var(--purple-light)">🌿</div>
+          <div class="action-info">
+            <div class="action-label">Activer le dossier CEE avant démarrage électricité</div>
+            <div class="action-sub">Gratuit via artisan RGE · À faire avant le 2 mai</div>
+          </div>
+          <div class="action-amount blue">1 200 €</div>
+          <button class="action-cta cta-blue">Activer</button>
+        </div>
+
+        <!-- À VENIR -->
+        <div class="action-row">
+          <div class="action-urgency u-normal"></div>
+          <div class="action-icon" style="background:var(--blue-light)">📋</div>
+          <div class="action-info">
+            <div class="action-label">Vérifier devis Électricité Bernard avant signature</div>
+            <div class="action-sub">Démarre le 2 mai · Acompte 30% à prévoir</div>
+          </div>
+          <div class="action-amount blue">6 200 €</div>
+          <button class="action-cta cta-blue">Vérifier</button>
+        </div>
+      </div>
+
+      <!-- ④ ARTISANS -->
+      <div>
+        <div class="artisans-hdr">
+          <span class="section-label">Artisans · 6 entreprises</span>
+          <span class="sort-label">↓ Impact + urgence</span>
+        </div>
+
+        <!-- #1 — PROBLÈME / IMPACT ÉLEVÉ -->
+        <div class="acard problem" id="artisan-martin" onclick="openDrawer()">
+          <div class="avat" style="background:var(--red-light)">🔧</div>
+          <div class="ainfo">
+            <div class="arow1">
+              <span class="aname">Plomberie SARL Martin</span>
+              <span class="badge b-danger">⚠ Problème</span>
+              <span class="impact imp-h">Impact élevé</span>
+            </div>
+            <div class="prog-wrap">
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                <span style="font-size:10px;color:var(--ink-3)">Progression financière</span>
+                <span style="font-size:10px;color:var(--ink-3)">44% payé</span>
+              </div>
+              <div class="prog-bar">
+                <div class="prog-paid" style="width:44%"></div>
+                <div class="prog-eng" style="width:13%"></div>
+              </div>
+            </div>
+            <div class="amts">
+              <div class="amt"><span class="amt-l">Payé</span><span class="amt-v ok">6 000 €</span></div>
+              <div class="amt"><span class="amt-l">En retard</span><span class="amt-v red">4 500 €</span></div>
+              <div class="amt"><span class="amt-l">Total devis</span><span class="amt-v">13 500 €</span></div>
+            </div>
+          </div>
+          <div class="aright">
+            <span class="alert-tag">+12j retard</span>
+            <span class="next-action">Payer auj.</span>
+          </div>
+        </div>
+
+        <!-- #2 — WARNING / IMPACT ÉLEVÉ -->
+        <div class="acard warning" id="artisan-dupont" onclick="openDrawer()">
+          <div class="avat" style="background:var(--orange-light)">🪟</div>
+          <div class="ainfo">
+            <div class="arow1">
+              <span class="aname">Menuiseries Dupont</span>
+              <span class="badge b-warn">À surveiller</span>
+              <span class="impact imp-h">Impact élevé</span>
+            </div>
+            <div class="prog-wrap">
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                <span style="font-size:10px;color:var(--ink-3)">Progression financière</span>
+                <span style="font-size:10px;color:var(--ink-3)">50% payé</span>
+              </div>
+              <div class="prog-bar">
+                <div class="prog-paid" style="width:50%"></div>
+                <div class="prog-eng" style="width:15%"></div>
+              </div>
+            </div>
+            <div class="amts">
+              <div class="amt"><span class="amt-l">Payé</span><span class="amt-v ok">3 500 €</span></div>
+              <div class="amt"><span class="amt-l">Restant</span><span class="amt-v red">3 500 €</span></div>
+              <div class="amt"><span class="amt-l">Total devis</span><span class="amt-v">7 000 €</span></div>
+            </div>
+          </div>
+          <div class="aright">
+            <span class="badge b-warn">Éch. 14 avr.</span>
+            <span class="next-action">Dans 3 jours</span>
+          </div>
+        </div>
+
+        <!-- #3 — OK / IMPACT MOYEN -->
+        <div class="acard ok" id="artisan-lopez">
+          <div class="avat" style="background:var(--green-light)">🏗️</div>
+          <div class="ainfo">
+            <div class="arow1">
+              <span class="aname">Carrelage Pro · Lopez</span>
+              <span class="badge b-ok">✓ OK</span>
+              <span class="impact imp-m">Impact moyen</span>
+            </div>
+            <div class="prog-wrap">
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                <span style="font-size:10px;color:var(--ink-3)">Progression financière</span>
+                <span style="font-size:10px;color:var(--ink-3)">65% payé</span>
+              </div>
+              <div class="prog-bar">
+                <div class="prog-paid" style="width:65%"></div>
+                <div class="prog-eng" style="width:10%"></div>
+              </div>
+            </div>
+            <div class="amts">
+              <div class="amt"><span class="amt-l">Payé</span><span class="amt-v ok">5 200 €</span></div>
+              <div class="amt"><span class="amt-l">Restant</span><span class="amt-v">2 800 €</span></div>
+              <div class="amt"><span class="amt-l">Total devis</span><span class="amt-v">8 000 €</span></div>
+            </div>
+          </div>
+          <div class="aright">
+            <span class="badge b-blue">Éch. 18 avr.</span>
+            <span class="next-action">RAS</span>
+          </div>
+        </div>
+
+        <!-- #4 — OK / IMPACT ÉLEVÉ (pas démarré) -->
+        <div class="acard ok" id="artisan-bernard">
+          <div class="avat" style="background:var(--blue-light)">⚡</div>
+          <div class="ainfo">
+            <div class="arow1">
+              <span class="aname">Électricité Bernard</span>
+              <span class="badge b-ok">✓ OK</span>
+              <span class="impact imp-h">Impact élevé</span>
+            </div>
+            <div class="prog-wrap">
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                <span style="font-size:10px;color:var(--ink-3)">Progression financière</span>
+                <span style="font-size:10px;color:var(--ink-3)">0% payé · pas commencé</span>
+              </div>
+              <div class="prog-bar">
+                <div class="prog-paid" style="width:0%"></div>
+                <div class="prog-eng" style="width:0%"></div>
+              </div>
+            </div>
+            <div class="amts">
+              <div class="amt"><span class="amt-l">Payé</span><span class="amt-v">0 €</span></div>
+              <div class="amt"><span class="amt-l">Total devis</span><span class="amt-v">6 200 €</span></div>
+              <div class="amt"><span class="amt-l">Démarre</span><span class="amt-v">2 mai</span></div>
+            </div>
+          </div>
+          <div class="aright">
+            <span class="badge b-purple">CEE activable</span>
+            <span class="next-action">Signer devis</span>
+          </div>
+        </div>
+
+        <!-- #5 — OK / IMPACT FAIBLE -->
+        <div class="acard ok" id="artisan-leroy">
+          <div class="avat" style="background:var(--purple-light)">🖌️</div>
+          <div class="ainfo">
+            <div class="arow1">
+              <span class="aname">Peinture & Finitions Leroy</span>
+              <span class="badge b-ok">✓ OK</span>
+              <span class="impact imp-l">Impact faible</span>
+            </div>
+            <div class="prog-wrap">
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                <span style="font-size:10px;color:var(--ink-3)">Progression financière</span>
+                <span style="font-size:10px;color:var(--ink-3)">46% payé</span>
+              </div>
+              <div class="prog-bar">
+                <div class="prog-paid" style="width:46%"></div>
+              </div>
+            </div>
+            <div class="amts">
+              <div class="amt"><span class="amt-l">Payé</span><span class="amt-v ok">2 000 €</span></div>
+              <div class="amt"><span class="amt-l">Restant</span><span class="amt-v">2 300 €</span></div>
+              <div class="amt"><span class="amt-l">Total devis</span><span class="amt-v">4 300 €</span></div>
+            </div>
+          </div>
+          <div class="aright">
+            <span class="badge b-blue">Éch. 15 mai</span>
+            <span class="next-action">RAS</span>
+          </div>
+        </div>
+
+      </div><!-- /artisans -->
+    </div><!-- /content -->
+  </div><!-- /sw -->
+</div>
+
+
+<!-- ╔══════════════════════════════════════════════╗
+     ║  ONGLET 2 — ÉCHÉANCIER                      ║
+     ╚══════════════════════════════════════════════╝ -->
+<div>
+  <div class="slabel"><span class="sdot" style="background:#fb923c"></span>Onglet 2 — Échéancier · Vue détaillée des paiements</div>
+  <div class="sw">
+    <div class="appbar">
+      <div class="appbar-info"><h2>Échéancier</h2><p>3 paiements urgents · Total restant 18 750 €</p></div>
+      <div class="appbar-right"><div class="icon-btn">🔍</div><div class="icon-btn">⬇️</div></div>
+    </div>
+    <div class="tabs">
+      <div class="tab">Trésorerie</div>
+      <div class="tab on">Échéancier <span class="tbadge">3</span></div>
+      <div class="tab">Financement</div>
+    </div>
+    <div class="content">
+
+      <!-- EN RETARD -->
+      <div class="tl-group">
+        <div class="tl-sep">🔴 En retard · 1 paiement</div>
+        <div class="tl-item late">
+          <div class="tl-date-box late-box"><div class="tl-day">01</div><div class="tl-mon">Avr</div></div>
+          <div class="tl-info">
+            <div class="tl-who">Plomberie SARL Martin</div>
+            <div class="tl-what">Facture intermédiaire #2 · +12 jours de retard</div>
+          </div>
+          <div class="tl-amount" style="color:var(--red)">4 500 €</div>
+          <span class="badge b-danger" style="flex-shrink:0">En retard</span>
+          <button class="mark-btn">✓ Marquer payé</button>
+        </div>
+      </div>
+
+      <!-- CETTE SEMAINE -->
+      <div class="tl-group">
+        <div class="tl-sep">🟡 Cette semaine · 2 paiements</div>
+        <div class="tl-item">
+          <div class="tl-date-box"><div class="tl-day">14</div><div class="tl-mon">Avr</div></div>
+          <div class="tl-info">
+            <div class="tl-who">Menuiseries Dupont</div>
+            <div class="tl-what">Acompte 50% · Pose programmée 16 avr.</div>
+          </div>
+          <div class="tl-amount">3 500 €</div>
+          <span class="badge b-warn" style="flex-shrink:0">Dans 3j</span>
+          <button class="mark-btn">✓ Marquer payé</button>
+        </div>
+        <div class="tl-item">
+          <div class="tl-date-box"><div class="tl-day">18</div><div class="tl-mon">Avr</div></div>
+          <div class="tl-info">
+            <div class="tl-who">Carrelage Pro · Lopez</div>
+            <div class="tl-what">Solde facture finale · Réception 16 avr.</div>
+          </div>
+          <div class="tl-amount">2 800 €</div>
+          <span class="badge b-blue" style="flex-shrink:0">Dans 7j</span>
+          <button class="mark-btn">✓ Marquer payé</button>
+        </div>
+      </div>
+
+      <!-- 30 JOURS -->
+      <div class="tl-group">
+        <div class="tl-sep">🟢 30 prochains jours · 3 paiements</div>
+        <div class="tl-item">
+          <div class="tl-date-box"><div class="tl-day">02</div><div class="tl-mon">Mai</div></div>
+          <div class="tl-info">
+            <div class="tl-who">Électricité Bernard</div>
+            <div class="tl-what">Acompte 30% à la commande matériel</div>
+          </div>
+          <div class="tl-amount">1 860 €</div>
+          <span class="badge b-blue" style="flex-shrink:0">Planifié</span>
+          <button class="mark-btn">✓ Marquer payé</button>
+        </div>
+        <div class="tl-item">
+          <div class="tl-date-box"><div class="tl-day">15</div><div class="tl-mon">Mai</div></div>
+          <div class="tl-info">
+            <div class="tl-who">Peinture & Finitions Leroy</div>
+            <div class="tl-what">Facture intermédiaire · 50% restants</div>
+          </div>
+          <div class="tl-amount">2 300 €</div>
+          <span class="badge b-blue" style="flex-shrink:0">Planifié</span>
+          <button class="mark-btn">✓ Marquer payé</button>
+        </div>
+        <div class="tl-item">
+          <div class="tl-date-box"><div class="tl-day">28</div><div class="tl-mon">Mai</div></div>
+          <div class="tl-info">
+            <div class="tl-who">Électricité Bernard</div>
+            <div class="tl-what">Solde facture finale après réception</div>
+          </div>
+          <div class="tl-amount">4 340 €</div>
+          <span class="badge b-blue" style="flex-shrink:0">Planifié</span>
+          <button class="mark-btn">✓ Marquer payé</button>
+        </div>
+      </div>
+
+      <!-- PAYÉS -->
+      <div class="tl-group">
+        <div class="tl-sep" style="color:var(--ink-3)">✓ Déjà payés · 5 paiements</div>
+        <div class="tl-item done">
+          <div class="tl-date-box" style="background:var(--green-light)"><div class="tl-day" style="color:#059669">22</div><div class="tl-mon" style="color:#059669">Mar</div></div>
+          <div class="tl-info"><div class="tl-who">Plomberie SARL Martin</div><div class="tl-what">Acompte 30% · Virement BNP #REF42</div></div>
+          <div class="tl-amount">4 050 €</div>
+          <span class="badge b-ok" style="flex-shrink:0">✓ Payé</span>
+        </div>
+        <div class="tl-item done">
+          <div class="tl-date-box" style="background:var(--green-light)"><div class="tl-day" style="color:#059669">10</div><div class="tl-mon" style="color:#059669">Mar</div></div>
+          <div class="tl-info"><div class="tl-who">Carrelage Pro · Lopez</div><div class="tl-what">Acompte 40% · Virement BNP #REF38</div></div>
+          <div class="tl-amount">3 200 €</div>
+          <span class="badge b-ok" style="flex-shrink:0">✓ Payé</span>
+        </div>
+        <div class="tl-item done">
+          <div class="tl-date-box" style="background:var(--green-light)"><div class="tl-day" style="color:#059669">05</div><div class="tl-mon" style="color:#059669">Mar</div></div>
+          <div class="tl-info"><div class="tl-who">Menuiseries Dupont</div><div class="tl-what">Acompte 50% · Chèque #0012</div></div>
+          <div class="tl-amount">3 500 €</div>
+          <span class="badge b-ok" style="flex-shrink:0">✓ Payé</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<!-- ╔══════════════════════════════════════════════╗
+     ║  ONGLET 3 — FINANCEMENT                     ║
+     ╚══════════════════════════════════════════════╝ -->
+<div>
+  <div class="slabel"><span class="sdot" style="background:#60a5fa"></span>Onglet 3 — Financement · Stratégie & simulation</div>
+  <div class="sw">
+    <div class="appbar">
+      <div class="appbar-info"><h2>Financement</h2><p>Couverture 82% · Reste à financer 7 700 €</p></div>
+      <div class="appbar-right"><div class="icon-btn">➕</div><div class="icon-btn">📊</div></div>
+    </div>
+    <div class="tabs">
+      <div class="tab">Trésorerie</div>
+      <div class="tab">Échéancier <span class="tbadge">3</span></div>
+      <div class="tab on">Financement</div>
+    </div>
+    <div class="content">
+
+      <!-- ① SYNTHÈSE -->
+      <div class="fin-kpis">
+        <div class="fkpi">
+          <div class="fkpi-l">Coût total</div>
+          <div class="fkpi-v">42 500 €</div>
+          <div class="fkpi-s">6 artisans · 5 lots</div>
+        </div>
+        <div class="fkpi hl">
+          <div class="fkpi-l">Financé</div>
+          <div class="fkpi-v">34 800 €</div>
+          <div class="fkpi-s">82% du budget</div>
+        </div>
+        <div class="fkpi al">
+          <div class="fkpi-l">Reste à financer</div>
+          <div class="fkpi-v">7 700 €</div>
+          <div class="fkpi-s">prêt non débloqué</div>
+        </div>
+        <div class="fkpi">
+          <div class="fkpi-l">Déjà payé</div>
+          <div class="fkpi-v">16 700 €</div>
+          <div class="fkpi-s">39% du total</div>
+        </div>
+      </div>
+
+      <div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+          <span style="font-size:12px;font-weight:700;color:var(--ink-2)">Taux de couverture</span>
+          <span style="font-size:14px;font-weight:900;color:#059669">82%</span>
+        </div>
+        <div class="cov-track"><div class="cov-fill" style="width:82%"></div></div>
+        <div class="cov-labels"><span>0 €</span><span>Financé : 34 800 €</span><span>Budget : 42 500 €</span></div>
+      </div>
+
+      <div class="alert-bar ab-warn">
+        <span class="ab-icon">🏦</span>
+        <span style="flex:1"><strong>Il vous manque 7 700 €</strong> pour couvrir l'intégralité de votre projet. Le déblocage du prêt travaux réglerait cette situation immédiatement.</span>
+        <span class="ab-act">Simuler →</span>
+      </div>
+
+      <!-- ② SOURCES -->
+      <div style="font-size:12px;font-weight:800;color:var(--ink-1);margin-bottom:12px">Sources de financement</div>
+
+      <div class="fs-card">
+        <div class="fs-card-icon" style="background:var(--green-light)">💰</div>
+        <div class="fs-card-info">
+          <div class="fs-card-name">Apport personnel</div>
+          <div class="fs-card-sub">Compte courant BNP · Utilisé à 84%</div>
+          <div class="fs-prog"><div class="fs-fill" style="width:84%;background:var(--green)"></div></div>
+        </div>
+        <div class="fs-right"><div class="fs-total">20 000 €</div><div class="fs-util">16 800 € utilisés</div></div>
+      </div>
+
+      <div class="fs-card">
+        <div class="fs-card-icon" style="background:var(--blue-light)">🏦</div>
+        <div class="fs-card-info">
+          <div class="fs-card-name">Prêt travaux Crédit Agricole</div>
+          <div class="fs-card-sub">25 000 € · 4,2% · 60 mois · Débloqué à 28%</div>
+          <div class="fs-prog"><div class="fs-fill" style="width:28%;background:var(--blue)"></div></div>
+        </div>
+        <div class="fs-right"><div class="fs-total">25 000 €</div><div class="fs-util">7 000 € débloqués</div></div>
+      </div>
+
+      <div class="fs-card">
+        <div class="fs-card-icon" style="background:var(--orange-light)">🌿</div>
+        <div class="fs-card-info">
+          <div class="fs-card-name">MaPrimeRénov' — ANAH</div>
+          <div class="fs-card-sub">Dossier déposé le 10 mars · En attente validation</div>
+          <div class="fs-prog"><div class="fs-fill" style="width:0%;background:var(--orange)"></div></div>
+        </div>
+        <div class="fs-right"><div class="fs-total" style="color:var(--orange)">4 500 €</div><div class="fs-util">En attente</div></div>
+      </div>
+
+      <div class="fs-card">
+        <div class="fs-card-icon" style="background:var(--purple-light)">⚡</div>
+        <div class="fs-card-info">
+          <div class="fs-card-name">CEE — Certificats d'Économies d'Énergie</div>
+          <div class="fs-card-sub">Activable gratuitement via artisan RGE avant 2 mai</div>
+          <div class="fs-prog"><div class="fs-fill" style="width:0%;background:var(--purple)"></div></div>
+        </div>
+        <div class="fs-right"><div class="fs-total" style="color:var(--purple)">1 200 €</div><div class="fs-util">Non activé</div></div>
+      </div>
+
+      <div class="tip">
+        <span class="tip-ico">💡</span>
+        <span class="tip-txt">
+          <strong>Conseil :</strong> Mobilisez d'abord votre <strong>apport</strong> pour les paiements courants, puis débloquez le <strong>prêt</strong> juste avant la tension du 19 avril. Activez le <strong>CEE</strong> maintenant — c'est gratuit et représente 1 200 € supplémentaires.
+        </span>
+      </div>
+
+      <!-- ③ SIMULATEUR -->
+      <div class="sim-card">
+        <div class="sim-title">Simulateur de prêt travaux</div>
+        <div class="sim-inputs">
+          <div class="sim-field">
+            <label class="sim-label">Montant (€)</label>
+            <input class="sim-input" type="number" value="7700" oninput="calcSim()">
+          </div>
+          <div class="sim-field">
+            <label class="sim-label">Durée (mois)</label>
+            <input class="sim-input" type="number" value="60" oninput="calcSim()">
+          </div>
+          <div class="sim-field">
+            <label class="sim-label">Taux annuel (%)</label>
+            <input class="sim-input" type="number" value="4.2" step="0.1" oninput="calcSim()">
+          </div>
+        </div>
+        <div class="sim-outputs">
+          <div class="so"><div class="so-l">Mensualité</div><div class="so-v accent" id="s-m">142 €</div></div>
+          <div class="so"><div class="so-l">Coût total</div><div class="so-v" id="s-t">8 520 €</div></div>
+          <div class="so"><div class="so-l">Intérêts</div><div class="so-v" id="s-i">820 €</div></div>
+        </div>
+        <div class="sim-reco">
+          <span class="sr-ico">🎯</span>
+          <span class="sr-txt">
+            <strong>Vous économisez 820 € en intérêts</strong>
+            En utilisant votre apport personnel en priorité pour les paiements courants, puis en débloquant le prêt uniquement pour le solde, vous réduisez la base empruntée et les intérêts totaux.
+          </span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<!-- ╔══════════════════════════════════════════════╗
+     ║  DRAWER — Détail artisan avancé             ║
+     ╚══════════════════════════════════════════════╝ -->
+<div>
+  <div class="slabel"><span class="sdot" style="background:#a78bfa"></span>⑤ Drawer · Détail artisan — cliquer une carte ci-dessus</div>
+  <div class="sw" style="min-height:180px;position:relative">
+    <div style="padding:24px;background:var(--bg)">
+      <p style="font-size:12px;color:var(--ink-3);margin-bottom:12px">Contexte : clic sur une carte artisan → drawer latéral</p>
+      <div class="acard problem" onclick="openDrawer()" style="max-width:520px">
+        <div class="avat" style="background:var(--red-light)">🔧</div>
+        <div class="ainfo">
+          <div class="arow1">
+            <span class="aname">Plomberie SARL Martin</span>
+            <span class="badge b-danger">⚠ Problème</span>
+            <span class="impact imp-h">Impact élevé</span>
+          </div>
+          <div style="font-size:12px;color:var(--blue);font-weight:600;margin-top:4px">→ Cliquer pour ouvrir le drawer détail</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ╔══════════════════════════════════════════════╗
+     ║  CARTE COMPOSANTS                           ║
+     ╚══════════════════════════════════════════════╝ -->
+<div class="comp-map">
+  <h2>Structure composants — prête à développer</h2>
+  <div class="comp-cols">
+    <div>
+      <pre><span class="cl-purple">BudgetTresorerie</span>
+  ├─ <span class="cl-teal">TresorerieTab</span>
+  │   ├─ <span class="cl-green">HeroSituation</span>
+  │   │   ├─ StatusPill          (dynamique)
+  │   │   ├─ HeroKPIs × 3       (solde/restant/éch.)
+  │   │   ├─ VisualGauge         (vert→orange→rouge)
+  │   │   └─ DynamicReco         (conseil IA)
+  │   ├─ <span class="cl-green">TresoGraph</span>
+  │   │   ├─ InsightStrip        (alerte auto)
+  │   │   ├─ Chart.js Line       (zones fond couleur)
+  │   │   │   └─ onClick → highlightArtisan()
+  │   │   └─ GraphSummary × 3   (30j / dispo / manque)
+  │   ├─ <span class="cl-green">ActionsPrioritaires</span>
+  │   │   └─ ActionRow × n      (urgence + CTA)
+  │   └─ <span class="cl-green">ArtisanList</span>
+  │       └─ <span class="cl-amber">ArtisanCard</span>
+  │           ├─ ImpactBadge
+  │           ├─ ProgressBar
+  │           └─ onClick → openDrawer()
+  │               └─ <span class="cl-amber">ArtisanDrawer</span>
+  │                   ├─ ImpactTreso
+  │                   ├─ SummaryKPIs
+  │                   ├─ PaymentRows
+  │                   ├─ JustificatifList
+  │                   └─ FinancementLinks</pre>
+    </div>
+    <div>
+      <pre><span class="cl-teal">EcheancierTab</span>
+  └─ TimelineGroup × 4
+      ├─ "En retard"
+      ├─ "Cette semaine"
+      ├─ "30 prochains jours"
+      └─ "Déjà payés"
+          └─ TimelineItem × n
+              └─ markAsPaid()
+
+<span class="cl-teal">FinancementTab</span>
+  ├─ <span class="cl-green">FinKPIs × 4</span>       (coût/financé/reste/payé)
+  ├─ <span class="cl-green">CoverageBar</span>       (% couverture)
+  ├─ <span class="cl-green">AlertBar</span>          (dynamique)
+  ├─ <span class="cl-green">FinSourceCard × n</span>
+  │   ├─ apport (vert)
+  │   ├─ crédit (bleu)
+  │   └─ aides  (orange/violet)
+  ├─ <span class="cl-green">IntelligentTip</span>    (conseil contextuel)
+  └─ <span class="cl-green">CreditSimulator</span>
+      ├─ inputs × 3
+      ├─ calcSim() (live)
+      └─ SimReco   (économie)</pre>
+      <div style="margin-top:14px">
+        <div style="font-size:10px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Statuts paiement</div>
+        <div class="status-pills">
+          <span class="badge b-danger">en_retard</span>
+          <span class="badge b-warn">a_venir</span>
+          <span class="badge b-blue">planifie</span>
+          <span class="badge b-ok">paye</span>
+          <span class="badge b-purple">en_attente_financement</span>
+          <span class="badge b-amber">encaisse</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /page -->
+
+
+<!-- ════════════════════ DRAWER ════════════════════ -->
+<div class="d-overlay" id="overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="d-head">
+    <div>
+      <div class="d-title">🔧 Plomberie SARL Martin</div>
+      <div class="d-sub">SIRET 83912345600012 · Cuisine + SDB · 13 500 €</div>
+    </div>
+    <div class="d-close" onclick="closeDrawer()">✕</div>
+  </div>
+
+  <div class="d-body">
+
+    <!-- Impact tréso -->
+    <div class="d-impact">
+      <span class="di-icon">⏰</span>
+      <div class="di-text">
+        <strong>−4 500 € sur votre trésorerie dans 0 jour</strong>
+        Facture en retard de 12 jours. Sans paiement aujourd'hui, le chantier risque d'être bloqué.
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div>
+      <div class="d-sec-title">Résumé financier</div>
+      <div class="d-kpis">
+        <div class="dk"><div class="dk-l">Payé</div><div class="dk-v ok">6 000 €</div></div>
+        <div class="dk"><div class="dk-l">En retard</div><div class="dk-v red">4 500 €</div></div>
+        <div class="dk"><div class="dk-l">Restant</div><div class="dk-v">3 000 €</div></div>
+      </div>
+    </div>
+
+    <!-- Paiements -->
+    <div>
+      <div class="d-sec-title">Détail des paiements</div>
+
+      <div class="prow">
+        <div class="prow-icon" style="background:var(--green-light)">✅</div>
+        <div class="prow-info"><div class="prow-name">Acompte 30%</div><div class="prow-date">Payé le 22 mars 2026 · Virement BNP #REF42</div></div>
+        <div class="prow-right"><div class="prow-amt">4 050 €</div><span class="ps ps-paid">✓ Payé</span></div>
+      </div>
+
+      <div class="prow">
+        <div class="prow-icon" style="background:var(--green-light)">✅</div>
+        <div class="prow-info"><div class="prow-name">Facture intermédiaire #1</div><div class="prow-date">Payé le 15 mars 2026 · Virement #REF49</div></div>
+        <div class="prow-right"><div class="prow-amt">1 950 €</div><span class="ps ps-paid">✓ Payé</span></div>
+      </div>
+
+      <div class="prow overdue">
+        <div class="prow-icon" style="background:var(--red-light)">⏰</div>
+        <div class="prow-info"><div class="prow-name">Facture intermédiaire #2</div><div class="prow-date">Éch. 01 avr. 2026 · +12 jours de retard</div></div>
+        <div class="prow-right"><div class="prow-amt danger">4 500 €</div><span class="ps ps-overdue">⚠ En retard</span></div>
+      </div>
+
+      <div class="prow">
+        <div class="prow-icon" style="background:var(--blue-light)">📅</div>
+        <div class="prow-info"><div class="prow-name">Solde final · réception travaux</div><div class="prow-date">Prévu 30 mai 2026</div></div>
+        <div class="prow-right"><div class="prow-amt">3 000 €</div><span class="ps ps-planned">Planifié</span></div>
+      </div>
+    </div>
+
+    <!-- Justificatifs -->
+    <div>
+      <div class="d-sec-title">Justificatifs</div>
+      <div class="jrow">
+        <span class="j-icon">📄</span>
+        <div class="j-info"><div class="j-name">Devis_Plomberie_Martin_2026.pdf</div><div class="j-meta">Devis · 13 500 € · 20 févr. · 245 Ko</div></div>
+        <span class="j-action">Voir</span>
+      </div>
+      <div class="jrow">
+        <span class="j-icon">🧾</span>
+        <div class="j-info"><div class="j-name">Facture_interim1_Martin.pdf</div><div class="j-meta">Facture · 1 950 € · 15 mars · 112 Ko</div></div>
+        <span class="j-action">Voir</span>
+      </div>
+      <div class="jrow add">
+        <span class="j-icon">➕</span>
+        <div class="j-info"><div class="j-name" style="color:var(--blue)">Ajouter un justificatif</div><div class="j-meta">PDF, image · max 10 Mo</div></div>
+      </div>
+    </div>
+
+    <!-- Financement -->
+    <div>
+      <div class="d-sec-title">Financement associé</div>
+      <div class="fin-source">
+        <div class="fs-icon" style="background:var(--blue-light)">🏦</div>
+        <div class="fs-info"><div class="fs-name" style="color:#1e40af">Prêt travaux Crédit Agricole</div><div class="fs-bar"><div class="fs-fill" style="width:28%;background:var(--blue)"></div></div></div>
+        <div class="fs-right"><div class="fs-amt" style="color:var(--blue)">28%</div><div class="fs-used">7 000 / 25 000 €</div></div>
+      </div>
+      <div class="fin-source">
+        <div class="fs-icon" style="background:var(--green-light)">💰</div>
+        <div class="fs-info"><div class="fs-name">Apport personnel</div><div class="fs-bar"><div class="fs-fill" style="width:84%;background:var(--green)"></div></div></div>
+        <div class="fs-right"><div class="fs-amt">84%</div><div class="fs-used">16 800 / 20 000 €</div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="d-foot">
+    <button class="btn-p">✓ Marquer facture payée</button>
+    <button class="btn-s">💬 Contacter</button>
+  </div>
+</div>
+
+
+<script>
+/* ════════════════════════════════════
+   DRAWER
+════════════════════════════════════ */
+function openDrawer(){
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('drawer').classList.add('open');
+}
+function closeDrawer(){
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('drawer').classList.remove('open');
+}
+
+/* ════════════════════════════════════
+   CHART.JS — TRÉSORERIE
+════════════════════════════════════ */
+(function(){
+  const ctx = document.getElementById('tresoChart').getContext('2d');
+
+  // 31 points : j=0 (31 mars) → j=30 (30 avr.)
+  const base = new Date(2026,2,31);
+  const labels = Array.from({length:31},(_,i)=>{
+    const d = new Date(base); d.setDate(d.getDate()+i);
+    return d.getDate()+'/'+(d.getMonth()+1);
+  });
+
+  // Événements (index = jour)
+  const events = {1:-4500, 14:-3500, 18:-2800, 22:+10000};
+  const eventMeta = {
+    1:  {who:'Plomberie Martin',     color:'#ef4444'},
+    14: {who:'Menuiseries Dupont',   color:'#f97316'},
+    18: {who:'Carrelage Lopez',      color:'#f97316'},
+    22: {who:'Déblocage prêt CA',    color:'#22c55e'},
+  };
+
+  let solde = 14200;
+  const data = [solde];
+  for(let i=1;i<=30;i++){
+    if(events[i]) solde += events[i];
+    data.push(solde);
+  }
+
+  // Gradient fill
+  const grad = ctx.createLinearGradient(0,0,0,200);
+  grad.addColorStop(0,  'rgba(0,191,142,.15)');
+  grad.addColorStop(0.55,'rgba(249,115,22,.10)');
+  grad.addColorStop(1,  'rgba(239,68,68,.18)');
+
+  // Couleur segment par valeur moyenne
+  const segColor = (p0y, p1y) => {
+    const avg = (p0y + p1y)/2;
+    return avg < 0 ? '#ef4444' : avg < 5000 ? '#f97316' : '#00bf8e';
+  };
+
+  // Taille des points
+  const ptRadius = data.map((_,i)=> events[i]||i===0 ? 6 : 0);
+  const ptBg = data.map((v,i)=> {
+    if(eventMeta[i]) return eventMeta[i].color;
+    return v < 0 ? '#ef4444' : v < 5000 ? '#f97316' : '#00bf8e';
+  });
+
+  const minVal = Math.min(...data);
+  const minIdx = data.indexOf(minVal);
+
+  const chart = new Chart(ctx,{
+    type:'line',
+    data:{
+      labels,
+      datasets:[{
+        label:'Solde projet',
+        data,
+        borderWidth: 2.5,
+        backgroundColor: grad,
+        fill: true,
+        tension: 0.42,
+        pointRadius: ptRadius,
+        pointHoverRadius: data.map((_,i)=> events[i]||i===0 ? 8 : 5),
+        pointBackgroundColor: ptBg,
+        pointBorderColor:'white',
+        pointBorderWidth: 2,
+        segment:{
+          borderColor: ctx2 => segColor(ctx2.p0.parsed.y, ctx2.p1.parsed.y)
+        }
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        annotation:{
+          annotations:{
+            zeroLine:{
+              type:'line', yMin:0, yMax:0,
+              borderColor:'rgba(239,68,68,.3)',
+              borderWidth:1.5, borderDash:[4,4]
+            },
+            tensionLine:{
+              type:'line', yMin:5000, yMax:5000,
+              borderColor:'rgba(249,115,22,.2)',
+              borderWidth:1, borderDash:[3,3]
+            },
+            minLabel:{
+              type:'label',
+              xValue: labels[minIdx],
+              yValue: minVal,
+              content: [`Minimum : ${minVal.toLocaleString('fr-FR')} €`],
+              backgroundColor:'rgba(239,68,68,.85)',
+              color:'white',
+              font:{size:10,weight:'bold'},
+              padding:{x:7,y:4},
+              borderRadius:5,
+              position:'center',
+            }
+          }
+        },
+        tooltip:{
+          backgroundColor:'#0c1421',
+          titleColor:'#f1f5f9',
+          bodyColor:'#9ca3af',
+          padding:12, cornerRadius:8, displayColors:false,
+          callbacks:{
+            title: items => labels[items[0].dataIndex],
+            label: item => {
+              const v = item.parsed.y;
+              const i = item.dataIndex;
+              const meta = eventMeta[i];
+              const lines = [`Solde : ${v.toLocaleString('fr-FR')} €`];
+              if(meta){
+                const sign = events[i] > 0 ? '+' : '';
+                lines.push(`${meta.who} : ${sign}${events[i].toLocaleString('fr-FR')} €`);
+              }
+              return lines;
+            }
+          }
+        }
+      },
+      scales:{
+        x:{
+          grid:{color:'#f0f2f5', lineWidth:1},
+          ticks:{color:'#9ca3af', font:{size:10}, maxTicksLimit:8}
+        },
+        y:{
+          grid:{color:'#f0f2f5'},
+          ticks:{
+            color:'#9ca3af', font:{size:10},
+            callback: v => {
+              const abs = Math.abs(v/1000);
+              return (v<0?'−':'')+(abs===Math.floor(abs)?abs+'k':'')+'€';
+            }
+          }
+        }
+      },
+      interaction:{intersect:false, mode:'index'},
+      onClick:(_,elements)=>{
+        if(!elements.length) return;
+        const i = elements[0].index;
+        // Map event index → artisan id
+        const artisanMap = {1:'artisan-martin', 14:'artisan-dupont', 18:'artisan-lopez'};
+        const id = artisanMap[i];
+        if(id){
+          const el = document.getElementById(id);
+          if(el){
+            el.scrollIntoView({behavior:'smooth', block:'center'});
+            el.classList.add('highlighted');
+            setTimeout(()=>el.classList.remove('highlighted'), 2200);
+          }
+        }
+      }
+    }
+  });
+})();
+
+
+/* ════════════════════════════════════
+   SIMULATEUR CRÉDIT
+════════════════════════════════════ */
+function calcSim(){
+  const inputs = document.querySelectorAll('.sim-input');
+  const m = parseFloat(inputs[0].value)||0;
+  const n = parseFloat(inputs[1].value)||1;
+  const r = (parseFloat(inputs[2].value)||0)/100/12;
+  let men = r===0 ? m/n : m*(r*Math.pow(1+r,n))/(Math.pow(1+r,n)-1);
+  const tot = men*n;
+  const int = tot-m;
+  const fmt = v => Math.round(v).toLocaleString('fr-FR')+' €';
+  document.getElementById('s-m').textContent = fmt(men);
+  document.getElementById('s-t').textContent = fmt(tot);
+  document.getElementById('s-i').textContent = fmt(int);
+  // Update reco
+  const reco = document.querySelector('.sr-txt strong');
+  if(reco) reco.textContent = `Vous économisez ${fmt(int)} en intérêts`;
+}
+</script>
+</body>
+</html>

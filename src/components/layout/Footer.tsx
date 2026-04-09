@@ -61,6 +61,11 @@ const Footer = () => {
                 </a>
               </li>
               <li>
+                <a href="/cgv" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Conditions Générales de Vente
+                </a>
+              </li>
+              <li>
                 <a href="/mentions-legales" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   Mentions légales
                 </a>

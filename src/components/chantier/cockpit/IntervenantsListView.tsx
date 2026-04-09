@@ -111,9 +111,11 @@ export default function IntervenantsListView({
     if (sortKey === 'none') return filtered;
     return [...filtered].sort((a, b) => {
       const bestPrice = (g: typeof a) => {
+        const getDocPrice = (d: DocumentChantier) =>
+          analysisData[d.id]?.ttc ?? (d.montant && d.montant > 0 ? d.montant : 0);
         const validated = g.devisDocs.find(d => d.devis_statut === 'valide');
-        if (validated) return analysisData[validated.id]?.ttc ?? 0;
-        const prices = g.devisDocs.map(d => analysisData[d.id]?.ttc ?? 0).filter(p => p > 0);
+        if (validated) return getDocPrice(validated);
+        const prices = g.devisDocs.map(getDocPrice).filter(p => p > 0);
         return prices.length ? Math.min(...prices) : 0;
       };
       return sortKey === 'prix_asc' ? bestPrice(a) - bestPrice(b) : bestPrice(b) - bestPrice(a);
@@ -306,7 +308,7 @@ export default function IntervenantsListView({
                 ) : (
                   devisDocs.map((doc, idx) => {
                     const data    = analysisData[doc.id];
-                    const ttc     = data?.ttc;
+                    const ttc     = data?.ttc ?? (doc.montant && doc.montant > 0 ? doc.montant : null);
                     const isLast  = idx === devisDocs.length - 1;
                     const isSelected = doc.devis_statut === 'valide';
 

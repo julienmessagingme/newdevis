@@ -30,51 +30,112 @@ import AstroFooter from '@/components/astro/Footer.astro';
         <h1 class="text-3xl font-bold text-foreground mb-8">Mentions légales</h1>
 
         <div class="space-y-8">
+
           <section class="bg-card border border-border rounded-xl p-6">
             <h2 class="text-xl font-semibold text-foreground mb-4">1. Éditeur du site</h2>
             <div class="text-muted-foreground space-y-2">
               <p><strong class="text-foreground">Nom du site :</strong> VerifierMonDevis.fr</p>
               <p><strong class="text-foreground">URL :</strong> https://www.verifiermondevis.fr</p>
-              <p><strong class="text-foreground">Contact :</strong> <a href="mailto:contact@verifiermondevis.fr" class="text-primary hover:underline">contact@verifiermondevis.fr</a></p>
-              <p><strong class="text-foreground">Directeur de la publication :</strong> Julien Bridey</p>
+              <p><strong class="text-foreground">Forme juridique :</strong> Entrepreneur individuel</p>
+              <p><strong class="text-foreground">Responsable de la publication :</strong> Julien Bridey</p>
+              <p><strong class="text-foreground">SIRET :</strong> [à compléter]</p>
+              <p><strong class="text-foreground">Adresse :</strong> [à compléter]</p>
+              <p>
+                <strong class="text-foreground">Contact :</strong>{' '}
+                <a href="mailto:contact@verifiermondevis.fr" class="text-primary hover:underline">contact@verifiermondevis.fr</a>
+              </p>
+              <p class="text-sm text-muted-foreground/70 pt-1">
+                Service client disponible par email du lundi au vendredi. Réponse sous 48 h ouvrées.
+              </p>
             </div>
           </section>
 
           <section class="bg-card border border-border rounded-xl p-6">
             <h2 class="text-xl font-semibold text-foreground mb-4">2. Hébergement</h2>
             <div class="text-muted-foreground space-y-2">
-              <p><strong class="text-foreground">Hébergeur :</strong> Vercel Inc.</p>
+              <p><strong class="text-foreground">Hébergeur principal :</strong> Vercel Inc.</p>
               <p><strong class="text-foreground">Adresse :</strong> 340 S Lemon Ave #4133, Walnut, CA 91789, États-Unis</p>
               <p><strong class="text-foreground">Site web :</strong> https://vercel.com</p>
+              <p class="pt-2"><strong class="text-foreground">Base de données :</strong> Supabase Inc., 970 Toa Payoh North, Singapour — données hébergées en Europe (région EU West).</p>
             </div>
           </section>
 
           <section class="bg-card border border-border rounded-xl p-6">
-            <h2 class="text-xl font-semibold text-foreground mb-4">3. Propriété intellectuelle</h2>
+            <h2 class="text-xl font-semibold text-foreground mb-4">3. Nature du service</h2>
             <div class="text-muted-foreground space-y-3">
-              <p>L'ensemble des contenus présents sur le site VerifierMonDevis.fr (textes, graphismes, logo, icônes, images, logiciels) est protégé par les lois relatives à la propriété intellectuelle.</p>
-              <p>Toute reproduction, représentation, modification ou adaptation, totale ou partielle, est interdite sans autorisation écrite préalable.</p>
+              <p>
+                VerifierMonDevis.fr est une <strong class="text-foreground">plateforme d'aide à la décision</strong> destinée aux particuliers.
+                Elle fournit une analyse automatisée et indicative de devis d'artisans, ainsi qu'un outil de gestion de chantier.
+              </p>
+              <p>
+                Les résultats fournis sont <strong class="text-foreground">indicatifs et non contractuels</strong>. Ils ne constituent ni un
+                conseil juridique, ni un conseil financier, ni un avis technique certifié.
+                L'utilisateur reste seul décisionnaire quant au choix de l'artisan et à la réalisation des travaux.
+              </p>
+              <p>
+                Les données affichées proviennent de sources publiques (INSEE, BODACC, ADEME, data.economie.gouv.fr, Géorisques)
+                dont l'exactitude ne peut être garantie. VerifierMonDevis.fr ne saurait être tenu responsable des décisions
+                prises sur la base de ces informations.
+              </p>
             </div>
           </section>
 
           <section class="bg-card border border-border rounded-xl p-6">
-            <h2 class="text-xl font-semibold text-foreground mb-4">4. Responsabilité</h2>
+            <h2 class="text-xl font-semibold text-foreground mb-4">4. Propriété intellectuelle</h2>
             <div class="text-muted-foreground space-y-3">
-              <p>VerifierMonDevis.fr fournit un service d'<strong class="text-foreground">analyse automatisée et indicative</strong> de devis d'artisans. Les résultats ne constituent en aucun cas un conseil juridique, financier ou technique.</p>
-              <p>L'éditeur ne saurait être tenu responsable des décisions prises sur la base des informations fournies par le service.</p>
-              <p>Les données affichées proviennent de sources publiques (INSEE, BODACC, ADEME, data.economie.gouv.fr) dont l'exactitude ne peut être garantie.</p>
+              <p>
+                L'ensemble des contenus présents sur le site VerifierMonDevis.fr — textes, graphismes, logo, icônes, images,
+                algorithmes d'analyse, prompts IA, structure de base de données et code source — est la propriété exclusive
+                de l'éditeur et est protégé par les lois relatives à la propriété intellectuelle (Code de la propriété
+                intellectuelle, articles L.111-1 et suivants).
+              </p>
+              <p>
+                Toute reproduction, représentation, modification, adaptation, traduction ou exploitation, totale ou partielle,
+                par quelque moyen que ce soit, est <strong class="text-foreground">strictement interdite sans autorisation écrite préalable</strong> de l'éditeur.
+              </p>
+              <p>
+                Les bases de données constituées par le site (prix de marché, observations de prix) sont protégées par le
+                droit sui generis du producteur de bases de données (article L.341-1 du CPI).
+              </p>
             </div>
           </section>
 
           <section class="bg-card border border-border rounded-xl p-6">
-            <h2 class="text-xl font-semibold text-foreground mb-4">5. Liens hypertextes</h2>
-            <p class="text-muted-foreground">Le site peut contenir des liens vers des sites tiers. L'éditeur ne peut être tenu responsable du contenu de ces sites externes.</p>
+            <h2 class="text-xl font-semibold text-foreground mb-4">5. Conditions générales de vente</h2>
+            <p class="text-muted-foreground">
+              La souscription au Pass Sérénité (service payant) est régie par les
+              <a href="/cgv" class="text-primary hover:underline">Conditions Générales de Vente</a> disponibles sur ce site.
+            </p>
           </section>
 
           <section class="bg-card border border-border rounded-xl p-6">
-            <h2 class="text-xl font-semibold text-foreground mb-4">6. Droit applicable</h2>
-            <p class="text-muted-foreground">Les présentes mentions légales sont soumises au droit français. Tout litige relatif à l'utilisation du site sera soumis à la compétence des tribunaux français.</p>
+            <h2 class="text-xl font-semibold text-foreground mb-4">6. Liens hypertextes</h2>
+            <p class="text-muted-foreground">
+              Le site peut contenir des liens vers des sites tiers. L'éditeur ne peut être tenu responsable du contenu
+              de ces sites externes ni des dommages pouvant résulter de leur utilisation.
+            </p>
           </section>
+
+          <section class="bg-card border border-border rounded-xl p-6">
+            <h2 class="text-xl font-semibold text-foreground mb-4">7. Médiation et droit applicable</h2>
+            <div class="text-muted-foreground space-y-3">
+              <p>
+                Les présentes mentions légales sont soumises au droit français.
+                Tout litige relatif à l'utilisation du site sera soumis à la compétence des tribunaux français.
+              </p>
+              <p>
+                Conformément aux articles L.611-1 et suivants du Code de la consommation, les consommateurs ont le droit
+                de recourir gratuitement à un médiateur de la consommation.
+                Médiateur compétent : <strong class="text-foreground">Médiateur du e-commerce de la FEVAD</strong> —
+                <a href="https://www.mediateurfevad.fr" target="_blank" rel="noreferrer" class="text-primary hover:underline">www.mediateurfevad.fr</a>.
+              </p>
+              <p>
+                Plateforme européenne de règlement en ligne des litiges (RLL) :
+                <a href="https://ec.europa.eu/consumers/odr" target="_blank" rel="noreferrer" class="text-primary hover:underline">https://ec.europa.eu/consumers/odr</a>
+              </p>
+            </div>
+          </section>
+
         </div>
       </div>
     </main>
