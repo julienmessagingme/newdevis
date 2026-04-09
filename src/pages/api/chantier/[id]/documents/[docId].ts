@@ -106,6 +106,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     devisStatut?: string;
     factureStatut?: string;
     montantPaye?: number | null;
+    montant?: number | null;
   };
   try {
     body = await request.json();
@@ -164,6 +165,12 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     if (body.montantPaye !== null && (typeof body.montantPaye !== 'number' || body.montantPaye < 0))
       return jsonError('Montant payé invalide', 400);
     updates.montant_paye = body.montantPaye;
+  }
+
+  if (body.montant !== undefined) {
+    if (body.montant !== null && (typeof body.montant !== 'number' || body.montant <= 0))
+      return jsonError('Montant invalide', 400);
+    updates.montant = body.montant;
   }
 
   if (!Object.keys(updates).length)

@@ -648,8 +648,36 @@ function ArtisanDrawer({
                       )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      {d.montant !== null && (
+                      {d.montant !== null ? (
                         <span className="text-[12px] font-bold text-gray-700">{fmtEur(d.montant)}</span>
+                      ) : editingMontant?.devisId === d.id ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            autoFocus
+                            type="number"
+                            value={editingMontant.value}
+                            onChange={e => setEditingMontant({ devisId: d.id, value: e.target.value })}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') saveMontantDevis(d.id, editingMontant.value);
+                              if (e.key === 'Escape') setEditingMontant(null);
+                            }}
+                            onBlur={() => saveMontantDevis(d.id, editingMontant.value)}
+                            className="w-20 text-[11px] font-bold border-b border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5 text-right"
+                            placeholder="Ex: 4500"
+                          />
+                          <span className="text-[10px] text-gray-400">€</span>
+                        </div>
+                      ) : savingMontant === d.id ? (
+                        <Loader2 className="h-3.5 w-3.5 text-indigo-400 animate-spin" />
+                      ) : (
+                        <button
+                          onClick={() => setEditingMontant({ devisId: d.id, value: '' })}
+                          className="flex items-center gap-1 text-[10px] text-gray-300 hover:text-indigo-500 transition-colors"
+                          title="Saisir le montant"
+                        >
+                          <Pencil className="h-3 w-3" />
+                          <span>Saisir</span>
+                        </button>
                       )}
                       {d.signed_url ? (
                         <a href={d.signed_url} target="_blank" rel="noopener noreferrer"
@@ -854,6 +882,9 @@ export default function BudgetTab({
   const [openMenu,     setOpenMenu]     = useState<string | null>(null);
   // Acompte avec saisie montant inline
   const [acompteInput, setAcompteInput] = useState<{ factureId: string; value: string } | null>(null);
+  // Édition montant devis inline (pour les devis sans montant)
+  const [editingMontant, setEditingMontant] = useState<{ devisId: string; value: string } | null>(null);
+  const [savingMontant,  setSavingMontant]  = useState<string | null>(null);
 
   // Overrides locaux des statuts factures (optimistic updates)
   const [statutOverrides, setStatutOverrides] = useState<Record<string, FactureStatut>>({});
@@ -951,6 +982,23 @@ export default function BudgetTab({
     } catch { /* silencieux */ }
     setChangingId(null);
   }, [chantierId, token, handleStatutChange, refresh]);
+
+  const saveMontantDevis = useCallback(async (devisId: string, valStr: string) => {
+    const montant = parseFloat(valStr.replace(',', '.'));
+    if (isNaN(montant) || montant <= 0) { setEditingMontant(null); return; }
+    setSavingMontant(devisId);
+    try {
+      const bearer = await freshToken(token);
+      await fetch(`/api/chantier/${chantierId}/documents/${devisId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
+        body: JSON.stringify({ montant }),
+      });
+      setEditingMontant(null);
+      refresh();
+    } catch { /* silencieux */ }
+    setSavingMontant(null);
+  }, [chantierId, token, refresh]);
 
   const toggleExpand = useCallback((lotId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1266,10 +1314,38 @@ export default function BudgetTab({
                                         </p>
                                       )}
                                     </div>
-                                    {d.montant !== null && (
+                                    {d.montant !== null ? (
                                       <span className="text-[12px] font-bold text-gray-700 tabular-nums shrink-0">
                                         {fmtEur(d.montant)}
                                       </span>
+                                    ) : editingMontant?.devisId === d.id ? (
+                                      <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                                        <input
+                                          autoFocus
+                                          type="number"
+                                          value={editingMontant.value}
+                                          onChange={e => setEditingMontant({ devisId: d.id, value: e.target.value })}
+                                          onKeyDown={e => {
+                                            if (e.key === 'Enter') saveMontantDevis(d.id, editingMontant.value);
+                                            if (e.key === 'Escape') setEditingMontant(null);
+                                          }}
+                                          onBlur={() => saveMontantDevis(d.id, editingMontant.value)}
+                                          className="w-20 text-[11px] font-bold border-b border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5 text-right"
+                                          placeholder="Ex: 4500"
+                                        />
+                                        <span className="text-[10px] text-gray-400">€</span>
+                                      </div>
+                                    ) : savingMontant === d.id ? (
+                                      <Loader2 className="h-3.5 w-3.5 text-indigo-400 animate-spin shrink-0" />
+                                    ) : (
+                                      <button
+                                        onClick={e => { e.stopPropagation(); setEditingMontant({ devisId: d.id, value: '' }); }}
+                                        className="flex items-center gap-0.5 text-[10px] text-gray-300 hover:text-indigo-500 transition-colors shrink-0"
+                                        title="Saisir le montant"
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                        <span>Saisir</span>
+                                      </button>
                                     )}
                                     {d.signed_url ? (
                                       <a href={d.signed_url} target="_blank" rel="noopener noreferrer"

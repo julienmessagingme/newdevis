@@ -121,12 +121,17 @@ function buildWeekBuckets(
     let entreesSum: number;
 
     if (isPast) {
-      sortiesSum  = weekEvents.filter(e => e.status === 'paid').reduce((s, e) => s + (e.amount ?? 0), 0);
-      entreesSum  = weekEntrees.filter(e => e.statut === 'recu').reduce((s, e) => s + e.montant, 0);
+      // Passé : ce qui s'est réellement passé (informatif, pas d'impact sur la balance)
+      sortiesSum = weekEvents.filter(e => e.status === 'paid').reduce((s, e) => s + (e.amount ?? 0), 0);
+      entreesSum = weekEntrees.filter(e => e.statut === 'recu').reduce((s, e) => s + e.montant, 0);
     } else {
-      sortiesSum  = weekEvents.filter(e => e.status !== 'paid' && e.status !== 'cancelled').reduce((s, e) => s + (e.amount ?? 0), 0);
-      entreesSum  = weekEntrees.filter(e => e.statut === 'attendu' || e.statut === 'recu').reduce((s, e) => s + e.montant, 0);
-      balance    += entreesSum - sortiesSum;
+      // Futur / présent : projection
+      // IMPORTANT : ne compter que les entrées "attendu" ici.
+      // Les entrées "recu" sont déjà incluses dans currentBalance — les reccompter
+      // causerait un doublon et gonflerait artificiellement le solde projeté.
+      sortiesSum = weekEvents.filter(e => e.status !== 'paid' && e.status !== 'cancelled').reduce((s, e) => s + (e.amount ?? 0), 0);
+      entreesSum = weekEntrees.filter(e => e.statut === 'attendu').reduce((s, e) => s + e.montant, 0);
+      balance   += entreesSum - sortiesSum;
     }
 
     buckets.push({
