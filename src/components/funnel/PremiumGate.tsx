@@ -231,11 +231,11 @@ const PremiumGate = ({
                 />
                 <label htmlFor="gate-terms" className="text-xs text-muted-foreground cursor-pointer">
                   J'accepte les{" "}
-                  <a href="/cgu" target="_blank" className="text-primary hover:underline">
+                  <a href="/cgu" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                     conditions générales
                   </a>{" "}
                   et la{" "}
-                  <a href="/confidentialite" target="_blank" className="text-primary hover:underline">
+                  <a href="/confidentialite" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                     politique de confidentialité
                   </a>
                   <span className="text-destructive">*</span>
