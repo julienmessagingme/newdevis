@@ -23,6 +23,9 @@ export default defineConfig({
     ssr: {
       external: ['stripe', 'nodemailer'],
     },
+    optimizeDeps: {
+      include: ['lucide-react'],
+    },
     build: {
       rollupOptions: {
         external: ['stripe', 'nodemailer'],
