@@ -548,7 +548,7 @@ function CapaciteMensuelle({ events, chantierId }: { events: PaymentEvent[]; cha
             <div key={f.key}>
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">{f.label} (€)</p>
               <input
-                type="number" min="0" step="100"
+                type="number" inputMode="decimal" min="0" step="100"
                 value={draft[f.key] || ''}
                 onChange={e => setDraft(prev => ({ ...prev, [f.key]: parseFloat(e.target.value) || 0 }))}
                 className="w-full text-right text-[16px] font-bold px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-400 outline-none transition-colors font-mono"
@@ -1112,7 +1112,7 @@ function FinancementPanel({
                   )}
                 </div>
                 <input
-                  type="number" min="0" placeholder="0"
+                  type="number" inputMode="decimal" min="0" placeholder="0"
                   value={financingAmounts[s.key]}
                   onChange={e => update(s.key, e.target.value)}
                   className="w-28 text-right text-[13px] font-bold px-3 py-1.5 border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-gray-400 outline-none transition-colors"
@@ -1135,7 +1135,7 @@ function FinancementPanel({
           ].map(f => (
             <div key={f.label}>
               <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">{f.label}</p>
-              <input type="number" min="0" step={f.step} value={f.val}
+              <input type="number" inputMode="decimal" min="0" step={f.step} value={f.val}
                 onChange={e => f.set(e.target.value)}
                 className="w-full text-right text-[14px] font-bold px-3 py-2 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:border-gray-400 outline-none transition-colors font-mono"
               />

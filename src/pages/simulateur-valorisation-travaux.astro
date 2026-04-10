@@ -72,7 +72,7 @@ const jsonLd = {
                   <span class="text-xs font-normal text-slate-400 ml-1">— recommandé</span>
                 </label>
                 <div class="relative">
-                  <input id="property-value" type="number" min="0" step="5000" placeholder="Ex. 220 000"
+                  <input id="property-value" type="number" inputmode="decimal" min="0" step="5000" placeholder="Ex. 220 000"
                     class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors" />
                   <span class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">€</span>
                 </div>
@@ -100,7 +100,7 @@ const jsonLd = {
                   <span class="text-xs font-normal text-slate-400 ml-1">— optionnel</span>
                 </label>
                 <div class="relative">
-                  <input id="property-surface" type="number" min="0" step="5" placeholder="Ex. 75"
+                  <input id="property-surface" type="number" inputmode="decimal" min="0" step="5" placeholder="Ex. 75"
                     class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 pr-9 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors" />
                   <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">m²</span>
                 </div>
@@ -197,7 +197,7 @@ const jsonLd = {
                 <span class="text-xs font-normal text-slate-400 ml-1">— requis pour l'analyse locative</span>
               </label>
               <div class="relative max-w-xs">
-                <input id="current-rent" type="number" min="0" step="50" placeholder="Ex. 800"
+                <input id="current-rent" type="number" inputmode="decimal" min="0" step="50" placeholder="Ex. 800"
                   class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-16 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors" />
                 <span class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">€/mois</span>
               </div>
@@ -654,7 +654,7 @@ const jsonLd = {
           </svg>
         </div>
         <div class="relative">
-          <input type="number" min="0" step="500" placeholder="0"
+          <input type="number" inputmode="decimal" min="0" step="500" placeholder="0"
             class="budget-input w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 pr-6 text-slate-900 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors" />
           <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">€</span>
         </div>
@@ -668,7 +668,7 @@ const jsonLd = {
       <div class="surface-extra hidden mt-1.5 ml-1 flex items-center gap-2 flex-wrap">
         <label class="text-xs text-amber-700 font-medium flex-shrink-0">Surface créée (m²) :</label>
         <div class="relative">
-          <input type="number" min="1" step="1" placeholder="Ex. 25"
+          <input type="number" inputmode="numeric" min="1" step="1" placeholder="Ex. 25"
             class="surface-input w-28 rounded-lg border border-amber-300 bg-amber-50/70 px-3 py-1.5 pr-9 text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/40 focus:border-amber-400 transition-colors" />
           <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">m²</span>
         </div>

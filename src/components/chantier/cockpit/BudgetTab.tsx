@@ -381,6 +381,7 @@ function BudgetKpiDashboard({
                   <input
                     autoFocus
                     type="number"
+                    inputMode="decimal"
                     value={editVal}
                     onChange={e => setEditVal(e.target.value)}
                     onBlur={commitEdit}
@@ -662,6 +663,7 @@ function ArtisanDrawer({
                           <input
                             autoFocus
                             type="number"
+                            inputMode="decimal"
                             value={editingMontant.value}
                             onChange={e => setEditingMontant({ devisId: d.id, value: e.target.value })}
                             onKeyDown={e => {
@@ -1160,6 +1162,7 @@ export default function BudgetTab({
                               <input
                                 autoFocus
                                 type="number"
+                                inputMode="decimal"
                                 value={editingMontant.value}
                                 onChange={e => setEditingMontant({ devisId: row.lot.devis[0].id, value: e.target.value })}
                                 onKeyDown={e => {
@@ -1270,6 +1273,7 @@ export default function BudgetTab({
                                                 <input
                                                   autoFocus
                                                   type="number"
+                                                  inputMode="decimal"
                                                   value={acompteInput!.value}
                                                   onChange={e2 => setAcompteInput(p => p ? { ...p, value: e2.target.value } : p)}
                                                   onClick={e2 => e2.stopPropagation()}
@@ -1391,6 +1395,7 @@ export default function BudgetTab({
                                         <input
                                           autoFocus
                                           type="number"
+                                          inputMode="decimal"
                                           value={editingMontant.value}
                                           onChange={e => setEditingMontant({ devisId: d.id, value: e.target.value })}
                                           onKeyDown={e => {
@@ -1512,7 +1517,7 @@ export default function BudgetTab({
                                                         <p className="text-[10px] text-blue-700 font-semibold pt-2">Montant versé (€)</p>
                                                         <div className="flex gap-1.5">
                                                           <input
-                                                            autoFocus type="number"
+                                                            autoFocus type="number" inputMode="decimal"
                                                             value={acompteInput!.value}
                                                             onChange={e2 => setAcompteInput(p => p ? { ...p, value: e2.target.value } : p)}
                                                             onClick={e2 => e2.stopPropagation()}

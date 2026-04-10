@@ -77,6 +77,7 @@ export default function CreditSimulator() {
         <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
           <input
             type="number"
+            inputMode="decimal"
             value={montant}
             onChange={e => setMontant(e.target.value)}
             placeholder="ex : 30 000"

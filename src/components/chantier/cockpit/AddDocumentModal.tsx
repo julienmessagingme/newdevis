@@ -421,7 +421,7 @@ export default function AddDocumentModal({
                   </label>
                   <div className="relative">
                     <input
-                      type="number" min="0" step="0.01"
+                      type="number" inputMode="decimal" min="0" step="0.01"
                       value={montant}
                       onChange={e => setMontant(e.target.value)}
                       placeholder="0"

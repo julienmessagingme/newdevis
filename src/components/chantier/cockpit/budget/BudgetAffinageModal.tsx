@@ -278,7 +278,7 @@ export default function BudgetAffinageModal({
                         <div className="flex-1">
                           <p className="text-[10px] text-blue-500 mb-1">Min €</p>
                           <input
-                            type="number" min="0" placeholder="5 000"
+                            type="number" inputMode="decimal" min="0" placeholder="5 000"
                             value={customBudMin} onChange={e => setCustomBudMin(e.target.value)}
                             className="w-full border border-blue-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:border-blue-400"
                           />
@@ -287,7 +287,7 @@ export default function BudgetAffinageModal({
                         <div className="flex-1">
                           <p className="text-[10px] text-blue-500 mb-1">Max €</p>
                           <input
-                            type="number" min="0" placeholder="15 000"
+                            type="number" inputMode="decimal" min="0" placeholder="15 000"
                             value={customBudMax} onChange={e => setCustomBudMax(e.target.value)}
                             className="w-full border border-blue-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:border-blue-400"
                           />
@@ -343,7 +343,7 @@ export default function BudgetAffinageModal({
                     {q.type === 'number' ? (
                       <div className="flex items-center gap-2">
                         <input
-                          type="number" min="0" placeholder={q.placeholder}
+                          type="number" inputMode="decimal" min="0" placeholder={q.placeholder}
                           value={ea[q.id] ?? ''}
                           onChange={e => updElemAnswer(elemId, q.id, e.target.value ? Number(e.target.value) : '')}
                           className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"

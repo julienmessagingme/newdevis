@@ -56,6 +56,7 @@ export default function SimulationFinancement({ budgetTotal }: SimulationFinance
             <input
               ref={inputRef}
               type="number"
+              inputMode="decimal"
               min={1000}
               step={500}
               value={inputVal}

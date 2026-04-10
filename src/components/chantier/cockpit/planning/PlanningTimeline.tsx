@@ -460,6 +460,7 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
                             {editingDuration === lot.id ? (
                               <input
                                 type="number"
+                                inputMode="numeric"
                                 autoFocus
                                 min={1}
                                 max={120}

@@ -301,7 +301,7 @@ function FinancementSection({
           <span className="text-[10px] text-gray-400">Budget de référence :</span>
           {editingBudget ? (
             <div className="flex items-center gap-1">
-              <input autoFocus type="number" value={editBudgetVal} onChange={e => setEditBudgetVal(e.target.value)}
+              <input autoFocus type="number" inputMode="decimal" value={editBudgetVal} onChange={e => setEditBudgetVal(e.target.value)}
                 onBlur={applyBudgetEdit} onKeyDown={e => { if (e.key==='Enter') applyBudgetEdit(); if (e.key==='Escape') setEditingBudget(false); }}
                 className="w-24 text-[12px] font-black border-b-2 border-indigo-400 outline-none bg-transparent text-gray-800 text-right pb-0.5"
                 placeholder="45000" />
@@ -547,7 +547,7 @@ function FinancementSection({
                     {/* Revenu fiscal de référence */}
                     <div>
                       <p className="text-[10px] font-semibold text-gray-500 mb-1">Revenu fiscal de référence (€/an)</p>
-                      <input type="number" value={mpIncome || ''} placeholder="Ex: 32 000"
+                      <input type="number" inputMode="decimal" value={mpIncome || ''} placeholder="Ex: 32 000"
                         onChange={e => setMpIncome(parseFloat(e.target.value) || 0)}
                         className="w-full text-[11px] border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-emerald-400" />
                       {mpIncome > 0 && (() => {
@@ -562,7 +562,7 @@ function FinancementSection({
                     {/* Montant travaux */}
                     <div>
                       <p className="text-[10px] font-semibold text-gray-500 mb-1">Montant travaux HT (€)</p>
-                      <input type="number" value={mpMontant || ''} placeholder="Ex: 15 000"
+                      <input type="number" inputMode="decimal" value={mpMontant || ''} placeholder="Ex: 15 000"
                         onChange={e => setMpMontant(parseFloat(e.target.value) || 0)}
                         className="w-full text-[11px] border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-emerald-400" />
                     </div>

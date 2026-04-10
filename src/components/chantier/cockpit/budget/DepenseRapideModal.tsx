@@ -168,6 +168,7 @@ export default function DepenseRapideModal({ chantierId, token, lots, onClose, o
               <div className="relative">
                 <input
                   type="number"
+                  inputMode="decimal"
                   min="0"
                   step="0.01"
                   value={montant}
@@ -220,6 +221,7 @@ export default function DepenseRapideModal({ chantierId, token, lots, onClose, o
               <div className="relative">
                 <input
                   type="number"
+                  inputMode="decimal"
                   min="0"
                   step="0.01"
                   value={montantPaye}

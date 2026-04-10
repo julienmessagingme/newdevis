@@ -335,7 +335,7 @@ function AddEntreeModal({ chantierId, token, onAdded, onClose }: {
               <label className="text-[11px] font-extrabold text-gray-400 uppercase tracking-wider block mb-1.5">
                 Montant (€)
               </label>
-              <input type="number" min="1" step="0.01" value={form.montant}
+              <input type="number" inputMode="decimal" min="1" step="0.01" value={form.montant}
                 onChange={e => set('montant', e.target.value)}
                 placeholder="0"
                 className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-200"

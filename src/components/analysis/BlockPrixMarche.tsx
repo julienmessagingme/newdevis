@@ -135,6 +135,7 @@ const AssignmentCard = ({ row, onDrop, onQuantityChange }: AssignmentCardProps) 
             <span className="flex items-center gap-1">
               <input
                 type="number"
+                inputMode="decimal"
                 value={qtyInput}
                 onChange={(e) => setQtyInput(e.target.value)}
                 onBlur={handleQtyBlur}

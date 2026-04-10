@@ -240,6 +240,7 @@ export default function UrbanismeAssistant({
                       <div className="flex items-center gap-3 flex-wrap">
                         <input
                           type="number"
+                          inputMode="decimal"
                           min="0"
                           value={unknownCreee ? "" : surfaceCreee}
                           onChange={(e) => setSurfaceCreee(e.target.value)}
@@ -272,6 +273,7 @@ export default function UrbanismeAssistant({
                       <div className="flex items-center gap-3 flex-wrap">
                         <input
                           type="number"
+                          inputMode="decimal"
                           min="0"
                           value={unknownActuelle ? "" : surfaceActuelle}
                           onChange={(e) => setSurfaceActuelle(e.target.value)}
@@ -304,6 +306,7 @@ export default function UrbanismeAssistant({
                       <div className="flex items-center gap-3 flex-wrap">
                         <input
                           type="number"
+                          inputMode="decimal"
                           min="0"
                           value={unknownTotale ? "" : surfaceTotaleApres}
                           onChange={(e) => setSurfaceTotaleApres(e.target.value)}
@@ -336,6 +339,7 @@ export default function UrbanismeAssistant({
                       <div className="flex items-center gap-3 flex-wrap">
                         <input
                           type="number"
+                          inputMode="decimal"
                           min="0"
                           value={unknownBassin ? "" : surfaceBassin}
                           onChange={(e) => setSurfaceBassin(e.target.value)}
@@ -368,6 +372,7 @@ export default function UrbanismeAssistant({
                       <div className="flex items-center gap-3 flex-wrap">
                         <input
                           type="number"
+                          inputMode="decimal"
                           min="0"
                           step="0.1"
                           value={unknownCloture ? "" : hauteurCloture}

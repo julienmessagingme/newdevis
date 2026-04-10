@@ -215,6 +215,7 @@ export default function BlockUrbanisme({ initialWorkType }: BlockUrbanismeProps)
                     <Input
                       id="bassin-surface"
                       type="number"
+                      inputMode="decimal"
                       min="0"
                       step="0.1"
                       placeholder="Ex: 32"
@@ -230,6 +231,7 @@ export default function BlockUrbanisme({ initialWorkType }: BlockUrbanismeProps)
                     <Input
                       id="couverture-hauteur"
                       type="number"
+                      inputMode="decimal"
                       min="0"
                       step="0.1"
                       placeholder="0 si aucune"
@@ -290,6 +292,7 @@ export default function BlockUrbanisme({ initialWorkType }: BlockUrbanismeProps)
                     <Input
                       id="abri-emprise"
                       type="number"
+                      inputMode="decimal"
                       min="0"
                       step="0.1"
                       placeholder="Ex: 12"
@@ -305,6 +308,7 @@ export default function BlockUrbanisme({ initialWorkType }: BlockUrbanismeProps)
                     <Input
                       id="abri-surface-plancher"
                       type="number"
+                      inputMode="decimal"
                       min="0"
                       step="0.1"
                       placeholder="Ex: 10"
@@ -320,6 +324,7 @@ export default function BlockUrbanisme({ initialWorkType }: BlockUrbanismeProps)
                     <Input
                       id="abri-hauteur"
                       type="number"
+                      inputMode="decimal"
                       min="0"
                       step="0.1"
                       placeholder="Ex: 2.5"
@@ -353,6 +358,7 @@ export default function BlockUrbanisme({ initialWorkType }: BlockUrbanismeProps)
                     <Input
                       id="extension-surface-plancher"
                       type="number"
+                      inputMode="decimal"
                       min="0"
                       step="0.1"
                       placeholder="Ex: 25"
@@ -368,6 +374,7 @@ export default function BlockUrbanisme({ initialWorkType }: BlockUrbanismeProps)
                     <Input
                       id="extension-emprise"
                       type="number"
+                      inputMode="decimal"
                       min="0"
                       step="0.1"
                       placeholder="Ex: 20"

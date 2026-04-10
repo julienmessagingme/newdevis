@@ -115,7 +115,7 @@ export default function DocStatusSelect({ doc, chantierId, token, onUpdated, onM
             const v = parseFloat((e.currentTarget.elements.namedItem('mp') as HTMLInputElement).value);
             if (!isNaN(v) && v >= 0) handleMontantSave(v);
           }} className="flex items-center gap-1">
-            <input name="mp" type="number" step="0.01" min="0" placeholder="€ payé"
+            <input name="mp" type="number" inputMode="decimal" step="0.01" min="0" placeholder="€ payé"
               defaultValue={montantPaye ?? ''}
               autoFocus
               className="w-16 text-[11px] border border-gray-200 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-200" />

@@ -153,6 +153,7 @@ const DevisCalculatorSection = () => {
                 <Input
                   id="quantity"
                   type="number"
+                  inputMode="decimal"
                   min="1"
                   step={unit === "m2" || unit === "m²" || unit === "ml" || unit === "m3" ? "0.1" : "1"}
                   placeholder={getUnitPlaceholder(unit)}
