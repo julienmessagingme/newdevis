@@ -337,7 +337,7 @@ function BudgetKpiDashboard({
 
   if (loading) return (
     <div className="px-7 py-6 border-b border-gray-100">
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 sm:gap-6">
         {[0,1,2].map(i => (
           <div key={i} className="flex items-center gap-4">
             <div className="h-20 w-20 rounded-full bg-gray-100 animate-pulse shrink-0" />
@@ -354,10 +354,10 @@ function BudgetKpiDashboard({
 
   return (
     <div className="border-b border-gray-100 bg-white">
-      <div className="grid grid-cols-3 divide-x divide-gray-100">
+      <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
 
         {/* ── 1. Budget réel (éditable) ─────────────────── */}
-        <div className="px-7 py-6">
+        <div className="px-5 py-5 sm:px-7 sm:py-6">
           <div className="flex items-center justify-between mb-4">
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Budget réel</p>
             {!editing && (
@@ -408,7 +408,7 @@ function BudgetKpiDashboard({
         </div>
 
         {/* ── 3. Total facturé ──────────────────────────── */}
-        <div className="px-7 py-6">
+        <div className="px-5 py-5 sm:px-7 sm:py-6">
           <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4">Total facturé</p>
           <div className="flex items-center gap-4">
             <div className="relative shrink-0">
@@ -434,7 +434,7 @@ function BudgetKpiDashboard({
         </div>
 
         {/* ── 4. Total payé ─────────────────────────────── */}
-        <div className="px-7 py-6">
+        <div className="px-5 py-5 sm:px-7 sm:py-6">
           <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4">Total payé</p>
           <div className="flex items-center gap-4">
             <div className="relative shrink-0">
@@ -518,10 +518,10 @@ function ActionBar({
   sortBy: SortBy; onSort: (v: SortBy) => void;
   onAddDocument?: () => void;
 }) {
-  const sel = 'text-[12px] border border-gray-200 rounded-lg px-2.5 py-2 bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-300';
+  const sel = 'text-[12px] border border-gray-200 rounded-lg px-2.5 py-2 bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-300 w-full md:w-auto';
   return (
-    <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-3 flex-wrap">
-      <div className="relative flex-1 min-w-[180px] max-w-xs">
+    <div className="px-5 py-3 border-b border-gray-100 flex flex-col md:flex-row md:items-center gap-2 md:gap-3 md:flex-wrap">
+      <div className="relative w-full md:flex-1 md:min-w-[180px] md:max-w-xs">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
         <input
           value={search} onChange={e => onSearch(e.target.value)}
@@ -534,29 +534,31 @@ function ActionBar({
           </button>
         )}
       </div>
-      <select value={filterDevis} onChange={e => onFilterDevis(e.target.value as FilterDevis)} className={sel}>
-        <option value="all">Tous statuts devis</option>
-        <option value="pending">En attente</option>
-        <option value="received">Reçu</option>
-        <option value="validated">Validé</option>
-      </select>
-      <select value={filterPay} onChange={e => onFilterPay(e.target.value as FilterPay)} className={sel}>
-        <option value="all">Tous paiements</option>
-        <option value="unpaid">À payer</option>
-        <option value="partial">Partiel</option>
-        <option value="paid">Payé</option>
-        <option value="litige">En litige</option>
-      </select>
-      <select value={sortBy} onChange={e => onSort(e.target.value as SortBy)} className={sel}>
-        <option value="default">Tri par défaut</option>
-        <option value="amount">Montant devis</option>
-        <option value="reste">Reste à payer</option>
-        <option value="nom">Nom artisan</option>
-      </select>
-      <div className="flex-1" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:flex md:gap-3 md:contents">
+        <select value={filterDevis} onChange={e => onFilterDevis(e.target.value as FilterDevis)} className={sel}>
+          <option value="all">Tous statuts devis</option>
+          <option value="pending">En attente</option>
+          <option value="received">Reçu</option>
+          <option value="validated">Validé</option>
+        </select>
+        <select value={filterPay} onChange={e => onFilterPay(e.target.value as FilterPay)} className={sel}>
+          <option value="all">Tous paiements</option>
+          <option value="unpaid">À payer</option>
+          <option value="partial">Partiel</option>
+          <option value="paid">Payé</option>
+          <option value="litige">En litige</option>
+        </select>
+        <select value={sortBy} onChange={e => onSort(e.target.value as SortBy)} className={sel}>
+          <option value="default">Tri par défaut</option>
+          <option value="amount">Montant devis</option>
+          <option value="reste">Reste à payer</option>
+          <option value="nom">Nom artisan</option>
+        </select>
+      </div>
+      <div className="hidden md:block md:flex-1" />
       <button
         onClick={onAddDocument}
-        className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600 text-white text-[12px] font-semibold hover:bg-indigo-700 transition-colors shrink-0"
+        className="w-full md:w-auto flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600 text-white text-[12px] font-semibold hover:bg-indigo-700 transition-colors shrink-0"
       >
         <Plus className="h-3.5 w-3.5" />
         Ajouter un document
@@ -1059,8 +1061,8 @@ export default function BudgetTab({
       />
 
       {/* ── Tableau ───────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-auto">
-        <table className="w-full text-left border-collapse table-fixed">
+      <div className="flex-1 overflow-auto overscroll-x-contain">
+        <table className="min-w-[1025px] w-full text-left border-collapse table-fixed">
           <colgroup>
             <col style={{ width: 220 }} />
             <col style={{ width: 115 }} />
