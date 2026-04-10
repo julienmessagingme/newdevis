@@ -82,4 +82,3 @@ Disallow: /
 
 # Sitemaps
 Sitemap: https://www.verifiermondevis.fr/sitemap.xml
-Sitemap: https://www.verifiermondevis.fr/sitemap-blog.xml
