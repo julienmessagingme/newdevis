@@ -79,13 +79,35 @@ export const GET: APIRoute = async ({ params, request }) => {
     return new Response(JSON.stringify({ error: 'ID manquant' }), { status: 400, headers: CORS });
   }
 
-  // Chargement avec vérification ownership
-  const { data: chantier, error: chantierError } = await supabase
-    .from('chantiers')
-    .select('id, nom, emoji, budget, phase, type_projet, mensualite, duree_credit, metadonnees, created_at, project_mode')
-    .eq('id', chantierId)
-    .eq('user_id', user.id)
-    .single();
+  // Parallel fetch: chantier (ownership) + todos + lots (independent queries).
+  // If ownership check fails, we return 404 — todos/lots data is discarded, no leak.
+  const [chantierRes, todosRes, lotsRes] = await Promise.all([
+    supabase
+      .from('chantiers')
+      .select('id, nom, emoji, budget, phase, type_projet, mensualite, duree_credit, metadonnees, created_at, project_mode')
+      .eq('id', chantierId)
+      .eq('user_id', user.id)
+      .single(),
+    supabase
+      .from('todo_chantier')
+      .select('id, titre, priorite, done')
+      .eq('chantier_id', chantierId)
+      .order('ordre', { ascending: true }),
+    supabase
+      .from('lots_chantier')
+      .select(
+        'id, nom, statut, ordre, emoji, role,' +
+        'job_type, quantite, unite,' +
+        'budget_min_ht, budget_avg_ht, budget_max_ht,' +
+        'materiaux_ht, main_oeuvre_ht, divers_ht',
+      )
+      .eq('chantier_id', chantierId)
+      .order('ordre', { ascending: true }),
+  ]);
+
+  const { data: chantier, error: chantierError } = chantierRes;
+  const { data: todosRaw, error: todosError } = todosRes;
+  const { data: lotsRaw, error: lotsError } = lotsRes;
 
   if (chantierError || !chantier) {
     return new Response(
@@ -93,13 +115,6 @@ export const GET: APIRoute = async ({ params, request }) => {
       { status: 404, headers: CORS },
     );
   }
-
-  // Todos depuis todo_chantier (source de vérité pour done)
-  const { data: todosRaw, error: todosError } = await supabase
-    .from('todo_chantier')
-    .select('id, titre, priorite, done')
-    .eq('chantier_id', chantierId)
-    .order('ordre', { ascending: true });
 
   if (todosError) {
     console.error(`[api/chantier/${chantierId} GET] todos error:`, todosError.message);
@@ -111,18 +126,6 @@ export const GET: APIRoute = async ({ params, request }) => {
     priorite: t.priorite as TacheIA['priorite'],
     done: Boolean(t.done),
   }));
-
-  // Lots depuis lots_chantier — chargés avant le fallback check pour couvrir tous les cas
-  const { data: lotsRaw, error: lotsError } = await supabase
-    .from('lots_chantier')
-    .select(
-      'id, nom, statut, ordre, emoji, role,' +
-      'job_type, quantite, unite,' +
-      'budget_min_ht, budget_avg_ht, budget_max_ht,' +
-      'materiaux_ht, main_oeuvre_ht, divers_ht',
-    )
-    .eq('chantier_id', chantierId)
-    .order('ordre', { ascending: true });
 
   if (lotsError) {
     console.error(`[api/chantier/${chantierId} GET] lots error:`, lotsError.message);

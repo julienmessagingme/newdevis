@@ -164,12 +164,37 @@ export const GET: APIRoute = async ({ params, request }) => {
   const chantierId = params.id!;
 
   try {
-    // ── 1. Chantier ────────────────────────────────────────────────────────
-    const { data: chantier } = await ctx.supabase
-      .from('chantiers')
-      .select('id, nom, type_projet, metadonnees')
-      .eq('id', chantierId)
-      .single();
+    // ── Phase A : 4 queries indépendantes en parallèle ─────────────────────
+    // chantier, lots, docs et proofCount ne dépendent d'aucune autre query.
+    // Si chantier est 404, on return early et on jette les autres résultats.
+    const [chantierRes, lotsRawRes, docsRes, proofCountRes] = await Promise.all([
+      ctx.supabase
+        .from('chantiers')
+        .select('id, nom, type_projet, metadonnees')
+        .eq('id', chantierId)
+        .single(),
+      ctx.supabase
+        .from('lots_chantier')
+        .select('id, nom, emoji, ordre')
+        .eq('chantier_id', chantierId)
+        .order('ordre'),
+      ctx.supabase
+        .from('documents_chantier')
+        .select('id, nom, document_type, lot_id, analyse_id, devis_statut, facture_statut, montant, montant_paye, payment_terms, bucket_path, created_at')
+        .eq('chantier_id', chantierId)
+        .in('document_type', ['devis', 'facture'])
+        .order('created_at', { ascending: false }),
+      ctx.supabase
+        .from('documents_chantier')
+        .select('id', { count: 'exact', head: true })
+        .eq('chantier_id', chantierId)
+        .eq('document_type', 'preuve_paiement'),
+    ]);
+
+    const chantier = chantierRes.data;
+    const lotsRaw = lotsRawRes.data;
+    const docs = docsRes.data;
+    const proofCount = proofCountRes.count;
 
     if (!chantier) return jsonError('Chantier introuvable', 404);
 
@@ -184,88 +209,84 @@ export const GET: APIRoute = async ({ params, request }) => {
       eco_ptz: parseFloat(fin_raw.eco_ptz ?? '0') || 0,
     };
 
-    // ── 2. Lots ────────────────────────────────────────────────────────────
-    const { data: lotsRaw } = await ctx.supabase
-      .from('lots_chantier')
-      .select('id, nom, emoji, ordre')
-      .eq('chantier_id', chantierId)
-      .order('ordre');
-
-    // ── 3. Documents (devis + factures) ────────────────────────────────────
-    const { data: docs } = await ctx.supabase
-      .from('documents_chantier')
-      .select('id, nom, document_type, lot_id, analyse_id, devis_statut, facture_statut, montant, montant_paye, payment_terms, bucket_path, created_at')
-      .eq('chantier_id', chantierId)
-      .in('document_type', ['devis', 'facture'])
-      .order('created_at', { ascending: false });
-
-    // ── 4. Analyses scores ──────────────────────────────────────────────────
+    // ── Phase B : analyses scores + signed URLs en parallèle ───────────────
+    // Les deux dépendent de `docs` mais sont indépendantes entre elles.
     const analyseIds = (docs ?? [])
       .map(d => d.analyse_id)
       .filter((x): x is string => !!x);
 
+    // Parallélisation : analyses + signed URLs (indépendants entre eux)
+    const [analysesRes, signedUrlEntries] = await Promise.all([
+      analyseIds.length > 0
+        ? ctx.supabase
+            .from('analyses')
+            .select('id, status, score, signal, raw_text')
+            .in('id', analyseIds)
+        : Promise.resolve({ data: [] as Array<{ id: string; status: string | null; score: number | null; signal: string | null; raw_text: unknown }>, error: null }),
+      Promise.all(
+        (docs ?? [])
+          .filter(d => d.bucket_path && !d.bucket_path.startsWith('analyse/'))
+          .map(async d => {
+            const { data: urlData } = await ctx.supabase.storage
+              .from(BUCKET)
+              .createSignedUrl(d.bucket_path!, URL_TTL);
+            return [d.id, urlData?.signedUrl] as const;
+          })
+      ),
+    ]);
+
+    if ('error' in analysesRes && analysesRes.error) {
+      console.error('[GET /budget] analyses fetch error:', analysesRes.error.message);
+    }
+
     const analysesMap = new Map<string, { status: string; score: number | null; signal: string | null; montant: number | null }>();
     let backfilledCount = 0;
 
-    if (analyseIds.length > 0) {
-      const { data: analyses, error: analysesErr } = await ctx.supabase
-        .from('analyses')
-        .select('id, status, score, signal, raw_text')
-        .in('id', analyseIds);
+    for (const a of analysesRes.data ?? []) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let raw: any = (a as any).raw_text;
+      if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = null; } }
+      const totaux = raw?.extracted?.totaux;
+      const montant = totaux?.ttc != null && !isNaN(Number(totaux.ttc)) ? Number(totaux.ttc)
+                    : totaux?.ht  != null && !isNaN(Number(totaux.ht))  ? Number(totaux.ht)
+                    : null;
 
-      if (analysesErr) console.error('[GET /budget] analyses fetch error:', analysesErr.message);
-
-      for (const a of analyses ?? []) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let raw: any = a.raw_text;
-        if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = null; } }
-        const totaux = raw?.extracted?.totaux;
-        const montant = totaux?.ttc != null && !isNaN(Number(totaux.ttc)) ? Number(totaux.ttc)
-                      : totaux?.ht  != null && !isNaN(Number(totaux.ht))  ? Number(totaux.ht)
-                      : null;
-
-        analysesMap.set(a.id, {
-          status:  a.status ?? null,
-          score:   a.score  ?? null,
-          signal:  a.signal ?? null,
-          montant,
-        });
-      }
-
-      // ── Write-through : backfill documents_chantier.montant depuis l'analyse ──
-      // Si doc.montant est null mais que l'analyse a un TTC, on le persiste
-      // ET on met à jour l'objet en mémoire pour que la réponse courante soit correcte.
-      const backfills: Promise<unknown>[] = [];
-      for (const doc of docs ?? []) {
-        if (doc.document_type !== 'devis') continue;
-        if (doc.montant != null && doc.montant > 0) continue;          // déjà ok
-        if (!doc.analyse_id) continue;
-        const am = analysesMap.get(doc.analyse_id);
-        if (!am?.montant) continue;
-        // Mise à jour en mémoire pour que la réponse courante utilise le montant
-        (doc as Record<string, unknown>).montant = am.montant;
-        backfilledCount++;
-        backfills.push(
-          ctx.supabase
-            .from('documents_chantier')
-            .update({ montant: am.montant })
-            .eq('id', doc.id)
-            .eq('chantier_id', chantierId),
-        );
-      }
-      if (backfills.length > 0) {
-        Promise.allSettled(backfills).catch(() => {});
-      }
+      analysesMap.set(a.id, {
+        status:  a.status ?? null,
+        score:   a.score  ?? null,
+        signal:  a.signal ?? null,
+        montant,
+      });
     }
 
-    // ── 5. Signed URLs ──────────────────────────────────────────────────────
-    const urlMap = new Map<string, string>();
+    // ── Write-through : backfill documents_chantier.montant depuis l'analyse ──
+    // Si doc.montant est null mais que l'analyse a un TTC, on le persiste
+    // ET on met à jour l'objet en mémoire pour que la réponse courante soit correcte.
+    const backfills: Promise<unknown>[] = [];
     for (const doc of docs ?? []) {
-      if (!doc.bucket_path || doc.bucket_path.startsWith('analyse/')) continue;
-      const { data: urlData } = await ctx.supabase.storage
-        .from(BUCKET)
-        .createSignedUrl(doc.bucket_path, URL_TTL);
-      if (urlData?.signedUrl) urlMap.set(doc.id, urlData.signedUrl);
+      if (doc.document_type !== 'devis') continue;
+      if (doc.montant != null && doc.montant > 0) continue;          // déjà ok
+      if (!doc.analyse_id) continue;
+      const am = analysesMap.get(doc.analyse_id);
+      if (!am?.montant) continue;
+      // Mise à jour en mémoire pour que la réponse courante utilise le montant
+      (doc as Record<string, unknown>).montant = am.montant;
+      backfilledCount++;
+      backfills.push(
+        ctx.supabase
+          .from('documents_chantier')
+          .update({ montant: am.montant })
+          .eq('id', doc.id)
+          .eq('chantier_id', chantierId),
+      );
+    }
+    if (backfills.length > 0) {
+      Promise.allSettled(backfills).catch(() => {});
+    }
+
+    const urlMap = new Map<string, string>();
+    for (const [docId, url] of signedUrlEntries) {
+      if (url) urlMap.set(docId, url);
     }
 
     // ── 6. Groupage par lot ─────────────────────────────────────────────────
@@ -364,12 +385,7 @@ export const GET: APIRoute = async ({ params, request }) => {
       a_payer:       allBuckets.reduce((s, b) => s + b.totaux.a_payer,       0),
     };
 
-    // ── 8. Preuves de paiement ──────────────────────────────────────────────
-    const { count: proofCount } = await ctx.supabase
-      .from('documents_chantier')
-      .select('id', { count: 'exact', head: true })
-      .eq('chantier_id', chantierId)
-      .eq('document_type', 'preuve_paiement');
+    // ── 8. Preuves de paiement (proofCount déjà fetché en Phase A) ─────────
 
     // ── 9. Conseils ─────────────────────────────────────────────────────────
     const conseils = buildConseils({

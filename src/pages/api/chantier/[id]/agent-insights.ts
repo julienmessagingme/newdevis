@@ -27,17 +27,19 @@ export const GET: APIRoute = async ({ params, request }) => {
   if (unreadOnly) query = query.eq('read_by_user', false);
   if (type) query = query.eq('type', type);
 
-  const { data, error } = await query;
-  if (error) return jsonError(error.message, 500);
+  // Parallel fetch: insights list + unread count (independent queries)
+  const [listRes, countRes] = await Promise.all([
+    query,
+    ctx.supabase
+      .from('agent_insights')
+      .select('id', { count: 'exact', head: true })
+      .eq('chantier_id', params.id!)
+      .eq('read_by_user', false),
+  ]);
 
-  // Also return unread count
-  const { count } = await ctx.supabase
-    .from('agent_insights')
-    .select('id', { count: 'exact', head: true })
-    .eq('chantier_id', params.id!)
-    .eq('read_by_user', false);
+  if (listRes.error) return jsonError(listRes.error.message, 500);
 
-  return jsonOk({ insights: data ?? [], unread_count: count ?? 0 });
+  return jsonOk({ insights: listRes.data ?? [], unread_count: countRes.count ?? 0 });
 };
 
 // ── POST — create insight (agent auth via X-Agent-Key OR user auth) ─────────

@@ -53,73 +53,84 @@ export const GET: APIRoute = async ({ params, request }) => {
 
   // Enrichir avec nom du document source + nom du lot + nom de l'artisan
   const sourceIds = (data ?? []).map(e => e.source_id).filter(Boolean);
+  const eventIds = (data ?? []).map(e => e.id);
+
+  // Phase 2: docs + proofDocs in parallel (both depend only on events data)
+  const [docsRes, proofDocsRes] = await Promise.all([
+    sourceIds.length > 0
+      ? ctx.supabase
+          .from('documents_chantier')
+          .select('id, nom, nom_fichier, analyse_id, lots_chantier(nom)')
+          .in('id', sourceIds)
+      : Promise.resolve({ data: [] as any[] }),
+    eventIds.length > 0
+      ? ctx.supabase
+          .from('documents_chantier')
+          .select('id, nom, nom_fichier, analyse_id, bucket_path')
+          .eq('chantier_id', chantierId)
+          .eq('document_type', 'preuve_paiement')
+          .in('analyse_id', eventIds)
+      : Promise.resolve({ data: [] as any[] }),
+  ]);
+
   let docMap: Record<string, { nom: string | null; nom_fichier: string | null; lot_nom: string | null; analyse_id: string | null }> = {};
+  for (const d of docsRes.data ?? []) {
+    docMap[d.id] = {
+      nom:        d.nom ?? null,
+      nom_fichier: d.nom_fichier ?? null,
+      lot_nom:    (d.lots_chantier as any)?.nom ?? null,
+      analyse_id: d.analyse_id ?? null,
+    };
+  }
 
-  if (sourceIds.length > 0) {
-    const { data: docs } = await ctx.supabase
-      .from('documents_chantier')
-      .select('id, nom, nom_fichier, analyse_id, lots_chantier(nom)')
-      .in('id', sourceIds);
-
-    for (const d of docs ?? []) {
-      docMap[d.id] = {
-        nom:        d.nom ?? null,
-        nom_fichier: d.nom_fichier ?? null,
-        lot_nom:    (d.lots_chantier as any)?.nom ?? null,
-        analyse_id: d.analyse_id ?? null,
+  let proofMap: Record<string, { id: string; nom: string | null; bucket_path: string | null }> = {};
+  for (const pd of proofDocsRes.data ?? []) {
+    if (pd.analyse_id) {
+      proofMap[pd.analyse_id] = {
+        id:          pd.id,
+        nom:         pd.nom ?? pd.nom_fichier ?? null,
+        bucket_path: pd.bucket_path ?? null,
       };
     }
   }
 
-  // Remonter le nom de l'artisan via devis_chantier.analyse_id
+  // Phase 3: devis (needs docMap) + signed URLs (need proofMap) in parallel
   const analyseIds = Object.values(docMap).map(d => d.analyse_id).filter(Boolean) as string[];
-  let artisanMap: Record<string, string> = {}; // analyse_id → artisan_nom
-  if (analyseIds.length > 0) {
-    const { data: devis } = await ctx.supabase
-      .from('devis_chantier')
-      .select('analyse_id, artisan_nom')
-      .in('analyse_id', analyseIds);
-    for (const d of devis ?? []) {
-      if (d.analyse_id) artisanMap[d.analyse_id] = d.artisan_nom;
-    }
-  }
-
-  // Enrichir avec les justificatifs de paiement (document_type = 'preuve_paiement')
-  // L'analyse_id du document de preuve contient l'ID du payment_event (convention interne)
-  const eventIds = (data ?? []).map(e => e.id);
-  let proofMap: Record<string, { id: string; nom: string | null; bucket_path: string | null }> = {};
-
-  if (eventIds.length > 0) {
-    const { data: proofDocs } = await ctx.supabase
-      .from('documents_chantier')
-      .select('id, nom, nom_fichier, analyse_id, bucket_path')
-      .eq('chantier_id', chantierId)
-      .eq('document_type', 'preuve_paiement')
-      .in('analyse_id', eventIds);
-
-    for (const pd of proofDocs ?? []) {
-      if (pd.analyse_id) {
-        proofMap[pd.analyse_id] = {
-          id:          pd.id,
-          nom:         pd.nom ?? pd.nom_fichier ?? null,
-          bucket_path: pd.bucket_path ?? null,
-        };
-      }
-    }
-  }
-
-  // Générer les URLs signées pour les justificatifs
   const BUCKET   = 'chantier-documents';
   const SIGN_TTL = 3600;
+
+  const proofEntries = Object.entries(proofMap).filter(
+    ([, p]) => p.bucket_path && !p.bucket_path.startsWith('analyse/')
+  );
+
+  const [devisRes, signedEntries] = await Promise.all([
+    analyseIds.length > 0
+      ? ctx.supabase
+          .from('devis_chantier')
+          .select('analyse_id, artisan_nom')
+          .in('analyse_id', analyseIds)
+      : Promise.resolve({ data: [] as any[] }),
+    Promise.all(
+      proofEntries.map(async ([evId, proof]) => {
+        const { data: s } = await ctx.supabase.storage
+          .from(BUCKET).createSignedUrl(proof.bucket_path!, SIGN_TTL);
+        return [evId, s?.signedUrl ?? null] as const;
+      })
+    ),
+  ]);
+
+  let artisanMap: Record<string, string> = {}; // analyse_id → artisan_nom
+  for (const d of devisRes.data ?? []) {
+    if (d.analyse_id) artisanMap[d.analyse_id] = d.artisan_nom;
+  }
+
+  // Build proofUrlMap: null by default, overwritten for entries with signed URLs
   const proofUrlMap: Record<string, string | null> = {};
-  for (const [evId, proof] of Object.entries(proofMap)) {
-    if (proof.bucket_path && !proof.bucket_path.startsWith('analyse/')) {
-      const { data: s } = await ctx.supabase.storage
-        .from(BUCKET).createSignedUrl(proof.bucket_path, SIGN_TTL);
-      proofUrlMap[evId] = s?.signedUrl ?? null;
-    } else {
-      proofUrlMap[evId] = null;
-    }
+  for (const evId of Object.keys(proofMap)) {
+    proofUrlMap[evId] = null;
+  }
+  for (const [evId, url] of signedEntries) {
+    proofUrlMap[evId] = url;
   }
 
   const enriched = (data ?? []).map(e => {

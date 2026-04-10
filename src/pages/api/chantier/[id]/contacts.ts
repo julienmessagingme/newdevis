@@ -11,33 +11,59 @@ export const GET: APIRoute = async ({ params, request }) => {
 
   const chantierId = params.id!;
 
-  // Contacts manuels
-  const { data: contacts } = await ctx.supabase
-    .from('contacts_chantier')
-    .select('*')
-    .eq('chantier_id', chantierId)
-    .order('created_at', { ascending: false });
+  // Parallel fetch: 6 independent queries (contacts, analyses, docChantier,
+  // allDevis, chantierDevis, lots). All filter by chantier_id or user_id only.
+  const [
+    contactsRes,
+    analysesRes,
+    docChantierRes,
+    allDevisRes,
+    chantierDevisRes,
+    lotsRes,
+  ] = await Promise.all([
+    // Contacts manuels
+    ctx.supabase
+      .from('contacts_chantier')
+      .select('*')
+      .eq('chantier_id', chantierId)
+      .order('created_at', { ascending: false }),
+    // Analyses complétées du user — source principale des infos entreprise
+    ctx.supabase
+      .from('analyses')
+      .select('id, raw_text, created_at')
+      .eq('user_id', ctx.user.id)
+      .eq('status', 'completed')
+      .order('created_at', { ascending: false }),
+    // Documents du chantier (devis/factures rattachés à des lots)
+    ctx.supabase
+      .from('documents_chantier')
+      .select('id, lot_id, analyse_id, nom, document_type')
+      .eq('chantier_id', chantierId)
+      .in('document_type', ['devis', 'facture']),
+    // TOUS les devis_chantier du user (pas juste ce chantier) pour croiser nom fichier → analyse_id
+    ctx.supabase
+      .from('devis_chantier')
+      .select('artisan_nom, analyse_id, lot_id')
+      .eq('user_id', ctx.user.id),
+    // devis_chantier directement sur ce chantier (pour chantierAnalyseIds)
+    ctx.supabase
+      .from('devis_chantier')
+      .select('analyse_id')
+      .eq('chantier_id', chantierId)
+      .not('analyse_id', 'is', null),
+    // Lots pour les noms
+    ctx.supabase
+      .from('lots_chantier')
+      .select('id, nom')
+      .eq('chantier_id', chantierId),
+  ]);
 
-  // Analyses complétées du user — source principale des infos entreprise
-  const { data: analyses } = await ctx.supabase
-    .from('analyses')
-    .select('id, raw_text, created_at')
-    .eq('user_id', ctx.user.id)
-    .eq('status', 'completed')
-    .order('created_at', { ascending: false });
-
-  // Documents du chantier (devis/factures rattachés à des lots)
-  const { data: docChantier } = await ctx.supabase
-    .from('documents_chantier')
-    .select('id, lot_id, analyse_id, nom, document_type')
-    .eq('chantier_id', chantierId)
-    .in('document_type', ['devis', 'facture']);
-
-  // TOUS les devis_chantier du user (pas juste ce chantier) pour croiser nom fichier → analyse_id
-  const { data: allDevis } = await ctx.supabase
-    .from('devis_chantier')
-    .select('artisan_nom, analyse_id, lot_id')
-    .eq('user_id', ctx.user.id);
+  const contacts = contactsRes.data;
+  const analyses = analysesRes.data;
+  const docChantier = docChantierRes.data;
+  const allDevis = allDevisRes.data;
+  const chantierDevis = chantierDevisRes.data;
+  const lots = lotsRes.data;
 
   // ── Croisement : trouver le lot_id pour chaque analyse ────────────────
   // Étape 1 : map nom de fichier → analyse_id (depuis tous les devis du user)
@@ -76,12 +102,7 @@ export const GET: APIRoute = async ({ params, request }) => {
     const aId = nameToAnalyseId.get(doc.nom.toLowerCase().trim());
     if (aId) chantierAnalyseIds.add(aId);
   }
-  // Via devis_chantier directement sur ce chantier
-  const { data: chantierDevis } = await ctx.supabase
-    .from('devis_chantier')
-    .select('analyse_id')
-    .eq('chantier_id', chantierId)
-    .not('analyse_id', 'is', null);
+  // Via devis_chantier directement sur ce chantier (déjà fetché en parallel)
   for (const d of chantierDevis ?? []) {
     if (d.analyse_id) chantierAnalyseIds.add(d.analyse_id);
   }
@@ -168,12 +189,7 @@ export const GET: APIRoute = async ({ params, request }) => {
     ...[...byName.values()].filter(r => !seenNames.has(r.nom.toLowerCase())),
   ];
 
-  // Lots pour les noms
-  const { data: lots } = await ctx.supabase
-    .from('lots_chantier')
-    .select('id, nom')
-    .eq('chantier_id', chantierId);
-
+  // Lots (déjà fetchés en parallel plus haut)
   return jsonOk({
     contacts: contacts ?? [],
     analyseArtisans,

@@ -12,23 +12,26 @@ export const GET: APIRoute = async ({ request, params }) => {
   const ctx = await requireChantierAuthOrAgent(request, params.id!);
   if (ctx instanceof Response) return ctx;
 
-  // Date de début du chantier
-  const { data: chantier } = await ctx.supabase
-    .from('chantiers')
-    .select('date_debut_chantier, date_fin_souhaitee')
-    .eq('id', params.id!)
-    .single();
+  // Parallel fetch: chantier (date_debut) + lots (independent queries)
+  const [chantierRes, lotsRes] = await Promise.all([
+    ctx.supabase
+      .from('chantiers')
+      .select('date_debut_chantier, date_fin_souhaitee')
+      .eq('id', params.id!)
+      .single(),
+    ctx.supabase
+      .from('lots_chantier')
+      .select('id, nom, emoji, role, statut, ordre, duree_jours, date_debut, date_fin, ordre_planning, parallel_group, budget_min_ht, budget_avg_ht, budget_max_ht')
+      .eq('chantier_id', params.id!)
+      .order('ordre_planning', { ascending: true, nullsFirst: false })
+      .order('ordre', { ascending: true }),
+  ]);
 
-  // Lots avec champs planning
-  const { data: lots, error } = await ctx.supabase
-    .from('lots_chantier')
-    .select('id, nom, emoji, role, statut, ordre, duree_jours, date_debut, date_fin, ordre_planning, parallel_group, budget_min_ht, budget_avg_ht, budget_max_ht')
-    .eq('chantier_id', params.id!)
-    .order('ordre_planning', { ascending: true, nullsFirst: false })
-    .order('ordre', { ascending: true });
+  const chantier = chantierRes.data;
+  const lots = lotsRes.data;
 
-  if (error) {
-    console.error('[api/chantier/planning GET] error:', error.message);
+  if (lotsRes.error) {
+    console.error('[api/chantier/planning GET] error:', lotsRes.error.message);
     return jsonError('Erreur lors de la récupération du planning', 500);
   }
 
