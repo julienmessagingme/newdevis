@@ -247,6 +247,14 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
 
   const [comparingLot, setComparingLot] = useState<{ lot: LotChantier; docs: DocumentChantier[] } | null>(null);
 
+  // Date de début globale du planning (lot le plus tôt avec date_debut)
+  const planningStartDate = useMemo(() => {
+    const dates = lots
+      .filter(l => l.date_debut)
+      .map(l => new Date(l.date_debut!).getTime());
+    return dates.length > 0 ? new Date(Math.min(...dates)) : null;
+  }, [lots]);
+
   const allDevis = useMemo(() => documents.filter(d => d.document_type === 'devis'), [documents]);
   const { data: analysisData } = useAnalysisScores(allDevis);
 
@@ -420,6 +428,7 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
                   key={lot.id}
                   lot={lot}
                   docs={docsByLot[lot.id] ?? []}
+                  planningStartDate={planningStartDate}
                   onAddDevis={() => onAddDevisForLot(lot.id)}
                   onAddDocument={() => onAddDocForLot(lot.id)}
                   onDetail={() => onGoToLot(lot.id)}

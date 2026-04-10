@@ -122,12 +122,13 @@ export function usePaymentEvents(
   }, [chantierId, tick]);
 
   // ── PATCH via API route (service_role, plus fiable que le RPC client-side) ──
-  const patchStatus = useCallback(async (id: string, status: 'paid' | 'pending'): Promise<boolean> => {
-    if (!chantierId) return false;
+  // Retourne 'ok' | 'not_found' | 'error'
+  const patchStatus = useCallback(async (id: string, status: 'paid' | 'pending'): Promise<'ok' | 'not_found' | 'error'> => {
+    if (!chantierId) return 'error';
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const bearerToken = session?.access_token ?? token ?? null;
-      if (!bearerToken) { console.error('[patchStatus] no token'); return false; }
+      if (!bearerToken) { console.error('[patchStatus] no token'); return 'error'; }
 
       const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
         method: 'PATCH',
@@ -137,15 +138,16 @@ export function usePaymentEvents(
         },
         body: JSON.stringify({ id, status }),
       });
+      if (res.status === 404) return 'not_found';
       if (!res.ok) {
         const txt = await res.text().catch(() => '');
         console.error(`[patchStatus] HTTP ${res.status}:`, txt);
-        return false;
+        return 'error';
       }
-      return true;
+      return 'ok';
     } catch (e) {
       console.error('[patchStatus] exception:', e instanceof Error ? e.message : e);
-      return false;
+      return 'error';
     }
   }, [chantierId, token]);
 
@@ -153,23 +155,23 @@ export function usePaymentEvents(
   const markPaid = useCallback(async (id: string): Promise<boolean> => {
     if (!chantierId) return false;
 
-    // 1. Mise à jour optimiste immédiate
+    // Mise à jour optimiste immédiate
     pendingUpdates.current.set(id, 'paid');
     setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'paid' as const } : ev));
 
-    const ok = await patchStatus(id, 'paid');
+    const result = await patchStatus(id, 'paid');
 
-    if (!ok) {
-      // Échec API → revert
+    if (result !== 'ok') {
+      // Échec API → supprimer le lock et re-synchroniser depuis le serveur.
+      // 'not_found' = l'event a été dédupliqué depuis le dernier chargement :
+      // le refresh va purger l'item obsolète de la liste.
       pendingUpdates.current.delete(id);
-      setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'late' as const } : ev));
+      refresh();
       return false;
     }
 
     // Succès : on garde pendingUpdates actif pendant le refresh silencieux
-    // pour que la re-fetch serveur ne puisse pas écraser l'état local.
-    // La prochaine fetch retournera 'paid' (DB commitée) — pendingUpdates
-    // est alors cohérent et peut être supprimé sans flash visible.
+    // pour éviter le flash — la prochaine fetch retournera 'paid' côté DB.
     refresh();
     setTimeout(() => { pendingUpdates.current.delete(id); }, 4000);
     return true;
@@ -182,11 +184,11 @@ export function usePaymentEvents(
     pendingUpdates.current.set(id, 'pending');
     setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'pending' as const } : ev));
 
-    const ok = await patchStatus(id, 'pending');
+    const result = await patchStatus(id, 'pending');
 
-    if (!ok) {
+    if (result !== 'ok') {
       pendingUpdates.current.delete(id);
-      setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'paid' as const } : ev));
+      refresh();
       return;
     }
 

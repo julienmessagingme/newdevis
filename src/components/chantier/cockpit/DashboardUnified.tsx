@@ -356,6 +356,19 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
                   : { ...d, devis_statut: statut as any };
               }))
             }
+            onDurationChange={chantierId && token ? async (dureeJours) => {
+              const res = await fetch(`/api/chantier/${chantierId}/planning`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ lots: [{ id: targetLot.id, duree_jours: dureeJours }] }),
+              });
+              if (!res.ok) return;
+              // Refresh lots depuis la réponse du serveur (cascade recalculée)
+              const data = await res.json();
+              if (Array.isArray(data.lots)) {
+                setResult(prev => ({ ...prev, lots: data.lots }));
+              }
+            } : undefined}
           />
         );
       }
