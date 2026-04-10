@@ -600,12 +600,106 @@ Intégration whapi pour créer de vrais groupes WhatsApp depuis le cockpit chant
 ## Règles importantes
 
 - **Header/Footer** existent en 2 versions : `layout/Header.tsx` (React) + `astro/Header.astro`. Toute modif doit être faite dans les 2.
-- **shadcn-ui** (`src/components/ui/`) : ne pas modifier manuellement
+- **shadcn-ui** (`src/components/ui/`) : ne pas modifier manuellement (exception documentée : `button.tsx` contient `touch-manipulation` dans la base CVA)
 - **types.ts** (`src/integrations/supabase/`) : auto-généré, ne pas modifier
 - **Alias** : `@/` → `src/`
 - **Interface** en français, **code** en anglais
 - **Params dynamiques** : `[id].astro` et `[slug].astro` — les composants React extraient les params de `window.location.pathname`
 - **Commandes** : `npm run dev` | `npm run build` | `npm run preview` | `npm run lint`
+
+## Conventions mobile
+
+Patterns établis lors des passes mobile (Axe 2 + Quick Wins P0 cockpit). Tout est **additif** via prefixes Tailwind (`sm:`/`md:`/`lg:`) → zero régression desktop.
+
+### Inputs numériques — clavier mobile optimisé
+
+Tout `<input type="number">` doit avoir `inputMode` pour déclencher le bon clavier iOS/Android :
+- **Décimaux** (prix, surface, loyer) : `inputMode="decimal"` → pavé numérique avec `.`
+- **Entiers** (quantité, année) : `inputMode="numeric"` → pavé numérique sans `.`
+
+42 inputs couverts dans 16 fichiers (commit `450127a`). Règle : **toute nouvelle entrée numérique** doit avoir `inputMode`.
+
+### Touch targets et feedback tactile
+
+- `Button` (shadcn) : `touch-manipulation` déjà dans la base CVA → supprime le 300ms tap delay iOS partout.
+- **Minimum 44×44px** pour toute cible tactile (WCAG). Utiliser `p-3` ou `h-11 w-11` sur les icon buttons.
+- `size="icon"` (40×40px) : à migrer vers 44px progressivement — risque de layout shift à tester cas par cas.
+
+### Safe-area iOS (notch + gesture bar)
+
+Pour tout élément fixé en bas de l'écran (bottom-sheet, cookie banner, drawer fullscreen) :
+```tsx
+className="... pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-0"
+```
+Appliqué sur : `BaseLayout.astro` cookie banner, `BudgetTab` ArtisanDrawer. Pattern à réutiliser pour toute nouvelle modal bottom-sheet mobile.
+
+### Drawers mobile fullscreen
+
+Pattern pour les drawers slide-right type `ArtisanDrawer` :
+```tsx
+{/* Overlay : plus marqué sur mobile pour mieux isoler */}
+<div className="fixed inset-0 bg-black/40 sm:bg-black/20 z-40" onClick={onClose} />
+{/* Drawer : fullscreen mobile, 400px desktop */}
+<div className="fixed right-0 top-0 bottom-0 w-full sm:w-[400px] bg-white shadow-2xl z-50 flex flex-col">
+  ...
+  {/* Contenu scrollable avec safe-area */}
+  <div className="flex-1 overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]">
+```
+
+### Tableaux horizontaux mobile
+
+Pour les tables denses (BudgetTab, listes artisans) : **min-w** explicite + wrapper scroll :
+```tsx
+<div className="flex-1 overflow-auto overscroll-x-contain">
+  <table className="min-w-[1025px] w-full table-fixed">
+```
+- `overscroll-x-contain` évite les interférences avec pull-to-refresh
+- `min-w-[Npx]` = somme des largeurs du `<colgroup>` pour garantir la lisibilité
+
+### Grid responsive dense (KPI dashboards)
+
+Pour `grid-cols-3` qui écrase sur mobile (<375px) :
+```tsx
+<div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
+```
+- Stack vertical sur mobile avec `divide-y`
+- Horizontal avec `sm:divide-x` à partir de 640px
+- Padding adaptatif : `px-5 py-5 sm:px-7 sm:py-6`
+
+### Barres d'actions filtres (ActionBar BudgetTab)
+
+Pour les barres avec search + selects + CTA :
+```tsx
+<div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 md:flex-wrap">
+  <div className="relative w-full md:flex-1 md:min-w-[180px] md:max-w-xs">...</div>
+  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:contents">
+    <select className="... w-full md:w-auto">...</select>
+    ...
+  </div>
+  <div className="hidden md:block md:flex-1" />
+  <button className="w-full md:w-auto ...">CTA</button>
+</div>
+```
+- `md:contents` fait disparaître le wrapper grid sur desktop → les selects deviennent enfants directs du flex parent
+- CTA full-width sur mobile, auto sur desktop
+
+### Messagerie 2-panneaux avec toggle mobile
+
+Pattern `MessagerieSection` : liste à gauche + thread à droite, toggle via state `mobileShowThread` :
+```tsx
+<div className={`w-full lg:w-80 ... ${mobileShowThread ? "hidden lg:flex" : "flex"}`}>
+  {/* Liste */}
+</div>
+<div className={`flex-1 ... ${mobileShowThread ? "block" : "hidden lg:block"}`}>
+  {/* Thread avec bouton back lg:hidden */}
+</div>
+```
+Le bouton retour doit être `lg:hidden` dans le header du thread avec `onClick={handleBack}`.
+
+### Status des P0 mobile cockpit
+
+Closed : BudgetTab table (#9), BudgetKpiDashboard (#10), ArtisanDrawer (#11), MessagerieSection (#13), ActionBar (#14), AddDocumentModal (#15).
+Backlog : PlanningTimeline (#12 gros chantier), ContactsSection/DocumentsView (#16), Touch targets chevrons (#17), Button size=icon 44px (#18 à valider).
 
 ## Agent IA — Pilote de Chantier
 
