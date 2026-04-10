@@ -4,6 +4,7 @@ import type { DocumentChantier, LotChantier } from '@/types/chantier-ia';
 import { KpiCard, ViewToggle, DiyCard, RDV_EMOJI } from './DashboardWidgets';
 import LotIntervenantCard from './LotIntervenantCard';
 import IntervenantsListView from '@/components/chantier/cockpit/IntervenantsListView';
+import PlanningWidget from '@/components/chantier/cockpit/planning/PlanningWidget';
 import ComparateurDevisModal from '@/components/chantier/cockpit/ComparateurDevisModal';
 import { fmtK } from '@/lib/dashboardHelpers';
 import type { BreakdownItem } from './BudgetTresorerie';
@@ -376,6 +377,13 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
           />
         )}
       </div>
+
+      {/* ── Planning mini-résumé ────────────────────────────── */}
+      <PlanningWidget
+        lots={lots}
+        startDate={planningStartDate}
+        onGoToPlanning={onGoToPlanning}
+      />
 
       {/* ── Intervenants (pleine largeur) ────────────────────── */}
       <div>
