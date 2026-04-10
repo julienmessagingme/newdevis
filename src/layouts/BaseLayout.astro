@@ -28,6 +28,15 @@ const {
   noindex = false,
 } = Astro.props;
 
+// Auto-canonical : utilise l'URL explicite si fournie, sinon construit depuis Astro.url
+// Remplace http par https et retire le trailing slash (sauf racine)
+const autoCanonical = canonical ?? (() => {
+  const raw = Astro.url.href.replace(/^http:/, 'https:');
+  return raw.endsWith('/') && raw !== 'https://www.verifiermondevis.fr/'
+    ? raw.slice(0, -1)
+    : raw;
+})();
+
 const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
   "@context": "https://schema.org",
   "@type": "BreadcrumbList",
@@ -54,12 +63,12 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" sizes="192x192" href="/favicon-192.png" />
     <link rel="preload" href="/_astro/dm-sans-latin-400-normal.CW0RaeGs.woff2" as="font" type="font/woff2" crossorigin />
-    {canonical && <link rel="canonical" href={canonical} />}
+    <link rel="canonical" href={autoCanonical} />
 
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content={ogType} />
-    {canonical && <meta property="og:url" content={canonical} />}
+    <meta property="og:url" content={autoCanonical} />
     <meta property="og:image" content={ogImage} />
     <meta property="og:locale" content="fr_FR" />
     <meta property="og:site_name" content="VerifierMonDevis.fr" />
