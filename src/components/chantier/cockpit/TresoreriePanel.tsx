@@ -5,13 +5,13 @@
  * Onglet 2 (Échéancier)  : PaymentTimeline réel
  * Onglet 3 (Financement) : Sources budget + Simulateur crédit
  */
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
   TrendingUp, Calendar, CreditCard,
   AlertTriangle, CheckCircle2, Clock,
   ChevronRight, X, Check, Loader2, Paperclip,
-  ArrowRight, Shield, Info, TrendingDown, Pencil, FileText,
+  ArrowRight, Shield, Info, TrendingDown, Pencil, FileText, Download,
 } from 'lucide-react';
 import PVReceptionModal from './PVReceptionModal';
 import EcheancierRefonte from './EcheancierRefonte';
@@ -1176,6 +1176,14 @@ const PROOF_TYPE_CFG: Record<string, { label: string; icon: string; accept: stri
   autre:     { label: 'Autre document',               icon: '📎', accept: '.pdf,.jpg,.jpeg,.png,.docx' },
 };
 
+interface ProofDoc {
+  id: string;
+  nom: string | null;
+  nom_fichier: string | null;
+  signedUrl: string | null;
+  created_at: string;
+}
+
 function PreuvesTab({ events, chantierId, token }: {
   events: PaymentEvent[];
   chantierId: string;
@@ -1184,8 +1192,98 @@ function PreuvesTab({ events, chantierId, token }: {
   const [pvArtisan, setPvArtisan] = useState<{ nom: string; lots: string[] } | null>(null);
   const artisans = useMemo(() => groupByArtisan(events), [events]);
 
-  const paidArtisans = artisans.filter(a => a.paid > 0);
-  const allArtisans  = artisans;
+  // ── Justificatifs déposés ──────────────────────────────────────────────────
+  const [proofDocs,  setProofDocs]  = useState<ProofDoc[]>([]);
+  const [dragOver,   setDragOver]   = useState<string | null>(null);
+  const [uploading,  setUploading]  = useState<string | null>(null); // category key
+  const [analyzing,  setAnalyzing]  = useState<string | null>(null); // doc id
+  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  // Charger les preuve_paiement existantes au montage
+  useEffect(() => {
+    const load = async () => {
+      const { data: { session } } = await _supabase.auth.getSession();
+      const bearer = session?.access_token ?? token;
+      try {
+        const res = await fetch(`/api/chantier/${chantierId}/documents`, {
+          headers: { Authorization: `Bearer ${bearer}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const proofs: ProofDoc[] = (data.documents ?? [])
+          .filter((d: any) => d.document_type === 'preuve_paiement')
+          .map((d: any) => ({
+            id: d.id,
+            nom: d.nom ?? d.nom_fichier ?? null,
+            nom_fichier: d.nom_fichier ?? null,
+            signedUrl: d.signedUrl ?? null,
+            created_at: d.created_at,
+          }));
+        setProofDocs(proofs);
+      } catch { /* silencieux */ }
+    };
+    load();
+  }, [chantierId, token]);
+
+  const uploadProof = useCallback(async (file: File, category: string) => {
+    if (uploading || analyzing) return;
+    setUploading(category);
+    try {
+      const { data: { session } } = await _supabase.auth.getSession();
+      const bearer = session?.access_token ?? token;
+
+      // 1. Upload du fichier
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('nom', PROOF_TYPE_CFG[category]?.label ?? 'Justificatif');
+      fd.append('documentType', 'preuve_paiement');
+      fd.append('source', 'manual_upload');
+
+      const uploadRes = await fetch(`/api/chantier/${chantierId}/documents`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${bearer}` },
+        body: fd,
+      });
+      if (!uploadRes.ok) { setUploading(null); return; }
+      const { document: doc } = await uploadRes.json();
+      if (!doc?.id) { setUploading(null); return; }
+
+      // 2. Affichage immédiat avec nom temporaire
+      const tempDoc: ProofDoc = {
+        id: doc.id,
+        nom: PROOF_TYPE_CFG[category]?.label ?? 'Justificatif',
+        nom_fichier: doc.nom_fichier ?? null,
+        signedUrl: doc.signedUrl ?? null,
+        created_at: doc.created_at ?? new Date().toISOString(),
+      };
+      setProofDocs(prev => [tempDoc, ...prev]);
+      setUploading(null);
+
+      // 3. IA auto-nommage (avec catégorie comme indice)
+      setAnalyzing(doc.id);
+      try {
+        const descRes = await fetch(
+          `/api/chantier/${chantierId}/documents/${doc.id}/describe`,
+          {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ proofCategory: category }),
+          },
+        );
+        if (descRes.ok) {
+          const { nom: aiNom } = await descRes.json();
+          if (aiNom) setProofDocs(prev => prev.map(d => d.id === doc.id ? { ...d, nom: aiNom } : d));
+        }
+      } catch { /* silencieux — nom temporaire conservé */ }
+      setAnalyzing(null);
+
+    } catch {
+      setUploading(null);
+      setAnalyzing(null);
+    }
+  }, [chantierId, token, uploading, analyzing]);
+
+  const allArtisans = artisans;
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -1207,37 +1305,114 @@ function PreuvesTab({ events, chantierId, token }: {
           ))}
         </div>
 
-        {/* Preuves de paiement */}
+        {/* Preuves de paiement — drop zones */}
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-5 pt-4 pb-2 flex items-center justify-between">
+          <div className="px-5 pt-4 pb-2">
             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
               Preuves de paiement
             </p>
-          </div>
-
-          <div className="px-5 pb-4 space-y-2">
-            <p className="text-[11px] text-gray-500 leading-relaxed">
-              Déposez vos justificatifs de paiement directement dans l'onglet <strong>Documents</strong> de chaque lot
-              (extraits bancaires, copies de chèques, confirmations de virement).
-              Ils sont associés automatiquement à l'artisan concerné.
+            <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
+              Glissez votre justificatif dans la bonne catégorie — l'IA le nomme automatiquement.
             </p>
-
-            <div className="grid grid-cols-2 gap-2 mt-3">
-              {Object.entries(PROOF_TYPE_CFG).map(([, cfg]) => (
-                <div key={cfg.label}
-                  className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5">
-                  <span className="text-base">{cfg.icon}</span>
-                  <span className="text-[11px] text-gray-600 font-medium leading-tight">{cfg.label}</span>
-                </div>
-              ))}
-            </div>
           </div>
 
-          {/* Récap preuves existantes (proof_signed_url dans les events) */}
+          {/* 4 drop zones */}
+          <div className="px-5 pb-4 grid grid-cols-2 gap-2 mt-1">
+            {Object.entries(PROOF_TYPE_CFG).map(([key, cfg]) => (
+              <div key={key}>
+                <input
+                  ref={el => { fileRefs.current[key] = el; }}
+                  type="file"
+                  accept={cfg.accept}
+                  className="hidden"
+                  onChange={e => {
+                    const f = e.target.files?.[0];
+                    if (f) uploadProof(f, key);
+                    e.target.value = '';
+                  }}
+                />
+                <div
+                  onDragOver={e => { e.preventDefault(); setDragOver(key); }}
+                  onDragLeave={() => setDragOver(null)}
+                  onDrop={e => {
+                    e.preventDefault();
+                    setDragOver(null);
+                    const f = e.dataTransfer.files[0];
+                    if (f) uploadProof(f, key);
+                  }}
+                  onClick={() => { if (!uploading && !analyzing) fileRefs.current[key]?.click(); }}
+                  className={[
+                    'flex items-center gap-2 rounded-xl px-3 py-3 cursor-pointer border transition-all duration-150 select-none',
+                    dragOver === key
+                      ? 'bg-blue-50 border-blue-400 scale-[1.02] shadow-sm'
+                      : 'bg-gray-50 border-dashed border-gray-300 hover:border-blue-300 hover:bg-blue-50',
+                    uploading === key ? 'opacity-60 pointer-events-none' : '',
+                  ].join(' ')}
+                >
+                  <span className="text-base shrink-0">{cfg.icon}</span>
+                  {uploading === key ? (
+                    <span className="flex items-center gap-1.5 text-[11px] text-blue-600">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Envoi…
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-gray-600 font-medium leading-tight">
+                      {cfg.label}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Justificatifs déposés ici */}
+          {proofDocs.length > 0 && (
+            <div className="border-t border-gray-50">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-5 pt-3 pb-2">
+                Justificatifs déposés ({proofDocs.length})
+              </p>
+              <div className="divide-y divide-gray-50 pb-2">
+                {proofDocs.map(d => (
+                  <div key={d.id} className="flex items-center gap-3 px-5 py-2.5">
+                    <Paperclip className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      {analyzing === d.id ? (
+                        <div className="flex items-center gap-1.5">
+                          <Loader2 className="h-3 w-3 text-indigo-400 animate-spin shrink-0" />
+                          <span className="text-[11px] text-indigo-500 italic">Lecture IA en cours…</span>
+                        </div>
+                      ) : (
+                        <p className="text-[11px] font-medium text-gray-700 truncate">
+                          {d.nom ?? d.nom_fichier ?? 'Justificatif'}
+                        </p>
+                      )}
+                      <p className="text-[10px] text-gray-400">
+                        {new Date(d.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
+                    {d.signedUrl ? (
+                      <a
+                        href={d.signedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Télécharger"
+                        className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 shrink-0 transition-colors"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                      </a>
+                    ) : (
+                      <span className="text-[10px] text-gray-300 shrink-0">Lien expiré</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Justificatifs liés à l'échéancier (proof_doc_id sur payment_events) */}
           {events.filter(e => e.proof_signed_url).length > 0 && (
             <div className="border-t border-gray-50">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-5 pt-3 pb-2">
-                Justificatifs déjà attachés
+                Justificatifs liés à l'échéancier
               </p>
               <div className="divide-y divide-gray-50 pb-2">
                 {events.filter(e => e.proof_signed_url).map(e => (
@@ -1249,9 +1424,14 @@ function PreuvesTab({ events, chantierId, token }: {
                       </p>
                       <p className="text-[10px] text-gray-400">{e.artisan_nom ?? e.lot_nom ?? '—'}</p>
                     </div>
-                    <a href={e.proof_signed_url!} target="_blank" rel="noopener noreferrer"
-                      className="text-[11px] font-semibold text-blue-600 hover:underline shrink-0">
-                      Voir →
+                    <a
+                      href={e.proof_signed_url!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Télécharger"
+                      className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 shrink-0 transition-colors"
+                    >
+                      <Download className="h-3.5 w-3.5" />
                     </a>
                   </div>
                 ))}
