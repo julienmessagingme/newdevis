@@ -152,25 +152,46 @@ export function usePaymentEvents(
   // ── Marquer un événement comme payé ──────────────────────────────────────
   const markPaid = useCallback(async (id: string): Promise<boolean> => {
     if (!chantierId) return false;
+
+    // 1. Mise à jour optimiste immédiate
     pendingUpdates.current.set(id, 'paid');
     setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'paid' as const } : ev));
+
     const ok = await patchStatus(id, 'paid');
-    pendingUpdates.current.delete(id);
+
     if (!ok) {
-      refresh();
+      // Échec API → revert
+      pendingUpdates.current.delete(id);
+      setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'late' as const } : ev));
       return false;
     }
+
+    // Succès : on garde pendingUpdates actif pendant le refresh silencieux
+    // pour que la re-fetch serveur ne puisse pas écraser l'état local.
+    // La prochaine fetch retournera 'paid' (DB commitée) — pendingUpdates
+    // est alors cohérent et peut être supprimé sans flash visible.
+    refresh();
+    setTimeout(() => { pendingUpdates.current.delete(id); }, 4000);
     return true;
   }, [chantierId, patchStatus, refresh]);
 
   // ── Annuler un paiement (repasser en "À venir") ───────────────────────────
   const markUnpaid = useCallback(async (id: string) => {
     if (!chantierId) return;
+
     pendingUpdates.current.set(id, 'pending');
     setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'pending' as const } : ev));
+
     const ok = await patchStatus(id, 'pending');
-    pendingUpdates.current.delete(id);
-    if (!ok) refresh();
+
+    if (!ok) {
+      pendingUpdates.current.delete(id);
+      setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'paid' as const } : ev));
+      return;
+    }
+
+    refresh();
+    setTimeout(() => { pendingUpdates.current.delete(id); }, 4000);
   }, [chantierId, patchStatus, refresh]);
 
   return { events, loading, error, refresh, markPaid, markUnpaid };
