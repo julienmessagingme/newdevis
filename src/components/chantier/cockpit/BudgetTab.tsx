@@ -604,8 +604,8 @@ function ArtisanDrawer({
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
-      <div className="fixed right-0 top-0 bottom-0 w-[400px] max-w-full bg-white shadow-2xl z-50 flex flex-col">
+      <div className="fixed inset-0 bg-black/40 sm:bg-black/20 z-40" onClick={onClose} />
+      <div className="fixed right-0 top-0 bottom-0 w-full sm:w-[400px] bg-white shadow-2xl z-50 flex flex-col">
 
         {/* En-tête */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -640,7 +640,7 @@ function ArtisanDrawer({
         </div>
 
         {/* Contenu */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+        <div className="flex-1 overflow-y-auto px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-5">
 
           {/* Devis */}
           {lot.devis.length > 0 && (
