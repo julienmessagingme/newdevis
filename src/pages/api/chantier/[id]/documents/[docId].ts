@@ -141,6 +141,25 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     if (!VALID_DEVIS_STATUTS.has(body.devisStatut))
       return jsonError('Statut invalide', 400);
     updates.devis_statut = body.devisStatut;
+
+    // Auto-remplissage du montant depuis l'analyse quand on valide un devis sans montant
+    const isValidating = body.devisStatut === 'valide' || body.devisStatut === 'attente_facture';
+    const docMontantCurrent = (doc as any).montant;
+    const docAnalyseId = (doc as any).analyse_id;
+    if (isValidating && !docMontantCurrent && docAnalyseId && body.montant === undefined) {
+      const { data: analyseRow } = await ctx.supabase
+        .from('analyses').select('raw_text').eq('id', docAnalyseId).single();
+      if (analyseRow?.raw_text) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let raw: any = analyseRow.raw_text;
+        if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = null; } }
+        const totaux = raw?.extracted?.totaux;
+        const montantAnalyse = totaux?.ttc ?? totaux?.ht ?? null;
+        if (montantAnalyse != null && Number(montantAnalyse) > 0) {
+          updates.montant = Number(montantAnalyse);
+        }
+      }
+    }
   }
 
   if (body.factureStatut !== undefined) {

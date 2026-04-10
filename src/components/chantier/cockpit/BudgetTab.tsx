@@ -81,11 +81,12 @@ interface BudgetLot {
 }
 
 interface BudgetData {
-  budget_ia:  number;
-  lots:       BudgetLot[];
-  sans_lot:   BudgetLot | null;
-  totaux:     BudgetLotTotaux;
-  type_projet: string;
+  budget_ia:        number;
+  lots:             BudgetLot[];
+  sans_lot:         BudgetLot | null;
+  totaux:           BudgetLotTotaux;
+  type_projet:      string;
+  backfilled_count: number;
 }
 
 // ── Ligne enrichie ────────────────────────────────────────────────────────────
@@ -107,8 +108,8 @@ interface BudgetRow {
 }
 
 function buildRow(lot: BudgetLot): BudgetRow {
-  const { devis_valides, devis_recus, facture, paye } = lot.totaux;
-  const reste = Math.max(0, facture - paye);
+  const { devis_valides, devis_recus, facture, paye, acompte } = lot.totaux;
+  const reste = Math.max(0, facture - paye - acompte);
 
   const statuses = lot.devis.map(d => d.devis_statut);
   let devisStatut: DevisStatut = 'pending';
@@ -119,7 +120,7 @@ function buildRow(lot: BudgetLot): BudgetRow {
   let payStatut: PayStatut = 'none';
   if (lot.factures.length > 0) {
     if (lot.totaux.litige > 0)                                   payStatut = 'litige';
-    else if (facture > 0 && paye >= facture)                     payStatut = 'paid';
+    else if (facture > 0 && (paye + acompte) >= facture)         payStatut = 'paid';
     else if (lot.totaux.acompte > 0 || paye > 0)                 payStatut = 'partial';
     else if (facture > 0)                                        payStatut = 'unpaid';
   }
@@ -140,9 +141,10 @@ function buildRow(lot: BudgetLot): BudgetRow {
 // ── Hook données ──────────────────────────────────────────────────────────────
 
 function useBudgetData(chantierId: string, token: string) {
-  const [data,    setData]    = useState<BudgetData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState<string | null>(null);
+  const [data,          setData]          = useState<BudgetData | null>(null);
+  const [loading,       setLoading]       = useState(true);
+  const [error,         setError]         = useState<string | null>(null);
+  const [backfillToast, setBackfillToast] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -153,7 +155,12 @@ function useBudgetData(chantierId: string, token: string) {
         headers: { Authorization: `Bearer ${bearer}` },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setData(await res.json());
+      const json: BudgetData = await res.json();
+      setData(json);
+      if ((json.backfilled_count ?? 0) > 0) {
+        setBackfillToast(true);
+        setTimeout(() => setBackfillToast(false), 5000);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur réseau');
     } finally {
@@ -162,7 +169,7 @@ function useBudgetData(chantierId: string, token: string) {
   }, [chantierId, token]);
 
   useEffect(() => { load(); }, [load]);
-  return { data, loading, error, refresh: load };
+  return { data, loading, error, refresh: load, backfillToast };
 }
 
 // ── Configs statuts ───────────────────────────────────────────────────────────
@@ -869,7 +876,7 @@ export default function BudgetTab({
   rangeMin?:  number;
   rangeMax?:  number;
 }) {
-  const { data, loading, error, refresh } = useBudgetData(chantierId, token);
+  const { data, loading, error, refresh, backfillToast } = useBudgetData(chantierId, token);
 
   const [search,       setSearch]       = useState('');
   const [filterDevis,  setFilterDevis]  = useState<FilterDevis>('all');
@@ -1028,6 +1035,14 @@ export default function BudgetTab({
 
   return (
     <div className="flex flex-col h-full bg-white">
+
+      {/* ── Toast : montant repris depuis l'analyse ────────────────────────── */}
+      {backfillToast && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-gray-900 text-white text-sm px-4 py-3 rounded-xl shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <Check className="h-4 w-4 text-emerald-400 shrink-0" />
+          <span>Montant(s) devis mis à jour automatiquement depuis l'analyse IA</span>
+        </div>
+      )}
 
       {/* ── KPIs ──────────────────────────────────────────────────────────── */}
       <BudgetKpiDashboard data={data} loading={loading} chantierId={chantierId} token={token} />
@@ -1198,7 +1213,14 @@ export default function BudgetTab({
                       {/* Total facturé */}
                       <td className="px-4 py-3.5 text-right">
                         {row.facture > 0 ? (
-                          <span className="text-[12px] font-semibold text-gray-700">{fmtEur(row.facture)}</span>
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className="text-[12px] font-semibold text-gray-700">{fmtEur(row.facture)}</span>
+                            {row.lot.totaux.acompte > 0 && (
+                              <span className="text-[10px] text-blue-500 font-medium">
+                                Acompte {fmtEur(row.lot.totaux.acompte)}
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-[12px] text-gray-300">—</span>
                         )}
@@ -1294,9 +1316,14 @@ export default function BudgetTab({
                       {/* Reste à payer */}
                       <td className="px-4 py-3.5 text-right">
                         {row.reste > 0 ? (
-                          <span className="text-[12px] font-bold text-amber-700">{fmtEur(row.reste)}</span>
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className="text-[12px] font-bold text-amber-700">{fmtEur(row.reste)}</span>
+                            {row.lot.totaux.acompte > 0 && (
+                              <span className="text-[10px] text-gray-400">après acompte</span>
+                            )}
+                          </div>
                         ) : row.facture > 0 ? (
-                          <span className="text-[11px] text-emerald-600 font-semibold">Soldé</span>
+                          <span className="text-[11px] text-emerald-600 font-semibold">Soldé ✓</span>
                         ) : (
                           <span className="text-[12px] text-gray-300">—</span>
                         )}

@@ -16,6 +16,17 @@ export const GET: APIRoute = async ({ params, request }) => {
   const url            = new URL(request.url);
   const includeOverride = url.searchParams.get('include_override') === 'true';
 
+  // Récupérer les IDs des devis validés pour filtrer les payment_events
+  // On n'inclut que les events issus de devis validés (ou d'attente_facture) et de factures.
+  // Les devis en cours / non retenus ne doivent pas apparaître dans l'échéancier.
+  const { data: validatedDocs } = await ctx.supabase
+    .from('documents_chantier')
+    .select('id')
+    .eq('chantier_id', chantierId)
+    .in('devis_statut', ['valide', 'attente_facture']);
+
+  const validatedDevisIds = (validatedDocs ?? []).map(d => d.id);
+
   let query = ctx.supabase
     .from('payment_events')
     .select('*')
@@ -26,12 +37,19 @@ export const GET: APIRoute = async ({ params, request }) => {
     query = query.eq('is_override', false);
   }
 
-  const { data, error } = await query;
+  const { data: allEvents, error } = await query;
 
   if (error) {
     console.error('[api/payment-events] GET error:', error.message);
     return jsonError('Erreur chargement events', 500);
   }
+
+  // Filtrer : garder les factures (toujours) + les devis validés seulement
+  const data = (allEvents ?? []).filter(e => {
+    if (e.source_type === 'facture') return true;
+    if (e.source_type === 'devis') return validatedDevisIds.includes(e.source_id);
+    return true; // autres types (dépenses rapides, etc.)
+  });
 
   // Enrichir avec nom du document source + nom du lot + nom de l'artisan
   const sourceIds = (data ?? []).map(e => e.source_id).filter(Boolean);

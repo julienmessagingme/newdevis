@@ -205,6 +205,7 @@ export const GET: APIRoute = async ({ params, request }) => {
       .filter((x): x is string => !!x);
 
     const analysesMap = new Map<string, { status: string; score: number | null; signal: string | null; montant: number | null }>();
+    let backfilledCount = 0;
 
     if (analyseIds.length > 0) {
       const { data: analyses, error: analysesErr } = await ctx.supabase
@@ -233,7 +234,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 
       // ── Write-through : backfill documents_chantier.montant depuis l'analyse ──
       // Si doc.montant est null mais que l'analyse a un TTC, on le persiste
-      // pour que les prochains appels (et la Vue d'ensemble) soient cohérents.
+      // ET on met à jour l'objet en mémoire pour que la réponse courante soit correcte.
       const backfills: Promise<unknown>[] = [];
       for (const doc of docs ?? []) {
         if (doc.document_type !== 'devis') continue;
@@ -241,6 +242,9 @@ export const GET: APIRoute = async ({ params, request }) => {
         if (!doc.analyse_id) continue;
         const am = analysesMap.get(doc.analyse_id);
         if (!am?.montant) continue;
+        // Mise à jour en mémoire pour que la réponse courante utilise le montant
+        (doc as Record<string, unknown>).montant = am.montant;
+        backfilledCount++;
         backfills.push(
           ctx.supabase
             .from('documents_chantier')
@@ -385,11 +389,12 @@ export const GET: APIRoute = async ({ params, request }) => {
     return jsonOk({
       budget_ia,
       financement,
-      lots:       lotsFiltered,
-      sans_lot:   hasSansLot ? sanslot : null,
+      lots:              lotsFiltered,
+      sans_lot:          hasSansLot ? sanslot : null,
       totaux,
       conseils,
-      type_projet: chantier.type_projet ?? 'autre',
+      type_projet:       chantier.type_projet ?? 'autre',
+      backfilled_count:  backfilledCount,
     });
 
   } catch (err) {

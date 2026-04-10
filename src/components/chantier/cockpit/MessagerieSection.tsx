@@ -403,9 +403,14 @@ export default function MessagerieSection({ chantierId, chantierNom, token }: Me
                       : "border-transparent hover:bg-gray-50"
                   }`}
                 >
-                  {/* Avatar */}
-                  <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-xs font-semibold ${getAvatarColor(row.nom)}`}>
-                    {getInitials(row.nom)}
+                  {/* Avatar + canal badge */}
+                  <div className="relative flex-shrink-0">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-semibold ${getAvatarColor(row.nom)}`}>
+                      {getInitials(row.nom)}
+                    </div>
+                    <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center border-2 border-white">
+                      <Mail className="w-2 h-2 text-white" />
+                    </div>
                   </div>
 
                   {/* Content */}

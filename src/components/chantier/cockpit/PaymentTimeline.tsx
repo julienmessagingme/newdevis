@@ -83,6 +83,11 @@ export default function PaymentTimeline({
   const lateTotal    = events.filter(e => e.status === 'late').reduce((s, e) => s + (e.amount ?? 0), 0);
   const pendingTotal = events.filter(e => e.status === 'pending').reduce((s, e) => s + (e.amount ?? 0), 0);
 
+  // Résumé des sources pour l'explication pédagogique
+  const nbDevisEvents   = [...new Set(events.filter(e => e.source_type === 'devis').map(e => e.source_id))].length;
+  const nbFactureEvents = [...new Set(events.filter(e => e.source_type === 'facture').map(e => e.source_id))].length;
+  const totalGlobal     = events.reduce((s, e) => s + (e.amount ?? 0), 0);
+
   const grouped = events.reduce<Record<string, typeof events>>((acc, ev) => {
     const key = ev.due_date
       ? new Date(ev.due_date + 'T00:00:00').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
@@ -97,10 +102,30 @@ export default function PaymentTimeline({
       {/* ── Intro pédagogique ── */}
       <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex gap-2.5">
         <Info className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
-        <p className="text-xs text-blue-700 leading-relaxed">
-          Cet échéancier regroupe <strong>tous les acomptes et règlements</strong> extraits de vos devis validés.
-          Cliquez sur <strong>Marquer payé</strong> pour confirmer un versement.
-        </p>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-blue-700 leading-relaxed">
+            Cet échéancier regroupe <strong>les acomptes et règlements</strong> extraits de vos devis validés.
+            Cliquez sur <strong>Marquer payé</strong> pour confirmer un versement.
+          </p>
+          {/* Résumé sources */}
+          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+            {nbDevisEvents > 0 && (
+              <span className="text-[10px] font-semibold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">
+                {nbDevisEvents} devis validé{nbDevisEvents > 1 ? 's' : ''}
+              </span>
+            )}
+            {nbFactureEvents > 0 && (
+              <span className="text-[10px] font-semibold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">
+                {nbFactureEvents} facture{nbFactureEvents > 1 ? 's' : ''}
+              </span>
+            )}
+            {totalGlobal > 0 && (
+              <span className="text-[10px] text-blue-500">
+                Total : <strong>{fmtEur(totalGlobal)}</strong>
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ── KPI résumé ── */}

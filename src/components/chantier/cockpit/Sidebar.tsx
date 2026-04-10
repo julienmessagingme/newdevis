@@ -21,17 +21,45 @@ interface SidebarProps {
   onAmeliorer?: () => void;
 }
 
-export const NAV_ITEMS: { id: Section; label: string; icon: React.ElementType }[] = [
-  { id: 'budget',     label: 'Vue d\'ensemble',     icon: Layers      },
-  { id: 'tresorerie', label: 'Budget & Trésorerie', icon: Wallet      },
-  { id: 'contacts',   label: 'Contacts',            icon: Users       },
-  { id: 'messagerie', label: 'Messagerie',          icon: Mail        },
-  { id: 'analyse',    label: 'Analyse des devis',   icon: FileSearch  },
-  { id: 'planning',   label: 'Planning',             icon: Calendar    },
-  { id: 'documents',  label: 'Documents',            icon: FolderOpen  },
-  { id: 'journal',    label: 'Journal de chantier', icon: BookOpen    },
-  { id: 'assistant',  label: 'Assistant chantier',  icon: Bot         },
+export interface NavGroup {
+  label: string;
+  items: { id: Section; label: string; icon: React.ElementType }[];
+}
+
+export const NAV_GROUPS: NavGroup[] = [
+  {
+    label: 'Projet',
+    items: [
+      { id: 'budget',     label: 'Accueil',             icon: Layers    },
+      { id: 'tresorerie', label: 'Budget & Trésorerie', icon: Wallet    },
+      { id: 'planning',   label: 'Planning',             icon: Calendar  },
+    ],
+  },
+  {
+    label: 'Devis & Finances',
+    items: [
+      { id: 'analyse',    label: 'Intervenants & Devis', icon: FileSearch },
+      { id: 'documents',  label: 'Documents',             icon: FolderOpen },
+    ],
+  },
+  {
+    label: 'Équipe',
+    items: [
+      { id: 'contacts',   label: 'Contacts',   icon: Users },
+      { id: 'messagerie', label: 'Messagerie', icon: Mail  },
+    ],
+  },
+  {
+    label: 'Suivi IA',
+    items: [
+      { id: 'journal',   label: 'Journal de chantier', icon: BookOpen },
+      { id: 'assistant', label: 'Assistant chantier',  icon: Bot      },
+    ],
+  },
 ];
+
+// Flat list pour les composants qui en ont besoin (breadcrumbs, etc.)
+export const NAV_ITEMS = NAV_GROUPS.flatMap(g => g.items);
 
 export default function Sidebar({ result, activeSection, onSelect, rangeMin, rangeMax, badges, mobileOpen, onCloseMobile, onAmeliorer }: SidebarProps) {
   return (
@@ -60,7 +88,7 @@ export default function Sidebar({ result, activeSection, onSelect, rangeMin, ran
             <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center text-lg shrink-0">
               {result.emoji}
             </div>
-            <span className="text-xs text-gray-400 truncate">Vue d'ensemble</span>
+            <span className="text-xs text-gray-400 truncate">Accueil du chantier</span>
           </button>
           {onAmeliorer && (
             <button
@@ -74,27 +102,31 @@ export default function Sidebar({ result, activeSection, onSelect, rangeMin, ran
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-3 overflow-y-auto">
-          <p className="text-[10px] font-semibold text-gray-300 uppercase tracking-wider px-2 mb-2">Navigation</p>
-          {NAV_ITEMS.map(item => {
-            const active = activeSection === item.id;
-            const badge  = badges[item.id];
-            return (
-              <button key={item.id}
-                onClick={() => { onSelect(item.id); onCloseMobile(); }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium mb-0.5 transition-all text-left group ${
-                  active ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }`}>
-                <item.icon className={`h-4 w-4 shrink-0 transition-colors ${active ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'}`} />
-                <span className="flex-1 truncate">{item.label}</span>
-                {badge && (
-                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap ${badge.style}`}>
-                    {badge.text}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-3">
+          {NAV_GROUPS.map(group => (
+            <div key={group.label}>
+              <p className="text-[9px] font-bold text-gray-300 uppercase tracking-widest px-2 mb-1">{group.label}</p>
+              {group.items.map(item => {
+                const active = activeSection === item.id;
+                const badge  = badges[item.id];
+                return (
+                  <button key={item.id}
+                    onClick={() => { onSelect(item.id); onCloseMobile(); }}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium mb-0.5 transition-all text-left group ${
+                      active ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}>
+                    <item.icon className={`h-4 w-4 shrink-0 transition-colors ${active ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                    <span className="flex-1 truncate">{item.label}</span>
+                    {badge && (
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap ${badge.style}`}>
+                        {badge.text}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         {/* Paramètres (bas) */}

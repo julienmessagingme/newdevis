@@ -110,9 +110,41 @@ export default function ScreenQualification({
     });
   };
 
+  // Étapes du flux de création
+  const STEPS = [
+    { label: 'Description', done: true },
+    { label: 'Vérification', done: false, current: true },
+    { label: 'Génération', done: false },
+  ];
+
   return (
     <div className="min-h-screen bg-[#080d1a] flex flex-col items-center justify-center px-4 py-16">
       <div className="w-full max-w-lg">
+
+        {/* Barre de progression étapes */}
+        <div className="flex items-center gap-2 mb-10">
+          {STEPS.map((step, i) => (
+            <div key={step.label} className="flex items-center gap-2 flex-1">
+              <div className="flex items-center gap-2 flex-1">
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 transition-all ${
+                  step.done
+                    ? 'bg-blue-500 text-white'
+                    : step.current
+                      ? 'bg-white text-[#080d1a]'
+                      : 'bg-white/10 text-slate-500'
+                }`}>
+                  {step.done ? <Check className="w-3.5 h-3.5" /> : i + 1}
+                </div>
+                <span className={`text-xs font-medium truncate ${
+                  step.current ? 'text-white' : step.done ? 'text-blue-400' : 'text-slate-600'
+                }`}>{step.label}</span>
+              </div>
+              {i < STEPS.length - 1 && (
+                <div className={`h-px flex-1 mx-1 transition-all ${step.done ? 'bg-blue-500/40' : 'bg-white/10'}`} />
+              )}
+            </div>
+          ))}
+        </div>
 
         {/* Header */}
         <div className="mb-8">
@@ -120,7 +152,7 @@ export default function ScreenQualification({
             Voici ce que j'ai compris
           </h1>
           <p className="text-slate-500 text-sm">
-            Vérifiez et ajustez si besoin
+            Vérifiez et ajustez si besoin — on génère votre plan ensuite
           </p>
         </div>
 

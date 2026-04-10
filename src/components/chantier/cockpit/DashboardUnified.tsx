@@ -521,7 +521,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
   const SECTION_TITLES: Record<Section, string> = {
     budget: showBudgetDetail ? 'Affinage du budget' : result.nom,
     tresorerie: 'Budget & Trésorerie',
-    lots: 'Intervenants', contacts: 'Contacts', messagerie: 'Messagerie', analyse: 'Analyse des devis',
+    lots: 'Intervenants', contacts: 'Contacts', messagerie: 'Messagerie', analyse: 'Intervenants & Devis',
     planning: 'Planning', documents: 'Documents', journal: 'Journal de chantier', assistant: 'Assistant chantier',
     diy: 'Travaux réalisés par vous', settings: 'Paramètres',
   };
