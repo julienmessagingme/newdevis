@@ -298,17 +298,32 @@ export async function generatePaymentEventsFromAnalyse(
       return;
     }
 
-    // 2. Override devis original si facture
+    // 2. Supprimer les events existants pour ce source_id (idempotence)
+    // Évite les doublons si la génération est déclenchée plusieurs fois
+    // (ex: devis re-validé, changement de statut multiple)
+    const { error: delError } = await supabase
+      .from('payment_events')
+      .delete()
+      .eq('project_id', chantierId)
+      .eq('source_id', sourceId)
+      .eq('is_override', false);
+    if (delError) {
+      console.warn('[paymentEvents] pipeline: purge avant insertion échouée:', delError.message);
+    } else {
+      console.log('[paymentEvents] pipeline: events existants purgés pour source_id', sourceId);
+    }
+
+    // 3. Override devis original si facture
     if (sourceType === 'facture' && originalDevisId) {
       await overridePreviousDevisEvents(supabase, chantierId, originalDevisId);
     }
 
-    // 3. Transformation
+    // 4. Transformation
     const events = transformToPaymentEvents(
       conditions, totalAmount, chantierId, sourceType, sourceId,
     );
 
-    // 4. Insertion
+    // 5. Insertion
     const { inserted, error } = await insertPaymentEvents(supabase, events);
     if (error) {
       console.error('[paymentEvents] pipeline: échec insertion', error);
@@ -339,6 +354,14 @@ export async function generatePaymentEventsFromConditions(
 ): Promise<void> {
   try {
     if (!conditions.length) return;
+
+    // Purge des events existants pour ce source_id (idempotence)
+    await supabase
+      .from('payment_events')
+      .delete()
+      .eq('project_id', chantierId)
+      .eq('source_id', sourceId)
+      .eq('is_override', false);
 
     if (sourceType === 'facture' && originalDevisId) {
       await overridePreviousDevisEvents(supabase, chantierId, originalDevisId);

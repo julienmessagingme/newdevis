@@ -121,24 +121,25 @@ export function usePaymentEvents(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chantierId, tick]);
 
-  // ── RPC SECURITY DEFINER (bypasse RLS, vérifie ownership via auth.uid()) ─
-  // Utilise supabase.rpc() — le client gère le token de session automatiquement.
-  // La fonction PostgreSQL set_payment_event_status retourne TRUE si l'UPDATE
-  // a affecté une ligne, FALSE sinon (event introuvable ou non autorisé).
+  // ── PATCH via API route (service_role, plus fiable que le RPC client-side) ──
   const patchStatus = useCallback(async (id: string, status: 'paid' | 'pending'): Promise<boolean> => {
     if (!chantierId) return false;
     try {
-      const { data, error } = await supabase.rpc('set_payment_event_status', {
-        p_event_id:    id,
-        p_chantier_id: chantierId,
-        p_status:      status,
+      const { data: { session } } = await supabase.auth.getSession();
+      const bearerToken = session?.access_token ?? token ?? null;
+      if (!bearerToken) { console.error('[patchStatus] no token'); return false; }
+
+      const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${bearerToken}`,
+        },
+        body: JSON.stringify({ id, status }),
       });
-      if (error) {
-        console.error(`[patchStatus] RPC error:`, error.message);
-        return false;
-      }
-      if (!data) {
-        console.error(`[patchStatus] RPC returned false — event introuvable ou non autorisé`);
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        console.error(`[patchStatus] HTTP ${res.status}:`, txt);
         return false;
       }
       return true;
@@ -146,7 +147,7 @@ export function usePaymentEvents(
       console.error('[patchStatus] exception:', e instanceof Error ? e.message : e);
       return false;
     }
-  }, [chantierId]);
+  }, [chantierId, token]);
 
   // ── Marquer un événement comme payé ──────────────────────────────────────
   const markPaid = useCallback(async (id: string): Promise<boolean> => {
