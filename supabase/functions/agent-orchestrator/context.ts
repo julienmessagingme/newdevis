@@ -92,7 +92,7 @@ export async function buildContext(
     const enrichedLots = planningLots.map((pl: any) => {
       const bl = budgetByLotId.get(pl.id);
       const totaux = bl?.totaux ?? {};
-      const nbDevis = (bl?.devis ?? []).length;
+      const nbDevis = bl?.nb_devis_recus ?? (bl?.devis ?? []).length;
       const lotContact = contacts.find((c: any) => c.lot_id === pl.id);
       return {
         id: pl.id,

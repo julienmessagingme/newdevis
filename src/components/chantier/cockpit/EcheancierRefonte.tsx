@@ -433,6 +433,219 @@ const STATUS_CFG = {
   cancelled: { dot: 'bg-gray-300',    badge: 'bg-gray-50 text-gray-400 border-gray-100',           label: 'Annulé' },
 };
 
+// ── Wizard paiement (4 étapes guidées) ───────────────────────────────────────
+
+type WizardStep = 'confirm' | 'facture' | 'financement' | 'preuve';
+
+// Sources de fonds disponibles dans le wizard (sous-ensemble de SOURCE_CFG)
+const WIZARD_SOURCES: SourceType[] = [
+  'apport_personnel', 'deblocage_credit', 'aide_maprime',
+  'aide_cee', 'eco_ptz', 'autre',
+];
+
+function PaymentWizard({ ev, chantierId, token, markPaid, proofInputRef, proofUploading, setProofUploading, onClose, onDone }: {
+  ev: PaymentEvent;
+  chantierId: string;
+  token: string;
+  markPaid: (id: string) => Promise<boolean>;
+  proofInputRef: React.RefObject<HTMLInputElement>;
+  proofUploading: boolean;
+  setProofUploading: (v: boolean) => void;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [step,           setStep]           = useState<WizardStep>('confirm');
+  const [paying,         setPaying]         = useState(false);
+  const [errMsg,         setErrMsg]         = useState<string | null>(null);
+  const [selectedSource, setSelectedSource] = useState<SourceType | null>(null);
+  const [savingSource,   setSavingSource]   = useState(false);
+
+  // Étape 1 — Confirmation + paiement effectif
+  async function handleConfirm() {
+    setPaying(true);
+    setErrMsg(null);
+    const ok = await markPaid(ev.id);
+    setPaying(false);
+    if (!ok) {
+      setErrMsg('Le paiement n\'a pas pu être enregistré. Vérifiez votre connexion et réessayez.');
+      return;
+    }
+    setStep('facture');
+  }
+
+  // Étape 3 — Enregistrer la source des fonds + passer à l'étape preuve
+  async function handleFinancement() {
+    if (!selectedSource) { setStep('preuve'); return; }
+    setSavingSource(true);
+    try {
+      const cfg = SOURCE_CFG[selectedSource];
+      const bearer = await freshToken(token);
+      await fetch(`/api/chantier/${chantierId}/entrees`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label:       cfg.label,
+          montant:     ev.amount ?? 0,
+          source_type: selectedSource,
+          date_entree: new Date().toISOString().slice(0, 10),
+          statut:      'recu',
+        }),
+      });
+    } finally {
+      setSavingSource(false);
+    }
+    setStep('preuve');
+  }
+
+  // Étape 4 — Upload justificatif
+  async function handleProofUpload(file: File) {
+    setProofUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('nom', `Justificatif — ${ev.label}`);
+      fd.append('documentType', 'preuve_paiement');
+      fd.append('paymentEventId', ev.id);
+      const bearer = await freshToken(token);
+      const res = await fetch(`/api/chantier/${chantierId}/documents`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${bearer}` },
+        body: fd,
+      });
+      if (res.ok) onDone();
+    } finally {
+      setProofUploading(false);
+      if (proofInputRef.current) proofInputRef.current.value = '';
+    }
+  }
+
+  // ── Étape 1 : Confirmation ────────────────────────────────────────────────
+  if (step === 'confirm') return (
+    <div className="mt-2.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-3 space-y-2.5">
+      <p className="text-xs font-bold text-emerald-800">
+        Confirmer le paiement{ev.amount != null ? ` de ${fmtEur(ev.amount)}` : ''} ?
+      </p>
+      {errMsg && (
+        <div className="flex items-start gap-1.5 text-[11px] text-red-700 bg-red-50 border border-red-100 rounded-lg px-2.5 py-2">
+          <AlertCircle className="h-3 w-3 shrink-0 mt-0.5" />
+          {errMsg}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <button type="button" onClick={handleConfirm} disabled={paying}
+          className="flex items-center gap-1.5 text-xs font-bold bg-emerald-600 text-white rounded-lg px-3 py-1.5 hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+          {paying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+          {paying ? 'Enregistrement…' : 'Oui, payé'}
+        </button>
+        <button type="button" onClick={onClose}
+          className="flex items-center gap-1 text-xs font-semibold text-gray-500 bg-white border border-gray-200 rounded-lg px-3 py-1.5 hover:border-gray-300 transition-colors">
+          <X className="h-3 w-3" /> Annuler
+        </button>
+      </div>
+    </div>
+  );
+
+  // ── Étape 2 : Facture présente ? ──────────────────────────────────────────
+  if (step === 'facture') return (
+    <div className="mt-2.5 bg-blue-50 border border-blue-100 rounded-xl px-3 py-3 space-y-2.5">
+      <div className="flex items-start gap-2">
+        <span className="text-base">🧾</span>
+        <div>
+          <p className="text-xs font-bold text-blue-900">Avez-vous reçu la facture ?</p>
+          <p className="text-[11px] text-blue-600 mt-0.5">
+            En cas de litige ou de garantie décennale, la facture acquittée est indispensable.
+          </p>
+        </div>
+      </div>
+      <div className="flex gap-2 flex-wrap">
+        <button type="button" onClick={() => setStep('financement')}
+          className="text-[11px] font-bold bg-blue-600 text-white rounded-lg px-2.5 py-1.5 hover:bg-blue-700 transition-colors">
+          ✅ Oui, je l'ai
+        </button>
+        <button type="button" onClick={() => setStep('financement')}
+          className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 hover:bg-amber-100 transition-colors">
+          ⚠️ Pas encore — je la demande
+        </button>
+        <button type="button" onClick={() => setStep('financement')}
+          className="text-[11px] text-gray-400 hover:text-gray-600 px-2 py-1.5">
+          Plus tard
+        </button>
+      </div>
+    </div>
+  );
+
+  // ── Étape 3 : Source des fonds ────────────────────────────────────────────
+  if (step === 'financement') return (
+    <div className="mt-2.5 bg-violet-50 border border-violet-100 rounded-xl px-3 py-3 space-y-2.5">
+      <div className="flex items-start gap-2">
+        <span className="text-base">💰</span>
+        <div>
+          <p className="text-xs font-bold text-violet-900">D'où proviennent ces fonds ?</p>
+          <p className="text-[11px] text-violet-600 mt-0.5">
+            Cette information sera ajoutée à votre plan de financement automatiquement.
+          </p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        {WIZARD_SOURCES.map(key => {
+          const cfg = SOURCE_CFG[key];
+          const isSelected = selectedSource === key;
+          return (
+            <button key={key} type="button" onClick={() => setSelectedSource(isSelected ? null : key)}
+              className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border text-[11px] font-semibold transition-all text-left ${
+                isSelected
+                  ? 'bg-violet-600 border-violet-600 text-white'
+                  : 'border-gray-200 text-gray-600 bg-white hover:border-violet-300 hover:bg-violet-50'
+              }`}>
+              <span className="text-sm shrink-0">{cfg.emoji}</span>
+              <span className="truncate">{cfg.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex gap-2">
+        <button type="button" onClick={handleFinancement} disabled={savingSource}
+          className="flex items-center gap-1.5 text-[11px] font-bold bg-violet-600 text-white rounded-lg px-3 py-1.5 hover:bg-violet-700 disabled:opacity-50 transition-colors">
+          {savingSource ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+          {savingSource ? 'Enregistrement…' : selectedSource ? 'Enregistrer et continuer' : 'Passer cette étape'}
+        </button>
+      </div>
+    </div>
+  );
+
+  // ── Étape 4 : Preuve de paiement ──────────────────────────────────────────
+  return (
+    <div className="mt-2.5 bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-3 space-y-2.5">
+      <div className="flex items-start gap-2">
+        <span className="text-base">🏦</span>
+        <div>
+          <p className="text-xs font-bold text-indigo-900">Conservez votre preuve de paiement</p>
+          <p className="text-[11px] text-indigo-600 mt-0.5">
+            Virement, chèque, reçu — indispensable pour activer la garantie décennale et les aides (MPR, CEE).
+          </p>
+        </div>
+      </div>
+      <div className="flex gap-2 flex-wrap">
+        <button type="button" onClick={() => proofInputRef.current?.click()} disabled={proofUploading}
+          className="flex items-center gap-1.5 text-[11px] font-bold bg-indigo-600 text-white rounded-lg px-2.5 py-1.5 hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+          {proofUploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+          {proofUploading ? 'Envoi…' : 'Joindre un justificatif'}
+        </button>
+        <button type="button" onClick={onDone}
+          className="text-[11px] text-gray-400 hover:text-gray-600 px-2 py-1.5">
+          Terminer
+        </button>
+      </div>
+      <input ref={proofInputRef} type="file" accept="image/*,application/pdf" className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) handleProofUpload(f); }}
+      />
+      <p className="text-[10px] text-indigo-400">
+        💡 Les justificatifs déposés ici apparaissent aussi dans l'onglet Preuves de l'écheancier.
+      </p>
+    </div>
+  );
+}
+
 function PaymentEventRow({ ev, chantierId, token, confirmingId, setConfirmingId,
   proofPromptId, setProofPromptId, proofInputRef, proofUploading, setProofUploading,
   markPaid, markUnpaid, refresh }: {
@@ -531,72 +744,19 @@ function PaymentEventRow({ ev, chantierId, token, confirmingId, setConfirmingId,
             </button>
           )}
 
-          {/* Confirmation */}
+          {/* ── WIZARD PAIEMENT ─────────────────────────────────── */}
           {isConf && (
-            <div className="mt-2.5 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5 space-y-2">
-              <p className="text-xs font-semibold text-emerald-700">
-                Confirmer le paiement{ev.amount != null ? ` de ${fmtEur(ev.amount)}` : ''} ?
-              </p>
-              <div className="flex gap-2">
-                <button type="button"
-                  onClick={async () => {
-                    setConfirmingId(null);
-                    const ok = await markPaid(ev.id);
-                    if (ok) setProofPromptId(ev.id);
-                  }}
-                  className="flex items-center gap-1 text-xs font-bold bg-emerald-600 text-white rounded-lg px-3 py-1.5 hover:bg-emerald-700 transition-colors">
-                  <Check className="h-3 w-3" /> Oui, payé
-                </button>
-                <button type="button"
-                  onClick={() => setConfirmingId(null)}
-                  className="flex items-center gap-1 text-xs font-semibold text-gray-500 bg-white border border-gray-200 rounded-lg px-3 py-1.5 hover:border-gray-300 transition-colors">
-                  <X className="h-3 w-3" /> Annuler
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Prompt justificatif */}
-          {proofPromptId === ev.id && !ev.proof_doc_id && (
-            <div className="mt-2.5 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 space-y-2">
-              <p className="text-xs font-semibold text-blue-800">💳 Voulez-vous joindre un justificatif ?</p>
-              <p className="text-[11px] text-blue-600">Virement, chèque, extrait de compte (PDF ou image)</p>
-              <div className="flex items-center gap-2">
-                <button onClick={() => proofInputRef.current?.click()}
-                  disabled={proofUploading}
-                  className="flex items-center gap-1.5 text-xs font-bold bg-blue-600 text-white rounded-lg px-3 py-1.5 hover:bg-blue-700 disabled:opacity-50 transition-colors">
-                  {proofUploading
-                    ? <><Loader2 className="h-3 w-3 animate-spin" /> Envoi…</>
-                    : <><Upload className="h-3 w-3" /> Joindre</>}
-                </button>
-                <button onClick={() => setProofPromptId(null)}
-                  className="text-[11px] text-gray-400 hover:text-gray-600">Plus tard</button>
-              </div>
-              <input ref={proofInputRef} type="file" accept="image/*,application/pdf" className="hidden"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  setProofUploading(true);
-                  try {
-                    const fd = new FormData();
-                    fd.append('file', file);
-                    fd.append('nom', `Justificatif — ${ev.label}`);
-                    fd.append('documentType', 'preuve_paiement');
-                    fd.append('paymentEventId', ev.id);
-                    const bearer = await freshToken(token);
-                    const res = await fetch(`/api/chantier/${chantierId}/documents`, {
-                      method: 'POST',
-                      headers: { Authorization: `Bearer ${bearer}` },
-                      body: fd,
-                    });
-                    if (res.ok) { setProofPromptId(null); refresh(); }
-                  } finally {
-                    setProofUploading(false);
-                    if (proofInputRef.current) proofInputRef.current.value = '';
-                  }
-                }}
-              />
-            </div>
+            <PaymentWizard
+              ev={ev}
+              chantierId={chantierId}
+              token={token}
+              markPaid={markPaid}
+              proofInputRef={proofInputRef}
+              proofUploading={proofUploading}
+              setProofUploading={setProofUploading}
+              onClose={() => setConfirmingId(null)}
+              onDone={() => { setConfirmingId(null); refresh(); }}
+            />
           )}
 
           {/* Lien justificatif */}

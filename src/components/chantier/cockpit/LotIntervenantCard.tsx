@@ -2,7 +2,7 @@ import {
   Plus, ChevronRight, FileText, Trash2, Receipt, Scale, Calendar,
 } from 'lucide-react';
 import type { LotChantier, DocumentChantier } from '@/types/chantier-ia';
-import { formatDuration } from '@/lib/planningUtils';
+import { formatDuration, getWeekNumber } from '@/lib/planningUtils';
 import { fmtK, IS } from '@/lib/dashboardHelpers';
 import type { InsightItem } from './useInsights';
 
@@ -60,9 +60,10 @@ export function getLotStatusLevel(lot: LotChantier, docs: DocumentChantier[]): {
 
 // ── Lot Intervenant Card (home) ────────────────────────────────────────────────
 
-function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail, onDelete, onCompare }: {
+function LotIntervenantCard({ lot, docs, planningStartDate, onAddDevis, onAddDocument, onDetail, onDelete, onCompare }: {
   lot: LotChantier;
   docs: DocumentChantier[];
+  planningStartDate?: Date | null;
   onAddDevis: () => void;
   onAddDocument: () => void;
   onDetail: () => void;
@@ -143,17 +144,22 @@ function LotIntervenantCard({ lot, docs, onAddDevis, onAddDocument, onDetail, on
         </div>
       )}
 
-      {/* ── Planning (dates + durée) ──────────────────────── */}
-      {lot.duree_jours != null && lot.duree_jours > 0 && lot.date_debut && lot.date_fin && (
-        <div className="px-5 pb-2 flex items-center gap-1.5 text-xs text-gray-500">
-          <Calendar className="h-3 w-3 text-gray-400" />
-          <span className="font-medium">
-            {new Date(lot.date_debut).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} → {new Date(lot.date_fin).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-          </span>
-          <span className="text-gray-300">·</span>
-          <span>{formatDuration(lot.duree_jours)}</span>
-        </div>
-      )}
+      {/* ── Planning (semaines ou dates + durée) ──────────────── */}
+      {lot.duree_jours != null && lot.duree_jours > 0 && lot.date_debut && lot.date_fin && (() => {
+        const debut = new Date(lot.date_debut!);
+        const fin   = new Date(lot.date_fin!);
+        const weekLabel = planningStartDate
+          ? `S${getWeekNumber(debut, planningStartDate)}–S${getWeekNumber(fin, planningStartDate)}`
+          : `${debut.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} → ${fin.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`;
+        return (
+          <div className="px-5 pb-2 flex items-center gap-1.5 text-xs text-gray-500">
+            <Calendar className="h-3 w-3 text-gray-400" />
+            <span className="font-medium">{weekLabel}</span>
+            <span className="text-gray-300">·</span>
+            <span>{formatDuration(lot.duree_jours)}</span>
+          </div>
+        );
+      })()}
 
       {/* ── Compteur devis + photos ──────────────────────── */}
       <div className="px-5 pb-3 flex items-center gap-2 flex-wrap min-h-[24px]">

@@ -116,7 +116,7 @@ export const POST: APIRoute = async ({ params, request }) => {
         source:        'verifier_mon_devis',
         nom:           nom || `Analyse importée`,
         nom_fichier:   '',
-        bucket_path:   `analyse/${analyseId}`,   // placeholder non-storage
+        bucket_path:   `analyse/${chantierId}/${analyseId}`,   // placeholder non-storage (chantier-scoped pour éviter duplicate key)
         taille_octets: null,
         mime_type:     null,
         analyse_id:    analyseId,

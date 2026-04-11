@@ -2,7 +2,7 @@
  * BudgetTresorerie — écran financier premium du cockpit chantier.
  * Orchestrateur : budget estimé → devis validés → dépenses & paiements → trésorerie.
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Wallet, FileCheck, ExternalLink } from 'lucide-react';
 import type { ChantierIAResult, DocumentChantier, FactureStatut } from '@/types/chantier-ia';
 import type { InsightsData } from './useInsights';
@@ -18,6 +18,7 @@ import BudgetComparaison from './budget/BudgetComparaison';
 import BudgetExplication from './budget/BudgetExplication';
 import BudgetAffinageModal, { ScoreBadge } from './budget/BudgetAffinageModal';
 import BudgetBandeau from './budget/BudgetBandeau';
+import { useAnalysisScores } from '@/hooks/useAnalysisScores';
 
 // Re-export for consumers (DashboardUnified imports BreakdownItem from here)
 export type { BreakdownItem };
@@ -95,7 +96,15 @@ export default function BudgetTresorerie({
 
   const devisCount    = devisValides.length;
 
-  const totalDevisValides = devisValides.reduce((s, d) => s + (d.montant ?? 0), 0);
+  // Montants TTC depuis les analyses (même logique que DashboardHome)
+  const { data: analysisData } = useAnalysisScores(devisValides);
+  const totalDevisValides = useMemo(() =>
+    devisValides.reduce((s, d) => {
+      const ttc = analysisData[d.id]?.ttc;
+      return s + (ttc != null && ttc > 0 ? ttc : (d.montant ?? 0));
+    }, 0),
+    [devisValides, analysisData],
+  );
   const totalPaye         = factures.filter(d => {
     const s = statutOverrides[d.id] ?? d.facture_statut;
     return s === 'payee';

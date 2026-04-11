@@ -16,8 +16,8 @@ import { detectDevisType } from '@/utils/extractProjectElements';
 const GOOGLE_API_KEY  = import.meta.env.GOOGLE_API_KEY;
 const BUCKET          = 'chantier-documents';
 
-/** Prompt Gemini selon le type de document */
-function buildPrompt(documentType: string): string {
+/** Prompt Gemini selon le type de document (et sous-catégorie pour preuve_paiement) */
+function buildPrompt(documentType: string, proofCategory?: string | null): string {
   const base = 'Réponds UNIQUEMENT avec le titre demandé, sans ponctuation finale, sans guillemets, sans explication.';
   switch (documentType) {
     case 'photo':
@@ -28,6 +28,15 @@ function buildPrompt(documentType: string): string {
       return `Tu vois un document administratif ou une autorisation de travaux. Génère un titre court en français (5 à 8 mots) décrivant son contenu. ${base}`;
     case 'assurance':
       return `Tu vois une attestation d'assurance. Génère un titre court en français (5 à 8 mots) : type d'assurance et assureur si visible. ${base}`;
+    case 'preuve_paiement': {
+      const categoryPrompts: Record<string, string> = {
+        virement: `Tu vois un extrait bancaire, un avis de virement ou une confirmation de paiement électronique. Génère un titre court en français (6 à 10 mots) qui précise : banque ou établissement émetteur si visible, date du virement, montant, et nom du bénéficiaire ou de l'entreprise si lisible. Exemples : "Virement BNP 15 jan — 1 250 € — Dupont Électricité", "Avis virement Crédit Agricole — 850 € — Martin Plomberie". ${base}`,
+        cheque:   `Tu vois une copie de chèque. Génère un titre court en français (6 à 10 mots) : banque émettrice, ordre du chèque (bénéficiaire), montant et date si visibles. Exemple : "Chèque Société Générale — Martin Plomberie — 850 €". ${base}`,
+        especes:  `Tu vois un reçu de paiement, une quittance ou un bon de caisse. Génère un titre court en français (5 à 8 mots) : type de document, montant, date et émetteur si visibles. Exemple : "Reçu de paiement — 400 € — 20 fév". ${base}`,
+        autre:    `Tu vois un justificatif de paiement ou un document financier. Génère un titre court et descriptif en français (5 à 8 mots) qui résume son contenu. ${base}`,
+      };
+      return categoryPrompts[proofCategory ?? 'autre'] ?? categoryPrompts.autre;
+    }
     default:
       return `Tu vois un document. Génère un titre court et descriptif en français (5 à 8 mots) qui résume son contenu principal. ${base}`;
   }
@@ -42,6 +51,13 @@ export const POST: APIRoute = async ({ params, request }) => {
   if (ctx instanceof Response) return ctx;
 
   const { id: chantierId, docId } = params;
+
+  // Catégorie de justificatif (virement / cheque / especes / autre) — optionnel
+  let proofCategory: string | null = null;
+  try {
+    const body = await request.json().catch(() => ({}));
+    proofCategory = (body as any)?.proofCategory ?? null;
+  } catch { /* pas de body JSON — normal pour les appels sans corps */ }
 
   // ── Récupérer le document ────────────────────────────────────────────────────
   const { data: doc, error: docErr } = await ctx.supabase
@@ -86,7 +102,7 @@ export const POST: APIRoute = async ({ params, request }) => {
       : 'image/jpeg');
 
   // ── Appel Gemini Vision ──────────────────────────────────────────────────────
-  const prompt = buildPrompt(doc.document_type);
+  const prompt = buildPrompt(doc.document_type, proofCategory);
 
   const geminiBody = {
     contents: [{

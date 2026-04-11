@@ -4,6 +4,7 @@ import type { DocumentChantier, LotChantier } from '@/types/chantier-ia';
 import { KpiCard, ViewToggle, DiyCard, RDV_EMOJI } from './DashboardWidgets';
 import LotIntervenantCard from './LotIntervenantCard';
 import IntervenantsListView from '@/components/chantier/cockpit/IntervenantsListView';
+import PlanningWidget from '@/components/chantier/cockpit/planning/PlanningWidget';
 import ComparateurDevisModal from '@/components/chantier/cockpit/ComparateurDevisModal';
 import { fmtK } from '@/lib/dashboardHelpers';
 import type { BreakdownItem } from './BudgetTresorerie';
@@ -126,14 +127,16 @@ function BudgetDonutCard({
   const displayPct = ref > 0 && budgetEngage > 0 ? Math.round((budgetEngage / ref) * 100) : 0;
   const filled = (pct / 100) * circ;
 
-  const isOver = budgetEngage > ref && ref > 0;
+  // Arrondi à l'euro entier pour éviter les résidus flottants (ex: 1.599999... €)
+  const overAmount = Math.round(budgetEngage - ref);
+  const isOver = overAmount > 0 && ref > 0;
   const isNear = !isOver && ref > 0 && budgetEngage > ref * 0.85;
   const color = budgetEngage === 0 ? '#cbd5e1' : isOver ? '#ef4444' : isNear ? '#f59e0b' : '#6366f1';
 
   const fmtEurShort = (n: number) => n >= 1000 ? `${fmtK(n)}` : `${n} €`;
 
   const statusLabel = budgetEngage === 0 ? null
-    : isOver  ? `dépassement +${fmtEurShort(budgetEngage - ref)}`
+    : isOver  ? `dépassement +${fmtEurShort(overAmount)}`
     : isNear  ? 'proche du plafond'
     : 'dans le budget';
   const statusCls = isOver ? 'text-red-500' : isNear ? 'text-amber-500' : 'text-indigo-500';
@@ -246,6 +249,14 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
 }) {
 
   const [comparingLot, setComparingLot] = useState<{ lot: LotChantier; docs: DocumentChantier[] } | null>(null);
+
+  // Date de début globale du planning (lot le plus tôt avec date_debut)
+  const planningStartDate = useMemo(() => {
+    const dates = lots
+      .filter(l => l.date_debut)
+      .map(l => new Date(l.date_debut!).getTime());
+    return dates.length > 0 ? new Date(Math.min(...dates)) : null;
+  }, [lots]);
 
   const allDevis = useMemo(() => documents.filter(d => d.document_type === 'devis'), [documents]);
   const { data: analysisData } = useAnalysisScores(allDevis);
@@ -369,6 +380,13 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
         )}
       </div>
 
+      {/* ── Planning mini-résumé ────────────────────────────── */}
+      <PlanningWidget
+        lots={lots}
+        startDate={planningStartDate}
+        onGoToPlanning={onGoToPlanning}
+      />
+
       {/* ── Intervenants (pleine largeur) ────────────────────── */}
       <div>
         <div className="flex items-center justify-between mb-3">
@@ -420,6 +438,7 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
                   key={lot.id}
                   lot={lot}
                   docs={docsByLot[lot.id] ?? []}
+                  planningStartDate={planningStartDate}
                   onAddDevis={() => onAddDevisForLot(lot.id)}
                   onAddDocument={() => onAddDocForLot(lot.id)}
                   onDetail={() => onGoToLot(lot.id)}

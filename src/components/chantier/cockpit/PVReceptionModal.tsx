@@ -2,8 +2,16 @@
  * PVReceptionModal — génère un Procès-Verbal de réception de travaux
  * avec tous les champs obligatoires + export PDF via jsPDF.
  */
-import { useState } from 'react';
-import { X, Plus, Trash2, Download, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import { X, Plus, Trash2, Download, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+
+function getSupabaseClient() {
+  return createClient(
+    (import.meta as any).env.PUBLIC_SUPABASE_URL,
+    (import.meta as any).env.PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+  );
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -43,6 +51,7 @@ interface Props {
   artisanNom: string;
   lotNoms: string[];
   chantierId: string;
+  token: string;
   onClose: () => void;
 }
 
@@ -224,7 +233,7 @@ async function generatePDF(data: PVData) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function PVReceptionModal({ artisanNom, lotNoms, onClose }: Props) {
+export default function PVReceptionModal({ artisanNom, lotNoms, chantierId, token, onClose }: Props) {
   const today = new Date().toISOString().split('T')[0];
 
   const [data, setData] = useState<PVData>({
@@ -245,7 +254,75 @@ export default function PVReceptionModal({ artisanNom, lotNoms, onClose }: Props
     remarques: '',
   });
 
+  const [prefilling, setPrefilling] = useState(true);
   const [generating, setGenerating] = useState(false);
+
+  // ── Pré-remplissage depuis contacts + session Supabase ────────────────────
+  useEffect(() => {
+    const prefill = async () => {
+      try {
+        const { data: { session } } = await getSupabaseClient().auth.getSession();
+        const bearer = session?.access_token ?? token;
+
+        // Maître d'ouvrage depuis le profil Supabase Auth
+        const userMeta = session?.user?.user_metadata;
+        const moNom = [userMeta?.first_name, userMeta?.last_name].filter(Boolean).join(' ') || '';
+
+        // Artisan depuis l'API contacts (cherche par nom)
+        const contactsRes = await fetch(`/api/chantier/${chantierId}/contacts`, {
+          headers: { Authorization: `Bearer ${bearer}` },
+        });
+
+        let entAdresse = '';
+        let entSiret = '';
+        let entAssuranceNom = '';
+        let entAssurancePolice = '';
+        let chantierAdresse = '';
+
+        if (contactsRes.ok) {
+          const { analyseArtisans, contacts } = await contactsRes.json();
+
+          // Cherche l'artisan correspondant au nom (fuzzy — insensible à la casse)
+          const artisanLower = artisanNom.toLowerCase();
+          const match = [
+            ...(analyseArtisans ?? []),
+            ...(contacts ?? []),
+          ].find((a: any) => (a.nom ?? a.nom_officiel ?? '').toLowerCase().includes(artisanLower)
+            || artisanLower.includes((a.nom ?? '').toLowerCase().slice(0, 6)));
+
+          if (match) {
+            entAdresse       = match.adresse_siege ?? match.adresse ?? '';
+            entSiret         = match.siret ?? '';
+            entAssuranceNom  = match.assurance_nom ?? '';
+            entAssurancePolice = match.assurance_police ?? '';
+          }
+
+          // Adresse chantier depuis les métadonnées chantier
+          const chantierRes = await fetch(`/api/chantier/${chantierId}`, {
+            headers: { Authorization: `Bearer ${bearer}` },
+          });
+          if (chantierRes.ok) {
+            const ch = await chantierRes.json();
+            const meta = ch?.chantier?.metadonnees ?? ch?.metadonnees ?? {};
+            chantierAdresse = meta?.adresse ?? meta?.localisation ?? ch?.chantier?.ville ?? '';
+          }
+        }
+
+        setData(d => ({
+          ...d,
+          mo_nom:              moNom || d.mo_nom,
+          ent_adresse:         entAdresse || d.ent_adresse,
+          ent_siret:           entSiret || d.ent_siret,
+          ent_assurance_nom:   entAssuranceNom || d.ent_assurance_nom,
+          ent_assurance_police: entAssurancePolice || d.ent_assurance_police,
+          chantier_adresse:    chantierAdresse || d.chantier_adresse,
+        }));
+      } catch { /* silencieux — l'utilisateur remplit manuellement */ }
+      setPrefilling(false);
+    };
+    prefill();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const set = (field: keyof PVData, value: unknown) =>
     setData(d => ({ ...d, [field]: value }));
@@ -283,8 +360,13 @@ export default function PVReceptionModal({ artisanNom, lotNoms, onClose }: Props
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-indigo-900 shrink-0">
           <div>
-            <p className="text-[13px] font-black text-white">📋 Procès-Verbal de réception</p>
-            <p className="text-[11px] text-indigo-300 mt-0.5">{artisanNom}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-[13px] font-black text-white">📋 Procès-Verbal de réception</p>
+              {prefilling && <Loader2 className="h-3.5 w-3.5 text-indigo-300 animate-spin" />}
+            </div>
+            <p className="text-[11px] text-indigo-300 mt-0.5">
+              {artisanNom}{prefilling ? ' — pré-remplissage…' : ''}
+            </p>
           </div>
           <button onClick={onClose} className="text-white/60 hover:text-white p-1">
             <X className="h-4 w-4" />

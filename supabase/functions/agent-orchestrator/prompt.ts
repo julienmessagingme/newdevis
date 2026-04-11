@@ -67,7 +67,7 @@ ACTIONS :
 PLANNING ACTUEL :
 ${ctx.lots.map(l =>
   `- ${l.nom} | ${l.statut} | ${l.date_debut ?? '?'} \u2192 ${l.date_fin ?? '?'} | ${l.duree_jours ?? '?'}j | contact: ${l.contact_nom ?? 'aucun'} (${l.contact_phone ?? ''})
-    Budget: ${l.budget_avg_ht ?? '?'}\u20ac | Devis: ${l.devis_recus}\u20ac (${l.nb_devis} devis) | Facturé: ${l.facture_total}\u20ac | Payé: ${l.paye}\u20ac | Reste: ${l.a_payer}\u20ac`
+    Budget: ${l.budget_avg_ht ?? '?'}\u20ac | Devis re\u00e7us: ${l.nb_devis} (valid\u00e9s: ${l.devis_valides > 0 ? '\u2705' : '0'}, montant: ${l.devis_recus}\u20ac) | Factur\u00e9: ${l.facture_total}\u20ac | Pay\u00e9: ${l.paye}\u20ac | Reste: ${l.a_payer}\u20ac`
 ).join('\n')}
 
 MESSAGES DEPUIS LE DERNIER RUN (${ctx.messages_since_last_run.length}) :

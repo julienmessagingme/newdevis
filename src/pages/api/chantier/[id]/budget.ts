@@ -55,6 +55,7 @@ interface BudgetLot {
   nom: string;
   emoji: string | null;
   devis: BudgetDevis[];
+  nb_devis_recus: number; // tous statuts (pour le contexte agent)
   factures: BudgetFacture[];
   totaux: {
     devis_recus: number;
@@ -299,14 +300,14 @@ export const GET: APIRoute = async ({ params, request }) => {
     for (const lot of lotsRaw ?? []) {
       lotMap.set(lot.id, {
         id: lot.id, nom: lot.nom, emoji: lot.emoji ?? null,
-        devis: [], factures: [],
+        devis: [], nb_devis_recus: 0, factures: [],
         totaux: emptyTotaux(),
       });
     }
 
     const sanslot: BudgetLot = {
       id: 'sans_lot', nom: 'Sans intervenant', emoji: null,
-      devis: [], factures: [],
+      devis: [], nb_devis_recus: 0, factures: [],
       totaux: emptyTotaux(),
     };
 
@@ -317,6 +318,8 @@ export const GET: APIRoute = async ({ params, request }) => {
         : sanslot;
 
       if (doc.document_type === 'devis') {
+        // Compter tous les devis reçus (pour le contexte agent)
+        bucket.nb_devis_recus = (bucket.nb_devis_recus ?? 0) + 1;
         // N'afficher sur l'écran budget que les devis acceptés
         const statut = doc.devis_statut ?? 'en_cours';
         if (statut !== 'valide' && statut !== 'attente_facture') continue;
@@ -398,7 +401,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 
     // ── 10. Réponse ─────────────────────────────────────────────────────────
     const lotsFiltered = [...lotMap.values()].filter(
-      l => l.devis.length > 0 || l.factures.length > 0,
+      l => l.devis.length > 0 || l.factures.length > 0 || l.nb_devis_recus > 0,
     );
     const hasSansLot = sanslot.devis.length > 0 || sanslot.factures.length > 0;
 

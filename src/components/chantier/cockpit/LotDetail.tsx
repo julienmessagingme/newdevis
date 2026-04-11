@@ -1,16 +1,17 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
-  Plus, X, Trash2, ArrowLeft, FileText, HelpCircle,
+  Plus, X, Trash2, ArrowLeft, FileText, HelpCircle, Calendar, Pencil, Check,
 } from 'lucide-react';
 import type { LotChantier, DocumentChantier } from '@/types/chantier-ia';
 import { fmtK, fmtEur, fmtDate, TYPE_LABELS } from '@/lib/dashboardHelpers';
+import { formatDuration } from '@/lib/planningUtils';
 import DocScoreCell from '@/components/chantier/shared/DocScoreCell';
 import DocStatusSelect from '@/components/chantier/shared/DocStatusSelect';
 import DocTypeBadge from '@/components/chantier/shared/DocTypeBadge';
 import { useAnalysisScores } from '@/hooks/useAnalysisScores';
 import { getDevisEtFactures, getPhotos } from '@/lib/documentFilters';
 
-function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token, onDocStatutUpdated }: {
+function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token, onDocStatutUpdated, onDurationChange }: {
   lot: LotChantier;
   docs: DocumentChantier[];
   onAddDoc: () => void;
@@ -19,6 +20,7 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
   chantierId: string | undefined;
   token: string | null | undefined;
   onDocStatutUpdated?: (docId: string, statut: string) => void;
+  onDurationChange?: (dureeJours: number) => Promise<void>;
 }) {
   // ── Séparation par type ──────────────────────────────────────────────────
   const devisDocs = getDevisEtFactures(docs);
@@ -33,6 +35,20 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
   const totalCount     = devisDocs.length;
 
   // ── Score + montant depuis les analyses (hook partagé) ─────────────────
+  // ── Planning inline edit ─────────────────────────────────────────────────
+  const [editingDuree, setEditingDuree]   = useState(false);
+  const [dureeInput, setDureeInput]       = useState('');
+  const [savingDuree, setSavingDuree]     = useState(false);
+
+  async function saveDuree() {
+    const val = parseInt(dureeInput, 10);
+    if (isNaN(val) || val < 1 || !onDurationChange) return;
+    setSavingDuree(true);
+    await onDurationChange(val);
+    setSavingDuree(false);
+    setEditingDuree(false);
+  }
+
   const { data: analysisScores } = useAnalysisScores(devisDocs);
   const scoreMap  = useMemo(() => {
     const m: Record<string, number | null> = {};
@@ -90,6 +106,79 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
             <span className="flex items-center gap-1.5 text-[11px] text-gray-400">
               <span className="w-2 h-2 rounded-full bg-gray-200 inline-block" />{totalCount - validatedCount} en attente
             </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Planning du lot ── */}
+      {(lot.duree_jours != null || lot.date_debut) && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Calendar className="h-4 w-4 text-blue-500" />
+            <span className="text-sm font-bold text-gray-700">Planning</span>
+          </div>
+
+          <div className="flex flex-wrap gap-4 items-start">
+            {/* Durée */}
+            <div className="flex-1 min-w-[140px]">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Durée estimée</p>
+              {editingDuree ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={dureeInput}
+                    onChange={e => setDureeInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveDuree(); if (e.key === 'Escape') setEditingDuree(false); }}
+                    className="w-20 border border-blue-300 rounded-lg px-2.5 py-1.5 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    autoFocus
+                  />
+                  <span className="text-xs text-gray-400">jours ouvrés</span>
+                  <button
+                    onClick={saveDuree}
+                    disabled={savingDuree}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setEditingDuree(false)}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-50 text-gray-400 hover:bg-gray-100 transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-gray-900">
+                    {lot.duree_jours != null && lot.duree_jours > 0 ? formatDuration(lot.duree_jours) : '—'}
+                  </span>
+                  {onDurationChange && (
+                    <button
+                      onClick={() => { setDureeInput(String(lot.duree_jours ?? 5)); setEditingDuree(true); }}
+                      className="w-6 h-6 flex items-center justify-center rounded-md text-gray-300 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+                      title="Modifier la durée"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Dates calculées */}
+            {lot.date_debut && lot.date_fin && (
+              <div className="flex-1 min-w-[180px]">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Créneau calculé</p>
+                <p className="text-sm font-bold text-gray-900">
+                  {new Date(lot.date_debut).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}
+                  {' → '}
+                  {new Date(lot.date_fin).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}
+                </p>
+                <p className="text-[11px] text-gray-400 mt-0.5">Recalculé automatiquement si vous modifiez la durée</p>
+              </div>
+            )}
           </div>
         </div>
       )}
