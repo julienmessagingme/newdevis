@@ -433,9 +433,15 @@ const STATUS_CFG = {
   cancelled: { dot: 'bg-gray-300',    badge: 'bg-gray-50 text-gray-400 border-gray-100',           label: 'Annulé' },
 };
 
-// ── Wizard paiement (3 étapes guidées) ───────────────────────────────────────
+// ── Wizard paiement (4 étapes guidées) ───────────────────────────────────────
 
-type WizardStep = 'confirm' | 'facture' | 'preuve';
+type WizardStep = 'confirm' | 'facture' | 'financement' | 'preuve';
+
+// Sources de fonds disponibles dans le wizard (sous-ensemble de SOURCE_CFG)
+const WIZARD_SOURCES: SourceType[] = [
+  'apport_personnel', 'deblocage_credit', 'aide_maprime',
+  'aide_cee', 'eco_ptz', 'autre',
+];
 
 function PaymentWizard({ ev, chantierId, token, markPaid, proofInputRef, proofUploading, setProofUploading, onClose, onDone }: {
   ev: PaymentEvent;
@@ -448,9 +454,11 @@ function PaymentWizard({ ev, chantierId, token, markPaid, proofInputRef, proofUp
   onClose: () => void;
   onDone: () => void;
 }) {
-  const [step, setStep]       = useState<WizardStep>('confirm');
-  const [paying,  setPaying]  = useState(false);
-  const [errMsg,  setErrMsg]  = useState<string | null>(null);
+  const [step,           setStep]           = useState<WizardStep>('confirm');
+  const [paying,         setPaying]         = useState(false);
+  const [errMsg,         setErrMsg]         = useState<string | null>(null);
+  const [selectedSource, setSelectedSource] = useState<SourceType | null>(null);
+  const [savingSource,   setSavingSource]   = useState(false);
 
   // Étape 1 — Confirmation + paiement effectif
   async function handleConfirm() {
@@ -465,7 +473,31 @@ function PaymentWizard({ ev, chantierId, token, markPaid, proofInputRef, proofUp
     setStep('facture');
   }
 
-  // Étape 3 — Upload justificatif
+  // Étape 3 — Enregistrer la source des fonds + passer à l'étape preuve
+  async function handleFinancement() {
+    if (!selectedSource) { setStep('preuve'); return; }
+    setSavingSource(true);
+    try {
+      const cfg = SOURCE_CFG[selectedSource];
+      const bearer = await freshToken(token);
+      await fetch(`/api/chantier/${chantierId}/entrees`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label:       cfg.label,
+          montant:     ev.amount ?? 0,
+          source_type: selectedSource,
+          date_entree: new Date().toISOString().slice(0, 10),
+          statut:      'recu',
+        }),
+      });
+    } finally {
+      setSavingSource(false);
+    }
+    setStep('preuve');
+  }
+
+  // Étape 4 — Upload justificatif
   async function handleProofUpload(file: File) {
     setProofUploading(true);
     try {
@@ -526,15 +558,15 @@ function PaymentWizard({ ev, chantierId, token, markPaid, proofInputRef, proofUp
         </div>
       </div>
       <div className="flex gap-2 flex-wrap">
-        <button type="button" onClick={() => setStep('preuve')}
+        <button type="button" onClick={() => setStep('financement')}
           className="text-[11px] font-bold bg-blue-600 text-white rounded-lg px-2.5 py-1.5 hover:bg-blue-700 transition-colors">
           ✅ Oui, je l'ai
         </button>
-        <button type="button" onClick={() => setStep('preuve')}
+        <button type="button" onClick={() => setStep('financement')}
           className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 hover:bg-amber-100 transition-colors">
           ⚠️ Pas encore — je la demande
         </button>
-        <button type="button" onClick={() => setStep('preuve')}
+        <button type="button" onClick={() => setStep('financement')}
           className="text-[11px] text-gray-400 hover:text-gray-600 px-2 py-1.5">
           Plus tard
         </button>
@@ -542,7 +574,46 @@ function PaymentWizard({ ev, chantierId, token, markPaid, proofInputRef, proofUp
     </div>
   );
 
-  // ── Étape 3 : Preuve de paiement ──────────────────────────────────────────
+  // ── Étape 3 : Source des fonds ────────────────────────────────────────────
+  if (step === 'financement') return (
+    <div className="mt-2.5 bg-violet-50 border border-violet-100 rounded-xl px-3 py-3 space-y-2.5">
+      <div className="flex items-start gap-2">
+        <span className="text-base">💰</span>
+        <div>
+          <p className="text-xs font-bold text-violet-900">D'où proviennent ces fonds ?</p>
+          <p className="text-[11px] text-violet-600 mt-0.5">
+            Cette information sera ajoutée à votre plan de financement automatiquement.
+          </p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        {WIZARD_SOURCES.map(key => {
+          const cfg = SOURCE_CFG[key];
+          const isSelected = selectedSource === key;
+          return (
+            <button key={key} type="button" onClick={() => setSelectedSource(isSelected ? null : key)}
+              className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border text-[11px] font-semibold transition-all text-left ${
+                isSelected
+                  ? 'bg-violet-600 border-violet-600 text-white'
+                  : 'border-gray-200 text-gray-600 bg-white hover:border-violet-300 hover:bg-violet-50'
+              }`}>
+              <span className="text-sm shrink-0">{cfg.emoji}</span>
+              <span className="truncate">{cfg.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex gap-2">
+        <button type="button" onClick={handleFinancement} disabled={savingSource}
+          className="flex items-center gap-1.5 text-[11px] font-bold bg-violet-600 text-white rounded-lg px-3 py-1.5 hover:bg-violet-700 disabled:opacity-50 transition-colors">
+          {savingSource ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+          {savingSource ? 'Enregistrement…' : selectedSource ? 'Enregistrer et continuer' : 'Passer cette étape'}
+        </button>
+      </div>
+    </div>
+  );
+
+  // ── Étape 4 : Preuve de paiement ──────────────────────────────────────────
   return (
     <div className="mt-2.5 bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-3 space-y-2.5">
       <div className="flex items-start gap-2">
@@ -562,7 +633,7 @@ function PaymentWizard({ ev, chantierId, token, markPaid, proofInputRef, proofUp
         </button>
         <button type="button" onClick={onDone}
           className="text-[11px] text-gray-400 hover:text-gray-600 px-2 py-1.5">
-          Plus tard
+          Terminer
         </button>
       </div>
       <input ref={proofInputRef} type="file" accept="image/*,application/pdf" className="hidden"
