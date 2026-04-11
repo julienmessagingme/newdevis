@@ -67,10 +67,10 @@ export const GET: APIRoute = async () => {
     urlEntry(p.loc, p.lastmod, p.priority, p.changefreq)
   );
 
+  const allUrls = [...staticUrls, ...blogUrls].join("\n");
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${staticUrls.join("\n")}
-${blogUrls.join("\n")}
+${allUrls}
 </urlset>`;
 
   return new Response(xml, {
