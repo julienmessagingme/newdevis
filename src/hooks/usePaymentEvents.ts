@@ -121,29 +121,42 @@ export function usePaymentEvents(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chantierId, tick]);
 
-  // ── PATCH via API route (service_role, plus fiable que le RPC client-side) ──
+  // ── Mise à jour statut via RPC Postgres (SECURITY DEFINER — 100% fiable) ──
+  // set_payment_event_status vérifie ownership via auth.uid() et UPDATE en une seule transaction.
   // Retourne 'ok' | 'not_found' | 'error'
   const patchStatus = useCallback(async (id: string, status: 'paid' | 'pending'): Promise<'ok' | 'not_found' | 'error'> => {
-    if (!chantierId) return 'error';
+    if (!chantierId) { console.error('[patchStatus] chantierId manquant'); return 'error'; }
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const bearerToken = session?.access_token ?? token ?? null;
-      if (!bearerToken) { console.error('[patchStatus] no token'); return 'error'; }
-
-      const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${bearerToken}`,
-        },
-        body: JSON.stringify({ id, status }),
+      // RPC SECURITY DEFINER : s'exécute dans Postgres, bypass RLS,
+      // vérifie chantiers.user_id = auth.uid() et UPDATE payment_events.
+      const { data: ok, error: rpcErr } = await supabase.rpc('set_payment_event_status', {
+        p_event_id:    id,
+        p_chantier_id: chantierId,
+        p_status:      status,
       });
-      if (res.status === 404) return 'not_found';
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '');
-        console.error(`[patchStatus] HTTP ${res.status}:`, txt);
-        return 'error';
+
+      if (rpcErr) {
+        console.error('[patchStatus] RPC error:', rpcErr.message);
+        // Fallback HTTP si RPC indisponible
+        const { data: { session } } = await supabase.auth.getSession();
+        const bearerToken = session?.access_token ?? token ?? null;
+        if (!bearerToken) return 'error';
+        const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearerToken}` },
+          body: JSON.stringify({ id, status }),
+        });
+        if (res.status === 404) return 'not_found';
+        if (!res.ok) { console.error(`[patchStatus] HTTP fallback ${res.status}`); return 'error'; }
+        return 'ok';
       }
+
+      if (!ok) {
+        console.warn('[patchStatus] RPC returned false — event introuvable ou ownership refusé', { id, chantierId });
+        return 'not_found';
+      }
+
+      console.log(`[patchStatus] ✓ ${status} (id=${id})`);
       return 'ok';
     } catch (e) {
       console.error('[patchStatus] exception:', e instanceof Error ? e.message : e);
