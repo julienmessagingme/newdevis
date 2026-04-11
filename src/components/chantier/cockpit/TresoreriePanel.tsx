@@ -11,7 +11,7 @@ import {
   TrendingUp, Calendar, CreditCard,
   AlertTriangle, CheckCircle2, Clock,
   ChevronRight, X, Check, Loader2, Paperclip,
-  ArrowRight, Shield, Info, TrendingDown, Pencil, FileText, Download,
+  ArrowRight, Shield, Info, TrendingDown, Pencil, FileText, Download, UploadCloud,
 } from 'lucide-react';
 import PVReceptionModal from './PVReceptionModal';
 import EcheancierRefonte from './EcheancierRefonte';
@@ -1317,7 +1317,7 @@ function PreuvesTab({ events, chantierId, token }: {
           </div>
 
           {/* 4 drop zones */}
-          <div className="px-5 pb-4 grid grid-cols-2 gap-2 mt-1">
+          <div className="px-5 pb-4 grid grid-cols-2 gap-3 mt-2">
             {Object.entries(PROOF_TYPE_CFG).map(([key, cfg]) => (
               <div key={key}>
                 <input
@@ -1342,22 +1342,25 @@ function PreuvesTab({ events, chantierId, token }: {
                   }}
                   onClick={() => { if (!uploading && !analyzing) fileRefs.current[key]?.click(); }}
                   className={[
-                    'flex items-center gap-2 rounded-xl px-3 py-3 cursor-pointer border transition-all duration-150 select-none',
+                    'flex flex-col items-center justify-center gap-1.5 rounded-xl px-3 py-4 cursor-pointer border-2 border-dashed transition-all duration-150 select-none text-center',
                     dragOver === key
                       ? 'bg-blue-50 border-blue-400 scale-[1.02] shadow-sm'
-                      : 'bg-gray-50 border-dashed border-gray-300 hover:border-blue-300 hover:bg-blue-50',
+                      : 'bg-gray-50 border-gray-200 hover:border-blue-300 hover:bg-blue-50',
                     uploading === key ? 'opacity-60 pointer-events-none' : '',
                   ].join(' ')}
                 >
-                  <span className="text-base shrink-0">{cfg.icon}</span>
+                  <span className="text-xl">{cfg.icon}</span>
                   {uploading === key ? (
-                    <span className="flex items-center gap-1.5 text-[11px] text-blue-600">
-                      <Loader2 className="h-3 w-3 animate-spin" /> Envoi…
+                    <span className="flex items-center gap-1 text-[10px] text-blue-600">
+                      <Loader2 className="h-3 w-3 animate-spin shrink-0" /> Envoi…
                     </span>
                   ) : (
-                    <span className="text-[11px] text-gray-600 font-medium leading-tight">
-                      {cfg.label}
-                    </span>
+                    <>
+                      <span className="text-[11px] text-gray-700 font-semibold leading-tight">{cfg.label}</span>
+                      <span className="flex items-center gap-1 text-[10px] text-gray-400 mt-0.5">
+                        <UploadCloud className="h-3 w-3" /> Glisser ou cliquer
+                      </span>
+                    </>
                   )}
                 </div>
               </div>
