@@ -24,7 +24,7 @@ export const GET: APIRoute = async ({ params, request }) => {
   const groupIds = groups.map((g) => g.id);
   const { data: members, error: membersErr } = await ctx.supabase
     .from('chantier_whatsapp_members')
-    .select('id, group_id, phone, name, role, status, joined_at, left_at')
+    .select('id, group_id, phone, name, role, status, joined_at, left_at, excluded_no_whatsapp')
     .in('group_id', groupIds)
     .order('joined_at', { ascending: true });
 
