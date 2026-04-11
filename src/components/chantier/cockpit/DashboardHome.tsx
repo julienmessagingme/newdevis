@@ -127,14 +127,16 @@ function BudgetDonutCard({
   const displayPct = ref > 0 && budgetEngage > 0 ? Math.round((budgetEngage / ref) * 100) : 0;
   const filled = (pct / 100) * circ;
 
-  const isOver = budgetEngage > ref && ref > 0;
+  // Arrondi à l'euro entier pour éviter les résidus flottants (ex: 1.599999... €)
+  const overAmount = Math.round(budgetEngage - ref);
+  const isOver = overAmount > 0 && ref > 0;
   const isNear = !isOver && ref > 0 && budgetEngage > ref * 0.85;
   const color = budgetEngage === 0 ? '#cbd5e1' : isOver ? '#ef4444' : isNear ? '#f59e0b' : '#6366f1';
 
   const fmtEurShort = (n: number) => n >= 1000 ? `${fmtK(n)}` : `${n} €`;
 
   const statusLabel = budgetEngage === 0 ? null
-    : isOver  ? `dépassement +${fmtEurShort(budgetEngage - ref)}`
+    : isOver  ? `dépassement +${fmtEurShort(overAmount)}`
     : isNear  ? 'proche du plafond'
     : 'dans le budget';
   const statusCls = isOver ? 'text-red-500' : isNear ? 'text-amber-500' : 'text-indigo-500';

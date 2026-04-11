@@ -1512,6 +1512,7 @@ function PreuvesTab({ events, chantierId, token }: {
           artisanNom={pvArtisan.nom}
           lotNoms={pvArtisan.lots}
           chantierId={chantierId}
+          token={token}
           onClose={() => setPvArtisan(null)}
         />
       )}

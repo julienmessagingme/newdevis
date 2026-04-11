@@ -147,6 +147,9 @@ export const GET: APIRoute = async ({ params, request }) => {
     analyse_id: string; nom: string; nom_officiel: string | null;
     siret: string | null; email: string | null; telephone: string | null;
     lot_id: string | null;
+    adresse_siege: string | null;
+    assurance_nom: string | null;
+    assurance_police: string | null;
   };
   const bySiret = new Map<string, ArtisanRow>();
   const byName  = new Map<string, ArtisanRow>();
@@ -162,6 +165,7 @@ export const GET: APIRoute = async ({ params, request }) => {
       const isLinked = chantierAnalyseIds.has(a.id) || (siret && linkedSirets.has(siret));
       if (!isLinked) continue;
 
+      const sec = raw?.extracted?.securite ?? raw?.extracted?.assurance ?? null;
       const row: ArtisanRow = {
         analyse_id: a.id,
         nom: raw?.verified?.nom_officiel || ent.nom,
@@ -170,6 +174,17 @@ export const GET: APIRoute = async ({ params, request }) => {
         email: ent.email || null,
         telephone: ent.telephone || null,
         lot_id: analyseLotMap.get(a.id) || null,
+        adresse_siege: raw?.verified?.adresse_siege || raw?.verified?.adresse || ent.adresse || null,
+        assurance_nom: sec?.assurance_decennale?.nom_assureur
+          ?? sec?.assurance_decennale?.assureur
+          ?? sec?.decennale?.nom
+          ?? sec?.nom_assureur
+          ?? null,
+        assurance_police: sec?.assurance_decennale?.numero_police
+          ?? sec?.assurance_decennale?.numero
+          ?? sec?.decennale?.numero
+          ?? sec?.numero_police
+          ?? null,
       };
 
       const key = siret || row.nom.toLowerCase();
