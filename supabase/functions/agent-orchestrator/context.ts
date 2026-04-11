@@ -1,5 +1,5 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { ChantierContext } from "./types.ts";
+import { ChantierContext, AssistantMessage } from "./types.ts";
 
 const CACHE_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
 
@@ -29,6 +29,7 @@ export async function buildContext(
   lastRunAt: string | null,
   agentKey: string,
   apiBase: string,
+  conversationHistory: AssistantMessage[] = [],
 ): Promise<ChantierContext> {
   const since = lastRunAt ?? new Date(Date.now() - 86400000).toISOString();
 
@@ -188,7 +189,8 @@ export async function buildContext(
   const enrichedLots = staticCtx.lots;
 
   // ── Always-fresh dynamic data ────────────────────────────────────────
-  const [waMessagesRes, insightsRes, outgoingRes] = await Promise.all([
+  const photoCutoff = new Date(Date.now() - 7 * 86400000).toISOString();
+  const [waMessagesRes, insightsRes, outgoingRes, recentPhotosRes] = await Promise.all([
     supabase.from("chantier_whatsapp_messages")
       .select("from_number, from_me, group_id, body, type, timestamp")
       .eq("chantier_id", chantierId)
@@ -206,6 +208,16 @@ export async function buildContext(
       .eq("chantier_id", chantierId)
       .order("sent_at", { ascending: false })
       .limit(5),
+    // Photos WhatsApp récentes avec descriptions Vision
+    supabase.from("documents_chantier")
+      .select("id, nom, vision_description, lot_id, whatsapp_message_id, created_at, bucket_path")
+      .eq("chantier_id", chantierId)
+      .eq("source", "whatsapp")
+      .eq("document_type", "photo")
+      .gte("created_at", photoCutoff)
+      .not("vision_description", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(10),
   ]);
 
   const waMessages = waMessagesRes.data ?? [];
@@ -369,6 +381,19 @@ export async function buildContext(
     }
   }
 
+  // ── Build recent photos with lot names ──────────────────────────────────
+  const rawPhotos = recentPhotosRes.data ?? [];
+  const recentPhotos = rawPhotos.map((p: any) => ({
+    doc_id: p.id,
+    nom: p.nom,
+    vision_description: p.vision_description,
+    lot_id: p.lot_id,
+    lot_nom: p.lot_id ? (enrichedLots.find((l: any) => l.id === p.lot_id)?.nom ?? null) : null,
+    sender_phone: null, // not stored separately from WA message
+    created_at: p.created_at,
+    storage_path: p.bucket_path,
+  }));
+
   return {
     chantier: staticCtx.chantier,
     lots: enrichedLots,
@@ -380,6 +405,8 @@ export async function buildContext(
     risk_alerts: riskAlerts,
     recent_insights: insightsRes.data ?? [],
     recent_outgoing_read_status: recentOutgoingReadStatus,
+    recent_photos: recentPhotos,
+    conversation_history: conversationHistory,
 
     todays_insights_with_actions: await (async () => {
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);

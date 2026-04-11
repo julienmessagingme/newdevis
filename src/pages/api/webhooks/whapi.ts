@@ -7,6 +7,123 @@ import { triggerAgentIfOpenClaw } from '@/lib/apiHelpers';
 
 const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
 const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
+const whapiToken      = import.meta.env.WHAPI_TOKEN ?? '';
+
+// ── Photo pipeline (fire-and-forget) ─────────────────────────────────────────
+// Called after inserting a WA image message. Downloads the image from whapi
+// (temporary URL), uploads to Storage, creates a documents_chantier row,
+// and triggers Gemini Vision description.
+async function handleWaPhoto(
+  supabase: ReturnType<typeof createClient>,
+  msg: any,
+  chantierId: string,
+  groupId: string,
+): Promise<void> {
+  const mediaUrl: string | null = msg.image?.link ?? null;
+  if (!mediaUrl) return;
+
+  const msgId: string = msg.id;
+  const caption: string | null = msg.image?.caption ?? null;
+  const senderPhone: string = String(msg.from ?? '').replace(/^\+/, '');
+
+  // 1. Fetch chantier user_id + lots list (needed for storage path + lot lookup)
+  const [chantierRes, lotsRes] = await Promise.all([
+    supabase.from('chantiers').select('user_id').eq('id', chantierId).single(),
+    supabase.from('lots_chantier').select('id, nom').eq('chantier_id', chantierId).order('ordre_planning'),
+  ]);
+
+  const userId: string | null = chantierRes.data?.user_id ?? null;
+  const lots: Array<{ id: string; nom: string }> = lotsRes.data ?? [];
+  if (!userId) return; // chantier not found
+
+  // 2. Download image from whapi (temporary URL, valid a few minutes)
+  let imageBytes: ArrayBuffer;
+  try {
+    const fetchRes = await fetch(mediaUrl, {
+      headers: whapiToken ? { Authorization: `Bearer ${whapiToken}` } : {},
+    });
+    if (!fetchRes.ok) throw new Error(`HTTP ${fetchRes.status}`);
+    imageBytes = await fetchRes.arrayBuffer();
+  } catch (err) {
+    console.error('[whapi:photo] download error:', err instanceof Error ? err.message : err);
+    return;
+  }
+
+  // 3. Upload to Storage — path: {user_id}/{chantier_id}/wa_{msgId}.jpg
+  const storagePath = `${userId}/${chantierId}/wa_${msgId}.jpg`;
+  const { error: uploadErr } = await supabase.storage
+    .from('chantier-documents')
+    .upload(storagePath, imageBytes, {
+      contentType: 'image/jpeg',
+      upsert: true, // idempotent on retry
+    });
+
+  if (uploadErr) {
+    console.error('[whapi:photo] storage upload error:', uploadErr.message);
+    return;
+  }
+
+  // 4. Deduce lot_id from sender phone → contacts_chantier.lot_id
+  const normPhone = senderPhone.replace(/^0/, '33');
+  const { data: contactRow } = await supabase
+    .from('contacts_chantier')
+    .select('lot_id, nom')
+    .eq('chantier_id', chantierId)
+    .or(`telephone.eq.${senderPhone},telephone.eq.+${senderPhone},telephone.eq.0${senderPhone.replace(/^33/, '')}`)
+    .maybeSingle();
+
+  const hintLotId: string | null = contactRow?.lot_id ?? null;
+  const hintLotNom: string | null = hintLotId
+    ? (lots.find(l => l.id === hintLotId)?.nom ?? null)
+    : null;
+
+  // 5. Nom du document : caption ou fallback date
+  const now = new Date();
+  const dateStr = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  const docNom = caption?.trim() || `Photo WhatsApp ${dateStr}`;
+
+  // 6. INSERT documents_chantier
+  const { data: docRow, error: docErr } = await supabase
+    .from('documents_chantier')
+    .insert({
+      chantier_id:          chantierId,
+      lot_id:               hintLotId,
+      document_type:        'photo',
+      source:               'whatsapp',
+      nom:                  docNom,
+      nom_fichier:          `wa_${msgId}.jpg`,
+      bucket_path:          storagePath,
+      taille_octets:        imageBytes.byteLength,
+      mime_type:            'image/jpeg',
+      whatsapp_message_id:  msgId,
+    })
+    .select('id')
+    .single();
+
+  if (docErr) {
+    console.error('[whapi:photo] insert doc error:', docErr.message);
+    // Don't block — continue even if doc insert fails
+    return;
+  }
+
+  const docId: string = docRow.id;
+
+  // 7. Fire-and-forget: call wa-photo-describe edge function
+  fetch(`${supabaseUrl}/functions/v1/wa-photo-describe`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${supabaseService}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      chantier_id:  chantierId,
+      doc_id:       docId,
+      storage_path: storagePath,
+      lot_hint_nom: hintLotNom,
+      lots,
+    }),
+  }).catch(() => {}); // truly fire-and-forget
+}
 
 function makeClient() {
   return createClient(supabaseUrl, supabaseService);
@@ -118,6 +235,11 @@ export const POST: APIRoute = async ({ request }) => {
         timestamp,
       }, { onConflict: 'id' });
     if (upsertErr) console.error('[whapi] upsert error:', upsertErr.message);
+
+    // Photo pipeline: fire-and-forget for image messages (non-blocking)
+    if (msg.type === 'image' && !msg.from_me && !upsertErr) {
+      handleWaPhoto(supabase, msg, group.chantier_id, groupId).catch(() => {});
+    }
 
     // Collect chantier_id for batched agent trigger (debounce: 1 trigger per chantier per webhook batch)
     if (!msg.from_me) {

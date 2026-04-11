@@ -17,7 +17,6 @@ import ContactsSection from './ContactsSection';
 import ScreenEditPrompt from '@/components/chantier/nouveau/ScreenEditPrompt';
 import MessagerieSection from './MessagerieSection';
 import { useConversations } from '@/hooks/useConversations';
-import { useChantierAssistant } from '@/hooks/useChantierAssistant';
 import UploadDocumentModal from '@/components/chantier/cockpit/UploadDocumentModal';
 import AddIntervenantModal from '@/components/chantier/cockpit/AddIntervenantModal';
 import ChatDrawer from '@/components/chantier/cockpit/ChatDrawer';
@@ -28,7 +27,7 @@ import LotDetail from './LotDetail';
 import DashboardHome from './DashboardHome';
 import AnalyseDevisSection from './AnalyseDevisSection';
 import TravauxDIYSection from './TravauxDIYSection';
-import AssistantChantierSection from './AssistantChantierSection';
+import ChantierAssistantChat from '@/components/chantier/ChantierAssistantChat';
 import JournalChantierSection from './JournalChantierSection';
 import UserCoordonnees from './UserCoordonnees';
 import { useAgentInsights } from '@/hooks/useAgentInsights';
@@ -151,18 +150,9 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
     return idx;
   }, [documents]);
 
-  // ── Assistant — badge sidebar (alertes IA proactives) ────────────────────
-  const { data: assistantData, loading: assistantLoading, error: assistantError, refresh: assistantRefresh } = useChantierAssistant({
-    chantierId, token, result, documents, lots, enabled: true,
-  });
-  const assistantAlertCount = assistantData?.alertes?.length ?? 0;
-  const assistantAlertLevel = assistantData?.alertes?.find(a => a.type === 'critique')
-    ? 'critique'
-    : assistantData?.alertes?.find(a => a.type === 'risque') ? 'risque' : null;
-
-  // ── Agent insights — badge + data for assistant section ────────────────
+  // ── Agent insights — badge sidebar (alertes IA proactives) ────────────────
   const agentInsights = useAgentInsights(chantierId, token);
-  const totalAlertCount = assistantAlertCount + agentInsights.unreadCount;
+  const totalAlertCount = agentInsights.unreadCount;
   const hasCriticalInsight = agentInsights.insights.some(i => !i.read_by_user && i.severity === 'critical');
 
   // ── Toast notifications for recent agent alerts (not historical) ──────────
@@ -203,13 +193,13 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
       assistant:  totalAlertCount > 0
         ? {
             text: `${totalAlertCount}`,
-            style: (assistantAlertLevel === 'critique' || hasCriticalInsight)
+            style: hasCriticalInsight
               ? 'bg-red-500 text-white'
               : 'bg-amber-400 text-white',
           }
         : undefined,
     };
-  }, [documents, msgUnread, totalAlertCount, assistantAlertLevel, hasCriticalInsight]);
+  }, [documents, msgUnread, totalAlertCount, hasCriticalInsight]);
 
   const selectedLot = lots.find(l => l.id === selectedLotId);
   const hasDiyOpportunity = lots.some(l => l.statut === 'a_trouver');
@@ -447,25 +437,10 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
 
       case 'assistant':
         return (
-          <AssistantChantierSection
-            result={result}
-            documents={documents}
-            lots={lots}
-            chantierId={chantierId}
+          <ChantierAssistantChat
+            chantierId={chantierId ?? ''}
             token={token}
-            agentInsights={agentInsights}
-            assistantData={assistantData}
-            assistantLoading={assistantLoading}
-            assistantError={assistantError}
-            assistantRefresh={assistantRefresh}
-            onAddDoc={() => setUploadModal({ open: true })}
-            onGoToLots={() => navigateTo('lots')}
-            onGoToContacts={() => navigateTo('contacts')}
-            onGoToPlanning={() => navigateTo('planning')}
-            onGoToAnalyse={() => navigateTo('analyse')}
-            onGoToBudget={() => navigateTo('budget')}
-            onGoToJournal={() => navigateTo('journal')}
-            onOpenChat={() => setChatOpen(true)}
+            size="full"
           />
         );
 

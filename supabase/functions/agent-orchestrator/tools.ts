@@ -2,8 +2,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const AGENT_SECRET_KEY = Deno.env.get("AGENT_SECRET_KEY") ?? "";
 const API_BASE = Deno.env.get("API_BASE") ?? "https://www.verifiermondevis.fr";
+const WHAPI_TOKEN = Deno.env.get("WHAPI_TOKEN") ?? "";
 
-export const TOOLS_SCHEMA = [
+// ── Tools available in morning / evening runs (no irreversible actions) ──────
+
+export const TOOLS_SCHEMA_BATCH = [
   {
     type: "function",
     function: {
@@ -12,10 +15,10 @@ export const TOOLS_SCHEMA = [
       parameters: {
         type: "object",
         properties: {
-          lot_id: { type: "string", description: "ID UUID du lot" },
-          date_debut: { type: "string", description: "Nouvelle date de début (YYYY-MM-DD)" },
+          lot_id:      { type: "string", description: "ID UUID du lot" },
+          date_debut:  { type: "string", description: "Nouvelle date de début (YYYY-MM-DD)" },
           duree_jours: { type: "number", description: "Nouvelle durée en jours ouvrés" },
-          raison: { type: "string", description: "Raison de la modification (pour le journal)" },
+          raison:      { type: "string", description: "Raison de la modification (pour le journal)" },
         },
         required: ["lot_id", "raison"],
       },
@@ -45,7 +48,7 @@ export const TOOLS_SCHEMA = [
       parameters: {
         type: "object",
         properties: {
-          titre: { type: "string", description: "Titre de la tâche" },
+          titre:   { type: "string", description: "Titre de la tâche" },
           priorite: { type: "string", enum: ["urgent", "important", "normal"], description: "Priorité" },
         },
         required: ["titre", "priorite"],
@@ -74,18 +77,18 @@ export const TOOLS_SCHEMA = [
       parameters: {
         type: "object",
         properties: {
-          type: { type: "string", enum: ["planning_impact", "budget_alert", "conversation_summary", "risk_detected", "lot_status_change", "needs_clarification"] },
+          type:     { type: "string", enum: ["planning_impact", "budget_alert", "conversation_summary", "risk_detected", "lot_status_change", "needs_clarification"] },
           severity: { type: "string", enum: ["info", "warning", "critical"] },
-          title: { type: "string", description: "Titre court" },
-          body: { type: "string", description: "Détail en markdown" },
+          title:    { type: "string", description: "Titre court" },
+          body:     { type: "string", description: "Détail en markdown" },
           needs_confirmation: { type: "boolean" },
           actions_summary: {
             type: "array",
-            description: "Résumé lisible de chaque action prise. Ex: [{tool:'update_planning', summary:'Lot Plomberie décalé 14→21 avril'}]",
+            description: "Résumé lisible de chaque action prise.",
             items: {
               type: "object",
               properties: {
-                tool: { type: "string" },
+                tool:    { type: "string" },
                 summary: { type: "string", description: "Description lisible en français" },
               },
               required: ["tool", "summary"],
@@ -100,7 +103,7 @@ export const TOOLS_SCHEMA = [
     type: "function",
     function: {
       name: "get_message_read_status",
-      description: "Interroge les accusés de lecture des 3 derniers messages envoyés à un contact spécifique. Utilise avant de créer une tâche de relance pour calibrer le ton (pas lu → patience ou relance ferme, lu sans réponse → suivi actif).",
+      description: "Interroge les accusés de lecture des 3 derniers messages envoyés à un contact spécifique.",
       parameters: {
         type: "object",
         properties: {
@@ -118,16 +121,162 @@ export const TOOLS_SCHEMA = [
       parameters: {
         type: "object",
         properties: {
-          phone: { type: "string", description: "Numéro de téléphone inconnu" },
+          phone:           { type: "string", description: "Numéro de téléphone inconnu" },
           message_summary: { type: "string", description: "Résumé du message reçu" },
-          message_id: { type: "string", description: "ID du message WhatsApp original" },
-          suggested_lot: { type: "string", description: "Lot le plus probable d'après le contenu du message (optionnel)" },
+          message_id:      { type: "string", description: "ID du message WhatsApp original" },
+          suggested_lot:   { type: "string", description: "Lot le plus probable (optionnel)" },
         },
         required: ["phone", "message_summary"],
       },
     },
   },
+  // ── Read-only query tools (safe for all run types) ────────────────────────
+  {
+    type: "function",
+    function: {
+      name: "get_chantier_summary",
+      description: "Retourne l'état général du chantier : informations, lots avec statuts et dates, budget.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_chantier_planning",
+      description: "Retourne le détail du planning : ordre des lots, dates, durée, statut, groupes parallèles.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_chantier_data",
+      description: "Requête ad-hoc sur les données du chantier.",
+      parameters: {
+        type: "object",
+        properties: {
+          query_type: {
+            type: "string",
+            enum: ["count_devis", "sum_travaux_en_cours", "sum_travaux_totaux", "list_documents", "list_intervenants"],
+            description: "Type de requête à exécuter",
+          },
+        },
+        required: ["query_type"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_recent_photos",
+      description: "Retourne les photos WhatsApp récentes avec leur description Vision IA.",
+      parameters: {
+        type: "object",
+        properties: {
+          days: { type: "number", description: "Nombre de jours en arrière (défaut: 7)" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_chantier_groups",
+      description: "Liste les groupes WhatsApp du chantier avec leurs membres actifs.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_contacts_chantier",
+      description: "Retourne les contacts du chantier, optionnellement filtrés par lot ou par rôle.",
+      parameters: {
+        type: "object",
+        properties: {
+          lot_id: { type: "string", description: "Filtrer par lot UUID (optionnel)" },
+          role:   { type: "string", description: "Filtrer par rôle (artisan, architecte, maitre_oeuvre, client, autre — optionnel)" },
+        },
+        required: [],
+      },
+    },
+  },
 ];
+
+// ── Additional action tools — INTERACTIVE mode only ──────────────────────────
+// These tools can have irreversible effects. They MUST NOT run in morning/evening.
+
+export const ACTION_TOOLS_SCHEMA = [
+  {
+    type: "function",
+    function: {
+      name: "mark_lot_completed",
+      description: "Marque un lot comme terminé et y associe un document preuve (optionnel). REQUIERT une confirmation explicite de l'utilisateur.",
+      parameters: {
+        type: "object",
+        properties: {
+          lot_id:          { type: "string", description: "ID UUID du lot" },
+          evidence_doc_id: { type: "string", description: "ID UUID du document preuve (optionnel)" },
+          raison:          { type: "string", description: "Confirmation ou raison du passage en terminé" },
+        },
+        required: ["lot_id", "raison"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_lot_dates",
+      description: "Décale un lot à une nouvelle date de début et recalcule la cascade. REQUIERT confirmation explicite.",
+      parameters: {
+        type: "object",
+        properties: {
+          lot_id:          { type: "string", description: "ID UUID du lot" },
+          new_start_date:  { type: "string", description: "Nouvelle date de début (YYYY-MM-DD)" },
+          new_end_date:    { type: "string", description: "Nouvelle date de fin (optionnel — calculée depuis duree_jours si absent)" },
+          raison:          { type: "string", description: "Raison du décalage" },
+        },
+        required: ["lot_id", "new_start_date", "raison"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_whatsapp_message",
+      description: "Envoie un message WhatsApp à un groupe ou à un contact individuel. REQUIERT confirmation explicite de l'utilisateur. L'agent ne doit JAMAIS envoyer sans que l'utilisateur ait dit 'ok', 'envoie', 'confirme' ou équivalent.",
+      parameters: {
+        type: "object",
+        properties: {
+          to:   { type: "string", description: "JID du groupe (xxx@g.us) ou numéro individuel (33XXXXXXXXX@s.whatsapp.net)" },
+          body: { type: "string", description: "Contenu du message à envoyer" },
+        },
+        required: ["to", "body"],
+      },
+    },
+  },
+];
+
+// ── Combined schema for interactive mode ────────────────────────────────────
+export const TOOLS_SCHEMA_INTERACTIVE = [...TOOLS_SCHEMA_BATCH, ...ACTION_TOOLS_SCHEMA];
+
+// ── Legacy alias for batch runs ──────────────────────────────────────────────
+export const TOOLS_SCHEMA = TOOLS_SCHEMA_BATCH;
+
+// ── Tool executor ─────────────────────────────────────────────────────────────
 
 export async function executeTool(
   chantierId: string,
@@ -140,8 +289,16 @@ export async function executeTool(
     "Content-Type": "application/json",
   };
 
+  // Guard: action tools MUST NOT run in morning/evening modes
+  const ACTION_TOOLS = ["mark_lot_completed", "update_lot_dates", "send_whatsapp_message"];
+  if (ACTION_TOOLS.includes(toolName) && meta.run_type !== "interactive") {
+    console.warn(`[tools] Blocked action tool '${toolName}' in '${meta.run_type}' mode`);
+    return JSON.stringify({ ok: false, error: `Tool '${toolName}' is only available in interactive mode` });
+  }
+
   try {
     switch (toolName) {
+      // ── Existing batch tools ─────────────────────────────────────────────
       case "update_planning": {
         const lotUpdate: Record<string, unknown> = { id: args.lot_id };
         if (args.date_debut) lotUpdate.date_debut = args.date_debut;
@@ -151,48 +308,34 @@ export async function executeTool(
           headers,
           body: JSON.stringify({ lots: [lotUpdate] }),
         });
-        const data = await res.json();
-        return JSON.stringify({ ok: res.ok, data });
+        return JSON.stringify({ ok: res.ok, data: await res.json() });
       }
 
       case "update_lot_status": {
         const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/lots`, {
           method: "PATCH",
           headers,
-          body: JSON.stringify({
-            lot_id: args.lot_id,
-            statut: args.statut,
-            raison: args.raison,
-          }),
+          body: JSON.stringify({ lot_id: args.lot_id, statut: args.statut, raison: args.raison }),
         });
-        const data = await res.json();
-        return JSON.stringify({ ok: res.ok, data });
+        return JSON.stringify({ ok: res.ok, data: await res.json() });
       }
 
       case "create_task": {
         const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/taches`, {
           method: "POST",
           headers,
-          body: JSON.stringify({
-            titre: args.titre,
-            priorite: args.priorite,
-          }),
+          body: JSON.stringify({ titre: args.titre, priorite: args.priorite }),
         });
-        const data = await res.json();
-        return JSON.stringify({ ok: res.ok, data });
+        return JSON.stringify({ ok: res.ok, data: await res.json() });
       }
 
       case "complete_task": {
         const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/taches`, {
           method: "PATCH",
           headers,
-          body: JSON.stringify({
-            titre: args.titre,
-            done: true,
-          }),
+          body: JSON.stringify({ titre: args.titre, done: true }),
         });
-        const data = await res.json();
-        return JSON.stringify({ ok: res.ok, data });
+        return JSON.stringify({ ok: res.ok, data: await res.json() });
       }
 
       case "log_insight": {
@@ -209,8 +352,7 @@ export async function executeTool(
             source_event: {},
           }),
         });
-        const data = await res.json();
-        return JSON.stringify({ ok: res.ok, data });
+        return JSON.stringify({ ok: res.ok, data: await res.json() });
       }
 
       case "get_message_read_status": {
@@ -219,8 +361,6 @@ export async function executeTool(
           Deno.env.get("SUPABASE_URL") ?? "",
           Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
         );
-
-        // Fetch last 3 outgoing messages + statuses for this viewer_phone
         const { data: statuses, error } = await supabase
           .from("whatsapp_message_statuses")
           .select("message_id, status, updated_at, whatsapp_outgoing_messages(body, sent_at, group_jid)")
@@ -228,59 +368,240 @@ export async function executeTool(
           .eq("chantier_id", chantierId)
           .order("updated_at", { ascending: false })
           .limit(3);
-
         if (error) return JSON.stringify({ ok: false, error: error.message });
         if (!statuses || statuses.length === 0) {
           return JSON.stringify({ ok: true, phone, result: "Aucun accusé de lecture trouvé pour ce contact." });
         }
-
         const rows = statuses.map((s: any) => {
           const msg = s.whatsapp_outgoing_messages;
           const sentAt = msg?.sent_at ? new Date(msg.sent_at).getTime() : 0;
           const hoursAgo = Math.round((Date.now() - new Date(s.updated_at).getTime()) / 3600000);
           const hoursSinceSent = sentAt ? Math.round((new Date(s.updated_at).getTime() - sentAt) / 3600000) : null;
           return {
-            status: s.status,
-            updated_at: s.updated_at,
-            hours_ago: hoursAgo,
-            hours_since_sent: hoursSinceSent,
-            body_preview: (msg?.body ?? "").slice(0, 100),
-            sent_at: msg?.sent_at,
+            status: s.status, updated_at: s.updated_at, hours_ago: hoursAgo,
+            hours_since_sent: hoursSinceSent, body_preview: (msg?.body ?? "").slice(0, 100), sent_at: msg?.sent_at,
           };
         });
-
         return JSON.stringify({ ok: true, phone, statuses: rows });
       }
 
       case "request_clarification": {
-        // Creates both an insight AND a task
-        const insightRes = await fetch(`${API_BASE}/api/chantier/${chantierId}/agent-insights`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            type: "needs_clarification",
-            severity: "warning",
-            title: `Numéro inconnu : ${args.phone}`,
-            body: args.message_summary,
-            needs_confirmation: true,
-            source_event: { phone: args.phone, message_id: args.message_id, suggested_lot: args.suggested_lot },
+        const [insightRes, taskRes] = await Promise.all([
+          fetch(`${API_BASE}/api/chantier/${chantierId}/agent-insights`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              type: "needs_clarification",
+              severity: "warning",
+              title: `Numéro inconnu : ${args.phone}`,
+              body: args.message_summary,
+              needs_confirmation: true,
+              source_event: { phone: args.phone, message_id: args.message_id, suggested_lot: args.suggested_lot },
+            }),
           }),
-        });
-
-        const taskRes = await fetch(`${API_BASE}/api/chantier/${chantierId}/taches`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            titre: `Identifier le contact ${args.phone}`,
-            priorite: "urgent",
+          fetch(`${API_BASE}/api/chantier/${chantierId}/taches`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ titre: `Identifier le contact ${args.phone}`, priorite: "urgent" }),
           }),
-        });
-
+        ]);
         return JSON.stringify({
           ok: insightRes.ok && taskRes.ok,
           insight: await insightRes.json(),
           task: await taskRes.json(),
         });
+      }
+
+      // ── New read-only query tools ─────────────────────────────────────────
+      case "get_chantier_summary": {
+        const [planningRes, budgetRes, chantierRes] = await Promise.all([
+          fetch(`${API_BASE}/api/chantier/${chantierId}/planning`, { headers }),
+          fetch(`${API_BASE}/api/chantier/${chantierId}/budget`, { headers }),
+          (async () => {
+            const sb = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
+            const { data } = await sb.from("chantiers").select("nom, emoji, phase, type_projet").eq("id", chantierId).single();
+            return data;
+          })(),
+        ]);
+        const planning = await planningRes.json();
+        const budget = await budgetRes.json();
+        return JSON.stringify({ ok: true, chantier: chantierRes, lots: planning?.lots ?? [], budget_ia: budget?.budget_ia });
+      }
+
+      case "get_chantier_planning": {
+        const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/planning`, { headers });
+        return JSON.stringify({ ok: res.ok, data: await res.json() });
+      }
+
+      case "get_chantier_data": {
+        const supabase = createClient(
+          Deno.env.get("SUPABASE_URL") ?? "",
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+        );
+        const queryType = String(args.query_type ?? "");
+
+        switch (queryType) {
+          case "count_devis": {
+            const { count } = await supabase
+              .from("documents_chantier")
+              .select("id", { count: "exact", head: true })
+              .eq("chantier_id", chantierId)
+              .eq("document_type", "devis");
+            return JSON.stringify({ ok: true, count });
+          }
+          case "sum_travaux_en_cours": {
+            const { data } = await supabase
+              .from("lots_chantier")
+              .select("budget_avg_ht")
+              .eq("chantier_id", chantierId)
+              .eq("statut", "en_cours");
+            const sum = (data ?? []).reduce((acc: number, l: any) => acc + (l.budget_avg_ht ?? 0), 0);
+            return JSON.stringify({ ok: true, sum_ht: sum });
+          }
+          case "sum_travaux_totaux": {
+            const { data } = await supabase
+              .from("lots_chantier")
+              .select("budget_avg_ht")
+              .eq("chantier_id", chantierId);
+            const sum = (data ?? []).reduce((acc: number, l: any) => acc + (l.budget_avg_ht ?? 0), 0);
+            return JSON.stringify({ ok: true, sum_ht: sum });
+          }
+          case "list_documents": {
+            const { data } = await supabase
+              .from("documents_chantier")
+              .select("id, nom, document_type, source, created_at, lot_id")
+              .eq("chantier_id", chantierId)
+              .order("created_at", { ascending: false })
+              .limit(20);
+            return JSON.stringify({ ok: true, documents: data ?? [] });
+          }
+          case "list_intervenants": {
+            const { data } = await supabase
+              .from("contacts_chantier")
+              .select("nom, telephone, role, contact_category, lot_id")
+              .eq("chantier_id", chantierId);
+            return JSON.stringify({ ok: true, contacts: data ?? [] });
+          }
+          default:
+            return JSON.stringify({ ok: false, error: `Unknown query_type: ${queryType}` });
+        }
+      }
+
+      case "get_recent_photos": {
+        const days = Number(args.days ?? 7);
+        const since = new Date(Date.now() - days * 86400000).toISOString();
+        const supabase = createClient(
+          Deno.env.get("SUPABASE_URL") ?? "",
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+        );
+        const { data } = await supabase
+          .from("documents_chantier")
+          .select("id, nom, vision_description, lot_id, whatsapp_message_id, created_at, bucket_path")
+          .eq("chantier_id", chantierId)
+          .eq("source", "whatsapp")
+          .eq("document_type", "photo")
+          .gte("created_at", since)
+          .order("created_at", { ascending: false })
+          .limit(10);
+        return JSON.stringify({ ok: true, photos: data ?? [] });
+      }
+
+      case "list_chantier_groups": {
+        const supabase = createClient(
+          Deno.env.get("SUPABASE_URL") ?? "",
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+        );
+        const { data: groups } = await supabase
+          .from("chantier_whatsapp_groups")
+          .select("id, group_jid, name, chantier_whatsapp_members(phone, name, role, status)")
+          .eq("chantier_id", chantierId);
+        const result = (groups ?? []).map((g: any) => ({
+          ...g,
+          active_members: (g.chantier_whatsapp_members ?? []).filter((m: any) => m.status === "active"),
+        }));
+        return JSON.stringify({ ok: true, groups: result });
+      }
+
+      case "get_contacts_chantier": {
+        const res = await fetch(
+          `${API_BASE}/api/chantier/${chantierId}/contacts${args.lot_id ? `?lot_id=${args.lot_id}` : ""}`,
+          { headers },
+        );
+        let contacts = (await res.json())?.contacts ?? [];
+        if (args.role) {
+          contacts = contacts.filter((c: any) => c.role === args.role || c.contact_category === args.role);
+        }
+        return JSON.stringify({ ok: res.ok, contacts });
+      }
+
+      // ── Action tools (interactive only — guard already checked above) ──────
+      case "mark_lot_completed": {
+        const body: Record<string, unknown> = {
+          lot_id: args.lot_id,
+          statut: "termine",
+          raison: args.raison,
+        };
+        if (args.evidence_doc_id) body.evidence_doc_id = args.evidence_doc_id;
+        const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/lots`, {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify(body),
+        });
+        return JSON.stringify({ ok: res.ok, data: await res.json() });
+      }
+
+      case "update_lot_dates": {
+        const lotUpdate: Record<string, unknown> = { id: args.lot_id, date_debut: args.new_start_date };
+        if (args.new_end_date) lotUpdate.date_fin = args.new_end_date;
+        const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/planning`, {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ lots: [lotUpdate] }),
+        });
+        return JSON.stringify({ ok: res.ok, data: await res.json() });
+      }
+
+      case "send_whatsapp_message": {
+        if (!WHAPI_TOKEN) {
+          return JSON.stringify({ ok: false, error: "WHAPI_TOKEN not configured" });
+        }
+
+        const to = String(args.to ?? "");
+        const body = String(args.body ?? "");
+
+        const whapiRes = await fetch("https://gate.whapi.cloud/messages/text", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${WHAPI_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ to, body }),
+        });
+
+        if (!whapiRes.ok) {
+          const errText = await whapiRes.text().catch(() => "");
+          return JSON.stringify({ ok: false, error: `whapi ${whapiRes.status}: ${errText.slice(0, 100)}` });
+        }
+
+        const whapiData = await whapiRes.json();
+        const msgId: string | undefined = whapiData?.message?.id;
+
+        // Log outgoing message for read-tracking (fire-and-forget)
+        if (msgId) {
+          const supabase = createClient(
+            Deno.env.get("SUPABASE_URL") ?? "",
+            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+          );
+          supabase.from("whatsapp_outgoing_messages").insert({
+            id:          msgId,
+            chantier_id: chantierId,
+            group_jid:   to,
+            body,
+            run_type:    "interactive",
+          }).catch(() => {});
+        }
+
+        return JSON.stringify({ ok: true, message_id: msgId ?? null });
       }
 
       default:

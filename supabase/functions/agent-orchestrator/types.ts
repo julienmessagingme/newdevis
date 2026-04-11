@@ -1,3 +1,30 @@
+/** Run types for the orchestrator */
+export type RunType = "morning" | "evening" | "interactive";
+
+/** A message in the persistent chantier_assistant_messages conversation */
+export interface AssistantMessage {
+  id: string;
+  role: "user" | "assistant" | "tool";
+  content: string | null;
+  tool_calls: unknown[] | null;
+  tool_call_id: string | null;
+  agent_initiated: boolean;
+  is_read: boolean;
+  created_at: string;
+}
+
+/** A recent photo from WhatsApp with Vision description */
+export interface RecentPhoto {
+  doc_id: string;
+  nom: string;
+  vision_description: string | null;
+  lot_id: string | null;
+  lot_nom: string | null;
+  sender_phone: string | null;
+  created_at: string;
+  storage_path: string;
+}
+
 /** Context built by buildContext() — consumed by prompt.ts */
 export interface ChantierContext {
   chantier: {
@@ -102,4 +129,8 @@ export interface ChantierContext {
       hours_since_sent: number;
     }>;
   }>;
+  /** Photos WhatsApp récentes avec description Vision (jusqu'à 10 sur les 7 derniers jours) */
+  recent_photos: RecentPhoto[];
+  /** Historique de conversation (mode interactive uniquement) */
+  conversation_history: AssistantMessage[];
 }

@@ -1,9 +1,11 @@
-import { ChantierContext } from "./types.ts";
+import { ChantierContext, RunType } from "./types.ts";
 
-export function buildSystemPrompt(ctx: ChantierContext, runType: "morning" | "evening"): string {
+export function buildSystemPrompt(ctx: ChantierContext, runType: RunType): string {
   const header = runType === "morning"
     ? "C'est l'analyse du MATIN. Concentre-toi sur les messages reçus et leurs impacts planning."
-    : "C'est le DIGEST DU SOIR. Résume la journée et prépare les actions de demain.";
+    : runType === "evening"
+    ? "C'est le DIGEST DU SOIR. Résume la journée et prépare les actions de demain."
+    : "MODE CONVERSATIONNEL INTERACTIF. Tu réponds directement à l'utilisateur en temps réel.";
 
   const eveningSection = runType === "evening" ? `
 ACTIONS DE L'IA AUJOURD'HUI :
@@ -29,9 +31,23 @@ ${(() => {
 })()}
 ` : '';
 
+  const interactiveSection = runType === "interactive" ? `
+RÈGLES MODE CONVERSATIONNEL :
+1. Tu réponds directement en langage naturel, de façon concise et utile.
+2. Tu peux utiliser les tools de LECTURE (get_chantier_summary, get_chantier_planning, get_chantier_data, get_recent_photos, list_chantier_groups, get_contacts_chantier, get_message_read_status) librement.
+3. ACTIONS IRRÉVERSIBLES — règle absolue : tu peux PROPOSER mais jamais EXÉCUTER sans accord explicite de l'utilisateur.
+   - Accord explicite : l'utilisateur dit "ok", "envoie", "go", "confirme", "valide", "fais-le" ou équivalent sans ambiguïté.
+   - Accord ambigu ("peut-être", "si tu penses", "essaie") → redemande confirmation.
+   - JAMAIS d'envoi whapi, JAMAIS de mark_lot_completed, JAMAIS de update_lot_dates sans confirmation explicite.
+4. Ton ton : professionnel mais direct. Pas de "Je suis un assistant IA". Réponds comme un conducteur de travaux expérimenté.
+5. Si l'utilisateur demande d'envoyer un message, propose d'abord le texte exact : "Voici ce que je propose d'envoyer : [texte]. Tu confirmes ?"
+6. Si l'utilisateur dit "ok" ou confirme → appelle send_whatsapp_message.
+7. Toujours répondre en français.
+` : "";
+
   return `Tu es l'agent "Pilote de Chantier" pour ${ctx.chantier.emoji} ${ctx.chantier.nom}.
 ${header}
-
+${interactiveSection}
 RÈGLES :
 
 IDENTIFICATION DE L'AUTEUR — 4 cas possibles :
@@ -133,5 +149,13 @@ ${ctx.recent_outgoing_read_status.length > 0
   : 'Aucun message sortant récent'}
 
 RÈGLE DE RELANCE : si statut "sent" ou "delivered" depuis plus de 24h, l'artisan ne l'a probablement pas lu → relance ferme justifiée. Si "read" sans réponse depuis 24h → suivi actif requis.
+
+PHOTOS WHATSAPP RÉCENTES (7 derniers jours, analysées par Vision IA) :
+${ctx.recent_photos.length > 0
+  ? ctx.recent_photos.map(p => {
+      const lotTag = p.lot_nom ? ` → lot "${p.lot_nom}"` : "";
+      return `[${p.created_at}]${lotTag} — ${p.nom} : ${p.vision_description ?? "(pas encore décrite)"}`;
+    }).join("\n")
+  : "Aucune photo WhatsApp récente"}
 ${eveningSection}`;
 }

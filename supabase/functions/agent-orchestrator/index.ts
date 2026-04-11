@@ -2,7 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildContext } from "./context.ts";
 import { buildSystemPrompt } from "./prompt.ts";
-import { TOOLS_SCHEMA, executeTool } from "./tools.ts";
+import { TOOLS_SCHEMA_BATCH, TOOLS_SCHEMA_INTERACTIVE, executeTool } from "./tools.ts";
+import type { RunType, AssistantMessage } from "./types.ts";
 
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -18,26 +19,40 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204 });
 
   const body = await req.json().catch(() => ({}));
-  const runType: "morning" | "evening" = body.run_type ?? "evening";
+  const runType: RunType = body.run_type ?? "evening";
   const singleChantierId: string | null = body.chantier_id ?? null;
 
+  // ── Interactive mode: synchronous request-response ─────────────────────────
+  if (runType === "interactive") {
+    if (!singleChantierId) {
+      return new Response(JSON.stringify({ error: "chantier_id required for interactive mode" }), { status: 400 });
+    }
+    const userMessage: string = body.user_message ?? "";
+    const conversationHistory: AssistantMessage[] = body.conversation_history ?? [];
+
+    try {
+      const result = await handleInteractive(singleChantierId, userMessage, conversationHistory);
+      return new Response(JSON.stringify(result), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (err) {
+      console.error("[agent-interactive] error:", err instanceof Error ? err.message : err);
+      return new Response(JSON.stringify({ error: "Erreur interne de l'agent" }), { status: 500 });
+    }
+  }
+
+  // ── Batch mode: morning / evening ─────────────────────────────────────────
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  // Find chantiers to process
   let chantierIds: string[];
-
   if (singleChantierId) {
-    // Real-time trigger: single chantier
     chantierIds = [singleChantierId];
   } else {
-    // Cron (evening): ALL non-reception chantiers get a daily digest.
-    // Valid phases: preparation, gros_oeuvre, second_oeuvre, finitions, reception.
-    // "reception" = chantier terminé, no more daily digest needed.
     const { data: activeChantiers } = await supabase
       .from("chantiers")
       .select("id")
       .not("phase", "eq", "reception");
-
     chantierIds = (activeChantiers ?? []).map((c: any) => c.id);
   }
 
@@ -48,9 +63,8 @@ serve(async (req) => {
     });
   }
 
-  // ── Process a single chantier (extracted for parallel execution) ──────
+  // ── Process a single chantier (batch mode) ──────────────────────────────
   async function processChantier(chantierId: string): Promise<boolean> {
-    // Get last run time
     const { data: lastRun } = await supabase
       .from("agent_runs")
       .select("created_at")
@@ -59,27 +73,18 @@ serve(async (req) => {
       .limit(1)
       .single();
 
-    // Cooldown 60s: skip if a run happened recently (real-time only, not evening digest)
     if (runType === "morning" && lastRun) {
       const elapsed = Date.now() - new Date(lastRun.created_at).getTime();
       if (elapsed < 60_000) {
-          console.log(`[agent] Cooldown skip ${chantierId}: last run ${Math.round(elapsed / 1000)}s ago`);
-          return false;
-        }
+        console.log(`[agent] Cooldown skip ${chantierId}: last run ${Math.round(elapsed / 1000)}s ago`);
+        return false;
+      }
     }
 
-    // Build rich context (cached static + fresh dynamic)
-    const ctx = await buildContext(
-      supabase,
-      chantierId,
-      lastRun?.created_at ?? null,
-      agentSecretKey,
-      apiBase,
-    );
+    const ctx = await buildContext(supabase, chantierId, lastRun?.created_at ?? null, agentSecretKey, apiBase);
 
-    // Skip if no activity AND no alerts (morning real-time only).
-    // Evening digest always runs — even "journée calme" has value (upcoming deadlines, current state).
-    if (runType === "morning" &&
+    if (
+      runType === "morning" &&
       ctx.messages_since_last_run.length === 0 &&
       ctx.budget_conseils.length === 0 &&
       ctx.risk_alerts.length === 0
@@ -87,12 +92,14 @@ serve(async (req) => {
       return false;
     }
 
-    // Call Gemini with function calling
     const messages: Array<Record<string, unknown>> = [
       { role: "system", content: buildSystemPrompt(ctx, runType) },
-      { role: "user", content: runType === "morning"
-        ? "Analyse les messages reçus et détecte les impacts sur le planning et le budget."
-        : "Génère le digest de la journée. Résume les événements, les alertes, et les prochaines actions." },
+      {
+        role: "user",
+        content: runType === "morning"
+          ? "Analyse les messages reçus et détecte les impacts sur le planning et le budget."
+          : "Génère le digest de la journée. Résume les événements, les alertes, et les prochaines actions.",
+      },
     ];
 
     let rounds = 0;
@@ -103,7 +110,7 @@ serve(async (req) => {
       const res = await fetch(GEMINI_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${geminiKey}` },
-        body: JSON.stringify({ model: "gemini-2.5-flash", messages, tools: TOOLS_SCHEMA, max_tokens: 16384 }),
+        body: JSON.stringify({ model: "gemini-2.5-flash", messages, tools: TOOLS_SCHEMA_BATCH, max_tokens: 16384 }),
       });
 
       const data = await res.json();
@@ -120,7 +127,7 @@ serve(async (req) => {
       }
     }
 
-    // If evening run, generate digest and send to user
+    // Evening: generate digest + send + insert into chantier_assistant_messages
     if (runType === "evening") {
       let digestContent = "";
       for (let i = messages.length - 1; i >= 0; i--) {
@@ -130,8 +137,6 @@ serve(async (req) => {
         }
       }
 
-      // Gemini may end on tool_calls without emitting a text message (all 3 rounds consumed).
-      // Fallback: one extra call without tools to force a text summary.
       if (!digestContent || digestContent.length <= 20) {
         const fallbackRes = await fetch(GEMINI_URL, {
           method: "POST",
@@ -143,7 +148,7 @@ serve(async (req) => {
         if (typeof fallbackContent === "string" && fallbackContent.length > 20) {
           digestContent = fallbackContent;
         } else {
-          console.error(`[evening-digest] no text after fallback, aborting sendDigest for ${chantierId}`);
+          console.error(`[evening-digest] no text after fallback for ${chantierId}`);
         }
       }
 
@@ -157,10 +162,18 @@ serve(async (req) => {
           supabase, chantierId, ctx.chantier.user_id, ctx.chantier.nom,
           ctx.chantier.emoji, digestContent, insightsCount, maxSeverity,
         );
+
+        // Insert as agent-initiated assistant message (proactive, for chat UI)
+        await supabase.from("chantier_assistant_messages").insert({
+          chantier_id:    chantierId,
+          role:           "assistant",
+          content:        digestContent,
+          agent_initiated: true,
+          is_read:        false,
+        }).catch(() => {}); // non-blocking
       }
     }
 
-    // Log the run
     await supabase.from("agent_runs").insert({
       chantier_id: chantierId,
       run_type: runType,
@@ -172,18 +185,14 @@ serve(async (req) => {
     return true;
   }
 
-  // ── Execute: parallel batches of 3 for cron (evening), sequential for real-time ──
   let processed = 0;
-
   if (singleChantierId) {
-    // Real-time trigger: single chantier, no parallelism needed
     try {
       if (await processChantier(singleChantierId)) processed++;
     } catch (err) {
       console.error(`[agent] Error processing ${singleChantierId}:`, err instanceof Error ? err.message : err);
     }
   } else {
-    // Cron (evening): parallel batches of 3 to stay within edge function timeout
     const CONCURRENCY = 3;
     for (let i = 0; i < chantierIds.length; i += CONCURRENCY) {
       const batch = chantierIds.slice(i, i + CONCURRENCY);
@@ -201,7 +210,83 @@ serve(async (req) => {
   });
 });
 
-// ── Digest delivery (WhatsApp + Email + in-app journal) ──────────────
+// ── Interactive handler ────────────────────────────────────────────────────────
+async function handleInteractive(
+  chantierId: string,
+  userMessage: string,
+  conversationHistory: AssistantMessage[],
+): Promise<{ response_text: string; tool_calls_executed: string[] }> {
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  // Build context (with conversation history)
+  const ctx = await buildContext(supabase, chantierId, null, agentSecretKey, apiBase, conversationHistory);
+
+  // Build messages: system prompt + conversation history + current user message
+  const messages: Array<Record<string, unknown>> = [
+    { role: "system", content: buildSystemPrompt(ctx, "interactive") },
+  ];
+
+  // Inject conversation history (max 20 last messages to stay within context)
+  const historySlice = conversationHistory.slice(-20);
+  for (const msg of historySlice) {
+    if (msg.role === "user" || msg.role === "assistant") {
+      const entry: Record<string, unknown> = { role: msg.role, content: msg.content ?? "" };
+      if (msg.tool_calls) entry.tool_calls = msg.tool_calls;
+      messages.push(entry);
+    } else if (msg.role === "tool" && msg.tool_call_id) {
+      messages.push({ role: "tool", tool_call_id: msg.tool_call_id, content: msg.content ?? "" });
+    }
+  }
+
+  // Add current user message
+  messages.push({ role: "user", content: userMessage });
+
+  let rounds = 0;
+  const toolCallsExecuted: string[] = [];
+
+  while (rounds < MAX_TOOL_ROUNDS) {
+    rounds++;
+    const res = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${geminiKey}` },
+      body: JSON.stringify({
+        model: "gemini-2.5-flash",
+        messages,
+        tools: TOOLS_SCHEMA_INTERACTIVE,
+        max_tokens: 8192,
+      }),
+    });
+
+    const data = await res.json();
+    const choice = data.choices?.[0]?.message;
+    if (!choice?.tool_calls || choice.tool_calls.length === 0) {
+      // Final text response
+      const responseText = typeof choice?.content === "string" ? choice.content : "";
+      return { response_text: responseText, tool_calls_executed: toolCallsExecuted };
+    }
+
+    messages.push({ role: "assistant", content: choice.content, tool_calls: choice.tool_calls });
+
+    for (const tc of choice.tool_calls) {
+      const args = JSON.parse(tc.function.arguments);
+      const result = await executeTool(chantierId, tc.function.name, args, { run_type: "interactive" });
+      toolCallsExecuted.push(tc.function.name);
+      messages.push({ role: "tool", tool_call_id: tc.id, content: result });
+    }
+  }
+
+  // Force a final text response if all rounds consumed by tool calls
+  const fallbackRes = await fetch(GEMINI_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${geminiKey}` },
+    body: JSON.stringify({ model: "gemini-2.5-flash", messages, max_tokens: 2048 }),
+  });
+  const fallbackData = await fallbackRes.json();
+  const fallbackText = fallbackData.choices?.[0]?.message?.content ?? "Je n'ai pas pu générer une réponse. Réessaie.";
+  return { response_text: fallbackText, tool_calls_executed: toolCallsExecuted };
+}
+
+// ── Digest delivery (WhatsApp + Email + in-app journal) ───────────────────────
 
 async function sendDigest(
   supabase: any,
@@ -219,7 +304,6 @@ async function sendDigest(
 
   const label = `${emoji} ${nom}`.trim();
 
-  // WhatsApp via whapi
   if (whapiToken && phone) {
     const chatId = phone.replace(/^\+/, "") + "@s.whatsapp.net";
     const msgBody = `\u{1F4CB} Digest — ${label}\n\n${text}`;
@@ -233,22 +317,16 @@ async function sendDigest(
         const data = await resp.json();
         const msgId: string | undefined = data?.message?.id;
         if (msgId) {
-          // Log outgoing message for read receipt tracking
           await supabase.from("whatsapp_outgoing_messages").insert({
-            id:          msgId,
-            chantier_id: chantierId,
-            group_jid:   chatId,
-            body:        msgBody,
-            run_type:    "evening",
-          }).catch(() => {}); // non-blocking: don't fail digest on logging error
+            id: msgId, chantier_id: chantierId, group_jid: chatId, body: msgBody, run_type: "evening",
+          }).catch(() => {});
         }
       }
     } catch {
-      // fire-and-forget: digest delivery failure is non-fatal
+      // fire-and-forget
     }
   }
 
-  // Email via SendGrid
   if (sendgridKey && email) {
     await fetch("https://api.sendgrid.com/v3/mail/send", {
       method: "POST",
@@ -262,7 +340,6 @@ async function sendDigest(
     }).catch(() => {});
   }
 
-  // In-app: upsert into chantier_journal (book-like, 1 page per day)
   const today = new Date().toISOString().split("T")[0];
   await supabase.from("chantier_journal").upsert({
     chantier_id: chantierId,
