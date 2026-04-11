@@ -104,7 +104,13 @@ export function useChantierAssistant({
   const fetch_ = useCallback(async (force = false) => {
     if (!enabled || !chantierId || !token) return;
 
-    const cacheKey = `${chantierId}:${documents.length}:${lots.length}`;
+    // Inclure les statuts devis dans la clé de cache pour invalider si un devis est validé
+    const devisStatutsSig = documents
+      .filter(d => d.document_type === 'devis')
+      .map(d => `${d.id}:${d.devis_statut ?? ''}`)
+      .sort()
+      .join(',');
+    const cacheKey = `${chantierId}:${documents.length}:${lots.length}:${devisStatutsSig}`;
 
     // Utiliser le cache si disponible et pas de force refresh
     if (!force && assistantCache.has(cacheKey)) {

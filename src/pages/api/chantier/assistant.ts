@@ -20,6 +20,7 @@ interface LotInfo {
   budget_avg_ht?: number | null;
   budget_max_ht?: number | null;
   devisCount?: number;
+  devisValides?: number; // nb devis avec statut valide ou attente_facture
 }
 
 interface DevisInfo {
@@ -28,6 +29,8 @@ interface DevisInfo {
   analyse_id?: string | null;
   analysisScore?: string | null;
   anomalies?: string | null;
+  lot_id?: string | null;
+  lot_nom?: string | null;
 }
 
 interface AssistantRequestBody {
@@ -154,9 +157,9 @@ export const POST: APIRoute = async ({ request }) => {
   const lotsStr = lots.length > 0
     ? lots.map(l => {
         const bStr = l.budget_avg_ht != null ? ` (moy. ${Math.round(l.budget_avg_ht / 1000)}k€)` : '';
-        const artisanOk = l.statut === 'artisan_retenu' || (l as any).devisValides > 0;
+        const artisanOk = l.statut === 'artisan_retenu' || (l.devisValides ?? 0) > 0;
         const artisanStr = artisanOk ? '✅ artisan OK' : (l.devisCount ?? 0) > 0 ? '⏳ devis reçu' : '❌ sans artisan';
-        return `- ${l.nom}${bStr} [${artisanStr}, devis: ${l.devisCount ?? 0}, validés: ${(l as any).devisValides ?? 0}]`;
+        return `- ${l.nom}${bStr} [${artisanStr}, devis: ${l.devisCount ?? 0}, validés: ${l.devisValides ?? 0}]`;
       }).join('\n')
     : 'Aucun intervenant défini';
 
