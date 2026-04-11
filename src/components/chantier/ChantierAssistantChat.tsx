@@ -314,10 +314,10 @@ export default function ChantierAssistantChat({ chantierId, token, size, onOpenF
                 </div>
               )}
               {/* Render content with basic newline support */}
-              {msg.content.split('\n').map((line, i) => (
+              {(msg.content ?? '').split('\n').map((line, i, arr) => (
                 <span key={i}>
                   {line}
-                  {i < msg.content.split('\n').length - 1 && <br />}
+                  {i < arr.length - 1 && <br />}
                 </span>
               ))}
               <p className={`text-[10px] mt-1.5 ${msg.role === 'user' ? 'text-white/60' : 'text-gray-400'}`}>

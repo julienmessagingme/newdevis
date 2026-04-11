@@ -25,6 +25,8 @@ async function handleWaPhoto(
   const msgId: string = msg.id;
   const caption: string | null = msg.image?.caption ?? null;
   const senderPhone: string = String(msg.from ?? '').replace(/^\+/, '');
+  const mimeType: string = msg.image?.mimetype ?? 'image/jpeg';
+  const ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg';
 
   // 1. Fetch chantier user_id + lots list (needed for storage path + lot lookup)
   const [chantierRes, lotsRes] = await Promise.all([
@@ -49,12 +51,12 @@ async function handleWaPhoto(
     return;
   }
 
-  // 3. Upload to Storage — path: {user_id}/{chantier_id}/wa_{msgId}.jpg
-  const storagePath = `${userId}/${chantierId}/wa_${msgId}.jpg`;
+  // 3. Upload to Storage — path: {user_id}/{chantier_id}/wa_{msgId}.{ext}
+  const storagePath = `${userId}/${chantierId}/wa_${msgId}.${ext}`;
   const { error: uploadErr } = await supabase.storage
     .from('chantier-documents')
     .upload(storagePath, imageBytes, {
-      contentType: 'image/jpeg',
+      contentType: mimeType,
       upsert: true, // idempotent on retry
     });
 
@@ -69,7 +71,7 @@ async function handleWaPhoto(
     .from('contacts_chantier')
     .select('lot_id, nom')
     .eq('chantier_id', chantierId)
-    .or(`telephone.eq.${senderPhone},telephone.eq.+${senderPhone},telephone.eq.0${senderPhone.replace(/^33/, '')}`)
+    .or(`telephone.eq.${senderPhone},telephone.eq.+${senderPhone},telephone.eq.${normPhone},telephone.eq.0${normPhone.replace(/^33/, '')}`)
     .maybeSingle();
 
   const hintLotId: string | null = contactRow?.lot_id ?? null;
@@ -91,10 +93,10 @@ async function handleWaPhoto(
       document_type:        'photo',
       source:               'whatsapp',
       nom:                  docNom,
-      nom_fichier:          `wa_${msgId}.jpg`,
+      nom_fichier:          `wa_${msgId}.${ext}`,
       bucket_path:          storagePath,
       taille_octets:        imageBytes.byteLength,
-      mime_type:            'image/jpeg',
+      mime_type:            mimeType,
       whatsapp_message_id:  msgId,
     })
     .select('id')
@@ -119,6 +121,7 @@ async function handleWaPhoto(
       chantier_id:  chantierId,
       doc_id:       docId,
       storage_path: storagePath,
+      mime_type:    mimeType,
       lot_hint_nom: hintLotNom,
       lots,
     }),

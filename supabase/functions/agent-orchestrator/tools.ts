@@ -598,6 +598,7 @@ export async function executeTool(
             group_jid:   to,
             body,
             run_type:    "interactive",
+            sent_at:     new Date().toISOString(),
           }).catch(() => {});
         }
 

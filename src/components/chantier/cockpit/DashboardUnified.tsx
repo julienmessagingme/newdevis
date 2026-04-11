@@ -152,8 +152,21 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
 
   // ── Agent insights — badge sidebar (alertes IA proactives) ────────────────
   const agentInsights = useAgentInsights(chantierId, token);
-  const totalAlertCount = agentInsights.unreadCount;
   const hasCriticalInsight = agentInsights.insights.some(i => !i.read_by_user && i.severity === 'critical');
+
+  // ── Chat assistant unread count ────────────────────────────────────────────
+  const [chatUnread, setChatUnread] = useState(0);
+  useEffect(() => {
+    if (!chantierId || !token) return;
+    fetch(`/api/chantier/${chantierId}/assistant/thread`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.unread_count) setChatUnread(d.unread_count); })
+      .catch(() => {});
+  }, [chantierId, token]);
+
+  const totalAlertCount = agentInsights.unreadCount + chatUnread;
 
   // ── Toast notifications for recent agent alerts (not historical) ──────────
   const toastedIds = useRef(new Set<string>());
@@ -210,6 +223,8 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
     if (s !== 'lots') setSelectedLotId(null);
     setShowBudgetDetail(false);
     setAffineBudgetModal(false);
+    // Reset chat unread badge when opening the assistant tab
+    if (s === 'assistant') setChatUnread(0);
   }
 
   // ── Lot mutations ─────────────────────────────────────────────────────────

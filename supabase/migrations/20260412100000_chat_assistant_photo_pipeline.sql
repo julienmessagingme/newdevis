@@ -60,3 +60,10 @@ CREATE POLICY assistant_messages_update ON chantier_assistant_messages
       SELECT id FROM chantiers WHERE user_id = (SELECT auth.uid())
     )
   );
+
+CREATE POLICY assistant_messages_delete ON chantier_assistant_messages
+  FOR DELETE USING (
+    chantier_id IN (
+      SELECT id FROM chantiers WHERE user_id = (SELECT auth.uid())
+    )
+  );

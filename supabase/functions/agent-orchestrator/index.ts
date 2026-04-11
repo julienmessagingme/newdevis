@@ -260,8 +260,15 @@ async function handleInteractive(
     const data = await res.json();
     const choice = data.choices?.[0]?.message;
     if (!choice?.tool_calls || choice.tool_calls.length === 0) {
-      // Final text response
+      // Final text response — log run for observability (fire-and-forget)
       const responseText = typeof choice?.content === "string" ? choice.content : "";
+      supabase.from("agent_runs").insert({
+        chantier_id: chantierId,
+        run_type: "interactive",
+        messages_analyzed: 1,
+        insights_created: 0,
+        actions_taken: toolCallsExecuted.map(t => ({ tool: t })),
+      }).catch(() => {});
       return { response_text: responseText, tool_calls_executed: toolCallsExecuted };
     }
 
@@ -283,6 +290,14 @@ async function handleInteractive(
   });
   const fallbackData = await fallbackRes.json();
   const fallbackText = fallbackData.choices?.[0]?.message?.content ?? "Je n'ai pas pu générer une réponse. Réessaie.";
+  // Log interactive run for observability (fire-and-forget)
+  supabase.from("agent_runs").insert({
+    chantier_id: chantierId,
+    run_type: "interactive",
+    messages_analyzed: 1,
+    insights_created: 0,
+    actions_taken: toolCallsExecuted.map(t => ({ tool: t })),
+  }).catch(() => {});
   return { response_text: fallbackText, tool_calls_executed: toolCallsExecuted };
 }
 

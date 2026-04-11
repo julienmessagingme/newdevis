@@ -18,7 +18,8 @@ const geminiKey  = Deno.env.get("GOOGLE_API_KEY") ?? "";
 interface PhotoDescribePayload {
   chantier_id: string;
   doc_id: string;
-  storage_path: string;      // path in chantier-documents bucket
+  storage_path: string;        // path in chantier-documents bucket
+  mime_type?: string;          // e.g. 'image/jpeg', 'image/png', 'image/webp'
   lot_hint_nom: string | null; // lot déduit du sender phone
   lots: Array<{ id: string; nom: string }>;
 }
@@ -27,7 +28,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204 });
 
   const body: PhotoDescribePayload = await req.json().catch(() => ({})) as PhotoDescribePayload;
-  const { chantier_id, doc_id, storage_path, lot_hint_nom, lots = [] } = body;
+  const { chantier_id, doc_id, storage_path, mime_type = "image/jpeg", lot_hint_nom, lots = [] } = body;
 
   if (!chantier_id || !doc_id || !storage_path) {
     return new Response(JSON.stringify({ error: "Missing required fields" }), { status: 400 });
@@ -45,12 +46,13 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: "Failed to download image" }), { status: 500 });
   }
 
-  // 2. Convert to base64
+  // 2. Convert to base64 (chunked to avoid O(n²) string concat + call stack limits)
   const arrayBuffer = await fileData.arrayBuffer();
   const uint8 = new Uint8Array(arrayBuffer);
+  const CHUNK = 8192;
   let binary = "";
-  for (let i = 0; i < uint8.byteLength; i++) {
-    binary += String.fromCharCode(uint8[i]);
+  for (let i = 0; i < uint8.length; i += CHUNK) {
+    binary += String.fromCharCode(...uint8.subarray(i, i + CHUNK));
   }
   const base64Image = btoa(binary);
 
@@ -94,7 +96,7 @@ RÈGLE : confirmed_lot_nom doit être null ou correspondre EXACTEMENT à l'un de
               { type: "text", text: userPrompt },
               {
                 type: "image_url",
-                image_url: { url: `data:image/jpeg;base64,${base64Image}` },
+                image_url: { url: `data:${mime_type};base64,${base64Image}` },
               },
             ],
           },
