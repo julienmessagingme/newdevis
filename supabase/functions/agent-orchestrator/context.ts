@@ -176,7 +176,7 @@ export async function buildContext(
   const enrichedLots = staticCtx.lots;
 
   // ── Always-fresh dynamic data ────────────────────────────────────────
-  const [waMessagesRes, insightsRes] = await Promise.all([
+  const [waMessagesRes, insightsRes, outgoingRes] = await Promise.all([
     supabase.from("chantier_whatsapp_messages")
       .select("from_number, from_me, group_id, body, type, timestamp")
       .eq("chantier_id", chantierId)
@@ -188,9 +188,35 @@ export async function buildContext(
       .eq("chantier_id", chantierId)
       .order("created_at", { ascending: false })
       .limit(10),
+    // 5 derniers messages sortants + leurs statuts de lecture (read receipts)
+    supabase.from("whatsapp_outgoing_messages")
+      .select("id, body, sent_at, group_jid, whatsapp_message_statuses(viewer_phone, status, updated_at)")
+      .eq("chantier_id", chantierId)
+      .order("sent_at", { ascending: false })
+      .limit(5),
   ]);
 
   const waMessages = waMessagesRes.data ?? [];
+
+  // ── Build read receipt summaries ─────────────────────────────────────
+  const outgoingMessages = outgoingRes.data ?? [];
+  const recentOutgoingReadStatus = outgoingMessages.map((msg: any) => {
+    const statuses: any[] = msg.whatsapp_message_statuses ?? [];
+    const sentAt = new Date(msg.sent_at).getTime();
+    return {
+      message_id:   msg.id,
+      body_preview: (msg.body ?? "").slice(0, 120),
+      sent_at:      msg.sent_at,
+      chat_jid:     msg.group_jid,
+      statuses: statuses.map((s: any) => ({
+        viewer_phone:    s.viewer_phone ?? s.viewer_id?.split("@")[0] ?? "",
+        viewer_name:     phoneToContact.get(s.viewer_phone ?? s.viewer_id?.split("@")[0] ?? "")?.nom ?? null,
+        status:          s.status,
+        updated_at:      s.updated_at,
+        hours_since_sent: Math.round((new Date(s.updated_at).getTime() - sentAt) / 3600000),
+      })),
+    };
+  });
 
   // ── Map messages → contact → lot ─────────────────────────────────────
   const mappedMessages = waMessages.map((m: any) => {
@@ -340,6 +366,7 @@ export async function buildContext(
     overdue_payments: staticCtx.overdue_payments,
     risk_alerts: riskAlerts,
     recent_insights: insightsRes.data ?? [],
+    recent_outgoing_read_status: recentOutgoingReadStatus,
 
     todays_insights_with_actions: await (async () => {
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);

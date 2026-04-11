@@ -104,5 +104,28 @@ RISQUES DÉTECTÉS :
 ${ctx.risk_alerts.length > 0
   ? ctx.risk_alerts.map(r => `\u26A0\uFE0F ${r.lot_nom} : ${r.details}`).join('\n')
   : '\u2705 Aucun risque'}
+
+LECTURE DES MESSAGES ENVOYÉS (5 derniers) :
+${ctx.recent_outgoing_read_status.length > 0
+  ? ctx.recent_outgoing_read_status.map(msg => {
+      const preview = msg.body_preview.length > 80 ? msg.body_preview.slice(0, 80) + '…' : msg.body_preview;
+      if (msg.statuses.length === 0) {
+        return `- [${msg.sent_at}] "${preview}" → aucun accusé de lecture`;
+      }
+      const lines = msg.statuses.map(s => {
+        const name = s.viewer_name ?? s.viewer_phone;
+        if (s.status === 'read' || s.status === 'played') {
+          return `  \u2713 ${name} : LU (${s.hours_since_sent}h après envoi)`;
+        }
+        if (s.status === 'delivered') {
+          return `  \u{1F4E9} ${name} : livré, pas encore lu (${s.hours_since_sent}h)`;
+        }
+        return `  \u23F3 ${name} : envoyé, non livré (${s.hours_since_sent}h)`;
+      });
+      return `- [${msg.sent_at}] "${preview}"\n${lines.join('\n')}`;
+    }).join('\n')
+  : 'Aucun message sortant récent'}
+
+RÈGLE DE RELANCE : si statut "sent" ou "delivered" depuis plus de 24h, l'artisan ne l'a probablement pas lu → relance ferme justifiée. Si "read" sans réponse depuis 24h → suivi actif requis.
 ${eveningSection}`;
 }

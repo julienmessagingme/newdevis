@@ -1,3 +1,5 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 const AGENT_SECRET_KEY = Deno.env.get("AGENT_SECRET_KEY") ?? "";
 const API_BASE = Deno.env.get("API_BASE") ?? "https://www.verifiermondevis.fr";
 
@@ -91,6 +93,20 @@ export const TOOLS_SCHEMA = [
           },
         },
         required: ["type", "severity", "title", "body"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_message_read_status",
+      description: "Interroge les accusés de lecture des 3 derniers messages envoyés à un contact spécifique. Utilise avant de créer une tâche de relance pour calibrer le ton (pas lu → patience ou relance ferme, lu sans réponse → suivi actif).",
+      parameters: {
+        type: "object",
+        properties: {
+          phone: { type: "string", description: "Numéro du contact au format 33XXXXXXXXX (sans +)" },
+        },
+        required: ["phone"],
       },
     },
   },
@@ -195,6 +211,45 @@ export async function executeTool(
         });
         const data = await res.json();
         return JSON.stringify({ ok: res.ok, data });
+      }
+
+      case "get_message_read_status": {
+        const phone = String(args.phone ?? "").replace(/^\+/, "");
+        const supabase = createClient(
+          Deno.env.get("SUPABASE_URL") ?? "",
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+        );
+
+        // Fetch last 3 outgoing messages + statuses for this viewer_phone
+        const { data: statuses, error } = await supabase
+          .from("whatsapp_message_statuses")
+          .select("message_id, status, updated_at, whatsapp_outgoing_messages(body, sent_at, group_jid)")
+          .eq("viewer_phone", phone)
+          .eq("chantier_id", chantierId)
+          .order("updated_at", { ascending: false })
+          .limit(3);
+
+        if (error) return JSON.stringify({ ok: false, error: error.message });
+        if (!statuses || statuses.length === 0) {
+          return JSON.stringify({ ok: true, phone, result: "Aucun accusé de lecture trouvé pour ce contact." });
+        }
+
+        const rows = statuses.map((s: any) => {
+          const msg = s.whatsapp_outgoing_messages;
+          const sentAt = msg?.sent_at ? new Date(msg.sent_at).getTime() : 0;
+          const hoursAgo = Math.round((Date.now() - new Date(s.updated_at).getTime()) / 3600000);
+          const hoursSinceSent = sentAt ? Math.round((new Date(s.updated_at).getTime() - sentAt) / 3600000) : null;
+          return {
+            status: s.status,
+            updated_at: s.updated_at,
+            hours_ago: hoursAgo,
+            hours_since_sent: hoursSinceSent,
+            body_preview: (msg?.body ?? "").slice(0, 100),
+            sent_at: msg?.sent_at,
+          };
+        });
+
+        return JSON.stringify({ ok: true, phone, statuses: rows });
       }
 
       case "request_clarification": {

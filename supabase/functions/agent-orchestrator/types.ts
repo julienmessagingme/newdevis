@@ -82,4 +82,18 @@ export interface ChantierContext {
     created_at: string;
     created_today: boolean;
   }>;
+  /** 5 derniers messages sortants WhatsApp avec leur statut de lecture par participant */
+  recent_outgoing_read_status: Array<{
+    message_id: string;
+    body_preview: string;
+    sent_at: string;
+    chat_jid: string;
+    statuses: Array<{
+      viewer_phone: string;
+      viewer_name: string | null;
+      status: "sent" | "delivered" | "read" | "played";
+      updated_at: string;
+      hours_since_sent: number;
+    }>;
+  }>;
 }

@@ -46,8 +46,9 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const messages: any[] = payload?.messages ?? [];
-  const events: any[] = payload?.events ?? [];
-  if (messages.length === 0 && events.length === 0) return new Response('OK', { status: 200 });
+  const events: any[]   = payload?.events   ?? [];
+  const statuses: any[] = payload?.statuses  ?? [];
+  if (messages.length === 0 && events.length === 0 && statuses.length === 0) return new Response('OK', { status: 200 });
 
   const supabase = makeClient();
   const chantierOwnerCache = new Map<string, string>(); // chantier_id → user_id
@@ -195,6 +196,35 @@ export const POST: APIRoute = async ({ request }) => {
         .delete()
         .eq('id', group.id);
     }
+  }
+
+  // ── Read receipts: statuts de lecture des messages sortants ───────────────
+  // whapi pousse un objet Status par participant dès qu'un message passe
+  // sent → delivered → read → played. On upsert avec ON CONFLICT pour l'idempotence.
+  for (const s of statuses) {
+    if (!s.id || !s.viewer_id || !s.status) continue;
+
+    // On n'ingère que les statuts de messages qu'on a envoyés (whatsapp_outgoing_messages)
+    const { data: outgoing } = await supabase
+      .from('whatsapp_outgoing_messages')
+      .select('chantier_id')
+      .eq('id', s.id)
+      .maybeSingle();
+    if (!outgoing) continue;
+
+    const { error: statusErr } = await supabase
+      .from('whatsapp_message_statuses')
+      .upsert({
+        message_id:  s.id,
+        chantier_id: outgoing.chantier_id,
+        viewer_id:   s.viewer_id,
+        status:      s.status,
+        status_code: s.code ?? null,
+        updated_at:  s.timestamp
+          ? new Date(s.timestamp * 1000).toISOString()
+          : new Date().toISOString(),
+      }, { onConflict: 'message_id,viewer_id' });
+    if (statusErr) console.error('[whapi] status upsert error:', statusErr.message);
   }
 
   return new Response('OK', { status: 200 });

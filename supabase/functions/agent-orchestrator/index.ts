@@ -222,11 +222,30 @@ async function sendDigest(
   // WhatsApp via whapi
   if (whapiToken && phone) {
     const chatId = phone.replace(/^\+/, "") + "@s.whatsapp.net";
-    await fetch("https://gate.whapi.cloud/messages/text", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${whapiToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ to: chatId, body: `\u{1F4CB} Digest — ${label}\n\n${text}` }),
-    }).catch(() => {});
+    const msgBody = `\u{1F4CB} Digest — ${label}\n\n${text}`;
+    try {
+      const resp = await fetch("https://gate.whapi.cloud/messages/text", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${whapiToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ to: chatId, body: msgBody }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const msgId: string | undefined = data?.message?.id;
+        if (msgId) {
+          // Log outgoing message for read receipt tracking
+          await supabase.from("whatsapp_outgoing_messages").insert({
+            id:          msgId,
+            chantier_id: chantierId,
+            group_jid:   chatId,
+            body:        msgBody,
+            run_type:    "evening",
+          }).catch(() => {}); // non-blocking: don't fail digest on logging error
+        }
+      }
+    } catch {
+      // fire-and-forget: digest delivery failure is non-fatal
+    }
   }
 
   // Email via SendGrid
