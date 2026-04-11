@@ -130,6 +130,23 @@ serve(async (req) => {
         }
       }
 
+      // Gemini may end on tool_calls without emitting a text message (all 3 rounds consumed).
+      // Fallback: one extra call without tools to force a text summary.
+      if (!digestContent || digestContent.length <= 20) {
+        const fallbackRes = await fetch(GEMINI_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${geminiKey}` },
+          body: JSON.stringify({ model: "gemini-2.5-flash", messages, max_tokens: 4096 }),
+        });
+        const fallbackData = await fallbackRes.json();
+        const fallbackContent = fallbackData.choices?.[0]?.message?.content;
+        if (typeof fallbackContent === "string" && fallbackContent.length > 20) {
+          digestContent = fallbackContent;
+        } else {
+          console.error(`[evening-digest] no text after fallback, aborting sendDigest for ${chantierId}`);
+        }
+      }
+
       if (digestContent && digestContent.length > 20) {
         const insightsCount = ctx.todays_insights_with_actions.length;
         const severities = ctx.todays_insights_with_actions.map(i => i.severity);
