@@ -1541,7 +1541,8 @@ export default function TresoreriePanel({
   initialFinancing,
 }: TresoreeriePanelProps) {
   const [tab,              setTab]              = useState<Tab>('budget');
-  const [selectedArtisan, setSelectedArtisan]  = useState<ArtisanSummary | null>(null);
+  // On stocke le NOM (clé) plutôt qu'un snapshot → le drawer reçoit toujours les données fraîches
+  const [selectedArtisanNom, setSelectedArtisanNom] = useState<string | null>(null);
 
   const [financingAmounts, setFinancingAmounts] = useState<Record<SourceKey, string>>(() => ({
     apport:  String((initialFinancing as any)?.apport  ?? ''),
@@ -1554,6 +1555,12 @@ export default function TresoreriePanel({
 
   const { events, loading, error, markPaid, markUnpaid } = usePaymentEvents(chantierId, token);
   const lateCount = useMemo(() => events.filter(e => e.status === 'late').length, [events]);
+  // Artisan sélectionné calculé LIVE depuis events (pas un snapshot figé)
+  const artisansLive = useMemo(() => groupByArtisan(events), [events]);
+  const selectedArtisan = useMemo(
+    () => selectedArtisanNom ? artisansLive.find(a => a.nom === selectedArtisanNom) ?? null : null,
+    [selectedArtisanNom, artisansLive],
+  );
 
   async function persistFinancing(amounts: Record<SourceKey, string>, sim: SimulationData | null) {
     try {
@@ -1620,7 +1627,7 @@ export default function TresoreriePanel({
           artisan={selectedArtisan}
           markPaid={markPaid}
           markUnpaid={markUnpaid}
-          onClose={() => setSelectedArtisan(null)}
+          onClose={() => setSelectedArtisanNom(null)}
         />
       )}
     </div>
