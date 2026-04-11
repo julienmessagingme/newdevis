@@ -460,6 +460,8 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
             assistantRefresh={assistantRefresh}
             onAddDoc={() => setUploadModal({ open: true })}
             onGoToLots={() => navigateTo('lots')}
+            onGoToContacts={() => navigateTo('contacts')}
+            onGoToPlanning={() => navigateTo('planning')}
             onGoToAnalyse={() => navigateTo('analyse')}
             onGoToBudget={() => navigateTo('budget')}
             onGoToJournal={() => navigateTo('journal')}

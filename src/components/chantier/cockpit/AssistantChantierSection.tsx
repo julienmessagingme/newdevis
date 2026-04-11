@@ -29,12 +29,14 @@ interface Props {
   chantierId: string | null;
   token: string | null | undefined;
   agentInsights?: AgentInsightsData;
-  assistantData?: { action_prioritaire?: any; alertes?: any[]; insights?: string[]; conseil_metier?: string } | null;
+  assistantData?: { action_prioritaire?: any; alertes?: any[]; synthese?: string; insights?: string[]; conseil_metier?: string } | null;
   assistantLoading?: boolean;
   assistantError?: string | null;
   assistantRefresh?: () => void;
   onAddDoc: () => void;
   onGoToLots: () => void;
+  onGoToContacts: () => void;
+  onGoToPlanning: () => void;
   onGoToAnalyse: () => void;
   onGoToBudget: () => void;
   onGoToJournal?: () => void;
@@ -78,7 +80,7 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
 function AssistantChantierSection({
   result, documents, lots, chantierId, token,
   agentInsights, assistantData: data, assistantLoading: loading, assistantError: error, assistantRefresh: refresh,
-  onAddDoc, onGoToLots, onGoToAnalyse, onGoToBudget, onGoToJournal, onOpenChat,
+  onAddDoc, onGoToLots, onGoToContacts, onGoToPlanning, onGoToAnalyse, onGoToBudget, onGoToJournal, onOpenChat,
 }: Props) {
   const taches = useTaches(chantierId, token);
   const [newTask, setNewTask] = useState('');
@@ -97,7 +99,7 @@ function AssistantChantierSection({
       icon: <AlertTriangle className="h-3.5 w-3.5 text-red-500" />,
       title: ap.titre,
       detail: ap.raison,
-      cta: { label: ap.cta, action: resolveCtaAction(ap.cta) },
+      cta: { label: ap.cta, action: resolveCtaAction(ap.cta, ap.cta_type) },
     });
   }
 
@@ -141,7 +143,7 @@ function AssistantChantierSection({
           severity: sev,
           icon: sev === 'critical' ? <AlertTriangle className="h-3.5 w-3.5 text-red-500" /> : sev === 'warning' ? <AlertTriangle className="h-3.5 w-3.5 text-amber-500" /> : <Lightbulb className="h-3.5 w-3.5 text-emerald-500" />,
           title: alerte.message,
-          cta: alerte.cta ? { label: alerte.cta, action: resolveCtaAction(alerte.cta) } : undefined,
+          cta: alerte.cta ? { label: alerte.cta, action: resolveCtaAction(alerte.cta, alerte.cta_type) } : undefined,
         });
       }
     }
@@ -151,19 +153,31 @@ function AssistantChantierSection({
   const SORDER: Record<string, number> = { critical: 0, warning: 1, info: 2, success: 3 };
   unifiedAlerts.sort((a, b) => (SORDER[a.severity] ?? 2) - (SORDER[b.severity] ?? 2));
 
-  // ── CTA resolver ──────────────────────────────────────────────
-  function resolveCtaAction(cta: string) {
+  // ── CTA resolver — by cta_type (structured) or cta label (fallback) ──
+  function resolveCtaAction(cta: string, ctaType?: string) {
+    if (ctaType) {
+      if (ctaType === 'contacts') return onGoToContacts;
+      if (ctaType === 'planning') return onGoToPlanning;
+      if (ctaType === 'lots') return onGoToLots;
+      if (ctaType === 'analyse') return onGoToAnalyse;
+      if (ctaType === 'budget') return onGoToBudget;
+      if (ctaType === 'documents') return onAddDoc;
+    }
+    // Fallback: keyword matching on label
     const c = cta.toLowerCase();
+    if (c.includes('contact') || c.includes('artisan') || c.includes('trouver')) return onGoToContacts;
+    if (c.includes('planning') || c.includes('planning')) return onGoToPlanning;
     if (c.includes('budget') || c.includes('affin')) return onGoToBudget;
-    if (c.includes('analys') || c.includes('devis')) return onGoToAnalyse;
+    if (c.includes('analys') || c.includes('devis') || c.includes('score')) return onGoToAnalyse;
     if (c.includes('import') || c.includes('ajout') || c.includes('factur') || c.includes('photo') || c.includes('document')) return onAddDoc;
     return onGoToLots;
   }
 
-  // ── Recommendations (merge insights + conseil) ─────────────────
-  const recommendations: string[] = [];
-  if (data?.insights) recommendations.push(...data.insights);
-  if (data?.conseil_metier) recommendations.push(data.conseil_metier);
+  // ── Synthèse experte (nouveau) + compat legacy insights ──────────
+  const synthese: string | null = data?.synthese
+    ?? (data?.insights?.length ? data.insights.join(' ') : null)
+    ?? data?.conseil_metier
+    ?? null;
 
   // ── Clarifications (agent) ────────────────────────────────────
   const clarifications = agentInsights?.insights.filter(i => i.needs_confirmation && !i.read_by_user) ?? [];
@@ -341,20 +355,15 @@ function AssistantChantierSection({
       )}
 
       {/* ── Section 5 : Recommandations ──────────────────────── */}
-      {recommendations.length > 0 && (
-        <div className="bg-gray-50/50 border border-gray-100 rounded-xl px-4 py-3.5">
-          <div className="flex items-center gap-1.5 mb-2">
-            <Lightbulb className="h-3.5 w-3.5 text-amber-400" />
-            <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Recommandations</p>
+      {synthese && (
+        <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-3.5">
+          <div className="flex items-start gap-2.5">
+            <Lightbulb className="h-4 w-4 text-indigo-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 mb-1.5">Analyse du pilote</p>
+              <p className="text-[13px] text-indigo-900 leading-relaxed">{synthese}</p>
+            </div>
           </div>
-          <ul className="space-y-1.5">
-            {recommendations.map((r, i) => (
-              <li key={i} className="text-sm text-gray-600 flex items-start gap-2">
-                <span className="text-primary/40 mt-0.5 shrink-0">›</span>
-                <span>{r}</span>
-              </li>
-            ))}
-          </ul>
         </div>
       )}
 
