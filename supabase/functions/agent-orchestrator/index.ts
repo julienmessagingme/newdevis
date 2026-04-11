@@ -8,7 +8,7 @@ import type { RunType, AssistantMessage } from "./types.ts";
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const geminiKey = Deno.env.get("GOOGLE_API_KEY") ?? "";
+const geminiKey = Deno.env.get("GOOGLE_AI_API_KEY") ?? "";
 const whapiToken = Deno.env.get("WHAPI_TOKEN") ?? "";
 const sendgridKey = Deno.env.get("SENDGRID_API_KEY") ?? "";
 const agentSecretKey = Deno.env.get("AGENT_SECRET_KEY") ?? "";

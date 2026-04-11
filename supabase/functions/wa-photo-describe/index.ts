@@ -13,7 +13,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const geminiKey  = Deno.env.get("GOOGLE_API_KEY") ?? "";
+const geminiKey  = Deno.env.get("GOOGLE_AI_API_KEY") ?? "";
 
 interface PhotoDescribePayload {
   chantier_id: string;
