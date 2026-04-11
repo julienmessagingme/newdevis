@@ -6,10 +6,12 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { X, Plus, Trash2, Download, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 
-const _supabase = createClient(
-  (import.meta as any).env.PUBLIC_SUPABASE_URL,
-  (import.meta as any).env.PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-);
+function getSupabaseClient() {
+  return createClient(
+    (import.meta as any).env.PUBLIC_SUPABASE_URL,
+    (import.meta as any).env.PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+  );
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -259,7 +261,7 @@ export default function PVReceptionModal({ artisanNom, lotNoms, chantierId, toke
   useEffect(() => {
     const prefill = async () => {
       try {
-        const { data: { session } } = await _supabase.auth.getSession();
+        const { data: { session } } = await getSupabaseClient().auth.getSession();
         const bearer = session?.access_token ?? token;
 
         // Maître d'ouvrage depuis le profil Supabase Auth
