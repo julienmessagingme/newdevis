@@ -81,7 +81,8 @@ RÈGLES ABSOLUES :
 - Ne jamais inventer d'informations non présentes dans le contexte
 
 LOGIQUE MÉTIER :
-- Lots sans artisan → chantier bloqué → NOMMER les lots en question + impact planning
+- Lots sans artisan = statut "a_trouver" ET devisCount = 0. Si devisCount > 0 ou statut ≠ "a_trouver" → artisan EN PLACE, ne pas alerter "sans artisan"
+- Lots avec artisan_retenu ou devisValides > 0 → tout va bien pour ce lot, ne pas mentionner
 - Devis sans analyse IA → risque payer trop cher → NOMMER le devis + montant concerné
 - Écart budget >15% → nommer le lot + montant précis de dépassement
 - Score ROUGE → nommer l'artisan + type de problème détecté
@@ -153,7 +154,9 @@ export const POST: APIRoute = async ({ request }) => {
   const lotsStr = lots.length > 0
     ? lots.map(l => {
         const bStr = l.budget_avg_ht != null ? ` (moy. ${Math.round(l.budget_avg_ht / 1000)}k€)` : '';
-        return `- ${l.nom}${bStr} [statut: ${l.statut ?? 'à trouver'}, devis: ${l.devisCount ?? 0}]`;
+        const artisanOk = l.statut === 'artisan_retenu' || (l as any).devisValides > 0;
+        const artisanStr = artisanOk ? '✅ artisan OK' : (l.devisCount ?? 0) > 0 ? '⏳ devis reçu' : '❌ sans artisan';
+        return `- ${l.nom}${bStr} [${artisanStr}, devis: ${l.devisCount ?? 0}, validés: ${(l as any).devisValides ?? 0}]`;
       }).join('\n')
     : 'Aucun intervenant défini';
 

@@ -56,14 +56,32 @@ export function useChantierAssistant({
         };
       });
 
-    const lotsWithCount = lots.map(l => ({
-      nom:            l.nom,
-      statut:         l.statut ?? 'a_trouver',
-      budget_min_ht:  l.budget_min_ht ?? null,
-      budget_avg_ht:  l.budget_avg_ht ?? null,
-      budget_max_ht:  l.budget_max_ht ?? null,
-      devisCount:     documents.filter(d => d.lot_id === l.id && d.document_type === 'devis').length,
-    }));
+    const lotsWithCount = lots.map(l => {
+      const devisInLot = documents.filter(d => d.lot_id === l.id && d.document_type === 'devis');
+      const devisValides = devisInLot.filter(
+        d => d.devis_statut === 'valide' || d.devis_statut === 'attente_facture',
+      ).length;
+      const rawStatut = l.statut ?? 'a_trouver';
+
+      // Corriger le statut si les devis montrent qu'un artisan est bien en place :
+      // le statut du lot n'est pas toujours mis à jour quand un devis est validé.
+      let effectiveStatut = rawStatut;
+      if (devisValides > 0 && (rawStatut === 'a_trouver' || rawStatut === 'a_contacter')) {
+        effectiveStatut = 'artisan_retenu'; // devis validé = artisan choisi
+      } else if (devisInLot.length > 0 && rawStatut === 'a_trouver') {
+        effectiveStatut = 'devis_recu'; // au moins un devis, pas encore validé
+      }
+
+      return {
+        nom:            l.nom,
+        statut:         effectiveStatut,
+        budget_min_ht:  l.budget_min_ht ?? null,
+        budget_avg_ht:  l.budget_avg_ht ?? null,
+        budget_max_ht:  l.budget_max_ht ?? null,
+        devisCount:     devisInLot.length,
+        devisValides,
+      };
+    });
 
     const hasLotBudget = lots.some(l => (l.budget_min_ht ?? 0) > 0);
     const budgetMin    = hasLotBudget
