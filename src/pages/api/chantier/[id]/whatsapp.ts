@@ -8,16 +8,23 @@ const GMC_PHONE = '33633921577';
 
 // ── Private helpers ──────────────────────────────────────────────────────────
 
-async function getContactPhones(supabase: any, chantierId: string): Promise<{ phone: string; name: string }[] | null> {
+async function getContactPhones(
+  supabase: any,
+  chantierId: string,
+): Promise<{ phone: string; name: string; has_whatsapp: boolean | null }[] | null> {
   const { data, error } = await supabase
     .from('contacts_chantier')
-    .select('telephone, nom')
+    .select('telephone, nom, has_whatsapp')
     .eq('chantier_id', chantierId)
     .not('telephone', 'is', null);
   if (error) return null;
   return (data ?? [])
-    .map((c: any) => ({ phone: formatPhone(c.telephone), name: c.nom as string }))
-    .filter((c: { phone: string; name: string }) => c.phone.length >= 10);
+    .map((c: any) => ({
+      phone:        formatPhone(c.telephone),
+      name:         c.nom as string,
+      has_whatsapp: c.has_whatsapp as boolean | null,
+    }))
+    .filter((c: { phone: string }) => c.phone.length >= 10);
 }
 
 async function getClientPhone(supabase: any, token: string): Promise<string | null> {
@@ -51,6 +58,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   // Determine participants
   let participantPhones: string[];
   let phoneToName: Map<string, string>;
+  const phoneToHasWA = new Map<string, boolean | null>();
 
   if (body.selectedPhones && body.selectedPhones.length > 0) {
     participantPhones = body.selectedPhones.map((p) => formatPhone(p)).filter((p) => p.length >= 10);
@@ -58,16 +66,18 @@ export const POST: APIRoute = async ({ params, request }) => {
     if (clientPhone && !participantPhones.includes(clientPhone)) {
       participantPhones.push(clientPhone);
     }
-    // Resolve contact names server-side so members get real names, not raw phone strings
+    // Resolve contact names + WA status server-side
     const contacts = await getContactPhones(ctx.supabase, chantierId);
     if (contacts === null) return jsonError('Erreur DB (contacts)', 500);
     const contactNameMap = new Map(contacts.map((c) => [c.phone, c.name]));
+    for (const c of contacts) phoneToHasWA.set(c.phone, c.has_whatsapp);
     phoneToName = new Map(participantPhones.map((p) => [p, contactNameMap.get(p) ?? p]));
     if (clientPhone) phoneToName.set(clientPhone, phoneToName.get(clientPhone) ?? clientPhone);
   } else {
     const contacts = await getContactPhones(ctx.supabase, chantierId);
     if (contacts === null) return jsonError('Erreur DB (contacts)', 500);
     phoneToName = new Map(contacts.map((c) => [c.phone, c.name]));
+    for (const c of contacts) phoneToHasWA.set(c.phone, c.has_whatsapp);
     if (clientPhone) phoneToName.set(clientPhone, clientPhone);
     participantPhones = Array.from(phoneToName.keys());
   }
@@ -75,8 +85,12 @@ export const POST: APIRoute = async ({ params, request }) => {
   // Deduplicate
   participantPhones = [...new Set(participantPhones)];
 
+  // Split: confirmed no-WA → excluded row only; unknown (null) or confirmed WA → add to group
+  const waPhones       = participantPhones.filter(p => phoneToHasWA.get(p) !== false);
+  const excludedPhones = participantPhones.filter(p => phoneToHasWA.get(p) === false);
+
   try {
-    const { groupId, inviteLink } = await createWhatsAppGroup(groupName, participantPhones);
+    const { groupId, inviteLink } = await createWhatsAppGroup(groupName, waPhones);
 
     // INSERT group record
     const { data: newGroup, error: groupErr } = await ctx.supabase
@@ -89,22 +103,36 @@ export const POST: APIRoute = async ({ params, request }) => {
       return jsonError(`Erreur DB (groupe): ${groupErr?.message ?? 'unknown'}`, 500);
     }
 
-    // Build member rows
-    const memberRows = participantPhones.map((phone) => ({
-      group_id: newGroup.id,
+    // Build member rows for WA-capable participants
+    const memberRows: Record<string, unknown>[] = waPhones.map((phone) => ({
+      group_id:              newGroup.id,
       phone,
-      name: phoneToName.get(phone) ?? phone,
-      role: phone === clientPhone ? 'client' : 'artisan',
-      status: 'active',
+      name:                  phoneToName.get(phone) ?? phone,
+      role:                  phone === clientPhone ? 'client' : 'artisan',
+      status:                'active',
+      excluded_no_whatsapp:  false,
     }));
+
+    // Excluded members (confirmed no WA) — stored for UI, never sent to whapi
+    for (const phone of excludedPhones) {
+      memberRows.push({
+        group_id:              newGroup.id,
+        phone,
+        name:                  phoneToName.get(phone) ?? phone,
+        role:                  phone === clientPhone ? 'client' : 'artisan',
+        status:                'active',
+        excluded_no_whatsapp:  true,
+      });
+    }
 
     // Always add GMC as admin member
     memberRows.push({
-      group_id: newGroup.id,
-      phone: GMC_PHONE,
-      name: 'GérerMonChantier',
-      role: 'gmc',
-      status: 'active',
+      group_id:              newGroup.id,
+      phone:                 GMC_PHONE,
+      name:                  'GérerMonChantier',
+      role:                  'gmc',
+      status:                'active',
+      excluded_no_whatsapp:  false,
     });
 
     const { error: membersErr } = await ctx.supabase
@@ -146,21 +174,40 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   const phones = body.phones.map((p: string) => formatPhone(p)).filter((p: string) => p.length >= 10);
   if (phones.length === 0) return jsonOk({ added: 0 });
 
-  // Resolve contact names for the phones being added
+  // Resolve contact names + WA status for the phones being added
   const contactsForPatch = await getContactPhones(ctx.supabase, chantierId);
-  const patchNameMap = new Map((contactsForPatch ?? []).map((c) => [c.phone, c.name]));
+  const patchNameMap  = new Map((contactsForPatch ?? []).map((c) => [c.phone, c.name]));
+  const patchHasWAMap = new Map((contactsForPatch ?? []).map((c) => [c.phone, c.has_whatsapp]));
+
+  // Split WA-capable vs excluded
+  const waPhones       = phones.filter((p: string) => patchHasWAMap.get(p) !== false);
+  const excludedPhones = phones.filter((p: string) => patchHasWAMap.get(p) === false);
 
   try {
-    await addGroupParticipants(group.group_jid, phones);
+    if (waPhones.length > 0) {
+      await addGroupParticipants(group.group_jid, waPhones);
+    }
 
-    const upsertRows = phones.map((phone: string) => ({
-      group_id: group.id,
-      phone,
-      name: patchNameMap.get(phone) ?? phone,
-      role: 'artisan',
-      status: 'active',
-      left_at: null,
-    }));
+    const upsertRows: Record<string, unknown>[] = [
+      ...waPhones.map((phone: string) => ({
+        group_id:             group.id,
+        phone,
+        name:                 patchNameMap.get(phone) ?? phone,
+        role:                 'artisan',
+        status:               'active',
+        left_at:              null,
+        excluded_no_whatsapp: false,
+      })),
+      ...excludedPhones.map((phone: string) => ({
+        group_id:             group.id,
+        phone,
+        name:                 patchNameMap.get(phone) ?? phone,
+        role:                 'artisan',
+        status:               'active',
+        left_at:              null,
+        excluded_no_whatsapp: true,
+      })),
+    ];
 
     const { error: upsertErr } = await ctx.supabase
       .from('chantier_whatsapp_members')
@@ -170,7 +217,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
       return jsonError(`Erreur DB (membres): ${upsertErr.message}`, 500);
     }
 
-    return jsonOk({ added: phones.length });
+    return jsonOk({ added: waPhones.length, excluded: excludedPhones.length });
   } catch (err: any) {
     return jsonError(`Erreur whapi: ${err.message}`, 502);
   }

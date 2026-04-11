@@ -105,6 +105,12 @@ ${ctx.risk_alerts.length > 0
   ? ctx.risk_alerts.map(r => `\u26A0\uFE0F ${r.lot_nom} : ${r.details}`).join('\n')
   : '\u2705 Aucun risque'}
 
+CONTACTS SANS WHATSAPP (confirmé) :
+${ctx.contacts_no_whatsapp.length > 0
+  ? ctx.contacts_no_whatsapp.map(c => `\u{1F6AB} ${c.nom} (${c.telephone})${c.lot_nom ? ` \u2192 lot ${c.lot_nom}` : ''} — ne peut pas recevoir de messages WA`).join('\n')
+  : '\u2705 Tous les contacts ont WhatsApp (ou statut inconnu)'}
+\u26A0\uFE0F RÈGLE ABSOLUE : ne JAMAIS proposer de relancer un contact via WhatsApp si son numéro apparaît dans cette liste. Utiliser uniquement email, téléphone ou tâche manuelle.
+
 LECTURE DES MESSAGES ENVOYÉS (5 derniers) :
 ${ctx.recent_outgoing_read_status.length > 0
   ? ctx.recent_outgoing_read_status.map(msg => {

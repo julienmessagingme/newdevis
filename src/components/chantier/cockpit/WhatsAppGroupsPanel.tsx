@@ -20,6 +20,7 @@ export interface WaMember {
   status: string; // 'active' | 'left' | 'removed'
   joined_at: string;
   left_at: string | null;
+  excluded_no_whatsapp: boolean;
 }
 
 export interface WaGroup {
@@ -35,6 +36,7 @@ interface Contact {
   id: string;
   nom: string;
   telephone?: string;
+  has_whatsapp?: boolean | null;
 }
 
 interface WhatsAppGroupsPanelProps {
@@ -88,14 +90,15 @@ export default function WhatsAppGroupsPanel({
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  // Filter contacts that have a valid phone number
-  const phoneContacts = contacts.filter(
-    (c) => c.telephone && isValidPhone(c.telephone)
-  );
+  // Filter contacts that have a valid phone number — split by WA status
+  const phoneContacts = contacts.filter((c) => c.telephone && isValidPhone(c.telephone));
+  const waContacts    = phoneContacts.filter((c) => c.has_whatsapp !== false);
+  const noWaContacts  = phoneContacts.filter((c) => c.has_whatsapp === false);
 
   function openModal() {
+    // Pre-check only WA-capable contacts; leave no-WA contacts unchecked
     const initialPhones = new Set(
-      phoneContacts.map((c) => normalizePhone(c.telephone!))
+      waContacts.map((c) => normalizePhone(c.telephone!))
     );
     setCheckedPhones(initialPhones);
     setGroupName("Groupe principal");
@@ -193,16 +196,16 @@ export default function WhatsAppGroupsPanel({
           {groups.map((group) => {
             const isExpanded = expandedGroupId === group.id;
             const isCopied = copiedGroupId === group.id;
-            const activeMembers = (group.members ?? [])
-              .filter((m) => m.status === "active")
+            const allMembers = group.members ?? [];
+            const activeMembers = allMembers
+              .filter((m) => m.status === "active" && !m.excluded_no_whatsapp)
               .sort((a, b) => {
                 if (a.role === "gmc") return -1;
                 if (b.role === "gmc") return 1;
                 return 0;
               });
-            const inactiveMembers = (group.members ?? []).filter(
-              (m) => m.status !== "active"
-            );
+            const inactiveMembers = allMembers.filter((m) => m.status !== "active");
+            const excludedMembers = allMembers.filter((m) => m.excluded_no_whatsapp === true);
 
             return (
               <div key={group.id} className="border-t border-gray-100">
@@ -263,6 +266,7 @@ export default function WhatsAppGroupsPanel({
                 {/* Member list (expanded) */}
                 {isExpanded && (
                   <div className="px-4 pb-3 space-y-1.5 bg-gray-50 border-t border-gray-100">
+                    {/* Active members — inside the WA group */}
                     {activeMembers.map((m) => (
                       <div key={m.id} className="flex items-center gap-2 py-1">
                         <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
@@ -274,6 +278,8 @@ export default function WhatsAppGroupsPanel({
                         </span>
                       </div>
                     ))}
+
+                    {/* Inactive members — left / removed */}
                     {inactiveMembers.map((m) => (
                       <div key={m.id} className="flex items-center gap-2 py-1">
                         <span className="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0" />
@@ -286,7 +292,30 @@ export default function WhatsAppGroupsPanel({
                         </span>
                       </div>
                     ))}
-                    {(group.members ?? []).length === 0 && (
+
+                    {/* Excluded members — no WhatsApp */}
+                    {excludedMembers.length > 0 && (
+                      <>
+                        <div className="pt-1 pb-0.5">
+                          <span className="text-[10px] font-semibold text-orange-500 uppercase tracking-wide">
+                            Sans WhatsApp
+                          </span>
+                        </div>
+                        {excludedMembers.map((m) => (
+                          <div key={m.id} className="flex items-center gap-2 py-1">
+                            <span className="w-2 h-2 rounded-full bg-orange-300 flex-shrink-0" />
+                            <span className="text-sm text-gray-400 flex-1 min-w-0 truncate">
+                              {m.name}
+                            </span>
+                            <span className="text-[10px] font-medium bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                              Pas WhatsApp
+                            </span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+
+                    {allMembers.length === 0 && (
                       <p className="text-xs text-gray-400 py-1">Aucun membre</p>
                     )}
                   </div>
@@ -327,27 +356,60 @@ export default function WhatsAppGroupsPanel({
                     Aucun contact avec numéro de téléphone valide.
                   </p>
                 ) : (
-                  phoneContacts.map((c) => {
-                    const phone = normalizePhone(c.telephone!);
-                    const checked = checkedPhones.has(phone);
-                    return (
-                      <label
-                        key={c.id}
-                        className="flex items-center gap-3 cursor-pointer select-none"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => togglePhone(phone)}
-                          className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                        />
-                        <span className="text-sm text-gray-800">
-                          {c.nom}
-                          <span className="text-gray-400 ml-2">{c.telephone}</span>
-                        </span>
-                      </label>
-                    );
-                  })
+                  <>
+                    {/* WA-capable contacts */}
+                    {waContacts.map((c) => {
+                      const phone = normalizePhone(c.telephone!);
+                      const checked = checkedPhones.has(phone);
+                      return (
+                        <label
+                          key={c.id}
+                          className="flex items-center gap-3 cursor-pointer select-none"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => togglePhone(phone)}
+                            className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                          />
+                          <span className="text-sm text-gray-800">
+                            {c.nom}
+                            <span className="text-gray-400 ml-2">{c.telephone}</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+
+                    {/* No-WA contacts — grayed, unchecked by default */}
+                    {noWaContacts.length > 0 && (
+                      <>
+                        {noWaContacts.map((c) => {
+                          const phone = normalizePhone(c.telephone!);
+                          const checked = checkedPhones.has(phone);
+                          return (
+                            <label
+                              key={c.id}
+                              className="flex items-center gap-3 cursor-pointer select-none opacity-60"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => togglePhone(phone)}
+                                className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400"
+                              />
+                              <span className="text-sm text-gray-500 flex items-center gap-2">
+                                {c.nom}
+                                <span className="text-gray-400">{c.telephone}</span>
+                                <span className="text-[10px] font-medium bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">
+                                  Pas WhatsApp
+                                </span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </>
+                    )}
+                  </>
                 )}
               </div>
 

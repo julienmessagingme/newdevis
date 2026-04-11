@@ -82,6 +82,12 @@ export interface ChantierContext {
     created_at: string;
     created_today: boolean;
   }>;
+  /** Contacts dont has_whatsapp = false — ne jamais relancer via WA */
+  contacts_no_whatsapp: Array<{
+    nom: string;
+    telephone: string;
+    lot_nom: string | null;
+  }>;
   /** 5 derniers messages sortants WhatsApp avec leur statut de lecture par participant */
   recent_outgoing_read_status: Array<{
     message_id: string;

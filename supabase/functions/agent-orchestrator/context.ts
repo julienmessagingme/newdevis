@@ -12,6 +12,7 @@ interface CachedStaticContext {
   lots: ChantierContext["lots"];
   budget_conseils: ChantierContext["budget_conseils"];
   overdue_payments: ChantierContext["overdue_payments"];
+  contacts_no_whatsapp: ChantierContext["contacts_no_whatsapp"];
   phoneToContact: Array<[string, { nom: string; lot_id: string | null; role: string }]>;
   groupJidToName: Array<[string, string]>;
   groupJidToLot: Array<[string, string]>;
@@ -141,6 +142,16 @@ export async function buildContext(
         lot_nom: pe.lot_nom ?? "Inconnu",
       }));
 
+    // Contacts confirmed without WhatsApp (has_whatsapp === false)
+    const lotById = new Map(enrichedLots.map((l: any) => [l.id, l.nom]));
+    const contactsNoWA = contacts
+      .filter((c: any) => c.has_whatsapp === false && c.telephone)
+      .map((c: any) => ({
+        nom: c.nom as string,
+        telephone: c.telephone as string,
+        lot_nom: c.lot_id ? (lotById.get(c.lot_id) ?? null) : null,
+      }));
+
     staticCtx = {
       chantier: {
         id: chantierId,
@@ -155,6 +166,7 @@ export async function buildContext(
       lots: enrichedLots,
       budget_conseils: budgetRes?.conseils ?? [],
       overdue_payments: overduePayments,
+      contacts_no_whatsapp: contactsNoWA,
       phoneToContact: [...phoneToContactMap.entries()],
       groupJidToName: [...groupJidToNameMap.entries()],
       groupJidToLot: [...groupJidToLotMap.entries()],
@@ -364,6 +376,7 @@ export async function buildContext(
     owner_pending_questions: ownerPendingQuestions,
     budget_conseils: staticCtx.budget_conseils,
     overdue_payments: staticCtx.overdue_payments,
+    contacts_no_whatsapp: staticCtx.contacts_no_whatsapp,
     risk_alerts: riskAlerts,
     recent_insights: insightsRes.data ?? [],
     recent_outgoing_read_status: recentOutgoingReadStatus,
