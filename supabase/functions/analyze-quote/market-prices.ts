@@ -144,6 +144,7 @@ Exemples :
 - Enduisage 25.7m² + Peinture 25.7m² (même plafond) → main_quantity = 25.7m² (même surface, PAS 51.4)
 - Peinture cuisine 56.7m² + Peinture salon 54m² + Peinture chambre 36.4m² → main_quantity = 147.1m² (surfaces distinctes, on somme)
 - Si le groupe est un forfait global sans quantité explicite, main_quantity = 1.
+- CAS VRD/TERRASSEMENT/ENROBÉ (règle clé) : NIVELLEMENT 96m² + ÉVACUATION DÉBLAIS 96m² + PRÉPARATION SUPPORT 96m² + REVÊTEMENT ENROBÉ 96m² → c'est la MÊME surface de 96m² avec 4 opérations successives → main_quantity = 96m² (PAS 384m²). Règle générale : quand plusieurs postes VRD/terrassement (préparation, évacuation, compactage, reprofilage, revêtement) ont une quantité identique en M2, ils travaillent tous sur la MÊME surface — utiliser la quantité UNE SEULE FOIS.
 
 Réponds UNIQUEMENT en JSON (pas de markdown) :
 [

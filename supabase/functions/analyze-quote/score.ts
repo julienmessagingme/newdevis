@@ -119,6 +119,22 @@ export function calculateScore(
     oranges.push(`Note Google inférieure au seuil de confort (${verified.google_note}/5)`);
   }
 
+  // Peu d'avis Google au regard de l'ancienneté de l'entreprise
+  if (
+    verified.google_trouve &&
+    verified.google_nb_avis !== null &&
+    verified.anciennete_annees !== null &&
+    verified.anciennete_annees >= 5
+  ) {
+    const seuilAvis = Math.max(3, Math.min(10, Math.floor(verified.anciennete_annees / 3)));
+    if (verified.google_nb_avis < seuilAvis) {
+      oranges.push(
+        `Seulement ${verified.google_nb_avis} avis Google pour une entreprise de ${verified.anciennete_annees} ans — ` +
+        `note statistiquement peu fiable (seuil attendu : ${seuilAvis}+ avis). Demandez des références de chantiers récents.`
+      );
+    }
+  }
+
   if (verified.entreprise_immatriculee === true && verified.anciennete_annees !== null && verified.anciennete_annees < 3) {
     const ans = verified.anciennete_annees;
     oranges.push(
@@ -205,6 +221,20 @@ export function calculateScore(
     oranges.push("Devis manuscrit — valeur juridique et traçabilité limitées, préférez un devis dactylographié");
   }
 
+  // Devis ancien (> 12 mois)
+  if (extracted.dates?.date_devis) {
+    const devisDate = new Date(extracted.dates.date_devis);
+    const now = new Date();
+    const ageMonths = (now.getFullYear() - devisDate.getFullYear()) * 12 + (now.getMonth() - devisDate.getMonth());
+    if (ageMonths > 12) {
+      const anneeDevis = devisDate.getFullYear();
+      oranges.push(
+        `Devis daté de ${anneeDevis} (il y a ${Math.floor(ageMonths / 12)} an${Math.floor(ageMonths / 12) > 1 ? "s" : ""}) — ` +
+        `les prix des matériaux et de la main d'œuvre ont évolué depuis, la comparaison au marché est à interpréter avec prudence`
+      );
+    }
+  }
+
   // Matériaux fournis par le client
   if (extracted.materiaux_fournis_client === true) {
     informatifs.push("ℹ️ Matériaux fournis par le client — la comparaison aux prix marché (fourniture + pose) ne s'applique pas ici");
@@ -238,8 +268,13 @@ export function calculateScore(
     verts.push(`Qualification RGE vérifiée${noms ? ` : ${noms}` : ""}`);
   }
 
-  if (verified.google_trouve && verified.google_note !== null && verified.google_note >= 4.2) {
-    verts.push(`Bonne réputation en ligne (${verified.google_note}/5 sur Google)`);
+  if (
+    verified.google_trouve &&
+    verified.google_note !== null &&
+    verified.google_note >= 4.2 &&
+    (verified.google_nb_avis === null || verified.google_nb_avis >= 5)
+  ) {
+    verts.push(`Bonne réputation en ligne (${verified.google_note}/5 sur Google, ${verified.google_nb_avis} avis)`);
   }
 
   if (verified.anciennete_annees !== null && verified.anciennete_annees >= 5) {
@@ -273,6 +308,15 @@ export function calculateScore(
 
   if (config.insuranceChecks.secondary?.includes("assurance_rc_pro") && extracted.entreprise.assurance_rc_pro_mentionnee === true) {
     verts.push(`${config.insuranceLabels.secondary || "RC Pro"} mentionnée sur le devis`);
+  }
+
+  // ── Suppression des critères verts si entreprise radiée ─────────────────────
+  // Quand une entreprise est radiée, afficher des signaux verts crée une confusion
+  // pour l'utilisateur (ex: "IBAN valide ✓" alors que l'entreprise n'existe plus).
+  // On vide les verts et on signale explicitement que l'analyse est caduque.
+  if (verified.entreprise_radiee === true) {
+    verts.length = 0;
+    informatifs.push("ℹ️ Analyse de devis caduque : l'entreprise est radiée des registres. Ne pas signer ce devis.");
   }
 
   // Calculate global score

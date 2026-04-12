@@ -170,6 +170,42 @@ const REVIEWS = [
     date: '19 février 2026',
     stars: 5,
   },
+  {
+    id: 19,
+    author: 'Paul Muley',
+    initials: 'PM',
+    title: 'Très bon site pour calculer au mieux...',
+    body: 'Très bon site pour calculer au mieux les tarifs pour éviter des surprises.',
+    date: '12 avril 2026',
+    stars: 5,
+  },
+  {
+    id: 20,
+    author: 'florent moulinet',
+    initials: 'FM',
+    title: 'Parfait pour un avis rapide et détaillé',
+    body: 'Parfait pour un avis rapide et détaillé',
+    date: '12 avril 2026',
+    stars: 5,
+  },
+  {
+    id: 21,
+    author: 'Pierre V',
+    initials: 'PV',
+    title: 'Très bonne appli',
+    body: "Très bonne appli : j'ai pu assurer la maîtrise d'œuvre sans soucis et comme un pro ! Je recommande",
+    date: '12 avril 2026',
+    stars: 5,
+  },
+  {
+    id: 22,
+    author: 'Alex Davy',
+    initials: 'AD',
+    title: 'Outil pratique et fiable',
+    body: 'Outil pratique et fiable',
+    date: '12 avril 2026',
+    stars: 5,
+  },
 ];
 
 const TRUSTPILOT_REVIEW_URL = 'https://fr.trustpilot.com/evaluate/verifiermondevis.fr';
@@ -309,12 +345,12 @@ export default function TrustpilotSection() {
               </a>
             </div>
             <div className="flex items-center gap-3">
-              <Stars count={4.5} />
-              <span className="text-2xl font-extrabold text-gray-900 tabular-nums">4,6</span>
+              <Stars count={4.7} />
+              <span className="text-2xl font-extrabold text-gray-900 tabular-nums">4,7</span>
               <span className="text-sm text-gray-500">·</span>
               <a href={TRUSTPILOT_PROFILE_URL} target="_blank" rel="noopener noreferrer"
                 className="text-sm text-gray-500 hover:text-gray-700 underline underline-offset-2 transition-colors">
-                19 avis vérifiés
+                23 avis vérifiés
               </a>
             </div>
           </div>

@@ -270,6 +270,28 @@ const AnalysisCard = ({ row, globalBadge }: AnalysisCardProps) => {
             </div>
           )}
 
+          {/* Quantity mismatch warning — shown when the devis is >5× the theoretical max for the detected quantity */}
+          {hasPrices &&
+            row.devisTotalHT !== null &&
+            row.theoreticalMaxHT > 0 &&
+            row.devisTotalHT / row.theoreticalMaxHT > 5 && (
+            <div className="flex items-start gap-2 p-3 bg-blue-500/8 border border-blue-500/25 rounded-lg">
+              <Info className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div className="text-xs text-blue-700 dark:text-blue-400 leading-snug space-y-1">
+                <p>
+                  <strong>Quantité détectée peut-être incorrecte.</strong>{" "}
+                  Le montant du devis ({fmt(row.devisTotalHT)}) représente{" "}
+                  {Math.round(row.devisTotalHT / row.theoreticalMaxHT)}× la fourchette haute pour{" "}
+                  <strong>{row.mainQuantity} {row.mainUnit}</strong>.
+                </p>
+                <p>
+                  Si ce poste couvre plusieurs éléments (ex : plusieurs fenêtres, plusieurs unités),{" "}
+                  cliquez sur <strong>"Modifier l'affectation"</strong> en haut puis corrigez la quantité — la comparaison se recalculera automatiquement.
+                </p>
+              </div>
+            </div>
+          )}
+
           {row.devisLines.length > 0 && (
             <div className="space-y-1">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">Lignes du devis</p>

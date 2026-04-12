@@ -39,10 +39,13 @@ RÈGLES D'EXTRACTION:
 5. Extrais TOUS les postes de travaux du devis, sans exception. Inclus chaque ligne individuelle (fournitures, main d'œuvre, accessoires, frais divers, transport, etc.). EXCEPTION : voir règle 8 pour les devis de menuiseries.
 6. Pour le champ "libelle" de chaque travail : COPIE MOT POUR MOT le texte exact tel qu'il apparaît sur le devis. NE REFORMULE PAS, NE RÉSUME PAS, NE TRADUIS PAS. Si le devis dit "Fourniture et pose baguette PVC", écris exactement "Fourniture et pose baguette PVC".
 7. Réponds UNIQUEMENT avec un JSON valide et COMPLET. Ne tronque pas la réponse.
-8. **PRIORITAIRE** — DEVIS DE MENUISERIES (fenêtres, baies vitrées, portes-fenêtres, châssis composés, volets) :
-   DÉTECTION : si le devis provient d'un menuisier/fenêtrier (ex: "Art & Fenêtres", "menuiseries PVC/alu") OU si tu vois des blocs structurés par PIÈCE (CUISINE, SALON, CHAMBRE...) avec des SOUS-TOTAUX contenant fourniture + pose → APPLIQUE OBLIGATOIREMENT cette stratégie.
+8. **PRIORITAIRE** — DEVIS DE MENUISERIES avec structure BLOC/SOUS-TOTAL (fenêtres, baies vitrées, portes-fenêtres, châssis composés, volets) :
+   DÉTECTION STRICTE — N'applique cette règle QUE si les DEUX conditions suivantes sont vraies :
+   a) Le devis est organisé en blocs par PIÈCE (CUISINE, SALON...) ou par élément, où les lignes internes sont des descriptions techniques SANS colonne PU.HT propre.
+   b) Chaque bloc se termine par un SOUS-TOTAL explicite (libellé "SOUS-TOTAL" ou ligne récapitulative = fourniture + pose).
+   ⚠️ Si chaque ligne du devis a sa propre colonne Qte + U + PU.HT + Total HT (un prix par article) → utilise l'extraction STANDARD (règle 5). Ne te base PAS sur le nom de l'entreprise pour décider.
 
-   Structure typique d'un bloc menuiserie :
+   Structure typique d'un bloc menuiserie avec SOUS-TOTAL (seul cas où cette règle s'applique) :
    - Titre : "Châssis composé, Dormant rénovation, Hauteur 2150 mm, Largeur 2200 mm" + prix fourniture
    - Sous-éléments techniques (châssis fixes, vitrages, panneaux...) → IGNORER, ce sont des descriptions
    - "MO Forfait pose" → IGNORER comme ligne séparée
@@ -80,8 +83,15 @@ Quand les postes du devis concernent des menuiseries, tu dois classifier chaque 
 3. Si le libellé contient "baie vitrée" ou "baie coulissante" ou si les DIMENSIONS sont ≥ 2000mm en hauteur ET ≥ 1800mm en largeur → c'est une BAIE VITRÉE, utilise "baie_vitree_pvc_fourniture_pose" ou "baie_vitree_alu_fourniture_pose"
 4. Si les dimensions sont plus petites (fenêtre standard < 1500mm de large) → utilise "pose_fenetre_pvc_fourniture_pose" ou "pose_fenetre_aluminium_fourniture_pose"
 5. Le matériau (PVC, aluminium, bois) est indiqué dans la description — choisis la version catalogue correspondante.
-6. Chaque unité de menuiserie (= chaque SOUS-TOTAL ou bloc par pièce) = 1 unité dans main_quantity. S'il y a 4 blocs pour 4 pièces, main_quantity = 4 si elles sont du même type, ou crée des groupes séparés si types différents (ex: 2 baies vitrées + 1 châssis composé + 1 porte-fenêtre).
-7. Si le devis inclut fourniture + pose → version "fourniture_pose". Si pose seule → version "_mo" ou "_pose".`,
+6. Calcul de main_quantity selon la structure du devis :
+   — Devis avec SOUS-TOTAUX par bloc : chaque bloc = 1 unité. S'il y a 4 blocs du même type → main_quantity = 4.
+   — Devis avec lignes individuelles Qte × PU.HT (chaque article a son propre prix) : SOMME toutes les quantités du groupe.
+     Exemple : [550x460 : 1U] + [2600x2210 : 1U] + [1400x2210 : 2U] + [700x700 : 2U] + [600x1260 : 3U] + [1200x1810 : 3U] + [420x960 : 1U] = 13 fenêtres → main_quantity = 13. Ne PAS mettre 1.
+     La ligne "Pose de l'ensemble" (forfait global) ne compte pas dans les unités de menuiserie.
+     Les eco-participations (lignes à 2-4€ l'unité) ne comptent pas dans main_quantity.
+   — Groupes distincts : si le devis contient à la fois des fenêtres standard ET des baies vitrées (≥1800mm×2000mm) ET des portes-fenêtres → crée des groupes séparés avec leur quantité respective.
+7. Si le devis inclut fourniture + pose → version "fourniture_pose". Si pose seule → version "_mo" ou "_pose".
+8. ESCALIER : "Fabrication et pose d'un escalier" (fourniture + main d'œuvre) ne se compare PAS à "pose_escalier_mo" (main d'œuvre seule). Si le devis inclut la fabrication sur-mesure, utilise job_types: [] (pas de référence marché fiable) plutôt qu'une comparaison incorrecte.`,
 
   insuranceChecks: {
     primary: "assurance_decennale",

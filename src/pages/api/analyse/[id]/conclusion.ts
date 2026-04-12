@@ -337,9 +337,23 @@ export const POST: APIRoute = async ({ params, request }) => {
     // raw_text invalide
   }
 
+  // ── Parse scoring (critères rouges pour injecter dans le contexte IA) ────────
+  let criteres_rouges: string[] = [];
+  let entreprise_radiee = false;
+  try {
+    const scoreData = typeof analysis.score === "string"
+      ? JSON.parse(analysis.score)
+      : (analysis.score as Record<string, unknown>) || {};
+    criteres_rouges = Array.isArray(scoreData.criteres_rouges) ? scoreData.criteres_rouges : [];
+    entreprise_radiee = criteres_rouges.some((r: string) => r.toLowerCase().includes("radié"));
+  } catch {
+    // score invalide
+  }
+
   const client   = (extractedData.client  as Record<string, unknown>) || {};
   const totaux   = (extractedData.totaux  as Record<string, unknown>) || {};
   const entreprise = (extractedData.entreprise as Record<string, unknown>) || {};
+  const dates    = (extractedData.dates   as Record<string, unknown>) || {};
 
   const ville      = (client.ville      as string) || "";
   const codePostal = (client.code_postal as string) || "";
@@ -349,6 +363,18 @@ export const POST: APIRoute = async ({ params, request }) => {
   const workType   = (analysis.work_type as string) || "";
   const resume     = (analysis.resume   as string) || "";
   const nomEntreprise = (entreprise.nom as string) || "";
+
+  // Devis ancien : calcul âge pour avertissement
+  let devisAgeWarning = "";
+  const dateDevis = typeof dates.date_devis === "string" ? dates.date_devis : null;
+  if (dateDevis) {
+    const devisDate = new Date(dateDevis);
+    const now = new Date();
+    const ageMonths = (now.getFullYear() - devisDate.getFullYear()) * 12 + (now.getMonth() - devisDate.getMonth());
+    if (ageMonths > 12) {
+      devisAgeWarning = `⚠️ DEVIS ANCIEN : ce devis date de ${devisDate.getFullYear()} (${Math.floor(ageMonths / 12)} an${Math.floor(ageMonths / 12) > 1 ? "s" : ""} environ). Les prix des matériaux et de la main d'œuvre ont évolué depuis — la comparaison au marché est indicative, pas définitive. Mentionner ce point explicitement dans la conclusion.`;
+    }
+  }
 
   const groupsSummary = buildGroupSummary(priceData);
   const marketPosition = computeServerMarketPosition(priceData);
@@ -361,6 +387,10 @@ export const POST: APIRoute = async ({ params, request }) => {
     : "";
 
   // ── Prompt Gemini ─────────────────────────────────────────────────────────
+  const critiquesBlock = criteres_rouges.length > 0
+    ? `\nALERTES CRITIQUES DÉTECTÉES (facteurs bloquants) :\n${criteres_rouges.map(r => `🔴 ${r}`).join("\n")}\n⚠️ CES ALERTES PRIMENT sur l'analyse de prix. Si l'entreprise est radiée ou en procédure collective, la conclusion DOIT être "ne_pas_signer" et "a_risque", indépendamment du positionnement tarifaire.`
+    : "";
+
   const userPrompt = `Tu es un expert en rénovation immobilière. Analyse ce devis et aide un particulier à décider s'il doit signer ou non.
 
 CONTEXTE DU DEVIS:
@@ -370,7 +400,8 @@ CONTEXTE DU DEVIS:
 - TVA: ${tauxTVA ? `${tauxTVA}%` : "inconnue"}
 - Ville: ${ville || "inconnue"}${codePostal ? ` (${codePostal})` : ""}
 - Type de travaux: ${workType || "rénovation"}
-- Résumé du devis: ${resume || "non disponible"}${marketPositionContext}
+- Résumé du devis: ${resume || "non disponible"}${marketPositionContext}${critiquesBlock}
+${devisAgeWarning ? `\n${devisAgeWarning}` : ""}
 
 ANALYSE PAR POSTE (déjà calculée):
 ${groupsSummary}
@@ -407,6 +438,13 @@ MISSION — produis 6 éléments :
    - Si aucune anomalie, les actions portent sur les bonnes pratiques contractuelles
 
 RÈGLES STRICTES:
+- ALERTES CRITIQUES EN TÊTE : si des "ALERTES CRITIQUES DÉTECTÉES" figurent dans le contexte (entreprise radiée, procédure collective), le verdict DOIT être "a_risque" + "ne_pas_signer". L'analyse de prix reste secondaire. La phrase_intro et les justifications doivent mentionner explicitement le problème (ex: "entreprise radiée des registres officiels").
+- DEVIS ANCIEN : si un avertissement "DEVIS ANCIEN" figure dans le contexte, la phrase_intro doit mentionner l'année du devis et préciser que les prix sont susceptibles d'avoir évolué. Les justifications doivent noter que la comparaison au marché actuel est indicative.
+- DISTINCTION CRITIQUE entre "a_negocier" et "eleve_justifie" :
+  → "a_negocier" signifie que le prix EST réellement trop élevé et que le particulier DOIT négocier à la baisse. N'utilise ce verdict QUE s'il y a au moins une anomalie réelle non justifiée.
+  → "eleve_justifie" signifie que le prix est au-dessus de la moyenne du marché MAIS s'explique par la complexité, la nature spécifique de la mission, des matériaux premium ou une zone géographique chère. Le particulier N'A PAS à négocier le prix — il doit vérifier les qualifications et clauses. Le badge affiché sera "Élevé mais justifié", PAS "À négocier".
+  → RÈGLE : Si tes justifications expliquent pourquoi le prix est normal → utilise "eleve_justifie", pas "a_negocier". Ces deux verdicts ne peuvent PAS coexister dans le même raisonnement.
+  → RÈGLE : Si la référence marché est marquée "Comparaison indicative" (référence peu fiable pour ce type de prestation), ne pas utiliser "a_negocier" uniquement à cause de l'écart de prix — ce serait une fausse anomalie basée sur une mauvaise référence. Utilise "eleve_justifie" si le prix s'explique par la prestation, ou "dans_la_norme" si l'analyse ne permet pas de conclure.
 - PRIX ATTRACTIF : si le POSITIONNEMENT GLOBAL est "INFÉRIEUR À LA MOYENNE", c'est une bonne affaire. Sauf anomalie réelle (prix unitaire > 2× le max OU incohérence flagrante), le verdict doit être "signer". Ne jamais recommander de "négocier le prix" dans les actions quand le devis est déjà sous la moyenne du marché — c'est incohérent. Les actions doivent porter sur les vérifications qualité, assurances, et clauses contractuelles.
 - Des variations de prix ENTRE LIGNES du même type (ex: volets à des prix différents selon dimensions/options) ne sont PAS des anomalies si le total global est dans ou sous la fourchette marché.
 - INTERDIT : signaler un poste marqué [FORFAIT GLOBAL] comme anomalie de prix. Un forfait global ne peut PAS être comparé à un prix unitaire catalogue. Ces postes sont à commenter uniquement si le montant total semble disproportionné au regard de la prestation décrite.
@@ -589,11 +627,21 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       }
     }
 
+    // ── Override critique : entreprise radiée → ne_pas_signer + a_risque ────────
+    // Ce override est ABSOLU et prime sur tout le reste, y compris l'analyse de prix.
+    // Une entreprise radiée ne peut pas exécuter les travaux légalement.
+    if (entreprise_radiee) {
+      verdictGlobal   = "a_risque";
+      verdictDecision = "ne_pas_signer";
+    }
+
     // ── Override : prix sous la moyenne marché + aucune anomalie → signer ─────
     // Gemini peut dire "négociez" même quand le devis est attractif car il détecte
     // des variations de prix entre lignes. Si le total est sous la moyenne marché
     // et qu'il n'y a aucune vraie anomalie, on force "signer".
+    // Exception : si l'entreprise est radiée, on ne passe jamais à "signer".
     if (
+      !entreprise_radiee &&
       marketPosition.isBelowAverage &&
       sanitizedAnomalies.length === 0 &&
       verdictDecision !== "signer"

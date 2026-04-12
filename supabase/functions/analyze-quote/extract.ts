@@ -157,6 +157,11 @@ RÈGLES STRICTES POUR "conditions_paiement" :
 - "due_date" : format YYYY-MM-DD uniquement si une date calendaire est explicitement mentionnée. Sinon null.
 - "delay_days" : nombre de jours uniquement si explicitement indiqué (ex: "30 jours après réception"). Sinon null.
 
+RÈGLES MULTI-PAGES :
+- Toutes les données peuvent se trouver sur N'IMPORTE QUELLE PAGE. Ne t'arrête pas à la page 1.
+- Les TOTAUX (Total HT, Total TTC, Net à payer) figurent souvent sur une page de récapitulatif séparée (ex: page 2/3), dans un tableau en bas à droite. Si une telle page existe, utilise ses valeurs pour "totaux".
+- L'ADRESSE CLIENT / CHANTIER peut apparaître dans une mise en page à deux colonnes (adresse à gauche et dans un encadré à droite) — lire les deux colonnes.
+
 EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes de travaux) :
 
 {
@@ -174,8 +179,8 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
   },
   "client": {
     "adresse_chantier": "adresse complète du chantier ou null",
-    "code_postal": "code postal 5 chiffres ou null",
-    "ville": "ville ou null"
+    "code_postal": "code postal 5 chiffres ou null. CHERCHE SUR TOUTES LES PAGES du document. Le code postal précède toujours la ville (ex: '29260 PLOUDANIEL' → code_postal='29260'). Il peut apparaître dans un bloc adresse client, une case 'Adresse Travaux', un encadré ou une colonne de droite.",
+    "ville": "ville ou null. CHERCHE SUR TOUTES LES PAGES. La ville suit immédiatement le code postal 5 chiffres (ex: '29260 PLOUDANIEL' → ville='PLOUDANIEL'). Si l'adresse est en deux colonnes côte à côte, lire les deux colonnes."
   },
   "travaux": [
     {
