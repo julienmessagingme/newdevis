@@ -544,8 +544,17 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
                     </p>
                   </PedagogicExplanation>
                 )}
-                {/* Message positif si note >= 4/5 */}
-                {info.reputation.rating >= 4.0 && (
+                {/* Avertissement si peu d'avis au regard de l'ancienneté */}
+                {ancienneteAnnees !== null && ancienneteAnnees >= 5 && (() => {
+                  const seuilAvis = Math.max(3, Math.min(10, Math.floor(ancienneteAnnees / 3)));
+                  return info.reputation.reviews_count < seuilAvis ? (
+                    <p className="text-sm text-score-orange mt-2">
+                      ⚠️ Seulement {info.reputation.reviews_count} avis Google pour une entreprise de {ancienneteAnnees} ans — note statistiquement peu fiable. Demandez des références de chantiers récents.
+                    </p>
+                  ) : null;
+                })()}
+                {/* Message positif si note >= 4/5 ET suffisamment d'avis */}
+                {info.reputation.rating >= 4.0 && (ancienneteAnnees === null || ancienneteAnnees < 5 || info.reputation.reviews_count >= Math.max(3, Math.min(10, Math.floor((ancienneteAnnees ?? 0) / 3)))) && (
                   <p className="text-sm text-score-green mt-2">
                     ✓ La note Google est au-dessus du seuil de confort habituellement observé.
                   </p>
