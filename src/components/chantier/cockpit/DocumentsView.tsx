@@ -165,11 +165,11 @@ function LotBadge({ doc, lots, onChangeLot, chantierId, token }: {
   }
 
   return (
-    <div className="shrink-0">
+    <div className="sm:shrink-0">
       <button
         ref={triggerRef}
         onClick={() => setOpen(o => !o)}
-        className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-lg border transition-colors whitespace-nowrap ${
+        className={`flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-lg border transition-colors sm:whitespace-nowrap ${
           lot
             ? 'border-purple-200 text-purple-700 bg-purple-50 hover:bg-purple-100'
             : 'border-gray-200 text-gray-400 bg-gray-50 hover:bg-gray-100 hover:text-gray-600'
@@ -334,7 +334,7 @@ function DocRow({ doc, lots, chantierId, token, sectionKey, onDelete, onLotChang
               </span>
             ) : (
               <span
-                className="text-sm font-medium text-gray-800 truncate cursor-pointer hover:text-blue-600 transition-colors"
+                className="text-sm font-medium text-gray-800 break-words sm:truncate cursor-pointer hover:text-blue-600 transition-colors"
                 title={doc.nom}
                 onClick={() => { setEditing(true); setEditName(doc.nom); }}
               >

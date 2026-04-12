@@ -599,7 +599,7 @@ export async function executeTool(
             body,
             run_type:    "interactive",
             sent_at:     new Date().toISOString(),
-          }).catch(() => {});
+          }).then(() => {}).catch(() => {});
         }
 
         return JSON.stringify({ ok: true, message_id: msgId ?? null });

@@ -46,7 +46,6 @@ const pathname = Astro.url.pathname;
         <a id="mon-chantier-desktop" href="/mon-chantier" class="hidden items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors text-sm font-medium text-primary">
           <span>🏗️</span>
           Mon Chantier
-          <span class="text-[10px] font-bold bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded-full leading-none">NOUVEAU</span>
         </a>
         <!-- Connexion (visiteur) ou Espace NOM (connecté) -->
         <a id="login-btn-desktop" href="/connexion">
@@ -123,7 +122,6 @@ const pathname = Astro.url.pathname;
       <a id="mon-chantier-mobile" href="/mon-chantier" class="hidden items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium">
         <span>🏗️</span>
         Mon Chantier
-        <span class="text-[10px] font-bold bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded-full leading-none ml-auto">NOUVEAU</span>
       </a>
       <div class="flex flex-col gap-2 pt-2">
         <!-- Connexion (visiteur) ou Espace NOM (connecté) — mobile -->
@@ -175,10 +173,12 @@ const pathname = Astro.url.pathname;
     if (user) {
       // Mon Chantier — admins uniquement
       if (user.email && ADMIN_EMAILS.includes(user.email)) {
+        const lastId = localStorage.getItem("lastChantierId");
+        const chantierHref = lastId ? `/mon-chantier/${lastId}` : "/mon-chantier";
         const d = document.getElementById("mon-chantier-desktop");
         const m = document.getElementById("mon-chantier-mobile");
-        if (d) { d.classList.remove("hidden"); d.classList.add("flex"); }
-        if (m) { m.classList.remove("hidden"); m.classList.add("flex"); }
+        if (d) { d.href = chantierHref; d.classList.remove("hidden"); d.classList.add("flex"); }
+        if (m) { m.href = chantierHref; m.classList.remove("hidden"); m.classList.add("flex"); }
       }
 
       // Espace NOM Prenom — tous les utilisateurs connectés

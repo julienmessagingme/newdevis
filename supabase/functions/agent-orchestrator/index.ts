@@ -38,7 +38,7 @@ serve(async (req) => {
       });
     } catch (err) {
       console.error("[agent-interactive] error:", err instanceof Error ? err.message : err);
-      return new Response(JSON.stringify({ error: "Erreur interne de l'agent" }), { status: 500 });
+      return new Response(JSON.stringify({ error: "Erreur interne de l'agent" }), { status: 500, headers: { "Content-Type": "application/json" } });
     }
   }
 
@@ -170,7 +170,7 @@ serve(async (req) => {
           content:        digestContent,
           agent_initiated: true,
           is_read:        false,
-        }).catch(() => {}); // non-blocking
+        }).then(() => {}).catch(() => {}); // non-blocking
       }
     }
 
@@ -222,8 +222,9 @@ async function handleInteractive(
   const ctx = await buildContext(supabase, chantierId, null, agentSecretKey, apiBase, conversationHistory);
 
   // Build messages: system prompt + conversation history + current user message
+  const systemPrompt = buildSystemPrompt(ctx, "interactive");
   const messages: Array<Record<string, unknown>> = [
-    { role: "system", content: buildSystemPrompt(ctx, "interactive") },
+    { role: "system", content: systemPrompt },
   ];
 
   // Inject conversation history (max 20 last messages to stay within context)
@@ -268,7 +269,7 @@ async function handleInteractive(
         messages_analyzed: 1,
         insights_created: 0,
         actions_taken: toolCallsExecuted.map(t => ({ tool: t })),
-      }).catch(() => {});
+      }).then(() => {}).catch(() => {});
       return { response_text: responseText, tool_calls_executed: toolCallsExecuted };
     }
 
@@ -297,7 +298,7 @@ async function handleInteractive(
     messages_analyzed: 1,
     insights_created: 0,
     actions_taken: toolCallsExecuted.map(t => ({ tool: t })),
-  }).catch(() => {});
+  }).then(() => {}).catch(() => {});
   return { response_text: fallbackText, tool_calls_executed: toolCallsExecuted };
 }
 
@@ -334,7 +335,7 @@ async function sendDigest(
         if (msgId) {
           await supabase.from("whatsapp_outgoing_messages").insert({
             id: msgId, chantier_id: chantierId, group_jid: chatId, body: msgBody, run_type: "evening",
-          }).catch(() => {});
+          });
         }
       }
     } catch {

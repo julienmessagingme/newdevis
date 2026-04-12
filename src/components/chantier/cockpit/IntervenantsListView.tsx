@@ -55,13 +55,14 @@ type FilterStatus = 'all' | LotListStatus;
 
 export default function IntervenantsListView({
   lots, docsByLot, documents, onAddDevisForLot, onGoToLot, onGoToDiy,
-  onDeleteDoc, chantierId, token, onDocStatutUpdated, onDocMoved,
+  onDeleteDoc, onDeleteLot, chantierId, token, onDocStatutUpdated, onDocMoved,
 }: {
   lots: LotChantier[];
   docsByLot: Record<string, DocumentChantier[]>;
   documents: DocumentChantier[];
   onAddDevisForLot: (lotId: string) => void;
   onDeleteDoc: (docId: string) => void;
+  onDeleteLot: (lotId: string) => void;
   onGoToLot: (lotId: string) => void;
   onGoToDiy: () => void;
   chantierId: string;
@@ -139,12 +140,10 @@ export default function IntervenantsListView({
   [documents]);
 
   const filterOptions: { key: FilterStatus; label: string; dot?: string }[] = [
-    { key: 'all',                  label: 'Tous' },
-    { key: 'bloque',               label: 'Bloqués',   dot: 'bg-red-400' },
-    { key: 'a_comparer',           label: '1 devis',   dot: 'bg-amber-400' },
-    { key: 'comparaison',          label: 'À comparer', dot: 'bg-blue-400' },
-    { key: 'comparaison_optimale', label: 'Optimal',   dot: 'bg-violet-400' },
-    { key: 'valide',               label: 'Sélection', dot: 'bg-emerald-400' },
+    { key: 'all',        label: 'Tous' },
+    { key: 'bloque',     label: 'Bloqués',  dot: 'bg-red-400' },
+    { key: 'a_comparer', label: '1 devis',  dot: 'bg-amber-400' },
+    { key: 'valide',     label: 'Validés',  dot: 'bg-emerald-400' },
   ];
 
   return (
@@ -279,9 +278,10 @@ export default function IntervenantsListView({
                       </button>
                     )}
                     <button
-                      onClick={() => onAddDevisForLot(lot.id)}
-                      className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg transition-colors whitespace-nowrap">
-                      + Ajouter un document
+                      onClick={() => { if (window.confirm(`Supprimer l'intervenant "${lot.nom}" ?`)) onDeleteLot(lot.id); }}
+                      title="Supprimer cet intervenant"
+                      className="text-gray-300 hover:text-red-500 hover:bg-red-50 p-1 rounded-lg transition-colors">
+                      <Trash2 className="h-3.5 w-3.5" />
                     </button>
                     <button
                       onClick={() => onGoToLot(lot.id)}

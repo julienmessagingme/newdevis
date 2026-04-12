@@ -64,6 +64,11 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
   const [uploadModal, setUploadModal]     = useState<{ open: boolean; lotId?: string; defaultType?: DocumentType }>({ open: false });
   const lots = result.lots ?? [];
 
+  // Persist last visited chantier for header link
+  useEffect(() => {
+    if (chantierId) localStorage.setItem('lastChantierId', chantierId);
+  }, [chantierId]);
+
   // Messagerie: unread count for sidebar badge
   const { totalUnread: msgUnread } = useConversations(chantierId);
 
@@ -450,14 +455,67 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
           />
         );
 
-      case 'assistant':
-        return (
-          <ChantierAssistantChat
-            chantierId={chantierId ?? ''}
-            token={token}
-            size="full"
-          />
+      case 'assistant': {
+        const alertInsights = agentInsights.insights.filter(i =>
+          !i.read_by_user &&
+          i.type !== 'conversation_summary' &&
+          (i.severity === 'warning' || i.severity === 'critical' || i.type === 'needs_clarification')
         );
+        return (
+          <div className="flex flex-col h-full">
+            {alertInsights.length > 0 && (
+              <div className="px-4 py-3 border-b border-gray-100 space-y-2 bg-white shrink-0">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                    Alertes IA · {alertInsights.length}
+                  </p>
+                  <button
+                    onClick={() => agentInsights.markAllRead()}
+                    className="text-[10px] text-gray-400 hover:text-gray-600"
+                  >
+                    Tout marquer lu
+                  </button>
+                </div>
+                {alertInsights.slice(0, 5).map(ins => (
+                  <div
+                    key={ins.id}
+                    className={`flex items-start gap-2 px-3 py-2 rounded-xl text-sm ${
+                      ins.severity === 'critical'
+                        ? 'bg-red-50 border border-red-100'
+                        : ins.type === 'needs_clarification'
+                        ? 'bg-orange-50 border border-orange-100'
+                        : 'bg-amber-50 border border-amber-100'
+                    }`}
+                  >
+                    <span className="shrink-0 mt-0.5">
+                      {ins.severity === 'critical' ? '🔴' : ins.type === 'needs_clarification' ? '🔔' : '⚠️'}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-[13px] font-medium ${
+                        ins.severity === 'critical' ? 'text-red-800' : 'text-gray-800'
+                      }`}>{ins.title}</p>
+                      {ins.body && (
+                        <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">{ins.body}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => agentInsights.markAsRead(ins.id)}
+                      className="shrink-0 text-gray-300 hover:text-gray-500 text-xs px-1"
+                    >✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex-1 min-h-0">
+              <ChantierAssistantChat
+                chantierId={chantierId ?? ''}
+                token={token}
+                size="full"
+              />
+            </div>
+          </div>
+        );
+      }
 
       case 'diy':
         return (

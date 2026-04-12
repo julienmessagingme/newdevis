@@ -89,6 +89,8 @@ function BudgetBreakdownPopover({ items }: { items: BreakdownItem[] }) {
   );
 }
 
+const fmtEurShort = (n: number) => n >= 1000 ? `${fmtK(n)}` : `${n} €`;
+
 // ── Info label avec tooltip ───────────────────────────────────────────────────
 
 function InfoLabel({ label, tip }: { label: string; tip: string }) {
@@ -132,8 +134,6 @@ function BudgetDonutCard({
   const isOver = overAmount > 0 && ref > 0;
   const isNear = !isOver && ref > 0 && budgetEngage > ref * 0.85;
   const color = budgetEngage === 0 ? '#cbd5e1' : isOver ? '#ef4444' : isNear ? '#f59e0b' : '#6366f1';
-
-  const fmtEurShort = (n: number) => n >= 1000 ? `${fmtK(n)}` : `${n} €`;
 
   const statusLabel = budgetEngage === 0 ? null
     : isOver  ? `dépassement +${fmtEurShort(overAmount)}`
@@ -210,6 +210,67 @@ function BudgetDonutCard({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Budget progress bars (mobile only) ────────────────────────────────────────
+
+function BudgetProgressBars({
+  budgetReel, budgetEngage, totalPaye, iaMin, iaMax,
+}: {
+  budgetReel?: number | null;
+  budgetEngage: number;
+  totalPaye: number;
+  iaMin: number;
+  iaMax: number;
+}) {
+  const ref = (budgetReel && budgetReel > 0) ? budgetReel : iaMax;
+
+  const bars = [
+    {
+      label: 'Budget cible',
+      value: ref,
+      pct: 100,
+      color: 'bg-indigo-500',
+      bg: 'bg-indigo-100',
+      text: ref > 0 ? fmtEurShort(ref) : '—',
+    },
+    {
+      label: 'Engagé',
+      value: budgetEngage,
+      pct: ref > 0 ? Math.min((budgetEngage / ref) * 100, 100) : 0,
+      color: budgetEngage > ref * 0.85 ? (budgetEngage > ref ? 'bg-red-500' : 'bg-amber-500') : 'bg-blue-500',
+      bg: 'bg-blue-100',
+      text: budgetEngage > 0 ? fmtEurShort(budgetEngage) : '—',
+    },
+    {
+      label: 'Payé',
+      value: totalPaye,
+      pct: ref > 0 ? Math.min((totalPaye / ref) * 100, 100) : 0,
+      color: 'bg-emerald-500',
+      bg: 'bg-emerald-100',
+      text: totalPaye > 0 ? fmtEurShort(totalPaye) : '—',
+    },
+  ];
+
+  return (
+    <div className="bg-blue-50 rounded-2xl px-4 py-4 space-y-2.5">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Budget chantier</p>
+      {bars.map(b => (
+        <div key={b.label}>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] text-gray-500">{b.label}</span>
+            <span className="text-[13px] font-bold text-gray-800 tabular-nums">{b.text}</span>
+          </div>
+          <div className={`h-2 rounded-full ${b.bg} overflow-hidden`}>
+            <div
+              className={`h-full rounded-full ${b.color} transition-all duration-500`}
+              style={{ width: `${b.pct}%` }}
+            />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -329,17 +390,28 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
       {/* ── KPI cards ──────────────────────────────────────────── */}
       <div className={`grid grid-cols-2 gap-3 ${nextRdv ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}`}>
 
-        {/* Budget chantier — donut devis vs IA */}
-        <BudgetDonutCard
-          budgetReel={budgetReel}
-          budgetEngage={budgetEngage}
-          totalPaye={totalPaye}
-          iaMin={displayMin}
-          iaMax={displayMax}
-          refinedBreakdown={refinedBreakdown}
-          onAffineBudget={onAffineBudget}
-          hasRefinedBreakdown={refinedBreakdown.length > 0}
-        />
+        {/* Budget chantier — donut desktop, progress bars mobile */}
+        <div className="hidden sm:block col-span-2 xl:col-span-1">
+          <BudgetDonutCard
+            budgetReel={budgetReel}
+            budgetEngage={budgetEngage}
+            totalPaye={totalPaye}
+            iaMin={displayMin}
+            iaMax={displayMax}
+            refinedBreakdown={refinedBreakdown}
+            onAffineBudget={onAffineBudget}
+            hasRefinedBreakdown={refinedBreakdown.length > 0}
+          />
+        </div>
+        <div className="sm:hidden col-span-2">
+          <BudgetProgressBars
+            budgetReel={budgetReel}
+            budgetEngage={budgetEngage}
+            totalPaye={totalPaye}
+            iaMin={displayMin}
+            iaMax={displayMax}
+          />
+        </div>
 
         <KpiCard
           icon="✅" label="Intervenants"
@@ -423,6 +495,7 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
             documents={documents}
             onAddDevisForLot={onAddDevisForLot}
             onDeleteDoc={onDeleteDoc}
+            onDeleteLot={onDeleteLot}
             onGoToLot={onGoToLot}
             onGoToDiy={onGoToDiy}
             chantierId={chantierId}
