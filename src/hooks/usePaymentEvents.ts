@@ -121,28 +121,34 @@ export function usePaymentEvents(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chantierId, tick]);
 
-  // ── Mise à jour statut via PATCH HTTP (service_role côté serveur — fiable) ──
+  // ── Mise à jour statut — écriture directe Supabase (RLS client-side) ──
+  // Le client anon a la session de l'utilisateur → RLS autorise l'UPDATE.
   // Retourne 'ok' | 'not_found' | 'error'
   const patchStatus = useCallback(async (id: string, status: 'paid' | 'pending'): Promise<'ok' | 'not_found' | 'error'> => {
     if (!chantierId) { console.error('[patchStatus] chantierId manquant'); return 'error'; }
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const bearerToken = session?.access_token ?? token ?? null;
-      if (!bearerToken) { console.error('[patchStatus] pas de token'); return 'error'; }
-      const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearerToken}` },
-        body: JSON.stringify({ id, status }),
-      });
-      if (res.status === 404) { console.warn('[patchStatus] 404 — event introuvable', { id, chantierId }); return 'not_found'; }
-      if (!res.ok) { console.error(`[patchStatus] HTTP ${res.status}`); return 'error'; }
+      const { error, count } = await supabase
+        .from('payment_events')
+        .update({ status })
+        .eq('id', id)
+        .eq('project_id', chantierId)
+        .select('id', { count: 'exact', head: true });
+
+      if (error) {
+        console.error('[patchStatus] Supabase error:', error.message, error.code);
+        return 'error';
+      }
+      if (count === 0) {
+        console.warn('[patchStatus] 0 rows updated — event introuvable ou non autorisé', { id, chantierId });
+        return 'not_found';
+      }
       console.log(`[patchStatus] ✓ ${status} (id=${id})`);
       return 'ok';
     } catch (e) {
       console.error('[patchStatus] exception:', e instanceof Error ? e.message : e);
       return 'error';
     }
-  }, [chantierId, token]);
+  }, [chantierId]);
 
   // ── Marquer un événement comme payé ──────────────────────────────────────
   const markPaid = useCallback(async (id: string): Promise<boolean> => {
