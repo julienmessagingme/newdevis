@@ -1,0 +1,702 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AstroHeader from '@/components/astro/Header.astro';
+import AstroFooter from '@/components/astro/Footer.astro';
+
+const faqs = [
+  {
+    question: "Comment analyser un devis de travaux ?",
+    answer: "Pour analyser un devis de travaux, vérifiez d'abord les 5 points essentiels : le détail des prestations (chaque ligne doit être explicite), les quantités précises (m², ml, unités), les prix unitaires comparés au marché, le taux de TVA applicable (5,5 % ou 10 % pour la rénovation, 20 % pour le neuf), et les conditions de paiement (jamais plus de 30 % d'acompte). Ensuite, utilisez un outil comme VerifierMonDevis.fr pour automatiser la comparaison aux prix du marché en 2 minutes."
+  },
+  {
+    question: "Combien de devis demander pour des travaux ?",
+    answer: "La règle est d'obtenir au minimum 3 devis pour tout chantier supérieur à 1 000 €. En dessous, 2 devis suffisent. Au-delà de 5 000 €, certains professionnels recommandent 4 à 5 devis, notamment pour les corps de métier spécialisés (électricité, plomberie). Pour un chantier de rénovation complète, demandez des devis corps de métier par corps de métier : un plombier peut proposer 40 % de moins qu'un électricien sur la même prestation plomberie."
+  },
+  {
+    question: "Quand un devis est-il obligatoire ?",
+    answer: "Un devis écrit est obligatoire dès que le montant des travaux dépasse 150 € TTC, ou dès que le client le demande explicitement (quel que soit le montant). Pour les travaux à domicile, la loi impose que le devis soit daté, signé, et mentionner le délai d'exécution, la durée de validité de l'offre, ainsi que les coordonnées complètes de l'artisan. Un devis accepté et signé a valeur de contrat."
+  },
+  {
+    question: "Peut-on négocier un devis de travaux ?",
+    answer: "Oui, la négociation est possible et attendue dans la profession. Les leviers les plus efficaces : proposer de régler rapidement (comptant ou faible délai), accepter de décaler le chantier sur une période creuse (janvier-février, vacances scolaires), grouper plusieurs prestations chez le même artisan, ou fournir vous-même certains matériaux. En revanche, ne négociez jamais en dessous du prix plancher du marché : un artisan qui accepte un prix trop bas est souvent en difficulté financière, ce qui crée des risques pour votre chantier."
+  },
+  {
+    question: "Quels sont les pièges dans un devis de travaux ?",
+    answer: "Les 5 pièges les plus fréquents : (1) les lignes au forfait global sans détail — impossible de comparer ou de contester ; (2) les mentions 'prévu/non prévu' vagues qui permettent à l'artisan de facturer des suppléments ; (3) l'acompte excessif supérieur à 30 % — signe d'un artisan en difficulté de trésorerie ; (4) l'absence de mention de la garantie décennale, obligatoire pour les travaux structurels ; (5) la TVA au mauvais taux — certains artisans appliquent 20 % sur des travaux éligibles à 5,5 %, ce qui représente jusqu'à 15 % de surfacturation."
+  },
+  {
+    question: "Quelle est la différence entre un devis et une facture ?",
+    answer: "Le devis est établi avant les travaux : c'est un document prévisionnel et contractuel qui engage l'artisan sur les prix et les prestations. Une fois signé avec la mention 'bon pour accord', il devient un contrat. La facture est établie après les travaux : c'est le document fiscal qui correspond aux prestations réellement effectuées. Elle doit être conforme au devis signé. Toute divergence significative doit faire l'objet d'un avenant écrit signé des deux parties avant exécution."
+  },
+];
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Analyser un devis travaux : méthode complète pour éviter les erreurs (2026)",
+  "description": "Guide complet pour analyser un devis de travaux : 5 points essentiels, erreurs à éviter, comparaison marché, checklist avant signature. Outil gratuit inclus.",
+  "author": { "@type": "Person", "name": "Julien Dumas" },
+  "publisher": {
+    "@type": "Organization",
+    "name": "VerifierMonDevis.fr",
+    "logo": { "@type": "ImageObject", "url": "https://www.verifiermondevis.fr/images/logo.webp" }
+  },
+  "datePublished": "2026-04-14",
+  "dateModified": "2026-04-14",
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://www.verifiermondevis.fr/analyser-devis-travaux" },
+};
+
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": faqs.map(faq => ({
+    "@type": "Question",
+    "name": faq.question,
+    "acceptedAnswer": { "@type": "Answer", "text": faq.answer }
+  }))
+};
+
+const checklistSign = [
+  "Toutes les prestations sont détaillées ligne par ligne (pas de forfait global)",
+  "Les quantités sont précises et vérifiables (m², unités, heures)",
+  "Le prix HT et TTC est clairement indiqué avec le bon taux de TVA",
+  "L'acompte demandé est ≤ 30 % du total TTC",
+  "Les coordonnées complètes de l'artisan figurent sur le devis (SIRET, adresse, assurance)",
+  "Le numéro d'assurance décennale est mentionné (pour travaux structurels)",
+  "Les prix sont dans la fourchette du marché (±20 %)",
+  "Le délai d'exécution est précisé",
+  "Les conditions de paiement sont claires (échelonnement, solde à la réception)",
+  "Aucune clause abusive (paiement comptant imposé, clauses exonératoires de responsabilité)",
+];
+
+const checklistRefuse = [
+  "Lignes floues du type 'travaux divers' ou 'fournitures' sans détail",
+  "Prix global sans décomposition possible",
+  "Acompte supérieur à 50 % demandé avant démarrage",
+  "Absence de numéro SIRET ou de numéro d'assurance décennale",
+  "Prix significativement inférieurs au marché (>30 % en dessous) — risque d'abandon de chantier",
+  "Refus de fournir les attestations d'assurance",
+  "Délais volontairement vagues ('dans les meilleurs délais')",
+];
+---
+
+<BaseLayout
+  title="Analyser un devis travaux : méthode complète pour éviter les erreurs (2026)"
+  description="Guide complet pour analyser un devis de travaux avant de signer : 5 points essentiels à vérifier, erreurs fréquentes, comparaison aux prix du marché et checklist décision."
+  canonical="https://www.verifiermondevis.fr/analyser-devis-travaux"
+  ogType="article"
+  jsonLd={jsonLd}
+  breadcrumbs={[
+    { name: "Accueil", url: "https://www.verifiermondevis.fr/" },
+    { name: "Analyser un devis travaux", url: "https://www.verifiermondevis.fr/analyser-devis-travaux" }
+  ]}
+>
+  <!-- FAQ JSON-LD en body — validé par Google Search Console -->
+  <script type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+
+  <div class="min-h-screen flex flex-col">
+    <AstroHeader />
+
+    <main class="flex-1">
+
+      <!-- ══════════════════════════════════════════
+           HERO
+      ══════════════════════════════════════════ -->
+      <section class="bg-gradient-to-b from-slate-900 to-slate-800 text-white py-16 sm:py-20">
+        <div class="container max-w-4xl px-4">
+
+          <a href="/" class="inline-flex items-center gap-2 text-slate-400 hover:text-white mb-8 transition-colors text-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+            </svg>
+            Retour à l'accueil
+          </a>
+
+          <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 text-xs font-medium text-slate-300 mb-5">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-orange-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+            </svg>
+            Guide complet · Mis à jour avril 2026
+          </div>
+
+          <h1 class="text-3xl sm:text-4xl font-bold leading-tight mb-5">
+            Analyser un devis travaux :<br class="hidden sm:block" />
+            le guide complet avant de signer
+          </h1>
+          <p class="text-base sm:text-lg text-slate-300 leading-relaxed max-w-2xl mb-8">
+            Un devis incompréhensible, des prix qui semblent élevés, des lignes floues…
+            Avant de signer, quelques vérifications simples peuvent vous éviter des milliers
+            d'euros de mauvaises surprises. Voici exactement quoi regarder et comment.
+          </p>
+
+          <div class="flex flex-col sm:flex-row gap-3">
+            <a
+              href="/nouvelle-analyse"
+              class="inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+              </svg>
+              Analyser mon devis en 2 minutes
+            </a>
+            <a
+              href="#checklist"
+              class="inline-flex items-center justify-center gap-2 border border-white/30 text-white hover:bg-white/10 font-semibold px-6 py-3 rounded-xl transition-colors text-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+              </svg>
+              Voir la checklist
+            </a>
+          </div>
+
+          <!-- Stats de réassurance -->
+          <div class="mt-10 grid grid-cols-3 gap-4 sm:gap-6 border-t border-white/10 pt-8">
+            {[
+              { value: "1 sur 3", label: "devis analysé contient une anomalie de prix" },
+              { value: "2 min", label: "pour obtenir une analyse complète" },
+              { value: "Gratuit", label: "pour les 5 premières analyses" },
+            ].map(stat => (
+              <div class="text-center">
+                <div class="text-xl sm:text-2xl font-bold text-white mb-1">{stat.value}</div>
+                <div class="text-xs text-slate-400 leading-snug">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════
+           CORPS DE L'ARTICLE
+      ══════════════════════════════════════════ -->
+      <article class="py-12 sm:py-16">
+        <div class="container max-w-3xl px-4">
+
+          <!-- ── INTRO ── -->
+          <section class="mb-12">
+            <p class="text-slate-600 leading-relaxed mb-4 text-base sm:text-lg">
+              Recevoir un devis de travaux, c'est souvent se retrouver face à des dizaines de lignes
+              techniques, des prix unitaires obscurs et des acronymes incompréhensibles.
+              Résultat&nbsp;: la plupart des particuliers signent sans vraiment comprendre ce qu'ils
+              achètent. C'est précisément là que les litiges commencent.
+            </p>
+            <p class="text-slate-600 leading-relaxed mb-4">
+              Pourtant, <strong>analyser un devis ne requiert pas d'être expert du bâtiment</strong>.
+              Il suffit de savoir où regarder, quels signaux d'alerte repérer, et comment comparer
+              les prix à ceux pratiqués sur votre marché. C'est l'objet de ce guide.
+            </p>
+            <div class="bg-orange-50 border border-orange-200 rounded-xl p-5 mt-6">
+              <p class="text-sm font-semibold text-orange-800 mb-1">Ce que vous allez apprendre</p>
+              <ul class="text-sm text-orange-700 space-y-1">
+                <li>✓ Les 5 éléments à vérifier sur tout devis de travaux</li>
+                <li>✓ Les erreurs et pièges les plus fréquents</li>
+                <li>✓ Comment savoir si un prix est dans la norme du marché</li>
+                <li>✓ La checklist complète pour décider de signer ou non</li>
+              </ul>
+            </div>
+          </section>
+
+          <!-- ── SECTION 2 : LES 5 POINTS ESSENTIELS ── -->
+          <section class="mb-12" id="5-points">
+            <h2 class="text-2xl font-bold text-slate-900 mb-2">
+              Les 5 points essentiels à vérifier sur un devis
+            </h2>
+            <p class="text-slate-500 text-sm mb-6">
+              Ces 5 éléments sont présents sur tout devis conforme. Leur absence ou leur imprécision
+              est un signal d'alerte immédiat.
+            </p>
+
+            <div class="space-y-5">
+
+              <!-- Point 1 -->
+              <div class="border border-slate-200 rounded-xl p-5">
+                <div class="flex items-start gap-4">
+                  <div class="flex-shrink-0 w-9 h-9 rounded-full bg-orange-100 text-orange-600 font-bold text-base flex items-center justify-center">1</div>
+                  <div class="min-w-0">
+                    <h3 class="font-semibold text-slate-900 mb-2">Le détail des prestations</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed mb-3">
+                      Chaque ligne doit décrire précisément ce qui est fait&nbsp;: la nature de la prestation,
+                      les matériaux utilisés, la marque ou référence si pertinent. Une ligne comme
+                      <em>"installation plomberie salle de bain"</em> est insuffisante&nbsp;;
+                      <em>"fourniture et pose mitigeur thermostatique Grohe Grohtherm 800, ref. 34567"</em>
+                      est acceptable.
+                    </p>
+                    <p class="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">
+                      <strong>À vérifier&nbsp;:</strong> les travaux préparatoires sont-ils inclus&nbsp;?
+                      L'évacuation des déchets, la protection des sols&nbsp;? Ces postes représentent souvent
+                      5 à 10 % du total et sont fréquemment omis pour afficher un prix d'appel plus bas.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Point 2 -->
+              <div class="border border-slate-200 rounded-xl p-5">
+                <div class="flex items-start gap-4">
+                  <div class="flex-shrink-0 w-9 h-9 rounded-full bg-orange-100 text-orange-600 font-bold text-base flex items-center justify-center">2</div>
+                  <div class="min-w-0">
+                    <h3 class="font-semibold text-slate-900 mb-2">Les quantités précises</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed mb-3">
+                      Chaque prestation doit être quantifiée&nbsp;: surface en m², longueur en ml,
+                      nombre d'unités ou d'heures. Sans quantité, il est impossible de vérifier si le prix
+                      est cohérent avec la surface réelle de votre chantier, et l'artisan peut facturer
+                      des suppléments a posteriori.
+                    </p>
+                    <p class="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">
+                      <strong>Astuce&nbsp;:</strong> mesurez vous-même vos surfaces avant de recevoir
+                      les devis. Si un artisan indique 65 m² de carrelage pour une pièce que vous avez
+                      mesurée à 48 m², demandez-lui d'expliquer l'écart (perte de coupe, surface
+                      en diagonale...).
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Point 3 -->
+              <div class="border border-slate-200 rounded-xl p-5">
+                <div class="flex items-start gap-4">
+                  <div class="flex-shrink-0 w-9 h-9 rounded-full bg-orange-100 text-orange-600 font-bold text-base flex items-center justify-center">3</div>
+                  <div class="min-w-0">
+                    <h3 class="font-semibold text-slate-900 mb-2">Les prix unitaires</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed mb-3">
+                      Le prix unitaire (par m², par unité, par heure) vous permet de comparer
+                      objectivement plusieurs devis. Un artisan qui facture 85 €/m² la pose de
+                      carrelage et un autre 120 €/m² — la différence doit s'expliquer par la qualité,
+                      la complexité ou les matériaux fournis.
+                    </p>
+                    <p class="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">
+                      <strong>Référence&nbsp;:</strong> les fourchettes de prix marché pour les 200+
+                      types de travaux courants sont accessibles directement via VerifierMonDevis.fr.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Point 4 -->
+              <div class="border border-slate-200 rounded-xl p-5">
+                <div class="flex items-start gap-4">
+                  <div class="flex-shrink-0 w-9 h-9 rounded-full bg-orange-100 text-orange-600 font-bold text-base flex items-center justify-center">4</div>
+                  <div class="min-w-0">
+                    <h3 class="font-semibold text-slate-900 mb-2">La TVA applicable</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed mb-3">
+                      Le taux de TVA dépend de la nature des travaux et de l'ancienneté du bien&nbsp;:
+                    </p>
+                    <div class="overflow-x-auto -mx-5 sm:mx-0">
+                      <table class="min-w-full text-xs sm:text-sm border-collapse mb-3">
+                        <thead>
+                          <tr class="bg-slate-50">
+                            <th class="text-left px-3 py-2 text-slate-700 font-medium border border-slate-200">Type de travaux</th>
+                            <th class="text-center px-3 py-2 text-slate-700 font-medium border border-slate-200">TVA</th>
+                            <th class="text-left px-3 py-2 text-slate-700 font-medium border border-slate-200">Condition</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[
+                            { type: "Rénovation énergétique (isolation, PAC, etc.)", tva: "5,5 %", cond: "Logement de + de 2 ans" },
+                            { type: "Travaux d'amélioration, rénovation", tva: "10 %", cond: "Logement de + de 2 ans" },
+                            { type: "Construction neuve ou extension + 25 % surface", tva: "20 %", cond: "Toujours" },
+                            { type: "Travaux mixtes (réno + neuf)", tva: "20 %", cond: "Si le neuf dépasse 25 %" },
+                          ].map(row => (
+                            <tr class="border border-slate-200">
+                              <td class="px-3 py-2 text-slate-600">{row.type}</td>
+                              <td class="px-3 py-2 text-center font-semibold text-slate-900">{row.tva}</td>
+                              <td class="px-3 py-2 text-slate-500">{row.cond}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p class="text-xs text-slate-500 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                      <strong>Attention&nbsp;:</strong> certains artisans appliquent la TVA à 20 % sur des
+                      travaux éligibles à 5,5 % ou 10 %. Sur un chantier de 20 000 €, l'écart représente
+                      jusqu'à 2 900 € de surfacturation. Vérifiez systématiquement.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Point 5 -->
+              <div class="border border-slate-200 rounded-xl p-5">
+                <div class="flex items-start gap-4">
+                  <div class="flex-shrink-0 w-9 h-9 rounded-full bg-orange-100 text-orange-600 font-bold text-base flex items-center justify-center">5</div>
+                  <div class="min-w-0">
+                    <h3 class="font-semibold text-slate-900 mb-2">Les conditions de paiement</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed mb-3">
+                      Un planning de paiement sain se découpe ainsi&nbsp;: un acompte à la signature
+                      (≤ 30 %), des appels de fonds à l'avancement, et un solde à la réception (au
+                      minimum 5 à 10 %). Le solde est votre seul levier en cas de malfaçon&nbsp;: ne
+                      le versez jamais avant la réception sans réserves.
+                    </p>
+                    <p class="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                      <strong>Signal d'alarme&nbsp;:</strong> un acompte supérieur à 50 % est interdit
+                      pour les travaux à domicile (loi Hoguet). C'est souvent le signe d'un artisan
+                      en difficulté de trésorerie — risque élevé d'abandon de chantier.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </section>
+
+          <!-- ── CTA 1 ── -->
+          <div class="my-10 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-6 text-center">
+            <p class="text-base font-semibold text-slate-900 mb-1">Vous avez un devis en main&nbsp;?</p>
+            <p class="text-sm text-slate-600 mb-4">Déposez-le sur VerifierMonDevis.fr. En 2 minutes, vous obtenez une analyse complète des 5 points ci-dessus, plus la comparaison aux prix du marché.</p>
+            <a href="/nouvelle-analyse" class="inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+              </svg>
+              Analyser mon devis gratuitement
+            </a>
+          </div>
+
+          <!-- ── SECTION 3 : ERREURS FRÉQUENTES ── -->
+          <section class="mb-12" id="erreurs">
+            <h2 class="text-2xl font-bold text-slate-900 mb-2">
+              Les erreurs fréquentes dans un devis de travaux
+            </h2>
+            <p class="text-slate-500 text-sm mb-6">
+              Certaines formulations ou pratiques reviennent régulièrement dans les devis problématiques.
+              Apprenez à les reconnaître.
+            </p>
+
+            <div class="space-y-4">
+
+              <div class="flex gap-4 p-5 bg-red-50 border border-red-100 rounded-xl">
+                <div class="flex-shrink-0 text-red-500 mt-0.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                </div>
+                <div class="min-w-0">
+                  <h3 class="font-semibold text-red-800 mb-1">Les lignes floues ou génériques</h3>
+                  <p class="text-sm text-red-700 leading-relaxed">
+                    <em>"Travaux de maçonnerie"</em>, <em>"fournitures diverses"</em>,
+                    <em>"main-d'œuvre"</em> sans autre précision. Ces formulations sont intentionnellement
+                    vagues pour permettre à l'artisan de facturer ce qu'il veut a posteriori.
+                    Exigez une description technique précise pour chaque ligne.
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex gap-4 p-5 bg-red-50 border border-red-100 rounded-xl">
+                <div class="flex-shrink-0 text-red-500 mt-0.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                </div>
+                <div class="min-w-0">
+                  <h3 class="font-semibold text-red-800 mb-1">Le forfait global sans décomposition</h3>
+                  <p class="text-sm text-red-700 leading-relaxed">
+                    Un devis avec une seule ligne <em>"réfection salle de bain — 8 500 €"</em>
+                    est irrecevable. Sans décomposition, vous ne pouvez ni vérifier les prix,
+                    ni contester une prestation non réalisée, ni comparer avec un autre artisan.
+                    Un tel devis ne protège que l'artisan.
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex gap-4 p-5 bg-amber-50 border border-amber-100 rounded-xl">
+                <div class="flex-shrink-0 text-amber-600 mt-0.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                </div>
+                <div class="min-w-0">
+                  <h3 class="font-semibold text-amber-800 mb-1">Les oublis stratégiques</h3>
+                  <p class="text-sm text-amber-700 leading-relaxed">
+                    Certains artisans omettent volontairement des postes pour afficher un prix
+                    d'appel bas&nbsp;: protection des sols, évacuation des gravats, reprise d'enduit
+                    après pose de carrelage, raccordement électrique d'un équipement, etc.
+                    Ces postes arrivent ensuite en supplément, souvent à des tarifs majorés.
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex gap-4 p-5 bg-amber-50 border border-amber-100 rounded-xl">
+                <div class="flex-shrink-0 text-amber-600 mt-0.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                </div>
+                <div class="min-w-0">
+                  <h3 class="font-semibold text-amber-800 mb-1">Les incohérences de quantité</h3>
+                  <p class="text-sm text-amber-700 leading-relaxed">
+                    Surfaces surestimées, nombre d'unités gonflé, heures de main-d'œuvre
+                    disproportionnées par rapport à la complexité du chantier. Ces incohérences
+                    passent inaperçues si vous ne comparez pas le devis à une référence marché.
+                    La règle&nbsp;: tout écart de plus de 20 % par rapport à la moyenne mérite
+                    une explication.
+                  </p>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Liens internes -->
+            <div class="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+              <p class="text-sm font-medium text-slate-700 mb-3">Pour aller plus loin&nbsp;:</p>
+              <div class="space-y-2">
+                <a href="/blog/comment-reperer-devis-gonfle-7-signes" class="flex items-center gap-2 text-sm text-primary hover:underline">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                  </svg>
+                  Comment repérer un devis gonflé&nbsp;: 7 signes qui ne trompent pas
+                </a>
+                <a href="/blog/devis-travaux-mentions-obligatoires-oubliees" class="flex items-center gap-2 text-sm text-primary hover:underline">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                  </svg>
+                  Devis travaux&nbsp;: les mentions obligatoires souvent oubliées
+                </a>
+              </div>
+            </div>
+          </section>
+
+          <!-- ── SECTION 4 : PRIX TROP CHER ── -->
+          <section class="mb-12" id="prix-marche">
+            <h2 class="text-2xl font-bold text-slate-900 mb-2">
+              Comment savoir si un devis est trop cher&nbsp;?
+            </h2>
+            <p class="text-slate-500 text-sm mb-6">
+              La question que tout le monde se pose, et à laquelle peu de particuliers ont accès
+              à une réponse fiable.
+            </p>
+
+            <p class="text-slate-600 leading-relaxed mb-4">
+              Le problème avec la comparaison de prix, c'est que les artisans ne publient pas
+              leurs tarifs. Obtenir 3 devis aide, mais si tous les artisans de votre zone sont
+              chers (marché tendu, faible concurrence), vous aurez 3 devis élevés et aucun repère.
+            </p>
+            <p class="text-slate-600 leading-relaxed mb-4">
+              Les astuces qui fonctionnent réellement&nbsp;:
+            </p>
+            <div class="space-y-3 mb-6">
+              {[
+                {
+                  icon: "📊",
+                  title: "Comparer les prix unitaires, pas les totaux",
+                  desc: "Le total d'un devis dépend des quantités — difficile à comparer. Le prix unitaire (€/m², €/unité) est le seul indicateur objectif. Un artisan à 95 €/m² de carrelage est moins cher qu'un autre à 75 €/m² si ce dernier a surestimé les surfaces de 30 %.",
+                },
+                {
+                  icon: "📍",
+                  title: "Tenir compte de la zone géographique",
+                  desc: "Les prix de la main-d'œuvre varient de 20 à 40 % entre zones rurales et métropoles. Un prix \"normal\" en Île-de-France serait considéré élevé en Creuse. Toujours se référer aux tarifs de votre département.",
+                },
+                {
+                  icon: "🔀",
+                  title: "Distinguer fourniture et pose",
+                  desc: "Certains artisans proposent des tarifs hors fournitures très bas (concurrence sur la main-d'œuvre) et marjent sur les matériaux. D'autres l'inverse. Comparez les deux parties séparément pour une analyse pertinente.",
+                },
+                {
+                  icon: "⚙️",
+                  title: "Utiliser un outil de comparaison automatisé",
+                  desc: "VerifierMonDevis.fr extrait automatiquement chaque poste de votre devis et le compare aux prix de référence de votre zone. En 2 minutes, vous savez si chaque ligne est sous-évaluée, dans la norme, ou surévaluée.",
+                },
+              ].map(item => (
+                <div class="flex gap-3 p-4 border border-slate-200 rounded-xl">
+                  <span class="text-xl flex-shrink-0">{item.icon}</span>
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold text-slate-900 mb-1">{item.title}</p>
+                    <p class="text-sm text-slate-600 leading-relaxed">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <!-- Lien interne -->
+            <a href="/blog/comment-savoir-si-devis-travaux-trop-cher" class="flex items-center gap-2 text-sm text-primary hover:underline">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+              </svg>
+              Lire&nbsp;: Comment savoir si un devis de travaux est trop cher&nbsp;?
+            </a>
+          </section>
+
+          <!-- ── SECTION 5 : COMPARER AU MARCHÉ ── -->
+          <section class="mb-12" id="comparer">
+            <h2 class="text-2xl font-bold text-slate-900 mb-2">
+              Comparer votre devis aux prix du marché&nbsp;: comment ça marche
+            </h2>
+            <p class="text-slate-600 leading-relaxed mb-4">
+              VerifierMonDevis.fr utilise une base de données de référentiel prix couvrant
+              plus de 200 types de travaux, mise à jour régulièrement à partir des données de
+              chantiers réels. Le système extrait automatiquement chaque ligne de votre devis
+              et la positionne dans la fourchette de marché (minimum · marché · maximum).
+            </p>
+            <p class="text-slate-600 leading-relaxed mb-6">
+              Le résultat&nbsp;: une analyse visuelle qui vous montre en un coup d'œil quelles
+              lignes sont conformes au marché et lesquelles méritent une discussion avec l'artisan.
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+              {[
+                { badge: "bg-green-100 text-green-700 border-green-200", label: "Dans la norme", desc: "Prix cohérent avec le marché local (±20 %)" },
+                { badge: "bg-amber-100 text-amber-700 border-amber-200", label: "À surveiller", desc: "Prix en limite haute — demandez une justification" },
+                { badge: "bg-red-100 text-red-700 border-red-200", label: "Surcoût détecté", desc: "Prix significativement au-dessus du marché" },
+              ].map(item => (
+                <div class={`border rounded-xl p-4 text-center ${item.badge} border-current`}>
+                  <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold mb-2" style={`background:inherit`}>{item.label}</span>
+                  <p class="text-xs leading-relaxed opacity-90">{item.desc}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <!-- ── CTA 2 ── -->
+          <div class="my-10 bg-slate-900 text-white rounded-2xl p-6 sm:p-8 text-center">
+            <p class="text-lg font-bold mb-2">Vérifiez votre devis gratuitement</p>
+            <p class="text-sm text-slate-300 mb-5 max-w-sm mx-auto">
+              Déposez votre PDF et obtenez en 2 minutes&nbsp;: score de fiabilité, vérification entreprise
+              et comparaison aux prix du marché.
+            </p>
+            <a href="/nouvelle-analyse" class="inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+              </svg>
+              Analyser mon devis — c'est gratuit
+            </a>
+          </div>
+
+          <!-- ── SECTION 6 : SIGNER OU REFUSER ── -->
+          <section class="mb-12" id="checklist">
+            <h2 class="text-2xl font-bold text-slate-900 mb-2">
+              Faut-il signer ou refuser&nbsp;? La checklist de décision
+            </h2>
+            <p class="text-slate-500 text-sm mb-6">
+              Utilisez ces deux listes comme filtre final avant de prendre votre décision.
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+
+              <!-- Feux verts -->
+              <div class="border border-green-200 bg-green-50 rounded-xl p-5">
+                <div class="flex items-center gap-2 mb-4">
+                  <div class="w-7 h-7 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                  </div>
+                  <h3 class="font-semibold text-green-900">Vous pouvez envisager de signer si…</h3>
+                </div>
+                <ul class="space-y-2">
+                  {checklistSign.map(item => (
+                    <li class="flex items-start gap-2 text-sm text-green-800">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <!-- Feux rouges -->
+              <div class="border border-red-200 bg-red-50 rounded-xl p-5">
+                <div class="flex items-center gap-2 mb-4">
+                  <div class="w-7 h-7 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </div>
+                  <h3 class="font-semibold text-red-900">Refusez ou renégociez si…</h3>
+                </div>
+                <ul class="space-y-2">
+                  {checklistRefuse.map(item => (
+                    <li class="flex items-start gap-2 text-sm text-red-800">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+            </div>
+
+            <p class="text-sm text-slate-500 mt-4 text-center">
+              Un ou plusieurs points de la colonne rouge&nbsp;? Revenez vers l'artisan pour clarification
+              avant toute signature. Un artisan sérieux répondra volontiers.
+            </p>
+          </section>
+
+          <!-- ── CTA 3 ── -->
+          <div class="my-10 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-6 text-center">
+            <p class="text-base font-semibold text-slate-900 mb-1">Besoin d'un deuxième avis&nbsp;?</p>
+            <p class="text-sm text-slate-600 mb-4">VerifierMonDevis.fr analyse votre devis sur l'ensemble des points de cette checklist et vous produit un rapport complet en 2 minutes.</p>
+            <a href="/nouvelle-analyse" class="inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+              </svg>
+              Obtenir mon analyse complète
+            </a>
+          </div>
+
+          <!-- ── FAQ ── -->
+          <section class="mb-12" id="faq">
+            <h2 class="text-2xl font-bold text-slate-900 mb-6">
+              Questions fréquentes
+            </h2>
+            <div class="space-y-3">
+              {faqs.map(faq => (
+                <details class="group border border-slate-200 rounded-xl overflow-hidden">
+                  <summary class="flex items-center justify-between gap-4 p-5 cursor-pointer list-none hover:bg-slate-50 transition-colors">
+                    <span class="font-medium text-slate-900 text-sm sm:text-base">{faq.question}</span>
+                    <svg
+                      class="h-5 w-5 text-slate-400 flex-shrink-0 transition-transform group-open:rotate-180"
+                      xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+                    >
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                    </svg>
+                  </summary>
+                  <div class="px-5 pb-5 text-sm text-slate-600 leading-relaxed border-t border-slate-100 pt-4">
+                    {faq.answer}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </section>
+
+          <!-- ── LIENS INTERNES CONTEXTUELS ── -->
+          <section class="mb-12">
+            <h2 class="text-xl font-bold text-slate-900 mb-4">Ressources complémentaires</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[
+                {
+                  href: "/comprendre-score",
+                  label: "Comprendre le score de fiabilité",
+                  desc: "Comment VerifierMonDevis.fr note un devis de 0 à 100",
+                },
+                {
+                  href: "/blog/comment-reperer-devis-gonfle-7-signes",
+                  label: "7 signes d'un devis gonflé",
+                  desc: "Les signaux d'alarme concrets à repérer dans un devis",
+                },
+                {
+                  href: "/blog/comment-savoir-si-devis-travaux-trop-cher",
+                  label: "Devis trop cher : comment le savoir ?",
+                  desc: "Méthode de comparaison aux prix de référence du marché",
+                },
+                {
+                  href: "/blog/devis-travaux-mentions-obligatoires-oubliees",
+                  label: "Mentions obligatoires d'un devis",
+                  desc: "Ce que la loi impose et que les artisans oublient",
+                },
+              ].map(link => (
+                <a href={link.href} class="flex flex-col p-4 border border-slate-200 rounded-xl hover:border-orange-300 hover:bg-orange-50/30 transition-colors group">
+                  <span class="text-sm font-semibold text-slate-900 group-hover:text-orange-700 transition-colors mb-1">{link.label}</span>
+                  <span class="text-xs text-slate-500">{link.desc}</span>
+                </a>
+              ))}
+            </div>
+          </section>
+
+        </div>
+      </article>
+
+    </main>
+    <AstroFooter />
+  </div>
+</BaseLayout>

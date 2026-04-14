@@ -1,0 +1,672 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AstroHeader from '@/components/astro/Header.astro';
+import AstroFooter from '@/components/astro/Footer.astro';
+
+// ── Données tableaux de prix ─────────────────────────────────────────────────
+
+const prixPiscines = [
+  {
+    type: "Piscine coque polyester",
+    taille: "7×3,5 m (standard)",
+    min: "15 000 €",
+    moy: "22 000 €",
+    max: "35 000 €",
+    badge: "green",
+    avantages: ["Installation rapide (1 à 2 semaines)", "Entretien facile", "Paroi lisse anti-algues"],
+    inconvenients: ["Dimensions limitées aux moules", "Moins personnalisable"],
+  },
+  {
+    type: "Piscine béton / maçonnerie",
+    taille: "8×4 m (classique)",
+    min: "30 000 €",
+    moy: "45 000 €",
+    max: "80 000 €",
+    badge: "blue",
+    avantages: ["Sur-mesure total", "Durabilité maximale", "Formes libres"],
+    inconvenients: ["Délai de construction long (4 à 8 semaines)", "Entretien plus exigeant"],
+  },
+  {
+    type: "Piscine en kit / acier",
+    taille: "6×3 m (entrée de gamme)",
+    min: "5 000 €",
+    moy: "12 000 €",
+    max: "20 000 €",
+    badge: "amber",
+    avantages: ["Budget accessible", "Montage rapide"],
+    inconvenients: ["Durabilité moindre", "Moins esthétique"],
+  },
+];
+
+const postes = [
+  { poste: "Terrassement + évacuation terres", ht: "3 200 €", notes: "Variable selon nature du sol (+50 % si rocheux)" },
+  { poste: "Coque polyester 8×4 m fournie posée", ht: "14 500 €", notes: "Inclut livraison et mise en place" },
+  { poste: "Équipements filtration (pompe, filtre, skimmer)", ht: "2 800 €", notes: "Pompe basse consommation recommandée" },
+  { poste: "Raccordements électriques", ht: "1 200 €", notes: "Tableautin dédié, norme NF C 15-100" },
+  { poste: "Plage béton + dallage (40 m²)", ht: "4 600 €", notes: "Béton lavé, dallage grès cérame ou bois composite" },
+  { poste: "Escalier intégré + margelles", ht: "1 800 €", notes: "Souvent non inclus dans le prix coque seul" },
+  { poste: "Volet roulant immergé", ht: "3 400 €", notes: "Option souvent présentée comme accessoire" },
+  { poste: "Traitements & mise en eau initiale", ht: "450 €", notes: "Analyse eau + produits démarrage" },
+];
+
+const erreurs = [
+  {
+    niveau: "red",
+    titre: "Le prix \"piscine seule\" sans terrassement ni plage",
+    texte: "L'erreur la plus répandue : un artisan annonce 14 000 € pour une piscine coque, mais ce prix n'inclut pas le terrassement (2 000 à 5 000 €), la plage béton (3 000 à 6 000 €) ni les raccordements (1 000 à 2 500 €). Le budget réel est systématiquement 30 à 50 % plus élevé que le prix affiché.",
+  },
+  {
+    niveau: "red",
+    titre: "L'absence du poste \"imprévus de terrassement\"",
+    texte: "La nature du terrain ne se sait qu'au creusement. Sol argileux, nappe phréatique, présence de roches : chaque aléa entraîne un surcoût. Un devis sérieux prévoit une provision pour sujétions imprévues, généralement 5 à 10 % du poste terrassement.",
+  },
+  {
+    niveau: "amber",
+    titre: "Le volet roulant et les équipements présentés en option",
+    texte: "Volet roulant, pompe à chaleur, éclairage LED, robot de nettoyage, douche de plage : présentées séparément, ces options représentent souvent 8 000 à 15 000 € supplémentaires sur un devis qui semblait raisonnable. Demandez systématiquement un devis \"tout compris\" pour comparer.",
+  },
+  {
+    niveau: "amber",
+    titre: "La sous-estimation du raccordement électrique",
+    texte: "La réglementation NF C 15-100 impose des protections spécifiques autour des piscines (zone 0, 1, 2). Un tableau électrique dédié avec disjoncteurs différentiels 30 mA est obligatoire. Certains devis mentionnent simplement \"raccordement électrique\" sans préciser la conformité réglementaire.",
+  },
+  {
+    niveau: "amber",
+    titre: "L'entretien annuel non budgété",
+    texte: "Produits de traitement (chlore, pH, anti-algues) : 300 à 600 €/an. Hivernage et remise en route : 200 à 400 €/an. Contrat de maintenance équipements : 150 à 300 €/an. Soit 650 à 1 300 € de coût annuel récurrent que la quasi-totalité des acheteurs ne prend pas en compte.",
+  },
+];
+
+const checklistAnalyse = [
+  { ok: true,  item: "Terrassement détaillé (volume de terres, évacuation, prix au m³)" },
+  { ok: true,  item: "Fourniture ET pose de la coque ou du béton (pas l'un sans l'autre)" },
+  { ok: true,  item: "Raccordements électriques avec mention de la conformité NF C 15-100" },
+  { ok: true,  item: "Plage, margelles et escalier inclus (ou chiffrés séparément)" },
+  { ok: true,  item: "Équipements de filtration spécifiés (marque, référence, débit)" },
+  { ok: true,  item: "Numéro SIRET et assurance décennale/RC pro de l'entreprise" },
+  { ok: true,  item: "Délai de réalisation et planning prévisionnel" },
+  { ok: false, item: "\"Piscine posée\" sans mention du terrassement" },
+  { ok: false, item: "Prix global sans décomposition par poste" },
+  { ok: false, item: "Équipements listés \"en option\" non chiffrés" },
+  { ok: false, item: "Absence de garantie décennale sur le génie civil" },
+  { ok: false, item: "Acompte demandé supérieur à 30 % avant démarrage" },
+];
+
+const faqs = [
+  {
+    question: "Quel est le prix d'une piscine 8×4 m en 2026 ?",
+    answer: "Pour une piscine 8×4 m, comptez en moyenne : 35 000 à 50 000 € pour une coque polyester posée clé en main (terrassement + plage basique inclus) ; 50 000 à 75 000 € pour une piscine béton équipée avec plage carrelée et volet roulant ; 15 000 à 25 000 € pour un kit acier assemblé (hors terrassement et plage). Ces prix incluent la mise en eau et les équipements de filtration de base. Les options (pompe à chaleur, robot, éclairage LED) représentent 5 000 à 15 000 € supplémentaires."
+  },
+  {
+    question: "Piscine coque ou piscine béton : laquelle choisir ?",
+    answer: "La piscine coque est recommandée si vous souhaitez une installation rapide (1 à 2 semaines), un entretien simplifié et un budget maîtrisé. Elle convient à 80 % des projets standards. La piscine béton s'impose si vous souhaitez une forme sur-mesure, des dimensions atypiques (>12 m, profil de plage progressif) ou une intégration architecturale exigeante. Elle nécessite 4 à 8 semaines de travaux et un budget souvent 40 à 60 % plus élevé. Dans les deux cas, l'essentiel est de vérifier que le devis inclut le génie civil complet, pas seulement la fourniture de la coque ou du béton."
+  },
+  {
+    question: "Quel est le budget total réel pour une piscine, tout compris ?",
+    answer: "Pour une piscine coque 8×4 m classique, le budget total réaliste est : fourniture et pose 14 000–18 000 € + terrassement 3 000–6 000 € + plage + margelles 4 000–8 000 € + électricité 1 000–2 500 € + volet roulant 2 500–4 500 € + pompe à chaleur (optionnel) 3 500–7 000 € = total entre 28 000 et 46 000 €. À quoi s'ajoutent l'entretien annuel (700–1 200 €/an) et les éventuels travaux de clôture (obligation légale de sécurité, 1 500 à 4 000 € selon le type)."
+  },
+  {
+    question: "Quelles démarches administratives pour une piscine ?",
+    answer: "Piscine ≤ 10 m² de bassin ou couverture ≤ 1,80 m : aucune déclaration. Piscine de 10 à 100 m² de surface de bassin : déclaration préalable de travaux (délai d'instruction 1 mois). Piscine > 100 m² ou couverte d'une structure ≥ 1,80 m de hauteur : permis de construire. Dans tous les cas, une clôture de sécurité (norme NF P90-306) est obligatoire pour tout bassin > 1,50 m de longueur et > 0,50 m de profondeur — prévoir 1 500 à 4 000 € selon le type de dispositif choisi."
+  },
+  {
+    question: "Un devis piscine peut-il évoluer après signature ?",
+    answer: "Oui, c'est fréquent — mais cela ne doit pas être une surprise si le devis est bien rédigé. Les seules causes légitimes de dépassement sont les aléas de terrassement imprévus (nappe phréatique, roches, accès difficile) et les travaux supplémentaires explicitement demandés par le client après signature. Tout autre surcoût doit faire l'objet d'un avenant écrit signé avant exécution. Méfiez-vous des devis qui n'incluent pas de provision pour aléas : l'artisan a toujours la possibilité de facturer les imprévus, mais s'il n'en parle pas en amont, il cherche peut-être à afficher un prix d'appel bas."
+  },
+  {
+    question: "Comment vérifier qu'une entreprise de piscine est sérieuse ?",
+    answer: "Vérifiez systématiquement : (1) le numéro SIRET et l'activité déclarée (Code NAF 4333Z ou 4121A pour le génie civil) ; (2) l'assurance décennale et la responsabilité civile professionnelle — demandez l'attestation avant signature ; (3) les avis Google (note ≥ 4/5 sur au moins 15 avis récents) ; (4) l'adhésion à la FPP (Fédération des Professionnels de la Piscine) ou à Qualipiscine. VerifierMonDevis.fr vérifie automatiquement ces éléments lors de l'analyse de votre devis."
+  },
+];
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Devis piscine : prix réel, budget et pièges à éviter (2026)",
+  "description": "Combien coûte vraiment une piscine en 2026 ? Prix moyens par type, exemple de devis réel annoté, erreurs fréquentes et checklist d'analyse complète.",
+  "author": { "@type": "Person", "name": "Julien Dumas" },
+  "publisher": {
+    "@type": "Organization",
+    "name": "VerifierMonDevis.fr",
+    "logo": { "@type": "ImageObject", "url": "https://www.verifiermondevis.fr/images/logo.webp" }
+  },
+  "datePublished": "2026-04-14",
+  "dateModified": "2026-04-14",
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://www.verifiermondevis.fr/devis-piscine-prix" },
+};
+
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": faqs.map(faq => ({
+    "@type": "Question",
+    "name": faq.question,
+    "acceptedAnswer": { "@type": "Answer", "text": faq.answer }
+  }))
+};
+
+const badgeColors: Record<string, string> = {
+  green: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  blue:  "bg-blue-100 text-blue-700 border-blue-200",
+  amber: "bg-amber-100 text-amber-700 border-amber-200",
+};
+---
+
+<BaseLayout
+  title="Devis piscine : prix réel, budget et pièges à éviter (2026)"
+  description="Combien coûte vraiment une piscine en 2026 ? Prix par type (coque, béton, kit), exemple de devis réel annoté, erreurs fréquentes et checklist pour ne rien oublier."
+  canonical="https://www.verifiermondevis.fr/devis-piscine-prix"
+  ogType="article"
+  jsonLd={jsonLd}
+  breadcrumbs={[
+    { name: "Accueil", url: "https://www.verifiermondevis.fr/" },
+    { name: "Devis piscine — prix 2026", url: "https://www.verifiermondevis.fr/devis-piscine-prix" }
+  ]}
+>
+  <!-- FAQ JSON-LD dans le body — validé par Google Search Console -->
+  <script type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+
+  <div class="min-h-screen flex flex-col">
+    <AstroHeader />
+
+    <main class="flex-1">
+
+      <!-- ══════════════════════════════════════════
+           HERO
+      ══════════════════════════════════════════ -->
+      <section class="bg-gradient-to-b from-cyan-950 to-slate-900 text-white py-16 sm:py-20">
+        <div class="container max-w-4xl px-4">
+
+          <a href="/" class="inline-flex items-center gap-2 text-slate-400 hover:text-white mb-8 transition-colors text-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+            </svg>
+            Retour à l'accueil
+          </a>
+
+          <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 text-xs font-medium text-cyan-200 mb-5">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+            </svg>
+            Guide prix · Mis à jour avril 2026
+          </div>
+
+          <h1 class="text-3xl sm:text-4xl font-bold leading-tight mb-5">
+            Devis piscine : combien ça&nbsp;coûte<br class="hidden sm:block" />
+            vraiment en&nbsp;2026&nbsp;?
+          </h1>
+
+          <p class="text-base sm:text-lg text-slate-300 leading-relaxed max-w-2xl mb-4">
+            Vous avez reçu des devis piscine avec des écarts de 15 000 à 60 000 €
+            pour le même projet&nbsp;? Vous n'êtes pas seul. Les prix de la piscine sont
+            parmi les moins transparents du bâtiment — entre les postes cachés,
+            les options non chiffrées et les prix d'appel, le budget réel finit
+            presque toujours bien au-dessus du devis initial.
+          </p>
+          <p class="text-sm text-slate-400 mb-8">
+            Ce guide vous donne les vrais chiffres du marché 2026 et les outils pour
+            lire un devis piscine sans vous faire piéger.
+          </p>
+
+          <div class="flex flex-col sm:flex-row gap-3">
+            <a
+              href="/nouvelle-analyse"
+              class="inline-flex items-center justify-center gap-2 bg-cyan-500 hover:bg-cyan-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+              </svg>
+              Analyser mon devis piscine gratuitement
+            </a>
+            <a
+              href="#prix"
+              class="inline-flex items-center justify-center gap-2 border border-white/30 text-white hover:bg-white/10 font-semibold px-6 py-3 rounded-xl transition-colors text-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+              </svg>
+              Voir les prix par type
+            </a>
+          </div>
+
+          <!-- Stats -->
+          <div class="mt-10 grid grid-cols-3 gap-4 sm:gap-6 border-t border-white/10 pt-8">
+            {[
+              { value: "+38 %",   label: "de dépassement budgétaire moyen constaté" },
+              { value: "3 sur 5", label: "devis piscine omettent au moins un poste majeur" },
+              { value: "2 min",   label: "pour détecter les anomalies de votre devis" },
+            ].map(stat => (
+              <div class="text-center">
+                <div class="text-xl sm:text-2xl font-bold text-white mb-1">{stat.value}</div>
+                <div class="text-xs text-slate-400 leading-snug">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════
+           CORPS
+      ══════════════════════════════════════════ -->
+      <article class="py-12 sm:py-16">
+        <div class="container max-w-3xl px-4">
+
+          <!-- ── SECTION 1 : PRIX PAR TYPE ── -->
+          <section class="mb-12" id="prix">
+            <h2 class="text-2xl font-bold text-slate-900 mb-2">
+              Prix moyen d'une piscine en 2026
+            </h2>
+            <p class="text-slate-500 text-sm mb-6">
+              Fourchettes constatées sur des projets réels en France métropolitaine,
+              hors Île-de-France (majorer de 15 à 25 % en zone parisienne).
+            </p>
+
+            <div class="space-y-5">
+              {prixPiscines.map(p => (
+                <div class="border border-slate-200 rounded-xl overflow-hidden">
+                  <div class="flex items-center justify-between gap-4 p-5 bg-slate-50 border-b border-slate-200">
+                    <div>
+                      <h3 class="font-semibold text-slate-900">{p.type}</h3>
+                      <p class="text-xs text-slate-500 mt-0.5">Exemple : {p.taille}</p>
+                    </div>
+                    <span class={`flex-shrink-0 text-xs font-semibold px-3 py-1 rounded-full border ${badgeColors[p.badge]}`}>
+                      {p.moy} en moyenne
+                    </span>
+                  </div>
+                  <div class="p-5">
+                    <!-- Barre de prix -->
+                    <div class="flex items-center gap-3 mb-4">
+                      <span class="text-xs text-slate-500 w-16 text-right flex-shrink-0">Min</span>
+                      <div class="flex-1 relative h-3 bg-slate-100 rounded-full overflow-hidden">
+                        <div class="absolute left-0 top-0 h-full bg-gradient-to-r from-emerald-400 via-amber-400 to-red-400 w-full rounded-full opacity-40"></div>
+                        <div class="absolute left-[30%] top-[-3px] h-5 w-0.5 bg-slate-400"></div>
+                      </div>
+                      <span class="text-xs text-slate-500 w-16 flex-shrink-0">Max</span>
+                    </div>
+                    <div class="flex justify-between text-xs font-semibold text-slate-700 mb-4 px-[4.5rem]">
+                      <span>{p.min}</span>
+                      <span class="text-primary">{p.moy}</span>
+                      <span>{p.max}</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p class="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">Avantages</p>
+                        <ul class="space-y-1">
+                          {p.avantages.map(a => (
+                            <li class="flex items-start gap-1.5 text-slate-600">
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                              </svg>
+                              <span class="text-xs">{a}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <p class="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">Limites</p>
+                        <ul class="space-y-1">
+                          {p.inconvenients.map(i => (
+                            <li class="flex items-start gap-1.5 text-slate-600">
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m12-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                              </svg>
+                              <span class="text-xs">{i}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div class="mt-5 p-4 bg-cyan-50 border border-cyan-200 rounded-xl text-sm text-cyan-800">
+              <strong>Rappel important&nbsp;:</strong> ces prix correspondent à la piscine
+              <em>clé en main</em> avec terrassement et plage basique.
+              Les prix d'appel que vous voyez souvent en ligne (à partir de 9 900 €)
+              correspondent à la coque ou au kit <em>seul</em>, hors pose, hors terrassement,
+              hors plage, hors raccordements.
+            </div>
+          </section>
+
+          <!-- ── CTA 1 ── -->
+          <div class="my-10 bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-2xl p-6 text-center">
+            <p class="text-base font-semibold text-slate-900 mb-1">Votre devis est dans ces fourchettes&nbsp;?</p>
+            <p class="text-sm text-slate-600 mb-4">Déposez-le sur VerifierMonDevis.fr. L'outil compare chaque ligne aux prix de référence et détecte les postes manquants en 2 minutes.</p>
+            <a href="/nouvelle-analyse" class="inline-flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+              </svg>
+              Analyser mon devis piscine — c'est gratuit
+            </a>
+          </div>
+
+          <!-- ── SECTION 2 : EXEMPLE RÉEL DE DEVIS ── -->
+          <section class="mb-12" id="exemple-devis">
+            <h2 class="text-2xl font-bold text-slate-900 mb-2">
+              Exemple réel de devis piscine annoté
+            </h2>
+            <p class="text-slate-500 text-sm mb-6">
+              Projet&nbsp;: piscine coque 8×4 m, terrain plat, région Rhône-Alpes (2025).
+              Devis anonymisé issu d'un projet client.
+            </p>
+
+            <div class="overflow-x-auto -mx-4 sm:mx-0 rounded-xl border border-slate-200">
+              <table class="min-w-[560px] w-full text-sm">
+                <thead>
+                  <tr class="bg-slate-800 text-white">
+                    <th class="text-left px-4 py-3 font-medium rounded-tl-xl">Poste</th>
+                    <th class="text-right px-4 py-3 font-medium w-28">Montant HT</th>
+                    <th class="text-left px-4 py-3 font-medium rounded-tr-xl">Note d'analyse</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {postes.map((row, i) => (
+                    <tr class={i % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                      <td class="px-4 py-3 text-slate-800 font-medium border-b border-slate-100">{row.poste}</td>
+                      <td class="px-4 py-3 text-right text-slate-900 font-semibold border-b border-slate-100 tabular-nums">{row.ht}</td>
+                      <td class="px-4 py-3 text-slate-500 text-xs border-b border-slate-100">{row.notes}</td>
+                    </tr>
+                  ))}
+                  <tr class="bg-cyan-50">
+                    <td class="px-4 py-3 font-bold text-slate-900 rounded-bl-xl">Total HT</td>
+                    <td class="px-4 py-3 text-right font-bold text-cyan-700 tabular-nums">31 950 €</td>
+                    <td class="px-4 py-3 text-xs text-slate-500 rounded-br-xl">TVA 10 % → <strong>35 145 € TTC</strong></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="mt-4 space-y-3">
+              <div class="flex gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p class="text-emerald-800"><strong>Point fort de ce devis&nbsp;:</strong> tous les postes sont détaillés, le terrassement est chiffré séparément avec indication du volume. Les équipements de filtration précisent la marque et le modèle.</p>
+              </div>
+              <div class="flex gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+                <p class="text-amber-800"><strong>Point d'attention&nbsp;:</strong> le volet roulant (3 400 €) est listé mais la pompe à chaleur n'apparaît pas. À cette latitude, une PAC est quasi indispensable — demander un chiffrage complémentaire (3 500 à 7 000 €).</p>
+              </div>
+              <div class="flex gap-3 p-4 bg-red-50 border border-red-200 rounded-xl text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+                <p class="text-red-800"><strong>Alerte&nbsp;:</strong> aucune mention de la clôture de sécurité (obligation légale). Poste à ajouter&nbsp;: 1 500 à 3 500 € selon le type (barrière rigide, alarme, abri). À budgéter et à intégrer dans la demande de permis si applicable.</p>
+              </div>
+            </div>
+          </section>
+
+          <!-- ── SECTION 3 : POURQUOI LES PRIX VARIENT ── -->
+          <section class="mb-12" id="variations">
+            <h2 class="text-2xl font-bold text-slate-900 mb-2">
+              Pourquoi les prix d'une piscine varient autant&nbsp;?
+            </h2>
+            <p class="text-slate-500 text-sm mb-6">
+              Un même projet de piscine peut avoir des devis allant du simple au triple.
+              Voici les vrais facteurs d'écart.
+            </p>
+
+            <div class="space-y-4">
+              {[
+                {
+                  emoji: "⛏️",
+                  titre: "La nature du terrain",
+                  texte: "C'est le premier facteur de variabilité. Un sol argileux, la présence d'une nappe phréatique, un accès difficile pour les engins de chantier, un sol rocheux nécessitant un marteau-piqueur : chaque aléa peut ajouter 2 000 à 8 000 € au poste terrassement. Certaines entreprises intègrent une marge dans leur devis, d'autres facturent systématiquement les imprévus en supplément.",
+                },
+                {
+                  emoji: "🧱",
+                  titre: "Le choix des matériaux et des équipements",
+                  texte: "Liner 75/100e ou 150/100e (30 % d'écart de durabilité). Pompe à vitesse variable ou monovitesse (consommation électrique ×3 sur 10 ans). Filtration sable ou à diatomées. Revêtement plage : béton désactivé, dallage grès ou bois composite. L'addition de ces choix explique seule des écarts de 8 000 à 15 000 € sur un même projet.",
+                },
+                {
+                  emoji: "👷",
+                  titre: "La main-d'œuvre et la zone géographique",
+                  texte: "Les tarifs de main-d'œuvre varient de 30 à 45 % entre les zones rurales de province et l'Île-de-France ou la Côte d'Azur. La disponibilité des entreprises influe aussi : en pleine saison (mars à juin), les piscinistes sont en tension et peuvent appliquer des majorations implicites.",
+                },
+                {
+                  emoji: "📐",
+                  titre: "Les options et le niveau de finition",
+                  texte: "Pompe à chaleur, robot nettoyeur, éclairage LED, couverture automatique, système de traitement au sel : les options peuvent facilement représenter 30 % du budget total. Certains devis les listent séparément pour afficher un prix principal bas — toujours demander le budget \"tout compris\".",
+                },
+              ].map(item => (
+                <div class="flex gap-4 p-5 border border-slate-200 rounded-xl">
+                  <span class="text-2xl flex-shrink-0 mt-0.5">{item.emoji}</span>
+                  <div class="min-w-0">
+                    <h3 class="font-semibold text-slate-900 mb-2">{item.titre}</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed">{item.texte}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <!-- ── CTA 2 ── -->
+          <div class="my-10 bg-slate-900 text-white rounded-2xl p-6 sm:p-8 text-center">
+            <p class="text-lg font-bold mb-2">Votre devis intègre tous ces postes&nbsp;?</p>
+            <p class="text-sm text-slate-300 mb-5 max-w-sm mx-auto">
+              Uploadez votre PDF et obtenez une vérification complète&nbsp;: postes manquants,
+              prix hors marché, points de vigilance. Gratuit, sans engagement.
+            </p>
+            <a href="/nouvelle-analyse" class="inline-flex items-center justify-center gap-2 bg-cyan-500 hover:bg-cyan-400 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+              </svg>
+              Vérifier mon devis piscine maintenant
+            </a>
+          </div>
+
+          <!-- ── SECTION 4 : ERREURS FRÉQUENTES ── -->
+          <section class="mb-12" id="erreurs">
+            <h2 class="text-2xl font-bold text-slate-900 mb-2">
+              Les erreurs fréquentes dans un devis piscine
+            </h2>
+            <p class="text-slate-500 text-sm mb-6">
+              Ce sont les causes des dépassements budgétaires les plus fréquents.
+              Toutes s'anticipent à la lecture du devis, avant signature.
+            </p>
+
+            <div class="space-y-4">
+              {erreurs.map(e => (
+                <div class={`flex gap-4 p-5 rounded-xl border ${e.niveau === 'red' ? 'bg-red-50 border-red-100' : 'bg-amber-50 border-amber-100'}`}>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class={`h-5 w-5 flex-shrink-0 mt-0.5 ${e.niveau === 'red' ? 'text-red-500' : 'text-amber-500'}`}
+                    fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                  <div class="min-w-0">
+                    <h3 class={`font-semibold mb-1 ${e.niveau === 'red' ? 'text-red-800' : 'text-amber-800'}`}>{e.titre}</h3>
+                    <p class={`text-sm leading-relaxed ${e.niveau === 'red' ? 'text-red-700' : 'text-amber-700'}`}>{e.texte}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <!-- Lien interne -->
+            <div class="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+              <p class="text-sm font-medium text-slate-700 mb-2">Pour aller plus loin&nbsp;:</p>
+              <a href="/blog/prix-piscine-8x4-2025-analyse-devis" class="flex items-center gap-2 text-sm text-primary hover:underline">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                </svg>
+                Prix d'une piscine 8×4 m&nbsp;: analyse complète d'un devis réel (2025)
+              </a>
+            </div>
+          </section>
+
+          <!-- ── SECTION 5 : ANALYSER SON DEVIS ── -->
+          <section class="mb-12" id="checklist">
+            <h2 class="text-2xl font-bold text-slate-900 mb-2">
+              Comment analyser un devis piscine&nbsp;: la checklist
+            </h2>
+            <p class="text-slate-500 text-sm mb-6">
+              Passez chaque point en revue avant de signer. Tout point négatif doit
+              faire l'objet d'une clarification écrite avec l'artisan.
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+
+              <!-- À vérifier (vert) -->
+              <div class="border border-emerald-200 bg-emerald-50 rounded-xl p-5">
+                <div class="flex items-center gap-2 mb-4">
+                  <div class="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                  </div>
+                  <h3 class="font-semibold text-emerald-900 text-sm">Doit être présent dans le devis</h3>
+                </div>
+                <ul class="space-y-2">
+                  {checklistAnalyse.filter(c => c.ok).map(c => (
+                    <li class="flex items-start gap-2 text-sm text-emerald-800">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                      {c.item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <!-- Signaux d'alarme (rouge) -->
+              <div class="border border-red-200 bg-red-50 rounded-xl p-5">
+                <div class="flex items-center gap-2 mb-4">
+                  <div class="w-7 h-7 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </div>
+                  <h3 class="font-semibold text-red-900 text-sm">Signaux d'alarme à repérer</h3>
+                </div>
+                <ul class="space-y-2">
+                  {checklistAnalyse.filter(c => !c.ok).map(c => (
+                    <li class="flex items-start gap-2 text-sm text-red-800">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      {c.item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+            </div>
+
+            <p class="text-sm text-slate-500 mt-4 text-center">
+              Plusieurs points rouges&nbsp;? Demandez un devis rectificatif avant toute signature.
+              Un professionnel sérieux répondra positivement à ces demandes.
+            </p>
+          </section>
+
+          <!-- ── CTA FORT FINAL ── -->
+          <section class="my-12 bg-gradient-to-br from-cyan-600 to-blue-700 text-white rounded-2xl p-8 sm:p-10 text-center">
+            <div class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-white/20 mb-5">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+              </svg>
+            </div>
+            <h2 class="text-2xl font-bold mb-3">Analysez votre devis piscine gratuitement</h2>
+            <p class="text-cyan-100 text-sm mb-2 max-w-md mx-auto">
+              Déposez votre PDF en 30 secondes. VerifierMonDevis.fr vous indique&nbsp;:
+            </p>
+            <ul class="text-sm text-cyan-100 space-y-1 mb-6 max-w-xs mx-auto text-left">
+              <li class="flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-cyan-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+                Les postes manquants ou incomplets
+              </li>
+              <li class="flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-cyan-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+                Les prix hors fourchette marché
+              </li>
+              <li class="flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-cyan-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+                La fiabilité de l'entreprise (SIRET, assurances)
+              </li>
+            </ul>
+            <a
+              href="/nouvelle-analyse"
+              class="inline-flex items-center justify-center gap-2 bg-white text-cyan-700 hover:bg-cyan-50 font-bold px-8 py-3.5 rounded-xl transition-colors text-sm shadow-lg"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+              </svg>
+              Analyser mon devis piscine — gratuit
+            </a>
+            <p class="text-xs text-cyan-200 mt-3">Sans inscription · Résultat en 2 minutes · Confidentiel</p>
+          </section>
+
+          <!-- ── FAQ ── -->
+          <section class="mb-12" id="faq">
+            <h2 class="text-2xl font-bold text-slate-900 mb-6">Questions fréquentes</h2>
+            <div class="space-y-3">
+              {faqs.map(faq => (
+                <details class="group border border-slate-200 rounded-xl overflow-hidden">
+                  <summary class="flex items-center justify-between gap-4 p-5 cursor-pointer list-none hover:bg-slate-50 transition-colors">
+                    <span class="font-medium text-slate-900 text-sm sm:text-base">{faq.question}</span>
+                    <svg
+                      class="h-5 w-5 text-slate-400 flex-shrink-0 transition-transform group-open:rotate-180"
+                      xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+                    >
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                    </svg>
+                  </summary>
+                  <div class="px-5 pb-5 text-sm text-slate-600 leading-relaxed border-t border-slate-100 pt-4">
+                    {faq.answer}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </section>
+
+          <!-- ── LIENS INTERNES ── -->
+          <section class="mb-8">
+            <h2 class="text-xl font-bold text-slate-900 mb-4">Ressources complémentaires</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[
+                {
+                  href: "/blog/prix-piscine-8x4-2025-analyse-devis",
+                  label: "Prix piscine 8×4 : analyse d'un devis réel",
+                  desc: "Décryptage complet d'un devis piscine coque avec commentaires poste par poste",
+                },
+                {
+                  href: "/analyser-devis-travaux",
+                  label: "Analyser un devis travaux : guide complet",
+                  desc: "Méthode générale applicable à tous types de devis artisan",
+                },
+                {
+                  href: "/comprendre-score",
+                  label: "Comprendre le score de fiabilité",
+                  desc: "Comment VerifierMonDevis.fr note la fiabilité d'un devis et d'une entreprise",
+                },
+                {
+                  href: "/nouvelle-analyse",
+                  label: "Déposer mon devis pour analyse",
+                  desc: "Analyse gratuite en 2 minutes — PDF accepté",
+                },
+              ].map(link => (
+                <a href={link.href} class="flex flex-col p-4 border border-slate-200 rounded-xl hover:border-cyan-300 hover:bg-cyan-50/30 transition-colors group">
+                  <span class="text-sm font-semibold text-slate-900 group-hover:text-cyan-700 transition-colors mb-1">{link.label}</span>
+                  <span class="text-xs text-slate-500">{link.desc}</span>
+                </a>
+              ))}
+            </div>
+          </section>
+
+        </div>
+      </article>
+
+    </main>
+    <AstroFooter />
+  </div>
+</BaseLayout>

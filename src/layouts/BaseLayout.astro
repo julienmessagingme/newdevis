@@ -371,9 +371,10 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
       })();
     </script>
 
-    <!-- Amplitude Analytics + Session Replay -->
+    <!-- Amplitude Analytics -->
     <script>
       import { initAmplitude, trackPageView } from '@/lib/amplitude';
+      // Le <script> Astro (sans is:inline) est déféré par Vite — exécuté après le DOM.
       initAmplitude();
       trackPageView();
     </script>
