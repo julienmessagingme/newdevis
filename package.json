@@ -11,6 +11,7 @@
     "astro": "astro"
   },
   "dependencies": {
+    "@amplitude/unified": "^1.0.16",
     "@astrojs/react": "^4.4.2",
     "@astrojs/tailwind": "^6.0.2",
     "@astrojs/vercel": "^9.0.4",

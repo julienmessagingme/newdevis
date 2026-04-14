@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { trackEvent } from "@/lib/amplitude";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -336,6 +337,11 @@ const NewAnalysis = () => {
         setUploadStatus("success");
         setUploadedFilePath(filePath);
         toast.success("Fichier téléversé avec succès !");
+        trackEvent('devis_uploaded', {
+          file_type: fileExt,
+          file_size: fileToUpload.size,
+          is_anonymous: isAnonymous,
+        });
         return;
       } catch (err: any) {
         console.error(`Upload exception attempt ${i + 1}:`, err);
@@ -420,6 +426,11 @@ const NewAnalysis = () => {
       }
 
       toast.success("Analyse lancée...");
+      trackEvent('analysis_started', {
+        analysis_id: analysis.id,
+        file_name: file.name,
+        is_anonymous: isAnonymous,
+      });
 
       // Déclencher l'analyse (synchrone, avec timeout)
       const invokePromise = supabase.functions.invoke("analyze-quote", {

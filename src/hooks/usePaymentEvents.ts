@@ -121,26 +121,42 @@ export function usePaymentEvents(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chantierId, tick]);
 
-  // ── Mise à jour statut — écriture directe Supabase (RLS client-side) ──
-  // Le client anon a la session de l'utilisateur → RLS autorise l'UPDATE.
+  // ── Mise à jour statut — via API route (auth JWT garantie) ──────────────
+  // Utilise l'API route PATCH /api/chantier/[id]/payment-events plutôt qu'un
+  // appel Supabase direct : évite les aléas RLS client-side et le bug
+  // head:true qui renvoie count=null sur les mutations POST/PATCH.
   // Retourne 'ok' | 'not_found' | 'error'
   const patchStatus = useCallback(async (id: string, status: 'paid' | 'pending'): Promise<'ok' | 'not_found' | 'error'> => {
     if (!chantierId) { console.error('[patchStatus] chantierId manquant'); return 'error'; }
     try {
-      const { error, count } = await supabase
-        .from('payment_events')
-        .update({ status })
-        .eq('id', id)
-        .eq('project_id', chantierId)
-        .select('id', { count: 'exact', head: true });
-
-      if (error) {
-        console.error('[patchStatus] Supabase error:', error.message, error.code);
+      // Toujours récupérer un token frais (même pattern que doFetch)
+      const { data: { session } } = await supabase.auth.getSession();
+      const bearer = session?.access_token ?? token ?? null;
+      if (!bearer) {
+        console.error('[patchStatus] token manquant');
         return 'error';
       }
-      if (count === 0) {
-        console.warn('[patchStatus] 0 rows updated — event introuvable ou non autorisé', { id, chantierId });
+
+      const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${bearer}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id, status }),
+      });
+
+      if (res.status === 404) {
+        console.warn('[patchStatus] 404 — event introuvable', { id, chantierId });
         return 'not_found';
+      }
+      if (res.status === 403) {
+        console.error('[patchStatus] 403 — non autorisé', { id, chantierId });
+        return 'error';
+      }
+      if (!res.ok) {
+        console.error('[patchStatus] HTTP', res.status);
+        return 'error';
       }
       console.log(`[patchStatus] ✓ ${status} (id=${id})`);
       return 'ok';
@@ -148,7 +164,7 @@ export function usePaymentEvents(
       console.error('[patchStatus] exception:', e instanceof Error ? e.message : e);
       return 'error';
     }
-  }, [chantierId]);
+  }, [chantierId, token]);
 
   // ── Marquer un événement comme payé ──────────────────────────────────────
   const markPaid = useCallback(async (id: string): Promise<boolean> => {

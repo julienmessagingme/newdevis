@@ -370,5 +370,12 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
         }
       })();
     </script>
+
+    <!-- Amplitude Analytics + Session Replay -->
+    <script>
+      import { initAmplitude, trackPageView } from '@/lib/amplitude';
+      initAmplitude();
+      trackPageView();
+    </script>
   </body>
 </html>

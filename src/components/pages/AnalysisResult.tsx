@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } from "react";
+import { trackEvent } from "@/lib/amplitude";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft,
@@ -427,6 +428,15 @@ const AnalysisResult = () => {
     if (!analysis) return;
     initTrustpilotWidget(trustpilotRef.current);
   }, [analysis, initTrustpilotWidget]);
+
+  // Track analysis_viewed once analysis is completed
+  useEffect(() => {
+    if (!analysis || analysis.status !== "completed") return;
+    trackEvent('analysis_viewed', {
+      analysis_id: id,
+      domain: (analysis as any).domain ?? 'travaux',
+    });
+  }, [analysis, id]);
 
   // Show Trustpilot modal 5s after analysis is loaded (skip if already dismissed)
   useEffect(() => {
