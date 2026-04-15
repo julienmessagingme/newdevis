@@ -447,7 +447,7 @@ function PaymentWizard({ ev, chantierId, token, markPaid, proofInputRef, proofUp
   ev: PaymentEvent;
   chantierId: string;
   token: string;
-  markPaid: (id: string) => Promise<boolean>;
+  markPaid: (id: string, amount?: number) => Promise<boolean>;
   proofInputRef: React.RefObject<HTMLInputElement>;
   proofUploading: boolean;
   setProofUploading: (v: boolean) => void;
@@ -459,12 +459,20 @@ function PaymentWizard({ ev, chantierId, token, markPaid, proofInputRef, proofUp
   const [errMsg,         setErrMsg]         = useState<string | null>(null);
   const [selectedSource, setSelectedSource] = useState<SourceType | null>(null);
   const [savingSource,   setSavingSource]   = useState(false);
+  // Montant modifiable — pré-rempli avec le montant prévu, éditable par l'utilisateur
+  const [editedAmount,   setEditedAmount]   = useState<string>(
+    ev.amount != null ? String(ev.amount) : '',
+  );
 
   // Étape 1 — Confirmation + paiement effectif
   async function handleConfirm() {
     setPaying(true);
     setErrMsg(null);
-    const ok = await markPaid(ev.id);
+    // Montant réellement payé (peut différer du montant prévu)
+    const parsedAmount = editedAmount !== ''
+      ? parseFloat(editedAmount.replace(',', '.'))
+      : undefined;
+    const ok = await markPaid(ev.id, parsedAmount && !isNaN(parsedAmount) ? parsedAmount : undefined);
     setPaying(false);
     if (!ok) {
       setErrMsg('Le paiement n\'a pas pu être enregistré. Vérifiez votre connexion et réessayez.');
@@ -522,9 +530,29 @@ function PaymentWizard({ ev, chantierId, token, markPaid, proofInputRef, proofUp
   // ── Étape 1 : Confirmation ────────────────────────────────────────────────
   if (step === 'confirm') return (
     <div className="mt-2.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-3 space-y-2.5">
-      <p className="text-xs font-bold text-emerald-800">
-        Confirmer le paiement{ev.amount != null ? ` de ${fmtEur(ev.amount)}` : ''} ?
-      </p>
+      <p className="text-xs font-bold text-emerald-800">Confirmer le paiement</p>
+
+      {/* Montant éditable */}
+      <div className="flex items-center gap-2">
+        <label className="text-[11px] text-emerald-700 font-medium shrink-0">Montant payé :</label>
+        <div className="flex items-center gap-1 bg-white border border-emerald-200 rounded-lg px-2.5 py-1.5 focus-within:border-emerald-400 transition-colors">
+          <input
+            type="number"
+            inputMode="decimal"
+            value={editedAmount}
+            onChange={e => setEditedAmount(e.target.value)}
+            placeholder="0"
+            className="w-24 text-sm font-bold text-gray-900 bg-transparent outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+          />
+          <span className="text-xs text-gray-400 font-medium">€</span>
+        </div>
+        {ev.amount != null && editedAmount !== '' && parseFloat(editedAmount.replace(',', '.')) !== ev.amount && (
+          <span className="text-[10px] text-amber-600 font-semibold">
+            prévu : {fmtEur(ev.amount)}
+          </span>
+        )}
+      </div>
+
       {errMsg && (
         <div className="flex items-start gap-1.5 text-[11px] text-red-700 bg-red-50 border border-red-100 rounded-lg px-2.5 py-2">
           <AlertCircle className="h-3 w-3 shrink-0 mt-0.5" />
@@ -535,7 +563,7 @@ function PaymentWizard({ ev, chantierId, token, markPaid, proofInputRef, proofUp
         <button type="button" onClick={handleConfirm} disabled={paying}
           className="flex items-center gap-1.5 text-xs font-bold bg-emerald-600 text-white rounded-lg px-3 py-1.5 hover:bg-emerald-700 disabled:opacity-50 transition-colors">
           {paying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-          {paying ? 'Enregistrement…' : 'Oui, payé'}
+          {paying ? 'Enregistrement…' : 'Confirmer le paiement'}
         </button>
         <button type="button" onClick={onClose}
           className="flex items-center gap-1 text-xs font-semibold text-gray-500 bg-white border border-gray-200 rounded-lg px-3 py-1.5 hover:border-gray-300 transition-colors">
@@ -659,7 +687,7 @@ function PaymentEventRow({ ev, chantierId, token, confirmingId, setConfirmingId,
   proofInputRef: React.RefObject<HTMLInputElement>;
   proofUploading: boolean;
   setProofUploading: (v: boolean) => void;
-  markPaid: (id: string) => Promise<boolean>;
+  markPaid: (id: string, amount?: number) => Promise<boolean>;
   markUnpaid: (id: string) => void;
   refresh: () => void;
 }) {

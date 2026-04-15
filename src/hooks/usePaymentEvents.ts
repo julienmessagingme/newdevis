@@ -38,7 +38,7 @@ export interface UsePaymentEventsReturn {
   loading: boolean;
   error: string | null;
   refresh: () => void;
-  markPaid: (id: string) => Promise<boolean>;
+  markPaid: (id: string, amount?: number) => Promise<boolean>;
   markUnpaid: (id: string) => Promise<void>;
 }
 
@@ -121,58 +121,63 @@ export function usePaymentEvents(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chantierId, tick]);
 
-  // ── Mise à jour statut — via PATCH API route (server-side, service_role) ──
-  // On passe par l'API route plutôt que par le RPC client-side pour éviter les
-  // problèmes de session : le token est toujours rafraîchi via getSession() avant
-  // l'appel, et le serveur utilise la service_role_key (pas de dépendance RLS).
-  // Retourne 'ok' | 'not_found' | 'error'
-  const patchStatus = useCallback(async (id: string, status: 'paid' | 'pending'): Promise<'ok' | 'not_found' | 'error'> => {
+  // ── Mise à jour statut (+ montant optionnel) via Supabase client ──────────
+  // Double protection :
+  //   1. getSession() force le chargement en mémoire de la session — sans ça,
+  //      auth.uid() est null côté RLS si l'appel arrive avant la fin de l'init async.
+  //   2. .select('id') permet de détecter un update à 0 lignes (RLS bloqué silencieux
+  //      ou id introuvable) — Supabase UPDATE ne throw jamais d'erreur dans ce cas.
+  const patchStatus = useCallback(async (
+    id: string,
+    status: 'paid' | 'pending',
+    amount?: number,
+  ): Promise<'ok' | 'not_found' | 'error'> => {
     if (!chantierId) { console.error('[patchStatus] chantierId manquant'); return 'error'; }
     try {
-      // Token toujours frais — évite les 401 sur session expirée
-      const { data: { session } } = await supabase.auth.getSession();
-      const bearerToken = session?.access_token ?? token ?? null;
-      if (!bearerToken) {
-        console.error('[patchStatus] aucun token disponible');
+      // Force le chargement synchrone de la session avant l'appel DB
+      await supabase.auth.getSession();
+
+      const payload: Record<string, unknown> = { status };
+      if (amount !== undefined && amount > 0) payload.amount = amount;
+
+      const { data, error } = await supabase
+        .from('payment_events')
+        .update(payload)
+        .eq('id', id)
+        .eq('project_id', chantierId)
+        .select('id');  // ← indispensable pour détecter 0 lignes mises à jour
+
+      if (error) {
+        console.error('[patchStatus] Supabase error:', error.message, error.code);
         return 'error';
       }
-
-      const r = await fetch(`/api/chantier/${chantierId}/payment-events`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${bearerToken}`,
-          'Content-Type':  'application/json',
-        },
-        body: JSON.stringify({ id, status }),
-      });
-
-      if (r.status === 404) {
-        console.warn('[patchStatus] 404 — event introuvable', { id, chantierId });
+      if (!data || data.length === 0) {
+        // 0 lignes = RLS a bloqué (session pas encore chargée) ou id introuvable
+        console.warn('[patchStatus] 0 lignes mises à jour — session issue ?', { id, chantierId });
         return 'not_found';
       }
-      if (!r.ok) {
-        const msg = await r.text().catch(() => String(r.status));
-        console.error(`[patchStatus] HTTP ${r.status}:`, msg);
-        return 'error';
-      }
 
-      console.log(`[patchStatus] ✓ PATCH ${status} (id=${id})`);
+      console.log(`[patchStatus] ✓ ${status}${amount !== undefined ? ` (${amount}€)` : ''} (id=${id})`);
       return 'ok';
     } catch (e) {
       console.error('[patchStatus] exception:', e instanceof Error ? e.message : e);
       return 'error';
     }
-  }, [chantierId, token]);
+  }, [chantierId]);
 
   // ── Marquer un événement comme payé ──────────────────────────────────────
-  const markPaid = useCallback(async (id: string): Promise<boolean> => {
+  // amount : montant réellement payé (optionnel — si différent du montant prévu)
+  const markPaid = useCallback(async (id: string, amount?: number): Promise<boolean> => {
     if (!chantierId) return false;
 
     // Mise à jour optimiste immédiate
     pendingUpdates.current.set(id, 'paid');
-    setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'paid' as const } : ev));
+    setEvents(prev => prev.map(ev => ev.id === id
+      ? { ...ev, status: 'paid' as const, ...(amount !== undefined ? { amount } : {}) }
+      : ev,
+    ));
 
-    const result = await patchStatus(id, 'paid');
+    const result = await patchStatus(id, 'paid', amount);
 
     if (result !== 'ok') {
       // Échec API → supprimer le lock et re-synchroniser depuis le serveur.

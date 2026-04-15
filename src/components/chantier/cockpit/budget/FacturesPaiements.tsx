@@ -4,9 +4,21 @@
  * Liste détaillée avec badge statut + montant + possibilité de changer le statut inline.
  */
 import { useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import { Receipt, Plus, ShoppingCart, Wrench, ChevronDown, Check, AlertTriangle, Clock, Scale } from 'lucide-react';
 import { fmtFull } from '@/lib/budgetHelpers';
 import type { DocumentChantier, FactureStatut } from '@/types/chantier-ia';
+
+let _supabase: ReturnType<typeof createClient> | null = null;
+function getSupabase() {
+  if (!_supabase) {
+    _supabase = createClient(
+      (import.meta as any).env.PUBLIC_SUPABASE_URL,
+      (import.meta as any).env.PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    );
+  }
+  return _supabase;
+}
 
 // ── Config statuts ────────────────────────────────────────────────────────────
 
@@ -79,9 +91,10 @@ interface Props {
   onStatusChange?: (docId: string, statut: FactureStatut) => void;
 }
 
-export default function FacturesPaiements({ documents, chantierId, token, onAddDepense, onStatusChange }: Props) {
+export default function FacturesPaiements({ documents, chantierId, onAddDepense, onStatusChange }: Props) {
   const [changingId, setChangingId] = useState<string | null>(null);
   const [openMenu,   setOpenMenu]   = useState<string | null>(null);
+  const [errorId,    setErrorId]    = useState<string | null>(null);
 
   const factures = documents.filter(d => d.document_type === 'facture');
 
@@ -96,14 +109,25 @@ export default function FacturesPaiements({ documents, chantierId, token, onAddD
   async function changeStatut(docId: string, statut: FactureStatut) {
     setChangingId(docId);
     setOpenMenu(null);
-    try {
-      await fetch(`/api/chantier/${chantierId}/documents/${docId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ factureStatut: statut }),
-      });
-      onStatusChange?.(docId, statut);
-    } catch { /* silent */ }
+    setErrorId(null);
+
+    // Force le chargement de la session avant l'appel DB (session init async)
+    await getSupabase().auth.getSession();
+
+    const { data, error } = await getSupabase()
+      .from('documents_chantier')
+      .update({ facture_statut: statut })
+      .eq('id', docId)
+      .select('id');  // indispensable pour détecter 0 lignes (RLS silencieux)
+
+    if (error || !data || data.length === 0) {
+      console.error('[FacturesPaiements] changeStatut échec:', error?.message ?? '0 lignes — session ?');
+      setErrorId(docId);
+      setChangingId(null);
+      return;
+    }
+
+    onStatusChange?.(docId, statut);
     setChangingId(null);
   }
 
@@ -191,6 +215,7 @@ export default function FacturesPaiements({ documents, chantierId, token, onAddD
             const paye     = montantPaye(doc);
             const aPayer   = montantAPayer(doc);
             const isChanging = changingId === doc.id;
+            const hasError   = errorId === doc.id;
 
             return (
               <div key={doc.id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50/50 transition-colors group relative">
@@ -224,12 +249,17 @@ export default function FacturesPaiements({ documents, chantierId, token, onAddD
 
                 {/* Badge statut cliquable */}
                 <div className="relative shrink-0">
+                  {hasError && (
+                    <p className="absolute -top-5 right-0 text-[10px] font-semibold text-red-500 whitespace-nowrap">
+                      Erreur, réessayez
+                    </p>
+                  )}
                   <button
                     onClick={() => setOpenMenu(openMenu === doc.id ? null : doc.id)}
                     disabled={isChanging}
-                    className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full border transition-all ${cfg.pill}`}
+                    className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full border transition-all ${hasError ? 'border-red-300 bg-red-50 text-red-600' : cfg.pill}`}
                   >
-                    {cfg.icon}
+                    {isChanging ? <span className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" /> : cfg.icon}
                     {cfg.shortLabel}
                     <ChevronDown className="h-2.5 w-2.5 ml-0.5" />
                   </button>
