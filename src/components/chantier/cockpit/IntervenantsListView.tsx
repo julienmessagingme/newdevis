@@ -178,7 +178,8 @@ export default function IntervenantsListView({
       </div>
 
       {/* Tableau */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto overscroll-x-contain">
+        <div className="min-w-[760px]">
 
         {/* En-tête colonnes */}
         <div className={`grid ${GRID} border-b border-gray-100 bg-gray-50`}>
@@ -442,6 +443,7 @@ export default function IntervenantsListView({
               <span className="text-base font-extrabold text-gray-900 tabular-nums">{fmtEur(totalEstimated)}</span>
             </div>
           )}
+        </div>
         </div>
       </div>
 

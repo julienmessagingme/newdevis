@@ -131,6 +131,18 @@ export interface ChantierContext {
   }>;
   /** Photos WhatsApp récentes avec description Vision (jusqu'à 10 sur les 7 derniers jours) */
   recent_photos: RecentPhoto[];
+  /** Liste des documents du chantier (devis, factures, photos, plans) — pour le mode interactive */
+  documents: Array<{
+    id: string;
+    nom: string;
+    document_type: string;
+    lot_id: string | null;
+    lot_nom: string | null;
+    montant: number | null;
+    devis_statut: string | null;
+    created_at: string;
+    analyse_id: string | null;
+  }>;
   /** Historique de conversation (mode interactive uniquement) */
   conversation_history: AssistantMessage[];
 }

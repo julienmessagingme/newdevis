@@ -363,11 +363,32 @@ function DocRow({ doc, lots, chantierId, token, sectionKey, onDelete, onLotChang
             </p>
           )}
           <LotBadge doc={doc} lots={lots} onChangeLot={onLotChange} chantierId={chantierId} token={token} />
+          {/* Actions mobile — inline avec meta, compactes */}
+          <div className="flex sm:hidden items-center gap-0.5 ml-auto">
+            {doc.analyse_id && (
+              <a
+                href={`/analyse/${doc.analyse_id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-violet-500 bg-violet-50"
+                title="Analyse"
+              >
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+            <button
+              onClick={() => onDelete(doc.id)}
+              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 active:text-red-500 active:bg-red-50"
+              title="Supprimer"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Actions (Ouvrir moved to left of file name) */}
-      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* Actions — desktop : hover-reveal ; mobile : cachées (le nom prend toute la largeur) */}
+      <div className="hidden sm:flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
         {doc.analyse_id && (
           <a
             href={`/analyse/${doc.analyse_id}`}

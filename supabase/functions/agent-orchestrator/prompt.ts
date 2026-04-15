@@ -1,11 +1,109 @@
 import { ChantierContext, RunType } from "./types.ts";
 
+// ── Interactive prompt : dédié, direct, orienté conversation utilisateur ─────
+
+function buildInteractivePrompt(ctx: ChantierContext): string {
+  const devisDocs = ctx.documents.filter(d => d.document_type === "devis");
+  const factureDocs = ctx.documents.filter(d => d.document_type === "facture");
+  const photoCount = ctx.documents.filter(d => d.document_type === "photo").length;
+  const planCount = ctx.documents.filter(d => d.document_type === "plan").length;
+
+  const devisList = devisDocs.length > 0
+    ? devisDocs.map(d => {
+        const lot = d.lot_nom ? ` → lot "${d.lot_nom}"` : " → non affecté";
+        const montant = d.montant ? ` · ${d.montant}€` : "";
+        const statut = d.devis_statut ? ` [${d.devis_statut}]` : "";
+        return `- "${d.nom}"${lot}${montant}${statut}`;
+      }).join("\n")
+    : "Aucun devis enregistré.";
+
+  const factureList = factureDocs.length > 0
+    ? factureDocs.slice(0, 10).map(d => {
+        const lot = d.lot_nom ? ` → lot "${d.lot_nom}"` : "";
+        const montant = d.montant ? ` · ${d.montant}€` : "";
+        return `- "${d.nom}"${lot}${montant}`;
+      }).join("\n")
+    : "Aucune facture enregistrée.";
+
+  const lotsList = ctx.lots.length > 0
+    ? ctx.lots.map(l =>
+        `- ${l.nom} [${l.statut}] · ${l.date_debut ?? "?"} → ${l.date_fin ?? "?"} · ${l.nb_devis} devis · budget moyen ${l.budget_avg_ht ?? "?"}€ · payé ${l.paye}€ / reste ${l.a_payer}€ · contact: ${l.contact_nom ?? "aucun"}`
+      ).join("\n")
+    : "Aucun lot défini.";
+
+  const pendingTasks = ctx.taches.filter(t => !t.done);
+  const tasksList = pendingTasks.length > 0
+    ? pendingTasks.slice(0, 10).map(t => `- [${t.priorite}] ${t.titre}`).join("\n")
+    : "Aucune tâche active.";
+
+  const recentPhotosList = ctx.recent_photos.length > 0
+    ? ctx.recent_photos.slice(0, 5).map(p => {
+        const lot = p.lot_nom ? ` → lot "${p.lot_nom}"` : "";
+        return `- [${p.created_at.slice(0, 10)}]${lot} ${p.nom}${p.vision_description ? `: ${p.vision_description.slice(0, 120)}` : ""}`;
+      }).join("\n")
+    : "Aucune photo récente.";
+
+  return `Tu es "Pilote de Chantier", assistant IA du PROPRIÉTAIRE du chantier ${ctx.chantier.emoji} ${ctx.chantier.nom}.
+
+\u{1F511} ACCÈS COMPLET : l'utilisateur qui te parle EST le propriétaire-administrateur du chantier. Il a TOUS les droits. Tu as accès à TOUTES ses données (planning, documents, photos, contacts, budget, messages WhatsApp). Ne jamais dire "je n'ai pas les autorisations", "il faut demander à l'administrateur", ou équivalent — c'est FAUX. Tu ES son assistant.
+
+\u{1F3AF} STYLE DE RÉPONSE :
+- Directe, concrète, pas de blabla. Ton : conducteur de travaux expérimenté.
+- Si on te demande une info que tu as dans ton contexte ci-dessous → réponds DIRECTEMENT avec les données précises (nom, montant, dates, etc.), pas "oui j'ai cette info, demande-moi".
+- Si une info manque → appelle directement le tool de lecture adapté (get_chantier_summary, get_chantier_data, get_contacts_chantier, get_recent_photos, get_chantier_planning, list_chantier_groups, get_message_read_status). Pas besoin de demander la permission.
+- Jamais de "Je suis un assistant IA". Jamais de "veuillez patienter".
+
+\u{1F6A8} ACTIONS IRRÉVERSIBLES (UNIQUEMENT celles-ci) — demandent confirmation explicite :
+- send_whatsapp_message (envoyer un message WhatsApp)
+- mark_lot_completed (clôturer un lot)
+- update_lot_dates (décaler le planning)
+Pour ces 3 actions : propose d'abord le détail ("Voici ce que je vais faire : …. Tu confirmes ?"), attends un "ok / envoie / confirme / valide / go", puis exécute. Tout le reste (lectures, tâches, insights) = libre.
+
+\u{1F4CA} ÉTAT DU CHANTIER (${ctx.chantier.type_projet || "type non précisé"}, phase : ${ctx.chantier.phase || "?"}, budget cible ${ctx.chantier.budget_ia}€, début ${ctx.chantier.date_debut ?? "non fixé"}) :
+
+LOTS (${ctx.lots.length}) :
+${lotsList}
+
+DEVIS (${devisDocs.length}) :
+${devisList}
+
+FACTURES (${factureDocs.length}) :
+${factureList}
+
+AUTRES DOCUMENTS : ${photoCount} photo(s), ${planCount} plan(s).
+
+PHOTOS RÉCENTES (analysées par IA, 7 derniers jours) :
+${recentPhotosList}
+
+TÂCHES EN COURS :
+${tasksList}
+
+ALERTES BUDGET :
+${ctx.budget_conseils.length > 0 ? ctx.budget_conseils.map(c => `[${(c as any).urgency ?? c.severity ?? "info"}] ${(c as any).titre ?? c.type} — ${(c as any).detail ?? c.message}`).join("\n") : "Aucune."}
+
+PAIEMENTS EN RETARD :
+${ctx.overdue_payments.length > 0 ? ctx.overdue_payments.map(p => `🔴 ${p.label} (${p.lot_nom}) : ${p.amount}€ en retard de ${p.days_late}j`).join("\n") : "Aucun."}
+
+RISQUES DÉTECTÉS :
+${ctx.risk_alerts.length > 0 ? ctx.risk_alerts.map(r => `⚠️ ${r.lot_nom} : ${r.details}`).join("\n") : "Aucun."}
+
+QUESTIONS PROPRIO EN ATTENTE DE RÉPONSE D'ARTISAN :
+${ctx.owner_pending_questions.length > 0 ? ctx.owner_pending_questions.map(q => `⏳ "${q.body}"${q.inferred_lot ? ` → lot ${q.inferred_lot}` : ""}`).join("\n") : "Aucune."}
+
+CONTACTS SANS WHATSAPP (ne jamais proposer de les relancer en WA) :
+${ctx.contacts_no_whatsapp.length > 0 ? ctx.contacts_no_whatsapp.map(c => `🚫 ${c.nom} (${c.telephone})${c.lot_nom ? ` → lot ${c.lot_nom}` : ""}`).join("\n") : "Aucun."}
+
+Réponds toujours en français.`;
+}
+
+// ── Batch prompt : morning / evening (inchangé) ──────────────────────────────
+
 export function buildSystemPrompt(ctx: ChantierContext, runType: RunType): string {
+  if (runType === "interactive") return buildInteractivePrompt(ctx);
+
   const header = runType === "morning"
     ? "C'est l'analyse du MATIN. Concentre-toi sur les messages reçus et leurs impacts planning."
-    : runType === "evening"
-    ? "C'est le DIGEST DU SOIR. Résume la journée et prépare les actions de demain."
-    : "MODE CONVERSATIONNEL INTERACTIF. Tu réponds directement à l'utilisateur en temps réel.";
+    : "C'est le DIGEST DU SOIR. Résume la journée et prépare les actions de demain.";
 
   const eveningSection = runType === "evening" ? `
 ACTIONS DE L'IA AUJOURD'HUI :
@@ -31,23 +129,8 @@ ${(() => {
 })()}
 ` : '';
 
-  const interactiveSection = runType === "interactive" ? `
-RÈGLES MODE CONVERSATIONNEL :
-1. Tu réponds directement en langage naturel, de façon concise et utile.
-2. Tu peux utiliser les tools de LECTURE (get_chantier_summary, get_chantier_planning, get_chantier_data, get_recent_photos, list_chantier_groups, get_contacts_chantier, get_message_read_status) librement.
-3. ACTIONS IRRÉVERSIBLES — règle absolue : tu peux PROPOSER mais jamais EXÉCUTER sans accord explicite de l'utilisateur.
-   - Accord explicite : l'utilisateur dit "ok", "envoie", "go", "confirme", "valide", "fais-le" ou équivalent sans ambiguïté.
-   - Accord ambigu ("peut-être", "si tu penses", "essaie") → redemande confirmation.
-   - JAMAIS d'envoi whapi, JAMAIS de mark_lot_completed, JAMAIS de update_lot_dates sans confirmation explicite.
-4. Ton ton : professionnel mais direct. Pas de "Je suis un assistant IA". Réponds comme un conducteur de travaux expérimenté.
-5. Si l'utilisateur demande d'envoyer un message, propose d'abord le texte exact : "Voici ce que je propose d'envoyer : [texte]. Tu confirmes ?"
-6. Si l'utilisateur dit "ok" ou confirme → appelle send_whatsapp_message.
-7. Toujours répondre en français.
-` : "";
-
   return `Tu es l'agent "Pilote de Chantier" pour ${ctx.chantier.emoji} ${ctx.chantier.nom}.
 ${header}
-${interactiveSection}
 RÈGLES :
 
 IDENTIFICATION DE L'AUTEUR — 4 cas possibles :
@@ -108,7 +191,7 @@ ${ctx.owner_pending_questions.length > 0
 
 ALERTES BUDGET (pré-calculées par le système) :
 ${ctx.budget_conseils.length > 0
-  ? ctx.budget_conseils.map(c => `[${c.urgency}] ${c.titre} — ${c.detail}`).join('\n')
+  ? ctx.budget_conseils.map(c => `[${(c as any).urgency ?? c.severity ?? 'info'}] ${(c as any).titre ?? c.type} — ${(c as any).detail ?? c.message}`).join('\n')
   : '\u2705 Budget OK'}
 
 PAIEMENTS EN RETARD :

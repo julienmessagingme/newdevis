@@ -394,6 +394,25 @@ export async function buildContext(
     storage_path: p.bucket_path,
   }));
 
+  // ── Liste documents (devis/factures/photos/plans) — pour que l'agent puisse répondre directement ─
+  const { data: rawDocs } = await supabase
+    .from("documents_chantier")
+    .select("id, nom, document_type, lot_id, montant, devis_statut, analyse_id, created_at")
+    .eq("chantier_id", chantierId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  const documentsList = (rawDocs ?? []).map((d: any) => ({
+    id: d.id,
+    nom: d.nom,
+    document_type: d.document_type,
+    lot_id: d.lot_id,
+    lot_nom: d.lot_id ? (enrichedLots.find((l: any) => l.id === d.lot_id)?.nom ?? null) : null,
+    montant: d.montant ?? null,
+    devis_statut: d.devis_statut ?? null,
+    analyse_id: d.analyse_id ?? null,
+    created_at: d.created_at,
+  }));
+
   return {
     chantier: staticCtx.chantier,
     lots: enrichedLots,
@@ -406,6 +425,7 @@ export async function buildContext(
     recent_insights: insightsRes.data ?? [],
     recent_outgoing_read_status: recentOutgoingReadStatus,
     recent_photos: recentPhotos,
+    documents: documentsList,
     conversation_history: conversationHistory,
 
     todays_insights_with_actions: await (async () => {
