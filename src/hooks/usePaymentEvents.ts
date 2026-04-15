@@ -121,42 +121,48 @@ export function usePaymentEvents(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chantierId, tick]);
 
-  // ── Mise à jour statut — via RPC set_payment_event_status ──────────────
-  // RPC SECURITY DEFINER créé en migration 20260328160000.
-  // Avantages vs API route PATCH :
-  //   • Pas de dépendance à SUPABASE_SERVICE_ROLE_KEY côté Vercel (cold start)
-  //   • Pas de fetch HTTP inter-services — appel DB direct
-  //   • Ownership vérifié en interne (auth.uid() + chantiers.user_id)
-  //   • GRANT EXECUTE TO authenticated → fonctionne avec le client anon + session
+  // ── Mise à jour statut — via PATCH API route (server-side, service_role) ──
+  // On passe par l'API route plutôt que par le RPC client-side pour éviter les
+  // problèmes de session : le token est toujours rafraîchi via getSession() avant
+  // l'appel, et le serveur utilise la service_role_key (pas de dépendance RLS).
   // Retourne 'ok' | 'not_found' | 'error'
   const patchStatus = useCallback(async (id: string, status: 'paid' | 'pending'): Promise<'ok' | 'not_found' | 'error'> => {
     if (!chantierId) { console.error('[patchStatus] chantierId manquant'); return 'error'; }
     try {
-      const { data, error } = await supabase.rpc('set_payment_event_status', {
-        p_event_id:    id,
-        p_chantier_id: chantierId,
-        p_status:      status,
-      });
-
-      if (error) {
-        console.error('[patchStatus] RPC error:', error.message, error.code);
+      // Token toujours frais — évite les 401 sur session expirée
+      const { data: { session } } = await supabase.auth.getSession();
+      const bearerToken = session?.access_token ?? token ?? null;
+      if (!bearerToken) {
+        console.error('[patchStatus] aucun token disponible');
         return 'error';
       }
 
-      // La fonction retourne FALSE si l'event n'existe pas ou n'appartient pas
-      // à l'utilisateur connecté.
-      if (data === false) {
-        console.warn('[patchStatus] RPC false — introuvable ou non autorisé', { id, chantierId });
+      const r = await fetch(`/api/chantier/${chantierId}/payment-events`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${bearerToken}`,
+          'Content-Type':  'application/json',
+        },
+        body: JSON.stringify({ id, status }),
+      });
+
+      if (r.status === 404) {
+        console.warn('[patchStatus] 404 — event introuvable', { id, chantierId });
         return 'not_found';
       }
+      if (!r.ok) {
+        const msg = await r.text().catch(() => String(r.status));
+        console.error(`[patchStatus] HTTP ${r.status}:`, msg);
+        return 'error';
+      }
 
-      console.log(`[patchStatus] ✓ RPC ${status} (id=${id})`);
+      console.log(`[patchStatus] ✓ PATCH ${status} (id=${id})`);
       return 'ok';
     } catch (e) {
       console.error('[patchStatus] exception:', e instanceof Error ? e.message : e);
       return 'error';
     }
-  }, [chantierId]);
+  }, [chantierId, token]);
 
   // ── Marquer un événement comme payé ──────────────────────────────────────
   const markPaid = useCallback(async (id: string): Promise<boolean> => {
