@@ -225,6 +225,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 
   const id     = typeof body.id === 'string' ? body.id : null;
   const status = body.status === 'paid' ? 'paid' : body.status === 'pending' ? 'pending' : null;
+  const amount = typeof body.amount === 'number' && body.amount > 0 ? body.amount : undefined;
 
   if (!id || !status) {
     return jsonError('id et status (paid|pending) requis', 400);
@@ -251,9 +252,12 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   }
 
   // Étape 2 : UPDATE par id uniquement — sans .select() (évite instabilité Supabase v2 service role)
+  const updatePayload: Record<string, unknown> = { status };
+  if (amount !== undefined) updatePayload.amount = amount;
+
   const { error } = await ctx.supabase
     .from('payment_events')
-    .update({ status })
+    .update(updatePayload)
     .eq('id', id);
 
   if (error) {

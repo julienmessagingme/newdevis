@@ -116,12 +116,9 @@ export function usePaymentEvents(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chantierId, tick]);
 
-  // ── Mise à jour statut (+ montant optionnel) via Supabase client ──────────
-  // Double protection :
-  //   1. getSession() force le chargement en mémoire de la session — sans ça,
-  //      auth.uid() est null côté RLS si l'appel arrive avant la fin de l'init async.
-  //   2. .select('id') permet de détecter un update à 0 lignes (RLS bloqué silencieux
-  //      ou id introuvable) — Supabase UPDATE ne throw jamais d'erreur dans ce cas.
+  // ── Mise à jour statut via PATCH API route (service_role, bypass RLS) ────────
+  // L'API route utilise SUPABASE_SERVICE_ROLE_KEY côté serveur → pas de problème
+  // de session, de RLS, ni de JWT expiré côté client.
   const patchStatus = useCallback(async (
     id: string,
     status: 'paid' | 'pending',
@@ -129,27 +126,33 @@ export function usePaymentEvents(
   ): Promise<'ok' | 'not_found' | 'error'> => {
     if (!chantierId) { console.error('[patchStatus] chantierId manquant'); return 'error'; }
     try {
-      // Force le chargement synchrone de la session avant l'appel DB
-      await supabase.auth.getSession();
-
-      const payload: Record<string, unknown> = { status };
-      if (amount !== undefined && amount > 0) payload.amount = amount;
-
-      const { data, error } = await supabase
-        .from('payment_events')
-        .update(payload)
-        .eq('id', id)
-        .eq('project_id', chantierId)
-        .select('id');  // ← indispensable pour détecter 0 lignes mises à jour
-
-      if (error) {
-        console.error('[patchStatus] Supabase error:', error.message, error.code);
+      const { data: { session } } = await supabase.auth.getSession();
+      const bearerToken = session?.access_token ?? token ?? null;
+      if (!bearerToken) {
+        console.error('[patchStatus] pas de session auth');
         return 'error';
       }
-      if (!data || data.length === 0) {
-        // 0 lignes = RLS a bloqué (session pas encore chargée) ou id introuvable
-        console.warn('[patchStatus] 0 lignes mises à jour — session issue ?', { id, chantierId });
+
+      const body: Record<string, unknown> = { id, status };
+      if (amount !== undefined && amount > 0) body.amount = amount;
+
+      const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
+        method:  'PATCH',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${bearerToken}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (res.status === 404) {
+        console.warn('[patchStatus] 404 — event introuvable', { id, chantierId });
         return 'not_found';
+      }
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        console.error('[patchStatus] HTTP', res.status, txt);
+        return 'error';
       }
 
       console.log(`[patchStatus] ✓ ${status}${amount !== undefined ? ` (${amount}€)` : ''} (id=${id})`);
@@ -158,7 +161,7 @@ export function usePaymentEvents(
       console.error('[patchStatus] exception:', e instanceof Error ? e.message : e);
       return 'error';
     }
-  }, [chantierId]);
+  }, [chantierId, token]);
 
   // ── Marquer un événement comme payé ──────────────────────────────────────
   // amount : montant réellement payé (optionnel — si différent du montant prévu)
