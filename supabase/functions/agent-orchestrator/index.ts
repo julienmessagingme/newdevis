@@ -128,6 +128,7 @@ serve(async (req) => {
     }
 
     // Evening: generate digest + send + insert into chantier_assistant_messages
+    // GARANTIE : on écrit TOUJOURS une entrée chantier_journal, même vide.
     if (runType === "evening") {
       let digestContent = "";
       for (let i = messages.length - 1; i >= 0; i--) {
@@ -148,19 +149,26 @@ serve(async (req) => {
         if (typeof fallbackContent === "string" && fallbackContent.length > 20) {
           digestContent = fallbackContent;
         } else {
-          console.error(`[evening-digest] no text after fallback for ${chantierId}`);
+          console.warn(`[evening-digest] LLM returned no usable text for ${chantierId}, writing placeholder`);
         }
       }
 
-      if (digestContent && digestContent.length > 20) {
-        const insightsCount = ctx.todays_insights_with_actions.length;
-        const severities = ctx.todays_insights_with_actions.map(i => i.severity);
-        const maxSeverity = severities.includes("critical") ? "critical"
-          : severities.includes("warning") ? "warning" : "info";
+      const insightsCount = ctx.todays_insights_with_actions.length;
+      const severities = ctx.todays_insights_with_actions.map(i => i.severity);
+      const maxSeverity = severities.includes("critical") ? "critical"
+        : severities.includes("warning") ? "warning" : "info";
 
-        await sendDigest(
+      // Fallback textuel déterministe si l'IA n'a rien produit
+      const hasRealContent = digestContent && digestContent.length > 20;
+      const journalBody = hasRealContent
+        ? digestContent
+        : `**Journée calme sur ${ctx.chantier.emoji} ${ctx.chantier.nom}.**\n\nAucun message WhatsApp, aucune alerte budget, aucun paiement en retard, aucun risque détecté aujourd'hui.\n\n_Entrée générée automatiquement à 19h._`;
+
+      // Envoi WA / email uniquement si vrai contenu IA
+      if (hasRealContent) {
+        await sendDigestMessage(
           supabase, chantierId, ctx.chantier.user_id, ctx.chantier.nom,
-          ctx.chantier.emoji, digestContent, insightsCount, maxSeverity,
+          ctx.chantier.emoji, digestContent,
         );
 
         // Insert as agent-initiated assistant message (proactive, for chat UI)
@@ -172,6 +180,18 @@ serve(async (req) => {
           is_read:        false,
         }).then(() => {}).catch(() => {}); // non-blocking
       }
+
+      // GARANTIE : journal ALWAYS written — upsert par (chantier_id, journal_date)
+      const today = new Date().toISOString().split("T")[0];
+      await supabase.from("chantier_journal").upsert({
+        chantier_id: chantierId,
+        user_id: ctx.chantier.user_id,
+        journal_date: today,
+        body: journalBody,
+        alerts_count: insightsCount,
+        max_severity: maxSeverity,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "chantier_id,journal_date" });
     }
 
     await supabase.from("agent_runs").insert({
@@ -228,9 +248,17 @@ async function handleInteractive(
   ];
 
   // Inject conversation history (max 20 last messages to stay within context)
+  // FILTRE : purge les hallucinations de refus passées (patterns "pas les autorisations",
+  // "contactez le support", "accès restreint"...) pour éviter que Gemini pattern-matche dessus
+  // et répète le même refus. Bug confirmé en prod le 2026-04-15.
+  const REFUSAL_PATTERNS = /autorisation|support technique|accès (?:restreint|refusé|limité)|permissions? (?:d'accès|restreint|limité)|problème technique avec mes permissions|accéder directement (?:au|aux|à la)/i;
   const historySlice = conversationHistory.slice(-20);
   for (const msg of historySlice) {
     if (msg.role === "user" || msg.role === "assistant") {
+      // Skip polluted assistant messages (fausses excuses de permissions)
+      if (msg.role === "assistant" && typeof msg.content === "string" && REFUSAL_PATTERNS.test(msg.content)) {
+        continue;
+      }
       const entry: Record<string, unknown> = { role: msg.role, content: msg.content ?? "" };
       if (msg.tool_calls) entry.tool_calls = msg.tool_calls;
       messages.push(entry);
@@ -302,17 +330,15 @@ async function handleInteractive(
   return { response_text: fallbackText, tool_calls_executed: toolCallsExecuted };
 }
 
-// ── Digest delivery (WhatsApp + Email + in-app journal) ───────────────────────
+// ── Digest delivery (WhatsApp + Email uniquement — le journal est upsert inline) ─
 
-async function sendDigest(
+async function sendDigestMessage(
   supabase: any,
   chantierId: string,
   userId: string,
   nom: string,
   emoji: string,
   text: string,
-  insightsCount: number,
-  maxSeverity: string,
 ) {
   const { data: { user } } = await supabase.auth.admin.getUserById(userId);
   const phone = user?.phone ?? user?.user_metadata?.phone;
@@ -355,15 +381,4 @@ async function sendDigest(
       }),
     }).catch(() => {});
   }
-
-  const today = new Date().toISOString().split("T")[0];
-  await supabase.from("chantier_journal").upsert({
-    chantier_id: chantierId,
-    user_id: userId,
-    journal_date: today,
-    body: text,
-    alerts_count: insightsCount,
-    max_severity: maxSeverity,
-    updated_at: new Date().toISOString(),
-  }, { onConflict: "chantier_id,journal_date" });
 }
