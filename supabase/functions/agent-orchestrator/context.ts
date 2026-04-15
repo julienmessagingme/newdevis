@@ -51,22 +51,58 @@ export async function buildContext(
   }
 
   // ── Build static context from API routes if cache miss ───────────────
+  let fetchHadErrors = false;
+
   if (!staticCtx) {
     const headers: Record<string, string> = { "X-Agent-Key": agentKey };
 
-    const [budgetRes, planningRes, contactsRes, paymentEventsRes, chantierRes, waGroupsRes] =
+    // Helper : fetch + parse JSON ; si erreur HTTP → log + marque fetchHadErrors (pour skip cache write)
+    const safeFetchJson = async (url: string) => {
+      try {
+        const r = await fetch(url, { headers });
+        if (!r.ok) {
+          console.warn(`[buildContext] ${url.split('/').slice(-2).join('/')} returned HTTP ${r.status}`);
+          fetchHadErrors = true;
+          return {};
+        }
+        return await r.json();
+      } catch (err) {
+        console.warn(`[buildContext] fetch failed for ${url.split('/').slice(-2).join('/')}:`, err instanceof Error ? err.message : err);
+        fetchHadErrors = true;
+        return {};
+      }
+    };
+
+    const [budgetRes, planningRes, contactsRes, paymentEventsRes, chantierRes, waGroupsRes, dbLotsCountRes] =
       await Promise.all([
-        fetch(`${apiBase}/api/chantier/${chantierId}/budget`, { headers }).then(r => r.json()),
-        fetch(`${apiBase}/api/chantier/${chantierId}/planning`, { headers }).then(r => r.json()),
-        fetch(`${apiBase}/api/chantier/${chantierId}/contacts`, { headers }).then(r => r.json()),
-        fetch(`${apiBase}/api/chantier/${chantierId}/payment-events`, { headers }).then(r => r.json()),
+        safeFetchJson(`${apiBase}/api/chantier/${chantierId}/budget`),
+        safeFetchJson(`${apiBase}/api/chantier/${chantierId}/planning`),
+        safeFetchJson(`${apiBase}/api/chantier/${chantierId}/contacts`),
+        safeFetchJson(`${apiBase}/api/chantier/${chantierId}/payment-events`),
         supabase.from("chantiers")
           .select("id, nom, emoji, phase, type_projet, date_debut_chantier, metadonnees, user_id")
           .eq("id", chantierId).single(),
         supabase.from("chantier_whatsapp_groups")
           .select("group_jid, name")
           .eq("chantier_id", chantierId),
+        // Sanity check : compte réel de lots en DB — pour détecter un planningRes vide bogué
+        supabase.from("lots_chantier").select("id", { count: "exact", head: true }).eq("chantier_id", chantierId),
       ]);
+
+    // Protection : si l'API planning renvoie 0 lots alors que la DB en a, on a fetché un état bogué → skip cache
+    const dbLotsCount = dbLotsCountRes.count ?? 0;
+    const apiLotsCount = (planningRes?.lots ?? []).length;
+    if (dbLotsCount > 0 && apiLotsCount === 0) {
+      console.warn(`[buildContext] Incohérence : DB a ${dbLotsCount} lots, API en a 0. Fallback direct DB + skip cache.`);
+      fetchHadErrors = true;
+      // Fallback : lire les lots directement depuis la DB
+      const { data: dbLots } = await supabase
+        .from("lots_chantier")
+        .select("id, nom, emoji, statut, duree_jours, date_debut, date_fin, ordre_planning, budget_avg_ht")
+        .eq("chantier_id", chantierId)
+        .order("ordre_planning", { ascending: true, nullsFirst: false });
+      planningRes.lots = dbLots ?? [];
+    }
 
     const chantier = chantierRes.data;
     const contacts = contactsRes?.contacts ?? [];
@@ -173,13 +209,17 @@ export async function buildContext(
       groupJidToLot: [...groupJidToLotMap.entries()],
     };
 
-    // Persist cache (fire-and-forget)
-    supabase.from("agent_context_cache").upsert({
-      chantier_id: chantierId,
-      context_json: staticCtx,
-      hydrated_at: new Date().toISOString(),
-      invalidated: false,
-    }, { onConflict: "chantier_id" }).then(() => {}).catch(() => {});
+    // Persist cache SEULEMENT si tous les fetches ont réussi (évite de cacher un état bogué)
+    if (!fetchHadErrors) {
+      supabase.from("agent_context_cache").upsert({
+        chantier_id: chantierId,
+        context_json: staticCtx,
+        hydrated_at: new Date().toISOString(),
+        invalidated: false,
+      }, { onConflict: "chantier_id" }).then(() => {}).catch(() => {});
+    } else {
+      console.warn(`[buildContext] fetchHadErrors=true pour ${chantierId} — cache NON persisté, fallback live utilisé.`);
+    }
   }
 
   // ── Rebuild maps from cached arrays ──────────────────────────────────
