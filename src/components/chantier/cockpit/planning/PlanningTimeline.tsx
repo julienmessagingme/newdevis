@@ -34,12 +34,14 @@ function GanttBar({ lot, color, left, width, weekWidth, onResize, onMove }: {
   left: number;
   width: number;
   weekWidth: number;
+  laneHeight: number;
   onResize: (deltaDays: number) => void;
-  onMove: (deltaDays: number) => void;
+  onMove: (deltaDays: number, laneDelta: number) => void;
 }) {
   const barRef = useRef<HTMLDivElement>(null);
   const [interaction, setInteraction] = useState<'left' | 'right' | 'move' | null>(null);
   const startXRef = useRef(0);
+  const startYRef = useRef(0);
   const startWidthRef = useRef(0);
   const startLeftRef = useRef(0);
 
@@ -75,29 +77,37 @@ function GanttBar({ lot, color, left, width, weekWidth, onResize, onMove }: {
     window.addEventListener('mouseup', onMouseUp);
   }, [width, left, pxPerDay, onResize]);
 
-  // Move (centre de la barre = glisser horizontalement)
+  // Move (centre de la barre = glisser horizontalement + verticalement pour changer de lane)
   const handleMoveStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setInteraction('move');
     startXRef.current = e.clientX;
+    startYRef.current = e.clientY;
     startLeftRef.current = left;
 
     const onMouseMove = (ev: MouseEvent) => {
       if (!barRef.current) return;
       const dx = ev.clientX - startXRef.current;
+      const dy = ev.clientY - startYRef.current;
       barRef.current.style.left = `${Math.max(0, startLeftRef.current + dx)}px`;
+      // Feedback visuel : translate verticalement la barre pendant le drag
+      barRef.current.style.transform = `translateY(${dy}px)`;
     };
     const onMouseUp = (ev: MouseEvent) => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
       setInteraction(null);
+      if (barRef.current) barRef.current.style.transform = '';
       const deltaDays = Math.round((ev.clientX - startXRef.current) / pxPerDay);
-      if (deltaDays !== 0) onMove(deltaDays);
+      const deltaY = ev.clientY - startYRef.current;
+      // Changement de lane si drag vertical dépasse la moitié d'une lane
+      const laneDelta = Math.round(deltaY / laneHeight);
+      if (deltaDays !== 0 || laneDelta !== 0) onMove(deltaDays, laneDelta);
     };
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
-  }, [left, pxPerDay, onMove]);
+  }, [left, pxPerDay, laneHeight, onMove]);
 
   const cursorCls = interaction === 'move' ? 'cursor-grabbing' : interaction ? 'cursor-col-resize' : 'cursor-grab';
 
@@ -222,6 +232,66 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
     for (const lot of withoutDates) result.push([lot]);
     return result;
   }, [planningLots]);
+
+  // -- Drag vertical : déchaîner / rechaîner un lot ---------------------------
+  // laneDelta > 0 (descend) : sortir le lot de sa chaîne. On force son date_debut
+  // à la date_debut du premier lot de la lane actuelle → chevauchement → first-fit
+  // le pousse sur une nouvelle lane (DÉCHAÎNÉ).
+  // laneDelta < 0 (monte) : le lot rejoint une lane plus haute. Set son date_debut
+  // = date_fin du dernier lot de la lane cible avant sa position actuelle (RECHAÎNÉ).
+  const handleLotMoveWithLane = useCallback(
+    (lot: LotChantier, currentLaneIdx: number, deltaDays: number, laneDelta: number) => {
+      // Pas de changement de lane → simple move horizontal existant
+      if (laneDelta === 0) {
+        if (deltaDays !== 0) moveLot(lot.id, deltaDays);
+        return;
+      }
+
+      if (!lot.date_debut || !lot.date_fin) return;
+
+      const targetLaneIdx = currentLaneIdx + laneDelta;
+      const currentLane = lanes[currentLaneIdx];
+      if (!currentLane) return;
+
+      // Calcul de la nouvelle date_debut
+      let newStart: Date | null = null;
+
+      if (laneDelta > 0) {
+        // DÉCHAÎNER : démarrer en même temps qu'un autre lot pour forcer chevauchement
+        const anchor = currentLane.find(l => l.id !== lot.id && l.date_debut)?.date_debut
+          ?? lot.date_debut;
+        newStart = new Date(anchor);
+        if (deltaDays !== 0) newStart.setDate(newStart.getDate() + deltaDays);
+      } else {
+        // RECHAÎNER : rejoindre une lane plus haute, se chaîner après les lots qui y sont
+        const targetLane = lanes[Math.max(0, targetLaneIdx)];
+        if (targetLane && targetLane.length > 0) {
+          const lotStart = new Date(lot.date_debut).getTime();
+          const candidates = targetLane
+            .filter(l => l.id !== lot.id && l.date_fin)
+            .sort((a, b) => (a.date_fin ?? '').localeCompare(b.date_fin ?? ''));
+          const after = [...candidates].reverse().find(l => new Date(l.date_fin!).getTime() <= lotStart);
+          if (after) {
+            newStart = new Date(after.date_fin!);
+            if (deltaDays !== 0) newStart.setDate(newStart.getDate() + deltaDays);
+          } else {
+            const firstOfLane = candidates[0];
+            if (firstOfLane?.date_debut) newStart = new Date(firstOfLane.date_debut);
+          }
+        }
+      }
+
+      if (!newStart) return;
+      const duree = lot.duree_jours ?? 5;
+      const newEnd = new Date(newStart);
+      newEnd.setDate(newEnd.getDate() + duree);
+
+      const newStartStr = newStart.toISOString().slice(0, 10);
+      const newEndStr = newEnd.toISOString().slice(0, 10);
+      updateLot(lot.id, { date_debut: newStartStr, date_fin: newEndStr });
+    },
+    [lanes, moveLot, updateLot]
+  );
 
   // -- Loading state ----------------------------------------------------------
 
@@ -462,13 +532,14 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
                         left={barStyle.left}
                         width={barStyle.width}
                         weekWidth={WEEK_WIDTH}
+                        laneHeight={LOT_ROW_HEIGHT}
                         onResize={(deltaDays) => {
                           const newDays = Math.max(1, Math.min(120, (lot.duree_jours ?? 5) + deltaDays));
                           if (newDays !== lot.duree_jours) updateLot(lot.id, { duree_jours: newDays });
                         }}
-                        onMove={(deltaDays) => {
-                          if (!lot.date_debut || deltaDays === 0) return;
-                          moveLot(lot.id, deltaDays);
+                        onMove={(deltaDays, laneDelta) => {
+                          if (!lot.date_debut) return;
+                          handleLotMoveWithLane(lot, laneIdx, deltaDays, laneDelta);
                         }}
                       />
                     );
@@ -480,9 +551,9 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
         </div>
 
         {/* Footer légende */}
-        <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+        <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2">
           <p className="text-[10px] text-gray-400">
-            Glissez les lignes pour réordonner · Tirez les bords des barres pour ajuster la durée
+            Glissez horizontalement pour déplacer · Verticalement pour déchaîner · Tirez les bords pour la durée
           </p>
           {unplannedLots.length > 0 && (
             <p className="text-[10px] text-amber-500 flex items-center gap-1">
