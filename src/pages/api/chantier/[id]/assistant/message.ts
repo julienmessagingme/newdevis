@@ -104,8 +104,10 @@ export const POST: APIRoute = async ({ request, params }) => {
 
   const responseText = agentResponse.response_text ?? '';
   const toolsExecuted = agentResponse.tool_calls_executed ?? [];
+  // Trace détaillée des tool calls (nom + args + ok + preview du résultat) pour observabilité
+  const toolTrace = (agentResponse as { tool_trace?: unknown[] }).tool_trace ?? [];
 
-  // 4. Insert assistant response into DB
+  // 4. Insert assistant response into DB (+ tool_calls pour observabilité)
   const { data: assistantMsgRow } = await supabase
     .from('chantier_assistant_messages')
     .insert({
@@ -114,6 +116,7 @@ export const POST: APIRoute = async ({ request, params }) => {
       content:        responseText,
       agent_initiated: false,
       is_read:        false,
+      tool_calls:     Array.isArray(toolTrace) && toolTrace.length > 0 ? toolTrace : null,
     })
     .select('id, created_at')
     .single();

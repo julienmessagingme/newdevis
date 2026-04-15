@@ -235,7 +235,7 @@ async function handleInteractive(
   chantierId: string,
   userMessage: string,
   conversationHistory: AssistantMessage[],
-): Promise<{ response_text: string; tool_calls_executed: string[] }> {
+): Promise<{ response_text: string; tool_calls_executed: string[]; tool_trace: Array<{ tool: string; args: Record<string, unknown>; result_ok: boolean; result_preview: string }> }> {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   // Build context (with conversation history)
@@ -272,6 +272,8 @@ async function handleInteractive(
 
   let rounds = 0;
   const toolCallsExecuted: string[] = [];
+  // Trace détaillée : chaque tool_call avec ses args + résultat (pour persistance observabilité)
+  const toolTrace: Array<{ tool: string; args: Record<string, unknown>; result_ok: boolean; result_preview: string }> = [];
 
   while (rounds < MAX_TOOL_ROUNDS) {
     rounds++;
@@ -296,9 +298,9 @@ async function handleInteractive(
         run_type: "interactive",
         messages_analyzed: 1,
         insights_created: 0,
-        actions_taken: toolCallsExecuted.map(t => ({ tool: t })),
+        actions_taken: toolTrace,
       }).then(() => {}).catch(() => {});
-      return { response_text: responseText, tool_calls_executed: toolCallsExecuted };
+      return { response_text: responseText, tool_calls_executed: toolCallsExecuted, tool_trace: toolTrace };
     }
 
     messages.push({ role: "assistant", content: choice.content, tool_calls: choice.tool_calls });
@@ -307,6 +309,17 @@ async function handleInteractive(
       const args = JSON.parse(tc.function.arguments);
       const result = await executeTool(chantierId, tc.function.name, args, { run_type: "interactive" });
       toolCallsExecuted.push(tc.function.name);
+      // Parse result pour extraire ok + preview (pour traçage)
+      let resultOk = false;
+      let resultPreview = "";
+      try {
+        const parsed = JSON.parse(result);
+        resultOk = parsed?.ok === true;
+        resultPreview = result.slice(0, 300);
+      } catch {
+        resultPreview = String(result).slice(0, 300);
+      }
+      toolTrace.push({ tool: tc.function.name, args, result_ok: resultOk, result_preview: resultPreview });
       messages.push({ role: "tool", tool_call_id: tc.id, content: result });
     }
   }
@@ -325,9 +338,9 @@ async function handleInteractive(
     run_type: "interactive",
     messages_analyzed: 1,
     insights_created: 0,
-    actions_taken: toolCallsExecuted.map(t => ({ tool: t })),
+    actions_taken: toolTrace,
   }).then(() => {}).catch(() => {});
-  return { response_text: fallbackText, tool_calls_executed: toolCallsExecuted };
+  return { response_text: fallbackText, tool_calls_executed: toolCallsExecuted, tool_trace: toolTrace };
 }
 
 // ── Digest delivery (WhatsApp + Email uniquement — le journal est upsert inline) ─
