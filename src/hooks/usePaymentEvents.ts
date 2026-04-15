@@ -3,12 +3,7 @@
  * Retourne la liste triée, les états loading/error, et une fonction de refresh.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  (import.meta as any).env.PUBLIC_SUPABASE_URL,
-  (import.meta as any).env.PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-);
+import { supabase } from '@/integrations/supabase/client';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

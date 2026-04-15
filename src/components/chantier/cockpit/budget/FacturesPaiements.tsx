@@ -4,21 +4,10 @@
  * Liste détaillée avec badge statut + montant + possibilité de changer le statut inline.
  */
 import { useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
 import { Receipt, Plus, ShoppingCart, Wrench, ChevronDown, Check, AlertTriangle, Clock, Scale } from 'lucide-react';
 import { fmtFull } from '@/lib/budgetHelpers';
 import type { DocumentChantier, FactureStatut } from '@/types/chantier-ia';
-
-let _supabase: ReturnType<typeof createClient> | null = null;
-function getSupabase() {
-  if (!_supabase) {
-    _supabase = createClient(
-      (import.meta as any).env.PUBLIC_SUPABASE_URL,
-      (import.meta as any).env.PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-    );
-  }
-  return _supabase;
-}
 
 // ── Config statuts ────────────────────────────────────────────────────────────
 
@@ -112,9 +101,9 @@ export default function FacturesPaiements({ documents, chantierId, onAddDepense,
     setErrorId(null);
 
     // Force le chargement de la session avant l'appel DB (session init async)
-    await getSupabase().auth.getSession();
+    await supabase.auth.getSession();
 
-    const { data, error } = await getSupabase()
+    const { data, error } = await supabase
       .from('documents_chantier')
       .update({ facture_statut: statut })
       .eq('id', docId)
