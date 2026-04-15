@@ -223,6 +223,23 @@ export const ACTION_TOOLS_SCHEMA = [
   {
     type: "function",
     function: {
+      name: "arrange_lot",
+      description: "Réorganise un lot dans le planning : soit le chaîner APRÈS un autre lot (démarre quand l'autre finit, même ligne visuelle), soit le mettre en PARALLÈLE d'un autre lot (démarre en même temps, ligne distincte). Recalcule les dates en cascade.",
+      parameters: {
+        type: "object",
+        properties: {
+          lot_id:           { type: "string", description: "ID UUID du lot à déplacer" },
+          mode:             { type: "string", enum: ["chain_after", "parallel_with"], description: "chain_after = enchaîner séquentiellement après le lot de référence / parallel_with = faire tourner en même temps que le lot de référence" },
+          reference_lot_id: { type: "string", description: "ID UUID du lot de référence (celui avec qui on chaîne ou parallélise)" },
+          raison:           { type: "string", description: "Raison de la réorganisation (pour le journal)" },
+        },
+        required: ["lot_id", "mode", "reference_lot_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "mark_lot_completed",
       description: "Marque un lot comme terminé et y associe un document preuve (optionnel). REQUIERT une confirmation explicite de l'utilisateur.",
       parameters: {
@@ -290,7 +307,7 @@ export async function executeTool(
   };
 
   // Guard: action tools MUST NOT run in morning/evening modes
-  const ACTION_TOOLS = ["mark_lot_completed", "update_lot_dates", "send_whatsapp_message"];
+  const ACTION_TOOLS = ["mark_lot_completed", "update_lot_dates", "send_whatsapp_message", "arrange_lot"];
   if (ACTION_TOOLS.includes(toolName) && meta.run_type !== "interactive") {
     console.warn(`[tools] Blocked action tool '${toolName}' in '${meta.run_type}' mode`);
     return JSON.stringify({ ok: false, error: `Tool '${toolName}' is only available in interactive mode` });
@@ -535,6 +552,93 @@ export async function executeTool(
       }
 
       // ── Action tools (interactive only — guard already checked above) ──────
+      case "arrange_lot": {
+        const mode = String(args.mode ?? "");
+        if (mode !== "chain_after" && mode !== "parallel_with") {
+          return JSON.stringify({ ok: false, error: "mode doit être 'chain_after' ou 'parallel_with'" });
+        }
+        const lotId = String(args.lot_id ?? "");
+        const refId = String(args.reference_lot_id ?? "");
+        if (!lotId || !refId || lotId === refId) {
+          return JSON.stringify({ ok: false, error: "lot_id et reference_lot_id requis et distincts" });
+        }
+
+        const supabase = createClient(
+          Deno.env.get("SUPABASE_URL") ?? "",
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+        );
+
+        // Récupère le lot référence + le lot à déplacer
+        const { data: bothLots } = await supabase
+          .from("lots_chantier")
+          .select("id, nom, ordre_planning, parallel_group, duree_jours")
+          .in("id", [lotId, refId])
+          .eq("chantier_id", chantierId);
+
+        const refLot = (bothLots ?? []).find((l: any) => l.id === refId);
+        const lot = (bothLots ?? []).find((l: any) => l.id === lotId);
+        if (!refLot || !lot) {
+          return JSON.stringify({ ok: false, error: "Lot introuvable sur ce chantier" });
+        }
+
+        if (mode === "parallel_with") {
+          // Même ordre_planning que la réf + assigner un parallel_group partagé
+          let pg = refLot.parallel_group;
+          if (pg == null) {
+            // Créer un nouveau parallel_group
+            const { data: maxPg } = await supabase
+              .from("lots_chantier")
+              .select("parallel_group")
+              .eq("chantier_id", chantierId)
+              .not("parallel_group", "is", null)
+              .order("parallel_group", { ascending: false })
+              .limit(1)
+              .single();
+            pg = (maxPg?.parallel_group ?? 0) + 1;
+            // Update la réf pour qu'elle ait ce pg
+            await supabase.from("lots_chantier").update({ parallel_group: pg })
+              .eq("id", refId).eq("chantier_id", chantierId);
+          }
+          await supabase.from("lots_chantier").update({
+            ordre_planning: refLot.ordre_planning,
+            parallel_group: pg,
+          }).eq("id", lotId).eq("chantier_id", chantierId);
+        } else {
+          // chain_after : ordre_planning = ref + 1, décale les suivants de +1, pas de parallel_group
+          const newOrdre = (refLot.ordre_planning ?? 0) + 1;
+          // Récupère les lots avec ordre >= newOrdre (hors le lot qu'on déplace)
+          const { data: toShift } = await supabase
+            .from("lots_chantier")
+            .select("id, ordre_planning")
+            .eq("chantier_id", chantierId)
+            .gte("ordre_planning", newOrdre)
+            .neq("id", lotId);
+          // Décaler de +1
+          if (toShift && toShift.length > 0) {
+            await Promise.all((toShift as any[]).map(l =>
+              supabase.from("lots_chantier").update({ ordre_planning: (l.ordre_planning ?? 0) + 1 })
+                .eq("id", l.id).eq("chantier_id", chantierId)
+            ));
+          }
+          await supabase.from("lots_chantier").update({
+            ordre_planning: newOrdre,
+            parallel_group: null,
+          }).eq("id", lotId).eq("chantier_id", chantierId);
+        }
+
+        // Déclencher recalcul cascade des dates via l'API (qui fait aussi l'invalidation cache)
+        const { data: chantierRow } = await supabase
+          .from("chantiers").select("date_debut_chantier").eq("id", chantierId).single();
+        if (chantierRow?.date_debut_chantier) {
+          await fetch(`${API_BASE}/api/chantier/${chantierId}/planning`, {
+            method: "PATCH",
+            headers,
+            body: JSON.stringify({ dateDebutChantier: chantierRow.date_debut_chantier }),
+          });
+        }
+        return JSON.stringify({ ok: true, mode, lot_nom: lot.nom, ref_nom: refLot.nom, raison: args.raison });
+      }
+
       case "mark_lot_completed": {
         const body: Record<string, unknown> = {
           lot_id: args.lot_id,

@@ -4,10 +4,10 @@
  * Split layout: left column (lot names) is sticky, right area (Gantt bars) scrolls horizontally.
  */
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { Calendar, GripVertical, Loader2, AlertCircle, Users } from 'lucide-react';
+import { Calendar, Loader2, AlertCircle, Users } from 'lucide-react';
 import type { LotChantier } from '@/types/chantier-ia';
 import { usePlanning } from '@/hooks/usePlanning';
-import { formatDuration, getWeekNumber, getWeekLabels } from '@/lib/planningUtils';
+import { formatDuration, getWeekLabels } from '@/lib/planningUtils';
 
 // -- Couleurs par lot (cyclique) ----------------------------------------------
 
@@ -140,7 +140,6 @@ function GanttBar({ lot, color, left, width, weekWidth, onResize, onMove }: {
 // -- Row heights (shared constants) -------------------------------------------
 
 const LOT_ROW_HEIGHT = 44;
-const PARALLEL_BADGE_HEIGHT = 26;
 
 // -- Composant principal ------------------------------------------------------
 
@@ -150,10 +149,8 @@ interface Props {
 }
 
 export default function PlanningTimeline({ chantierId, token }: Props) {
-  const { lots, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, reorderLots, moveLot } = usePlanning(chantierId, token);
+  const { lots, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, moveLot } = usePlanning(chantierId, token);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [editingDuration, setEditingDuration] = useState<string | null>(null);
   const [dateMode, setDateMode] = useState<null | 'start' | 'end'>(null);
 
   // Lots avec planning data, triés
@@ -177,47 +174,8 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
 
   const WEEK_WIDTH = 96; // px par semaine
 
-  // -- Drag & drop handlers ---------------------------------------------------
-
-  const handleDragStart = useCallback((e: React.DragEvent, lotId: string) => {
-    setDraggedId(lotId);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', lotId);
-  }, []);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent, targetId: string) => {
-    e.preventDefault();
-    const sourceId = e.dataTransfer.getData('text/plain');
-    if (!sourceId || sourceId === targetId) { setDraggedId(null); return; }
-
-    // Réordonner : insérer sourceId à la position de targetId
-    const ids = planningLots.map(l => l.id);
-    const fromIdx = ids.indexOf(sourceId);
-    const toIdx = ids.indexOf(targetId);
-    if (fromIdx === -1 || toIdx === -1) { setDraggedId(null); return; }
-
-    ids.splice(fromIdx, 1);
-    ids.splice(toIdx, 0, sourceId);
-
-    reorderLots(ids);
-    setDraggedId(null);
-  }, [planningLots, reorderLots]);
-
-  const handleDragEnd = useCallback(() => setDraggedId(null), []);
-
-  // -- Duration edit ----------------------------------------------------------
-
-  const handleDurationChange = useCallback((lotId: string, newDays: number) => {
-    if (newDays < 1) newDays = 1;
-    if (newDays > 120) newDays = 120;
-    updateLot(lotId, { duree_jours: newDays });
-    setEditingDuration(null);
-  }, [updateLot]);
+  // (Drag & drop reorder + édition inline durée supprimés — les barres du Gantt
+  // gèrent maintenant directement drag, resize, et les lanes remplacent l'ordre manuel.)
 
   // -- Calcul position/largeur d'une barre -----------------------------------
 
@@ -233,22 +191,35 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
     };
   }, [startDate]);
 
-  // -- Groupes parallèles pour l'affichage -----------------------------------
+  // -- Lanes (first-fit interval scheduling) ---------------------------------
+  // Regroupe les lots qui se chaînent dans le temps sur une MÊME ligne visuelle.
+  // Les lots qui se chevauchent (parallèles) vont sur des lignes différentes.
+  // Algorithme : tri par date_debut, placement greedy sur la 1re lane libre.
 
-  const rows = useMemo(() => {
-    const result: { lots: LotChantier[]; isParallel: boolean }[] = [];
-    let i = 0;
-    while (i < planningLots.length) {
-      const lot = planningLots[i];
-      if (lot.parallel_group != null) {
-        const group = planningLots.filter(l => l.parallel_group === lot.parallel_group);
-        result.push({ lots: group, isParallel: true });
-        i += group.length;
-      } else {
-        result.push({ lots: [lot], isParallel: false });
-        i++;
+  const lanes = useMemo(() => {
+    const withDates = planningLots.filter(l => l.date_debut && l.date_fin);
+    const withoutDates = planningLots.filter(l => !l.date_debut || !l.date_fin);
+    const sorted = [...withDates].sort((a, b) =>
+      (a.date_debut ?? '').localeCompare(b.date_debut ?? '')
+    );
+
+    const result: LotChantier[][] = [];
+    for (const lot of sorted) {
+      const lotStart = new Date(lot.date_debut!).getTime();
+      let placed = false;
+      for (const lane of result) {
+        const lastEnd = new Date(lane[lane.length - 1].date_fin!).getTime();
+        if (lastEnd <= lotStart) {
+          lane.push(lot);
+          placed = true;
+          break;
+        }
       }
+      if (!placed) result.push([lot]);
     }
+
+    // Lots sans dates : chacun sur sa propre lane en fin de liste
+    for (const lot of withoutDates) result.push([lot]);
     return result;
   }, [planningLots]);
 
@@ -417,78 +388,39 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Intervenant</p>
             </div>
 
-            {/* Lot label rows */}
-            {rows.map((row, rowIdx) => (
-              <div key={rowIdx}>
-                {/* Badge groupe parallèle */}
-                {row.isParallel && row.lots.length > 1 && (
-                  <div
-                    className="flex items-center gap-1.5 px-4 bg-violet-50 border-b border-violet-100"
-                    style={{ height: PARALLEL_BADGE_HEIGHT }}
-                  >
-                    <Users className="h-3 w-3 text-violet-500" />
-                    <span className="text-[10px] font-semibold text-violet-600 uppercase tracking-wider">
-                      Interventions parallèles
-                    </span>
-                  </div>
-                )}
-
-                {row.lots.map((lot) => {
-                  const weekStart = startDate && lot.date_debut ? getWeekNumber(new Date(lot.date_debut), startDate) : 0;
-                  const weekEnd = startDate && lot.date_fin ? getWeekNumber(new Date(lot.date_fin), startDate) : 0;
-                  const isDragged = draggedId === lot.id;
-
-                  return (
-                    <div
-                      key={lot.id}
-                      className={`border-b border-gray-50 transition-colors ${isDragged ? 'bg-blue-50 opacity-50' : 'hover:bg-gray-50'}`}
-                      style={{ height: LOT_ROW_HEIGHT }}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, lot.id)}
-                      onDragOver={handleDragOver}
-                      onDrop={(e) => handleDrop(e, lot.id)}
-                      onDragEnd={handleDragEnd}
-                    >
-                      <div className="px-3 py-2.5 flex items-center gap-2 cursor-grab active:cursor-grabbing h-full">
-                        <GripVertical className="h-3.5 w-3.5 text-gray-300 shrink-0" />
-                        <span className="text-base shrink-0">{lot.emoji}</span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold text-gray-800 truncate">{lot.nom}</p>
-                          <div className="flex items-center gap-2 text-[11px] text-gray-400">
-                            <span>S{weekStart}–S{weekEnd}</span>
-                            <span>·</span>
-                            {editingDuration === lot.id ? (
-                              <input
-                                type="number"
-                                inputMode="numeric"
-                                autoFocus
-                                min={1}
-                                max={120}
-                                defaultValue={lot.duree_jours ?? 5}
-                                onBlur={(e) => handleDurationChange(lot.id, parseInt(e.target.value) || 5)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                                  if (e.key === 'Escape') setEditingDuration(null);
-                                }}
-                                className="w-12 border border-blue-300 rounded px-1 py-0 text-[11px] text-center focus:ring-1 focus:ring-blue-500 outline-none"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            ) : (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setEditingDuration(lot.id); }}
-                                className="hover:text-blue-600 hover:underline transition-colors"
-                              >
-                                {formatDuration(lot.duree_jours ?? 0)}
-                              </button>
-                            )}
-                          </div>
+            {/* Lane label rows — 1 ligne par lane (chaînée) */}
+            {lanes.map((lane, laneIdx) => {
+              const isParallelLane = laneIdx > 0; // lanes 2+ sont forcément des lots // en parallèle de la lane 1
+              return (
+                <div
+                  key={laneIdx}
+                  className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
+                  style={{ height: LOT_ROW_HEIGHT }}
+                >
+                  <div className="px-3 py-2 flex items-center gap-2 h-full">
+                    {isParallelLane && (
+                      <span title="Interventions parallèles" className="shrink-0">
+                        <Users className="h-3 w-3 text-violet-400" />
+                      </span>
+                    )}
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
+                      {lane.map((lot, i) => (
+                        <div key={lot.id} className="flex items-center gap-1 shrink-0 min-w-0">
+                          <span className="text-sm shrink-0">{lot.emoji}</span>
+                          <span
+                            className="text-xs font-semibold text-gray-800 truncate max-w-[90px]"
+                            title={`${lot.nom} (${formatDuration(lot.duree_jours ?? 0)})`}
+                          >
+                            {lot.nom}
+                          </span>
+                          {i < lane.length - 1 && <span className="text-gray-300 text-[10px]">→</span>}
                         </div>
-                      </div>
+                      ))}
                     </div>
-                  );
-                })}
-              </div>
-            ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           {/* ====== RIGHT: scrollable Gantt area ====== */}
@@ -504,57 +436,41 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
                 ))}
               </div>
 
-              {/* Gantt bar rows */}
-              {rows.map((row, rowIdx) => (
-                <div key={rowIdx}>
-                  {/* Parallel group badge spacer (matches left column height) */}
-                  {row.isParallel && row.lots.length > 1 && (
-                    <div
-                      className="bg-violet-50 border-b border-violet-100"
-                      style={{ height: PARALLEL_BADGE_HEIGHT }}
-                    />
-                  )}
+              {/* Gantt bar rows — 1 ligne par lane, toutes les barres d'une lane côte à côte */}
+              {lanes.map((lane, laneIdx) => (
+                <div
+                  key={laneIdx}
+                  className="border-b border-gray-50 relative hover:bg-gray-50 transition-colors"
+                  style={{ height: LOT_ROW_HEIGHT }}
+                >
+                  {/* Week grid lines */}
+                  <div className="absolute inset-0 flex pointer-events-none">
+                    {weeks.map((_, i) => (
+                      <div key={i} className="flex-none border-r border-gray-50" style={{ width: WEEK_WIDTH }} />
+                    ))}
+                  </div>
 
-                  {row.lots.map((lot) => {
+                  {/* Toutes les barres de cette lane */}
+                  {lane.map((lot) => {
                     const color = getLotColor(planningLots.indexOf(lot));
                     const barStyle = getBarStyle(lot);
-                    const isDragged = draggedId === lot.id;
-
                     return (
-                      <div
+                      <GanttBar
                         key={lot.id}
-                        className={`border-b border-gray-50 transition-colors relative ${isDragged ? 'bg-blue-50 opacity-50' : 'hover:bg-gray-50'}`}
-                        style={{ height: LOT_ROW_HEIGHT }}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, lot.id)}
-                        onDragOver={handleDragOver}
-                        onDrop={(e) => handleDrop(e, lot.id)}
-                        onDragEnd={handleDragEnd}
-                      >
-                        {/* Week grid lines */}
-                        <div className="absolute inset-0 flex pointer-events-none">
-                          {weeks.map((_, i) => (
-                            <div key={i} className="flex-none border-r border-gray-50" style={{ width: WEEK_WIDTH }} />
-                          ))}
-                        </div>
-
-                        {/* Gantt bar — resizable + movable */}
-                        <GanttBar
-                          lot={lot}
-                          color={color}
-                          left={barStyle.left}
-                          width={barStyle.width}
-                          weekWidth={WEEK_WIDTH}
-                          onResize={(deltaDays) => {
-                            const newDays = Math.max(1, Math.min(120, (lot.duree_jours ?? 5) + deltaDays));
-                            if (newDays !== lot.duree_jours) updateLot(lot.id, { duree_jours: newDays });
-                          }}
-                          onMove={(deltaDays) => {
-                            if (!lot.date_debut || deltaDays === 0) return;
-                            moveLot(lot.id, deltaDays);
-                          }}
-                        />
-                      </div>
+                        lot={lot}
+                        color={color}
+                        left={barStyle.left}
+                        width={barStyle.width}
+                        weekWidth={WEEK_WIDTH}
+                        onResize={(deltaDays) => {
+                          const newDays = Math.max(1, Math.min(120, (lot.duree_jours ?? 5) + deltaDays));
+                          if (newDays !== lot.duree_jours) updateLot(lot.id, { duree_jours: newDays });
+                        }}
+                        onMove={(deltaDays) => {
+                          if (!lot.date_debut || deltaDays === 0) return;
+                          moveLot(lot.id, deltaDays);
+                        }}
+                      />
                     );
                   })}
                 </div>

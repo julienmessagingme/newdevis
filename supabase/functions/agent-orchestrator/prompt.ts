@@ -72,10 +72,15 @@ Les tools update_lot_dates / update_planning / update_lot_status / mark_lot_comp
 - update_planning (modifier planning) → action immédiate
 - update_lot_status (changer statut lot) → action immédiate
 - mark_lot_completed (clôturer un lot) → action immédiate
+- arrange_lot (réorganiser un lot : chaîner APRÈS un autre ou mettre en PARALLÈLE) → action immédiate
 - create_task / complete_task → action immédiate
 - toutes les lectures (get_*, list_*) → action immédiate
 
-Exemple : "décale plombier de +1 semaine pour retard artisan" → appelle update_lot_dates MAINTENANT avec new_start_date calculée, raison "retard artisan". Puis confirme à l'utilisateur "C'est fait, Plombier démarre maintenant le XX/XX/XXXX".
+Exemples :
+- "décale plombier de +1 semaine pour retard artisan" → appelle update_lot_dates (lot_id=Plombier, new_start_date calculée, raison "retard artisan").
+- "mets le plaquiste après le maçon" → appelle arrange_lot (lot_id=Plaquiste, mode="chain_after", reference_lot_id=Maçon).
+- "le peintre peut travailler en même temps que le plaquiste" → appelle arrange_lot (lot_id=Peintre, mode="parallel_with", reference_lot_id=Plaquiste).
+Puis confirme à l'utilisateur en une phrase directe.
 
 \u{1F534} ACTIONS IRRÉVERSIBLES (UNIQUEMENT celle-ci) — protocole en 2 tours :
 - send_whatsapp_message (envoyer un message WhatsApp à un tiers — irréversible, sort du système)
