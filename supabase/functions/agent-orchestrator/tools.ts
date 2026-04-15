@@ -558,7 +558,19 @@ export async function executeTool(
           headers,
           body: JSON.stringify({ lots: [lotUpdate] }),
         });
-        return JSON.stringify({ ok: res.ok, data: await res.json() });
+        const body = await res.json();
+        // DEBUG : en cas d'échec, retourner la clé envoyée (longueur + prefix) pour diagnostic
+        if (!res.ok) {
+          return JSON.stringify({
+            ok: false,
+            data: body,
+            _debug_key_len: AGENT_SECRET_KEY.length,
+            _debug_key_prefix: AGENT_SECRET_KEY.slice(0, 8),
+            _debug_key_suffix: AGENT_SECRET_KEY.slice(-8),
+            _debug_api_base: API_BASE,
+          });
+        }
+        return JSON.stringify({ ok: true, data: body });
       }
 
       case "send_whatsapp_message": {

@@ -242,25 +242,41 @@ async function handleInteractive(
   const ctx = await buildContext(supabase, chantierId, null, agentSecretKey, apiBase, conversationHistory);
 
   // Build messages: system prompt + conversation history + current user message
-  const systemPrompt = buildSystemPrompt(ctx, "interactive");
+  // Détection heuristique : l'utilisateur confirme-t-il une action irréversible proposée ?
+  // Bug gemini-2.5-flash : sur un message user court ("oui") après une longue proposition assistant,
+  // le modèle retourne content vide et completion_tokens:0. On compense en injectant un prompt
+  // système explicite "l'utilisateur CONFIRME, appelle le tool maintenant".
+  const CONFIRMATION_REGEX = /^(oui|ok|go|vas[\s-]?y|confirme|valide|envoie|fais[\s-]?le|parfait|allons[\s-]?y|yes|yep|ouais|ça marche|c'est bon|carrément|\u{1F197}|\u{1F44D}|\u{2705})\b/iu;
+  const ACTION_PROPOSAL_REGEX = /tu confirmes|confirmes[\s-]tu|je (vais|m'appr[êe]te à) (décaler|envoyer|clôturer|terminer|marquer)|nouvelle date de début/i;
+
+  const userConfirms = CONFIRMATION_REGEX.test(userMessage.trim());
+  const lastAssistantInHistory = [...conversationHistory].reverse().find(m => m.role === "assistant" && typeof m.content === "string");
+  const assistantProposedAction = lastAssistantInHistory && typeof lastAssistantInHistory.content === "string" && ACTION_PROPOSAL_REGEX.test(lastAssistantInHistory.content);
+
+  let systemPrompt = buildSystemPrompt(ctx, "interactive");
+  if (userConfirms && assistantProposedAction) {
+    systemPrompt += `\n\n🔴 ORDRE IMMÉDIAT (priorité absolue) : l'utilisateur vient d'écrire "${userMessage.trim()}" en réponse à ta proposition précédente d'action irréversible. C'EST UNE CONFIRMATION. Tu DOIS appeler IMMÉDIATEMENT le tool correspondant (update_lot_dates / mark_lot_completed / send_whatsapp_message) avec les arguments que tu as déjà proposés. NE redemande PAS de confirmation. NE réponds PAS en texte seul. APPELLE LE TOOL MAINTENANT.`;
+  }
+
   const messages: Array<Record<string, unknown>> = [
     { role: "system", content: systemPrompt },
   ];
 
   // Inject conversation history (max 20 last messages to stay within context)
-  // Le filtre regex précédent (anti-hallucinations) cassait l'alternance user/assistant
-  // quand un assistant message était retiré → Gemini produisait des réponses vides (bug 2026-04-15).
-  // On laisse passer tous les messages, le prompt système contient maintenant une consigne
-  // explicite "PHRASES INTERDITES + IGNORE les réponses passées polluées".
+  // On ne passe QUE role + content textuel. Les tool_calls persistés en DB sont au format
+  // custom {tool, args, result_ok, result_preview} (pour notre observabilité), PAS au format
+  // OpenAI {id, type, function:{name, arguments}} → si on les réinjecte, Gemini rejette la
+  // requête avec HTTP 400 INVALID_ARGUMENT. On laisse le texte de réponse de l'agent porter
+  // le contexte de l'action (il dit "C'est fait, Plombier décalé au XX"), ce qui suffit.
   const historySlice = conversationHistory.slice(-20);
   for (const msg of historySlice) {
     if (msg.role === "user" || msg.role === "assistant") {
-      const entry: Record<string, unknown> = { role: msg.role, content: msg.content ?? "" };
-      if (msg.tool_calls) entry.tool_calls = msg.tool_calls;
-      messages.push(entry);
-    } else if (msg.role === "tool" && msg.tool_call_id) {
-      messages.push({ role: "tool", tool_call_id: msg.tool_call_id, content: msg.content ?? "" });
+      const content = msg.content ?? "";
+      // Skip messages complètement vides (évite rejets Gemini sur "content": "")
+      if (typeof content === "string" && content.trim().length === 0) continue;
+      messages.push({ role: msg.role, content });
     }
+    // Les messages role=tool sont ignorés (pas de tool_call_id cohérent sans les tool_calls d'origine)
   }
 
   // Add current user message
@@ -268,8 +284,12 @@ async function handleInteractive(
 
   let rounds = 0;
   const toolCallsExecuted: string[] = [];
-  // Trace détaillée : chaque tool_call avec ses args + résultat (pour persistance observabilité)
+  // Trace détaillée : vrais tool_calls uniquement (persisté dans chantier_assistant_messages.tool_calls)
   const toolTrace: Array<{ tool: string; args: Record<string, unknown>; result_ok: boolean; result_preview: string }> = [];
+  // Debug Gemini raw (persisté SEULEMENT dans agent_runs.actions_taken, JAMAIS dans tool_calls —
+  // sinon l'historique renvoyé à Gemini au tour suivant pollue le format OpenAI tool_calls
+  // et cause un HTTP 400 INVALID_ARGUMENT. Bug confirmé 2026-04-15.)
+  const debugTrace: Array<Record<string, unknown>> = [];
 
   while (rounds < MAX_TOOL_ROUNDS) {
     rounds++;
@@ -284,11 +304,30 @@ async function handleInteractive(
       }),
     });
 
-    const data = await res.json();
+    // DEBUG : capture FULL response pour diagnostic (status HTTP + body complet)
+    const rawBodyText = await res.text();
+    let data: any = {};
+    try { data = JSON.parse(rawBodyText); } catch { data = {}; }
     const choice = data.choices?.[0]?.message;
+    const finishReason = data.choices?.[0]?.finish_reason ?? "unknown";
+    const rawDebug = {
+      round: rounds,
+      http_status: res.status,
+      http_ok: res.ok,
+      raw_body: rawBodyText.slice(0, 2000),
+      finish_reason: finishReason,
+      content_len: (choice?.content ?? "").length,
+      content_preview: String(choice?.content ?? "").slice(0, 300),
+      has_tool_calls: !!(choice?.tool_calls && choice.tool_calls.length > 0),
+      n_tool_calls: choice?.tool_calls?.length ?? 0,
+      usage: data.usage ?? null,
+    };
+    debugTrace.push(rawDebug);
+
     if (!choice?.tool_calls || choice.tool_calls.length === 0) {
       // Final text response
       let responseText = typeof choice?.content === "string" ? choice.content : "";
+      console.log(`[interactive] round=${rounds} finish_reason=${finishReason} content_len=${responseText.length} tool_calls=0`);
 
       // Filet de sécurité : si Gemini renvoie content vide ET aucun tool_call,
       // relance une dernière tentative en précisant d'agir (ne pas renvoyer du vide à l'utilisateur).
@@ -301,7 +340,7 @@ async function handleInteractive(
         const retryRes = await fetch(GEMINI_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${geminiKey}` },
-          body: JSON.stringify({ model: "gemini-2.5-flash", messages: retryMessages, tools: TOOLS_SCHEMA_INTERACTIVE, max_tokens: 4096 }),
+          body: JSON.stringify({ model: "gemini-2.5-flash", messages: retryMessages, tools: TOOLS_SCHEMA_INTERACTIVE, max_tokens: 8192 }),
         });
         const retryData = await retryRes.json();
         const retryChoice = retryData.choices?.[0]?.message;
@@ -330,7 +369,7 @@ async function handleInteractive(
         run_type: "interactive",
         messages_analyzed: 1,
         insights_created: 0,
-        actions_taken: toolTrace,
+        actions_taken: [...toolTrace, ...debugTrace.map(d => ({ ...d, tool: "__debug" }))],
       }).then(() => {}).catch(() => {});
       return { response_text: responseText, tool_calls_executed: toolCallsExecuted, tool_trace: toolTrace };
     }
@@ -360,7 +399,7 @@ async function handleInteractive(
   const fallbackRes = await fetch(GEMINI_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": `Bearer ${geminiKey}` },
-    body: JSON.stringify({ model: "gemini-2.5-flash", messages, max_tokens: 2048 }),
+    body: JSON.stringify({ model: "gemini-2.5-flash", messages, max_tokens: 4096 }),
   });
   const fallbackData = await fallbackRes.json();
   const fallbackText = fallbackData.choices?.[0]?.message?.content ?? "Je n'ai pas pu générer une réponse. Réessaie.";

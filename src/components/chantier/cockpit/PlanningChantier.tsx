@@ -113,10 +113,10 @@ export default function PlanningChantier({ result, chantierId, token }: Props) {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+    <div className="mx-auto px-4 sm:px-6 py-6 space-y-5 max-w-3xl lg:max-w-7xl xl:max-w-[1600px]">
 
       {/* ── Tabs ───────────────────────────────────────────────────────── */}
-      <div className="flex gap-1 bg-gray-100 rounded-2xl p-1">
+      <div className="flex gap-1 bg-gray-100 rounded-2xl p-1 max-w-xl mx-auto">
         {([
           ['planning', 'Planning',                   Calendar   ],
           ['rdv',      `RDV (${upcomingRdvs.length})`, Calendar ],
