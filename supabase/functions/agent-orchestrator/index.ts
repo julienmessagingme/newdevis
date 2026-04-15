@@ -248,17 +248,13 @@ async function handleInteractive(
   ];
 
   // Inject conversation history (max 20 last messages to stay within context)
-  // FILTRE : purge les hallucinations de refus passées (patterns "pas les autorisations",
-  // "contactez le support", "accès restreint"...) pour éviter que Gemini pattern-matche dessus
-  // et répète le même refus. Bug confirmé en prod le 2026-04-15.
-  const REFUSAL_PATTERNS = /autorisation|support technique|accès (?:restreint|refusé|limité)|permissions? (?:d'accès|restreint|limité)|problème technique avec mes permissions|accéder directement (?:au|aux|à la)/i;
+  // Le filtre regex précédent (anti-hallucinations) cassait l'alternance user/assistant
+  // quand un assistant message était retiré → Gemini produisait des réponses vides (bug 2026-04-15).
+  // On laisse passer tous les messages, le prompt système contient maintenant une consigne
+  // explicite "PHRASES INTERDITES + IGNORE les réponses passées polluées".
   const historySlice = conversationHistory.slice(-20);
   for (const msg of historySlice) {
     if (msg.role === "user" || msg.role === "assistant") {
-      // Skip polluted assistant messages (fausses excuses de permissions)
-      if (msg.role === "assistant" && typeof msg.content === "string" && REFUSAL_PATTERNS.test(msg.content)) {
-        continue;
-      }
       const entry: Record<string, unknown> = { role: msg.role, content: msg.content ?? "" };
       if (msg.tool_calls) entry.tool_calls = msg.tool_calls;
       messages.push(entry);

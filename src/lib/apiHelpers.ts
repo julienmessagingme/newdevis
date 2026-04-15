@@ -112,7 +112,9 @@ export async function requireChantierAuth(
  */
 export function authenticateAgentKey(request: Request): SupabaseClient | null {
   const agentKey = request.headers.get('X-Agent-Key');
-  const expectedKey = import.meta.env.AGENT_SECRET_KEY;
+  // FALLBACK process.env — Astro/Vite peut inliner `import.meta.env.AGENT_SECRET_KEY`
+  // à build-time à `undefined` pour les vars non-PUBLIC_. process.env est lu au runtime sur Vercel.
+  const expectedKey = process.env.AGENT_SECRET_KEY ?? import.meta.env.AGENT_SECRET_KEY;
   if (!agentKey || !expectedKey || agentKey !== expectedKey) return null;
   return createServiceClient();
 }

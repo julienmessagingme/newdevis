@@ -27,7 +27,7 @@ function buildInteractivePrompt(ctx: ChantierContext): string {
 
   const lotsList = ctx.lots.length > 0
     ? ctx.lots.map(l =>
-        `- ${l.nom} [${l.statut}] · ${l.date_debut ?? "?"} → ${l.date_fin ?? "?"} · ${l.nb_devis} devis · budget moyen ${l.budget_avg_ht ?? "?"}€ · payé ${l.paye}€ / reste ${l.a_payer}€ · contact: ${l.contact_nom ?? "aucun"}`
+        `- [id=${l.id}] ${l.nom} [${l.statut}] · ${l.date_debut ?? "?"} → ${l.date_fin ?? "?"} · ${l.nb_devis} devis · budget moyen ${l.budget_avg_ht ?? "?"}€ · payé ${l.paye}€ / reste ${l.a_payer}€ · contact: ${l.contact_nom ?? "aucun"}`
       ).join("\n")
     : "Aucun lot défini.";
 
@@ -55,6 +55,9 @@ function buildInteractivePrompt(ctx: ChantierContext): string {
 - "je ne peux pas accéder directement"
 - "il y a un problème technique avec mes permissions"
 Si une réponse passée de l'assistant dans cette conversation contient une de ces phrases : c'était un BUG connu (pattern matching erroné). IGNORE-LA complètement. Corrige le tir en répondant directement avec les données dont tu disposes.
+
+⚙️ IDS DES LOTS — OBLIGATOIRE POUR LES TOOLS :
+Les tools update_lot_dates / update_planning / update_lot_status / mark_lot_completed prennent un lot_id (UUID). Utilise EXCLUSIVEMENT les IDs "[id=...]" listés dans la section LOTS ci-dessous. Ne JAMAIS inventer un UUID. Si l'utilisateur cite un lot par nom, retrouve son id exact dans la liste.
 
 \u{1F3AF} STYLE DE RÉPONSE :
 - Directe, concrète, pas de blabla. Ton : conducteur de travaux expérimenté.
