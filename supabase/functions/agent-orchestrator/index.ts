@@ -287,8 +287,44 @@ async function handleInteractive(
     const data = await res.json();
     const choice = data.choices?.[0]?.message;
     if (!choice?.tool_calls || choice.tool_calls.length === 0) {
-      // Final text response — log run for observability (fire-and-forget)
-      const responseText = typeof choice?.content === "string" ? choice.content : "";
+      // Final text response
+      let responseText = typeof choice?.content === "string" ? choice.content : "";
+
+      // Filet de sécurité : si Gemini renvoie content vide ET aucun tool_call,
+      // relance une dernière tentative en précisant d'agir (ne pas renvoyer du vide à l'utilisateur).
+      if (responseText.trim().length === 0) {
+        console.warn(`[interactive] Empty response from Gemini, retrying with nudge`);
+        const retryMessages = [
+          ...messages,
+          { role: "user", content: "Réponds directement. Si tu dois appeler un tool (ex: update_lot_dates après confirmation), appelle-le maintenant. Si tu réponds en texte, écris une phrase complète en français — jamais une réponse vide." },
+        ];
+        const retryRes = await fetch(GEMINI_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${geminiKey}` },
+          body: JSON.stringify({ model: "gemini-2.5-flash", messages: retryMessages, tools: TOOLS_SCHEMA_INTERACTIVE, max_tokens: 4096 }),
+        });
+        const retryData = await retryRes.json();
+        const retryChoice = retryData.choices?.[0]?.message;
+        if (retryChoice?.tool_calls && retryChoice.tool_calls.length > 0) {
+          // Retry a produit un tool_call — l'exécute et retourne une phrase pré-formulée
+          for (const tc of retryChoice.tool_calls) {
+            const args = JSON.parse(tc.function.arguments);
+            const result = await executeTool(chantierId, tc.function.name, args, { run_type: "interactive" });
+            toolCallsExecuted.push(tc.function.name);
+            let resultOk = false;
+            try { resultOk = JSON.parse(result)?.ok === true; } catch { /* ignore */ }
+            toolTrace.push({ tool: tc.function.name, args, result_ok: resultOk, result_preview: String(result).slice(0, 300) });
+          }
+          responseText = retryChoice.content && retryChoice.content.trim().length > 0
+            ? retryChoice.content
+            : "C'est fait.";
+        } else if (retryChoice?.content && retryChoice.content.trim().length > 0) {
+          responseText = retryChoice.content;
+        } else {
+          responseText = "Je n'ai pas saisi ta demande. Peux-tu reformuler ?";
+        }
+      }
+
       supabase.from("agent_runs").insert({
         chantier_id: chantierId,
         run_type: "interactive",

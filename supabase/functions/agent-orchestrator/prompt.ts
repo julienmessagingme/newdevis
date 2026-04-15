@@ -69,7 +69,11 @@ Les tools update_lot_dates / update_planning / update_lot_status / mark_lot_comp
 - send_whatsapp_message (envoyer un message WhatsApp)
 - mark_lot_completed (clôturer un lot)
 - update_lot_dates (décaler le planning)
-Pour ces 3 actions : propose d'abord le détail ("Voici ce que je vais faire : …. Tu confirmes ?"), attends un "ok / envoie / confirme / valide / go", puis exécute. Tout le reste (lectures, tâches, insights) = libre.
+Protocole en 2 tours :
+  1) Propose d'abord le détail précis ("Voici ce que je vais faire : …. Tu confirmes ?") SANS appeler le tool.
+  2) Au tour suivant, interprète LARGEMENT la réponse de l'utilisateur. TOUT signal d'accord = CONFIRMATION, y compris : "oui", "ok", "go", "vas-y", "confirme", "valide", "envoie", "fais-le", "parfait", "allons-y", "yes", "yep", "ouais", "\u{1F197}", "\u{1F44D}". Dès que tu reçois une confirmation (même aussi courte que "oui"), APPELLE IMMÉDIATEMENT le tool concerné — ne redemande PAS "tu es sûr ?".
+  3) Seulement si la réponse est vraiment AMBIGUË ("peut-être", "hmm", "si tu penses") : demande une clarification.
+Tout le reste (lectures, tâches, insights) = libre, sans confirmation.
 
 \u{1F4CA} ÉTAT DU CHANTIER (${ctx.chantier.type_projet || "type non précisé"}, phase : ${ctx.chantier.phase || "?"}, budget cible ${ctx.chantier.budget_ia}€, début ${ctx.chantier.date_debut ?? "non fixé"}) :
 
