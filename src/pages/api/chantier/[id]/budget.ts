@@ -168,7 +168,7 @@ export const GET: APIRoute = async ({ params, request }) => {
     // ── Phase A : 4 queries indépendantes en parallèle ─────────────────────
     // chantier, lots, docs et proofCount ne dépendent d'aucune autre query.
     // Si chantier est 404, on return early et on jette les autres résultats.
-    const [chantierRes, lotsRawRes, docsRes, proofCountRes] = await Promise.all([
+    const [chantierRes, lotsRawRes, docsRes, proofCountRes, paidEventsRes] = await Promise.all([
       ctx.supabase
         .from('chantiers')
         .select('id, nom, type_projet, metadonnees')
@@ -190,12 +190,27 @@ export const GET: APIRoute = async ({ params, request }) => {
         .select('id', { count: 'exact', head: true })
         .eq('chantier_id', chantierId)
         .eq('document_type', 'preuve_paiement'),
+      // Paiements effectués dans l'Échéancier (source de vérité pour totaux.paye)
+      ctx.supabase
+        .from('payment_events')
+        .select('source_id, amount, source_type')
+        .eq('project_id', chantierId)
+        .eq('status', 'paid')
+        .not('source_id', 'is', null),
     ]);
 
-    const chantier = chantierRes.data;
-    const lotsRaw = lotsRawRes.data;
-    const docs = docsRes.data;
+    const chantier   = chantierRes.data;
+    const lotsRaw    = lotsRawRes.data;
+    const docs       = docsRes.data;
     const proofCount = proofCountRes.count;
+
+    // Montants payés par document-source (payment_events = source de vérité)
+    const eventsPayeByDoc: Record<string, number> = {};
+    for (const ev of paidEventsRes.data ?? []) {
+      if (ev.source_id && ev.amount != null) {
+        eventsPayeByDoc[ev.source_id] = (eventsPayeByDoc[ev.source_id] ?? 0) + Number(ev.amount);
+      }
+    }
 
     if (!chantier) return jsonError('Chantier introuvable', 404);
 
@@ -343,19 +358,28 @@ export const GET: APIRoute = async ({ params, request }) => {
         });
         bucket.totaux.devis_recus   += montant ?? 0;
         bucket.totaux.devis_valides += montant ?? 0;
+
+        // Paiements sur devis (acomptes Échéancier) → contribuent à paye + acompte
+        const evDevisPaid = eventsPayeByDoc[doc.id] ?? 0;
+        if (evDevisPaid > 0) {
+          bucket.totaux.acompte += evDevisPaid;
+          bucket.totaux.paye    += evDevisPaid;
+        }
       } else if (doc.document_type === 'facture') {
         const montant = doc.montant ?? 0;
-        const paye =
-          doc.facture_statut === 'payee'               ? montant
+
+        // Paiements Échéancier sur cette facture (prioritaires sur facture_statut)
+        const evFacturePaid = eventsPayeByDoc[doc.id];
+        const paye = evFacturePaid != null
+          ? evFacturePaid
+          : doc.facture_statut === 'payee'               ? montant
           : doc.facture_statut === 'payee_partiellement' ? (doc.montant_paye ?? 0)
           : 0;
-        const acompte =
-          doc.facture_statut === 'payee_partiellement' ? (doc.montant_paye ?? 0) : 0;
-        const litige =
-          doc.facture_statut === 'en_litige' ? montant : 0;
+        const acompte = (paye > 0 && paye < montant) ? paye : 0;
+        const litige  = doc.facture_statut === 'en_litige' ? montant : 0;
         const a_payer =
           doc.facture_statut === 'recue'               ? montant
-          : doc.facture_statut === 'payee_partiellement' ? montant - (doc.montant_paye ?? 0)
+          : doc.facture_statut === 'payee_partiellement' ? Math.max(0, montant - paye)
           : 0;
 
         bucket.factures.push({
@@ -369,7 +393,7 @@ export const GET: APIRoute = async ({ params, request }) => {
           created_at:     doc.created_at,
         });
         bucket.totaux.facture += montant;
-        bucket.totaux.paye    += doc.facture_statut === 'payee' ? montant : 0;
+        bucket.totaux.paye    += paye;
         bucket.totaux.acompte += acompte;
         bucket.totaux.litige  += litige;
         bucket.totaux.a_payer += a_payer;
