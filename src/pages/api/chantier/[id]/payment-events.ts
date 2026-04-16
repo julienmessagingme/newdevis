@@ -60,7 +60,7 @@ export const GET: APIRoute = async ({ params, request }) => {
     sourceIds.length > 0
       ? ctx.supabase
           .from('documents_chantier')
-          .select('id, nom, nom_fichier, analyse_id, lots_chantier(nom)')
+          .select('id, nom, nom_fichier, analyse_id, montant, lots_chantier(nom)')
           .in('id', sourceIds)
       : Promise.resolve({ data: [] as any[] }),
     eventIds.length > 0
@@ -73,13 +73,14 @@ export const GET: APIRoute = async ({ params, request }) => {
       : Promise.resolve({ data: [] as any[] }),
   ]);
 
-  let docMap: Record<string, { nom: string | null; nom_fichier: string | null; lot_nom: string | null; analyse_id: string | null }> = {};
+  let docMap: Record<string, { nom: string | null; nom_fichier: string | null; lot_nom: string | null; analyse_id: string | null; montant: number | null }> = {};
   for (const d of docsRes.data ?? []) {
     docMap[d.id] = {
       nom:        d.nom ?? null,
       nom_fichier: d.nom_fichier ?? null,
       lot_nom:    (d.lots_chantier as any)?.nom ?? null,
       analyse_id: d.analyse_id ?? null,
+      montant:    typeof d.montant === 'number' ? d.montant : null,
     };
   }
 
@@ -133,10 +134,29 @@ export const GET: APIRoute = async ({ params, request }) => {
     proofUrlMap[evId] = url;
   }
 
+  // Pré-calcul du solde estimé pour les events sans montant :
+  // Pour chaque source_id, on calcule la somme des montants déjà alloués
+  // aux autres échéances (non annulées). Le solde = doc.montant - somme_acomptes.
+  const allocatedBySource: Record<string, number> = {};
+  for (const e of data ?? []) {
+    if (e.source_id && e.amount != null && e.status !== 'cancelled' && !e.is_override) {
+      allocatedBySource[e.source_id] = (allocatedBySource[e.source_id] ?? 0) + Number(e.amount);
+    }
+  }
+
   const enriched = (data ?? []).map(e => {
     const doc = docMap[e.source_id];
     const analyseId = doc?.analyse_id ?? null;
     const proof = proofMap[e.id];
+
+    // Solde estimé : uniquement si amount est null ET le doc a un montant total
+    let amount_estimate: number | null = null;
+    if (e.amount == null && e.source_id && doc?.montant != null) {
+      const allocated = allocatedBySource[e.source_id] ?? 0;
+      const remaining = doc.montant - allocated;
+      if (remaining > 0) amount_estimate = Math.round(remaining * 100) / 100;
+    }
+
     return {
       ...e,
       source_name:      doc?.nom ?? doc?.nom_fichier ?? null,
@@ -145,6 +165,7 @@ export const GET: APIRoute = async ({ params, request }) => {
       proof_doc_id:     proof?.id ?? null,
       proof_doc_name:   proof?.nom ?? null,
       proof_signed_url: proof ? (proofUrlMap[e.id] ?? null) : null,
+      amount_estimate,
     };
   });
 

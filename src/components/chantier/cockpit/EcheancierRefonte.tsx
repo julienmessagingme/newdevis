@@ -715,13 +715,22 @@ function PaymentEventRow({ ev, chantierId, token, confirmingId, setConfirmingId,
             <p className={`text-sm font-semibold leading-snug ${isPaid ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
               {ev.label}
             </p>
-            {ev.amount != null && (
+            {ev.amount != null ? (
               <span className={`text-sm font-extrabold tabular-nums shrink-0 ${
                 isLate ? 'text-red-700' : isPaid ? 'text-gray-400' : 'text-gray-900'
               }`}>
                 {fmtEur(ev.amount)}
               </span>
-            )}
+            ) : ev.amount_estimate != null ? (
+              <span className="flex items-center gap-1 shrink-0" title="Solde estimé = montant total − acomptes">
+                <span className="text-sm font-extrabold tabular-nums text-amber-600">
+                  {fmtEur(ev.amount_estimate)}
+                </span>
+                <span className="text-[9px] font-bold text-amber-400 bg-amber-50 border border-amber-100 rounded px-1 py-0.5 leading-none">
+                  estimé
+                </span>
+              </span>
+            ) : null}
           </div>
 
           {/* Artisan + source */}

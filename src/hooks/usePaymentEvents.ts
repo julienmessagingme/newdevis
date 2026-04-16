@@ -26,6 +26,8 @@ export interface PaymentEvent {
   proof_doc_id: string | null;
   proof_doc_name: string | null;
   proof_signed_url: string | null;
+  // Solde estimé (calculé côté API quand amount est null)
+  amount_estimate: number | null;
 }
 
 export interface UsePaymentEventsReturn {
