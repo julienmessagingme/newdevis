@@ -28,6 +28,8 @@ export interface PaymentEvent {
   proof_signed_url: string | null;
   // Solde estimé (calculé côté API quand amount est null)
   amount_estimate: number | null;
+  // Source de financement liée (funding_source_id → chantier_entrees.id)
+  funding_source_id: string | null;
 }
 
 export interface UsePaymentEventsReturn {

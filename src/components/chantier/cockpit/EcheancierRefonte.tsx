@@ -437,13 +437,8 @@ const STATUS_CFG = {
 
 type WizardStep = 'confirm' | 'facture' | 'financement' | 'preuve';
 
-// Sources de fonds disponibles dans le wizard (sous-ensemble de SOURCE_CFG)
-const WIZARD_SOURCES: SourceType[] = [
-  'apport_personnel', 'deblocage_credit', 'aide_maprime',
-  'aide_cee', 'eco_ptz', 'autre',
-];
-
-function PaymentWizard({ ev, chantierId, token, markPaid, proofInputRef, proofUploading, setProofUploading, onClose, onDone }: {
+function PaymentWizard({ ev, chantierId, token, markPaid, proofInputRef, proofUploading, setProofUploading,
+  onClose, onDone, entrees, allEvents }: {
   ev: PaymentEvent;
   chantierId: string;
   token: string;
@@ -453,16 +448,33 @@ function PaymentWizard({ ev, chantierId, token, markPaid, proofInputRef, proofUp
   setProofUploading: (v: boolean) => void;
   onClose: () => void;
   onDone: () => void;
+  entrees: EntreeChantier[];
+  allEvents: PaymentEvent[];
 }) {
-  const [step,           setStep]           = useState<WizardStep>('confirm');
-  const [paying,         setPaying]         = useState(false);
-  const [errMsg,         setErrMsg]         = useState<string | null>(null);
-  const [selectedSource, setSelectedSource] = useState<SourceType | null>(null);
-  const [savingSource,   setSavingSource]   = useState(false);
+  const [step,              setStep]            = useState<WizardStep>('confirm');
+  const [paying,            setPaying]          = useState(false);
+  const [errMsg,            setErrMsg]          = useState<string | null>(null);
+  const [selectedEntreeId,  setSelectedEntreeId]= useState<string | null>(null);
+  const [savingSource,      setSavingSource]    = useState(false);
   // Montant modifiable — pré-rempli avec le montant prévu, éditable par l'utilisateur
-  const [editedAmount,   setEditedAmount]   = useState<string>(
+  const [editedAmount,      setEditedAmount]    = useState<string>(
     ev.amount != null ? String(ev.amount) : '',
   );
+
+  // Solde restant par entrée = montant - somme des paiements déjà liés à cette entrée (autres que cet event)
+  const consumedById = useMemo(() => {
+    const acc: Record<string, number> = {};
+    for (const e of allEvents) {
+      if (e.status === 'paid' && e.funding_source_id && e.id !== ev.id) {
+        acc[e.funding_source_id] = (acc[e.funding_source_id] ?? 0) + (e.amount ?? 0);
+      }
+    }
+    return acc;
+  }, [allEvents, ev.id]);
+
+  const entreesWithRemaining = useMemo(() =>
+    entrees.map(e => ({ ...e, remaining: Math.max(0, e.montant - (consumedById[e.id] ?? 0)) })),
+  [entrees, consumedById]);
 
   // Étape 1 — Confirmation + paiement effectif
   async function handleConfirm() {
@@ -481,28 +493,40 @@ function PaymentWizard({ ev, chantierId, token, markPaid, proofInputRef, proofUp
     setStep('facture');
   }
 
-  // Étape 3 — Enregistrer la source des fonds + passer à l'étape preuve
+  // Étape 3 — Lier le paiement à une entrée de financement existante
   async function handleFinancement() {
-    if (!selectedSource) { setStep('preuve'); return; }
+    if (!selectedEntreeId) { setStep('preuve'); return; }
     setSavingSource(true);
     try {
-      const cfg = SOURCE_CFG[selectedSource];
       const bearer = await freshToken(token);
-      await fetch(`/api/chantier/${chantierId}/entrees`, {
-        method: 'POST',
+      await fetch(`/api/chantier/${chantierId}/payment-events`, {
+        method:  'PATCH',
         headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          label:       cfg.label,
-          montant:     ev.amount ?? 0,
-          source_type: selectedSource,
-          date_entree: new Date().toISOString().slice(0, 10),
-          statut:      'recu',
-        }),
+        body:    JSON.stringify({ id: ev.id, funding_source_id: selectedEntreeId }),
       });
     } finally {
       setSavingSource(false);
     }
     setStep('preuve');
+  }
+
+  // Étape 2 — "Pas encore de facture" → crée un conseil agent non bloquant
+  function handlePasEncoreFacture() {
+    const amtStr = ev.amount != null ? ` (${fmtEur(ev.amount)})` : '';
+    const artisan = ev.artisan_nom ?? ev.lot_nom ?? 'l\'artisan';
+    freshToken(token).then(bearer =>
+      fetch(`/api/chantier/${chantierId}/agent-insights`, {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          type:     'risk_detected',
+          severity: 'warning',
+          title:    `Facture manquante — ${ev.artisan_nom ?? ev.lot_nom ?? ev.label}`,
+          content:  `Le paiement${amtStr} pour « ${ev.label} » a été enregistré mais aucune facture n'a encore été reçue. Demandez la facture acquittée à ${artisan} pour activer la garantie décennale et les aides (MPR, CEE).`,
+        }),
+      }).catch(() => {})
+    );
+    setStep('financement');
   }
 
   // Étape 4 — Upload justificatif
@@ -590,7 +614,7 @@ function PaymentWizard({ ev, chantierId, token, markPaid, proofInputRef, proofUp
           className="text-[11px] font-bold bg-blue-600 text-white rounded-lg px-2.5 py-1.5 hover:bg-blue-700 transition-colors">
           ✅ Oui, je l'ai
         </button>
-        <button type="button" onClick={() => setStep('financement')}
+        <button type="button" onClick={handlePasEncoreFacture}
           className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 hover:bg-amber-100 transition-colors">
           ⚠️ Pas encore — je la demande
         </button>
@@ -608,34 +632,63 @@ function PaymentWizard({ ev, chantierId, token, markPaid, proofInputRef, proofUp
       <div className="flex items-start gap-2">
         <span className="text-base">💰</span>
         <div>
-          <p className="text-xs font-bold text-violet-900">D'où proviennent ces fonds ?</p>
+          <p className="text-xs font-bold text-violet-900">Sur quelle enveloppe ce paiement s'impute ?</p>
           <p className="text-[11px] text-violet-600 mt-0.5">
-            Cette information sera ajoutée à votre plan de financement automatiquement.
+            Vos jauges de financement seront mises à jour automatiquement.
           </p>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-1.5">
-        {WIZARD_SOURCES.map(key => {
-          const cfg = SOURCE_CFG[key];
-          const isSelected = selectedSource === key;
-          return (
-            <button key={key} type="button" onClick={() => setSelectedSource(isSelected ? null : key)}
-              className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border text-[11px] font-semibold transition-all text-left ${
-                isSelected
-                  ? 'bg-violet-600 border-violet-600 text-white'
-                  : 'border-gray-200 text-gray-600 bg-white hover:border-violet-300 hover:bg-violet-50'
-              }`}>
-              <span className="text-sm shrink-0">{cfg.emoji}</span>
-              <span className="truncate">{cfg.label}</span>
-            </button>
-          );
-        })}
-      </div>
+
+      {entreesWithRemaining.length === 0 ? (
+        <p className="text-[11px] text-gray-400 italic">
+          Aucune source de financement déclarée — ajoutez-en une dans l'onglet Entrées pour suivre la consommation par enveloppe.
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          {entreesWithRemaining.map(e => {
+            const src = SOURCE_CFG[e.source_type] ?? SOURCE_CFG.autre;
+            const isSelected = selectedEntreeId === e.id;
+            const pctUsed = e.montant > 0 ? Math.min(100, Math.round(((e.montant - e.remaining) / e.montant) * 100)) : 0;
+            return (
+              <button key={e.id} type="button"
+                onClick={() => setSelectedEntreeId(isSelected ? null : e.id)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-all ${
+                  isSelected
+                    ? 'bg-violet-600 border-violet-600 text-white'
+                    : 'border-gray-200 bg-white hover:border-violet-300 hover:bg-violet-50 text-gray-700'
+                }`}>
+                <span className="text-base shrink-0">{src.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-[11px] font-semibold truncate ${isSelected ? 'text-white' : 'text-gray-700'}`}>{e.label}</p>
+                  <div className={`flex items-center gap-1.5 mt-0.5 ${isSelected ? 'text-violet-200' : 'text-gray-400'}`}>
+                    <div className={`h-1 flex-1 rounded-full overflow-hidden ${isSelected ? 'bg-violet-400' : 'bg-gray-100'}`}>
+                      <div className={`h-full rounded-full ${isSelected ? 'bg-violet-200' : 'bg-violet-300'}`}
+                        style={{ width: `${pctUsed}%` }} />
+                    </div>
+                    <span className="text-[10px] shrink-0">{pctUsed}% utilisé</span>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className={`text-sm font-extrabold tabular-nums ${
+                    isSelected ? 'text-white' : e.remaining > 0 ? 'text-violet-700' : 'text-gray-300'
+                  }`}>
+                    {fmtEur(e.remaining)}
+                  </p>
+                  <p className={`text-[9px] ${isSelected ? 'text-violet-200' : 'text-gray-400'}`}>
+                    restant / {fmtEur(e.montant)}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="flex gap-2">
         <button type="button" onClick={handleFinancement} disabled={savingSource}
           className="flex items-center gap-1.5 text-[11px] font-bold bg-violet-600 text-white rounded-lg px-3 py-1.5 hover:bg-violet-700 disabled:opacity-50 transition-colors">
           {savingSource ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-          {savingSource ? 'Enregistrement…' : selectedSource ? 'Enregistrer et continuer' : 'Passer cette étape'}
+          {savingSource ? 'Enregistrement…' : selectedEntreeId ? 'Lier et continuer' : 'Passer cette étape'}
         </button>
       </div>
     </div>
@@ -676,7 +729,7 @@ function PaymentWizard({ ev, chantierId, token, markPaid, proofInputRef, proofUp
 
 function PaymentEventRow({ ev, chantierId, token, confirmingId, setConfirmingId,
   proofPromptId, setProofPromptId, proofInputRef, proofUploading, setProofUploading,
-  markPaid, markUnpaid, refresh }: {
+  markPaid, markUnpaid, refresh, entrees, allEvents }: {
   ev: PaymentEvent;
   chantierId: string;
   token: string;
@@ -690,6 +743,8 @@ function PaymentEventRow({ ev, chantierId, token, confirmingId, setConfirmingId,
   markPaid: (id: string, amount?: number) => Promise<boolean>;
   markUnpaid: (id: string) => void;
   refresh: () => void;
+  entrees: EntreeChantier[];
+  allEvents: PaymentEvent[];
 }) {
   const cfg      = STATUS_CFG[ev.status] ?? STATUS_CFG.pending;
   const isPaid   = ev.status === 'paid';
@@ -793,6 +848,8 @@ function PaymentEventRow({ ev, chantierId, token, confirmingId, setConfirmingId,
               setProofUploading={setProofUploading}
               onClose={() => setConfirmingId(null)}
               onDone={() => { setConfirmingId(null); refresh(); }}
+              entrees={entrees}
+              allEvents={allEvents}
             />
           )}
 
@@ -1134,6 +1191,7 @@ export default function EcheancierRefonte({
                         proofPromptId={proofPromptId} setProofPromptId={setProofPromptId}
                         proofInputRef={proofInputRef} proofUploading={proofUploading} setProofUploading={setProofUploading}
                         markPaid={markPaid} markUnpaid={markUnpaid} refresh={refreshEvents}
+                        entrees={entrees} allEvents={events}
                       />
                     ))}
                   </div>
@@ -1161,6 +1219,7 @@ export default function EcheancierRefonte({
                         proofPromptId={proofPromptId} setProofPromptId={setProofPromptId}
                         proofInputRef={proofInputRef} proofUploading={proofUploading} setProofUploading={setProofUploading}
                         markPaid={markPaid} markUnpaid={markUnpaid} refresh={refreshEvents}
+                        entrees={entrees} allEvents={events}
                       />
                     ))}
                   </div>

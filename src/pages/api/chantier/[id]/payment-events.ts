@@ -280,12 +280,15 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   try { body = await request.json(); }
   catch { return jsonError('Corps invalide', 400); }
 
-  const id     = typeof body.id === 'string' ? body.id : null;
-  const status = body.status === 'paid' ? 'paid' : body.status === 'pending' ? 'pending' : null;
-  const amount = typeof body.amount === 'number' && body.amount > 0 ? body.amount : undefined;
+  const id               = typeof body.id === 'string' ? body.id : null;
+  const status           = body.status === 'paid' ? 'paid' : body.status === 'pending' ? 'pending' : null;
+  const amount           = typeof body.amount === 'number' && body.amount > 0 ? body.amount : undefined;
+  const funding_source_id = body.funding_source_id === null
+    ? null
+    : typeof body.funding_source_id === 'string' ? body.funding_source_id : undefined;
 
-  if (!id || !status) {
-    return jsonError('id et status (paid|pending) requis', 400);
+  if (!id || (!status && funding_source_id === undefined)) {
+    return jsonError('id requis + au moins status (paid|pending) ou funding_source_id', 400);
   }
 
   // Étape 1 : vérifier que l'event appartient bien à ce chantier (SELECT séparé)
@@ -309,8 +312,10 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   }
 
   // Étape 2 : UPDATE par id uniquement — sans .select() (évite instabilité Supabase v2 service role)
-  const updatePayload: Record<string, unknown> = { status };
+  const updatePayload: Record<string, unknown> = {};
+  if (status) updatePayload.status = status;
   if (amount !== undefined) updatePayload.amount = amount;
+  if (funding_source_id !== undefined) updatePayload.funding_source_id = funding_source_id;
 
   const { error } = await ctx.supabase
     .from('payment_events')

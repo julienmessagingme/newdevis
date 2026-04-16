@@ -50,6 +50,56 @@ const C = {
 
 const ARTISAN_PALETTE = ['#6366f1','#f59e0b','#0ea5e9','#ec4899','#14b8a6','#8b5cf6','#f43f5e','#84cc16'];
 
+// ── Source type → catégorie de financement ────────────────────────────────────
+const SRC_TO_CAT: Record<string, 'apport' | 'credit' | 'aides'> = {
+  apport_personnel: 'apport',
+  remboursement:    'apport',
+  autre:            'apport',
+  deblocage_credit: 'credit',
+  eco_ptz:          'credit',
+  aide_maprime:     'aides',
+  aide_cee:         'aides',
+};
+
+// ── Hook consommation réelle par source (payment_events.funding_source_id) ─────
+function useEntreeConsumption(chantierId: string, token: string) {
+  const [consumed, setConsumed] = useState({ apport: 0, credit: 0, aides: 0, totalLinked: 0 });
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const t = await freshToken(token);
+        const [er, pr] = await Promise.all([
+          fetch(`/api/chantier/${chantierId}/entrees`,         { headers: { Authorization: `Bearer ${t}` } }),
+          fetch(`/api/chantier/${chantierId}/payment-events`,  { headers: { Authorization: `Bearer ${t}` } }),
+        ]);
+        if (!er.ok || !pr.ok || cancelled) return;
+        const [ed, pd] = await Promise.all([er.json(), pr.json()]);
+        const entrees: { id: string; source_type: string }[] = ed.entrees ?? [];
+        const events:  { status: string; funding_source_id: string | null; amount: number | null }[] = pd.payment_events ?? [];
+
+        const idToCat: Record<string, 'apport' | 'credit' | 'aides'> = {};
+        for (const e of entrees) idToCat[e.id] = SRC_TO_CAT[e.source_type] ?? 'apport';
+
+        const acc = { apport: 0, credit: 0, aides: 0, totalLinked: 0 };
+        for (const ev of events) {
+          if (ev.status === 'paid' && ev.funding_source_id && idToCat[ev.funding_source_id]) {
+            const cat = idToCat[ev.funding_source_id];
+            acc[cat]        += ev.amount ?? 0;
+            acc.totalLinked += ev.amount ?? 0;
+          }
+        }
+        if (!cancelled) setConsumed(acc);
+      } catch {}
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [chantierId, token]);
+
+  return consumed;
+}
+
 // ── Hook données budget ───────────────────────────────────────────────────────
 
 function useBudget(chantierId: string, token: string) {
@@ -930,20 +980,48 @@ function ProjectionSection({ lots, loading }: { lots: BudgetLot[]; loading: bool
 // ── Section 3 : Consommation par source ──────────────────────────────────────
 
 function ConsommationSection({
-  lots, cfg, totalAides,
+  lots, cfg, totalAides, chantierId, token,
 }: {
   lots:       BudgetLot[];
   cfg:        FinancingConfig;
   totalAides: number;
+  chantierId: string;
+  token:      string;
 }) {
-  const totalCredit = cfg.creditMontant;
-  const budgetRef   = cfg.budgetReel ?? 0;
-  const totalPaye   = lots.reduce((s, l) => s + l.totaux.paye + l.totaux.acompte, 0);
+  const realConsumed = useEntreeConsumption(chantierId, token);
+  const totalCredit  = cfg.creditMontant;
+  const budgetRef    = cfg.budgetReel ?? 0;
+  const totalPaye    = lots.reduce((s, l) => s + l.totaux.paye + l.totaux.acompte, 0);
 
-  // Répartition paiements par source (heuristique : apport en premier, crédit ensuite, aides en dernier)
-  const payeApport = Math.min(totalPaye, Math.max(0, budgetRef - totalCredit - totalAides));
-  const payeCredit = Math.min(Math.max(0, totalPaye - payeApport), totalCredit);
-  const payeAides  = Math.min(Math.max(0, totalPaye - payeApport - payeCredit), totalAides);
+  // Répartition paiements par source.
+  // Si des paiements ont un funding_source_id (données réelles) → utiliser ces données.
+  // Pour les paiements non liés, appliquer l'heuristique sur le reste.
+  let payeApport: number;
+  let payeCredit: number;
+  let payeAides:  number;
+
+  if (realConsumed.totalLinked > 0) {
+    // Données réelles pour les paiements liés à une entrée
+    payeApport = realConsumed.apport;
+    payeCredit = realConsumed.credit;
+    payeAides  = realConsumed.aides;
+    // Paiements non liés → heuristique sur le solde résiduel
+    const unlinked = Math.max(0, totalPaye - realConsumed.totalLinked);
+    if (unlinked > 0) {
+      const apportPool = Math.max(0, (budgetRef - totalCredit - totalAides) - payeApport);
+      const addApport  = Math.min(unlinked, apportPool);
+      const addCredit  = Math.min(Math.max(0, unlinked - addApport), Math.max(0, totalCredit - payeCredit));
+      const addAides   = Math.min(Math.max(0, unlinked - addApport - addCredit), Math.max(0, totalAides - payeAides));
+      payeApport += addApport;
+      payeCredit += addCredit;
+      payeAides  += addAides;
+    }
+  } else {
+    // Aucune donnée réelle → heuristique pure (comportement d'origine)
+    payeApport = Math.min(totalPaye, Math.max(0, budgetRef - totalCredit - totalAides));
+    payeCredit = Math.min(Math.max(0, totalPaye - payeApport), totalCredit);
+    payeAides  = Math.min(Math.max(0, totalPaye - payeApport - payeCredit), totalAides);
+  }
 
   const sources = [
     { label: 'Apport restant', color: C.apport.main, track: C.apport.track, text: C.apport.text, total: Math.max(0, budgetRef - totalCredit - totalAides), paye: payeApport },
@@ -1087,7 +1165,7 @@ export default function TresorerieView({
       <ProjectionSection lots={lots} loading={loading} />
 
       {/* Section 3 — Consommation */}
-      <ConsommationSection lots={lots} cfg={cfg} totalAides={totalAides} />
+      <ConsommationSection lots={lots} cfg={cfg} totalAides={totalAides} chantierId={chantierId} token={token} />
     </div>
   );
 }
