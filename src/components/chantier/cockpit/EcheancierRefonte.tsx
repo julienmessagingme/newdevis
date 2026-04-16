@@ -805,8 +805,8 @@ function PaymentEventRow({ ev, chantierId, token, confirmingId, setConfirmingId,
           {isPaid && (
             <button type="button"
               onClick={() => markUnpaid(ev.id)}
-              className="mt-1.5 inline-flex items-center gap-1 text-[10px] text-gray-400 hover:text-amber-600 transition-colors">
-              <RotateCcw className="h-3 w-3" /> Annuler ce paiement
+              className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-amber-200 text-amber-600 bg-amber-50 hover:bg-amber-100 transition-colors">
+              <RotateCcw className="h-3 w-3" /> Remettre en attente
             </button>
           )}
         </div>
@@ -1106,12 +1106,20 @@ export default function EcheancierRefonte({
               ))}
 
               {paidEvents.length > 0 && (
-                <details className="group">
-                  <summary className="flex items-center gap-1.5 text-[10px] font-bold text-gray-300 uppercase tracking-wider cursor-pointer hover:text-gray-500 px-1 list-none select-none">
-                    <span className="group-open:rotate-90 transition-transform inline-block">▶</span>
-                    {paidEvents.length} paiement{paidEvents.length > 1 ? 's' : ''} effectué{paidEvents.length > 1 ? 's' : ''}
-                  </summary>
-                  <div className="mt-2 bg-white border border-gray-100 rounded-2xl divide-y divide-gray-50 overflow-hidden shadow-sm opacity-60">
+                <div>
+                  <div className="flex items-center justify-between px-1 mb-2">
+                    <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1.5">
+                      <Check className="h-3 w-3" />
+                      Registre des paiements effectués
+                      <span className="bg-emerald-100 text-emerald-700 rounded-full px-1.5 py-0.5 font-bold">
+                        {paidEvents.length}
+                      </span>
+                    </p>
+                    <span className="text-xs font-extrabold text-emerald-700 tabular-nums">
+                      {fmtEur(paidEvents.reduce((s, e) => s + (e.amount ?? 0), 0))}
+                    </span>
+                  </div>
+                  <div className="bg-white border border-emerald-100 rounded-2xl divide-y divide-gray-50 overflow-hidden shadow-sm">
                     {paidEvents.map(ev => (
                       <PaymentEventRow key={ev.id} ev={ev} chantierId={chantierId} token={token}
                         confirmingId={confirmingId} setConfirmingId={setConfirmingId}
@@ -1121,7 +1129,7 @@ export default function EcheancierRefonte({
                       />
                     ))}
                   </div>
-                </details>
+                </div>
               )}
             </div>
           )}
