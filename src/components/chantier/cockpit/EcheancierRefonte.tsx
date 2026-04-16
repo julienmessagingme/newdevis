@@ -1166,10 +1166,20 @@ export default function EcheancierRefonte({
                 <p className="text-[10px] text-emerald-400 mt-0.5">Financement &amp; remboursements</p>
               </div>
             </div>
-            <button onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 border border-emerald-200 px-2.5 py-1 rounded-lg transition-colors">
-              <Plus className="h-3 w-3" /> Ajouter
-            </button>
+            <div className="flex items-center gap-3">
+              {entrees.length > 0 && (
+                <div className="text-right">
+                  <p className="text-sm font-extrabold text-emerald-700 tabular-nums leading-none">
+                    {fmtEur(entrees.filter(e => e.statut === 'recu').reduce((s, e) => s + e.montant, 0))}
+                  </p>
+                  <p className="text-[10px] text-emerald-400 mt-0.5">reçu</p>
+                </div>
+              )}
+              <button onClick={() => setShowAddModal(true)}
+                className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 border border-emerald-200 px-2.5 py-1 rounded-lg transition-colors shrink-0">
+                <Plus className="h-3 w-3" /> Ajouter
+              </button>
+            </div>
           </div>
 
           {entrees.length === 0 ? (
