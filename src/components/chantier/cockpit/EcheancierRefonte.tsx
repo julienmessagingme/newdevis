@@ -829,7 +829,8 @@ export default function EcheancierRefonte({
 
   const [entrees,        setEntrees]        = useState<EntreeChantier[]>([]);
   const [entreesLoading, setEntreesLoading] = useState(true);
-  const [showAddModal,   setShowAddModal]   = useState(false);
+  const [showAddModal,        setShowAddModal]        = useState(false);
+  const [showAddDepenseModal, setShowAddDepenseModal] = useState(false);
   const [confirmingId,   setConfirmingId]   = useState<string | null>(null);
   const [proofPromptId,  setProofPromptId]  = useState<string | null>(null);
   const [proofUploading, setProofUploading] = useState(false);
@@ -1087,14 +1088,20 @@ export default function EcheancierRefonte({
                 <p className="text-[10px] text-rose-400 mt-0.5">Échéances artisans</p>
               </div>
             </div>
-            {futureEvents.length > 0 && (
-              <div className="text-right">
-                <p className="text-sm font-extrabold text-rose-700 tabular-nums leading-none">
-                  {fmtEur(futureEvents.reduce((s, e) => s + (e.amount ?? 0), 0))}
-                </p>
-                <p className="text-[10px] text-rose-400 mt-0.5">à décaisser</p>
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              {futureEvents.length > 0 && (
+                <div className="text-right">
+                  <p className="text-sm font-extrabold text-rose-700 tabular-nums leading-none">
+                    {fmtEur(futureEvents.reduce((s, e) => s + (e.amount ?? 0), 0))}
+                  </p>
+                  <p className="text-[10px] text-rose-400 mt-0.5">à décaisser</p>
+                </div>
+              )}
+              <button onClick={() => setShowAddDepenseModal(true)}
+                className="flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-100 hover:bg-rose-200 border border-rose-200 px-2.5 py-1 rounded-lg transition-colors shrink-0">
+                <Plus className="h-3 w-3" /> Dépense
+              </button>
+            </div>
           </div>
 
           {futureEvents.length === 0 && paidEvents.length === 0 ? (
@@ -1168,11 +1175,21 @@ export default function EcheancierRefonte({
             </div>
             <div className="flex items-center gap-3">
               {entrees.length > 0 && (
-                <div className="text-right">
-                  <p className="text-sm font-extrabold text-emerald-700 tabular-nums leading-none">
-                    {fmtEur(entrees.filter(e => e.statut === 'recu').reduce((s, e) => s + e.montant, 0))}
-                  </p>
-                  <p className="text-[10px] text-emerald-400 mt-0.5">reçu</p>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <p className="text-sm font-extrabold text-emerald-700 tabular-nums leading-none">
+                      {fmtEur(entrees.filter(e => e.statut === 'recu').reduce((s, e) => s + e.montant, 0))}
+                    </p>
+                    <p className="text-[10px] text-emerald-400 mt-0.5">reçu</p>
+                  </div>
+                  {entrees.some(e => e.statut === 'attendu') && (
+                    <div className="text-right border-l border-emerald-200 pl-3">
+                      <p className="text-sm font-extrabold text-indigo-600 tabular-nums leading-none">
+                        {fmtEur(entrees.filter(e => e.statut === 'attendu').reduce((s, e) => s + e.montant, 0))}
+                      </p>
+                      <p className="text-[10px] text-indigo-400 mt-0.5">attendu</p>
+                    </div>
+                  )}
                 </div>
               )}
               <button onClick={() => setShowAddModal(true)}
@@ -1209,23 +1226,6 @@ export default function EcheancierRefonte({
             </div>
           )}
 
-          {/* Résumé entrées */}
-          {entrees.length > 0 && (
-            <div className="mt-3 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 grid grid-cols-2 gap-3">
-              <div className="text-center">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Reçu</p>
-                <p className="text-base font-extrabold text-emerald-700 tabular-nums">
-                  {fmtEur(entrees.filter(e => e.statut === 'recu').reduce((s, e) => s + e.montant, 0))}
-                </p>
-              </div>
-              <div className="text-center">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Attendu</p>
-                <p className="text-base font-extrabold text-indigo-600 tabular-nums">
-                  {fmtEur(entrees.filter(e => e.statut === 'attendu').reduce((s, e) => s + e.montant, 0))}
-                </p>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -1243,6 +1243,127 @@ export default function EcheancierRefonte({
           onClose={() => setShowAddModal(false)}
         />
       )}
+
+      {showAddDepenseModal && (
+        <AddDepenseModal
+          chantierId={chantierId}
+          token={token}
+          onAdded={refreshEvents}
+          onClose={() => setShowAddDepenseModal(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Modal dépense manuelle ────────────────────────────────────────────────────
+
+function AddDepenseModal({ chantierId, token, onAdded, onClose }: {
+  chantierId: string; token: string; onAdded: () => void; onClose: () => void;
+}) {
+  const [form, setForm] = useState({
+    label:   '',
+    amount:  '',
+    dueDate: new Date().toISOString().slice(0, 10),
+  });
+  const [saving, setSaving] = useState(false);
+  const [error,  setError]  = useState('');
+
+  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.label.trim()) { setError('Le motif est requis'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const bearer = await freshToken(token);
+      const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          manuel:  true,
+          label:   form.label.trim(),
+          amount:  form.amount ? parseFloat(form.amount) : null,
+          dueDate: form.dueDate || null,
+        }),
+      });
+      if (res.ok) { onAdded(); onClose(); }
+      else { const d = await res.json().catch(() => ({})); setError(d.error ?? 'Erreur'); }
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="px-5 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 bg-rose-100 rounded-lg flex items-center justify-center">
+              <TrendingDown className="h-3.5 w-3.5 text-rose-600" />
+            </div>
+            <h3 className="text-sm font-extrabold text-gray-900">Ajouter une dépense</h3>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="p-5 space-y-4">
+          <div>
+            <label className="text-[11px] font-extrabold text-gray-400 uppercase tracking-wider block mb-1.5">
+              Motif *
+            </label>
+            <input
+              value={form.label}
+              onChange={e => set('label', e.target.value)}
+              placeholder="Ex : Matériaux carrelage, Facture électricien…"
+              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-rose-200 placeholder:text-gray-300"
+              required
+              autoFocus
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-extrabold text-gray-400 uppercase tracking-wider block mb-1.5">
+                Montant (€)
+              </label>
+              <input
+                type="number" inputMode="decimal" min="0" step="0.01"
+                value={form.amount}
+                onChange={e => set('amount', e.target.value)}
+                placeholder="0"
+                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-rose-200"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-extrabold text-gray-400 uppercase tracking-wider block mb-1.5">
+                Date d'échéance
+              </label>
+              <input
+                type="date"
+                value={form.dueDate}
+                onChange={e => set('dueDate', e.target.value)}
+                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-rose-200"
+              />
+            </div>
+          </div>
+
+          {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose}
+              className="flex-1 text-sm font-semibold text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-xl py-2.5 transition-colors">
+              Annuler
+            </button>
+            <button type="submit" disabled={saving}
+              className="flex-1 text-sm font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 rounded-xl py-2.5 transition-colors flex items-center justify-center gap-2">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+              Enregistrer
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

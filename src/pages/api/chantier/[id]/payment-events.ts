@@ -174,6 +174,42 @@ export const POST: APIRoute = async ({ params, request }) => {
     return jsonError('Corps de requête invalide', 400);
   }
 
+  // ── Dépense manuelle (source_type = 'manuel') ──────────────────────────────
+  if (body.manuel === true) {
+    const label   = typeof body.label   === 'string' && body.label.trim()   ? body.label.trim()   : null;
+    const amount  = typeof body.amount  === 'number' && body.amount  > 0    ? body.amount         : null;
+    const dueDate = typeof body.dueDate === 'string' && body.dueDate        ? body.dueDate        : null;
+
+    if (!label) return jsonError('Le motif est requis', 400);
+
+    const { data: ev, error } = await ctx.supabase
+      .from('payment_events')
+      .insert({
+        project_id:  chantierId,
+        source_type: 'manuel',
+        source_id:   null,
+        label,
+        amount,
+        due_date:    dueDate,
+        status:      'pending',
+        is_override: false,
+      })
+      .select()
+      .single();
+
+    if (error || !ev) {
+      console.error('[payment-events] manuel insert error:', error?.message);
+      return jsonError('Erreur lors de la création', 500);
+    }
+
+    ctx.supabase.from('agent_context_cache')
+      .update({ invalidated: true }).eq('chantier_id', chantierId)
+      .then(() => {}).catch(() => {});
+
+    return jsonOk({ payment_events: [ev], message: 'Dépense créée' }, 201);
+  }
+
+  // ── Génération depuis une analyse ───────────────────────────────────────────
   const analyseId       = typeof body.analyseId === 'string'       ? body.analyseId       : null;
   const sourceType      = body.sourceType === 'facture'            ? 'facture' : 'devis';
   const sourceId        = typeof body.sourceId === 'string'        ? body.sourceId        : null;

@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 export interface PaymentEvent {
   id: string;
   project_id: string;
-  source_type: 'devis' | 'facture';
+  source_type: 'devis' | 'facture' | 'manuel';
   source_id: string;
   amount: number | null;
   due_date: string | null;        // YYYY-MM-DD
