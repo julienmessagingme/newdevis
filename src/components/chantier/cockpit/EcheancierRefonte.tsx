@@ -1077,9 +1077,25 @@ export default function EcheancierRefonte({
 
         {/* Sorties */}
         <div>
-          <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider mb-3 px-1">
-            Sorties — échéances artisans
-          </p>
+          <div className="flex items-center justify-between mb-3 bg-rose-50 border border-rose-100 rounded-xl px-3.5 py-2.5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 bg-rose-100 rounded-lg flex items-center justify-center shrink-0">
+                <TrendingDown className="h-3.5 w-3.5 text-rose-600" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-rose-800 leading-none">Sorties</p>
+                <p className="text-[10px] text-rose-400 mt-0.5">Échéances artisans</p>
+              </div>
+            </div>
+            {futureEvents.length > 0 && (
+              <div className="text-right">
+                <p className="text-sm font-extrabold text-rose-700 tabular-nums leading-none">
+                  {fmtEur(futureEvents.reduce((s, e) => s + (e.amount ?? 0), 0))}
+                </p>
+                <p className="text-[10px] text-rose-400 mt-0.5">à décaisser</p>
+              </div>
+            )}
+          </div>
 
           {futureEvents.length === 0 && paidEvents.length === 0 ? (
             <EmptyBlock
@@ -1091,7 +1107,10 @@ export default function EcheancierRefonte({
             <div className="space-y-3">
               {Object.entries(groupedFuture).map(([month, evts]) => (
                 <div key={month}>
-                  <p className="text-[10px] font-bold text-gray-300 uppercase tracking-wider mb-2 px-1">{month}</p>
+                  <div className="flex items-center gap-2 mb-2 px-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-300 shrink-0" />
+                    <p className="text-[10px] font-bold text-rose-400 uppercase tracking-wider">{month}</p>
+                  </div>
                   <div className="bg-white border border-gray-100 rounded-2xl divide-y divide-gray-50 overflow-hidden shadow-sm">
                     {evts.map(ev => (
                       <PaymentEventRow key={ev.id} ev={ev} chantierId={chantierId} token={token}
@@ -1137,12 +1156,18 @@ export default function EcheancierRefonte({
 
         {/* Entrées */}
         <div>
-          <div className="flex items-center justify-between mb-3 px-1">
-            <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">
-              Entrées — financement &amp; remboursements
-            </p>
+          <div className="flex items-center justify-between mb-3 bg-emerald-50 border border-emerald-100 rounded-xl px-3.5 py-2.5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 bg-emerald-100 rounded-lg flex items-center justify-center shrink-0">
+                <TrendingUp className="h-3.5 w-3.5 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-emerald-800 leading-none">Entrées</p>
+                <p className="text-[10px] text-emerald-400 mt-0.5">Financement &amp; remboursements</p>
+              </div>
+            </div>
             <button onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2.5 py-1 rounded-lg transition-colors">
+              className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 border border-emerald-200 px-2.5 py-1 rounded-lg transition-colors">
               <Plus className="h-3 w-3" /> Ajouter
             </button>
           </div>
