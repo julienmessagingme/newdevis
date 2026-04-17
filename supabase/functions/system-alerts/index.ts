@@ -24,12 +24,15 @@ interface Alert {
 
 async function checkStuckAnalyses(supabase: any): Promise<Alert | null> {
   const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  // Ne pas re-signaler des analyses mortes depuis des jours → fenêtre max 24h
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
   const { data, error } = await supabase
     .from("analyses")
     .select("id, status, created_at, error_message")
     .in("status", ["pending", "processing"])
     .lt("created_at", fifteenMinAgo)
+    .gte("created_at", twentyFourHoursAgo)
     .order("created_at", { ascending: false })
     .limit(20);
 
@@ -167,9 +170,11 @@ function buildEmailHtml(alert: Alert): string {
 }
 
 async function sendAlert(alert: Alert, resendApiKey: string): Promise<{ ok: boolean; error?: string }> {
-  const now = new Date();
-  const hourKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}-${String(now.getUTCHours()).padStart(2, "0")}`;
-  const idempotencyKey = `${alert.category}_${hourKey}`;
+  // Idempotency key basée sur les IDs des analyses, PAS l'heure.
+  // Mêmes analyses bloquées = même clé = Resend ne renvoie pas.
+  // Nouvelle analyse bloquée = IDs changent = email envoyé.
+  const idsFingerprint = alert.analyses.map(a => a.id.slice(0, 8)).sort().join("-");
+  const idempotencyKey = `${alert.category}_${idsFingerprint}`;
 
   try {
     const res = await fetch(RESEND_API_URL, {
