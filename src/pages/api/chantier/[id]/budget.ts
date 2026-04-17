@@ -32,6 +32,7 @@ interface BudgetDevis {
   analyse_signal: string | null;
   signed_url: string | null;
   created_at: string;
+  montant_acompte_echeancier: number; // paiements Échéancier payés sur ce devis
 }
 
 interface BudgetFacture {
@@ -344,6 +345,9 @@ export const GET: APIRoute = async ({ params, request }) => {
           ? doc.montant
           : (analyse?.montant ?? null);
 
+        // Paiements Échéancier sur ce devis (acomptes versés avant facture)
+        const evDevisPaid = eventsPayeByDoc[doc.id] ?? 0;
+
         bucket.devis.push({
           id:             doc.id,
           nom:            doc.nom,
@@ -355,15 +359,15 @@ export const GET: APIRoute = async ({ params, request }) => {
           analyse_signal: analyse?.signal   ?? null,
           signed_url:     urlMap.get(doc.id) ?? null,
           created_at:     doc.created_at,
+          montant_acompte_echeancier: evDevisPaid,
         });
         bucket.totaux.devis_recus   += montant ?? 0;
         bucket.totaux.devis_valides += montant ?? 0;
 
-        // Paiements sur devis (acomptes Échéancier) → contribuent à paye + acompte
-        const evDevisPaid = eventsPayeByDoc[doc.id] ?? 0;
+        // Paiements sur devis → uniquement dans acompte (pas dans paye)
+        // paye = paiements complets sur factures / acompte = avances (devis + factures partielles)
         if (evDevisPaid > 0) {
           bucket.totaux.acompte += evDevisPaid;
-          bucket.totaux.paye    += evDevisPaid;
         }
       } else if (doc.document_type === 'facture') {
         const montant = doc.montant ?? 0;
@@ -392,8 +396,10 @@ export const GET: APIRoute = async ({ params, request }) => {
           signed_url:     urlMap.get(doc.id) ?? null,
           created_at:     doc.created_at,
         });
+        // paye = paiements COMPLETS sur factures uniquement
+        // acompte = paiements PARTIELS sur factures (exclusifs avec paye)
         bucket.totaux.facture += montant;
-        bucket.totaux.paye    += paye;
+        bucket.totaux.paye    += acompte > 0 ? 0 : paye;
         bucket.totaux.acompte += acompte;
         bucket.totaux.litige  += litige;
         bucket.totaux.a_payer += a_payer;

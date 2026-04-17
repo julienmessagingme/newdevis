@@ -42,6 +42,7 @@ interface BudgetDevis {
   analyse_signal: string | null;
   signed_url:     string | null;
   created_at:     string;
+  montant_acompte_echeancier?: number; // paiements Échéancier payés sur ce devis
 }
 
 interface BudgetFacture {
@@ -291,7 +292,9 @@ function BudgetKpiDashboard({
 
   const pctEngagement = effectiveReel && effectiveReel > 0 ? Math.round((devisValides / effectiveReel) * 100) : 0;
   const pctFacture    = effectiveReel && effectiveReel > 0 ? Math.round((facture / effectiveReel) * 100) : 0;
-  const pctPaye       = facture > 0 ? Math.round((paye / facture) * 100) : 0;
+  // TOTAL PAYÉ : rapporté au budget réel (comme TOTAL FACTURÉ), pas aux factures seules
+  // (les paiements Échéancier sur devis peuvent dépasser le total facturé → % absurde)
+  const pctPaye       = effectiveReel && effectiveReel > 0 ? Math.round((paye / effectiveReel) * 100) : 0;
 
   // Couleurs dynamiques
   const colorEngagement = pctEngagement > 100 ? '#ef4444' : pctEngagement > 80 ? '#f59e0b' : '#6366f1';
@@ -451,10 +454,10 @@ function BudgetKpiDashboard({
                 </p>
               ) : (
                 <p className="text-[11px] text-gray-400 mt-1.5">
-                  {facture > 0 ? `sur ${fmtEur(facture)}` : 'des factures'}
+                  {effectiveReel && effectiveReel > 0 ? `sur ${fmtEur(effectiveReel)}` : 'du budget engagé'}
                 </p>
               )}
-              {pctPaye >= 100 && facture > 0 && (
+              {pctPaye >= 100 && devisValides > 0 && (
                 <p className="text-[11px] text-emerald-600 font-semibold mt-1 flex items-center gap-1">
                   <Check className="h-3 w-3" />Tout soldé
                 </p>
@@ -1226,6 +1229,12 @@ export default function BudgetTab({
                               </span>
                             )}
                           </div>
+                        ) : row.lot.totaux.acompte > 0 ? (
+                          // Pas de facture, mais acompte(s) versé(s) via Échéancier
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className="text-[12px] font-semibold text-indigo-600">{fmtEur(row.lot.totaux.acompte)}</span>
+                            <span className="text-[10px] text-indigo-400 font-medium">Acompte versé</span>
+                          </div>
                         ) : (
                           <span className="text-[12px] text-gray-300">—</span>
                         )}
@@ -1312,7 +1321,10 @@ export default function BudgetTab({
                               )}
                             </div>
                           );
-                        })() : row.payStatut !== 'none' ? (
+                        })() : row.lot.factures.length === 0 && row.lot.totaux.acompte > 0 ? (
+                          // Pas de facture mais acompte Échéancier versé
+                          <Badge label="Acompte versé" cls="bg-indigo-50 text-indigo-700 border-indigo-200" icon={<Check className="h-3 w-3" />} />
+                        ) : row.payStatut !== 'none' ? (
                           <Badge label={ps.label} cls={ps.cls} icon={ps.icon} />
                         ) : (
                           <span className="text-[12px] text-gray-300">—</span>
@@ -1385,6 +1397,17 @@ export default function BudgetTab({
                                       {d.devis_statut && (
                                         <p className="text-[10px] text-gray-400 mt-0.5">
                                           {DEVIS_STATUT_LABEL[d.devis_statut] ?? d.devis_statut}
+                                        </p>
+                                      )}
+                                      {(d.montant_acompte_echeancier ?? 0) > 0 && (
+                                        <p className="text-[10px] text-indigo-500 font-semibold mt-0.5 flex items-center gap-1">
+                                          <Check className="h-2.5 w-2.5" />
+                                          Acompte versé : {fmtEur(d.montant_acompte_echeancier!)}
+                                          {d.montant && d.montant > 0 && (
+                                            <span className="text-indigo-300 font-normal">
+                                              ({Math.round(d.montant_acompte_echeancier! / d.montant * 100)} %)
+                                            </span>
+                                          )}
                                         </p>
                                       )}
                                     </div>
