@@ -161,7 +161,7 @@ const jsonLd = {
                 <div>
                   <h3 class="font-semibold text-slate-900 mb-1">Comparez avec les prix du marché</h3>
                   <p class="text-sm text-slate-600 leading-relaxed">
-                    Chaque type de travaux a une fourchette de prix normale.
+                    Chaque type de travaux a une <a href="/prix-travaux-maison" class="text-indigo-600 font-medium hover:underline">fourchette de prix de référence</a>.
                     La pose de carrelage se facture entre 25 et 45 €/m², la peinture entre 15 et 30 €/m²...
                     Comparez vos prix unitaires avec ces références.
                     Notre outil fait cette comparaison automatiquement en quelques secondes.
@@ -175,7 +175,8 @@ const jsonLd = {
                   <h3 class="font-semibold text-slate-900 mb-1">Obtenez au moins 3 devis concurrents</h3>
                   <p class="text-sm text-slate-600 leading-relaxed">
                     La règle d'or : <strong>ne signez jamais avec le premier artisan</strong>.
-                    Demandez 3 devis minimum pour le même cahier des charges.
+                    Demandez 3 devis minimum pour le même cahier des charges — notre guide vous explique
+                    <a href="/choisir-artisan-travaux" class="text-indigo-600 font-medium hover:underline">comment choisir un artisan fiable</a> parmi les candidats.
                     Un écart supérieur à 30 % entre deux devis doit vous inciter à creuser :
                     soit l'un est incomplet, soit l'autre pratique des tarifs anormaux.
                   </p>
@@ -352,17 +353,37 @@ const jsonLd = {
             </div>
           </section>
 
-          <!-- Maillage interne -->
+          <!-- Silo piliers -->
+          <section class="mb-12">
+            <h2 class="text-lg font-bold text-slate-900 mb-4">🔗 Aller plus loin dans votre projet travaux</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <a href="/verifier-devis-travaux" class="flex flex-col gap-2 p-4 rounded-xl border-2 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 transition-colors">
+                <span class="text-2xl">📋</span>
+                <span class="font-semibold text-indigo-800 text-sm leading-snug">Vérifier un devis travaux : méthode complète</span>
+                <span class="text-xs text-indigo-600">Vous êtes ici</span>
+              </a>
+              <a href="/prix-travaux-maison" class="flex flex-col gap-2 p-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors">
+                <span class="text-2xl">💰</span>
+                <span class="font-semibold text-slate-800 text-sm leading-snug">Prix des travaux : budget réel en 2026</span>
+                <span class="text-xs text-slate-400">Fourchettes par type de travaux</span>
+              </a>
+              <a href="/choisir-artisan-travaux" class="flex flex-col gap-2 p-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors">
+                <span class="text-2xl">🔨</span>
+                <span class="font-semibold text-slate-800 text-sm leading-snug">Comment choisir un artisan fiable</span>
+                <span class="text-xs text-slate-400">6 vérifications, 8 signaux d'alerte</span>
+              </a>
+            </div>
+          </section>
+
+          <!-- Ressources blog -->
           <section class="mb-12 p-5 rounded-xl bg-slate-50 border border-slate-100">
-            <h2 class="text-lg font-bold text-slate-900 mb-4">Pour aller plus loin</h2>
+            <h2 class="text-lg font-bold text-slate-900 mb-4">Articles associés</h2>
             <ul class="space-y-2 text-sm">
               <li>→ <a href="/blog/devis-travaux-mentions-obligatoires-oubliees" class="text-indigo-600 hover:underline font-medium">Les mentions obligatoires souvent oubliées sur un devis travaux</a></li>
               <li>→ <a href="/blog/comment-negocier-devis-artisan-techniques-efficaces" class="text-indigo-600 hover:underline font-medium">Comment négocier un devis artisan : techniques efficaces</a></li>
               <li>→ <a href="/blog/devis-travaux-anormalement-bas-faut-il-sen-mefier" class="text-indigo-600 hover:underline font-medium">Devis anormalement bas : faut-il s'en méfier ?</a></li>
               <li>→ <a href="/blog/comment-reperer-devis-gonfle-7-signes" class="text-indigo-600 hover:underline font-medium">Comment repérer un devis gonflé : 7 signes qui ne trompent pas</a></li>
               <li>→ <a href="/blog/comment-savoir-si-devis-travaux-trop-cher" class="text-indigo-600 hover:underline font-medium">Comment savoir si votre devis travaux est trop cher ?</a></li>
-              <li>→ <a href="/prix-travaux-maison" class="text-indigo-600 hover:underline font-medium">Prix des travaux maison : guide complet des coûts en 2026</a></li>
-              <li>→ <a href="/choisir-artisan-travaux" class="text-indigo-600 hover:underline font-medium">Comment choisir un artisan fiable pour vos travaux</a></li>
               <li>→ <a href="/comprendre-score" class="text-indigo-600 hover:underline font-medium">Comment fonctionne le score de notre analyse de devis ?</a></li>
             </ul>
           </section>
