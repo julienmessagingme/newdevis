@@ -32,6 +32,18 @@ const faqs = [
     question: "Un artisan peut-il demander un acompte avant les travaux ?",
     answer: "Oui, un acompte est courant et légal. Cependant, la loi plafonne l'acompte à 30 % du montant total pour les contrats de consommation. Méfiez-vous de tout artisan demandant 50 % ou plus avant de commencer : c'est un signal d'alerte fort. Exigez toujours un reçu et ne payez jamais en espèces pour des montants importants."
   },
+  {
+    question: "Comment savoir si un artisan est vraiment fiable ?",
+    answer: "Un artisan fiable présente 5 caractéristiques clés : entreprise active (SIRET vérifiable sur infogreffe.fr), assurance décennale à jour, avis Google positifs et anciens, capacité à fournir des références de chantiers similaires, et devis détaillé avec prix unitaires. VerifierMonDevis.fr vérifie automatiquement tous ces critères en 2 minutes à partir du devis."
+  },
+  {
+    question: "Faut-il vraiment comparer plusieurs devis avant de choisir ?",
+    answer: "Absolument. La mise en concurrence d'au moins 3 artisans permet d'économiser en moyenne 15 à 25 % sur le coût total du chantier. Elle vous donne aussi une référence pour détecter les devis anormalement bas (risque de malfaçon) ou anormalement élevés. Pour tout chantier supérieur à 1 000 €, c'est une étape indispensable."
+  },
+  {
+    question: "Quels sont les signes d'une arnaque artisan à repérer ?",
+    answer: "Les principaux signaux d'alerte : démarchage à domicile non sollicité, demande d'acompte supérieure à 30 %, paiement exigé en espèces, absence de devis écrit ou de SIRET, refus de fournir les attestations d'assurance, pression pour une décision immédiate. Si vous constatez plusieurs de ces signaux, ne signez pas et consultez la liste des arnaques connues sur signal.conso.gouv.fr."
+  }
 ];
 
 const jsonLd = {
@@ -50,7 +62,7 @@ const jsonLd = {
 
 <BaseLayout
   title="Comment choisir un artisan fiable pour vos travaux"
-  description="Comment choisir un bon artisan ? Comparez les devis, évitez les arnaques, vérifiez les assurances et négociez le prix : le guide complet pour trouver un artisan de confiance."
+  description="Comment choisir un artisan fiable ? 6 vérifications essentielles, 8 signaux d'arnaque, techniques de négociation. Vérifiez votre devis en 2 min, gratuit."
   canonical="https://www.verifiermondevis.fr/choisir-artisan-travaux"
   ogType="article"
   jsonLd={jsonLd}
@@ -121,6 +133,22 @@ const jsonLd = {
               ))}
             </div>
           </section>
+
+          <!-- Preuves sociales -->
+          <div class="grid grid-cols-3 gap-4 mb-12">
+            <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
+              <p class="text-2xl font-bold text-emerald-600 mb-1">+100</p>
+              <p class="text-xs text-slate-500 leading-snug">devis analysés chaque mois</p>
+            </div>
+            <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
+              <p class="text-2xl font-bold text-emerald-600 mb-1">-30%</p>
+              <p class="text-xs text-slate-500 leading-snug">d'écart détecté en moyenne</p>
+            </div>
+            <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
+              <p class="text-2xl font-bold text-emerald-600 mb-1">2 min</p>
+              <p class="text-xs text-slate-500 leading-snug">pour vérifier votre artisan</p>
+            </div>
+          </div>
 
           <!-- Comparer plusieurs devis -->
           <section class="mb-12">
@@ -385,15 +413,17 @@ const jsonLd = {
 
           <!-- CTA intermédiaire -->
           <div class="my-12 bg-emerald-600 rounded-2xl p-6 sm:p-8 text-white text-center">
-            <p class="text-lg font-bold mb-2">Vérifiez votre devis avant de signer</p>
-            <p class="text-emerald-100 text-sm mb-5 max-w-lg mx-auto">
-              Notre outil vérifie automatiquement les mentions légales, la fiabilité de l'artisan
-              (SIRET, assurances, avis) et compare vos prix avec le marché — en 2 minutes, gratuitement.
+            <p class="text-xs font-semibold uppercase tracking-widest text-emerald-200 mb-2">🎯 Vous avez un doute sur votre artisan ?</p>
+            <p class="text-xl font-bold mb-3">Vérifiez son devis avant de signer</p>
+            <p class="text-emerald-100 text-sm mb-6 max-w-lg mx-auto">
+              Notre outil vérifie automatiquement le SIRET, les assurances, les avis
+              et compare vos prix avec le marché — en 2 minutes, gratuitement.
             </p>
             <a href="/nouvelle-analyse"
-               class="inline-flex items-center gap-2 bg-white text-emerald-700 hover:bg-emerald-50 font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
-              🔍 Analyser mon devis
+               class="inline-flex items-center gap-2 bg-white text-emerald-700 hover:bg-emerald-50 font-semibold px-8 py-3 rounded-xl transition-colors text-sm">
+              🔍 Analyser mon devis gratuitement
             </a>
+            <p class="text-emerald-200 text-xs mt-3">Sans inscription · Résultat immédiat · 100 % gratuit</p>
           </div>
 
           <!-- Silo piliers -->
@@ -453,18 +483,19 @@ const jsonLd = {
       </article>
 
       <!-- ── CTA Final ─────────────────────────────────────────────────────── -->
-      <section class="bg-indigo-50 border-t border-indigo-100 py-12 px-4">
+      <section class="bg-gradient-to-br from-emerald-600 to-emerald-800 py-14 px-4">
         <div class="container max-w-2xl mx-auto text-center">
-          <p class="text-2xl font-bold text-slate-900 mb-2">Analysez votre devis gratuitement en 2 minutes</p>
-          <p class="text-slate-600 mb-6 leading-relaxed">
+          <p class="text-xs font-semibold uppercase tracking-widest text-emerald-300 mb-3">🚀 Passez à l'action</p>
+          <p class="text-2xl sm:text-3xl font-bold text-white mb-3">Ne prenez pas de risque avec votre artisan</p>
+          <p class="text-emerald-100 mb-8 leading-relaxed max-w-lg mx-auto">
             Avant de signer, vérifiez que votre artisan est fiable et que ses prix sont dans le marché.
-            Notre outil fait tout ça automatiquement — et c'est gratuit.
+            Notre outil vérifie SIRET, assurances et prix — en 2 minutes, gratuitement.
           </p>
           <a href="/nouvelle-analyse"
-             class="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-3.5 rounded-xl transition-colors text-base">
-            🔍 Analyser mon devis gratuitement
+             class="inline-flex items-center justify-center gap-2 bg-white text-emerald-700 hover:bg-emerald-50 font-bold px-10 py-4 rounded-xl transition-colors text-base shadow-lg">
+            🔍 Analyse gratuite en 2 minutes
           </a>
-          <p class="text-xs text-slate-400 mt-3">Gratuit · Sans inscription · Confidentiel</p>
+          <p class="text-emerald-300 text-xs mt-4">+100 devis analysés · Sans inscription · Confidentiel</p>
         </div>
       </section>
 

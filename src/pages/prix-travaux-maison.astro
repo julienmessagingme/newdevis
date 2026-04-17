@@ -45,6 +45,18 @@ const faqs = [
     question: "Vaut-il mieux faire les travaux soi-même pour économiser ?",
     answer: "Pour des travaux simples (peinture, petite plomberie, pose de revêtements), le DIY peut faire économiser 30 à 50 % sur la main-d'œuvre. En revanche, pour l'électricité, la plomberie complexe ou la charpente, faites appel à un professionnel : une malfaçon peut coûter bien plus cher à réparer et peut annuler vos garanties et assurances."
   },
+  {
+    question: "Quel budget prévoir pour rénover entièrement une maison ?",
+    answer: "Le budget de rénovation complète d'une maison dépend de la surface et du niveau de finition : comptez 800 à 1 200 €/m² pour une rénovation standard, et jusqu'à 1 800 €/m² pour une rénovation haut de gamme. Pour une maison de 100 m², prévoyez donc entre 80 000 et 150 000 € en rénovation complète, ou 15 000 à 30 000 € pour un simple rafraîchissement."
+  },
+  {
+    question: "Quel est le prix moyen au m² pour les travaux de rénovation ?",
+    answer: "Le prix au m² varie fortement selon le type de travaux : peinture murs et plafonds de 15 à 35 €/m², carrelage pose + fourniture de 50 à 130 €/m², parquet de 45 à 130 €/m², isolation intérieure de 40 à 120 €/m², isolation extérieure (ITE) de 90 à 220 €/m². Ces fourchettes intègrent la main-d'œuvre et les matériaux standards, hors déplacements exceptionnels."
+  },
+  {
+    question: "Comment vérifier que son devis travaux n'est pas trop cher ?",
+    answer: "Comparez les prix unitaires de votre devis avec les fourchettes de référence (voir tableau ci-dessus). Un écart supérieur à 30 % sur un poste doit déclencher une demande d'explication. Vous pouvez aussi utiliser VerifierMonDevis.fr : l'outil compare automatiquement chaque ligne de votre devis avec les prix du marché en 2 minutes."
+  }
 ];
 
 const jsonLd = {
@@ -63,7 +75,7 @@ const jsonLd = {
 
 <BaseLayout
   title="Prix travaux maison : guide complet des coûts en 2026"
-  description="Quel budget pour vos travaux maison en 2026 ? Tarifs au m² par type de travaux (cuisine, SDB, toiture, isolation), conseils pour réduire la facture et comparateur de devis."
+  description="Prix travaux maison 2026 : tarifs au m² par type (cuisine, SDB, toiture, isolation). Aides financières, 5 leviers d'économies. Comparez votre devis en 2 min, gratuit."
   canonical="https://www.verifiermondevis.fr/prix-travaux-maison"
   ogType="article"
   jsonLd={jsonLd}
@@ -136,6 +148,22 @@ const jsonLd = {
             </div>
           </section>
 
+          <!-- Preuves sociales -->
+          <div class="grid grid-cols-3 gap-4 mb-12">
+            <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
+              <p class="text-2xl font-bold text-amber-500 mb-1">+100</p>
+              <p class="text-xs text-slate-500 leading-snug">devis analysés chaque mois</p>
+            </div>
+            <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
+              <p class="text-2xl font-bold text-amber-500 mb-1">-30%</p>
+              <p class="text-xs text-slate-500 leading-snug">d'écart détecté en moyenne</p>
+            </div>
+            <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
+              <p class="text-2xl font-bold text-amber-500 mb-1">2 min</p>
+              <p class="text-xs text-slate-500 leading-snug">pour comparer votre devis</p>
+            </div>
+          </div>
+
           <!-- Tableau des prix -->
           <section id="tableau-prix" class="mb-12">
             <h2 class="text-2xl font-bold text-slate-900 mb-4">Prix des travaux par type : tableau comparatif 2026</h2>
@@ -175,20 +203,18 @@ const jsonLd = {
           </section>
 
           <!-- CTA intermédiaire -->
-          <div class="my-12 rounded-2xl border border-indigo-100 bg-indigo-50 p-6 sm:p-8">
-            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div class="flex-1">
-                <p class="font-bold text-slate-900 mb-1">Votre devis est-il dans ces fourchettes ?</p>
-                <p class="text-sm text-slate-600 leading-relaxed">
-                  Importez votre devis PDF et notre outil le compare automatiquement avec ces prix du marché,
-                  poste par poste — en 2 minutes.
-                </p>
-              </div>
-              <a href="/nouvelle-analyse"
-                 class="flex-shrink-0 inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2.5 rounded-xl transition-colors text-sm whitespace-nowrap">
-                🔍 Analyser mon devis
-              </a>
-            </div>
+          <div class="my-12 rounded-2xl border border-amber-200 bg-amber-50 p-6 sm:p-8 text-center">
+            <p class="text-xs font-semibold uppercase tracking-widest text-amber-600 mb-2">🎯 Vous avez un doute sur votre devis ?</p>
+            <p class="text-lg font-bold text-slate-900 mb-2">Votre devis est-il dans ces fourchettes ?</p>
+            <p class="text-sm text-slate-600 leading-relaxed mb-5 max-w-lg mx-auto">
+              Importez votre devis PDF et notre outil le compare automatiquement avec ces prix du marché,
+              poste par poste — en 2 minutes, gratuitement.
+            </p>
+            <a href="/nouvelle-analyse"
+               class="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-sm">
+              🔍 Analyser mon devis gratuitement
+            </a>
+            <p class="text-amber-600 text-xs mt-3">Sans inscription · Résultat immédiat · 100 % gratuit</p>
           </div>
 
           <!-- Prix par pièce -->
@@ -463,18 +489,19 @@ const jsonLd = {
       </article>
 
       <!-- ── CTA Final ─────────────────────────────────────────────────────── -->
-      <section class="bg-indigo-50 border-t border-indigo-100 py-12 px-4">
+      <section class="bg-gradient-to-br from-amber-500 to-amber-700 py-14 px-4">
         <div class="container max-w-2xl mx-auto text-center">
-          <p class="text-2xl font-bold text-slate-900 mb-2">Analysez votre devis gratuitement en 2 minutes</p>
-          <p class="text-slate-600 mb-6 leading-relaxed">
-            Importez votre devis et notre outil le compare automatiquement avec les prix du marché,
-            poste par poste — et vérifie la fiabilité de l'artisan.
+          <p class="text-xs font-semibold uppercase tracking-widest text-amber-200 mb-3">🚀 Passez à l'action</p>
+          <p class="text-2xl sm:text-3xl font-bold text-white mb-3">Vérifiez que votre devis est dans les prix</p>
+          <p class="text-amber-100 mb-8 leading-relaxed max-w-lg mx-auto">
+            Importez votre devis et notre outil le compare automatiquement avec les fourchettes ci-dessus —
+            poste par poste, en 2 minutes, gratuitement.
           </p>
           <a href="/nouvelle-analyse"
-             class="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-3.5 rounded-xl transition-colors text-base">
-            🔍 Analyser mon devis gratuitement
+             class="inline-flex items-center justify-center gap-2 bg-white text-amber-700 hover:bg-amber-50 font-bold px-10 py-4 rounded-xl transition-colors text-base shadow-lg">
+            🔍 Analyse gratuite en 2 minutes
           </a>
-          <p class="text-xs text-slate-400 mt-3">Gratuit · Sans inscription · Confidentiel</p>
+          <p class="text-amber-200 text-xs mt-4">+100 devis analysés · Sans inscription · Confidentiel</p>
         </div>
       </section>
 

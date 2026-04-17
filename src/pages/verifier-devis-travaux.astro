@@ -31,6 +31,18 @@ const faqs = [
   {
     question: "Comment vérifier le sérieux d'un artisan avant de signer ?",
     answer: "Vérifiez son numéro SIRET sur societe.ninja ou infogreffe.fr, contrôlez sa note Google et ses avis récents, demandez ses attestations d'assurance décennale et responsabilité civile, et renseignez-vous sur ses certifications RGE pour les travaux d'économie d'énergie. VerifierMonDevis.fr effectue automatiquement ces vérifications pour vous."
+  },
+  {
+    question: "Est-ce fiable de vérifier un devis en ligne ?",
+    answer: "Oui, à condition d'utiliser un outil qui s'appuie sur des sources officielles. VerifierMonDevis.fr interroge directement les registres INSEE, BODACC et ADEME, sans jamais partager vos documents avec des tiers. L'analyse est automatique, confidentielle, et les résultats sont présentés avec leurs sources pour que vous puissiez les vérifier vous-même."
+  },
+  {
+    question: "Combien coûte une analyse de devis en ligne ?",
+    answer: "L'analyse de devis sur VerifierMonDevis.fr est entièrement gratuite pour les 5 premières analyses. Vous obtenez le score de fiabilité, la vérification des mentions légales et la comparaison aux prix du marché sans aucun frais. Le Pass Sérénité (4,99 €/mois) donne accès aux analyses illimitées et au rapport PDF complet."
+  },
+  {
+    question: "Peut-on détecter facilement une arnaque sur un devis ?",
+    answer: "Oui, les signes les plus courants d'un devis frauduleux sont détectables rapidement : absence de SIRET, demande d'acompte supérieure à 30 %, paiement exigé en espèces, devis sans détail des prestations, prix anormalement bas. VerifierMonDevis.fr détecte automatiquement ces signaux d'alerte et vous alerte avant que vous ne signiez."
   }
 ];
 
@@ -50,7 +62,7 @@ const jsonLd = {
 
 <BaseLayout
   title="Vérifier un devis travaux : guide complet pour éviter les arnaques"
-  description="Comment vérifier un devis travaux ? Méthode étape par étape, checklist des mentions obligatoires, 7 erreurs à éviter et exemples concrets pour analyser un devis artisan."
+  description="Comment vérifier un devis travaux ? Méthode 5 étapes, checklist 20 points, détection d'arnaques en 2 min. +100 devis analysés. Gratuit, sans inscription."
   canonical="https://www.verifiermondevis.fr/verifier-devis-travaux"
   ogType="article"
   jsonLd={jsonLd}
@@ -110,6 +122,22 @@ const jsonLd = {
               <p class="text-sm text-indigo-700">À la fin de ce guide, vous saurez exactement si votre devis est correct, trop cher ou incomplet.</p>
             </div>
           </section>
+
+          <!-- Preuves sociales -->
+          <div class="grid grid-cols-3 gap-4 mb-12">
+            <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
+              <p class="text-2xl font-bold text-indigo-600 mb-1">+100</p>
+              <p class="text-xs text-slate-500 leading-snug">devis analysés chaque mois</p>
+            </div>
+            <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
+              <p class="text-2xl font-bold text-indigo-600 mb-1">-30%</p>
+              <p class="text-xs text-slate-500 leading-snug">d'écart détecté en moyenne</p>
+            </div>
+            <div class="text-center p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
+              <p class="text-2xl font-bold text-indigo-600 mb-1">2 min</p>
+              <p class="text-xs text-slate-500 leading-snug">pour obtenir votre résultat</p>
+            </div>
+          </div>
 
           <!-- Méthode étape par étape -->
           <section class="mb-12">
@@ -188,15 +216,17 @@ const jsonLd = {
 
           <!-- CTA intermédiaire -->
           <div class="my-12 bg-indigo-600 rounded-2xl p-6 sm:p-8 text-white text-center">
-            <p class="text-lg font-bold mb-2">Gagnez du temps : analysez votre devis en 2 minutes</p>
-            <p class="text-indigo-200 text-sm mb-5 max-w-lg mx-auto">
-              Notre outil vérifie automatiquement les mentions légales, compare vos prix avec le marché et
-              vous donne un score de fiabilité de l'artisan — tout ça gratuitement.
+            <p class="text-xs font-semibold uppercase tracking-widest text-indigo-300 mb-2">🎯 Vous avez un doute sur votre devis ?</p>
+            <p class="text-xl font-bold mb-3">Analysez-le gratuitement en 2 minutes</p>
+            <p class="text-indigo-200 text-sm mb-6 max-w-lg mx-auto">
+              Notre outil détecte les anomalies, vérifie les mentions légales et compare vos prix avec le marché
+              — avant que vous ne signiez quoi que ce soit.
             </p>
             <a href="/nouvelle-analyse"
-               class="inline-flex items-center gap-2 bg-white text-indigo-700 hover:bg-indigo-50 font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
-              🔍 Analyser mon devis
+               class="inline-flex items-center gap-2 bg-white text-indigo-700 hover:bg-indigo-50 font-semibold px-8 py-3 rounded-xl transition-colors text-sm">
+              🔍 Analyser mon devis gratuitement
             </a>
+            <p class="text-indigo-300 text-xs mt-3">Sans inscription · Résultat immédiat · 100 % gratuit</p>
           </div>
 
           <!-- Checklist -->
@@ -411,18 +441,19 @@ const jsonLd = {
       </article>
 
       <!-- ── CTA Final ─────────────────────────────────────────────────────── -->
-      <section class="bg-indigo-50 border-t border-indigo-100 py-12 px-4">
+      <section class="bg-gradient-to-br from-indigo-600 to-indigo-800 py-14 px-4">
         <div class="container max-w-2xl mx-auto text-center">
-          <p class="text-2xl font-bold text-slate-900 mb-2">Analysez votre devis gratuitement en 2 minutes</p>
-          <p class="text-slate-600 mb-6 leading-relaxed">
-            Importez votre devis en PDF ou photo et obtenez instantanément :
-            score de fiabilité de l'artisan, comparaison des prix, et conseils personnalisés.
+          <p class="text-xs font-semibold uppercase tracking-widest text-indigo-300 mb-3">🚀 Passez à l'action</p>
+          <p class="text-2xl sm:text-3xl font-bold text-white mb-3">Ne prenez pas de risque avec votre devis travaux</p>
+          <p class="text-indigo-200 mb-8 leading-relaxed max-w-lg mx-auto">
+            Importez votre devis en PDF ou photo et obtenez en 2 minutes :
+            un score de fiabilité, une comparaison des prix du marché et les signaux d'alerte à surveiller.
           </p>
           <a href="/nouvelle-analyse"
-             class="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-3.5 rounded-xl transition-colors text-base">
-            🔍 Analyser mon devis gratuitement
+             class="inline-flex items-center justify-center gap-2 bg-white text-indigo-700 hover:bg-indigo-50 font-bold px-10 py-4 rounded-xl transition-colors text-base shadow-lg">
+            🔍 Analyse gratuite en 2 minutes
           </a>
-          <p class="text-xs text-slate-400 mt-3">Gratuit · Sans inscription · Confidentiel</p>
+          <p class="text-indigo-300 text-xs mt-4">+100 devis analysés · Sans inscription · Confidentiel</p>
         </div>
       </section>
 
