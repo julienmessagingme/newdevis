@@ -1,0 +1,408 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AstroHeader from '@/components/astro/Header.astro';
+import AstroFooter from '@/components/astro/Footer.astro';
+
+const faqs = [
+  {
+    question: "Comment vérifier si un devis travaux est trop cher ?",
+    answer: "Comparez le montant total avec au moins 2 autres devis pour le même chantier. Vérifiez le prix unitaire de chaque poste (ex : pose carrelage entre 25 et 45 €/m²). Utilisez un outil d'analyse en ligne comme VerifierMonDevis.fr pour obtenir une comparaison automatique avec les prix du marché."
+  },
+  {
+    question: "Quelles sont les mentions obligatoires sur un devis d'artisan ?",
+    answer: "Un devis réglementaire doit mentionner : le nom et l'adresse de l'artisan, son numéro SIRET, la date d'émission et la durée de validité, la description précise des travaux, les quantités et prix unitaires HT, le taux de TVA applicable, le montant total TTC, et les modalités de paiement. L'absence de l'une de ces mentions est un signal d'alerte."
+  },
+  {
+    question: "Peut-on négocier un devis travaux ?",
+    answer: "Oui, il est tout à fait possible de négocier un devis. Vous pouvez demander une réduction sur les matériaux (en proposant de les fournir vous-même), étaler les travaux sur plusieurs phases, ou jouer la concurrence en présentant un devis concurrent moins cher. Évitez cependant de négocier uniquement sur le prix sans comprendre ce qui est retiré du devis."
+  },
+  {
+    question: "Qu'est-ce qu'un devis trop bas doit m'inspirer comme prudence ?",
+    answer: "Un devis anormalement bas (plus de 30 % sous le prix du marché) peut signifier : utilisation de matériaux de mauvaise qualité, travaux sous-traités à des non-professionnels, artisan en difficulté financière, ou devis incomplet avec des coûts cachés. Demandez toujours une explication détaillée des postes qui permettent ce prix."
+  },
+  {
+    question: "Combien de temps pour analyser un devis avec votre outil ?",
+    answer: "L'analyse automatique de VerifierMonDevis.fr prend environ 2 minutes. Vous importez votre devis en PDF ou image, et l'outil vous retourne une analyse complète : vérification des mentions légales, comparaison des prix avec le marché, score de fiabilité de l'entreprise, et conseils personnalisés."
+  },
+  {
+    question: "Le devis est-il obligatoirement gratuit ?",
+    answer: "Pour les travaux inférieurs à 150 € TTC, le devis peut être facturé si l'artisan vous en informe à l'avance. Au-delà, le devis doit être gratuit et clairement identifié comme tel. Méfiez-vous des artisans qui facturent systématiquement leurs devis : c'est souvent signe d'un manque de clientèle."
+  },
+  {
+    question: "Comment vérifier le sérieux d'un artisan avant de signer ?",
+    answer: "Vérifiez son numéro SIRET sur societe.ninja ou infogreffe.fr, contrôlez sa note Google et ses avis récents, demandez ses attestations d'assurance décennale et responsabilité civile, et renseignez-vous sur ses certifications RGE pour les travaux d'économie d'énergie. VerifierMonDevis.fr effectue automatiquement ces vérifications pour vous."
+  }
+];
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": faqs.map(f => ({
+    "@type": "Question",
+    "name": f.question,
+    "acceptedAnswer": {
+      "@type": "Answer",
+      "text": f.answer
+    }
+  }))
+};
+---
+
+<BaseLayout
+  title="Vérifier un devis travaux : guide complet pour éviter les arnaques"
+  description="Comment vérifier un devis travaux ? Méthode étape par étape, checklist des mentions obligatoires, 7 erreurs à éviter et exemples concrets pour analyser un devis artisan."
+  canonical="https://www.verifiermondevis.fr/verifier-devis-travaux"
+  ogType="article"
+  jsonLd={jsonLd}
+  breadcrumbs={[
+    { name: "Accueil", url: "https://www.verifiermondevis.fr/" },
+    { name: "Vérifier un devis travaux", url: "https://www.verifiermondevis.fr/verifier-devis-travaux" }
+  ]}
+>
+  <div class="min-h-screen flex flex-col">
+    <AstroHeader />
+    <main class="flex-1">
+
+      <!-- ── Hero ─────────────────────────────────────────────────────────── -->
+      <section class="bg-gradient-to-b from-slate-900 to-slate-800 py-14 sm:py-20 px-4">
+        <div class="container max-w-3xl mx-auto text-center">
+          <p class="text-xs font-semibold uppercase tracking-[0.25em] text-indigo-300 mb-4">Guide complet 2026</p>
+          <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold text-white leading-tight mb-5">
+            Vérifier un devis travaux :<br class="hidden sm:block" /> le guide pour éviter les arnaques
+          </h1>
+          <p class="text-base sm:text-lg text-slate-300 leading-relaxed mb-8 max-w-2xl mx-auto">
+            Vous venez de recevoir un devis d'artisan et vous ne savez pas s'il est honnête ?
+            Ce guide vous donne la méthode complète pour analyser un devis travaux en moins de 10 minutes —
+            sans être expert.
+          </p>
+          <div class="flex flex-col sm:flex-row gap-3 justify-center">
+            <a href="/nouvelle-analyse"
+               class="inline-flex items-center justify-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
+              🔍 Analyser mon devis gratuitement
+            </a>
+            <a href="#checklist"
+               class="inline-flex items-center justify-center gap-2 border border-slate-500 text-slate-200 hover:bg-slate-700 px-6 py-3 rounded-xl transition-colors text-sm">
+              📋 Voir la checklist
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Contenu principal ────────────────────────────────────────────── -->
+      <article class="py-12 sm:py-16 px-4">
+        <div class="container max-w-3xl mx-auto">
+
+          <!-- Intro problème -->
+          <section class="mb-12">
+            <p class="text-slate-600 leading-relaxed mb-4 text-base sm:text-lg">
+              Chaque année en France, des millions de particuliers signent des devis travaux sans vraiment les comprendre.
+              Résultat : surfacturations, malfaçons, entreprises fantômes — et des litiges qui peuvent durer des années.
+              Pourtant, <strong>vérifier un devis travaux n'est pas réservé aux professionnels</strong> :
+              il suffit de savoir quoi regarder.
+            </p>
+            <p class="text-slate-600 leading-relaxed mb-4">
+              Ce guide vous explique, étape par étape, comment analyser un devis d'artisan comme un pro :
+              les mentions légales indispensables, comment comparer les prix du marché, les signaux d'alerte
+              qui doivent vous faire reculer, et les questions à poser avant de signer.
+            </p>
+            <div class="rounded-xl border border-indigo-100 bg-indigo-50 p-5 mt-6">
+              <p class="text-sm font-semibold text-indigo-800 mb-1">⏱️ Temps de lecture : 8 minutes</p>
+              <p class="text-sm text-indigo-700">À la fin de ce guide, vous saurez exactement si votre devis est correct, trop cher ou incomplet.</p>
+            </div>
+          </section>
+
+          <!-- Méthode étape par étape -->
+          <section class="mb-12">
+            <h2 class="text-2xl font-bold text-slate-900 mb-6">La méthode en 5 étapes pour vérifier un devis travaux</h2>
+
+            <div class="space-y-6">
+
+              <div class="flex items-start gap-4 p-5 rounded-xl border border-slate-100 bg-white shadow-sm">
+                <span class="flex-shrink-0 w-9 h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">1</span>
+                <div>
+                  <h3 class="font-semibold text-slate-900 mb-1">Vérifiez les mentions légales obligatoires</h3>
+                  <p class="text-sm text-slate-600 leading-relaxed">
+                    Avant tout, contrôlez que le devis comporte : le nom complet et l'adresse de l'entreprise,
+                    le numéro SIRET (14 chiffres), la date d'émission, la durée de validité,
+                    la description précise des travaux et les modalités de paiement.
+                    <strong>Un devis sans SIRET n'a aucune valeur légale.</strong>
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-4 p-5 rounded-xl border border-slate-100 bg-white shadow-sm">
+                <span class="flex-shrink-0 w-9 h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">2</span>
+                <div>
+                  <h3 class="font-semibold text-slate-900 mb-1">Vérifiez l'existence légale de l'entreprise</h3>
+                  <p class="text-sm text-slate-600 leading-relaxed">
+                    Cherchez le SIRET sur <strong>societe.ninja</strong> ou <strong>infogreffe.fr</strong> :
+                    l'entreprise est-elle active ? Depuis combien de temps ? Une entreprise de moins de 2 ans
+                    sur un chantier important est un signal de prudence. Vérifiez aussi l'attestation d'assurance
+                    décennale — obligatoire pour tout artisan du bâtiment.
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-4 p-5 rounded-xl border border-slate-100 bg-white shadow-sm">
+                <span class="flex-shrink-0 w-9 h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">3</span>
+                <div>
+                  <h3 class="font-semibold text-slate-900 mb-1">Décomposez chaque poste de dépense</h3>
+                  <p class="text-sm text-slate-600 leading-relaxed">
+                    Un bon devis détaille chaque ligne : fourniture, pose, dépose, évacuation des déchets.
+                    Méfiez-vous des devis "au forfait" qui regroupent tout sans détail —
+                    c'est souvent une porte ouverte aux surcoûts.
+                    Demandez systématiquement un prix unitaire HT + quantité + taux TVA pour chaque poste.
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-4 p-5 rounded-xl border border-slate-100 bg-white shadow-sm">
+                <span class="flex-shrink-0 w-9 h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">4</span>
+                <div>
+                  <h3 class="font-semibold text-slate-900 mb-1">Comparez avec les prix du marché</h3>
+                  <p class="text-sm text-slate-600 leading-relaxed">
+                    Chaque type de travaux a une fourchette de prix normale.
+                    La pose de carrelage se facture entre 25 et 45 €/m², la peinture entre 15 et 30 €/m²...
+                    Comparez vos prix unitaires avec ces références.
+                    Notre outil fait cette comparaison automatiquement en quelques secondes.
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-4 p-5 rounded-xl border border-slate-100 bg-white shadow-sm">
+                <span class="flex-shrink-0 w-9 h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">5</span>
+                <div>
+                  <h3 class="font-semibold text-slate-900 mb-1">Obtenez au moins 3 devis concurrents</h3>
+                  <p class="text-sm text-slate-600 leading-relaxed">
+                    La règle d'or : <strong>ne signez jamais avec le premier artisan</strong>.
+                    Demandez 3 devis minimum pour le même cahier des charges.
+                    Un écart supérieur à 30 % entre deux devis doit vous inciter à creuser :
+                    soit l'un est incomplet, soit l'autre pratique des tarifs anormaux.
+                  </p>
+                </div>
+              </div>
+
+            </div>
+          </section>
+
+          <!-- CTA intermédiaire -->
+          <div class="my-12 bg-indigo-600 rounded-2xl p-6 sm:p-8 text-white text-center">
+            <p class="text-lg font-bold mb-2">Gagnez du temps : analysez votre devis en 2 minutes</p>
+            <p class="text-indigo-200 text-sm mb-5 max-w-lg mx-auto">
+              Notre outil vérifie automatiquement les mentions légales, compare vos prix avec le marché et
+              vous donne un score de fiabilité de l'artisan — tout ça gratuitement.
+            </p>
+            <a href="/nouvelle-analyse"
+               class="inline-flex items-center gap-2 bg-white text-indigo-700 hover:bg-indigo-50 font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
+              🔍 Analyser mon devis
+            </a>
+          </div>
+
+          <!-- Checklist -->
+          <section id="checklist" class="mb-12">
+            <h2 class="text-2xl font-bold text-slate-900 mb-4">Checklist : les 20 points à vérifier avant de signer</h2>
+            <p class="text-slate-600 mb-6 leading-relaxed">
+              Utilisez cette checklist avant de signer tout devis travaux.
+              Si vous répondez "non" à plus de 3 questions, demandez des clarifications à l'artisan.
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                "Le SIRET est présent et valide (14 chiffres)",
+                "L'adresse complète de l'entreprise figure sur le devis",
+                "La date d'émission et la durée de validité sont mentionnées",
+                "Les travaux sont décrits poste par poste",
+                "Les quantités (m², unités, heures) sont indiquées",
+                "Les prix unitaires HT sont précisés",
+                "Le taux de TVA applicable est correct (5,5% ou 10% pour rénovation)",
+                "Le montant total TTC est clairement affiché",
+                "Les modalités de paiement sont précisées (acompte, échéances)",
+                "L'acompte demandé ne dépasse pas 30% du total",
+                "L'attestation d'assurance décennale est disponible",
+                "La responsabilité civile professionnelle est couverte",
+                "L'entreprise est active sur societe.ninja",
+                "L'entreprise a plus de 2 ans d'ancienneté",
+                "Des avis Google positifs et récents existent",
+                "Aucune procédure collective en cours",
+                "Le prix est cohérent avec le marché (±30%)",
+                "Vous avez obtenu au moins 2 autres devis",
+                "Le délai d'exécution est précisé",
+                "Les conditions de garantie sont mentionnées",
+              ].map((item, i) => (
+                <label class="flex items-start gap-2.5 p-3 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors">
+                  <input type="checkbox" class="mt-0.5 flex-shrink-0 accent-indigo-600" />
+                  <span class="text-sm text-slate-700 leading-snug">{item}</span>
+                </label>
+              ))}
+            </div>
+          </section>
+
+          <!-- 7 erreurs -->
+          <section class="mb-12">
+            <h2 class="text-2xl font-bold text-slate-900 mb-6">Les 7 erreurs qui coûtent cher quand on vérifie un devis</h2>
+
+            <div class="space-y-5">
+              {[
+                {
+                  n: "1",
+                  titre: "Se fier uniquement au prix total",
+                  texte: "Comparer deux devis uniquement sur le montant final est une erreur classique. Un devis moins cher peut inclure des matériaux de qualité inférieure, exclure l'évacuation des déchets ou ne pas prévoir les finitions. Analysez toujours poste par poste."
+                },
+                {
+                  n: "2",
+                  titre: "Ne pas vérifier les assurances",
+                  texte: "L'assurance décennale est obligatoire pour tout artisan du bâtiment. En cas de malfaçon, si l'artisan n'est pas assuré, c'est vous qui payez. Demandez systématiquement l'attestation d'assurance à jour avant toute signature."
+                },
+                {
+                  n: "3",
+                  titre: "Payer plus de 30% d'acompte",
+                  texte: "La loi interdit aux artisans de demander plus de 30% d'acompte avant le début des travaux (sauf cas particuliers). Un artisan qui exige 50% ou plus d'avance est un signal d'alerte fort — il risque de disparaître avec votre argent."
+                },
+                {
+                  n: "4",
+                  titre: "Signer sans avoir comparé",
+                  texte: "Même si vous faites confiance à l'artisan et que son prix vous semble raisonnable, obtenez toujours 2 devis supplémentaires. La concurrence vous permettra de mieux négocier et de valider que le prix est correct."
+                },
+                {
+                  n: "5",
+                  titre: "Ignorer les conditions de paiement",
+                  texte: "Un échéancier mal négocié peut vous mettre en difficulté. Assurez-vous que les paiements sont liés à l'avancement des travaux, pas à un calendrier arbitraire. Ne payez jamais intégralement avant la réception des travaux."
+                },
+                {
+                  n: "6",
+                  titre: "Confondre HT et TTC",
+                  texte: "Pour les travaux de rénovation dans une résidence principale de plus de 2 ans, la TVA est réduite à 10% (parfois 5,5% pour les travaux d'efficacité énergétique). Un artisan qui applique le taux de 20% sur ces travaux vous survend ou ne connaît pas la réglementation."
+                },
+                {
+                  n: "7",
+                  titre: "Ne pas demander de garanties sur les délais",
+                  texte: "Un devis sans délai d'exécution n'engage l'artisan à rien. Exigez une date de début et de fin précise, avec une clause de pénalité de retard. Sans cette mention, vous n'avez aucun recours si le chantier s'éternise."
+                },
+              ].map(e => (
+                <div class="flex items-start gap-4 p-5 rounded-xl border border-red-50 bg-red-50/50">
+                  <span class="flex-shrink-0 w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center font-bold text-sm">{e.n}</span>
+                  <div>
+                    <h3 class="font-semibold text-slate-900 mb-1">{e.titre}</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed">{e.texte}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <!-- Exemples bon/mauvais devis -->
+          <section class="mb-12">
+            <h2 class="text-2xl font-bold text-slate-900 mb-6">Bon devis vs mauvais devis : exemples concrets</h2>
+            <p class="text-slate-600 mb-6 leading-relaxed">
+              Pour vous aider à reconnaître un devis sérieux, voici deux exemples sur la même prestation —
+              la pose de parquet dans un salon de 25 m².
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <!-- Mauvais devis -->
+              <div class="rounded-xl border-2 border-red-200 bg-red-50/30 p-5">
+                <div class="flex items-center gap-2 mb-4">
+                  <span class="text-lg">❌</span>
+                  <h3 class="font-bold text-red-700">Devis à éviter</h3>
+                </div>
+                <div class="space-y-2 text-sm text-slate-700">
+                  <p><strong>Artisan :</strong> Pierre M.</p>
+                  <p><strong>SIRET :</strong> absent</p>
+                  <p><strong>Travaux :</strong> Pose de parquet (pas de détail)</p>
+                  <p><strong>Prix :</strong> 3 800 € TTC (forfait)</p>
+                  <p><strong>TVA :</strong> 20 % (incorrect pour rénovation)</p>
+                  <p><strong>Acompte :</strong> 50 % à la commande</p>
+                  <p><strong>Délai :</strong> non précisé</p>
+                  <p><strong>Assurance :</strong> non mentionnée</p>
+                </div>
+                <div class="mt-4 rounded-lg bg-red-100 border border-red-200 p-3">
+                  <p class="text-xs font-semibold text-red-700">⚠️ 5 signaux d'alerte : pas de SIRET, forfait sans détail, TVA incorrecte, acompte excessif, pas de délai</p>
+                </div>
+              </div>
+
+              <!-- Bon devis -->
+              <div class="rounded-xl border-2 border-emerald-200 bg-emerald-50/30 p-5">
+                <div class="flex items-center gap-2 mb-4">
+                  <span class="text-lg">✅</span>
+                  <h3 class="font-bold text-emerald-700">Devis sérieux</h3>
+                </div>
+                <div class="space-y-2 text-sm text-slate-700">
+                  <p><strong>Artisan :</strong> Menuiserie Dupont SAS</p>
+                  <p><strong>SIRET :</strong> 832 456 789 00012</p>
+                  <p><strong>Dépose ancien parquet :</strong> 25 m² × 8 €/m² = 200 €</p>
+                  <p><strong>Fourniture parquet chêne :</strong> 27 m² × 35 €/m² = 945 €</p>
+                  <p><strong>Pose à la colle :</strong> 25 m² × 28 €/m² = 700 €</p>
+                  <p><strong>Plinthes + finitions :</strong> forfait = 180 €</p>
+                  <p><strong>Total HT :</strong> 2 025 € — <strong>TVA 10 % :</strong> 202,50 € — <strong>TTC :</strong> 2 227,50 €</p>
+                  <p><strong>Acompte :</strong> 25 % à la commande</p>
+                  <p><strong>Délai :</strong> 2 jours, semaine du 15 mai</p>
+                </div>
+                <div class="mt-4 rounded-lg bg-emerald-100 border border-emerald-200 p-3">
+                  <p class="text-xs font-semibold text-emerald-700">✅ Devis complet, prix dans la norme, TVA correcte, acompte légal, délai précis</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-5 rounded-xl border border-amber-100 bg-amber-50 p-4">
+              <p class="text-sm text-amber-800">
+                <strong>Notez la différence :</strong> le bon devis coûte 40 % moins cher — et pourtant c'est lui le sérieux.
+                Un prix élevé ne garantit pas la qualité ; un prix bas ne signifie pas forcément une arnaque.
+                C'est la <em>transparence</em> du devis qui compte.
+              </p>
+            </div>
+          </section>
+
+          <!-- Maillage interne -->
+          <section class="mb-12 p-5 rounded-xl bg-slate-50 border border-slate-100">
+            <h2 class="text-lg font-bold text-slate-900 mb-4">Pour aller plus loin</h2>
+            <ul class="space-y-2 text-sm">
+              <li>→ <a href="/blog/devis-travaux-mentions-obligatoires-oubliees" class="text-indigo-600 hover:underline font-medium">Les mentions obligatoires souvent oubliées sur un devis travaux</a></li>
+              <li>→ <a href="/blog/comment-negocier-devis-artisan-techniques-efficaces" class="text-indigo-600 hover:underline font-medium">Comment négocier un devis artisan : techniques efficaces</a></li>
+              <li>→ <a href="/blog/devis-travaux-anormalement-bas-faut-il-sen-mefier" class="text-indigo-600 hover:underline font-medium">Devis anormalement bas : faut-il s'en méfier ?</a></li>
+              <li>→ <a href="/prix-travaux-maison" class="text-indigo-600 hover:underline font-medium">Prix des travaux maison : guide complet des coûts en 2026</a></li>
+              <li>→ <a href="/choisir-artisan-travaux" class="text-indigo-600 hover:underline font-medium">Comment choisir un artisan fiable pour vos travaux</a></li>
+              <li>→ <a href="/comprendre-score" class="text-indigo-600 hover:underline font-medium">Comment fonctionne le score de notre analyse de devis ?</a></li>
+            </ul>
+          </section>
+
+          <!-- FAQ -->
+          <section class="mb-12">
+            <h2 class="text-2xl font-bold text-slate-900 mb-6">Questions fréquentes sur la vérification de devis travaux</h2>
+            <div class="space-y-3">
+              {faqs.map(f => (
+                <details class="group rounded-xl border border-slate-200 bg-white overflow-hidden">
+                  <summary class="flex items-center justify-between gap-4 px-5 py-4 cursor-pointer font-medium text-slate-900 text-sm hover:bg-slate-50 transition-colors list-none">
+                    {f.question}
+                    <span class="flex-shrink-0 text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+                  </summary>
+                  <div class="px-5 pb-4 pt-1 text-sm text-slate-600 leading-relaxed border-t border-slate-100">
+                    {f.answer}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </section>
+
+        </div>
+      </article>
+
+      <!-- ── CTA Final ─────────────────────────────────────────────────────── -->
+      <section class="bg-indigo-50 border-t border-indigo-100 py-12 px-4">
+        <div class="container max-w-2xl mx-auto text-center">
+          <p class="text-2xl font-bold text-slate-900 mb-2">Analysez votre devis gratuitement en 2 minutes</p>
+          <p class="text-slate-600 mb-6 leading-relaxed">
+            Importez votre devis en PDF ou photo et obtenez instantanément :
+            score de fiabilité de l'artisan, comparaison des prix, et conseils personnalisés.
+          </p>
+          <a href="/nouvelle-analyse"
+             class="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-3.5 rounded-xl transition-colors text-base">
+            🔍 Analyser mon devis gratuitement
+          </a>
+          <p class="text-xs text-slate-400 mt-3">Gratuit · Sans inscription · Confidentiel</p>
+        </div>
+      </section>
+
+    </main>
+    <AstroFooter />
+  </div>
+</BaseLayout>

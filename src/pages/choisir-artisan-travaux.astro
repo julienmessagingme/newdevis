@@ -1,0 +1,449 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AstroHeader from '@/components/astro/Header.astro';
+import AstroFooter from '@/components/astro/Footer.astro';
+
+const faqs = [
+  {
+    question: "Comment vérifier si un artisan est vraiment assuré ?",
+    answer: "Demandez à l'artisan son attestation d'assurance décennale en cours de validité, émise par son assureur (pas par lui-même). Vérifiez la date de validité et que l'activité couverte correspond bien à votre type de travaux. Vous pouvez aussi appeler directement l'assureur pour confirmer la validité de la police."
+  },
+  {
+    question: "Combien de devis demander avant de choisir un artisan ?",
+    answer: "La règle minimale est de demander 3 devis pour tout chantier supérieur à 1 000 €. En dessous, 2 suffisent. Au-delà de 10 000 €, visez 4 à 5 devis. Cela vous donnera une vraie vision du prix du marché et des différences de prestations proposées."
+  },
+  {
+    question: "Peut-on faire confiance aux avis Google d'un artisan ?",
+    answer: "Les avis Google sont un indicateur utile mais imparfait. Méfiez-vous des profils avec seulement des avis 5 étoiles très récents (achat d'avis possible). Privilégiez les artisans avec des avis détaillés, variés, et sur une longue période. Une note en dessous de 4/5 sur plus de 10 avis est un signal d'alerte."
+  },
+  {
+    question: "Qu'est-ce que la garantie décennale et pourquoi est-elle importante ?",
+    answer: "La garantie décennale oblige l'artisan à réparer tout désordre compromettant la solidité de l'ouvrage ou le rendant impropre à sa destination, pendant 10 ans après la réception des travaux. C'est votre filet de sécurité principal. Sans cette assurance, en cas de malfaçon majeure, vous n'aurez aucun recours solvable."
+  },
+  {
+    question: "Comment négocier le prix d'un devis travaux ?",
+    answer: "Plusieurs approches fonctionnent : proposer de fournir vous-même certains matériaux, décaler les travaux en période creuse (novembre-mars), grouper plusieurs chantiers avec le même artisan, ou présenter un devis concurrent légèrement moins cher. Évitez de négocier sans comprendre ce qui sera retiré du devis."
+  },
+  {
+    question: "Quels sont les droits du client en cas de malfaçon ?",
+    answer: "En cas de malfaçon, vous pouvez invoquer : la garantie de parfait achèvement (1 an après réception pour tout défaut signalé), la garantie biennale (2 ans pour les éléments d'équipement), la garantie décennale (10 ans pour les désordres graves), et la responsabilité contractuelle pour tout autre préjudice. Gardez toujours le procès-verbal de réception des travaux."
+  },
+  {
+    question: "Un artisan peut-il demander un acompte avant les travaux ?",
+    answer: "Oui, un acompte est courant et légal. Cependant, la loi plafonne l'acompte à 30 % du montant total pour les contrats de consommation. Méfiez-vous de tout artisan demandant 50 % ou plus avant de commencer : c'est un signal d'alerte fort. Exigez toujours un reçu et ne payez jamais en espèces pour des montants importants."
+  },
+];
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": faqs.map(f => ({
+    "@type": "Question",
+    "name": f.question,
+    "acceptedAnswer": {
+      "@type": "Answer",
+      "text": f.answer
+    }
+  }))
+};
+---
+
+<BaseLayout
+  title="Comment choisir un artisan fiable pour vos travaux"
+  description="Comment choisir un bon artisan ? Comparez les devis, évitez les arnaques, vérifiez les assurances et négociez le prix : le guide complet pour trouver un artisan de confiance."
+  canonical="https://www.verifiermondevis.fr/choisir-artisan-travaux"
+  ogType="article"
+  jsonLd={jsonLd}
+  breadcrumbs={[
+    { name: "Accueil", url: "https://www.verifiermondevis.fr/" },
+    { name: "Choisir un artisan", url: "https://www.verifiermondevis.fr/choisir-artisan-travaux" }
+  ]}
+>
+  <div class="min-h-screen flex flex-col">
+    <AstroHeader />
+    <main class="flex-1">
+
+      <!-- ── Hero ─────────────────────────────────────────────────────────── -->
+      <section class="bg-gradient-to-b from-slate-900 to-slate-800 py-14 sm:py-20 px-4">
+        <div class="container max-w-3xl mx-auto text-center">
+          <p class="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300 mb-4">Guide pratique</p>
+          <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold text-white leading-tight mb-5">
+            Comment choisir un artisan<br class="hidden sm:block" /> fiable pour vos travaux
+          </h1>
+          <p class="text-base sm:text-lg text-slate-300 leading-relaxed mb-8 max-w-2xl mx-auto">
+            Trouver le bon artisan, c'est 80 % de la réussite d'un chantier.
+            Ce guide vous donne les méthodes concrètes pour comparer les devis,
+            détecter les signaux d'alerte et éviter les arnaques — avant de signer quoi que ce soit.
+          </p>
+          <div class="flex flex-col sm:flex-row gap-3 justify-center">
+            <a href="/nouvelle-analyse"
+               class="inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
+              🔍 Analyser un devis reçu
+            </a>
+            <a href="#signaux-alerte"
+               class="inline-flex items-center justify-center gap-2 border border-slate-500 text-slate-200 hover:bg-slate-700 px-6 py-3 rounded-xl transition-colors text-sm">
+              ⚠️ Signaux d'alerte
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Contenu principal ────────────────────────────────────────────── -->
+      <article class="py-12 sm:py-16 px-4">
+        <div class="container max-w-3xl mx-auto">
+
+          <!-- Intro -->
+          <section class="mb-12">
+            <p class="text-slate-600 leading-relaxed mb-4 text-base sm:text-lg">
+              Chaque année, des milliers de particuliers se retrouvent avec un chantier inachevé,
+              des malfaçons non réparées ou un artisan disparu avec l'acompte.
+              Dans la grande majorité des cas, ces situations auraient pu être évitées avec quelques
+              vérifications simples <strong>avant de signer le devis</strong>.
+            </p>
+            <p class="text-slate-600 leading-relaxed mb-4">
+              Ce guide vous donne les critères objectifs pour évaluer un artisan :
+              comment comparer plusieurs devis, quelles vérifications effectuer,
+              les signaux d'alerte à ne jamais ignorer, et vos droits en cas de litige.
+            </p>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
+              {[
+                { icone: "📋", label: "Comparer les devis" },
+                { icone: "🔒", label: "Vérifier les assurances" },
+                { icone: "🚩", label: "Détecter les arnaques" },
+                { icone: "💬", label: "Négocier efficacement" },
+              ].map(c => (
+                <div class="text-center p-3 rounded-xl bg-white border border-slate-100 shadow-sm">
+                  <span class="text-xl mb-1 block">{c.icone}</span>
+                  <p class="text-xs font-semibold text-slate-700 leading-tight">{c.label}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <!-- Comparer plusieurs devis -->
+          <section class="mb-12">
+            <h2 class="text-2xl font-bold text-slate-900 mb-6">Comment comparer plusieurs devis d'artisans</h2>
+            <p class="text-slate-600 mb-6 leading-relaxed">
+              Comparer des devis ne se résume pas à mettre deux chiffres côte à côte.
+              Pour une comparaison juste, il faut s'assurer que les devis portent sur <strong>exactement le même périmètre</strong>.
+            </p>
+
+            <div class="space-y-4">
+              <div class="p-5 rounded-xl border border-slate-100 bg-white shadow-sm">
+                <h3 class="font-semibold text-slate-900 mb-2">1. Rédigez un cahier des charges précis</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                  Avant de solliciter des devis, décrivez par écrit le chantier : dimensions exactes,
+                  types de matériaux souhaités, prestations incluses ou exclues (démolition, évacuation, finitions).
+                  Sans cahier des charges commun, vous ne comparerez pas des pommes avec des pommes.
+                </p>
+              </div>
+
+              <div class="p-5 rounded-xl border border-slate-100 bg-white shadow-sm">
+                <h3 class="font-semibold text-slate-900 mb-2">2. Vérifiez que les prestations sont identiques</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                  Un devis moins cher peut tout simplement omettre certains postes : dépose de l'existant,
+                  évacuation des déchets, sous-couche, raccordements... Lisez chaque ligne et assurez-vous
+                  que tout est mentionné. Si un poste manque, demandez un chiffrage complémentaire.
+                </p>
+              </div>
+
+              <div class="p-5 rounded-xl border border-slate-100 bg-white shadow-sm">
+                <h3 class="font-semibold text-slate-900 mb-2">3. Analysez les prix unitaires, pas le total</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                  Comparez les prix par poste : pose carrelage, fourniture matériaux, main-d'œuvre séparée.
+                  Un devis global sans détail est impossible à comparer et ouvre la porte aux surcoûts.
+                  Notez les écarts significatifs (plus de 30 %) : ils méritent une explication.
+                </p>
+              </div>
+
+              <div class="p-5 rounded-xl border border-slate-100 bg-white shadow-sm">
+                <h3 class="font-semibold text-slate-900 mb-2">4. Intégrez la fiabilité dans le critère de choix</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                  Le moins cher n'est pas toujours le meilleur choix. Une entreprise solide, bien notée,
+                  avec plusieurs années d'ancienneté, mérite parfois de payer 5 à 10 % de plus
+                  pour la tranquillité d'esprit et les garanties associées.
+                </p>
+              </div>
+            </div>
+
+            <div class="mt-6 rounded-xl bg-indigo-50 border border-indigo-100 p-4">
+              <p class="text-sm text-indigo-800">
+                <strong>Notre outil compare automatiquement vos devis</strong> avec les prix du marché
+                et vous indique si chaque poste est dans la norme — en 2 minutes.
+                <a href="/nouvelle-analyse" class="underline font-semibold ml-1">Essayer gratuitement →</a>
+              </p>
+            </div>
+          </section>
+
+          <!-- Vérifications à effectuer -->
+          <section class="mb-12">
+            <h2 class="text-2xl font-bold text-slate-900 mb-6">Les 6 vérifications essentielles avant de signer</h2>
+
+            <div class="space-y-4">
+              {[
+                {
+                  icone: "🏢",
+                  titre: "Vérifiez l'existence légale de l'entreprise",
+                  texte: "Cherchez le SIRET sur societe.ninja ou infogreffe.fr. L'entreprise doit être active (statut A), avec une date de création et une adresse réelle. Une entreprise créée il y a moins de 6 mois pour un gros chantier est un signal de prudence.",
+                },
+                {
+                  icone: "🛡️",
+                  titre: "Demandez l'attestation d'assurance décennale",
+                  texte: "Tout artisan du bâtiment a l'obligation légale de détenir une assurance décennale couvrant les malfaçons pendant 10 ans. Demandez l'attestation à jour, vérifiez les dates de validité et appelez l'assureur si vous avez un doute.",
+                },
+                {
+                  icone: "⭐",
+                  titre: "Consultez les avis en ligne",
+                  texte: "Google, Pages Jaunes, Houzz : vérifiez la note moyenne et lisez les avis détaillés. Méfiez-vous des profils avec 100 % d'avis 5 étoiles très récents. Une note de 4,2/5 avec des avis variés et anciens est plus fiable qu'une note parfaite sur 3 avis.",
+                },
+                {
+                  icone: "📸",
+                  titre: "Demandez des références de chantiers similaires",
+                  texte: "Un artisan sérieux peut vous montrer des photos de chantiers récents comparables au vôtre, voire vous mettre en contact avec d'anciens clients. Un refus net à cette demande est un mauvais signe.",
+                },
+                {
+                  icone: "💰",
+                  titre: "Vérifiez la santé financière de l'entreprise",
+                  texte: "Sur infogreffe.fr ou societe.com, cherchez si l'entreprise a fait l'objet d'une procédure collective (redressement, liquidation). Une entreprise en difficulté financière peut disparaître en cours de chantier avec votre argent.",
+                },
+                {
+                  icone: "🏅",
+                  titre: "Contrôlez les certifications professionnelles",
+                  texte: "Pour les travaux d'isolation et d'énergie, exigez la certification RGE (Reconnu Garant de l'Environnement) — indispensable pour bénéficier des aides MaPrimeRénov' et CEE. Vérifiez la validité sur le site qualibat.com ou rge-qualite.fr.",
+                },
+              ].map(v => (
+                <div class="flex items-start gap-4 p-5 rounded-xl border border-slate-100 bg-white shadow-sm">
+                  <span class="flex-shrink-0 text-2xl">{v.icone}</span>
+                  <div>
+                    <h3 class="font-semibold text-slate-900 mb-1">{v.titre}</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed">{v.texte}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <!-- Signaux d'alerte -->
+          <section id="signaux-alerte" class="mb-12">
+            <h2 class="text-2xl font-bold text-slate-900 mb-6">Les 8 signaux d'un mauvais artisan à ne jamais ignorer</h2>
+            <p class="text-slate-600 mb-6 leading-relaxed">
+              Certains comportements ou pratiques sont des indicateurs clairs qu'un artisan
+              n'est pas fiable. Si vous constatez plusieurs de ces signaux,
+              <strong>ne signez pas et passez au suivant</strong>.
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[
+                {
+                  signal: "Il démarre sans devis signé",
+                  explication: "Sans devis signé, vous n'avez aucun engagement sur le prix ni sur les prestations. L'artisan peut vous facturer ce qu'il veut à la fin."
+                },
+                {
+                  signal: "Il demande plus de 30 % d'acompte",
+                  explication: "La loi interdit un acompte supérieur à 30 % avant le début des travaux. Au-delà, c'est illégal et potentiellement l'indice d'une arnaque."
+                },
+                {
+                  signal: "Il propose de payer en espèces",
+                  explication: "Le paiement en espèces au-delà de 1 000 € est interdit par la loi. De plus, cela vous prive de toute preuve de paiement en cas de litige."
+                },
+                {
+                  signal: "Il refuse de montrer ses assurances",
+                  explication: "Tout professionnel sérieux fournit ses attestations sans hésiter. Un refus ou des excuses vagues cachent soit une absence d'assurance, soit une assurance non valide."
+                },
+                {
+                  signal: "Il ne peut pas fournir de références clients",
+                  explication: "Un artisan avec plusieurs années d'expérience a forcément des clients satisfaits prêts à témoigner. L'absence totale de références est un signal fort."
+                },
+                {
+                  signal: "Son devis est un forfait sans détail",
+                  explication: "Un devis \"tout compris\" sans ventilation par poste est un devis qu'on ne peut pas vérifier. Il permet à l'artisan de réduire les prestations sans que vous le voyiez."
+                },
+                {
+                  signal: "Il se présente à votre porte sans rendez-vous",
+                  explication: "Le démarchage à domicile non sollicité pour des travaux est une pratique à risque élevé. Ces artisans itinérants pratiquent souvent des prix gonflés et disparaissent ensuite."
+                },
+                {
+                  signal: "Il fait pression pour une décision immédiate",
+                  explication: "\"C'est ma dernière disponibilité\", \"j'ai une autre offre demain\"... La pression temporelle est une technique de manipulation. Un bon artisan attend votre décision sereinement."
+                },
+              ].map(s => (
+                <div class="p-4 rounded-xl border-2 border-red-100 bg-red-50/40">
+                  <p class="font-semibold text-red-700 mb-1.5 flex items-start gap-1.5">
+                    <span class="flex-shrink-0">🚩</span>{s.signal}
+                  </p>
+                  <p class="text-sm text-slate-600 leading-relaxed">{s.explication}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <!-- Négociation -->
+          <section class="mb-12">
+            <h2 class="text-2xl font-bold text-slate-900 mb-6">Négocier un devis artisan : les techniques qui fonctionnent</h2>
+            <p class="text-slate-600 mb-6 leading-relaxed">
+              La négociation n'est pas un bras de fer : c'est une conversation entre deux professionnels.
+              Voici les leviers les plus efficaces.
+            </p>
+
+            <div class="space-y-4">
+              {[
+                {
+                  methode: "Jouez la concurrence avec transparence",
+                  detail: "Présentez un devis concurrent pour le même chantier. Ne mentez pas sur les montants — la plupart des artisans connaissent les prix du marché. Un écart de 10 à 15 % suffit souvent pour obtenir un geste commercial.",
+                  icone: "⚖️",
+                },
+                {
+                  methode: "Proposez de fournir les matériaux vous-même",
+                  detail: "Si vous achetez vous-même le carrelage, la peinture ou le parquet en grande surface, l'artisan ne facture que la main-d'œuvre. Vous pouvez ainsi économiser 10 à 20 % sur le poste fournitures — à condition que l'artisan accepte.",
+                  icone: "📦",
+                },
+                {
+                  methode: "Décalez vos travaux en période creuse",
+                  detail: "Entre novembre et mars, de nombreux artisans ont moins de chantiers. C'est le meilleur moment pour négocier : proposez de démarrer en janvier ou février en échange d'une remise sur le devis.",
+                  icone: "📅",
+                },
+                {
+                  methode: "Groupez plusieurs chantiers",
+                  detail: "Si vous avez plusieurs postes à rénover (salle de bain, cuisine, carrelage...), proposez de confier l'ensemble à un seul artisan en échange d'un tarif préférentiel. Les économies sur les déplacements profitent aux deux parties.",
+                  icone: "🏗️",
+                },
+                {
+                  methode: "Proposez un paiement rapide",
+                  detail: "Certains artisans accordent une remise de 2 à 5 % pour un paiement comptant à la réception des travaux plutôt qu'un paiement étalé. C'est un argument rarement refusé.",
+                  icone: "💵",
+                },
+              ].map(t => (
+                <div class="flex items-start gap-4 p-5 rounded-xl border border-slate-100 bg-white shadow-sm">
+                  <span class="flex-shrink-0 text-2xl">{t.icone}</span>
+                  <div>
+                    <h3 class="font-semibold text-slate-900 mb-1">{t.methode}</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed">{t.detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div class="mt-5 rounded-xl border border-amber-100 bg-amber-50 p-4">
+              <p class="text-sm text-amber-800">
+                <strong>⚠️ À ne pas faire :</strong> négocier uniquement sur le prix sans demander ce qui est retiré du devis.
+                Un devis réduit de 15 % mais avec des matériaux moins durables ou moins de finitions
+                peut vous coûter plus cher sur la durée.
+              </p>
+            </div>
+          </section>
+
+          <!-- Obligations légales -->
+          <section class="mb-12">
+            <h2 class="text-2xl font-bold text-slate-900 mb-4">Obligations légales de l'artisan : ce que la loi prévoit</h2>
+            <p class="text-slate-600 mb-6 leading-relaxed">
+              En tant que consommateur, vous bénéficiez de protections légales importantes.
+              Voici les principales obligations que tout artisan doit respecter.
+            </p>
+
+            <div class="overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
+              <table class="w-full text-sm border-collapse">
+                <thead>
+                  <tr class="bg-slate-900 text-white">
+                    <th class="text-left px-4 py-3 font-semibold">Obligation</th>
+                    <th class="text-left px-4 py-3 font-semibold">Détail</th>
+                    <th class="text-left px-4 py-3 font-semibold hidden sm:table-cell">Sanction</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { obligation: "Devis écrit et détaillé", detail: "Obligatoire dès 150 € TTC ou sur demande", sanction: "Contrat nul" },
+                    { obligation: "Numéro SIRET visible", detail: "Sur tous les documents commerciaux", sanction: "Amende 750 €" },
+                    { obligation: "Assurance décennale", detail: "Pour tous les travaux de construction et rénovation", sanction: "Responsabilité personnelle" },
+                    { obligation: "Mention TVA applicable", detail: "Taux et montant obligatoires sur le devis", sanction: "Redressement fiscal" },
+                    { obligation: "Acompte ≤ 30 %", detail: "Pour les contrats de consommation", sanction: "Clause nulle" },
+                    { obligation: "Délai d'exécution", detail: "Pour les travaux > 3 000 € TTC", sanction: "Résiliation possible" },
+                    { obligation: "Réception des travaux", detail: "Procès-verbal contradictoire recommandé", sanction: "Garanties non activables" },
+                  ].map((r, i) => (
+                    <tr class={`border-t border-slate-100 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
+                      <td class="px-4 py-3 font-medium text-slate-800">{r.obligation}</td>
+                      <td class="px-4 py-3 text-slate-600">{r.detail}</td>
+                      <td class="px-4 py-3 text-red-600 text-xs hidden sm:table-cell">{r.sanction}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div class="mt-5 rounded-xl border border-indigo-100 bg-indigo-50 p-4">
+              <p class="text-sm text-indigo-800">
+                <strong>Vos recours en cas de litige :</strong> commencez par une mise en demeure par lettre recommandée.
+                En l'absence de réponse, vous pouvez saisir le médiateur de la consommation (gratuit),
+                la DIRECCTE, ou le tribunal judiciaire pour les litiges importants.
+                Gardez toujours une copie du devis signé, des factures et de la correspondance.
+              </p>
+            </div>
+          </section>
+
+          <!-- CTA intermédiaire -->
+          <div class="my-12 bg-emerald-600 rounded-2xl p-6 sm:p-8 text-white text-center">
+            <p class="text-lg font-bold mb-2">Vérifiez votre devis avant de signer</p>
+            <p class="text-emerald-100 text-sm mb-5 max-w-lg mx-auto">
+              Notre outil vérifie automatiquement les mentions légales, la fiabilité de l'artisan
+              (SIRET, assurances, avis) et compare vos prix avec le marché — en 2 minutes, gratuitement.
+            </p>
+            <a href="/nouvelle-analyse"
+               class="inline-flex items-center gap-2 bg-white text-emerald-700 hover:bg-emerald-50 font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
+              🔍 Analyser mon devis
+            </a>
+          </div>
+
+          <!-- Maillage interne -->
+          <section class="mb-12 p-5 rounded-xl bg-slate-50 border border-slate-100">
+            <h2 class="text-lg font-bold text-slate-900 mb-4">Pour aller plus loin</h2>
+            <ul class="space-y-2 text-sm">
+              <li>→ <a href="/verifier-devis-travaux" class="text-indigo-600 hover:underline font-medium">Comment vérifier un devis travaux : guide complet</a></li>
+              <li>→ <a href="/prix-travaux-maison" class="text-indigo-600 hover:underline font-medium">Prix travaux maison : guide complet des coûts en 2026</a></li>
+              <li>→ <a href="/blog/devis-travaux-mentions-obligatoires-oubliees" class="text-indigo-600 hover:underline font-medium">Les mentions obligatoires souvent oubliées sur un devis travaux</a></li>
+              <li>→ <a href="/blog/comment-negocier-devis-artisan-techniques-efficaces" class="text-indigo-600 hover:underline font-medium">Comment négocier un devis artisan : techniques efficaces</a></li>
+              <li>→ <a href="/blog/devis-travaux-anormalement-bas-faut-il-sen-mefier" class="text-indigo-600 hover:underline font-medium">Devis anormalement bas : faut-il s'en méfier ?</a></li>
+              <li>→ <a href="/comprendre-score" class="text-indigo-600 hover:underline font-medium">Comment fonctionne le score de fiabilité de notre analyse ?</a></li>
+            </ul>
+          </section>
+
+          <!-- FAQ -->
+          <section class="mb-12">
+            <h2 class="text-2xl font-bold text-slate-900 mb-6">Questions fréquentes sur le choix d'un artisan</h2>
+            <div class="space-y-3">
+              {faqs.map(f => (
+                <details class="group rounded-xl border border-slate-200 bg-white overflow-hidden">
+                  <summary class="flex items-center justify-between gap-4 px-5 py-4 cursor-pointer font-medium text-slate-900 text-sm hover:bg-slate-50 transition-colors list-none">
+                    {f.question}
+                    <span class="flex-shrink-0 text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+                  </summary>
+                  <div class="px-5 pb-4 pt-1 text-sm text-slate-600 leading-relaxed border-t border-slate-100">
+                    {f.answer}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </section>
+
+        </div>
+      </article>
+
+      <!-- ── CTA Final ─────────────────────────────────────────────────────── -->
+      <section class="bg-indigo-50 border-t border-indigo-100 py-12 px-4">
+        <div class="container max-w-2xl mx-auto text-center">
+          <p class="text-2xl font-bold text-slate-900 mb-2">Analysez votre devis gratuitement en 2 minutes</p>
+          <p class="text-slate-600 mb-6 leading-relaxed">
+            Avant de signer, vérifiez que votre artisan est fiable et que ses prix sont dans le marché.
+            Notre outil fait tout ça automatiquement — et c'est gratuit.
+          </p>
+          <a href="/nouvelle-analyse"
+             class="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-3.5 rounded-xl transition-colors text-base">
+            🔍 Analyser mon devis gratuitement
+          </a>
+          <p class="text-xs text-slate-400 mt-3">Gratuit · Sans inscription · Confidentiel</p>
+        </div>
+      </section>
+
+    </main>
+    <AstroFooter />
+  </div>
+</BaseLayout>
