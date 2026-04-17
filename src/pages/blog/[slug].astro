@@ -122,6 +122,44 @@ const sanitizedContent = post ? sanitizeHtml(post.content_html) : '';
 const hasMidImage = post?.mid_image_url && sanitizedContent;
 const splitContent = hasMidImage ? splitHtmlForMidImage(sanitizedContent) : null;
 
+// Maillage interne — pages piliers
+const pillarPagesData = [
+  {
+    url: "/verifier-devis-travaux",
+    title: "Comment vérifier un devis travaux efficacement",
+    description: "Méthode en 5 étapes : mentions légales, comparaison de prix, score artisan.",
+    emoji: "📋",
+    keywords: ["devis", "vérifi", "analys", "mention", "obliga", "gonfl", "trop cher", "arnaque", "fraude", "clause"],
+  },
+  {
+    url: "/prix-travaux-maison",
+    title: "Prix des travaux maison : guide complet 2026",
+    description: "Tarifs par type de travaux, aides financières et conseils pour maîtriser son budget.",
+    emoji: "💰",
+    keywords: ["prix", "budget", "coût", "tarif", "cher", "rénov", "finance", "maprimerenov", "aide", "économi", "montant"],
+  },
+  {
+    url: "/choisir-artisan-travaux",
+    title: "Comment choisir un artisan fiable pour vos travaux",
+    description: "6 vérifications essentielles avant de signer et 8 signaux d'alerte à connaître.",
+    emoji: "🔨",
+    keywords: ["artisan", "choisir", "comparer", "trouver", "fiable", "sérieux", "garantie", "assurance", "décennal", "entreprise"],
+  },
+];
+
+function getPillarSuggestions(p: BlogPost): typeof pillarPagesData {
+  const text = `${p.title} ${p.excerpt || ''} ${(p.tags || []).join(' ')} ${p.category || ''}`.toLowerCase();
+  const alreadyLinkedUrls = new Set(pillarPagesData.filter(pp => p.content_html.includes(pp.url)).map(pp => pp.url));
+  const candidates = pillarPagesData.filter(pp => !alreadyLinkedUrls.has(pp.url));
+  const scored = candidates
+    .map(pp => ({ pp, score: pp.keywords.filter(k => text.includes(k)).length }))
+    .sort((a, b) => b.score - a.score);
+  const top = scored.filter(s => s.score > 0).slice(0, 2);
+  return top.length > 0 ? top.map(s => s.pp) : candidates.slice(0, 2);
+}
+
+const pillarSuggestions = post ? getPillarSuggestions(post) : [];
+
 const proseClasses = "prose prose-lg max-w-none prose-headings:text-foreground prose-headings:font-bold prose-h1:text-3xl prose-h1:mb-6 prose-h2:text-2xl prose-h2:mt-10 prose-h2:mb-4 prose-h3:text-xl prose-h3:mt-8 prose-h3:mb-3 prose-p:text-foreground/90 prose-p:leading-relaxed prose-p:mb-4 prose-a:text-primary prose-a:no-underline hover:prose-a:underline prose-strong:text-foreground prose-strong:font-semibold prose-ul:my-4 prose-ul:pl-6 prose-ol:my-4 prose-ol:pl-6 prose-li:text-foreground/90 prose-li:mb-2 prose-img:rounded-xl prose-img:shadow-md prose-img:my-8 prose-blockquote:border-l-4 prose-blockquote:border-primary prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:text-muted-foreground [&_.hero]:mb-8 [&_.hero]:text-center [&_.step]:bg-muted/30 [&_.step]:p-6 [&_.step]:rounded-xl [&_.step]:mb-6 [&_.checklist]:bg-primary/5 [&_.checklist]:p-6 [&_.checklist]:rounded-xl [&_.warning]:bg-amber-500/10 [&_.warning]:border-amber-500/20 [&_.warning]:border [&_.warning]:p-4 [&_.warning]:rounded-xl [&_.tip]:bg-emerald-500/10 [&_.tip]:border-emerald-500/20 [&_.tip]:border [&_.tip]:p-4 [&_.tip]:rounded-xl [&_.cta-button]:inline-flex [&_.cta-button]:items-center [&_.cta-button]:gap-2 [&_.cta-button]:bg-primary [&_.cta-button]:text-primary-foreground [&_.cta-button]:px-6 [&_.cta-button]:py-3 [&_.cta-button]:rounded-full [&_.cta-button]:font-medium [&_.cta-button]:no-underline [&_.cta-button]:hover:bg-primary/90 [&_.cta-button]:transition-colors";
 ---
 
@@ -283,6 +321,26 @@ const proseClasses = "prose prose-lg max-w-none prose-headings:text-foreground p
                       </span>
                     ))}
                   </div>
+                </div>
+              )}
+
+              <!-- À lire aussi — maillage interne pages piliers -->
+              {pillarSuggestions.length > 0 && (
+                <div class="mt-10 p-6 bg-slate-50 rounded-2xl border border-slate-200">
+                  <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">À lire aussi</h3>
+                  <ul class="space-y-4">
+                    {pillarSuggestions.map(pp => (
+                      <li>
+                        <a href={pp.url} class="flex items-start gap-3 group">
+                          <span class="text-2xl leading-none mt-0.5">{pp.emoji}</span>
+                          <div>
+                            <div class="font-semibold text-indigo-600 group-hover:underline text-sm leading-snug">{pp.title}</div>
+                            <div class="text-xs text-slate-500 mt-0.5">{pp.description}</div>
+                          </div>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
 
