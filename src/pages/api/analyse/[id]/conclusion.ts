@@ -1,4 +1,5 @@
 export const prerender = false;
+export const config = { maxDuration: 60 };
 
 /**
  * POST /api/analyse/[id]/conclusion
@@ -488,7 +489,7 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
   let conclusionData: ConclusionData;
   try {
     const controller = new AbortController();
-    const timeoutId  = setTimeout(() => controller.abort(), 30_000);
+    const timeoutId  = setTimeout(() => controller.abort(), 55_000);
 
     const aiResponse = await fetch(GEMINI_URL, {
       method:  "POST",
