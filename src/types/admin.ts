@@ -9,6 +9,21 @@ export interface EvolutionData {
   users: number;
 }
 
+export interface RetentionData {
+  label: string;
+  new_users: number;
+  returning_users: number;
+}
+
+export interface ReturningUser {
+  user_id: string;
+  email: string;
+  analysis_count: number;
+  first_analysis_at: string;
+  last_analysis_at: string;
+  completed_count: number;
+}
+
 export interface ScoreDistribution {
   name: string;
   value: number;
@@ -97,5 +112,8 @@ export interface KPIs {
     evolution_daily: EvolutionData[];
     evolution_weekly: EvolutionData[];
     score_distribution: ScoreDistribution[];
+    retention_daily: RetentionData[];
+    retention_weekly: RetentionData[];
   };
+  returning_users: ReturningUser[];
 }

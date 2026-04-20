@@ -1,20 +1,21 @@
-import { 
-  LineChart, 
-  Line, 
-  AreaChart, 
-  Area, 
-  BarChart, 
-  Bar, 
-  PieChart, 
-  Pie, 
+import {
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
   Cell,
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   Legend
 } from "recharts";
+import type { RetentionData } from "@/types/admin";
 import {
   Card,
   CardContent,
@@ -53,6 +54,8 @@ const COLORS = {
   rouge: "#ef4444",
   primary: "hsl(var(--primary))",
   muted: "hsl(var(--muted-foreground))",
+  new_users: "#6366f1",
+  returning_users: "#0ea5e9",
 };
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -286,6 +289,70 @@ export const ScoreDistributionPieChart = ({ scoreDistribution }: Pick<AdminChart
             </PieChart>
           </ResponsiveContainer>
         </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export const UserRetentionChart = ({ retentionDaily, retentionWeekly }: { retentionDaily: RetentionData[]; retentionWeekly: RetentionData[] }) => {
+  const totalNew = retentionDaily.reduce((s, d) => s + d.new_users, 0);
+  const totalReturning = retentionDaily.reduce((s, d) => s + d.returning_users, 0);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Nouveaux vs Récurrents</CardTitle>
+        <CardDescription>
+          Utilisateurs faisant leur 1ère analyse vs ceux qui reviennent
+          {totalNew + totalReturning > 0 && (
+            <span className="ml-2 text-xs">
+              — <span className="font-medium" style={{ color: COLORS.new_users }}>{totalNew} nouveaux</span>
+              {" · "}
+              <span className="font-medium" style={{ color: COLORS.returning_users }}>{totalReturning} récurrents</span>
+              {" sur 30j"}
+            </span>
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Tabs defaultValue="daily">
+          <TabsList className="mb-4">
+            <TabsTrigger value="daily">30 derniers jours</TabsTrigger>
+            <TabsTrigger value="weekly">12 dernières semaines</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="daily">
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={retentionDaily}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" className="text-muted-foreground" />
+                  <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" allowDecimals={false} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend />
+                  <Bar dataKey="new_users" name="Nouveaux" fill={COLORS.new_users} stackId="a" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="returning_users" name="Récurrents" fill={COLORS.returning_users} stackId="a" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="weekly">
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={retentionWeekly}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} className="text-muted-foreground" />
+                  <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" allowDecimals={false} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend />
+                  <Bar dataKey="new_users" name="Nouveaux" fill={COLORS.new_users} stackId="a" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="returning_users" name="Récurrents" fill={COLORS.returning_users} stackId="a" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );

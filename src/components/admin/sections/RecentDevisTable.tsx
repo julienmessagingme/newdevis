@@ -2,7 +2,7 @@ import {
   Card,
   CardContent,
 } from "@/components/ui/card";
-import { FolderOpen, Loader2, Download } from "lucide-react";
+import { FolderOpen, Loader2, Download, ExternalLink } from "lucide-react";
 
 interface DevisItem {
   id: string;
@@ -62,20 +62,31 @@ export default function RecentDevisTable({ devis, loading, downloadingId, onDown
                         {new Date(d.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                       </td>
                       <td className="py-2 px-4 text-right">
-                        {d.file_path ? (
-                          <button
-                            onClick={() => onDownload(d.id, d.file_path)}
-                            disabled={downloadingId === d.id}
-                            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border border-border hover:bg-accent transition-colors disabled:opacity-50"
+                        <div className="inline-flex items-center gap-2">
+                          <a
+                            href={`/analyse/${d.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border border-border hover:bg-accent transition-colors"
                           >
-                            {downloadingId === d.id
-                              ? <Loader2 className="h-3 w-3 animate-spin" />
-                              : <Download className="h-3 w-3" />}
-                            Télécharger
-                          </button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">Indisponible</span>
-                        )}
+                            <ExternalLink className="h-3 w-3" />
+                            Synthèse
+                          </a>
+                          {d.file_path ? (
+                            <button
+                              onClick={() => onDownload(d.id, d.file_path)}
+                              disabled={downloadingId === d.id}
+                              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border border-border hover:bg-accent transition-colors disabled:opacity-50"
+                            >
+                              {downloadingId === d.id
+                                ? <Loader2 className="h-3 w-3 animate-spin" />
+                                : <Download className="h-3 w-3" />}
+                              Télécharger
+                            </button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Indisponible</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

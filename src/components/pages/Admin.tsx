@@ -12,6 +12,7 @@ import BusinessKPIsSection from "@/components/admin/sections/BusinessKPIsSection
 import RegisteredUsersTable from "@/components/admin/sections/RegisteredUsersTable";
 import SubscribersTable from "@/components/admin/sections/SubscribersTable";
 import RecentDevisTable from "@/components/admin/sections/RecentDevisTable";
+import ReturningUsersSection from "@/components/admin/sections/ReturningUsersSection";
 
 const Admin = () => {
   const [loading, setLoading] = useState(true);
@@ -154,6 +155,8 @@ const Admin = () => {
         <ScoringKPIsSection kpis={kpis} />
         <DocumentsKPIsSection kpis={kpis} />
         <BusinessKPIsSection kpis={kpis} />
+
+        <ReturningUsersSection users={kpis.returning_users ?? []} />
 
         <RegisteredUsersTable
           usersData={usersData}

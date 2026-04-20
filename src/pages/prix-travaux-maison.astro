@@ -103,7 +103,7 @@ const jsonLd = {
           <div class="flex flex-col sm:flex-row gap-3 justify-center">
             <a href="/nouvelle-analyse"
                class="inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
-              🔍 Comparer avec mon devis
+              🔍 Analysez votre devis gratuitement (résultat en 2 minutes)
             </a>
             <a href="#tableau-prix"
                class="inline-flex items-center justify-center gap-2 border border-slate-500 text-slate-200 hover:bg-slate-700 px-6 py-3 rounded-xl transition-colors text-sm">
@@ -164,6 +164,44 @@ const jsonLd = {
             </div>
           </div>
 
+          <!-- Tableau synthétique grands postes -->
+          <section class="mb-8">
+            <h2 class="text-2xl font-bold text-slate-900 mb-3">Budget travaux par pièce : les 3 postes clés</h2>
+            <p class="text-xs text-slate-400 mb-4 italic">Ces estimations sont basées sur des devis réels analysés en 2026 sur VerifierMonDevis.fr.</p>
+            <div class="overflow-x-auto rounded-xl border border-slate-200 shadow-sm mb-4">
+              <table class="w-full text-sm border-collapse">
+                <thead>
+                  <tr class="bg-slate-900 text-white">
+                    <th class="text-left px-4 py-3 font-semibold">Type de travaux</th>
+                    <th class="text-right px-4 py-3 font-semibold text-emerald-300">Prix bas</th>
+                    <th class="text-right px-4 py-3 font-semibold text-amber-300">Prix moyen</th>
+                    <th class="text-right px-4 py-3 font-semibold text-red-300">Prix haut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { type: "Salle de bain", min: "8 000 €", moy: "15 000 €", max: "25 000 €" },
+                    { type: "Cuisine", min: "10 000 €", moy: "20 000 €", max: "35 000 €" },
+                    { type: "Toiture", min: "8 000 €", moy: "15 000 €", max: "30 000 €" },
+                  ].map((r, i) => (
+                    <tr class={`border-t border-slate-100 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
+                      <td class="px-4 py-3 font-semibold text-slate-800">{r.type}</td>
+                      <td class="px-4 py-3 text-right font-semibold text-emerald-700">{r.min}</td>
+                      <td class="px-4 py-3 text-right font-bold text-slate-900">{r.moy}</td>
+                      <td class="px-4 py-3 text-right font-semibold text-red-600">{r.max}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div class="rounded-xl border border-amber-100 bg-amber-50 p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <p class="text-sm text-amber-800 font-medium">Votre devis est-il dans ces fourchettes ?</p>
+              <a href="/verifier-devis-travaux" class="shrink-0 inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors whitespace-nowrap">
+                Vérifiez votre devis ici →
+              </a>
+            </div>
+          </section>
+
           <!-- Tableau des prix -->
           <section id="tableau-prix" class="mb-12">
             <h2 class="text-2xl font-bold text-slate-900 mb-4">Prix des travaux par type : tableau comparatif 2026</h2>
@@ -212,7 +250,7 @@ const jsonLd = {
             </p>
             <a href="/nouvelle-analyse"
                class="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-sm">
-              🔍 Analyser mon devis gratuitement
+              🔍 Analysez votre devis gratuitement (résultat en 2 minutes)
             </a>
             <p class="text-amber-600 text-xs mt-3">Sans inscription · Résultat immédiat · 100 % gratuit</p>
           </div>
@@ -431,40 +469,33 @@ const jsonLd = {
             </div>
           </section>
 
-          <!-- Silo piliers -->
+          <!-- À lire aussi — maillage interne piliers + blog -->
           <section class="mb-12">
-            <h2 class="text-lg font-bold text-slate-900 mb-4">🔗 Aller plus loin dans votre projet travaux</h2>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <a href="/verifier-devis-travaux" class="flex flex-col gap-2 p-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors">
-                <span class="text-2xl">📋</span>
-                <span class="font-semibold text-slate-800 text-sm leading-snug">Vérifier un devis travaux : méthode complète</span>
-                <span class="text-xs text-slate-400">Mentions légales, prix, score artisan</span>
+            <h2 class="text-lg font-bold text-slate-900 mb-4">🔗 À lire aussi</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+              <a href="/verifier-devis-travaux" class="flex items-start gap-3 p-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors">
+                <span class="text-2xl leading-none mt-0.5">📋</span>
+                <div>
+                  <p class="font-semibold text-slate-800 text-sm leading-snug">Vérifier un devis travaux : méthode complète</p>
+                  <p class="text-xs text-slate-400 mt-0.5">Mentions légales, prix, score artisan — en 2 minutes</p>
+                </div>
               </a>
-              <a href="/prix-travaux-maison" class="flex flex-col gap-2 p-4 rounded-xl border-2 border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors">
-                <span class="text-2xl">💰</span>
-                <span class="font-semibold text-amber-800 text-sm leading-snug">Prix des travaux : budget réel en 2026</span>
-                <span class="text-xs text-amber-600">Vous êtes ici</span>
-              </a>
-              <a href="/choisir-artisan-travaux" class="flex flex-col gap-2 p-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors">
-                <span class="text-2xl">🔨</span>
-                <span class="font-semibold text-slate-800 text-sm leading-snug">Comment choisir un artisan fiable</span>
-                <span class="text-xs text-slate-400">6 vérifications, 8 signaux d'alerte</span>
+              <a href="/choisir-artisan-travaux" class="flex items-start gap-3 p-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors">
+                <span class="text-2xl leading-none mt-0.5">🔨</span>
+                <div>
+                  <p class="font-semibold text-slate-800 text-sm leading-snug">Comment choisir un artisan fiable</p>
+                  <p class="text-xs text-slate-400 mt-0.5">6 vérifications essentielles, 8 signaux d'alerte</p>
+                </div>
               </a>
             </div>
-          </section>
-
-          <!-- Ressources blog -->
-          <section class="mb-12 p-5 rounded-xl bg-slate-50 border border-slate-100">
-            <h2 class="text-lg font-bold text-slate-900 mb-4">Articles associés</h2>
-            <ul class="space-y-2 text-sm">
-              <li>→ <a href="/blog/devis-travaux-mentions-obligatoires-oubliees" class="text-indigo-600 hover:underline font-medium">Les mentions obligatoires souvent oubliées sur un devis travaux</a></li>
-              <li>→ <a href="/blog/comment-negocier-devis-artisan-techniques-efficaces" class="text-indigo-600 hover:underline font-medium">Comment négocier un devis artisan : techniques efficaces</a></li>
-              <li>→ <a href="/blog/devis-travaux-anormalement-bas-faut-il-sen-mefier" class="text-indigo-600 hover:underline font-medium">Devis anormalement bas : faut-il s'en méfier ?</a></li>
-              <li>→ <a href="/blog/comment-savoir-si-devis-travaux-trop-cher" class="text-indigo-600 hover:underline font-medium">Comment savoir si votre devis travaux est trop cher ?</a></li>
-              <li>→ <a href="/blog/comment-reperer-devis-gonfle-7-signes" class="text-indigo-600 hover:underline font-medium">Comment repérer un devis gonflé : 7 signes qui ne trompent pas</a></li>
-              <li>→ <a href="/simulateur-valorisation-travaux" class="text-indigo-600 hover:underline font-medium">Simulateur : quelle valorisation attendre de vos travaux ?</a></li>
-              <li>→ <a href="/devis-piscine-prix" class="text-indigo-600 hover:underline font-medium">Devis piscine : prix réel, budget et pièges à éviter</a></li>
-            </ul>
+            <div class="p-5 rounded-xl bg-slate-50 border border-slate-100">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Articles de blog</p>
+              <ul class="space-y-2 text-sm">
+                <li>→ <a href="/blog/devis-travaux-anormalement-bas-faut-il-sen-mefier" class="text-indigo-600 hover:underline font-medium">Devis anormalement bas : faut-il s'en méfier ?</a></li>
+                <li>→ <a href="/blog/comment-negocier-devis-artisan-techniques-efficaces" class="text-indigo-600 hover:underline font-medium">Comment négocier un devis artisan : techniques efficaces</a></li>
+                <li>→ <a href="/blog/comment-savoir-si-devis-travaux-trop-cher" class="text-indigo-600 hover:underline font-medium">Comment savoir si votre devis travaux est trop cher ?</a></li>
+              </ul>
+            </div>
           </section>
 
           <!-- FAQ -->
@@ -499,7 +530,7 @@ const jsonLd = {
           </p>
           <a href="/nouvelle-analyse"
              class="inline-flex items-center justify-center gap-2 bg-white text-amber-700 hover:bg-amber-50 font-bold px-10 py-4 rounded-xl transition-colors text-base shadow-lg">
-            🔍 Analyse gratuite en 2 minutes
+            🔍 Analysez votre devis gratuitement (résultat en 2 minutes)
           </a>
           <p class="text-amber-200 text-xs mt-4">+100 devis analysés · Sans inscription · Confidentiel</p>
         </div>

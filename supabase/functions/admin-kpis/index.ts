@@ -66,6 +66,9 @@ serve(async (req) => {
       weeklyResult,
       alertsResult,
       documentsResult,
+      retentionDailyResult,
+      retentionWeeklyResult,
+      returningUsersResult,
     ] = await Promise.all([
       adminClient.from("admin_kpis_usage").select("*").single(),
       adminClient.from("admin_kpis_scoring").select("*").single(),
@@ -75,6 +78,9 @@ serve(async (req) => {
       adminClient.from("admin_kpis_weekly_evolution").select("*"),
       adminClient.from("admin_kpis_alerts").select("*"),
       adminClient.from("admin_kpis_documents").select("*").single(),
+      adminClient.from("admin_kpis_retention_daily").select("*"),
+      adminClient.from("admin_kpis_retention_weekly").select("*"),
+      adminClient.from("admin_kpis_returning_users").select("*"),
     ]);
 
     // === BUILD RESPONSE FROM VIEW DATA ===
@@ -176,6 +182,35 @@ serve(async (req) => {
       total: Number(docsData?.total ?? 0),
     };
 
+    // Retention daily
+    const retentionDaily = (retentionDailyResult.data || []).map((d: Record<string, unknown>) => ({
+      label: new Date(String(d.day)).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
+      new_users: Number(d.new_users ?? 0),
+      returning_users: Number(d.returning_users ?? 0),
+    }));
+
+    // Retention weekly
+    const retentionWeekly = (retentionWeeklyResult.data || []).map((d: Record<string, unknown>) => {
+      const weekDate = new Date(String(d.week));
+      const weekNum = Math.ceil((weekDate.getDate() - weekDate.getDay() + 1) / 7);
+      const month = weekDate.toLocaleDateString('fr-FR', { month: 'short' });
+      return {
+        label: `${month} S${weekNum}`,
+        new_users: Number(d.new_users ?? 0),
+        returning_users: Number(d.returning_users ?? 0),
+      };
+    });
+
+    // Returning users detail
+    const returningUsers = (returningUsersResult.data || []).map((d: Record<string, unknown>) => ({
+      user_id: String(d.user_id ?? ''),
+      email: String(d.email ?? ''),
+      analysis_count: Number(d.analysis_count ?? 0),
+      first_analysis_at: String(d.first_analysis_at ?? ''),
+      last_analysis_at: String(d.last_analysis_at ?? ''),
+      completed_count: Number(d.completed_count ?? 0),
+    }));
+
     // Score distribution for pie chart
     const scoreDistribution = [
       { name: "FEU VERT", value: scoring.score_vert, color: "hsl(var(--score-green))" },
@@ -195,7 +230,10 @@ serve(async (req) => {
           evolution_daily: evolutionDaily,
           evolution_weekly: evolutionWeekly,
           score_distribution: scoreDistribution,
+          retention_daily: retentionDaily,
+          retention_weekly: retentionWeekly,
         },
+        returning_users: returningUsers,
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );

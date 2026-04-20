@@ -284,22 +284,21 @@ function BudgetKpiDashboard({
   const [editVal,  setEditVal]  = useState('');
 
   const totaux         = data?.totaux;
-  const facture        = totaux?.facture      ?? 0;
-  const paye           = (totaux?.paye ?? 0) + (totaux?.acompte ?? 0);
-  const litige         = totaux?.litige       ?? 0;
+  const decaisse       = (totaux?.paye ?? 0) + (totaux?.acompte ?? 0); // tout ce qui est sorti du compte
+  const aRegler        = totaux?.a_payer  ?? 0;                         // factures reçues non soldées
+  const litige         = totaux?.litige   ?? 0;
   const devisValides   = totaux?.devis_valides ?? 0;
   const effectiveReel  = budgetReel ?? (devisValides > 0 ? devisValides : null);
+  const budgetRestant  = effectiveReel ? Math.max(0, effectiveReel - decaisse - aRegler) : 0;
 
   const pctEngagement = effectiveReel && effectiveReel > 0 ? Math.round((devisValides / effectiveReel) * 100) : 0;
-  const pctFacture    = effectiveReel && effectiveReel > 0 ? Math.round((facture / effectiveReel) * 100) : 0;
-  // TOTAL PAYÉ : rapporté au budget réel (comme TOTAL FACTURÉ), pas aux factures seules
-  // (les paiements Échéancier sur devis peuvent dépasser le total facturé → % absurde)
-  const pctPaye       = effectiveReel && effectiveReel > 0 ? Math.round((paye / effectiveReel) * 100) : 0;
+  const pctDecaisse   = effectiveReel && effectiveReel > 0 ? Math.round((decaisse / effectiveReel) * 100) : 0;
+  const pctARegler    = effectiveReel && effectiveReel > 0 ? Math.round((aRegler / effectiveReel) * 100) : 0;
 
   // Couleurs dynamiques
   const colorEngagement = pctEngagement > 100 ? '#ef4444' : pctEngagement > 80 ? '#f59e0b' : '#6366f1';
-  const colorFacture    = pctFacture > 100 ? '#ef4444' : pctFacture > 80 ? '#f59e0b' : '#f59e0b';
-  const colorPaye       = pctPaye >= 100 ? '#10b981' : pctPaye > 0 ? '#3b82f6' : '#d1d5db';
+  const colorDecaisse   = pctDecaisse  >= 100 ? '#10b981' : pctDecaisse  > 0   ? '#3b82f6' : '#d1d5db';
+  const colorARegler    = aRegler > 0 ? '#f59e0b' : '#d1d5db';
 
   function startEdit() {
     setEditVal(effectiveReel ? String(Math.round(effectiveReel)) : '');
@@ -410,56 +409,54 @@ function BudgetKpiDashboard({
           </div>
         </div>
 
-        {/* ── 3. Total facturé ──────────────────────────── */}
+        {/* ── 3. Décaissé ───────────────────────────────── */}
         <div className="px-5 py-5 sm:px-7 sm:py-6">
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4">Total facturé</p>
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4">Décaissé</p>
           <div className="flex items-center gap-4">
             <div className="relative shrink-0">
-              <DonutRing pct={pctFacture} color={colorFacture} size={80} stroke={7} />
+              <DonutRing pct={pctDecaisse} color={colorDecaisse} size={80} stroke={7} />
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-[12px] font-black text-gray-700">{pctFacture}%</span>
+                <span className="text-[12px] font-black text-gray-700">{pctDecaisse}%</span>
               </div>
             </div>
             <div>
-              <p className="text-[18px] font-black text-gray-800 leading-none">{facture > 0 ? fmtEur(facture) : '—'}</p>
+              <p className="text-[18px] font-black text-gray-800 leading-none">{decaisse > 0 ? fmtEur(decaisse) : '—'}</p>
               <p className="text-[11px] text-gray-400 mt-1.5">
-                {effectiveReel && effectiveReel > 0 && facture > 0
-                  ? `sur ${fmtEur(effectiveReel)}`
-                  : facture > 0 ? 'du budget réel' : 'Aucune facture'}
+                {decaisse > 0 ? 'acomptes + factures réglées' : 'Aucun paiement'}
               </p>
-              {pctFacture > 100 && (
-                <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1 font-semibold">
-                  <AlertTriangle className="h-3 w-3" />Dépassement
+              {pctDecaisse >= 100 && devisValides > 0 && (
+                <p className="text-[11px] text-emerald-600 font-semibold mt-1 flex items-center gap-1">
+                  <Check className="h-3 w-3" />Tout soldé
                 </p>
               )}
             </div>
           </div>
         </div>
 
-        {/* ── 4. Total payé ─────────────────────────────── */}
+        {/* ── 4. À régler ───────────────────────────────── */}
         <div className="px-5 py-5 sm:px-7 sm:py-6">
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4">Total payé</p>
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4">À régler</p>
           <div className="flex items-center gap-4">
             <div className="relative shrink-0">
-              <DonutRing pct={pctPaye} color={colorPaye} size={80} stroke={7} />
+              <DonutRing pct={pctARegler} color={colorARegler} size={80} stroke={7} />
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-[12px] font-black text-gray-700">{pctPaye}%</span>
+                <span className="text-[12px] font-black text-gray-700">{pctARegler}%</span>
               </div>
             </div>
             <div>
-              <p className="text-[18px] font-black text-gray-800 leading-none">{paye > 0 ? fmtEur(paye) : '—'}</p>
+              <p className="text-[18px] font-black text-gray-800 leading-none">{aRegler > 0 ? fmtEur(aRegler) : '—'}</p>
               {litige > 0 ? (
                 <p className="text-[11px] text-red-500 mt-1.5 flex items-center gap-1 font-semibold">
                   <Scale className="h-3 w-3" />{fmtEur(litige)} en litige
                 </p>
               ) : (
                 <p className="text-[11px] text-gray-400 mt-1.5">
-                  {effectiveReel && effectiveReel > 0 ? `sur ${fmtEur(effectiveReel)}` : 'du budget engagé'}
+                  {aRegler > 0 ? 'factures reçues non soldées' : 'Aucune facture due'}
                 </p>
               )}
-              {pctPaye >= 100 && devisValides > 0 && (
-                <p className="text-[11px] text-emerald-600 font-semibold mt-1 flex items-center gap-1">
-                  <Check className="h-3 w-3" />Tout soldé
+              {aRegler > 0 && (
+                <p className="text-[10px] text-amber-600 mt-1 flex items-center gap-1 font-semibold">
+                  <AlertTriangle className="h-3 w-3" />À payer
                 </p>
               )}
             </div>

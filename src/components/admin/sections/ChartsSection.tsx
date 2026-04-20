@@ -4,6 +4,7 @@ import {
   ScoreEvolutionChart,
   ScoreDistributionPieChart,
   UsersEvolutionChart,
+  UserRetentionChart,
 } from "@/components/admin/AdminCharts";
 import type { KPIs } from "@/types/admin";
 
@@ -37,6 +38,13 @@ export default function ChartsSection({ kpis }: ChartsSectionProps) {
         />
         <ScoreDistributionPieChart
           scoreDistribution={kpis.charts.score_distribution}
+        />
+      </div>
+
+      <div className="mt-6">
+        <UserRetentionChart
+          retentionDaily={kpis.charts.retention_daily ?? []}
+          retentionWeekly={kpis.charts.retention_weekly ?? []}
         />
       </div>
 
