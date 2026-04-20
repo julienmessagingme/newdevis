@@ -402,32 +402,34 @@ export default function IntervenantsListView({
           })
         )}
 
-        {/* ── DIY — uniquement si des factures matériaux non-liées à un lot existent ── */}
-        {diyDocs.length > 0 && (
-          <div className="border-t border-dashed border-gray-200">
-            <div className={`grid ${GRID} bg-amber-50/40 border-l-4 border-l-amber-200`}>
-              <div className="px-4 py-3 flex items-center gap-2.5">
-                <span className="text-base leading-none">🛒</span>
-                <div className="min-w-0">
-                  <p className="font-bold text-sm text-amber-800 truncate">Achats matériaux (DIY)</p>
-                  <p className="text-[10px] text-amber-600">{diyDocs.length} facture{diyDocs.length !== 1 ? 's' : ''} · pose assurée par vous</p>
-                </div>
-              </div>
-              <div className="px-4 py-3 flex items-center">
-                <span className="text-[11px] text-amber-600 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full font-semibold">Matériaux</span>
-              </div>
-              <div className="px-4 py-3" />
-              <div className="px-4 py-3" />
-              <div className="px-4 py-3" />
-              <div className="px-4 py-3 flex items-center justify-end">
-                <button onClick={onGoToDiy}
-                  className="text-[11px] font-semibold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap">
-                  Voir →
-                </button>
+        {/* ── DIY — toujours affiché (comme DiyCard en vue cartes) ── */}
+        <div className="border-t border-dashed border-gray-200">
+          <div className={`grid ${GRID} bg-amber-50/40 border-l-4 border-l-amber-200`}>
+            <div className="px-4 py-3 flex items-center gap-2.5">
+              <span className="text-base leading-none">🔧</span>
+              <div className="min-w-0">
+                <p className="font-bold text-sm text-amber-800 truncate">Travaux par vous-même</p>
+                <p className="text-[10px] text-amber-600">
+                  {diyDocs.length > 0
+                    ? `${diyDocs.length} facture${diyDocs.length !== 1 ? 's' : ''} · DIY · Auto-construction`
+                    : 'DIY · Auto-construction'}
+                </p>
               </div>
             </div>
+            <div className="px-4 py-3 flex items-center">
+              <span className="text-[11px] text-amber-600 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full font-semibold">Matériaux</span>
+            </div>
+            <div className="px-4 py-3" />
+            <div className="px-4 py-3" />
+            <div className="px-4 py-3" />
+            <div className="px-4 py-3 flex items-center justify-end">
+              <button onClick={onGoToDiy}
+                className="text-[11px] font-semibold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap">
+                {diyDocs.length > 0 ? 'Voir →' : 'Ajouter →'}
+              </button>
+            </div>
           </div>
-        )}
+        </div>
 
         {/* ── Footer récap ── */}
         <div className="px-5 py-3.5 bg-gray-50 border-t border-gray-200 flex items-center justify-between gap-4">
