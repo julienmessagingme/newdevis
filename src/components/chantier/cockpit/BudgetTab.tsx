@@ -244,6 +244,37 @@ function ProgressBar({ paye, facture }: { paye: number; facture: number }) {
   );
 }
 
+// ── Info Tooltip ──────────────────────────────────────────────────────────────
+
+function InfoTooltip({ lines }: { lines: string[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="relative inline-flex items-center ml-1" style={{ verticalAlign: 'middle' }}>
+      <button
+        type="button"
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onClick={() => setOpen(v => !v)}
+        className="text-gray-300 hover:text-gray-400 transition-colors focus:outline-none"
+        aria-label="Aide"
+      >
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+          <circle cx="6.5" cy="6.5" r="6" stroke="currentColor" strokeWidth="1.2" />
+          <text x="6.5" y="9.5" textAnchor="middle" fontSize="8" fontWeight="700" fill="currentColor">?</text>
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-56 bg-gray-900 text-white text-[11px] rounded-xl shadow-xl px-3 py-2.5 leading-relaxed pointer-events-none">
+          {lines.map((l, i) => <p key={i} className={i > 0 ? 'mt-1' : ''}>{l}</p>)}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+        </div>
+      )}
+    </span>
+  );
+}
+
 // ── SVG Donut ─────────────────────────────────────────────────────────────────
 
 function DonutRing({ pct, color, size = 56, stroke = 5 }: {
@@ -361,7 +392,14 @@ function BudgetKpiDashboard({
         {/* ── 1. Budget réel (éditable) ─────────────────── */}
         <div className="px-5 py-5 sm:px-7 sm:py-6">
           <div className="flex items-center justify-between mb-4">
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Budget réel</p>
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center">
+              Budget réel
+              <InfoTooltip lines={[
+                'Votre enveloppe globale pour ce chantier.',
+                devisValides > 0 ? `Devis validés : ${fmtEur(devisValides)}` : 'Aucun devis validé pour l\'instant.',
+                budgetReel ? `Budget saisi manuellement : ${fmtEur(budgetReel)}` : 'Cliquez sur "Modifier" pour définir votre budget.',
+              ]} />
+            </p>
             {!editing && (
               <button onClick={startEdit}
                       className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-indigo-500 transition-colors">
@@ -411,7 +449,15 @@ function BudgetKpiDashboard({
 
         {/* ── 3. Décaissé ───────────────────────────────── */}
         <div className="px-5 py-5 sm:px-7 sm:py-6">
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4">Décaissé</p>
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center">
+            Décaissé
+            <InfoTooltip lines={[
+              'Tout l\'argent qui a quitté votre compte.',
+              totaux?.acompte ? `Acomptes versés : ${fmtEur(totaux.acompte)}` : null,
+              totaux?.paye ? `Factures réglées : ${fmtEur(totaux.paye)}` : null,
+              `Total sorti : ${fmtEur(decaisse)}`,
+            ].filter(Boolean) as string[]} />
+          </p>
           <div className="flex items-center gap-4">
             <div className="relative shrink-0">
               <DonutRing pct={pctDecaisse} color={colorDecaisse} size={80} stroke={7} />
@@ -435,7 +481,15 @@ function BudgetKpiDashboard({
 
         {/* ── 4. À régler ───────────────────────────────── */}
         <div className="px-5 py-5 sm:px-7 sm:py-6">
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4">À régler</p>
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center">
+            À régler
+            <InfoTooltip lines={[
+              'Factures reçues mais pas encore payées.',
+              'Ces montants sont dus à vos artisans.',
+              aRegler > 0 ? `Montant dû : ${fmtEur(aRegler)}` : 'Aucune facture en attente de paiement.',
+              litige > 0 ? `⚠️ Dont ${fmtEur(litige)} en litige` : null,
+            ].filter(Boolean) as string[]} />
+          </p>
           <div className="flex items-center gap-4">
             <div className="relative shrink-0">
               <DonutRing pct={pctARegler} color={colorARegler} size={80} stroke={7} />
