@@ -16,7 +16,7 @@ import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/a
 
 const BUCKET       = 'chantier-documents';
 const GEMINI_MODEL = 'gemini-2.5-flash';
-const TIMEOUT_MS   = 8_000;
+const TIMEOUT_MS   = 20_000;
 
 const MIME_MAP: Record<string, string> = {
   pdf:  'application/pdf',
@@ -95,7 +95,7 @@ Règles :
           },
           body: JSON.stringify({
             model: GEMINI_MODEL,
-            max_tokens: 512,
+            max_tokens: 2048,
             messages: [{
               role: 'user',
               content: [

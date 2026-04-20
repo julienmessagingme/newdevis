@@ -835,9 +835,7 @@ function ArtisanDrawer({
                         )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        {f.montant !== null ? (
-                          <span className="text-[12px] font-bold text-gray-700">{fmtEur(f.montant)}</span>
-                        ) : editingMontantFacture?.factureId === f.id ? (
+                        {editingMontantFacture?.factureId === f.id ? (
                           <div className="flex items-center gap-1">
                             <input
                               autoFocus
@@ -855,6 +853,15 @@ function ArtisanDrawer({
                             />
                             <span className="text-[10px] text-gray-400">€</span>
                           </div>
+                        ) : f.montant !== null ? (
+                          <button
+                            onClick={() => setEditingMontantFacture({ factureId: f.id, value: String(f.montant) })}
+                            className="group flex items-center gap-1 text-[12px] font-bold text-gray-700 hover:text-indigo-600 transition-colors"
+                            title="Modifier le montant"
+                          >
+                            {fmtEur(f.montant)}
+                            <Pencil className="h-2.5 w-2.5 opacity-0 group-hover:opacity-40 transition-opacity" />
+                          </button>
                         ) : (
                           <button
                             onClick={() => setEditingMontantFacture({ factureId: f.id, value: '' })}
@@ -1329,21 +1336,31 @@ export default function BudgetTab({
                         {(() => {
                           const f = row.facture;
                           const a = row.lot.totaux.acompte;
+                          // Séparer acompte-devis (avant facture, additif) et paiements partiels sur facture (sous-ensemble)
+                          const partialOnFacture = row.lot.factures
+                            .filter(fc => fc.facture_statut === 'payee_partiellement')
+                            .reduce((s, fc) => s + (fc.montant_paye ?? 0), 0);
+                          const acompteDevis = Math.max(0, a - partialOnFacture);
                           if (f === 0 && a === 0) return <span className="text-[12px] text-gray-300">—</span>;
                           return (
                             <div className="flex flex-col items-end gap-0.5">
                               {f > 0 && (
                                 <span className="text-[12px] font-semibold text-gray-700">{fmtEur(f)}</span>
                               )}
-                              {a > 0 && (
+                              {/* Acompte devis = avances avant facture → additif */}
+                              {acompteDevis > 0 && (
                                 <span className="text-[11px] font-semibold text-indigo-600">
-                                  {f > 0 ? '+ ' : ''}{fmtEur(a)} acompte
+                                  {f > 0 ? '+ ' : ''}{fmtEur(acompteDevis)} acompte
                                 </span>
                               )}
-                              {f > 0 && a > 0 && (
+                              {f > 0 && acompteDevis > 0 && (
                                 <span className="text-[11px] font-bold text-gray-800 border-t border-gray-200 pt-0.5 mt-0.5">
-                                  = {fmtEur(f + a)}
+                                  = {fmtEur(f + acompteDevis)}
                                 </span>
+                              )}
+                              {/* Paiement partiel sur facture → sous-ensemble, jamais additif */}
+                              {partialOnFacture > 0 && (
+                                <span className="text-[10px] text-gray-400">dont {fmtEur(partialOnFacture)} versé</span>
                               )}
                             </div>
                           );
@@ -1610,12 +1627,8 @@ export default function BudgetTab({
                                         <p className="text-[10px] text-gray-400 mt-0.5 truncate">{f.nom}</p>
                                       </div>
 
-                                      {/* Montant */}
-                                      {f.montant !== null ? (
-                                        <span className="text-[12px] font-bold text-gray-700 tabular-nums shrink-0">
-                                          {fmtEur(f.montant)}
-                                        </span>
-                                      ) : editingMontantFacture?.factureId === f.id ? (
+                                      {/* Montant — toujours éditable */}
+                                      {editingMontantFacture?.factureId === f.id ? (
                                         <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
                                           <input
                                             autoFocus
@@ -1633,6 +1646,15 @@ export default function BudgetTab({
                                           />
                                           <span className="text-[10px] text-gray-400">€</span>
                                         </div>
+                                      ) : f.montant !== null ? (
+                                        <button
+                                          onClick={e => { e.stopPropagation(); setEditingMontantFacture({ factureId: f.id, value: String(f.montant) }); }}
+                                          className="group flex items-center gap-1 text-[12px] font-bold text-gray-700 tabular-nums shrink-0 hover:text-indigo-600 transition-colors"
+                                          title="Modifier le montant"
+                                        >
+                                          {fmtEur(f.montant)}
+                                          <Pencil className="h-2.5 w-2.5 opacity-0 group-hover:opacity-40 transition-opacity" />
+                                        </button>
                                       ) : (
                                         <button
                                           onClick={e => { e.stopPropagation(); setEditingMontantFacture({ factureId: f.id, value: '' }); }}
