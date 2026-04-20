@@ -370,7 +370,7 @@ serve(async (req: Request) => {
     nbLignesBudget: 0,         // complété après parsing
   };
 
-  // Call Gemini 2.0 flash
+  // Call Gemini 2.5 flash
   let apiResponse: Response;
   try {
     apiResponse = await fetch(GEMINI_URL, {
@@ -380,9 +380,9 @@ serve(async (req: Request) => {
         "Authorization": `Bearer ${googleApiKey}`,
       },
       body: JSON.stringify({
-        model: "gemini-2.0-flash",
+        model: "gemini-2.5-flash",
         temperature: 0.2,
-        max_tokens: 4096,
+        max_tokens: 8192,
         messages: [
           { role: "system", content: SYSTEM_PROMPT_CHANTIER },
           { role: "user", content: prompt },
@@ -400,9 +400,9 @@ serve(async (req: Request) => {
 
   if (!apiResponse.ok) {
     const errText = await apiResponse.text();
-    console.error("[chantier-generer] Gemini error:", errText.slice(0, 300));
+    console.error("[chantier-generer] Gemini HTTP", apiResponse.status, ":", errText.slice(0, 500));
     return new Response(
-      JSON.stringify({ error: "Génération IA échouée" }),
+      JSON.stringify({ error: "Génération IA échouée", detail: `HTTP ${apiResponse.status}` }),
       { status: 502, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } },
     );
   }
