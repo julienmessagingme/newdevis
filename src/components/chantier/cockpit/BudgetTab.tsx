@@ -98,11 +98,13 @@ type PayStatut     = 'paid' | 'litige' | 'partial' | 'unpaid' | 'none';
 
 interface BudgetRow {
   lot:             BudgetLot;
-  devisAmount:     number | null;
+  devisAmount:     number | null; // budget total du lot = devis_valides + factures hors-devis
   devisAmountGrey: number | null;
   devisStatut:     DevisStatut;
   facture:         number;
+  factureHorsDevis: number;       // part facturée non couverte par les devis validés
   paye:            number;
+  totalPaye:       number;        // paye + acompte
   reste:           number;
   payStatut:       PayStatut;
   alertOverrun:    boolean;
@@ -110,29 +112,36 @@ interface BudgetRow {
 
 function buildRow(lot: BudgetLot): BudgetRow {
   const { devis_valides, devis_recus, facture, paye, acompte } = lot.totaux;
-  const reste = Math.max(0, facture - paye - acompte);
+  // Factures "hors-devis" = montants facturés qui dépassent les devis validés (artisans supplémentaires)
+  const factureHorsDevis = devis_valides > 0 ? Math.max(0, facture - devis_valides) : facture;
+  // Budget total du lot = devis validés + éventuels suppléments facturés
+  const budgetTotal = devis_valides + factureHorsDevis;
+  const totalPaye = paye + acompte;
+  const reste = Math.max(0, facture - totalPaye);
 
   const statuses = lot.devis.map(d => d.devis_statut);
   let devisStatut: DevisStatut = 'pending';
   if (statuses.some(s => s === 'valide' || s === 'attente_facture')) devisStatut = 'validated';
   else if (statuses.some(s => s === 'en_cours')) devisStatut = 'received';
 
-  // Statut paiement agrégé : pire cas
+  // Statut paiement agrégé
   let payStatut: PayStatut = 'none';
-  if (lot.factures.length > 0) {
-    if (lot.totaux.litige > 0)                                   payStatut = 'litige';
-    else if (facture > 0 && (paye + acompte) >= facture)         payStatut = 'paid';
-    else if (lot.totaux.acompte > 0 || paye > 0)                 payStatut = 'partial';
-    else if (facture > 0)                                        payStatut = 'unpaid';
+  if (lot.factures.length > 0 || acompte > 0) {
+    if (lot.totaux.litige > 0)             payStatut = 'litige';
+    else if (facture > 0 && totalPaye >= facture) payStatut = 'paid';
+    else if (acompte > 0 || paye > 0)      payStatut = 'partial';
+    else if (facture > 0)                  payStatut = 'unpaid';
   }
 
   return {
     lot,
-    devisAmount:     devis_valides > 0 ? devis_valides : null,
-    devisAmountGrey: devis_valides === 0 && devis_recus > 0 ? devis_recus : null,
+    devisAmount:      budgetTotal > 0 ? budgetTotal : null,
+    devisAmountGrey:  devis_valides === 0 && devis_recus > 0 ? devis_recus : null,
     devisStatut,
     facture,
+    factureHorsDevis,
     paye,
+    totalPaye,
     reste,
     payStatut,
     alertOverrun: devis_valides > 0 && facture > devis_valides * 1.05,
@@ -230,9 +239,9 @@ function Badge({ label, cls, icon }: { label: string; cls: string; icon?: React.
   );
 }
 
-function ProgressBar({ paye, facture }: { paye: number; facture: number }) {
-  if (facture === 0) return <span className="text-gray-300 text-[11px]">—</span>;
-  const pct   = Math.min(Math.round((paye / facture) * 100), 100);
+function ProgressBar({ paye, budget }: { paye: number; budget: number }) {
+  if (budget === 0) return <span className="text-gray-300 text-[11px]">—</span>;
+  const pct   = Math.min(Math.round((paye / budget) * 100), 100);
   const color = pct >= 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-indigo-500' : 'bg-gray-200';
   return (
     <div className="flex items-center gap-2">
@@ -1132,7 +1141,7 @@ export default function BudgetTab({
               <th className={TH}>Artisan / Lot</th>
               <th className={`${TH} text-right`}>Devis validé</th>
               <th className={TH}>Statut devis</th>
-              <th className={`${TH} text-right`}>Total facturé</th>
+              <th className={`${TH} text-right`}>Facturé / Acomptes</th>
               <th className={TH}>Paiement</th>
               <th className={`${TH} text-right`}>Reste à payer</th>
               <th className={TH}>Progression</th>
@@ -1271,24 +1280,28 @@ export default function BudgetTab({
 
                       {/* Total facturé */}
                       <td className="px-4 py-3.5 text-right">
-                        {row.facture > 0 ? (
-                          <div className="flex flex-col items-end gap-0.5">
-                            <span className="text-[12px] font-semibold text-gray-700">{fmtEur(row.facture)}</span>
-                            {row.lot.totaux.acompte > 0 && (
-                              <span className="text-[10px] text-blue-500 font-medium">
-                                Acompte {fmtEur(row.lot.totaux.acompte)}
-                              </span>
-                            )}
-                          </div>
-                        ) : row.lot.totaux.acompte > 0 ? (
-                          // Pas de facture, mais acompte(s) versé(s) via Échéancier
-                          <div className="flex flex-col items-end gap-0.5">
-                            <span className="text-[12px] font-semibold text-indigo-600">{fmtEur(row.lot.totaux.acompte)}</span>
-                            <span className="text-[10px] text-indigo-400 font-medium">Acompte versé</span>
-                          </div>
-                        ) : (
-                          <span className="text-[12px] text-gray-300">—</span>
-                        )}
+                        {(() => {
+                          const f = row.facture;
+                          const a = row.lot.totaux.acompte;
+                          if (f === 0 && a === 0) return <span className="text-[12px] text-gray-300">—</span>;
+                          return (
+                            <div className="flex flex-col items-end gap-0.5">
+                              {f > 0 && (
+                                <span className="text-[12px] font-semibold text-gray-700">{fmtEur(f)}</span>
+                              )}
+                              {a > 0 && (
+                                <span className="text-[11px] font-semibold text-indigo-600">
+                                  {f > 0 ? '+ ' : ''}{fmtEur(a)} acompte
+                                </span>
+                              )}
+                              {f > 0 && a > 0 && (
+                                <span className="text-[11px] font-bold text-gray-800 border-t border-gray-200 pt-0.5 mt-0.5">
+                                  = {fmtEur(f + a)}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Statut paiement — cliquable si 1 seule facture */}
@@ -1387,11 +1400,9 @@ export default function BudgetTab({
                         {row.reste > 0 ? (
                           <div className="flex flex-col items-end gap-0.5">
                             <span className="text-[12px] font-bold text-amber-700">{fmtEur(row.reste)}</span>
-                            {row.lot.totaux.acompte > 0 && (
-                              <span className="text-[10px] text-gray-400">après acompte</span>
-                            )}
+                            <span className="text-[10px] text-gray-400">sur factures reçues</span>
                           </div>
-                        ) : row.facture > 0 ? (
+                        ) : row.facture > 0 || row.lot.totaux.acompte > 0 ? (
                           <span className="text-[11px] text-emerald-600 font-semibold">Soldé ✓</span>
                         ) : (
                           <span className="text-[12px] text-gray-300">—</span>
@@ -1400,7 +1411,7 @@ export default function BudgetTab({
 
                       {/* Progression */}
                       <td className="px-4 py-3.5">
-                        <ProgressBar paye={row.paye + row.lot.totaux.acompte} facture={row.facture} />
+                        <ProgressBar paye={row.totalPaye} budget={row.devisAmount ?? row.facture} />
                       </td>
 
                       {/* Docs */}
@@ -1454,12 +1465,12 @@ export default function BudgetTab({
                                         <p className="text-[10px] text-indigo-500 font-semibold mt-0.5 flex items-center gap-1">
                                           <Check className="h-2.5 w-2.5" />
                                           Acompte versé : {fmtEur(d.montant_acompte_echeancier!)}
-                                          {d.montant && d.montant > 0 && (
-                                            <span className="text-indigo-300 font-normal">
-                                              ({Math.round(d.montant_acompte_echeancier! / d.montant * 100)} %)
-                                            </span>
-                                          )}
                                         </p>
+                                      )}
+                                      {(d.montant_acompte_echeancier ?? 0) > 0 && d.montant && d.montant > 0 && (
+                                        <div className="mt-1 w-full max-w-[160px]">
+                                          <ProgressBar paye={d.montant_acompte_echeancier!} budget={d.montant} />
+                                        </div>
                                       )}
                                     </div>
                                     {d.montant !== null ? (
