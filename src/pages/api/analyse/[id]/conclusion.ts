@@ -498,11 +498,10 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
         "Authorization": `Bearer ${googleApiKey}`,
       },
       body: JSON.stringify({
-        model:           "gemini-2.5-flash",
-        messages:        [{ role: "user", content: userPrompt }],
-        response_format: { type: "json_object" },
-        max_tokens:      4096,
-        temperature:     0.1,
+        model:       "gemini-2.5-flash",
+        messages:    [{ role: "user", content: userPrompt }],
+        max_tokens:  16384,
+        temperature: 0.1,
       }),
     });
     clearTimeout(timeoutId);
