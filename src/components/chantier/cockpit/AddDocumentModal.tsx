@@ -120,6 +120,7 @@ export default function AddDocumentModal({
   const [createLot,   setCreateLot]  = useState(false);
   const [newLotName,  setNewLotName] = useState('');
   const [bucketPath,  setBucketPath] = useState<string | null>(null);
+  const [aiMontant,   setAiMontant]  = useState<{ value: number; confidence: 'high' | 'low' } | null>(null);
 
   const fileRef  = useRef<HTMLInputElement>(null);
   const isFact   = docType === 'facture' || docType === 'achat_materiaux';
@@ -179,17 +180,23 @@ export default function AddDocumentModal({
             const ext: ExtractResult = await extRes.json();
             setExtracted(ext);
 
-            // Pré-remplir les champs si confiance haute
-            if (ext.confidence === 'high') {
-              if (ext.artisan_nom && !nom.trim()) setNom(ext.artisan_nom);
-              if (ext.montant_total && !montant) setMontant(String(ext.montant_total));
+            // Pré-remplir nom si confiance haute
+            if (ext.confidence === 'high' && ext.artisan_nom) {
+              setNom(prev => prev.trim() ? prev : ext.artisan_nom!);
+            }
 
-              // Matching artisan → lot
-              const match = findMatchingLot(ext.artisan_nom ?? '', lots);
+            // Pré-remplir montant toujours (toutes confidences) avec badge IA
+            if (ext.montant_total && ext.montant_total > 0) {
+              setMontant(String(ext.montant_total));
+              setAiMontant({ value: ext.montant_total, confidence: ext.confidence });
+            }
+
+            // Matching artisan → lot (confiance haute uniquement)
+            if (ext.confidence === 'high' && ext.artisan_nom) {
+              const match = findMatchingLot(ext.artisan_nom, lots);
               if (match) {
                 setLotId(match.id);
-              } else if (ext.artisan_nom) {
-                // Pas de lot trouvé → proposer la création
+              } else {
                 setNewLotName(ext.artisan_nom);
                 setCreateLot(true);
               }
@@ -416,16 +423,42 @@ export default function AddDocumentModal({
               {/* Montant + Lot */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">
-                    Montant TTC {isFact ? '*' : ''}
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-medium text-gray-500">
+                      Montant TTC {isFact ? '*' : ''}
+                    </label>
+                    {extracting && (
+                      <span className="flex items-center gap-1 text-[10px] text-blue-500 font-medium">
+                        <Loader2 className="h-2.5 w-2.5 animate-spin" />Lecture IA…
+                      </span>
+                    )}
+                    {!extracting && aiMontant && String(aiMontant.value) === montant && (
+                      <span className={`flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                        aiMontant.confidence === 'high'
+                          ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                          : 'bg-amber-50 text-amber-600 border border-amber-200'
+                      }`}>
+                        <Sparkles className="h-2.5 w-2.5" />
+                        {aiMontant.confidence === 'high' ? 'IA · à vérifier' : 'IA · incertain'}
+                      </span>
+                    )}
+                    {!extracting && aiMontant && String(aiMontant.value) !== montant && (
+                      <span className="text-[10px] text-gray-400">modifié</span>
+                    )}
+                  </div>
                   <div className="relative">
                     <input
                       type="number" inputMode="decimal" min="0" step="0.01"
                       value={montant}
-                      onChange={e => setMontant(e.target.value)}
+                      onChange={e => { setMontant(e.target.value); }}
                       placeholder="0"
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 pr-7 text-sm focus:outline-none focus:border-blue-400"
+                      className={`w-full border rounded-xl px-3 py-2.5 pr-7 text-sm focus:outline-none transition-colors ${
+                        !extracting && aiMontant && String(aiMontant.value) === montant
+                          ? aiMontant.confidence === 'high'
+                            ? 'border-emerald-300 bg-emerald-50/30 focus:border-emerald-400'
+                            : 'border-amber-300 bg-amber-50/30 focus:border-amber-400'
+                          : 'border-gray-200 focus:border-blue-400'
+                      }`}
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">€</span>
                   </div>
