@@ -192,7 +192,7 @@ Tu es un copilote de chantier, pas un chatbot généraliste. Ton objectif est d'
           Authorization: `Bearer ${googleApiKey}`,
         },
         body: JSON.stringify({
-          model: 'gemini-2.0-flash',
+          model: 'gemini-2.5-flash',
           messages: openAiMessages,
           max_tokens: 1024,
         }),

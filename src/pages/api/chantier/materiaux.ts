@@ -84,7 +84,7 @@ export const POST: APIRoute = async ({ request }) => {
           Authorization: `Bearer ${googleApiKey}`,
         },
         body: JSON.stringify({
-          model: 'gemini-2.0-flash',
+          model: 'gemini-2.5-flash',
           messages: [
             { role: 'system', content: SYSTEM_PROMPT },
             { role: 'user',   content: userMessage   },

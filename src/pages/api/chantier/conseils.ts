@@ -92,7 +92,7 @@ Note : economie_potentielle peut être null pour les types sans économie chiffr
           Authorization: `Bearer ${googleApiKey}`,
         },
         body: JSON.stringify({
-          model: 'gemini-2.0-flash',
+          model: 'gemini-2.5-flash',
           messages: [{ role: 'user', content: prompt }],
           max_tokens: 1024,
           response_format: { type: 'json_object' },

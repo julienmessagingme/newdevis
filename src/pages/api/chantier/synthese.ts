@@ -73,7 +73,7 @@ RÈGLES DE RÉDACTION :
         'Authorization': `Bearer ${googleApiKey}`,
       },
       body: JSON.stringify({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.5-flash',
         temperature: 0.4,
         max_tokens: 300,
         messages: [{ role: 'user', content: prompt }],

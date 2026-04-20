@@ -214,7 +214,7 @@ Si un lot n'a pas de donnée significative, génère quand même un insight util
         Authorization: `Bearer ${googleApiKey}`,
       },
       body: JSON.stringify({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.5-flash',
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 800,
         temperature: 0.2,

@@ -15,7 +15,7 @@ import { createClient } from '@supabase/supabase-js';
 import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
 
 const BUCKET       = 'chantier-documents';
-const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_MODEL = 'gemini-2.5-flash';
 const TIMEOUT_MS   = 8_000;
 
 const MIME_MAP: Record<string, string> = {

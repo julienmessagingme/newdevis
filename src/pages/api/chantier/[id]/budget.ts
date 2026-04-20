@@ -370,10 +370,25 @@ export const GET: APIRoute = async ({ params, request }) => {
           bucket.totaux.acompte += evDevisPaid;
         }
       } else if (doc.document_type === 'facture') {
-        const montant = doc.montant ?? 0;
-
         // Paiements Échéancier sur cette facture (prioritaires sur facture_statut)
         const evFacturePaid = eventsPayeByDoc[doc.id];
+
+        // Fallback montant : si montant null, on récupère depuis payment_events ou montant_paye
+        const montant = doc.montant != null
+          ? doc.montant
+          : (evFacturePaid ?? doc.montant_paye ?? 0);
+
+        // Backfill en DB si montant était null et qu'on a une valeur de substitution
+        if (doc.montant == null && montant > 0) {
+          backfills.push(
+            ctx.supabase
+              .from('documents_chantier')
+              .update({ montant })
+              .eq('id', doc.id)
+              .eq('chantier_id', chantierId),
+          );
+          (doc as Record<string, unknown>).montant = montant;
+        }
         const paye = evFacturePaid != null
           ? evFacturePaid
           : doc.facture_statut === 'payee'               ? montant

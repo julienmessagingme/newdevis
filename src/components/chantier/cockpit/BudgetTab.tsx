@@ -835,8 +835,35 @@ function ArtisanDrawer({
                         )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        {f.montant !== null && (
+                        {f.montant !== null ? (
                           <span className="text-[12px] font-bold text-gray-700">{fmtEur(f.montant)}</span>
+                        ) : editingMontantFacture?.factureId === f.id ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              autoFocus
+                              type="number"
+                              inputMode="decimal"
+                              value={editingMontantFacture.value}
+                              onChange={e => setEditingMontantFacture({ factureId: f.id, value: e.target.value })}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') saveMontantFacture(f.id, editingMontantFacture.value);
+                                if (e.key === 'Escape') setEditingMontantFacture(null);
+                              }}
+                              onBlur={() => saveMontantFacture(f.id, editingMontantFacture.value)}
+                              className="w-20 text-[11px] font-bold border-b border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5 text-right"
+                              placeholder="Ex: 4500"
+                            />
+                            <span className="text-[10px] text-gray-400">€</span>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setEditingMontantFacture({ factureId: f.id, value: '' })}
+                            className="flex items-center gap-1 text-[10px] text-gray-300 hover:text-indigo-500 transition-colors"
+                            title="Saisir le montant de la facture"
+                          >
+                            <Pencil className="h-3 w-3" />
+                            <span>Saisir</span>
+                          </button>
                         )}
 
                         {/* Badge statut cliquable */}
@@ -959,6 +986,8 @@ export default function BudgetTab({
   // Édition montant devis inline (pour les devis sans montant)
   const [editingMontant, setEditingMontant] = useState<{ devisId: string; value: string } | null>(null);
   const [savingMontant,  setSavingMontant]  = useState<string | null>(null);
+  // Édition montant facture inline (pour les factures sans montant)
+  const [editingMontantFacture, setEditingMontantFacture] = useState<{ factureId: string; value: string } | null>(null);
 
   // Overrides locaux des statuts factures (optimistic updates)
   const [statutOverrides, setStatutOverrides] = useState<Record<string, FactureStatut>>({});
@@ -1056,6 +1085,23 @@ export default function BudgetTab({
     } catch { /* silencieux */ }
     setChangingId(null);
   }, [chantierId, token, handleStatutChange, refresh]);
+
+  const saveMontantFacture = useCallback(async (factureId: string, valStr: string) => {
+    const montant = parseFloat(valStr.replace(',', '.'));
+    if (isNaN(montant) || montant <= 0) { setEditingMontantFacture(null); return; }
+    setSavingMontant(factureId);
+    try {
+      const bearer = await freshToken(token);
+      await fetch(`/api/chantier/${chantierId}/documents/${factureId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
+        body: JSON.stringify({ montant }),
+      });
+      setEditingMontantFacture(null);
+      refresh();
+    } catch { /* silencieux */ }
+    setSavingMontant(null);
+  }, [chantierId, token, refresh]);
 
   const saveMontantDevis = useCallback(async (devisId: string, valStr: string) => {
     const montant = parseFloat(valStr.replace(',', '.'));
@@ -1565,10 +1611,37 @@ export default function BudgetTab({
                                       </div>
 
                                       {/* Montant */}
-                                      {f.montant !== null && (
+                                      {f.montant !== null ? (
                                         <span className="text-[12px] font-bold text-gray-700 tabular-nums shrink-0">
                                           {fmtEur(f.montant)}
                                         </span>
+                                      ) : editingMontantFacture?.factureId === f.id ? (
+                                        <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                                          <input
+                                            autoFocus
+                                            type="number"
+                                            inputMode="decimal"
+                                            value={editingMontantFacture.value}
+                                            onChange={e => setEditingMontantFacture({ factureId: f.id, value: e.target.value })}
+                                            onKeyDown={e => {
+                                              if (e.key === 'Enter') saveMontantFacture(f.id, editingMontantFacture.value);
+                                              if (e.key === 'Escape') setEditingMontantFacture(null);
+                                            }}
+                                            onBlur={() => saveMontantFacture(f.id, editingMontantFacture.value)}
+                                            className="w-20 text-[11px] font-bold border-b border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5 text-right"
+                                            placeholder="Ex: 4500"
+                                          />
+                                          <span className="text-[10px] text-gray-400">€</span>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          onClick={e => { e.stopPropagation(); setEditingMontantFacture({ factureId: f.id, value: '' }); }}
+                                          className="flex items-center gap-1 text-[10px] text-gray-300 hover:text-indigo-500 transition-colors shrink-0"
+                                          title="Saisir le montant de la facture"
+                                        >
+                                          <Pencil className="h-3 w-3" />
+                                          <span>Saisir</span>
+                                        </button>
                                       )}
 
                                       {/* Statut cliquable */}
