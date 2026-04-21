@@ -21,6 +21,15 @@ const URL_TTL  = 3600; // 1h
 
 // ── Types internes ────────────────────────────────────────────────────────────
 
+// Extrait le nom de l'artisan depuis le nom enrichi du document ("ARTISAN — description")
+function extractArtisanNom(nom: string): string {
+  const idx = nom.indexOf(' — ');
+  if (idx > 0) return nom.substring(0, idx).trim();
+  const idx2 = nom.indexOf(' – ');
+  if (idx2 > 0) return nom.substring(0, idx2).trim();
+  return nom.replace(/\.[^.]+$/, '').trim().substring(0, 50);
+}
+
 interface BudgetDevis {
   id: string;
   nom: string;
@@ -51,13 +60,58 @@ interface BudgetFacture {
   created_at: string;
 }
 
+interface BudgetArtisanGroup {
+  nom: string;
+  devis: BudgetDevis[];
+  factures: BudgetFacture[];
+  totaux: {
+    devis_valides: number;
+    facture: number;
+    paye: number;
+    acompte: number;
+    litige: number;
+    a_payer: number;
+  };
+}
+
+function buildArtisanGroups(devis: BudgetDevis[], factures: BudgetFacture[]): BudgetArtisanGroup[] {
+  const map = new Map<string, { devis: BudgetDevis[]; factures: BudgetFacture[] }>();
+  for (const d of devis) {
+    const key = extractArtisanNom(d.nom);
+    if (!map.has(key)) map.set(key, { devis: [], factures: [] });
+    map.get(key)!.devis.push(d);
+  }
+  for (const f of factures) {
+    const key = extractArtisanNom(f.nom);
+    if (!map.has(key)) map.set(key, { devis: [], factures: [] });
+    map.get(key)!.factures.push(f);
+  }
+  return [...map.entries()].map(([nom, g]) => {
+    const devis_valides  = g.devis.reduce((s, d) => s + (d.montant ?? 0), 0);
+    const facture        = g.factures.reduce((s, f) => s + (f.montant ?? 0), 0);
+    const acompte_devis  = g.devis.reduce((s, d) => s + (d.montant_acompte_echeancier ?? 0), 0);
+    let paye = 0, acompte_fact = 0, litige = 0, a_payer = 0;
+    for (const f of g.factures) {
+      const m = f.montant ?? 0;
+      const p = f.montant_paye ?? 0;
+      if      (f.facture_statut === 'payee')                { paye += p; }
+      else if (f.facture_statut === 'payee_partiellement')  { acompte_fact += p; a_payer += Math.max(0, m - p); }
+      else if (f.facture_statut === 'en_litige')            { litige += m; }
+      else if (f.facture_statut === 'recue')                { a_payer += m; }
+    }
+    return { nom, devis: g.devis, factures: g.factures,
+      totaux: { devis_valides, facture, paye, acompte: acompte_devis + acompte_fact, litige, a_payer } };
+  });
+}
+
 interface BudgetLot {
   id: string;
   nom: string;
   emoji: string | null;
   devis: BudgetDevis[];
-  nb_devis_recus: number; // tous statuts (pour le contexte agent)
+  nb_devis_recus: number;
   factures: BudgetFacture[];
+  artisans: BudgetArtisanGroup[];
   totaux: {
     devis_recus: number;
     devis_valides: number;
@@ -316,14 +370,14 @@ export const GET: APIRoute = async ({ params, request }) => {
     for (const lot of lotsRaw ?? []) {
       lotMap.set(lot.id, {
         id: lot.id, nom: lot.nom, emoji: lot.emoji ?? null,
-        devis: [], nb_devis_recus: 0, factures: [],
+        devis: [], nb_devis_recus: 0, factures: [], artisans: [],
         totaux: emptyTotaux(),
       });
     }
 
     const sanslot: BudgetLot = {
       id: 'sans_lot', nom: 'Sans intervenant', emoji: null,
-      devis: [], nb_devis_recus: 0, factures: [],
+      devis: [], nb_devis_recus: 0, factures: [], artisans: [],
       totaux: emptyTotaux(),
     };
 
@@ -421,7 +475,12 @@ export const GET: APIRoute = async ({ params, request }) => {
       }
     }
 
-    // ── 7. Totaux globaux ───────────────────────────────────────────────────
+    // ── 7. Groupage par artisan dans chaque lot ────────────────────────────
+    for (const bucket of [...lotMap.values(), sanslot]) {
+      bucket.artisans = buildArtisanGroups(bucket.devis, bucket.factures);
+    }
+
+    // ── 8. Totaux globaux ───────────────────────────────────────────────────
     const allBuckets = [...lotMap.values(), sanslot];
     const totaux = {
       devis_recus:   allBuckets.reduce((s, b) => s + b.totaux.devis_recus,   0),

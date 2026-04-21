@@ -72,12 +72,27 @@ interface BudgetLotTotaux {
   a_payer:       number;
 }
 
+interface BudgetArtisanGroup {
+  nom:      string;
+  devis:    BudgetDevis[];
+  factures: BudgetFacture[];
+  totaux: {
+    devis_valides: number;
+    facture:       number;
+    paye:          number;
+    acompte:       number;
+    litige:        number;
+    a_payer:       number;
+  };
+}
+
 interface BudgetLot {
   id:       string;
   nom:      string;
   emoji:    string | null;
   devis:    BudgetDevis[];
   factures: BudgetFacture[];
+  artisans: BudgetArtisanGroup[];
   totaux:   BudgetLotTotaux;
 }
 
@@ -476,13 +491,30 @@ function BudgetKpiDashboard({
             </div>
             <div>
               <p className="text-[18px] font-black text-gray-800 leading-none">{decaisse > 0 ? fmtEur(decaisse) : '—'}</p>
-              <p className="text-[11px] text-gray-400 mt-1.5">
-                {decaisse > 0 ? 'acomptes + factures réglées' : 'Aucun paiement'}
-              </p>
-              {pctDecaisse >= 100 && devisValides > 0 && (
-                <p className="text-[11px] text-emerald-600 font-semibold mt-1 flex items-center gap-1">
-                  <Check className="h-3 w-3" />Tout soldé
-                </p>
+              {decaisse > 0 ? (
+                <div className="mt-1.5 space-y-0.5">
+                  {(totaux?.acompte ?? 0) > 0 && (
+                    <p className="text-[10px] flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                      <span className="text-gray-500">Acomptes</span>
+                      <span className="font-semibold text-indigo-600 ml-auto">{fmtEur(totaux!.acompte)}</span>
+                    </p>
+                  )}
+                  {(totaux?.paye ?? 0) > 0 && (
+                    <p className="text-[10px] flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                      <span className="text-gray-500">Factures réglées</span>
+                      <span className="font-semibold text-emerald-600 ml-auto">{fmtEur(totaux!.paye)}</span>
+                    </p>
+                  )}
+                  {pctDecaisse >= 100 && devisValides > 0 && (
+                    <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1 mt-0.5">
+                      <Check className="h-3 w-3" />Tout soldé
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-[11px] text-gray-400 mt-1.5">Aucun paiement</p>
               )}
             </div>
           </div>
@@ -643,8 +675,46 @@ function ArtisanDrawer({
   onRefresh?:      () => void;
 }) {
   const { lot } = row;
-  const [changingId, setChangingId] = useState<string | null>(null);
-  const [openMenu,   setOpenMenu]   = useState<string | null>(null);
+  const [changingId,            setChangingId]            = useState<string | null>(null);
+  const [openMenu,              setOpenMenu]              = useState<string | null>(null);
+  const [acompteInput,          setAcompteInput]          = useState<{ factureId: string; value: string } | null>(null);
+  const [editingMontant,        setEditingMontant]        = useState<{ devisId: string; value: string } | null>(null);
+  const [savingMontant,         setSavingMontant]         = useState<string | null>(null);
+  const [editingMontantFacture, setEditingMontantFacture] = useState<{ factureId: string; value: string } | null>(null);
+
+  async function saveMontantDevis(devisId: string, valStr: string) {
+    const montant = parseFloat(valStr.replace(',', '.'));
+    if (isNaN(montant) || montant <= 0) { setEditingMontant(null); return; }
+    setSavingMontant(devisId);
+    try {
+      const bearer = await freshToken(token);
+      await fetch(`/api/chantier/${chantierId}/documents/${devisId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
+        body: JSON.stringify({ montant }),
+      });
+      setEditingMontant(null);
+      onRefresh?.();
+    } catch { /* silencieux */ }
+    setSavingMontant(null);
+  }
+
+  async function saveMontantFacture(factureId: string, valStr: string) {
+    const montant = parseFloat(valStr.replace(',', '.'));
+    if (isNaN(montant) || montant <= 0) { setEditingMontantFacture(null); return; }
+    setSavingMontant(factureId);
+    try {
+      const bearer = await freshToken(token);
+      await fetch(`/api/chantier/${chantierId}/documents/${factureId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
+        body: JSON.stringify({ montant }),
+      });
+      setEditingMontantFacture(null);
+      onRefresh?.();
+    } catch { /* silencieux */ }
+    setSavingMontant(null);
+  }
 
   async function changeStatut(factureId: string, statut: FactureStatut) {
     setChangingId(factureId);
@@ -935,7 +1005,7 @@ function ArtisanDrawer({
 // ── Tableau squelette ─────────────────────────────────────────────────────────
 
 const TH = 'px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider';
-const COLS = 8;
+const COLS = 6;
 
 function TableSkeleton() {
   return (
@@ -1093,39 +1163,6 @@ export default function BudgetTab({
     setChangingId(null);
   }, [chantierId, token, handleStatutChange, refresh]);
 
-  const saveMontantFacture = useCallback(async (factureId: string, valStr: string) => {
-    const montant = parseFloat(valStr.replace(',', '.'));
-    if (isNaN(montant) || montant <= 0) { setEditingMontantFacture(null); return; }
-    setSavingMontant(factureId);
-    try {
-      const bearer = await freshToken(token);
-      await fetch(`/api/chantier/${chantierId}/documents/${factureId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
-        body: JSON.stringify({ montant }),
-      });
-      setEditingMontantFacture(null);
-      refresh();
-    } catch { /* silencieux */ }
-    setSavingMontant(null);
-  }, [chantierId, token, refresh]);
-
-  const saveMontantDevis = useCallback(async (devisId: string, valStr: string) => {
-    const montant = parseFloat(valStr.replace(',', '.'));
-    if (isNaN(montant) || montant <= 0) { setEditingMontant(null); return; }
-    setSavingMontant(devisId);
-    try {
-      const bearer = await freshToken(token);
-      await fetch(`/api/chantier/${chantierId}/documents/${devisId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
-        body: JSON.stringify({ montant }),
-      });
-      setEditingMontant(null);
-      refresh();
-    } catch { /* silencieux */ }
-    setSavingMontant(null);
-  }, [chantierId, token, refresh]);
 
   const toggleExpand = useCallback((lotId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1178,27 +1215,23 @@ export default function BudgetTab({
 
       {/* ── Tableau ───────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-auto overscroll-x-contain">
-        <table className="min-w-[1025px] w-full text-left border-collapse table-fixed">
+        <table className="min-w-[860px] w-full text-left border-collapse table-fixed">
           <colgroup>
-            <col style={{ width: 220 }} />
-            <col style={{ width: 115 }} />
-            <col style={{ width: 115 }} />
+            <col style={{ width: 210 }} />
             <col style={{ width: 110 }} />
-            <col style={{ width: 145 }} />
+            <col style={{ width: 100 }} />
+            <col style={{ width: 160 }} />
             <col style={{ width: 110 }} />
-            <col style={{ width: 130 }} />
-            <col style={{ width: 80 }} />
+            <col style={{ width: 170 }} />
           </colgroup>
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
-              <th className={TH}>Artisan / Lot</th>
-              <th className={`${TH} text-right`}>Devis validé</th>
-              <th className={TH}>Statut devis</th>
-              <th className={`${TH} text-right`}>Facturé / Acomptes</th>
-              <th className={TH}>Paiement</th>
-              <th className={`${TH} text-right`}>Reste à payer</th>
-              <th className={TH}>Progression</th>
-              <th className={`${TH} text-center`}>Docs</th>
+              <th className={TH}>Artisan</th>
+              <th className={`${TH} text-right`}>Engagé</th>
+              <th className={`${TH} text-right`}>Facturé</th>
+              <th className={`${TH} text-right`}>Payé</th>
+              <th className={`${TH} text-right`}>Solde</th>
+              <th className={TH}>Avancement</th>
             </tr>
           </thead>
           <tbody>
@@ -1214,541 +1247,197 @@ export default function BudgetTab({
               </tr>
             ) : (
               rows.map(row => {
-                const ds         = DEVIS_STATUS[row.devisStatut];
-                const ps         = PAY_STATUS[row.payStatut];
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
                 const isExpanded = expanded.has(row.lot.id);
-                const docCount   = row.lot.devis.filter(d => d.signed_url).length
-                                 + row.lot.factures.filter(f => f.signed_url).length;
-                const hasChildren = row.lot.devis.length > 0 || row.lot.factures.length > 0;
-
-                // Warn si au moins une facture ne correspond à aucun devis
-                const hasCoherenceIssue = row.lot.factures.some(f =>
-                  factureCoherence(f.nom, row.lot.devis) === false,
-                );
+                const lotOverrun = Math.max(0, row.lot.totaux.facture - row.lot.totaux.devis_valides);
+                const lotTotal   = row.lot.totaux.devis_valides + lotOverrun;
 
                 return (
                   <Fragment key={row.lot.id}>
-                    {/* ── Ligne principale ── */}
-                    <tr className={`border-b border-gray-50 hover:bg-indigo-50/30 transition-colors${isExpanded ? ' bg-slate-50/40' : ''}`}>
-
-                      {/* Artisan + expand */}
-                      <td className="px-3 py-3.5">
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={e => toggleExpand(row.lot.id, e)}
-                            className={`shrink-0 p-0.5 rounded transition-colors ${
-                              hasChildren
-                                ? 'text-gray-400 hover:text-indigo-600 hover:bg-indigo-50'
-                                : 'text-gray-200 cursor-default'
-                            }`}
-                            title={isExpanded ? 'Réduire' : 'Voir les documents'}
-                          >
+                    {/* ── En-tête du lot ── */}
+                    <tr
+                      className="bg-gray-50/80 border-b border-gray-200 cursor-pointer hover:bg-gray-100/80 transition-colors select-none"
+                      onClick={e => toggleExpand(row.lot.id, e)}
+                    >
+                      <td colSpan={COLS} className="px-4 py-2.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <button className="shrink-0 text-gray-400" onClick={e => toggleExpand(row.lot.id, e)}>
                             {isExpanded
-                              ? <ChevronDown className="h-4 w-4" />
-                              : <ChevronRight className="h-4 w-4" />}
+                              ? <ChevronDown className="h-3.5 w-3.5" />
+                              : <ChevronRight className="h-3.5 w-3.5" />}
                           </button>
-                          {row.lot.emoji && <span className="text-[15px] leading-none shrink-0">{row.lot.emoji}</span>}
-                          <div className="min-w-0">
-                            <button
-                              onClick={() => setSelected(row)}
-                              className="text-[12px] font-semibold text-gray-800 hover:text-indigo-600 transition-colors truncate block text-left"
-                            >
-                              {row.lot.nom}
-                            </button>
-                            <p className="text-[10px] text-gray-400 mt-0.5">
-                              {row.lot.devis.length > 0 && `${row.lot.devis.length} devis`}
-                              {row.lot.devis.length > 0 && row.lot.factures.length > 0 && ' · '}
-                              {row.lot.factures.length > 0 && `${row.lot.factures.length} facture${row.lot.factures.length > 1 ? 's' : ''}`}
-                              {hasCoherenceIssue && (
-                                <span className="ml-1.5 text-amber-500 font-bold">⚠</span>
-                              )}
-                            </p>
+                          {row.lot.emoji && <span className="text-sm leading-none shrink-0">{row.lot.emoji}</span>}
+                          <span className="text-[12px] font-bold text-gray-700 truncate">{row.lot.nom}</span>
+                          <span className="text-[10px] text-gray-400 shrink-0">
+                            {row.lot.artisans.length} artisan{row.lot.artisans.length > 1 ? 's' : ''}
+                          </span>
+                          <div className="ml-auto flex items-center gap-2 shrink-0">
+                            {lotOverrun > 0 && (
+                              <span className="text-[9px] font-bold text-red-600 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
+                                ⚠ +{fmtEur(lotOverrun)} hors devis
+                              </span>
+                            )}
+                            {lotTotal > 0 && (
+                              <span className="text-[12px] font-bold text-gray-700">{fmtEur(lotTotal)}</span>
+                            )}
                           </div>
                         </div>
-                      </td>
-
-                      {/* Devis validé */}
-                      <td className="px-4 py-3.5 text-right">
-                        {row.devisAmount !== null ? (
-                          <span className="text-[12px] font-bold text-gray-800">{fmtEur(row.devisAmount)}</span>
-                        ) : row.devisAmountGrey !== null ? (
-                          <span className="text-[12px] text-gray-400">{fmtEur(row.devisAmountGrey)}</span>
-                        ) : row.lot.devis.length === 1 && row.lot.devis[0].montant === null ? (
-                          // Devis unique sans montant : saisie inline directe
-                          editingMontant?.devisId === row.lot.devis[0].id ? (
-                            <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
-                              <input
-                                autoFocus
-                                type="number"
-                                inputMode="decimal"
-                                value={editingMontant.value}
-                                onChange={e => setEditingMontant({ devisId: row.lot.devis[0].id, value: e.target.value })}
-                                onKeyDown={e => {
-                                  if (e.key === 'Enter') saveMontantDevis(row.lot.devis[0].id, editingMontant.value);
-                                  if (e.key === 'Escape') setEditingMontant(null);
-                                }}
-                                onBlur={() => saveMontantDevis(row.lot.devis[0].id, editingMontant.value)}
-                                className="w-20 text-[11px] font-bold border-b border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5 text-right"
-                                placeholder="Ex: 4500"
-                              />
-                              <span className="text-[10px] text-gray-400">€</span>
-                            </div>
-                          ) : savingMontant === row.lot.devis[0].id ? (
-                            <Loader2 className="h-3.5 w-3.5 text-indigo-400 animate-spin ml-auto" />
-                          ) : (
-                            <button
-                              onClick={e => { e.stopPropagation(); setEditingMontant({ devisId: row.lot.devis[0].id, value: '' }); }}
-                              className="flex items-center justify-end gap-1 text-[11px] text-indigo-400 hover:text-indigo-600 transition-colors w-full"
-                              title="Saisir le montant du devis"
-                            >
-                              <Pencil className="h-3 w-3" />
-                              <span>Saisir</span>
-                            </button>
-                          )
-                        ) : row.lot.devis.some(d => d.montant === null) ? (
-                          // Plusieurs devis dont certains sans montant : ouvrir le drawer
-                          <button
-                            onClick={e => { e.stopPropagation(); setSelected(row); }}
-                            className="flex items-center justify-end gap-1 text-[11px] text-indigo-400 hover:text-indigo-600 transition-colors w-full"
-                            title="Saisir les montants"
-                          >
-                            <Pencil className="h-3 w-3" />
-                            <span>Saisir</span>
-                          </button>
-                        ) : (
-                          <span className="text-[12px] text-gray-300">—</span>
-                        )}
-                      </td>
-
-                      {/* Statut devis */}
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-1.5">
-                          <Badge label={ds.label} cls={ds.cls} />
-                          {row.alertOverrun && (
-                            <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0"
-                              title="Facture supérieure au devis validé" />
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Total facturé */}
-                      <td className="px-4 py-3.5 text-right">
-                        {(() => {
-                          const f = row.facture;
-                          const a = row.lot.totaux.acompte;
-                          // Séparer acompte-devis (avant facture, additif) et paiements partiels sur facture (sous-ensemble)
-                          const partialOnFacture = row.lot.factures
-                            .filter(fc => fc.facture_statut === 'payee_partiellement')
-                            .reduce((s, fc) => s + (fc.montant_paye ?? 0), 0);
-                          const acompteDevis = Math.max(0, a - partialOnFacture);
-                          if (f === 0 && a === 0) return <span className="text-[12px] text-gray-300">—</span>;
-                          return (
-                            <div className="flex flex-col items-end gap-0.5">
-                              {f > 0 && (
-                                <span className="text-[12px] font-semibold text-gray-700">{fmtEur(f)}</span>
-                              )}
-                              {/* Acompte devis = avances avant facture → additif */}
-                              {acompteDevis > 0 && (
-                                <span className="text-[11px] font-semibold text-indigo-600">
-                                  {f > 0 ? '+ ' : ''}{fmtEur(acompteDevis)} acompte
-                                </span>
-                              )}
-                              {f > 0 && acompteDevis > 0 && (
-                                <span className="text-[11px] font-bold text-gray-800 border-t border-gray-200 pt-0.5 mt-0.5">
-                                  = {fmtEur(f + acompteDevis)}
-                                </span>
-                              )}
-                              {/* Paiement partiel sur facture → sous-ensemble, jamais additif */}
-                              {partialOnFacture > 0 && (
-                                <span className="text-[10px] text-gray-400">dont {fmtEur(partialOnFacture)} versé</span>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </td>
-
-                      {/* Statut paiement — cliquable si 1 seule facture */}
-                      <td className="px-4 py-3.5">
-                        {row.lot.factures.length === 1 ? (() => {
-                          const f0      = row.lot.factures[0];
-                          const f0Stat  = (f0.facture_statut ?? 'recue') as FactureStatut;
-                          const f0Cfg   = FACTURE_STATUT_CFG[f0Stat] ?? FACTURE_STATUT_CFG.recue;
-                          const isChg   = changingId === f0.id;
-                          const menuKey = f0.id + '_main';
-                          return (
-                            <div className="relative">
-                              <button
-                                disabled={isChg}
-                                onClick={e => { e.stopPropagation(); setOpenMenu(openMenu === menuKey ? null : menuKey); setAcompteInput(null); }}
-                                className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border transition-all ${f0Cfg.cls}`}
-                              >
-                                {isChg ? <Loader2 className="h-3 w-3 animate-spin" /> : f0Cfg.icon}
-                                {f0Cfg.short}
-                                <ChevronDown className="h-2.5 w-2.5" />
-                              </button>
-                              {openMenu === menuKey && (
-                                <div className="absolute left-0 top-full mt-1 w-52 bg-white rounded-xl shadow-lg border border-gray-100 z-30 overflow-hidden">
-                                  {(Object.entries(FACTURE_STATUT_CFG) as [FactureStatut, typeof FACTURE_STATUT_CFG[FactureStatut]][]).map(([s, c]) => {
-                                    if (s === 'payee_partiellement') {
-                                      const pt = f0.payment_terms;
-                                      const autoMontant = pt?.type_facture === 'acompte' && pt?.pct > 0 && f0.montant
-                                        ? Math.round(f0.montant * pt.pct / 100)
-                                        : null;
-                                      const isExpanded = acompteInput?.factureId === f0.id;
-                                      return (
-                                        <div key={s}>
-                                          <button
-                                            onClick={e => { e.stopPropagation(); setAcompteInput(isExpanded ? null : { factureId: f0.id, value: String(autoMontant ?? '') }); }}
-                                            className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${s === f0Stat ? 'text-indigo-600 bg-indigo-50/50' : 'text-gray-700'}`}
-                                          >
-                                            <span>{c.icon}</span>{c.label}
-                                            {s === f0Stat && <Check className="h-3 w-3 ml-auto text-indigo-500" />}
-                                          </button>
-                                          {isExpanded && (
-                                            <div className="px-3 pb-2.5 space-y-1.5 bg-blue-50 border-t border-blue-100">
-                                              <p className="text-[10px] text-blue-700 font-semibold pt-2">Montant versé (€)</p>
-                                              <div className="flex gap-1.5">
-                                                <input
-                                                  autoFocus
-                                                  type="number"
-                                                  inputMode="decimal"
-                                                  value={acompteInput!.value}
-                                                  onChange={e2 => setAcompteInput(p => p ? { ...p, value: e2.target.value } : p)}
-                                                  onClick={e2 => e2.stopPropagation()}
-                                                  placeholder={autoMontant ? String(autoMontant) : 'Ex: 2000'}
-                                                  className="flex-1 text-[11px] border border-blue-200 rounded-lg px-2 py-1.5 outline-none focus:border-blue-400 bg-white"
-                                                />
-                                                <button
-                                                  onClick={e2 => {
-                                                    e2.stopPropagation();
-                                                    const v = parseFloat(acompteInput!.value);
-                                                    changeStatut(f0.id, 'payee_partiellement', e2, isNaN(v) ? null : v);
-                                                  }}
-                                                  className="px-2 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-lg transition-colors"
-                                                >
-                                                  OK
-                                                </button>
-                                              </div>
-                                            </div>
-                                          )}
-                                        </div>
-                                      );
-                                    }
-                                    return (
-                                      <button key={s}
-                                        onClick={e => changeStatut(f0.id, s, e)}
-                                        className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${s === f0Stat ? 'text-indigo-600 bg-indigo-50/50' : 'text-gray-700'}`}
-                                      >
-                                        <span>{c.icon}</span>{c.label}
-                                        {s === f0Stat && <Check className="h-3 w-3 ml-auto text-indigo-500" />}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })() : row.lot.factures.length === 0 && row.lot.totaux.acompte > 0 ? (
-                          // Pas de facture mais acompte Échéancier versé
-                          <Badge label="Acompte versé" cls="bg-indigo-50 text-indigo-700 border-indigo-200" icon={<Check className="h-3 w-3" />} />
-                        ) : row.payStatut !== 'none' ? (
-                          <Badge label={ps.label} cls={ps.cls} icon={ps.icon} />
-                        ) : (
-                          <span className="text-[12px] text-gray-300">—</span>
-                        )}
-                      </td>
-
-                      {/* Reste à payer */}
-                      <td className="px-4 py-3.5 text-right">
-                        {row.reste > 0 ? (
-                          <div className="flex flex-col items-end gap-0.5">
-                            <span className="text-[12px] font-bold text-amber-700">{fmtEur(row.reste)}</span>
-                            <span className="text-[10px] text-gray-400">sur factures reçues</span>
-                          </div>
-                        ) : row.facture > 0 || row.lot.totaux.acompte > 0 ? (
-                          <span className="text-[11px] text-emerald-600 font-semibold">Soldé ✓</span>
-                        ) : (
-                          <span className="text-[12px] text-gray-300">—</span>
-                        )}
-                      </td>
-
-                      {/* Progression */}
-                      <td className="px-4 py-3.5">
-                        <ProgressBar paye={row.totalPaye} budget={row.devisAmount ?? row.facture} />
-                      </td>
-
-                      {/* Docs */}
-                      <td className="px-3 py-3.5 text-center">
-                        {docCount > 0 ? (
-                          <button onClick={e => { e.stopPropagation(); toggleExpand(row.lot.id, e); }}
-                            className={`inline-flex items-center gap-1 text-[10px] font-semibold rounded-full px-2 py-1 transition-colors ${
-                              isExpanded
-                                ? 'bg-indigo-100 text-indigo-700'
-                                : 'bg-gray-100 text-gray-500 hover:bg-indigo-100 hover:text-indigo-700'
-                            }`}>
-                            {isExpanded ? <ChevronDown className="h-3 w-3" /> : <Paperclip className="h-3 w-3" />}
-                            {docCount}
-                          </button>
-                        ) : (
-                          <span className="text-gray-200">—</span>
-                        )}
                       </td>
                     </tr>
 
-                    {/* ── Lignes expandées ── */}
-                    {isExpanded && (
-                      <tr>
-                        <td colSpan={COLS} className="px-0 pt-0 pb-2">
-                          <div className="mx-3 rounded-xl border border-gray-100 overflow-hidden bg-white shadow-sm">
+                    {/* ── Lignes artisans (visibles si lot expanded) ── */}
+                    {isExpanded && row.lot.artisans.map((artisan, aIdx) => {
+                      const totalPaye  = artisan.totaux.paye + artisan.totaux.acompte;
+                      const budget     = artisan.totaux.devis_valides || artisan.totaux.facture;
+                      const pct        = budget > 0 ? Math.min(100, Math.round(totalPaye / budget * 100)) : 0;
+                      const isSolde    = artisan.totaux.a_payer === 0 && totalPaye > 0 && budget > 0;
+                      const hasAlert   = artisan.factures.some(f => factureCoherence(f.nom, artisan.devis) === false);
+                      const docsCount  = artisan.devis.filter(d => d.signed_url).length
+                                       + artisan.factures.filter(f => f.signed_url).length;
+                      const isLast     = aIdx === row.lot.artisans.length - 1;
 
-                            {/* Devis */}
-                            {row.lot.devis.length > 0 && (
-                              <div>
-                                <div className="px-4 py-2 bg-indigo-50/60 border-b border-indigo-100 flex items-center gap-2">
-                                  <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">
-                                    📋 Devis ({row.lot.devis.length})
-                                  </span>
-                                  {row.lot.totaux.devis_valides > 0 && row.lot.devis.length > 1 && (
-                                    <span className="ml-auto text-[11px] font-black text-indigo-700">
-                                      Total validé : {fmtEur(row.lot.totaux.devis_valides)}
+                      // Crée un lot virtuel (artisan seul) pour l'ArtisanDrawer
+                      const virtualLot: BudgetLot = {
+                        ...row.lot,
+                        devis:    artisan.devis,
+                        factures: artisan.factures,
+                        artisans: [artisan],
+                        totaux:   {
+                          devis_recus:   artisan.totaux.devis_valides,
+                          devis_valides: artisan.totaux.devis_valides,
+                          facture:       artisan.totaux.facture,
+                          paye:          artisan.totaux.paye,
+                          acompte:       artisan.totaux.acompte,
+                          litige:        artisan.totaux.litige,
+                          a_payer:       artisan.totaux.a_payer,
+                        },
+                      };
+
+                      return (
+                        <tr
+                          key={artisan.nom}
+                          className={`border-b transition-colors cursor-pointer hover:bg-indigo-50/30 ${
+                            isLast ? 'border-b-2 border-gray-200' : 'border-gray-50'
+                          }`}
+                          onClick={() => setSelected(buildRow(virtualLot))}
+                        >
+                          {/* ARTISAN */}
+                          <td className="pl-9 pr-3 py-3">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <p className="text-[12px] font-semibold text-gray-800 truncate">{artisan.nom}</p>
+                                  {hasAlert && <span className="text-amber-500 text-[10px] shrink-0" title="Vérifier la cohérence">⚠</span>}
+                                </div>
+                                <p className="text-[10px] text-gray-400 mt-0.5">
+                                  {artisan.devis.length > 0 && (
+                                    <span className="inline-flex items-center gap-0.5 text-emerald-600 font-medium mr-1.5">
+                                      <Check className="h-2.5 w-2.5" />Validé
                                     </span>
                                   )}
-                                </div>
-                                {row.lot.devis.map((d, idx) => (
-                                  <div key={d.id}
-                                    className={`flex items-center gap-3 px-4 py-2.5 ${idx < row.lot.devis.length - 1 || row.lot.factures.length > 0 ? 'border-b border-gray-50' : ''}`}>
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-[12px] font-medium text-gray-800 truncate">{d.nom}</p>
-                                      {d.devis_statut && (
-                                        <p className="text-[10px] text-gray-400 mt-0.5">
-                                          {DEVIS_STATUT_LABEL[d.devis_statut] ?? d.devis_statut}
-                                        </p>
-                                      )}
-                                      {(d.montant_acompte_echeancier ?? 0) > 0 && (
-                                        <p className="text-[10px] text-indigo-500 font-semibold mt-0.5 flex items-center gap-1">
-                                          <Check className="h-2.5 w-2.5" />
-                                          Acompte versé : {fmtEur(d.montant_acompte_echeancier!)}
-                                        </p>
-                                      )}
-                                      {(d.montant_acompte_echeancier ?? 0) > 0 && d.montant && d.montant > 0 && (
-                                        <div className="mt-1 w-full max-w-[160px]">
-                                          <ProgressBar paye={d.montant_acompte_echeancier!} budget={d.montant} />
-                                        </div>
-                                      )}
-                                    </div>
-                                    {d.montant !== null ? (
-                                      <span className="text-[12px] font-bold text-gray-700 tabular-nums shrink-0">
-                                        {fmtEur(d.montant)}
-                                      </span>
-                                    ) : editingMontant?.devisId === d.id ? (
-                                      <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-                                        <input
-                                          autoFocus
-                                          type="number"
-                                          inputMode="decimal"
-                                          value={editingMontant.value}
-                                          onChange={e => setEditingMontant({ devisId: d.id, value: e.target.value })}
-                                          onKeyDown={e => {
-                                            if (e.key === 'Enter') saveMontantDevis(d.id, editingMontant.value);
-                                            if (e.key === 'Escape') setEditingMontant(null);
-                                          }}
-                                          onBlur={() => saveMontantDevis(d.id, editingMontant.value)}
-                                          className="w-20 text-[11px] font-bold border-b border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5 text-right"
-                                          placeholder="Ex: 4500"
-                                        />
-                                        <span className="text-[10px] text-gray-400">€</span>
-                                      </div>
-                                    ) : savingMontant === d.id ? (
-                                      <Loader2 className="h-3.5 w-3.5 text-indigo-400 animate-spin shrink-0" />
-                                    ) : (
-                                      <button
-                                        onClick={e => { e.stopPropagation(); setEditingMontant({ devisId: d.id, value: '' }); }}
-                                        className="flex items-center gap-0.5 text-[10px] text-gray-300 hover:text-indigo-500 transition-colors shrink-0"
-                                        title="Saisir le montant"
-                                      >
-                                        <Pencil className="h-3 w-3" />
-                                        <span>Saisir</span>
-                                      </button>
-                                    )}
-                                    {d.signed_url ? (
-                                      <a href={d.signed_url} target="_blank" rel="noopener noreferrer"
-                                        onClick={e => e.stopPropagation()}
-                                        className="shrink-0 p-1 hover:bg-indigo-50 rounded transition-colors" title="Télécharger">
-                                        <Download className="h-3.5 w-3.5 text-indigo-400" />
-                                      </a>
-                                    ) : (
-                                      <span className="shrink-0 text-[10px] text-gray-300 w-[26px] text-center">—</span>
-                                    )}
-                                  </div>
-                                ))}
+                                  {artisan.factures.length > 0 && `${artisan.factures.length} facture${artisan.factures.length > 1 ? 's' : ''}`}
+                                  {docsCount > 0 && (
+                                    <span className="ml-1.5 text-gray-300">· 📄{docsCount}</span>
+                                  )}
+                                </p>
                               </div>
-                            )}
+                            </div>
+                          </td>
 
-                            {/* Factures */}
-                            {row.lot.factures.length > 0 && (
-                              <div>
-                                <div className="px-4 py-2 bg-emerald-50/60 border-b border-emerald-100 flex items-center gap-2">
-                                  <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">
-                                    🧾 Factures ({row.lot.factures.length})
-                                  </span>
-                                  {row.lot.factures.length > 1 && (
-                                    <span className="ml-auto text-[11px] font-black text-emerald-700">
-                                      Total : {fmtEur(row.lot.totaux.facture)}
-                                    </span>
+                          {/* ENGAGÉ */}
+                          <td className="px-3 py-3 text-right">
+                            {artisan.totaux.devis_valides > 0
+                              ? <span className="text-[12px] font-bold text-gray-800">{fmtEur(artisan.totaux.devis_valides)}</span>
+                              : <span className="text-[12px] text-gray-300">—</span>}
+                          </td>
+
+                          {/* FACTURÉ */}
+                          <td className="px-3 py-3 text-right">
+                            {artisan.totaux.facture > 0
+                              ? <span className="text-[12px] font-semibold text-gray-700">{fmtEur(artisan.totaux.facture)}</span>
+                              : <span className="text-[12px] text-gray-300">—</span>}
+                          </td>
+
+                          {/* PAYÉ */}
+                          <td className="px-3 py-3">
+                            <div className="flex flex-col items-end gap-0.5">
+                              {artisan.totaux.acompte > 0 && (
+                                <span className="text-[11px] font-semibold text-indigo-600 flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                                  {fmtEur(artisan.totaux.acompte)} acompte
+                                </span>
+                              )}
+                              {artisan.totaux.paye > 0 && (
+                                <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                                  {fmtEur(artisan.totaux.paye)} réglé
+                                </span>
+                              )}
+                              {artisan.totaux.litige > 0 && (
+                                <span className="text-[11px] font-semibold text-red-600 flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+                                  {fmtEur(artisan.totaux.litige)} litige
+                                </span>
+                              )}
+                              {totalPaye === 0 && artisan.totaux.litige === 0 && (
+                                <span className="text-[11px] text-gray-300">—</span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* SOLDE */}
+                          <td className="px-3 py-3 text-right">
+                            {isSolde ? (
+                              <span className="text-[11px] font-bold text-emerald-600 flex items-center justify-end gap-1">
+                                <Check className="h-3 w-3" />Soldé
+                              </span>
+                            ) : artisan.totaux.a_payer > 0 ? (
+                              <span className="text-[12px] font-bold text-orange-600">{fmtEur(artisan.totaux.a_payer)}</span>
+                            ) : (
+                              <span className="text-[11px] text-gray-300">—</span>
+                            )}
+                          </td>
+
+                          {/* AVANCEMENT */}
+                          <td className="px-3 py-3">
+                            {budget > 0 ? (
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden min-w-[50px] relative">
+                                  {/* Acompte (bleu) */}
+                                  {artisan.totaux.acompte > 0 && (
+                                    <div
+                                      className="absolute left-0 top-0 h-full bg-indigo-400 rounded-full"
+                                      style={{ width: `${Math.min(100, Math.round(artisan.totaux.acompte / budget * 100))}%` }}
+                                    />
+                                  )}
+                                  {/* Réglé (vert) */}
+                                  {artisan.totaux.paye > 0 && (
+                                    <div
+                                      className="absolute top-0 h-full bg-emerald-400 rounded-full"
+                                      style={{
+                                        left: `${Math.min(100, Math.round(artisan.totaux.acompte / budget * 100))}%`,
+                                        width: `${Math.min(100 - Math.round(artisan.totaux.acompte / budget * 100), Math.round(artisan.totaux.paye / budget * 100))}%`,
+                                      }}
+                                    />
                                   )}
                                 </div>
-                                {row.lot.factures.map((f, idx) => {
-                                  const statut     = (f.facture_statut ?? 'recue') as FactureStatut;
-                                  const cfg        = FACTURE_STATUT_CFG[statut] ?? FACTURE_STATUT_CFG.recue;
-                                  const coherent   = factureCoherence(f.nom, row.lot.devis);
-                                  const isChanging = changingId === f.id;
-                                  const label      = smartFactureLabel(f);
-
-                                  return (
-                                    <div key={f.id}
-                                      className={`flex items-center gap-3 px-4 py-2.5 ${idx < row.lot.factures.length - 1 ? 'border-b border-gray-50' : ''}`}>
-
-                                      {/* Nom + cohérence */}
-                                      <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                          <p className="text-[12px] font-medium text-gray-800 truncate">{label}</p>
-                                          {coherent === false && (
-                                            <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5"
-                                              title="Le nom de la facture ne correspond pas aux devis enregistrés">
-                                              <AlertTriangle className="h-2.5 w-2.5" /> Vérifier
-                                            </span>
-                                          )}
-                                          {coherent === true && (
-                                            <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-1.5 py-0.5">
-                                              <Check className="h-2.5 w-2.5" /> OK
-                                            </span>
-                                          )}
-                                        </div>
-                                        <p className="text-[10px] text-gray-400 mt-0.5 truncate">{f.nom}</p>
-                                      </div>
-
-                                      {/* Montant — toujours éditable */}
-                                      {editingMontantFacture?.factureId === f.id ? (
-                                        <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
-                                          <input
-                                            autoFocus
-                                            type="number"
-                                            inputMode="decimal"
-                                            value={editingMontantFacture.value}
-                                            onChange={e => setEditingMontantFacture({ factureId: f.id, value: e.target.value })}
-                                            onKeyDown={e => {
-                                              if (e.key === 'Enter') saveMontantFacture(f.id, editingMontantFacture.value);
-                                              if (e.key === 'Escape') setEditingMontantFacture(null);
-                                            }}
-                                            onBlur={() => saveMontantFacture(f.id, editingMontantFacture.value)}
-                                            className="w-20 text-[11px] font-bold border-b border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5 text-right"
-                                            placeholder="Ex: 4500"
-                                          />
-                                          <span className="text-[10px] text-gray-400">€</span>
-                                        </div>
-                                      ) : f.montant !== null ? (
-                                        <button
-                                          onClick={e => { e.stopPropagation(); setEditingMontantFacture({ factureId: f.id, value: String(f.montant) }); }}
-                                          className="group flex items-center gap-1 text-[12px] font-bold text-gray-700 tabular-nums shrink-0 hover:text-indigo-600 transition-colors"
-                                          title="Modifier le montant"
-                                        >
-                                          {fmtEur(f.montant)}
-                                          <Pencil className="h-2.5 w-2.5 opacity-0 group-hover:opacity-40 transition-opacity" />
-                                        </button>
-                                      ) : (
-                                        <button
-                                          onClick={e => { e.stopPropagation(); setEditingMontantFacture({ factureId: f.id, value: '' }); }}
-                                          className="flex items-center gap-1 text-[10px] text-gray-300 hover:text-indigo-500 transition-colors shrink-0"
-                                          title="Saisir le montant de la facture"
-                                        >
-                                          <Pencil className="h-3 w-3" />
-                                          <span>Saisir</span>
-                                        </button>
-                                      )}
-
-                                      {/* Statut cliquable */}
-                                      <div className="relative shrink-0">
-                                        <button
-                                          disabled={isChanging}
-                                          onClick={e => { e.stopPropagation(); setOpenMenu(openMenu === f.id ? null : f.id); setAcompteInput(null); }}
-                                          className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border transition-all ${cfg.cls}`}
-                                        >
-                                          {isChanging ? <Loader2 className="h-3 w-3 animate-spin" /> : cfg.icon}
-                                          {cfg.short}
-                                          <ChevronDown className="h-2.5 w-2.5" />
-                                        </button>
-                                        {openMenu === f.id && (
-                                          <div className="absolute right-0 bottom-full mb-1 w-52 bg-white rounded-xl shadow-lg border border-gray-100 z-30 overflow-hidden">
-                                            {(Object.entries(FACTURE_STATUT_CFG) as [FactureStatut, typeof FACTURE_STATUT_CFG[FactureStatut]][]).map(([s, c]) => {
-                                              if (s === 'payee_partiellement') {
-                                                const pt = f.payment_terms;
-                                                const autoMontant = pt?.type_facture === 'acompte' && pt?.pct > 0 && f.montant
-                                                  ? Math.round(f.montant * pt.pct / 100) : null;
-                                                const isExp = acompteInput?.factureId === f.id;
-                                                return (
-                                                  <div key={s}>
-                                                    <button
-                                                      onClick={e2 => { e2.stopPropagation(); setAcompteInput(isExp ? null : { factureId: f.id, value: String(autoMontant ?? '') }); }}
-                                                      className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${s === statut ? 'text-indigo-600 bg-indigo-50/50' : 'text-gray-700'}`}
-                                                    >
-                                                      <span>{c.icon}</span>{c.label}
-                                                      {s === statut && <Check className="h-3 w-3 ml-auto text-indigo-500" />}
-                                                    </button>
-                                                    {isExp && (
-                                                      <div className="px-3 pb-2.5 space-y-1.5 bg-blue-50 border-t border-blue-100">
-                                                        <p className="text-[10px] text-blue-700 font-semibold pt-2">Montant versé (€)</p>
-                                                        <div className="flex gap-1.5">
-                                                          <input
-                                                            autoFocus type="number" inputMode="decimal"
-                                                            value={acompteInput!.value}
-                                                            onChange={e2 => setAcompteInput(p => p ? { ...p, value: e2.target.value } : p)}
-                                                            onClick={e2 => e2.stopPropagation()}
-                                                            placeholder={autoMontant ? String(autoMontant) : 'Ex: 2000'}
-                                                            className="flex-1 text-[11px] border border-blue-200 rounded-lg px-2 py-1.5 outline-none focus:border-blue-400 bg-white"
-                                                          />
-                                                          <button
-                                                            onClick={e2 => { e2.stopPropagation(); const v = parseFloat(acompteInput!.value); changeStatut(f.id, 'payee_partiellement', e2, isNaN(v) ? null : v); }}
-                                                            className="px-2 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-lg transition-colors"
-                                                          >OK</button>
-                                                        </div>
-                                                      </div>
-                                                    )}
-                                                  </div>
-                                                );
-                                              }
-                                              return (
-                                                <button key={s}
-                                                  onClick={e => changeStatut(f.id, s, e)}
-                                                  className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${s === statut ? 'text-indigo-600 bg-indigo-50/50' : 'text-gray-700'}`}>
-                                                  <span>{c.icon}</span>{c.label}
-                                                  {s === statut && <Check className="h-3 w-3 ml-auto text-indigo-500" />}
-                                                </button>
-                                              );
-                                            })}
-                                          </div>
-                                        )}
-                                      </div>
-
-                                      {/* Télécharger */}
-                                      {f.signed_url ? (
-                                        <a href={f.signed_url} target="_blank" rel="noopener noreferrer"
-                                          onClick={e => e.stopPropagation()}
-                                          className="shrink-0 p-1 hover:bg-emerald-50 rounded transition-colors" title="Télécharger">
-                                          <Download className="h-3.5 w-3.5 text-emerald-500" />
-                                        </a>
-                                      ) : (
-                                        <span className="shrink-0 text-[10px] text-gray-300 w-[26px] text-center">—</span>
-                                      )}
-                                    </div>
-                                  );
-                                })}
+                                <span className={`text-[10px] tabular-nums w-7 text-right shrink-0 ${isSolde ? 'text-emerald-600 font-bold' : 'text-gray-400'}`}>
+                                  {pct}%
+                                </span>
                               </div>
+                            ) : (
+                              <span className="text-[11px] text-gray-300">—</span>
                             )}
+                          </td>
+                        </tr>
+                      );
+                    })}
 
-                            {row.lot.devis.length === 0 && row.lot.factures.length === 0 && (
-                              <p className="text-[12px] text-gray-400 text-center py-5">Aucun document</p>
-                            )}
-                          </div>
+                    {/* Lot vide (pas encore de docs) */}
+                    {isExpanded && row.lot.artisans.length === 0 && (
+                      <tr className="border-b-2 border-gray-200">
+                        <td colSpan={COLS} className="pl-9 py-3 text-[12px] text-gray-400">
+                          Aucun document dans ce lot
                         </td>
                       </tr>
                     )}
@@ -1759,6 +1448,8 @@ export default function BudgetTab({
           </tbody>
         </table>
       </div>
+
+                      
 
       {/* ── Footer ────────────────────────────────────────────────────────── */}
       {!loading && data && (
