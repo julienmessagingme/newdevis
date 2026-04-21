@@ -576,7 +576,7 @@ function BudgetKpiDashboard({
               Budget en dépassement de {fmtEur(conflictDiff)}
             </p>
             <p className="text-[10px] text-amber-700 mt-0.5 leading-relaxed">
-              Les devis validés totalisent <strong>{fmtEur(devisValides)}</strong>, soit {fmtEur(conflictDiff)} de plus
+              L'ensemble de vos engagements (devis + factures) totalise <strong>{fmtEur(engageReel)}</strong>, soit {fmtEur(conflictDiff)} de plus
               que votre budget de <strong>{fmtEur(budgetReel ?? 0)}</strong>.
               Souhaitez-vous ajuster votre budget ou revoir les devis ?
             </p>
@@ -586,7 +586,7 @@ function BudgetKpiDashboard({
               onClick={adjustToDevis}
               className="px-3 py-1.5 text-[11px] font-bold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors whitespace-nowrap"
             >
-              Ajuster à {fmtEur(devisValides)}
+              Ajuster à {fmtEur(engageReel)}
             </button>
             <button
               onClick={startEdit}
@@ -1416,14 +1416,17 @@ export default function BudgetTab({
                                   {fmtEur(artisan.totaux.litige)} litige
                                 </span>
                               )}
-                              {totalPaye === 0 && artisan.totaux.litige === 0 && (() => {
-                                const targetFacture = artisan.factures[0];
+                              {artisan.totaux.litige === 0 && (() => {
+                                // Facture cible : partielle existante (modifier) ou première facture (créer)
+                                const acompteFacture = artisan.factures.find(f => f.facture_statut === 'payee_partiellement');
+                                const targetFacture = acompteFacture ?? (totalPaye === 0 ? artisan.factures[0] : null);
+                                if (!targetFacture) return null;
                                 const artisanKey = artisan.nom;
                                 const isInline = inlineAcompte?.artisanKey === artisanKey;
-                                const isSaving = targetFacture && savingAcompte === targetFacture.id;
+                                const isSaving = savingAcompte === targetFacture.id;
                                 if (isSaving) return <Loader2 className="h-3 w-3 text-indigo-400 animate-spin" />;
-                                if (isInline && targetFacture) return (
-                                  <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                                if (isInline) return (
+                                  <div className="flex items-center gap-1 mt-0.5" onClick={e => e.stopPropagation()}>
                                     <input
                                       autoFocus
                                       type="number"
@@ -1436,7 +1439,7 @@ export default function BudgetTab({
                                       }}
                                       onBlur={() => saveInlineAcompte(targetFacture.id, inlineAcompte.value)}
                                       className="w-16 text-[11px] font-bold border-b border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5 text-right"
-                                      placeholder="0"
+                                      placeholder={acompteFacture ? String(acompteFacture.montant_paye ?? '') : '0'}
                                     />
                                     <span className="text-[10px] text-gray-400">€</span>
                                     <button onClick={() => setInlineAcompte(null)} className="text-gray-300 hover:text-gray-500">
@@ -1444,15 +1447,15 @@ export default function BudgetTab({
                                     </button>
                                   </div>
                                 );
-                                if (targetFacture) return (
+                                return (
                                   <button
-                                    onClick={e => { e.stopPropagation(); setInlineAcompte({ artisanKey, factureId: targetFacture.id, value: '' }); }}
-                                    className="text-[10px] text-indigo-400 hover:text-indigo-600 border border-indigo-200 hover:border-indigo-400 rounded-full px-2 py-0.5 transition-colors"
+                                    onClick={e => { e.stopPropagation(); setInlineAcompte({ artisanKey, factureId: targetFacture.id, value: acompteFacture ? String(acompteFacture.montant_paye ?? '') : '' }); }}
+                                    className="text-[10px] text-indigo-500 hover:text-indigo-700 font-semibold flex items-center gap-1 mt-0.5 border border-indigo-200 hover:border-indigo-400 rounded-full px-2 py-0.5 transition-colors"
                                   >
-                                    + Acompte
+                                    <Pencil className="h-2.5 w-2.5" />
+                                    {acompteFacture ? 'Modifier' : '+ Acompte'}
                                   </button>
                                 );
-                                return <span className="text-[11px] text-gray-300">—</span>;
                               })()}
                             </div>
                           </td>
@@ -1504,6 +1507,39 @@ export default function BudgetTab({
                         </tr>
                       );
                     })}
+
+                    {/* Ligne total du lot (si 2+ artisans) */}
+                    {isExpanded && row.lot.artisans.length > 1 && (() => {
+                      const lotTotalPaye = row.lot.totaux.paye + row.lot.totaux.acompte;
+                      const lotSolde = row.lot.totaux.a_payer;
+                      const lotSolded = lotSolde === 0 && lotTotalPaye > 0 && lotTotal > 0;
+                      return (
+                        <tr className="border-b-2 border-gray-300 bg-gray-50/60">
+                          <td className="pl-9 pr-3 py-2">
+                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Total {row.lot.nom}</span>
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <span className="text-[12px] font-black text-gray-800">{lotTotal > 0 ? fmtEur(lotTotal) : '—'}</span>
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <span className="text-[12px] font-semibold text-gray-700">{row.lot.totaux.facture > 0 ? fmtEur(row.lot.totaux.facture) : '—'}</span>
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <span className="text-[12px] font-semibold text-gray-700">{lotTotalPaye > 0 ? fmtEur(lotTotalPaye) : '—'}</span>
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            {lotSolded ? (
+                              <span className="text-[11px] font-bold text-emerald-600 flex items-center justify-end gap-1"><Check className="h-3 w-3" />Soldé</span>
+                            ) : lotSolde > 0 ? (
+                              <span className="text-[12px] font-black text-orange-600">{fmtEur(lotSolde)}</span>
+                            ) : (
+                              <span className="text-[11px] text-gray-300">—</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2" />
+                        </tr>
+                      );
+                    })()}
 
                     {/* Lot vide (pas encore de docs) */}
                     {isExpanded && row.lot.artisans.length === 0 && (
