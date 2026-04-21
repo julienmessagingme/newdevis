@@ -127,10 +127,11 @@ interface BudgetRow {
 
 function buildRow(lot: BudgetLot): BudgetRow {
   const { devis_valides, devis_recus, facture, paye, acompte } = lot.totaux;
-  // Factures "hors-devis" = montants facturés qui dépassent les devis validés (artisans supplémentaires)
-  const factureHorsDevis = devis_valides > 0 ? Math.max(0, facture - devis_valides) : facture;
-  // Budget total du lot = devis validés + éventuels suppléments facturés
-  const budgetTotal = devis_valides + factureHorsDevis;
+  // Par artisan : ceux avec devis → devis_valides, ceux sans devis → facture (engagement réel même sans devis)
+  const budgetTotal = lot.artisans.length > 0
+    ? lot.artisans.reduce((s, a) => s + (a.devis.length > 0 ? a.totaux.devis_valides : a.totaux.facture), 0)
+    : devis_valides + (devis_valides > 0 ? Math.max(0, facture - devis_valides) : facture);
+  const factureHorsDevis = Math.max(0, facture - devis_valides);
   const totalPaye = paye + acompte;
   const reste = Math.max(0, facture - totalPaye);
 
@@ -343,10 +344,16 @@ function BudgetKpiDashboard({
   const aRegler        = totaux?.a_payer  ?? 0;                         // factures reçues non soldées
   const litige         = totaux?.litige   ?? 0;
   const devisValides   = totaux?.devis_valides ?? 0;
-  const effectiveReel  = budgetReel ?? (devisValides > 0 ? devisValides : null);
+  // Engage réel = devis validés + factures d'artisans sans devis (engagement même sans devis)
+  const engageReel = data
+    ? [...(data.lots ?? []), ...(data.sans_lot ? [data.sans_lot] : [])].reduce((s, lot) =>
+        s + lot.artisans.reduce((ls, a) => ls + (a.devis.length > 0 ? a.totaux.devis_valides : a.totaux.facture), 0), 0
+      )
+    : devisValides;
+  const effectiveReel  = budgetReel ?? (engageReel > 0 ? engageReel : null);
   const budgetRestant  = effectiveReel ? Math.max(0, effectiveReel - decaisse - aRegler) : 0;
 
-  const pctEngagement = effectiveReel && effectiveReel > 0 ? Math.round((devisValides / effectiveReel) * 100) : 0;
+  const pctEngagement = effectiveReel && effectiveReel > 0 ? Math.round((engageReel / effectiveReel) * 100) : 0;
   const pctDecaisse   = effectiveReel && effectiveReel > 0 ? Math.round((decaisse / effectiveReel) * 100) : 0;
   const pctARegler    = effectiveReel && effectiveReel > 0 ? Math.round((aRegler / effectiveReel) * 100) : 0;
 
@@ -380,17 +387,17 @@ function BudgetKpiDashboard({
     setEditing(false);
   }
 
-  // Auto-init : pré-remplit budgetReel avec le total des devis validés au premier chargement
+  // Auto-init : pré-remplit budgetReel avec le total engagé réel au premier chargement
   useEffect(() => {
-    if (budgetReel !== null || devisValides <= 0) return;
-    persistBudgetReel(devisValides);
-  }, [devisValides]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (budgetReel !== null || engageReel <= 0) return;
+    persistBudgetReel(engageReel);
+  }, [engageReel]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Détection conflit : budget choisi < devis validés (tolérance 1%)
-  const conflict      = budgetReel !== null && devisValides > 0 && devisValides > (budgetReel ?? 0) * 1.01;
-  const conflictDiff  = conflict ? Math.round(devisValides - (budgetReel ?? 0)) : 0;
+  // Détection conflit : budget choisi < engagé réel (tolérance 1%)
+  const conflict      = budgetReel !== null && engageReel > 0 && engageReel > (budgetReel ?? 0) * 1.01;
+  const conflictDiff  = conflict ? Math.round(engageReel - (budgetReel ?? 0)) : 0;
 
-  function adjustToDevis() { persistBudgetReel(devisValides); }
+  function adjustToDevis() { persistBudgetReel(engageReel); }
 
   if (loading) return (
     <div className="px-7 py-6 border-b border-gray-100">
@@ -1068,6 +1075,9 @@ export default function BudgetTab({
 
   // Overrides locaux des statuts factures (optimistic updates)
   const [statutOverrides, setStatutOverrides] = useState<Record<string, FactureStatut>>({});
+  // Saisie acompte inline sur la ligne artisan
+  const [inlineAcompte, setInlineAcompte] = useState<{ artisanKey: string; factureId: string; value: string } | null>(null);
+  const [savingAcompte, setSavingAcompte] = useState<string | null>(null);
 
   const allLots = useMemo(() => {
     if (!data) return [];
@@ -1164,6 +1174,25 @@ export default function BudgetTab({
   }, [chantierId, token, handleStatutChange, refresh]);
 
 
+  const saveInlineAcompte = useCallback(async (factureId: string, valStr: string) => {
+    const montantPaye = parseFloat(valStr.replace(',', '.'));
+    if (isNaN(montantPaye) || montantPaye <= 0) { setInlineAcompte(null); return; }
+    setSavingAcompte(factureId);
+    setInlineAcompte(null);
+    try {
+      const bearer = await freshToken(token);
+      await fetch(`/api/chantier/${chantierId}/documents/${factureId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
+        body: JSON.stringify({ factureStatut: 'payee_partiellement', montantPaye }),
+      });
+      handleStatutChange(factureId, 'payee_partiellement');
+      refresh();
+      setStatutOverrides({});
+    } catch { /* silencieux */ }
+    setSavingAcompte(null);
+  }, [chantierId, token, handleStatutChange, refresh]);
+
   const toggleExpand = useCallback((lotId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setExpanded(prev => {
@@ -1249,8 +1278,8 @@ export default function BudgetTab({
               rows.map(row => {
                 // eslint-disable-next-line @typescript-eslint/no-unused-vars
                 const isExpanded = expanded.has(row.lot.id);
-                const lotOverrun = Math.max(0, row.lot.totaux.facture - row.lot.totaux.devis_valides);
-                const lotTotal   = row.lot.totaux.devis_valides + lotOverrun;
+                // lotTotal = budgetTotal calculé par buildRow (per-artisan : devis validés + factures sans devis)
+                const lotTotal = row.devisAmount ?? 0;
 
                 return (
                   <Fragment key={row.lot.id}>
@@ -1272,11 +1301,6 @@ export default function BudgetTab({
                             {row.lot.artisans.length} artisan{row.lot.artisans.length > 1 ? 's' : ''}
                           </span>
                           <div className="ml-auto flex items-center gap-2 shrink-0">
-                            {lotOverrun > 0 && (
-                              <span className="text-[9px] font-bold text-red-600 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
-                                ⚠ +{fmtEur(lotOverrun)} hors devis
-                              </span>
-                            )}
                             {lotTotal > 0 && (
                               <span className="text-[12px] font-bold text-gray-700">{fmtEur(lotTotal)}</span>
                             )}
@@ -1313,6 +1337,8 @@ export default function BudgetTab({
                         },
                       };
 
+                      const noDevis = artisan.devis.length === 0 && artisan.factures.length > 0;
+
                       return (
                         <tr
                           key={artisan.nom}
@@ -1335,6 +1361,11 @@ export default function BudgetTab({
                                       <Check className="h-2.5 w-2.5" />Validé
                                     </span>
                                   )}
+                                  {noDevis && (
+                                    <span className="inline-flex items-center gap-0.5 text-amber-600 font-medium mr-1.5">
+                                      <AlertTriangle className="h-2.5 w-2.5" />Devis manquant
+                                    </span>
+                                  )}
                                   {artisan.factures.length > 0 && `${artisan.factures.length} facture${artisan.factures.length > 1 ? 's' : ''}`}
                                   {docsCount > 0 && (
                                     <span className="ml-1.5 text-gray-300">· 📄{docsCount}</span>
@@ -1346,9 +1377,15 @@ export default function BudgetTab({
 
                           {/* ENGAGÉ */}
                           <td className="px-3 py-3 text-right">
-                            {artisan.totaux.devis_valides > 0
-                              ? <span className="text-[12px] font-bold text-gray-800">{fmtEur(artisan.totaux.devis_valides)}</span>
-                              : <span className="text-[12px] text-gray-300">—</span>}
+                            {artisan.totaux.devis_valides > 0 ? (
+                              <span className="text-[12px] font-bold text-gray-800">{fmtEur(artisan.totaux.devis_valides)}</span>
+                            ) : noDevis && artisan.totaux.facture > 0 ? (
+                              <span className="text-[12px] font-bold text-amber-600" title="Montant de la facture (devis manquant)">
+                                {fmtEur(artisan.totaux.facture)}
+                              </span>
+                            ) : (
+                              <span className="text-[12px] text-gray-300">—</span>
+                            )}
                           </td>
 
                           {/* FACTURÉ */}
@@ -1359,7 +1396,7 @@ export default function BudgetTab({
                           </td>
 
                           {/* PAYÉ */}
-                          <td className="px-3 py-3">
+                          <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
                             <div className="flex flex-col items-end gap-0.5">
                               {artisan.totaux.acompte > 0 && (
                                 <span className="text-[11px] font-semibold text-indigo-600 flex items-center gap-1">
@@ -1379,9 +1416,44 @@ export default function BudgetTab({
                                   {fmtEur(artisan.totaux.litige)} litige
                                 </span>
                               )}
-                              {totalPaye === 0 && artisan.totaux.litige === 0 && (
-                                <span className="text-[11px] text-gray-300">—</span>
-                              )}
+                              {totalPaye === 0 && artisan.totaux.litige === 0 && (() => {
+                                const targetFacture = artisan.factures[0];
+                                const artisanKey = artisan.nom;
+                                const isInline = inlineAcompte?.artisanKey === artisanKey;
+                                const isSaving = targetFacture && savingAcompte === targetFacture.id;
+                                if (isSaving) return <Loader2 className="h-3 w-3 text-indigo-400 animate-spin" />;
+                                if (isInline && targetFacture) return (
+                                  <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                                    <input
+                                      autoFocus
+                                      type="number"
+                                      inputMode="decimal"
+                                      value={inlineAcompte.value}
+                                      onChange={e => setInlineAcompte({ ...inlineAcompte, value: e.target.value })}
+                                      onKeyDown={e => {
+                                        if (e.key === 'Enter') saveInlineAcompte(targetFacture.id, inlineAcompte.value);
+                                        if (e.key === 'Escape') setInlineAcompte(null);
+                                      }}
+                                      onBlur={() => saveInlineAcompte(targetFacture.id, inlineAcompte.value)}
+                                      className="w-16 text-[11px] font-bold border-b border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5 text-right"
+                                      placeholder="0"
+                                    />
+                                    <span className="text-[10px] text-gray-400">€</span>
+                                    <button onClick={() => setInlineAcompte(null)} className="text-gray-300 hover:text-gray-500">
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                );
+                                if (targetFacture) return (
+                                  <button
+                                    onClick={e => { e.stopPropagation(); setInlineAcompte({ artisanKey, factureId: targetFacture.id, value: '' }); }}
+                                    className="text-[10px] text-indigo-400 hover:text-indigo-600 border border-indigo-200 hover:border-indigo-400 rounded-full px-2 py-0.5 transition-colors"
+                                  >
+                                    + Acompte
+                                  </button>
+                                );
+                                return <span className="text-[11px] text-gray-300">—</span>;
+                              })()}
                             </div>
                           </td>
 
