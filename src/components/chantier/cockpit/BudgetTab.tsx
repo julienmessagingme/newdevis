@@ -1417,8 +1417,8 @@ export default function BudgetTab({
                               : <span className="text-[12px] text-gray-300">—</span>}
                           </td>
 
-                          {/* PAYÉ — montants + bouton acompte inline */}
-                          <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
+                          {/* PAYÉ — montants uniquement (read-only) */}
+                          <td className="px-3 py-3">
                             <div className="flex flex-col items-end gap-0.5">
                               {artisan.totaux.acompte > 0 && (
                                 <span className="text-[11px] font-semibold text-indigo-600 flex items-center gap-1">
@@ -1438,134 +1438,159 @@ export default function BudgetTab({
                                   {fmtEur(artisan.totaux.litige)} litige
                                 </span>
                               )}
-                              {/* Bouton acompte — visible si facture OU si acompte sur devis (payment_events) */}
-                              {(() => {
-                                const artisanKey = artisan.nom;
-                                const isInline = inlineAcompte?.artisanKey === artisanKey;
-
-                                // Cas 1 : artisan avec facture(s)
-                                if (artisan.factures.length > 0) {
-                                  const acompteFacture = artisan.factures.find(f => f.facture_statut === 'payee_partiellement');
-                                  const targetFacture = acompteFacture ?? artisan.factures[0];
-                                  const isSaving = savingAcompte === targetFacture.id;
-                                  if (isSaving) return <Loader2 className="h-3 w-3 text-indigo-400 animate-spin mt-0.5" />;
-                                  if (isInline) return (
-                                    <div className="flex items-center gap-1 mt-0.5">
-                                      <input autoFocus type="number" inputMode="decimal"
-                                        value={inlineAcompte.value}
-                                        onChange={e => setInlineAcompte({ ...inlineAcompte, value: e.target.value })}
-                                        onKeyDown={e => {
-                                          if (e.key === 'Enter') saveInlineAcompte(targetFacture.id, inlineAcompte.value);
-                                          if (e.key === 'Escape') setInlineAcompte(null);
-                                        }}
-                                        onBlur={() => saveInlineAcompte(targetFacture.id, inlineAcompte.value)}
-                                        className="w-16 text-[11px] font-bold border-b border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5 text-right"
-                                        placeholder={acompteFacture ? String(acompteFacture.montant_paye ?? '') : '0'}
-                                      />
-                                      <span className="text-[10px] text-gray-400">€</span>
-                                      <button onClick={() => setInlineAcompte(null)} className="text-gray-300 hover:text-gray-500 ml-0.5"><X className="h-3 w-3" /></button>
-                                    </div>
-                                  );
-                                  return (
-                                    <button
-                                      onClick={e => { e.stopPropagation(); setInlineAcompte({ artisanKey, factureId: targetFacture.id, value: acompteFacture ? String(acompteFacture.montant_paye ?? '') : '' }); }}
-                                      className="text-[10px] text-indigo-500 hover:text-indigo-700 font-medium flex items-center gap-1 mt-0.5 border border-indigo-200 hover:border-indigo-400 rounded-full px-2 py-0.5 transition-colors"
-                                    >
-                                      <Pencil className="h-2.5 w-2.5" />
-                                      {acompteFacture ? 'Modifier acompte' : '+ Acompte'}
-                                    </button>
-                                  );
-                                }
-
-                                // Cas 2 : artisan sans facture mais avec acompte via payment_events sur devis
-                                const devisWithEvents = artisan.devis.filter(d => (d.payment_event_ids?.length ?? 0) > 0);
-                                if (devisWithEvents.length > 0) {
-                                  const eventIds = devisWithEvents.flatMap(d => d.payment_event_ids ?? []);
-                                  const currentVal = artisan.totaux.acompte;
-                                  const isSaving = savingAcompte === eventIds[0];
-                                  if (isSaving) return <Loader2 className="h-3 w-3 text-indigo-400 animate-spin mt-0.5" />;
-                                  if (isInline) return (
-                                    <div className="flex items-center gap-1 mt-0.5">
-                                      <input autoFocus type="number" inputMode="decimal"
-                                        value={inlineAcompte.value}
-                                        onChange={e => setInlineAcompte({ ...inlineAcompte, value: e.target.value })}
-                                        onKeyDown={e => {
-                                          if (e.key === 'Enter') saveInlineAcompteDevis(eventIds, inlineAcompte.value);
-                                          if (e.key === 'Escape') setInlineAcompte(null);
-                                        }}
-                                        onBlur={() => saveInlineAcompteDevis(eventIds, inlineAcompte.value)}
-                                        className="w-16 text-[11px] font-bold border-b border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5 text-right"
-                                        placeholder={String(currentVal)}
-                                      />
-                                      <span className="text-[10px] text-gray-400">€</span>
-                                      <button onClick={() => setInlineAcompte(null)} className="text-gray-300 hover:text-gray-500 ml-0.5"><X className="h-3 w-3" /></button>
-                                    </div>
-                                  );
-                                  return (
-                                    <button
-                                      onClick={e => { e.stopPropagation(); setInlineAcompte({ artisanKey, factureId: eventIds[0], value: String(currentVal) }); }}
-                                      className="text-[10px] text-indigo-500 hover:text-indigo-700 font-medium flex items-center gap-1 mt-0.5 border border-indigo-200 hover:border-indigo-400 rounded-full px-2 py-0.5 transition-colors"
-                                    >
-                                      <Pencil className="h-2.5 w-2.5" />Modifier acompte
-                                    </button>
-                                  );
-                                }
-
-                                return null;
-                              })()}
-                            </div>
-                          </td>
-
-                          {/* SOLDE + badge statut facture cliquable */}
-                          <td className="px-3 py-3 text-right" onClick={e => e.stopPropagation()}>
-                            <div className="flex flex-col items-end gap-1">
-                              {isSolde ? (
-                                <span className="text-[11px] font-bold text-emerald-600 flex items-center justify-end gap-1">
-                                  <Check className="h-3 w-3" />Soldé
-                                </span>
-                              ) : artisan.totaux.a_payer > 0 ? (
-                                <span className="text-[12px] font-bold text-orange-600">{fmtEur(artisan.totaux.a_payer)}</span>
-                              ) : (
+                              {artisan.totaux.acompte === 0 && artisan.totaux.paye === 0 && artisan.totaux.litige === 0 && (
                                 <span className="text-[11px] text-gray-300">—</span>
                               )}
-                              {/* Badge statut facture — toujours visible si facture, cliquable */}
-                              {artisan.factures.length > 0 && (() => {
-                                const primaryFacture = artisan.factures[0];
-                                const currentStatut = (statutOverrides[primaryFacture.id] ?? primaryFacture.facture_statut ?? 'recue') as FactureStatut;
-                                const cfg = FACTURE_STATUT_CFG[currentStatut] ?? FACTURE_STATUT_CFG.recue;
-                                const artisanKey = artisan.nom;
-                                const isOpen = openArtisanMenu === artisanKey;
-                                const isChanging = changingId === primaryFacture.id;
-                                return (
-                                  <div className="relative">
-                                    <button
-                                      disabled={isChanging}
-                                      onClick={e => { e.stopPropagation(); setOpenArtisanMenu(isOpen ? null : artisanKey); }}
-                                      className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all ${cfg.cls}`}
-                                    >
-                                      {isChanging ? <Loader2 className="h-3 w-3 animate-spin" /> : cfg.icon}
-                                      {cfg.short}
-                                      <ChevronDown className="h-2.5 w-2.5" />
-                                    </button>
-                                    {isOpen && (
-                                      <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-100 z-30 overflow-hidden">
-                                        {(Object.entries(FACTURE_STATUT_CFG) as [FactureStatut, typeof FACTURE_STATUT_CFG[FactureStatut]][]).map(([s, c]) => (
-                                          <button
-                                            key={s}
-                                            onClick={e => { e.stopPropagation(); setOpenArtisanMenu(null); changeStatut(primaryFacture.id, s, e); }}
-                                            className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${s === currentStatut ? 'text-indigo-600 bg-indigo-50/50' : 'text-gray-700'}`}
-                                          >
-                                            <span>{c.icon}</span>{c.label}
-                                            {s === currentStatut && <Check className="h-3 w-3 ml-auto text-indigo-500" />}
-                                          </button>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })()}
                             </div>
                           </td>
+
+                          {/* SOLDE — machine à états centrale */}
+                          {(() => {
+                            const artisanKey = artisan.nom;
+                            const primaryFacture = artisan.factures[0] ?? null;
+                            const currentStatut = primaryFacture
+                              ? ((statutOverrides[primaryFacture.id] ?? primaryFacture.facture_statut ?? 'recue') as FactureStatut)
+                              : null;
+                            const cfg = currentStatut ? (FACTURE_STATUT_CFG[currentStatut] ?? FACTURE_STATUT_CFG.recue) : null;
+                            const isOpen = openArtisanMenu === artisanKey;
+                            const isChanging = primaryFacture ? changingId === primaryFacture.id : false;
+                            const isAcompteStatut = currentStatut === 'payee_partiellement';
+                            const isPayeeStatut = currentStatut === 'payee';
+                            const isInlineOpen = inlineAcompte?.artisanKey === artisanKey;
+                            const isSavingAcomp = primaryFacture ? savingAcompte === primaryFacture.id : false;
+
+                            // isSolde : uniquement si une facture est marquée "payee"
+                            const isSoldeReal = isPayeeStatut && artisan.totaux.a_payer === 0;
+
+                            // Artisan sans facture : acompte via payment_events
+                            const devisWithEvents = artisan.devis.filter(d => (d.payment_event_ids?.length ?? 0) > 0);
+                            const eventIds = devisWithEvents.flatMap(d => d.payment_event_ids ?? []);
+                            const hasDevisAcompte = eventIds.length > 0;
+                            const isSavingDevisAcomp = hasDevisAcompte && savingAcompte === eventIds[0];
+
+                            return (
+                              <td className="px-3 py-3 text-right" onClick={e => e.stopPropagation()}>
+                                <div className="flex flex-col items-end gap-1.5">
+
+                                  {/* Montant solde */}
+                                  {isSoldeReal ? (
+                                    <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+                                      <Check className="h-3 w-3" />Soldé
+                                    </span>
+                                  ) : artisan.totaux.a_payer > 0 ? (
+                                    <span className="text-[12px] font-bold text-orange-600">{fmtEur(artisan.totaux.a_payer)}</span>
+                                  ) : !primaryFacture && !hasDevisAcompte ? (
+                                    <span className="text-[11px] text-gray-300">—</span>
+                                  ) : null}
+
+                                  {/* ── Bouton statut central (si facture) ── */}
+                                  {primaryFacture && cfg && (
+                                    <div className="relative">
+                                      <button
+                                        disabled={isChanging}
+                                        onClick={e => { e.stopPropagation(); setOpenArtisanMenu(isOpen ? null : artisanKey); }}
+                                        className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all ${cfg.cls}`}
+                                      >
+                                        {isChanging ? <Loader2 className="h-3 w-3 animate-spin" /> : cfg.icon}
+                                        {cfg.short}
+                                        <ChevronDown className="h-2.5 w-2.5 ml-0.5" />
+                                      </button>
+                                      {isOpen && (
+                                        <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-xl shadow-xl border border-gray-100 z-30 overflow-hidden">
+                                          {(Object.entries(FACTURE_STATUT_CFG) as [FactureStatut, typeof FACTURE_STATUT_CFG[FactureStatut]][]).map(([s, c]) => (
+                                            <button
+                                              key={s}
+                                              onClick={e => {
+                                                e.stopPropagation();
+                                                setOpenArtisanMenu(null);
+                                                changeStatut(primaryFacture.id, s, e);
+                                                // Si "acompte versé" sélectionné → ouvrir input montant immédiatement
+                                                if (s === 'payee_partiellement') {
+                                                  setTimeout(() => setInlineAcompte({
+                                                    artisanKey,
+                                                    factureId: primaryFacture.id,
+                                                    value: primaryFacture.montant_paye ? String(primaryFacture.montant_paye) : '',
+                                                  }), 100);
+                                                } else {
+                                                  setInlineAcompte(null);
+                                                }
+                                              }}
+                                              className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${s === currentStatut ? 'text-indigo-600 bg-indigo-50/50' : 'text-gray-700'}`}
+                                            >
+                                              <span>{c.icon}</span>{c.label}
+                                              {s === currentStatut && <Check className="h-3 w-3 ml-auto text-indigo-500" />}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* ── Saisie / modifier acompte (si statut = acompte) ── */}
+                                  {isAcompteStatut && primaryFacture && (
+                                    isSavingAcomp ? (
+                                      <Loader2 className="h-3 w-3 text-indigo-400 animate-spin" />
+                                    ) : isInlineOpen ? (
+                                      <div className="flex items-center gap-1">
+                                        <input autoFocus type="number" inputMode="decimal"
+                                          value={inlineAcompte.value}
+                                          onChange={e => setInlineAcompte({ ...inlineAcompte, value: e.target.value })}
+                                          onKeyDown={e => {
+                                            if (e.key === 'Enter') saveInlineAcompte(primaryFacture.id, inlineAcompte.value);
+                                            if (e.key === 'Escape') setInlineAcompte(null);
+                                          }}
+                                          onBlur={() => saveInlineAcompte(primaryFacture.id, inlineAcompte.value)}
+                                          className="w-16 text-[11px] font-bold border-b border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5 text-right"
+                                          placeholder={primaryFacture.montant_paye ? String(primaryFacture.montant_paye) : '0'}
+                                        />
+                                        <span className="text-[10px] text-gray-400">€</span>
+                                        <button onClick={() => setInlineAcompte(null)} className="text-gray-300 hover:text-gray-500 ml-0.5"><X className="h-3 w-3" /></button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={e => { e.stopPropagation(); setInlineAcompte({ artisanKey, factureId: primaryFacture.id, value: primaryFacture.montant_paye ? String(primaryFacture.montant_paye) : '' }); }}
+                                        className="text-[10px] text-indigo-500 hover:text-indigo-700 font-medium flex items-center gap-1 border border-indigo-200 hover:border-indigo-400 rounded-full px-2 py-0.5 transition-colors"
+                                      >
+                                        <Pencil className="h-2.5 w-2.5" />
+                                        {primaryFacture.montant_paye ? `Modifier : ${fmtEur(primaryFacture.montant_paye)}` : 'Saisir acompte'}
+                                      </button>
+                                    )
+                                  )}
+
+                                  {/* ── Modifier acompte devis (sans facture, via payment_events) ── */}
+                                  {!primaryFacture && hasDevisAcompte && (
+                                    isSavingDevisAcomp ? (
+                                      <Loader2 className="h-3 w-3 text-indigo-400 animate-spin" />
+                                    ) : isInlineOpen ? (
+                                      <div className="flex items-center gap-1">
+                                        <input autoFocus type="number" inputMode="decimal"
+                                          value={inlineAcompte.value}
+                                          onChange={e => setInlineAcompte({ ...inlineAcompte, value: e.target.value })}
+                                          onKeyDown={e => {
+                                            if (e.key === 'Enter') saveInlineAcompteDevis(eventIds, inlineAcompte.value);
+                                            if (e.key === 'Escape') setInlineAcompte(null);
+                                          }}
+                                          onBlur={() => saveInlineAcompteDevis(eventIds, inlineAcompte.value)}
+                                          className="w-16 text-[11px] font-bold border-b border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5 text-right"
+                                          placeholder={String(artisan.totaux.acompte)}
+                                        />
+                                        <span className="text-[10px] text-gray-400">€</span>
+                                        <button onClick={() => setInlineAcompte(null)} className="text-gray-300 hover:text-gray-500 ml-0.5"><X className="h-3 w-3" /></button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={e => { e.stopPropagation(); setInlineAcompte({ artisanKey, factureId: eventIds[0], value: String(artisan.totaux.acompte) }); }}
+                                        className="text-[10px] text-indigo-500 hover:text-indigo-700 font-medium flex items-center gap-1 border border-indigo-200 hover:border-indigo-400 rounded-full px-2 py-0.5 transition-colors"
+                                      >
+                                        <Pencil className="h-2.5 w-2.5" />Modifier : {fmtEur(artisan.totaux.acompte)}
+                                      </button>
+                                    )
+                                  )}
+
+                                </div>
+                              </td>
+                            );
+                          })()}
 
                           {/* AVANCEMENT */}
                           <td className="px-3 py-3">
