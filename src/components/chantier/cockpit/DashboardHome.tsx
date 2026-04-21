@@ -181,7 +181,7 @@ function BudgetDonutCard({
 
           {/* Engagé */}
           <div className="flex items-start justify-between gap-2">
-            <InfoLabel label="Engagé" tip="Somme des devis que vous avez acceptés et signés. Ce montant sera dû à vos artisans." />
+            <InfoLabel label="Engagé" tip="Devis validés + factures d'artisans sans devis associé. Représente votre engagement financier total." />
             <div className="text-right">
               <span className={`text-sm font-bold tabular-nums ${budgetEngage > 0 ? 'text-gray-800' : 'text-gray-300'}`}>
                 {budgetEngage > 0 ? fmtEurShort(budgetEngage) : '—'}
@@ -327,13 +327,21 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
     allDevis.filter(d => d.devis_statut === 'valide' || d.devis_statut === 'attente_facture'),
     [allDevis],
   );
-  const budgetEngage = useMemo(() =>
+  const budgetEngageDevis = useMemo(() =>
     devisValides.reduce((sum, d) => {
       const ttc = analysisData[d.id]?.ttc;
       return sum + (ttc != null && ttc > 0 ? ttc : (d.montant ?? 0));
     }, 0),
     [devisValides, analysisData],
   );
+  // Factures d'artisans sans devis validé : lots (ou sans lot) sans aucun devis validé
+  const budgetEngage = useMemo(() => {
+    const lotsWithDevis = new Set(devisValides.map(d => d.lot_id ?? '__sans_lot__'));
+    const factures = documents.filter(d => d.document_type === 'facture');
+    const facturesSansDevis = factures.filter(f => !lotsWithDevis.has(f.lot_id ?? '__sans_lot__'));
+    const totalFacturesSansDevis = facturesSansDevis.reduce((s, f) => s + (f.montant ?? 0), 0);
+    return budgetEngageDevis + totalFacturesSansDevis;
+  }, [budgetEngageDevis, devisValides, documents]);
   const totalPaye = useMemo(() =>
     documents
       .filter(d => d.document_type === 'facture' && (d.facture_statut === 'payee' || d.facture_statut === 'payee_partiellement'))
