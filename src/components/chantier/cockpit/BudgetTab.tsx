@@ -1078,6 +1078,8 @@ export default function BudgetTab({
   // Saisie acompte inline sur la ligne artisan
   const [inlineAcompte, setInlineAcompte] = useState<{ artisanKey: string; factureId: string; value: string } | null>(null);
   const [savingAcompte, setSavingAcompte] = useState<string | null>(null);
+  // Dropdown statut facture inline sur la ligne artisan
+  const [openArtisanMenu, setOpenArtisanMenu] = useState<string | null>(null); // artisanKey
 
   const allLots = useMemo(() => {
     if (!data) return [];
@@ -1395,7 +1397,7 @@ export default function BudgetTab({
                               : <span className="text-[12px] text-gray-300">—</span>}
                           </td>
 
-                          {/* PAYÉ */}
+                          {/* PAYÉ — montants + bouton acompte inline */}
                           <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
                             <div className="flex flex-col items-end gap-0.5">
                               {artisan.totaux.acompte > 0 && (
@@ -1416,21 +1418,18 @@ export default function BudgetTab({
                                   {fmtEur(artisan.totaux.litige)} litige
                                 </span>
                               )}
-                              {artisan.totaux.litige === 0 && (() => {
-                                // Facture cible : partielle existante (modifier) ou première facture (créer)
+                              {/* Bouton acompte — toujours visible si facture existe */}
+                              {artisan.factures.length > 0 && (() => {
                                 const acompteFacture = artisan.factures.find(f => f.facture_statut === 'payee_partiellement');
-                                const targetFacture = acompteFacture ?? (totalPaye === 0 ? artisan.factures[0] : null);
-                                if (!targetFacture) return null;
+                                const targetFacture = acompteFacture ?? artisan.factures[0];
                                 const artisanKey = artisan.nom;
                                 const isInline = inlineAcompte?.artisanKey === artisanKey;
                                 const isSaving = savingAcompte === targetFacture.id;
-                                if (isSaving) return <Loader2 className="h-3 w-3 text-indigo-400 animate-spin" />;
+                                if (isSaving) return <Loader2 className="h-3 w-3 text-indigo-400 animate-spin mt-0.5" />;
                                 if (isInline) return (
-                                  <div className="flex items-center gap-1 mt-0.5" onClick={e => e.stopPropagation()}>
+                                  <div className="flex items-center gap-1 mt-0.5">
                                     <input
-                                      autoFocus
-                                      type="number"
-                                      inputMode="decimal"
+                                      autoFocus type="number" inputMode="decimal"
                                       value={inlineAcompte.value}
                                       onChange={e => setInlineAcompte({ ...inlineAcompte, value: e.target.value })}
                                       onKeyDown={e => {
@@ -1442,7 +1441,7 @@ export default function BudgetTab({
                                       placeholder={acompteFacture ? String(acompteFacture.montant_paye ?? '') : '0'}
                                     />
                                     <span className="text-[10px] text-gray-400">€</span>
-                                    <button onClick={() => setInlineAcompte(null)} className="text-gray-300 hover:text-gray-500">
+                                    <button onClick={() => setInlineAcompte(null)} className="text-gray-300 hover:text-gray-500 ml-0.5">
                                       <X className="h-3 w-3" />
                                     </button>
                                   </div>
@@ -1450,27 +1449,65 @@ export default function BudgetTab({
                                 return (
                                   <button
                                     onClick={e => { e.stopPropagation(); setInlineAcompte({ artisanKey, factureId: targetFacture.id, value: acompteFacture ? String(acompteFacture.montant_paye ?? '') : '' }); }}
-                                    className="text-[10px] text-indigo-500 hover:text-indigo-700 font-semibold flex items-center gap-1 mt-0.5 border border-indigo-200 hover:border-indigo-400 rounded-full px-2 py-0.5 transition-colors"
+                                    className="text-[10px] text-indigo-500 hover:text-indigo-700 font-medium flex items-center gap-1 mt-0.5 border border-indigo-200 hover:border-indigo-400 rounded-full px-2 py-0.5 transition-colors"
                                   >
                                     <Pencil className="h-2.5 w-2.5" />
-                                    {acompteFacture ? 'Modifier' : '+ Acompte'}
+                                    {acompteFacture ? 'Modifier acompte' : '+ Acompte'}
                                   </button>
                                 );
                               })()}
                             </div>
                           </td>
 
-                          {/* SOLDE */}
-                          <td className="px-3 py-3 text-right">
-                            {isSolde ? (
-                              <span className="text-[11px] font-bold text-emerald-600 flex items-center justify-end gap-1">
-                                <Check className="h-3 w-3" />Soldé
-                              </span>
-                            ) : artisan.totaux.a_payer > 0 ? (
-                              <span className="text-[12px] font-bold text-orange-600">{fmtEur(artisan.totaux.a_payer)}</span>
-                            ) : (
-                              <span className="text-[11px] text-gray-300">—</span>
-                            )}
+                          {/* SOLDE + badge statut facture cliquable */}
+                          <td className="px-3 py-3 text-right" onClick={e => e.stopPropagation()}>
+                            <div className="flex flex-col items-end gap-1">
+                              {isSolde ? (
+                                <span className="text-[11px] font-bold text-emerald-600 flex items-center justify-end gap-1">
+                                  <Check className="h-3 w-3" />Soldé
+                                </span>
+                              ) : artisan.totaux.a_payer > 0 ? (
+                                <span className="text-[12px] font-bold text-orange-600">{fmtEur(artisan.totaux.a_payer)}</span>
+                              ) : (
+                                <span className="text-[11px] text-gray-300">—</span>
+                              )}
+                              {/* Badge statut facture — toujours visible si facture, cliquable */}
+                              {artisan.factures.length > 0 && (() => {
+                                const primaryFacture = artisan.factures[0];
+                                const currentStatut = (statutOverrides[primaryFacture.id] ?? primaryFacture.facture_statut ?? 'recue') as FactureStatut;
+                                const cfg = FACTURE_STATUT_CFG[currentStatut] ?? FACTURE_STATUT_CFG.recue;
+                                const artisanKey = artisan.nom;
+                                const isOpen = openArtisanMenu === artisanKey;
+                                const isChanging = changingId === primaryFacture.id;
+                                return (
+                                  <div className="relative">
+                                    <button
+                                      disabled={isChanging}
+                                      onClick={e => { e.stopPropagation(); setOpenArtisanMenu(isOpen ? null : artisanKey); }}
+                                      className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all ${cfg.cls}`}
+                                    >
+                                      {isChanging ? <Loader2 className="h-3 w-3 animate-spin" /> : cfg.icon}
+                                      {cfg.short}
+                                      <ChevronDown className="h-2.5 w-2.5" />
+                                    </button>
+                                    {isOpen && (
+                                      <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-100 z-30 overflow-hidden">
+                                        {(Object.entries(FACTURE_STATUT_CFG) as [FactureStatut, typeof FACTURE_STATUT_CFG[FactureStatut]][]).map(([s, c]) => (
+                                          <button
+                                            key={s}
+                                            onClick={e => { e.stopPropagation(); setOpenArtisanMenu(null); changeStatut(primaryFacture.id, s, e); }}
+                                            className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${s === currentStatut ? 'text-indigo-600 bg-indigo-50/50' : 'text-gray-700'}`}
+                                          >
+                                            <span>{c.icon}</span>{c.label}
+                                            {s === currentStatut && <Check className="h-3 w-3 ml-auto text-indigo-500" />}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                            </div>
                           </td>
 
                           {/* AVANCEMENT */}
@@ -1573,9 +1610,9 @@ export default function BudgetTab({
         </div>
       )}
 
-      {/* Overlay fermeture menu statut */}
-      {openMenu && (
-        <div className="fixed inset-0 z-20" onClick={() => { setOpenMenu(null); setAcompteInput(null); }} />
+      {/* Overlay fermeture menus statut */}
+      {(openMenu || openArtisanMenu) && (
+        <div className="fixed inset-0 z-20" onClick={() => { setOpenMenu(null); setAcompteInput(null); setOpenArtisanMenu(null); }} />
       )}
 
       {/* ── Drawer artisan ────────────────────────────────────────────────── */}
