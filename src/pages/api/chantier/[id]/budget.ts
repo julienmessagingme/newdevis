@@ -100,6 +100,10 @@ function buildArtisanGroups(devis: BudgetDevis[], factures: BudgetFacture[]): Bu
       else if (f.facture_statut === 'en_litige')            { litige += m; }
       else if (f.facture_statut === 'recue')                { a_payer += m; }
     }
+    // Artisan sans facture : le solde restant = devis_valides - acomptes déjà payés
+    if (g.factures.length === 0 && devis_valides > 0) {
+      a_payer = Math.max(0, devis_valides - acompte_devis);
+    }
     return { nom, devis: g.devis, factures: g.factures,
       totaux: { devis_valides, facture, paye, acompte: acompte_devis + acompte_fact, litige, a_payer } };
   });

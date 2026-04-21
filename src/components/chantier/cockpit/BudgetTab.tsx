@@ -1196,6 +1196,38 @@ export default function BudgetTab({
     setSavingAcompte(null);
   }, [chantierId, token, refresh]);
 
+  // Marquer devis comme intégralement payé via payment_events
+  const markDevisFullyPaid = useCallback(async (eventIds: string[], fullAmount: number) => {
+    if (eventIds.length === 0 || fullAmount <= 0) return;
+    setSavingAcompte(eventIds[0]);
+    try {
+      const bearer = await freshToken(token);
+      await fetch(`/api/chantier/${chantierId}/payment-events`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
+        body: JSON.stringify({ id: eventIds[0], status: 'paid', amount: fullAmount }),
+      });
+      refresh();
+    } catch { /* silencieux */ }
+    setSavingAcompte(null);
+  }, [chantierId, token, refresh]);
+
+  // Annuler acompte devis (remettre en pending)
+  const cancelDevisAcompte = useCallback(async (eventIds: string[]) => {
+    if (eventIds.length === 0) return;
+    setSavingAcompte(eventIds[0]);
+    try {
+      const bearer = await freshToken(token);
+      await fetch(`/api/chantier/${chantierId}/payment-events`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
+        body: JSON.stringify({ id: eventIds[0], status: 'pending' }),
+      });
+      refresh();
+    } catch { /* silencieux */ }
+    setSavingAcompte(null);
+  }, [chantierId, token, refresh]);
+
   const saveInlineAcompte = useCallback(async (factureId: string, valStr: string) => {
     const montantPaye = parseFloat(valStr.replace(',', '.'));
     if (isNaN(montantPaye) || montantPaye <= 0) { setInlineAcompte(null); return; }
@@ -1500,7 +1532,7 @@ export default function BudgetTab({
                                     <span className="text-[11px] text-gray-300">—</span>
                                   ) : null}
 
-                                  {/* 2. STATUT — bouton central (si facture) */}
+                                  {/* 2a. STATUT — bouton central (si facture) */}
                                   {primaryFacture && cfg && (
                                     <div className="relative">
                                       <button
@@ -1534,6 +1566,54 @@ export default function BudgetTab({
                                     </div>
                                   )}
 
+                                  {/* 2b. STATUT — bouton central (sans facture, via payment_events) */}
+                                  {!primaryFacture && hasDevisAcompte && (() => {
+                                    const devisStatut = isSolde ? 'solde' : 'acompte';
+                                    const devisCfg = devisStatut === 'solde'
+                                      ? { icon: <Check className="h-3 w-3" />, short: 'Payée', cls: 'border-emerald-200 bg-emerald-50 text-emerald-700' }
+                                      : { icon: <span>⏳</span>, short: 'Acompte', cls: 'border-indigo-200 bg-indigo-50 text-indigo-700' };
+                                    return (
+                                      <div className="relative">
+                                        <button
+                                          disabled={isSavingDevisAcomp}
+                                          onClick={e => { e.stopPropagation(); setOpenArtisanMenu(isOpen ? null : artisanKey); }}
+                                          className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all ${devisCfg.cls}`}
+                                        >
+                                          {isSavingDevisAcomp ? <Loader2 className="h-3 w-3 animate-spin" /> : devisCfg.icon}
+                                          {devisCfg.short}
+                                          <ChevronDown className="h-2.5 w-2.5 ml-0.5" />
+                                        </button>
+                                        {isOpen && (
+                                          <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-xl shadow-xl border border-gray-100 z-30 overflow-hidden">
+                                            <button
+                                              onClick={e => { e.stopPropagation(); setOpenArtisanMenu(null); cancelDevisAcompte(eventIds); }}
+                                              className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left text-gray-700`}
+                                            >
+                                              <span>⏸</span>Aucun paiement enregistré
+                                            </button>
+                                            <button
+                                              onClick={e => {
+                                                e.stopPropagation(); setOpenArtisanMenu(null);
+                                                setTimeout(() => setInlineAcompte({ artisanKey, factureId: eventIds[0], value: String(artisan.totaux.acompte || '') }), 100);
+                                              }}
+                                              className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${devisStatut === 'acompte' ? 'text-indigo-600 bg-indigo-50/50' : 'text-gray-700'}`}
+                                            >
+                                              <span>⏳</span>Acompte versé
+                                              {devisStatut === 'acompte' && <Check className="h-3 w-3 ml-auto text-indigo-500" />}
+                                            </button>
+                                            <button
+                                              onClick={e => { e.stopPropagation(); setOpenArtisanMenu(null); markDevisFullyPaid(eventIds, budget); }}
+                                              className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${devisStatut === 'solde' ? 'text-emerald-600 bg-emerald-50/50' : 'text-gray-700'}`}
+                                            >
+                                              <Check className="h-3.5 w-3.5" />Payé intégralement
+                                              {devisStatut === 'solde' && <Check className="h-3 w-3 ml-auto text-emerald-500" />}
+                                            </button>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
+
                                   {/* 3. ACOMPTE INPUT/MODIFIER — secondaire, sous le statut */}
                                   {isAcompteStatut && primaryFacture && (
                                     isSavingAcomp ? <Loader2 className="h-3 w-3 text-indigo-400 animate-spin" />
@@ -1549,7 +1629,7 @@ export default function BudgetTab({
                                     )
                                   )}
 
-                                  {/* 3b. Modifier acompte devis (sans facture) */}
+                                  {/* 3b. Modifier montant acompte devis (sans facture) */}
                                   {!primaryFacture && hasDevisAcompte && !isSolde && (
                                     isSavingDevisAcomp ? <Loader2 className="h-3 w-3 text-indigo-400 animate-spin" />
                                     : isInlineOpen ? <AcompteInput onSave={v => saveInlineAcompteDevis(eventIds, v)} />
