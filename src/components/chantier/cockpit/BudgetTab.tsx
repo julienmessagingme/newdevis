@@ -43,6 +43,7 @@ interface BudgetDevis {
   signed_url:     string | null;
   created_at:     string;
   montant_acompte_echeancier?: number; // paiements Échéancier payés sur ce devis
+  payment_event_ids?: string[];        // IDs des payment_events payés (pour modification inline)
 }
 
 interface BudgetFacture {
@@ -1176,6 +1177,25 @@ export default function BudgetTab({
   }, [chantierId, token, handleStatutChange, refresh]);
 
 
+  // Sauvegarde acompte via payment_events (pour les artisans sans facture — acompte sur devis)
+  const saveInlineAcompteDevis = useCallback(async (eventIds: string[], valStr: string) => {
+    const montantPaye = parseFloat(valStr.replace(',', '.'));
+    if (isNaN(montantPaye) || montantPaye <= 0 || eventIds.length === 0) { setInlineAcompte(null); return; }
+    setSavingAcompte(eventIds[0]);
+    setInlineAcompte(null);
+    try {
+      const bearer = await freshToken(token);
+      // PATCH le premier payment_event avec le nouveau montant
+      await fetch(`/api/chantier/${chantierId}/payment-events`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
+        body: JSON.stringify({ id: eventIds[0], status: 'paid', amount: montantPaye }),
+      });
+      refresh();
+    } catch { /* silencieux */ }
+    setSavingAcompte(null);
+  }, [chantierId, token, refresh]);
+
   const saveInlineAcompte = useCallback(async (factureId: string, valStr: string) => {
     const montantPaye = parseFloat(valStr.replace(',', '.'));
     if (isNaN(montantPaye) || montantPaye <= 0) { setInlineAcompte(null); return; }
@@ -1418,43 +1438,80 @@ export default function BudgetTab({
                                   {fmtEur(artisan.totaux.litige)} litige
                                 </span>
                               )}
-                              {/* Bouton acompte — toujours visible si facture existe */}
-                              {artisan.factures.length > 0 && (() => {
-                                const acompteFacture = artisan.factures.find(f => f.facture_statut === 'payee_partiellement');
-                                const targetFacture = acompteFacture ?? artisan.factures[0];
+                              {/* Bouton acompte — visible si facture OU si acompte sur devis (payment_events) */}
+                              {(() => {
                                 const artisanKey = artisan.nom;
                                 const isInline = inlineAcompte?.artisanKey === artisanKey;
-                                const isSaving = savingAcompte === targetFacture.id;
-                                if (isSaving) return <Loader2 className="h-3 w-3 text-indigo-400 animate-spin mt-0.5" />;
-                                if (isInline) return (
-                                  <div className="flex items-center gap-1 mt-0.5">
-                                    <input
-                                      autoFocus type="number" inputMode="decimal"
-                                      value={inlineAcompte.value}
-                                      onChange={e => setInlineAcompte({ ...inlineAcompte, value: e.target.value })}
-                                      onKeyDown={e => {
-                                        if (e.key === 'Enter') saveInlineAcompte(targetFacture.id, inlineAcompte.value);
-                                        if (e.key === 'Escape') setInlineAcompte(null);
-                                      }}
-                                      onBlur={() => saveInlineAcompte(targetFacture.id, inlineAcompte.value)}
-                                      className="w-16 text-[11px] font-bold border-b border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5 text-right"
-                                      placeholder={acompteFacture ? String(acompteFacture.montant_paye ?? '') : '0'}
-                                    />
-                                    <span className="text-[10px] text-gray-400">€</span>
-                                    <button onClick={() => setInlineAcompte(null)} className="text-gray-300 hover:text-gray-500 ml-0.5">
-                                      <X className="h-3 w-3" />
+
+                                // Cas 1 : artisan avec facture(s)
+                                if (artisan.factures.length > 0) {
+                                  const acompteFacture = artisan.factures.find(f => f.facture_statut === 'payee_partiellement');
+                                  const targetFacture = acompteFacture ?? artisan.factures[0];
+                                  const isSaving = savingAcompte === targetFacture.id;
+                                  if (isSaving) return <Loader2 className="h-3 w-3 text-indigo-400 animate-spin mt-0.5" />;
+                                  if (isInline) return (
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                      <input autoFocus type="number" inputMode="decimal"
+                                        value={inlineAcompte.value}
+                                        onChange={e => setInlineAcompte({ ...inlineAcompte, value: e.target.value })}
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter') saveInlineAcompte(targetFacture.id, inlineAcompte.value);
+                                          if (e.key === 'Escape') setInlineAcompte(null);
+                                        }}
+                                        onBlur={() => saveInlineAcompte(targetFacture.id, inlineAcompte.value)}
+                                        className="w-16 text-[11px] font-bold border-b border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5 text-right"
+                                        placeholder={acompteFacture ? String(acompteFacture.montant_paye ?? '') : '0'}
+                                      />
+                                      <span className="text-[10px] text-gray-400">€</span>
+                                      <button onClick={() => setInlineAcompte(null)} className="text-gray-300 hover:text-gray-500 ml-0.5"><X className="h-3 w-3" /></button>
+                                    </div>
+                                  );
+                                  return (
+                                    <button
+                                      onClick={e => { e.stopPropagation(); setInlineAcompte({ artisanKey, factureId: targetFacture.id, value: acompteFacture ? String(acompteFacture.montant_paye ?? '') : '' }); }}
+                                      className="text-[10px] text-indigo-500 hover:text-indigo-700 font-medium flex items-center gap-1 mt-0.5 border border-indigo-200 hover:border-indigo-400 rounded-full px-2 py-0.5 transition-colors"
+                                    >
+                                      <Pencil className="h-2.5 w-2.5" />
+                                      {acompteFacture ? 'Modifier acompte' : '+ Acompte'}
                                     </button>
-                                  </div>
-                                );
-                                return (
-                                  <button
-                                    onClick={e => { e.stopPropagation(); setInlineAcompte({ artisanKey, factureId: targetFacture.id, value: acompteFacture ? String(acompteFacture.montant_paye ?? '') : '' }); }}
-                                    className="text-[10px] text-indigo-500 hover:text-indigo-700 font-medium flex items-center gap-1 mt-0.5 border border-indigo-200 hover:border-indigo-400 rounded-full px-2 py-0.5 transition-colors"
-                                  >
-                                    <Pencil className="h-2.5 w-2.5" />
-                                    {acompteFacture ? 'Modifier acompte' : '+ Acompte'}
-                                  </button>
-                                );
+                                  );
+                                }
+
+                                // Cas 2 : artisan sans facture mais avec acompte via payment_events sur devis
+                                const devisWithEvents = artisan.devis.filter(d => (d.payment_event_ids?.length ?? 0) > 0);
+                                if (devisWithEvents.length > 0) {
+                                  const eventIds = devisWithEvents.flatMap(d => d.payment_event_ids ?? []);
+                                  const currentVal = artisan.totaux.acompte;
+                                  const isSaving = savingAcompte === eventIds[0];
+                                  if (isSaving) return <Loader2 className="h-3 w-3 text-indigo-400 animate-spin mt-0.5" />;
+                                  if (isInline) return (
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                      <input autoFocus type="number" inputMode="decimal"
+                                        value={inlineAcompte.value}
+                                        onChange={e => setInlineAcompte({ ...inlineAcompte, value: e.target.value })}
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter') saveInlineAcompteDevis(eventIds, inlineAcompte.value);
+                                          if (e.key === 'Escape') setInlineAcompte(null);
+                                        }}
+                                        onBlur={() => saveInlineAcompteDevis(eventIds, inlineAcompte.value)}
+                                        className="w-16 text-[11px] font-bold border-b border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5 text-right"
+                                        placeholder={String(currentVal)}
+                                      />
+                                      <span className="text-[10px] text-gray-400">€</span>
+                                      <button onClick={() => setInlineAcompte(null)} className="text-gray-300 hover:text-gray-500 ml-0.5"><X className="h-3 w-3" /></button>
+                                    </div>
+                                  );
+                                  return (
+                                    <button
+                                      onClick={e => { e.stopPropagation(); setInlineAcompte({ artisanKey, factureId: eventIds[0], value: String(currentVal) }); }}
+                                      className="text-[10px] text-indigo-500 hover:text-indigo-700 font-medium flex items-center gap-1 mt-0.5 border border-indigo-200 hover:border-indigo-400 rounded-full px-2 py-0.5 transition-colors"
+                                    >
+                                      <Pencil className="h-2.5 w-2.5" />Modifier acompte
+                                    </button>
+                                  );
+                                }
+
+                                return null;
                               })()}
                             </div>
                           </td>

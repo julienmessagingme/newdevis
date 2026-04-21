@@ -42,6 +42,7 @@ interface BudgetDevis {
   signed_url: string | null;
   created_at: string;
   montant_acompte_echeancier: number; // paiements Échéancier payés sur ce devis
+  payment_event_ids: string[];        // IDs des payment_events payés sur ce devis
 }
 
 interface BudgetFacture {
@@ -248,7 +249,7 @@ export const GET: APIRoute = async ({ params, request }) => {
       // Paiements effectués dans l'Échéancier (source de vérité pour totaux.paye)
       ctx.supabase
         .from('payment_events')
-        .select('source_id, amount, source_type')
+        .select('id, source_id, amount, source_type')
         .eq('project_id', chantierId)
         .eq('status', 'paid')
         .not('source_id', 'is', null),
@@ -261,9 +262,12 @@ export const GET: APIRoute = async ({ params, request }) => {
 
     // Montants payés par document-source (payment_events = source de vérité)
     const eventsPayeByDoc: Record<string, number> = {};
+    const eventsIdsByDoc: Record<string, string[]> = {};
     for (const ev of paidEventsRes.data ?? []) {
       if (ev.source_id && ev.amount != null) {
         eventsPayeByDoc[ev.source_id] = (eventsPayeByDoc[ev.source_id] ?? 0) + Number(ev.amount);
+        if (!eventsIdsByDoc[ev.source_id]) eventsIdsByDoc[ev.source_id] = [];
+        eventsIdsByDoc[ev.source_id].push(ev.id);
       }
     }
 
@@ -414,6 +418,7 @@ export const GET: APIRoute = async ({ params, request }) => {
           signed_url:     urlMap.get(doc.id) ?? null,
           created_at:     doc.created_at,
           montant_acompte_echeancier: evDevisPaid,
+          payment_event_ids: eventsIdsByDoc[doc.id] ?? [],
         });
         bucket.totaux.devis_recus   += montant ?? 0;
         bucket.totaux.devis_valides += montant ?? 0;
