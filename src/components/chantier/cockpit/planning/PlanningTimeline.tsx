@@ -42,7 +42,10 @@ function GanttBar({ lot, color, left, width, weekWidth, laneHeight, onResize, on
   weekWidth: number;
   laneHeight: number;
   onResize: (deltaDays: number) => void;
-  onMove: (deltaDays: number, laneDelta: number) => void;
+  /** targetLaneIdx : index absolu de la lane visée (null si pas de changement détecté).
+   *  Conventions : 0..lanes.length-1 = lane existante, lanes.length = ghost row,
+   *  negatif = pas détecté → parent utilise currentLaneIdx comme fallback. */
+  onMove: (deltaDays: number, targetLaneIdx: number | null) => void;
 }) {
   const barRef = useRef<HTMLDivElement>(null);
   const [interaction, setInteraction] = useState<'left' | 'right' | 'move' | null>(null);
@@ -106,10 +109,25 @@ function GanttBar({ lot, color, left, width, weekWidth, laneHeight, onResize, on
       setInteraction(null);
       if (barRef.current) barRef.current.style.transform = '';
       const deltaDays = Math.round((ev.clientX - startXRef.current) / pxPerDay);
-      const deltaY = ev.clientY - startYRef.current;
-      // Changement de lane si drag vertical dépasse la moitié d'une lane
-      const laneDelta = Math.round(deltaY / laneHeight);
-      if (deltaDays !== 0 || laneDelta !== 0) onMove(deltaDays, laneDelta);
+
+      // Détection précise de la lane cible via elementFromPoint (où la souris
+      // est vraiment relâchée). Évite les approximations de deltaY arithmétique
+      // qui ratent la ghost row selon le nombre de lanes existantes.
+      let targetLaneIdx: number | null = null;
+      const el = document.elementFromPoint(ev.clientX, ev.clientY);
+      const row = el?.closest('[data-gantt-row]');
+      if (row) {
+        if (row.getAttribute('data-ghost') === 'true') {
+          // Ghost row — lit data-lane-idx qui vaut lanes.length
+          targetLaneIdx = parseInt(row.getAttribute('data-lane-idx') ?? '-1', 10);
+        } else {
+          const idx = parseInt(row.getAttribute('data-lane-idx') ?? '-1', 10);
+          if (!isNaN(idx) && idx >= 0) targetLaneIdx = idx;
+        }
+        if (targetLaneIdx !== null && isNaN(targetLaneIdx)) targetLaneIdx = null;
+      }
+
+      if (deltaDays !== 0 || targetLaneIdx !== null) onMove(deltaDays, targetLaneIdx);
     };
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
@@ -243,20 +261,18 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
     return result;
   }, [planningLots]);
 
-  // -- Drag D&D : drop (X px, lane idx) → rank global + pg --------------------
+  // -- Drag D&D : lane cible détectée par elementFromPoint + rank via drop X --
   //
-  // Calcule la position X EXACTE du drop (centre du bar après move) puis
-  // trouve le dernier lot de la lane cible dont le centre est <= drop X.
-  // Le lot déplacé s'insère juste après dans la séquence globale triée.
-  // Résultat : placement précis, pas d'approximation par "voisin direction".
+  // targetLaneIdx est la lane SOUS le curseur au mouseup (via DOM, pas maths).
+  // null = pas de ligne détectée (hors table) → fallback sur currentLaneIdx.
+  // lanes.length = ghost row → création nouvelle side lane via parallelizeWith.
   const handleLotMoveWithLane = useCallback(
-    (lot: LotChantier, currentLaneIdx: number, deltaDays: number, laneDelta: number) => {
-      if (deltaDays === 0 && laneDelta === 0) return;
+    (lot: LotChantier, currentLaneIdx: number, deltaDays: number, targetLaneIdxOrNull: number | null) => {
+      const targetLaneIdx = targetLaneIdxOrNull ?? currentLaneIdx;
+      if (deltaDays === 0 && targetLaneIdx === currentLaneIdx) return;
 
-      const targetLaneIdx = currentLaneIdx + laneDelta;
-
-      // ── Drop sous toutes les lanes → nouvelle side lane via parallelizeWith
-      if (laneDelta !== 0 && targetLaneIdx >= lanes.length) {
+      // ── Drop sur ghost row → nouvelle side lane via parallelizeWith ──────
+      if (targetLaneIdx >= lanes.length) {
         const mainLane = lanes[0] ?? [];
         const currentOrdre = lot.ordre_planning ?? 0;
         const partner = mainLane
@@ -270,27 +286,25 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
         return;
       }
 
-      // ── Target pg (lane cible standard) ──────────────────────────────────
+      // ── Target pg selon lane cible ───────────────────────────────────────
       let newPg: number | null | undefined = undefined;
-      if (laneDelta !== 0) {
+      if (targetLaneIdx !== currentLaneIdx) {
         if (targetLaneIdx <= 0) {
-          newPg = null; // main lane
+          newPg = null; // main lane → séquentiel
         } else {
           const targetLane = lanes[targetLaneIdx];
-          const anchor = targetLane.find(l => l.id !== lot.id);
+          const anchor = targetLane?.find(l => l.id !== lot.id);
           newPg = anchor?.parallel_group ?? null;
         }
       }
 
-      // ── Target rank calculé depuis drop X précis ──────────────────────────
+      // ── Target rank via drop X précis ────────────────────────────────────
       const barStyle = getBarStyle(lot);
       const pxPerDay = WEEK_WIDTH / 5;
       const newCenterPx = barStyle.left + deltaDays * pxPerDay + barStyle.width / 2;
 
-      const effectiveTargetLaneIdx = Math.max(0, Math.min(targetLaneIdx, lanes.length - 1));
-      const targetLaneLots = (lanes[effectiveTargetLaneIdx] ?? []).filter(l => l.id !== lot.id);
+      const targetLaneLots = (lanes[targetLaneIdx] ?? []).filter(l => l.id !== lot.id);
 
-      // Dernier lot de la lane cible dont le centre est <= drop X → on insère juste après
       let insertAfterLot: LotChantier | null = null;
       for (const tl of targetLaneLots) {
         const tbs = getBarStyle(tl);
@@ -553,6 +567,8 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
               {lanes.map((lane, laneIdx) => (
                 <div
                   key={laneIdx}
+                  data-gantt-row=""
+                  data-lane-idx={laneIdx}
                   className="border-b border-gray-50 relative hover:bg-gray-50 transition-colors"
                   style={{ height: LOT_ROW_HEIGHT }}
                 >
@@ -580,9 +596,9 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
                           const newDays = Math.max(1, Math.min(120, (lot.duree_jours ?? 5) + deltaDays));
                           if (newDays !== lot.duree_jours) updateLot(lot.id, { duree_jours: newDays });
                         }}
-                        onMove={(deltaDays, laneDelta) => {
+                        onMove={(deltaDays, targetLaneIdx) => {
                           if (!lot.date_debut) return;
-                          handleLotMoveWithLane(lot, laneIdx, deltaDays, laneDelta);
+                          handleLotMoveWithLane(lot, laneIdx, deltaDays, targetLaneIdx);
                         }}
                       />
                     );
@@ -592,6 +608,9 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
 
               {/* Ghost row Gantt : zone de drop pour créer une nouvelle side lane */}
               <div
+                data-gantt-row=""
+                data-ghost="true"
+                data-lane-idx={lanes.length}
                 className="relative border-b border-dashed border-violet-200 bg-violet-50/40"
                 style={{ height: GHOST_ROW_HEIGHT }}
               >
