@@ -222,10 +222,16 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     if (updates.length > 0) patchPlanning({ lots: updates });
   }, [patchPlanning]);
 
-  /** Parallélise un lot avec un "partner" de la main lane — crée une side lane.
-   *  Si le partner a pg=null, on crée un nouveau pg partagé (update des 2 lots).
-   *  Si le partner a déjà un pg, on y rattache le lot déplacé.
-   *  Le lot déplacé prend ordre = partner.ordre + 1 (consécutif → même groupe). */
+  /** Parallélise un lot avec un "partner" main lane — crée une side lane.
+   *
+   *  Approche renumération : on reconstruit la liste globale en insérant le lot
+   *  déplacé IMMÉDIATEMENT APRÈS le partner, puis on renumérote 1..N. Cela
+   *  garantit que partner et lot déplacé sont CONSÉCUTIFS dans l'ordre trié,
+   *  ce qui est la condition pour qu'ils soient groupés (même pg + consécutifs)
+   *  par computePlanningDates et qu'on voit une side lane.
+   *
+   *  Si partner.pg est null, on crée un nouveau pg unique pour les 2 lots.
+   *  Sinon on y rattache le lot déplacé. */
   const parallelizeWith = useCallback((lotId: string, partnerId: string) => {
     let updates: Array<{ id: string; ordre_planning?: number; parallel_group?: number | null }> = [];
     setState(s => {
@@ -240,47 +246,40 @@ export function usePlanning(chantierId: string | null | undefined, token: string
         sharedPg = (existingPgs.length > 0 ? Math.max(...existingPgs) : 0) + 1;
       }
 
-      const partnerOrdre = partner.ordre_planning;
-      const targetOrdre = partnerOrdre + 1;
-      const currentOrdre = lot.ordre_planning ?? 0;
+      // Liste des autres lots (sans le déplacé), triés par ordre stable
+      const others = s.lots
+        .filter(l => l.id !== lotId && l.ordre_planning != null)
+        .sort((a, b) => (a.ordre_planning ?? 0) - (b.ordre_planning ?? 0));
 
+      // Trouve l'index du partner et insère le lot juste après
+      const partnerIdx = others.findIndex(l => l.id === partnerId);
+      if (partnerIdx < 0) return s;
+      const reordered = [...others.slice(0, partnerIdx + 1), lot, ...others.slice(partnerIdx + 1)];
+
+      // Renumérote 1..N
       const nextLots = s.lots.map(l => ({ ...l }));
+      reordered.forEach((orderedLot, i) => {
+        const target = nextLots.find(l => l.id === orderedLot.id);
+        if (target) target.ordre_planning = i + 1;
+      });
 
-      // Shift intermédiaires pour libérer la position targetOrdre
-      if (targetOrdre < currentOrdre) {
-        for (const l of nextLots) {
-          if (l.id === lotId) continue;
-          const o = l.ordre_planning ?? 0;
-          if (o >= targetOrdre && o < currentOrdre) l.ordre_planning = o + 1;
-        }
-      } else if (targetOrdre > currentOrdre) {
-        for (const l of nextLots) {
-          if (l.id === lotId) continue;
-          const o = l.ordre_planning ?? 0;
-          if (o > currentOrdre && o <= targetOrdre) l.ordre_planning = o - 1;
-        }
-      }
-
-      // Lot déplacé : ordre + pg
+      // Applique les pg (moved + partner si nécessaire)
       const movedLot = nextLots.find(l => l.id === lotId)!;
-      movedLot.ordre_planning = targetOrdre;
       movedLot.parallel_group = sharedPg;
-
-      // Partner : update pg si null (création du nouveau groupe partagé)
       if (partner.parallel_group == null) {
         const partnerLot = nextLots.find(l => l.id === partnerId)!;
         partnerLot.parallel_group = sharedPg;
       }
 
-      // Build updates
+      // Build updates (seulement les lots modifiés)
       updates = [];
       for (const newLot of nextLots) {
         const orig = s.lots.find(l => l.id === newLot.id);
         if (!orig) continue;
         const u: { id: string; ordre_planning?: number; parallel_group?: number | null } = { id: newLot.id };
         let touched = false;
-        if (orig.ordre_planning !== newLot.ordre_planning) {
-          u.ordre_planning = newLot.ordre_planning ?? undefined;
+        if (orig.ordre_planning !== newLot.ordre_planning && newLot.ordre_planning != null) {
+          u.ordre_planning = newLot.ordre_planning;
           touched = true;
         }
         if (orig.parallel_group !== newLot.parallel_group) {
