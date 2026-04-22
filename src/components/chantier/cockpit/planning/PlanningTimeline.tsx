@@ -159,7 +159,7 @@ interface Props {
 }
 
 export default function PlanningTimeline({ chantierId, token }: Props) {
-  const { lots, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, swapOrdre, setLotPg, recompactPlanning } = usePlanning(chantierId, token);
+  const { lots, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, moveLotTo, recompactPlanning } = usePlanning(chantierId, token);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [dateMode, setDateMode] = useState<null | 'start' | 'end'>(null);
 
@@ -233,69 +233,72 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
     return result;
   }, [planningLots]);
 
-  // -- Drag D&D : source de vérité = ordre_planning + parallel_group --------
-  // Toute modification est persistée en BDD via l'endpoint PATCH planning
-  // qui recompute les dates depuis ordre_planning + parallel_group.
+  // -- Drag D&D unifié : ordre_planning + parallel_group -----------------------
   //
-  // Règles :
-  // - Vertical UP (laneDelta < 0) → lot rejoint la lane cible → pg = pg de la
-  //   lane cible (ou null si main lane).
-  // - Vertical DOWN (laneDelta > 0) sur une lane existante → même logique.
-  // - Vertical DOWN sur une lane NOUVELLE (en dessous de toutes) → pg = nouveau
-  //   unique → crée sa propre side lane (parallèle au lot courant sur main lane).
-  // - Horizontal (laneDelta === 0) → swap ordre_planning avec le voisin le plus
-  //   proche dans la direction du drag, sur la même lane.
+  // Source de vérité BDD : ordre_planning + parallel_group + duree_jours.
+  // Toute modification passe par moveLotTo qui shift les ordres des voisins
+  // pour que le lot s'insère proprement à la position cible.
+  //
+  // Détermination de la cible :
+  // - Target lane (pg) :
+  //     laneDelta < 0       → lane au-dessus → hérite son pg (null si main lane)
+  //     laneDelta > 0 (lane existante) → hérite le pg de cette lane
+  //     laneDelta > 0 (en-dessous de tout) → nouveau pg unique (side lane isolée)
+  //     laneDelta === 0     → reste sur la même lane → pg inchangé
+  // - Target ordre (position dans la séquence) :
+  //     calculé d'après drop X en jours ouvrés : on cherche quel lot est déjà à
+  //     cette position temporelle et on s'insère juste avant/après.
   const handleLotMoveWithLane = useCallback(
     (lot: LotChantier, currentLaneIdx: number, deltaDays: number, laneDelta: number) => {
-      // ── Changement de lane (vertical) ─────────────────────────────────────
+      if (deltaDays === 0 && laneDelta === 0) return;
+
+      // ── 1. Target pg (parallel_group) ─────────────────────────────────────
+      let newPg: number | null | undefined = undefined; // undefined = pas de changement
       if (laneDelta !== 0) {
         const targetLaneIdx = currentLaneIdx + laneDelta;
-
-        // Drop en dessous de toutes les lanes → nouvelle side lane (pg unique)
         if (targetLaneIdx >= lanes.length) {
+          // Nouvelle side lane en dessous → pg unique
           const existingPgs = planningLots
             .map(l => l.parallel_group)
             .filter((pg): pg is number => pg != null);
-          const newPg = (existingPgs.length > 0 ? Math.max(...existingPgs) : 0) + 1;
-          setLotPg(lot.id, newPg);
-          return;
+          newPg = (existingPgs.length > 0 ? Math.max(...existingPgs) : 0) + 1;
+        } else if (targetLaneIdx < 0) {
+          newPg = null; // main lane
+        } else {
+          const targetLane = lanes[targetLaneIdx];
+          const anchor = targetLane.find(l => l.id !== lot.id);
+          newPg = anchor?.parallel_group ?? null;
         }
-
-        // Drop au-dessus de lane 0 → main lane (pg=null)
-        if (targetLaneIdx < 0) {
-          setLotPg(lot.id, null);
-          return;
-        }
-
-        // Drop sur une lane existante : hériter du pg de cette lane
-        const targetLane = lanes[targetLaneIdx];
-        const targetLot = targetLane.find(l => l.id !== lot.id);
-        const newPg = targetLot?.parallel_group ?? null;
-        setLotPg(lot.id, newPg);
-        return;
       }
 
-      // ── Réordonnancement horizontal (même lane) ───────────────────────────
-      if (deltaDays === 0) return;
-      const currentLane = lanes[currentLaneIdx];
-      if (!currentLane) return;
+      // ── 2. Target ordre_planning (position temporelle) ────────────────────
+      // On calcule la position cible de date_debut puis on trouve entre quels
+      // lots elle tombe (dans l'ordre global trié par ordre_planning).
+      const currentOrdre = lot.ordre_planning ?? 0;
+      let targetOrdre = currentOrdre;
 
-      const siblings = currentLane.filter(l => l.id !== lot.id && l.ordre_planning != null);
-      if (siblings.length === 0) return;
+      if (deltaDays !== 0) {
+        // Ordre cible en fonction du deltaDays : on avance/recule dans la
+        // séquence triée par ordre_planning d'un voisin à la fois.
+        // Pour un drag rapide qui passerait 2 voisins, on limite à ±1 shift.
+        const direction = deltaDays > 0 ? 1 : -1;
+        const sortedOrdres = [...new Set(planningLots.map(l => l.ordre_planning ?? 0))]
+          .sort((a, b) => a - b);
+        const currentIdx = sortedOrdres.indexOf(currentOrdre);
+        const neighborIdx = currentIdx + direction;
+        if (neighborIdx >= 0 && neighborIdx < sortedOrdres.length) {
+          targetOrdre = sortedOrdres[neighborIdx];
+        }
+      }
 
-      // Lot voisin dans la direction du drag (droite si deltaDays>0, gauche si <0)
-      const myOrdre = lot.ordre_planning ?? 0;
-      const neighbor = deltaDays > 0
-        ? siblings
-            .filter(l => (l.ordre_planning ?? 0) > myOrdre)
-            .sort((a, b) => (a.ordre_planning ?? 0) - (b.ordre_planning ?? 0))[0]
-        : siblings
-            .filter(l => (l.ordre_planning ?? 0) < myOrdre)
-            .sort((a, b) => (b.ordre_planning ?? 0) - (a.ordre_planning ?? 0))[0];
+      // Si rien n'a changé (ni ordre ni pg), on ne fait rien
+      const pgUnchanged = newPg === undefined || newPg === lot.parallel_group;
+      const ordreUnchanged = targetOrdre === currentOrdre;
+      if (pgUnchanged && ordreUnchanged) return;
 
-      if (neighbor) swapOrdre(lot.id, neighbor.id);
+      moveLotTo(lot.id, newPg, targetOrdre);
     },
-    [lanes, planningLots, swapOrdre, setLotPg]
+    [lanes, planningLots, moveLotTo]
   );
 
   // -- Loading state ----------------------------------------------------------

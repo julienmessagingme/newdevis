@@ -161,6 +161,64 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     patchPlanning({ lots: [{ id: lotId, parallel_group: newPg }] });
   }, [patchPlanning]);
 
+  /** Déplace un lot vers une nouvelle position ET/OU un nouveau groupe parallèle.
+   *  Décale tous les ordres intermédiaires pour libérer/combler la place.
+   *  Exemple : "insère ce lot entre ordre 3 et 4" → targetOrdre=4, les ordres >=4 shiftent à +1. */
+  const moveLotTo = useCallback((lotId: string, newPg: number | null | undefined, targetOrdre: number) => {
+    let updates: Array<{ id: string; ordre_planning?: number; parallel_group?: number | null }> = [];
+    setState(s => {
+      const lot = s.lots.find(l => l.id === lotId);
+      if (!lot || lot.ordre_planning == null) return s;
+      const currentOrdre = lot.ordre_planning;
+      const pgChanged = newPg !== undefined && newPg !== lot.parallel_group;
+
+      const nextLots = s.lots.map(l => ({ ...l }));
+
+      if (targetOrdre > currentOrdre) {
+        // Avance : décrémente les ordres intermédiaires (currentOrdre, targetOrdre]
+        for (const l of nextLots) {
+          if (l.id === lotId) continue;
+          const o = l.ordre_planning ?? 0;
+          if (o > currentOrdre && o <= targetOrdre) l.ordre_planning = o - 1;
+        }
+      } else if (targetOrdre < currentOrdre) {
+        // Recul : incrémente les ordres intermédiaires [targetOrdre, currentOrdre)
+        for (const l of nextLots) {
+          if (l.id === lotId) continue;
+          const o = l.ordre_planning ?? 0;
+          if (o >= targetOrdre && o < currentOrdre) l.ordre_planning = o + 1;
+        }
+      }
+
+      // Lot déplacé : nouvelle ordre + (éventuellement) nouveau pg
+      const movedLot = nextLots.find(l => l.id === lotId)!;
+      movedLot.ordre_planning = targetOrdre;
+      if (pgChanged) movedLot.parallel_group = newPg ?? null;
+
+      // Construit le batch d'updates : tous les lots dont ordre ou pg a changé
+      updates = [];
+      for (const newLot of nextLots) {
+        const orig = s.lots.find(l => l.id === newLot.id);
+        if (!orig) continue;
+        const u: { id: string; ordre_planning?: number; parallel_group?: number | null } = { id: newLot.id };
+        let touched = false;
+        if (orig.ordre_planning !== newLot.ordre_planning) {
+          u.ordre_planning = newLot.ordre_planning ?? undefined;
+          touched = true;
+        }
+        if (orig.parallel_group !== newLot.parallel_group) {
+          u.parallel_group = newLot.parallel_group ?? null;
+          touched = true;
+        }
+        if (touched) updates.push(u);
+      }
+
+      const recomputed = recomputeLocal(nextLots, s.startDate);
+      return { ...s, lots: recomputed, totalWeeks: getTotalWeeks(recomputed) };
+    });
+    if (updates.length > 0) patchPlanning({ lots: updates });
+  }, [patchPlanning]);
+
   /** Force le recompactage global des dates (utile après suppression d'un lot
    * laissant un trou, ou pour "remettre à plat" des déplacements manuels). */
   const recompactPlanning = useCallback(() => {
@@ -175,6 +233,7 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     reorderLots,
     swapOrdre,
     setLotPg,
+    moveLotTo,
     recompactPlanning,
     refetch: fetchPlanning,
   };

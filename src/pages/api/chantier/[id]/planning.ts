@@ -21,7 +21,7 @@ export const GET: APIRoute = async ({ request, params }) => {
       .single(),
     ctx.supabase
       .from('lots_chantier')
-      .select('id, nom, emoji, role, statut, ordre, duree_jours, date_debut, date_fin, ordre_planning, parallel_group, budget_min_ht, budget_avg_ht, budget_max_ht')
+      .select('id, nom, emoji, role, statut, ordre, duree_jours, date_debut, date_fin, ordre_planning, parallel_group, delai_avant_jours, budget_min_ht, budget_avg_ht, budget_max_ht')
       .eq('chantier_id', params.id!)
       .order('ordre_planning', { ascending: true, nullsFirst: false })
       .order('ordre', { ascending: true }),
@@ -86,6 +86,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
       if (typeof lot.duree_jours === 'number') update.duree_jours = lot.duree_jours;
       if (typeof lot.ordre_planning === 'number') update.ordre_planning = lot.ordre_planning;
       if ('parallel_group' in lot) update.parallel_group = lot.parallel_group;
+      if (typeof lot.delai_avant_jours === 'number') update.delai_avant_jours = lot.delai_avant_jours;
       if (typeof lot.date_debut === 'string') update.date_debut = lot.date_debut;
       if (typeof lot.date_fin === 'string') update.date_fin = lot.date_fin;
       if (Object.keys(update).length === 0) return null;
@@ -119,19 +120,20 @@ export const PATCH: APIRoute = async ({ request, params }) => {
     ? body.dateDebutChantier
     : chantierRow?.date_debut_chantier;
 
-  // 5. Recalcul global — dès qu'une structure change (durée / ordre / pg / date début)
+  // 5. Recalcul global — dès qu'une structure change (durée / ordre / pg / délai / date début)
   const needsGlobalRecalc = lotUpdates.length === 0
     || lotUpdates.some(l => typeof l.id === 'string' && !lotsWithExplicitDates.has(l.id as string) && (
         typeof l.duree_jours === 'number'
         || typeof l.ordre_planning === 'number'
         || 'parallel_group' in l
+        || typeof l.delai_avant_jours === 'number'
       ))
     || typeof body.dateDebutChantier === 'string';
 
   if (needsGlobalRecalc && startDateStr) {
     const { data: allLots } = await ctx.supabase
       .from('lots_chantier')
-      .select('id, nom, emoji, role, job_type, duree_jours, ordre_planning, parallel_group, ordre')
+      .select('id, nom, emoji, role, job_type, duree_jours, ordre_planning, parallel_group, delai_avant_jours, ordre')
       .eq('chantier_id', chantierId)
       .order('ordre', { ascending: true });
 
@@ -175,7 +177,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
   // 6. Retourner le planning mis à jour
   const { data: updatedLots } = await ctx.supabase
     .from('lots_chantier')
-    .select('id, nom, emoji, role, statut, ordre, duree_jours, date_debut, date_fin, ordre_planning, parallel_group, budget_min_ht, budget_avg_ht, budget_max_ht')
+    .select('id, nom, emoji, role, statut, ordre, duree_jours, date_debut, date_fin, ordre_planning, parallel_group, delai_avant_jours, budget_min_ht, budget_avg_ht, budget_max_ht')
     .eq('chantier_id', chantierId)
     .order('ordre_planning', { ascending: true, nullsFirst: false })
     .order('ordre', { ascending: true });

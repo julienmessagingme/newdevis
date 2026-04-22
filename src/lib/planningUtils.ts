@@ -170,8 +170,11 @@ export function computePlanningDates(lots: LotChantier[], startDate: Date): LotC
   const result: LotChantier[] = [];
 
   for (const group of groups) {
-    const groupStart = new Date(cursor);
-    let leaderIdx = 0;
+    // Délai explicite avant le groupe (piloté par le leader) — permet à l'agent
+    // IA ou au D&D de décaler un lot de N jours sans casser la cascade.
+    const leader = group[0];
+    const delay = Math.max(0, leader?.delai_avant_jours ?? 0);
+    const groupStart = delay > 0 ? addBusinessDays(new Date(cursor), delay) : new Date(cursor);
 
     for (let i = 0; i < group.length; i++) {
       const lot = group[i];
@@ -185,7 +188,7 @@ export function computePlanningDates(lots: LotChantier[], startDate: Date): LotC
       });
 
       // Le leader (premier du groupe) pilote le cursor main lane
-      if (i === leaderIdx) {
+      if (i === 0) {
         cursor = fin;
       }
       // Les autres membres (side lanes) tournent à côté, sans bloquer la main lane

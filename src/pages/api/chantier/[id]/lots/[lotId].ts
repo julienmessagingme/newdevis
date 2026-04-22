@@ -41,7 +41,7 @@ export const DELETE: APIRoute = async ({ request, params }) => {
         .single(),
       ctx.supabase
         .from('lots_chantier')
-        .select('id, nom, emoji, role, job_type, duree_jours, ordre_planning, parallel_group, ordre')
+        .select('id, nom, emoji, role, job_type, duree_jours, ordre_planning, parallel_group, delai_avant_jours, ordre')
         .eq('chantier_id', chantierId),
     ]);
 
