@@ -4,7 +4,7 @@
  * Split layout: left column (lot names) is sticky, right area (Gantt bars) scrolls horizontally.
  */
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { Calendar, Loader2, AlertCircle, Users, AlignLeft } from 'lucide-react';
+import { Calendar, Loader2, AlertCircle, Users, AlignLeft, Plus } from 'lucide-react';
 import type { LotChantier } from '@/types/chantier-ia';
 import { usePlanning } from '@/hooks/usePlanning';
 import { formatDuration, getWeekLabels } from '@/lib/planningUtils';
@@ -156,6 +156,10 @@ function GanttBar({ lot, color, left, width, weekWidth, laneHeight, onResize, on
 // -- Row heights (shared constants) -------------------------------------------
 
 const LOT_ROW_HEIGHT = 44;
+// Ghost row ("drop here") : plus haute pour un drop plus forgiving. Ne rentre
+// pas dans le calcul de laneDelta côté drag (qui utilise LOT_ROW_HEIGHT), mais
+// offre plus d'espace visuel pour atteindre le seuil laneDelta >= lanes.length.
+const GHOST_ROW_HEIGHT = 56;
 
 // -- Composant principal ------------------------------------------------------
 
@@ -528,6 +532,19 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
                 </div>
               );
             })}
+
+            {/* Ghost row : zone de drop pour créer une nouvelle lane parallèle */}
+            <div
+              className="border-b border-dashed border-violet-200 bg-violet-50/40"
+              style={{ height: GHOST_ROW_HEIGHT }}
+            >
+              <div className="px-3 h-full flex items-center gap-2 text-violet-500">
+                <Plus className="h-3.5 w-3.5 shrink-0" />
+                <span className="text-[11px] font-medium truncate">
+                  Glissez un lot ici
+                </span>
+              </div>
+            </div>
           </div>
 
           {/* ====== RIGHT: scrollable Gantt area ====== */}
@@ -583,6 +600,21 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
                   })}
                 </div>
               ))}
+
+              {/* Ghost row Gantt : zone de drop pour créer une nouvelle side lane */}
+              <div
+                className="relative border-b border-dashed border-violet-200 bg-violet-50/40"
+                style={{ height: GHOST_ROW_HEIGHT }}
+              >
+                <div className="absolute inset-0 flex pointer-events-none">
+                  {weeks.map((_, i) => (
+                    <div key={i} className="flex-none border-r border-gray-50/60" style={{ width: WEEK_WIDTH }} />
+                  ))}
+                </div>
+                <div className="relative h-full flex items-center justify-center text-violet-400 text-[11px] font-medium pointer-events-none">
+                  Déposez un lot ici pour l'exécuter en parallèle
+                </div>
+              </div>
             </div>
           </div>
         </div>
