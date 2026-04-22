@@ -508,6 +508,8 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
               return (
                 <div
                   key={laneIdx}
+                  data-gantt-row=""
+                  data-lane-idx={laneIdx}
                   className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
                   style={{ height: LOT_ROW_HEIGHT }}
                 >
@@ -538,6 +540,9 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
 
             {/* Ghost row : zone de drop pour créer une nouvelle lane parallèle */}
             <div
+              data-gantt-row=""
+              data-ghost="true"
+              data-lane-idx={lanes.length}
               className="border-b border-dashed border-violet-200 bg-violet-50/40"
               style={{ height: GHOST_ROW_HEIGHT }}
             >
