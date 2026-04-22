@@ -161,49 +161,52 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     patchPlanning({ lots: [{ id: lotId, parallel_group: newPg }] });
   }, [patchPlanning]);
 
-  /** Déplace un lot vers une nouvelle position ET/OU un nouveau groupe parallèle.
-   *  Décale tous les ordres intermédiaires pour libérer/combler la place.
-   *  Exemple : "insère ce lot entre ordre 3 et 4" → targetOrdre=4, les ordres >=4 shiftent à +1. */
-  const moveLotTo = useCallback((lotId: string, newPg: number | null | undefined, targetOrdre: number) => {
+  /** Déplace un lot à un rang précis (1-indexed) dans la séquence triée,
+   *  + optionnellement change son parallel_group.
+   *
+   *  Approche : reconstruire la liste globale des lots dans l'ordre voulu, puis
+   *  renuméroter ordre_planning de 1 à N. Plus robuste que "shift intermédiaires"
+   *  car insensible aux trous et aux égalités d'ordre.
+   *
+   *  Exemple : `moveLotTo(plombier, null, 3)` → plombier devient le 3e lot
+   *  dans la séquence main lane, les autres décalés en conséquence. */
+  const moveLotTo = useCallback((lotId: string, newPg: number | null | undefined, targetRank: number) => {
     let updates: Array<{ id: string; ordre_planning?: number; parallel_group?: number | null }> = [];
     setState(s => {
       const lot = s.lots.find(l => l.id === lotId);
-      if (!lot || lot.ordre_planning == null) return s;
-      const currentOrdre = lot.ordre_planning;
-      const pgChanged = newPg !== undefined && newPg !== lot.parallel_group;
+      if (!lot) return s;
 
+      // Autres lots avec planning, triés par ordre_planning courant (stable)
+      const others = s.lots
+        .filter(l => l.id !== lotId && l.ordre_planning != null)
+        .sort((a, b) => (a.ordre_planning ?? 0) - (b.ordre_planning ?? 0));
+
+      // Insère le lot déplacé à la position cible dans la liste
+      const insertIdx = Math.max(0, Math.min(targetRank - 1, others.length));
+      const reordered = [...others.slice(0, insertIdx), lot, ...others.slice(insertIdx)];
+
+      // Construit le nouveau state avec ordres renumérotés 1..N
       const nextLots = s.lots.map(l => ({ ...l }));
+      reordered.forEach((orderedLot, i) => {
+        const target = nextLots.find(l => l.id === orderedLot.id);
+        if (target) target.ordre_planning = i + 1;
+      });
 
-      if (targetOrdre > currentOrdre) {
-        // Avance : décrémente les ordres intermédiaires (currentOrdre, targetOrdre]
-        for (const l of nextLots) {
-          if (l.id === lotId) continue;
-          const o = l.ordre_planning ?? 0;
-          if (o > currentOrdre && o <= targetOrdre) l.ordre_planning = o - 1;
-        }
-      } else if (targetOrdre < currentOrdre) {
-        // Recul : incrémente les ordres intermédiaires [targetOrdre, currentOrdre)
-        for (const l of nextLots) {
-          if (l.id === lotId) continue;
-          const o = l.ordre_planning ?? 0;
-          if (o >= targetOrdre && o < currentOrdre) l.ordre_planning = o + 1;
-        }
+      // Applique le nouveau pg au lot déplacé si demandé
+      if (newPg !== undefined) {
+        const movedLot = nextLots.find(l => l.id === lotId)!;
+        movedLot.parallel_group = newPg ?? null;
       }
 
-      // Lot déplacé : nouvelle ordre + (éventuellement) nouveau pg
-      const movedLot = nextLots.find(l => l.id === lotId)!;
-      movedLot.ordre_planning = targetOrdre;
-      if (pgChanged) movedLot.parallel_group = newPg ?? null;
-
-      // Construit le batch d'updates : tous les lots dont ordre ou pg a changé
+      // Construit le batch d'updates (lots réellement modifiés)
       updates = [];
       for (const newLot of nextLots) {
         const orig = s.lots.find(l => l.id === newLot.id);
         if (!orig) continue;
         const u: { id: string; ordre_planning?: number; parallel_group?: number | null } = { id: newLot.id };
         let touched = false;
-        if (orig.ordre_planning !== newLot.ordre_planning) {
-          u.ordre_planning = newLot.ordre_planning ?? undefined;
+        if (orig.ordre_planning !== newLot.ordre_planning && newLot.ordre_planning != null) {
+          u.ordre_planning = newLot.ordre_planning;
           touched = true;
         }
         if (orig.parallel_group !== newLot.parallel_group) {

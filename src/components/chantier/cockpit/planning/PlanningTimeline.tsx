@@ -243,86 +243,75 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
     return result;
   }, [planningLots]);
 
-  // -- Drag D&D unifié : ordre_planning + parallel_group -----------------------
+  // -- Drag D&D : drop (X px, lane idx) → rank global + pg --------------------
   //
-  // Source de vérité BDD : ordre_planning + parallel_group + duree_jours.
-  // Toute modification passe par moveLotTo qui shift les ordres des voisins
-  // pour que le lot s'insère proprement à la position cible.
-  //
-  // Détermination de la cible :
-  // - Target lane (pg) :
-  //     laneDelta < 0       → lane au-dessus → hérite son pg (null si main lane)
-  //     laneDelta > 0 (lane existante) → hérite le pg de cette lane
-  //     laneDelta > 0 (en-dessous de tout) → nouveau pg unique (side lane isolée)
-  //     laneDelta === 0     → reste sur la même lane → pg inchangé
-  // - Target ordre (position dans la séquence) :
-  //     calculé d'après drop X en jours ouvrés : on cherche quel lot est déjà à
-  //     cette position temporelle et on s'insère juste avant/après.
+  // Calcule la position X EXACTE du drop (centre du bar après move) puis
+  // trouve le dernier lot de la lane cible dont le centre est <= drop X.
+  // Le lot déplacé s'insère juste après dans la séquence globale triée.
+  // Résultat : placement précis, pas d'approximation par "voisin direction".
   const handleLotMoveWithLane = useCallback(
     (lot: LotChantier, currentLaneIdx: number, deltaDays: number, laneDelta: number) => {
       if (deltaDays === 0 && laneDelta === 0) return;
 
-      // ── 1. Target pg (parallel_group) ─────────────────────────────────────
-      let newPg: number | null | undefined = undefined; // undefined = pas de changement
+      const targetLaneIdx = currentLaneIdx + laneDelta;
+
+      // ── Drop sous toutes les lanes → nouvelle side lane via parallelizeWith
+      if (laneDelta !== 0 && targetLaneIdx >= lanes.length) {
+        const mainLane = lanes[0] ?? [];
+        const currentOrdre = lot.ordre_planning ?? 0;
+        const partner = mainLane
+          .filter(l => l.id !== lot.id && l.ordre_planning != null)
+          .sort((a, b) => {
+            const da = Math.abs((a.ordre_planning ?? 0) - currentOrdre);
+            const db = Math.abs((b.ordre_planning ?? 0) - currentOrdre);
+            return da - db;
+          })[0];
+        if (partner) parallelizeWith(lot.id, partner.id);
+        return;
+      }
+
+      // ── Target pg (lane cible standard) ──────────────────────────────────
+      let newPg: number | null | undefined = undefined;
       if (laneDelta !== 0) {
-        const targetLaneIdx = currentLaneIdx + laneDelta;
-        if (targetLaneIdx >= lanes.length) {
-          // Drop en dessous de toutes les lanes → création d'une nouvelle side
-          // lane. On parallélise avec le lot main lane le plus proche dans le
-          // temps (partner). Si ce partner a pg=null, on crée un nouveau pg
-          // partagé entre les 2 lots (update atomique). Sort early : on court-
-          // circuite moveLotTo qui ne gère qu'un seul lot.
-          const mainLane = lanes[0] ?? [];
-          const currentOrdre = lot.ordre_planning ?? 0;
-          const partner = mainLane.filter(l => l.id !== lot.id && l.ordre_planning != null)
-            .sort((a, b) => {
-              const da = Math.abs((a.ordre_planning ?? 0) - currentOrdre);
-              const db = Math.abs((b.ordre_planning ?? 0) - currentOrdre);
-              return da - db;
-            })[0];
-          if (partner) {
-            parallelizeWith(lot.id, partner.id);
-          }
-          return;
-        } else if (targetLaneIdx <= 0) {
-          // Drop sur la main lane (lane 0 ou plus haut) → sequentiel (pg=null)
-          newPg = null;
+        if (targetLaneIdx <= 0) {
+          newPg = null; // main lane
         } else {
-          // Drop sur une side lane existante (lane 1+) → rejoint son pg
           const targetLane = lanes[targetLaneIdx];
           const anchor = targetLane.find(l => l.id !== lot.id);
           newPg = anchor?.parallel_group ?? null;
         }
       }
 
-      // ── 2. Target ordre_planning (position temporelle) ────────────────────
-      // On calcule la position cible de date_debut puis on trouve entre quels
-      // lots elle tombe (dans l'ordre global trié par ordre_planning).
-      const currentOrdre = lot.ordre_planning ?? 0;
-      let targetOrdre = currentOrdre;
+      // ── Target rank calculé depuis drop X précis ──────────────────────────
+      const barStyle = getBarStyle(lot);
+      const pxPerDay = WEEK_WIDTH / 5;
+      const newCenterPx = barStyle.left + deltaDays * pxPerDay + barStyle.width / 2;
 
-      if (deltaDays !== 0) {
-        // Ordre cible en fonction du deltaDays : on avance/recule dans la
-        // séquence triée par ordre_planning d'un voisin à la fois.
-        // Pour un drag rapide qui passerait 2 voisins, on limite à ±1 shift.
-        const direction = deltaDays > 0 ? 1 : -1;
-        const sortedOrdres = [...new Set(planningLots.map(l => l.ordre_planning ?? 0))]
-          .sort((a, b) => a - b);
-        const currentIdx = sortedOrdres.indexOf(currentOrdre);
-        const neighborIdx = currentIdx + direction;
-        if (neighborIdx >= 0 && neighborIdx < sortedOrdres.length) {
-          targetOrdre = sortedOrdres[neighborIdx];
+      const effectiveTargetLaneIdx = Math.max(0, Math.min(targetLaneIdx, lanes.length - 1));
+      const targetLaneLots = (lanes[effectiveTargetLaneIdx] ?? []).filter(l => l.id !== lot.id);
+
+      // Dernier lot de la lane cible dont le centre est <= drop X → on insère juste après
+      let insertAfterLot: LotChantier | null = null;
+      for (const tl of targetLaneLots) {
+        const tbs = getBarStyle(tl);
+        if (tbs.left + tbs.width / 2 <= newCenterPx) {
+          insertAfterLot = tl;
+        } else {
+          break;
         }
       }
 
-      // Si rien n'a changé (ni ordre ni pg), on ne fait rien
-      const pgUnchanged = newPg === undefined || newPg === lot.parallel_group;
-      const ordreUnchanged = targetOrdre === currentOrdre;
-      if (pgUnchanged && ordreUnchanged) return;
+      const allSortedExceptMoved = planningLots
+        .filter(l => l.id !== lot.id)
+        .sort((a, b) => (a.ordre_planning ?? 0) - (b.ordre_planning ?? 0));
 
-      moveLotTo(lot.id, newPg, targetOrdre);
+      const targetRank = insertAfterLot
+        ? allSortedExceptMoved.findIndex(l => l.id === insertAfterLot!.id) + 2
+        : 1;
+
+      moveLotTo(lot.id, newPg, targetRank);
     },
-    [lanes, planningLots, moveLotTo, parallelizeWith]
+    [lanes, planningLots, moveLotTo, parallelizeWith, getBarStyle]
   );
 
   // -- Loading state ----------------------------------------------------------
