@@ -95,10 +95,36 @@ function GanttBar({ lot, color, left, width, weekWidth, laneHeight, onResize, on
     startYRef.current = e.clientY;
     startLeftRef.current = left;
 
-    // Rend la barre draggée transparente aux events pointeur : sinon elle passe
-    // sous le curseur pendant le drag et elementFromPoint la retourne elle-même
-    // au lieu de la row sous-jacente.
+    // pointer-events: none → la barre draggée est transparente aux events, ce
+    // qui permet à elementFromPoint de trouver la row sous-jacente et pas la
+    // barre elle-même.
     if (barRef.current) barRef.current.style.pointerEvents = 'none';
+
+    // Fonction helper : détecte la row sous le curseur et met à jour le
+    // surlignage visuel (une seule row mise en valeur à la fois).
+    let lastHoveredRow: Element | null = null;
+    const clearHover = () => {
+      if (lastHoveredRow) {
+        (lastHoveredRow as HTMLElement).style.backgroundColor = '';
+        (lastHoveredRow as HTMLElement).style.outline = '';
+        (lastHoveredRow as HTMLElement).style.outlineOffset = '';
+        lastHoveredRow = null;
+      }
+    };
+    const highlightRowUnderCursor = (cx: number, cy: number): Element | null => {
+      const el = document.elementFromPoint(cx, cy);
+      const row = el?.closest('[data-gantt-row]') ?? null;
+      if (row === lastHoveredRow) return row;
+      clearHover();
+      if (row) {
+        const isGhost = row.getAttribute('data-ghost') === 'true';
+        (row as HTMLElement).style.backgroundColor = isGhost ? 'rgba(139, 92, 246, 0.18)' : 'rgba(59, 130, 246, 0.12)';
+        (row as HTMLElement).style.outline = isGhost ? '2px dashed rgb(139, 92, 246)' : '2px solid rgb(59, 130, 246)';
+        (row as HTMLElement).style.outlineOffset = '-2px';
+        lastHoveredRow = row;
+      }
+      return row;
+    };
 
     const onMouseMove = (ev: MouseEvent) => {
       if (!barRef.current) return;
@@ -106,6 +132,7 @@ function GanttBar({ lot, color, left, width, weekWidth, laneHeight, onResize, on
       const dy = ev.clientY - startYRef.current;
       barRef.current.style.left = `${Math.max(0, startLeftRef.current + dx)}px`;
       barRef.current.style.transform = `translateY(${dy}px)`;
+      highlightRowUnderCursor(ev.clientX, ev.clientY);
     };
     const onMouseUp = (ev: MouseEvent) => {
       window.removeEventListener('mousemove', onMouseMove);
@@ -117,11 +144,10 @@ function GanttBar({ lot, color, left, width, weekWidth, laneHeight, onResize, on
       }
       const deltaDays = Math.round((ev.clientX - startXRef.current) / pxPerDay);
 
-      // Détection précise de la lane cible via elementFromPoint. Le pointer-events
-      // none sur la barre (ci-dessus) garantit qu'on voit la row sous-jacente.
+      const row = highlightRowUnderCursor(ev.clientX, ev.clientY);
+      clearHover();
+
       let targetLaneIdx: number | null = null;
-      const el = document.elementFromPoint(ev.clientX, ev.clientY);
-      const row = el?.closest('[data-gantt-row]');
       if (row) {
         const idx = parseInt(row.getAttribute('data-lane-idx') ?? '-1', 10);
         if (!isNaN(idx) && idx >= 0) targetLaneIdx = idx;
