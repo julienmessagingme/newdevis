@@ -42,8 +42,9 @@ interface BudgetDevis {
   analyse_signal: string | null;
   signed_url:     string | null;
   created_at:     string;
-  montant_acompte_echeancier?: number; // paiements Échéancier payés sur ce devis
-  payment_event_ids?: string[];        // IDs des payment_events payés (pour modification inline)
+  montant_acompte_echeancier?: number;
+  payment_event_ids?: string[];        // IDs des payment_events payés
+  pending_events?: { id: string; amount: number | null; label: string | null }[]; // events pending Échéancier
 }
 
 interface BudgetFacture {
@@ -1081,6 +1082,11 @@ export default function BudgetTab({
   const [savingAcompte, setSavingAcompte] = useState<string | null>(null);
   // Dropdown statut facture inline sur la ligne artisan
   const [openArtisanMenu, setOpenArtisanMenu] = useState<string | null>(null); // artisanKey
+  // Alerte cohérence : montant versé ≠ montant prévu dans l'échéancier
+  const [coherenceAlert, setCoherenceAlert] = useState<{
+    eventId: string; plannedAmount: number; plannedLabel: string | null;
+    paidAmount: number; onConfirm: () => void;
+  } | null>(null);
 
   const allLots = useMemo(() => {
     if (!data) return [];
@@ -1177,40 +1183,62 @@ export default function BudgetTab({
   }, [chantierId, token, handleStatutChange, refresh]);
 
 
-  // Sauvegarde acompte via payment_events (pour les artisans sans facture — acompte sur devis)
-  const saveInlineAcompteDevis = useCallback(async (eventIds: string[], valStr: string) => {
-    const montantPaye = parseFloat(valStr.replace(',', '.'));
-    if (isNaN(montantPaye) || montantPaye <= 0 || eventIds.length === 0) { setInlineAcompte(null); return; }
-    setSavingAcompte(eventIds[0]);
-    setInlineAcompte(null);
+  // Effectue le PATCH réel d'un payment_event
+  const doPatchPaymentEvent = useCallback(async (eventId: string, montantPaye: number) => {
+    setSavingAcompte(eventId);
     try {
       const bearer = await freshToken(token);
-      // PATCH le premier payment_event avec le nouveau montant
       await fetch(`/api/chantier/${chantierId}/payment-events`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
-        body: JSON.stringify({ id: eventIds[0], status: 'paid', amount: montantPaye }),
+        body: JSON.stringify({ id: eventId, status: 'paid', amount: montantPaye }),
       });
       refresh();
     } catch { /* silencieux */ }
     setSavingAcompte(null);
   }, [chantierId, token, refresh]);
 
-  // Marquer devis comme intégralement payé via payment_events
-  const markDevisFullyPaid = useCallback(async (eventIds: string[], fullAmount: number) => {
-    if (eventIds.length === 0 || fullAmount <= 0) return;
-    setSavingAcompte(eventIds[0]);
-    try {
-      const bearer = await freshToken(token);
-      await fetch(`/api/chantier/${chantierId}/payment-events`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
-        body: JSON.stringify({ id: eventIds[0], status: 'paid', amount: fullAmount }),
+  // Sauvegarde acompte via payment_events (pour les artisans sans facture — acompte sur devis)
+  // Priorité : utilise le pending event de l'Échéancier en priorité (cohérence Budget ↔ Échéancier)
+  const saveInlineAcompteDevis = useCallback(async (
+    eventIds: string[],           // paid event IDs (si déjà payé une fois)
+    valStr: string,
+    pendingEvents?: { id: string; amount: number | null; label: string | null }[],
+  ) => {
+    const montantPaye = parseFloat(valStr.replace(',', '.'));
+    if (isNaN(montantPaye) || montantPaye <= 0) { setInlineAcompte(null); return; }
+    setInlineAcompte(null);
+
+    // Choisir l'event cible : pending event de l'échéancier en priorité, sinon paid event
+    const pendingEvent = (pendingEvents ?? []).find(e => e.amount != null);
+    const targetEventId = pendingEvent?.id ?? eventIds[0];
+    if (!targetEventId) return;
+
+    // Alerte cohérence : si montant versé diffère de plus de 10% du montant prévu
+    if (pendingEvent?.amount != null && Math.abs(montantPaye - pendingEvent.amount) > pendingEvent.amount * 0.10) {
+      setCoherenceAlert({
+        eventId:       targetEventId,
+        plannedAmount: pendingEvent.amount,
+        plannedLabel:  pendingEvent.label,
+        paidAmount:    montantPaye,
+        onConfirm:     () => { setCoherenceAlert(null); doPatchPaymentEvent(targetEventId, montantPaye); },
       });
-      refresh();
-    } catch { /* silencieux */ }
-    setSavingAcompte(null);
-  }, [chantierId, token, refresh]);
+      return;
+    }
+
+    doPatchPaymentEvent(targetEventId, montantPaye);
+  }, [doPatchPaymentEvent]);
+
+  // Marquer devis comme intégralement payé via payment_events
+  const markDevisFullyPaid = useCallback(async (
+    eventIds: string[],
+    fullAmount: number,
+    pendingEvents?: { id: string; amount: number | null; label: string | null }[],
+  ) => {
+    const targetId = pendingEvents?.[0]?.id ?? eventIds[0];
+    if (!targetId || fullAmount <= 0) return;
+    doPatchPaymentEvent(targetId, fullAmount);
+  }, [doPatchPaymentEvent]);
 
   // Annuler acompte devis (remettre en pending)
   const cancelDevisAcompte = useCallback(async (eventIds: string[]) => {
@@ -1496,8 +1524,10 @@ export default function BudgetTab({
                             // Artisan sans facture : acompte via payment_events
                             const devisWithEvents = artisan.devis.filter(d => (d.payment_event_ids?.length ?? 0) > 0);
                             const eventIds = devisWithEvents.flatMap(d => d.payment_event_ids ?? []);
-                            const hasDevisAcompte = eventIds.length > 0;
-                            const isSavingDevisAcomp = hasDevisAcompte && savingAcompte === eventIds[0];
+                            // Pending events de l'échéancier (source de vérité prioritaire)
+                            const allPendingEvents = artisan.devis.flatMap(d => d.pending_events ?? []);
+                            const hasDevisAcompte = eventIds.length > 0 || allPendingEvents.length > 0;
+                            const isSavingDevisAcomp = savingAcompte === (allPendingEvents[0]?.id ?? eventIds[0]);
 
                             // Helper : input acompte inline
                             const AcompteInput = ({ onSave }: { onSave: (v: string) => void }) => (
@@ -1587,22 +1617,26 @@ export default function BudgetTab({
                                           <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-xl shadow-xl border border-gray-100 z-30 overflow-hidden">
                                             <button
                                               onClick={e => { e.stopPropagation(); setOpenArtisanMenu(null); cancelDevisAcompte(eventIds); }}
-                                              className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left text-gray-700`}
+                                              className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left text-gray-700"
                                             >
                                               <span>⏸</span>Aucun paiement enregistré
                                             </button>
                                             <button
                                               onClick={e => {
                                                 e.stopPropagation(); setOpenArtisanMenu(null);
-                                                setTimeout(() => setInlineAcompte({ artisanKey, factureId: eventIds[0], value: String(artisan.totaux.acompte || '') }), 100);
+                                                const targetId = allPendingEvents[0]?.id ?? eventIds[0];
+                                                setTimeout(() => setInlineAcompte({ artisanKey, factureId: targetId ?? '', value: String(artisan.totaux.acompte || '') }), 100);
                                               }}
                                               className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${devisStatut === 'acompte' ? 'text-indigo-600 bg-indigo-50/50' : 'text-gray-700'}`}
                                             >
                                               <span>⏳</span>Acompte versé
-                                              {devisStatut === 'acompte' && <Check className="h-3 w-3 ml-auto text-indigo-500" />}
+                                              {allPendingEvents[0]?.amount != null && (
+                                                <span className="ml-auto text-[10px] text-gray-400">prévu {fmtEur(allPendingEvents[0].amount)}</span>
+                                              )}
+                                              {devisStatut === 'acompte' && <Check className="h-3 w-3 ml-1 text-indigo-500" />}
                                             </button>
                                             <button
-                                              onClick={e => { e.stopPropagation(); setOpenArtisanMenu(null); markDevisFullyPaid(eventIds, budget); }}
+                                              onClick={e => { e.stopPropagation(); setOpenArtisanMenu(null); markDevisFullyPaid(eventIds, budget, allPendingEvents); }}
                                               className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${devisStatut === 'solde' ? 'text-emerald-600 bg-emerald-50/50' : 'text-gray-700'}`}
                                             >
                                               <Check className="h-3.5 w-3.5" />Payé intégralement
@@ -1632,13 +1666,18 @@ export default function BudgetTab({
                                   {/* 3b. Modifier montant acompte devis (sans facture) */}
                                   {!primaryFacture && hasDevisAcompte && !isSolde && (
                                     isSavingDevisAcomp ? <Loader2 className="h-3 w-3 text-indigo-400 animate-spin" />
-                                    : isInlineOpen ? <AcompteInput onSave={v => saveInlineAcompteDevis(eventIds, v)} />
+                                    : isInlineOpen ? <AcompteInput onSave={v => saveInlineAcompteDevis(eventIds, v, allPendingEvents)} />
                                     : (
                                       <button
-                                        onClick={e => { e.stopPropagation(); setInlineAcompte({ artisanKey, factureId: eventIds[0], value: String(artisan.totaux.acompte) }); }}
+                                        onClick={e => {
+                                          e.stopPropagation();
+                                          const targetId = allPendingEvents[0]?.id ?? eventIds[0];
+                                          setInlineAcompte({ artisanKey, factureId: targetId ?? '', value: String(artisan.totaux.acompte || '') });
+                                        }}
                                         className="text-[10px] text-indigo-500 hover:text-indigo-700 flex items-center gap-1"
                                       >
-                                        <Pencil className="h-2.5 w-2.5" />acompte : {fmtEur(artisan.totaux.acompte)}
+                                        <Pencil className="h-2.5 w-2.5" />
+                                        {artisan.totaux.acompte > 0 ? `acompte : ${fmtEur(artisan.totaux.acompte)}` : 'Saisir acompte'}
                                       </button>
                                     )
                                   )}
@@ -1774,6 +1813,45 @@ export default function BudgetTab({
           onClose={() => setShowAddDoc(false)}
           onSuccess={() => { setShowAddDoc(false); refresh(); }}
         />
+      )}
+
+      {/* ── Modale alerte cohérence paiement ──────────────────────────────── */}
+      {coherenceAlert && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setCoherenceAlert(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                <AlertTriangle className="h-5 w-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="text-[14px] font-bold text-gray-800">Montant différent du prévu</h3>
+                <p className="text-[12px] text-gray-500 mt-1">
+                  {coherenceAlert.plannedLabel && (
+                    <span className="block font-medium text-gray-700 mb-1">"{coherenceAlert.plannedLabel}"</span>
+                  )}
+                  L'échéancier prévoyait <strong>{fmtEur(coherenceAlert.plannedAmount)}</strong>, vous versez <strong>{fmtEur(coherenceAlert.paidAmount)}</strong>.
+                  <span className="block mt-1 text-amber-700">
+                    S'agit-il d'un accord modifié avec l'artisan, ou d'une erreur de saisie ?
+                  </span>
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => setCoherenceAlert(null)}
+                className="flex-1 px-3 py-2 text-[12px] font-semibold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Corriger le montant
+              </button>
+              <button
+                onClick={coherenceAlert.onConfirm}
+                className="flex-1 px-3 py-2 text-[12px] font-bold rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition-colors"
+              >
+                Confirmer {fmtEur(coherenceAlert.paidAmount)}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

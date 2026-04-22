@@ -43,6 +43,7 @@ interface BudgetDevis {
   created_at: string;
   montant_acompte_echeancier: number; // paiements Échéancier payés sur ce devis
   payment_event_ids: string[];        // IDs des payment_events payés sur ce devis
+  pending_events: { id: string; amount: number | null; label: string | null }[]; // events en attente (échéancier)
 }
 
 interface BudgetFacture {
@@ -228,7 +229,7 @@ export const GET: APIRoute = async ({ params, request }) => {
     // ── Phase A : 4 queries indépendantes en parallèle ─────────────────────
     // chantier, lots, docs et proofCount ne dépendent d'aucune autre query.
     // Si chantier est 404, on return early et on jette les autres résultats.
-    const [chantierRes, lotsRawRes, docsRes, proofCountRes, paidEventsRes] = await Promise.all([
+    const [chantierRes, lotsRawRes, docsRes, proofCountRes, paidEventsRes, pendingEventsRes] = await Promise.all([
       ctx.supabase
         .from('chantiers')
         .select('id, nom, type_projet, metadonnees')
@@ -257,6 +258,15 @@ export const GET: APIRoute = async ({ params, request }) => {
         .eq('project_id', chantierId)
         .eq('status', 'paid')
         .not('source_id', 'is', null),
+      // Events en attente dans l'Échéancier (pour lier Budget ↔ Échéancier)
+      ctx.supabase
+        .from('payment_events')
+        .select('id, source_id, amount, label, source_type')
+        .eq('project_id', chantierId)
+        .eq('status', 'pending')
+        .eq('is_override', false)
+        .eq('source_type', 'devis')
+        .not('source_id', 'is', null),
     ]);
 
     const chantier   = chantierRes.data;
@@ -273,6 +283,18 @@ export const GET: APIRoute = async ({ params, request }) => {
         if (!eventsIdsByDoc[ev.source_id]) eventsIdsByDoc[ev.source_id] = [];
         eventsIdsByDoc[ev.source_id].push(ev.id);
       }
+    }
+
+    // Events pending de l'Échéancier par devis (pour lier Budget ↔ Échéancier)
+    const pendingEventsByDoc: Record<string, { id: string; amount: number | null; label: string | null }[]> = {};
+    for (const ev of pendingEventsRes.data ?? []) {
+      if (!ev.source_id) continue;
+      if (!pendingEventsByDoc[ev.source_id]) pendingEventsByDoc[ev.source_id] = [];
+      pendingEventsByDoc[ev.source_id].push({
+        id:     ev.id,
+        amount: ev.amount != null ? Number(ev.amount) : null,
+        label:  ev.label ?? null,
+      });
     }
 
     if (!chantier) return jsonError('Chantier introuvable', 404);
@@ -423,6 +445,7 @@ export const GET: APIRoute = async ({ params, request }) => {
           created_at:     doc.created_at,
           montant_acompte_echeancier: evDevisPaid,
           payment_event_ids: eventsIdsByDoc[doc.id] ?? [],
+          pending_events:    pendingEventsByDoc[doc.id] ?? [],
         });
         bucket.totaux.devis_recus   += montant ?? 0;
         bucket.totaux.devis_valides += montant ?? 0;

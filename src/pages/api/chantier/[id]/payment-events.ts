@@ -291,10 +291,10 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     return jsonError('id requis + au moins status (paid|pending) ou funding_source_id', 400);
   }
 
-  // Étape 1 : vérifier que l'event appartient bien à ce chantier (SELECT séparé)
+  // Étape 1 : vérifier ownership + récupérer données complètes (amount, label, source_id)
   const { data: existing, error: selectErr } = await ctx.supabase
     .from('payment_events')
-    .select('id, project_id')
+    .select('id, project_id, amount, label, source_id, source_type, due_date')
     .eq('id', id)
     .maybeSingle();
 
@@ -311,7 +311,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     return jsonError('Non autorisé', 403);
   }
 
-  // Étape 2 : UPDATE par id uniquement — sans .select() (évite instabilité Supabase v2 service role)
+  // Étape 2 : UPDATE par id uniquement
   const updatePayload: Record<string, unknown> = {};
   if (status) updatePayload.status = status;
   if (amount !== undefined) updatePayload.amount = amount;
@@ -327,7 +327,61 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     return jsonError(error.message, 500);
   }
 
-  return jsonOk({ ok: true, status });
+  // Étape 3 : paiement partiel → créer/mettre à jour l'event "Solde restant"
+  // Si on marque paid avec un montant < montant prévu, on crée automatiquement
+  // un event pending pour le solde restant (cohérence Budget ↔ Échéancier).
+  const plannedAmount = existing.amount != null ? Number(existing.amount) : null;
+  if (
+    status === 'paid' &&
+    amount !== undefined &&
+    plannedAmount !== null &&
+    amount < plannedAmount * 0.99 && // tolérance 1% pour les arrondis
+    existing.source_id &&
+    existing.source_type === 'devis'
+  ) {
+    const remaining = Math.round((plannedAmount - amount) * 100) / 100;
+    // Vérifier si un event "Solde restant" existe déjà pour ce source_id
+    const { data: existingRemainder } = await ctx.supabase
+      .from('payment_events')
+      .select('id')
+      .eq('project_id', chantierId)
+      .eq('source_id', existing.source_id)
+      .eq('status', 'pending')
+      .ilike('label', '%Solde restant%')
+      .maybeSingle();
+
+    if (!existingRemainder) {
+      // Créer un event pending pour le solde
+      const remainderLabel = `Solde restant — ${existing.label ?? 'paiement'}`;
+      await ctx.supabase.from('payment_events').insert({
+        project_id:  chantierId,
+        source_type: existing.source_type,
+        source_id:   existing.source_id,
+        label:       remainderLabel,
+        amount:      remaining,
+        due_date:    null,
+        status:      'pending',
+        is_override: false,
+      });
+    } else {
+      // Mettre à jour le montant du solde existant
+      await ctx.supabase.from('payment_events')
+        .update({ amount: remaining })
+        .eq('id', existingRemainder.id);
+    }
+  }
+
+  // Étape 4 : si on remet en pending, supprimer l'event "Solde restant" associé s'il existe
+  if (status === 'pending' && existing.source_id) {
+    await ctx.supabase.from('payment_events')
+      .delete()
+      .eq('project_id', chantierId)
+      .eq('source_id', existing.source_id)
+      .eq('status', 'pending')
+      .ilike('label', '%Solde restant%');
+  }
+
+  return jsonOk({ ok: true, status, remaining_created: status === 'paid' && amount !== undefined && plannedAmount !== null && amount < plannedAmount * 0.99 });
 };
 
 export const OPTIONS: APIRoute = () => optionsResponse();
