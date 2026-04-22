@@ -119,9 +119,13 @@ export const PATCH: APIRoute = async ({ request, params }) => {
     ? body.dateDebutChantier
     : chantierRow?.date_debut_chantier;
 
-  // 5. Recalcul global — uniquement si durée/ordre/dateDebut changent (pas pour un simple move)
+  // 5. Recalcul global — dès qu'une structure change (durée / ordre / pg / date début)
   const needsGlobalRecalc = lotUpdates.length === 0
-    || lotUpdates.some(l => typeof l.id === 'string' && !lotsWithExplicitDates.has(l.id as string) && (typeof l.duree_jours === 'number' || typeof l.ordre_planning === 'number'))
+    || lotUpdates.some(l => typeof l.id === 'string' && !lotsWithExplicitDates.has(l.id as string) && (
+        typeof l.duree_jours === 'number'
+        || typeof l.ordre_planning === 'number'
+        || 'parallel_group' in l
+      ))
     || typeof body.dateDebutChantier === 'string';
 
   if (needsGlobalRecalc && startDateStr) {

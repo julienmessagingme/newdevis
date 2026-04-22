@@ -1,10 +1,11 @@
 /**
  * usePlanning — hook React pour la gestion du planning chantier.
- * Charge, met à jour et recalcule les dates des lots.
+ * Source de vérité : ordre_planning + parallel_group + duree_jours.
+ * Les dates date_debut/date_fin sont toujours DÉRIVÉES via computePlanningDates.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { LotChantier } from '@/types/chantier-ia';
-import { computePlanningDates, computeStartDateFromEnd, addBusinessDays, subtractBusinessDays, getTotalWeeks, parseDate } from '@/lib/planningUtils';
+import { computePlanningDates, computeStartDateFromEnd, getTotalWeeks, parseDate } from '@/lib/planningUtils';
 
 interface PlanningState {
   lots: LotChantier[];
@@ -75,17 +76,20 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     }
   }, [chantierId, token]);
 
+  // Helper : recompute local lots avec la startDate courante
+  const recomputeLocal = (lots: LotChantier[], startDate: Date | null) =>
+    startDate ? computePlanningDates(lots, startDate) : lots;
+
   // ── Actions publiques ───────────────────────────────────────────────────
 
-  /** Met à jour la durée / ordre / groupe parallèle d'un lot */
+  /** Met à jour la durée / ordre / groupe parallèle d'un lot.
+   *  Déclenche un recompute global des dates côté serveur (cohérence BDD). */
   const updateLot = useCallback((lotId: string, changes: { duree_jours?: number; ordre_planning?: number; parallel_group?: number | null }) => {
-    // Optimistic update local
     setState(s => {
       const updated = s.lots.map(l => l.id === lotId ? { ...l, ...changes } : l);
-      const recomputed = s.startDate ? computePlanningDates(updated, s.startDate) : updated;
+      const recomputed = recomputeLocal(updated, s.startDate);
       return { ...s, lots: recomputed, totalWeeks: getTotalWeeks(recomputed) };
     });
-    // Persist
     patchPlanning({ lots: [{ id: lotId, ...changes }] });
   }, [patchPlanning]);
 
@@ -107,18 +111,17 @@ export function usePlanning(chantierId: string | null | undefined, token: string
       const recomputed = computePlanningDates(s.lots, computedStart);
       return { ...s, startDate: computedStart, lots: recomputed, totalWeeks: getTotalWeeks(recomputed) };
     });
-    // Persist AFTER setState (no side effect inside updater)
     if (computedStartStr) patchPlanning({ dateDebutChantier: computedStartStr });
   }, [patchPlanning]);
 
-  /** Réordonne les lots (drag & drop) */
+  /** Réordonne globalement les lots via une liste d'IDs (drag & drop legacy) */
   const reorderLots = useCallback((orderedIds: string[]) => {
     setState(s => {
       const updated = orderedIds.map((id, i) => {
         const lot = s.lots.find(l => l.id === id);
         return lot ? { ...lot, ordre_planning: i + 1 } : null;
       }).filter(Boolean) as LotChantier[];
-      const recomputed = s.startDate ? computePlanningDates(updated, s.startDate) : updated;
+      const recomputed = recomputeLocal(updated, s.startDate);
       return { ...s, lots: recomputed, totalWeeks: getTotalWeeks(recomputed) };
     });
     patchPlanning({
@@ -126,32 +129,36 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     });
   }, [patchPlanning]);
 
-  /** Déplace un lot de N jours ouvrés (positif = en avant, négatif = en arrière) */
-  const moveLot = useCallback((lotId: string, deltaDays: number) => {
-    let newDebutStr = '';
-    let newFinStr = '';
-
-    // Functional setState to avoid stale closure
+  /** Permute l'ordre_planning de 2 lots (drag horizontal dans une même lane) */
+  const swapOrdre = useCallback((lotIdA: string, lotIdB: string) => {
+    let updates: { id: string; ordre_planning: number }[] = [];
     setState(s => {
-      const lot = s.lots.find(l => l.id === lotId);
-      if (!lot?.date_debut || !lot?.date_fin) return s;
-
-      const fn = deltaDays > 0 ? addBusinessDays : subtractBusinessDays;
-      const newDebut = fn(new Date(lot.date_debut), Math.abs(deltaDays));
-      const newFin = addBusinessDays(newDebut, lot.duree_jours ?? 5);
-      newDebutStr = newDebut.toISOString().split('T')[0];
-      newFinStr = newFin.toISOString().split('T')[0];
-
-      const updated = s.lots.map(l =>
-        l.id === lotId ? { ...l, date_debut: newDebutStr, date_fin: newFinStr } : l
-      );
-      return { ...s, lots: updated, totalWeeks: getTotalWeeks(updated) };
+      const a = s.lots.find(l => l.id === lotIdA);
+      const b = s.lots.find(l => l.id === lotIdB);
+      if (!a || !b || a.ordre_planning == null || b.ordre_planning == null) return s;
+      const newA = { ...a, ordre_planning: b.ordre_planning };
+      const newB = { ...b, ordre_planning: a.ordre_planning };
+      updates = [
+        { id: lotIdA, ordre_planning: newA.ordre_planning! },
+        { id: lotIdB, ordre_planning: newB.ordre_planning! },
+      ];
+      const updated = s.lots.map(l => l.id === lotIdA ? newA : (l.id === lotIdB ? newB : l));
+      const recomputed = recomputeLocal(updated, s.startDate);
+      return { ...s, lots: recomputed, totalWeeks: getTotalWeeks(recomputed) };
     });
+    if (updates.length === 2) patchPlanning({ lots: updates });
+  }, [patchPlanning]);
 
-    // Persist AFTER setState — explicit dates so backend skips cascade recalc
-    if (newDebutStr && newFinStr) {
-      patchPlanning({ lots: [{ id: lotId, date_debut: newDebutStr, date_fin: newFinStr }] });
-    }
+  /** Change le parallel_group d'un lot (drag vertical entre lanes).
+   *  newPg = null → main lane (séquentiel)
+   *  newPg = number → groupe parallèle existant ou nouveau. */
+  const setLotPg = useCallback((lotId: string, newPg: number | null) => {
+    setState(s => {
+      const updated = s.lots.map(l => l.id === lotId ? { ...l, parallel_group: newPg } : l);
+      const recomputed = recomputeLocal(updated, s.startDate);
+      return { ...s, lots: recomputed, totalWeeks: getTotalWeeks(recomputed) };
+    });
+    patchPlanning({ lots: [{ id: lotId, parallel_group: newPg }] });
   }, [patchPlanning]);
 
   /** Force le recompactage global des dates (utile après suppression d'un lot
@@ -166,7 +173,8 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     updateStartDate,
     updateEndDate,
     reorderLots,
-    moveLot,
+    swapOrdre,
+    setLotPg,
     recompactPlanning,
     refetch: fetchPlanning,
   };

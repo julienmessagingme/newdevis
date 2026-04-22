@@ -368,7 +368,8 @@
       "Bash(python3 -c \"import sys; data=sys.stdin.read\\(\\); print\\(data[:5000]\\)\")",
       "Bash(pkill -f \"astro dev\")",
       "Bash(npx astro:*)",
-      "Bash(jobs -l)"
+      "Bash(jobs -l)",
+      "mcp__943e0531-99f5-4527-a0c5-d240813aa858__execute_sql"
     ]
   }
 }

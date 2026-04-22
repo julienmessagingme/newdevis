@@ -159,7 +159,7 @@ interface Props {
 }
 
 export default function PlanningTimeline({ chantierId, token }: Props) {
-  const { lots, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, moveLot, recompactPlanning } = usePlanning(chantierId, token);
+  const { lots, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, swapOrdre, setLotPg, recompactPlanning } = usePlanning(chantierId, token);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [dateMode, setDateMode] = useState<null | 'start' | 'end'>(null);
 
@@ -233,64 +233,69 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
     return result;
   }, [planningLots]);
 
-  // -- Drag vertical : déchaîner / rechaîner un lot ---------------------------
-  // laneDelta > 0 (descend) : sortir le lot de sa chaîne. On force son date_debut
-  // à la date_debut du premier lot de la lane actuelle → chevauchement → first-fit
-  // le pousse sur une nouvelle lane (DÉCHAÎNÉ).
-  // laneDelta < 0 (monte) : le lot rejoint une lane plus haute. Set son date_debut
-  // = date_fin du dernier lot de la lane cible avant sa position actuelle (RECHAÎNÉ).
+  // -- Drag D&D : source de vérité = ordre_planning + parallel_group --------
+  // Toute modification est persistée en BDD via l'endpoint PATCH planning
+  // qui recompute les dates depuis ordre_planning + parallel_group.
+  //
+  // Règles :
+  // - Vertical UP (laneDelta < 0) → lot rejoint la lane cible → pg = pg de la
+  //   lane cible (ou null si main lane).
+  // - Vertical DOWN (laneDelta > 0) sur une lane existante → même logique.
+  // - Vertical DOWN sur une lane NOUVELLE (en dessous de toutes) → pg = nouveau
+  //   unique → crée sa propre side lane (parallèle au lot courant sur main lane).
+  // - Horizontal (laneDelta === 0) → swap ordre_planning avec le voisin le plus
+  //   proche dans la direction du drag, sur la même lane.
   const handleLotMoveWithLane = useCallback(
     (lot: LotChantier, currentLaneIdx: number, deltaDays: number, laneDelta: number) => {
-      // Pas de changement de lane → simple move horizontal existant
-      if (laneDelta === 0) {
-        if (deltaDays !== 0) moveLot(lot.id, deltaDays);
+      // ── Changement de lane (vertical) ─────────────────────────────────────
+      if (laneDelta !== 0) {
+        const targetLaneIdx = currentLaneIdx + laneDelta;
+
+        // Drop en dessous de toutes les lanes → nouvelle side lane (pg unique)
+        if (targetLaneIdx >= lanes.length) {
+          const existingPgs = planningLots
+            .map(l => l.parallel_group)
+            .filter((pg): pg is number => pg != null);
+          const newPg = (existingPgs.length > 0 ? Math.max(...existingPgs) : 0) + 1;
+          setLotPg(lot.id, newPg);
+          return;
+        }
+
+        // Drop au-dessus de lane 0 → main lane (pg=null)
+        if (targetLaneIdx < 0) {
+          setLotPg(lot.id, null);
+          return;
+        }
+
+        // Drop sur une lane existante : hériter du pg de cette lane
+        const targetLane = lanes[targetLaneIdx];
+        const targetLot = targetLane.find(l => l.id !== lot.id);
+        const newPg = targetLot?.parallel_group ?? null;
+        setLotPg(lot.id, newPg);
         return;
       }
 
-      if (!lot.date_debut || !lot.date_fin) return;
-
-      const targetLaneIdx = currentLaneIdx + laneDelta;
+      // ── Réordonnancement horizontal (même lane) ───────────────────────────
+      if (deltaDays === 0) return;
       const currentLane = lanes[currentLaneIdx];
       if (!currentLane) return;
 
-      // Calcul de la nouvelle date_debut
-      let newStart: Date | null = null;
+      const siblings = currentLane.filter(l => l.id !== lot.id && l.ordre_planning != null);
+      if (siblings.length === 0) return;
 
-      if (laneDelta > 0) {
-        // DÉCHAÎNER : démarrer en même temps qu'un autre lot pour forcer chevauchement
-        const anchor = currentLane.find(l => l.id !== lot.id && l.date_debut)?.date_debut
-          ?? lot.date_debut;
-        newStart = new Date(anchor);
-        if (deltaDays !== 0) newStart.setDate(newStart.getDate() + deltaDays);
-      } else {
-        // RECHAÎNER : rejoindre une lane plus haute, se chaîner après les lots qui y sont
-        const targetLane = lanes[Math.max(0, targetLaneIdx)];
-        if (targetLane && targetLane.length > 0) {
-          const lotStart = new Date(lot.date_debut).getTime();
-          const candidates = targetLane
-            .filter(l => l.id !== lot.id && l.date_fin)
-            .sort((a, b) => (a.date_fin ?? '').localeCompare(b.date_fin ?? ''));
-          const after = [...candidates].reverse().find(l => new Date(l.date_fin!).getTime() <= lotStart);
-          if (after) {
-            newStart = new Date(after.date_fin!);
-            if (deltaDays !== 0) newStart.setDate(newStart.getDate() + deltaDays);
-          } else {
-            const firstOfLane = candidates[0];
-            if (firstOfLane?.date_debut) newStart = new Date(firstOfLane.date_debut);
-          }
-        }
-      }
+      // Lot voisin dans la direction du drag (droite si deltaDays>0, gauche si <0)
+      const myOrdre = lot.ordre_planning ?? 0;
+      const neighbor = deltaDays > 0
+        ? siblings
+            .filter(l => (l.ordre_planning ?? 0) > myOrdre)
+            .sort((a, b) => (a.ordre_planning ?? 0) - (b.ordre_planning ?? 0))[0]
+        : siblings
+            .filter(l => (l.ordre_planning ?? 0) < myOrdre)
+            .sort((a, b) => (b.ordre_planning ?? 0) - (a.ordre_planning ?? 0))[0];
 
-      if (!newStart) return;
-      const duree = lot.duree_jours ?? 5;
-      const newEnd = new Date(newStart);
-      newEnd.setDate(newEnd.getDate() + duree);
-
-      const newStartStr = newStart.toISOString().slice(0, 10);
-      const newEndStr = newEnd.toISOString().slice(0, 10);
-      updateLot(lot.id, { date_debut: newStartStr, date_fin: newEndStr });
+      if (neighbor) swapOrdre(lot.id, neighbor.id);
     },
-    [lanes, moveLot, updateLot]
+    [lanes, planningLots, swapOrdre, setLotPg]
   );
 
   // -- Loading state ----------------------------------------------------------
@@ -562,7 +567,7 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
         {/* Footer légende */}
         <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2">
           <p className="text-[10px] text-gray-400">
-            Glissez horizontalement pour déplacer · Verticalement pour déchaîner · Tirez les bords pour la durée
+            Glissez horizontalement pour réordonner · Verticalement pour changer de lane · Tirez les bords pour la durée
           </p>
           {unplannedLots.length > 0 && (
             <p className="text-[10px] text-amber-500 flex items-center gap-1">

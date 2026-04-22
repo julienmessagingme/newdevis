@@ -128,36 +128,36 @@ export function businessDaysBetween(start: Date, end: Date): number {
 /**
  * Recalcule date_debut et date_fin de chaque lot à partir de la date de départ.
  *
- * Algorithme :
+ * Algorithme (main lane / side lanes) :
  * 1. Trier par ordre_planning
- * 2. Grouper les lots ayant le même parallel_group (non null)
- * 3. Les lots d'un même groupe parallèle démarrent en même temps
- * 4. Le groupe suivant démarre après la fin du lot le plus long du groupe précédent
- * 5. Les lots avec parallel_group=null sont traités comme des groupes solo
+ * 2. Grouper les lots consécutifs ayant le même parallel_group
+ * 3. Dans chaque groupe : LE PREMIER lot pilote la "main lane" (séquentielle) :
+ *    il démarre au cursor et avance le cursor à sa fin.
+ * 4. Les lots suivants du groupe sont des "side lanes" : même date_debut que le
+ *    premier, mais n'avancent PAS le cursor (ils tournent en parallèle, à côté).
+ * 5. Résultat : la main lane reste compactée même si un lot parallèle dure plus
+ *    longtemps — il dépasse sur sa propre side lane, sans impacter la suite.
  *
  * Retourne une copie des lots avec date_debut/date_fin mis à jour.
  */
 export function computePlanningDates(lots: LotChantier[], startDate: Date): LotChantier[] {
-  // Copie et tri par ordre_planning
+  // Tri par ordre_planning (stable pour conserver l'ordre DB sur les égalités)
   const sorted = [...lots]
     .filter(l => l.ordre_planning != null && l.duree_jours != null && l.duree_jours > 0)
     .sort((a, b) => (a.ordre_planning ?? 0) - (b.ordre_planning ?? 0));
 
-  // Lots sans planning data → retourner tels quels
+  // Lots sans planning data → inchangés
   const withoutPlanning = lots.filter(l => l.ordre_planning == null || l.duree_jours == null || l.duree_jours <= 0);
 
-  // Grouper par séquence de parallel_group
+  // Grouper les lots consécutifs ayant le même parallel_group
   const groups: LotChantier[][] = [];
   let currentGroup: LotChantier[] = [];
   let currentPG: number | null | undefined = undefined;
-
   for (const lot of sorted) {
     const pg = lot.parallel_group;
     if (pg != null && pg === currentPG) {
-      // Même groupe parallèle → ajouter au groupe courant
       currentGroup.push(lot);
     } else {
-      // Nouveau groupe
       if (currentGroup.length > 0) groups.push(currentGroup);
       currentGroup = [lot];
       currentPG = pg;
@@ -165,15 +165,17 @@ export function computePlanningDates(lots: LotChantier[], startDate: Date): LotC
   }
   if (currentGroup.length > 0) groups.push(currentGroup);
 
-  // Calculer les dates
+  // Calcul des dates : main lane (premier de chaque groupe) pilote le cursor
   let cursor = new Date(startDate);
   const result: LotChantier[] = [];
 
   for (const group of groups) {
-    let maxEnd = cursor;
+    const groupStart = new Date(cursor);
+    let leaderIdx = 0;
 
-    for (const lot of group) {
-      const debut = new Date(cursor);
+    for (let i = 0; i < group.length; i++) {
+      const lot = group[i];
+      const debut = new Date(groupStart);
       const fin = addBusinessDays(debut, lot.duree_jours!);
 
       result.push({
@@ -182,14 +184,14 @@ export function computePlanningDates(lots: LotChantier[], startDate: Date): LotC
         date_fin: fin.toISOString().split('T')[0],
       });
 
-      if (fin > maxEnd) maxEnd = fin;
+      // Le leader (premier du groupe) pilote le cursor main lane
+      if (i === leaderIdx) {
+        cursor = fin;
+      }
+      // Les autres membres (side lanes) tournent à côté, sans bloquer la main lane
     }
-
-    // Le prochain groupe démarre après le plus long de ce groupe
-    cursor = maxEnd;
   }
 
-  // Ajouter les lots sans planning (inchangés)
   return [...result, ...withoutPlanning];
 }
 
