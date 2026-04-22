@@ -95,43 +95,43 @@ function GanttBar({ lot, color, left, width, weekWidth, laneHeight, onResize, on
     startYRef.current = e.clientY;
     startLeftRef.current = left;
 
+    // Rend la barre draggée transparente aux events pointeur : sinon elle passe
+    // sous le curseur pendant le drag et elementFromPoint la retourne elle-même
+    // au lieu de la row sous-jacente.
+    if (barRef.current) barRef.current.style.pointerEvents = 'none';
+
     const onMouseMove = (ev: MouseEvent) => {
       if (!barRef.current) return;
       const dx = ev.clientX - startXRef.current;
       const dy = ev.clientY - startYRef.current;
       barRef.current.style.left = `${Math.max(0, startLeftRef.current + dx)}px`;
-      // Feedback visuel : translate verticalement la barre pendant le drag
       barRef.current.style.transform = `translateY(${dy}px)`;
     };
     const onMouseUp = (ev: MouseEvent) => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
       setInteraction(null);
-      if (barRef.current) barRef.current.style.transform = '';
+      if (barRef.current) {
+        barRef.current.style.transform = '';
+        barRef.current.style.pointerEvents = '';
+      }
       const deltaDays = Math.round((ev.clientX - startXRef.current) / pxPerDay);
 
-      // Détection précise de la lane cible via elementFromPoint (où la souris
-      // est vraiment relâchée). Évite les approximations de deltaY arithmétique
-      // qui ratent la ghost row selon le nombre de lanes existantes.
+      // Détection précise de la lane cible via elementFromPoint. Le pointer-events
+      // none sur la barre (ci-dessus) garantit qu'on voit la row sous-jacente.
       let targetLaneIdx: number | null = null;
       const el = document.elementFromPoint(ev.clientX, ev.clientY);
       const row = el?.closest('[data-gantt-row]');
       if (row) {
-        if (row.getAttribute('data-ghost') === 'true') {
-          // Ghost row — lit data-lane-idx qui vaut lanes.length
-          targetLaneIdx = parseInt(row.getAttribute('data-lane-idx') ?? '-1', 10);
-        } else {
-          const idx = parseInt(row.getAttribute('data-lane-idx') ?? '-1', 10);
-          if (!isNaN(idx) && idx >= 0) targetLaneIdx = idx;
-        }
-        if (targetLaneIdx !== null && isNaN(targetLaneIdx)) targetLaneIdx = null;
+        const idx = parseInt(row.getAttribute('data-lane-idx') ?? '-1', 10);
+        if (!isNaN(idx) && idx >= 0) targetLaneIdx = idx;
       }
 
       if (deltaDays !== 0 || targetLaneIdx !== null) onMove(deltaDays, targetLaneIdx);
     };
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
-  }, [left, pxPerDay, laneHeight, onMove]);
+  }, [left, pxPerDay, onMove]);
 
   const cursorCls = interaction === 'move' ? 'cursor-grabbing' : interaction ? 'cursor-col-resize' : 'cursor-grab';
 
