@@ -154,6 +154,12 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     }
   }, [patchPlanning]);
 
+  /** Force le recompactage global des dates (utile après suppression d'un lot
+   * laissant un trou, ou pour "remettre à plat" des déplacements manuels). */
+  const recompactPlanning = useCallback(() => {
+    patchPlanning({});
+  }, [patchPlanning]);
+
   return {
     ...state,
     updateLot,
@@ -161,6 +167,7 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     updateEndDate,
     reorderLots,
     moveLot,
+    recompactPlanning,
     refetch: fetchPlanning,
   };
 }

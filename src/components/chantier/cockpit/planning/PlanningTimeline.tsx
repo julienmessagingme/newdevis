@@ -4,7 +4,7 @@
  * Split layout: left column (lot names) is sticky, right area (Gantt bars) scrolls horizontally.
  */
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { Calendar, Loader2, AlertCircle, Users } from 'lucide-react';
+import { Calendar, Loader2, AlertCircle, Users, AlignLeft } from 'lucide-react';
 import type { LotChantier } from '@/types/chantier-ia';
 import { usePlanning } from '@/hooks/usePlanning';
 import { formatDuration, getWeekLabels } from '@/lib/planningUtils';
@@ -159,7 +159,7 @@ interface Props {
 }
 
 export default function PlanningTimeline({ chantierId, token }: Props) {
-  const { lots, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, moveLot } = usePlanning(chantierId, token);
+  const { lots, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, moveLot, recompactPlanning } = usePlanning(chantierId, token);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [dateMode, setDateMode] = useState<null | 'start' | 'end'>(null);
 
@@ -438,6 +438,15 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
               className="text-sm font-medium text-gray-500 hover:text-blue-600 transition-colors"
             >
               Modifier la date de fin
+            </button>
+            <span className="text-gray-300">|</span>
+            <button
+              onClick={recompactPlanning}
+              title="Recoller tous les lots à gauche (supprime les trous laissés par des lots déplacés ou supprimés)"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-blue-600 transition-colors"
+            >
+              <AlignLeft className="h-3.5 w-3.5" />
+              Recompacter
             </button>
             {saving && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
           </div>
