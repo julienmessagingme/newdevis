@@ -28,7 +28,7 @@ function getLotColor(index: number) {
 
 // -- Barre Gantt redimensionnable ---------------------------------------------
 
-function GanttBar({ lot, color, left, width, weekWidth, onResize, onMove }: {
+function GanttBar({ lot, color, left, width, weekWidth, laneHeight, onResize, onMove }: {
   lot: LotChantier;
   color: { bg: string; light: string; text: string; border: string };
   left: number;

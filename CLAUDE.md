@@ -599,6 +599,7 @@ Intégration whapi pour créer de vrais groupes WhatsApp depuis le cockpit chant
 
 ## Règles importantes
 
+- **Git workflow — main only** : jamais de branches `claude/<nom>-<hash>` ni de worktrees. Commit et push directement sur `main`. Ne pas utiliser `superpowers:using-git-worktrees` sur ce projet.
 - **Header/Footer** existent en 2 versions : `layout/Header.tsx` (React) + `astro/Header.astro`. Toute modif doit être faite dans les 2.
 - **shadcn-ui** (`src/components/ui/`) : ne pas modifier manuellement (exception documentée : `button.tsx` contient `touch-manipulation` dans la base CVA)
 - **types.ts** (`src/integrations/supabase/`) : auto-généré, ne pas modifier
