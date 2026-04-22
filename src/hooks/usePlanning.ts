@@ -219,6 +219,80 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     if (updates.length > 0) patchPlanning({ lots: updates });
   }, [patchPlanning]);
 
+  /** Parallélise un lot avec un "partner" de la main lane — crée une side lane.
+   *  Si le partner a pg=null, on crée un nouveau pg partagé (update des 2 lots).
+   *  Si le partner a déjà un pg, on y rattache le lot déplacé.
+   *  Le lot déplacé prend ordre = partner.ordre + 1 (consécutif → même groupe). */
+  const parallelizeWith = useCallback((lotId: string, partnerId: string) => {
+    let updates: Array<{ id: string; ordre_planning?: number; parallel_group?: number | null }> = [];
+    setState(s => {
+      const lot = s.lots.find(l => l.id === lotId);
+      const partner = s.lots.find(l => l.id === partnerId);
+      if (!lot || !partner || partner.ordre_planning == null) return s;
+
+      // Détermine le pg partagé
+      let sharedPg = partner.parallel_group;
+      if (sharedPg == null) {
+        const existingPgs = s.lots.map(l => l.parallel_group).filter((x): x is number => x != null);
+        sharedPg = (existingPgs.length > 0 ? Math.max(...existingPgs) : 0) + 1;
+      }
+
+      const partnerOrdre = partner.ordre_planning;
+      const targetOrdre = partnerOrdre + 1;
+      const currentOrdre = lot.ordre_planning ?? 0;
+
+      const nextLots = s.lots.map(l => ({ ...l }));
+
+      // Shift intermédiaires pour libérer la position targetOrdre
+      if (targetOrdre < currentOrdre) {
+        for (const l of nextLots) {
+          if (l.id === lotId) continue;
+          const o = l.ordre_planning ?? 0;
+          if (o >= targetOrdre && o < currentOrdre) l.ordre_planning = o + 1;
+        }
+      } else if (targetOrdre > currentOrdre) {
+        for (const l of nextLots) {
+          if (l.id === lotId) continue;
+          const o = l.ordre_planning ?? 0;
+          if (o > currentOrdre && o <= targetOrdre) l.ordre_planning = o - 1;
+        }
+      }
+
+      // Lot déplacé : ordre + pg
+      const movedLot = nextLots.find(l => l.id === lotId)!;
+      movedLot.ordre_planning = targetOrdre;
+      movedLot.parallel_group = sharedPg;
+
+      // Partner : update pg si null (création du nouveau groupe partagé)
+      if (partner.parallel_group == null) {
+        const partnerLot = nextLots.find(l => l.id === partnerId)!;
+        partnerLot.parallel_group = sharedPg;
+      }
+
+      // Build updates
+      updates = [];
+      for (const newLot of nextLots) {
+        const orig = s.lots.find(l => l.id === newLot.id);
+        if (!orig) continue;
+        const u: { id: string; ordre_planning?: number; parallel_group?: number | null } = { id: newLot.id };
+        let touched = false;
+        if (orig.ordre_planning !== newLot.ordre_planning) {
+          u.ordre_planning = newLot.ordre_planning ?? undefined;
+          touched = true;
+        }
+        if (orig.parallel_group !== newLot.parallel_group) {
+          u.parallel_group = newLot.parallel_group ?? null;
+          touched = true;
+        }
+        if (touched) updates.push(u);
+      }
+
+      const recomputed = recomputeLocal(nextLots, s.startDate);
+      return { ...s, lots: recomputed, totalWeeks: getTotalWeeks(recomputed) };
+    });
+    if (updates.length > 0) patchPlanning({ lots: updates });
+  }, [patchPlanning]);
+
   /** Force le recompactage global des dates (utile après suppression d'un lot
    * laissant un trou, ou pour "remettre à plat" des déplacements manuels). */
   const recompactPlanning = useCallback(() => {
@@ -234,6 +308,7 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     swapOrdre,
     setLotPg,
     moveLotTo,
+    parallelizeWith,
     recompactPlanning,
     refetch: fetchPlanning,
   };

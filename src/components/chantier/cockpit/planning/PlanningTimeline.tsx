@@ -159,7 +159,7 @@ interface Props {
 }
 
 export default function PlanningTimeline({ chantierId, token }: Props) {
-  const { lots, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, moveLotTo, recompactPlanning } = usePlanning(chantierId, token);
+  const { lots, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, moveLotTo, parallelizeWith, recompactPlanning } = usePlanning(chantierId, token);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [dateMode, setDateMode] = useState<null | 'start' | 'end'>(null);
 
@@ -257,11 +257,23 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
       if (laneDelta !== 0) {
         const targetLaneIdx = currentLaneIdx + laneDelta;
         if (targetLaneIdx >= lanes.length) {
-          // Drop en dessous de toutes les lanes → side lane isolée (pg unique)
-          const existingPgs = planningLots
-            .map(l => l.parallel_group)
-            .filter((pg): pg is number => pg != null);
-          newPg = (existingPgs.length > 0 ? Math.max(...existingPgs) : 0) + 1;
+          // Drop en dessous de toutes les lanes → création d'une nouvelle side
+          // lane. On parallélise avec le lot main lane le plus proche dans le
+          // temps (partner). Si ce partner a pg=null, on crée un nouveau pg
+          // partagé entre les 2 lots (update atomique). Sort early : on court-
+          // circuite moveLotTo qui ne gère qu'un seul lot.
+          const mainLane = lanes[0] ?? [];
+          const currentOrdre = lot.ordre_planning ?? 0;
+          const partner = mainLane.filter(l => l.id !== lot.id && l.ordre_planning != null)
+            .sort((a, b) => {
+              const da = Math.abs((a.ordre_planning ?? 0) - currentOrdre);
+              const db = Math.abs((b.ordre_planning ?? 0) - currentOrdre);
+              return da - db;
+            })[0];
+          if (partner) {
+            parallelizeWith(lot.id, partner.id);
+          }
+          return;
         } else if (targetLaneIdx <= 0) {
           // Drop sur la main lane (lane 0 ou plus haut) → sequentiel (pg=null)
           newPg = null;
@@ -300,7 +312,7 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
 
       moveLotTo(lot.id, newPg, targetOrdre);
     },
-    [lanes, planningLots, moveLotTo]
+    [lanes, planningLots, moveLotTo, parallelizeWith]
   );
 
   // -- Loading state ----------------------------------------------------------
