@@ -251,7 +251,7 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
     // (sans limite, il peut penser 20-30s → dépasse le timeout Supabase de 60s)
     // Timeout generate : 40s (body tiny, juste la référence URI)
     const genController = new AbortController();
-    const genTimeout = setTimeout(() => genController.abort(), 50_000); // 50s max
+    const genTimeout = setTimeout(() => genController.abort(), 80_000); // 80s max (Gemini 2.5 plus lent)
 
     const aiResponse = await fetch(`${GEMINI_GENERATE_URL}?key=${googleApiKey}`, {
       method: "POST",

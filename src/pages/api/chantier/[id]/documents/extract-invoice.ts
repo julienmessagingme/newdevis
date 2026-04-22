@@ -16,7 +16,7 @@ import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/a
 
 const BUCKET       = 'chantier-documents';
 const GEMINI_MODEL = 'gemini-2.5-flash';
-const TIMEOUT_MS   = 20_000;
+const TIMEOUT_MS   = 45_000; // 45s — Gemini 2.5 prend 25-40s sur factures complexes
 
 const MIME_MAP: Record<string, string> = {
   pdf:  'application/pdf',

@@ -143,7 +143,7 @@ export async function verifyData(
 
       try {
         const apiUrl = `${RECHERCHE_ENTREPRISES_API_URL}?q=${encodeURIComponent(lookupKey)}&page=1&per_page=1`;
-        const response = await fetch(apiUrl);
+        const response = await fetch(apiUrl, { signal: AbortSignal.timeout(6_000) });
 
         result.debug!.provider_calls.entreprise.http_status = response.status;
         result.debug!.provider_calls.entreprise.latency_ms = Date.now() - startTime;
@@ -241,7 +241,7 @@ export async function verifyData(
         console.log("[Verify] Trying name fallback for:", nomEntreprise);
         try {
           const nameUrl = `${RECHERCHE_ENTREPRISES_API_URL}?q=${encodeURIComponent(nomEntreprise)}&page=1&per_page=3`;
-          const nameResp = await fetch(nameUrl);
+          const nameResp = await fetch(nameUrl, { signal: AbortSignal.timeout(6_000) });
           if (nameResp.ok) {
             const nameData = await nameResp.json();
             const match = nameData.results?.[0];
@@ -289,7 +289,7 @@ export async function verifyData(
 
       try {
         const financesUrl = `${DATA_ECONOMIE_API_URL}?dataset=ratios_inpi_bce&q=siren:${encodeURIComponent(siren)}&rows=5&sort=date_cloture_exercice`;
-        const financesResponse = await fetch(financesUrl);
+        const financesResponse = await fetch(financesUrl, { signal: AbortSignal.timeout(8_000) });
 
         result.debug!.provider_calls.finances.http_status = financesResponse.status;
         result.debug!.provider_calls.finances.latency_ms = Date.now() - startTimeFinances;
@@ -378,7 +378,7 @@ export async function verifyData(
   if (extracted.entreprise.iban) {
     try {
       const ibanClean = extracted.entreprise.iban.replace(/\s/g, "");
-      const ibanResponse = await fetch(`${OPENIBAN_API_URL}/${ibanClean}?getBIC=true`);
+      const ibanResponse = await fetch(`${OPENIBAN_API_URL}/${ibanClean}?getBIC=true`, { signal: AbortSignal.timeout(5_000) });
 
       if (ibanResponse.ok) {
         const ibanData = await ibanResponse.json();
@@ -403,7 +403,7 @@ export async function verifyData(
 
       const placesUrl = `${GOOGLE_PLACES_API_URL}?input=${searchQuery}&inputtype=textquery&fields=name,rating,user_ratings_total&key=${googleApiKey}`;
 
-      const placesResponse = await fetch(placesUrl);
+      const placesResponse = await fetch(placesUrl, { signal: AbortSignal.timeout(5_000) });
       if (placesResponse.ok) {
         const placesData = await placesResponse.json();
         if (placesData.candidates && placesData.candidates.length > 0) {
@@ -430,6 +430,7 @@ export async function verifyData(
       const siretFilter = siret ? siret : `${siren}*`;
       const rgeResponse = await fetch(
         `${ADEME_RGE_API_URL}?qs=siret:${encodeURIComponent(siretFilter)}&size=20`,
+        { signal: AbortSignal.timeout(5_000) },
       );
       if (rgeResponse.ok) {
         const rgeData = await rgeResponse.json();
@@ -470,7 +471,7 @@ export async function verifyData(
         ? `${extracted.client.adresse_chantier} ${codePostal} ${extracted.client.ville || ""}`
         : `${codePostal} ${extracted.client.ville || ""}`;
 
-      const geoResponse = await fetch(`${ADRESSE_API_URL}?q=${encodeURIComponent(adresseQuery)}&limit=1`);
+      const geoResponse = await fetch(`${ADRESSE_API_URL}?q=${encodeURIComponent(adresseQuery)}&limit=1`, { signal: AbortSignal.timeout(5_000) });
       if (geoResponse.ok) {
         const geoData = await geoResponse.json();
         if (geoData.features && geoData.features.length > 0) {
@@ -485,7 +486,7 @@ export async function verifyData(
           // Georisques API - Risques GASPAR
           if (codeInsee) {
             try {
-              const risquesResponse = await fetch(`${GEORISQUES_API_URL}/gaspar/risques?code_insee=${codeInsee}`);
+              const risquesResponse = await fetch(`${GEORISQUES_API_URL}/gaspar/risques?code_insee=${codeInsee}`, { signal: AbortSignal.timeout(5_000) });
               if (risquesResponse.ok) {
                 const risquesData = await risquesResponse.json();
                 result.georisques_consulte = true;
@@ -498,7 +499,7 @@ export async function verifyData(
               }
 
               // Zone sismique
-              const seismeResponse = await fetch(`${GEORISQUES_API_URL}/zonage_sismique?code_insee=${codeInsee}`);
+              const seismeResponse = await fetch(`${GEORISQUES_API_URL}/zonage_sismique?code_insee=${codeInsee}`, { signal: AbortSignal.timeout(5_000) });
               if (seismeResponse.ok) {
                 const seismeData = await seismeResponse.json();
                 if (seismeData.data && seismeData.data.length > 0) {
@@ -512,7 +513,7 @@ export async function verifyData(
 
           // GPU API for heritage
           try {
-            const gpuResponse = await fetch(`${GPU_API_URL}?lat=${lat}&lon=${lon}`);
+            const gpuResponse = await fetch(`${GPU_API_URL}?lat=${lat}&lon=${lon}`, { signal: AbortSignal.timeout(5_000) });
             if (gpuResponse.ok) {
               const gpuData = await gpuResponse.json();
               result.patrimoine_consulte = true;

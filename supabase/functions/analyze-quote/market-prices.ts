@@ -167,7 +167,7 @@ Réponds UNIQUEMENT en JSON (pas de markdown) :
           "Authorization": `Bearer ${googleApiKey}`,
         },
         body: JSON.stringify({
-          model: "gemini-2.5-flash",
+          model: "gemini-2.0-flash",
           messages: [{ role: "user", content: prompt }],
           temperature: 0,
           max_tokens: 4096,

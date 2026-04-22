@@ -50,7 +50,7 @@ Format attendu :
           "Authorization": `Bearer ${googleApiKey}`,
         },
         body: JSON.stringify({
-          model: "gemini-2.5-flash",
+          model: "gemini-2.0-flash",
           messages: [{ role: "user", content: prompt }],
           temperature: 0.2,
           max_tokens: 4096,
