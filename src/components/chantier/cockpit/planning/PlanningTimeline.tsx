@@ -22,8 +22,14 @@ const LOT_COLORS = [
   { bg: 'bg-indigo-500',  light: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
 ];
 
-function getLotColor(index: number) {
-  return LOT_COLORS[index % LOT_COLORS.length];
+// Hash stable depuis l'ID du lot → couleur permanente, indépendante de l'ordre.
+function getLotColor(lotId: string) {
+  let hash = 0;
+  for (let i = 0; i < lotId.length; i++) {
+    hash = ((hash << 5) - hash) + lotId.charCodeAt(i);
+    hash |= 0;
+  }
+  return LOT_COLORS[Math.abs(hash) % LOT_COLORS.length];
 }
 
 // -- Barre Gantt redimensionnable ---------------------------------------------
@@ -553,7 +559,7 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
 
                   {/* Toutes les barres de cette lane */}
                   {lane.map((lot) => {
-                    const color = getLotColor(planningLots.indexOf(lot));
+                    const color = getLotColor(lot.id);
                     const barStyle = getBarStyle(lot);
                     return (
                       <GanttBar
