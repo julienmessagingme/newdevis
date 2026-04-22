@@ -8,7 +8,6 @@ verify_jwt = false
 
 [functions.analyze-quote]
 verify_jwt = false
-execution_timeout_s = 150
 
 [functions.extract-document]
 verify_jwt = false
