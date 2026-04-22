@@ -257,14 +257,16 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
       if (laneDelta !== 0) {
         const targetLaneIdx = currentLaneIdx + laneDelta;
         if (targetLaneIdx >= lanes.length) {
-          // Nouvelle side lane en dessous → pg unique
+          // Drop en dessous de toutes les lanes → side lane isolée (pg unique)
           const existingPgs = planningLots
             .map(l => l.parallel_group)
             .filter((pg): pg is number => pg != null);
           newPg = (existingPgs.length > 0 ? Math.max(...existingPgs) : 0) + 1;
-        } else if (targetLaneIdx < 0) {
-          newPg = null; // main lane
+        } else if (targetLaneIdx <= 0) {
+          // Drop sur la main lane (lane 0 ou plus haut) → sequentiel (pg=null)
+          newPg = null;
         } else {
+          // Drop sur une side lane existante (lane 1+) → rejoint son pg
           const targetLane = lanes[targetLaneIdx];
           const anchor = targetLane.find(l => l.id !== lot.id);
           newPg = anchor?.parallel_group ?? null;
