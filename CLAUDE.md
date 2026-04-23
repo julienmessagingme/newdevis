@@ -61,7 +61,8 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 | `/api/stripe-webhook` | `api/stripe-webhook.ts` | Webhook Stripe (souscription, annulation, échec paiement) |
 | `/api/premium/*` | `api/premium/` | Statut et essai premium |
 | `/api/chantier/*` | `api/chantier/` | Module chantier complet (26 routes dont lots, devis, contacts, messagerie, chat, matériaux, planning, whatsapp — voir `DOCUMENTATION.md` §20) |
-| `/api/chantier/[id]/planning` | `api/chantier/[id]/planning.ts` | GET lots + date_debut_chantier / PATCH recalcul cascade dates via computePlanningDates (Promise.all batch) |
+| `/api/chantier/[id]/planning` | `api/chantier/[id]/planning.ts` | GET lots + dependencies + date_debut_chantier / PATCH body { lots[], dependencies{} } recompute cascade via CPM topo sort |
+| `/api/chantier/[id]/planning/shift-lot` | `api/chantier/[id]/planning/shift-lot.ts` | POST { lot_id, jours, cascade } — cascade=true applique delai ; cascade=false détache le lot (bridge successeurs → side lane indépendante) |
 | `/api/chantier/[id]/whatsapp` | `api/chantier/[id]/whatsapp.ts` | POST créer groupe whapi + membres / PATCH ajouter participants |
 | `/api/chantier/[id]/whatsapp-groups` | `api/chantier/[id]/whatsapp-groups.ts` | GET groupes avec membres imbriqués (2 requêtes, pas de N+1) |
 | `/api/chantier/[id]/whatsapp-messages` | `api/chantier/[id]/whatsapp-messages.ts` | GET messages filtrés par `?groupJid=` — limit 200 |
@@ -109,7 +110,8 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 - `analysis_work_items` — lignes de travaux détaillées par analyse. Colonne `job_type_group` (TEXT) pour le rattachement au job type IA.
 - `blog_posts` — articles de blog (avec workflow IA, images cover + mid)
 - `chantiers` — projets de chantier (nom, emoji, budget, phase, type_projet, project_mode, metadonnees JSON, `date_debut_chantier DATE`). Colonne `project_mode` (TEXT, CHECK: 'guided'|'flexible'|'investor'). Voir `DOCUMENTATION.md` §20.
-- `lots_chantier` — lots de travaux par chantier (nom, statut, job_type, budget min/avg/max). Colonnes planning : `duree_jours INT`, `date_debut DATE`, `date_fin DATE`, `ordre_planning INT`, `parallel_group INT`. FK chantiers CASCADE.
+- `lots_chantier` — lots de travaux par chantier (nom, statut, job_type, budget min/avg/max). Colonnes planning : `duree_jours INT`, `date_debut DATE`, `date_fin DATE`, `delai_avant_jours INT DEFAULT 0`, `lane_index INT NULL`. `ordre_planning` et `parallel_group` sont legacy (utilisés uniquement par `sauvegarder.ts` pour générer les deps initiales). FK chantiers CASCADE.
+- `lot_dependencies` — graphe de dépendances CPM entre lots (`lot_id`, `depends_on_id`, Finish-to-Start, multi-parent). Dates dérivées par tri topologique. Voir section **Planning CPM**.
 - `todo_chantier` — checklist par chantier (titre, priorité, done). FK chantiers CASCADE.
 - `chantier_updates` — journal des modifications IA par chantier. FK chantiers CASCADE.
 - `documents_chantier` — documents attachés aux chantiers (devis, factures, photos, plans). FK chantiers CASCADE.
@@ -701,6 +703,90 @@ Le bouton retour doit être `lg:hidden` dans le header du thread avec `onClick={
 
 Closed : BudgetTab table (#9), BudgetKpiDashboard (#10), ArtisanDrawer (#11), MessagerieSection (#13), ActionBar (#14), AddDocumentModal (#15).
 Backlog : PlanningTimeline (#12 gros chantier), ContactsSection/DocumentsView (#16), Touch targets chevrons (#17), Button size=icon 44px (#18 à valider).
+
+## Planning CPM (Critical Path Method)
+
+Le planning chantier utilise un **DAG multi-parent** (standard MS Project / Primavera) au lieu d'ordre linéaire.
+
+### Modèle de données
+
+**Source de vérité** (BDD) :
+- `lots_chantier.duree_jours` — durée en jours ouvrés
+- `lots_chantier.delai_avant_jours` — délai avant démarrage (décalage sans cascade)
+- `lots_chantier.lane_index` — lane visuelle explicite (0 = main chain, 1+ = side lanes, NULL = first-fit)
+- `lot_dependencies (lot_id, depends_on_id)` — arêtes du DAG (Finish-to-Start, multi-parent)
+
+**Dérivé** (non stocké, recalculé) :
+- `date_debut` / `date_fin` — recalculés par `computePlanningDates` (tri topo + forward pass)
+- Lanes visuelles — first-fit par date, avec préférence pour `lane_index` si défini
+
+### Algo `computePlanningDates` (`src/lib/planningUtils.ts`)
+
+1. **Tri topologique Kahn** sur le DAG (prédécesseurs en premier)
+2. **Forward pass** : pour chaque lot dans l'ordre topo :
+   - `date_debut = max(startDate, max(dep.date_fin pour dep ∈ deps(lot))) + delai_avant_jours`
+   - `date_fin = addBusinessDays(date_debut, duree_jours)`
+3. **Cycles** gérés gracieusement (lots restants placés à startDate)
+
+### Flux modifications planning
+
+**D&D utilisateur** (`PlanningTimeline.handleLotMoveWithLane`) :
+- Drop **ghost row** → lot indépendant (deps vides), nouvelle side lane
+- Drop **lane existante** → predecessor = dernier lot de la lane avec centre ≤ drop X
+- **Transfert** automatique : quand X bouge, ses ex-successeurs perdent X et héritent des ex-prédécesseurs de X (ils restent en place)
+- **Rebind** d'insertion : si X s'insère entre A et B (A→B existait), B dépend maintenant de X
+- Batch atomique via `applyDragChange` (deps + lane_indices en UN PATCH)
+
+**Race conditions** (`usePlanning.patchPlanning`) :
+- `reqSeqRef` compteur de séquence : les réponses périmées sont **ignorées** (l'optimiste local reste + la réponse la plus récente écrase)
+- Évite le rollback visuel quand user D&D rapidement
+
+### Tools agent IA
+
+Tous exposés dans `supabase/functions/agent-orchestrator/tools.ts`, mode `interactive` uniquement (ACTION_TOOLS).
+
+| Tool | Paramètres | Usage |
+|---|---|---|
+| `update_planning` | `lot_id, duree_jours?, delai_avant_jours?, depends_on_ids?` | Modification structurelle. `depends_on_ids` remplace la liste complète des prédécesseurs. |
+| `shift_lot` | `lot_id, jours, cascade: boolean, raison` | Décalage avec dialogue. `cascade=true` → successeurs suivent. `cascade=false` → lot détaché (successeurs bridge sur ses ex-préds). Protocole 2 tours dans le prompt interactive si successeurs détectés. |
+| `update_lot_dates` | `lot_id, new_start_date, raison` | Legacy. Préférer `shift_lot`. |
+| `arrange_lot` | `lot_id, mode: "chain_after"\|"parallel_with", reference_lot_id` | Réorganise via pg/ordre (modèle legacy — à migrer vers deps). |
+
+**Dialogue conversationnel cascade** (prompt `buildInteractivePrompt`) :
+```
+User : "décale plombier 1 semaine"
+Agent : "Derrière plombier il y a [élec, plaquiste]. On cascade ou on détache ?"
+User : "non"
+Agent : shift_lot(plombier_id, 5, cascade=false, raison="...")
+     → plombier passe sur side lane, élec+plaquiste restent
+```
+
+### API routes
+
+- `GET /api/chantier/[id]/planning` → `{ dateDebutChantier, lots: [...], dependencies: {lotId: [depIds]} }`
+- `PATCH /api/chantier/[id]/planning` body `{ dateDebutChantier?, lots?[{id, duree_jours?, delai_avant_jours?, lane_index?}], dependencies?{lotId: [depIds]} }` → recompute global CPM
+- `POST /api/chantier/[id]/planning/shift-lot` body `{ lot_id, jours, cascade, raison }`
+- `DELETE /api/chantier/[id]/lots/[lotId]` → cascade : transfert deps (A→X→B avec X supprimé → A→B) + recompute
+- `POST /api/chantier/[id]/lots` → `inferDefaultPredecessors` basé sur TRADE_DURATIONS métier pour les nouveaux lots
+
+### Création nouveau chantier (`sauvegarder.ts`)
+
+1. Insère les lots avec `ordre_planning` / `parallel_group` fournis par l'IA
+2. **Génère les deps** depuis `ordre_planning` : lots avec même ordre → mêmes prédécesseurs (parallèles). Ordre N+1 dépend de ordre N.
+3. Calcule les dates via `computePlanningDates(lots, startDate, depsMap)`
+
+### Migrations
+
+- `20260422230000_lot_dependencies_cpm.sql` — table + backfill depuis dates existantes (A.fin = B.debut ⇒ A → B)
+- `20260423090000_lot_lane_index.sql` — colonne `lane_index` pour lane visuelle explicite
+- `20260422220000_lots_chantier_delai_avant_jours.sql` — colonne `delai_avant_jours`
+
+### Règles métier
+
+- **Ghost row = indépendant.** Sortir de la chaîne = deps vides (pas hériter du partner).
+- **Drop sur lane existante** (main ou side) = chaîne au predecessor. Side lane empty → indépendant.
+- **Couleur stable** : `getLotColor(lot.id)` hash djb2, indépendant de l'ordre.
+- **Lanes** (rendu) : pass 1 place les lots avec `lane_index` explicite, pass 2 first-fit pour le reste.
 
 ## Agent IA — Pilote de Chantier
 
