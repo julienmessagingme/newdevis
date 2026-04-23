@@ -305,11 +305,16 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 
   const finalDeps = await loadDependencies(ctx.supabase, (finalLots ?? []).map((l: LotRow) => l.id));
 
-  // Invalidate agent context cache
-  ctx.supabase.from('agent_context_cache')
-    .update({ invalidated: true })
-    .eq('chantier_id', chantierId)
-    .then(() => {}).catch(() => {});
+  // Invalidate agent context cache — AWAITED pour que l'invalidation soit
+  // committée AVANT que la fonction Vercel se termine. Fire-and-forget peut
+  // être coupé côté serverless (bug : cache restait stale après D&D).
+  try {
+    await ctx.supabase.from('agent_context_cache')
+      .update({ invalidated: true })
+      .eq('chantier_id', chantierId);
+  } catch (e) {
+    console.warn('[planning PATCH] cache invalidation failed:', e instanceof Error ? e.message : String(e));
+  }
 
   return jsonOk({
     dateDebutChantier: startDateStr ?? null,
