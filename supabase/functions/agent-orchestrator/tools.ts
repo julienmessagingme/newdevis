@@ -593,23 +593,30 @@ export async function executeTool(
           return JSON.stringify({ ok: false, error: "lot_id et reference_lot_id requis et distincts" });
         }
 
+        // On a besoin du state planning actuel pour deps(refId) et lane_index(refId)
+        const planRes = await fetch(`${API_BASE}/api/chantier/${chantierId}/planning`, { headers });
+        const planData = planRes.ok ? await planRes.json() : {};
+        const refLotData = (planData?.lots ?? []).find((l: any) => l.id === refId);
+
         let depsForLot: string[];
+        let laneForLot: number | null;
         if (mode === "chain_after") {
+          // Chaîne : démarre à ref.date_fin, MÊME ligne visuelle que la ref
           depsForLot = [refId];
+          laneForLot = refLotData?.lane_index ?? null;
         } else {
-          // parallel_with : récupère les deps du lot de référence
-          const planRes = await fetch(`${API_BASE}/api/chantier/${chantierId}/planning`, { headers });
-          const planData = planRes.ok ? await planRes.json() : {};
+          // Parallèle : mêmes prédécesseurs que la ref, ligne DIFFÉRENTE (first-fit)
           const refDeps = (planData?.dependencies ?? {})[refId] ?? [];
           depsForLot = Array.isArray(refDeps) ? refDeps : [];
+          laneForLot = null;
         }
 
-        // PATCH avec dependencies + delai_avant_jours=0 (repart de la date naturelle du CPM)
+        // PATCH avec dependencies + lane_index + delai_avant_jours=0 (repart de la date CPM naturelle)
         const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/planning`, {
           method: "PATCH",
           headers,
           body: JSON.stringify({
-            lots: [{ id: lotId, delai_avant_jours: 0, lane_index: null }],
+            lots: [{ id: lotId, delai_avant_jours: 0, lane_index: laneForLot }],
             dependencies: { [lotId]: depsForLot },
           }),
         });
