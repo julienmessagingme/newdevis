@@ -368,8 +368,13 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
         }
       }
 
-      // ── 5. Rebind target successor : si B dépendait de A (le nouveau pred
-      //     de X) et que X s'insère entre eux, B dépend maintenant de X.
+      // ── 5. Rebind target successor ────────────────────────────────────────
+      //   a) Si X s'insère entre A et B sur la même lane (A→B dep existant)
+      //      → B dépend maintenant de X (remplace A).
+      //   b) Si X s'insère AU DÉBUT de la lane (pas de predecessor, S = 1er
+      //      lot) → S dépend maintenant de X → X devient la nouvelle tête.
+      //      Sans ça, X et S ont tous deux deps=[] et démarrent à startDate :
+      //      le lane assignment visuel les sépare ("S descend").
       if (targetPredecessor && targetSuccessor) {
         touch(targetSuccessor.id);
         const s = finalDeps.get(targetSuccessor.id)!;
@@ -377,6 +382,10 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
           s.delete(targetPredecessor.id);
           s.add(lot.id);
         }
+      } else if (!targetPredecessor && targetSuccessor) {
+        touch(targetSuccessor.id);
+        const s = finalDeps.get(targetSuccessor.id)!;
+        s.add(lot.id);
       }
 
       // ── 6. Apply batch ────────────────────────────────────────────────────
