@@ -426,20 +426,20 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
 
       // ── 6. Snapshot des lane_indices courantes pour préserver la position
       //      visuelle des autres lots (sinon first-fit peut les déplacer).
-      //      Le lot déplacé prend lane_index = targetLaneIdx (ghost → lanes.length).
-      const lotsUpdates: Array<{ lotId: string; lane_index: number | null }> = [];
+      //      Le lot déplacé prend lane_index = targetLaneIdx (ghost → lanes.length)
+      //      ET delai_avant_jours=0 : le drag exprime une position explicite,
+      //      donc on reset tout délai accumulé (ex: 3x "décale 1 sem" via chat).
+      const lotsUpdates: Array<{ lotId: string; lane_index?: number | null; delai_avant_jours?: number }> = [];
       for (let i = 0; i < lanes.length; i++) {
         for (const l of lanes[i]) {
           if (l.id === lot.id) continue;
-          // Ne snapshot QUE si lane_index actuelle ≠ lane visuelle courante
           if (l.lane_index !== i) {
             lotsUpdates.push({ lotId: l.id, lane_index: i });
           }
         }
       }
-      // Le lot déplacé : sa nouvelle lane. Clamp à max (lanes.length) si ghost.
       const newLaneForDragged = Math.min(targetLaneIdx, lanes.length);
-      lotsUpdates.push({ lotId: lot.id, lane_index: newLaneForDragged });
+      lotsUpdates.push({ lotId: lot.id, lane_index: newLaneForDragged, delai_avant_jours: 0 });
 
       // ── 7. Apply combined batch (deps + lane_indices) en UN PATCH ─────────
       const depsBatch = Array.from(finalDeps.entries()).map(([lotId, depSet]) => ({
