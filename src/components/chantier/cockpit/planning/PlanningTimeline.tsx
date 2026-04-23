@@ -324,15 +324,13 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
       let targetPredecessor: LotChantier | null = null;
 
       if (targetLaneIdx >= lanes.length) {
-        // Ghost row / side lane → lot INDÉPENDANT : aucune dépendance, démarre
-        // à startDate. Sortir de la chaîne principale = devenir autonome.
-        newXPreds = [];
-      } else if (targetLaneIdx > 0) {
-        // Side lane existante → lot INDÉPENDANT (même logique que ghost row).
-        // Le lot quitte la chaîne pour tourner en parallèle sans deps.
+        // Ghost row → INDÉPENDANT : pas de deps, démarre à startDate.
+        // C'est la SEULE façon de "sortir de la chaîne" et créer une nouvelle
+        // side lane autonome.
         newXPreds = [];
       } else {
-        // Lane existante → predecessor = dernier lot de la lane avec centre ≤ X
+        // Lane existante (main OU side) → chain au predecessor sur cette lane
+        // si présent. Permet de créer des sous-chaînes sur les side lanes.
         const targetLaneLots = (lanes[targetLaneIdx] ?? [])
           .filter(l => l.id !== lot.id)
           .sort((a, b) => (a.date_debut ?? '').localeCompare(b.date_debut ?? ''));
@@ -346,6 +344,7 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
             break;
           }
         }
+        // Side lane vide → independent. Sinon chaîne au predecessor trouvé.
         newXPreds = targetPredecessor ? [targetPredecessor.id] : [];
       }
 
