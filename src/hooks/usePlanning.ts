@@ -54,6 +54,11 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     error: null,
   });
   const abortRef = useRef<AbortController | null>(null);
+  // Compteur de séquence : on ignore toute réponse réseau qui n'est PAS la
+  // dernière requête envoyée. Évite que d'anciennes réponses overwrite l'état
+  // optimistique récent (race condition sur D&D rapide).
+  const reqSeqRef = useRef(0);
+  const pendingRef = useRef(0);
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchPlanning = useCallback(async () => {
@@ -61,6 +66,7 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
+    const mySeq = ++reqSeqRef.current;
 
     setState(s => ({ ...s, loading: true, error: null }));
 
@@ -71,6 +77,7 @@ export function usePlanning(chantierId: string | null | undefined, token: string
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (mySeq !== reqSeqRef.current) return; // réponse périmée
 
       const sd = parseDate(data.dateDebutChantier);
       const lots: LotChantier[] = data.lots ?? [];
@@ -80,6 +87,7 @@ export function usePlanning(chantierId: string | null | undefined, token: string
       setState({ lots, deps, startDate: sd, totalWeeks: tw, loading: false, saving: false, error: null });
     } catch (e: any) {
       if (e.name === 'AbortError') return;
+      if (mySeq !== reqSeqRef.current) return;
       setState(s => ({ ...s, loading: false, error: e.message }));
     }
   }, [chantierId, token]);
@@ -89,6 +97,8 @@ export function usePlanning(chantierId: string | null | undefined, token: string
   // ── PATCH helper ──────────────────────────────────────────────────────────
   const patchPlanning = useCallback(async (body: Record<string, unknown>) => {
     if (!chantierId || !token) return;
+    const mySeq = ++reqSeqRef.current;
+    pendingRef.current += 1;
     setState(s => ({ ...s, saving: true }));
 
     try {
@@ -99,6 +109,13 @@ export function usePlanning(chantierId: string | null | undefined, token: string
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      pendingRef.current -= 1;
+      // Ignore les réponses périmées : seule la PLUS RÉCENTE requête a le
+      // droit d'écrire l'état complet (sinon flickering).
+      if (mySeq !== reqSeqRef.current) {
+        if (pendingRef.current === 0) setState(s => ({ ...s, saving: false }));
+        return;
+      }
 
       const sd = parseDate(data.dateDebutChantier);
       const lots: LotChantier[] = data.lots ?? [];
@@ -107,6 +124,8 @@ export function usePlanning(chantierId: string | null | undefined, token: string
 
       setState({ lots, deps, startDate: sd, totalWeeks: tw, loading: false, saving: false, error: null });
     } catch (e: any) {
+      pendingRef.current -= 1;
+      if (mySeq !== reqSeqRef.current) return;
       setState(s => ({ ...s, saving: false, error: e.message }));
     }
   }, [chantierId, token]);
