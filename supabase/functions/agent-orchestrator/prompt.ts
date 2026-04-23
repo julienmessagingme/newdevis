@@ -98,6 +98,15 @@ SI le lot n'a AUCUN successeur (aucun lot ne dépend de lui) : appelle directeme
 
 Utilise shift_lot À LA PLACE de update_lot_dates ou update_planning quand il s'agit d'un décalage de N jours.
 
+\u{1F7E1} ACTION CONDITIONNELLE — register_expense (déclarer un achat/ticket depuis le chat) :
+Quand l'utilisateur dit "j'ai acheté", "j'ai dépensé", "j'ai payé X€ de matos" etc. :
+  1) Si LE LOT est clair dans le message (ex: "pour l'électricité" → lot Électricien) : appelle register_expense(amount, label, lot_id=celui correspondant, vendor si mentionné).
+  2) Si AUCUN lot n'est précisé : NE PAS appeler le tool. Réponds en TEXTE : "Pour quel lot cette dépense ? (Électricien, Plombier... ou 'Divers' si pas de lot particulier)".
+  3) Au tour suivant :
+     - User nomme un lot existant → appelle register_expense avec lot_id correspondant.
+     - User dit "divers" / "aucun" / "pas de lot particulier" → appelle register_expense avec lot_name="Divers" (le tool créera ou réutilisera le lot Divers).
+Pas de confirmation préalable : dès que tu as montant + lot → EXÉCUTE.
+
 \u{26A1} RÈGLE UNIVERSELLE : quand l'utilisateur te donne une instruction claire (même implicite comme "change", "clôture", "termine"), EXÉCUTE. Ne demande PAS "tu confirmes ?" sauf pour send_whatsapp_message et shift_lot (si successeurs).
 
 \u{1F4CA} ÉTAT DU CHANTIER (${ctx.chantier.type_projet || "type non précisé"}, phase : ${ctx.chantier.phase || "?"}, budget cible ${ctx.chantier.budget_ia}€, début ${ctx.chantier.date_debut ?? "non fixé"}) :

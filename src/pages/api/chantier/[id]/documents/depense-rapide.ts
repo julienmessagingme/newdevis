@@ -9,13 +9,13 @@ export const prerender = false;
  */
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuthOrAgent } from '@/lib/apiHelpers';
 
 const VALID_DEPENSE_TYPES = new Set(['facture', 'ticket_caisse', 'achat_materiaux']);
 const VALID_FACTURE_STATUTS = new Set(['recue', 'payee', 'payee_partiellement', 'en_litige']);
 
 export const POST: APIRoute = async ({ params, request }) => {
-  const ctx = await requireChantierAuth(request, params.id!);
+  const ctx = await requireChantierAuthOrAgent(request, params.id!);
   if (ctx instanceof Response) return ctx;
 
   const chantierId = params.id!;
@@ -79,11 +79,6 @@ export const POST: APIRoute = async ({ params, request }) => {
     console.error('[depense-rapide] insert error:', error?.message);
     return jsonError('Erreur lors de l\'enregistrement', 500);
   }
-
-  // Invalidate agent context cache (new expense = stale context)
-  ctx.supabase.from('agent_context_cache')
-    .update({ invalidated: true }).eq('chantier_id', chantierId)
-    .then(() => {}).catch(() => {});
 
   // Fire-and-forget: deterministic SQL checks only ($0)
   const _sbUrl = import.meta.env.PUBLIC_SUPABASE_URL;

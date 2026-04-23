@@ -307,6 +307,25 @@ export const ACTION_TOOLS_SCHEMA = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "register_expense",
+      description: "Enregistre une dépense (ticket de caisse / achat matériaux) déclarée par l'utilisateur dans le chat, sans upload de fichier. L'entrée est créée comme si un ticket avait été scanné.\n\n⚠️ RÈGLE STRICTE : si l'utilisateur dit \"j'ai dépensé X€\" sans préciser le lot, tu DOIS lui demander en TEXTE (sans appeler ce tool) : \"Pour quel lot cette dépense ?\". Si le user répond \"aucun / divers / pas de lot particulier\", passe `lot_name: \"Divers\"` et le tool créera ou réutilisera automatiquement le lot Divers.\n\nNe pas appeler sans `lot_id` OU `lot_name`.",
+      parameters: {
+        type: "object",
+        properties: {
+          amount:     { type: "number", description: "Montant TTC en euros (ex: 200.50)" },
+          label:      { type: "string", description: "Court libellé de la dépense (ex: 'Matériaux électricité Leroy Merlin')" },
+          lot_id:     { type: "string", description: "ID UUID du lot rattaché (prioritaire sur lot_name)" },
+          lot_name:   { type: "string", description: "Nom du lot si lot_id inconnu — ex: 'Électricien' ou 'Divers'. Le tool cherche par nom puis crée si absent." },
+          vendor:     { type: "string", description: "Vendeur/magasin (ex: 'Leroy Merlin'). Optionnel." },
+          depense_type: { type: "string", enum: ["ticket_caisse", "achat_materiaux", "facture"], description: "Type de dépense (défaut: ticket_caisse)" },
+        },
+        required: ["amount", "label"],
+      },
+    },
+  },
 ];
 
 // ── Combined schema for interactive mode ────────────────────────────────────
@@ -329,7 +348,7 @@ export async function executeTool(
   };
 
   // Guard: action tools MUST NOT run in morning/evening modes
-  const ACTION_TOOLS = ["mark_lot_completed", "update_lot_dates", "send_whatsapp_message", "arrange_lot", "shift_lot"];
+  const ACTION_TOOLS = ["mark_lot_completed", "update_lot_dates", "send_whatsapp_message", "arrange_lot", "shift_lot", "register_expense"];
   if (ACTION_TOOLS.includes(toolName) && meta.run_type !== "interactive") {
     console.warn(`[tools] Blocked action tool '${toolName}' in '${meta.run_type}' mode`);
     return JSON.stringify({ ok: false, error: `Tool '${toolName}' is only available in interactive mode` });
@@ -736,6 +755,82 @@ export async function executeTool(
         }
 
         return JSON.stringify({ ok: true, message_id: msgId ?? null });
+      }
+
+      case "register_expense": {
+        const amount = typeof args.amount === "number" ? args.amount : Number(args.amount);
+        const label = String(args.label ?? "").trim();
+        if (!amount || amount <= 0 || !label) {
+          return JSON.stringify({ ok: false, error: "amount (>0) et label requis" });
+        }
+        const vendor = typeof args.vendor === "string" ? args.vendor.trim() : "";
+        const depenseType = ["ticket_caisse", "achat_materiaux", "facture"].includes(String(args.depense_type ?? ""))
+          ? String(args.depense_type)
+          : "ticket_caisse";
+
+        // Résout lot_id : priorité à lot_id explicite, sinon recherche/création via lot_name
+        let lotId: string | null = typeof args.lot_id === "string" && args.lot_id ? args.lot_id : null;
+        const lotName = typeof args.lot_name === "string" ? args.lot_name.trim() : "";
+
+        if (!lotId && lotName) {
+          const supabase = createClient(
+            Deno.env.get("SUPABASE_URL") ?? "",
+            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+          );
+          // Recherche case-insensitive du lot par nom
+          const { data: existing } = await supabase
+            .from("lots_chantier")
+            .select("id, nom")
+            .eq("chantier_id", chantierId)
+            .ilike("nom", lotName)
+            .limit(1);
+          if (existing && existing.length > 0) {
+            lotId = existing[0].id;
+          } else {
+            // Création via API (auto-inférence durée + deps par défaut)
+            const createRes = await fetch(`${API_BASE}/api/chantier/${chantierId}/lots`, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ nom: lotName }),
+            });
+            if (createRes.ok) {
+              const createData = await createRes.json();
+              lotId = createData?.lot?.id ?? createData?.data?.id ?? null;
+            }
+          }
+        }
+
+        if (!lotId) {
+          return JSON.stringify({ ok: false, error: "lot_id ou lot_name requis (demande au user le lot, ou propose Divers)" });
+        }
+
+        // Compose nom affiché (vendor + label)
+        const nom = vendor ? `${vendor} — ${label}` : label;
+
+        const depRes = await fetch(`${API_BASE}/api/chantier/${chantierId}/documents/depense-rapide`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            nom,
+            documentType: "facture",
+            depenseType,
+            montant: amount,
+            factureStatut: "payee", // ticket de caisse = déjà payé
+            lotId,
+          }),
+        });
+        if (!depRes.ok) {
+          const errTxt = await depRes.text();
+          return JSON.stringify({ ok: false, error: `depense-rapide ${depRes.status}: ${errTxt.slice(0, 150)}` });
+        }
+        const depData = await depRes.json();
+        return JSON.stringify({
+          ok: true,
+          montant: amount,
+          lot_id: lotId,
+          label: nom,
+          document_id: depData?.document?.id ?? null,
+        });
       }
 
       default:
