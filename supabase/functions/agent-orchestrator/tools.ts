@@ -11,13 +11,14 @@ export const TOOLS_SCHEMA_BATCH = [
     type: "function",
     function: {
       name: "update_planning",
-      description: "Met à jour le planning d'un lot (durée OU délai avant). Déclenche le recalcul cascade.\n- duree_jours : modifie la durée du lot (ex: '+5j car surprise démolition').\n- delai_avant_jours : décale le lot de N jours ouvrés SANS toucher aux autres. Utiliser pour 'bouge la plomberie d'une semaine' (delai_avant_jours = 5). 0 = pas de délai. Cumulable avec les décalages du lot précédent.",
+      description: "Modifie le planning d'un lot : durée, délai, OU dépendances. Déclenche le recalcul cascade via CPM.\n\n- duree_jours : nouvelle durée (ex: '+5j car surprise démolition').\n- delai_avant_jours : décale le lot de N jours ouvrés sans toucher aux prédécesseurs (ex: 'bouge plomberie d'1 semaine' → 5).\n- depends_on_ids : liste des prédécesseurs du lot (REMPLACE la liste complète). Utiliser pour structurer le graph : ex. 'Plaquiste démarre quand Plombier ET Électricien ont fini' → depends_on_ids=[plombier_id, elec_id]. Vide [] = lot démarre à startDate.\n\nTu peux combiner plusieurs champs dans le même appel.",
       parameters: {
         type: "object",
         properties: {
-          lot_id:             { type: "string", description: "ID UUID du lot" },
+          lot_id:             { type: "string", description: "ID UUID du lot à modifier" },
           duree_jours:        { type: "number", description: "Nouvelle durée en jours ouvrés (optionnel)" },
-          delai_avant_jours:  { type: "number", description: "Délai en jours ouvrés à ajouter AVANT ce lot (optionnel, 0 = aucun)" },
+          delai_avant_jours:  { type: "number", description: "Délai en jours ouvrés avant ce lot (optionnel, 0 = aucun)" },
+          depends_on_ids:     { type: "array", items: { type: "string" }, description: "Liste des prédécesseurs du lot (UUIDs). Remplace la liste courante. Optionnel." },
           raison:             { type: "string", description: "Raison de la modification (pour le journal)" },
         },
         required: ["lot_id", "raison"],
@@ -317,13 +318,18 @@ export async function executeTool(
     switch (toolName) {
       // ── Existing batch tools ─────────────────────────────────────────────
       case "update_planning": {
+        const body: Record<string, unknown> = {};
         const lotUpdate: Record<string, unknown> = { id: args.lot_id };
         if (typeof args.duree_jours === "number") lotUpdate.duree_jours = args.duree_jours;
         if (typeof args.delai_avant_jours === "number") lotUpdate.delai_avant_jours = args.delai_avant_jours;
+        if (Object.keys(lotUpdate).length > 1) body.lots = [lotUpdate];
+        if (Array.isArray(args.depends_on_ids)) {
+          body.dependencies = { [args.lot_id]: args.depends_on_ids };
+        }
         const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/planning`, {
           method: "PATCH",
           headers,
-          body: JSON.stringify({ lots: [lotUpdate] }),
+          body: JSON.stringify(body),
         });
         return JSON.stringify({ ok: res.ok, data: await res.json() });
       }

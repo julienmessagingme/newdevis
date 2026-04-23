@@ -21,8 +21,8 @@ const COLORS = [
 
 export default function PlanningWidget({ lots, startDate, onGoToPlanning }: Props) {
   const planningLots = useMemo(() =>
-    lots.filter(l => l.ordre_planning != null && l.duree_jours != null && l.duree_jours > 0 && l.date_debut && l.date_fin)
-      .sort((a, b) => (a.ordre_planning ?? 0) - (b.ordre_planning ?? 0)),
+    lots.filter(l => l.duree_jours != null && l.duree_jours > 0 && l.date_debut && l.date_fin)
+      .sort((a, b) => (a.date_debut ?? '').localeCompare(b.date_debut ?? '')),
     [lots]
   );
 

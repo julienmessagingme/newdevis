@@ -44,35 +44,64 @@ export const POST: APIRoute = async ({ request, params }) => {
     return jsonError('Erreur lors de la création du lot', 500);
   }
 
-  // Auto-estime duree_jours/ordre_planning/parallel_group pour les lots qui
-  // n'en ont pas (le nouveau + d'anciens lots éventuellement incomplets) →
-  // le lot apparaît DIRECTEMENT dans le Gantt.
+  // Auto-remplit durée manquante + crée dépendances par défaut basées sur
+  // l'ordre métier BTP (TRADE_DURATIONS). Puis recompute les dates.
   try {
     const { data: allLots } = await ctx.supabase
       .from('lots_chantier')
-      .select('id, nom, role, job_type, statut, ordre, duree_jours, ordre_planning, parallel_group')
+      .select('id, nom, role, job_type, statut, ordre, duree_jours, delai_avant_jours')
       .eq('chantier_id', params.id!);
 
     if (allLots && allLots.length > 0) {
+      const { inferDefaultPredecessors } = await import('@/lib/planningUtils');
       const enriched = estimateMissingPlanningData(allLots as any);
-      const estimateUpdates = enriched
+      const durationUpdates = enriched
         .filter(lot => {
           const orig = allLots.find((l: any) => l.id === lot.id);
-          return orig && (orig.duree_jours == null || orig.ordre_planning == null);
+          return orig && (orig.duree_jours == null || (orig.duree_jours as number) <= 0);
         })
         .map(lot => ctx.supabase.from('lots_chantier').update({
           duree_jours: lot.duree_jours,
-          ordre_planning: lot.ordre_planning,
-          parallel_group: lot.parallel_group,
         }).eq('id', lot.id));
-      if (estimateUpdates.length > 0) await Promise.all(estimateUpdates);
+      if (durationUpdates.length > 0) await Promise.all(durationUpdates);
 
-      // Si le chantier a déjà une date de début, on recalcule aussi les dates pour
-      // donner une position initiale au nouveau lot (sinon il reste sans barre).
+      // Dépendances par défaut pour le NOUVEAU lot (s'il n'en a pas déjà)
+      const newLotId = data?.id as string | undefined;
+      if (newLotId) {
+        const { data: existingDeps } = await ctx.supabase
+          .from('lot_dependencies')
+          .select('lot_id')
+          .eq('lot_id', newLotId)
+          .limit(1);
+        const hasDeps = Array.isArray(existingDeps) && existingDeps.length > 0;
+        if (!hasDeps) {
+          const newLot = enriched.find(l => l.id === newLotId);
+          const others = enriched.filter(l => l.id !== newLotId);
+          if (newLot) {
+            const predIds = inferDefaultPredecessors(newLot, others);
+            if (predIds.length > 0) {
+              await ctx.supabase
+                .from('lot_dependencies')
+                .insert(predIds.map(pid => ({ lot_id: newLotId, depends_on_id: pid })));
+            }
+          }
+        }
+      }
+
+      // Recompute dates avec les deps courantes
       const { data: chantier } = await ctx.supabase
         .from('chantiers').select('date_debut_chantier').eq('id', params.id!).single();
       if (chantier?.date_debut_chantier) {
-        const computed = computePlanningDates(enriched as any, new Date(chantier.date_debut_chantier));
+        const { data: depsRows } = await ctx.supabase
+          .from('lot_dependencies')
+          .select('lot_id, depends_on_id')
+          .in('lot_id', enriched.map(l => l.id));
+        const depsMap = new Map<string, Set<string>>();
+        for (const row of (depsRows ?? []) as Array<{ lot_id: string; depends_on_id: string }>) {
+          if (!depsMap.has(row.lot_id)) depsMap.set(row.lot_id, new Set());
+          depsMap.get(row.lot_id)!.add(row.depends_on_id);
+        }
+        const computed = computePlanningDates(enriched as any, new Date(chantier.date_debut_chantier), depsMap);
         const dateUpdates = computed
           .filter(lot => lot.date_debut && lot.date_fin)
           .map(lot => ctx.supabase.from('lots_chantier')
@@ -82,7 +111,6 @@ export const POST: APIRoute = async ({ request, params }) => {
       }
     }
   } catch (e) {
-    // Non bloquant — le lot est créé, l'auto-planning est best-effort
     console.warn('[api/chantier/lots POST] auto-planning failed:', e instanceof Error ? e.message : e);
   }
 

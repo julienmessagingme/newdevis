@@ -31,7 +31,7 @@ async function handleWaPhoto(
   // 1. Fetch chantier user_id + lots list (needed for storage path + lot lookup)
   const [chantierRes, lotsRes] = await Promise.all([
     supabase.from('chantiers').select('user_id').eq('id', chantierId).single(),
-    supabase.from('lots_chantier').select('id, nom').eq('chantier_id', chantierId).order('ordre_planning'),
+    supabase.from('lots_chantier').select('id, nom').eq('chantier_id', chantierId).order('date_debut', { nullsFirst: false }),
   ]);
 
   const userId: string | null = chantierRes.data?.user_id ?? null;

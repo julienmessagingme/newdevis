@@ -213,20 +213,20 @@ interface Props {
 }
 
 export default function PlanningTimeline({ chantierId, token }: Props) {
-  const { lots, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, moveLotTo, parallelizeWith, recompactPlanning } = usePlanning(chantierId, token);
+  const { lots, deps, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, applyDepsBatch, recompactPlanning } = usePlanning(chantierId, token);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [dateMode, setDateMode] = useState<null | 'start' | 'end'>(null);
 
-  // Lots avec planning data, triés
+  // Lots affichés sur le Gantt : ceux qui ont une durée et des dates calculées
   const planningLots = useMemo(() =>
-    lots.filter(l => l.ordre_planning != null && l.duree_jours != null && l.duree_jours > 0)
-      .sort((a, b) => (a.ordre_planning ?? 0) - (b.ordre_planning ?? 0)),
+    lots.filter(l => l.duree_jours != null && l.duree_jours > 0 && l.date_debut && l.date_fin)
+      .sort((a, b) => (a.date_debut ?? '').localeCompare(b.date_debut ?? '')),
     [lots]
   );
 
-  // Lots sans planning
+  // Lots sans données (pas de durée ou pas de date calculée)
   const unplannedLots = useMemo(() =>
-    lots.filter(l => l.ordre_planning == null || l.duree_jours == null || l.duree_jours <= 0),
+    lots.filter(l => l.duree_jours == null || l.duree_jours <= 0 || !l.date_debut || !l.date_fin),
     [lots]
   );
 
@@ -287,71 +287,95 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
     return result;
   }, [planningLots]);
 
-  // -- Drag D&D : lane cible détectée par elementFromPoint + rank via drop X --
+  // -- Drag D&D : réécrit le graphe de dépendances -----------------------------
   //
-  // targetLaneIdx est la lane SOUS le curseur au mouseup (via DOM, pas maths).
-  // null = pas de ligne détectée (hors table) → fallback sur currentLaneIdx.
-  // lanes.length = ghost row → création nouvelle side lane via parallelizeWith.
+  // Le modèle CPM ne connaît QUE les dépendances. Le drop utilisateur est
+  // interprété en termes de deps :
+  //
+  // 1. Drop sur ghost row (lanes.length) → PARALLÈLE :
+  //      Le lot prend les MÊMES prédécesseurs que le lot main lane le plus
+  //      proche en X → il démarre au même moment, sur sa propre ligne visuelle.
+  //
+  // 2. Drop sur une lane existante à une position X :
+  //      - Trouve le lot A de cette lane dont le centre est juste avant X → A
+  //        devient l'UNIQUE prédécesseur du lot déplacé.
+  //      - Si un lot B de cette lane dépendait de A ET que B démarre après X
+  //        → rebind B pour dépendre du lot déplacé au lieu de A (insertion
+  //        avec push de la chaîne).
+  //      - Si pas de lot avant X sur cette lane → deps vides (démarre à startDate).
+  //
+  // 3. Tout change via applyDepsBatch (atomique, recompute serveur).
   const handleLotMoveWithLane = useCallback(
     (lot: LotChantier, currentLaneIdx: number, deltaDays: number, targetLaneIdxOrNull: number | null) => {
       const targetLaneIdx = targetLaneIdxOrNull ?? currentLaneIdx;
       if (deltaDays === 0 && targetLaneIdx === currentLaneIdx) return;
 
-      // ── Drop sur ghost row → nouvelle side lane via parallelizeWith ──────
+      const pxPerDay = WEEK_WIDTH / 5;
+      const barStyle = getBarStyle(lot);
+      const newCenterPx = barStyle.left + deltaDays * pxPerDay + barStyle.width / 2;
+
+      // ── Cas 1 : ghost row → parallèle au lot main lane le plus proche ────
       if (targetLaneIdx >= lanes.length) {
         const mainLane = lanes[0] ?? [];
-        const currentOrdre = lot.ordre_planning ?? 0;
-        const partner = mainLane
-          .filter(l => l.id !== lot.id && l.ordre_planning != null)
-          .sort((a, b) => {
-            const da = Math.abs((a.ordre_planning ?? 0) - currentOrdre);
-            const db = Math.abs((b.ordre_planning ?? 0) - currentOrdre);
-            return da - db;
-          })[0];
-        if (partner) parallelizeWith(lot.id, partner.id);
+        const candidates = mainLane.filter(l => l.id !== lot.id);
+        if (candidates.length === 0) return;
+        // Plus proche en centre horizontal
+        const partner = candidates.reduce((best, cur) => {
+          const cc = getBarStyle(cur);
+          const bc = getBarStyle(best);
+          return Math.abs(cc.left + cc.width / 2 - newCenterPx) < Math.abs(bc.left + bc.width / 2 - newCenterPx)
+            ? cur : best;
+        });
+        const partnerDeps = Array.from(deps.get(partner.id) ?? []);
+        applyDepsBatch([{ lotId: lot.id, depIds: partnerDeps }]);
         return;
       }
 
-      // ── Target pg selon lane cible ───────────────────────────────────────
-      let newPg: number | null | undefined = undefined;
-      if (targetLaneIdx !== currentLaneIdx) {
-        if (targetLaneIdx <= 0) {
-          newPg = null; // main lane → séquentiel
-        } else {
-          const targetLane = lanes[targetLaneIdx];
-          const anchor = targetLane?.find(l => l.id !== lot.id);
-          newPg = anchor?.parallel_group ?? null;
-        }
-      }
+      // ── Cas 2 : lane cible existante → trouve le prédécesseur ─────────────
+      const targetLaneLots = (lanes[targetLaneIdx] ?? [])
+        .filter(l => l.id !== lot.id)
+        .sort((a, b) => (a.date_debut ?? '').localeCompare(b.date_debut ?? ''));
 
-      // ── Target rank via drop X précis ────────────────────────────────────
-      const barStyle = getBarStyle(lot);
-      const pxPerDay = WEEK_WIDTH / 5;
-      const newCenterPx = barStyle.left + deltaDays * pxPerDay + barStyle.width / 2;
-
-      const targetLaneLots = (lanes[targetLaneIdx] ?? []).filter(l => l.id !== lot.id);
-
-      let insertAfterLot: LotChantier | null = null;
+      // Le predecessor = lot dont le CENTRE est ≤ newCenterPx
+      // Le successor potentiel = premier lot dont le centre est > newCenterPx
+      let predecessor: LotChantier | null = null;
+      let successor: LotChantier | null = null;
       for (const tl of targetLaneLots) {
         const tbs = getBarStyle(tl);
-        if (tbs.left + tbs.width / 2 <= newCenterPx) {
-          insertAfterLot = tl;
+        const tCenter = tbs.left + tbs.width / 2;
+        if (tCenter <= newCenterPx) {
+          predecessor = tl;
         } else {
+          successor = tl;
           break;
         }
       }
 
-      const allSortedExceptMoved = planningLots
-        .filter(l => l.id !== lot.id)
-        .sort((a, b) => (a.ordre_planning ?? 0) - (b.ordre_planning ?? 0));
+      const updates: Array<{ lotId: string; depIds: string[] }> = [];
 
-      const targetRank = insertAfterLot
-        ? allSortedExceptMoved.findIndex(l => l.id === insertAfterLot!.id) + 2
-        : 1;
+      // Le lot déplacé prend son nouveau prédécesseur (ou vide si début)
+      const newDraggedDeps = predecessor ? [predecessor.id] : [];
+      updates.push({ lotId: lot.id, depIds: newDraggedDeps });
 
-      moveLotTo(lot.id, newPg, targetRank);
+      // Rebind : si successor dépend du predecessor, il dépend maintenant du lot déplacé
+      if (predecessor && successor) {
+        const succDeps = deps.get(successor.id);
+        if (succDeps && succDeps.has(predecessor.id)) {
+          const newSuccDeps = Array.from(succDeps).filter(d => d !== predecessor!.id);
+          newSuccDeps.push(lot.id);
+          updates.push({ lotId: successor.id, depIds: newSuccDeps });
+        }
+      }
+
+      // Nettoie : si d'autres lots dépendaient de notre lot déplacé ET que ce
+      // lot quitte sa chaîne, ils perdent ce prédécesseur (sauf si on peut
+      // leur transférer au prédécesseur — cas du "détachement d'une chaîne").
+      // Pour la simplicité : on laisse les successeurs du lot déplacé avec
+      // leur dépendance courante. computePlanningDates gérera l'ordonnancement.
+
+      applyDepsBatch(updates);
     },
-    [lanes, planningLots, moveLotTo, parallelizeWith, getBarStyle]
+    [lanes, deps, applyDepsBatch, getBarStyle]
   );
 
   // -- Loading state ----------------------------------------------------------
