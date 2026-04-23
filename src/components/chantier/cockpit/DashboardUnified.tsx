@@ -28,6 +28,7 @@ import DashboardHome from './DashboardHome';
 import AnalyseDevisSection from './AnalyseDevisSection';
 import TravauxDIYSection from './TravauxDIYSection';
 import ChantierAssistantChat from '@/components/chantier/ChantierAssistantChat';
+import AgentActivityFeed from './AgentActivityFeed';
 import JournalChantierSection from './JournalChantierSection';
 import UserCoordonnees from './UserCoordonnees';
 import { useAgentInsights } from '@/hooks/useAgentInsights';
@@ -456,61 +457,23 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
         );
 
       case 'assistant': {
-        const alertInsights = agentInsights.insights.filter(i =>
-          !i.read_by_user &&
-          i.type !== 'conversation_summary' &&
-          (i.severity === 'warning' || i.severity === 'critical' || i.type === 'needs_clarification')
-        );
+        // Layout 2-col : chat à gauche (flex-1), feed d'activité à droite (360px).
+        // Le bandeau d'alertes du haut est supprimé — tout est centralisé dans le feed.
+        // Mobile : stack vertical (chat full puis feed dessous).
         return (
-          <div className="flex flex-col h-full">
-            {alertInsights.length > 0 && (
-              <div className="px-4 py-3 border-b border-gray-100 space-y-2 bg-white shrink-0">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                    Alertes IA · {alertInsights.length}
-                  </p>
-                  <button
-                    onClick={() => agentInsights.markAllRead()}
-                    className="text-[10px] text-gray-400 hover:text-gray-600"
-                  >
-                    Tout marquer lu
-                  </button>
-                </div>
-                {alertInsights.slice(0, 5).map(ins => (
-                  <div
-                    key={ins.id}
-                    className={`flex items-start gap-2 px-3 py-2 rounded-xl text-sm ${
-                      ins.severity === 'critical'
-                        ? 'bg-red-50 border border-red-100'
-                        : ins.type === 'needs_clarification'
-                        ? 'bg-orange-50 border border-orange-100'
-                        : 'bg-amber-50 border border-amber-100'
-                    }`}
-                  >
-                    <span className="shrink-0 mt-0.5">
-                      {ins.severity === 'critical' ? '🔴' : ins.type === 'needs_clarification' ? '🔔' : '⚠️'}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-[13px] font-medium ${
-                        ins.severity === 'critical' ? 'text-red-800' : 'text-gray-800'
-                      }`}>{ins.title}</p>
-                      {ins.body && (
-                        <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">{ins.body}</p>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => agentInsights.markAsRead(ins.id)}
-                      className="shrink-0 text-gray-300 hover:text-gray-500 text-xs px-1"
-                    >✕</button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex-1 min-h-0">
+          <div className="flex flex-col lg:flex-row h-full min-h-0">
+            <div className="flex-1 min-h-0 min-w-0 lg:border-r lg:border-gray-100">
               <ChantierAssistantChat
                 chantierId={chantierId ?? ''}
                 token={token}
                 size="full"
+              />
+            </div>
+            <div className="w-full lg:w-[360px] shrink-0 h-[60vh] lg:h-full border-t lg:border-t-0 border-gray-100">
+              <AgentActivityFeed
+                chantierId={chantierId ?? ''}
+                token={token}
+                onOpenJournal={() => navigateTo('journal')}
               />
             </div>
           </div>
