@@ -324,19 +324,13 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
       let targetPredecessor: LotChantier | null = null;
 
       if (targetLaneIdx >= lanes.length) {
-        // Ghost row → parallèle au partner main lane le plus proche en X.
-        // Le lot hérite des deps du partner (= démarre en même temps).
-        const mainLane = lanes[0] ?? [];
-        const candidates = mainLane.filter(l => l.id !== lot.id);
-        if (candidates.length > 0) {
-          const partner = candidates.reduce((best, cur) => {
-            const cc = getBarStyle(cur);
-            const bc = getBarStyle(best);
-            return Math.abs(cc.left + cc.width / 2 - newCenterPx) < Math.abs(bc.left + bc.width / 2 - newCenterPx)
-              ? cur : best;
-          });
-          newXPreds = Array.from(deps.get(partner.id) ?? []).filter(d => d !== lot.id);
-        }
+        // Ghost row / side lane → lot INDÉPENDANT : aucune dépendance, démarre
+        // à startDate. Sortir de la chaîne principale = devenir autonome.
+        newXPreds = [];
+      } else if (targetLaneIdx > 0) {
+        // Side lane existante → lot INDÉPENDANT (même logique que ghost row).
+        // Le lot quitte la chaîne pour tourner en parallèle sans deps.
+        newXPreds = [];
       } else {
         // Lane existante → predecessor = dernier lot de la lane avec centre ≤ X
         const targetLaneLots = (lanes[targetLaneIdx] ?? [])
