@@ -130,6 +130,27 @@ export const PATCH: APIRoute = async ({ request, params }) => {
   // 2. Updates per-lot (durée / délai uniquement — dates dérivées)
   const lotUpdates = Array.isArray(body.lots) ? (body.lots as Array<Record<string, unknown>>) : [];
 
+  // Pré-calcule les lots qui envoient date_debut sans delai_avant_jours (legacy
+  // tool update_lot_dates). On convertit date_debut → delai_avant_jours pour
+  // que le tool legacy fonctionne même sans redeployer l'edge function.
+  const legacyDatedLotIds = lotUpdates
+    .filter(lot => typeof lot.id === 'string' && typeof lot.date_debut === 'string' && typeof lot.delai_avant_jours !== 'number')
+    .map(lot => lot.id as string);
+
+  const legacyCurrentDates = new Map<string, { date_debut: string; delai_avant_jours: number | null }>();
+  if (legacyDatedLotIds.length > 0) {
+    const { data: curRows } = await ctx.supabase
+      .from('lots_chantier')
+      .select('id, date_debut, delai_avant_jours')
+      .in('id', legacyDatedLotIds)
+      .eq('chantier_id', chantierId);
+    for (const row of (curRows ?? []) as Array<{ id: string; date_debut: string | null; delai_avant_jours: number | null }>) {
+      if (row.date_debut) {
+        legacyCurrentDates.set(row.id, { date_debut: row.date_debut, delai_avant_jours: row.delai_avant_jours });
+      }
+    }
+  }
+
   const lotUpdatePromises = lotUpdates
     .filter(lot => typeof lot.id === 'string')
     .map(lot => {
@@ -137,6 +158,20 @@ export const PATCH: APIRoute = async ({ request, params }) => {
       if (typeof lot.duree_jours === 'number') update.duree_jours = lot.duree_jours;
       if (typeof lot.delai_avant_jours === 'number') update.delai_avant_jours = lot.delai_avant_jours;
       if ('lane_index' in lot) update.lane_index = lot.lane_index;
+      // Compat legacy : convertit date_debut → delai_avant_jours
+      if (typeof lot.date_debut === 'string' && typeof update.delai_avant_jours !== 'number') {
+        const cur = legacyCurrentDates.get(lot.id as string);
+        if (cur) {
+          const old = new Date(cur.date_debut);
+          const target = new Date(lot.date_debut as string);
+          const diffCalDays = Math.round((target.getTime() - old.getTime()) / (24 * 60 * 60 * 1000));
+          // Conversion calendaire → jours ouvrés (approximation 5/7)
+          const diffBizDays = Math.round(diffCalDays * 5 / 7);
+          if (diffBizDays !== 0) {
+            update.delai_avant_jours = (cur.delai_avant_jours ?? 0) + diffBizDays;
+          }
+        }
+      }
       if (Object.keys(update).length === 0) return null;
       return ctx.supabase.from('lots_chantier').update(update).eq('id', lot.id as string).eq('chantier_id', chantierId);
     })
@@ -205,7 +240,9 @@ export const PATCH: APIRoute = async ({ request, params }) => {
   // 5. Recalcul global si quoi que ce soit a changé structurellement
   const structuralLotChange = lotUpdates.some(l =>
     typeof l.id === 'string' && (
-      typeof l.duree_jours === 'number' || typeof l.delai_avant_jours === 'number'
+      typeof l.duree_jours === 'number'
+      || typeof l.delai_avant_jours === 'number'
+      || typeof l.date_debut === 'string' // compat legacy tool update_lot_dates
     ),
   );
   const needsGlobalRecalc = anyDepsChanged
