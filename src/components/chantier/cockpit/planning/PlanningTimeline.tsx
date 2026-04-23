@@ -213,7 +213,7 @@ interface Props {
 }
 
 export default function PlanningTimeline({ chantierId, token }: Props) {
-  const { lots, deps, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, applyDepsBatch, recompactPlanning } = usePlanning(chantierId, token);
+  const { lots, deps, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, applyDragChange, recompactPlanning } = usePlanning(chantierId, token);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [dateMode, setDateMode] = useState<null | 'start' | 'end'>(null);
 
@@ -263,28 +263,64 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
   const lanes = useMemo(() => {
     const withDates = planningLots.filter(l => l.date_debut && l.date_fin);
     const withoutDates = planningLots.filter(l => !l.date_debut || !l.date_fin);
-    const sorted = [...withDates].sort((a, b) =>
-      (a.date_debut ?? '').localeCompare(b.date_debut ?? '')
-    );
 
+    // Overlap test non-contigu (2 lots peuvent partager les endpoints)
+    const overlaps = (a: LotChantier, b: LotChantier) => {
+      const as = new Date(a.date_debut!).getTime();
+      const ae = new Date(a.date_fin!).getTime();
+      const bs = new Date(b.date_debut!).getTime();
+      const be = new Date(b.date_fin!).getTime();
+      return as < be && bs < ae;
+    };
+    const fitsInLane = (lane: LotChantier[], lot: LotChantier) =>
+      !lane.some(other => overlaps(other, lot));
+
+    // Pass 1 : place les lots avec lane_index explicite (intention user)
     const result: LotChantier[][] = [];
-    for (const lot of sorted) {
-      const lotStart = new Date(lot.date_debut!).getTime();
+    const hinted = withDates.filter(l => typeof l.lane_index === 'number' && l.lane_index >= 0);
+    const unhinted = withDates.filter(l => l.lane_index == null || l.lane_index < 0);
+
+    // Détermine l'index max pour pré-allouer les lanes
+    const maxHint = hinted.reduce((m, l) => Math.max(m, l.lane_index ?? -1), -1);
+    for (let i = 0; i <= maxHint; i++) result.push([]);
+
+    for (const lot of hinted) {
+      const idx = lot.lane_index!;
+      // Si conflit sur la lane demandée, fallback first-fit (sécurité)
+      if (fitsInLane(result[idx], lot)) {
+        result[idx].push(lot);
+      } else {
+        let placed = false;
+        for (const lane of result) {
+          if (fitsInLane(lane, lot)) { lane.push(lot); placed = true; break; }
+        }
+        if (!placed) result.push([lot]);
+      }
+    }
+
+    // Pass 2 : first-fit pour les lots sans hint (ordre par date_debut)
+    const unhintedSorted = [...unhinted].sort((a, b) =>
+      (a.date_debut ?? '').localeCompare(b.date_debut ?? ''),
+    );
+    for (const lot of unhintedSorted) {
       let placed = false;
       for (const lane of result) {
-        const lastEnd = new Date(lane[lane.length - 1].date_fin!).getTime();
-        if (lastEnd <= lotStart) {
-          lane.push(lot);
-          placed = true;
-          break;
-        }
+        if (fitsInLane(lane, lot)) { lane.push(lot); placed = true; break; }
       }
       if (!placed) result.push([lot]);
     }
 
+    // Tri chaque lane par date_debut pour un rendu chronologique
+    for (const lane of result) {
+      lane.sort((a, b) => (a.date_debut ?? '').localeCompare(b.date_debut ?? ''));
+    }
+
+    // Retire les lanes vides (si maxHint crée des trous non remplis)
+    const nonEmpty = result.filter(lane => lane.length > 0);
+
     // Lots sans dates : chacun sur sa propre lane en fin de liste
-    for (const lot of withoutDates) result.push([lot]);
-    return result;
+    for (const lot of withoutDates) nonEmpty.push([lot]);
+    return nonEmpty;
   }, [planningLots]);
 
   // -- Drag D&D : réécrit le graphe de dépendances -----------------------------
@@ -388,15 +424,32 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
         s.add(lot.id);
       }
 
-      // ── 6. Apply batch ────────────────────────────────────────────────────
-      const batch = Array.from(finalDeps.entries()).map(([lotId, depSet]) => ({
+      // ── 6. Snapshot des lane_indices courantes pour préserver la position
+      //      visuelle des autres lots (sinon first-fit peut les déplacer).
+      //      Le lot déplacé prend lane_index = targetLaneIdx (ghost → lanes.length).
+      const lotsUpdates: Array<{ lotId: string; lane_index: number | null }> = [];
+      for (let i = 0; i < lanes.length; i++) {
+        for (const l of lanes[i]) {
+          if (l.id === lot.id) continue;
+          // Ne snapshot QUE si lane_index actuelle ≠ lane visuelle courante
+          if (l.lane_index !== i) {
+            lotsUpdates.push({ lotId: l.id, lane_index: i });
+          }
+        }
+      }
+      // Le lot déplacé : sa nouvelle lane. Clamp à max (lanes.length) si ghost.
+      const newLaneForDragged = Math.min(targetLaneIdx, lanes.length);
+      lotsUpdates.push({ lotId: lot.id, lane_index: newLaneForDragged });
+
+      // ── 7. Apply combined batch (deps + lane_indices) en UN PATCH ─────────
+      const depsBatch = Array.from(finalDeps.entries()).map(([lotId, depSet]) => ({
         lotId,
         depIds: Array.from(depSet).filter(d => d !== lotId),
       }));
-      if (batch.length === 0) return;
-      applyDepsBatch(batch);
+      if (depsBatch.length === 0 && lotsUpdates.length === 0) return;
+      applyDragChange(depsBatch, lotsUpdates);
     },
-    [lanes, deps, lots, applyDepsBatch, getBarStyle]
+    [lanes, deps, lots, applyDragChange, getBarStyle]
   );
 
   // -- Loading state ----------------------------------------------------------

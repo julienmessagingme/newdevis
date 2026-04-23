@@ -137,14 +137,87 @@ export function usePlanning(chantierId: string | null | undefined, token: string
 
   // ── Actions publiques ─────────────────────────────────────────────────────
 
-  /** Change durée / délai d'un lot. Déclenche recompute global côté serveur. */
-  const updateLot = useCallback((lotId: string, changes: { duree_jours?: number; delai_avant_jours?: number }) => {
+  /** Change durée / délai / lane_index d'un lot. Déclenche recompute global. */
+  const updateLot = useCallback((lotId: string, changes: { duree_jours?: number; delai_avant_jours?: number; lane_index?: number | null }) => {
     setState(s => {
       const updated = s.lots.map(l => l.id === lotId ? { ...l, ...changes } : l);
       const recomputed = recomputeLocal(updated, s.deps, s.startDate);
       return { ...s, lots: recomputed, totalWeeks: getTotalWeeks(recomputed) };
     });
     patchPlanning({ lots: [{ id: lotId, ...changes }] });
+  }, [patchPlanning, recomputeLocal]);
+
+  /** Batch : met à jour plusieurs lots d'un coup (ex: snapshot des lanes
+   *  visuelles courantes + nouvelle lane pour le lot déplacé). Atomique. */
+  const applyLotsBatch = useCallback((
+    updates: Array<{ lotId: string; lane_index?: number | null; duree_jours?: number; delai_avant_jours?: number }>,
+  ) => {
+    setState(s => {
+      const byId = new Map(updates.map(u => [u.lotId, u]));
+      const updated = s.lots.map(l => {
+        const u = byId.get(l.id);
+        if (!u) return l;
+        const next = { ...l };
+        if ('lane_index' in u) next.lane_index = u.lane_index ?? null;
+        if (typeof u.duree_jours === 'number') next.duree_jours = u.duree_jours;
+        if (typeof u.delai_avant_jours === 'number') next.delai_avant_jours = u.delai_avant_jours;
+        return next;
+      });
+      const recomputed = recomputeLocal(updated, s.deps, s.startDate);
+      return { ...s, lots: recomputed, totalWeeks: getTotalWeeks(recomputed) };
+    });
+    patchPlanning({
+      lots: updates.map(u => {
+        const body: Record<string, unknown> = { id: u.lotId };
+        if ('lane_index' in u) body.lane_index = u.lane_index;
+        if (typeof u.duree_jours === 'number') body.duree_jours = u.duree_jours;
+        if (typeof u.delai_avant_jours === 'number') body.delai_avant_jours = u.delai_avant_jours;
+        return body;
+      }),
+    });
+  }, [patchPlanning, recomputeLocal]);
+
+  /** Batch combiné pour D&D : met à jour deps + lane_indices dans UN SEUL
+   *  PATCH. Garantit l'atomicité serveur et évite les races entre deux
+   *  requêtes séparées (le reqSeqRef anti-rollback marche mieux avec 1 req). */
+  const applyDragChange = useCallback((
+    depsUpdates: Array<{ lotId: string; depIds: string[] }>,
+    lotsUpdates: Array<{ lotId: string; lane_index?: number | null; duree_jours?: number; delai_avant_jours?: number }>,
+  ) => {
+    setState(s => {
+      const newDeps = new Map(s.deps);
+      for (const { lotId, depIds } of depsUpdates) {
+        newDeps.set(lotId, new Set(depIds.filter(d => d !== lotId)));
+      }
+      const byId = new Map(lotsUpdates.map(u => [u.lotId, u]));
+      const updatedLots = s.lots.map(l => {
+        const u = byId.get(l.id);
+        if (!u) return l;
+        const next = { ...l };
+        if ('lane_index' in u) next.lane_index = u.lane_index ?? null;
+        if (typeof u.duree_jours === 'number') next.duree_jours = u.duree_jours;
+        if (typeof u.delai_avant_jours === 'number') next.delai_avant_jours = u.delai_avant_jours;
+        return next;
+      });
+      const recomputed = recomputeLocal(updatedLots, newDeps, s.startDate);
+      return { ...s, lots: recomputed, deps: newDeps, totalWeeks: getTotalWeeks(recomputed) };
+    });
+    const body: Record<string, unknown> = {};
+    if (depsUpdates.length > 0) {
+      body.dependencies = Object.fromEntries(
+        depsUpdates.map(u => [u.lotId, u.depIds.filter(d => d !== u.lotId)]),
+      );
+    }
+    if (lotsUpdates.length > 0) {
+      body.lots = lotsUpdates.map(u => {
+        const b: Record<string, unknown> = { id: u.lotId };
+        if ('lane_index' in u) b.lane_index = u.lane_index;
+        if (typeof u.duree_jours === 'number') b.duree_jours = u.duree_jours;
+        if (typeof u.delai_avant_jours === 'number') b.delai_avant_jours = u.delai_avant_jours;
+        return b;
+      });
+    }
+    if (Object.keys(body).length > 0) patchPlanning(body);
   }, [patchPlanning, recomputeLocal]);
 
   /** Met à jour la date de début du chantier. */
@@ -241,6 +314,8 @@ export function usePlanning(chantierId: string | null | undefined, token: string
     addDependency,
     removeDependency,
     applyDepsBatch,
+    applyLotsBatch,
+    applyDragChange,
     recompactPlanning,
     refetch: fetchPlanning,
   };

@@ -72,6 +72,7 @@ export interface LotChantier {
   ordre_planning?:     number | null;  // ordre dans le planning (distinct de 'ordre' d'affichage)
   parallel_group?:     number | null;  // lots avec même valeur = en parallèle, null = séquentiel
   delai_avant_jours?:  number | null;  // délai en jours ouvrés AVANT le lot (shift sans casser la cascade)
+  lane_index?:         number | null;  // lane visuelle explicite (NULL = first-fit). Mis à jour au D&D.
 }
 
 /** Signaux factuels calculés avant l'appel IA — aucun montant, aucune hallucination */

@@ -19,13 +19,14 @@ type LotRow = {
   date_fin?: string | null;
   ordre_planning?: number | null;
   parallel_group?: number | null;
+  lane_index?: number | null;
   budget_min_ht?: number | null;
   budget_avg_ht?: number | null;
   budget_max_ht?: number | null;
 };
 
 const LOT_SELECT =
-  'id, nom, emoji, role, statut, ordre, duree_jours, date_debut, date_fin, ordre_planning, parallel_group, delai_avant_jours, budget_min_ht, budget_avg_ht, budget_max_ht';
+  'id, nom, emoji, role, statut, ordre, duree_jours, date_debut, date_fin, ordre_planning, parallel_group, delai_avant_jours, lane_index, budget_min_ht, budget_avg_ht, budget_max_ht';
 
 async function loadDependencies(
   supabase: { from: (table: string) => unknown },
@@ -135,6 +136,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
       const update: Record<string, unknown> = {};
       if (typeof lot.duree_jours === 'number') update.duree_jours = lot.duree_jours;
       if (typeof lot.delai_avant_jours === 'number') update.delai_avant_jours = lot.delai_avant_jours;
+      if ('lane_index' in lot) update.lane_index = lot.lane_index;
       if (Object.keys(update).length === 0) return null;
       return ctx.supabase.from('lots_chantier').update(update).eq('id', lot.id as string).eq('chantier_id', chantierId);
     })
