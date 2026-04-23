@@ -274,6 +274,27 @@ export const ACTION_TOOLS_SCHEMA = [
   {
     type: "function",
     function: {
+      name: "shift_lot",
+      description:
+        "Décale un lot dans le temps de N jours ouvrés. Deux modes :\n" +
+        "- cascade=true : applique le décalage, les successeurs DAG suivent automatiquement (ex: si plombier décalé, l'élec qui dépend de plombier se décale aussi).\n" +
+        "- cascade=false : DÉTACHE le lot de sa chaîne. Les successeurs perdent ce lot comme prédécesseur ET héritent de ses anciens prédécesseurs (ils restent à leur position visuelle). Le lot est mis sur une nouvelle side lane indépendante avec le délai appliqué.\n" +
+        "AVANT D'APPELER ce tool : vérifie si le lot a des successeurs DANS LE CONTEXTE. Si oui, demande à l'utilisateur 'cascade ou détache ?' sans appeler le tool. N'appelle le tool QU'APRÈS la réponse explicite de l'utilisateur.",
+      parameters: {
+        type: "object",
+        properties: {
+          lot_id:  { type: "string", description: "ID UUID du lot à décaler" },
+          jours:   { type: "number", description: "Nombre de jours ouvrés de décalage (positif)" },
+          cascade: { type: "boolean", description: "true = successeurs suivent ; false = lot détaché de la chaîne" },
+          raison:  { type: "string", description: "Raison du décalage (journal)" },
+        },
+        required: ["lot_id", "jours", "cascade", "raison"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "send_whatsapp_message",
       description: "Envoie un message WhatsApp à un groupe ou à un contact individuel. REQUIERT confirmation explicite de l'utilisateur. L'agent ne doit JAMAIS envoyer sans que l'utilisateur ait dit 'ok', 'envoie', 'confirme' ou équivalent.",
       parameters: {
@@ -308,7 +329,7 @@ export async function executeTool(
   };
 
   // Guard: action tools MUST NOT run in morning/evening modes
-  const ACTION_TOOLS = ["mark_lot_completed", "update_lot_dates", "send_whatsapp_message", "arrange_lot"];
+  const ACTION_TOOLS = ["mark_lot_completed", "update_lot_dates", "send_whatsapp_message", "arrange_lot", "shift_lot"];
   if (ACTION_TOOLS.includes(toolName) && meta.run_type !== "interactive") {
     console.warn(`[tools] Blocked action tool '${toolName}' in '${meta.run_type}' mode`);
     return JSON.stringify({ ok: false, error: `Tool '${toolName}' is only available in interactive mode` });
@@ -681,6 +702,24 @@ export async function executeTool(
           });
         }
         return JSON.stringify({ ok: true, data: body });
+      }
+
+      case "shift_lot": {
+        const lotId = String(args.lot_id ?? "");
+        const jours = Number(args.jours ?? 0);
+        const cascade = Boolean(args.cascade);
+        if (!lotId || !Number.isFinite(jours) || jours <= 0) {
+          return JSON.stringify({ ok: false, error: "lot_id et jours (>0) requis" });
+        }
+        const res = await fetch(
+          `${API_BASE}/api/chantier/${chantierId}/planning/shift-lot`,
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ lot_id: lotId, jours, cascade, raison: args.raison }),
+          },
+        );
+        return JSON.stringify({ ok: res.ok, data: await res.json() });
       }
 
       case "send_whatsapp_message": {

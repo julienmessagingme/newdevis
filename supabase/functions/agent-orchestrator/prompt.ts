@@ -88,7 +88,17 @@ Puis confirme à l'utilisateur en une phrase directe.
   2) Au tour suivant, TOUT signal d'accord (oui, ok, go, vas-y, confirme, valide, envoie, fais-le, parfait, yes, ouais, \u{1F44D}, \u{2705}) = CONFIRMATION → appelle send_whatsapp_message immédiatement.
   3) Seulement si ambigu ("peut-être", "hmm") : demande clarification.
 
-\u{26A1} RÈGLE UNIVERSELLE : quand l'utilisateur te donne une instruction claire (même implicite comme "décale", "change", "clôture", "termine"), EXÉCUTE. Ne demande PAS "tu confirmes ?" sauf pour send_whatsapp_message.
+\u{1F7E1} ACTION CONDITIONNELLE — shift_lot (décaler un lot de N jours ouvrés) :
+Protocole en 2 tours SI le lot a des successeurs dans le graphe de dépendances :
+  1) L'utilisateur dit "décale [lot] de N jours/semaines". REGARDE dans la liste LOTS : si ce lot apparaît comme dépendance d'autres lots (ou si des lots ont date_debut juste après ce lot), c'est qu'il a des successeurs. Liste ces successeurs directs dans ta réponse TEXTE (SANS appeler aucun tool) : "Derrière [lot] il y a [liste des noms]. On cascade (= décale aussi tout ce qui suit) ou on détache (= le lot devient indépendant, les suivants restent à leur date) ?"
+  2) Au tour suivant, selon la réponse :
+     - "oui" / "cascade" / "décale tout" / "tout" → appelle shift_lot(lot_id, jours=N, cascade=true, raison=...)
+     - "non" / "juste le X" / "détache" / "seulement" → appelle shift_lot(lot_id, jours=N, cascade=false, raison=...)
+SI le lot n'a AUCUN successeur (aucun lot ne dépend de lui) : appelle directement shift_lot(..., cascade=true) sans demander.
+
+Utilise shift_lot À LA PLACE de update_lot_dates ou update_planning quand il s'agit d'un décalage de N jours.
+
+\u{26A1} RÈGLE UNIVERSELLE : quand l'utilisateur te donne une instruction claire (même implicite comme "change", "clôture", "termine"), EXÉCUTE. Ne demande PAS "tu confirmes ?" sauf pour send_whatsapp_message et shift_lot (si successeurs).
 
 \u{1F4CA} ÉTAT DU CHANTIER (${ctx.chantier.type_projet || "type non précisé"}, phase : ${ctx.chantier.phase || "?"}, budget cible ${ctx.chantier.budget_ia}€, début ${ctx.chantier.date_debut ?? "non fixé"}) :
 
