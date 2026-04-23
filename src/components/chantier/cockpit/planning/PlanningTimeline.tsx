@@ -290,21 +290,17 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
   // -- Drag D&D : réécrit le graphe de dépendances -----------------------------
   //
   // Le modèle CPM ne connaît QUE les dépendances. Le drop utilisateur est
-  // interprété en termes de deps :
+  // interprété en termes de deps, avec TRANSFERT automatique pour préserver
+  // la chaîne existante (les successeurs de X n'accompagnent PAS X dans son
+  // déplacement — ils se rebindent sur les ex-prédécesseurs de X).
   //
-  // 1. Drop sur ghost row (lanes.length) → PARALLÈLE :
-  //      Le lot prend les MÊMES prédécesseurs que le lot main lane le plus
-  //      proche en X → il démarre au même moment, sur sa propre ligne visuelle.
+  // Invariants :
+  //  - Le lot déplacé X prend de nouveaux prédécesseurs (selon le drop).
+  //  - Les ex-successeurs de X (qui avaient X dans leur deps) perdent X et
+  //    héritent des ex-prédécesseurs de X → ils ne bougent pas visuellement.
+  //  - Si X atterrit entre A et B dans une chaîne A→B, B remplace A par X.
   //
-  // 2. Drop sur une lane existante à une position X :
-  //      - Trouve le lot A de cette lane dont le centre est juste avant X → A
-  //        devient l'UNIQUE prédécesseur du lot déplacé.
-  //      - Si un lot B de cette lane dépendait de A ET que B démarre après X
-  //        → rebind B pour dépendre du lot déplacé au lieu de A (insertion
-  //        avec push de la chaîne).
-  //      - Si pas de lot avant X sur cette lane → deps vides (démarre à startDate).
-  //
-  // 3. Tout change via applyDepsBatch (atomique, recompute serveur).
+  // Tout est batché via applyDepsBatch (atomique côté serveur).
   const handleLotMoveWithLane = useCallback(
     (lot: LotChantier, currentLaneIdx: number, deltaDays: number, targetLaneIdxOrNull: number | null) => {
       const targetLaneIdx = targetLaneIdxOrNull ?? currentLaneIdx;
@@ -314,68 +310,91 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
       const barStyle = getBarStyle(lot);
       const newCenterPx = barStyle.left + deltaDays * pxPerDay + barStyle.width / 2;
 
-      // ── Cas 1 : ghost row → parallèle au lot main lane le plus proche ────
+      // ── 1. Prépare les updates via une map (fusion idempotente) ───────────
+      const finalDeps = new Map<string, Set<string>>();
+      const touch = (id: string) => {
+        if (!finalDeps.has(id)) finalDeps.set(id, new Set(deps.get(id) ?? []));
+      };
+
+      // ── 2. Détermine les NOUVEAUX prédécesseurs du lot déplacé ────────────
+      const xOldPreds = Array.from(deps.get(lot.id) ?? []);
+
+      let newXPreds: string[] = [];
+      let targetSuccessor: LotChantier | null = null;
+      let targetPredecessor: LotChantier | null = null;
+
       if (targetLaneIdx >= lanes.length) {
+        // Ghost row → parallèle au partner main lane le plus proche en X.
+        // Le lot hérite des deps du partner (= démarre en même temps).
         const mainLane = lanes[0] ?? [];
         const candidates = mainLane.filter(l => l.id !== lot.id);
-        if (candidates.length === 0) return;
-        // Plus proche en centre horizontal
-        const partner = candidates.reduce((best, cur) => {
-          const cc = getBarStyle(cur);
-          const bc = getBarStyle(best);
-          return Math.abs(cc.left + cc.width / 2 - newCenterPx) < Math.abs(bc.left + bc.width / 2 - newCenterPx)
-            ? cur : best;
-        });
-        const partnerDeps = Array.from(deps.get(partner.id) ?? []);
-        applyDepsBatch([{ lotId: lot.id, depIds: partnerDeps }]);
-        return;
+        if (candidates.length > 0) {
+          const partner = candidates.reduce((best, cur) => {
+            const cc = getBarStyle(cur);
+            const bc = getBarStyle(best);
+            return Math.abs(cc.left + cc.width / 2 - newCenterPx) < Math.abs(bc.left + bc.width / 2 - newCenterPx)
+              ? cur : best;
+          });
+          newXPreds = Array.from(deps.get(partner.id) ?? []).filter(d => d !== lot.id);
+        }
+      } else {
+        // Lane existante → predecessor = dernier lot de la lane avec centre ≤ X
+        const targetLaneLots = (lanes[targetLaneIdx] ?? [])
+          .filter(l => l.id !== lot.id)
+          .sort((a, b) => (a.date_debut ?? '').localeCompare(b.date_debut ?? ''));
+        for (const tl of targetLaneLots) {
+          const tbs = getBarStyle(tl);
+          const tCenter = tbs.left + tbs.width / 2;
+          if (tCenter <= newCenterPx) {
+            targetPredecessor = tl;
+          } else {
+            targetSuccessor = tl;
+            break;
+          }
+        }
+        newXPreds = targetPredecessor ? [targetPredecessor.id] : [];
       }
 
-      // ── Cas 2 : lane cible existante → trouve le prédécesseur ─────────────
-      const targetLaneLots = (lanes[targetLaneIdx] ?? [])
-        .filter(l => l.id !== lot.id)
-        .sort((a, b) => (a.date_debut ?? '').localeCompare(b.date_debut ?? ''));
+      // ── 3. X récupère ses nouveaux prédécesseurs ──────────────────────────
+      touch(lot.id);
+      const xSet = finalDeps.get(lot.id)!;
+      xSet.clear();
+      for (const p of newXPreds) xSet.add(p);
 
-      // Le predecessor = lot dont le CENTRE est ≤ newCenterPx
-      // Le successor potentiel = premier lot dont le centre est > newCenterPx
-      let predecessor: LotChantier | null = null;
-      let successor: LotChantier | null = null;
-      for (const tl of targetLaneLots) {
-        const tbs = getBarStyle(tl);
-        const tCenter = tbs.left + tbs.width / 2;
-        if (tCenter <= newCenterPx) {
-          predecessor = tl;
-        } else {
-          successor = tl;
-          break;
+      // ── 4. Transfère les ex-successeurs de X vers les ex-prédécesseurs de X
+      //     Les lots qui dépendaient de X héritent des ex-deps de X → ils
+      //     restent à la même position visuelle au lieu d'accompagner X.
+      for (const other of lots) {
+        if (other.id === lot.id) continue;
+        const otherDeps = deps.get(other.id);
+        if (otherDeps && otherDeps.has(lot.id)) {
+          touch(other.id);
+          const s = finalDeps.get(other.id)!;
+          s.delete(lot.id);
+          for (const p of xOldPreds) s.add(p);
         }
       }
 
-      const updates: Array<{ lotId: string; depIds: string[] }> = [];
-
-      // Le lot déplacé prend son nouveau prédécesseur (ou vide si début)
-      const newDraggedDeps = predecessor ? [predecessor.id] : [];
-      updates.push({ lotId: lot.id, depIds: newDraggedDeps });
-
-      // Rebind : si successor dépend du predecessor, il dépend maintenant du lot déplacé
-      if (predecessor && successor) {
-        const succDeps = deps.get(successor.id);
-        if (succDeps && succDeps.has(predecessor.id)) {
-          const newSuccDeps = Array.from(succDeps).filter(d => d !== predecessor!.id);
-          newSuccDeps.push(lot.id);
-          updates.push({ lotId: successor.id, depIds: newSuccDeps });
+      // ── 5. Rebind target successor : si B dépendait de A (le nouveau pred
+      //     de X) et que X s'insère entre eux, B dépend maintenant de X.
+      if (targetPredecessor && targetSuccessor) {
+        touch(targetSuccessor.id);
+        const s = finalDeps.get(targetSuccessor.id)!;
+        if (s.has(targetPredecessor.id)) {
+          s.delete(targetPredecessor.id);
+          s.add(lot.id);
         }
       }
 
-      // Nettoie : si d'autres lots dépendaient de notre lot déplacé ET que ce
-      // lot quitte sa chaîne, ils perdent ce prédécesseur (sauf si on peut
-      // leur transférer au prédécesseur — cas du "détachement d'une chaîne").
-      // Pour la simplicité : on laisse les successeurs du lot déplacé avec
-      // leur dépendance courante. computePlanningDates gérera l'ordonnancement.
-
-      applyDepsBatch(updates);
+      // ── 6. Apply batch ────────────────────────────────────────────────────
+      const batch = Array.from(finalDeps.entries()).map(([lotId, depSet]) => ({
+        lotId,
+        depIds: Array.from(depSet).filter(d => d !== lotId),
+      }));
+      if (batch.length === 0) return;
+      applyDepsBatch(batch);
     },
-    [lanes, deps, applyDepsBatch, getBarStyle]
+    [lanes, deps, lots, applyDepsBatch, getBarStyle]
   );
 
   // -- Loading state ----------------------------------------------------------
