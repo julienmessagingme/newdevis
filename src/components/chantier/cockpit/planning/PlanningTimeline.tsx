@@ -7,7 +7,7 @@ import { useState, useRef, useCallback, useMemo } from 'react';
 import { Calendar, Loader2, AlertCircle, Users, AlignLeft, Plus } from 'lucide-react';
 import type { LotChantier } from '@/types/chantier-ia';
 import { usePlanning } from '@/hooks/usePlanning';
-import { formatDuration, getWeekLabels } from '@/lib/planningUtils';
+import { formatDuration, getWeekLabels, businessDaysBetween } from '@/lib/planningUtils';
 
 // -- Couleurs par lot (cyclique) ----------------------------------------------
 
@@ -424,11 +424,41 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
         s.add(lot.id);
       }
 
-      // ── 6. Snapshot des lane_indices courantes pour préserver la position
-      //      visuelle des autres lots (sinon first-fit peut les déplacer).
-      //      Le lot déplacé prend lane_index = targetLaneIdx (ghost → lanes.length)
-      //      ET delai_avant_jours=0 : le drag exprime une position explicite,
-      //      donc on reset tout délai accumulé (ex: 3x "décale 1 sem" via chat).
+      // ── 6. Calcule le delai_avant_jours pour que le CPM serveur reproduise
+      //      la position visuelle choisie par l'utilisateur.
+      //
+      //      Sans ce calcul, on envoyait delai=0 → CPM recomputait à
+      //      startDate (ou predecessor.date_fin), ignorant le drag.
+      //
+      //      Méthode : position pixel → date calendaire cible → nombre de
+      //      jours ouvrés entre "expected start CPM" et "date cible".
+      const currentBarLeft = barStyle.left;
+      const newBarLeft = currentBarLeft + deltaDays * pxPerDay;
+      const pxPerCalendarDay = WEEK_WIDTH / 7;
+      const desiredCalendarDaysFromStart = Math.max(0, Math.round(newBarLeft / pxPerCalendarDay));
+      const desiredStart = startDate
+        ? new Date(startDate.getTime() + desiredCalendarDaysFromStart * 86400000)
+        : null;
+
+      // Expected start = là où le CPM poserait le lot SANS délai
+      //   = max(startDate, max(pred.date_fin for pred in newXPreds))
+      let expectedStart = startDate ? new Date(startDate) : null;
+      for (const predId of newXPreds) {
+        const pred = lots.find(l => l.id === predId);
+        if (pred?.date_fin) {
+          const predEnd = new Date(pred.date_fin);
+          if (expectedStart && predEnd > expectedStart) expectedStart = predEnd;
+        }
+      }
+
+      let newDelai = 0;
+      if (desiredStart && expectedStart && desiredStart > expectedStart) {
+        newDelai = businessDaysBetween(expectedStart, desiredStart);
+      }
+
+      // Snapshot des lane_indices courantes pour préserver la position
+      // visuelle des autres lots (sinon first-fit peut les déplacer).
+      // Le lot déplacé prend lane_index = targetLaneIdx (ghost → lanes.length).
       const lotsUpdates: Array<{ lotId: string; lane_index?: number | null; delai_avant_jours?: number }> = [];
       for (let i = 0; i < lanes.length; i++) {
         for (const l of lanes[i]) {
@@ -439,7 +469,7 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
         }
       }
       const newLaneForDragged = Math.min(targetLaneIdx, lanes.length);
-      lotsUpdates.push({ lotId: lot.id, lane_index: newLaneForDragged, delai_avant_jours: 0 });
+      lotsUpdates.push({ lotId: lot.id, lane_index: newLaneForDragged, delai_avant_jours: newDelai });
 
       // ── 7. Apply combined batch (deps + lane_indices) en UN PATCH ─────────
       const depsBatch = Array.from(finalDeps.entries()).map(([lotId, depSet]) => ({

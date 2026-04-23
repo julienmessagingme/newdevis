@@ -375,7 +375,17 @@
       "Read(//c/Users/julie/newdevis/node_modules/.bin//**)",
       "Read(//c/Users/julie/newdevis/**)",
       "Bash(npx --offline supabase --version)",
-      "mcp__943e0531-99f5-4527-a0c5-d240813aa858__deploy_edge_function"
+      "mcp__943e0531-99f5-4527-a0c5-d240813aa858__deploy_edge_function",
+      "Read(//c/Users/julie/scoop/shims/**)",
+      "Read(//c/ProgramData/chocolatey/bin/**)",
+      "Read(//c/Users/julie/AppData/Local/**)",
+      "Read(//c/Users/julie/AppData/Roaming/npm/**)",
+      "Bash(where.exe supabase *)",
+      "Bash(/c/Users/julie/AppData/Local/npm-cache/_npx/aa8e5c70f9d8d161/node_modules/supabase/bin/supabase.exe --version)",
+      "Bash(export SB=/c/Users/julie/AppData/Local/npm-cache/_npx/aa8e5c70f9d8d161/node_modules/supabase/bin/supabase.exe)",
+      "Bash(/c/Users/julie/AppData/Local/npm-cache/_npx/aa8e5c70f9d8d161/node_modules/supabase/bin/supabase.exe projects *)",
+      "Bash(/c/Users/julie/AppData/Local/npm-cache/_npx/aa8e5c70f9d8d161/node_modules/supabase/bin/supabase.exe functions *)",
+      "mcp__943e0531-99f5-4527-a0c5-d240813aa858__get_logs"
     ]
   }
 }
