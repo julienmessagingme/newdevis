@@ -9,7 +9,7 @@ import DocScoreCell from '@/components/chantier/shared/DocScoreCell';
 import DocStatusSelect from '@/components/chantier/shared/DocStatusSelect';
 import DocTypeBadge from '@/components/chantier/shared/DocTypeBadge';
 import { useAnalysisScores } from '@/hooks/useAnalysisScores';
-import { getDevisEtFactures, getPhotos } from '@/lib/documentFilters';
+import { getDevisEtFactures, getPhotos, getFraisDeclares } from '@/lib/documentFilters';
 
 function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token, onDocStatutUpdated, onDurationChange }: {
   lot: LotChantier;
@@ -25,6 +25,8 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
   // ── Séparation par type ──────────────────────────────────────────────────
   const devisDocs = getDevisEtFactures(docs);
   const photoDocs = getPhotos(docs);
+  const fraisDocs = getFraisDeclares(docs);
+  const totalFrais = fraisDocs.reduce((s, d) => s + (d.montant ?? 0), 0);
 
   // ── Jauge budget (devis validés vs fourchette estimée) ───────────────────
   const hasRange = (lot.budget_min_ht ?? 0) > 0 || (lot.budget_max_ht ?? 0) > 0;
@@ -307,6 +309,33 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
           </div>
         )}
       </div>
+
+      {/* ── Frais annexes déclarés (chat agent, sans pièce jointe) ── */}
+      {fraisDocs.length > 0 && (
+        <div className="bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-amber-50 flex items-center justify-between bg-amber-50/40">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-amber-800">Frais annexes déclarés</span>
+              <span className="text-xs font-semibold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">{fraisDocs.length}</span>
+            </div>
+            <span className="text-sm font-bold text-amber-800 tabular-nums">{fmtEur(totalFrais)}</span>
+          </div>
+          <div className="divide-y divide-amber-50">
+            {fraisDocs.map(doc => (
+              <div key={doc.id} className="flex items-center gap-3 px-5 py-3">
+                <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0 text-amber-600 text-base">📝</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">{doc.nom || 'Frais déclarés'}</p>
+                  <p className="text-[11px] text-gray-400">Déclaré le {fmtDate(doc.created_at)}</p>
+                </div>
+                {doc.montant != null && (
+                  <span className="text-sm font-bold text-gray-900 tabular-nums shrink-0">{fmtEur(doc.montant)}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Photos du lot ── */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">

@@ -5,7 +5,7 @@
  */
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Receipt, Plus, ShoppingCart, Wrench, ChevronDown, Check, AlertTriangle, Clock, Scale } from 'lucide-react';
+import { Receipt, Plus, ShoppingCart, Wrench, ChevronDown, Check, AlertTriangle, Clock, Scale, StickyNote } from 'lucide-react';
 import { fmtFull } from '@/lib/budgetHelpers';
 import type { DocumentChantier, FactureStatut } from '@/types/chantier-ia';
 
@@ -47,12 +47,14 @@ const DEPENSE_ICON: Record<string, React.ReactNode> = {
   facture:          <Receipt className="h-4 w-4" />,
   ticket_caisse:    <ShoppingCart className="h-4 w-4" />,
   achat_materiaux:  <Wrench className="h-4 w-4" />,
+  frais:            <StickyNote className="h-4 w-4" />,
 };
 
 const DEPENSE_COLOR: Record<string, string> = {
   facture:          'bg-gray-50 text-gray-500',
   ticket_caisse:    'bg-purple-50 text-purple-500',
   achat_materiaux:  'bg-orange-50 text-orange-500',
+  frais:            'bg-amber-50 text-amber-600',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -216,10 +218,16 @@ export default function FacturesPaiements({ documents, chantierId, onAddDepense,
 
                 {/* Infos */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">{doc.nom}</p>
+                  <p className="text-sm font-medium text-gray-800 truncate">
+                    {dtype === 'frais'
+                      ? `Frais déclarés le ${new Date(doc.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}`
+                      : doc.nom}
+                  </p>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <p className="text-xs text-gray-400">
-                      {new Date(doc.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                    <p className="text-xs text-gray-400 truncate">
+                      {dtype === 'frais'
+                        ? doc.nom
+                        : new Date(doc.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
                     </p>
                     {paye > 0 && statut === 'payee_partiellement' && (
                       <p className="text-xs text-blue-500">
@@ -236,13 +244,19 @@ export default function FacturesPaiements({ documents, chantierId, onAddDepense,
                   </span>
                 )}
 
-                {/* Badge statut cliquable */}
+                {/* Badge statut — frais = badge figé "Déclaré", autres = dropdown */}
                 <div className="relative shrink-0">
                   {hasError && (
                     <p className="absolute -top-5 right-0 text-[10px] font-semibold text-red-500 whitespace-nowrap">
                       Erreur, réessayez
                     </p>
                   )}
+                  {dtype === 'frais' ? (
+                    <span className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full border bg-amber-50 text-amber-700 border-amber-100">
+                      <StickyNote className="h-3 w-3" />
+                      Déclaré
+                    </span>
+                  ) : (
                   <button
                     onClick={() => setOpenMenu(openMenu === doc.id ? null : doc.id)}
                     disabled={isChanging}
@@ -252,6 +266,7 @@ export default function FacturesPaiements({ documents, chantierId, onAddDepense,
                     {cfg.shortLabel}
                     <ChevronDown className="h-2.5 w-2.5 ml-0.5" />
                   </button>
+                  )}
 
                   {/* Dropdown changement statut */}
                   {openMenu === doc.id && (

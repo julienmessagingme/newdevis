@@ -385,7 +385,8 @@
       "Bash(export SB=/c/Users/julie/AppData/Local/npm-cache/_npx/aa8e5c70f9d8d161/node_modules/supabase/bin/supabase.exe)",
       "Bash(/c/Users/julie/AppData/Local/npm-cache/_npx/aa8e5c70f9d8d161/node_modules/supabase/bin/supabase.exe projects *)",
       "Bash(/c/Users/julie/AppData/Local/npm-cache/_npx/aa8e5c70f9d8d161/node_modules/supabase/bin/supabase.exe functions *)",
-      "mcp__943e0531-99f5-4527-a0c5-d240813aa858__get_logs"
+      "mcp__943e0531-99f5-4527-a0c5-d240813aa858__get_logs",
+      "mcp__943e0531-99f5-4527-a0c5-d240813aa858__apply_migration"
     ]
   }
 }

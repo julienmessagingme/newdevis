@@ -320,7 +320,7 @@ export const ACTION_TOOLS_SCHEMA = [
           lot_id:     { type: "string", description: "ID UUID du lot rattaché (prioritaire sur lot_name)" },
           lot_name:   { type: "string", description: "Nom du lot si lot_id inconnu — ex: 'Électricien' ou 'Divers'. Le tool cherche par nom puis crée si absent." },
           vendor:     { type: "string", description: "Vendeur/magasin (ex: 'Leroy Merlin'). Optionnel." },
-          depense_type: { type: "string", enum: ["ticket_caisse", "achat_materiaux", "facture"], description: "Type de dépense (défaut: ticket_caisse)" },
+          depense_type: { type: "string", enum: ["frais", "ticket_caisse", "achat_materiaux", "facture"], description: "Type de dépense. Défaut 'frais' = déclaration orale sans justificatif. 'ticket_caisse' / 'achat_materiaux' = dépense avec pièce attendue. 'facture' = facture fournisseur." },
         },
         required: ["amount", "label"],
       },
@@ -764,9 +764,9 @@ export async function executeTool(
           return JSON.stringify({ ok: false, error: "amount (>0) et label requis" });
         }
         const vendor = typeof args.vendor === "string" ? args.vendor.trim() : "";
-        const depenseType = ["ticket_caisse", "achat_materiaux", "facture"].includes(String(args.depense_type ?? ""))
+        const depenseType = ["frais", "ticket_caisse", "achat_materiaux", "facture"].includes(String(args.depense_type ?? ""))
           ? String(args.depense_type)
-          : "ticket_caisse";
+          : "frais";
 
         // Résout lot_id : priorité à lot_id explicite, sinon recherche/création via lot_name
         let lotId: string | null = typeof args.lot_id === "string" && args.lot_id ? args.lot_id : null;

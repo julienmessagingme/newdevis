@@ -11,7 +11,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { optionsResponse, jsonOk, jsonError, requireChantierAuthOrAgent } from '@/lib/apiHelpers';
 
-const VALID_DEPENSE_TYPES = new Set(['facture', 'ticket_caisse', 'achat_materiaux']);
+const VALID_DEPENSE_TYPES = new Set(['facture', 'ticket_caisse', 'achat_materiaux', 'frais']);
 const VALID_FACTURE_STATUTS = new Set(['recue', 'payee', 'payee_partiellement', 'en_litige']);
 
 export const POST: APIRoute = async ({ params, request }) => {
