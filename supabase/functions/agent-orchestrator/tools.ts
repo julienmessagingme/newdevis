@@ -580,6 +580,9 @@ export async function executeTool(
 
       // ── Action tools (interactive only — guard already checked above) ──────
       case "arrange_lot": {
+        // Modèle CPM DAG : on écrit dans lot_dependencies via l'API planning.
+        // chain_after    : lot.deps = [refId]
+        // parallel_with  : lot.deps = deps(refId) (mêmes prédécesseurs → démarrent ensemble)
         const mode = String(args.mode ?? "");
         if (mode !== "chain_after" && mode !== "parallel_with") {
           return JSON.stringify({ ok: false, error: "mode doit être 'chain_after' ou 'parallel_with'" });
@@ -590,80 +593,42 @@ export async function executeTool(
           return JSON.stringify({ ok: false, error: "lot_id et reference_lot_id requis et distincts" });
         }
 
-        const supabase = createClient(
-          Deno.env.get("SUPABASE_URL") ?? "",
-          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-        );
-
-        // Récupère le lot référence + le lot à déplacer
-        const { data: bothLots } = await supabase
-          .from("lots_chantier")
-          .select("id, nom, ordre_planning, parallel_group, duree_jours")
-          .in("id", [lotId, refId])
-          .eq("chantier_id", chantierId);
-
-        const refLot = (bothLots ?? []).find((l: any) => l.id === refId);
-        const lot = (bothLots ?? []).find((l: any) => l.id === lotId);
-        if (!refLot || !lot) {
-          return JSON.stringify({ ok: false, error: "Lot introuvable sur ce chantier" });
-        }
-
-        if (mode === "parallel_with") {
-          // Même ordre_planning que la réf + assigner un parallel_group partagé
-          let pg = refLot.parallel_group;
-          if (pg == null) {
-            // Créer un nouveau parallel_group
-            const { data: maxPg } = await supabase
-              .from("lots_chantier")
-              .select("parallel_group")
-              .eq("chantier_id", chantierId)
-              .not("parallel_group", "is", null)
-              .order("parallel_group", { ascending: false })
-              .limit(1)
-              .single();
-            pg = (maxPg?.parallel_group ?? 0) + 1;
-            // Update la réf pour qu'elle ait ce pg
-            await supabase.from("lots_chantier").update({ parallel_group: pg })
-              .eq("id", refId).eq("chantier_id", chantierId);
-          }
-          await supabase.from("lots_chantier").update({
-            ordre_planning: refLot.ordre_planning,
-            parallel_group: pg,
-          }).eq("id", lotId).eq("chantier_id", chantierId);
+        let depsForLot: string[];
+        if (mode === "chain_after") {
+          depsForLot = [refId];
         } else {
-          // chain_after : ordre_planning = ref + 1, décale les suivants de +1, pas de parallel_group
-          const newOrdre = (refLot.ordre_planning ?? 0) + 1;
-          // Récupère les lots avec ordre >= newOrdre (hors le lot qu'on déplace)
-          const { data: toShift } = await supabase
-            .from("lots_chantier")
-            .select("id, ordre_planning")
-            .eq("chantier_id", chantierId)
-            .gte("ordre_planning", newOrdre)
-            .neq("id", lotId);
-          // Décaler de +1
-          if (toShift && toShift.length > 0) {
-            await Promise.all((toShift as any[]).map(l =>
-              supabase.from("lots_chantier").update({ ordre_planning: (l.ordre_planning ?? 0) + 1 })
-                .eq("id", l.id).eq("chantier_id", chantierId)
-            ));
-          }
-          await supabase.from("lots_chantier").update({
-            ordre_planning: newOrdre,
-            parallel_group: null,
-          }).eq("id", lotId).eq("chantier_id", chantierId);
+          // parallel_with : récupère les deps du lot de référence
+          const planRes = await fetch(`${API_BASE}/api/chantier/${chantierId}/planning`, { headers });
+          const planData = planRes.ok ? await planRes.json() : {};
+          const refDeps = (planData?.dependencies ?? {})[refId] ?? [];
+          depsForLot = Array.isArray(refDeps) ? refDeps : [];
         }
 
-        // Déclencher recalcul cascade des dates via l'API (qui fait aussi l'invalidation cache)
-        const { data: chantierRow } = await supabase
-          .from("chantiers").select("date_debut_chantier").eq("id", chantierId).single();
-        if (chantierRow?.date_debut_chantier) {
-          await fetch(`${API_BASE}/api/chantier/${chantierId}/planning`, {
-            method: "PATCH",
-            headers,
-            body: JSON.stringify({ dateDebutChantier: chantierRow.date_debut_chantier }),
-          });
+        // PATCH avec dependencies + delai_avant_jours=0 (repart de la date naturelle du CPM)
+        const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/planning`, {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({
+            lots: [{ id: lotId, delai_avant_jours: 0, lane_index: null }],
+            dependencies: { [lotId]: depsForLot },
+          }),
+        });
+        if (!res.ok) {
+          const errTxt = await res.text();
+          return JSON.stringify({ ok: false, error: `PATCH planning failed: ${errTxt.slice(0, 200)}` });
         }
-        return JSON.stringify({ ok: true, mode, lot_nom: lot.nom, ref_nom: refLot.nom, raison: args.raison });
+        const data = await res.json();
+        const lotFinal = (data?.lots ?? []).find((l: any) => l.id === lotId);
+        const refFinal = (data?.lots ?? []).find((l: any) => l.id === refId);
+        return JSON.stringify({
+          ok: true,
+          mode,
+          lot_nom: lotFinal?.nom ?? "?",
+          ref_nom: refFinal?.nom ?? "?",
+          lot_date_debut: lotFinal?.date_debut,
+          lot_date_fin: lotFinal?.date_fin,
+          raison: args.raison,
+        });
       }
 
       case "mark_lot_completed": {
