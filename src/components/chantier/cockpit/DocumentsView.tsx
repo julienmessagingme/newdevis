@@ -38,7 +38,7 @@ function isImageMime(mime: string | null | undefined): boolean {
 
 // ── Sections config ───────────────────────────────────────────────────────────
 
-type SectionKey = 'devis' | 'factures' | 'achats' | 'photos' | 'plans' | 'admin';
+type SectionKey = 'devis' | 'factures' | 'achats' | 'frais' | 'photos' | 'plans' | 'admin';
 
 interface Section {
   key:         SectionKey;
@@ -79,6 +79,17 @@ const SECTIONS: Section[] = [
       d.document_type === 'facture' &&
       ('depense_type' in d) &&
       ((d as any).depense_type === 'ticket_caisse' || (d as any).depense_type === 'achat_materiaux'),
+  },
+  {
+    key:       'frais',
+    label:     'Frais déclarés',
+    emoji:     '📝',
+    headerCls: 'bg-amber-50/60 hover:bg-amber-50',
+    countCls:  'bg-amber-100 text-amber-700',
+    filter:    d =>
+      d.document_type === 'facture' &&
+      ('depense_type' in d) &&
+      (d as any).depense_type === 'frais',
   },
   {
     key:       'photos',
@@ -491,7 +502,7 @@ export default function DocumentsView({
 }) {
   const [search,      setSearch]      = useState('');
   const [openSections, setOpenSections] = useState<Set<SectionKey>>(
-    () => new Set(['devis', 'factures', 'photos']),
+    () => new Set(['devis', 'factures', 'frais', 'photos']),
   );
   const [lotOverrides, setLotOverrides] = useState<Record<string, string | null>>({});
 

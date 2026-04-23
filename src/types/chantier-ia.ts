@@ -15,7 +15,7 @@ export type DocumentType =
 
 export type DevisStatut = 'en_cours' | 'a_relancer' | 'valide' | 'attente_facture';
 export type FactureStatut = 'recue' | 'payee' | 'payee_partiellement' | 'en_litige';
-export type DepenseType = 'facture' | 'ticket_caisse' | 'achat_materiaux';
+export type DepenseType = 'facture' | 'ticket_caisse' | 'achat_materiaux' | 'frais';
 
 export interface DocumentChantier {
   id: string;
