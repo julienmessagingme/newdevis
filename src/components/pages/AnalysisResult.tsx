@@ -313,8 +313,6 @@ const AnalysisResult = () => {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showTrustpilotModal, setShowTrustpilotModal] = useState(false);
-  const trustpilotRef = useRef<HTMLDivElement>(null);
-  const trustpilotModalRef = useRef<HTMLDivElement>(null);
   const { user: authUser, isAnonymous: rawIsAnonymous, isPermanent: rawIsPermanent, loading: authLoading, convertToPermanent } = useAnonymousAuth();
   const { isPremium, lifetimeAnalysisCount } = usePremium();
 
@@ -408,27 +406,6 @@ const AnalysisResult = () => {
     setLoading(false);
   }, [id, isPermanent]);
 
-  // Helper: tries loadFromElement immediately, retries after 1s if script not yet loaded
-  const initTrustpilotWidget = useCallback((el: HTMLDivElement | null) => {
-    if (!el) return;
-    type TW = { Trustpilot?: { loadFromElement: (el: HTMLElement, force: boolean) => void } };
-    const tryLoad = () => {
-      const tp = (window as unknown as TW).Trustpilot;
-      if (tp) { tp.loadFromElement(el, true); return true; }
-      return false;
-    };
-    if (!tryLoad()) {
-      // Script not yet loaded — retry after 1s then 3s
-      setTimeout(() => { if (!tryLoad()) setTimeout(tryLoad, 2000); }, 1000);
-    }
-  }, []);
-
-  // Initialize inline Trustpilot widget once analysis is loaded
-  useEffect(() => {
-    if (!analysis) return;
-    initTrustpilotWidget(trustpilotRef.current);
-  }, [analysis, initTrustpilotWidget]);
-
   // Track analysis_viewed once analysis is completed
   useEffect(() => {
     if (!analysis || analysis.status !== "completed") return;
@@ -445,12 +422,6 @@ const AnalysisResult = () => {
     const timer = setTimeout(() => setShowTrustpilotModal(true), 5000);
     return () => clearTimeout(timer);
   }, [analysis]);
-
-  // Initialize modal Trustpilot widget when modal becomes visible
-  useEffect(() => {
-    if (!showTrustpilotModal) return;
-    initTrustpilotWidget(trustpilotModalRef.current);
-  }, [showTrustpilotModal, initTrustpilotWidget]);
 
   useEffect(() => {
     fetchAnalysis();
@@ -1137,20 +1108,14 @@ const AnalysisResult = () => {
           <p className="text-sm text-muted-foreground mb-3">
             Votre analyse est prête 🎉 — votre avis nous aide à améliorer le service
           </p>
-          <div
-            ref={trustpilotRef}
-            className="trustpilot-widget"
-            data-locale="fr-FR"
-            data-template-id="56278e9abfbbba0bdcd568bc"
-            data-businessunit-id="69a6cc3942d8a24e56af1528"
-            data-style-height="52px"
-            data-style-width="100%"
-            data-token="f49b09bf-811e-458a-bfe0-6a1df2cca869"
+          <a
+            href="https://fr.trustpilot.com/review/verifiermondevis.fr"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#00b67a] hover:bg-[#00a06a] text-white font-semibold rounded-lg text-sm transition-colors shadow-sm"
           >
-            <a href="https://fr.trustpilot.com/review/verifiermondevis.fr" target="_blank" rel="noopener">
-              Laisser un avis sur Trustpilot
-            </a>
-          </div>
+            ⭐ Laisser un avis sur Trustpilot
+          </a>
         </div>
 
         {/* Actions */}
@@ -1185,20 +1150,15 @@ const AnalysisResult = () => {
               Notre service vous a été utile ? Laissez-nous un avis sur Trustpilot — ça prend 30 secondes.
             </p>
           </div>
-          <div
-            ref={trustpilotModalRef}
-            className="trustpilot-widget"
-            data-locale="fr-FR"
-            data-template-id="56278e9abfbbba0bdcd568bc"
-            data-businessunit-id="69a6cc3942d8a24e56af1528"
-            data-style-height="52px"
-            data-style-width="100%"
-            data-token="f49b09bf-811e-458a-bfe0-6a1df2cca869"
+          <a
+            href="https://fr.trustpilot.com/review/verifiermondevis.fr"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => { localStorage.setItem("trustpilot-dismissed", "1"); setShowTrustpilotModal(false); }}
+            className="flex items-center justify-center gap-2 w-full px-5 py-3 bg-[#00b67a] hover:bg-[#00a06a] text-white font-semibold rounded-lg text-sm transition-colors shadow-sm"
           >
-            <a href="https://fr.trustpilot.com/review/verifiermondevis.fr" target="_blank" rel="noopener">
-              Laisser un avis sur Trustpilot
-            </a>
-          </div>
+            ⭐ Laisser un avis sur Trustpilot
+          </a>
           <button
             onClick={() => { localStorage.setItem("trustpilot-dismissed", "1"); setShowTrustpilotModal(false); }}
             className="w-full text-center text-xs text-muted-foreground hover:text-foreground mt-3 transition-colors"

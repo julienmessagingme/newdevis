@@ -1422,7 +1422,12 @@ export default function BudgetTab({
                         },
                       };
 
-                      const noDevis = artisan.devis.length === 0 && artisan.factures.length > 0;
+                      // Frais (déclarations chat sans pièce) exclus de ce check :
+                      // un frais isolé ne déclenche pas l'alerte "Devis manquant".
+                      const realFactures = artisan.factures.filter(f => f.depense_type !== 'frais');
+                      const fraisOnly    = artisan.factures.filter(f => f.depense_type === 'frais');
+                      const noDevis = artisan.devis.length === 0 && realFactures.length > 0;
+                      const totalFrais = fraisOnly.reduce((s, f) => s + (f.montant ?? 0), 0);
 
                       return (
                         <tr
@@ -1451,7 +1456,10 @@ export default function BudgetTab({
                                       <AlertTriangle className="h-2.5 w-2.5" />Devis manquant
                                     </span>
                                   )}
-                                  {artisan.factures.length > 0 && `${artisan.factures.length} facture${artisan.factures.length > 1 ? 's' : ''}`}
+                                  {realFactures.length > 0 && `${realFactures.length} facture${realFactures.length > 1 ? 's' : ''}`}
+                                  {fraisOnly.length > 0 && (
+                                    <span className="ml-1.5 text-amber-600 font-medium">📝 {fmtEur(totalFrais)} frais</span>
+                                  )}
                                   {docsCount > 0 && (
                                     <span className="ml-1.5 text-gray-300">· 📄{docsCount}</span>
                                   )}

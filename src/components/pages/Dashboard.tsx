@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Plus,
@@ -39,7 +39,6 @@ const Dashboard = () => {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [loading, setLoading] = useState(true);
-  const trustpilotRef = useRef<HTMLDivElement>(null);
   const { isPremium, lifetimeAnalysisCount } = usePremium();
 
   // Garde de session : déconnexion après 10 min d'inactivité + détection nouvel onglet/navigateur
@@ -102,21 +101,6 @@ const Dashboard = () => {
       }
     };
   }, []);
-
-  // Initialize Trustpilot widget once analyses are loaded (with retry if script not yet ready)
-  useEffect(() => {
-    if (analyses.length === 0 || !trustpilotRef.current) return;
-    const el = trustpilotRef.current;
-    type TW = { Trustpilot?: { loadFromElement: (el: HTMLElement, force: boolean) => void } };
-    const tryLoad = () => {
-      const tp = (window as unknown as TW).Trustpilot;
-      if (tp) { tp.loadFromElement(el, true); return true; }
-      return false;
-    };
-    if (!tryLoad()) {
-      setTimeout(() => { if (!tryLoad()) setTimeout(tryLoad, 2000); }, 1000);
-    }
-  }, [analyses]);
 
   const handleLogout = useCallback(async () => {
     await supabase.auth.signOut();
@@ -343,20 +327,14 @@ const Dashboard = () => {
             <p className="text-sm text-muted-foreground mb-3">
               Notre service vous est utile ? Votre avis nous aide à nous améliorer 🙏
             </p>
-            <div
-              ref={trustpilotRef}
-              className="trustpilot-widget"
-              data-locale="fr-FR"
-              data-template-id="56278e9abfbbba0bdcd568bc"
-              data-businessunit-id="69a6cc3942d8a24e56af1528"
-              data-style-height="52px"
-              data-style-width="100%"
-              data-token="f49b09bf-811e-458a-bfe0-6a1df2cca869"
+            <a
+              href="https://fr.trustpilot.com/review/verifiermondevis.fr"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#00b67a] hover:bg-[#00a06a] text-white font-semibold rounded-lg text-sm transition-colors shadow-sm"
             >
-              <a href="https://fr.trustpilot.com/review/verifiermondevis.fr" target="_blank" rel="noopener">
-                Laisser un avis sur Trustpilot
-              </a>
-            </div>
+              ⭐ Laisser un avis sur Trustpilot
+            </a>
           </div>
         )}
       </main>

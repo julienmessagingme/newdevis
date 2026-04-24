@@ -52,6 +52,7 @@ interface BudgetFacture {
   montant: number | null;
   montant_paye: number | null;
   facture_statut: string | null;
+  depense_type: string | null; // 'frais' = déclaration chat sans pièce. Exclu de "devis manquant".
   payment_terms: {
     type_facture: string;
     pct: number;
@@ -242,7 +243,7 @@ export const GET: APIRoute = async ({ params, request }) => {
         .order('ordre'),
       ctx.supabase
         .from('documents_chantier')
-        .select('id, nom, document_type, lot_id, analyse_id, devis_statut, facture_statut, montant, montant_paye, payment_terms, bucket_path, created_at')
+        .select('id, nom, document_type, depense_type, lot_id, analyse_id, devis_statut, facture_statut, montant, montant_paye, payment_terms, bucket_path, created_at')
         .eq('chantier_id', chantierId)
         .in('document_type', ['devis', 'facture'])
         .order('created_at', { ascending: false }),
@@ -493,6 +494,7 @@ export const GET: APIRoute = async ({ params, request }) => {
           montant:        montant || null,
           montant_paye:   paye,
           facture_statut: doc.facture_statut ?? null,
+          depense_type:   (doc as any).depense_type ?? null,
           payment_terms:  (doc.payment_terms ?? null) as BudgetFacture['payment_terms'],
           signed_url:     urlMap.get(doc.id) ?? null,
           created_at:     doc.created_at,

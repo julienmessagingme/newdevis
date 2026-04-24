@@ -15,7 +15,7 @@ export type DocumentType =
 
 export type DevisStatut = 'en_cours' | 'a_relancer' | 'valide' | 'attente_facture';
 export type FactureStatut = 'recue' | 'payee' | 'payee_partiellement' | 'en_litige';
-export type DepenseType = 'facture' | 'ticket_caisse' | 'achat_materiaux';
+export type DepenseType = 'facture' | 'ticket_caisse' | 'achat_materiaux' | 'frais';
 
 export interface DocumentChantier {
   id: string;
@@ -66,11 +66,13 @@ export interface LotChantier {
   main_oeuvre_ht?: number | null;
   divers_ht?:      number | null;
   // ── Planning (enrichi par sauvegarder.ts via planningUtils) ──────────────────
-  duree_jours?:      number | null;  // durée en jours ouvrés (5j = 1 semaine)
-  date_debut?:       string | null;  // ISO date string
-  date_fin?:         string | null;  // ISO date string
-  ordre_planning?:   number | null;  // ordre dans le planning (distinct de 'ordre' d'affichage)
-  parallel_group?:   number | null;  // lots avec même valeur = en parallèle, null = séquentiel
+  duree_jours?:        number | null;  // durée en jours ouvrés (5j = 1 semaine)
+  date_debut?:         string | null;  // ISO date string
+  date_fin?:           string | null;  // ISO date string
+  ordre_planning?:     number | null;  // ordre dans le planning (distinct de 'ordre' d'affichage)
+  parallel_group?:     number | null;  // lots avec même valeur = en parallèle, null = séquentiel
+  delai_avant_jours?:  number | null;  // délai en jours ouvrés AVANT le lot (shift sans casser la cascade)
+  lane_index?:         number | null;  // lane visuelle explicite (NULL = first-fit). Mis à jour au D&D.
 }
 
 /** Signaux factuels calculés avant l'appel IA — aucun montant, aucune hallucination */

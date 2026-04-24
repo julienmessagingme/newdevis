@@ -150,41 +150,88 @@ export const POST: APIRoute = async ({ request }) => {
       // Non-bloquant : le chantier est sauvegardé, l'enrichissement échoue silencieusement
     }
 
-    // ── Calcul des dates du planning ──────────────────────────────────────────
+    // ── Génération du graph de dépendances CPM ────────────────────────────
+    //
+    // L'IA fournit ordre_planning (ordre métier BTP). On en dérive automati-
+    // quement les dépendances : un lot avec ordre_planning=N dépend de TOUS
+    // les lots avec le plus grand ordre_planning STRICTEMENT < N.
+    //
+    // Effet : les lots qui partagent le même ordre_planning partagent aussi
+    // les mêmes prédécesseurs → ils démarrent en parallèle (ex: Plombier +
+    // Électricien démarrent tous les deux après Maçon).
+    try {
+      const { data: insertedLots } = await supabase
+        .from('lots_chantier')
+        .select('id, ordre_planning')
+        .eq('chantier_id', chantierId);
+
+      if (insertedLots && insertedLots.length > 1) {
+        const lotsByOrdre = new Map<number, string[]>();
+        for (const lot of insertedLots as Array<{ id: string; ordre_planning: number | null }>) {
+          const o = lot.ordre_planning ?? 99999;
+          if (!lotsByOrdre.has(o)) lotsByOrdre.set(o, []);
+          lotsByOrdre.get(o)!.push(lot.id);
+        }
+        const sortedOrdres = [...lotsByOrdre.keys()].sort((a, b) => a - b);
+        const depRows: Array<{ lot_id: string; depends_on_id: string }> = [];
+        for (let i = 1; i < sortedOrdres.length; i++) {
+          const currentLots = lotsByOrdre.get(sortedOrdres[i])!;
+          const prevLots = lotsByOrdre.get(sortedOrdres[i - 1])!;
+          for (const lotId of currentLots) {
+            for (const prevId of prevLots) {
+              if (lotId !== prevId) depRows.push({ lot_id: lotId, depends_on_id: prevId });
+            }
+          }
+        }
+        if (depRows.length > 0) {
+          await supabase.from('lot_dependencies').insert(depRows);
+        }
+      }
+    } catch (depsError) {
+      console.error('[api/chantier/sauvegarder] deps init error:', depsError instanceof Error ? depsError.message : String(depsError));
+    }
+
+    // ── Calcul des dates du planning (CPM via deps) ───────────────────────
     try {
       const dateDebutChantier = result?.dateDebutChantier as string | null | undefined;
       const dateFinSouhaitee = result?.dateFinSouhaitee as string | null | undefined;
 
       if (dateDebutChantier || dateFinSouhaitee) {
-        // Stocker les dates sur le chantier
         const chantierUpdate: Record<string, unknown> = {};
         if (dateDebutChantier) chantierUpdate.date_debut_chantier = dateDebutChantier;
         if (dateFinSouhaitee) chantierUpdate.date_fin_souhaitee = dateFinSouhaitee;
         await supabase.from('chantiers').update(chantierUpdate).eq('id', chantierId);
 
-        // Récupérer les lots créés pour calculer les dates
         const { data: lotsForPlanning } = await supabase
           .from('lots_chantier')
-          .select('id, duree_jours, ordre_planning, parallel_group')
-          .eq('chantier_id', chantierId)
-          .order('ordre_planning', { ascending: true, nullsFirst: false });
+          .select('id, nom, emoji, role, job_type, duree_jours, delai_avant_jours, ordre')
+          .eq('chantier_id', chantierId);
 
         if (lotsForPlanning && lotsForPlanning.length > 0) {
           const { computePlanningDates, computeStartDateFromEnd } = await import('@/lib/planningUtils');
+
+          const { data: depsRows } = await supabase
+            .from('lot_dependencies')
+            .select('lot_id, depends_on_id')
+            .in('lot_id', lotsForPlanning.map((l: { id: string }) => l.id));
+
+          const depsMap = new Map<string, Set<string>>();
+          for (const row of (depsRows ?? []) as Array<{ lot_id: string; depends_on_id: string }>) {
+            if (!depsMap.has(row.lot_id)) depsMap.set(row.lot_id, new Set());
+            depsMap.get(row.lot_id)!.add(row.depends_on_id);
+          }
 
           let startDate: Date;
           if (dateDebutChantier) {
             startDate = new Date(dateDebutChantier);
           } else {
-            // Calcul en arrière depuis la date de fin souhaitée
-            startDate = computeStartDateFromEnd(lotsForPlanning as any, new Date(dateFinSouhaitee!));
-            // Stocker la date de début calculée
+            startDate = computeStartDateFromEnd(lotsForPlanning as any, new Date(dateFinSouhaitee!), depsMap);
             await supabase.from('chantiers')
               .update({ date_debut_chantier: startDate.toISOString().slice(0, 10) })
               .eq('id', chantierId);
           }
 
-          const computed = computePlanningDates(lotsForPlanning as any, startDate);
+          const computed = computePlanningDates(lotsForPlanning as any, startDate, depsMap);
           for (const lot of computed) {
             if (lot.date_debut && lot.date_fin) {
               await supabase.from('lots_chantier')

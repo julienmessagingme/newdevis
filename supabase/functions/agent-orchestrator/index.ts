@@ -160,9 +160,99 @@ serve(async (req) => {
 
       // Fallback textuel déterministe si l'IA n'a rien produit
       const hasRealContent = digestContent && digestContent.length > 20;
-      const journalBody = hasRealContent
+      const baseBody = hasRealContent
         ? digestContent
         : `**Journée calme sur ${ctx.chantier.emoji} ${ctx.chantier.nom}.**\n\nAucun message WhatsApp, aucune alerte budget, aucun paiement en retard, aucun risque détecté aujourd'hui.\n\n_Entrée générée automatiquement à 19h._`;
+
+      // Append deterministic tracking footer — décisions, alertes, clarifications du jour.
+      const sinceToday = new Date();
+      sinceToday.setHours(0, 0, 0, 0);
+      const sinceIso = sinceToday.toISOString();
+
+      const [todayMsgsRes, todayInsightsRes] = await Promise.all([
+        supabase.from("chantier_assistant_messages")
+          .select("tool_calls, created_at")
+          .eq("chantier_id", chantierId)
+          .eq("role", "assistant")
+          .not("tool_calls", "is", null)
+          .gte("created_at", sinceIso),
+        supabase.from("agent_insights")
+          .select("type, severity, title, created_at")
+          .eq("chantier_id", chantierId)
+          .gte("created_at", sinceIso)
+          .order("created_at", { ascending: true }),
+      ]);
+
+      const MUTATION_TOOLS = new Set([
+        "update_planning","shift_lot","arrange_lot","update_lot_dates",
+        "update_lot_status","mark_lot_completed",
+        "create_task","complete_task",
+        "register_expense","send_whatsapp_message",
+        "log_insight","request_clarification",
+      ]);
+      const todayDecisions: Array<{ tool: string; args: any; time: string }> = [];
+      for (const msg of (todayMsgsRes.data ?? [])) {
+        const calls = Array.isArray((msg as any).tool_calls) ? (msg as any).tool_calls : [];
+        for (const call of calls) {
+          if (!call || typeof call !== "object") continue;
+          const t = String((call as any).tool ?? "");
+          if (MUTATION_TOOLS.has(t)) {
+            todayDecisions.push({ tool: t, args: (call as any).args ?? {}, time: (msg as any).created_at });
+          }
+        }
+      }
+      const todayInsights = todayInsightsRes.data ?? [];
+      const clarifs = todayInsights.filter((i: any) => i.type === "needs_clarification");
+      const alerts  = todayInsights.filter((i: any) => i.severity === "warning" || i.severity === "critical");
+
+      const fmtTime = (iso: string) => {
+        const d = new Date(iso);
+        return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" });
+      };
+      const labelDecision = (d: { tool: string; args: any }) => {
+        const r = d.args?.raison ? ` — ${d.args.raison}` : "";
+        switch (d.tool) {
+          case "shift_lot": {
+            const j = Number(d.args?.jours ?? 0);
+            const c = d.args?.cascade ? " (cascade)" : " (détaché)";
+            return `Lot décalé de ${j > 0 ? "+" : ""}${j}j${c}${r}`;
+          }
+          case "update_planning":    return `Planning modifié${r}`;
+          case "arrange_lot":        return `Lot ${d.args?.mode === "chain_after" ? "chaîné" : "parallélisé"}${r}`;
+          case "update_lot_dates":   return `Date lot → ${d.args?.new_start_date ?? "?"}${r}`;
+          case "mark_lot_completed": return `Lot marqué terminé${r}`;
+          case "update_lot_status":  return `Statut lot changé${r}`;
+          case "register_expense":   return `Frais ${d.args?.amount ?? "?"}€ — ${d.args?.label ?? ""}`;
+          case "send_whatsapp_message": return `Message WhatsApp envoyé`;
+          case "create_task":        return `Tâche créée — ${d.args?.title ?? ""}`;
+          case "complete_task":      return `Tâche clôturée`;
+          case "log_insight":        return `Insight journalisé — ${d.args?.title ?? ""}`;
+          case "request_clarification": return `Clarification demandée`;
+          default: return d.tool;
+        }
+      };
+
+      const sections: string[] = [];
+      if (todayDecisions.length > 0) {
+        sections.push(
+          `\n\n---\n\n### ⚙️ Décisions prises aujourd'hui (${todayDecisions.length})\n` +
+          todayDecisions.map(d => `- **${fmtTime(d.time)}** · ${labelDecision(d)}`).join("\n"),
+        );
+      }
+      if (alerts.length > 0) {
+        sections.push(
+          `\n\n### ⚠️ Alertes du jour (${alerts.length})\n` +
+          alerts.map((a: any) => `- **${fmtTime(a.created_at)}** · ${a.title}`).join("\n"),
+        );
+      }
+      if (clarifs.length > 0) {
+        sections.push(
+          `\n\n### ❓ Clarifications demandées (${clarifs.length})\n` +
+          clarifs.map((c: any) => `- **${fmtTime(c.created_at)}** · ${c.title}`).join("\n"),
+        );
+      }
+
+      const journalBody = baseBody + sections.join("");
 
       // Envoi WA / email uniquement si vrai contenu IA
       if (hasRealContent) {

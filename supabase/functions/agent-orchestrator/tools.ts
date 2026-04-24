@@ -11,14 +11,15 @@ export const TOOLS_SCHEMA_BATCH = [
     type: "function",
     function: {
       name: "update_planning",
-      description: "Met à jour le planning d'un lot (date de début, durée). Déclenche le recalcul en cascade via l'API existante.",
+      description: "Modifie le planning d'un lot : durée, délai, OU dépendances. Déclenche le recalcul cascade via CPM.\n\n- duree_jours : nouvelle durée (ex: '+5j car surprise démolition').\n- delai_avant_jours : décale le lot de N jours ouvrés sans toucher aux prédécesseurs (ex: 'bouge plomberie d'1 semaine' → 5).\n- depends_on_ids : liste des prédécesseurs du lot (REMPLACE la liste complète). Utiliser pour structurer le graph : ex. 'Plaquiste démarre quand Plombier ET Électricien ont fini' → depends_on_ids=[plombier_id, elec_id]. Vide [] = lot démarre à startDate.\n\nTu peux combiner plusieurs champs dans le même appel.",
       parameters: {
         type: "object",
         properties: {
-          lot_id:      { type: "string", description: "ID UUID du lot" },
-          date_debut:  { type: "string", description: "Nouvelle date de début (YYYY-MM-DD)" },
-          duree_jours: { type: "number", description: "Nouvelle durée en jours ouvrés" },
-          raison:      { type: "string", description: "Raison de la modification (pour le journal)" },
+          lot_id:             { type: "string", description: "ID UUID du lot à modifier" },
+          duree_jours:        { type: "number", description: "Nouvelle durée en jours ouvrés (optionnel)" },
+          delai_avant_jours:  { type: "number", description: "Délai en jours ouvrés avant ce lot (optionnel, 0 = aucun)" },
+          depends_on_ids:     { type: "array", items: { type: "string" }, description: "Liste des prédécesseurs du lot (UUIDs). Remplace la liste courante. Optionnel." },
+          raison:             { type: "string", description: "Raison de la modification (pour le journal)" },
         },
         required: ["lot_id", "raison"],
       },
@@ -273,6 +274,27 @@ export const ACTION_TOOLS_SCHEMA = [
   {
     type: "function",
     function: {
+      name: "shift_lot",
+      description:
+        "Décale un lot dans le temps de N jours ouvrés. Deux modes :\n" +
+        "- cascade=true : applique le décalage, les successeurs DAG suivent automatiquement (ex: si plombier décalé, l'élec qui dépend de plombier se décale aussi).\n" +
+        "- cascade=false : DÉTACHE le lot de sa chaîne. Les successeurs perdent ce lot comme prédécesseur ET héritent de ses anciens prédécesseurs (ils restent à leur position visuelle). Le lot est mis sur une nouvelle side lane indépendante avec le délai appliqué.\n" +
+        "AVANT D'APPELER ce tool : vérifie si le lot a des successeurs DANS LE CONTEXTE. Si oui, demande à l'utilisateur 'cascade ou détache ?' sans appeler le tool. N'appelle le tool QU'APRÈS la réponse explicite de l'utilisateur.",
+      parameters: {
+        type: "object",
+        properties: {
+          lot_id:  { type: "string", description: "ID UUID du lot à décaler" },
+          jours:   { type: "number", description: "Nombre de jours ouvrés de décalage (positif)" },
+          cascade: { type: "boolean", description: "true = successeurs suivent ; false = lot détaché de la chaîne" },
+          raison:  { type: "string", description: "Raison du décalage (journal)" },
+        },
+        required: ["lot_id", "jours", "cascade", "raison"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "send_whatsapp_message",
       description: "Envoie un message WhatsApp à un groupe ou à un contact individuel. REQUIERT confirmation explicite de l'utilisateur. L'agent ne doit JAMAIS envoyer sans que l'utilisateur ait dit 'ok', 'envoie', 'confirme' ou équivalent.",
       parameters: {
@@ -282,6 +304,25 @@ export const ACTION_TOOLS_SCHEMA = [
           body: { type: "string", description: "Contenu du message à envoyer" },
         },
         required: ["to", "body"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "register_expense",
+      description: "Enregistre une dépense (ticket de caisse / achat matériaux) déclarée par l'utilisateur dans le chat, sans upload de fichier. L'entrée est créée comme si un ticket avait été scanné.\n\n⚠️ RÈGLE STRICTE : si l'utilisateur dit \"j'ai dépensé X€\" sans préciser le lot, tu DOIS lui demander en TEXTE (sans appeler ce tool) : \"Pour quel lot cette dépense ?\". Si le user répond \"aucun / divers / pas de lot particulier\", passe `lot_name: \"Divers\"` et le tool créera ou réutilisera automatiquement le lot Divers.\n\nNe pas appeler sans `lot_id` OU `lot_name`.",
+      parameters: {
+        type: "object",
+        properties: {
+          amount:     { type: "number", description: "Montant TTC en euros (ex: 200.50)" },
+          label:      { type: "string", description: "Court libellé de la dépense (ex: 'Matériaux électricité Leroy Merlin')" },
+          lot_id:     { type: "string", description: "ID UUID du lot rattaché (prioritaire sur lot_name)" },
+          lot_name:   { type: "string", description: "Nom du lot si lot_id inconnu — ex: 'Électricien' ou 'Divers'. Le tool cherche par nom puis crée si absent." },
+          vendor:     { type: "string", description: "Vendeur/magasin (ex: 'Leroy Merlin'). Optionnel." },
+          depense_type: { type: "string", enum: ["frais", "ticket_caisse", "achat_materiaux", "facture"], description: "Type de dépense. Défaut 'frais' = déclaration orale sans justificatif. 'ticket_caisse' / 'achat_materiaux' = dépense avec pièce attendue. 'facture' = facture fournisseur." },
+        },
+        required: ["amount", "label"],
       },
     },
   },
@@ -307,7 +348,7 @@ export async function executeTool(
   };
 
   // Guard: action tools MUST NOT run in morning/evening modes
-  const ACTION_TOOLS = ["mark_lot_completed", "update_lot_dates", "send_whatsapp_message", "arrange_lot"];
+  const ACTION_TOOLS = ["mark_lot_completed", "update_lot_dates", "send_whatsapp_message", "arrange_lot", "shift_lot", "register_expense"];
   if (ACTION_TOOLS.includes(toolName) && meta.run_type !== "interactive") {
     console.warn(`[tools] Blocked action tool '${toolName}' in '${meta.run_type}' mode`);
     return JSON.stringify({ ok: false, error: `Tool '${toolName}' is only available in interactive mode` });
@@ -317,13 +358,18 @@ export async function executeTool(
     switch (toolName) {
       // ── Existing batch tools ─────────────────────────────────────────────
       case "update_planning": {
+        const body: Record<string, unknown> = {};
         const lotUpdate: Record<string, unknown> = { id: args.lot_id };
-        if (args.date_debut) lotUpdate.date_debut = args.date_debut;
-        if (args.duree_jours) lotUpdate.duree_jours = args.duree_jours;
+        if (typeof args.duree_jours === "number") lotUpdate.duree_jours = args.duree_jours;
+        if (typeof args.delai_avant_jours === "number") lotUpdate.delai_avant_jours = args.delai_avant_jours;
+        if (Object.keys(lotUpdate).length > 1) body.lots = [lotUpdate];
+        if (Array.isArray(args.depends_on_ids)) {
+          body.dependencies = { [args.lot_id]: args.depends_on_ids };
+        }
         const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/planning`, {
           method: "PATCH",
           headers,
-          body: JSON.stringify({ lots: [lotUpdate] }),
+          body: JSON.stringify(body),
         });
         return JSON.stringify({ ok: res.ok, data: await res.json() });
       }
@@ -553,6 +599,9 @@ export async function executeTool(
 
       // ── Action tools (interactive only — guard already checked above) ──────
       case "arrange_lot": {
+        // Modèle CPM DAG : on écrit dans lot_dependencies via l'API planning.
+        // chain_after    : lot.deps = [refId]
+        // parallel_with  : lot.deps = deps(refId) (mêmes prédécesseurs → démarrent ensemble)
         const mode = String(args.mode ?? "");
         if (mode !== "chain_after" && mode !== "parallel_with") {
           return JSON.stringify({ ok: false, error: "mode doit être 'chain_after' ou 'parallel_with'" });
@@ -563,80 +612,49 @@ export async function executeTool(
           return JSON.stringify({ ok: false, error: "lot_id et reference_lot_id requis et distincts" });
         }
 
-        const supabase = createClient(
-          Deno.env.get("SUPABASE_URL") ?? "",
-          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-        );
+        // On a besoin du state planning actuel pour deps(refId) et lane_index(refId)
+        const planRes = await fetch(`${API_BASE}/api/chantier/${chantierId}/planning`, { headers });
+        const planData = planRes.ok ? await planRes.json() : {};
+        const refLotData = (planData?.lots ?? []).find((l: any) => l.id === refId);
 
-        // Récupère le lot référence + le lot à déplacer
-        const { data: bothLots } = await supabase
-          .from("lots_chantier")
-          .select("id, nom, ordre_planning, parallel_group, duree_jours")
-          .in("id", [lotId, refId])
-          .eq("chantier_id", chantierId);
-
-        const refLot = (bothLots ?? []).find((l: any) => l.id === refId);
-        const lot = (bothLots ?? []).find((l: any) => l.id === lotId);
-        if (!refLot || !lot) {
-          return JSON.stringify({ ok: false, error: "Lot introuvable sur ce chantier" });
-        }
-
-        if (mode === "parallel_with") {
-          // Même ordre_planning que la réf + assigner un parallel_group partagé
-          let pg = refLot.parallel_group;
-          if (pg == null) {
-            // Créer un nouveau parallel_group
-            const { data: maxPg } = await supabase
-              .from("lots_chantier")
-              .select("parallel_group")
-              .eq("chantier_id", chantierId)
-              .not("parallel_group", "is", null)
-              .order("parallel_group", { ascending: false })
-              .limit(1)
-              .single();
-            pg = (maxPg?.parallel_group ?? 0) + 1;
-            // Update la réf pour qu'elle ait ce pg
-            await supabase.from("lots_chantier").update({ parallel_group: pg })
-              .eq("id", refId).eq("chantier_id", chantierId);
-          }
-          await supabase.from("lots_chantier").update({
-            ordre_planning: refLot.ordre_planning,
-            parallel_group: pg,
-          }).eq("id", lotId).eq("chantier_id", chantierId);
+        let depsForLot: string[];
+        let laneForLot: number | null;
+        if (mode === "chain_after") {
+          // Chaîne : démarre à ref.date_fin, MÊME ligne visuelle que la ref
+          depsForLot = [refId];
+          laneForLot = refLotData?.lane_index ?? null;
         } else {
-          // chain_after : ordre_planning = ref + 1, décale les suivants de +1, pas de parallel_group
-          const newOrdre = (refLot.ordre_planning ?? 0) + 1;
-          // Récupère les lots avec ordre >= newOrdre (hors le lot qu'on déplace)
-          const { data: toShift } = await supabase
-            .from("lots_chantier")
-            .select("id, ordre_planning")
-            .eq("chantier_id", chantierId)
-            .gte("ordre_planning", newOrdre)
-            .neq("id", lotId);
-          // Décaler de +1
-          if (toShift && toShift.length > 0) {
-            await Promise.all((toShift as any[]).map(l =>
-              supabase.from("lots_chantier").update({ ordre_planning: (l.ordre_planning ?? 0) + 1 })
-                .eq("id", l.id).eq("chantier_id", chantierId)
-            ));
-          }
-          await supabase.from("lots_chantier").update({
-            ordre_planning: newOrdre,
-            parallel_group: null,
-          }).eq("id", lotId).eq("chantier_id", chantierId);
+          // Parallèle : mêmes prédécesseurs que la ref, ligne DIFFÉRENTE (first-fit)
+          const refDeps = (planData?.dependencies ?? {})[refId] ?? [];
+          depsForLot = Array.isArray(refDeps) ? refDeps : [];
+          laneForLot = null;
         }
 
-        // Déclencher recalcul cascade des dates via l'API (qui fait aussi l'invalidation cache)
-        const { data: chantierRow } = await supabase
-          .from("chantiers").select("date_debut_chantier").eq("id", chantierId).single();
-        if (chantierRow?.date_debut_chantier) {
-          await fetch(`${API_BASE}/api/chantier/${chantierId}/planning`, {
-            method: "PATCH",
-            headers,
-            body: JSON.stringify({ dateDebutChantier: chantierRow.date_debut_chantier }),
-          });
+        // PATCH avec dependencies + lane_index + delai_avant_jours=0 (repart de la date CPM naturelle)
+        const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/planning`, {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({
+            lots: [{ id: lotId, delai_avant_jours: 0, lane_index: laneForLot }],
+            dependencies: { [lotId]: depsForLot },
+          }),
+        });
+        if (!res.ok) {
+          const errTxt = await res.text();
+          return JSON.stringify({ ok: false, error: `PATCH planning failed: ${errTxt.slice(0, 200)}` });
         }
-        return JSON.stringify({ ok: true, mode, lot_nom: lot.nom, ref_nom: refLot.nom, raison: args.raison });
+        const data = await res.json();
+        const lotFinal = (data?.lots ?? []).find((l: any) => l.id === lotId);
+        const refFinal = (data?.lots ?? []).find((l: any) => l.id === refId);
+        return JSON.stringify({
+          ok: true,
+          mode,
+          lot_nom: lotFinal?.nom ?? "?",
+          ref_nom: refFinal?.nom ?? "?",
+          lot_date_debut: lotFinal?.date_debut,
+          lot_date_fin: lotFinal?.date_fin,
+          raison: args.raison,
+        });
       }
 
       case "mark_lot_completed": {
@@ -675,6 +693,24 @@ export async function executeTool(
           });
         }
         return JSON.stringify({ ok: true, data: body });
+      }
+
+      case "shift_lot": {
+        const lotId = String(args.lot_id ?? "");
+        const jours = Number(args.jours ?? 0);
+        const cascade = Boolean(args.cascade);
+        if (!lotId || !Number.isFinite(jours) || jours <= 0) {
+          return JSON.stringify({ ok: false, error: "lot_id et jours (>0) requis" });
+        }
+        const res = await fetch(
+          `${API_BASE}/api/chantier/${chantierId}/planning/shift-lot`,
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ lot_id: lotId, jours, cascade, raison: args.raison }),
+          },
+        );
+        return JSON.stringify({ ok: res.ok, data: await res.json() });
       }
 
       case "send_whatsapp_message": {
@@ -719,6 +755,82 @@ export async function executeTool(
         }
 
         return JSON.stringify({ ok: true, message_id: msgId ?? null });
+      }
+
+      case "register_expense": {
+        const amount = typeof args.amount === "number" ? args.amount : Number(args.amount);
+        const label = String(args.label ?? "").trim();
+        if (!amount || amount <= 0 || !label) {
+          return JSON.stringify({ ok: false, error: "amount (>0) et label requis" });
+        }
+        const vendor = typeof args.vendor === "string" ? args.vendor.trim() : "";
+        const depenseType = ["frais", "ticket_caisse", "achat_materiaux", "facture"].includes(String(args.depense_type ?? ""))
+          ? String(args.depense_type)
+          : "frais";
+
+        // Résout lot_id : priorité à lot_id explicite, sinon recherche/création via lot_name
+        let lotId: string | null = typeof args.lot_id === "string" && args.lot_id ? args.lot_id : null;
+        const lotName = typeof args.lot_name === "string" ? args.lot_name.trim() : "";
+
+        if (!lotId && lotName) {
+          const supabase = createClient(
+            Deno.env.get("SUPABASE_URL") ?? "",
+            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+          );
+          // Recherche case-insensitive du lot par nom
+          const { data: existing } = await supabase
+            .from("lots_chantier")
+            .select("id, nom")
+            .eq("chantier_id", chantierId)
+            .ilike("nom", lotName)
+            .limit(1);
+          if (existing && existing.length > 0) {
+            lotId = existing[0].id;
+          } else {
+            // Création via API (auto-inférence durée + deps par défaut)
+            const createRes = await fetch(`${API_BASE}/api/chantier/${chantierId}/lots`, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ nom: lotName }),
+            });
+            if (createRes.ok) {
+              const createData = await createRes.json();
+              lotId = createData?.lot?.id ?? createData?.data?.id ?? null;
+            }
+          }
+        }
+
+        if (!lotId) {
+          return JSON.stringify({ ok: false, error: "lot_id ou lot_name requis (demande au user le lot, ou propose Divers)" });
+        }
+
+        // Compose nom affiché (vendor + label)
+        const nom = vendor ? `${vendor} — ${label}` : label;
+
+        const depRes = await fetch(`${API_BASE}/api/chantier/${chantierId}/documents/depense-rapide`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            nom,
+            documentType: "facture",
+            depenseType,
+            montant: amount,
+            factureStatut: "payee", // ticket de caisse = déjà payé
+            lotId,
+          }),
+        });
+        if (!depRes.ok) {
+          const errTxt = await depRes.text();
+          return JSON.stringify({ ok: false, error: `depense-rapide ${depRes.status}: ${errTxt.slice(0, 150)}` });
+        }
+        const depData = await depRes.json();
+        return JSON.stringify({
+          ok: true,
+          montant: amount,
+          lot_id: lotId,
+          label: nom,
+          document_id: depData?.document?.id ?? null,
+        });
       }
 
       default:

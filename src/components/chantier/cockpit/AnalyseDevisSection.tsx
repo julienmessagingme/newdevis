@@ -9,7 +9,7 @@ import { useState, useEffect } from 'react';
 import { Plus, FileText, Sparkles, CheckCircle2, Clock, AlertCircle, ChevronRight, ExternalLink } from 'lucide-react';
 import type { DocumentChantier, LotChantier } from '@/types/chantier-ia';
 import DocScoreCell from '@/components/chantier/shared/DocScoreCell';
-import { fmtDate } from '@/lib/dashboardHelpers';
+import { fmtDate, fmtEur } from '@/lib/dashboardHelpers';
 import type { InsightsData } from './useInsights';
 
 // ── Statut par lot ────────────────────────────────────────────────────────────
@@ -41,10 +41,11 @@ const STATUS_CFG = {
 // ── Carte lot ─────────────────────────────────────────────────────────────────
 
 function LotCard({
-  lot, devis, onAddDevis, chantierId, token, onAnalysed,
+  lot, devis, frais, onAddDevis, chantierId, token, onAnalysed,
 }: {
   lot: LotChantier;
   devis: DocumentChantier[];
+  frais?: DocumentChantier[];
   onAddDevis: () => void;
   chantierId?: string | null;
   token?: string | null;
@@ -52,6 +53,8 @@ function LotCard({
 }) {
   const status = getLotStatus(lot, devis);
   const cfg = STATUS_CFG[status.kind];
+  const fraisList = frais ?? [];
+  const fraisTotal = fraisList.reduce((s, d) => s + (d.montant ?? 0), 0);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -109,8 +112,32 @@ function LotCard({
         </div>
       )}
 
+      {/* Frais annexes déclarés (sans pièce jointe) */}
+      {fraisList.length > 0 && (
+        <div className="border-t border-amber-50 bg-amber-50/30">
+          <div className="px-5 py-2 flex items-center justify-between">
+            <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Frais annexes déclarés</span>
+            <span className="text-[11px] font-bold text-amber-800 tabular-nums">{fmtEur(fraisTotal)}</span>
+          </div>
+          <div className="divide-y divide-amber-50">
+            {fraisList.map(doc => (
+              <div key={doc.id} className="px-5 py-2 flex items-center gap-3">
+                <span className="text-amber-600">📝</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] text-gray-700 truncate">{doc.nom}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">Déclaré le {fmtDate(doc.created_at)}</p>
+                </div>
+                {doc.montant != null && (
+                  <span className="text-[12px] font-bold text-gray-900 tabular-nums shrink-0">{fmtEur(doc.montant)}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* CTA contextuel */}
-      <div className={`px-5 py-3 ${devis.length > 0 ? 'border-t border-gray-50' : ''}`}>
+      <div className={`px-5 py-3 ${devis.length > 0 || fraisList.length > 0 ? 'border-t border-gray-50' : ''}`}>
         {status.kind === 'no_devis' && (
           <button
             onClick={onAddDevis}
@@ -269,11 +296,13 @@ function AnalyseDevisSection({
       {lots.length > 0 ? (
         lots.map(lot => {
           const lotDevis = devis.filter(d => d.lot_id === lot.id);
+          const lotFrais = docs.filter(d => d.lot_id === lot.id && (d as any).depense_type === 'frais');
           return (
             <LotCard
               key={lot.id}
               lot={lot}
               devis={lotDevis}
+              frais={lotFrais}
               onAddDevis={onAddDoc}
               chantierId={chantierId}
               token={token}

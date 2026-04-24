@@ -3,7 +3,7 @@ import {
 } from 'lucide-react';
 import type { LotChantier, DocumentChantier } from '@/types/chantier-ia';
 import { formatDuration, getWeekNumber } from '@/lib/planningUtils';
-import { fmtK, IS } from '@/lib/dashboardHelpers';
+import { fmtK, fmtEur, IS } from '@/lib/dashboardHelpers';
 import type { InsightItem } from './useInsights';
 
 // ── Statut artisan ─────────────────────────────────────────────────────────────
@@ -72,7 +72,12 @@ function LotIntervenantCard({ lot, docs, planningStartDate, onAddDevis, onAddDoc
 }) {
   const devisCnt  = docs.filter(d => d.document_type === 'devis').length;
   const photoCnt  = docs.filter(d => d.document_type === 'photo').length;
-  const devisDocs = docs.filter(d => d.document_type === 'devis' || d.document_type === 'facture');
+  const fraisDocs = docs.filter(d => (d as any).depense_type === 'frais');
+  const fraisTotal = fraisDocs.reduce((s, d) => s + (d.montant ?? 0), 0);
+  const devisDocs = docs.filter(d =>
+    (d.document_type === 'devis' || d.document_type === 'facture') &&
+    (d as any).depense_type !== 'frais',
+  );
   const hasRef    = (lot.budget_min_ht ?? 0) > 0 || (lot.budget_max_ht ?? 0) > 0;
   const status    = getLotStatusLevel(lot, docs);
   const statut    = lot.statut ?? 'a_trouver';
@@ -173,6 +178,11 @@ function LotIntervenantCard({ lot, docs, planningStartDate, onAddDevis, onAddDoc
         {photoCnt > 0 && (
           <span className="flex items-center gap-1 text-xs font-medium text-violet-700 bg-violet-50 px-2.5 py-1 rounded-full">
             📷 {photoCnt} photo{photoCnt > 1 ? 's' : ''}
+          </span>
+        )}
+        {fraisDocs.length > 0 && (
+          <span className="flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full" title={`${fraisDocs.length} frais déclaré${fraisDocs.length > 1 ? 's' : ''} — ${fmtEur(fraisTotal)} TTC`}>
+            📝 {fmtEur(fraisTotal)} frais
           </span>
         )}
       </div>

@@ -102,8 +102,11 @@ export default function IntervenantsListView({
   const { data: analysisData } = useAnalysisScores(allDevis);
 
   const groups = useMemo(() => lots.map(lot => {
-    const devisDocs = getDevisEtFactures(docsByLot[lot.id] ?? []);
-    return { lot, devisDocs, status: getLotListStatus(lot, devisDocs) };
+    const lotDocs = docsByLot[lot.id] ?? [];
+    const devisDocs = getDevisEtFactures(lotDocs);
+    const fraisDocs = lotDocs.filter(d => (d as any).depense_type === 'frais');
+    const fraisTotal = fraisDocs.reduce((s, d) => s + (d.montant ?? 0), 0);
+    return { lot, devisDocs, fraisDocs, fraisTotal, status: getLotListStatus(lot, devisDocs) };
   }), [lots, docsByLot]);
 
   const filtered = filterSt === 'all' ? groups : groups.filter(g => g.status === filterSt);
@@ -205,7 +208,7 @@ export default function IntervenantsListView({
             <p className="text-sm text-gray-400">Aucun intervenant dans ce filtre</p>
           </div>
         ) : (
-          sorted.map(({ lot, devisDocs, status }) => {
+          sorted.map(({ lot, devisDocs, fraisDocs, fraisTotal, status }) => {
             const cfg      = LOT_STATUS_CFG[status];
             // Total du lot : si plusieurs devis validés, prendre le plus récemment créé
             // (évite que l'ancien validé prime sur un nouveau sélectionné)
@@ -243,11 +246,16 @@ export default function IntervenantsListView({
                     <span className="text-base leading-none shrink-0">{lot.emoji ?? '🔧'}</span>
                     <span className="font-extrabold text-sm text-gray-900 truncate">{lot.nom}</span>
                   </div>
-                  {/* Col 2 : nb devis */}
-                  <div className="px-4 py-3 flex items-center">
+                  {/* Col 2 : nb devis + frais */}
+                  <div className="px-4 py-3 flex items-center flex-wrap gap-1.5">
                     <span className="text-[11px] text-gray-400">
-                      {devisDocs.length} devis{devisDocs.length !== 1 ? '' : ''}
+                      {devisDocs.length} devis
                     </span>
+                    {fraisDocs.length > 0 && (
+                      <span className="text-[11px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded" title={`${fraisDocs.length} frais déclaré${fraisDocs.length > 1 ? 's' : ''}`}>
+                        📝 {fmtEur(fraisTotal)}
+                      </span>
+                    )}
                   </div>
                   {/* Prix total lot — gras, droite */}
                   <div className="px-4 py-3 flex items-center justify-end">

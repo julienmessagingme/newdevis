@@ -38,63 +38,50 @@ const TRADE_DURATIONS: [RegExp, number, number][] = [
  * Retourne les lots enrichis (les lots déjà renseignés restent inchangés).
  */
 export function estimateMissingPlanningData(lots: LotChantier[]): LotChantier[] {
-  // D'abord, déterminer quels groupes parallèles existent déjà
-  let nextPG = 1;
-  const usedPGs = lots.filter(l => l.parallel_group != null).map(l => l.parallel_group!);
-  if (usedPGs.length > 0) nextPG = Math.max(...usedPGs) + 1;
-
-  // Mapper chaque lot
-  const enriched = lots.map((lot, idx) => {
-    if (lot.duree_jours != null && lot.duree_jours > 0 && lot.ordre_planning != null) {
-      return lot; // déjà renseigné
-    }
-
+  // Dans le modèle CPM, on remplit juste les durées manquantes. Les
+  // dépendances sont gérées par la table lot_dependencies.
+  return lots.map(lot => {
+    if (lot.duree_jours != null && lot.duree_jours > 0) return lot;
     const nom = (lot.nom ?? '') + ' ' + (lot.role ?? '') + ' ' + (lot.job_type ?? '');
-    let duree = 5; // défaut : 1 semaine
-    let ordre = idx + 1;
-    let matchedOrdre: number | null = null;
+    let duree = 5;
+    for (const [pattern, d] of TRADE_DURATIONS) {
+      if (pattern.test(nom)) { duree = d; break; }
+    }
+    return { ...lot, duree_jours: lot.duree_jours ?? duree };
+  });
+}
 
-    for (const [pattern, d, o] of TRADE_DURATIONS) {
-      if (pattern.test(nom)) {
-        duree = d;
-        matchedOrdre = o;
+/**
+ * Heuristique "première dépendance" pour un nouveau lot sans prédécesseur.
+ * Utilisée au backfill/création : cherche un lot cohérent métier pour en faire
+ * son prédécesseur. Basé sur TRADE_DURATIONS (ordres métier standard).
+ */
+export function inferDefaultPredecessors(
+  newLot: LotChantier,
+  existingLots: LotChantier[],
+): string[] {
+  const nom = (newLot.nom ?? '') + ' ' + (newLot.role ?? '') + ' ' + (newLot.job_type ?? '');
+  let myOrder: number | null = null;
+  for (const [pattern, , o] of TRADE_DURATIONS) {
+    if (pattern.test(nom)) { myOrder = o; break; }
+  }
+  if (myOrder == null) return [];
+  // Predecessors candidats = lots avec TRADE order < mon order, plus proche d'abord
+  const candidates: Array<{ id: string; order: number }> = [];
+  for (const l of existingLots) {
+    if (l.id === newLot.id) continue;
+    const lnom = (l.nom ?? '') + ' ' + (l.role ?? '') + ' ' + (l.job_type ?? '');
+    for (const [pattern, , o] of TRADE_DURATIONS) {
+      if (pattern.test(lnom)) {
+        if (o < myOrder) candidates.push({ id: l.id, order: o });
         break;
       }
     }
-
-    return {
-      ...lot,
-      duree_jours: lot.duree_jours ?? duree,
-      ordre_planning: lot.ordre_planning ?? (matchedOrdre ?? (idx + 1)),
-      parallel_group: lot.parallel_group ?? null,
-    };
-  });
-
-  // Détecter les lots qui ont le même ordre (potentiellement parallèles)
-  const ordreMap = new Map<number, LotChantier[]>();
-  for (const lot of enriched) {
-    const o = lot.ordre_planning ?? 0;
-    if (!ordreMap.has(o)) ordreMap.set(o, []);
-    ordreMap.get(o)!.push(lot);
   }
-
-  // Assigner un parallel_group aux lots qui partagent le même ordre
-  for (const [, group] of ordreMap) {
-    if (group.length > 1) {
-      const needGroup = group.filter(l => l.parallel_group == null);
-      if (needGroup.length > 1) {
-        for (const lot of needGroup) {
-          lot.parallel_group = nextPG;
-        }
-        nextPG++;
-      }
-    }
-  }
-
-  // Re-trier par ordre_planning et réassigner des ordres séquentiels propres
-  enriched.sort((a, b) => (a.ordre_planning ?? 0) - (b.ordre_planning ?? 0));
-
-  return enriched;
+  if (candidates.length === 0) return [];
+  // Prend tous les prédécesseurs IMMÉDIATS (max order parmi les candidats)
+  const maxOrder = Math.max(...candidates.map(c => c.order));
+  return candidates.filter(c => c.order === maxOrder).map(c => c.id);
 }
 
 // ── Jours ouvrés ──────────────────────────────────────────────────────────────
@@ -123,110 +110,121 @@ export function businessDaysBetween(start: Date, end: Date): number {
   return count;
 }
 
-// ── Calcul du planning ────────────────────────────────────────────────────────
+// ── Calcul du planning (CPM : DAG + tri topologique) ─────────────────────────
+
+/** Map des dépendances : lot_id → Set des prédécesseurs */
+export type DependencyMap = Map<string, Set<string>>;
 
 /**
- * Recalcule date_debut et date_fin de chaque lot à partir de la date de départ.
+ * Recalcule date_debut et date_fin par tri topologique + forward pass.
  *
- * Algorithme :
- * 1. Trier par ordre_planning
- * 2. Grouper les lots ayant le même parallel_group (non null)
- * 3. Les lots d'un même groupe parallèle démarrent en même temps
- * 4. Le groupe suivant démarre après la fin du lot le plus long du groupe précédent
- * 5. Les lots avec parallel_group=null sont traités comme des groupes solo
+ * Algorithme CPM (Critical Path Method, multi-parent) :
+ * 1. Pour chaque lot, on calcule ses prédécesseurs depuis depsMap
+ * 2. Tri topologique (Kahn) : respecte l'ordre des dépendances
+ * 3. Forward pass :
+ *    date_debut(L) = max(startDate, max(dep.date_fin pour dep ∈ deps(L))) + delai_avant_jours
+ *    date_fin(L)   = date_debut(L) + duree_jours
  *
- * Retourne une copie des lots avec date_debut/date_fin mis à jour.
+ * Les lots sans prédécesseurs démarrent à startDate. Les lots avec cycle sont
+ * placés à startDate (défaut sûr — cycles devraient être empêchés côté API).
  */
-export function computePlanningDates(lots: LotChantier[], startDate: Date): LotChantier[] {
-  // Copie et tri par ordre_planning
-  const sorted = [...lots]
-    .filter(l => l.ordre_planning != null && l.duree_jours != null && l.duree_jours > 0)
-    .sort((a, b) => (a.ordre_planning ?? 0) - (b.ordre_planning ?? 0));
+export function computePlanningDates(
+  lots: LotChantier[],
+  startDate: Date,
+  depsMap?: DependencyMap,
+): LotChantier[] {
+  const deps = depsMap ?? new Map<string, Set<string>>();
 
-  // Lots sans planning data → retourner tels quels
-  const withoutPlanning = lots.filter(l => l.ordre_planning == null || l.duree_jours == null || l.duree_jours <= 0);
+  const valid = lots.filter(l => l.duree_jours != null && l.duree_jours > 0);
+  const invalid = lots.filter(l => l.duree_jours == null || l.duree_jours <= 0);
+  const lotById = new Map(valid.map(l => [l.id, l]));
 
-  // Grouper par séquence de parallel_group
-  const groups: LotChantier[][] = [];
-  let currentGroup: LotChantier[] = [];
-  let currentPG: number | null | undefined = undefined;
-
-  for (const lot of sorted) {
-    const pg = lot.parallel_group;
-    if (pg != null && pg === currentPG) {
-      // Même groupe parallèle → ajouter au groupe courant
-      currentGroup.push(lot);
-    } else {
-      // Nouveau groupe
-      if (currentGroup.length > 0) groups.push(currentGroup);
-      currentGroup = [lot];
-      currentPG = pg;
+  // Tri topologique (Kahn). Tracks in-degree of chaque lot parmi les valides.
+  const inDegree = new Map<string, number>();
+  const successors = new Map<string, string[]>();
+  for (const lot of valid) {
+    inDegree.set(lot.id, 0);
+    successors.set(lot.id, []);
+  }
+  for (const lot of valid) {
+    const lotDeps = deps.get(lot.id);
+    if (!lotDeps) continue;
+    for (const depId of lotDeps) {
+      if (!lotById.has(depId)) continue; // dep invalide (lot inexistant) ignorée
+      inDegree.set(lot.id, (inDegree.get(lot.id) ?? 0) + 1);
+      successors.get(depId)!.push(lot.id);
     }
   }
-  if (currentGroup.length > 0) groups.push(currentGroup);
 
-  // Calculer les dates
-  let cursor = new Date(startDate);
-  const result: LotChantier[] = [];
-
-  for (const group of groups) {
-    let maxEnd = cursor;
-
-    for (const lot of group) {
-      const debut = new Date(cursor);
-      const fin = addBusinessDays(debut, lot.duree_jours!);
-
-      result.push({
-        ...lot,
-        date_debut: debut.toISOString().split('T')[0],
-        date_fin: fin.toISOString().split('T')[0],
-      });
-
-      if (fin > maxEnd) maxEnd = fin;
+  const queue: string[] = [];
+  for (const [id, deg] of inDegree) if (deg === 0) queue.push(id);
+  const topo: string[] = [];
+  while (queue.length) {
+    const id = queue.shift()!;
+    topo.push(id);
+    for (const succ of successors.get(id) ?? []) {
+      const d = (inDegree.get(succ) ?? 0) - 1;
+      inDegree.set(succ, d);
+      if (d === 0) queue.push(succ);
     }
+  }
+  // Cycles éventuels : lots restants → ajoutés à la fin avec deps ignorées
+  for (const lot of valid) if (!topo.includes(lot.id)) topo.push(lot.id);
 
-    // Le prochain groupe démarre après le plus long de ce groupe
-    cursor = maxEnd;
+  // Forward pass : calcule date_debut / date_fin
+  const dateMap = new Map<string, { debut: Date; fin: Date }>();
+  for (const id of topo) {
+    const lot = lotById.get(id)!;
+    let earliest = new Date(startDate);
+    const lotDeps = deps.get(id);
+    if (lotDeps) {
+      for (const depId of lotDeps) {
+        const depDates = dateMap.get(depId);
+        if (depDates && depDates.fin > earliest) earliest = depDates.fin;
+      }
+    }
+    const delay = Math.max(0, lot.delai_avant_jours ?? 0);
+    const debut = delay > 0 ? addBusinessDays(earliest, delay) : earliest;
+    const fin = addBusinessDays(debut, lot.duree_jours!);
+    dateMap.set(id, { debut, fin });
   }
 
-  // Ajouter les lots sans planning (inchangés)
-  return [...result, ...withoutPlanning];
+  // Applique les dates aux lots (préserve l'ordre d'entrée)
+  const result = lots.map(lot => {
+    const dates = dateMap.get(lot.id);
+    if (!dates) return lot;
+    return {
+      ...lot,
+      date_debut: dates.debut.toISOString().split('T')[0],
+      date_fin: dates.fin.toISOString().split('T')[0],
+    };
+  });
+  return result;
 }
 
 /**
  * Calcul inverse : à partir d'une date de fin souhaitée, remonte en arrière
- * pour calculer la date de début nécessaire. Retourne la startDate calculée.
+ * pour calculer la startDate nécessaire. Utilise le DAG pour trouver la durée
+ * du chemin critique (longueur totale du plus long chemin dans le graph).
  */
-export function computeStartDateFromEnd(lots: LotChantier[], endDate: Date): Date {
-  const sorted = [...lots]
-    .filter(l => l.ordre_planning != null && l.duree_jours != null && l.duree_jours > 0)
-    .sort((a, b) => (a.ordre_planning ?? 0) - (b.ordre_planning ?? 0));
-
-  // Grouper
-  const groups: LotChantier[][] = [];
-  let currentGroup: LotChantier[] = [];
-  let currentPG: number | null | undefined = undefined;
-  for (const lot of sorted) {
-    const pg = lot.parallel_group;
-    if (pg != null && pg === currentPG) {
-      currentGroup.push(lot);
-    } else {
-      if (currentGroup.length > 0) groups.push(currentGroup);
-      currentGroup = [lot];
-      currentPG = pg;
+export function computeStartDateFromEnd(
+  lots: LotChantier[],
+  endDate: Date,
+  depsMap?: DependencyMap,
+): Date {
+  // Calcule les dates en partant d'aujourd'hui comme repère, puis prend la
+  // plus tardive (= chemin critique). La durée critique = latest_fin - repère.
+  const repere = new Date('2000-01-01');
+  const computed = computePlanningDates(lots, repere, depsMap);
+  let maxFin = repere;
+  for (const l of computed) {
+    if (l.date_fin) {
+      const f = new Date(l.date_fin);
+      if (f > maxFin) maxFin = f;
     }
   }
-  if (currentGroup.length > 0) groups.push(currentGroup);
-
-  // Calculer la durée totale en jours ouvrés
-  let totalBusinessDays = 0;
-  for (const group of groups) {
-    const maxDays = Math.max(...group.map(l => l.duree_jours ?? 0));
-    totalBusinessDays += maxDays;
-  }
-
-  // Soustraire les jours ouvrés depuis la date de fin
-  return subtractBusinessDays(endDate, totalBusinessDays);
+  const criticalDays = businessDaysBetween(repere, maxFin);
+  return subtractBusinessDays(endDate, criticalDays);
 }
 
 /** Soustrait N jours ouvrés d'une date (skip weekends) */

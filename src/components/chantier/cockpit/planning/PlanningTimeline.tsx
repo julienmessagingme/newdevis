@@ -4,10 +4,10 @@
  * Split layout: left column (lot names) is sticky, right area (Gantt bars) scrolls horizontally.
  */
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { Calendar, Loader2, AlertCircle, Users } from 'lucide-react';
+import { Calendar, Loader2, AlertCircle, Users, AlignLeft, Plus } from 'lucide-react';
 import type { LotChantier } from '@/types/chantier-ia';
 import { usePlanning } from '@/hooks/usePlanning';
-import { formatDuration, getWeekLabels } from '@/lib/planningUtils';
+import { formatDuration, getWeekLabels, businessDaysBetween } from '@/lib/planningUtils';
 
 // -- Couleurs par lot (cyclique) ----------------------------------------------
 
@@ -22,13 +22,19 @@ const LOT_COLORS = [
   { bg: 'bg-indigo-500',  light: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
 ];
 
-function getLotColor(index: number) {
-  return LOT_COLORS[index % LOT_COLORS.length];
+// Hash stable depuis l'ID du lot → couleur permanente, indépendante de l'ordre.
+function getLotColor(lotId: string) {
+  let hash = 0;
+  for (let i = 0; i < lotId.length; i++) {
+    hash = ((hash << 5) - hash) + lotId.charCodeAt(i);
+    hash |= 0;
+  }
+  return LOT_COLORS[Math.abs(hash) % LOT_COLORS.length];
 }
 
 // -- Barre Gantt redimensionnable ---------------------------------------------
 
-function GanttBar({ lot, color, left, width, weekWidth, onResize, onMove }: {
+function GanttBar({ lot, color, left, width, weekWidth, laneHeight, onResize, onMove }: {
   lot: LotChantier;
   color: { bg: string; light: string; text: string; border: string };
   left: number;
@@ -36,7 +42,10 @@ function GanttBar({ lot, color, left, width, weekWidth, onResize, onMove }: {
   weekWidth: number;
   laneHeight: number;
   onResize: (deltaDays: number) => void;
-  onMove: (deltaDays: number, laneDelta: number) => void;
+  /** targetLaneIdx : index absolu de la lane visée (null si pas de changement détecté).
+   *  Conventions : 0..lanes.length-1 = lane existante, lanes.length = ghost row,
+   *  negatif = pas détecté → parent utilise currentLaneIdx comme fallback. */
+  onMove: (deltaDays: number, targetLaneIdx: number | null) => void;
 }) {
   const barRef = useRef<HTMLDivElement>(null);
   const [interaction, setInteraction] = useState<'left' | 'right' | 'move' | null>(null);
@@ -86,28 +95,69 @@ function GanttBar({ lot, color, left, width, weekWidth, onResize, onMove }: {
     startYRef.current = e.clientY;
     startLeftRef.current = left;
 
+    // pointer-events: none → la barre draggée est transparente aux events, ce
+    // qui permet à elementFromPoint de trouver la row sous-jacente et pas la
+    // barre elle-même.
+    if (barRef.current) barRef.current.style.pointerEvents = 'none';
+
+    // Fonction helper : détecte la row sous le curseur et met à jour le
+    // surlignage visuel (une seule row mise en valeur à la fois).
+    let lastHoveredRow: Element | null = null;
+    const clearHover = () => {
+      if (lastHoveredRow) {
+        (lastHoveredRow as HTMLElement).style.backgroundColor = '';
+        (lastHoveredRow as HTMLElement).style.outline = '';
+        (lastHoveredRow as HTMLElement).style.outlineOffset = '';
+        lastHoveredRow = null;
+      }
+    };
+    const highlightRowUnderCursor = (cx: number, cy: number): Element | null => {
+      const el = document.elementFromPoint(cx, cy);
+      const row = el?.closest('[data-gantt-row]') ?? null;
+      if (row === lastHoveredRow) return row;
+      clearHover();
+      if (row) {
+        const isGhost = row.getAttribute('data-ghost') === 'true';
+        (row as HTMLElement).style.backgroundColor = isGhost ? 'rgba(139, 92, 246, 0.18)' : 'rgba(59, 130, 246, 0.12)';
+        (row as HTMLElement).style.outline = isGhost ? '2px dashed rgb(139, 92, 246)' : '2px solid rgb(59, 130, 246)';
+        (row as HTMLElement).style.outlineOffset = '-2px';
+        lastHoveredRow = row;
+      }
+      return row;
+    };
+
     const onMouseMove = (ev: MouseEvent) => {
       if (!barRef.current) return;
       const dx = ev.clientX - startXRef.current;
       const dy = ev.clientY - startYRef.current;
       barRef.current.style.left = `${Math.max(0, startLeftRef.current + dx)}px`;
-      // Feedback visuel : translate verticalement la barre pendant le drag
       barRef.current.style.transform = `translateY(${dy}px)`;
+      highlightRowUnderCursor(ev.clientX, ev.clientY);
     };
     const onMouseUp = (ev: MouseEvent) => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
       setInteraction(null);
-      if (barRef.current) barRef.current.style.transform = '';
+      if (barRef.current) {
+        barRef.current.style.transform = '';
+        barRef.current.style.pointerEvents = '';
+      }
       const deltaDays = Math.round((ev.clientX - startXRef.current) / pxPerDay);
-      const deltaY = ev.clientY - startYRef.current;
-      // Changement de lane si drag vertical dépasse la moitié d'une lane
-      const laneDelta = Math.round(deltaY / laneHeight);
-      if (deltaDays !== 0 || laneDelta !== 0) onMove(deltaDays, laneDelta);
+
+      const row = highlightRowUnderCursor(ev.clientX, ev.clientY);
+      clearHover();
+
+      let targetLaneIdx: number | null = null;
+      if (row) {
+        const idx = parseInt(row.getAttribute('data-lane-idx') ?? '-1', 10);
+        if (!isNaN(idx) && idx >= 0) targetLaneIdx = idx;
+      }
+
+      if (deltaDays !== 0 || targetLaneIdx !== null) onMove(deltaDays, targetLaneIdx);
     };
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
-  }, [left, pxPerDay, laneHeight, onMove]);
+  }, [left, pxPerDay, onMove]);
 
   const cursorCls = interaction === 'move' ? 'cursor-grabbing' : interaction ? 'cursor-col-resize' : 'cursor-grab';
 
@@ -150,6 +200,10 @@ function GanttBar({ lot, color, left, width, weekWidth, onResize, onMove }: {
 // -- Row heights (shared constants) -------------------------------------------
 
 const LOT_ROW_HEIGHT = 44;
+// Ghost row ("drop here") : plus haute pour un drop plus forgiving. Ne rentre
+// pas dans le calcul de laneDelta côté drag (qui utilise LOT_ROW_HEIGHT), mais
+// offre plus d'espace visuel pour atteindre le seuil laneDelta >= lanes.length.
+const GHOST_ROW_HEIGHT = 56;
 
 // -- Composant principal ------------------------------------------------------
 
@@ -159,20 +213,20 @@ interface Props {
 }
 
 export default function PlanningTimeline({ chantierId, token }: Props) {
-  const { lots, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, moveLot } = usePlanning(chantierId, token);
+  const { lots, deps, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, applyDragChange, recompactPlanning } = usePlanning(chantierId, token);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [dateMode, setDateMode] = useState<null | 'start' | 'end'>(null);
 
-  // Lots avec planning data, triés
+  // Lots affichés sur le Gantt : ceux qui ont une durée et des dates calculées
   const planningLots = useMemo(() =>
-    lots.filter(l => l.ordre_planning != null && l.duree_jours != null && l.duree_jours > 0)
-      .sort((a, b) => (a.ordre_planning ?? 0) - (b.ordre_planning ?? 0)),
+    lots.filter(l => l.duree_jours != null && l.duree_jours > 0 && l.date_debut && l.date_fin)
+      .sort((a, b) => (a.date_debut ?? '').localeCompare(b.date_debut ?? '')),
     [lots]
   );
 
-  // Lots sans planning
+  // Lots sans données (pas de durée ou pas de date calculée)
   const unplannedLots = useMemo(() =>
-    lots.filter(l => l.ordre_planning == null || l.duree_jours == null || l.duree_jours <= 0),
+    lots.filter(l => l.duree_jours == null || l.duree_jours <= 0 || !l.date_debut || !l.date_fin),
     [lots]
   );
 
@@ -209,88 +263,223 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
   const lanes = useMemo(() => {
     const withDates = planningLots.filter(l => l.date_debut && l.date_fin);
     const withoutDates = planningLots.filter(l => !l.date_debut || !l.date_fin);
-    const sorted = [...withDates].sort((a, b) =>
-      (a.date_debut ?? '').localeCompare(b.date_debut ?? '')
-    );
 
+    // Overlap test non-contigu (2 lots peuvent partager les endpoints)
+    const overlaps = (a: LotChantier, b: LotChantier) => {
+      const as = new Date(a.date_debut!).getTime();
+      const ae = new Date(a.date_fin!).getTime();
+      const bs = new Date(b.date_debut!).getTime();
+      const be = new Date(b.date_fin!).getTime();
+      return as < be && bs < ae;
+    };
+    const fitsInLane = (lane: LotChantier[], lot: LotChantier) =>
+      !lane.some(other => overlaps(other, lot));
+
+    // Pass 1 : place les lots avec lane_index explicite (intention user)
     const result: LotChantier[][] = [];
-    for (const lot of sorted) {
-      const lotStart = new Date(lot.date_debut!).getTime();
+    const hinted = withDates.filter(l => typeof l.lane_index === 'number' && l.lane_index >= 0);
+    const unhinted = withDates.filter(l => l.lane_index == null || l.lane_index < 0);
+
+    // Détermine l'index max pour pré-allouer les lanes
+    const maxHint = hinted.reduce((m, l) => Math.max(m, l.lane_index ?? -1), -1);
+    for (let i = 0; i <= maxHint; i++) result.push([]);
+
+    for (const lot of hinted) {
+      const idx = lot.lane_index!;
+      // Si conflit sur la lane demandée, fallback first-fit (sécurité)
+      if (fitsInLane(result[idx], lot)) {
+        result[idx].push(lot);
+      } else {
+        let placed = false;
+        for (const lane of result) {
+          if (fitsInLane(lane, lot)) { lane.push(lot); placed = true; break; }
+        }
+        if (!placed) result.push([lot]);
+      }
+    }
+
+    // Pass 2 : first-fit pour les lots sans hint (ordre par date_debut)
+    const unhintedSorted = [...unhinted].sort((a, b) =>
+      (a.date_debut ?? '').localeCompare(b.date_debut ?? ''),
+    );
+    for (const lot of unhintedSorted) {
       let placed = false;
       for (const lane of result) {
-        const lastEnd = new Date(lane[lane.length - 1].date_fin!).getTime();
-        if (lastEnd <= lotStart) {
-          lane.push(lot);
-          placed = true;
-          break;
-        }
+        if (fitsInLane(lane, lot)) { lane.push(lot); placed = true; break; }
       }
       if (!placed) result.push([lot]);
     }
 
+    // Tri chaque lane par date_debut pour un rendu chronologique
+    for (const lane of result) {
+      lane.sort((a, b) => (a.date_debut ?? '').localeCompare(b.date_debut ?? ''));
+    }
+
+    // Retire les lanes vides (si maxHint crée des trous non remplis)
+    const nonEmpty = result.filter(lane => lane.length > 0);
+
     // Lots sans dates : chacun sur sa propre lane en fin de liste
-    for (const lot of withoutDates) result.push([lot]);
-    return result;
+    for (const lot of withoutDates) nonEmpty.push([lot]);
+    return nonEmpty;
   }, [planningLots]);
 
-  // -- Drag vertical : déchaîner / rechaîner un lot ---------------------------
-  // laneDelta > 0 (descend) : sortir le lot de sa chaîne. On force son date_debut
-  // à la date_debut du premier lot de la lane actuelle → chevauchement → first-fit
-  // le pousse sur une nouvelle lane (DÉCHAÎNÉ).
-  // laneDelta < 0 (monte) : le lot rejoint une lane plus haute. Set son date_debut
-  // = date_fin du dernier lot de la lane cible avant sa position actuelle (RECHAÎNÉ).
+  // -- Drag D&D : réécrit le graphe de dépendances -----------------------------
+  //
+  // Le modèle CPM ne connaît QUE les dépendances. Le drop utilisateur est
+  // interprété en termes de deps, avec TRANSFERT automatique pour préserver
+  // la chaîne existante (les successeurs de X n'accompagnent PAS X dans son
+  // déplacement — ils se rebindent sur les ex-prédécesseurs de X).
+  //
+  // Invariants :
+  //  - Le lot déplacé X prend de nouveaux prédécesseurs (selon le drop).
+  //  - Les ex-successeurs de X (qui avaient X dans leur deps) perdent X et
+  //    héritent des ex-prédécesseurs de X → ils ne bougent pas visuellement.
+  //  - Si X atterrit entre A et B dans une chaîne A→B, B remplace A par X.
+  //
+  // Tout est batché via applyDepsBatch (atomique côté serveur).
   const handleLotMoveWithLane = useCallback(
-    (lot: LotChantier, currentLaneIdx: number, deltaDays: number, laneDelta: number) => {
-      // Pas de changement de lane → simple move horizontal existant
-      if (laneDelta === 0) {
-        if (deltaDays !== 0) moveLot(lot.id, deltaDays);
-        return;
+    (lot: LotChantier, currentLaneIdx: number, deltaDays: number, targetLaneIdxOrNull: number | null) => {
+      const targetLaneIdx = targetLaneIdxOrNull ?? currentLaneIdx;
+      if (deltaDays === 0 && targetLaneIdx === currentLaneIdx) return;
+
+      const pxPerDay = WEEK_WIDTH / 5;
+      const barStyle = getBarStyle(lot);
+      const newCenterPx = barStyle.left + deltaDays * pxPerDay + barStyle.width / 2;
+
+      // ── 1. Prépare les updates via une map (fusion idempotente) ───────────
+      const finalDeps = new Map<string, Set<string>>();
+      const touch = (id: string) => {
+        if (!finalDeps.has(id)) finalDeps.set(id, new Set(deps.get(id) ?? []));
+      };
+
+      // ── 2. Détermine les NOUVEAUX prédécesseurs du lot déplacé ────────────
+      const xOldPreds = Array.from(deps.get(lot.id) ?? []);
+
+      let newXPreds: string[] = [];
+      let targetSuccessor: LotChantier | null = null;
+      let targetPredecessor: LotChantier | null = null;
+
+      if (targetLaneIdx >= lanes.length) {
+        // Ghost row → INDÉPENDANT : pas de deps, démarre à startDate.
+        // C'est la SEULE façon de "sortir de la chaîne" et créer une nouvelle
+        // side lane autonome.
+        newXPreds = [];
+      } else {
+        // Lane existante (main OU side) → chain au predecessor sur cette lane
+        // si présent. Permet de créer des sous-chaînes sur les side lanes.
+        const targetLaneLots = (lanes[targetLaneIdx] ?? [])
+          .filter(l => l.id !== lot.id)
+          .sort((a, b) => (a.date_debut ?? '').localeCompare(b.date_debut ?? ''));
+        for (const tl of targetLaneLots) {
+          const tbs = getBarStyle(tl);
+          const tCenter = tbs.left + tbs.width / 2;
+          if (tCenter <= newCenterPx) {
+            targetPredecessor = tl;
+          } else {
+            targetSuccessor = tl;
+            break;
+          }
+        }
+        // Side lane vide → independent. Sinon chaîne au predecessor trouvé.
+        newXPreds = targetPredecessor ? [targetPredecessor.id] : [];
       }
 
-      if (!lot.date_debut || !lot.date_fin) return;
+      // ── 3. X récupère ses nouveaux prédécesseurs ──────────────────────────
+      touch(lot.id);
+      const xSet = finalDeps.get(lot.id)!;
+      xSet.clear();
+      for (const p of newXPreds) xSet.add(p);
 
-      const targetLaneIdx = currentLaneIdx + laneDelta;
-      const currentLane = lanes[currentLaneIdx];
-      if (!currentLane) return;
-
-      // Calcul de la nouvelle date_debut
-      let newStart: Date | null = null;
-
-      if (laneDelta > 0) {
-        // DÉCHAÎNER : démarrer en même temps qu'un autre lot pour forcer chevauchement
-        const anchor = currentLane.find(l => l.id !== lot.id && l.date_debut)?.date_debut
-          ?? lot.date_debut;
-        newStart = new Date(anchor);
-        if (deltaDays !== 0) newStart.setDate(newStart.getDate() + deltaDays);
-      } else {
-        // RECHAÎNER : rejoindre une lane plus haute, se chaîner après les lots qui y sont
-        const targetLane = lanes[Math.max(0, targetLaneIdx)];
-        if (targetLane && targetLane.length > 0) {
-          const lotStart = new Date(lot.date_debut).getTime();
-          const candidates = targetLane
-            .filter(l => l.id !== lot.id && l.date_fin)
-            .sort((a, b) => (a.date_fin ?? '').localeCompare(b.date_fin ?? ''));
-          const after = [...candidates].reverse().find(l => new Date(l.date_fin!).getTime() <= lotStart);
-          if (after) {
-            newStart = new Date(after.date_fin!);
-            if (deltaDays !== 0) newStart.setDate(newStart.getDate() + deltaDays);
-          } else {
-            const firstOfLane = candidates[0];
-            if (firstOfLane?.date_debut) newStart = new Date(firstOfLane.date_debut);
-          }
+      // ── 4. Transfère les ex-successeurs de X vers les ex-prédécesseurs de X
+      //     Les lots qui dépendaient de X héritent des ex-deps de X → ils
+      //     restent à la même position visuelle au lieu d'accompagner X.
+      for (const other of lots) {
+        if (other.id === lot.id) continue;
+        const otherDeps = deps.get(other.id);
+        if (otherDeps && otherDeps.has(lot.id)) {
+          touch(other.id);
+          const s = finalDeps.get(other.id)!;
+          s.delete(lot.id);
+          for (const p of xOldPreds) s.add(p);
         }
       }
 
-      if (!newStart) return;
-      const duree = lot.duree_jours ?? 5;
-      const newEnd = new Date(newStart);
-      newEnd.setDate(newEnd.getDate() + duree);
+      // ── 5. Rebind target successor ────────────────────────────────────────
+      //   a) Si X s'insère entre A et B sur la même lane (A→B dep existant)
+      //      → B dépend maintenant de X (remplace A).
+      //   b) Si X s'insère AU DÉBUT de la lane (pas de predecessor, S = 1er
+      //      lot) → S dépend maintenant de X → X devient la nouvelle tête.
+      //      Sans ça, X et S ont tous deux deps=[] et démarrent à startDate :
+      //      le lane assignment visuel les sépare ("S descend").
+      if (targetPredecessor && targetSuccessor) {
+        touch(targetSuccessor.id);
+        const s = finalDeps.get(targetSuccessor.id)!;
+        if (s.has(targetPredecessor.id)) {
+          s.delete(targetPredecessor.id);
+          s.add(lot.id);
+        }
+      } else if (!targetPredecessor && targetSuccessor) {
+        touch(targetSuccessor.id);
+        const s = finalDeps.get(targetSuccessor.id)!;
+        s.add(lot.id);
+      }
 
-      const newStartStr = newStart.toISOString().slice(0, 10);
-      const newEndStr = newEnd.toISOString().slice(0, 10);
-      updateLot(lot.id, { date_debut: newStartStr, date_fin: newEndStr });
+      // ── 6. Calcule le delai_avant_jours pour que le CPM serveur reproduise
+      //      la position visuelle choisie par l'utilisateur.
+      //
+      //      Sans ce calcul, on envoyait delai=0 → CPM recomputait à
+      //      startDate (ou predecessor.date_fin), ignorant le drag.
+      //
+      //      Méthode : position pixel → date calendaire cible → nombre de
+      //      jours ouvrés entre "expected start CPM" et "date cible".
+      const currentBarLeft = barStyle.left;
+      const newBarLeft = currentBarLeft + deltaDays * pxPerDay;
+      const pxPerCalendarDay = WEEK_WIDTH / 7;
+      const desiredCalendarDaysFromStart = Math.max(0, Math.round(newBarLeft / pxPerCalendarDay));
+      const desiredStart = startDate
+        ? new Date(startDate.getTime() + desiredCalendarDaysFromStart * 86400000)
+        : null;
+
+      // Expected start = là où le CPM poserait le lot SANS délai
+      //   = max(startDate, max(pred.date_fin for pred in newXPreds))
+      let expectedStart = startDate ? new Date(startDate) : null;
+      for (const predId of newXPreds) {
+        const pred = lots.find(l => l.id === predId);
+        if (pred?.date_fin) {
+          const predEnd = new Date(pred.date_fin);
+          if (expectedStart && predEnd > expectedStart) expectedStart = predEnd;
+        }
+      }
+
+      let newDelai = 0;
+      if (desiredStart && expectedStart && desiredStart > expectedStart) {
+        newDelai = businessDaysBetween(expectedStart, desiredStart);
+      }
+
+      // Snapshot des lane_indices courantes pour préserver la position
+      // visuelle des autres lots (sinon first-fit peut les déplacer).
+      // Le lot déplacé prend lane_index = targetLaneIdx (ghost → lanes.length).
+      const lotsUpdates: Array<{ lotId: string; lane_index?: number | null; delai_avant_jours?: number }> = [];
+      for (let i = 0; i < lanes.length; i++) {
+        for (const l of lanes[i]) {
+          if (l.id === lot.id) continue;
+          if (l.lane_index !== i) {
+            lotsUpdates.push({ lotId: l.id, lane_index: i });
+          }
+        }
+      }
+      const newLaneForDragged = Math.min(targetLaneIdx, lanes.length);
+      lotsUpdates.push({ lotId: lot.id, lane_index: newLaneForDragged, delai_avant_jours: newDelai });
+
+      // ── 7. Apply combined batch (deps + lane_indices) en UN PATCH ─────────
+      const depsBatch = Array.from(finalDeps.entries()).map(([lotId, depSet]) => ({
+        lotId,
+        depIds: Array.from(depSet).filter(d => d !== lotId),
+      }));
+      if (depsBatch.length === 0 && lotsUpdates.length === 0) return;
+      applyDragChange(depsBatch, lotsUpdates);
     },
-    [lanes, moveLot, updateLot]
+    [lanes, deps, lots, applyDragChange, getBarStyle]
   );
 
   // -- Loading state ----------------------------------------------------------
@@ -439,6 +628,15 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
             >
               Modifier la date de fin
             </button>
+            <span className="text-gray-300">|</span>
+            <button
+              onClick={recompactPlanning}
+              title="Recoller tous les lots à gauche (supprime les trous laissés par des lots déplacés ou supprimés)"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-blue-600 transition-colors"
+            >
+              <AlignLeft className="h-3.5 w-3.5" />
+              Recompacter
+            </button>
             {saving && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
           </div>
         </div>
@@ -464,6 +662,8 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
               return (
                 <div
                   key={laneIdx}
+                  data-gantt-row=""
+                  data-lane-idx={laneIdx}
                   className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
                   style={{ height: LOT_ROW_HEIGHT }}
                 >
@@ -491,6 +691,22 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
                 </div>
               );
             })}
+
+            {/* Ghost row : zone de drop pour créer une nouvelle lane parallèle */}
+            <div
+              data-gantt-row=""
+              data-ghost="true"
+              data-lane-idx={lanes.length}
+              className="border-b border-dashed border-violet-200 bg-violet-50/40"
+              style={{ height: GHOST_ROW_HEIGHT }}
+            >
+              <div className="px-3 h-full flex items-center gap-2 text-violet-500">
+                <Plus className="h-3.5 w-3.5 shrink-0" />
+                <span className="text-[11px] font-medium truncate">
+                  Glissez un lot ici
+                </span>
+              </div>
+            </div>
           </div>
 
           {/* ====== RIGHT: scrollable Gantt area ====== */}
@@ -510,6 +726,8 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
               {lanes.map((lane, laneIdx) => (
                 <div
                   key={laneIdx}
+                  data-gantt-row=""
+                  data-lane-idx={laneIdx}
                   className="border-b border-gray-50 relative hover:bg-gray-50 transition-colors"
                   style={{ height: LOT_ROW_HEIGHT }}
                 >
@@ -522,7 +740,7 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
 
                   {/* Toutes les barres de cette lane */}
                   {lane.map((lot) => {
-                    const color = getLotColor(planningLots.indexOf(lot));
+                    const color = getLotColor(lot.id);
                     const barStyle = getBarStyle(lot);
                     return (
                       <GanttBar
@@ -537,15 +755,33 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
                           const newDays = Math.max(1, Math.min(120, (lot.duree_jours ?? 5) + deltaDays));
                           if (newDays !== lot.duree_jours) updateLot(lot.id, { duree_jours: newDays });
                         }}
-                        onMove={(deltaDays, laneDelta) => {
+                        onMove={(deltaDays, targetLaneIdx) => {
                           if (!lot.date_debut) return;
-                          handleLotMoveWithLane(lot, laneIdx, deltaDays, laneDelta);
+                          handleLotMoveWithLane(lot, laneIdx, deltaDays, targetLaneIdx);
                         }}
                       />
                     );
                   })}
                 </div>
               ))}
+
+              {/* Ghost row Gantt : zone de drop pour créer une nouvelle side lane */}
+              <div
+                data-gantt-row=""
+                data-ghost="true"
+                data-lane-idx={lanes.length}
+                className="relative border-b border-dashed border-violet-200 bg-violet-50/40"
+                style={{ height: GHOST_ROW_HEIGHT }}
+              >
+                <div className="absolute inset-0 flex pointer-events-none">
+                  {weeks.map((_, i) => (
+                    <div key={i} className="flex-none border-r border-gray-50/60" style={{ width: WEEK_WIDTH }} />
+                  ))}
+                </div>
+                <div className="relative h-full flex items-center justify-center text-violet-400 text-[11px] font-medium pointer-events-none">
+                  Déposez un lot ici pour l'exécuter en parallèle
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -553,7 +789,7 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
         {/* Footer légende */}
         <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2">
           <p className="text-[10px] text-gray-400">
-            Glissez horizontalement pour déplacer · Verticalement pour déchaîner · Tirez les bords pour la durée
+            Glissez horizontalement pour réordonner · Verticalement pour changer de lane · Tirez les bords pour la durée
           </p>
           {unplannedLots.length > 0 && (
             <p className="text-[10px] text-amber-500 flex items-center gap-1">
