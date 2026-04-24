@@ -1064,6 +1064,7 @@ export default function BudgetTab({
   const [sortBy,       setSortBy]       = useState<SortBy>('default');
   const [selected,     setSelected]     = useState<BudgetRow | null>(null);
   const [showAddDoc,   setShowAddDoc]   = useState(false);
+  const [addDocLotId,  setAddDocLotId]  = useState<string | undefined>(undefined);
   const [expanded,     setExpanded]     = useState<Set<string>>(new Set());
   const [changingId,   setChangingId]   = useState<string | null>(null);
   const [openMenu,     setOpenMenu]     = useState<string | null>(null);
@@ -1452,9 +1453,17 @@ export default function BudgetTab({
                                     </span>
                                   )}
                                   {noDevis && (
-                                    <span className="inline-flex items-center gap-0.5 text-amber-600 font-medium mr-1.5">
+                                    <button
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        setAddDocLotId(row.lot.id);
+                                        setShowAddDoc(true);
+                                      }}
+                                      title="Ajouter un devis pour cet artisan"
+                                      className="inline-flex items-center gap-0.5 text-amber-600 font-medium mr-1.5 hover:text-amber-800 hover:underline cursor-pointer"
+                                    >
                                       <AlertTriangle className="h-2.5 w-2.5" />Devis manquant
-                                    </span>
+                                    </button>
                                   )}
                                   {realFactures.length > 0 && `${realFactures.length} facture${realFactures.length > 1 ? 's' : ''}`}
                                   {fraisOnly.length > 0 && (
@@ -1538,22 +1547,31 @@ export default function BudgetTab({
                             const isSavingDevisAcomp = savingAcompte === (allPendingEvents[0]?.id ?? eventIds[0]);
 
                             // Helper : input acompte inline
-                            const AcompteInput = ({ onSave }: { onSave: (v: string) => void }) => (
-                              <div className="flex items-center gap-1 justify-end">
-                                <input autoFocus type="number" inputMode="decimal"
-                                  value={inlineAcompte?.value ?? ''}
-                                  onChange={e => setInlineAcompte(prev => prev ? { ...prev, value: e.target.value } : prev)}
-                                  onKeyDown={e => {
-                                    if (e.key === 'Enter' && inlineAcompte) onSave(inlineAcompte.value);
-                                    if (e.key === 'Escape') setInlineAcompte(null);
-                                  }}
-                                  onBlur={() => { if (inlineAcompte) onSave(inlineAcompte.value); }}
-                                  className="w-20 text-[12px] font-bold border-b-2 border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5 text-right"
-                                  placeholder="montant €"
-                                />
-                                <button onClick={() => setInlineAcompte(null)} className="text-gray-300 hover:text-gray-500"><X className="h-3 w-3" /></button>
-                              </div>
-                            );
+                            const AcompteInput = ({ onSave, max }: { onSave: (v: string) => void; max?: number }) => {
+                              const val = parseFloat((inlineAcompte?.value ?? '').replace(',', '.'));
+                              const isOver = max !== undefined && !isNaN(val) && val > max;
+                              return (
+                                <div className="flex flex-col items-end gap-0.5">
+                                  <div className="flex items-center gap-1 justify-end">
+                                    <input autoFocus type="number" inputMode="decimal"
+                                      value={inlineAcompte?.value ?? ''}
+                                      onChange={e => setInlineAcompte(prev => prev ? { ...prev, value: e.target.value } : prev)}
+                                      onKeyDown={e => {
+                                        if (e.key === 'Enter' && inlineAcompte && !isOver) onSave(inlineAcompte.value);
+                                        if (e.key === 'Escape') setInlineAcompte(null);
+                                      }}
+                                      onBlur={() => { if (inlineAcompte && !isOver) onSave(inlineAcompte.value); else setInlineAcompte(null); }}
+                                      className={`w-20 text-[12px] font-bold border-b-2 outline-none bg-transparent pb-0.5 text-right ${isOver ? 'border-red-400 text-red-600' : 'border-indigo-400 text-gray-800'}`}
+                                      placeholder="montant €"
+                                    />
+                                    <button onClick={() => setInlineAcompte(null)} className="text-gray-300 hover:text-gray-500"><X className="h-3 w-3" /></button>
+                                  </div>
+                                  {isOver && (
+                                    <span className="text-[9px] text-red-500">Max {fmtEur(max!)}</span>
+                                  )}
+                                </div>
+                              );
+                            };
 
                             return (
                               <td className="px-3 py-3 text-right" onClick={e => e.stopPropagation()}>
@@ -1659,7 +1677,7 @@ export default function BudgetTab({
                                   {/* 3. ACOMPTE INPUT/MODIFIER — secondaire, sous le statut */}
                                   {isAcompteStatut && primaryFacture && (
                                     isSavingAcomp ? <Loader2 className="h-3 w-3 text-indigo-400 animate-spin" />
-                                    : isInlineOpen ? <AcompteInput onSave={v => saveInlineAcompte(primaryFacture.id, v)} />
+                                    : isInlineOpen ? <AcompteInput max={primaryFacture.montant ?? undefined} onSave={v => saveInlineAcompte(primaryFacture.id, v)} />
                                     : (
                                       <button
                                         onClick={e => { e.stopPropagation(); setInlineAcompte({ artisanKey, factureId: primaryFacture.id, value: primaryFacture.montant_paye ? String(primaryFacture.montant_paye) : '' }); }}
@@ -1671,10 +1689,10 @@ export default function BudgetTab({
                                     )
                                   )}
 
-                                  {/* 3b. Modifier montant acompte devis (sans facture) */}
-                                  {!primaryFacture && hasDevisAcompte && !isSolde && (
+                                  {/* 3b. Modifier montant acompte devis (sans facture) — toujours visible */}
+                                  {!primaryFacture && hasDevisAcompte && (
                                     isSavingDevisAcomp ? <Loader2 className="h-3 w-3 text-indigo-400 animate-spin" />
-                                    : isInlineOpen ? <AcompteInput onSave={v => saveInlineAcompteDevis(eventIds, v, allPendingEvents)} />
+                                    : isInlineOpen ? <AcompteInput max={budget > 0 ? budget : undefined} onSave={v => saveInlineAcompteDevis(eventIds, v, allPendingEvents)} />
                                     : (
                                       <button
                                         onClick={e => {
@@ -1818,8 +1836,10 @@ export default function BudgetTab({
           chantierId={chantierId}
           token={token}
           lots={lotsForModal}
-          onClose={() => setShowAddDoc(false)}
-          onSuccess={() => { setShowAddDoc(false); refresh(); }}
+          defaultDocType={addDocLotId ? 'devis' : undefined}
+          defaultLotId={addDocLotId}
+          onClose={() => { setShowAddDoc(false); setAddDocLotId(undefined); }}
+          onSuccess={() => { setShowAddDoc(false); setAddDocLotId(undefined); refresh(); }}
         />
       )}
 

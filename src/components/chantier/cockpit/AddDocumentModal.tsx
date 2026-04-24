@@ -46,11 +46,13 @@ interface ExtractResult {
 }
 
 export interface AddDocumentModalProps {
-  chantierId: string;
-  token:      string;
-  lots:       Lot[];
-  onClose:    () => void;
-  onSuccess:  () => void;
+  chantierId:      string;
+  token:           string;
+  lots:            Lot[];
+  onClose:         () => void;
+  onSuccess:       () => void;
+  defaultDocType?: DocType;
+  defaultLotId?:   string;
 }
 
 // ── Config type ───────────────────────────────────────────────────────────────
@@ -105,13 +107,14 @@ function findMatchingLot(artisanNom: string, lots: Lot[]): Lot | null {
 
 export default function AddDocumentModal({
   chantierId, token, lots, onClose, onSuccess,
+  defaultDocType, defaultLotId,
 }: AddDocumentModalProps) {
   const [step,        setStep]       = useState<UploadStep>('type');
-  const [docType,     setDocType]    = useState<DocType>('devis');
+  const [docType,     setDocType]    = useState<DocType>(defaultDocType ?? 'devis');
   const [file,        setFile]       = useState<File | null>(null);
   const [nom,         setNom]        = useState('');
   const [montant,     setMontant]    = useState('');
-  const [lotId,       setLotId]      = useState('');
+  const [lotId,       setLotId]      = useState(defaultLotId ?? '');
   const [dragging,    setDragging]   = useState(false);
   const [uploading,   setUploading]  = useState(false);
   const [extracting,  setExtracting] = useState(false);
