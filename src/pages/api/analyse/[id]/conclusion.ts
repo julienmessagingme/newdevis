@@ -34,6 +34,18 @@ const SURFACE_WORK_KEYWORDS = [
   "isolation", "isol", "plafond", "toile de verre", "papier peint",
   "revêtement sol", "revêtement mur", "sol stratifié", "moquette",
 ];
+// Équipements/appareils vendus naturellement à l'unité → jamais en m²
+const EQUIPMENT_KEYWORDS = [
+  "chauffe-eau", "chauffe eau", "cumulus", "ballon",
+  "climatisation", "climatiseur", "clim", "split",
+  "pompe à chaleur", "pompe a chaleur", "pac",
+  "radiateur", "convecteur", "sèche-serviette", "seche serviette",
+  "chaudière", "chaudiere", "poêle", "poele",
+  "ventilation", "vmc", "extracteur",
+  "robinet", "mitigeur", "sanitaire", "wc", "toilette",
+  "porte", "fenêtre", "fenetre", "baie", "volet",
+  "tableau électrique", "tableau electrique", "disjoncteur",
+];
 const M2_UNITS = ["m²", "m2", "m ²", "mètre carré", "metre carre", "m2 ht", "m² ht"];
 const UNIT_LIKE = ["u", "unité", "unité", "unite", "forfait", "ens", "ensemble",
                    "prestation", "pce", "pièce", "piece", "lot", "global", "art", "article"];
@@ -43,7 +55,13 @@ function hasSurfaceUnitMismatch(group: Record<string, any>): boolean {
   const unit  = (group.main_unit || "").toLowerCase().trim();
   const lines: any[] = group.devis_lines || [];
 
-  // Le poste doit être de nature surfacique
+  // Exclure les équipements vendus à l'unité par nature
+  if (EQUIPMENT_KEYWORDS.some(kw => label.includes(kw))) return false;
+  // Vérifier aussi dans les lignes du groupe (au cas où le label Gemini est générique)
+  const allDescriptions = lines.map((l: any) => (l.description || "").toLowerCase()).join(" ");
+  if (EQUIPMENT_KEYWORDS.some(kw => allDescriptions.includes(kw))) return false;
+
+  // Le poste doit être de nature surfacique (label OU lignes)
   const isSurfaceWork = SURFACE_WORK_KEYWORDS.some(kw => label.includes(kw)) ||
     lines.some((l: any) => SURFACE_WORK_KEYWORDS.some(kw =>
       (l.description || "").toLowerCase().includes(kw)
