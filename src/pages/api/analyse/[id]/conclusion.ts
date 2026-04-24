@@ -616,14 +616,21 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     } else if ((verdictGlobal === "a_negocier" || verdictGlobal === "eleve_justifie") && verdictDecision === "signer") {
       verdictDecision = "signer_avec_negociation";
     } else if (verdictGlobal === "a_risque") {
-      // "ne_pas_signer" uniquement si 2+ anomalies réelles ou surcoût > 30% du total HT
       const totalHTNum = typeof totalHT === "number" ? totalHT : 0;
       const surcoutRatio = totalHTNum > 0 ? surcoutMax / totalHTNum : 0;
-      if (sanitizedAnomalies.length >= 2 || surcoutRatio > 0.30) {
+      // "ne_pas_signer" uniquement si le surcoût est RÉELLEMENT significatif :
+      //   - 2+ anomalies ET surcoût > 10% du total HT (vraie surfacturation)
+      //   - OU surcoût > 30% du total HT (seul critère suffisant)
+      // Si les anomalies sont des sous-tarifications (scope risk) mais surcoût global faible
+      // → on downgrade à "signer_avec_negociation" pour éviter l'alarme injustifiée.
+      if ((sanitizedAnomalies.length >= 2 && surcoutRatio > 0.10) || surcoutRatio > 0.30) {
         verdictDecision = "ne_pas_signer";
       } else {
-        // 1 seule anomalie → on recommande de négocier, pas de bloquer
-        if (verdictDecision === "signer") verdictDecision = "signer_avec_negociation";
+        // Surcoût faible → downgrade "a_risque" → "a_negocier" pour cohérence risque/verdict
+        verdictGlobal = "a_negocier";
+        if (verdictDecision === "signer" || verdictDecision === "ne_pas_signer") {
+          verdictDecision = "signer_avec_negociation";
+        }
       }
     }
 

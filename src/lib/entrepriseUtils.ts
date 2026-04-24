@@ -309,6 +309,7 @@ export interface FinancialHealthData {
   dernier_exercice_year: string | null;
   isStale: boolean;
   orangeSignals: string[];
+  rougeSignals: string[];
   exercises: FinancialRatios[];   // up to 3, most recent first
   latestRatios: FinancialRatios | null;
 }
@@ -317,8 +318,8 @@ export interface FinancialHealthData {
  * Compute a dedicated financial health sub-score for the "Santé financière (comptes)" row.
  * Does NOT affect the global block score (info.score from extractEntrepriseData).
  *
- * ROUGE  : procédure collective OR entreprise radiée
- * ORANGE : ancienneté < 3 ans | données >= 2 ans | CA en baisse 2 exercices consécutifs | résultat net passé de positif à négatif
+ * ROUGE  : procédure collective | entreprise radiée | taux d'endettement > 200% | autonomie financière négative
+ * ORANGE : ancienneté < 3 ans | données >= 2 ans | CA en baisse 2 exercices consécutifs | résultat net passé de positif à négatif | endettement 100-200% | liquidité < 80%
  * VERT   : sinon
  * NO_DATA: aucun exercice disponible (micro-entreprise, bilan non publié…)
  */
@@ -341,6 +342,7 @@ export const computeFinancialHealth = (
       dernier_exercice_year: year,
       isStale: false,
       orangeSignals: [],
+      rougeSignals: procedure_collective ? ["procedure_collective"] : ["entreprise_radiee"],
       exercises,
       latestRatios,
     };
@@ -353,6 +355,7 @@ export const computeFinancialHealth = (
       dernier_exercice_year: null,
       isStale: false,
       orangeSignals: [],
+      rougeSignals: [],
       exercises: [],
       latestRatios: null,
     };
@@ -368,6 +371,31 @@ export const computeFinancialHealth = (
   }
 
   const orangeSignals: string[] = [];
+  const rougeSignals: string[] = [];
+
+  // Signal ROUGE : taux d'endettement > 200%
+  if (latestRatios.taux_endettement !== null && latestRatios.taux_endettement > 200) {
+    rougeSignals.push("endettement_critique");
+  }
+
+  // Signal ROUGE : autonomie financière négative (capitaux propres négatifs)
+  if (latestRatios.autonomie_financiere !== null && latestRatios.autonomie_financiere < 0) {
+    rougeSignals.push("capitaux_propres_negatifs");
+  }
+
+  // Signal ORANGE : taux d'endettement entre 100% et 200%
+  if (
+    latestRatios.taux_endettement !== null &&
+    latestRatios.taux_endettement > 100 &&
+    latestRatios.taux_endettement <= 200
+  ) {
+    orangeSignals.push("endettement_eleve");
+  }
+
+  // Signal ORANGE : ratio de liquidité < 80%
+  if (latestRatios.ratio_liquidite !== null && latestRatios.ratio_liquidite < 80) {
+    orangeSignals.push("liquidite_faible");
+  }
 
   // Signal 1 : données non récentes
   if (isStale) {
@@ -402,11 +430,14 @@ export const computeFinancialHealth = (
     orangeSignals.push("resultat_turned_negative");
   }
 
+  const status = rougeSignals.length > 0 ? "ROUGE" : orangeSignals.length > 0 ? "ORANGE" : "VERT";
+
   return {
-    status: orangeSignals.length > 0 ? "ORANGE" : "VERT",
+    status,
     dernier_exercice_year: year,
     isStale,
     orangeSignals,
+    rougeSignals,
     exercises,
     latestRatios,
   };

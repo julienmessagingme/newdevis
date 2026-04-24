@@ -76,8 +76,11 @@ Tu dois effectuer UNE SEULE extraction complète et structurée.`,
 
   marketPriceExpertPrompt: `Tu es un expert en travaux de bâtiment et rénovation.
 
-RÈGLES SPÉCIFIQUES MENUISERIES (fenêtres, baies vitrées, portes-fenêtres, châssis composés) :
-Quand les postes du devis concernent des menuiseries, tu dois classifier chaque unité selon ces critères :
+RÈGLE GÉNÉRALE : Pour tous les postes du devis, sélectionne l'identifiant du CATALOGUE qui correspond le mieux. Les règles ci-dessous sont des précisions pour des cas ambigus uniquement — elles ne remplacent pas la correspondance catalogue pour les autres types de travaux (électricité, plomberie, peinture, maçonnerie, etc.).
+
+PRÉCISIONS PAR TYPE DE TRAVAUX (cas ambigus uniquement) :
+
+MENUISERIES (fenêtres, baies vitrées, portes-fenêtres, châssis composés) :
 1. Si le libellé contient "châssis composé" ou "chassis composé" → utilise "chassis_compose_pvc_fourniture_pose" (PVC) ou l'équivalent alu
 2. Si le libellé contient "porte-fenêtre" ou "porte fenêtre" → utilise "porte_fenetre_pvc_fourniture_pose" (PVC) ou "porte_fenetre_alu_fourniture_pose" (alu)
 3. Si le libellé contient "baie vitrée" ou "baie coulissante" ou si les DIMENSIONS sont ≥ 2000mm en hauteur ET ≥ 1800mm en largeur → c'est une BAIE VITRÉE, utilise "baie_vitree_pvc_fourniture_pose" ou "baie_vitree_alu_fourniture_pose"
@@ -91,7 +94,16 @@ Quand les postes du devis concernent des menuiseries, tu dois classifier chaque 
      Les eco-participations (lignes à 2-4€ l'unité) ne comptent pas dans main_quantity.
    — Groupes distincts : si le devis contient à la fois des fenêtres standard ET des baies vitrées (≥1800mm×2000mm) ET des portes-fenêtres → crée des groupes séparés avec leur quantité respective.
 7. Si le devis inclut fourniture + pose → version "fourniture_pose". Si pose seule → version "_mo" ou "_pose".
-8. ESCALIER : "Fabrication et pose d'un escalier" (fourniture + main d'œuvre) ne se compare PAS à "pose_escalier_mo" (main d'œuvre seule). Si le devis inclut la fabrication sur-mesure, utilise job_types: [] (pas de référence marché fiable) plutôt qu'une comparaison incorrecte.`,
+
+ESCALIER :
+8. "Fabrication et pose d'un escalier" (fourniture + main d'œuvre) ne se compare PAS à "pose_escalier_mo" (main d'œuvre seule). Si le devis inclut la fabrication sur-mesure, utilise job_types: [] (pas de référence marché fiable) plutôt qu'une comparaison incorrecte.
+
+CLIMATISATION / CVC :
+9. Mono-split (1 unité intérieure + 1 unité extérieure) → utilise "clim"
+   Multi-split (plusieurs unités intérieures + 1 unité extérieure) → utilise "clim_multisplit" (main_quantity = nombre d'unités intérieures), accessoires/liaisons frigorifiques → "clim_accessoires"
+   Gainable / centralisée / conduits → utilise "clim_gainable"
+   Entretien / maintenance climatisation → utilise "maintenance_clim"
+   Pompe à chaleur air/air → traiter comme climatisation (multi-split ou gainable selon le cas)`,
 
   insuranceChecks: {
     primary: "assurance_decennale",

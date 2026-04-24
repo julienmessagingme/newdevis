@@ -379,14 +379,40 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
                   })()
                 )}
 
+                {/* Signaux ROUGE critiques */}
+                {financialHealth.rougeSignals.length > 0 && (
+                  <div className="space-y-1 pt-1 border-t border-border/20">
+                    <p className="text-xs font-medium text-score-red mb-1.5">Signaux critiques</p>
+                    {financialHealth.rougeSignals.map((signal, idx) => (
+                      <div key={idx} className="flex items-start gap-2 text-xs text-score-red">
+                        <span className="flex-shrink-0 mt-px">⚠️</span>
+                        <span>
+                          {signal === "endettement_critique" &&
+                            `Taux d'endettement anormalement élevé (${financialHealth.latestRatios?.taux_endettement?.toFixed(0)} %) — les dettes représentent plus de 2× les capitaux propres. Ce niveau peut fragiliser la continuité d'exploitation.`}
+                          {signal === "capitaux_propres_negatifs" &&
+                            "Autonomie financière négative — les capitaux propres sont négatifs, ce qui signifie que les dettes excèdent l'actif total de l'entreprise."}
+                          {signal === "procedure_collective" &&
+                            "Entreprise en procédure collective (redressement ou liquidation judiciaire)."}
+                          {signal === "entreprise_radiee" &&
+                            "Entreprise radiée du registre — elle n'est plus légalement active."}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* Signaux ORANGE détaillés */}
                 {financialHealth.orangeSignals.length > 0 && (
                   <div className="space-y-1 pt-1 border-t border-border/20">
-                    <p className="text-xs font-medium text-muted-foreground mb-1.5">Signaux identifiés</p>
+                    <p className="text-xs font-medium text-muted-foreground mb-1.5">Signaux à surveiller</p>
                     {financialHealth.orangeSignals.map((signal, idx) => (
                       <div key={idx} className="flex items-start gap-2 text-xs text-score-orange">
                         <span className="flex-shrink-0 mt-px">•</span>
                         <span>
+                          {signal === "endettement_eleve" &&
+                            `Taux d'endettement élevé (${financialHealth.latestRatios?.taux_endettement?.toFixed(0)} %) — les dettes dépassent les capitaux propres. Signal à surveiller.`}
+                          {signal === "liquidite_faible" &&
+                            `Ratio de liquidité faible (${financialHealth.latestRatios?.ratio_liquidite?.toFixed(0)} %) — l'entreprise peut avoir des tensions de trésorerie à court terme.`}
                           {signal === "stale" &&
                             "Données non récentes — les comptes disponibles datent de plus de 2 ans. Indicateur à interpréter avec prudence."}
                           {signal === "recent" &&
@@ -594,6 +620,10 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
               {effectiveScore === "ROUGE" && (
                 isFinanciallyStaleRouge
                   ? `⚠️ Comptes annuels non déposés depuis ${retardAns} ans (dernier exercice connu\u00a0: ${financialHealth.dernier_exercice_year})\u00a0— une société commerciale a l'obligation légale de déposer ses comptes chaque année. Cette absence prolongée peut masquer une situation financière préoccupante.`
+                  : financialHealth.rougeSignals.includes("endettement_critique")
+                  ? `⚠️ Taux d'endettement critique (${financialHealth.latestRatios?.taux_endettement?.toFixed(0)}\u00a0%) — malgré un résultat net positif, ce niveau d'endettement représente un risque pour la pérennité de l'entreprise. Vérifiez les alertes financières avant de signer.`
+                  : financialHealth.rougeSignals.includes("capitaux_propres_negatifs")
+                  ? "⚠️ Capitaux propres négatifs — la situation bilancielle de l'entreprise est structurellement fragile. Vérifiez les alertes ci-dessus avant de signer."
                   : "⚠️ Des éléments critiques ont été détectés — vérifiez les alertes ci-dessus avant de signer."
               )}
             </p>
