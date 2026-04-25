@@ -1945,3 +1945,173 @@ Table `documents_chantier` :
 ### Liens formalités (`formalitesLinks.ts`)
 
 Catalogue de ~15 mappings mot-clé → URL officielle .gouv.fr pour les formalités administratives (déclaration préalable, permis de construire, Consuel, DT-DICT, etc.). Chaque entrée contient un lien primaire (formulaire CERFA) et optionnellement un lien secondaire (fiche pratique).
+
+---
+
+## 21. Chantier — Architecture 2026 (Planning CPM, Agent IA, Frais, Activity Feed)
+
+Ces sections couvrent les évolutions majeures du module Chantier post-2026-04-01. Pour les concepts initiaux (modes de projet, écrans cockpit, MATERIALS_MAP, etc.), voir § 20.
+
+### 21.1 Planning CPM (Critical Path Method)
+
+Modèle **DAG multi-parent** standard MS Project / Primavera, remplace l'ancien `ordre_planning` linéaire.
+
+**Source de vérité (BDD)** :
+- `lots_chantier.duree_jours` — durée en jours ouvrés
+- `lots_chantier.delai_avant_jours` — délai avant démarrage (décalage sans cascade)
+- `lots_chantier.lane_index` — lane visuelle explicite (0 = main, 1+ = side lanes, NULL = first-fit)
+- `lot_dependencies (lot_id, depends_on_id)` — arêtes du DAG (Finish-to-Start, multi-parent)
+
+**Dérivé (recalculé, non stocké)** :
+- `date_debut` / `date_fin` — recomputés par `computePlanningDates` (`src/lib/planningUtils.ts`)
+- Lanes visuelles — first-fit par date avec préférence pour `lane_index` si défini
+
+**Algo `computePlanningDates`** :
+1. Tri topologique Kahn sur le DAG (prédécesseurs en premier)
+2. Forward pass : `date_debut = max(startDate, max(dep.date_fin)) + addBusinessDays(delai_avant_jours)`, `date_fin = addBusinessDays(date_debut, duree_jours)`
+3. Cycles gérés gracieusement (lots restants placés à startDate)
+
+**Flux modifications** :
+- D&D utilisateur (`PlanningTimeline.handleLotMoveWithLane`) : drop sur ghost row → indépendant ; drop sur lane existante → predecessor = dernier lot dont le centre ≤ drop X. Transfert auto : quand X bouge, ses ex-successeurs perdent X et héritent des ex-prédécesseurs de X. Position visuelle convertie en `delai_avant_jours` (jours ouvrés depuis predecessor.date_fin OU startDate).
+- Race conditions : `usePlanning.reqSeqRef` ignore les réponses périmées (l'optimiste local reste, la réponse la plus récente écrase).
+
+**API routes** :
+- `GET /api/chantier/[id]/planning` → `{ dateDebutChantier, lots, dependencies }`
+- `PATCH /api/chantier/[id]/planning` → recompute global CPM
+- `POST /api/chantier/[id]/planning/shift-lot` → `{ lot_id, jours, cascade, raison }`
+- `DELETE /api/chantier/[id]/lots/[lotId]` → cascade : transfert deps (A→X→B avec X supprimé → A→B) + recompute
+- `POST /api/chantier/[id]/lots` → `inferDefaultPredecessors` basé sur TRADE_DURATIONS métier
+
+**Migrations clés** :
+- `20260422230000_lot_dependencies_cpm.sql` — création table + backfill depuis dates existantes (A.fin = B.debut ⇒ A → B)
+- `20260423090000_lot_lane_index.sql` — colonne `lane_index`
+- `20260422220000_lots_chantier_delai_avant_jours.sql` — colonne `delai_avant_jours`
+
+**Règles métier** :
+- Ghost row = indépendant (deps vides, pas hériter du partner)
+- Drop sur lane existante = chaîne au predecessor. Side lane vide → indépendant.
+- Couleur stable : `getLotColor(lot.id)` hash djb2, indépendant de l'ordre
+- Lanes (rendu) : pass 1 place les lots avec `lane_index` explicite, pass 2 first-fit pour le reste
+
+### 21.2 Agent IA — Pilote de Chantier
+
+Architecture temps réel + digest quotidien. Edge function `agent-orchestrator` (Gemini 2.5-flash, function calling).
+
+**Triggers temps réel** :
+- Upload document → `agent-checks` (SQL déterministe, $0) fire-and-forget. L'orchestrator (Gemini) fire après extraction IA.
+- Message WhatsApp → `agent-orchestrator` depuis `whapi.ts` (mode `edge_function`) ou `triggerAgentIfOpenClaw` (mode openclaw)
+- Email entrant → `agent-orchestrator` depuis `inbound-email.ts`
+- Affectation lot → `agent-checks` + orchestrator + mismatch detection via `detectDevisType`
+
+**Mismatch detection (document ↔ lot)** :
+Détection basée sur le **contenu** (pas le nom de fichier). Points : `analyze-quote/index.ts`, `extract-invoice.ts`, `describe.ts`, `[docId].ts` PATCH. Utilise `detectDevisType()` de `utils/extractProjectElements.ts`. Edge function réplique le mapping inline (Deno).
+
+**Pas de cache contexte (suppression 2026-04-23)** :
+- `context.ts` : fresh fetch à chaque appel via APIs internes + Supabase (~5-7 requêtes, < 300ms)
+- `safeFetchJson` avec AbortController 5s timeout par appel
+- Fallback : si l'API planning retourne 0 lots mais DB > 0, query DB directement
+
+**Tools agent** (`supabase/functions/agent-orchestrator/tools.ts`) :
+
+| Tool | Mode | Usage |
+|---|---|---|
+| `get_chantier_summary` | batch + interactive | Infos générales, budget, lots |
+| `get_chantier_planning` | batch + interactive | Ordre lots, dates, durées, dépendances |
+| `get_chantier_data` | batch + interactive | Requêtes ad-hoc (count devis, sum travaux…) |
+| `get_contacts_chantier` | batch + interactive | Contacts filtrés par lot/rôle |
+| `get_recent_photos` | batch + interactive | Photos WhatsApp + descriptions Vision IA |
+| `list_chantier_groups` | batch + interactive | Groupes WhatsApp avec membres |
+| `get_message_read_status` | batch + interactive | Accusés de lecture WhatsApp |
+| `update_planning` | interactive | `lot_id, duree_jours?, delai_avant_jours?, depends_on_ids?` — `depends_on_ids` remplace la liste complète |
+| `shift_lot` | interactive | `lot_id, jours, cascade, raison`. Protocole 2 tours dans le prompt si successeurs détectés. |
+| `arrange_lot` | interactive | `mode: chain_after \| parallel_with`. Modèle CPM DAG : écrit `lot_dependencies` + force `lane_index = ref.lane_index` pour chain_after. |
+| `update_lot_dates` | interactive | Legacy (compat). Préférer `shift_lot`. |
+| `update_lot_status` / `mark_lot_completed` | interactive | Statut lot |
+| `create_task` / `complete_task` | interactive | Checklist (priorite : urgent/important/normal) |
+| `register_expense` | interactive | `amount, label, lot_id? OR lot_name?, vendor?, depense_type?` (défaut `frais`). Si `lot_name` fourni, recherche/crée le lot. |
+| `send_whatsapp_message` | interactive | Confirmation explicite obligatoire |
+| `log_insight` / `request_clarification` | interactive | Mémoire long-terme + clarifications |
+
+**Optimisations coût** :
+- Debounce WhatsApp (`whapi.ts`) : `Set<string>` pour 1 trigger/chantier/batch webhook
+- Cooldown 60s pour `morning` (skip si lastRun < 60s) — pas pour `evening`
+- Cron soir : `chantiers WHERE phase != 'reception'`
+- Parallélisation cron : `Promise.allSettled` par batches de 3
+- `max_tokens: 16384` (pas 4096 — thinking budget)
+
+**Auth agent → API routes** :
+- `requireChantierAuthOrAgent` (`apiHelpers.ts`) : accepte JWT user OU header `X-Agent-Key`
+- Routes migrées : `budget.ts` GET, `contacts.ts` GET, `payment-events.ts` GET, `taches.ts` CRUD, `planning.ts` GET/PATCH, `lots.ts` GET/POST/PATCH, `documents/depense-rapide.ts` POST
+
+**Dual-mode** :
+- `edge_function` (défaut) : Gemini 2.5 Flash, on paie
+- `openclaw` : instance user, user paie. Stateful, multi-tour. **Implémentation partielle — voir `WIP.md` § 1.**
+- `disabled` : agent inactif
+- Config : `/api/chantier/agent-config` GET/PUT, UI dans `Settings` (`AgentConfigCard`)
+
+**Tables associées** :
+- `agent_insights` — observations (planning_impact, budget_alert, payment_overdue, conversation_summary, risk_detected, digest, lot_status_change, needs_clarification). Sévérité info/warning/critical. Index dedup unique.
+- `agent_runs` — log des runs LLM (morning/evening). Messages analysés, insights créés, actions prises, tokens.
+- `agent_config` — configuration dual-mode par user.
+- `chantier_journal` — journal de chantier, 1 page/jour. Body markdown, alerts_count, max_severity.
+- `chantier_assistant_messages` — historique chat user/agent. `tool_calls` JSONB pour traçabilité.
+- ~~`agent_context_cache`~~ — table dépréciée 2026-04-23 (peut être droppée).
+
+### 21.3 Catégorie `frais` (déclarations sans pièce jointe)
+
+Distinction sémantique entre tickets/factures (avec pièce uploadable) et frais déclarés au chat (sans justificatif).
+
+**DB** :
+- `documents_chantier.depense_type` CHECK étendu : `facture | ticket_caisse | achat_materiaux | frais`
+- Migration `20260423150000_add_frais_depense_type.sql`
+- Type TS : `DepenseType = 'facture' | 'ticket_caisse' | 'achat_materiaux' | 'frais'`
+
+**Backend** :
+- `POST /api/chantier/[id]/documents/depense-rapide` accepte agent auth
+- Validation : `VALID_DEPENSE_TYPES` inclut `'frais'`
+
+**Tool agent** :
+- `register_expense` défaut `'frais'`
+- Si `lot_name` fourni : `ilike('nom', lot_name)` puis fallback `POST /lots` (auto-inférence durée + deps)
+- Prompt : agent demande "pour quel lot ?" si non précisé. Fallback `lot_name="Divers"` → crée/réutilise le lot Divers.
+
+**UI** :
+- `FacturesPaiements.tsx` : icône StickyNote ambre, label "Frais déclarés le JJ/MM", badge figé "Déclaré" (pas de dropdown statut)
+- `LotDetail.tsx` : section ambre "Frais annexes déclarés" sous Devis & Factures
+- `IntervenantsListView.tsx` : chip ambre "📝 X€" dans la colonne nb devis
+- `LotIntervenantCard.tsx` : badge ambre "📝 X€ frais" à côté de devis/photos
+- `AnalyseDevisSection.tsx` : section ambre "Frais annexes déclarés" sous chaque card lot
+- `DocumentsView.tsx` : nouvelle section "Frais déclarés" (📝 ambre) ouverte par défaut
+- `documentFilters.ts` : `getFraisDeclares()`, `getDevisEtFactures()` exclut désormais les frais
+- `BudgetTab.tsx` : `noDevis` ignore les frais → un lot avec un frais seul ne déclenche plus "Devis manquant"
+
+### 21.4 Fil d'activité Assistant chantier (24h)
+
+Onglet Assistant en 2 colonnes (desktop) ou stack vertical (mobile).
+
+**Composants** :
+- Gauche (flex-1) : `ChantierAssistantChat` (existant, inchangé)
+- Droite (w-[360px]) : `AgentActivityFeed.tsx` (nouveau)
+
+**API** :
+- `GET /api/chantier/[id]/assistant/activity-feed`
+- Fenêtre temporelle : `created_at >= startOfDay(Paris)`. Approximation UTC+2 (DST hiver/été : 1h de décalage acceptable).
+- Filtre `MUTATION_TOOLS` : exclut les GET passifs
+- Retour : `{ since, decisions, insights }`
+
+**`AgentActivityFeed.tsx`** :
+- Fusion décisions (tool_calls mutateurs) + insights, tri chrono desc
+- Auto-refresh 20s
+- Reset visuel à minuit (filtre serveur, rien n'est supprimé en DB)
+- Icônes par catégorie : 📅 planning, 💰 frais, ✅ statut, ☑️ tâche, 💬 WhatsApp, 🔔 clarification, 🔴 critique, ⏰ retard, 🔄 changement, 💭 résumé conv, ⚠️ risque
+- Footer "Voir journal complet" → `navigateTo('journal')`
+
+**Bandeau alertes du haut supprimé** : tout est centralisé dans le panneau droit (décision UX 2026-04-25).
+
+**Digest quotidien (19h Paris, edge function `agent-orchestrator` cron)** :
+Annexe au markdown body de `chantier_journal` 3 sections déterministes :
+- ⚙️ Décisions prises aujourd'hui (tool_calls mutateurs, formattage humain par tool)
+- ⚠️ Alertes du jour (insights severity warning/critical)
+- ❓ Clarifications demandées (insights type=needs_clarification)
+
+Garantit la mémoire long-terme : le panneau Assistant montre **aujourd'hui**, le journal montre **chaque jour archivé**.
