@@ -1,6 +1,12 @@
 # CLAUDE.md - VerifierMonDevis.fr
 
-Plateforme d'analyse de devis d'artisans. Stack : **Astro 5 + React 18 islands + Supabase + Tailwind/shadcn-ui**. Déployé sur **Vercel** (`@astrojs/vercel` adapter, `output: 'static'`). Voir `DOCUMENTATION.md` pour le détail complet.
+Plateforme d'analyse de devis d'artisans + module gestion de chantier (GérerMonChantier). Stack : **Astro 5 + React 18 islands + Supabase + Tailwind/shadcn-ui**. Déployé sur **Vercel** (`@astrojs/vercel` adapter, `output: 'static'`).
+
+**Documentation** :
+- `FEATURES.md` — liste fonctionnelle des features GérerMonChantier (point de vue utilisateur, sans jargon). Décrit ce qui MARCHE en prod. À lire pour comprendre ce que l'app permet de faire onglet par onglet.
+- `WIP.md` — features en cours, partiellement implémentées, idées en réflexion, dette technique. À mettre à jour à chaque session.
+- `DOCUMENTATION.md` — détail technique complet historique.
+- Ce fichier — règles de travail, architecture, pièges connus.
 
 ## Pattern critique : Islands Astro + React
 
@@ -77,6 +83,8 @@ Pages Astro : `<LoginApp client:only="react" />` — toujours `client:only`, jam
 | `/api/chantier/assistant` | `api/chantier/assistant.ts` | POST analyse Gemini MOE (action prioritaire, alertes, recommandations). Détection mismatch devis↔lot via `detectDevisType`. |
 | `/api/chantier/[id]/documents/register` | `api/chantier/[id]/documents/register.ts` | POST enregistrement document + trigger agent-checks |
 | `/api/chantier/[id]/documents/[docId]/describe` | `api/chantier/[id]/documents/[docId]/describe.ts` | POST Gemini Vision auto-description (photo/plan/assurance) + mismatch lot |
+| `/api/chantier/[id]/documents/depense-rapide` | `api/chantier/[id]/documents/depense-rapide.ts` | POST déclaration dépense sans fichier (facture / ticket_caisse / achat_materiaux / **frais**). Auth user OU agent (X-Agent-Key). |
+| `/api/chantier/[id]/assistant/activity-feed` | `api/chantier/[id]/assistant/activity-feed.ts` | GET tool_calls mutateurs + agent_insights du jour pour le panneau droit de l'onglet Assistant. Reset à minuit Paris. |
 
 ## Ajouter une page
 
@@ -750,7 +758,8 @@ Tous exposés dans `supabase/functions/agent-orchestrator/tools.ts`, mode `inter
 | `update_planning` | `lot_id, duree_jours?, delai_avant_jours?, depends_on_ids?` | Modification structurelle. `depends_on_ids` remplace la liste complète des prédécesseurs. |
 | `shift_lot` | `lot_id, jours, cascade: boolean, raison` | Décalage avec dialogue. `cascade=true` → successeurs suivent. `cascade=false` → lot détaché (successeurs bridge sur ses ex-préds). Protocole 2 tours dans le prompt interactive si successeurs détectés. |
 | `update_lot_dates` | `lot_id, new_start_date, raison` | Legacy. Préférer `shift_lot`. |
-| `arrange_lot` | `lot_id, mode: "chain_after"\|"parallel_with", reference_lot_id` | Réorganise via pg/ordre (modèle legacy — à migrer vers deps). |
+| `arrange_lot` | `lot_id, mode: "chain_after"\|"parallel_with", reference_lot_id` | Modèle CPM DAG : écrit dans `lot_dependencies` + force `lane_index = ref.lane_index` pour `chain_after` (visuellement collé sur la même ligne). |
+| `register_expense` | `amount, label, lot_id? OR lot_name?, vendor?, depense_type?` | Crée une dépense (défaut `depense_type='frais'` = déclaration orale sans pièce). Si `lot_name` fourni, recherche/crée le lot. Si aucun lot, l'agent doit demander en texte avant d'appeler. |
 
 **Dialogue conversationnel cascade** (prompt `buildInteractivePrompt`) :
 ```
@@ -835,26 +844,15 @@ Détection basée sur le **contenu** (pas le nom de fichier). Points de détecti
 - `src/lib/lotUtils.ts` — `getSemanticEmoji(lotName)` : emoji sémantique par keyword matching (🏠 toiture, ⚡ élec, 🚿 plomberie, etc.). Fallback 📦. Utilisé dans 3 composants (UploadDocumentModal, DocumentsView, AddDocumentModal).
 - `paymentEventsRes` clé de réponse API : `payment_events` (pas `.data`).
 
-## TODO — prochaine session
+## TODO — voir `WIP.md`
 
-### 🔴 Vérifier cron digest 19h (premier tir ce soir)
-Le pg_cron `agent-orchestrator-evening-digest` est en place (17h UTC = 19h Paris). Vérifier demain matin : `SELECT * FROM chantier_journal ORDER BY created_at DESC LIMIT 5`. Si vide → checker les logs edge-function.
+Toutes les features en cours, partiellement implémentées et la dette technique sont désormais centralisées dans **`WIP.md`** à la racine du repo. À mettre à jour à chaque session quand on commence/finit/bloque quelque chose.
 
-### 🔴 Tester WhatsApp multi-groupes (feature complète, non testée en prod)
-Fichiers clés : `WhatsAppGroupsPanel.tsx`, `MessagerieSection.tsx`, `WhatsAppThread.tsx`, `api/chantier/[id]/whatsapp.ts`, `api/webhooks/whapi.ts`
-Scénarios : créer groupe → membres visibles → message entrant → bulles par rôle → filtre par groupe
-
-### 🟡 Cron timeout >10 chantiers — fan-out pattern
-Actuellement batches de 3 séquentiels. 10+ chantiers = timeout edge function 60s. Solution : edge function "dispatcher" qui fire N appels indépendants.
-
-### 🟡 assistant.ts DevisInfo interface manque lot_id/lot_nom (type debt)
-Le spread runtime fonctionne mais le type TS ne déclare pas ces champs → mismatch detection silencieusement cassée au niveau type. Fix : ajouter `lot_id?: string | null; lot_nom?: string | null` à l'interface `DevisInfo`.
-
-### 🟡 Migrer useInsights (legacy) vers agent_insights
-6 composants dépendent de `cockpit/useInsights.ts` (Gemini MOE call éphémère). À terme, remplacer par des agent_insights persistants. Composants : BudgetTresorerie, AnalyseDevisSection, LotCard, LotIntervenantCard, BudgetKpiCard, dashboardHelpers.
-
-### 🟡 Planning — 4 tâches restantes
-1. `supabase/functions/chantier-qualifier/index.ts` — ajouter question date de démarrage
-2. `LotIntervenantCard.tsx` — affichage "S3–S5 · 2 semaines"
-3. `LotDetail.tsx` — section Planning éditable (durée inline + recalcul cascade)
-4. `DashboardHome.tsx` — intégrer `PlanningWidget` entre progression et reco IA
+Sujets actuellement actifs (résumé) :
+- 🟡 Intégration **OpenClaw** — UI config faite, chat user pas encore routé vers OpenClaw, triggers manquants sur upload/cron
+- 🟢 Fil d'activité Assistant chantier — live, à monitorer
+- 🟢 Catégorie `frais` — live, manque bouton manuel UI
+- 🟡 Planning CPM — 4 polish restants (qualifier, LotIntervenantCard, LotDetail, DashboardHome widget)
+- 🟠 Fan-out cron pour > 10 chantiers
+- 🟠 Migration `useInsights` legacy → `agent_insights`
+- 🟢 WhatsApp multi-groupes — code complet, à valider en conditions réelles
