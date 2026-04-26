@@ -26,7 +26,9 @@ CREATE TABLE IF NOT EXISTS agent_scheduled_actions (
   action_type  text NOT NULL DEFAULT 'reminder' CHECK (action_type IN ('reminder', 'auto_message')),
   -- Payload : pour 'reminder' = { text, lot_id? }. Pour 'auto_message' = { tool, args }.
   payload      jsonb NOT NULL,
-  status       text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'fired', 'cancelled', 'failed')),
+  -- 'firing' = état transitoire entre claim atomique (RPC claim_pending_reminders) et envoi whapi.
+  -- Évite double envoi en cas de chevauchement de 2 ticks concurrents.
+  status       text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'firing', 'fired', 'cancelled', 'failed')),
   -- Trace de la résolution
   fired_at     timestamptz,
   fired_result jsonb,
@@ -69,3 +71,47 @@ CREATE POLICY "scheduled_actions_user_cancel" ON agent_scheduled_actions
 
 COMMENT ON TABLE agent_scheduled_actions IS
   'Actions programmées par l''agent (rappels owner, auto-messages futurs). Cron tick toutes les 15min.';
+
+-- ────────────────────────────────────────────────────────
+-- RPC claim_pending_reminders : passe les rappels dus de 'pending' à 'firing'
+-- en une transaction atomique avec FOR UPDATE SKIP LOCKED. Empêche double envoi
+-- si 2 ticks cron concurrents. Appelé par agent-scheduled-tick.
+
+CREATE OR REPLACE FUNCTION claim_pending_reminders(batch_limit INT DEFAULT 50)
+RETURNS TABLE (
+  id UUID,
+  chantier_id UUID,
+  due_at TIMESTAMPTZ,
+  action_type TEXT,
+  payload JSONB,
+  source TEXT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN QUERY
+  WITH due AS (
+    SELECT a.id
+    FROM agent_scheduled_actions a
+    WHERE a.status = 'pending'
+      AND a.due_at <= now()
+    ORDER BY a.due_at ASC
+    LIMIT batch_limit
+    FOR UPDATE SKIP LOCKED
+  )
+  UPDATE agent_scheduled_actions
+  SET status = 'firing'
+  WHERE agent_scheduled_actions.id IN (SELECT due.id FROM due)
+  RETURNING
+    agent_scheduled_actions.id,
+    agent_scheduled_actions.chantier_id,
+    agent_scheduled_actions.due_at,
+    agent_scheduled_actions.action_type,
+    agent_scheduled_actions.payload,
+    agent_scheduled_actions.source;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION claim_pending_reminders(INT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION claim_pending_reminders(INT) TO service_role;

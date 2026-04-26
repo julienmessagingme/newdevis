@@ -112,6 +112,19 @@ export const handlers: Record<string, Handler> = {
 
     const sb = supabaseAdmin();
 
+    // Pré-check : un rappel sans canal owner configuré ne sera JAMAIS envoyé
+    // (le tick le marquera 'failed' avec raison='no_owner_channel'). On refuse
+    // dès maintenant pour que l'agent puisse proposer create_owner_whatsapp_channel
+    // au user au lieu de promettre un rappel qui ne partira pas.
+    const { data: ownerChan } = await sb.from("chantier_whatsapp_groups")
+      .select("group_jid").eq("chantier_id", chantierId).eq("is_owner_channel", true).maybeSingle();
+    if (!ownerChan) {
+      return JSON.stringify({
+        ok: false, error: "no_owner_channel",
+        message: `Pas de canal WhatsApp privé configuré pour ce chantier. Sans ce canal, le rappel ne pourrait pas partir. Propose au user d'appeler create_owner_whatsapp_channel d'abord, OU explique-lui comment l'activer dans Paramètres.`,
+      });
+    }
+
     // Cap 30 rappels pending par chantier — défense contre boucle agent / hallucination.
     const { count: pendingCount } = await sb.from("agent_scheduled_actions")
       .select("id", { count: "exact", head: true })

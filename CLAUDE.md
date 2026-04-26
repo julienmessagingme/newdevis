@@ -111,6 +111,8 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 - **Token cap = completion_tokens** (pas total_tokens) : `total_tokens` cumule prompt+completion et le prompt grossit à chaque round → triple-comptage. Cap sur `completion_tokens` uniquement (cf. `index.ts` agent-orchestrator).
 - **Pending decision flow** : `notify_owner_for_decision` stocke l'`expected_action`, `resolve_pending_decision` l'exécute via dispatcher injecté (pas de re-confirmation 2-tours pour cette exécution — bypass volontaire car owner a déjà confirmé via WhatsApp privé).
 - **`agent-scheduled-tick` atomic claim** : RPC `claim_pending_reminders` avec `FOR UPDATE SKIP LOCKED`. Sans ça, 2 ticks concurrents = double envoi WhatsApp. Status passe `pending → firing → fired/failed`.
+- **`agent-scheduled-tick` auth = X-Cron-Secret, PAS Bearer** : le vault stocke `service_role_key` au format publishable (`sb_secret_*`, 41 chars) alors que l'edge function lit `SUPABASE_SERVICE_ROLE_KEY` env qui est le JWT (`eyJ...`, ~200 chars). Mismatch silencieux → 403 systématique. Solution : secret dédié `AGENT_CRON_SECRET` (env edge fn + vault `agent_cron_secret`), header `X-Cron-Secret`. Test runtime : trigger manual `net.http_post` + check `_http_response.status_code = 200`.
+- **`notify_owner_for_decision` doit être BATCH-safe** : sinon le workflow "détection décision artisan" en mode morning ne s'enclenche jamais (les ACTION tools sont bloqués en morning/evening par le guard `ACTION_TOOL_NAMES`). C'est une notif PRIVÉE au owner (pas un envoi tiers irréversible) → légitime en BATCH.
 
 ---
 
@@ -256,8 +258,10 @@ Pour le détail complet (modèle CPM, agent IA dual-mode, pipeline de générati
 - `chantier_whatsapp_groups.is_owner_channel BOOLEAN` + UNIQUE partial index (1 canal owner par chantier).
 - API `/api/chantier/[id]/whatsapp` accepte `{ is_owner_channel: true }` — récupère phone via auth admin en mode agent.
 - Webhook whapi route les messages owner channel en mode `interactive` avec historique 20 derniers msgs restauré + concaténation multi-msg même batch.
-- Edge function `agent-scheduled-tick` (cron 15min) : auth Bearer service_role OU X-Cron-Secret. RPC `claim_pending_reminders` FOR UPDATE SKIP LOCKED → atomic claim. Process parallèle batches 8.
-- Tables : `agent_pending_decisions` (P1), `agent_scheduled_actions` (vague 3, status pending|firing|fired|cancelled|failed).
+- Edge function `agent-scheduled-tick` (cron 15min) : **auth via header `X-Cron-Secret = AGENT_CRON_SECRET`** (pas Bearer — le vault stocke le format publishable `sb_secret_*` ≠ JWT que l'edge fn attend, mismatch silencieux). Secret partagé : env edge fn `AGENT_CRON_SECRET` + vault `agent_cron_secret`. RPC `claim_pending_reminders` FOR UPDATE SKIP LOCKED → atomic claim. Process parallèle batches 8.
+- Tables : `agent_pending_decisions` (P1, expiry cron quotidien 04h UTC), `agent_scheduled_actions` (vague 3, status pending|firing|fired|cancelled|failed).
+- **`notify_owner_for_decision` est BATCH-safe** (déplacé depuis ACTION_SCHEMAS) — sinon le workflow "détection décision artisan" en mode morning est inopérant. Pré-validation `expected_action.tool` contre `ALL_TOOL_NAMES` (rejet si Gemini hallucine un nom inconnu).
+- **`schedule_reminder` pré-check owner channel** : refus immédiat si pas de canal configuré → l'agent peut proposer `create_owner_whatsapp_channel` au lieu de promettre un rappel qui ne partira jamais.
 
 ### Catégorie `frais` (déclaration sans pièce)
 - `documents_chantier.depense_type` étendu à `'frais'` (CHECK constraint élargi).

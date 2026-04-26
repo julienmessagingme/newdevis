@@ -12,7 +12,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const whapiToken  = Deno.env.get("WHAPI_TOKEN") ?? "";
-const agentSecret = Deno.env.get("AGENT_SECRET_KEY") ?? "";
+// Secret dédié au cron pg_cron — différent de AGENT_SECRET_KEY (utilisé par
+// agent-orchestrator). Permet de révoquer indépendamment.
+const cronSecret  = Deno.env.get("AGENT_CRON_SECRET") ?? "";
 
 const BATCH_LIMIT = 50;          // max actions traitées par tick
 const ACTION_TIMEOUT_MS = 8000;  // timeout par envoi whapi
@@ -52,16 +54,13 @@ async function sendWhatsAppToJid(jid: string, body: string): Promise<{ ok: boole
 
 serve(async (req) => {
   // Auth manuelle (verify_jwt = false côté config.toml — piège ES256).
-  // Accepte 2 schémas :
-  //   1. Authorization: Bearer <service_role_key>  (utilisé par pg_cron via vault)
-  //   2. X-Cron-Secret: <AGENT_SECRET_KEY>          (alternative quand vault non setup)
-  // Sans l'un ou l'autre → 403.
-  const bearer = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
-  const cronSecret = req.headers.get("x-cron-secret") ?? "";
-  const authorized =
-    (bearer && bearer === supabaseKey) ||
-    (cronSecret && agentSecret && cronSecret === agentSecret);
-  if (!authorized) {
+  // Pattern : header X-Cron-Secret = AGENT_CRON_SECRET (env edge fn = vault pg_cron).
+  // Le Bearer service_role qui était utilisé avant ne marche pas car le vault
+  // stocke le format publishable 'sb_secret_*' alors que l'env edge fn injecte
+  // le JWT 'eyJ...' — mismatch → 403 silencieux.
+  const headerSecret = req.headers.get("x-cron-secret") ?? "";
+  if (!cronSecret || headerSecret !== cronSecret) {
+    console.warn("[scheduled-tick] auth failed — header secret mismatch");
     return new Response("Forbidden", { status: 403 });
   }
 

@@ -182,7 +182,7 @@ export const POST: APIRoute = async ({ params, request }) => {
       return jsonError(`Erreur DB (membres): ${membersErr.message}`, 500);
     }
 
-    return jsonOk({ group: { id: newGroup.id, name: newGroup.name, group_jid: newGroup.group_jid, invite_link: newGroup.invite_link } }, 201);
+    return jsonOk({ group: { id: newGroup.id, name: newGroup.name, group_jid: newGroup.group_jid, invite_link: newGroup.invite_link, is_owner_channel: newGroup.is_owner_channel } }, 201);
   } catch (err: any) {
     return jsonError(`Erreur whapi: ${err.message}`, 502);
   }

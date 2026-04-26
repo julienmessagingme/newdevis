@@ -12,7 +12,7 @@ import * as read from "./read.ts";
 import * as documents from "./documents.ts";
 import * as contacts from "./contacts.ts";
 import * as scheduled from "./scheduled.ts";
-import { injectDispatcher } from "./comm.ts";
+import { injectDispatcher, injectValidToolNames } from "./comm.ts";
 
 // Interface stricte que chaque module doit respecter — un export manquant = erreur TS au build.
 interface ToolModule {
@@ -102,3 +102,7 @@ export async function executeTool(
 // d'exécuter l'expected_action via le même chemin que tous les autres tools.
 // Casse la dépendance circulaire (comm.ts → index.ts → comm.ts).
 injectDispatcher(executeTool);
+
+/** Set des noms de tools valides — utilisé pour valider expected_action.tool dans notify_owner_for_decision. */
+export const ALL_TOOL_NAMES: ReadonlySet<string> = new Set(Object.keys(handlerMap));
+injectValidToolNames(ALL_TOOL_NAMES);
