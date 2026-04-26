@@ -142,6 +142,12 @@ export const PATCH: APIRoute = async ({ params, request }) => {
       return jsonError('Statut invalide', 400);
     updates.devis_statut = body.devisStatut;
 
+    // Pose devis_validated_at à la transition vers 'valide' (idempotent : ne réécrit pas si déjà set).
+    // Sert à afficher "Validé le 26/04/2026" + lien vers le digest journal du jour.
+    if (body.devisStatut === 'valide' && !(doc as any).devis_validated_at) {
+      updates.devis_validated_at = new Date().toISOString();
+    }
+
     // Auto-remplissage du montant depuis l'analyse quand on valide un devis sans montant
     const isValidating = body.devisStatut === 'valide' || body.devisStatut === 'attente_facture';
     const docMontantCurrent = (doc as any).montant;
@@ -232,6 +238,23 @@ export const PATCH: APIRoute = async ({ params, request }) => {
       .eq('type', 'risk_detected')
       .like('source_event->>document_id', params.docId!)
       .then(() => {}).catch(() => {});
+  }
+
+  // ── Auto-sync contact.lot_id si on a changé le lot d'un devis ──
+  // Source de vérité : le devis. Si l'artisan/contact lié a un lot_id
+  // différent, on l'aligne pour garantir la cohérence (un artisan ne peut
+  // pas être déclaré "Carreleur" si son devis est dans Toiture).
+  // Match par analyse_id (lien fort) seulement — siret est plus fragile.
+  if ('lot_id' in updates && updated.document_type === 'devis' && updated.analyse_id) {
+    ctx.supabase.from('contacts_chantier')
+      .update({ lot_id: updates.lot_id ?? null })
+      .eq('chantier_id', params.id!)
+      .eq('analyse_id', updated.analyse_id)
+      .neq('lot_id', updates.lot_id ?? null)
+      .then(({ error: e }) => {
+        if (e) console.error('[api/documents] contact lot sync error:', e.message);
+      })
+      .catch(() => {});
   }
 
   // ── Lot assignment coherence check (uses document name enriched by extraction) ──

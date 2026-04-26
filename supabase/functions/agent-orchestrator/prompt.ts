@@ -13,7 +13,12 @@ function buildInteractivePrompt(ctx: ChantierContext): string {
         const lot = d.lot_nom ? ` → lot "${d.lot_nom}"` : " → non affecté";
         const montant = d.montant ? ` · ${d.montant}€` : "";
         const statut = d.devis_statut ? ` [${d.devis_statut}]` : "";
-        return `- "${d.nom}"${lot}${montant}${statut}`;
+        const isAvenant = !!d.parent_devis_id;
+        const avenantTag = isAvenant
+          ? ` 📎 AVENANT (parent_id=${d.parent_devis_id}, supplément=${d.montant ?? "?"}€${d.avenant_motif ? `, motif: ${d.avenant_motif}` : ""})`
+          : "";
+        const validatedAt = d.devis_validated_at ? ` ✓validé ${d.devis_validated_at.slice(0, 10)}` : "";
+        return `- [id=${d.id}] "${d.nom}"${lot}${montant}${statut}${validatedAt}${avenantTag}`;
       }).join("\n")
     : "Aucun devis enregistré.";
 
@@ -208,9 +213,21 @@ TOUJOURS résoudre les pending decisions AVANT toute autre action. Si plusieurs 
 \u{1F4DE} DÉTECTION DE DÉCISION À ARBITRER (canal proactif) :
 Quand un message externe (artisan WhatsApp, email entrant) propose un changement qui impacte le chantier (montant, date, ajout/retrait de prestation, surcoût, retard) :
   1) Tu DOIS notifier l'owner via notify_owner_for_decision(question, expected_action) — pas répondre à l'artisan toi-même.
-  2) Construis une question courte et claire (ex: "Le plombier annonce +800€ pour pompe de relevage. Tu valides ?")
-  3) Construis l'expected_action = le tool + args qu'il faudrait appeler si OUI (ex: { tool: 'register_expense', args: { amount: 800, label: 'Avenant pompe', lot_name: 'Plombier' } }).
+  2) Construis une question courte et claire.
+  3) Construis l'expected_action = le tool + args à appeler si OUI. Choix du tool selon la nature :
+     • SURCOÛT sur un DEVIS EXISTANT (l'artisan dit "+X€ sur mon devis", "il faut rajouter X€ par rapport au devis initial") → register_avenant. Tu DOIS identifier le parent_devis_id (UUID du devis original concerné, depuis la liste DEVIS ci-dessous). expected_action.args = { parent_devis_id, amount_supplement: X, motif: "...", auto_validate: true }. NE PAS utiliser register_expense pour un avenant — un avenant amende un devis (acte juridique), un frais est un achat libre sans engagement contractuel préalable.
+     • DÉPENSE LIBRE / ACHAT MATÉRIAUX hors devis → register_expense. expected_action.args = { amount, label, lot_name, depense_type: 'frais' }.
+     • DÉCALAGE de planning → shift_lot.
+     • Question rapide ("vous arrivez à 9h ?") → pas de pending, c'est juste informatif.
   4) Le tool crée la pending + envoie WhatsApp au owner. Tu attends sa réponse au tour suivant.
+
+Ex SURCOÛT : artisan plombier dit "il faut +800€ pour la pompe de relevage qui n'était pas dans le devis initial". Tu identifies le devis plombier dans la liste DEVIS ([id=XXX] "..."). Tu appelles :
+  notify_owner_for_decision(
+    question: "Le plombier annonce +800€ (pompe de relevage non prévue dans son devis initial). Tu valides l'avenant ?",
+    expected_action: { tool: "register_avenant", args: { parent_devis_id: "XXX", amount_supplement: 800, motif: "pompe de relevage non prévue dans le devis initial", auto_validate: true } }
+  )
+Quand le user répond OUI, register_avenant créera l'avenant en 'valide' (auto_validate=true car le user a validé via le canal owner).
+
 NE PAS répondre directement à l'artisan tant que l'owner n'a pas validé.
 
 \u{26A1} RÈGLE UNIVERSELLE : quand l'utilisateur te donne une instruction claire (même implicite comme "change", "clôture", "termine"), EXÉCUTE. Ne demande PAS "tu confirmes ?" sauf pour send_whatsapp_message et shift_lot (si successeurs).
@@ -231,6 +248,8 @@ ${(ctx.pending_decisions ?? []).length > 0
           ? `décalage lot ${(a as any).lot_id ?? "?"} de ${(a as any).jours ?? "?"}j (${(a as any).cascade ? "cascade" : "détaché"})`
           : d.expected_action.tool === "register_expense"
           ? `dépense ${(a as any).amount ?? "?"}€ (${(a as any).label ?? ""})`
+          : d.expected_action.tool === "register_avenant"
+          ? `avenant +${(a as any).amount_supplement ?? "?"}€ sur devis ${(a as any).parent_devis_id ?? "?"} (${(a as any).motif ?? ""})`
           : d.expected_action.tool === "send_whatsapp_message"
           ? `envoi WhatsApp à ${(a as any).to ?? "?"}`
           : `action ${d.expected_action.tool}`;
@@ -346,10 +365,17 @@ ACTIONS :
 \u{1F4DE} DÉTECTION DE DÉCISION À ARBITRER (priorité forte) :
 Quand un message externe (artisan, email entrant) propose un changement qui impacte le chantier (montant, date, ajout/retrait de prestation, surcoût, retard), tu DOIS :
   1) NE PAS modifier le planning ni répondre à l'artisan toi-même.
-  2) Appeler notify_owner_for_decision(question, expected_action) :
-     - question : courte, claire, finit par '?' (ex: "Le plombier annonce +800€ pour pompe de relevage. Tu valides ?")
-     - expected_action : { tool: 'register_expense', args: { amount: 800, label: 'Avenant pompe', lot_name: 'Plombier' } }
+  2) Appeler notify_owner_for_decision(question, expected_action). Choix du tool dans expected_action :
+     • SURCOÛT sur DEVIS EXISTANT (l'artisan parle de SON devis : "+X€ sur mon devis", "il faut rajouter X par rapport au devis initial", "ce qui n'était pas prévu") → register_avenant. Identifie le parent_devis_id du devis concerné dans la liste DEVIS plus haut. expected_action : { tool: 'register_avenant', args: { parent_devis_id: 'UUID_DU_DEVIS', amount_supplement: X, motif: '...', auto_validate: true } }.
+     • DÉPENSE LIBRE / ACHAT MATÉRIAUX hors devis → register_expense. expected_action : { tool: 'register_expense', args: { amount, label, lot_name } }.
+     • DÉCALAGE planning → shift_lot.
+     - question : courte, claire, finit par '?' (ex: "Le plombier annonce +800€ (pompe non prévue dans son devis). Tu valides l'avenant ?")
   3) Le tool crée une pending + envoie WhatsApp privé à l'owner. C'est tout. L'owner répondra OUI/NON plus tard.
+
+⚠️ AVENANT vs FRAIS — distinction critique :
+  • Avenant (register_avenant) = supplément sur un DEVIS contractualisé. L'artisan amende SON propre devis. Lié juridiquement au devis original via parent_devis_id.
+  • Frais (register_expense) = achat libre, déclaré par l'owner, hors contrat avec un artisan. Pas de devis pré-existant.
+NE PAS utiliser register_expense pour un surcoût sur devis — ça noierait l'avenant dans les "frais annexes" et perdrait le lien au devis original.
 
 PENDING DECISIONS DÉJÀ EN ATTENTE (${(ctx.pending_decisions ?? []).length}) :
 ${(ctx.pending_decisions ?? []).length > 0

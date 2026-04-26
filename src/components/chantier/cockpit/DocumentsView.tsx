@@ -373,6 +373,14 @@ function DocRow({ doc, lots, chantierId, token, sectionKey, onDelete, onLotChang
               {doc.montant.toLocaleString('fr-FR')} €
             </p>
           )}
+          {doc.parent_devis_id && (
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-[9px] font-bold uppercase tracking-wider text-amber-700"
+              title={doc.avenant_motif ? `Avenant — ${doc.avenant_motif}` : 'Avenant'}
+            >
+              📎 Avenant{doc.montant ? ` +${doc.montant}€` : ''}
+            </span>
+          )}
           <LotBadge doc={doc} lots={lots} onChangeLot={onLotChange} chantierId={chantierId} token={token} />
           {/* Actions mobile — inline avec meta, compactes */}
           <div className="flex sm:hidden items-center gap-0.5 ml-auto">

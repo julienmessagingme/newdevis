@@ -44,6 +44,13 @@ export interface DocumentChantier {
   updated_at: string;
   /** URL signée (TTL 1h) — injectée côté serveur au moment du listing */
   signedUrl?: string | null;
+  // ── Avenant ─────────────────────────────────────────────────────────────────
+  /** Si non null, ce devis est un AVENANT amendant le devis pointé. montant = supplément seul. */
+  parent_devis_id?: string | null;
+  /** Raison du surcoût pour les avenants (ex: "pompe de relevage non prévue"). */
+  avenant_motif?: string | null;
+  /** Timestamp de validation (posé quand devis_statut passe à 'valide'). */
+  devis_validated_at?: string | null;
 }
 
 /** Un lot de travaux persisté dans lots_chantier.

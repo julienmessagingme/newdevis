@@ -45,6 +45,12 @@ interface BudgetDevis {
   montant_acompte_echeancier?: number;
   payment_event_ids?: string[];        // IDs des payment_events payés
   pending_events?: { id: string; amount: number | null; label: string | null }[]; // events pending Échéancier
+  // ── Avenant ─────────────────────────────────────────────────────────────────
+  parent_devis_id?:    string | null;
+  parent_nom?:         string | null;
+  parent_analyse_id?:  string | null;
+  avenant_motif?:      string | null;
+  devis_validated_at?: string | null;
 }
 
 interface BudgetFacture {
@@ -789,13 +795,45 @@ function ArtisanDrawer({
             <div>
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Devis</p>
               <div className="space-y-0">
-                {lot.devis.map(d => (
+                {lot.devis.map(d => {
+                  const isAvenant = !!d.parent_devis_id;
+                  const validatedDay = d.devis_validated_at ? d.devis_validated_at.slice(0, 10) : null;
+                  return (
                   <div key={d.id} className="flex items-center justify-between py-2.5 border-b border-gray-50 last:border-0">
                     <div className="flex-1 min-w-0 mr-3">
-                      <p className="text-[12px] text-gray-800 truncate">{d.nom}</p>
+                      <p className="text-[12px] text-gray-800 truncate flex items-center gap-1.5">
+                        {isAvenant && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-[9px] font-bold uppercase tracking-wider text-amber-700 shrink-0">
+                            📎 Avenant
+                          </span>
+                        )}
+                        <span className="truncate">{d.nom}</span>
+                      </p>
+                      {isAvenant && d.parent_nom && (
+                        <p className="text-[10px] text-amber-700 mt-0.5 truncate">
+                          Sur le devis "{d.parent_nom}"
+                          {d.parent_analyse_id && (
+                            <a href={`/analyse/${d.parent_analyse_id}`} target="_blank" rel="noreferrer"
+                               className="ml-1 underline hover:text-amber-900">
+                              voir analyse VMD
+                            </a>
+                          )}
+                        </p>
+                      )}
+                      {isAvenant && d.avenant_motif && (
+                        <p className="text-[10px] text-gray-500 mt-0.5 italic truncate">Motif : {d.avenant_motif}</p>
+                      )}
                       {d.devis_statut && (
                         <p className="text-[10px] text-gray-400 mt-0.5">
                           {DEVIS_STATUT_LABEL[d.devis_statut] ?? d.devis_statut}
+                          {validatedDay && (
+                            <> · validé le {validatedDay} <a
+                              href={`/mon-chantier/${chantierId}/journal?date=${validatedDay}`}
+                              target="_blank" rel="noreferrer"
+                              className="underline text-indigo-500 hover:text-indigo-700"
+                              title="Voir le digest du jour"
+                            >📓</a></>
+                          )}
                         </p>
                       )}
                     </div>
@@ -842,7 +880,8 @@ function ArtisanDrawer({
                       )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Total devis */}

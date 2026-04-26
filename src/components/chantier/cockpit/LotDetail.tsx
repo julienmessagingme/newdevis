@@ -231,18 +231,41 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
                     <tr key={doc.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/60 transition-colors group">
                       {/* Artisan — cliquable pour ouvrir le doc */}
                       <td className="px-4 py-3.5">
-                        {doc.signedUrl ? (
-                          <a href={doc.signedUrl} target="_blank" rel="noreferrer"
-                            className="group/name flex flex-col">
-                            <span className="text-sm font-bold text-blue-700 hover:text-blue-900 underline-offset-2 hover:underline truncate max-w-[160px] transition-colors">{doc.nom}</span>
-                            <span className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1"><FileText className="h-2.5 w-2.5" /> Ouvrir le document</span>
-                          </a>
-                        ) : (
-                          <div>
-                            <p className="text-sm font-bold text-gray-900 truncate max-w-[160px]">{doc.nom}</p>
-                            <p className="text-[10px] text-gray-400 mt-0.5">{TYPE_LABELS[doc.document_type]}</p>
-                          </div>
-                        )}
+                        <div className="flex flex-col">
+                          {doc.parent_devis_id && (
+                            <span
+                              className="inline-flex items-center self-start gap-1 px-1.5 py-0.5 mb-1 rounded bg-amber-50 border border-amber-200 text-[9px] font-bold uppercase tracking-wider text-amber-700"
+                              title={doc.avenant_motif ?? 'Avenant'}
+                            >
+                              📎 Avenant{doc.montant ? ` +${doc.montant}€` : ''}
+                            </span>
+                          )}
+                          {doc.signedUrl ? (
+                            <a href={doc.signedUrl} target="_blank" rel="noreferrer"
+                              className="group/name flex flex-col">
+                              <span className="text-sm font-bold text-blue-700 hover:text-blue-900 underline-offset-2 hover:underline truncate max-w-[160px] transition-colors">{doc.nom}</span>
+                              <span className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1"><FileText className="h-2.5 w-2.5" /> Ouvrir le document</span>
+                            </a>
+                          ) : (
+                            <div>
+                              <p className="text-sm font-bold text-gray-900 truncate max-w-[160px]">{doc.nom}</p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">{TYPE_LABELS[doc.document_type]}</p>
+                            </div>
+                          )}
+                          {doc.parent_devis_id && doc.avenant_motif && (
+                            <p className="text-[10px] text-gray-500 italic mt-0.5 truncate max-w-[180px]">{doc.avenant_motif}</p>
+                          )}
+                          {doc.devis_validated_at && (
+                            <a
+                              href={`/mon-chantier/${chantierId}/journal?date=${doc.devis_validated_at.slice(0, 10)}`}
+                              target="_blank" rel="noreferrer"
+                              className="text-[10px] text-indigo-500 hover:text-indigo-700 underline mt-0.5"
+                              title="Voir le digest du jour de validation"
+                            >
+                              ✓ validé le {doc.devis_validated_at.slice(0, 10)} 📓
+                            </a>
+                          )}
+                        </div>
                       </td>
                       {/* Type */}
                       <td className="px-4 py-3.5">

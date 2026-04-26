@@ -360,7 +360,7 @@ export async function buildContext(
   // Documents list
   const { data: rawDocs } = await supabase
     .from("documents_chantier")
-    .select("id, nom, document_type, lot_id, montant, devis_statut, analyse_id, created_at")
+    .select("id, nom, document_type, lot_id, montant, devis_statut, analyse_id, parent_devis_id, avenant_motif, devis_validated_at, created_at")
     .eq("chantier_id", chantierId)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -373,6 +373,9 @@ export async function buildContext(
     montant: d.montant ?? null,
     devis_statut: d.devis_statut ?? null,
     analyse_id: d.analyse_id ?? null,
+    parent_devis_id: d.parent_devis_id ?? null,
+    avenant_motif: d.avenant_motif ?? null,
+    devis_validated_at: d.devis_validated_at ?? null,
     created_at: d.created_at,
   }));
 

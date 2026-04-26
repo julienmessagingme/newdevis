@@ -44,6 +44,12 @@ interface BudgetDevis {
   montant_acompte_echeancier: number; // paiements Échéancier payés sur ce devis
   payment_event_ids: string[];        // IDs des payment_events payés sur ce devis
   pending_events: { id: string; amount: number | null; label: string | null }[]; // events en attente (échéancier)
+  // ── Avenant ─────────────────────────────────────────────────────────────────
+  parent_devis_id: string | null;     // si non null, ce devis est un avenant : montant = supplément seul
+  parent_nom: string | null;          // nom du devis parent pour l'affichage
+  parent_analyse_id: string | null;   // analyse_id du parent (lien VMD à réutiliser)
+  avenant_motif: string | null;       // raison du surcoût
+  devis_validated_at: string | null;  // timestamp validation pour lien journal
 }
 
 interface BudgetFacture {
@@ -243,7 +249,7 @@ export const GET: APIRoute = async ({ params, request }) => {
         .order('ordre'),
       ctx.supabase
         .from('documents_chantier')
-        .select('id, nom, document_type, depense_type, lot_id, analyse_id, devis_statut, facture_statut, montant, montant_paye, payment_terms, bucket_path, created_at')
+        .select('id, nom, document_type, depense_type, lot_id, analyse_id, devis_statut, facture_statut, montant, montant_paye, payment_terms, bucket_path, parent_devis_id, avenant_motif, devis_validated_at, created_at')
         .eq('chantier_id', chantierId)
         .in('document_type', ['devis', 'facture'])
         .order('created_at', { ascending: false }),
@@ -391,6 +397,14 @@ export const GET: APIRoute = async ({ params, request }) => {
       if (url) urlMap.set(docId, url);
     }
 
+    // ── 5b. Lookup parent devis pour avenants (même si parent non rendu) ────
+    const parentLookup = new Map<string, { nom: string; analyse_id: string | null }>();
+    for (const d of docs ?? []) {
+      if (d.document_type === 'devis') {
+        parentLookup.set(d.id, { nom: d.nom, analyse_id: d.analyse_id ?? null });
+      }
+    }
+
     // ── 6. Groupage par lot ─────────────────────────────────────────────────
     const lotMap = new Map<string, BudgetLot>();
     const emptyTotaux = () => ({
@@ -447,6 +461,11 @@ export const GET: APIRoute = async ({ params, request }) => {
           montant_acompte_echeancier: evDevisPaid,
           payment_event_ids: eventsIdsByDoc[doc.id] ?? [],
           pending_events:    pendingEventsByDoc[doc.id] ?? [],
+          parent_devis_id:    (doc as any).parent_devis_id ?? null,
+          parent_nom:         (doc as any).parent_devis_id ? (parentLookup.get((doc as any).parent_devis_id)?.nom ?? null) : null,
+          parent_analyse_id:  (doc as any).parent_devis_id ? (parentLookup.get((doc as any).parent_devis_id)?.analyse_id ?? null) : null,
+          avenant_motif:      (doc as any).avenant_motif ?? null,
+          devis_validated_at: (doc as any).devis_validated_at ?? null,
         });
         bucket.totaux.devis_recus   += montant ?? 0;
         bucket.totaux.devis_valides += montant ?? 0;

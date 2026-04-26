@@ -57,6 +57,31 @@ export const ACTION_SCHEMAS: Tool[] = [
   {
     type: "function",
     function: {
+      name: "register_avenant",
+      description:
+        "Enregistre un AVENANT à un devis existant — un surcoût annoncé par l'artisan en cours de chantier (ex: 'finalement il faut +500€ pour la pompe de relevage'). " +
+        "Crée un nouveau document_chantier de type 'devis' lié au devis original via parent_devis_id. " +
+        "Le montant stocké est le SUPPLÉMENT seul (pas le total). Le devis original n'est pas muté.\n\n" +
+        "Cas d'usage : l'artisan annonce un surcoût dans un groupe WhatsApp ou un email → tu DOIS d'abord appeler `notify_owner_for_decision` " +
+        "avec expected_action={tool:'register_avenant', args:{...}} pour faire valider par le user. Quand le user répond OUI, le dispatcher exécutera ce tool automatiquement.\n\n" +
+        "Si auto_validate=true, l'avenant est créé directement avec devis_statut='valide' (cas du flow notify_owner_for_decision où le user a déjà confirmé). " +
+        "Sinon, l'avenant est créé en 'en_cours' et le user devra le valider manuellement (cas où tu l'appelles depuis un chat sans pré-validation).\n\n" +
+        "L'analyse VMD du parent reste accrochée au parent — pas besoin de la dupliquer.",
+      parameters: {
+        type: "object",
+        properties: {
+          parent_devis_id:   { type: "string", description: "UUID du devis original que cet avenant amende. Récupérable via get_chantier_data?query_type=list_documents." },
+          amount_supplement: { type: "number", description: "Montant TTC du supplément en euros (>0). Ex: 500 pour '+500€'. Toujours positif — c'est le delta, pas le total." },
+          motif:             { type: "string", description: "Raison du surcoût (ex: 'pompe de relevage non prévue dans le devis initial'). Court mais explicite." },
+          auto_validate:     { type: "boolean", description: "Si true, crée directement avec devis_statut='valide' et pose devis_validated_at=now(). Défaut false (en_cours)." },
+        },
+        required: ["parent_devis_id", "amount_supplement", "motif"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "register_expense",
       description: "Enregistre une dépense (ticket de caisse / achat matériaux / frais déclaré) sans upload de fichier. L'entrée est créée comme si un ticket avait été scanné.\n\n⚠️ RÈGLE STRICTE : si l'utilisateur dit \"j'ai dépensé X€\" sans préciser le lot, tu DOIS lui demander en TEXTE (sans appeler ce tool) : \"Pour quel lot cette dépense ?\". Si le user répond \"aucun / divers / pas de lot particulier\", passe `lot_name: \"Divers\"` et le tool créera ou réutilisera automatiquement le lot Divers.\n\nNe pas appeler sans `lot_id` OU `lot_name`.",
       parameters: {
@@ -270,6 +295,89 @@ export const handlers: Record<string, Handler> = {
       total_paye_now: isFullPayment ? facture.montant : newMontantPaye,
       restant_apres: isFullPayment ? 0 : restant - amount,
       date_paid: typeof args.date_paid === "string" ? args.date_paid : new Date().toISOString().slice(0, 10),
+    });
+  },
+
+  register_avenant: async ({ chantierId, args }) => {
+    const parentId = String(args.parent_devis_id ?? "").trim();
+    const supplement = Number(args.amount_supplement ?? 0);
+    const motif = String(args.motif ?? "").trim();
+    const autoValidate = args.auto_validate === true;
+
+    if (!parentId || !Number.isFinite(supplement) || supplement <= 0 || !motif) {
+      return JSON.stringify({
+        ok: false,
+        error: "parent_devis_id, amount_supplement (>0) et motif requis",
+      });
+    }
+
+    const sb = supabaseAdmin();
+
+    // 1. Vérifie que le parent existe, appartient au chantier, et est un devis.
+    const { data: parent, error: pErr } = await sb
+      .from("documents_chantier")
+      .select("id, chantier_id, document_type, lot_id, nom, montant, parent_devis_id")
+      .eq("id", parentId)
+      .single();
+    if (pErr || !parent) {
+      return JSON.stringify({ ok: false, error: "Devis parent introuvable" });
+    }
+    if (parent.chantier_id !== chantierId) {
+      return JSON.stringify({ ok: false, error: "Devis parent d'un autre chantier" });
+    }
+    if (parent.document_type !== "devis") {
+      return JSON.stringify({ ok: false, error: `parent_devis_id n'est pas un devis (type=${parent.document_type})` });
+    }
+    // Anti-chaînage : un avenant ne peut pas avoir d'avenant. On rattache toujours à la racine.
+    const rootId = parent.parent_devis_id ?? parent.id;
+
+    // 2. Insertion avenant : montant = supplement seul, lot hérité, parent = root.
+    //    bucket_path est requis NOT NULL — on génère un chemin virtuel unique
+    //    car l'avenant n'a pas de fichier physique uploadé (déclaration agent).
+    const virtualPath = `agent-virtual/${chantierId}/avenant-${crypto.randomUUID()}`;
+    const labelParent = parent.nom ? String(parent.nom).slice(0, 60) : "devis";
+    const avenantNom = `Avenant +${supplement}€ — ${labelParent}`;
+
+    const insertPayload: Record<string, unknown> = {
+      chantier_id:     chantierId,
+      lot_id:          parent.lot_id ?? null,
+      document_type:   "devis",
+      source:          "agent_avenant",
+      nom:             avenantNom,
+      nom_fichier:     `${avenantNom}.virtual`,
+      bucket_path:     virtualPath,
+      montant:         supplement,
+      parent_devis_id: rootId,
+      avenant_motif:   motif,
+      devis_statut:    autoValidate ? "valide" : "en_cours",
+    };
+    if (autoValidate) {
+      insertPayload.devis_validated_at = new Date().toISOString();
+    }
+
+    const { data: inserted, error: insErr } = await sb
+      .from("documents_chantier")
+      .insert(insertPayload)
+      .select("id, nom, montant, devis_statut, parent_devis_id, avenant_motif, devis_validated_at, lot_id, created_at")
+      .single();
+
+    if (insErr || !inserted) {
+      return JSON.stringify({ ok: false, error: `insert avenant: ${insErr?.message ?? "unknown"}` });
+    }
+
+    return JSON.stringify({
+      ok: true,
+      avenant_id:        inserted.id,
+      parent_devis_id:   rootId,
+      parent_montant:    parent.montant,
+      supplement,
+      total_amende:      Number(parent.montant ?? 0) + supplement,
+      motif,
+      devis_statut:      inserted.devis_statut,
+      validated_at:      inserted.devis_validated_at,
+      message: autoValidate
+        ? `Avenant +${supplement}€ créé et validé sur le devis "${labelParent}". Total amendé : ${Number(parent.montant ?? 0) + supplement}€.`
+        : `Avenant +${supplement}€ créé en attente de validation sur le devis "${labelParent}".`,
     });
   },
 

@@ -142,6 +142,12 @@ export interface ChantierContext {
     devis_statut: string | null;
     created_at: string;
     analyse_id: string | null;
+    /** Si non null, ce devis est un AVENANT amendant le devis pointé. montant = supplément seul. */
+    parent_devis_id: string | null;
+    /** Raison du surcoût pour les avenants (ex: "pompe de relevage non prévue"). */
+    avenant_motif: string | null;
+    /** Timestamp posé quand devis_statut passe à 'valide'. */
+    devis_validated_at: string | null;
   }>;
   /** Historique de conversation (mode interactive uniquement) */
   conversation_history: AssistantMessage[];

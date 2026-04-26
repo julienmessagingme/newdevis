@@ -344,6 +344,14 @@ export default function IntervenantsListView({
                             {isSelected && (
                               <span className="text-emerald-500 text-[10px] font-bold shrink-0">✓</span>
                             )}
+                            {doc.parent_devis_id && (
+                              <span
+                                className="inline-flex items-center px-1 py-0.5 rounded bg-amber-50 border border-amber-200 text-[8px] font-bold uppercase tracking-wider text-amber-700 shrink-0"
+                                title={doc.avenant_motif ?? 'Avenant'}
+                              >
+                                📎 Avenant
+                              </span>
+                            )}
                             {doc.signedUrl ? (
                               <a href={doc.signedUrl} target="_blank" rel="noreferrer"
                                 className="text-sm text-blue-700 hover:text-blue-900 hover:underline truncate max-w-[190px] flex items-center gap-1">
@@ -360,7 +368,20 @@ export default function IntervenantsListView({
                               <span className="text-sm text-gray-700 truncate max-w-[190px]">{doc.nom}</span>
                             )}
                           </div>
-                          <span className="text-[10px] text-gray-400 mt-0.5">{fmtDate(doc.created_at)}</span>
+                          {doc.parent_devis_id && doc.avenant_motif && (
+                            <span className="text-[10px] text-amber-700 italic truncate max-w-[260px]">Motif : {doc.avenant_motif}</span>
+                          )}
+                          <span className="text-[10px] text-gray-400 mt-0.5">
+                            {fmtDate(doc.created_at)}
+                            {doc.devis_validated_at && (
+                              <> · validé le {doc.devis_validated_at.slice(0, 10)} <a
+                                href={`/mon-chantier/${chantierId}/journal?date=${doc.devis_validated_at.slice(0, 10)}`}
+                                target="_blank" rel="noreferrer"
+                                className="underline text-indigo-500 hover:text-indigo-700"
+                                title="Voir le digest du jour"
+                              >📓</a></>
+                            )}
+                          </span>
                           </div>
                         </div>
 
