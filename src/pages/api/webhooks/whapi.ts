@@ -20,45 +20,21 @@ async function handleWaPhoto(
   groupId: string,
 ): Promise<void> {
   const msgId: string = msg.id;
-  let mediaUrl: string | null = msg.image?.link ?? null;
-  let caption: string | null = msg.image?.caption ?? null;
-  let mimeType: string = msg.image?.mimetype ?? 'image/jpeg';
+  const mediaId: string | null = msg.image?.id ?? null;
+  const mediaUrl: string | null = msg.image?.link ?? null;
+  const caption: string | null = msg.image?.caption ?? null;
+  const mimeType: string = msg.image?.mimetype ?? 'image/jpeg';
 
-  // Whapi peut envoyer un event 'image' SANS image.link rempli (race entre
-  // notification et upload media côté whapi). Dans ce cas on refetch le message
-  // via l'API REST whapi qui renvoie le link à jour.
-  // Sans ça, la photo est perdue → bug observé 2026-04-26.
-  if (!mediaUrl && whapiToken) {
-    try {
-      const refetch = await fetch(`https://gate.whapi.cloud/messages/${encodeURIComponent(msgId)}`, {
-        headers: { Authorization: `Bearer ${whapiToken}` },
-      });
-      if (refetch.ok) {
-        const data: any = await refetch.json();
-        const m = data?.message ?? data;
-        mediaUrl = m?.image?.link ?? mediaUrl;
-        caption  = caption ?? m?.image?.caption ?? null;
-        mimeType = m?.image?.mimetype ?? mimeType;
-      } else {
-        console.warn(`[whapi:photo] refetch /messages/${msgId} HTTP ${refetch.status}`);
-      }
-    } catch (err) {
-      console.error('[whapi:photo] refetch error:', err instanceof Error ? err.message : err);
-    }
-  }
-
-  if (!mediaUrl) {
-    console.error(`[whapi:photo] no media link for msg ${msgId} (even after refetch) — photo lost`);
+  // Stratégie de download :
+  //   1. Si image.link présent (cas normal) → fetch directement.
+  //   2. Sinon si image.id présent → GET /media/{image.id} (endpoint whapi dédié,
+  //      retourne les bytes directement). C'est le fallback robuste documenté
+  //      par whapi (cf. https://support.whapi.cloud/help-desk/receiving/http-api/
+  //      how-to-retrieve-files.md). Sans ça, photo perdue quand whapi n'a pas
+  //      encore peuplé image.link au moment du webhook (bug 2026-04-26).
+  if (!mediaUrl && !mediaId) {
+    console.error(`[whapi:photo] no media link nor media id for msg ${msgId} — photo lost`);
     return;
-  }
-
-  // Patch la row chantier_whatsapp_messages avec le media_url retrouvé
-  // pour que l'UI Messagerie le voie aussi (sinon elle reste avec media_url=null).
-  if (msg.image?.link == null) {
-    await supabase
-      .from('chantier_whatsapp_messages')
-      .update({ media_url: mediaUrl })
-      .eq('id', msgId);
   }
 
   const senderPhone: string = String(msg.from ?? '').replace(/^\+/, '');
@@ -74,17 +50,31 @@ async function handleWaPhoto(
   const lots: Array<{ id: string; nom: string }> = lotsRes.data ?? [];
   if (!userId) return; // chantier not found
 
-  // 2. Download image from whapi (temporary URL, valid a few minutes)
+  // 2. Download image — priorité au CDN whapi (image.link), fallback sur l'API
+  //    /media/{image.id} qui retourne les bytes directement quand le link n'est
+  //    pas dispo dans le payload webhook.
   let imageBytes: ArrayBuffer;
   try {
-    const fetchRes = await fetch(mediaUrl, {
+    const downloadUrl = mediaUrl ?? `https://gate.whapi.cloud/media/${encodeURIComponent(mediaId!)}`;
+    const fetchRes = await fetch(downloadUrl, {
       headers: whapiToken ? { Authorization: `Bearer ${whapiToken}` } : {},
     });
-    if (!fetchRes.ok) throw new Error(`HTTP ${fetchRes.status}`);
+    if (!fetchRes.ok) throw new Error(`HTTP ${fetchRes.status} on ${mediaUrl ? 'CDN' : 'media-api'}`);
     imageBytes = await fetchRes.arrayBuffer();
+    if (imageBytes.byteLength === 0) throw new Error('empty body');
   } catch (err) {
     console.error('[whapi:photo] download error:', err instanceof Error ? err.message : err);
     return;
+  }
+
+  // Patch la row chantier_whatsapp_messages avec le media_url récupéré pour
+  // que l'UI Messagerie ait quelque chose à afficher (l'event webhook initial
+  // l'avait à null si le link n'était pas dispo).
+  if (!mediaUrl && mediaId) {
+    await supabase
+      .from('chantier_whatsapp_messages')
+      .update({ media_url: `https://gate.whapi.cloud/media/${mediaId}` })
+      .eq('id', msgId);
   }
 
   // 3. Upload to Storage — path: {user_id}/{chantier_id}/wa_{msgId}.{ext}
