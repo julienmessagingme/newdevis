@@ -100,24 +100,63 @@ Chaque analyse VMD insère une ligne dans `price_observations` (anonymisée, ave
 
 ---
 
-## 1. Création d'un chantier
+## 1. Création d'un chantier — phase Conception
 
 Accès : **/mon-chantier/nouveau**
 
-- **Description libre du projet** : on tape "rénovation maison 120m² avec piscine et terrasse" → l'IA détecte automatiquement les éléments (piscine, terrasse, extension, cuisine, SDB, etc.)
-- **Mode de création** : guidé (formulaire pas à pas) ou libre (texte naturel)
-- **Questions de qualification IA** : pour chaque élément détecté, l'IA pose les questions clés (surface, matériau, état actuel, ambition de rénovation)
-- **Génération progressive** affichée en 5 étapes :
-  1. Analyse du projet — identification des travaux
-  2. Structure & planning — création de la roadmap avec lots chaînés / parallèles selon dépendances métier
-  3. Budget estimatif par poste — fourchettes min/avg/max avec niveau de fiabilité (haute / moyenne / faible)
-  4. Formalités & artisans — normes applicables, permis, types d'artisans recommandés
-  5. Checklist & aides — démarches administratives, aides financières éligibles
-- **Résultat** : chantier complet avec lots, planning CPM, budget prévisionnel, checklist, prêt à l'emploi.
+> **Pain résolu** : aujourd'hui un particulier qui se lance dans une rénovation passe **15-30h sur internet** à essayer de comprendre quels lots il faut, dans quel ordre, combien ça coûte vraiment, quels artisans contacter, et quelles formalités sont obligatoires. Beaucoup démarrent à l'aveugle, sous-estiment le budget de 30-50%, et abandonnent en cours de route.
+>
+> **Avantage marché** : aucun outil grand public ne fait du **chiffrage prédictif IA + planification CPM + checklist formalités** en 60 secondes depuis un simple texte libre. Travaux.com / Habitatpresto / Constructeurs n'offrent que de la mise en relation. Notre concurrence indirecte (Excel, Trello, Notion templates) demande au user de tout saisir lui-même.
+
+### Étape 1 — Choix du mode de gestion (`ScreenModeSelection`)
+3 modes au choix (impacte les prompts IA et le dashboard) :
+- 🟦 **Guidé** — pédagogique pas-à-pas, conseils détaillés, idéal premier chantier
+- 🟧 **Flexible** — dashboard complet, pour utilisateurs expérimentés (auto-promoteur, famille déjà au 2e/3e chantier)
+- 🟪 **Investisseur** — focus trésorerie et rentabilité, métriques financières (loyer/m², ROI, valorisation patrimoniale)
+
+### Étape 2 — Description libre du projet (`ScreenPrompt`)
+Champ texte naturel : *"rénovation maison 120m² avec piscine enterrée et terrasse bois 30m²"*. L'IA détecte automatiquement les éléments via un mapping de keywords (~60 patterns piscine/extension/cuisine/SDB/façade/toiture/etc.) et **pré-remplit déjà des fourchettes budget min/max + durée par élément** AVANT même de demander des précisions.
+
+Exemples :
+- `piscine enterrée` → 25-45k€, 8 semaines
+- `pool house` → 15-35k€, 6 semaines
+- `cuisine équipée 12m²` → 8-25k€, 3 semaines
+
+### Étape 3 — Qualification IA (`ScreenQualification`)
+Pour chaque élément détecté, l'IA pose **4-5 questions ciblées** (Gemini 2.5-flash) qui réduisent l'incertitude budget :
+- Surface précise (m²) → divise par 2 la fourchette typique
+- Matériau (gamme entrée/intermédiaire/premium) → ajuste de ±30%
+- État actuel (à neuf / rénovation lourde / rafraîchissement) → -20% à +40%
+- Ambition (basique / standard / haut de gamme) → ±15%
+- Localisation précise (code postal) → coefficient régional ×0.8 à ×1.3
+
+3 questions FIXES sont aussi injectées si non détectées : `budget_tranche`, `date_debut`, `code_postal`. Sans ces 3, la fiabilité tombe à "faible".
+
+### Étape 4 — Génération progressive (`ScreenGenerating`)
+5 étapes affichées en temps réel à l'utilisateur (rassurant, augmente le sentiment de valeur) :
+1. **Analyse du projet** — identification des travaux concrets
+2. **Structure & planning** — création de la roadmap CPM avec lots chaînés (Maçon → Élec/Plombier en parallèle → Plaquiste → Carreleur → Peinture)
+3. **Budget estimatif par poste** — fourchettes min/avg/max avec **niveau de fiabilité** (haute / moyenne / faible) calculé sur 5 signaux extraits de la description (cf. § 1bis)
+4. **Formalités & artisans** — normes applicables (RT2012/RE2020, NF DTU, RGE), permis nécessaires (déclaration préalable / permis de construire / Consuel), types d'artisans recommandés
+5. **Checklist & aides** — démarches administratives détaillées avec liens .gouv.fr, aides financières éligibles avec montants estimés
+
+### Étape 5 — Wow (`ScreenWow`)
+Affichage animé des stats clés du projet généré : budget total, durée totale, nombre de lots, nombre d'artisans à contacter, nombre de formalités. **Effet "wow" pour transformer le visiteur en utilisateur engagé** avant la sauvegarde.
+
+### Étape 6 — Sauvegarde + accès dashboard
+- INSERT `chantiers` + `lots_chantier` (avec planning CPM) + `todo_chantier` (checklist)
+- Redirection vers `/mon-chantier/[id]` (cockpit complet)
+
+### Résultat
+Chantier complet en moins de **5 minutes** au lieu de 15-30h de recherche. **Budget prévisionnel calibré** par notre dataset (cf. § 1bis) plutôt que des estimations en l'air. **Planning CPM réaliste** avec dépendances métier. **Checklist administrative** pour ne rien oublier. **Prêt à l'emploi** : il ne reste plus qu'à demander les devis aux artisans (lots déjà créés, types détectés, contact à faire).
 
 ---
 
 ## 1bis. Comment l'IA détermine le budget à la création
+
+> **Pain résolu** : un particulier moyen sous-estime son budget travaux de **30-50%** parce qu'il oublie les coûts cachés (préparation, déchets, frais fixes par poste, finition) et utilise des prix au m² trouvés sur des forums datés. Conséquence : il signe un devis qu'il ne peut pas honorer ou il découvre en cours de chantier qu'il ne peut pas finir.
+>
+> **Avantage marché** : on est l'une des seules plateformes grand public à brancher l'estimation budget sur **un dataset réel et vivant** (270+ entrées catalogue prix + big data des analyses VMD passées) plutôt que des moyennes statiques. Calculé en temps réel avec coefficient géographique. Intégré au flux de création — pas un simulateur séparé.
 
 Le budget prévisionnel n'est pas saisi à la main — il est estimé par l'IA à partir de la description du projet, puis affiné par lot avec un indicateur de fiabilité.
 
@@ -202,6 +241,10 @@ Chronologie horizontale, 1 barre par lot, durée totale du chantier visible. Cli
 
 ## 4. Onglet **Budget & Trésorerie**
 
+> **Pain résolu** : 70% des chantiers de rénovation dérapent en coût ET en délai. Le particulier découvre les dépassements **trop tard** (à la facture finale) parce qu'il pilote dans Excel sans vue agrégée. Il ne sait pas si la trésorerie passera dans 3 semaines, ni si une aide MaPrimeRénov est en retard. Stress permanent.
+>
+> **Avantage marché** : 4 vues qui dialoguent ensemble (Budget, Cashflow, Plan financement, Échéancier prédictif) — vs Excel ou Notion qui demandent au user de tout maintenir. Alimentation **automatique** : devis uploadé via VMD → engagé. Facture analysée → facturé. Paiement déclaré au chat IA → payé. Le user clique 0 fois pour avoir une vue à jour.
+
 Quatre vues complémentaires (sous-onglets internes).
 
 ### A. Vue Budget — tableau par lot/artisan
@@ -235,6 +278,10 @@ Quatre vues complémentaires (sous-onglets internes).
 - Bandeaux IA : tension détectée, retards, déblocages à relancer
 
 ### E. Aides énergétiques (MaPrimeRénov' / CEE / Éco-PTZ)
+
+> **Pain résolu** : les aides sont éclatées sur 5+ sites (france-renov, ANAH, Effy, ADEME, son fournisseur d'énergie). Calcul complexe (tranche revenu × type travaux × statut occupant). 60% des particuliers éligibles à MaPrimeRénov ne la demandent pas par méconnaissance ou complexité.
+>
+> **Avantage marché** : simulateur en 3 étapes intégré au flux Budget → import direct dans le plan de financement. Pas un outil séparé. Couvre les 3 dispositifs principaux + tranches MPR à jour 2026.
 
 Simulateur intégré pour estimer les aides État disponibles selon les travaux réalisés. Accès depuis le panneau "Plan de financement" → carte "Aides".
 
@@ -293,6 +340,10 @@ Bouton **"Importer ces aides"** : pré-remplit la carte "Aides" du plan de finan
 ---
 
 ## 5. Onglet **Planning**
+
+> **Pain résolu** : un chantier sans planning visuel = retards en cascade non anticipés. Le particulier appelle le plombier le matin pour découvrir que le maçon n'a pas fini → décalage non programmé → carreleur arrive dans la maison sans préparation. Coût caché énorme (artisans payés à se déplacer pour rien, journées d'attente).
+>
+> **Avantage marché** : Gantt drag-and-drop **avec recalcul CPM en temps réel** (algorithme MS Project / Primavera, normalement réservé aux pros BTP). Multi-parent : "Plaquiste démarre quand Plombier ET Élec ont fini". L'agent IA peut aussi le modifier à la voix dans le chat ("décale plombier d'1 semaine"). Aucun outil grand public ne fait ça.
 
 Gantt interactif basé sur la méthode CPM (Critical Path Method).
 
@@ -376,6 +427,10 @@ Carnet du chantier — sources unifiées (manuels + extraits des devis/factures)
 
 ## 9. Onglet **Messagerie**
 
+> **Pain résolu** : un chantier moyen = 5-10 artisans + 2-3 fournisseurs + architecte + maître d'œuvre + admin. Soit 100+ messages par semaine éparpillés sur WhatsApp perso, SMS, mail Gmail, devis Facebook Messenger. Le particulier perd des trucs critiques (devis non répondu, RDV oublié, photo perdue).
+>
+> **Avantage marché** : tout dans **une boîte unique liée au chantier**. WhatsApp pro via whapi (vrais groupes WhatsApp + accusés de lecture), email avec reply-to dédié SendGrid (réponses arrivent direct dans le thread). Templates pré-rédigés par cas (relance devis, demande facture, etc.). Aucun concurrent grand public n'offre ça.
+
 Centralise les emails et WhatsApp du chantier.
 
 ### Email (SendGrid)
@@ -414,6 +469,10 @@ Mémoire long-terme du chantier — un digest IA par jour, en livre.
 
 ## 11. Onglet **Assistant chantier**
 
+> **Pain résolu** : pendant un chantier le particulier a 50+ questions urgentes ("le plombier dit qu'il faut +800€, je valide ?", "je peux décaler l'élec d'1 semaine sans casser le planning ?", "j'ai claqué 200€ chez Leroy Merlin, où je le note ?"). Personne pour répondre, ou un proche bricoleur sollicité 10x/jour. Décisions prises au feeling avec angoisse.
+>
+> **Avantage marché** : véritable copilote IA qui **connaît le chantier en profondeur** (planning, budget, contacts, messages reçus, photos). Peut PRENDRE des actions (décaler le planning, créer une facture, envoyer un WhatsApp à l'artisan) — pas juste répondre. Channel WhatsApp privé pour notifs proactives même quand l'app est fermée. Aucun équivalent grand public.
+
 Centre de discussion avec l'IA + traçabilité de ses actions. Layout 2 colonnes (desktop) ou empilé (mobile).
 
 ### Colonne gauche — Chat IA
@@ -439,6 +498,156 @@ Centre de discussion avec l'IA + traçabilité de ses actions. Layout 2 colonnes
 - *"Quand commence le maçon ?"* → l'IA va chercher la donnée fraîche dans la DB et répond
 - *"Mets l'électricien à la suite du plaquiste"* → l'IA modifie les dépendances + lane visuelle, le Gantt se met à jour
 - *"Le carrelage est fini, voici les photos"* → upload photos, l'IA propose de marquer le lot terminé
+
+---
+
+## 11bis. Les agents IA — qui fait quoi sous le capot
+
+Pour les agents marketing qui doivent comprendre **précisément** ce que fait chaque brique IA, ses inputs, ses outputs et son moment de déclenchement.
+
+> **Pain résolu** : "IA" est un mot fourre-tout. Le particulier ne sait pas si "agent IA chantier" = un chatbot type ChatGPT ou autre chose. Il faut lui expliquer concrètement ce que ça lui apporte vs un assistant générique.
+>
+> **Avantage marché** : on ne déploie pas UN agent IA, on en a **5 spécialisés**, chacun branché sur un événement précis. Aucun concurrent grand public n'a cette architecture.
+
+### Agent 1 — `analyze-quote` (pipeline d'analyse VMD)
+**Quand il tourne** : à chaque upload d'un devis dans VerifierMonDevis OU dans GérerMonChantier.
+
+**Ce qu'il fait, étape par étape** :
+1. **OCR** : extraction du texte du PDF/image (Gemini 2.5-flash, ~5s)
+2. **Parsing** : structure les lignes en JSON (description, quantité, unité, prix unitaire HT, total HT) en COPIANT mot pour mot le devis (pas de réécriture)
+3. **Vérification entreprise** (Phase 2, 100% APIs publiques, pas d'IA) : recherche-entreprises.api.gouv.fr (identité, statut juridique, date création), data.economie.gouv.fr (ratios INPI : CA, résultat net, endettement, autonomie financière), Google Places (note + nb avis), ADEME RGE (qualifications RGE si travaux énergie), OpenIBAN (validation IBAN si fourni), Géorisques (zone risques)
+4. **Groupement IA des lignes par job_type** : Gemini 2.0-flash regroupe les 20-50 lignes du devis en 3-7 groupes métier (carrelage, plomberie, électricité, etc.) en matchant contre notre catalogue `market_prices` (~270 entrées validées)
+5. **Comparaison prix marché** : pour chaque groupe, calcule le prix théorique attendu (min/avg/max ajusté géographiquement) vs ce que le devis propose. Verdict 🟢 / 🟡 / 🔴.
+6. **Scoring final** : agrège vérifications entreprise + cohérence prix + complétude + clauses légales en une note de fiabilité
+
+**Output** : objet `analyses` complet avec score, lignes parsées, vérifications, verdict prix, recommandations actions.
+
+**Modèle utilisé** : Gemini 2.5-flash pour extraction, Gemini 2.0-flash pour groupement (le 2.5 invente des codes catalogue, c'est documenté dans CLAUDE.md "Pièges connus").
+
+---
+
+### Agent 2 — `chantier-generer` (génération initiale du chantier)
+**Quand il tourne** : à la fin du flow de création (`/mon-chantier/nouveau`), après que l'utilisateur a répondu aux questions de qualification.
+
+**Ce qu'il fait** :
+1. Reçoit la description du projet + les réponses de qualification
+2. Génère un JSON complet avec :
+   - **Liste des lots** (Maçon / Plombier / Élec / Plaquiste / Carreleur / etc.) avec rôle, durée, dépendances entre lots, ordre planning
+   - **Budget par poste** : min/avg/max HT, avec niveau de fiabilité (haute/moyenne/faible)
+   - **Formalités** : permis nécessaires, normes applicables, types d'artisans recommandés (avec mention RGE si pertinent)
+   - **Checklist** : tâches admin à faire dans l'ordre (déclaration préalable, devis à demander, signature contrat, ouverture compteur, etc.)
+   - **Aides éligibles** : MaPrimeRénov estimation, CEE, Éco-PTZ
+3. Le résultat est sauvegardé en DB et l'utilisateur arrive sur le cockpit avec tout pré-rempli.
+
+**Modèle utilisé** : Gemini 2.5-flash (raisonnement nécessaire pour structurer un projet complet).
+
+**Source des prix** : catalogue `market_prices` (mutualisé avec VMD) + coefficients géographiques par code postal.
+
+---
+
+### Agent 3 — `chantier-qualifier` (questions intelligentes en création)
+**Quand il tourne** : juste après la description libre du projet, avant la génération du chantier.
+
+**Ce qu'il fait** :
+- Lit la description du user
+- Génère **4-5 questions ciblées et contextuelles** qui maximiseront la précision du budget
+- Exemples : si l'utilisateur dit "rénovation cuisine" → questions sur la surface, la gamme matériaux, l'état actuel (à neuf vs rafraîchissement), si la plomberie est à reprendre, si on bouge l'évier
+- Injecte automatiquement 3 questions FIXES si elles ne sont pas dans la description : budget cible, date début souhaitée, code postal
+
+**Output** : tableau de 4-8 questions structurées (label + type input + suggestions de réponses).
+
+---
+
+### Agent 4 — `agent-checks` (alertes déterministes, $0 — pas de LLM)
+**Quand il tourne** : à chaque upload de document dans un chantier (fire-and-forget, ne bloque pas l'upload).
+
+**Ce qu'il fait** : **pas d'IA, juste 7 checks SQL déterministes** sur l'état du chantier :
+1. **Budget overrun** : somme devis validés > budget cible × 1.1 ?
+2. **Paiements en retard** : facture statut `recue` avec `due_date < now() - 7j` ?
+3. **Lots sans devis** : lot avec aucun document `devis` rattaché depuis création > 14j ?
+4. **Facture en litige** : statut `en_litige` non résolu depuis 7j ?
+5. **Budget global** : somme engagée + factures > budget cible ?
+6. **Devis à relancer** : devis statut `en_cours` depuis > 14j sans réponse ?
+7. **Preuve manquante** : facture `payee` sans document `preuve_paiement` rattaché ?
+
+**Output** : INSERT dans `agent_insights` avec sévérité info/warning/critical. Idempotent (dédup unique sur `(chantier_id, title, day)`).
+
+**Coût** : 0€ (pas de LLM). Tourne très souvent.
+
+---
+
+### Agent 5 — `agent-orchestrator` (Pilote de Chantier — **LE** copilote)
+**Quand il tourne** :
+- À chaque **message WhatsApp** reçu dans un groupe du chantier (mode `morning`)
+- À chaque **email entrant** dans une conversation du chantier (mode `morning`)
+- À chaque **upload + extraction IA d'un document** (mode `morning`, après `extract-invoice`/`describe`)
+- À chaque **affectation de lot** sur un document (mode `morning`)
+- Tous les soirs à **19h Paris** (cron, mode `evening`) — digest quotidien
+- À chaque **message du user dans le chat assistant** (mode `interactive`)
+- À chaque **message du user dans son canal WhatsApp privé** (mode `interactive` avec historique restauré)
+
+**Ce qu'il fait** :
+1. Construit un contexte fresh : lots avec dates/budget/contact, messages récents (WhatsApp + email + photos), tâches, alertes, frais déclarés, devis pending, paiements en retard, contacts, groupes WhatsApp, **pending decisions en attente**, **reminders programmés**
+2. Envoie le contexte + le user message + le system prompt à Gemini 2.5-flash avec function calling
+3. Gemini décide quel(s) tool(s) appeler — boucle jusqu'à 8 rounds OU 30 000 completion tokens
+4. Pour chaque tool call : exécute via le dispatcher (`tools/index.ts`), enregistre le résultat
+5. Persiste en DB : message assistant + tool_calls dans `chantier_assistant_messages`, run dans `agent_runs`, alertes éventuelles dans `agent_insights`
+
+**Tools dont il dispose** : 17+ tools couvrant lecture (planning, budget, contacts, photos, messages), planning (shift, arrange, durée, dépendances), statuts (lot, devis), tâches (création, complétion), finance (frais, paiement, échéance), communication (WhatsApp, email, canal owner privé), décisions à arbitrer (`notify_owner_for_decision` + `resolve_pending_decision`), rappels (`schedule_reminder`, `cancel_reminder`).
+
+**Différence par mode** :
+- `morning` : tools "action irréversibles" bloqués (envoi WhatsApp/email à un tiers, marquage lot terminé). Mais **`notify_owner_for_decision` est dispo en morning** — clé du workflow "décision à arbitrer".
+- `evening` : idem morning + génère un digest markdown ajouté au journal de chantier
+- `interactive` : tous les tools dispo, dialogue multi-tour avec confirmations explicites
+
+**Modèle** : Gemini 2.5-flash (function calling robuste, contexte 1M).
+
+---
+
+### Agent 6 — `agent-scheduled-tick` (cron rappels programmés)
+**Quand il tourne** : automatiquement toutes les 15 minutes (cron pg_cron).
+
+**Ce qu'il fait** :
+1. Récupère atomiquement (RPC SQL `claim_pending_reminders` avec `FOR UPDATE SKIP LOCKED`) les rappels programmés dont la date est dépassée
+2. Pour chaque rappel :
+   - Cherche le canal WhatsApp privé du chantier (`is_owner_channel = true`)
+   - Si pas de canal → marque `failed` avec raison claire
+   - Sinon → envoie le message WhatsApp `⏰ Rappel : {texte}` au user
+   - Met à jour le statut (`fired` / `failed`) + log du résultat
+3. Process en parallèle (batches de 8) pour éviter le timeout edge function 60s
+
+**Pas de LLM** : c'est juste un délivreur. Coût : 0€.
+
+---
+
+### Agent 7 — `extract-invoice` / `describe` / `parse-quote` (utilitaires Vision IA)
+**Quand ils tournent** :
+- `extract-invoice` : à l'upload d'une facture
+- `describe` : à l'upload d'une photo / plan / attestation (Gemini Vision auto-décrit le contenu)
+- `parse-quote` : variante allégée de `analyze-quote` pour parsing structuré rapide
+
+**Ce qu'ils font** : extraction OCR ciblée, retour structuré (montant facture, description photo, etc.). Permet à l'agent orchestrator de raisonner sur les uploads sans avoir à les voir lui-même.
+
+**Modèles** : Gemini Vision pour `describe`, Gemini 2.5-flash pour `extract-invoice`.
+
+---
+
+### Récap qui tourne quand
+
+| Événement | Agent déclenché | Mode | Coût LLM |
+|---|---|---|---|
+| Upload devis | `analyze-quote` (full pipeline) | sync | ~$0.005 |
+| Upload facture | `extract-invoice` + `agent-checks` + `orchestrator` | async | ~$0.001 |
+| Upload photo / plan | `describe` (Vision) + `orchestrator` | async | ~$0.002 |
+| Création chantier | `chantier-qualifier` + `chantier-generer` | sync | ~$0.01 |
+| Message WhatsApp groupe artisan | `orchestrator` mode morning | async | ~$0.003 |
+| Message WhatsApp canal owner privé | `orchestrator` mode interactive | async | ~$0.005 |
+| Email entrant | `orchestrator` mode morning | async | ~$0.003 |
+| Chat user dans Assistant | `orchestrator` mode interactive | sync | ~$0.005 |
+| 19h Paris quotidien | `orchestrator` mode evening (tous chantiers actifs) | cron | ~$0.003/chantier |
+| Toutes les 15min | `agent-scheduled-tick` (rappels dus) | cron | $0 |
+
+**Coût estimé moyen** : ~0,10€ par chantier actif par mois en mode normal. Beaucoup moins cher que le concurrent humain (un assistant chantier = 30-80€/h).
 
 ---
 

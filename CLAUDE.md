@@ -8,9 +8,10 @@ Ce fichier = **règles + pièges + décisions récentes** pour ne pas casser qua
 
 | Tu cherches… | Fichier |
 |---|---|
-| **Ce que l'utilisateur peut faire** (features prod, point de vue user) | [`FEATURES.md`](FEATURES.md) |
+| **Ce que l'utilisateur peut faire** (features prod + pain résolu + avantage marché + détail des 7 agents IA) | [`FEATURES.md`](FEATURES.md) |
 | **Ce qui est en cours / pas fini / idée** (OpenClaw, dette, backlog) | [`WIP.md`](WIP.md) |
 | **Référence technique exhaustive** (toutes les routes, schéma DB, pipeline, deploy) | [`DOCUMENTATION.md`](DOCUMENTATION.md) |
+| **Plan de test E2E agent IA** (10 scénarios + cas d'erreur, avec 3 numéros WhatsApp GMC `+33633921577`/USER/ARTISAN + outils debug SQL) | [`TEST-PLAN-AGENT-IA.md`](TEST-PLAN-AGENT-IA.md) |
 | **Règles + pièges + décisions** | ← ce fichier |
 
 **Si tu ajoutes une info** :
