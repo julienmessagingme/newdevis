@@ -276,6 +276,35 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   if (body.lot_id !== undefined)    updates.lot_id    = body.lot_id || null;
   if (body.notes !== undefined)     updates.notes     = body.notes?.trim() || null;
 
+  // ── Garde-fou cohérence : interdire changement de lot_id si le contact est
+  //    rattaché à un devis (la source de vérité est devis.lot_id, sync auto via
+  //    PATCH /documents/[docId]). Cf. bug "contact Carreleur / devis Toiture".
+  if (body.lot_id !== undefined) {
+    const { data: existing } = await ctx.supabase
+      .from('contacts_chantier')
+      .select('id, analyse_id, lot_id')
+      .eq('id', body.contactId)
+      .eq('chantier_id', chantierId)
+      .single();
+    if (existing && (body.lot_id || null) !== (existing.lot_id || null)) {
+      // Vérifier s'il existe au moins un devis lié à ce contact (par analyse_id direct)
+      const { count: devisDirectCount } = existing.analyse_id
+        ? await ctx.supabase
+            .from('documents_chantier')
+            .select('id', { count: 'exact', head: true })
+            .eq('chantier_id', chantierId)
+            .eq('document_type', 'devis')
+            .eq('analyse_id', existing.analyse_id)
+        : { count: 0 };
+      if ((devisDirectCount ?? 0) > 0) {
+        return jsonError(
+          'Ce contact est rattaché à un devis : son lot est dérivé du devis. Pour le déplacer, change le lot du devis correspondant.',
+          409,
+        );
+      }
+    }
+  }
+
   const { data, error } = await ctx.supabase
     .from('contacts_chantier')
     .update(updates)

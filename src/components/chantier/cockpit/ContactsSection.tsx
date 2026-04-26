@@ -516,13 +516,18 @@ function ContactCard({ contact: c, lots, chantierId, token, onSaved, onEdit, onD
         </span>
       </div>
 
-      {/* Lot — prominent badge */}
+      {/* Lot — prominent badge.
+          Si le contact a un devis, le lot est dérivé du devis : pas de dropdown
+          de changement à ce niveau (forcer à passer par le devis). */}
       {c.lotNom ? (
         <div className="flex items-center gap-2 mb-3 px-2.5 py-2 rounded-lg bg-purple-50 border border-purple-100">
           <Layers className="h-3.5 w-3.5 text-purple-500 shrink-0" />
           <span className="text-xs font-semibold text-purple-700 truncate">{c.lotNom}</span>
+          {(c.analyseId || c.devisId) && (
+            <span className="ml-auto text-[9px] text-purple-400 italic shrink-0" title="Lot dérivé du devis lié — change le lot sur le devis pour le déplacer">via devis</span>
+          )}
         </div>
-      ) : lots.length > 0 ? (
+      ) : lots.length > 0 && !c.analyseId && !c.devisId ? (
         <div className="mb-3">
           <select
             value=""
@@ -700,21 +705,40 @@ function ContactFormModal({ contact, lots, saving, onSave, onClose }: {
             </div>
           </div>
 
-          {/* Rattachement lot */}
-          {lots.length > 0 && (
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Rattacher à un intervenant (lot)</label>
-              <select
-                value={lotId} onChange={e => setLotId(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 bg-white"
-              >
-                <option value="">— Aucun —</option>
-                {lots.map(l => (
-                  <option key={l.id} value={l.id}>{l.nom}</option>
-                ))}
-              </select>
-            </div>
-          )}
+          {/* Rattachement lot — verrouillé si le contact a un devis (la source de vérité = le devis) */}
+          {lots.length > 0 && (() => {
+            const linkedToDevis = !!(contact?.analyseId || contact?.devisId);
+            const lockedLotNom = linkedToDevis
+              ? (lots.find(l => l.id === lotId)?.nom ?? null)
+              : null;
+            return (
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Rattacher à un intervenant (lot)</label>
+                {linkedToDevis ? (
+                  <div className="w-full border border-gray-100 rounded-xl px-3 py-2.5 text-sm bg-gray-50 text-gray-600 flex items-center gap-2">
+                    <Layers className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                    <span>{lockedLotNom ?? 'Aucun lot'}</span>
+                    <span className="ml-auto text-[10px] text-gray-400 italic">défini par le devis</span>
+                  </div>
+                ) : (
+                  <select
+                    value={lotId} onChange={e => setLotId(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 bg-white"
+                  >
+                    <option value="">— Aucun —</option>
+                    {lots.map(l => (
+                      <option key={l.id} value={l.id}>{l.nom}</option>
+                    ))}
+                  </select>
+                )}
+                {linkedToDevis && (
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    Ce contact est rattaché à un devis. Pour changer son lot, déplace le devis vers le bon lot — le contact suivra.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Notes */}
           <div>

@@ -38,8 +38,10 @@ serve(async (req) => {
     const userMessage: string = body.user_message ?? "";
     const conversationHistory: AssistantMessage[] = body.conversation_history ?? [];
 
+    const replyViaOwnerChannel: boolean = body.reply_via_owner_channel === true;
+
     try {
-      const result = await handleInteractive(singleChantierId, userMessage, conversationHistory);
+      const result = await handleInteractive(singleChantierId, userMessage, conversationHistory, replyViaOwnerChannel);
       return new Response(JSON.stringify(result), {
         status: 200,
         headers: { "Content-Type": "application/json" },
@@ -383,11 +385,55 @@ serve(async (req) => {
   });
 });
 
+// ── Owner channel reply ────────────────────────────────────────────────────────
+// Envoie le response_text de l'agent dans le canal WhatsApp privé owner.
+// Sans ça, l'utilisateur qui écrit dans le canal n'a aucun retour quand
+// l'agent traite (ou échoue à traiter) son message — la webhook whapi appelle
+// l'orchestrator en fire-and-forget et ne renvoie rien.
+async function sendOwnerChannelReply(
+  supabase: any,
+  chantierId: string,
+  text: string,
+): Promise<void> {
+  if (!whapiToken) {
+    console.warn('[owner-channel-reply] WHAPI_TOKEN missing — skip');
+    return;
+  }
+  try {
+    const { data: group } = await supabase
+      .from('chantier_whatsapp_groups')
+      .select('group_jid')
+      .eq('chantier_id', chantierId)
+      .eq('is_owner_channel', true)
+      .maybeSingle();
+    const groupJid: string | null = group?.group_jid ?? null;
+    if (!groupJid) {
+      console.warn(`[owner-channel-reply] no owner channel for chantier ${chantierId} — skip`);
+      return;
+    }
+    const res = await fetch('https://gate.whapi.cloud/messages/text', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${whapiToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ to: groupJid, body: text }),
+    });
+    if (!res.ok) {
+      const errTxt = await res.text();
+      console.error(`[owner-channel-reply] whapi ${res.status}: ${errTxt.slice(0, 200)}`);
+    }
+  } catch (err) {
+    console.error('[owner-channel-reply] error:', err instanceof Error ? err.message : err);
+  }
+}
+
 // ── Interactive handler ────────────────────────────────────────────────────────
 async function handleInteractive(
   chantierId: string,
   userMessage: string,
   conversationHistory: AssistantMessage[],
+  replyViaOwnerChannel: boolean = false,
 ): Promise<{ response_text: string; tool_calls_executed: string[]; tool_trace: Array<{ tool: string; args: Record<string, unknown>; result_ok: boolean; result_preview: string }> }> {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -459,7 +505,10 @@ async function handleInteractive(
         model: "gemini-2.5-flash",
         messages,
         tools: TOOLS_SCHEMA_INTERACTIVE,
-        max_tokens: 8192,
+        // 16384 minimum pour 2.5-flash : le thinking budget peut absorber ~5-10k tokens
+        // sur prompts denses (cf. CLAUDE.md piège connu). 8192 → completion vide observée
+        // sur "Rappelle-moi dans 5 minutes" (2026-04-26).
+        max_tokens: 16384,
       }),
     });
 
@@ -497,15 +546,33 @@ async function handleInteractive(
         console.warn(`[interactive] Empty response from Gemini, retrying with nudge`);
         const retryMessages = [
           ...messages,
-          { role: "user", content: "Réponds directement. Si tu dois appeler un tool (ex: update_lot_dates après confirmation), appelle-le maintenant. Si tu réponds en texte, écris une phrase complète en français — jamais une réponse vide." },
+          { role: "user", content: "Réponds directement. Si tu dois appeler un tool (ex: update_lot_dates après confirmation, schedule_reminder après une demande de rappel), appelle-le maintenant. Si tu réponds en texte, écris une phrase complète en français — jamais une réponse vide." },
         ];
         const retryRes = await fetch(GEMINI_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${geminiKey}` },
-          body: JSON.stringify({ model: "gemini-2.5-flash", messages: retryMessages, tools: TOOLS_SCHEMA_INTERACTIVE, max_tokens: 8192 }),
+          body: JSON.stringify({ model: "gemini-2.5-flash", messages: retryMessages, tools: TOOLS_SCHEMA_INTERACTIVE, max_tokens: 16384 }),
         });
-        const retryData = await retryRes.json();
+        const retryRawBody = await retryRes.text();
+        let retryData: any = {};
+        try { retryData = JSON.parse(retryRawBody); } catch { retryData = {}; }
         const retryChoice = retryData.choices?.[0]?.message;
+        // Push debug entry pour observabilité du retry (sinon agent_runs n'a que la 1ère
+        // tentative et on ne sait pas si le retry a aidé ou non).
+        debugTrace.push({
+          round: rounds,
+          retry: true,
+          http_status: retryRes.status,
+          http_ok: retryRes.ok,
+          raw_body: retryRawBody.slice(0, 2000),
+          finish_reason: retryData.choices?.[0]?.finish_reason ?? "unknown",
+          content_len: (retryChoice?.content ?? "").length,
+          content_preview: String(retryChoice?.content ?? "").slice(0, 300),
+          has_tool_calls: !!(retryChoice?.tool_calls && retryChoice.tool_calls.length > 0),
+          n_tool_calls: retryChoice?.tool_calls?.length ?? 0,
+          usage: retryData.usage ?? null,
+        });
+        tokensUsed += retryData.usage?.completion_tokens ?? 0;
         if (retryChoice?.tool_calls && retryChoice.tool_calls.length > 0) {
           // Retry a produit un tool_call — l'exécute et retourne une phrase pré-formulée
           for (const tc of retryChoice.tool_calls) {
@@ -533,6 +600,13 @@ async function handleInteractive(
         insights_created: 0,
         actions_taken: [...toolTrace, ...debugTrace.map(d => ({ ...d, tool: "__debug" }))],
       }).then(() => {}).catch(() => {});
+
+      // Si la requête venait du canal WhatsApp privé owner, on renvoie la réponse
+      // texte au user dans ce canal (sinon il ne saurait pas que son message a été
+      // traité — la webhook whapi appelle l'orchestrator en fire-and-forget).
+      if (replyViaOwnerChannel && responseText.trim().length > 0) {
+        await sendOwnerChannelReply(supabase, chantierId, responseText);
+      }
       return { response_text: responseText, tool_calls_executed: toolCallsExecuted, tool_trace: toolTrace };
     }
 
@@ -573,6 +647,10 @@ async function handleInteractive(
     insights_created: 0,
     actions_taken: toolTrace,
   }).then(() => {}).catch(() => {});
+
+  if (replyViaOwnerChannel && fallbackText.trim().length > 0) {
+    await sendOwnerChannelReply(supabase, chantierId, fallbackText);
+  }
   return { response_text: fallbackText, tool_calls_executed: toolCallsExecuted, tool_trace: toolTrace };
 }
 

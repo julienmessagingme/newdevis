@@ -19,13 +19,49 @@ async function handleWaPhoto(
   chantierId: string,
   groupId: string,
 ): Promise<void> {
-  const mediaUrl: string | null = msg.image?.link ?? null;
-  if (!mediaUrl) return;
-
   const msgId: string = msg.id;
-  const caption: string | null = msg.image?.caption ?? null;
+  let mediaUrl: string | null = msg.image?.link ?? null;
+  let caption: string | null = msg.image?.caption ?? null;
+  let mimeType: string = msg.image?.mimetype ?? 'image/jpeg';
+
+  // Whapi peut envoyer un event 'image' SANS image.link rempli (race entre
+  // notification et upload media côté whapi). Dans ce cas on refetch le message
+  // via l'API REST whapi qui renvoie le link à jour.
+  // Sans ça, la photo est perdue → bug observé 2026-04-26.
+  if (!mediaUrl && whapiToken) {
+    try {
+      const refetch = await fetch(`https://gate.whapi.cloud/messages/${encodeURIComponent(msgId)}`, {
+        headers: { Authorization: `Bearer ${whapiToken}` },
+      });
+      if (refetch.ok) {
+        const data: any = await refetch.json();
+        const m = data?.message ?? data;
+        mediaUrl = m?.image?.link ?? mediaUrl;
+        caption  = caption ?? m?.image?.caption ?? null;
+        mimeType = m?.image?.mimetype ?? mimeType;
+      } else {
+        console.warn(`[whapi:photo] refetch /messages/${msgId} HTTP ${refetch.status}`);
+      }
+    } catch (err) {
+      console.error('[whapi:photo] refetch error:', err instanceof Error ? err.message : err);
+    }
+  }
+
+  if (!mediaUrl) {
+    console.error(`[whapi:photo] no media link for msg ${msgId} (even after refetch) — photo lost`);
+    return;
+  }
+
+  // Patch la row chantier_whatsapp_messages avec le media_url retrouvé
+  // pour que l'UI Messagerie le voie aussi (sinon elle reste avec media_url=null).
+  if (msg.image?.link == null) {
+    await supabase
+      .from('chantier_whatsapp_messages')
+      .update({ media_url: mediaUrl })
+      .eq('id', msgId);
+  }
+
   const senderPhone: string = String(msg.from ?? '').replace(/^\+/, '');
-  const mimeType: string = msg.image?.mimetype ?? 'image/jpeg';
   const ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg';
 
   // 1. Fetch chantier user_id + lots list (needed for storage path + lot lookup)
@@ -306,6 +342,9 @@ export const POST: APIRoute = async ({ request }) => {
             run_type: 'interactive',
             user_message: ownerMsg,
             conversation_history: conversationHistory,
+            // Demande à l'orchestrator de renvoyer son response_text dans le canal
+            // owner — sinon l'utilisateur n'a aucun retour quand il écrit en WhatsApp.
+            reply_via_owner_channel: true,
           };
         } else {
           payload = { chantier_id: chantierId, run_type: 'morning' };
