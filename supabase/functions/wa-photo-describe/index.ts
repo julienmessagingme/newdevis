@@ -21,6 +21,7 @@ interface PhotoDescribePayload {
   storage_path: string;        // path in chantier-documents bucket
   mime_type?: string;          // e.g. 'image/jpeg', 'image/png', 'image/webp'
   lot_hint_nom: string | null; // lot déduit du sender phone
+  caption?: string | null;     // texte joint par l'expéditeur (caption WhatsApp)
   lots: Array<{ id: string; nom: string }>;
 }
 
@@ -28,7 +29,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204 });
 
   const body: PhotoDescribePayload = await req.json().catch(() => ({})) as PhotoDescribePayload;
-  const { chantier_id, doc_id, storage_path, mime_type = "image/jpeg", lot_hint_nom, lots = [] } = body;
+  const { chantier_id, doc_id, storage_path, mime_type = "image/jpeg", lot_hint_nom, caption, lots = [] } = body;
 
   if (!chantier_id || !doc_id || !storage_path) {
     return new Response(JSON.stringify({ error: "Missing required fields" }), { status: 400 });
@@ -62,9 +63,15 @@ serve(async (req) => {
     ? `D'après le numéro d'envoi, la photo proviendrait probablement du lot "${lot_hint_nom}".`
     : "Aucun lot n'est connu pour le numéro d'envoi.";
 
+  const captionPhrase = caption && caption.trim().length > 0
+    ? `L'expéditeur a joint ce TEXTE/CAPTION : "${caption.trim()}".`
+    : "Pas de texte joint à la photo.";
+
   const userPrompt = `Tu es assistant IA pour la gestion de chantier.
 
 ${hintPhrase}
+
+${captionPhrase}
 
 Liste des lots du chantier : ${lotsListStr || "(aucun lot défini)"}
 
@@ -73,7 +80,8 @@ Analyse cette photo de chantier et réponds en JSON strict :
   "description": "Description en 1-2 phrases : type de travaux visibles, état/avancement, anomalie éventuelle. Sois factuel et précis.",
   "short_title": "Titre court 4-6 mots maximum (ex: 'Pose carrelage cuisine terminée', 'Fissure mur porteur détectée')",
   "confirmed_lot_nom": "nom exact du lot si la photo correspond clairement, sinon null",
-  "override_reason": "Explication si tu contredis l'heuristique du sender (sinon null)"
+  "override_reason": "Explication si tu contredis l'heuristique du sender (sinon null)",
+  "caption_mismatch": "Si l'expéditeur a joint un caption qui annonce un type de travaux (ex: 'photo plomberie', 'voilà l'électricité') mais la photo montre VISIBLEMENT autre chose — explique brièvement le mismatch (ex: 'Caption dit plomberie mais image montre cuisine'). Sinon null. Sois STRICT : ne flag que si le contenu est clairement différent du caption."
 }
 
 RÈGLE : confirmed_lot_nom doit être null ou correspondre EXACTEMENT à l'un des noms de la liste.`;
@@ -129,6 +137,7 @@ RÈGLE : confirmed_lot_nom doit être null ou correspondre EXACTEMENT à l'un de
   const shortTitle: string = visionResponse.short_title ?? "Photo WhatsApp";
   const confirmedLotNom: string | null = visionResponse.confirmed_lot_nom ?? null;
   const overrideReason: string | null = visionResponse.override_reason ?? null;
+  const captionMismatch: string | null = visionResponse.caption_mismatch ?? null;
 
   // 5. Resolve lot_id if Vision confirmed a lot (or contradicted the hint)
   let resolvedLotId: string | null = null;
@@ -169,6 +178,25 @@ RÈGLE : confirmed_lot_nom doit être null ou correspondre EXACTEMENT à l'un de
     return new Response(JSON.stringify({ ok: false, error: updateErr.message }), { status: 500 });
   }
 
+  // Si Vision détecte que le caption ne correspond pas au contenu de la photo,
+  // on crée un insight needs_clarification (apparaît dans le fil Activité IA + alerte agent).
+  // Récupère le user_id du chantier pour respecter la contrainte agent_insights.
+  if (captionMismatch && captionMismatch.trim().length > 0) {
+    const { data: chantierRow } = await supabase
+      .from("chantiers").select("user_id").eq("id", chantier_id).single();
+    if (chantierRow?.user_id) {
+      await supabase.from("agent_insights").insert({
+        chantier_id,
+        user_id:  chantierRow.user_id,
+        type:     "needs_clarification",
+        severity: "warning",
+        title:    `Photo : caption ne correspond pas au contenu`,
+        body:     `Caption envoyé : "${(caption ?? "").trim()}". Analyse Vision : ${description}. Anomalie : ${captionMismatch}`,
+        source_event: { check: "caption_vs_vision_mismatch", document_id: doc_id, caption: caption ?? null },
+      });
+    }
+  }
+
   return new Response(JSON.stringify({
     ok: true,
     doc_id,
@@ -176,6 +204,7 @@ RÈGLE : confirmed_lot_nom doit être null ou correspondre EXACTEMENT à l'un de
     short_title: shortTitle,
     confirmed_lot_nom: confirmedLotNom,
     override_reason: resolvedOverrideReason,
+    caption_mismatch: captionMismatch,
   }), {
     status: 200,
     headers: { "Content-Type": "application/json" },

@@ -152,6 +152,7 @@ async function handleWaPhoto(
       storage_path: storagePath,
       mime_type:    mimeType,
       lot_hint_nom: hintLotNom,
+      caption,           // pour permettre la détection de mismatch caption ↔ Vision
       lots,
     }),
   }).catch(() => {}); // truly fire-and-forget

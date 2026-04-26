@@ -93,6 +93,22 @@ export async function buildContext(
     }
   }
 
+  // Phone du PROPRIÉTAIRE — pour reconnaître ses messages quand il écrit
+  // depuis son numéro perso (pas via le canal whapi GMC). Sans ça, l'agent
+  // le voit comme un numéro inconnu (bug observé 2026-04-26 sur owner channel).
+  let ownerPhone: string | null = null;
+  if (chantier?.user_id) {
+    try {
+      const { data: ownerData } = await supabase.auth.admin.getUserById(chantier.user_id);
+      const rawPhone: string | null = ownerData?.user?.phone ?? null;
+      if (rawPhone) {
+        ownerPhone = rawPhone.replace(/^\+/, "").replace(/^0/, "33");
+      }
+    } catch (err) {
+      console.error("[context] owner phone fetch error:", err instanceof Error ? err.message : err);
+    }
+  }
+
   // Group JID → name mapping
   const groupJidToName = new Map<string, string>(
     waGroups.map((g: any) => [g.group_jid, g.name])
@@ -235,6 +251,23 @@ export async function buildContext(
       };
     }
     const phone = String(m.from_number).replace(/^\+/, "");
+    // Reconnaît le propriétaire quand il écrit depuis son numéro perso
+    // (cas owner channel WhatsApp). Sans ça → traité comme inconnu.
+    const isOwnerByPhone = ownerPhone !== null && phone === ownerPhone;
+    if (isOwnerByPhone) {
+      return {
+        source: "whatsapp" as const,
+        from_name: "Vous (propriétaire)",
+        from_phone: phone,
+        body: m.body ?? "",
+        timestamp: m.timestamp,
+        matched_lot: groupLot,
+        group_name: groupName,
+        is_owner: true,
+        is_known_contact: true,
+        contact_role: "proprietaire",
+      };
+    }
     const contact = phoneToContact.get(phone);
     const lotFromContact = contact?.lot_id
       ? enrichedLots.find((l: any) => l.id === contact.lot_id)?.nom ?? null
