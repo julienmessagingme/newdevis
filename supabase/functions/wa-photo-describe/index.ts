@@ -14,6 +14,7 @@ const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const geminiKey  = Deno.env.get("GOOGLE_AI_API_KEY") ?? "";
+const whapiToken = Deno.env.get("WHAPI_TOKEN") ?? "";
 
 interface PhotoDescribePayload {
   chantier_id: string;
@@ -79,9 +80,9 @@ Analyse cette photo de chantier et réponds en JSON strict :
 {
   "description": "Description en 1-2 phrases : type de travaux visibles, état/avancement, anomalie éventuelle. Sois factuel et précis.",
   "short_title": "Titre court 4-6 mots maximum (ex: 'Pose carrelage cuisine terminée', 'Fissure mur porteur détectée')",
-  "confirmed_lot_nom": "nom exact du lot si la photo correspond clairement, sinon null",
+  "confirmed_lot_nom": "nom exact du lot ou null. RÈGLE D'AFFECTATION : (1) si l'expéditeur mentionne explicitement un lot dans le caption ('c'est l'électricité', 'voilà la plomberie', 'photo de la cuisine') → confirmed_lot_nom = CE LOT (depuis la liste), MÊME SI la photo ne montre pas clairement ce travail (l'utilisateur a parlé, on lui fait confiance pour l'affectation). (2) Sinon, si la photo montre clairement un travail correspondant à un lot → confirmed_lot_nom = ce lot. (3) Sinon → null.",
   "override_reason": "Explication si tu contredis l'heuristique du sender (sinon null)",
-  "caption_mismatch": "Si l'expéditeur a joint un caption qui annonce un type de travaux (ex: 'photo plomberie', 'voilà l'électricité') mais la photo montre VISIBLEMENT autre chose — explique brièvement le mismatch (ex: 'Caption dit plomberie mais image montre cuisine'). Sinon null. Sois STRICT : ne flag que si le contenu est clairement différent du caption."
+  "caption_mismatch": "Rempli SEULEMENT si l'expéditeur affirme un type de travaux dans le caption (ex: 'c'est l'électricité', 'photo plomberie') mais la photo montre VISIBLEMENT autre chose. Explique brièvement (ex: 'Le caption dit électricité mais l'image montre une douche carrelée'). Sinon null. Le warning est DISTINCT de l'affectation : on affecte AU LOT du caption (règle 1) ET on flag le mismatch ici."
 }
 
 RÈGLE : confirmed_lot_nom doit être null ou correspondre EXACTEMENT à l'un des noms de la liste.`;
@@ -178,9 +179,10 @@ RÈGLE : confirmed_lot_nom doit être null ou correspondre EXACTEMENT à l'un de
     return new Response(JSON.stringify({ ok: false, error: updateErr.message }), { status: 500 });
   }
 
-  // Si Vision détecte que le caption ne correspond pas au contenu de la photo,
-  // on crée un insight needs_clarification (apparaît dans le fil Activité IA + alerte agent).
-  // Récupère le user_id du chantier pour respecter la contrainte agent_insights.
+  // Si Vision détecte que le caption ne correspond pas au contenu de la photo :
+  //   1. Crée un insight needs_clarification (Activité IA + agent orchestrator).
+  //   2. Envoie un message proactif dans le canal owner WhatsApp ("t'es sûr ?")
+  //      pour que le user puisse confirmer/corriger sans attendre le digest.
   if (captionMismatch && captionMismatch.trim().length > 0) {
     const { data: chantierRow } = await supabase
       .from("chantiers").select("user_id").eq("id", chantier_id).single();
@@ -194,6 +196,35 @@ RÈGLE : confirmed_lot_nom doit être null ou correspondre EXACTEMENT à l'un de
         body:     `Caption envoyé : "${(caption ?? "").trim()}". Analyse Vision : ${description}. Anomalie : ${captionMismatch}`,
         source_event: { check: "caption_vs_vision_mismatch", document_id: doc_id, caption: caption ?? null },
       });
+    }
+
+    // Notif proactive owner channel
+    if (whapiToken) {
+      const { data: ownerGroup } = await supabase
+        .from("chantier_whatsapp_groups")
+        .select("group_jid")
+        .eq("chantier_id", chantier_id)
+        .eq("is_owner_channel", true)
+        .maybeSingle();
+      if (ownerGroup?.group_jid) {
+        const captionShort = (caption ?? "").trim().slice(0, 80);
+        const lotPart = confirmedLotNom ? ` (j'ai classé sur le lot "${confirmedLotNom}")` : "";
+        const askText =
+          `📸 Photo reçue avec le caption « ${captionShort} »${lotPart}, mais ce que je vois ne colle pas : ${captionMismatch}\n\n` +
+          `Tu confirmes que c'est bien le bon lot, ou je dois la déplacer ailleurs ?`;
+        try {
+          await fetch("https://gate.whapi.cloud/messages/text", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${whapiToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ to: ownerGroup.group_jid, body: askText }),
+          });
+        } catch (err) {
+          console.error("[wa-photo-describe] owner channel send error:", err instanceof Error ? err.message : err);
+        }
+      }
     }
   }
 
