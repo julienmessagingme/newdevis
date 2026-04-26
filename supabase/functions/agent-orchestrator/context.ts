@@ -400,6 +400,20 @@ export async function buildContext(
     documents: documentsList,
     conversation_history: conversationHistory,
 
+    // Décisions agent en attente de réponse owner. L'agent doit les voir et,
+    // quand le user répond OUI/NON, appeler resolve_pending_decision.
+    pending_decisions: await (async () => {
+      const { data } = await supabase
+        .from("agent_pending_decisions")
+        .select("id, question, context, expected_action, source_event, expires_at, created_at")
+        .eq("chantier_id", chantierId)
+        .eq("status", "pending")
+        .gt("expires_at", new Date().toISOString())
+        .order("created_at", { ascending: false })
+        .limit(5);
+      return data ?? [];
+    })(),
+
     todays_insights_with_actions: await (async () => {
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
       const { data } = await supabase

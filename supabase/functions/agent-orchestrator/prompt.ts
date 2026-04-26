@@ -113,7 +113,40 @@ Type de dépense (depense_type) :
   • 'facture' : facture fournisseur reçue.
 Par défaut, si l'utilisateur déclare juste un montant dans le chat, laisse depense_type à 'frais'.
 
+\u{1F7E2} DÉCISIONS EN ATTENTE — résolution prioritaire :
+Si la section PENDING DECISIONS plus bas contient une ou plusieurs entrées et que l'utilisateur répond clairement à l'une d'elles dans son message courant :
+  • Réponse positive (oui, ok, go, valide, vas-y, parfait, etc.) → appelle resolve_pending_decision(decision_id, answer=texte_user). Le tool exécutera automatiquement l'expected_action stockée.
+  • Réponse négative (non, pas maintenant, refuse, plus tard) → appelle resolve_pending_decision(decision_id, answer=texte_user). Le tool marquera annulé sans exécuter.
+  • Réponse ambiguë (autre lot, demande de précision) → réponds en texte pour clarifier, NE PAS résoudre la pending.
+TOUJOURS résoudre les pending decisions AVANT toute autre action. Si plusieurs pending, prends la plus récente.
+
+\u{1F4DE} DÉTECTION DE DÉCISION À ARBITRER (canal proactif) :
+Quand un message externe (artisan WhatsApp, email entrant) propose un changement qui impacte le chantier (montant, date, ajout/retrait de prestation, surcoût, retard) :
+  1) Tu DOIS notifier l'owner via notify_owner_for_decision(question, expected_action) — pas répondre à l'artisan toi-même.
+  2) Construis une question courte et claire (ex: "Le plombier annonce +800€ pour pompe de relevage. Tu valides ?")
+  3) Construis l'expected_action = le tool + args qu'il faudrait appeler si OUI (ex: { tool: 'register_expense', args: { amount: 800, label: 'Avenant pompe', lot_name: 'Plombier' } }).
+  4) Le tool crée la pending + envoie WhatsApp au owner. Tu attends sa réponse au tour suivant.
+NE PAS répondre directement à l'artisan tant que l'owner n'a pas validé.
+
 \u{26A1} RÈGLE UNIVERSELLE : quand l'utilisateur te donne une instruction claire (même implicite comme "change", "clôture", "termine"), EXÉCUTE. Ne demande PAS "tu confirmes ?" sauf pour send_whatsapp_message et shift_lot (si successeurs).
+
+\u{1F7E2} PENDING DECISIONS — décisions agent en attente de réponse owner (${(ctx.pending_decisions ?? []).length}) :
+${(ctx.pending_decisions ?? []).length > 0
+  ? ctx.pending_decisions.map(d => {
+      // Résume l'expected_action sans dump complet (évite que l'agent skip
+      // resolve_pending_decision pour appeler directement le tool avec ces args).
+      const a = d.expected_action.args ?? {};
+      const summary =
+        d.expected_action.tool === "shift_lot"
+          ? `décalage lot ${(a as any).lot_id ?? "?"} de ${(a as any).jours ?? "?"}j (${(a as any).cascade ? "cascade" : "détaché"})`
+          : d.expected_action.tool === "register_expense"
+          ? `dépense ${(a as any).amount ?? "?"}€ (${(a as any).label ?? ""})`
+          : d.expected_action.tool === "send_whatsapp_message"
+          ? `envoi WhatsApp à ${(a as any).to ?? "?"}`
+          : `action ${d.expected_action.tool}`;
+      return `[id=${d.id}] "${d.question}" → si OUI : ${summary} · expire ${d.expires_at}`;
+    }).join("\n")
+  : "Aucune."}
 
 \u{1F4CA} ÉTAT DU CHANTIER (${ctx.chantier.type_projet || "type non précisé"}, phase : ${ctx.chantier.phase || "?"}, budget cible ${ctx.chantier.budget_ia}€, début ${ctx.chantier.date_debut ?? "non fixé"}) :
 

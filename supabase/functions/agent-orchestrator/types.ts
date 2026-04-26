@@ -145,4 +145,16 @@ export interface ChantierContext {
   }>;
   /** Historique de conversation (mode interactive uniquement) */
   conversation_history: AssistantMessage[];
+  /** Décisions agent en attente de réponse owner (P1).
+   * Quand le user répond clairement OUI/NON dans le canal privé, l'agent doit
+   * appeler resolve_pending_decision(decision_id, answer). */
+  pending_decisions: Array<{
+    id: string;
+    question: string;
+    context: Record<string, unknown> | null;
+    expected_action: { tool: string; args: Record<string, unknown> };
+    source_event: string | null;
+    expires_at: string;
+    created_at: string;
+  }>;
 }

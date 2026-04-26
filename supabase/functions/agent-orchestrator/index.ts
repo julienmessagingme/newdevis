@@ -13,7 +13,15 @@ const whapiToken = Deno.env.get("WHAPI_TOKEN") ?? "";
 const sendgridKey = Deno.env.get("SENDGRID_API_KEY") ?? "";
 const agentSecretKey = Deno.env.get("AGENT_SECRET_KEY") ?? "";
 const apiBase = Deno.env.get("API_BASE") ?? "https://www.verifiermondevis.fr";
-const MAX_TOOL_ROUNDS = 3;
+// Limites des boucles tool calls. Un workflow type "Reçoit msg artisan → vérifie planning →
+// propose au user → notif 2 autres artisans → update planning → add payment_event" = 5-7 tool_calls.
+// On cape aussi en tokens cumulés pour éviter une boucle infinie en cas d'emballement.
+//
+// IMPORTANT : on cap sur la SOMME des `completion_tokens` (sortie LLM), pas `total_tokens`.
+// total_tokens = prompt + completion et grossit à chaque round (le contexte gonfle), donc
+// l'accumuler triple-compte le contexte. ~30k tokens de sortie cumulés = 8 rounds × ~4k.
+const MAX_TOOL_ROUNDS = 8;
+const MAX_TOTAL_TOKENS_PER_RUN = 30_000;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204 });
@@ -103,6 +111,7 @@ serve(async (req) => {
     ];
 
     let rounds = 0;
+    let tokensUsed = 0;
     const totalActions: Array<Record<string, unknown>> = [];
 
     while (rounds < MAX_TOOL_ROUNDS) {
@@ -114,6 +123,13 @@ serve(async (req) => {
       });
 
       const data = await res.json();
+      // Cap tokens cumulés : on accumule completion_tokens (sortie LLM) seulement.
+      // total_tokens = prompt + completion et le prompt grossit à chaque round → mauvais indicateur.
+      tokensUsed += data.usage?.completion_tokens ?? 0;
+      if (tokensUsed > MAX_TOTAL_TOKENS_PER_RUN) {
+        console.warn(`[agent ${runType}] completion-token budget exceeded (${tokensUsed}/${MAX_TOTAL_TOKENS_PER_RUN}) at round ${rounds} for ${chantierId}, stopping`);
+        break;
+      }
       const choice = data.choices?.[0]?.message;
       if (!choice?.tool_calls || choice.tool_calls.length === 0) break;
 
@@ -295,26 +311,73 @@ serve(async (req) => {
     return true;
   }
 
+  // Anti-loop guard : si le body inclut `_dispatched: true`, c'est qu'on est déjà dans
+  // une invocation enfant du dispatcher — on REFUSE de re-fan-out. Belt-and-suspenders
+  // au-delà du `if (singleChantierId)` qui suffit théoriquement.
+  const isDispatchedChild = body._dispatched === true;
+  if (isDispatchedChild && !singleChantierId) {
+    console.error("[agent] dispatcher loop attempt blocked: _dispatched=true sans chantier_id");
+    return new Response(JSON.stringify({ error: "Invalid dispatcher state" }), { status: 400 });
+  }
+
   let processed = 0;
+  let dispatched = 0;
   if (singleChantierId) {
+    // Mode "1 chantier" : on traite synchrone (utilisé soit par le dispatcher soit par les triggers webhook).
     try {
       if (await processChantier(singleChantierId)) processed++;
     } catch (err) {
       console.error(`[agent] Error processing ${singleChantierId}:`, err instanceof Error ? err.message : err);
     }
   } else {
-    const CONCURRENCY = 3;
-    for (let i = 0; i < chantierIds.length; i += CONCURRENCY) {
-      const batch = chantierIds.slice(i, i + CONCURRENCY);
-      const results = await Promise.allSettled(batch.map(id => processChantier(id)));
-      for (const r of results) {
-        if (r.status === "fulfilled" && r.value) processed++;
-        if (r.status === "rejected") console.error("[agent] batch error:", r.reason instanceof Error ? r.reason.message : String(r.reason));
-      }
+    // Mode dispatcher (P4) : ne traite RIEN soi-même. Fan-out — fire 1 invocation
+    // indépendante par chantier (chacune avec son propre timeout 60s edge function).
+    // Évite le timeout cumulé qui survenait à >30 chantiers actifs avec batches séquentiels.
+    //
+    // Self-invocation = call la même edge function URL avec singleChantierId + flag _dispatched.
+    const selfUrl = `${supabaseUrl}/functions/v1/agent-orchestrator`;
+    const dispatchHeaders = {
+      "Content-Type": "application/json",
+      // Authorization avec service-role-key suffit pour s'auto-appeler (verify_jwt = false côté edge function).
+      "Authorization": `Bearer ${supabaseKey}`,
+    };
+    // Cap dur pour éviter une rafale destructrice (tier Supabase / Vercel).
+    const MAX_FAN_OUT = 200;
+    if (chantierIds.length > MAX_FAN_OUT) {
+      console.warn(`[agent dispatcher] ${chantierIds.length} chantiers à fan-out — capé à ${MAX_FAN_OUT} par run`);
     }
+    const targets = chantierIds.slice(0, MAX_FAN_OUT);
+    // Fire-and-forget : on n'attend pas les réponses (chaque invocation tourne indépendamment).
+    // On déclenche en parallèle tous les fetch — ils retournent les headers quasi instantanément.
+    await Promise.allSettled(targets.map(async (id) => {
+      try {
+        // Timeout court côté dispatcher : on veut juste que Supabase accepte l'invocation,
+        // pas attendre la fin du traitement (qui peut durer 30s+ par chantier).
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 5000);
+        const resp = await fetch(selfUrl, {
+          method: "POST", headers: dispatchHeaders, signal: ctrl.signal,
+          body: JSON.stringify({ run_type: runType, chantier_id: id, _dispatched: true }),
+        });
+        clearTimeout(t);
+        // On compte dispatched seulement si Supabase a accepté (status < 500).
+        // 429 (rate limit) ou 500+ = invocation pas vraiment partie.
+        if (resp.status < 500) dispatched++;
+        else console.warn(`[agent dispatcher] fan-out HTTP ${resp.status} for ${id}`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        // AbortError = headers reçus mais on a coupé avant la fin du traitement → invocation partie OK.
+        if (msg.includes("aborted") || (err as Error)?.name === "AbortError") {
+          dispatched++;
+        } else {
+          console.error(`[agent dispatcher] fan-out failed for ${id}:`, msg);
+        }
+      }
+    }));
+    console.log(`[agent dispatcher] ${runType} fan-out: ${dispatched}/${targets.length} invocations dispatched`);
   }
 
-  return new Response(JSON.stringify({ processed, run_type: runType }), {
+  return new Response(JSON.stringify({ processed, dispatched, run_type: runType }), {
     status: 200,
     headers: { "Content-Type": "application/json" },
   });
@@ -373,6 +436,7 @@ async function handleInteractive(
   messages.push({ role: "user", content: userMessage });
 
   let rounds = 0;
+  let tokensUsed = 0;
   const toolCallsExecuted: string[] = [];
   // Trace détaillée : vrais tool_calls uniquement (persisté dans chantier_assistant_messages.tool_calls)
   const toolTrace: Array<{ tool: string; args: Record<string, unknown>; result_ok: boolean; result_preview: string }> = [];
@@ -382,6 +446,11 @@ async function handleInteractive(
   const debugTrace: Array<Record<string, unknown>> = [];
 
   while (rounds < MAX_TOOL_ROUNDS) {
+    // Cap tokens cumulés : si on dépasse le budget, on stoppe la boucle proprement.
+    if (tokensUsed > MAX_TOTAL_TOKENS_PER_RUN) {
+      console.warn(`[interactive] token budget exceeded (${tokensUsed}/${MAX_TOTAL_TOKENS_PER_RUN}) at round ${rounds} for ${chantierId}, stopping`);
+      break;
+    }
     rounds++;
     const res = await fetch(GEMINI_URL, {
       method: "POST",
@@ -413,6 +482,9 @@ async function handleInteractive(
       usage: data.usage ?? null,
     };
     debugTrace.push(rawDebug);
+    // Accumule les completion_tokens (sortie LLM) pour ce run.
+    // Cap MAX_TOTAL_TOKENS_PER_RUN appliqué au prochain tour.
+    tokensUsed += data.usage?.completion_tokens ?? 0;
 
     if (!choice?.tool_calls || choice.tool_calls.length === 0) {
       // Final text response

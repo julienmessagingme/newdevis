@@ -35,3 +35,71 @@ Items issus des code reviews — filtrables par tag.
 - [ ] `POST /api/chantier/[id]/contacts` avec un numéro fixe (non-WhatsApp) → après quelques secondes : `has_whatsapp = false` et `whatsapp_checked_at` rempli en base, réponse API immédiate (fire-and-forget non bloquant) `[whapi-presence]`
 - [ ] `POST /api/chantier/[id]/contacts` avec un vrai numéro WhatsApp → `has_whatsapp = true` et `whatsapp_checked_at` rempli `[whapi-presence]`
 - [ ] Digest du soir `agent-orchestrator` : section "CONTACTS SANS WHATSAPP" présente dans le prompt (logs Supabase), aucune tâche de relance WhatsApp créée pour un contact `has_whatsapp = false` `[whapi-presence]`
+
+---
+
+## Architecture agent IA — évolutions long terme (post P1-P4)
+
+**Contexte au 2026-04-26** : l'archi agent actuelle = 1 edge function Deno + Gemini 2.5-flash function calling + boucle MAX_TOOL_ROUNDS + history 20 msgs. Solide pour ~10-50 chantiers actifs avec 1-3 actions/jour/chantier.
+
+P1-P4 livrés (pending decisions, modularisation tools, MAX_ROUNDS=8, fan-out cron) → l'archi tient jusqu'à ~100-200 chantiers actifs et 5-10 actions/jour/chantier.
+
+**Ce qui plafonnera ensuite** : coût tokens Gemini sur contexts riches (rebuild à chaque call sans cache), hallucinations Gemini sur workflows multi-tour complexes (>5 tool_calls), hacks accumulés autour de Gemini (CONFIRMATION_REGEX, format tool_calls custom, max_tokens=16384 thinking budget).
+
+À chaque entrée ci-dessous : quand ça devient actionnable et qu'on commence à coder → migrer vers `WIP.md`.
+
+### 🟠 P5 — POC Claude Sonnet 4.7 + prompt caching
+
+**Hypothèse à valider** : Claude + prompt caching réduit le TCO total malgré un prix au token brut plus élevé, parce que :
+- Prompt caching = -90% sur le contexte (notre `context.ts` rebuild ~6-10k tokens à chaque appel — gain énorme)
+- Taux de succès tool_call plus élevé = moins de retries
+- Moins d'hallucinations = moins de "défaire ce qu'a fait l'agent" côté user
+- Suppression progressive des hacks Gemini
+
+**À mesurer sur 1 chantier de test, 1 mois** : taux tool_calls qui aboutissent, coût par run (avec cache hit rate visible), latence (avec streaming Anthropic), qualité subjective des messages générés.
+
+**Quand le faire** : > 100 chantiers actifs OU dès qu'un user signale un comportement bizarre récurrent qu'on ne peut pas patcher facilement.
+
+**Risque** : compatibilité tool calling (Anthropic format ≠ OpenAI format Gemini). Réécriture du dispatcher tools. Mais après P2 modularisation, c'est isolé.
+
+### 🟠 P6 — Multi-agents chaînés (planner + executors)
+
+**Hypothèse** : splitter l'orchestrator en 2 niveaux :
+- 1 agent **planner** (full context) qui décide quoi faire
+- N agents **executors** spécialisés (planning, finance, comm) avec prompt minimal et tools restreints
+
+**Bénéfices attendus** : -40 à -60% sur les tokens cumulés, prompts plus précis par domaine, meilleure observabilité (chaque sous-agent loggé séparément).
+
+**Coût** : latence cumulée (2-3 calls Gemini/Claude par tour), complexité du dispatcher.
+
+**Quand le faire** : si après P5 on a encore des problèmes de qualité tool_call sur les workflows à 6+ étapes. Pas avant.
+
+### 🟠 P7 — Évaluer un framework agent (Vercel AI SDK / Mastra)
+
+**Contexte** : aujourd'hui dispatcher, retry logic, history compaction = 100% custom artisanal.
+
+**Hypothèse** : Vercel AI SDK (déjà sur Vercel, intégration TS native) ou Mastra (TS-first, workflows + memory natifs) pourrait remplacer 60% du code custom.
+
+**Bénéfices potentiels** : streaming natif (UX chat améliorée), observabilité native (LangSmith, Helicone), memory long terme (résumés glissants automatiques), workflows multi-step sans bricolage.
+
+**Coût** : courbe d'apprentissage, dépendance externe (lock-in, breaking changes), perte de contrôle fin (ex: nos hacks Gemini).
+
+**Quand le faire** : POC à 6 mois (mi-2026) sur 1 fonctionnalité périphérique avant de migrer le coeur.
+
+**À NE PAS faire** : 🔴 LangGraph en Python — ajoute Python à notre stack (Astro + Deno + Python = 3 runtimes), trop de friction pour le bénéfice.
+
+### 🟠 P8 — State machine explicite pour workflows critiques
+
+Si la complexité des workflows pending explose (>3 états avec branches conditionnelles), envisager XState ou home-made. Aujourd'hui : pending → resolved/expired suffit, donc pas pertinent. À reconsidérer si on ajoute des workflows multi-acteurs (ex: validation simultanée artisan + comptable).
+
+### 🟠 P9 — Recommandation artisan (feature)
+
+Quand un lot a 0 devis depuis X jours, proposer une short-list d'artisans RGE / proches géographiquement / bien notés Google. Nécessite : dataset RGE (ADEME — déjà partiellement utilisé dans `verify.ts`), API Google Places pour proximité, scoring custom. Forte valeur user, gros build. À planifier quand les bases sont solides.
+
+### 🟠 P10 — Notification push (browser / mobile)
+
+Aujourd'hui les notifs proactives passent par WhatsApp privé (vague 3). Si certains users ne veulent pas WhatsApp, alternative : Web Push API + email transactionnel SendGrid. À évaluer selon feedback user.
+
+### 🟠 P11 — Rapport PDF fin de chantier
+
+À la réception du chantier, livret PDF récap : timeline, lots, devis, factures, photos avant/après, total dépensé vs budget initial, performances par artisan. Service pour le user, angle commercial fort.
