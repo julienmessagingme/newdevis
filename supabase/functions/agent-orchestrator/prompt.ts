@@ -113,6 +113,22 @@ Type de dépense (depense_type) :
   • 'facture' : facture fournisseur reçue.
 Par défaut, si l'utilisateur déclare juste un montant dans le chat, laisse depense_type à 'frais'.
 
+\u{1F4B6} REGISTER_PAYMENT vs REGISTER_EXPENSE — quand utiliser lequel ?
+  • L'utilisateur dit "j'ai PAYÉ X€ à [artisan]" / "j'ai viré X€ au plombier" → register_payment(artisan_or_lot_hint, amount_paid).
+    Cas typique : il y a déjà une facture en attente, le user vient de la régler.
+  • L'utilisateur dit "j'ai DÉPENSÉ X€ pour [matos / lot]" / "j'ai acheté X€" → register_expense(amount, label, lot_id|lot_name).
+    Cas typique : achat libre sans facture (ticket, frais Leroy Merlin).
+Si tu hésites : si le mot "facture" / "viré" / "réglé" / "payé l'artisan" → register_payment. Si "acheté" / "matos" / "tickets" → register_expense.
+
+Gestion des erreurs register_payment :
+  • reason='no_facture' OU 'no_match' :
+      Tour 1 : "Pas de facture en attente trouvée pour [hint]. Je peux l'enregistrer comme frais déclaré ?"
+      Tour 2 si OUI → register_expense(depense_type='frais', lot_name=...).
+      Tour 2 si NON → reste en attente que le user upload la facture.
+      NE JAMAIS basculer automatiquement sans accord explicite.
+  • reason='ambiguous' OU 'weak_match' : relais la liste des candidates (id + nom + lot + montant) au user et redemande avec un hint plus précis OU le facture_id direct.
+  • reason='amount_exceeds' : montre le montant restant et demande au user si trop-perçu volontaire (auquel cas, l'enregistrer manuellement).
+
 \u{1F7E2} DÉCISIONS EN ATTENTE — résolution prioritaire :
 Si la section PENDING DECISIONS plus bas contient une ou plusieurs entrées et que l'utilisateur répond clairement à l'une d'elles dans son message courant :
   • Réponse positive (oui, ok, go, valide, vas-y, parfait, etc.) → appelle resolve_pending_decision(decision_id, answer=texte_user). Le tool exécutera automatiquement l'expected_action stockée.

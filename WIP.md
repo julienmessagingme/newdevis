@@ -221,31 +221,9 @@ POC Claude Sonnet 4.7 + prompt caching, multi-agents chaînés, frameworks (Verc
 
 🟠 **Prêts à coder dès que P1+P2 livrés** (P1 nécessaire pour vague 3, P2 nécessaire pour ne pas exploser le monolithe).
 
-### Vague 1 — Tools réactifs (court terme, après P1+P2)
+### ✅ Vague 1 — LIVRÉE 2026-04-26
 
-#### `register_payment(artisan_or_lot_hint, amount_paid, date_paid?)`
-*(Anciennement appelé `update_facture_statut` — renommé pour clarifier que c'est un enregistrement de paiement, pas une mutation directe.)*
-
-**Logique 100% côté serveur**, l'agent transmet juste les params :
-
-| Cas | Détection serveur | Action |
-|---|---|---|
-| **A. Match parfait** | 1 facture statut `recue`, montant restant ≈ `amount_paid` (±5€) | UPDATE `payee` + `montant_paye`. Return ok. |
-| **B. Match partiel** | 1 facture, montant restant > `amount_paid` | UPDATE `payee_partiellement` + `montant_paye+=`. Return ok + reste à payer. |
-| **C. Aucune facture** | 0 facture pour cet artisan | Return `{ ok: false, reason: "no_facture", message: "Aucune facture en attente. Tu veux que j'enregistre comme frais ?" }` |
-| **D. Ambigu** | N factures candidates (>1) | Return `{ ok: false, reason: "ambiguous", candidates: [...] }`. Agent re-demande. |
-| **E. Trop-perçu** | Montant > restant | Return `{ ok: false, reason: "amount_exceeds" }`. Agent demande confirmation. |
-
-**Désaffectation** : non. Mono-directionnel (recue → payee, pas l'inverse). Erreur = correction manuelle UI.
-
-#### `update_devis_statut(devis_id, statut)`
-Statuts : `en_cours | a_relancer | valide | attente_facture`. Simple PATCH.
-
-#### `move_document_to_lot(doc_id, lot_id)`
-Suite à `request_clarification` "je pense que cette photo est mal affectée". User confirme → bouge en DB. Aujourd'hui le user doit drag-and-drop manuellement dans Documents.
-
-#### `update_contact(contact_id, telephone?, email?, role?, notes?)`
-"Jean a changé de numéro" / "ajoute un mail à Marc". Pas d'`add_contact` — les contacts arrivent via VerifierMonDevis ou ajout manuel UI uniquement.
+`register_payment` (matching A/B/C/D/E + match faible/fort), `update_devis_statut`, `move_document_to_lot`, `update_contact` (avec normalisation téléphone). Cf. `FEATURES.md § 14.B/C/D/E` pour le détail.
 
 ### Vague 2 — Élargir le scope (après vague 1)
 

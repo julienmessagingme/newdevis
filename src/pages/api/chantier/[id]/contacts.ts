@@ -257,7 +257,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 // ── PATCH — modifier un contact ────────────────────────────────────────────
 
 export const PATCH: APIRoute = async ({ params, request }) => {
-  const ctx = await requireChantierAuth(request, params.id!);
+  const ctx = await requireChantierAuthOrAgent(request, params.id!);
   if (ctx instanceof Response) return ctx;
 
   const chantierId = params.id!;
@@ -285,12 +285,6 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     .single();
 
   if (error) return jsonError(error.message, 500);
-
-  // Invalidate agent context cache (updated contact = stale phone→lot mapping)
-  ctx.supabase.from('agent_context_cache')
-    .update({ invalidated: true })
-    .eq('chantier_id', chantierId)
-    .then(() => {}).catch(() => {});
 
   return jsonOk({ contact: data });
 };

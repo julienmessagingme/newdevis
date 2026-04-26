@@ -3,7 +3,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DocumentType } from '@/types/chantier-ia';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth, createServiceClient } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth, requireChantierAuthOrAgent, createServiceClient } from '@/lib/apiHelpers';
 import { detectDevisType } from '@/utils/extractProjectElements';
 
 const BUCKET          = 'chantier-documents';
@@ -90,7 +90,7 @@ export const DELETE: APIRoute = async ({ params, request }) => {
 // Mise à jour partielle : nom, document_type, lot_id.
 
 export const PATCH: APIRoute = async ({ params, request }) => {
-  const ctx = await requireChantierAuth(request, params.id!);
+  const ctx = await requireChantierAuthOrAgent(request, params.id!);
   if (ctx instanceof Response) return ctx;
 
   const doc = await loadDocWithOwnership(ctx.supabase, params.docId!, params.id!, ctx.user.id);

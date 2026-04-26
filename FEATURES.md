@@ -21,6 +21,43 @@ Accès : **/mon-chantier/nouveau**
 
 ---
 
+## 1bis. Comment l'IA détermine le budget à la création
+
+Le budget prévisionnel n'est pas saisi à la main — il est estimé par l'IA à partir de la description du projet, puis affiné par lot avec un indicateur de fiabilité.
+
+### Sources de données utilisées
+- **Catalogue interne `market_prices`** : ~270 lignes de prix unitaires HT (avec fourchette min/avg/max + frais fixes) couvrant les principaux types de travaux. Issus de l'historique des devis analysés sur VerifierMonDevis.
+- **Coefficient géographique** : la zone (code postal) module les prix de référence (zone détendue / standard / chère).
+- **Catalogue matériaux** (`MATERIALS_MAP`) : 17 types de chantier × 3+ options matériaux (économique / intermédiaire / premium), avec `priceMin/Max` par unité.
+- **Données prix immobiliers DVF** : utilisées dans les recommandations de valorisation patrimoniale, pas dans le budget directement.
+
+### Indicateur de fiabilité (haute / moyenne / faible)
+Affiché à côté de chaque ligne de budget. Calculé à partir de **5 signaux** présents dans la description initiale :
+- **`hasLocalisation`** — code postal ou ville donnés
+- **`hasBudget`** — budget cible mentionné
+- **`hasDate`** — date de démarrage souhaitée
+- **`hasSurface`** — m², ml, ou format `X×Y` mentionnés
+- **`typeProjetPrecis`** — l'IA a su classifier le projet (pas "autre")
+- **`nbLignesBudget`** — nombre de postes que l'IA a détaillés
+
+Plus de signaux → plus la fourchette est resserrée. Si la description est très vague (ex: "je veux refaire ma maison"), l'IA donne quand même un budget mais avec fiabilité **faible** et une fourchette large.
+
+### Affinage post-création
+- **Inline edit dans LotDetail** : on peut modifier la durée et observer l'impact CPM en cascade. Le budget min/max du lot reste celui de l'IA jusqu'à ce qu'un devis soit validé.
+- **Devis validé** : prend le pas sur l'estimation IA → le budget du lot devient le montant du devis signé (visible dans la colonne "Engagé" du tableau Budget).
+- **Ré-estimation manuelle** : pas encore exposée en UI directe (à demander à l'agent IA via le chat).
+
+### Conseils budget générés en continu
+6 types de conseils calculés en arrière-plan et affichés dans le tableau Budget + journal :
+- **Budget global dépassé** (somme devis validés > budget cible)
+- **Budget lot dépassé** (devis validé d'un lot > fourchette IA max × 1.2)
+- **Devis manquant** (lot avec uniquement des factures, aucun devis signé)
+- **Comparaison nécessaire** (un seul devis reçu pour un lot, pas de comparable)
+- **Devis à relancer** (devis "en cours" depuis plus de 14j)
+- **Frais annexes signalés** (frais déclarés au chat hors devis)
+
+---
+
 ## 2. Hub /mon-chantier
 
 Liste de tous les chantiers de l'utilisateur.
@@ -100,6 +137,62 @@ Quatre vues complémentaires (sous-onglets internes).
 - Graphique barres + courbe de solde par semaine
 - 2 colonnes : sorties (factures à payer) et entrées (déblocages, aides)
 - Bandeaux IA : tension détectée, retards, déblocages à relancer
+
+### E. Aides énergétiques (MaPrimeRénov' / CEE / Éco-PTZ)
+
+Simulateur intégré pour estimer les aides État disponibles selon les travaux réalisés. Accès depuis le panneau "Plan de financement" → carte "Aides".
+
+#### Étape 1 — Type de travaux + coût
+Liste de **8 types éligibles** aux aides énergétiques (basée sur le barème Effy) :
+- Pompe à chaleur (air/eau, géothermie)
+- Chauffage bois (poêle, insert, chaudière)
+- Isolation (combles, murs, planchers)
+- Fenêtres (double vitrage)
+- Chauffe-eau solaire / thermodynamique
+- Ventilation double flux
+- Audit énergétique
+- Rénovation globale
+
+Coût HT à saisir → la simulation se base sur ce montant.
+
+#### Étape 2 — Profil
+3 questions qualifiantes :
+- **Statut** : propriétaire occupant / propriétaire bailleur / locataire (MaPrimeRénov' réservée aux propriétaires)
+- **Logement > 2 ans** : MPR + CEE + Éco-PTZ exigent un logement achevé depuis plus de 2 ans
+- **Résidence principale** : MPR et Éco-PTZ uniquement sur résidence principale
+
+Puis :
+- **Composition du foyer** (1 à 5+ personnes)
+- **Revenu fiscal de référence annuel** (€) → détermine la tranche MPR
+
+#### Étape 3 — Résultats
+Carte gradient bleu/vert avec :
+- **Économie totale estimée** (somme des 3 aides)
+- **% du coût absorbé** par les aides
+- **Reste à charge** vs **Aides directes** côte à côte
+
+Détail par aide :
+- 🟢 **MaPrimeRénov'** : taux par tranche revenu (Bleu/Jaune/Violet/Rose) × coût, plafonné par type de travaux. Artisan RGE requis.
+- 💡 **CEE (Certificats d'Économie d'Énergie)** : montant forfaitaire par type de travaux. Cumulable MPR.
+- 🏦 **Éco-PTZ** : prêt à taux 0% jusqu'à 50 000€, complémentaire (pas une subvention).
+
+#### Tranches MPR (calcul automatique)
+| Tranche | Foyer 1 pers (revenu max) | Foyer 4 pers (revenu max) |
+|---|---|---|
+| 🔵 Bleu (très modeste) | ~17 000€ | ~33 000€ |
+| 🟡 Jaune (modeste) | ~22 000€ | ~42 000€ |
+| 🟣 Violet (intermédiaire) | ~30 000€ | ~58 000€ |
+| 🌸 Rose (supérieur) | au-delà | au-delà |
+
+Plus le revenu est bas, plus le taux MPR est élevé.
+
+#### Import dans le plan de financement
+Bouton **"Importer ces aides"** : pré-remplit la carte "Aides" du plan de financement avec le montant simulé → visible dans Cashflow et Échéancier.
+
+#### Limites du simulateur
+- Estimation indicative — les barèmes réels évoluent (Anah).
+- Ne remplace pas le formulaire officiel france-renov.gouv.fr.
+- Ne calcule pas la TVA réduite à 5,5% (à voir avec l'artisan).
 
 ---
 
@@ -281,41 +374,148 @@ Suivi des achats matériaux faits par le client (sans rattachement à un lot art
 
 ---
 
-## 14. Capacités de l'Assistant IA (côté actions)
+## 14. Capacités de l'Assistant IA — détail des tools
 
-Tout ce que l'utilisateur peut déclencher en parlant à l'IA dans le chat. L'IA exécute les actions directement quand elles sont sans risque, ou demande confirmation pour les actions irréversibles.
+L'agent IA dispose de **17 outils** (tools) qu'il peut appeler à la suite d'une demande utilisateur ou en réaction à un événement (message WhatsApp, email entrant, upload doc). Cette section liste chaque tool avec un cas d'usage concret, les paramètres qu'il prend, et ce qui se passe en aval.
 
-### Planning & lots
-- **Décaler un lot** de N jours (avec ou sans cascade sur les successeurs)
-- **Modifier la durée** d'un lot
-- **Chaîner deux lots** (l'un démarre quand l'autre finit)
-- **Paralléliser deux lots** (ils démarrent en même temps)
-- **Modifier les dépendances** d'un lot (qui doit finir avant lui)
-- **Marquer un lot comme terminé** (avec photo preuve optionnelle)
-- **Changer le statut** d'un lot (à faire / en cours / terminé)
+> **Convention** : les tools "action" demandent confirmation explicite avant exécution irréversible. Les tools "lecture" sont sans risque et peuvent être appelés librement par l'IA pour répondre aux questions.
 
-### Tâches
-- **Créer une tâche** dans la checklist (urgent / important / normal)
-- **Cocher une tâche** existante
+### A. Planning & dépendances de lots
 
-### Finances
-- **Déclarer un frais** sans uploader de pièce ("j'ai dépensé 200€ chez Leroy Merlin pour l'élec"). L'IA demande le lot si non précisé. Crée un lot "Divers" si l'utilisateur n'a pas de lot particulier.
+#### `update_planning(lot_id, duree_jours?, delai_avant_jours?, depends_on_ids?)`
+Modifie la structure d'un lot. Combine plusieurs champs dans un seul appel.
+- *"Le maçon a annoncé +5 jours"* → l'IA met `duree_jours += 5`
+- *"Plaquiste démarre quand Plombier ET Électricien ont fini"* → `depends_on_ids = [plombier_id, elec_id]`
+- *"Décale le carreleur d'1 semaine sans toucher aux autres"* → `delai_avant_jours = 5`
 
-### Communication
-- **Envoyer un message WhatsApp** dans un groupe ou à un contact (toujours avec confirmation explicite avant envoi)
-- **Vérifier les accusés de lecture** d'un message envoyé
+Le serveur recalcule **toutes les dates** du planning par tri topologique (CPM).
 
-### Mémoire
-- **Logger un insight** dans le journal (l'IA le fait automatiquement après chaque action)
-- **Demander une clarification** si elle a un doute (ex : "cette photo est-elle bien pour le lot Maçon ?")
+#### `shift_lot(lot_id, jours, cascade, raison)`
+Décalage simple en jours ouvrés. Plus expressif que `update_planning` quand l'IA veut un dialogue cascade/détaché.
+- **`cascade=true`** : les successeurs DAG suivent (ex: si Plombier décalé +5j, l'Électricien qui dépend de lui suit)
+- **`cascade=false`** : le lot est **détaché** de la chaîne. Les successeurs perdent ce lot comme prédécesseur ET héritent de ses anciens prédécesseurs (ils restent à leur date). Le lot va sur une side lane indépendante.
 
-### Lecture seule (pour répondre aux questions)
-- Résumé du chantier, dates, budget global
-- Planning : ordre des lots, dates, durées, dépendances
-- Contacts du chantier (filtrés par lot ou rôle)
-- Photos récentes avec descriptions IA
-- Groupes WhatsApp et leurs membres
-- Statuts de lecture des messages WhatsApp
+L'IA suit un protocole 2 tours systématique : si le lot a des successeurs détectés, elle demande "cascade ou détache ?" avant d'appeler.
+
+#### `arrange_lot(lot_id, mode: chain_after|parallel_with, reference_lot_id, raison)`
+Réorganise un lot par rapport à un autre.
+- **`chain_after`** : *"Mets l'Électricien à la suite du Plaquiste"* → l'Électricien démarre quand le Plaquiste finit, **même ligne visuelle** sur le Gantt
+- **`parallel_with`** : *"Fais tourner Maçonnerie et Charpente en parallèle"* → Maçonnerie hérite des prédécesseurs de Charpente, démarre en même temps, **ligne distincte** sur le Gantt
+
+#### `update_lot_dates(lot_id, new_start_date, new_end_date?, raison)`
+Force une date de début explicite. *Legacy — préférer `shift_lot` ou `update_planning`.*
+
+#### `update_lot_status(lot_id, statut: a_faire|en_cours|termine, raison)`
+Change le statut. *"Le maçon a démarré"* → `statut: en_cours`.
+
+#### `mark_lot_completed(lot_id, evidence_doc_id?, raison)`
+Marque un lot comme terminé. Si une photo preuve a été uploadée, on peut la lier via `evidence_doc_id`. **Confirmation explicite obligatoire** avant exécution.
+
+### B. Statuts devis & paiements (vague 1 — nouveau)
+
+#### `update_devis_statut(devis_id, statut, raison)`
+Change le statut d'un devis. *"Je valide le devis du plombier"* → `statut: valide`. Statuts : `en_cours | a_relancer | valide | attente_facture`.
+
+L'IA récupère le `devis_id` via `get_chantier_data`. Si plusieurs devis correspondent (2 plombiers ?), elle demande lequel avant d'appeler.
+
+#### `register_payment(artisan_or_lot_hint, amount_paid, date_paid?)`
+**Pièce maîtresse de la vague 1.** L'utilisateur déclare un paiement au chat → le serveur cherche la facture qui matche et applique le statut.
+
+*"J'ai viré 1500€ au plombier ce matin"* → l'IA appelle `register_payment("plombier", 1500)`. Le serveur :
+- Cherche les factures du chantier en statut `recue` ou `payee_partiellement`, hors frais
+- Filtre par hint avec **priorité de match** : contact > lot > nom du document (anti faux-positif)
+- Si **1 facture matche** et `montant_paid ≈ restant ±5€` → marque `payee` (cas A)
+- Si **1 facture, restant > paid** → `payee_partiellement` avec `montant_paye` cumulé (cas B)
+- Si **0 facture** → erreur `no_facture` → l'IA propose de basculer en `register_expense`
+- Si **plusieurs candidates** → erreur `ambiguous` → l'IA relais la liste au user
+- Si **paiement > restant + 10€** ou +1% → erreur `amount_exceeds` → l'IA demande confirmation
+
+Tool **mono-directionnel** : impossible d'annuler un paiement (correction manuelle UI requise). Race-protection : ne pas appeler 2× en parallèle sur la même facture.
+
+### C. Frais déclarés
+
+#### `register_expense(amount, label, lot_id? OR lot_name?, vendor?, depense_type?)`
+Déclaration d'une dépense **sans pièce jointe** (ticket de caisse, frais Leroy Merlin, etc.). Différent de `register_payment` qui s'applique à une facture existante.
+
+*"J'ai dépensé 200€ chez Leroy Merlin pour l'électricité"* → l'IA appelle avec `vendor: "Leroy Merlin"`, `lot_name: "Électricien"`. Le tool :
+- Cherche le lot par nom (case-insensitive). Si trouvé → utilise. Si pas trouvé → **crée un nouveau lot** avec ce nom.
+- Si l'utilisateur ne précise pas de lot → l'IA demande *"Pour quel lot cette dépense ?"* en texte. Si user dit "divers / aucun" → `lot_name: "Divers"` → tool crée/réutilise le lot Divers.
+- Type par défaut : `'frais'` (déclaration orale). Apparaît avec icône 📝 ambre dans le budget et lot detail.
+
+### D. Documents (vague 1 — nouveau)
+
+#### `move_document_to_lot(doc_id, lot_id, raison?)`
+Réaffecte un document (devis, facture, photo, plan) à un autre lot. Cas typique : suite à `request_clarification` *"Cette photo est mal affectée à Maçon, c'est pour Carreleur"* → user confirme → l'IA bouge en DB.
+
+`lot_id = ""` (chaîne vide) pour détacher complètement le document.
+
+### E. Contacts (vague 1 — nouveau)
+
+#### `update_contact(contact_id, telephone?, email?, role?, lot_id?, notes?, ...)`
+Met à jour un contact existant. *"Jean a changé de numéro, c'est 0612345678"* → l'IA récupère `contact_id` via `get_contacts_chantier` puis appelle.
+
+**Normalisation téléphone automatique** : `0612345678` → `+33612345678` pour matcher le format whapi des messages WhatsApp inbound.
+
+> Pas d'`add_contact` volontaire — les contacts viennent du flux VerifierMonDevis (analyse de devis) ou de l'ajout manuel UI uniquement.
+
+### F. Tâches checklist
+
+#### `create_task(titre, priorite: urgent|important|normal)`
+*"Crée une tâche pour relancer le plombier"* → `create_task("Relancer plombier", "important")`.
+
+#### `complete_task(titre)`
+*"J'ai relancé le plombier, coche la tâche"* → `complete_task("Relancer plombier")`.
+
+### G. Communication WhatsApp
+
+#### `send_whatsapp_message(to, body)`
+Envoie un message WhatsApp à un groupe (`xxx@g.us`) ou à un contact individuel (`33XXXXXXXXX@s.whatsapp.net`). **Confirmation explicite obligatoire** : l'IA propose le texte exact, attend "ok / envoie / confirme" avant d'envoyer.
+
+#### `notify_owner_for_decision(question, expected_action, context?, source_event?, expires_in_hours?)`
+Le tool clé du **canal proactif**. L'IA détecte une décision à arbitrer (ex: artisan demande +800€) → appelle ce tool avec :
+- La question à poser au user (ex: *"Le plombier annonce +800€ pour pompe de relevage. Tu valides ?"*)
+- L'`expected_action` à exécuter si OUI (ex: `{ tool: 'register_expense', args: { amount: 800, label: 'Avenant pompe', lot_name: 'Plombier' } }`)
+
+Le tool crée une ligne `agent_pending_decisions` (mémoire long-terme, non bloquante par la conversation history) + envoie un WhatsApp dans le **canal privé owner**. Quand l'owner répond OUI/NON, l'orchestrator résout via le tool suivant.
+
+#### `resolve_pending_decision(decision_id, answer)`
+Boucle la décision pending après réponse owner. Détection automatique du sens :
+- `oui / ok / valide / parfait...` → exécute l'`expected_action` stockée
+- `non / pas / annule...` → marque résolu sans exécuter
+- Pré-check négatif : "ok mais en fait non" → false (priorité au mot de refus)
+
+L'IA voit dans son contexte la liste des PENDING DECISIONS du chantier et appelle ce tool dès qu'une réponse claire arrive dans le chat ou WhatsApp privé.
+
+### H. Mémoire & journal
+
+#### `log_insight(type, severity, title, body, needs_confirmation?, actions_summary?)`
+Journalise une analyse pour le journal de chantier et le fil d'activité. Types : `planning_impact | budget_alert | conversation_summary | risk_detected | lot_status_change | needs_clarification`. **L'IA appelle TOUJOURS `log_insight` en dernier** dans une chaîne d'actions pour assurer la traçabilité.
+
+#### `request_clarification(phone, message_summary, message_id?, suggested_lot?)`
+Spécifique au flux WhatsApp : un numéro inconnu envoie un message → l'IA crée un insight `needs_clarification` + une tâche urgente *"Identifier le contact 33XXX"* visible dans le panneau Activité IA. **Ne modifie pas le planning** tant que le user n'a pas dit qui c'est.
+
+### I. Lecture seule (pour répondre aux questions)
+
+Tous batch-safe (peuvent être appelés librement, aucun effet de bord) :
+
+| Tool | Usage typique |
+|---|---|
+| `get_chantier_summary` | *"Où en est mon chantier ?"* — phase, budget, lots avec dates et statuts |
+| `get_chantier_planning` | *"Donne-moi le planning"* — ordre, dates, durées, dépendances complètes |
+| `get_chantier_data(query_type)` | Requêtes ad-hoc : `count_devis`, `sum_travaux_en_cours`, `sum_travaux_totaux`, `list_documents`, `list_intervenants` |
+| `get_contacts_chantier(lot_id?, role?)` | *"Qui sont les artisans du lot Plomberie ?"* — filtre par lot ou rôle |
+| `get_recent_photos(days?)` | *"Montre-moi les photos récentes"* — photos WhatsApp 7 derniers jours avec descriptions Vision IA |
+| `list_chantier_groups` | *"Qui est dans le groupe WhatsApp ?"* — groupes du chantier + membres actifs |
+| `get_message_read_status(phone)` | *"Le plombier a-t-il vu mon message ?"* — statuts des 3 derniers messages envoyés à un contact |
+
+### J. Modes d'invocation
+
+L'agent tourne dans 3 contextes :
+- **`interactive`** : chat user dans l'onglet Assistant (et bientôt canal WhatsApp privé). Tous les tools dispo, dialogues 2-tours pour confirmations.
+- **`morning`** : déclenché par les triggers temps réel (upload doc, message WhatsApp, email entrant). Tools "action" bloqués — uniquement lecture + journalisation. Évite que l'agent prenne une décision irréversible sans validation user.
+- **`evening`** : cron quotidien 19h Paris. Génère le digest journal + envoie WhatsApp si activité significative. Tools "action" bloqués aussi.
+
+Les tools `mark_lot_completed`, `update_lot_dates`, `send_whatsapp_message`, `arrange_lot`, `shift_lot`, `register_expense`, `register_payment`, `notify_owner_for_decision`, `resolve_pending_decision`, `move_document_to_lot`, `update_contact` sont marqués **action** et nécessitent le mode interactive.
 
 ---
 
