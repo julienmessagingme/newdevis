@@ -275,9 +275,17 @@ export const POST: APIRoute = async ({ request }) => {
       }, { onConflict: 'id' });
     if (upsertErr) console.error('[whapi] upsert error:', upsertErr.message);
 
-    // Photo pipeline: fire-and-forget for image messages (non-blocking)
+    // Photo pipeline : on AWAIT (pas fire-and-forget). Vercel serverless tue
+    // la fonction dès la réponse HTTP envoyée — un fire-and-forget perdrait
+    // download + upload Storage + insert documents_chantier en plein vol.
+    // Await garantit que le pipeline tourne entièrement avant que whapi
+    // reçoive le 200. Acceptable car whapi a un timeout webhook ~30s.
     if (msg.type === 'image' && !msg.from_me && !upsertErr) {
-      handleWaPhoto(supabase, msg, group.chantier_id, groupId).catch(() => {});
+      try {
+        await handleWaPhoto(supabase, msg, group.chantier_id, groupId);
+      } catch (err) {
+        console.error('[whapi:photo] handleWaPhoto error:', err instanceof Error ? err.message : err);
+      }
     }
 
     // Collect chantier_id for batched agent trigger (debounce: 1 trigger per chantier per webhook batch)
