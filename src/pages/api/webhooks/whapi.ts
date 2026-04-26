@@ -133,11 +133,14 @@ function makeClient() {
 }
 
 async function lookupGroupByJid(supabase: ReturnType<typeof makeClient>, groupJid: string) {
+  // .maybeSingle() au lieu de .single() : un éventuel doublon ou un JID inconnu
+  // ne doit pas faire crasher le webhook. PGRST116 (0 ou >1 lignes) est silencieux.
   const { data } = await supabase
     .from('chantier_whatsapp_groups')
-    .select('id, chantier_id')
+    .select('id, chantier_id, is_owner_channel')
     .eq('group_jid', groupJid)
-    .single();
+    .limit(1)
+    .maybeSingle();
   return data ?? null;
 }
 
@@ -174,6 +177,10 @@ export const POST: APIRoute = async ({ request }) => {
   const chantierOwnerCache = new Map<string, string>(); // chantier_id → user_id
   const agentTriggerChantierIds = new Set<string>(); // debounce: 1 trigger per chantier per batch
   const lastInboundMsg = new Map<string, { from: string; body: string }>(); // chantier_id → last msg
+  // Vague 3 : si message reçu dans le canal owner privé, on le route en `interactive`
+  // au lieu de `morning` pour permettre resolve_pending_decision et autres actions OK.
+  // Map chantier_id → liste des messages owner channel du batch (concaténés en user_message).
+  const ownerChannelMsgs = new Map<string, string[]>();
 
   for (const msg of messages) {
     // whapi uses chat_id for the group JID (not "to")
@@ -248,6 +255,14 @@ export const POST: APIRoute = async ({ request }) => {
     if (!msg.from_me) {
       agentTriggerChantierIds.add(group.chantier_id);
       lastInboundMsg.set(group.chantier_id, { from: String(msg.from ?? ''), body: body ?? '' });
+      // Vague 3 : accumule les messages du canal owner pour routing interactive.
+      // Si plusieurs messages dans le même batch ("ah" "non" "oublie"), on les
+      // concatène pour que l'agent voie l'intégralité du raisonnement user.
+      if ((group as { is_owner_channel?: boolean }).is_owner_channel === true && body) {
+        const arr = ownerChannelMsgs.get(group.chantier_id) ?? [];
+        arr.push(body);
+        ownerChannelMsgs.set(group.chantier_id, arr);
+      }
     }
   }
 
@@ -272,10 +287,33 @@ export const POST: APIRoute = async ({ request }) => {
           payload: lastInboundMsg.get(chantierId) ?? { from: 'batch', body: `${messages.length} messages received` },
         });
       } else if (mode === 'edge_function') {
+        const ownerMsgs = ownerChannelMsgs.get(chantierId);
+        const ownerMsg = ownerMsgs && ownerMsgs.length > 0 ? ownerMsgs.join('\n') : null;
+        let payload: Record<string, unknown>;
+        if (ownerMsg) {
+          // Message owner channel → mode interactive avec historique restauré.
+          // Sinon l'agent perd le contexte des messages proactifs précédents.
+          const { data: history } = await supabase
+            .from('chantier_assistant_messages')
+            .select('id, role, content, agent_initiated, is_read, created_at, tool_calls, tool_call_id')
+            .eq('chantier_id', chantierId)
+            .order('created_at', { ascending: false })
+            .limit(20);
+          // Renverse pour ordre chronologique ascendant.
+          const conversationHistory = (history ?? []).reverse();
+          payload = {
+            chantier_id: chantierId,
+            run_type: 'interactive',
+            user_message: ownerMsg,
+            conversation_history: conversationHistory,
+          };
+        } else {
+          payload = { chantier_id: chantierId, run_type: 'morning' };
+        }
         fetch(`${supabaseUrl}/functions/v1/agent-orchestrator`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${supabaseService}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chantier_id: chantierId, run_type: 'morning' }),
+          body: JSON.stringify(payload),
         }).catch(() => {});
       }
     }

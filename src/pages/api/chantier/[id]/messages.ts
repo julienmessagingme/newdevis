@@ -1,18 +1,20 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuthOrAgent, createServiceClient } from '@/lib/apiHelpers';
 
 // ── POST — send a message to a contact via SendGrid ──────────────────────
 
 export const POST: APIRoute = async ({ params, request }) => {
-  const ctx = await requireChantierAuth(request, params.id!);
+  const ctx = await requireChantierAuthOrAgent(request, params.id!);
   if (ctx instanceof Response) return ctx;
 
   const chantierId = params.id!;
   const body = await request.json();
   const contactId = body.contact_id;
-  const subject   = (body.subject ?? '').trim();
+  // Sanitize subject : strip CRLF pour éviter une injection d'en-têtes SMTP
+  // (Subject: foo\r\nBcc: hijack@evil.com → hijack du destinataire).
+  const subject   = (body.subject ?? '').trim().replace(/[\r\n]+/g, ' ');
   const bodyText  = (body.body ?? '').trim();
 
   if (!contactId || !subject || !bodyText)
@@ -90,10 +92,21 @@ export const POST: APIRoute = async ({ params, request }) => {
   if (msgErr || !message)
     return jsonError(msgErr?.message ?? 'Erreur création message', 500);
 
-  // Build sender display name
-  const firstName = ctx.user.user_metadata?.first_name ?? '';
-  const lastName  = ctx.user.user_metadata?.last_name ?? '';
-  const userName  = [firstName, lastName].filter(Boolean).join(' ') || ctx.user.email || 'Utilisateur';
+  // Build sender display name. En mode user JWT, ctx.user.user_metadata est rempli.
+  // En mode agent (X-Agent-Key), ctx.user = { id } seulement → on doit fetch via auth admin
+  // pour récupérer le nom. Sinon le mail serait signé "Utilisateur" → mauvaise UX.
+  let firstName = ctx.user.user_metadata?.first_name ?? '';
+  let lastName  = ctx.user.user_metadata?.last_name ?? '';
+  let userEmail = ctx.user.email ?? '';
+  if (!firstName && !lastName && !userEmail) {
+    // Mode agent : récupère le profil via auth.admin (service role).
+    const adminClient = createServiceClient();
+    const { data: u } = await adminClient.auth.admin.getUserById(ctx.user.id);
+    firstName = u?.user?.user_metadata?.first_name ?? '';
+    lastName  = u?.user?.user_metadata?.last_name ?? '';
+    userEmail = u?.user?.email ?? '';
+  }
+  const userName  = [firstName, lastName].filter(Boolean).join(' ') || userEmail || 'Utilisateur';
 
   // Send via SendGrid
   const sendgridApiKey = import.meta.env.SENDGRID_API_KEY;

@@ -414,6 +414,19 @@ export async function buildContext(
       return data ?? [];
     })(),
 
+    // Rappels programmés en attente. L'agent doit les voir pour pouvoir
+    // les annuler à la demande ("oublie le rappel pour le plombier") via cancel_reminder.
+    scheduled_reminders: await (async () => {
+      const { data } = await supabase
+        .from("agent_scheduled_actions")
+        .select("id, due_at, payload, action_type, created_at")
+        .eq("chantier_id", chantierId)
+        .eq("status", "pending")
+        .order("due_at", { ascending: true })
+        .limit(10);
+      return data ?? [];
+    })(),
+
     todays_insights_with_actions: await (async () => {
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
       const { data } = await supabase

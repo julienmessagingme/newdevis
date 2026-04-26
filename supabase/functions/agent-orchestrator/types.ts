@@ -157,4 +157,13 @@ export interface ChantierContext {
     expires_at: string;
     created_at: string;
   }>;
+  /** Rappels programmés en attente (vague 3 — schedule_reminder).
+   * L'agent peut les annuler via cancel_reminder à la demande du user. */
+  scheduled_reminders: Array<{
+    id: string;
+    due_at: string;
+    payload: { text?: string; lot_id?: string };
+    action_type: string;
+    created_at: string;
+  }>;
 }

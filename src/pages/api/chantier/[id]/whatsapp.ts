@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth, parseJsonBody } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth, requireChantierAuthOrAgent, parseJsonBody, createServiceClient } from '@/lib/apiHelpers';
 import { formatPhone, createWhatsAppGroup, addGroupParticipants } from '@/lib/whapiUtils';
 
 const GMC_PHONE = '33633921577';
@@ -36,31 +36,64 @@ async function getClientPhone(supabase: any, token: string): Promise<string | nu
   return phone ? formatPhone(phone) : null;
 }
 
+/** Récupère le téléphone du owner via service-role admin (mode agent, pas de JWT user). */
+async function getClientPhoneByUserId(userId: string): Promise<string | null> {
+  const admin = createServiceClient();
+  const { data } = await admin.auth.admin.getUserById(userId);
+  const phone =
+    data?.user?.user_metadata?.phone ??
+    data?.user?.phone ??
+    null;
+  return phone ? formatPhone(phone) : null;
+}
+
 // ── Routes ───────────────────────────────────────────────────────────────────
 
 export const OPTIONS: APIRoute = () => optionsResponse('POST,PATCH,OPTIONS');
 
 export const POST: APIRoute = async ({ params, request }) => {
   const token = request.headers.get('Authorization')?.slice(7) ?? '';
-  const ctx = await requireChantierAuth(request, params.id!);
+  const ctx = await requireChantierAuthOrAgent(request, params.id!);
   if (ctx instanceof Response) return ctx;
 
   const chantierId = params.id!;
 
-  const body = await parseJsonBody<{ name?: string; selectedPhones?: string[] }>(request);
+  const body = await parseJsonBody<{ name?: string; selectedPhones?: string[]; is_owner_channel?: boolean }>(request);
   if (body instanceof Response) return body;
 
-  const groupName = body.name?.trim() || 'Groupe principal';
+  const isOwnerChannel = body.is_owner_channel === true;
+  const groupName = body.name?.trim() || (isOwnerChannel ? '📋 Mon Chantier (canal IA)' : 'Groupe principal');
 
-  // Fetch client phone once — used both for participant list and role assignment
-  const clientPhone = await getClientPhone(ctx.supabase, token);
+  // Fetch client phone : en mode user JWT via auth.getUser(token) ;
+  // en mode agent (X-Agent-Key, pas de JWT) via service-role admin.getUserById.
+  const clientPhone = ctx.isAgent
+    ? await getClientPhoneByUserId(ctx.user.id)
+    : await getClientPhone(ctx.supabase, token);
 
   // Determine participants
   let participantPhones: string[];
   let phoneToName: Map<string, string>;
   const phoneToHasWA = new Map<string, boolean | null>();
 
-  if (body.selectedPhones && body.selectedPhones.length > 0) {
+  // Owner channel : groupe avec UNIQUEMENT le client + GMC. Ignore selectedPhones.
+  if (isOwnerChannel) {
+    if (!clientPhone) {
+      return jsonError('Téléphone client manquant. Renseigne ton numéro dans Paramètres.', 400);
+    }
+    // Refuse si un canal owner existe déjà (contrainte unique en DB le forcerait sinon).
+    const { data: existing } = await ctx.supabase
+      .from('chantier_whatsapp_groups')
+      .select('id, group_jid, name')
+      .eq('chantier_id', chantierId)
+      .eq('is_owner_channel', true)
+      .maybeSingle();
+    if (existing) {
+      return jsonOk({ group: existing, already_exists: true });
+    }
+    participantPhones = [clientPhone];
+    phoneToName = new Map([[clientPhone, 'Vous']]);
+    phoneToHasWA.set(clientPhone, true); // assume yes — c'est le user
+  } else if (body.selectedPhones && body.selectedPhones.length > 0) {
     participantPhones = body.selectedPhones.map((p) => formatPhone(p)).filter((p) => p.length >= 10);
     // Always include the client phone even if not in selectedPhones (UI guarantee)
     if (clientPhone && !participantPhones.includes(clientPhone)) {
@@ -92,11 +125,17 @@ export const POST: APIRoute = async ({ params, request }) => {
   try {
     const { groupId, inviteLink } = await createWhatsAppGroup(groupName, waPhones);
 
-    // INSERT group record
+    // INSERT group record (avec flag is_owner_channel quand applicable)
     const { data: newGroup, error: groupErr } = await ctx.supabase
       .from('chantier_whatsapp_groups')
-      .insert({ chantier_id: chantierId, name: groupName, group_jid: groupId, invite_link: inviteLink })
-      .select('id, name, group_jid, invite_link')
+      .insert({
+        chantier_id: chantierId,
+        name: groupName,
+        group_jid: groupId,
+        invite_link: inviteLink,
+        is_owner_channel: isOwnerChannel,
+      })
+      .select('id, name, group_jid, invite_link, is_owner_channel')
       .single();
 
     if (groupErr || !newGroup) {

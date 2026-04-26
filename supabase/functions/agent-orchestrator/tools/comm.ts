@@ -1,5 +1,5 @@
-// Tools communication : send_whatsapp_message + notify_owner_for_decision + resolve_pending_decision.
-import { Handler, Tool, WHAPI_TOKEN, defaultHeaders, supabaseAdmin } from "./shared.ts";
+// Tools communication : send_whatsapp_message + send_email + notify_owner_for_decision + resolve_pending_decision.
+import { Handler, Tool, WHAPI_TOKEN, API_BASE, defaultHeaders, supabaseAdmin } from "./shared.ts";
 
 // Injecté depuis tools/index.ts pour éviter dépendance circulaire (comm.ts → index.ts → comm.ts).
 // resolve_pending_decision a besoin d'appeler le dispatcher pour exécuter l'expected_action.
@@ -22,6 +22,43 @@ export const ACTION_SCHEMAS: Tool[] = [
           body: { type: "string", description: "Contenu du message à envoyer" },
         },
         required: ["to", "body"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_owner_whatsapp_channel",
+      description:
+        "Crée le canal WhatsApp privé 'Mon Chantier' avec UNIQUEMENT le owner dedans. Utilisé quand le user dit 'active mes notifs WhatsApp' ou avant de programmer un rappel pour la première fois.\n\n" +
+        "Préconditions : le user doit avoir renseigné son numéro de téléphone dans son profil (Paramètres). Sinon le tool retourne une erreur claire à relayer.\n\n" +
+        "Une fois créé, c'est le canal où l'agent envoie ses notifs proactives : clarifications, alertes critiques, rappels schedule_reminder, décisions à prendre via notify_owner_for_decision. Un seul canal owner par chantier.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "send_email",
+      description:
+        "Envoie un email à un contact du chantier via SendGrid. Le contact doit avoir une adresse email enregistrée. La conversation est automatiquement créée si elle n'existe pas, et toute réponse arrive dans le thread Messagerie.\n\n" +
+        "Cas d'usage typique :\n" +
+        "  • Beaucoup d'artisans ne sont pas sur WhatsApp et préfèrent l'email — utilise send_email plutôt que send_whatsapp_message dans ce cas.\n" +
+        "  • Pour un message formel (relance facture, validation devis écrite) → email préféré.\n\n" +
+        "REQUIERT confirmation explicite de l'utilisateur — comme send_whatsapp_message. Tu proposes le sujet + corps, l'utilisateur dit 'envoie / ok' avant l'envoi.\n\n" +
+        "Si le contact n'a pas d'email enregistré, le tool renvoie une erreur — propose à l'utilisateur d'ajouter l'email via update_contact d'abord.",
+      parameters: {
+        type: "object",
+        properties: {
+          contact_id: { type: "string", description: "UUID du contact destinataire (récupéré via get_contacts_chantier)." },
+          subject:    { type: "string", description: "Sujet de l'email. Court et explicite." },
+          body:       { type: "string", description: "Corps du message en texte brut. Inclut une signature/politesse appropriée — l'utilisateur ne pourra pas l'éditer après l'envoi." },
+        },
+        required: ["contact_id", "subject", "body"],
       },
     },
   },
@@ -140,6 +177,102 @@ export const handlers: Record<string, Handler> = {
     const body = String(args.body ?? "");
     const result = await sendWhatsApp(chantierId, to, body);
     return JSON.stringify(result);
+  },
+
+  create_owner_whatsapp_channel: async ({ chantierId, headers }) => {
+    // Délègue à l'API existante avec flag is_owner_channel: true
+    // (l'API gère récupération phone user, dédup canal existant, création whapi).
+    const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/whatsapp`, {
+      method: "POST", headers,
+      body: JSON.stringify({ is_owner_channel: true }),
+    });
+    if (!res.ok) {
+      const errTxt = await res.text();
+      return JSON.stringify({ ok: false, error: `create_owner_whatsapp_channel ${res.status}: ${errTxt.slice(0, 200)}` });
+    }
+    const data = await res.json();
+    if (data?.already_exists) {
+      return JSON.stringify({
+        ok: true, already_exists: true,
+        message: "Le canal WhatsApp privé existe déjà pour ce chantier.",
+        group_jid: data.group?.group_jid,
+      });
+    }
+    return JSON.stringify({
+      ok: true,
+      group_jid: data?.group?.group_jid,
+      message: "Canal WhatsApp privé créé. Tu vas recevoir les notifications de l'agent dans ce groupe.",
+    });
+  },
+
+  send_email: async ({ chantierId, args }) => {
+    const contactId = String(args.contact_id ?? "").trim();
+    const subject = String(args.subject ?? "").trim();
+    const body = String(args.body ?? "").trim();
+    if (!contactId || !subject || !body) {
+      return JSON.stringify({ ok: false, error: "contact_id, subject et body requis" });
+    }
+
+    // Pré-check : le contact a-t-il un email ? Évite un round-trip API si email manquant.
+    const sb = supabaseAdmin();
+    const { data: contact, error: cErr } = await sb
+      .from("contacts_chantier")
+      .select("id, nom, email, chantier_id")
+      .eq("id", contactId)
+      .single();
+    if (cErr || !contact) {
+      return JSON.stringify({ ok: false, error: "Contact introuvable" });
+    }
+    if (contact.chantier_id !== chantierId) {
+      return JSON.stringify({ ok: false, error: "Contact d'un autre chantier" });
+    }
+    if (!contact.email) {
+      return JSON.stringify({
+        ok: false, error: "Pas d'email enregistré pour ce contact",
+        message: `${contact.nom} n'a pas d'email enregistré. Demande à l'utilisateur d'ajouter l'email via update_contact d'abord.`,
+        contact_id: contactId, contact_nom: contact.nom,
+      });
+    }
+
+    // Anti-spam : cap dur de 5 emails sortants vers ce contact dans les 24h.
+    // Protège contre boucles agent / hallucination "envoie à tous les artisans".
+    const since24h = new Date(Date.now() - 86400000).toISOString();
+    const { data: convForCount } = await sb.from("chantier_conversations")
+      .select("id").eq("chantier_id", chantierId).eq("contact_id", contactId).maybeSingle();
+    if (convForCount?.id) {
+      const { count: recentCount } = await sb.from("chantier_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("conversation_id", convForCount.id)
+        .eq("direction", "outbound")
+        .gte("created_at", since24h);
+      if ((recentCount ?? 0) >= 5) {
+        return JSON.stringify({
+          ok: false, error: "rate_limit",
+          message: `Cap atteint : 5 emails envoyés à ${contact.nom} dans les 24h. Demande au user d'attendre demain ou d'envoyer manuellement via la Messagerie.`,
+        });
+      }
+    }
+
+    // Délègue à l'API messages.ts (gère création conversation + SendGrid + log inbound).
+    const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/messages`, {
+      method: "POST",
+      headers: defaultHeaders(),
+      body: JSON.stringify({ contact_id: contactId, subject, body }),
+    });
+    if (!res.ok) {
+      const errTxt = await res.text();
+      return JSON.stringify({ ok: false, error: `send_email ${res.status}: ${errTxt.slice(0, 200)}` });
+    }
+    const data = await res.json();
+    return JSON.stringify({
+      ok: true,
+      contact_nom: contact.nom,
+      contact_email: contact.email,
+      conversation_id: data?.conversationId,
+      message_id: data?.messageId,
+      send_failed: !!data?.sendError,
+      send_error: data?.sendError,
+    });
   },
 
   notify_owner_for_decision: async ({ chantierId, args }) => {

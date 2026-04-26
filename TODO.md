@@ -96,9 +96,17 @@ Si la complexité des workflows pending explose (>3 états avec branches conditi
 
 Quand un lot a 0 devis depuis X jours, proposer une short-list d'artisans RGE / proches géographiquement / bien notés Google. Nécessite : dataset RGE (ADEME — déjà partiellement utilisé dans `verify.ts`), API Google Places pour proximité, scoring custom. Forte valeur user, gros build. À planifier quand les bases sont solides.
 
-### 🟠 P10 — Notification push (browser / mobile)
+### 🟠 P10 — Canaux proactifs alternatifs (Web Push / email)
 
-Aujourd'hui les notifs proactives passent par WhatsApp privé (vague 3). Si certains users ne veulent pas WhatsApp, alternative : Web Push API + email transactionnel SendGrid. À évaluer selon feedback user.
+⚠️ **À ne pas confondre avec la vague 3** qui livre le canal proactif principal **via WhatsApp privé** (groupe "Mon Chantier — X" avec uniquement le user dedans). P10 = canaux **alternatifs** pour les users qui ne veulent pas / ne peuvent pas WhatsApp.
+
+Pistes :
+- **Web Push API** (notif browser) : permission demandée au premier login, push depuis edge function via VAPID. Fonctionne même app fermée si browser ouvert.
+- **Email transactionnel SendGrid** : digest quotidien ou notif immédiate sur les triggers critiques (alertes, clarifications urgentes).
+
+Settings UI à enrichir : checkboxes par canal (WhatsApp / Web Push / Email) × par catégorie de trigger (clarifications / alertes critiques / rappels / etc.). Sinon spam.
+
+Pas urgent : à activer si on identifie une cohorte significative de users sans WhatsApp.
 
 ### 🟠 P11 — Rapport PDF fin de chantier
 

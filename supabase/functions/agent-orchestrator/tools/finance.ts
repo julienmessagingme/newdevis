@@ -8,6 +8,29 @@ export const ACTION_SCHEMAS: Tool[] = [
   {
     type: "function",
     function: {
+      name: "add_payment_event",
+      description:
+        "Ajoute une entrée future dans l'Échéancier — sortie planifiée (ex: 'le plombier veut 30% à la commande') OU entrée attendue (ex: 'le crédit débloque 30k le 15 mai').\n\n" +
+        "Cas d'usage typique :\n" +
+        "  • L'utilisateur dit \"le crédit débloque 30k le 15 mai\" → add_payment_event(label='Déblocage crédit', amount=30000, due_date='2026-05-15')\n" +
+        "  • \"Le plombier demande 1500€ d'acompte à la commande la semaine prochaine\" → add_payment_event(label='Acompte plombier (commande)', amount=1500, due_date=...)\n" +
+        "  • \"Aide MaPrimeRénov 4500€ attendue en juillet\" → add_payment_event(label='MaPrimeRénov', amount=4500, due_date='2026-07-15')\n\n" +
+        "Limitation V1 : pas de distinction explicite entrée/sortie en DB. Le label doit être suffisamment clair (\"Déblocage X\", \"Acompte Y\", \"Aide Z\") pour que l'utilisateur comprenne dans l'Échéancier.\n\n" +
+        "Pour un paiement DÉJÀ effectué sur une facture existante → utilise plutôt register_payment.",
+      parameters: {
+        type: "object",
+        properties: {
+          label:    { type: "string", description: "Court libellé visible dans l'échéancier (ex: 'Acompte plombier', 'Déblocage crédit Société Générale')." },
+          amount:   { type: "number", description: "Montant TTC en euros (toujours positif). Le 'sens' (entrée vs sortie) doit être clair via le label." },
+          due_date: { type: "string", description: "Date prévue YYYY-MM-DD (ex: '2026-05-15'). Calcule depuis le langage naturel ('semaine prochaine' = today+7j, etc.)." },
+        },
+        required: ["label", "amount", "due_date"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "register_payment",
       description:
         "Enregistre un paiement déclaré par l'utilisateur au chat (\"j'ai viré 1500€ au plombier\"). Le serveur cherche la facture qui matche puis applique le statut approprié.\n\n" +
@@ -77,6 +100,35 @@ function compactFacture(f: any): Record<string, unknown> {
 }
 
 export const handlers: Record<string, Handler> = {
+  add_payment_event: async ({ chantierId, headers, args }) => {
+    const label = String(args.label ?? "").trim();
+    const amount = Number(args.amount ?? 0);
+    const dueDate = String(args.due_date ?? "").trim();
+    if (!label || !Number.isFinite(amount) || amount <= 0 || !dueDate) {
+      return JSON.stringify({ ok: false, error: "label, amount (>0) et due_date YYYY-MM-DD requis" });
+    }
+    // Validation format date — strict YYYY-MM-DD pour éviter les déformations LLM (ex: '15/05/2026').
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+      return JSON.stringify({ ok: false, error: `due_date doit être au format YYYY-MM-DD (reçu '${dueDate}')` });
+    }
+
+    const res = await fetch(`${API_BASE}/api/chantier/${chantierId}/payment-events`, {
+      method: "POST", headers,
+      body: JSON.stringify({ manuel: true, label, amount, dueDate }),
+    });
+    if (!res.ok) {
+      const errTxt = await res.text();
+      return JSON.stringify({ ok: false, error: `add_payment_event ${res.status}: ${errTxt.slice(0, 200)}` });
+    }
+    const data = await res.json();
+    return JSON.stringify({
+      ok: true,
+      event_id: data?.payment_events?.[0]?.id ?? null,
+      label, amount, due_date: dueDate,
+      message: data?.message ?? "Échéance ajoutée",
+    });
+  },
+
   register_payment: async ({ chantierId, headers, args }) => {
     const hint = String(args.artisan_or_lot_hint ?? "").trim();
     const amount = Number(args.amount_paid ?? 0);

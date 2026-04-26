@@ -183,7 +183,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 // }
 
 export const POST: APIRoute = async ({ params, request }) => {
-  const ctx = await requireChantierAuth(request, params.id!);
+  const ctx = await requireChantierAuthOrAgent(request, params.id!);
   if (ctx instanceof Response) return ctx;
 
   const chantierId = params.id!;
@@ -223,10 +223,6 @@ export const POST: APIRoute = async ({ params, request }) => {
       return jsonError('Erreur lors de la création', 500);
     }
 
-    ctx.supabase.from('agent_context_cache')
-      .update({ invalidated: true }).eq('chantier_id', chantierId)
-      .then(() => {}).catch(() => {});
-
     return jsonOk({ payment_events: [ev], message: 'Dépense créée' }, 201);
   }
 
@@ -257,11 +253,6 @@ export const POST: APIRoute = async ({ params, request }) => {
     .eq('project_id', chantierId)
     .eq('source_id', sourceId)
     .order('due_date', { ascending: true });
-
-  // Invalidate agent context cache (new payment events = stale context)
-  ctx.supabase.from('agent_context_cache')
-    .update({ invalidated: true }).eq('chantier_id', chantierId)
-    .then(() => {}).catch(() => {});
 
   return jsonOk({ payment_events: data ?? [], message: 'Timeline générée' }, 201);
 };
