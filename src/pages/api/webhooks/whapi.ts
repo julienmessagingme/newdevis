@@ -25,6 +25,9 @@ async function handleWaPhoto(
   const caption: string | null = msg.image?.caption ?? null;
   const mimeType: string = msg.image?.mimetype ?? 'image/jpeg';
 
+  // TEMP DEBUG : on log ce que whapi envoie pour comprendre le bug photo perdue
+  console.log(`[whapi:photo] msg=${msgId} image_payload=${JSON.stringify(msg.image ?? null)}`);
+
   // Stratégie de download :
   //   1. Si image.link présent (cas normal) → fetch directement.
   //   2. Sinon si image.id présent → GET /media/{image.id} (endpoint whapi dédié,
