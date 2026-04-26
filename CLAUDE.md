@@ -107,6 +107,10 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 - **WhatsApp messages — `group_id TEXT`** : `chantier_whatsapp_messages.group_id` est un TEXT stockant le JID brut (ex: `120363xxxxx@g.us`), **pas** un UUID FK vers `chantier_whatsapp_groups`. Intentionnel — la table messages est antérieure à la table groups. Ne pas migrer en UUID FK sans plan de migration des données.
 - **Planning D&D — ne pas reset `delai_avant_jours=0`** : la position visuelle du drag DOIT être convertie en `delai_avant_jours` (jours ouvrés depuis le predecessor.date_fin OU startDate). Sinon le serveur CPM recompute à zéro et la modif visuelle ne persiste pas. Cf. `PlanningTimeline.handleLotMoveWithLane`.
 - **`arrange_lot` legacy → modèle DAG** : `arrange_lot` doit écrire dans `lot_dependencies` (pas seulement `ordre_planning`) et forcer `lane_index = ref.lane_index` pour `chain_after`. Sinon le CPM ignore la nouvelle structure et la lane visuelle saute en haut.
+- **Schedule reminder DST** : ne pas demander à l'agent de calculer l'UTC. Toujours `due_at_local + tz` (Europe/Paris) côté agent → conversion serveur via `Intl.DateTimeFormat`. Sinon Gemini se trompe d'1h aux changements d'heure.
+- **Token cap = completion_tokens** (pas total_tokens) : `total_tokens` cumule prompt+completion et le prompt grossit à chaque round → triple-comptage. Cap sur `completion_tokens` uniquement (cf. `index.ts` agent-orchestrator).
+- **Pending decision flow** : `notify_owner_for_decision` stocke l'`expected_action`, `resolve_pending_decision` l'exécute via dispatcher injecté (pas de re-confirmation 2-tours pour cette exécution — bypass volontaire car owner a déjà confirmé via WhatsApp privé).
+- **`agent-scheduled-tick` atomic claim** : RPC `claim_pending_reminders` avec `FOR UPDATE SKIP LOCKED`. Sans ça, 2 ticks concurrents = double envoi WhatsApp. Status passe `pending → firing → fired/failed`.
 
 ---
 
@@ -230,9 +234,30 @@ Pour le détail complet (modèle CPM, agent IA dual-mode, pipeline de générati
 - Edge function `agent-orchestrator` (Gemini 2.5-flash, function calling).
 - **Mode** configurable par user : `edge_function` (défaut) | `openclaw` (en cours, voir WIP.md) | `disabled`.
 - Triggers : upload document, message WhatsApp, email entrant, affectation lot, cron 19h Paris.
-- Tools agent disponibles : `update_planning`, `shift_lot`, `arrange_lot`, `register_expense`, `mark_lot_completed`, `send_whatsapp_message`, `create_task`, `complete_task`, `log_insight`, `request_clarification` (+ outils lecture). Détail dans `tools.ts`.
+- **Architecture modulaire `tools/`** (P2) : 11 modules par domaine (planning, status, tasks, finance, documents, contacts, scheduled, insights, comm, read) + dispatcher avec check collision noms au boot.
+- **Tools livrés** (cf. `FEATURES.md § 14` pour le détail par tool) :
+  - Lecture : `get_chantier_summary`, `get_chantier_planning`, `get_chantier_data`, `get_contacts_chantier`, `get_recent_photos`, `list_chantier_groups`, `get_message_read_status`
+  - Planning : `update_planning`, `shift_lot`, `arrange_lot`, `update_lot_dates`, `update_lot_status`, `mark_lot_completed`
+  - Tâches : `create_task`, `complete_task`
+  - Frais & paiements (vague 1+2) : `register_expense`, `register_payment` (matching A/B/C/D/E), `add_payment_event`
+  - Statuts (vague 1) : `update_devis_statut`
+  - Documents (vague 1) : `move_document_to_lot`
+  - Contacts (vague 1) : `update_contact` (normalisation tel)
+  - Communication (vague 2+3) : `send_whatsapp_message`, `send_email` (cap 5/24h), `create_owner_whatsapp_channel`
+  - Décisions (P1) : `notify_owner_for_decision`, `resolve_pending_decision`
+  - Programmation (vague 3) : `schedule_reminder`, `cancel_reminder`
+  - Mémoire : `log_insight`, `request_clarification`
+- `MAX_TOOL_ROUNDS = 8` + `MAX_TOTAL_TOKENS_PER_RUN = 30k` sur completion_tokens (P3).
+- **Fan-out cron** (P4) : mode dispatcher fire 1 invocation indépendante par chantier (cap 200), avec garde-fou anti-loop `_dispatched: true`.
 - **Pas de cache contexte** (supprimé 2026-04-23) — fresh fetch à chaque appel via `context.ts` avec timeouts AbortController.
 - Auth inter-service : `requireChantierAuthOrAgent` accepte JWT user OU header `X-Agent-Key`.
+
+### Canal proactif WhatsApp (vague 3)
+- `chantier_whatsapp_groups.is_owner_channel BOOLEAN` + UNIQUE partial index (1 canal owner par chantier).
+- API `/api/chantier/[id]/whatsapp` accepte `{ is_owner_channel: true }` — récupère phone via auth admin en mode agent.
+- Webhook whapi route les messages owner channel en mode `interactive` avec historique 20 derniers msgs restauré + concaténation multi-msg même batch.
+- Edge function `agent-scheduled-tick` (cron 15min) : auth Bearer service_role OU X-Cron-Secret. RPC `claim_pending_reminders` FOR UPDATE SKIP LOCKED → atomic claim. Process parallèle batches 8.
+- Tables : `agent_pending_decisions` (P1), `agent_scheduled_actions` (vague 3, status pending|firing|fired|cancelled|failed).
 
 ### Catégorie `frais` (déclaration sans pièce)
 - `documents_chantier.depense_type` étendu à `'frais'` (CHECK constraint élargi).

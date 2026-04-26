@@ -1,6 +1,102 @@
-# GérerMonChantier — Liste des features
+# Liste des features — VerifierMonDevis + GérerMonChantier
 
-Documentation fonctionnelle (point de vue utilisateur) du module chantier de VerifierMonDevis. Décrit ce qu'on peut faire, pas comment c'est fait techniquement.
+Documentation fonctionnelle (point de vue utilisateur). Décrit ce qu'on peut faire, pas comment c'est fait techniquement.
+
+---
+
+## 0. Vue d'ensemble : 2 produits, 1 mission
+
+### VerifierMonDevis (VMD) — le lead magnet
+
+**Service gratuit** d'analyse de devis d'artisans. Le particulier upload un devis (PDF, photo, scan), notre IA :
+- **Extrait les lignes** (description, prix, unité, quantité)
+- **Vérifie l'entreprise** (SIRET, ancienneté, santé financière, RGE, avis Google) via 7 APIs publiques
+- **Compare les prix** au marché (catalogue de ~270 prix unitaires régionalement ajustés, big data des analyses précédentes)
+- **Note la fiabilité** du devis avec un score 🟢 / 🟡 / 🔴 et un rapport détaillé
+
+**Pourquoi VMD existe** : c'est un outil **d'acquisition** (lead magnet). Quelqu'un qui s'apprête à faire des travaux a UN besoin immédiat = "ce devis est-il honnête ?". On répond gratuitement, on capture l'email/téléphone, on lui ouvre la porte de GérerMonChantier.
+
+**Ce que VMD apporte au business** :
+- Audience qualifiée (gens qui ont déjà un projet travaux concret)
+- SEO long-tail ("vérifier devis plombier", "prix carrelage au m²")
+- Crédibilité : on devient l'expert tiers de confiance
+- Conversion vers GMC : "tu as ton devis vérifié, maintenant gère ton chantier avec nous"
+
+VMD reste **gratuit à vie** sur les 5 premières analyses. Au-delà, le **Pass Sérénité** (4,99€/mois) débloque les analyses illimitées + le rapport PDF + le tri par type de travaux.
+
+### GérerMonChantier (GMC) — le produit principal
+
+**Outil complet de pilotage** d'un chantier de rénovation, de l'idée à la réception. Pour le particulier qui se lance dans des travaux et qui n'a ni le temps ni l'expertise d'être maître d'œuvre.
+
+Couvre les 5 phases d'un chantier :
+1. **Conception** — décrire le projet, l'IA en extrait les lots et le budget
+2. **Planification** — Gantt CPM avec dépendances entre lots, réorganisable au drag-and-drop
+3. **Devis** — récupérer, comparer, valider les devis artisans
+4. **Financier** — suivre le budget engagé / facturé / payé, l'échéancier de trésorerie
+5. **Exécution & Réception** — communiquer avec les artisans (WhatsApp + email), suivre les photos, marquer les lots terminés
+
+**L'agent IA "Pilote de Chantier"** (Gemini 2.5-flash function calling) tourne en arrière-plan : il analyse les messages WhatsApp / emails entrants, déclenche des actions, anticipe les retards, propose des décisions à arbitrer, génère un digest journalier.
+
+GMC est en cours de monétisation (les modalités exactes ne sont pas encore arrêtées).
+
+---
+
+## 0bis. Intégrations VMD ↔ GMC — comment l'un nourrit l'autre
+
+C'est le **point névralgique du business model** : VMD attire les leads, GMC les retient.
+
+### Pont 1 — Compte unique
+Un user qui crée son compte sur VMD pour analyser un devis a **automatiquement** accès à GMC sans nouveau signup. Même login, même profil, même Pass Sérénité.
+
+### Pont 2 — "Importer depuis mes analyses" (lots → devis)
+Dans GMC, à la création d'un chantier, le user voit **toutes ses analyses VMD passées** et peut les rattacher à des lots du nouveau chantier. Bénéfices :
+- Pas de double saisie : artisan, montant, score de fiabilité, lignes détaillées, déjà extraites
+- Historique : on garde la traçabilité "ce devis vient d'une analyse VMD du 12/03 avec score 8/10"
+
+### Pont 3 — "Uploader un devis" depuis GMC = analyse VMD automatique
+Quand le user upload un PDF de devis dans GMC (onglet Documents ou directement dans un lot), le pipeline VMD se lance automatiquement :
+- OCR + extraction lignes
+- Vérification entreprise
+- Score de fiabilité
+- Comparaison marché par job_type
+
+Le résultat est rattaché au document, accessible via le lien "Voir l'analyse →" partout où le devis apparaît dans GMC. Pas besoin de changer d'onglet.
+
+### Pont 4 — Contacts auto-créés depuis les analyses
+Chaque analyse VMD identifie un artisan (nom, SIRET, téléphone, email si présent dans le devis). Quand on rattache l'analyse à un lot GMC, le contact est **automatiquement créé** dans le carnet du chantier — pas de re-saisie.
+
+### Pont 5 — Catalogue prix mutualisé (`market_prices`)
+Le catalogue de ~270 prix unitaires utilisé pour :
+- Le verdict prix de VMD ("votre carrelage est 15% au-dessus du marché")
+- L'estimation budget initiale de GMC à la création d'un chantier
+- Le test de cohérence en continu dans le tableau Budget de GMC ("alerte : devis Maçon dépasse la fourchette marché")
+
+C'est **la même source de vérité** côté backend → un nouveau prix ajouté pour VMD bénéficie immédiatement à GMC, et inversement.
+
+### Pont 6 — Calculatrice prix homepage (entrée VMD pure)
+Sur la home VMD, un widget permet d'estimer rapidement un prix au m² pour un type de travaux + un code postal. Branché sur la même `market_prices` table. C'est typiquement le premier point de contact d'un user (recherche Google "prix carrelage m²" → tombe sur la calculatrice → utilise → s'inscrit pour analyser un devis).
+
+### Pont 7 — Big data des analyses → recommandations futures
+Chaque analyse VMD insère une ligne dans `price_observations` (anonymisée, avec code postal et job_type). Au bout de quelques mois × milliers d'analyses, on a un dataset unique en France. Usage GMC futur : recommandations d'artisans, prédiction de coûts par localité, alertes "ce prix est anormalement élevé / bas vs autres analyses similaires".
+
+### Diagramme synthèse
+```
+┌──────────────────────┐         ┌──────────────────────┐
+│  VerifierMonDevis    │         │  GérerMonChantier    │
+│  (lead magnet)       │  ─────→ │  (produit principal) │
+│                      │         │                      │
+│  Analyse devis       │         │  Pilotage chantier   │
+│  Note fiabilité      │         │  Planning CPM        │
+│  Vérifie entreprise  │         │  Budget/Trésorerie   │
+│  Calculatrice prix   │         │  Messagerie WA+Email │
+│  Pass Sérénité 4,99€ │         │  Agent IA pro-actif  │
+└──────────────────────┘         └──────────────────────┘
+        │                                ▲
+        │  Compte unique, market_prices, │
+        │  pipeline d'analyse partagé,   │
+        │  contacts auto, big data       │
+        └────────────────────────────────┘
+```
 
 ---
 
@@ -432,7 +528,7 @@ L'IA récupère le `devis_id` via `get_chantier_data`. Si plusieurs devis corres
 
 Tool **mono-directionnel** : impossible d'annuler un paiement (correction manuelle UI requise). Race-protection : ne pas appeler 2× en parallèle sur la même facture.
 
-### C. Frais déclarés
+### C. Finance étendue
 
 #### `register_expense(amount, label, lot_id? OR lot_name?, vendor?, depense_type?)`
 Déclaration d'une dépense **sans pièce jointe** (ticket de caisse, frais Leroy Merlin, etc.). Différent de `register_payment` qui s'applique à une facture existante.
@@ -442,7 +538,19 @@ Déclaration d'une dépense **sans pièce jointe** (ticket de caisse, frais Lero
 - Si l'utilisateur ne précise pas de lot → l'IA demande *"Pour quel lot cette dépense ?"* en texte. Si user dit "divers / aucun" → `lot_name: "Divers"` → tool crée/réutilise le lot Divers.
 - Type par défaut : `'frais'` (déclaration orale). Apparaît avec icône 📝 ambre dans le budget et lot detail.
 
-### D. Documents (vague 1 — nouveau)
+#### `add_payment_event(label, amount, due_date)` *(vague 2)*
+Ajoute une **échéance future** dans l'Échéancier — sortie planifiée OU entrée attendue.
+
+Cas d'usage :
+- *"Le crédit débloque 30k le 15 mai"* → `add_payment_event(label='Déblocage crédit', amount=30000, due_date='2026-05-15')`
+- *"Le plombier veut 1500€ d'acompte la semaine prochaine"* → l'IA calcule today+7j puis ajoute
+- *"Aide MaPrimeRénov 4500€ attendue en juillet"* → `add_payment_event(label='Aide MaPrimeRénov', amount=4500, due_date='2026-07-15')`
+
+Le **label** sert à indiquer le sens (entrée vs sortie) — préfixes recommandés : *"Acompte X"* / *"Déblocage X"* / *"Aide X"* / *"Solde X"*. Le format date est strict YYYY-MM-DD.
+
+Différent de `register_payment` (paiement déjà effectué) et de `register_expense` (dépense sans facture).
+
+### D. Documents (vague 1)
 
 #### `move_document_to_lot(doc_id, lot_id, raison?)`
 Réaffecte un document (devis, facture, photo, plan) à un autre lot. Cas typique : suite à `request_clarification` *"Cette photo est mal affectée à Maçon, c'est pour Carreleur"* → user confirme → l'IA bouge en DB.
@@ -466,10 +574,19 @@ Met à jour un contact existant. *"Jean a changé de numéro, c'est 0612345678"*
 #### `complete_task(titre)`
 *"J'ai relancé le plombier, coche la tâche"* → `complete_task("Relancer plombier")`.
 
-### G. Communication WhatsApp
+### G. Communication
 
 #### `send_whatsapp_message(to, body)`
 Envoie un message WhatsApp à un groupe (`xxx@g.us`) ou à un contact individuel (`33XXXXXXXXX@s.whatsapp.net`). **Confirmation explicite obligatoire** : l'IA propose le texte exact, attend "ok / envoie / confirme" avant d'envoyer.
+
+#### `send_email(contact_id, subject, body)` *(vague 2)*
+Envoie un email via SendGrid à un contact existant. Beaucoup d'artisans ne sont qu'en email — préféré pour les communications formelles (relance facture, validation devis écrite). **Confirmation explicite obligatoire** comme WhatsApp.
+
+Limitations :
+- Le contact doit avoir un email enregistré (sinon erreur claire renvoyée à l'IA, qui propose à l'utilisateur d'ajouter via `update_contact`).
+- **Cap 5 emails / contact / 24h** côté tool — anti-spam si bug agent.
+- Subject sanitizé (suppression CRLF) côté API pour bloquer les injections de headers SMTP.
+- Sender display name = "Prénom Nom via VerifierMonDevis" (récupéré du profil user via auth admin en mode agent). L'adresse `from` reste `chantier-{id}+{convId}@reply.verifiermondevis.fr` pour capter les réponses inbound dans le thread Messagerie.
 
 #### `notify_owner_for_decision(question, expected_action, context?, source_event?, expires_in_hours?)`
 Le tool clé du **canal proactif**. L'IA détecte une décision à arbitrer (ex: artisan demande +800€) → appelle ce tool avec :
@@ -486,7 +603,34 @@ Boucle la décision pending après réponse owner. Détection automatique du sen
 
 L'IA voit dans son contexte la liste des PENDING DECISIONS du chantier et appelle ce tool dès qu'une réponse claire arrive dans le chat ou WhatsApp privé.
 
-### H. Mémoire & journal
+#### `create_owner_whatsapp_channel()` *(vague 3)*
+Crée le **groupe WhatsApp privé "📋 Mon Chantier (canal IA)"** avec uniquement le user dedans (numéro pris du profil). C'est LE canal où l'agent envoie ses notifications proactives (clarifications, alertes critiques, rappels, décisions à arbitrer).
+
+Préconditions :
+- Le user doit avoir renseigné son téléphone dans Paramètres.
+- Un seul canal owner par chantier (contrainte unique partial index).
+
+Quand l'utilisateur écrit dans ce canal, le webhook whapi route le message à l'orchestrator en mode `interactive` avec l'historique restauré → l'agent peut répondre, résoudre les pending decisions, lancer des actions (avec protocole 2-tours pour les irréversibles).
+
+### H. Actions programmées *(vague 3)*
+
+#### `schedule_reminder(due_at_local, reminder_text, tz?, lot_id?)`
+Programme un rappel à envoyer dans le canal WhatsApp privé du user à la date prévue.
+
+- *"Rappelle-moi dans 3 jours de relancer le plombier"* → `due_at_local='2026-04-29T09:00', tz='Europe/Paris', reminder_text='Relancer le plombier pour le devis'`
+- *"Préviens-moi 2 jours avant la livraison du carrelage"* → l'IA calcule la date+09h
+- *"Rappel pour le RDV architecte vendredi 14h"* → `due_at_local='2026-05-02T13:45', reminder_text='RDV architecte dans 15 minutes'`
+
+Format **heure locale** (l'agent ne calcule pas l'UTC — c'est le serveur qui convertit en gérant DST hiver/été via `Intl.DateTimeFormat`). Évite les erreurs récurrentes où l'IA décale de 1h le rappel au changement d'heure.
+
+Cap **30 rappels pending par chantier** — défense contre boucle agent. Refus si `due_at < now - 5min` (anti-immédiat).
+
+Cron `agent-scheduled-tick` toutes les 15min : SELECT FOR UPDATE SKIP LOCKED → marque `firing` atomiquement → envoi WhatsApp parallélisé par batches de 8 → status `fired` ou `failed`. Si pas de canal owner configuré → status `failed` avec raison claire dans `fired_result`.
+
+#### `cancel_reminder(reminder_id)`
+Annule un rappel pending (avant qu'il parte). L'IA voit la liste dans son contexte (section SCHEDULED REMINDERS, limit 10 plus proches) et peut annuler à la demande *"oublie le rappel pour le plombier"*.
+
+### I. Mémoire & journal
 
 #### `log_insight(type, severity, title, body, needs_confirmation?, actions_summary?)`
 Journalise une analyse pour le journal de chantier et le fil d'activité. Types : `planning_impact | budget_alert | conversation_summary | risk_detected | lot_status_change | needs_clarification`. **L'IA appelle TOUJOURS `log_insight` en dernier** dans une chaîne d'actions pour assurer la traçabilité.
@@ -494,7 +638,7 @@ Journalise une analyse pour le journal de chantier et le fil d'activité. Types 
 #### `request_clarification(phone, message_summary, message_id?, suggested_lot?)`
 Spécifique au flux WhatsApp : un numéro inconnu envoie un message → l'IA crée un insight `needs_clarification` + une tâche urgente *"Identifier le contact 33XXX"* visible dans le panneau Activité IA. **Ne modifie pas le planning** tant que le user n'a pas dit qui c'est.
 
-### I. Lecture seule (pour répondre aux questions)
+### J. Lecture seule (pour répondre aux questions)
 
 Tous batch-safe (peuvent être appelés librement, aucun effet de bord) :
 
@@ -508,14 +652,23 @@ Tous batch-safe (peuvent être appelés librement, aucun effet de bord) :
 | `list_chantier_groups` | *"Qui est dans le groupe WhatsApp ?"* — groupes du chantier + membres actifs |
 | `get_message_read_status(phone)` | *"Le plombier a-t-il vu mon message ?"* — statuts des 3 derniers messages envoyés à un contact |
 
-### J. Modes d'invocation
+### K. Modes d'invocation
 
 L'agent tourne dans 3 contextes :
-- **`interactive`** : chat user dans l'onglet Assistant (et bientôt canal WhatsApp privé). Tous les tools dispo, dialogues 2-tours pour confirmations.
-- **`morning`** : déclenché par les triggers temps réel (upload doc, message WhatsApp, email entrant). Tools "action" bloqués — uniquement lecture + journalisation. Évite que l'agent prenne une décision irréversible sans validation user.
+- **`interactive`** : chat user dans l'onglet Assistant **OU canal WhatsApp privé owner** (vague 3 — quand le user écrit dans le groupe "Mon Chantier", le webhook route en interactive avec historique 20 derniers msgs restauré). Tous les tools dispo, dialogues 2-tours pour confirmations.
+- **`morning`** : déclenché par les triggers temps réel (upload doc, message WhatsApp dans groupe artisan, email entrant). Tools "action" bloqués — uniquement lecture + journalisation. Évite que l'agent prenne une décision irréversible sans validation user.
 - **`evening`** : cron quotidien 19h Paris. Génère le digest journal + envoie WhatsApp si activité significative. Tools "action" bloqués aussi.
 
-Les tools `mark_lot_completed`, `update_lot_dates`, `send_whatsapp_message`, `arrange_lot`, `shift_lot`, `register_expense`, `register_payment`, `notify_owner_for_decision`, `resolve_pending_decision`, `move_document_to_lot`, `update_contact` sont marqués **action** et nécessitent le mode interactive.
+Les tools "action" (irréversibles ou irréversibles côté tiers) sont restreints au mode interactive : `mark_lot_completed`, `update_lot_dates`, `send_whatsapp_message`, `send_email`, `arrange_lot`, `shift_lot`, `register_expense`, `register_payment`, `add_payment_event`, `notify_owner_for_decision`, `resolve_pending_decision`, `move_document_to_lot`, `update_contact`, `create_owner_whatsapp_channel`, `schedule_reminder`, `cancel_reminder`.
+
+### L. Cron arrière-plan
+
+| Cron | Fréquence | Job |
+|---|---|---|
+| `agent-orchestrator-evening-digest` | 17h UTC = 19h Paris | Digest journal quotidien (cf. § 15) |
+| `agent-scheduled-tick` *(vague 3)* | toutes les 15min | Fire les rappels `schedule_reminder` dus dans le canal WhatsApp privé owner |
+| `purge-expired-company-cache` | 03h UTC quotidien | Cleanup cache vérification entreprises (>30j) |
+| `publish-scheduled-blog-posts` | toutes les 15min | Publication articles blog programmés |
 
 ---
 

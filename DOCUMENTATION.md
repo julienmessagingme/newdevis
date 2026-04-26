@@ -27,20 +27,31 @@
 
 ## 1. Présentation du projet
 
-**VerifierMonDevis.fr** est un service web gratuit qui permet aux particuliers français d'analyser les devis d'artisans avant de les signer. L'application :
+Deux produits sous le même domaine `verifiermondevis.fr`, partageant base utilisateurs, catalogue prix et pipeline d'analyse :
 
-- Extrait le contenu du devis via OCR (PDF, images)
-- Vérifie l'entreprise auprès du registre national (Pappers/SIRET)
-- Compare les prix au marché local
+### VerifierMonDevis (VMD) — lead magnet (gratuit / freemium)
+Service web d'analyse de devis d'artisans. L'application :
+- Extrait le contenu du devis via OCR (PDF, images) — pipeline `analyze-quote` Gemini 2.5-flash
+- Vérifie l'entreprise auprès du registre national (recherche-entreprises.api.gouv.fr, INPI, Google Places, ADEME RGE)
+- Compare les prix au marché local via le catalogue interne `market_prices` (~270 lignes)
 - Vérifie les assurances et certifications
 - Produit un **score de fiabilité** : VERT (confiance), ORANGE (vigilance), ROUGE (danger)
 - Fournit des recommandations personnalisées
+- Pass Sérénité (4,99€/mois Stripe) débloque les analyses illimitées + rapport PDF + tri par type de travaux
 
-### Flux utilisateur principal
+**Rôle business** : VMD est un **outil d'acquisition**. Il capture une audience qualifiée (gens qui ont déjà un projet travaux concret), génère du SEO long-tail, établit la crédibilité, et convertit vers le produit principal GérerMonChantier.
+
+### GérerMonChantier (GMC) — produit principal (en cours de monétisation)
+Outil complet de pilotage d'un chantier de rénovation, de la conception à la réception. Couvre les 5 phases (conception → planification → devis → financier → exécution & réception). Inclut un **agent IA "Pilote de Chantier"** (Gemini 2.5-flash function calling) qui réagit aux événements (WhatsApp, email, upload doc) et envoie des notifications proactives via un canal WhatsApp privé dédié.
+
+Cf. `FEATURES.md` pour la liste exhaustive des features fonctionnelles GMC + les 7 ponts d'intégration VMD ↔ GMC (compte unique, market_prices mutualisé, contacts auto-créés depuis analyses, etc.).
+
+### Flux utilisateur principal — VMD
 
 ```
 Inscription → Upload du devis → Analyse automatique (30-60s)
 → Score + détails → Export PDF → Suivi post-signature (optionnel)
+→ [Conversion GMC] Création d'un chantier + import des devis analysés
 ```
 
 ---
@@ -2115,3 +2126,82 @@ Annexe au markdown body de `chantier_journal` 3 sections déterministes :
 - ❓ Clarifications demandées (insights type=needs_clarification)
 
 Garantit la mémoire long-terme : le panneau Assistant montre **aujourd'hui**, le journal montre **chaque jour archivé**.
+
+---
+
+## 22. Architecture pro-active agent (vague 3 — 2026-04-26)
+
+Canal de notification owner ↔ agent + actions programmées. Permet à l'agent de devenir autonome sur les rappels, alertes, décisions à arbitrer.
+
+### 22.1 Canal WhatsApp privé owner
+
+**DB** :
+- `chantier_whatsapp_groups.is_owner_channel BOOLEAN DEFAULT FALSE`
+- `UNIQUE INDEX uq_owner_channel_per_chantier (chantier_id) WHERE is_owner_channel = TRUE` — un seul canal owner par chantier
+- Migration `20260426150000_vague3_proactive_channel.sql`
+
+**API** :
+- `POST /api/chantier/[id]/whatsapp` accepte `{ is_owner_channel: true }` :
+  - Si canal owner existe déjà → retourne `{ already_exists: true, group: ... }` (idempotent)
+  - Sinon : récupère phone du user (mode JWT via `auth.getUser(token)` ; mode agent via `auth.admin.getUserById(user_id)`), force participants = [user_phone] + GMC, INSERT avec flag
+- Route migrée vers `requireChantierAuthOrAgent` (l'agent peut créer via `create_owner_whatsapp_channel`)
+
+**Tool agent** :
+- `create_owner_whatsapp_channel()` : appelle l'API ci-dessus, retourne `{ ok, group_jid, already_exists?, message }`
+
+**Webhook routing** :
+- `lookupGroupByJid` retourne désormais `is_owner_channel`. Passe en `.maybeSingle()` (résilient aux doublons / JID inconnus)
+- Quand un message arrive dans un groupe avec `is_owner_channel=true` → accumulé dans `ownerChannelMsgs.set(chantier_id, [...bodies])` (concaténation multi-msg même batch)
+- Au moment du dispatch agent : si owner channel msg → mode `interactive` avec `user_message: bodies.join('\n')` ET `conversation_history: <20 derniers msgs depuis chantier_assistant_messages>` (sinon l'agent perd le contexte des messages proactifs précédents)
+- Si pas de msg owner → mode `morning` standard
+
+### 22.2 Actions programmées
+
+**Table `agent_scheduled_actions`** :
+- `id, chantier_id, due_at TIMESTAMPTZ, action_type ('reminder'|'auto_message'), payload JSONB, status ('pending'|'firing'|'fired'|'cancelled'|'failed'), fired_at, fired_result JSONB, source TEXT, created_at`
+- Index `(due_at) WHERE status='pending'` pour le scan cron
+- RLS user-scoped read + cancel-only update
+
+**RPC `claim_pending_reminders(batch_limit INT)`** :
+- `SELECT FOR UPDATE SKIP LOCKED` → `UPDATE status='firing'` atomique
+- Empêche double envoi en cas de chevauchement de 2 ticks concurrents
+- `SECURITY DEFINER`, exécutable uniquement par `service_role`
+
+**Tools agent** :
+- `schedule_reminder(due_at_local, tz, reminder_text, lot_id?)` : `due_at_local` = heure LOCALE (YYYY-MM-DDTHH:MM), serveur convertit UTC via `Intl.DateTimeFormat` (gère DST). Cap **30 rappels pending par chantier**. Refus si `due_at < now-5min`.
+- `cancel_reminder(reminder_id)` : annule un pending. Vérifie ownership chantier + statut. L'agent voit la liste dans le contexte (`scheduled_reminders`, limit 10 plus proches dans `context.ts`).
+
+**Edge function `agent-scheduled-tick`** :
+- `verify_jwt = false` côté `config.toml`
+- Auth manuelle : Bearer service_role OU header X-Cron-Secret = `AGENT_SECRET_KEY`
+- Workflow :
+  1. `claim_pending_reminders(50)` — atomic claim
+  2. Pré-fetch `chantier_whatsapp_groups.group_jid WHERE is_owner_channel=true IN (chantier_ids)`
+  3. Process actions en parallèle batches de 8 (vs séquentiel — gain : 50/8×8s = 50s pire cas, sous 60s edge fn timeout)
+  4. Pour chaque : si pas de owner channel → status='failed' avec raison ; sinon envoi WhatsApp `⏰ Rappel : {text}` → status='fired' ou 'failed' avec `fired_result JSONB`
+
+**Cron pg_cron** :
+- Job 28 : `agent-scheduled-tick` toutes les 15min (`*/15 * * * *`)
+- Pattern `Authorization: Bearer ${service_role_key from vault}` (cohérent avec les autres crons)
+
+### 22.3 Workflow décision à prendre
+
+Pas un nouveau tool — orchestré par 2 tools existants :
+- `notify_owner_for_decision(question, expected_action, ...)` : crée ligne `agent_pending_decisions` + envoie WhatsApp dans canal owner via `findOwnerChannelJid` (helper avec fallback "premier groupe créé" pour rétrocompat). L'`expected_action` stockée en JSONB = `{ tool, args }` à exécuter si confirmation.
+- `resolve_pending_decision(decision_id, answer)` : `isPositive(answer)` (avec pré-check négatif "ok mais en fait non" → false). Si OUI → exécute l'`expected_action` via le dispatcher injecté. Si NON → marque `cancelled`. By-pass volontaire du protocole 2-tours pour `send_whatsapp_message` etc. (l'owner a déjà confirmé via WhatsApp privé).
+
+Déclenché par le prompt section "DÉTECTION DE DÉCISION À ARBITRER" : *"Quand un message externe propose un changement (montant, date, ajout/retrait), tu DOIS notifier le owner via `notify_owner_for_decision` et NE PAS répondre à l'artisan tant que le owner n'a pas validé."*
+
+### 22.4 Triggers proactifs WhatsApp privé — état
+
+8 triggers identifiés (cf. `WIP § 12`). État actuel :
+- ✅ Clarification urgente (`request_clarification`) — routée via `agent_insights`, visible Activité IA
+- ⏳ Alerte critique (`severity=critical`) — à câbler vers WhatsApp owner channel
+- ⏳ Paiement en retard — détecté par `agent-checks`, à router
+- ⏳ Lot bloqué sans devis 14j — à ajouter dans `agent-checks`
+- ✅ Rappel programmé — implémenté via `agent-scheduled-tick`
+- ⏳ Déblocage attendu non reçu — nécessite tracking sur `payment_events` type entrée
+- ⏳ Action automatique prise — à câbler dans `log_insight`
+- ✅ Décision à prendre — implémenté via `notify_owner_for_decision`
+
+UI Settings checkboxes par catégorie à venir pour activer/désactiver chaque trigger (sinon spam).

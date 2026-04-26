@@ -225,44 +225,35 @@ POC Claude Sonnet 4.7 + prompt caching, multi-agents chaînés, frameworks (Verc
 
 `register_payment` (matching A/B/C/D/E + match faible/fort), `update_devis_statut`, `move_document_to_lot`, `update_contact` (avec normalisation téléphone). Cf. `FEATURES.md § 14.B/C/D/E` pour le détail.
 
-### Vague 2 — Élargir le scope (après vague 1)
+### ✅ Vague 2 — LIVRÉE 2026-04-26
 
-#### `add_payment_event(type, label, amount, due_date, lot_id?)`
-*"Le crédit débloque 30k le 15 mai"* / *"Le plombier demande 30% à la commande"*. Alimente directement l'Échéancier (sinon vide tant que user ne saisit pas à la main). Énorme valeur tréso.
+`add_payment_event(label, amount, due_date)` (avec validation YYYY-MM-DD strict) et `send_email(contact_id, subject, body)` (rate-limit 5/contact/24h, sanitize CRLF subject, fallback userName via auth admin en mode agent). Cf. `FEATURES.md § 14.C` et `§ 14.G`.
 
-#### `send_email(to, subject, body, conversation_id?)`
-Beaucoup d'artisans ne sont qu'en email. Pipeline SendGrid déjà en place, manque juste le tool.
+### ✅ Vague 3 — LIVRÉE 2026-04-26
 
-### Vague 3 — Pro-actif (dépend P1 + canal WhatsApp privé)
+- **Canal WhatsApp privé owner** : flag `chantier_whatsapp_groups.is_owner_channel = true`, contrainte unique partial index. Tool `create_owner_whatsapp_channel`. Webhook whapi route les messages owner channel en mode `interactive` avec historique 20 derniers msgs restauré.
+- **`schedule_reminder(due_at_local, tz, reminder_text, lot_id?)`** : table `agent_scheduled_actions` avec status `pending|firing|fired|cancelled|failed`. Cap 30 rappels pending par chantier. Format heure locale + tz côté agent — serveur convertit UTC via `Intl.DateTimeFormat` (gère DST).
+- **`cancel_reminder(reminder_id)`** : annule un pending. L'agent voit la liste dans le contexte (limit 10 plus proches).
+- **Edge function `agent-scheduled-tick`** : cron pg_cron toutes les 15min. Auth Bearer service_role OU X-Cron-Secret. RPC `claim_pending_reminders` avec FOR UPDATE SKIP LOCKED → atomic claim. Process parallèle batches 8.
+- **Workflow décision à prendre** : tool `notify_owner_for_decision` (P1) + `resolve_pending_decision` (livrés round précédent). Section prompt "DÉTECTION DE DÉCISION À ARBITRER" et "DÉCISIONS EN ATTENTE".
 
-#### Canal WhatsApp privé user ↔ agent
-- À la création du chantier (ou via Settings) : créer groupe WhatsApp **avec UNIQUEMENT le user** (numéro pris de son profile). Nom : *"📋 Mon Chantier — [Nom]"*.
-- Stocker `chantier_whatsapp_groups.is_owner_channel = true` (nouvelle colonne)
-- Toutes les notifs proactives partent là.
-- Webhook entrant : reconnaît ce JID → route vers orchestrator avec contexte "private channel" → l'agent sait que c'est une réponse privée du owner.
+### 🟠 Vague 3 reste à coder — UI activation canal owner
 
-#### `schedule_reminder(due_at, reminder_text, lot_id?)`
-- Agent calcule `due_at` depuis le langage naturel ("dans 3 jours" / "vendredi" → ISO datetime). Si flou → demande "c'est pour quand ?".
-- Stockage : nouvelle table `agent_scheduled_actions(id, chantier_id, due_at, action_type, payload jsonb, status pending|fired|cancelled, created_at)`
-- Cron : edge function `agent-scheduled-tick` toutes les **15min** → fetch `pending WHERE due_at <= now() LIMIT 50` → fire WhatsApp dans canal privé → status='fired'
+Bouton dans Settings (chantier) "Activer notifications WhatsApp IA" qui appelle `POST /api/chantier/[id]/whatsapp { is_owner_channel: true }`. Aujourd'hui c'est l'agent qui peut le créer via `create_owner_whatsapp_channel` à la demande user au chat. Mais idéal : exposer aussi le bouton UI pour les users qui ne passent pas par le chat. Petit dev, ~30 min.
 
-#### Workflow "Décision à prendre" (utilise P1)
-Pas un tool dédié, c'est un comportement orchestrator activé par :
-1. Section "DÉTECTION DE DÉCISION" dans `prompt.ts` : *"Quand un message externe propose un changement (montant, date, ajout/retrait), tu DOIS notifier le owner via canal privé via `notify_owner_for_decision` et NE PAS répondre à l'artisan tant que le owner n'a pas validé."*
-2. Tool `notify_owner_for_decision` (P1) : crée pending decision + envoie WhatsApp + set expected_action.
-3. Quand owner répond, orchestrator résout la décision pending.
+### 🟠 Vague 3 — 8 triggers proactifs à câbler
 
-#### 8 triggers proactifs WhatsApp privé
-1. Clarification urgente (`request_clarification`)
-2. Alerte critique (`severity=critical`)
-3. Paiement en retard
-4. Lot bloqué sans devis depuis 14j
-5. Rappel programmé (`schedule_reminder`)
-6. Déblocage attendu non reçu
-7. Action automatique prise (debrief)
-8. Décision à prendre (P1)
+Définis dans `WIP § 12` round précédent. Pas encore tous implémentés. À faire après stabilisation de la vague 3 :
+1. Clarification urgente (`request_clarification`) — déjà routé via `agent_insights`
+2. Alerte critique (`severity=critical`) — à câbler vers WA owner channel
+3. Paiement en retard — déjà détecté par `agent-checks`, à router vers WA owner
+4. Lot bloqué sans devis depuis 14j — à ajouter dans `agent-checks`
+5. Rappel programmé (`schedule_reminder`) — ✅ implémenté via `agent-scheduled-tick`
+6. Déblocage attendu non reçu — nécessite tracking sur `payment_events` type entrée
+7. Action automatique prise (debrief) — à câbler dans `log_insight`
+8. Décision à prendre — ✅ implémenté via `notify_owner_for_decision`
 
-UI Settings : checkboxes par catégorie pour activer/désactiver. Sinon spam.
+UI Settings : checkboxes par catégorie pour activer/désactiver chaque trigger. Sinon risque de spam owner.
 
 ---
 
