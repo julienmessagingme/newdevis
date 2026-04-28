@@ -2,8 +2,8 @@ name: SEO Agent (weekly)
 
 on:
   schedule:
-    # Every Monday at 5am UTC = 7am Europe/Paris (summer) / 6am (winter)
-    - cron: '0 5 * * 1'
+    # Monday + Thursday at 5am UTC = 7am Europe/Paris (summer) / 6am (winter)
+    - cron: '0 5 * * 1,4'
   workflow_dispatch:
     inputs:
       dry_run:
