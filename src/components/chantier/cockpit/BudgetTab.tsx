@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { fmtEur } from '@/lib/financingUtils';
 import AddDocumentModal from './AddDocumentModal';
+import VersementsDrawer from './VersementsDrawer';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 
@@ -1118,6 +1119,10 @@ export default function BudgetTab({
   const [savingAcompte, setSavingAcompte] = useState<string | null>(null);
   // Dropdown statut facture inline sur la ligne artisan
   const [openArtisanMenu, setOpenArtisanMenu] = useState<string | null>(null); // artisanKey
+  // Drawer versements échelonnés
+  const [versementsDrawer, setVersementsDrawer] = useState<{
+    artisanNom: string; budget: number; sourceIds: string[]; eventIds: string[];
+  } | null>(null);
   // Alerte cohérence : montant versé ≠ montant prévu dans l'échéancier
   const [coherenceAlert, setCoherenceAlert] = useState<{
     eventId: string; plannedAmount: number; plannedLabel: string | null;
@@ -1681,7 +1686,6 @@ export default function BudgetTab({
                                   )}
 
                                   {/* 2b. STATUT — bouton central (sans facture, via payment_events) */}
-                                  {/* Aussi affiché quand primaryFacture existe mais a un facture_statut null (cfg absent) */}
                                   {(!primaryFacture || !cfg) && (() => {
                                     const devisStatut = isSolde ? 'solde' : hasDevisAcompte ? 'acompte' : 'none';
                                     const devisCfg = devisStatut === 'solde'
@@ -1690,54 +1694,26 @@ export default function BudgetTab({
                                       ? { icon: <span>⏳</span>, short: 'Acompte', cls: 'border-indigo-200 bg-indigo-50 text-indigo-700' }
                                       : { icon: <Plus className="h-3 w-3" />, short: 'Paiement', cls: 'border-gray-200 bg-gray-50 text-gray-400' };
                                     return (
-                                      <div className="relative">
-                                        <button
-                                          disabled={isSavingDevisAcomp}
-                                          onClick={e => { e.stopPropagation(); setOpenArtisanMenu(isOpen ? null : artisanKey); }}
-                                          className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all ${devisCfg.cls}`}
-                                        >
-                                          {isSavingDevisAcomp ? <Loader2 className="h-3 w-3 animate-spin" /> : devisCfg.icon}
-                                          {devisCfg.short}
-                                          <ChevronDown className="h-2.5 w-2.5 ml-0.5" />
-                                        </button>
-                                        {isOpen && (
-                                          <div className="absolute right-0 bottom-full mb-1 w-52 bg-white rounded-xl shadow-xl border border-gray-100 z-30 overflow-hidden">
-                                            {hasDevisAcompte && (
-                                              <button
-                                                onClick={e => { e.stopPropagation(); setOpenArtisanMenu(null); cancelDevisAcompte(eventIds); }}
-                                                className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left text-gray-700"
-                                              >
-                                                <span>⏸</span>Aucun paiement enregistré
-                                              </button>
-                                            )}
-                                            <button
-                                              onClick={e => {
-                                                e.stopPropagation(); setOpenArtisanMenu(null);
-                                                const targetId = allPendingEvents[0]?.id ?? eventIds[0];
-                                                setTimeout(() => setInlineAcompte({ artisanKey, factureId: targetId ?? '', value: String(artisan.totaux.acompte || '') }), 100);
-                                              }}
-                                              className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${devisStatut === 'acompte' ? 'text-indigo-600 bg-indigo-50/50' : 'text-gray-700'}`}
-                                            >
-                                              <span>⏳</span>Acompte versé
-                                              {allPendingEvents[0]?.amount != null && (
-                                                <span className="ml-auto text-[10px] text-gray-400">prévu {fmtEur(allPendingEvents[0].amount)}</span>
-                                              )}
-                                              {devisStatut === 'acompte' && <Check className="h-3 w-3 ml-1 text-indigo-500" />}
-                                            </button>
-                                            <button
-                                              onClick={e => { e.stopPropagation(); setOpenArtisanMenu(null); markDevisFullyPaid(eventIds, budget, allPendingEvents); }}
-                                              className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${devisStatut === 'solde' ? 'text-emerald-600 bg-emerald-50/50' : 'text-gray-700'}`}
-                                            >
-                                              <Check className="h-3.5 w-3.5" />Payé intégralement
-                                              {devisStatut === 'solde' && <Check className="h-3 w-3 ml-auto text-emerald-500" />}
-                                            </button>
-                                          </div>
-                                        )}
-                                      </div>
+                                      <button
+                                        onClick={e => {
+                                          e.stopPropagation();
+                                          setVersementsDrawer({
+                                            artisanNom: artisanKey,
+                                            budget,
+                                            sourceIds: artisan.devis.map(d => d.id),
+                                            eventIds: [...eventIds, ...allPendingEvents.map(e => e.id)],
+                                          });
+                                        }}
+                                        className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all ${devisCfg.cls}`}
+                                      >
+                                        {devisCfg.icon}
+                                        {devisCfg.short}
+                                        <ChevronDown className="h-2.5 w-2.5 ml-0.5" />
+                                      </button>
                                     );
                                   })()}
 
-                                  {/* 3. ACOMPTE INPUT/MODIFIER — secondaire, sous le statut */}
+                                  {/* 3. ACOMPTE INPUT/MODIFIER — facture partiellement payée */}
                                   {isAcompteStatut && primaryFacture && (
                                     isSavingAcomp ? <Loader2 className="h-3 w-3 text-indigo-400 animate-spin" />
                                     : isInlineOpen ? <AcompteInput max={primaryFacture.montant ?? undefined} onSave={v => saveInlineAcompte(primaryFacture.id, v)} />
@@ -1748,25 +1724,6 @@ export default function BudgetTab({
                                       >
                                         <Pencil className="h-2.5 w-2.5" />
                                         {primaryFacture.montant_paye ? `acompte : ${fmtEur(primaryFacture.montant_paye)}` : 'Saisir acompte'}
-                                      </button>
-                                    )
-                                  )}
-
-                                  {/* 3b. Modifier montant acompte devis (sans facture) — toujours visible */}
-                                  {!primaryFacture && hasDevisAcompte && (
-                                    isSavingDevisAcomp ? <Loader2 className="h-3 w-3 text-indigo-400 animate-spin" />
-                                    : isInlineOpen ? <AcompteInput max={budget > 0 ? budget : undefined} onSave={v => saveInlineAcompteDevis(eventIds, v, allPendingEvents, artisanKey)} />
-                                    : (
-                                      <button
-                                        onClick={e => {
-                                          e.stopPropagation();
-                                          const targetId = allPendingEvents[0]?.id ?? eventIds[0];
-                                          setInlineAcompte({ artisanKey, factureId: targetId ?? '', value: String(artisan.totaux.acompte || '') });
-                                        }}
-                                        className="text-[10px] text-indigo-500 hover:text-indigo-700 flex items-center gap-1"
-                                      >
-                                        <Pencil className="h-2.5 w-2.5" />
-                                        {artisan.totaux.acompte > 0 ? `acompte : ${fmtEur(artisan.totaux.acompte)}` : 'Saisir acompte'}
                                       </button>
                                     )
                                   )}
@@ -1943,6 +1900,20 @@ export default function BudgetTab({
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Drawer versements échelonnés ───────────────────────────────────── */}
+      {versementsDrawer && (
+        <VersementsDrawer
+          chantierId={chantierId}
+          token={token}
+          artisanNom={versementsDrawer.artisanNom}
+          budget={versementsDrawer.budget}
+          sourceIds={versementsDrawer.sourceIds}
+          knownEventIds={versementsDrawer.eventIds}
+          onClose={() => setVersementsDrawer(null)}
+          onRefresh={refresh}
+        />
       )}
     </div>
   );

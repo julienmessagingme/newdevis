@@ -203,6 +203,8 @@ export const POST: APIRoute = async ({ params, request }) => {
 
     if (!label) return jsonError('Le motif est requis', 400);
 
+    const paid = body.paid === true;
+
     const { data: ev, error } = await ctx.supabase
       .from('payment_events')
       .insert({
@@ -211,8 +213,8 @@ export const POST: APIRoute = async ({ params, request }) => {
         source_id:   null,
         label,
         amount,
-        due_date:    dueDate,
-        status:      'pending',
+        due_date:    dueDate ?? (paid ? new Date().toISOString().slice(0, 10) : null),
+        status:      paid ? 'paid' : 'pending',
         is_override: false,
       })
       .select()
@@ -274,12 +276,14 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   const id               = typeof body.id === 'string' ? body.id : null;
   const status           = body.status === 'paid' ? 'paid' : body.status === 'pending' ? 'pending' : null;
   const amount           = typeof body.amount === 'number' && body.amount > 0 ? body.amount : undefined;
+  const due_date         = typeof body.due_date === 'string' && body.due_date ? body.due_date : undefined;
+  const label            = typeof body.label === 'string' && body.label.trim() ? body.label.trim() : undefined;
   const funding_source_id = body.funding_source_id === null
     ? null
     : typeof body.funding_source_id === 'string' ? body.funding_source_id : undefined;
 
-  if (!id || (!status && funding_source_id === undefined)) {
-    return jsonError('id requis + au moins status (paid|pending) ou funding_source_id', 400);
+  if (!id || (!status && funding_source_id === undefined && due_date === undefined && label === undefined && amount === undefined)) {
+    return jsonError('id requis + au moins un champ à modifier', 400);
   }
 
   // Étape 1 : vérifier ownership + récupérer données complètes (amount, label, source_id)
@@ -306,6 +310,8 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   const updatePayload: Record<string, unknown> = {};
   if (status) updatePayload.status = status;
   if (amount !== undefined) updatePayload.amount = amount;
+  if (due_date !== undefined) updatePayload.due_date = due_date;
+  if (label !== undefined) updatePayload.label = label;
   if (funding_source_id !== undefined) updatePayload.funding_source_id = funding_source_id;
 
   const { error } = await ctx.supabase
@@ -373,6 +379,46 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   }
 
   return jsonOk({ ok: true, status, remaining_created: status === 'paid' && amount !== undefined && plannedAmount !== null && amount < plannedAmount * 0.99 });
+};
+
+// ── DELETE /api/chantier/[id]/payment-events ──────────────────────────────────
+// Supprime un payment_event manuel.
+// Body: { id: string }
+
+export const DELETE: APIRoute = async ({ params, request }) => {
+  const ctx = await requireChantierAuth(request, params.id!);
+  if (ctx instanceof Response) return ctx;
+
+  const chantierId = params.id!;
+
+  let body: Record<string, unknown>;
+  try { body = await request.json(); }
+  catch { return jsonError('Corps invalide', 400); }
+
+  const id = typeof body.id === 'string' ? body.id : null;
+  if (!id) return jsonError('id requis', 400);
+
+  // Vérifier ownership
+  const { data: existing } = await ctx.supabase
+    .from('payment_events')
+    .select('id, project_id')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (!existing) return jsonError('Événement introuvable', 404);
+  if (existing.project_id !== chantierId) return jsonError('Non autorisé', 403);
+
+  const { error } = await ctx.supabase
+    .from('payment_events')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('[api/payment-events] DELETE error:', error.message);
+    return jsonError(error.message, 500);
+  }
+
+  return jsonOk({ ok: true });
 };
 
 export const OPTIONS: APIRoute = () => optionsResponse();
