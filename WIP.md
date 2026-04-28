@@ -168,7 +168,35 @@ Closed : BudgetTab table, BudgetKpiDashboard, ArtisanDrawer, MessagerieSection, 
 
 ---
 
-## 10. Idées en réflexion (pas codées)
+## 10. Cohérence Budget initial (estimation IA) ↔ Budget/Trésorerie (suivi réel)
+
+🟠 **UX à repenser — fracture entre les 2 phases du chantier.**
+
+Aujourd'hui on a deux mondes parallèles autour du budget :
+
+- **Phase 1 — "Avant travaux"** : Accueil → Budget chantier → bouton "Affiner". Logique vague d'estimation IA (`market_prices`, qualification), l'utilisateur ne sait pas vraiment combien ça va coûter, on lui donne une fourchette. Réfine progressivement par questions (surface précise, choix matériaux, etc.).
+- **Phase 2 — "On a lancé"** : Budget & Trésorerie. Logique de suivi de dépenses réelles. On a des devis signés, des factures, des paiements. Échéancier prévisionnel et réel. Cashflow.
+
+### Le problème
+Pas de **passerelle UX** entre les deux. Quand l'utilisateur passe de "j'ai mon estimation IA" à "j'ai mes devis et je commence à payer", il y a une rupture :
+- Le budget IA initial n'apparaît plus en référence dans Budget & Trésorerie (sauf un encadré statique "budget cible XXX €").
+- Pas de comparaison "estimation IA vs devis reçus" mise en avant — l'écart n'est visible qu'à travers les conseils proactifs (`buildConseils` "dépassement budget").
+- L'utilisateur n'est pas guidé vers "tu peux maintenant figer ton budget réel à partir des devis validés" — on reste sur l'estimation initiale.
+
+### Pistes de hitch / passerelle
+- **Étape de transition explicite** : quand X% des lots ont un devis validé, proposer "Bascule vers le suivi réel — fige ton budget cible à partir des devis signés". Stocke un nouveau `budget_real` distinct du `budget_ia` initial.
+- **Vue comparée side-by-side** dans Budget & Trésorerie : "Estimation IA initiale | Devis validés | Écart | % engagement". Visible en haut de l'onglet.
+- **Sur l'écran Affiner** : à la fin du flow d'affinage, CTA explicite "Tu as ton estimation. Maintenant uploade tes devis pour passer en suivi de dépenses réelles" → routage vers tab Budget.
+- **Ligne du temps narrative** dans l'Accueil : "Phase 1 estimation → Phase 2 suivi → Phase 3 bilan" avec progression visible (pourcentage de devis validés).
+
+### À décider
+- Faut-il créer un champ `budget_real_locked` distinct de `budget_ia` ?
+- Le passage Phase 1 → Phase 2 est-il automatique (heuristique sur nb devis validés) ou manuel (CTA user) ?
+- Faut-il garder l'estimation IA visible en permanence comme "rétroviseur" ou la masquer après bascule ?
+
+---
+
+## 11. Idées en réflexion (pas codées)
 
 ### 🟠 "Joindre une preuve a posteriori"
 Quand un frais est déclaré au chat, l'utilisateur reçoit le ticket plusieurs jours après. Pouvoir uploader le ticket et "promouvoir" le frais en `ticket_caisse` rattaché au document. Évite la double saisie.
@@ -187,7 +215,7 @@ Quand un lot a 0 devis depuis X jours, proposer une short-list d'artisans RGE / 
 
 ---
 
-## 11. Architecture agent IA — évolution
+## 12. Architecture agent IA — évolution
 
 🟡 **En cours d'implémentation** (session 2026-04-26).
 
@@ -230,7 +258,7 @@ POC Claude Sonnet 4.7 + prompt caching, multi-agents chaînés, frameworks (Verc
 
 ---
 
-## 12. Tools agent IA — vagues à implémenter
+## 13. Tools agent IA — vagues à implémenter
 
 🟠 **Prêts à coder dès que P1+P2 livrés** (P1 nécessaire pour vague 3, P2 nécessaire pour ne pas exploser le monolithe).
 
@@ -270,7 +298,7 @@ UI Settings : checkboxes par catégorie pour activer/désactiver chaque trigger.
 
 ---
 
-## 13. Versements échelonnés — VersementsDrawer
+## 14. Versements échelonnés — VersementsDrawer
 
 ✅ **Livré 2026-04-28, à valider en prod.**
 
@@ -289,7 +317,7 @@ UI Settings : checkboxes par catégorie pour activer/désactiver chaque trigger.
 
 ---
 
-## 14. Fix analyse devis — géolocalisation ABF + prix marché
+## 15. Fix analyse devis — géolocalisation ABF + prix marché
 
 🟢 **Commité 2026-04-28 (commit `f9b39ff`), à déployer edge function.**
 
