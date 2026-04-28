@@ -119,8 +119,8 @@ jobs:
             const date = new Date().toISOString().slice(0, 10);
             const site = process.env.SITE_NAME;
             const recipients = [
-              'julien@messagingme.fr',
-              'bridey.johan@gmail.com'
+              'julien@messagingme.fr'
+              // bridey.johan@gmail.com → ajouter après vérification du domaine sur Resend
             ];
             const resp = await fetch('https://api.resend.com/emails', {
               method: 'POST',
@@ -154,7 +154,7 @@ jobs:
           gh label create seo-agent --color "0E8A16" --description "Weekly SEO agent report" 2>/dev/null || true
           DATE=$(date +%Y-%m-%d)
           {
-            echo "📧 Email envoyé le $DATE à julien@messagingme.fr + bridey.johan@gmail.com pour **$SITE_NAME**"
+            echo "📧 Email envoyé le $DATE à julien@messagingme.fr pour **$SITE_NAME**"
             echo ""
             echo "<details><summary>Voir le HTML du rapport</summary>"
             echo ""
