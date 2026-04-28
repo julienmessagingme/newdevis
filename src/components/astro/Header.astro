@@ -106,17 +106,17 @@ const pathname = Astro.url.pathname;
     <nav class="container py-4 flex flex-col gap-4">
       <!-- Sous-menu "En savoir plus" -->
       <div>
-        <button class="flex items-center gap-1 text-sm font-medium text-muted-foreground w-full" id="mobile-sub-toggle">
+        <button class="flex items-center gap-1 text-sm font-medium text-muted-foreground w-full py-3" id="mobile-sub-toggle">
           En savoir plus
           <svg class="h-3.5 w-3.5 transition-transform" id="mobile-sub-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
           </svg>
         </button>
-        <div class="flex flex-col gap-3 pl-4 mt-3 hidden" id="mobile-sub-menu">
-          <a href="/blog" class="text-sm text-muted-foreground">Blog</a>
-          <a href="/faq" class="text-sm text-muted-foreground">FAQ</a>
-          <a href="/qui-sommes-nous" class="text-sm text-muted-foreground">Qui sommes-nous</a>
-          <a href="/contact" class="text-sm text-muted-foreground">Contact</a>
+        <div class="flex flex-col pl-4 mt-2 hidden" id="mobile-sub-menu">
+          <a href="/blog" class="text-sm text-muted-foreground py-3 block">Blog</a>
+          <a href="/faq" class="text-sm text-muted-foreground py-3 block">FAQ</a>
+          <a href="/qui-sommes-nous" class="text-sm text-muted-foreground py-3 block">Qui sommes-nous</a>
+          <a href="/contact" class="text-sm text-muted-foreground py-3 block">Contact</a>
         </div>
       </div>
       <a id="mon-chantier-mobile" href="/mon-chantier" class="hidden items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium">
@@ -131,10 +131,10 @@ const pathname = Astro.url.pathname;
           </button>
         </a>
         <div id="user-menu-mobile" class="hidden flex-col gap-2">
-          <a href="/tableau-de-bord" class="text-sm font-medium text-muted-foreground px-2 py-1.5 hover:text-foreground transition-colors">
+          <a href="/tableau-de-bord" class="text-sm font-medium text-muted-foreground px-2 py-3 hover:text-foreground transition-colors block">
             Tableau de bord
           </a>
-          <a href="/parametres" class="text-sm font-medium text-muted-foreground px-2 py-1.5 hover:text-foreground transition-colors">
+          <a href="/parametres" class="text-sm font-medium text-muted-foreground px-2 py-3 hover:text-foreground transition-colors block">
             Paramètres
           </a>
           <a id="pass-serenite-mobile" href="/pass-serenite" class="flex items-center gap-2 text-sm font-medium text-muted-foreground px-2 py-1.5 hover:text-foreground transition-colors">
@@ -146,7 +146,7 @@ const pathname = Astro.url.pathname;
           <a id="admin-link-mobile" href="/admin" class="hidden text-sm font-medium text-muted-foreground px-2 py-1.5 hover:text-foreground transition-colors">
             Administration
           </a>
-          <button id="signout-btn-mobile" class="text-sm font-medium text-red-600 px-2 py-1.5 text-left hover:text-red-700 transition-colors">
+          <button id="signout-btn-mobile" class="text-sm font-medium text-red-600 px-2 py-3 text-left hover:text-red-700 transition-colors w-full">
             Se déconnecter
           </button>
         </div>

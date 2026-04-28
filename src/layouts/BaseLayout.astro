@@ -184,13 +184,13 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
           <div class="flex items-center gap-2 flex-shrink-0">
             <button
               id="cookie-reject"
-              class="inline-flex items-center justify-center whitespace-nowrap rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 text-sm font-medium"
+              class="inline-flex items-center justify-center whitespace-nowrap rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-11 sm:h-9 px-4 text-sm font-medium"
             >
               Refuser
             </button>
             <button
               id="cookie-accept"
-              class="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 text-sm font-medium"
+              class="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-11 sm:h-9 px-4 text-sm font-medium"
             >
               Accepter
             </button>
@@ -202,7 +202,7 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
     <!-- Newsletter popup -->
     <div id="newsletter-popup" style="display:none" class="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/40">
       <div class="bg-white border border-border rounded-2xl shadow-2xl max-w-sm w-full p-6 relative">
-        <button id="nl-close" class="absolute right-3 top-3 text-muted-foreground hover:text-foreground transition-colors p-1" aria-label="Fermer">
+        <button id="nl-close" class="absolute right-2 top-2 text-muted-foreground hover:text-foreground transition-colors p-3" aria-label="Fermer">
           <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -227,12 +227,12 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
           <button
             type="submit"
             id="nl-submit"
-            class="w-full inline-flex items-center justify-center rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 text-sm font-medium transition-colors"
+            class="w-full inline-flex items-center justify-center rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-4 text-sm font-medium transition-colors"
           >
             S'inscrire
           </button>
         </form>
-        <button id="nl-dismiss" class="w-full text-center text-xs text-muted-foreground hover:text-foreground mt-3 transition-colors">
+        <button id="nl-dismiss" class="w-full text-center text-xs text-muted-foreground hover:text-foreground mt-2 py-3 transition-colors">
           Non merci
         </button>
         <div id="nl-success" style="display:none" class="text-center py-4">
