@@ -1530,6 +1530,7 @@ interface TresoreeriePanelProps {
   rangeMin?: number;
   rangeMax?: number;
   initialFinancing?: Record<string, unknown> | null;
+  initialEnveloppePrevue?: number | null;
 }
 
 export default function TresoreriePanel({
@@ -1539,6 +1540,7 @@ export default function TresoreriePanel({
   rangeMin,
   rangeMax,
   initialFinancing,
+  initialEnveloppePrevue,
 }: TresoreeriePanelProps) {
   const [tab,              setTab]              = useState<Tab>('budget');
   // On stocke le NOM (clé) plutôt qu'un snapshot → le drawer reçoit toujours les données fraîches
@@ -1588,7 +1590,7 @@ export default function TresoreriePanel({
       {/* ── Budget ──────────────────────────────────────────────────────────── */}
       {tab === 'budget' && (
         <div className="flex-1 overflow-y-auto">
-          <BudgetTab chantierId={chantierId} token={token} rangeMin={rangeMin} rangeMax={rangeMax} />
+          <BudgetTab chantierId={chantierId} token={token} rangeMin={rangeMin} rangeMax={rangeMax} initialEnveloppePrevue={initialEnveloppePrevue} />
         </div>
       )}
 

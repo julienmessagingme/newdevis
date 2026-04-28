@@ -50,9 +50,10 @@ interface Props {
   onLotStatutChange?: (lotId: string, statut: StatutArtisan) => void;
   initialBudgetAffine?: { min: number; max: number; breakdown: unknown[] } | null;
   initialFinancing?: Record<string, unknown> | null;
+  initialEnveloppePrevue?: number | null;
 }
 
-export default function DashboardUnified({ result: resultProp, chantierId, token, initialBudgetAffine, initialFinancing }: Props) {
+export default function DashboardUnified({ result: resultProp, chantierId, token, initialBudgetAffine, initialFinancing, initialEnveloppePrevue }: Props) {
   const [result, setResult]               = useState(resultProp);
   const [showAmelioration, setShowAmelioration] = useState(false);
   const [showBudgetDetail, setShowBudgetDetail]   = useState(false);
@@ -530,6 +531,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
                 rangeMin={displayMin}
                 rangeMax={displayMax}
                 initialFinancing={initialFinancing}
+                initialEnveloppePrevue={initialEnveloppePrevue}
               />
             ) : (
               <div className="flex items-center justify-center py-16 text-gray-400 text-sm">

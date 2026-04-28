@@ -331,19 +331,19 @@ function DonutRing({ pct, color, size = 56, stroke = 5 }: {
 // ── KPI Dashboard ─────────────────────────────────────────────────────────────
 
 function BudgetKpiDashboard({
-  data, loading, chantierId, token,
+  data, loading, chantierId, token, initialEnveloppePrevue,
 }: {
-  data:        BudgetData | null;
-  loading:     boolean;
-  chantierId:  string;
-  token:       string;
+  data:                    BudgetData | null;
+  loading:                 boolean;
+  chantierId:              string;
+  token:                   string;
+  initialEnveloppePrevue?: number | null;
 }) {
   const storageKey = `budget_reel_${chantierId}`;
 
-  const [budgetReel, setBudgetReel] = useState<number | null>(() => {
-    try { const s = localStorage.getItem(storageKey); return s ? parseFloat(s) : null; }
-    catch { return null; }
-  });
+  const [budgetReel, setBudgetReel] = useState<number | null>(
+    () => initialEnveloppePrevue ?? null
+  );
   const [editing,  setEditing]  = useState(false);
   const [editVal,  setEditVal]  = useState('');
 
@@ -394,12 +394,6 @@ function BudgetKpiDashboard({
     if (!isNaN(v) && v > 0) persistBudgetReel(v);
     setEditing(false);
   }
-
-  // Auto-init : pré-remplit budgetReel avec le total engagé réel au premier chargement
-  useEffect(() => {
-    if (budgetReel !== null || engageReel <= 0) return;
-    persistBudgetReel(engageReel);
-  }, [engageReel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Détection conflit : budget choisi < engagé réel (tolérance 1%)
   const conflict      = budgetReel !== null && engageReel > 0 && engageReel > (budgetReel ?? 0) * 1.01;
@@ -1089,11 +1083,13 @@ export default function BudgetTab({
   token,
   rangeMin,
   rangeMax,
+  initialEnveloppePrevue,
 }: {
   chantierId: string;
   token:      string;
   rangeMin?:  number;
   rangeMax?:  number;
+  initialEnveloppePrevue?: number | null;
 }) {
   const { data, loading, error, refresh, backfillToast } = useBudgetData(chantierId, token);
 
@@ -1244,6 +1240,7 @@ export default function BudgetTab({
     eventIds: string[],           // paid event IDs (si déjà payé une fois)
     valStr: string,
     pendingEvents?: { id: string; amount: number | null; label: string | null }[],
+    artisanKey?: string,          // clé artisan (= nom) pour le spinner + label event
   ) => {
     const montantPaye = parseFloat(valStr.replace(',', '.'));
     if (isNaN(montantPaye) || montantPaye <= 0) { setInlineAcompte(null); return; }
@@ -1252,7 +1249,25 @@ export default function BudgetTab({
     // Choisir l'event cible : pending event de l'échéancier en priorité, sinon paid event
     const pendingEvent = (pendingEvents ?? []).find(e => e.amount != null);
     const targetEventId = pendingEvent?.id ?? eventIds[0];
-    if (!targetEventId) return;
+
+    // Aucun event existant → créer un event manuel puis le marquer payé
+    if (!targetEventId) {
+      setSavingAcompte(artisanKey ?? 'new');
+      try {
+        const bearer = await freshToken(token);
+        const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: bearer },
+          body: JSON.stringify({ manuel: true, label: artisanKey ? `Acompte — ${artisanKey}` : 'Acompte', amount: montantPaye }),
+        });
+        const json = await res.json();
+        const newEventId = json.payment_events?.[0]?.id;
+        if (newEventId) await doPatchPaymentEvent(newEventId, montantPaye);
+        else refresh();
+      } catch { refresh(); }
+      setSavingAcompte(null);
+      return;
+    }
 
     // Alerte cohérence : si montant versé diffère de plus de 10% du montant prévu
     if (pendingEvent?.amount != null && Math.abs(montantPaye - pendingEvent.amount) > pendingEvent.amount * 0.10) {
@@ -1353,7 +1368,7 @@ export default function BudgetTab({
       )}
 
       {/* ── KPIs ──────────────────────────────────────────────────────────── */}
-      <BudgetKpiDashboard data={data} loading={loading} chantierId={chantierId} token={token} />
+      <BudgetKpiDashboard data={data} loading={loading} chantierId={chantierId} token={token} initialEnveloppePrevue={initialEnveloppePrevue} />
 
       {/* ── Barre d'actions ───────────────────────────────────────────────── */}
       <ActionBar
@@ -1583,7 +1598,7 @@ export default function BudgetTab({
                             // Pending events de l'échéancier (source de vérité prioritaire)
                             const allPendingEvents = artisan.devis.flatMap(d => d.pending_events ?? []);
                             const hasDevisAcompte = eventIds.length > 0 || allPendingEvents.length > 0;
-                            const isSavingDevisAcomp = savingAcompte === (allPendingEvents[0]?.id ?? eventIds[0]);
+                            const isSavingDevisAcomp = savingAcompte === (allPendingEvents[0]?.id ?? eventIds[0] ?? artisanKey);
 
                             // Helper : input acompte inline
                             const AcompteInput = ({ onSave, max }: { onSave: (v: string) => void; max?: number }) => {
@@ -1617,7 +1632,11 @@ export default function BudgetTab({
                                 <div className="flex flex-col items-end gap-1">
 
                                   {/* 1. MONTANT — toujours visible en premier */}
-                                  {isSolde ? (
+                                  {isSolde && artisan.totaux.acompte > budget * 1.01 ? (
+                                    <span className="text-[12px] font-bold text-orange-500 flex items-center gap-1" title={`Acompte versé (${fmtEur(artisan.totaux.acompte)}) dépasse le montant du devis (${fmtEur(budget)})`}>
+                                      <AlertTriangle className="h-3.5 w-3.5" />Dépassement
+                                    </span>
+                                  ) : isSolde ? (
                                     <span className="text-[12px] font-bold text-emerald-600 flex items-center gap-1">
                                       <Check className="h-3.5 w-3.5" />Soldé
                                     </span>
@@ -1640,7 +1659,7 @@ export default function BudgetTab({
                                         <ChevronDown className="h-2.5 w-2.5 ml-0.5" />
                                       </button>
                                       {isOpen && (
-                                        <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-xl shadow-xl border border-gray-100 z-30 overflow-hidden">
+                                        <div className="absolute right-0 bottom-full mb-1 w-52 bg-white rounded-xl shadow-xl border border-gray-100 z-30 overflow-hidden">
                                           {(Object.entries(FACTURE_STATUT_CFG) as [FactureStatut, typeof FACTURE_STATUT_CFG[FactureStatut]][]).map(([s, c]) => (
                                             <button key={s}
                                               onClick={e => {
@@ -1662,11 +1681,14 @@ export default function BudgetTab({
                                   )}
 
                                   {/* 2b. STATUT — bouton central (sans facture, via payment_events) */}
-                                  {!primaryFacture && hasDevisAcompte && (() => {
-                                    const devisStatut = isSolde ? 'solde' : 'acompte';
+                                  {/* Aussi affiché quand primaryFacture existe mais a un facture_statut null (cfg absent) */}
+                                  {(!primaryFacture || !cfg) && (() => {
+                                    const devisStatut = isSolde ? 'solde' : hasDevisAcompte ? 'acompte' : 'none';
                                     const devisCfg = devisStatut === 'solde'
                                       ? { icon: <Check className="h-3 w-3" />, short: 'Payée', cls: 'border-emerald-200 bg-emerald-50 text-emerald-700' }
-                                      : { icon: <span>⏳</span>, short: 'Acompte', cls: 'border-indigo-200 bg-indigo-50 text-indigo-700' };
+                                      : devisStatut === 'acompte'
+                                      ? { icon: <span>⏳</span>, short: 'Acompte', cls: 'border-indigo-200 bg-indigo-50 text-indigo-700' }
+                                      : { icon: <Plus className="h-3 w-3" />, short: 'Paiement', cls: 'border-gray-200 bg-gray-50 text-gray-400' };
                                     return (
                                       <div className="relative">
                                         <button
@@ -1679,13 +1701,15 @@ export default function BudgetTab({
                                           <ChevronDown className="h-2.5 w-2.5 ml-0.5" />
                                         </button>
                                         {isOpen && (
-                                          <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-xl shadow-xl border border-gray-100 z-30 overflow-hidden">
-                                            <button
-                                              onClick={e => { e.stopPropagation(); setOpenArtisanMenu(null); cancelDevisAcompte(eventIds); }}
-                                              className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left text-gray-700"
-                                            >
-                                              <span>⏸</span>Aucun paiement enregistré
-                                            </button>
+                                          <div className="absolute right-0 bottom-full mb-1 w-52 bg-white rounded-xl shadow-xl border border-gray-100 z-30 overflow-hidden">
+                                            {hasDevisAcompte && (
+                                              <button
+                                                onClick={e => { e.stopPropagation(); setOpenArtisanMenu(null); cancelDevisAcompte(eventIds); }}
+                                                className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left text-gray-700"
+                                              >
+                                                <span>⏸</span>Aucun paiement enregistré
+                                              </button>
+                                            )}
                                             <button
                                               onClick={e => {
                                                 e.stopPropagation(); setOpenArtisanMenu(null);
@@ -1731,7 +1755,7 @@ export default function BudgetTab({
                                   {/* 3b. Modifier montant acompte devis (sans facture) — toujours visible */}
                                   {!primaryFacture && hasDevisAcompte && (
                                     isSavingDevisAcomp ? <Loader2 className="h-3 w-3 text-indigo-400 animate-spin" />
-                                    : isInlineOpen ? <AcompteInput max={budget > 0 ? budget : undefined} onSave={v => saveInlineAcompteDevis(eventIds, v, allPendingEvents)} />
+                                    : isInlineOpen ? <AcompteInput max={budget > 0 ? budget : undefined} onSave={v => saveInlineAcompteDevis(eventIds, v, allPendingEvents, artisanKey)} />
                                     : (
                                       <button
                                         onClick={e => {

@@ -33,6 +33,7 @@ export default function ChantierDetail() {
   const [projectMode, setProjectMode] = useState<ProjectMode | null>(null);
   const [budgetAffine, setBudgetAffine] = useState<{ min: number; max: number; breakdown: unknown[] } | null>(null);
   const [initialFinancing, setInitialFinancing] = useState<Record<string, unknown> | null>(null);
+  const [enveloppePrevue, setEnveloppePrevue] = useState<number | null>(null);
 
   const getToken = useCallback(async (): Promise<string | null> => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -97,6 +98,7 @@ export default function ChantierDetail() {
       setProjectMode(data.projectMode ?? null);
       setBudgetAffine(data.budgetAffine ?? null);
       setInitialFinancing(data.financing ?? null);
+      setEnveloppePrevue(data.enveloppePrevue ?? null);
       setChantierId(id);
       setLoading(false);
     })();
@@ -252,6 +254,7 @@ export default function ChantierDetail() {
         projectMode={projectMode}
         initialBudgetAffine={budgetAffine}
         initialFinancing={initialFinancing}
+        initialEnveloppePrevue={enveloppePrevue}
         onProjectModeChange={async (mode) => {
           setProjectMode(mode);
           if (!chantierId || !token) return;

@@ -190,7 +190,7 @@ export const GET: APIRoute = async ({ params, request }) => {
   if (!hasRichData) {
     const result = buildFallbackResult(chantier as Record<string, unknown>, taches);
     return new Response(
-      JSON.stringify({ result: { ...result, lots }, phase: chantier.phase, isPlanComplet: false, budgetAffine: meta.budget_affine ?? null, financing: meta.financing ?? null }),
+      JSON.stringify({ result: { ...result, lots }, phase: chantier.phase, isPlanComplet: false, budgetAffine: meta.budget_affine ?? null, financing: meta.financing ?? null, enveloppePrevue: safeNumber(chantier.budget) || null }),
       { status: 200, headers: CORS },
     );
   }
@@ -266,6 +266,7 @@ export const GET: APIRoute = async ({ params, request }) => {
       projectMode: chantier.project_mode ?? null,
       budgetAffine: meta.budget_affine ?? null,
       financing: meta.financing ?? null,
+      enveloppePrevue: safeNumber(chantier.budget) || null,
     }),
     { status: 200, headers: CORS },
   );

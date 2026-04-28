@@ -16,9 +16,10 @@ interface Props {
   userId?: string | null;
   initialBudgetAffine?: { min: number; max: number; breakdown: unknown[] } | null;
   initialFinancing?: Record<string, unknown> | null;
+  initialEnveloppePrevue?: number | null;
 }
 
-export default function DashboardPremium({ result, chantierId, token, onLotStatutChange, initialBudgetAffine, initialFinancing }: Props) {
+export default function DashboardPremium({ result, chantierId, token, onLotStatutChange, initialBudgetAffine, initialFinancing, initialEnveloppePrevue }: Props) {
   return (
     <DashboardUnified
       result={result}
@@ -27,6 +28,7 @@ export default function DashboardPremium({ result, chantierId, token, onLotStatu
       onLotStatutChange={onLotStatutChange}
       initialBudgetAffine={initialBudgetAffine}
       initialFinancing={initialFinancing}
+      initialEnveloppePrevue={initialEnveloppePrevue}
     />
   );
 }
