@@ -263,9 +263,61 @@ Chaque module exporte `{ schemas: [...], handlers: { name: handler } }`. L'index
 **Pourquoi** : aujourd'hui batch 3 séquentiels → > 30-50 chantiers actifs = timeout edge function 60s.
 **Quoi** : edge function "dispatcher" qui fire N invocations indépendantes (1 par chantier) au lieu de boucler. Chaque invocation = 1 chantier, timeout indépendant.
 
-### 🟠 P5 et au-delà → voir [`TODO.md`](TODO.md)
+### 🟠 P5 — POC Claude Sonnet 4.7 + prompt caching
 
-POC Claude Sonnet 4.7 + prompt caching, multi-agents chaînés, frameworks (Vercel AI SDK / Mastra), state machine explicite. Toutes des évolutions à valider sur data, pas sur intuition.
+**Hypothèse à valider** : Claude + prompt caching réduit le TCO total malgré un prix au token brut plus élevé, parce que :
+- Prompt caching = -90% sur le contexte (notre `context.ts` rebuild ~6-10k tokens à chaque appel — gain énorme)
+- Taux de succès tool_call plus élevé = moins de retries
+- Moins d'hallucinations = moins de "défaire ce qu'a fait l'agent" côté user
+- Suppression progressive des hacks Gemini
+
+**À mesurer sur 1 chantier de test, 1 mois** : taux tool_calls qui aboutissent, coût par run (avec cache hit rate visible), latence (avec streaming Anthropic), qualité subjective des messages générés.
+
+**Quand le faire** : > 100 chantiers actifs OU dès qu'un user signale un comportement bizarre récurrent qu'on ne peut pas patcher facilement.
+
+**Risque** : compatibilité tool calling (Anthropic format ≠ OpenAI format Gemini). Réécriture du dispatcher tools. Mais après P2 modularisation, c'est isolé.
+
+### 🟠 P6 — Multi-agents chaînés (planner + executors)
+
+**Hypothèse** : splitter l'orchestrator en 2 niveaux :
+- 1 agent **planner** (full context) qui décide quoi faire
+- N agents **executors** spécialisés (planning, finance, comm) avec prompt minimal et tools restreints
+
+**Bénéfices attendus** : -40 à -60% sur les tokens cumulés, prompts plus précis par domaine, meilleure observabilité (chaque sous-agent loggé séparément).
+
+**Coût** : latence cumulée (2-3 calls Gemini/Claude par tour), complexité du dispatcher.
+
+**Quand le faire** : si après P5 on a encore des problèmes de qualité tool_call sur les workflows à 6+ étapes. Pas avant.
+
+### 🟠 P7 — Évaluer un framework agent (Vercel AI SDK / Mastra)
+
+**Contexte** : aujourd'hui dispatcher, retry logic, history compaction = 100% custom artisanal.
+
+**Hypothèse** : Vercel AI SDK (déjà sur Vercel, intégration TS native) ou Mastra (TS-first, workflows + memory natifs) pourrait remplacer 60% du code custom.
+
+**Bénéfices potentiels** : streaming natif (UX chat améliorée), observabilité native (LangSmith, Helicone), memory long terme (résumés glissants automatiques), workflows multi-step sans bricolage.
+
+**Coût** : courbe d'apprentissage, dépendance externe (lock-in, breaking changes), perte de contrôle fin (ex: nos hacks Gemini).
+
+**Quand le faire** : POC à 6 mois (mi-2026) sur 1 fonctionnalité périphérique avant de migrer le coeur.
+
+**À NE PAS faire** : 🔴 LangGraph en Python — ajoute Python à notre stack (Astro + Deno + Python = 3 runtimes), trop de friction pour le bénéfice.
+
+### 🟠 P8 — State machine explicite pour workflows critiques
+
+Si la complexité des workflows pending explose (>3 états avec branches conditionnelles), envisager XState ou home-made. Aujourd'hui : pending → resolved/expired suffit, donc pas pertinent. À reconsidérer si on ajoute des workflows multi-acteurs (ex: validation simultanée artisan + comptable).
+
+### 🟠 P10 — Canaux proactifs alternatifs (Web Push / email)
+
+⚠️ **À ne pas confondre avec la vague 3** qui livre le canal proactif principal **via WhatsApp privé** (groupe "Mon Chantier — X" avec uniquement le user dedans). P10 = canaux **alternatifs** pour les users qui ne veulent pas / ne peuvent pas WhatsApp.
+
+Pistes :
+- **Web Push API** (notif browser) : permission demandée au premier login, push depuis edge function via VAPID. Fonctionne même app fermée si browser ouvert.
+- **Email transactionnel SendGrid** : digest quotidien ou notif immédiate sur les triggers critiques (alertes, clarifications urgentes).
+
+Settings UI à enrichir : checkboxes par canal (WhatsApp / Web Push / Email) × par catégorie de trigger (clarifications / alertes critiques / rappels / etc.). Sinon spam.
+
+Pas urgent : à activer si on identifie une cohorte significative de users sans WhatsApp.
 
 ---
 
@@ -346,6 +398,26 @@ npx supabase login
 npx supabase functions deploy analyze-quote --project-ref vhrhgsqxwvouswjaiczn
 ```
 Sans ce déploiement, les fixes restent dans le code source mais pas en prod.
+
+---
+
+## 16. Dette technique — whapi read receipts & queries
+
+🟡 **Backlog technique issu du code review** — pas bloquant, à traiter quand on retouche les zones concernées.
+
+### `[whapi-read-receipts]`
+
+- [ ] **Batcher les upserts statuts dans le webhook** — `src/pages/api/webhooks/whapi.ts`
+  La boucle `for...of statuses` fait 1 SELECT + 1 UPSERT par status. Sur un groupe de 20+ membres lisant simultanément, whapi peut envoyer 50+ statuts en un seul batch → 100+ requêtes série. Fix : grouper par `message_id`, 1 `select().in()` pour les lookups chantier_id, puis `Promise.all` sur les upserts.
+
+- [ ] **Logger `outgoingRes.error` explicitement** — `supabase/functions/agent-orchestrator/context.ts`
+  Si la requête `whatsapp_outgoing_messages` plante (table absente, timeout), l'erreur est avalée silencieusement via `outgoingRes.data ?? []`. Ajouter un `console.error('[context] outgoing read receipts query failed:', outgoingRes.error.message)`.
+
+- [ ] **Renommer `group_jid` → `chat_jid`** dans `whatsapp_outgoing_messages` — migration future
+  Le digest du soir envoie en DM (`@s.whatsapp.net`), pas dans un groupe. La colonne s'appelle `group_jid` mais peut contenir un JID personnel. Créer une migration `ALTER TABLE whatsapp_outgoing_messages RENAME COLUMN group_jid TO chat_jid` et mettre à jour les refs dans `index.ts` et `context.ts`.
+
+- [ ] **Batcher le lookup chantier_id dans le bloc statuts** — `src/pages/api/webhooks/whapi.ts`
+  Le bloc statuts fait un SELECT par `message_id` distinct pour résoudre le `chantier_id`. Grouper les `message_id` uniques et faire un seul `select().in()` avant la boucle d'upsert.
 
 ---
 

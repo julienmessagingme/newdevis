@@ -368,6 +368,26 @@ SELECT id, status_code, content::text FROM net._http_response ORDER BY created D
 
 ---
 
+## 🧪 Tests techniques whapi (read receipts + presence)
+
+Ces tests valident l'intégration whapi.cloud côté serveur — pas la couche conversationnelle agent. À cocher au fur et à mesure des passes.
+
+### `[whapi-read-receipts]`
+
+- [ ] Webhook `POST /api/webhooks/whapi` avec payload contenant uniquement `statuses[]` (pas de `messages[]` ni `events[]`) → vérifier que l'early return ne court-circuite pas le bloc statuts et que les rows s'insèrent dans `whatsapp_message_statuses`.
+- [ ] Tool `get_message_read_status` appelé avec un numéro sans aucun statut en base → réponse `{ ok: true, result: "Aucun accusé de lecture trouvé..." }` sans erreur.
+- [ ] Double-envoi du même status whapi (même `message_id` + `viewer_id`) → idempotence via `ON CONFLICT` : UPDATE sans erreur, pas de doublon.
+
+### `[whapi-presence]`
+
+- [ ] Créer un groupe en sélectionnant un contact `has_whatsapp = false` : (a) le numéro est absent de l'appel whapi de création de groupe, (b) row inséré dans `chantier_whatsapp_members` avec `excluded_no_whatsapp = true`, (c) panel membres → 3e section "Sans WhatsApp" affichée, (d) modale → contact grisé, badge orange, décoché par défaut.
+- [ ] PATCH d'un groupe existant en ajoutant un contact `has_whatsapp = false` → mêmes vérifications (a–d) + réponse API `{ added: 0, excluded: 1 }`.
+- [ ] `POST /api/chantier/[id]/contacts` avec un numéro fixe (non-WhatsApp) → après quelques secondes : `has_whatsapp = false` et `whatsapp_checked_at` rempli en base, réponse API immédiate (fire-and-forget non bloquant).
+- [ ] `POST /api/chantier/[id]/contacts` avec un vrai numéro WhatsApp → `has_whatsapp = true` et `whatsapp_checked_at` rempli.
+- [ ] Digest du soir `agent-orchestrator` : section "CONTACTS SANS WHATSAPP" présente dans le prompt (logs Supabase), aucune tâche de relance WhatsApp créée pour un contact `has_whatsapp = false`.
+
+---
+
 ## 🎯 Critères de réussite
 
 Un scénario est **validé** si :
