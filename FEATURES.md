@@ -258,7 +258,7 @@ Quatre vues complémentaires (sous-onglets internes).
   - "Devis manquant" (ambre) si une facture existe sans devis associé
   - "📝 X€ frais" si des frais déclarés au chat sont rattachés
 - Bouton "+ Ajouter un document" : upload manuel d'un devis/facture/ticket
-- **Gestion des versements échelonnés** (`VersementsDrawer`) : pour chaque artisan dont le devis est "acompte" ou "soldé", un drawer slide-right permet de créer / modifier / supprimer des versements individuels. Règle de plafond : la somme des versements ne peut pas dépasser le montant engagé de l'artisan (cap validé à la saisie). Chaque nouveau versement invite à joindre un justificatif (reçu, virement, photo). Date de versement = jour même par défaut, modifiable. Les paiements échelonnés sont stockés dans `payment_events` (table) et reflétés dans le cashflow et l'échéancier.
+- **Gestion des versements échelonnés** (`VersementsDrawer`) : pour chaque artisan dont le devis est "acompte" ou "soldé", un drawer slide-right permet de créer / modifier / supprimer des versements individuels. Règle de plafond : la somme des versements ne peut pas dépasser le montant engagé de l'artisan (cap validé à la saisie). Chaque nouveau versement invite à joindre un justificatif (reçu, virement, photo). Date de versement = jour même par défaut, modifiable. Les versements sont stockés dans `documents_chantier.cashflow_terms` (JSONB) et reflétés via la VIEW `payment_events_v` dans le cashflow et l'échéancier — voir DOCUMENTATION.md § Architecture cashflow.
 - **Enveloppe budget** : la valeur initiale est chargée depuis `chantiers.enveloppe_prevue` (DB) au montage — plus d'initialisation auto depuis le montant engagé.
 
 ### B. Vue Cashflow / Trésorerie

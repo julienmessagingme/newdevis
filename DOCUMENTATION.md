@@ -931,12 +931,20 @@ Source : Demandes de Valeurs Foncières (data.gouv.fr). Données publiques, RLS 
 | `lot_id` | uuid | Référence lots_chantier (nullable) |
 | `analyse_id` | uuid | Référence analyses (nullable, lien vers analyse créée) |
 | `document_type` | text | devis, facture, photo, plan, autorisation, assurance, autre |
-| `source` | text | Source du document |
-| `nom` | text | Nom affiché |
-| `nom_fichier` | text | Nom du fichier original |
-| `bucket_path` | text | Chemin dans le bucket Storage |
-| `taille_octets` | bigint | Taille en octets |
-| `mime_type` | text | Type MIME |
+| `depense_type` | text | facture / ticket_caisse / achat_materiaux / frais |
+| `devis_statut` | text | en_cours / a_relancer / valide / attente_facture |
+| `facture_statut` | text | recue / payee / payee_partiellement / en_litige |
+| `montant` | numeric | Montant total TTC |
+| `montant_paye` | numeric | Montant payé (si partiel) |
+| `payment_terms` | jsonb | Conditions de paiement extraites par IA (single object: pct, delai_jours, type_facture, numero_facture) |
+| `cashflow_terms` | jsonb | **Array** des versements dérivés. Chaque élément : `{ event_id, amount, due_date, status, label, funding_source_id? }`. Source de vérité pour la VIEW `payment_events_v` (cf. § Architecture cashflow) |
+| `parent_devis_id` | uuid | Self-ref pour avenants (montant = supplément seul) |
+| `avenant_motif` | text | Description de l'avenant |
+| `devis_validated_at` | timestamptz | Horodatage de validation devis |
+| `source` | text | manual_upload / manual_entry / verifier_mon_devis / agent_avenant |
+| `nom`, `nom_fichier` | text | Nom affiché / nom de fichier original |
+| `bucket_path` | text | Chemin dans le bucket Storage (UNIQUE) |
+| `taille_octets`, `mime_type` | — | Métadonnées physiques |
 
 #### Table `newsletter_subscriptions`
 
@@ -1850,6 +1858,99 @@ Données partagées :
 
 ---
 
+### Architecture cashflow — VIEW dérivée + 2 sources
+
+Refactorée en 5 PRs (avril 2026) pour éliminer la désynchronisation entre Budget, Échéancier et Trésorerie. Avant : 3 voies de saisie créaient 3 objets différents (`payment_events` legacy, doublons potentiels, statuts incohérents). Après : sources distinctes par usage + une VIEW de lecture unique.
+
+#### Modèle
+
+```
+documents_chantier (devis, facture, ticket, frais)
+  ├─ cashflow_terms JSONB (array de versements)
+  └─ depense_type IN ('frais','ticket_caisse') → event auto-paid
+
+cashflow_extras (mouvements sans pièce — déblocage crédit, apport)
+  └─ funding_source_id → chantier_entrees
+
+       ↓ UNION ALL ↓
+
+VIEW payment_events_v (consommée par Échéancier / Trésorerie / Budget API)
+```
+
+#### Tables
+
+**`cashflow_extras`** (créée PR1) — mouvements financiers purs sans pièce justificative.
+
+| Colonne | Type | Description |
+|---|---|---|
+| `id` | uuid | PK |
+| `project_id` | uuid | FK chantiers ON DELETE CASCADE |
+| `label` | text | NOT NULL, length > 0 |
+| `amount` | numeric(12,2) | NOT NULL, > 0 |
+| `due_date` | date | NOT NULL |
+| `status` | text | pending / paid / late / cancelled |
+| `paid_at` | timestamptz | Auto-set par trigger au passage status=paid (reset si revert) |
+| `funding_source_id` | uuid | FK chantier_entrees ON DELETE SET NULL |
+| `financing_source` | text | apport / credit / maprime / cee / eco_ptz / mixte (legacy, non utilisé) |
+| `notes` | text | — |
+| `created_by` | uuid | Auto-rempli par trigger BEFORE INSERT depuis auth.uid() |
+
+Triggers : `updated_at`, `created_by`, `paid_at`. RLS via `(select auth.uid())` wrapper.
+
+**`documents_chantier.cashflow_terms`** (ajoutée PR2) — array JSONB de versements dérivés du devis/facture.
+
+```json
+[
+  { "event_id": "uuid", "amount": 3000, "due_date": "2026-05-01", "status": "pending", "label": "Acompte 30%" },
+  { "event_id": "uuid", "amount": 7000, "due_date": "2026-06-30", "status": "pending", "label": "Solde 70%" }
+]
+```
+
+CHECK constraint `jsonb_typeof(cashflow_terms) = 'array'`. Le `event_id` est un UUID stable identifiant chaque versement (utilisé comme `id` dans la VIEW pour permettre PATCH/DELETE 1:1).
+
+#### VIEW `payment_events_v`
+
+3 branches en UNION ALL :
+
+1. **Frais & ticket_caisse auto-paid** : 1 row par doc avec `depense_type IN ('frais','ticket_caisse')`. `id = uuid_generate_v5(uuid_ns_url(), 'cashflow:{doc.id}:auto')`, `status='paid'`, `due_date=created_at::date`. Non modifiable directement (PATCH/DELETE renvoient 422).
+2. **Versements documents** : explose `cashflow_terms` array. `id = (term->>'event_id')::uuid`, `term_index = idx-1`, `source_id = doc.id`. Filter `jsonb_array_length > 0` pour masquer les devis remplacés par une facture (override implicite via `cashflow_terms = []`).
+3. **Mouvements manuels** : pull-through de `cashflow_extras` (filter `status != 'cancelled'`). `source_id = null`, `term_index = null`, `lot_id = null` (extras sont globaux au chantier).
+
+Colonnes exposées : `id, project_id, source_type ('devis'|'facture'|'manuel'|'frais'), source_id, term_index, lot_id, amount, due_date, status, label, funding_source_id, origin ('document'|'extra'), created_at`.
+
+#### Voies de saisie unifiées
+
+| Voie | Cible | Visible Budget | Visible Échéancier |
+|---|---|---|---|
+| Agent IA `register_expense` (frais déclaré) | `documents_chantier` `depense_type='frais'` | ✅ alwaysPaid | ✅ via VIEW branche 1 |
+| UI `+ Document > Achat/Ticket` (AddDocumentModal) | `documents_chantier` `depense_type='ticket_caisse'\|'achat_materiaux'` | ✅ | ✅ via cashflow_terms (si analyse) |
+| Devis upload (analyze-quote edge fn) | `documents_chantier.cashflow_terms` (array) | ✅ | ✅ N versements |
+| Facture upload | `documents_chantier.cashflow_terms` + override parent_devis | ✅ | ✅ remplace devis |
+| UI `+ dépense` Échéancier (agent `add_payment_event`) | `cashflow_extras` | ❌ par design (mouvement global) | ✅ via VIEW branche 3 |
+
+Plus de désync architecture-level. Statut auto-dérivé par la VIEW depuis depense_type + facture_statut + cashflow_terms.
+
+#### Génération des `cashflow_terms`
+
+`src/lib/paymentEvents.ts` contient le pipeline :
+1. `extractConditionsFromAnalyse` : lit `analyses.raw_text` JSON (résultat Gemini)
+2. `transformToPaymentEvents` : calcule montants + dates + génère un `event_id = randomUUID()` par event
+3. `writeCashflowTermsForDoc` : UPDATE `documents_chantier.cashflow_terms` (REPLACE l'array entier — idempotent)
+4. `overridePreviousDevisEvents` (si facture) : vide `cashflow_terms` du devis parent → la VIEW exclut automatiquement
+
+Idempotence par construction (REPLACE de l'array). Non-bloquant en cas d'erreur (logs `[paymentEvents] writeCashflowTerms error`).
+
+#### Edge functions impactées
+
+- **`analyze-quote`** (post-extraction) : génère les events inline + écrit `cashflow_terms`. Code dupliqué de `paymentEvents.ts` car edge function ne peut pas importer depuis `src/`.
+- **`agent-checks`** : lit `payment_events_v` (CHECK 2 Overdue payments).
+
+#### Fichier de tracking refactor
+
+`CASHFLOW-REFACTOR.md` à la racine — log d'exécution PR1→PR5 (à supprimer après stabilisation des tests E2E).
+
+---
+
 ### Contacts chantier — colonnes et index supplémentaires
 
 La table `contacts_chantier` a été enrichie :
@@ -2059,11 +2160,21 @@ Détection basée sur le **contenu** (pas le nom de fichier). Points : `analyze-
 - `requireChantierAuthOrAgent` (`apiHelpers.ts`) : accepte JWT user OU header `X-Agent-Key`
 - Routes migrées : `budget.ts` GET, `contacts.ts` GET, `payment-events.ts` GET/POST/PATCH/DELETE, `taches.ts` CRUD, `planning.ts` GET/PATCH, `lots.ts` GET/POST/PATCH, `documents/depense-rapide.ts` POST
 
-**`payment-events.ts` — endpoints complets :**
-- `GET` : retourne `{ payment_events: [...] }` (clé `payment_events`, pas `data`) pour un chantier. Filtrable par `source_id`.
-- `POST` : crée un event. Body : `{ label, amount, due_date?, source_type?, source_id?, financing_source?, paid? }`. Si `paid: true` → status `paid` + `due_date` = aujourd'hui.
-- `PATCH` : modifie `amount`, `status`, `label`, `due_date`, `financing_source`. Body : `{ eventId, amount?, status?, label?, due_date?, financing_source? }`.
-- `DELETE` : supprime un event. Body : `{ eventId }`. Vérifie ownership via chantier_id.
+**`payment-events.ts` — endpoints (refactor cashflow PR1-PR5) :**
+
+Lecture sur la VIEW `payment_events_v`. Écriture dual-routée selon `origin` du flux.
+
+- `GET` : retourne `{ payment_events: [...] }` (clé `payment_events`, pas `data`) pour un chantier. La VIEW UNION 3 sources : (1) frais/ticket auto-paid dérivés de `documents_chantier.depense_type`, (2) versements explicites de devis/facture depuis `cashflow_terms`, (3) mouvements manuels de `cashflow_extras`. Champs exposés : `id, project_id, source_type, source_id, term_index, lot_id, amount, due_date, status, label, funding_source_id, origin, created_at` + enrichissements API (`source_name`, `lot_nom`, `artisan_nom`, `proof_doc_*`, `amount_estimate`).
+- `POST` :
+  - **manuel** (`{ manuel: true, label, amount, dueDate, paid? }`) : INSERT dans `cashflow_extras` avec UUID partagé (re-fetch via la VIEW pour la réponse).
+  - **analyse** (`{ analyseId, sourceType, sourceId, originalDevisId? }`) : déclenche `generatePaymentEventsFromAnalyse` qui écrit dans `documents_chantier.cashflow_terms`. Si `originalDevisId` fourni pour une facture, vide le `cashflow_terms` du devis parent (override implicite).
+- `PATCH` : Body `{ id, status?, amount?, due_date?, label?, funding_source_id? }`.
+  - **422** si `source_type='frais'` (modifier le doc parent à la place).
+  - Lookup VIEW pour récupérer `origin` + `source_id`/`term_index`.
+  - Si `origin='extra'` → UPDATE `cashflow_extras`.
+  - Si `origin='document'` → read-modify-write sur `cashflow_terms[term_index]`.
+  - **Solde restant** : si `status='paid'` avec `amount < planned×99%`, append/update un term "Solde restant — …" dans `cashflow_terms`. Si retour à `pending`, le term Solde restant est filtré.
+- `DELETE` : Body `{ id }`. Refuse 422 pour les frais. Sinon DELETE `cashflow_extras` OU retire le term de `cashflow_terms`.
 
 **Dual-mode** :
 - `edge_function` (défaut) : Gemini 2.5 Flash, on paie
