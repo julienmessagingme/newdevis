@@ -465,11 +465,14 @@ export async function verifyData(
 
   // 5. Géorisques - Site context
   const codePostal = extracted.client.code_postal;
-  if (codePostal) {
+  const hasAddressData = codePostal || extracted.client.ville || extracted.client.adresse_chantier;
+  if (hasAddressData) {
     try {
-      const adresseQuery = extracted.client.adresse_chantier
-        ? `${extracted.client.adresse_chantier} ${codePostal} ${extracted.client.ville || ""}`
-        : `${codePostal} ${extracted.client.ville || ""}`;
+      const adresseQuery = [
+        extracted.client.adresse_chantier,
+        codePostal,
+        extracted.client.ville,
+      ].filter(Boolean).join(" ") || extracted.client.ville || extracted.client.adresse_chantier || codePostal || "";
 
       const geoResponse = await fetch(`${ADRESSE_API_URL}?q=${encodeURIComponent(adresseQuery)}&limit=1`, { signal: AbortSignal.timeout(5_000) });
       if (geoResponse.ok) {

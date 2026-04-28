@@ -255,8 +255,11 @@ export async function lookupMarketPrices(
   // 2. Build set of valid job_type identifiers + label lookup from catalog
   const validJobTypes = new Set<string>();
   const catalogLabels = new Map<string, string>();
+  // Normalized (lowercase + trim) → canonical job_type, for fuzzy fallback
+  const normalizedToCanonical = new Map<string, string>();
   for (const p of allPrices as MarketPriceRow[]) {
     validJobTypes.add(p.job_type);
+    normalizedToCanonical.set(p.job_type.toLowerCase().trim(), p.job_type);
     if (!catalogLabels.has(p.job_type)) {
       catalogLabels.set(p.job_type, p.label);
     }
@@ -307,10 +310,23 @@ export async function lookupMarketPrices(
   for (const jt of jobTypes) {
     if (jt.work_items.length === 0) continue;
 
-    // Validate job_types against catalog — filter out invented ones
+    // Validate job_types against catalog — filter out invented ones, with normalized fallback
     const originalJobTypes = [...jt.job_types];
-    const validatedJobTypes = jt.job_types.filter((jtype) => validJobTypes.has(jtype));
-    const invalidJobTypes = originalJobTypes.filter((jtype) => !validJobTypes.has(jtype));
+    const validatedJobTypes: string[] = [];
+    for (const jtype of jt.job_types) {
+      if (validJobTypes.has(jtype)) {
+        validatedJobTypes.push(jtype);
+      } else {
+        // Fuzzy fallback: try normalized (lowercase, trim, spaces→underscores)
+        const normalized = jtype.toLowerCase().trim().replace(/\s+/g, "_");
+        const canonical = normalizedToCanonical.get(normalized);
+        if (canonical) {
+          console.log(`[MarketPrices] Fuzzy match "${jtype}" → "${canonical}"`);
+          validatedJobTypes.push(canonical);
+        }
+      }
+    }
+    const invalidJobTypes = originalJobTypes.filter((jtype) => !validatedJobTypes.includes(jtype) && !validJobTypes.has(jtype));
     if (invalidJobTypes.length > 0) {
       console.warn(`[MarketPrices] FILTERED invented job_types for "${jt.job_type_label}":`, invalidJobTypes);
     }
