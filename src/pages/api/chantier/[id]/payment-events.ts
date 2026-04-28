@@ -1,6 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
+import { randomUUID } from 'node:crypto';
 import { generatePaymentEventsFromAnalyse } from '@/lib/paymentEvents';
 import { optionsResponse, jsonOk, jsonError, requireChantierAuth, requireChantierAuthOrAgent } from '@/lib/apiHelpers';
 
@@ -27,17 +28,18 @@ export const GET: APIRoute = async ({ params, request }) => {
 
   const validatedDevisIds = (validatedDocs ?? []).map(d => d.id);
 
-  let query = ctx.supabase
-    .from('payment_events')
+  // PR3 : lecture sur la VIEW payment_events_v (UNION docs.cashflow_terms +
+  // cashflow_extras + frais auto-paid). is_override est toujours false dans
+  // la VIEW (le mécanisme override est encodé via cashflow_terms vide pour
+  // les devis remplacés par une facture). Le param `include_override` est
+  // conservé pour rétro-compat mais n'a plus d'effet ici.
+  void includeOverride;
+
+  const { data: allEvents, error } = await ctx.supabase
+    .from('payment_events_v')
     .select('*')
     .eq('project_id', chantierId)
     .order('due_date', { ascending: true, nullsFirst: false });
-
-  if (!includeOverride) {
-    query = query.eq('is_override', false);
-  }
-
-  const { data: allEvents, error } = await query;
 
   if (error) {
     console.error('[api/payment-events] GET error:', error.message);
@@ -202,27 +204,55 @@ export const POST: APIRoute = async ({ params, request }) => {
     const dueDate = typeof body.dueDate === 'string' && body.dueDate        ? body.dueDate        : null;
 
     if (!label) return jsonError('Le motif est requis', 400);
+    if (amount === null) return jsonError('Le montant est requis (> 0)', 400);
 
     const paid = body.paid === true;
+    const status = paid ? 'paid' : 'pending';
+    const finalDueDate = dueDate ?? (paid ? new Date().toISOString().slice(0, 10) : null);
+
+    if (!finalDueDate) return jsonError('La date d\'échéance est requise', 400);
+
+    // Dual-write : UUID partagé entre payment_events legacy et cashflow_extras
+    // pour matcher dans la VIEW (id de la branche extras = id de cashflow_extras).
+    const sharedId = randomUUID();
 
     const { data: ev, error } = await ctx.supabase
       .from('payment_events')
       .insert({
+        id:          sharedId,
         project_id:  chantierId,
         source_type: 'manuel',
         source_id:   null,
         label,
         amount,
-        due_date:    dueDate ?? (paid ? new Date().toISOString().slice(0, 10) : null),
-        status:      paid ? 'paid' : 'pending',
+        due_date:    finalDueDate,
+        status,
         is_override: false,
       })
       .select()
       .single();
 
     if (error || !ev) {
-      console.error('[payment-events] manuel insert error:', error?.message);
+      console.error('[payment-events] manuel insert legacy error:', error?.message);
       return jsonError('Erreur lors de la création', 500);
+    }
+
+    // Dual-write cashflow_extras (même id pour matcher 1:1 dans payment_events_v)
+    const { error: extraError } = await ctx.supabase
+      .from('cashflow_extras')
+      .insert({
+        id:         sharedId,
+        project_id: chantierId,
+        label,
+        amount,
+        due_date:   finalDueDate,
+        status,
+      });
+
+    if (extraError) {
+      console.error('[payment-events] manuel insert cashflow_extras error:', extraError.message);
+      // Non-bloquant : l'event est dans la legacy, juste invisible dans la VIEW.
+      // Sera réconcilié au prochain cleanup. À monitorer via CASHFLOW-REFACTOR.md.
     }
 
     return jsonOk({ payment_events: [ev], message: 'Dépense créée' }, 201);
@@ -248,9 +278,9 @@ export const POST: APIRoute = async ({ params, request }) => {
     originalDevisId,
   );
 
-  // Retourne les events fraîchement insérés
+  // Retourne les events fraîchement insérés (depuis la VIEW pour cohérence avec GET)
   const { data } = await ctx.supabase
-    .from('payment_events')
+    .from('payment_events_v')
     .select('*')
     .eq('project_id', chantierId)
     .eq('source_id', sourceId)
@@ -286,27 +316,35 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     return jsonError('id requis + au moins un champ à modifier', 400);
   }
 
-  // Étape 1 : vérifier ownership + récupérer données complètes (amount, label, source_id)
-  const { data: existing, error: selectErr } = await ctx.supabase
-    .from('payment_events')
-    .select('id, project_id, amount, label, source_id, source_type, due_date')
+  // Étape 1 : ownership + récupérer données depuis la VIEW (single source of truth
+  // pour origin='document'|'extra' qui détermine où propager la mise à jour).
+  const { data: viewEvent, error: vErr } = await ctx.supabase
+    .from('payment_events_v')
+    .select('id, project_id, amount, label, source_id, source_type, due_date, term_index, origin')
     .eq('id', id)
     .maybeSingle();
 
-  if (selectErr) {
-    console.error('[api/payment-events] PATCH select error:', selectErr.message);
-    return jsonError(selectErr.message, 500);
+  if (vErr) {
+    console.error('[api/payment-events] PATCH select error:', vErr.message);
+    return jsonError(vErr.message, 500);
   }
-  if (!existing) {
-    console.error('[api/payment-events] PATCH event introuvable — id:', id);
+  if (!viewEvent) {
     return jsonError('Événement introuvable', 404);
   }
-  if (existing.project_id !== chantierId) {
-    console.error('[api/payment-events] PATCH project_id mismatch — event.project_id:', existing.project_id, '| chantierId:', chantierId);
+  if (viewEvent.project_id !== chantierId) {
     return jsonError('Non autorisé', 403);
   }
 
-  // Étape 2 : UPDATE par id uniquement
+  // Frais auto-paid : pas de modification possible (dérivés de documents_chantier).
+  // Le user doit modifier le doc parent (montant, depense_type) pour changer l'event.
+  if (viewEvent.source_type === 'frais') {
+    return jsonError(
+      'Cet événement est dérivé d\'un frais/ticket — modifier le document source pour changer le montant ou la date',
+      422,
+    );
+  }
+
+  // Étape 2 : UPDATE legacy par id (rétro-compat — tant que payment_events existe)
   const updatePayload: Record<string, unknown> = {};
   if (status) updatePayload.status = status;
   if (amount !== undefined) updatePayload.amount = amount;
@@ -314,71 +352,170 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   if (label !== undefined) updatePayload.label = label;
   if (funding_source_id !== undefined) updatePayload.funding_source_id = funding_source_id;
 
-  const { error } = await ctx.supabase
+  const { error: legacyErr } = await ctx.supabase
     .from('payment_events')
     .update(updatePayload)
     .eq('id', id);
 
-  if (error) {
-    console.error('[api/payment-events] PATCH update error:', error.message);
-    return jsonError(error.message, 500);
+  if (legacyErr) {
+    console.error('[api/payment-events] PATCH legacy update error:', legacyErr.message);
+    return jsonError(legacyErr.message, 500);
+  }
+
+  // Étape 2b : propagation au nouveau chemin (cashflow_extras OU cashflow_terms)
+  // Filtre sur les seuls champs reflétés dans le nouveau modèle.
+  const newPathPatch: Record<string, unknown> = {};
+  if (status) newPathPatch.status = status;
+  if (amount !== undefined) newPathPatch.amount = amount;
+  if (due_date !== undefined) newPathPatch.due_date = due_date;
+  if (label !== undefined) newPathPatch.label = label;
+  // funding_source_id est legacy-only pour l'instant — pas dans cashflow_terms
+
+  if (viewEvent.origin === 'extra') {
+    const { error: extraErr } = await ctx.supabase
+      .from('cashflow_extras')
+      .update(newPathPatch)
+      .eq('id', id);
+    if (extraErr) console.error('[api/payment-events] PATCH cashflow_extras error:', extraErr.message);
+  } else if (viewEvent.origin === 'document' && viewEvent.source_id != null) {
+    // Read-modify-write sur cashflow_terms[term_index] (PR3 : single user, race acceptable)
+    const { data: doc } = await ctx.supabase
+      .from('documents_chantier')
+      .select('cashflow_terms')
+      .eq('id', viewEvent.source_id)
+      .maybeSingle();
+
+    if (doc?.cashflow_terms && Array.isArray(doc.cashflow_terms)) {
+      const updatedTerms = (doc.cashflow_terms as Array<Record<string, unknown>>).map(t =>
+        t.event_id === id ? { ...t, ...newPathPatch } : t
+      );
+      const { error: termErr } = await ctx.supabase
+        .from('documents_chantier')
+        .update({ cashflow_terms: updatedTerms })
+        .eq('id', viewEvent.source_id);
+      if (termErr) console.error('[api/payment-events] PATCH cashflow_terms error:', termErr.message);
+    }
   }
 
   // Étape 3 : paiement partiel → créer/mettre à jour l'event "Solde restant"
-  // Si on marque paid avec un montant < montant prévu, on crée automatiquement
-  // un event pending pour le solde restant (cohérence Budget ↔ Échéancier).
-  const plannedAmount = existing.amount != null ? Number(existing.amount) : null;
-  if (
+  // (cohérence Budget ↔ Échéancier). Propagation simultanée dans cashflow_terms.
+  const plannedAmount = viewEvent.amount != null ? Number(viewEvent.amount) : null;
+  const isPartialPayment =
     status === 'paid' &&
     amount !== undefined &&
     plannedAmount !== null &&
-    amount < plannedAmount * 0.99 && // tolérance 1% pour les arrondis
-    existing.source_id &&
-    existing.source_type === 'devis'
-  ) {
-    const remaining = Math.round((plannedAmount - amount) * 100) / 100;
-    // Vérifier si un event "Solde restant" existe déjà pour ce source_id
+    amount < plannedAmount * 0.99 &&
+    viewEvent.source_id &&
+    viewEvent.source_type === 'devis';
+
+  if (isPartialPayment) {
+    const remaining = Math.round((plannedAmount! - amount!) * 100) / 100;
     const { data: existingRemainder } = await ctx.supabase
       .from('payment_events')
       .select('id')
       .eq('project_id', chantierId)
-      .eq('source_id', existing.source_id)
+      .eq('source_id', viewEvent.source_id)
       .eq('status', 'pending')
       .ilike('label', '%Solde restant%')
       .maybeSingle();
 
     if (!existingRemainder) {
-      // Créer un event pending pour le solde
-      const remainderLabel = `Solde restant — ${existing.label ?? 'paiement'}`;
+      // Créer event legacy + appendre au cashflow_terms du doc
+      const remainderId = randomUUID();
+      const remainderLabel = `Solde restant — ${viewEvent.label ?? 'paiement'}`;
       await ctx.supabase.from('payment_events').insert({
+        id:          remainderId,
         project_id:  chantierId,
-        source_type: existing.source_type,
-        source_id:   existing.source_id,
+        source_type: viewEvent.source_type,
+        source_id:   viewEvent.source_id,
         label:       remainderLabel,
         amount:      remaining,
         due_date:    null,
         status:      'pending',
         is_override: false,
       });
+
+      // Append au cashflow_terms du doc parent
+      const { data: doc } = await ctx.supabase
+        .from('documents_chantier')
+        .select('cashflow_terms')
+        .eq('id', viewEvent.source_id!)
+        .maybeSingle();
+      if (doc?.cashflow_terms && Array.isArray(doc.cashflow_terms)) {
+        const newTerm = {
+          event_id: remainderId,
+          amount:   remaining,
+          due_date: null,
+          status:   'pending',
+          label:    remainderLabel,
+        };
+        await ctx.supabase
+          .from('documents_chantier')
+          .update({ cashflow_terms: [...(doc.cashflow_terms as unknown[]), newTerm] })
+          .eq('id', viewEvent.source_id!);
+      }
     } else {
-      // Mettre à jour le montant du solde existant
+      // Mettre à jour le montant du solde existant (dans legacy + cashflow_terms)
       await ctx.supabase.from('payment_events')
         .update({ amount: remaining })
         .eq('id', existingRemainder.id);
+      const { data: doc } = await ctx.supabase
+        .from('documents_chantier')
+        .select('cashflow_terms')
+        .eq('id', viewEvent.source_id!)
+        .maybeSingle();
+      if (doc?.cashflow_terms && Array.isArray(doc.cashflow_terms)) {
+        const updated = (doc.cashflow_terms as Array<Record<string, unknown>>).map(t =>
+          t.event_id === existingRemainder.id ? { ...t, amount: remaining } : t
+        );
+        await ctx.supabase
+          .from('documents_chantier')
+          .update({ cashflow_terms: updated })
+          .eq('id', viewEvent.source_id!);
+      }
     }
   }
 
-  // Étape 4 : si on remet en pending, supprimer l'event "Solde restant" associé s'il existe
-  if (status === 'pending' && existing.source_id) {
+  // Étape 4 : si on remet en pending, supprimer l'event "Solde restant" associé
+  if (status === 'pending' && viewEvent.source_id) {
+    // Récupérer les ids de Solde restant à supprimer (pour propager dans cashflow_terms)
+    const { data: remainders } = await ctx.supabase
+      .from('payment_events')
+      .select('id')
+      .eq('project_id', chantierId)
+      .eq('source_id', viewEvent.source_id)
+      .eq('status', 'pending')
+      .ilike('label', '%Solde restant%');
+
+    const remainderIds = (remainders ?? []).map(r => r.id);
+
     await ctx.supabase.from('payment_events')
       .delete()
       .eq('project_id', chantierId)
-      .eq('source_id', existing.source_id)
+      .eq('source_id', viewEvent.source_id)
       .eq('status', 'pending')
       .ilike('label', '%Solde restant%');
+
+    // Filtrer cashflow_terms du doc pour exclure les Solde restant supprimés
+    if (remainderIds.length > 0) {
+      const { data: doc } = await ctx.supabase
+        .from('documents_chantier')
+        .select('cashflow_terms')
+        .eq('id', viewEvent.source_id)
+        .maybeSingle();
+      if (doc?.cashflow_terms && Array.isArray(doc.cashflow_terms)) {
+        const filtered = (doc.cashflow_terms as Array<Record<string, unknown>>).filter(t =>
+          !remainderIds.includes(t.event_id as string)
+        );
+        await ctx.supabase
+          .from('documents_chantier')
+          .update({ cashflow_terms: filtered })
+          .eq('id', viewEvent.source_id);
+      }
+    }
   }
 
-  return jsonOk({ ok: true, status, remaining_created: status === 'paid' && amount !== undefined && plannedAmount !== null && amount < plannedAmount * 0.99 });
+  return jsonOk({ ok: true, status, remaining_created: isPartialPayment });
 };
 
 // ── DELETE /api/chantier/[id]/payment-events ──────────────────────────────────
@@ -398,24 +535,58 @@ export const DELETE: APIRoute = async ({ params, request }) => {
   const id = typeof body.id === 'string' ? body.id : null;
   if (!id) return jsonError('id requis', 400);
 
-  // Vérifier ownership
-  const { data: existing } = await ctx.supabase
-    .from('payment_events')
-    .select('id, project_id')
+  // Lookup VIEW pour déterminer où propager la suppression
+  const { data: viewEvent } = await ctx.supabase
+    .from('payment_events_v')
+    .select('id, project_id, source_id, source_type, origin')
     .eq('id', id)
     .maybeSingle();
 
-  if (!existing) return jsonError('Événement introuvable', 404);
-  if (existing.project_id !== chantierId) return jsonError('Non autorisé', 403);
+  if (!viewEvent) return jsonError('Événement introuvable', 404);
+  if (viewEvent.project_id !== chantierId) return jsonError('Non autorisé', 403);
 
+  // Frais : non supprimable directement (dérivé du document)
+  if (viewEvent.source_type === 'frais') {
+    return jsonError(
+      'Cet événement est dérivé d\'un frais — supprimer le document source pour le retirer',
+      422,
+    );
+  }
+
+  // 1. Legacy
   const { error } = await ctx.supabase
     .from('payment_events')
     .delete()
     .eq('id', id);
 
   if (error) {
-    console.error('[api/payment-events] DELETE error:', error.message);
+    console.error('[api/payment-events] DELETE legacy error:', error.message);
     return jsonError(error.message, 500);
+  }
+
+  // 2. Propagation au nouveau chemin
+  if (viewEvent.origin === 'extra') {
+    const { error: extraErr } = await ctx.supabase
+      .from('cashflow_extras')
+      .delete()
+      .eq('id', id);
+    if (extraErr) console.error('[api/payment-events] DELETE cashflow_extras error:', extraErr.message);
+  } else if (viewEvent.origin === 'document' && viewEvent.source_id != null) {
+    // Retirer le term du cashflow_terms array (filter par event_id)
+    const { data: doc } = await ctx.supabase
+      .from('documents_chantier')
+      .select('cashflow_terms')
+      .eq('id', viewEvent.source_id)
+      .maybeSingle();
+    if (doc?.cashflow_terms && Array.isArray(doc.cashflow_terms)) {
+      const filtered = (doc.cashflow_terms as Array<Record<string, unknown>>).filter(t =>
+        t.event_id !== id
+      );
+      await ctx.supabase
+        .from('documents_chantier')
+        .update({ cashflow_terms: filtered })
+        .eq('id', viewEvent.source_id);
+    }
   }
 
   return jsonOk({ ok: true });

@@ -1,6 +1,6 @@
 # Refactor cashflow chantier — log d'exécution
 
-> **Statut** : en cours (PR 2/5 mergée). PR3 prochaine.
+> **Statut** : en cours (PR 3/5 mergée). PR4 prochaine.
 > **But** : unifier les 3 voies de saisie de dépense (cf. WIP.md §11) sous une architecture où `documents_chantier` + `cashflow_extras` sont les seules sources de vérité, et `payment_events_v` (VIEW) est le consommateur unique pour Échéancier/Trésorerie.
 > **À supprimer après PR5** stabilisée et merge complète. Garder pour pouvoir tracer en cas de bug pendant les tests.
 
@@ -132,6 +132,82 @@ DROP VIEW IF EXISTS public.payment_events_v;
 ALTER TABLE public.documents_chantier DROP CONSTRAINT IF EXISTS documents_chantier_cashflow_terms_is_array;
 ALTER TABLE public.documents_chantier DROP COLUMN IF EXISTS cashflow_terms;
 -- Cleanup payment_events n'est pas reversible (orphelins déjà supprimés)
+```
+
+---
+
+## PR3 — Bascule API en lecture + dual-write (mergée 2026-04-28)
+
+**Commit principal** : `feat(chantier): API lit VIEW + dual-write (PR 3/5)`
+
+### Objectif
+Switcher l'API en lecture sur `payment_events_v` ET commencer à écrire en parallèle dans le nouveau chemin (cashflow_terms / cashflow_extras), tout en continuant d'écrire dans `payment_events` legacy. PR4 enlèvera l'écriture legacy.
+
+### Changements DB
+
+- Migration `20260428220000_cashflow_terms_event_id.sql` :
+  - Wipe + re-backfill `cashflow_terms` avec `{ event_id, amount, due_date, status, label }` (event_id = legacy.id pour matcher 1:1)
+  - VIEW `payment_events_v` recompilée : branche 2 utilise `(term->>'event_id')::uuid` comme id
+  - Wrap `BEGIN/COMMIT` pour atomicité
+
+### Changements code
+
+- `src/lib/paymentEvents.ts` :
+  - `PaymentEvent.id` ajouté (UUID pré-généré via `randomUUID()`)
+  - Nouveau `writeCashflowTermsForDoc()` helper
+  - `generatePaymentEventsFromAnalyse` et `*FromConditions` dual-écrivent cashflow_terms après INSERT legacy
+  - `overridePreviousDevisEvents` vide aussi cashflow_terms du devis parent
+  - **Order critique** : override déplacé en DERNIER step (sinon échec d'insertion = perte du devis parent visuellement)
+
+- `src/pages/api/chantier/[id]/payment-events.ts` :
+  - **GET** : lit `payment_events_v` (paramètre `include_override` conservé pour rétro-compat mais sans effet)
+  - **POST manuel** : INSERT legacy + INSERT cashflow_extras avec **shared UUID**
+  - **POST analyse** : appelle `generatePaymentEventsFromAnalyse` (dual-write), re-fetch sur la VIEW
+  - **PATCH** : refus 422 pour `source_type='frais'`. Dual-update legacy + (cashflow_extras OU cashflow_terms[term_index]). Logique "Solde restant" propagée
+  - **DELETE** : refus 422 pour frais. Dual-delete
+
+- `supabase/functions/analyze-quote/index.ts` :
+  - Bloc PAYMENT EVENTS dupliqué dans l'edge function : ajout du dual-write
+    (UUID par event + UPDATE doc.cashflow_terms après INSERT legacy)
+  - **Critique** : sans cette correction, tous les devis uploadés étaient invisibles
+    dans la VIEW (le hash UUID v5 ne matchait aucun event_id)
+
+### État après PR3
+
+| Source | Comportement |
+|---|---|
+| GET API | Lit `payment_events_v` (VIEW) — frais désormais visibles en Échéancier (gain de feature) |
+| POST/PATCH/DELETE | Dual-write : `payment_events` legacy + `cashflow_extras` OU `cashflow_terms` |
+| Edge fn `analyze-quote` | Dual-write idem |
+| `budget.ts` | **Inchangé** — lit toujours `payment_events` legacy. Cohérent grâce au dual-write. À switcher en PR4 |
+
+### Risques connus (acceptés pour PR3, à corriger PR4)
+
+1. **Drift legacy/new path silencieux** : si l'INSERT/UPDATE du chemin legacy réussit puis le dual-write échoue (réseau, erreur transient), la VIEW ne voit pas l'event mais legacy oui. Logs `[paymentEvents] writeCashflowTerms error` permettent de détecter. Stable car single-user, low concurrency.
+2. **`is_override` dead code** : `usePaymentEvents.ts`, `CashflowProjection.tsx`, `payment-events.ts` ligne 144 contiennent encore `!e.is_override` qui sont des no-ops contre la VIEW. À nettoyer en PR5.
+3. **`budget.ts` lit legacy** : après PR4 (stop écriture legacy), budget.ts cassera. À switcher en PR4 vers la VIEW.
+4. **Solde restant edge case** : si le SELECT du doc échoue dans le PATCH, le legacy a la "Solde restant" mais cashflow_terms ne l'a pas. Visible côté Budget mais pas Échéancier. Single-user, transient. Risque accepté.
+5. **`overridePreviousDevisEvents` order** : si l'INSERT facture réussit puis writeCashflowTerms échoue puis override échoue, on a duplicate display (devis pending + facture pending). Recoverable par re-trigger.
+
+### Tests à faire avant PR4
+
+- [ ] Échéancier d'un chantier existant : montant total identique avant/après bascule
+- [ ] Upload nouveau devis (PDF) : analyse → events visibles dans Échéancier ET Budget
+- [ ] Upload nouvelle facture liée à un devis existant : ancien devis disparaît, nouvelle facture apparaît
+- [ ] Frais agent IA `register_expense` : visible Budget + Échéancier (gain de feature)
+- [ ] Saisie "+ dépense" Échéancier : crée extra, visible Échéancier
+- [ ] Marquer un event payé : status pending → paid se reflète Budget + Échéancier
+- [ ] Versements multiples (acompte+solde) : 2 events visibles
+- [ ] Paiement partiel (mark paid avec amount < planned) : "Solde restant" apparaît
+
+### Rollback PR3
+
+```sql
+-- 1. Re-créer ancienne version VIEW (id v5-derived) — voir PR2 migration
+-- 2. Wipe cashflow_terms (les rebackfill auto au prochain pipeline)
+UPDATE documents_chantier SET cashflow_terms = '[]';
+-- 3. Reverter le code (git revert <commit_pr3>)
+-- payment_events legacy reste intacte → l'app reprend en lecture legacy
 ```
 
 ---

@@ -919,7 +919,13 @@ serve(async (req) => {
                   break;
               }
 
+              const eventId = crypto.randomUUID();
+              const label = typeof cond.label === "string" && cond.label.trim()
+                ? cond.label.trim()
+                : `${cond.type ?? "échéance"}`;
+
               return {
+                id:          eventId,
                 project_id:  docLinked.chantier_id,
                 source_type: sourceType,
                 source_id:   docLinked.id,
@@ -927,9 +933,7 @@ serve(async (req) => {
                 due_date:    dueDate,
                 status:      "pending",
                 is_override: false,
-                label:       typeof cond.label === "string" && cond.label.trim()
-                  ? cond.label.trim()
-                  : `${cond.type ?? "échéance"}`,
+                label,
               };
             });
 
@@ -939,6 +943,34 @@ serve(async (req) => {
               console.error("[PaymentEvents] insert error:", evtErr.message);
             } else {
               console.log(`[PaymentEvents] timeline générée — ${events.length} événements insérés`);
+
+              // Dual-write : propage cashflow_terms sur le doc parent (PR3+ refactor).
+              // Sans ça, les events sont dans payment_events legacy mais invisibles
+              // dans la VIEW payment_events_v → invisibles en Échéancier.
+              const cashflow_terms = [...events]
+                .sort((a, b) => {
+                  const da = a.due_date ?? "\uffff";
+                  const db = b.due_date ?? "\uffff";
+                  if (da !== db) return da < db ? -1 : 1;
+                  return a.id.localeCompare(b.id);
+                })
+                .map(e => ({
+                  event_id: e.id,
+                  amount:   e.amount,
+                  due_date: e.due_date,
+                  status:   e.status,
+                  label:    e.label,
+                }));
+
+              const { error: termsErr } = await supabase
+                .from("documents_chantier")
+                .update({ cashflow_terms })
+                .eq("id", docLinked.id);
+              if (termsErr) {
+                console.error("[PaymentEvents] cashflow_terms dual-write error:", termsErr.message);
+              } else {
+                console.log(`[PaymentEvents] cashflow_terms écrits — ${cashflow_terms.length} terms`);
+              }
             }
           }
         }

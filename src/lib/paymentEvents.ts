@@ -15,6 +15,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { randomUUID } from 'node:crypto';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,7 @@ export interface ConditionPaiement {
 }
 
 export interface PaymentEvent {
+  id: string;                // UUID pré-généré pour dual-write avec cashflow_terms (PR3+)
   project_id: string;
   source_type: 'devis' | 'facture';
   source_id: string;
@@ -36,6 +38,15 @@ export interface PaymentEvent {
   due_date: string | null;   // YYYY-MM-DD
   status: 'pending';
   is_override: boolean;
+  label: string;
+}
+
+// Élément d'array stocké dans documents_chantier.cashflow_terms (PR2/3 refactor)
+export interface CashflowTerm {
+  event_id: string;          // UUID stable, partagé avec payment_events legacy
+  amount: number | null;
+  due_date: string | null;
+  status: 'pending' | 'paid' | 'late' | 'cancelled';
   label: string;
 }
 
@@ -144,6 +155,8 @@ export function transformToPaymentEvents(
   const events: PaymentEvent[] = [];
 
   for (const cond of conditions) {
+    const eventId = randomUUID();
+
     // ── Montant ──────────────────────────────────────────────────────────────
     let amount: number | null = null;
 
@@ -193,6 +206,7 @@ export function transformToPaymentEvents(
       || `${cond.type}${cond.percentage != null ? ` – ${cond.percentage}%` : ''}`;
 
     events.push({
+      id:          eventId,
       project_id:  chantierId,
       source_type: sourceType,
       source_id:   sourceId,
@@ -234,6 +248,52 @@ export async function insertPaymentEvents(
   return { inserted: events.length, error: null };
 }
 
+// ── 3.5 Dual-write : propager events → documents_chantier.cashflow_terms ──────
+
+/**
+ * Met à jour `documents_chantier.cashflow_terms` pour refléter les payment_events
+ * d'un document (sourceId). Appelée après insertPaymentEvents pour synchroniser
+ * la VIEW `payment_events_v` (PR3 dual-write — cf. CASHFLOW-REFACTOR.md).
+ *
+ * Le tableau cashflow_terms est REMPLACÉ intégralement (replace, pas append) —
+ * cohérent avec le fait que `generatePaymentEvents*` purge les events existants
+ * avant insertion (idempotence). L'ordre suit le tri due_date NULLS LAST puis id.
+ *
+ * Non-bloquant : un échec ici n'empêche pas la fonctionnalité (la table legacy
+ * reste source de vérité jusqu'à PR4). Logs explicites pour diagnostic.
+ */
+export async function writeCashflowTermsForDoc(
+  supabase: ReturnType<typeof createClient>,
+  docId: string,
+  events: PaymentEvent[],
+): Promise<void> {
+  const sorted = [...events].sort((a, b) => {
+    const da = a.due_date ?? '\uffff';   // null → en fin
+    const db = b.due_date ?? '\uffff';
+    if (da !== db) return da < db ? -1 : 1;
+    return a.id.localeCompare(b.id);
+  });
+
+  const cashflow_terms: CashflowTerm[] = sorted.map(e => ({
+    event_id: e.id,
+    amount:   e.amount,
+    due_date: e.due_date,
+    status:   e.status,
+    label:    e.label,
+  }));
+
+  const { error } = await supabase
+    .from('documents_chantier')
+    .update({ cashflow_terms })
+    .eq('id', docId);
+
+  if (error) {
+    console.error('[paymentEvents] writeCashflowTerms error for doc', docId, ':', error.message);
+  } else {
+    console.log(`[paymentEvents] writeCashflowTerms: ${cashflow_terms.length} terms écrits sur doc ${docId}`);
+  }
+}
+
 // ── 4. Override des anciens events liés au devis (pour une facture) ───────────
 
 /**
@@ -246,6 +306,7 @@ export async function overridePreviousDevisEvents(
   chantierId: string,
   originalDevisId: string,
 ): Promise<void> {
+  // 1. Legacy : marquer cancelled + is_override
   const { error } = await supabase
     .from('payment_events')
     .update({ is_override: true, status: 'cancelled' })
@@ -259,6 +320,18 @@ export async function overridePreviousDevisEvents(
     console.log(
       `[paymentEvents] override: events du devis ${originalDevisId} marqués cancelled + is_override=true`,
     );
+  }
+
+  // 2. Dual-write : vider cashflow_terms du devis parent (PR3+) — sinon la VIEW
+  // continuerait d'exposer les versements du devis alors qu'ils sont remplacés
+  // par ceux de la facture.
+  const { error: clearError } = await supabase
+    .from('documents_chantier')
+    .update({ cashflow_terms: [] })
+    .eq('id', originalDevisId);
+
+  if (clearError) {
+    console.error('[paymentEvents] override cashflow_terms clear error:', clearError.message);
   }
 }
 
@@ -313,23 +386,29 @@ export async function generatePaymentEventsFromAnalyse(
       console.log('[paymentEvents] pipeline: events existants purgés pour source_id', sourceId);
     }
 
-    // 3. Override devis original si facture
-    if (sourceType === 'facture' && originalDevisId) {
-      await overridePreviousDevisEvents(supabase, chantierId, originalDevisId);
-    }
-
-    // 4. Transformation
+    // 3. Transformation
     const events = transformToPaymentEvents(
       conditions, totalAmount, chantierId, sourceType, sourceId,
     );
 
-    // 5. Insertion
+    // 4. Insertion legacy
     const { inserted, error } = await insertPaymentEvents(supabase, events);
     if (error) {
       console.error('[paymentEvents] pipeline: échec insertion', error);
-    } else {
-      console.log(`[paymentEvents] pipeline terminé avec succès — ${inserted} événements`);
+      return;
     }
+
+    // 5. Dual-write cashflow_terms pour la VIEW payment_events_v (PR3+)
+    await writeCashflowTermsForDoc(supabase, sourceId, events);
+
+    // 6. Override devis original si facture (DERNIER step — sinon en cas
+    // d'échec de l'insertion ci-dessus, on aurait vidé les cashflow_terms
+    // du devis parent et perdu sa visibilité avant que la facture n'existe).
+    if (sourceType === 'facture' && originalDevisId) {
+      await overridePreviousDevisEvents(supabase, chantierId, originalDevisId);
+    }
+
+    console.log(`[paymentEvents] pipeline terminé avec succès — ${inserted} événements`);
   } catch (err) {
     // Non-bloquant : ne jamais faire échouer le pipeline principal
     console.error(
@@ -363,15 +442,20 @@ export async function generatePaymentEventsFromConditions(
       .eq('source_id', sourceId)
       .eq('is_override', false);
 
-    if (sourceType === 'facture' && originalDevisId) {
-      await overridePreviousDevisEvents(supabase, chantierId, originalDevisId);
-    }
-
     const events = transformToPaymentEvents(
       conditions, totalAmount, chantierId, sourceType, sourceId,
     );
 
-    await insertPaymentEvents(supabase, events);
+    const { error } = await insertPaymentEvents(supabase, events);
+    if (error) return;
+
+    // Dual-write cashflow_terms (PR3+) AVANT override pour préserver le devis
+    // parent en cas d'échec ultérieur.
+    await writeCashflowTermsForDoc(supabase, sourceId, events);
+
+    if (sourceType === 'facture' && originalDevisId) {
+      await overridePreviousDevisEvents(supabase, chantierId, originalDevisId);
+    }
   } catch (err) {
     console.error(
       '[paymentEvents] generateFromConditions: erreur inattendue',
