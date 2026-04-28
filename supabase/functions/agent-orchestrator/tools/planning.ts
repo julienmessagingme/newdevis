@@ -1,6 +1,6 @@
 // Tools planning : modification durée/délai/dépendances/dates de lots.
 // update_planning = batch-safe. Les autres = action (interactive only).
-import { Handler, Tool, API_BASE, AGENT_SECRET_KEY } from "./shared.ts";
+import { Handler, Tool, API_BASE, AGENT_SECRET_KEY, supabaseAdmin } from "./shared.ts";
 
 export const BATCH_SCHEMAS: Tool[] = [
   {
@@ -178,6 +178,36 @@ export const handlers: Record<string, Handler> = {
       method: "POST", headers,
       body: JSON.stringify({ lot_id: lotId, jours, cascade, raison: args.raison }),
     });
-    return JSON.stringify({ ok: res.ok, data: await res.json() });
+    const data = await res.json();
+
+    // Re-fetch les dates effectives du lot après recompute CPM (le endpoint
+    // shift-lot ne les retourne pas explicitement). Sans ça, l'agent invente
+    // la nouvelle date dans sa réponse texte (bug observé 2026-04-28).
+    let new_date_debut: string | null = null;
+    let new_date_fin: string | null = null;
+    let nom: string | null = null;
+    try {
+      const sb = supabaseAdmin();
+      const { data: row } = await sb
+        .from("lots_chantier")
+        .select("nom, date_debut, date_fin")
+        .eq("id", lotId)
+        .eq("chantier_id", chantierId)
+        .single();
+      new_date_debut = row?.date_debut ?? null;
+      new_date_fin = row?.date_fin ?? null;
+      nom = row?.nom ?? null;
+    } catch { /* ignore — l'agent saura via data */ }
+
+    return JSON.stringify({
+      ok: res.ok,
+      data,
+      lot_id: lotId,
+      lot_nom: nom,
+      new_date_debut,
+      new_date_fin,
+      jours_applied: jours,
+      cascade,
+    });
   },
 };
