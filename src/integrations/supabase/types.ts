@@ -1,4 +1,3 @@
-npm warn exec The following package was not found and will be installed: supabase@2.95.6
 export type Json =
   | string
   | number
@@ -1365,6 +1364,7 @@ export type Database = {
           analyse_id: string | null
           avenant_motif: string | null
           bucket_path: string
+          cashflow_terms: Json
           chantier_id: string
           created_at: string
           date: string | null
@@ -1397,6 +1397,7 @@ export type Database = {
           analyse_id?: string | null
           avenant_motif?: string | null
           bucket_path: string
+          cashflow_terms?: Json
           chantier_id: string
           created_at?: string
           date?: string | null
@@ -1429,6 +1430,7 @@ export type Database = {
           analyse_id?: string | null
           avenant_motif?: string | null
           bucket_path?: string
+          cashflow_terms?: Json
           chantier_id?: string
           created_at?: string
           date?: string | null
@@ -2539,6 +2541,25 @@ export type Database = {
         Row: {
           categorie: string | null
           nb_analyses: number | null
+        }
+        Relationships: []
+      }
+      payment_events_v: {
+        Row: {
+          amount: number | null
+          created_at: string | null
+          due_date: string | null
+          financing_source: string | null
+          id: string | null
+          is_override: boolean | null
+          label: string | null
+          lot_id: string | null
+          origin: string | null
+          project_id: string | null
+          source_id: string | null
+          source_type: string | null
+          status: string | null
+          term_index: number | null
         }
         Relationships: []
       }
