@@ -44,8 +44,10 @@ printf 'sk-ant-...' | gh secret set ANTHROPIC_API_KEY
 # 2. Service Account JSON en base64
 base64 -w0 sa.json | gh secret set GOOGLE_SA_JSON_B64
 
-# 3. Resend API key (compte avec verifiermondevis.fr verified)
-printf 're_...' | gh secret set RESEND_API_KEY_VMD
+# 3. Resend API key — RÉUTILISER la même clé que le repo auto-wa-agents
+# (compte Resend avec messagingme.app verified — pas besoin de re-vérifier vmd,
+# le from_address utilise agent@messagingme.app, les destinataires peuvent être ailleurs)
+printf 're_...' | gh secret set RESEND_API_KEY_APP
 ```
 
 ### 3. Fichiers à créer
@@ -60,8 +62,8 @@ matrix:
     - site_name: verifiermondevis.fr
       gsc_url: sc-domain:verifiermondevis.fr
       ga4_id: "<GA4 PROPERTY ID NUMÉRIQUE>"
-      resend_secret_name: RESEND_API_KEY_VMD
-      from_address: "SEO Agent <agent@verifiermondevis.fr>"
+      resend_secret_name: RESEND_API_KEY_APP
+      from_address: "SEO Agent VMD <agent@messagingme.app>"
 ```
 
 Adapter aussi la liste `recipients` dans le step "Send HTML email via Resend".

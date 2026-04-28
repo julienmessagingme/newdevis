@@ -30,3 +30,9 @@ dist-ssr
 # Env files
 .env
 .env.*
+
+# SEO agent runtime artifacts (.github/workflows/seo-agent.yml)
+.secrets/
+report.html
+claude-err.log
+issue-body.md

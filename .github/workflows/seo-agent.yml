@@ -1,0 +1,189 @@
+name: SEO Agent (weekly)
+
+on:
+  schedule:
+    # Every Monday at 5am UTC = 7am Europe/Paris (summer) / 6am (winter)
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (ne crée pas d'issue, affiche juste le rapport dans les logs)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - site_name: verifiermondevis.fr
+            gsc_url: sc-domain:verifiermondevis.fr
+            # ⚠️ Remplacer par l'ID numérique GA4 (Admin → Property Settings, en haut à droite)
+            # PAS le Measurement ID G-HJFMR8ST50 — le numérique uniquement.
+            ga4_id: "REPLACE_WITH_GA4_PROPERTY_ID"
+            # Réutilise la même clé Resend que auto-wa-agents (domaine vérifié = messagingme.app)
+            resend_secret_name: RESEND_API_KEY_APP
+            from_address: "SEO Agent VMD <agent@messagingme.app>"
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Restore Service Account JSON
+        env:
+          SA_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+        run: |
+          mkdir -p .secrets
+          # printf avoids trailing newline that echo adds; tr strips any CR
+          printf '%s' "$SA_B64" | tr -d '\r\n ' | base64 -d > .secrets/sa.json
+          node -e "const sa=require('./.secrets/sa.json'); if(!sa.client_email) throw new Error('SA JSON invalide'); console.log('✅ SA loaded:', sa.client_email);"
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code@latest
+
+      - name: Register MCPs (GSC + GA4)
+        run: |
+          node -e "
+            const { execFileSync } = require('child_process');
+            const sa = require('$PWD/.secrets/sa.json');
+            const saPath = '$PWD/.secrets/sa.json';
+
+            const gscConfig = {
+              command: 'npx',
+              args: ['-y', 'mcp-server-gsc'],
+              env: { GOOGLE_APPLICATION_CREDENTIALS: saPath }
+            };
+            const ga4Config = {
+              command: 'npx',
+              args: ['-y', 'mcp-server-google-analytics'],
+              env: {
+                GOOGLE_CLIENT_EMAIL: sa.client_email,
+                GOOGLE_PRIVATE_KEY: sa.private_key,
+                GA_PROPERTY_ID: '${{ matrix.ga4_id }}'
+              }
+            };
+
+            execFileSync('claude', ['mcp', 'add-json', '-s', 'user', 'seo-gsc', JSON.stringify(gscConfig)], { stdio: 'inherit' });
+            execFileSync('claude', ['mcp', 'add-json', '-s', 'user', 'seo-ga4', JSON.stringify(ga4Config)], { stdio: 'inherit' });
+          "
+          claude mcp list
+
+      - name: Run SEO Agent (HTML output)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GSC_SITE_URL: ${{ matrix.gsc_url }}
+          GA_PROPERTY_ID: ${{ matrix.ga4_id }}
+          SITE_NAME: ${{ matrix.site_name }}
+        run: |
+          PROMPT=$(envsubst < scripts/seo-agent-prompt.md)
+          set +e
+          claude -p "$PROMPT" \
+            --model haiku \
+            --output-format text \
+            --permission-mode bypassPermissions \
+            --max-budget-usd 2.00 \
+            > report.html 2> claude-err.log
+          EXIT=$?
+          set -e
+          if [ $EXIT -ne 0 ] || [ ! -s report.html ]; then
+            echo "===== STDERR ====="
+            cat claude-err.log || true
+            echo "===== STDOUT ====="
+            cat report.html || true
+            exit 1
+          fi
+          # Strip code fences if Claude wrapped the HTML
+          sed -i '1{/^```/d}; ${/^```$/d}' report.html
+          # Validate it looks like HTML
+          head -c 200 report.html | grep -qi "<!doctype\|<html" || {
+            echo "❌ Output is not HTML. First 500 chars:"
+            head -c 500 report.html
+            exit 1
+          }
+          echo "✅ HTML report generated ($(wc -c < report.html) bytes)"
+
+      - name: Send HTML email via Resend
+        env:
+          RESEND_API_KEY_APP: ${{ secrets.RESEND_API_KEY_APP }}
+          RESEND_SECRET_NAME: ${{ matrix.resend_secret_name }}
+          FROM_ADDRESS: ${{ matrix.from_address }}
+          SITE_NAME: ${{ matrix.site_name }}
+        run: |
+          # Indirect expansion: pick the key matching this matrix cell's site
+          RESEND_API_KEY="${!RESEND_SECRET_NAME}"
+          if [ -z "$RESEND_API_KEY" ]; then
+            echo "⚠️ No Resend API key configured for $SITE_NAME (secret: $RESEND_SECRET_NAME)"
+            echo "   Skipping email send. Configure the secret to enable delivery."
+            exit 0
+          fi
+          export RESEND_API_KEY
+          node -e "
+          (async () => {
+            const fs = require('fs');
+            const html = fs.readFileSync('report.html', 'utf-8');
+            const date = new Date().toISOString().slice(0, 10);
+            const site = process.env.SITE_NAME;
+            const recipients = [
+              'julien@messagingme.fr'
+            ];
+            const resp = await fetch('https://api.resend.com/emails', {
+              method: 'POST',
+              headers: {
+                'Authorization': 'Bearer ' + process.env.RESEND_API_KEY,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                from: process.env.FROM_ADDRESS,
+                to: recipients,
+                subject: '🤖 Rapport SEO ' + site + ' — semaine du ' + date,
+                html: html
+              })
+            });
+            const data = await resp.json();
+            console.log('Resend response:', JSON.stringify(data, null, 2));
+            if (!resp.ok) {
+              console.error('❌ Resend API error');
+              process.exit(1);
+            }
+            console.log('✅ Email (' + site + ') envoyé à ' + recipients.length + ' destinataire(s) — id: ' + data.id);
+          })();
+          "
+
+      - name: Archive in GitHub Issue (backup)
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SITE_NAME: ${{ matrix.site_name }}
+        run: |
+          gh label create seo-agent --color "0E8A16" --description "Weekly SEO agent report" 2>/dev/null || true
+          DATE=$(date +%Y-%m-%d)
+          {
+            echo "📧 Email envoyé le $DATE à julien@messagingme.fr pour **$SITE_NAME**"
+            echo ""
+            echo "<details><summary>Voir le HTML du rapport</summary>"
+            echo ""
+            echo '```html'
+            cat report.html
+            echo '```'
+            echo ""
+            echo "</details>"
+          } > issue-body.md
+          gh issue create \
+            --title "🤖 Rapport SEO $SITE_NAME — semaine du $DATE" \
+            --body-file issue-body.md \
+            --label "seo-agent"
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf .secrets report.html issue-body.md claude-err.log
