@@ -74,29 +74,17 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 - Pas de moyen de joindre une preuve a posteriori à un frais (transformer un frais en ticket_caisse une fois la pièce uploadée).
 - Pas de section "Frais annexes" dans le tableau Budget agrégé du chantier (visible seulement par lot).
 
-### 🔴 Cohérence des 3 voies de saisie de dépense
-🟡 À traiter — trois entrées différentes créent trois objets différents et l'utilisateur perd le fil.
+### ✅ Cohérence des 3 voies de saisie de dépense (résolu 2026-04-28)
 
-**Voies actuelles** :
+Refactor en 5 PRs (PR1→PR5) — voir [`CASHFLOW-REFACTOR.md`](CASHFLOW-REFACTOR.md). Architecture finale :
+- `documents_chantier.cashflow_terms` JSONB = source des versements de devis/facture
+- `cashflow_extras` table = mouvements purs sans pièce (déblocage crédit, apport)
+- VIEW `payment_events_v` = consommée par Échéancier/Trésorerie/Budget
+- Table `payment_events` legacy supprimée
 
-| Voie | Ce qui est créé | Visible Budget/lot ? | Visible Échéancier ? |
-|---|---|---|---|
-| Agent IA *"rajoute 500€ frais Point P"* (`register_expense`) | `documents_chantier` `depense_type='frais'`, `facture_statut='payee'` | ✅ badge ambre 📝 | ❌ |
-| UI **+ Document > Achat/Ticket** (AddDocumentModal) | `documents_chantier` `depense_type='achat_materiaux'`, `facture_statut='recue'` | ✅ en facture à payer | ❌ |
-| UI **+ dépense** Échéancier | `payment_event` `is_override=true`, `source_id=null` | ❌ | ✅ |
+Plus de désync possible architecture-level. Frais visibles dans Échéancier (gain de feature). Statuts dérivés d'une seule règle.
 
-**Conséquences** :
-- Un même achat saisi par 2 voies = doublon + double comptage budget.
-- Saisie agent ou UI Achat → invisible dans cashflow Échéancier.
-- Saisie + dépense Échéancier → invisible dans le détail lot.
-- Le statut diffère : agent = `payee` (déjà soldé), UI Achat = `recue` (à payer) — incohérent.
-
-**À décider** : unifier sous un flux. Options :
-- **(A) Une seule table source** : tout passe par `documents_chantier`. `register_expense` et `+dépense` Échéancier créent un row docs_chantier ; les `payment_event` sont DÉRIVÉS via `generatePaymentEventsFromAnalyse` ou équivalent. La vue Échéancier devient une simple lecture de docs_chantier groupée par due_date. **Pro** : 1 source de vérité, simple. **Contra** : refactor non-trivial du cashflow qui s'appuie aujourd'hui sur payment_events.
-- **(B) `register_expense` crée AUSSI un `payment_event`** lié au `documents_chantier.id` (source_type='document_chantier'). L'UI **+ dépense** fait la même chose. Garde les 2 tables mais les sync. **Pro** : moins invasif. **Contra** : 2 sources, risque de désync si un seul côté est modifié.
-- **(C) Statu quo** : on accepte 3 voies distinctes mais on ajoute un **dédup à la lecture** dans Budget/Trésorerie pour éviter les doublons. **Pro** : zéro refactor. **Contra** : confusion UX persiste.
-
-Recommandation pressentie : **(B)**. À valider avec user avant code. Aussi unifier le statut par défaut (`recue` ou `payee` ?) selon la sémantique.
+À déplacer vers `FEATURES.md` après stabilisation des tests E2E.
 
 ---
 

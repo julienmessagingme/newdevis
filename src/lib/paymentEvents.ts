@@ -223,35 +223,17 @@ export function transformToPaymentEvents(
   return events;
 }
 
-// ── 3. Insertion (PR4 : uniquement cashflow_terms — la legacy a été retirée) ──
-
-/**
- * Stub gardé pour rétro-compat : retourne juste un succès sans écrire
- * dans payment_events legacy. Toutes les écritures passent désormais par
- * `writeCashflowTermsForDoc`. La table legacy est en lecture-seule jusqu'à
- * son drop en PR5.
- *
- * @deprecated supprimer en PR5
- */
-export async function insertPaymentEvents(
-  _supabase: ReturnType<typeof createClient>,
-  events: PaymentEvent[],
-): Promise<{ inserted: number; error: string | null }> {
-  return { inserted: events.length, error: null };
-}
-
-// ── 3.5 Écriture cashflow_terms (source de vérité depuis PR4) ─────────────────
+// ── 3. Écriture cashflow_terms (source de vérité unique) ─────────────────────
 
 /**
  * Met à jour `documents_chantier.cashflow_terms` pour refléter les events
- * dérivés d'un document (sourceId). Source de vérité depuis PR4 — la table
- * legacy `payment_events` n'est plus écrite.
+ * dérivés d'un document. Source de vérité unique depuis le refactor PR1-PR5.
  *
- * Le tableau cashflow_terms est REMPLACÉ intégralement (replace, pas append).
- * Idempotent par construction. L'ordre suit le tri due_date NULLS LAST puis id.
+ * Le tableau cashflow_terms est REMPLACÉ intégralement. Idempotent par
+ * construction. Tri par due_date NULLS LAST puis id.
  *
  * ⚠️ Si l'UPDATE échoue : 0 event visible dans la VIEW pour ce document. Logs
- * `[paymentEvents] writeCashflowTerms error` à monitorer en prod. Pas de retry
+ * `[paymentEvents] writeCashflowTerms error` à monitorer. Pas de retry
  * automatique — un re-trigger du pipeline (re-validation devis, etc.) recovers.
  */
 export async function writeCashflowTermsForDoc(

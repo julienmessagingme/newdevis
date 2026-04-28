@@ -6,16 +6,14 @@ import { generatePaymentEventsFromAnalyse } from '@/lib/paymentEvents';
 import { optionsResponse, jsonOk, jsonError, requireChantierAuth, requireChantierAuthOrAgent } from '@/lib/apiHelpers';
 
 // ── GET /api/chantier/[id]/payment-events ─────────────────────────────────────
-// Retourne tous les payment_events du chantier, triés par due_date ASC.
-// Les événements annulés (is_override=true) sont exclus par défaut.
+// Retourne tous les payment_events_v du chantier, triés par due_date ASC.
+// Lit la VIEW (UNION cashflow_terms + cashflow_extras + frais auto-paid).
 
 export const GET: APIRoute = async ({ params, request }) => {
   const ctx = await requireChantierAuthOrAgent(request, params.id!);
   if (ctx instanceof Response) return ctx;
 
   const chantierId = params.id!;
-  const url            = new URL(request.url);
-  const includeOverride = url.searchParams.get('include_override') === 'true';
 
   // Récupérer les IDs des devis validés pour filtrer les payment_events
   // On n'inclut que les events issus de devis validés (ou d'attente_facture) et de factures.
@@ -27,13 +25,6 @@ export const GET: APIRoute = async ({ params, request }) => {
     .in('devis_statut', ['valide', 'attente_facture']);
 
   const validatedDevisIds = (validatedDocs ?? []).map(d => d.id);
-
-  // PR3 : lecture sur la VIEW payment_events_v (UNION docs.cashflow_terms +
-  // cashflow_extras + frais auto-paid). is_override est toujours false dans
-  // la VIEW (le mécanisme override est encodé via cashflow_terms vide pour
-  // les devis remplacés par une facture). Le param `include_override` est
-  // conservé pour rétro-compat mais n'a plus d'effet ici.
-  void includeOverride;
 
   const { data: allEvents, error } = await ctx.supabase
     .from('payment_events_v')
@@ -141,7 +132,7 @@ export const GET: APIRoute = async ({ params, request }) => {
   // aux autres échéances (non annulées). Le solde = doc.montant - somme_acomptes.
   const allocatedBySource: Record<string, number> = {};
   for (const e of data ?? []) {
-    if (e.source_id && e.amount != null && e.status !== 'cancelled' && !e.is_override) {
+    if (e.source_id && e.amount != null && e.status !== 'cancelled') {
       allocatedBySource[e.source_id] = (allocatedBySource[e.source_id] ?? 0) + Number(e.amount);
     }
   }
@@ -287,16 +278,16 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   try { body = await request.json(); }
   catch { return jsonError('Corps invalide', 400); }
 
-  const id               = typeof body.id === 'string' ? body.id : null;
-  const status           = body.status === 'paid' ? 'paid' : body.status === 'pending' ? 'pending' : null;
-  const amount           = typeof body.amount === 'number' && body.amount > 0 ? body.amount : undefined;
-  const due_date         = typeof body.due_date === 'string' && body.due_date ? body.due_date : undefined;
-  const label            = typeof body.label === 'string' && body.label.trim() ? body.label.trim() : undefined;
+  const id                = typeof body.id === 'string' ? body.id : null;
+  const status            = body.status === 'paid' ? 'paid' : body.status === 'pending' ? 'pending' : null;
+  const amount            = typeof body.amount === 'number' && body.amount > 0 ? body.amount : undefined;
+  const due_date          = typeof body.due_date === 'string' && body.due_date ? body.due_date : undefined;
+  const label             = typeof body.label === 'string' && body.label.trim() ? body.label.trim() : undefined;
   const funding_source_id = body.funding_source_id === null
     ? null
     : typeof body.funding_source_id === 'string' ? body.funding_source_id : undefined;
 
-  if (!id || (!status && funding_source_id === undefined && due_date === undefined && label === undefined && amount === undefined)) {
+  if (!id || (!status && due_date === undefined && label === undefined && amount === undefined && funding_source_id === undefined)) {
     return jsonError('id requis + au moins un champ à modifier', 400);
   }
 
@@ -328,16 +319,13 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     );
   }
 
-  // PR4 : UPDATE uniquement sur le nouveau chemin (cashflow_extras OU cashflow_terms).
-  // TODO PR5+ : `funding_source_id` n'est pas (encore) dans le nouveau modèle.
-  // Si un caller envoie ce champ, il est silencieusement ignoré (pas d'erreur).
-  // À ajouter à cashflow_extras et/ou cashflow_terms si on relance la feature.
-  void funding_source_id;
+  // UPDATE sur le nouveau chemin (cashflow_extras OU cashflow_terms).
   const newPathPatch: Record<string, unknown> = {};
   if (status) newPathPatch.status = status;
   if (amount !== undefined) newPathPatch.amount = amount;
   if (due_date !== undefined) newPathPatch.due_date = due_date;
   if (label !== undefined) newPathPatch.label = label;
+  if (funding_source_id !== undefined) newPathPatch.funding_source_id = funding_source_id;
 
   if (viewEvent.origin === 'extra') {
     const { error: extraErr } = await ctx.supabase

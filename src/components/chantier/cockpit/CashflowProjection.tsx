@@ -19,7 +19,7 @@ export default function CashflowProjection({
   const d30   = new Date(); d30.setDate(d30.getDate() + 30);
   const d60   = new Date(); d60.setDate(d60.getDate() + 60);
 
-  const active = events.filter(e => !e.is_override && e.status !== 'cancelled' && e.status !== 'paid' && e.due_date);
+  const active = events.filter(e => e.status !== 'cancelled' && e.status !== 'paid' && e.due_date);
 
   const evts7  = active.filter(e => e.due_date! >= today && e.due_date! <= d7.toISOString().slice(0, 10));
   const evts30 = active.filter(e => e.due_date! >= today && e.due_date! <= d30.toISOString().slice(0, 10));

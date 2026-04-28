@@ -10,25 +10,26 @@ import { supabase } from '@/integrations/supabase/client';
 export interface PaymentEvent {
   id: string;
   project_id: string;
-  source_type: 'devis' | 'facture' | 'manuel';
-  source_id: string;
+  source_type: 'devis' | 'facture' | 'manuel' | 'frais';
+  source_id: string | null;
+  term_index: number | null;       // index du versement dans cashflow_terms (null pour frais et manuels)
+  origin: 'document' | 'extra';    // source : document_chantier (cashflow_terms) ou cashflow_extras
   amount: number | null;
-  due_date: string | null;        // YYYY-MM-DD
+  due_date: string | null;         // YYYY-MM-DD
   status: 'pending' | 'paid' | 'late' | 'cancelled';
-  is_override: boolean;
   label: string;
   created_at: string;
   // Champs enrichis par l'API
-  source_name: string | null;     // nom du document source (devis PDF)
-  lot_nom: string | null;         // nom du lot lié
-  artisan_nom: string | null;     // nom de l'artisan (depuis devis_chantier)
+  source_name: string | null;      // nom du document source (devis PDF)
+  lot_nom: string | null;          // nom du lot lié
+  artisan_nom: string | null;      // nom de l'artisan (depuis devis_chantier)
   // Justificatif de paiement
   proof_doc_id: string | null;
   proof_doc_name: string | null;
   proof_signed_url: string | null;
   // Solde estimé (calculé côté API quand amount est null)
   amount_estimate: number | null;
-  // Source de financement liée (funding_source_id → chantier_entrees.id)
+  // FK vers chantier_entrees pour tracer quel revenu a financé ce paiement
   funding_source_id: string | null;
 }
 
@@ -224,7 +225,7 @@ export function usePaymentEvents(
 /** Calcule le total des paiements actifs (non annulés, non overridés). */
 export function computeTotalEngaged(events: PaymentEvent[]): number {
   return events
-    .filter(e => !e.is_override && e.status !== 'cancelled')
+    .filter(e => e.status !== 'cancelled')
     .reduce((sum, e) => sum + (e.amount ?? 0), 0);
 }
 
@@ -241,7 +242,7 @@ export function computeCashflow(events: PaymentEvent[]): {
   const todayS = today.toISOString().slice(0, 10);
 
   const active = events.filter(
-    e => !e.is_override && e.status !== 'cancelled' && e.status !== 'paid' && e.due_date,
+    e => e.status !== 'cancelled' && e.status !== 'paid' && e.due_date,
   );
 
   const inRange = (due: string, limit: Date) =>
@@ -269,7 +270,7 @@ export function computeAlerts(
   const in3   = new Date(); in3.setDate(in3.getDate() + 3);
   const in3S  = in3.toISOString().slice(0, 10);
 
-  const active = events.filter(e => !e.is_override && e.status !== 'cancelled');
+  const active = events.filter(e => e.status !== 'cancelled');
 
   // Paiements en retard
   const lateEvts = active.filter(e => e.status === 'late' || (e.status === 'pending' && e.due_date && e.due_date < today));

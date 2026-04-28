@@ -1,6 +1,6 @@
 # Refactor cashflow chantier — log d'exécution
 
-> **Statut** : en cours (PR 4/5 mergée). PR5 cleanup à venir.
+> **Statut** : ✅ TERMINÉ (PRs 1-5 mergées 2026-04-28). À supprimer après stabilisation des tests E2E.
 > **But** : unifier les 3 voies de saisie de dépense (cf. WIP.md §11) sous une architecture où `documents_chantier` + `cashflow_extras` sont les seules sources de vérité, et `payment_events_v` (VIEW) est le consommateur unique pour Échéancier/Trésorerie.
 > **À supprimer après PR5** stabilisée et merge complète. Garder pour pouvoir tracer en cas de bug pendant les tests.
 
@@ -291,6 +291,63 @@ git revert <commit_pr4>
 # 2. Backfill legacy depuis cashflow_terms + cashflow_extras (script à écrire)
 # 3. Redéployer edge functions analyze-quote + agent-checks
 ```
+
+---
+
+## PR5 — Cleanup final + DROP legacy (mergée 2026-04-28)
+
+### Objectif
+Supprimer définitivement `payment_events` legacy + nettoyer le code mort.
+
+### Changements DB
+
+- Migration `20260428230000_drop_payment_events_legacy.sql` :
+  - `DROP TABLE payment_events CASCADE`
+  - `ALTER cashflow_extras ADD COLUMN funding_source_id UUID REFERENCES chantier_entrees(id) ON DELETE SET NULL`
+  - VIEW `payment_events_v` recompilée : retire `is_override` (toujours false), expose `funding_source_id`
+  - Wrap BEGIN/COMMIT
+
+### Changements code
+
+- `src/hooks/usePaymentEvents.ts` :
+  - Retire `!e.is_override` filters (3 occurrences) — la VIEW ne contient plus de overrides
+  - Type `PaymentEvent` mis à jour : retire `is_override`, ajoute `term_index`/`origin`/`funding_source_id`, `source_type` étendu à `'frais'`
+- `src/components/chantier/cockpit/CashflowProjection.tsx` : retire le filter `!e.is_override`
+- `src/pages/api/chantier/[id]/payment-events.ts` :
+  - Retire le param `include_override` (no-op depuis PR3)
+  - Retire le filter `!e.is_override` dans `allocatedBySource`
+  - Restaure `funding_source_id` dans le PATCH (route vers cashflow_extras / cashflow_terms)
+- `src/lib/paymentEvents.ts` :
+  - Retire le stub `insertPaymentEvents` (no-op)
+  - Docstrings nettoyées (pipeline simplifié, plus de référence à legacy)
+
+### Vérifications post-PR5 en prod
+
+```sql
+SELECT
+  EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='payment_events') AS legacy_exists,  -- false ✓
+  (SELECT COUNT(*) FROM payment_events_v) AS view_total_events,                                          -- 32 ✓
+  (SELECT COUNT(*) FROM cashflow_extras) AS extras_count;                                                -- 3 ✓
+```
+
+### État après PR5
+
+| Composant | État |
+|---|---|
+| `payment_events` legacy | DROPPED 🚮 |
+| `cashflow_extras` | 3 rows + colonne `funding_source_id` |
+| `documents_chantier.cashflow_terms` | Source de vérité versements |
+| `payment_events_v` VIEW | Sans `is_override`, expose `funding_source_id` |
+| Frontend `usePaymentEvents` | Type PaymentEvent à jour |
+
+### Risques résiduels (pas bloquants — à fixer si besoin)
+
+1. **`documents.ts` VMD import** ne passe pas `originalDevisId` pour les factures (flow rare — VMD import standard est devis only)
+2. Tests E2E pas encore lancés — à faire pour valider tous les scénarios
+
+### Rollback PR5
+
+⚠️ Irréversible sans script de restauration de `payment_events` depuis cashflow_terms + cashflow_extras.
 
 ---
 

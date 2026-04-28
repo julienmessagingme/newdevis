@@ -483,6 +483,7 @@ export type Database = {
           created_by: string | null
           due_date: string
           financing_source: string | null
+          funding_source_id: string | null
           id: string
           label: string
           notes: string | null
@@ -497,6 +498,7 @@ export type Database = {
           created_by?: string | null
           due_date: string
           financing_source?: string | null
+          funding_source_id?: string | null
           id?: string
           label: string
           notes?: string | null
@@ -511,6 +513,7 @@ export type Database = {
           created_by?: string | null
           due_date?: string
           financing_source?: string | null
+          funding_source_id?: string | null
           id?: string
           label?: string
           notes?: string | null
@@ -520,6 +523,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "cashflow_extras_funding_source_id_fkey"
+            columns: ["funding_source_id"]
+            isOneToOne: false
+            referencedRelation: "chantier_entrees"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "cashflow_extras_project_id_fkey"
             columns: ["project_id"]
@@ -1833,65 +1843,6 @@ export type Database = {
         }
         Relationships: []
       }
-      payment_events: {
-        Row: {
-          amount: number | null
-          created_at: string | null
-          due_date: string | null
-          financing_source: string | null
-          funding_source_id: string | null
-          id: string
-          is_override: boolean | null
-          label: string | null
-          payment_term_id: string | null
-          project_id: string | null
-          replaced_by: string | null
-          source_id: string | null
-          source_type: string | null
-          status: string | null
-        }
-        Insert: {
-          amount?: number | null
-          created_at?: string | null
-          due_date?: string | null
-          financing_source?: string | null
-          funding_source_id?: string | null
-          id?: string
-          is_override?: boolean | null
-          label?: string | null
-          payment_term_id?: string | null
-          project_id?: string | null
-          replaced_by?: string | null
-          source_id?: string | null
-          source_type?: string | null
-          status?: string | null
-        }
-        Update: {
-          amount?: number | null
-          created_at?: string | null
-          due_date?: string | null
-          financing_source?: string | null
-          funding_source_id?: string | null
-          id?: string
-          is_override?: boolean | null
-          label?: string | null
-          payment_term_id?: string | null
-          project_id?: string | null
-          replaced_by?: string | null
-          source_id?: string | null
-          source_type?: string | null
-          status?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payment_events_funding_source_id_fkey"
-            columns: ["funding_source_id"]
-            isOneToOne: false
-            referencedRelation: "chantier_entrees"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       payments: {
         Row: {
           amount_paid: number | null
@@ -2549,9 +2500,8 @@ export type Database = {
           amount: number | null
           created_at: string | null
           due_date: string | null
-          financing_source: string | null
+          funding_source_id: string | null
           id: string | null
-          is_override: boolean | null
           label: string | null
           lot_id: string | null
           origin: string | null
