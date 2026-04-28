@@ -1,3 +1,4 @@
+npm warn exec The following package was not found and will be installed: supabase@2.95.6
 export type Json =
   | string
   | number
@@ -129,6 +130,56 @@ export type Database = {
           },
         ]
       }
+      agent_pending_decisions: {
+        Row: {
+          chantier_id: string
+          context: Json | null
+          created_at: string
+          expected_action: Json
+          expires_at: string
+          id: string
+          question: string
+          resolved_answer: string | null
+          resolved_at: string | null
+          source_event: string | null
+          status: string
+        }
+        Insert: {
+          chantier_id: string
+          context?: Json | null
+          created_at?: string
+          expected_action: Json
+          expires_at?: string
+          id?: string
+          question: string
+          resolved_answer?: string | null
+          resolved_at?: string | null
+          source_event?: string | null
+          status?: string
+        }
+        Update: {
+          chantier_id?: string
+          context?: Json | null
+          created_at?: string
+          expected_action?: Json
+          expires_at?: string
+          id?: string
+          question?: string
+          resolved_answer?: string | null
+          resolved_at?: string | null
+          source_event?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_pending_decisions_chantier_id_fkey"
+            columns: ["chantier_id"]
+            isOneToOne: false
+            referencedRelation: "chantiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_runs: {
         Row: {
           actions_taken: Json | null
@@ -163,6 +214,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "agent_runs_chantier_id_fkey"
+            columns: ["chantier_id"]
+            isOneToOne: false
+            referencedRelation: "chantiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_scheduled_actions: {
+        Row: {
+          action_type: string
+          chantier_id: string
+          created_at: string
+          due_at: string
+          fired_at: string | null
+          fired_result: Json | null
+          id: string
+          payload: Json
+          source: string | null
+          status: string
+        }
+        Insert: {
+          action_type?: string
+          chantier_id: string
+          created_at?: string
+          due_at: string
+          fired_at?: string | null
+          fired_result?: Json | null
+          id?: string
+          payload: Json
+          source?: string | null
+          status?: string
+        }
+        Update: {
+          action_type?: string
+          chantier_id?: string
+          created_at?: string
+          due_at?: string
+          fired_at?: string | null
+          fired_result?: Json | null
+          id?: string
+          payload?: Json
+          source?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_scheduled_actions_chantier_id_fkey"
             columns: ["chantier_id"]
             isOneToOne: false
             referencedRelation: "chantiers"
@@ -379,6 +477,103 @@ export type Database = {
         }
         Relationships: []
       }
+      cashflow_extras: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          due_date: string
+          financing_source: string | null
+          id: string
+          label: string
+          notes: string | null
+          paid_at: string | null
+          project_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          due_date: string
+          financing_source?: string | null
+          id?: string
+          label: string
+          notes?: string | null
+          paid_at?: string | null
+          project_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          due_date?: string
+          financing_source?: string | null
+          id?: string
+          label?: string
+          notes?: string | null
+          paid_at?: string | null
+          project_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cashflow_extras_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "chantiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chantier_assistant_messages: {
+        Row: {
+          agent_initiated: boolean
+          chantier_id: string
+          content: string | null
+          created_at: string
+          id: string
+          is_read: boolean
+          role: string
+          tool_call_id: string | null
+          tool_calls: Json | null
+        }
+        Insert: {
+          agent_initiated?: boolean
+          chantier_id: string
+          content?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          role: string
+          tool_call_id?: string | null
+          tool_calls?: Json | null
+        }
+        Update: {
+          agent_initiated?: boolean
+          chantier_id?: string
+          content?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          role?: string
+          tool_call_id?: string | null
+          tool_calls?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chantier_assistant_messages_chantier_id_fkey"
+            columns: ["chantier_id"]
+            isOneToOne: false
+            referencedRelation: "chantiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chantier_conversations: {
         Row: {
           chantier_id: string
@@ -432,6 +627,53 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts_chantier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chantier_entrees: {
+        Row: {
+          chantier_id: string
+          created_at: string
+          date_entree: string
+          id: string
+          label: string
+          montant: number
+          notes: string | null
+          source_type: string
+          statut: string
+          user_id: string
+        }
+        Insert: {
+          chantier_id: string
+          created_at?: string
+          date_entree: string
+          id?: string
+          label: string
+          montant: number
+          notes?: string | null
+          source_type?: string
+          statut?: string
+          user_id: string
+        }
+        Update: {
+          chantier_id?: string
+          created_at?: string
+          date_entree?: string
+          id?: string
+          label?: string
+          montant?: number
+          notes?: string | null
+          source_type?: string
+          statut?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chantier_entrees_chantier_id_fkey"
+            columns: ["chantier_id"]
+            isOneToOne: false
+            referencedRelation: "chantiers"
             referencedColumns: ["id"]
           },
         ]
@@ -563,6 +805,7 @@ export type Database = {
           group_jid: string
           id: string
           invite_link: string | null
+          is_owner_channel: boolean
           name: string
         }
         Insert: {
@@ -571,6 +814,7 @@ export type Database = {
           group_jid: string
           id?: string
           invite_link?: string | null
+          is_owner_channel?: boolean
           name?: string
         }
         Update: {
@@ -579,6 +823,7 @@ export type Database = {
           group_jid?: string
           id?: string
           invite_link?: string | null
+          is_owner_channel?: boolean
           name?: string
         }
         Relationships: [
@@ -593,6 +838,7 @@ export type Database = {
       }
       chantier_whatsapp_members: {
         Row: {
+          excluded_no_whatsapp: boolean
           group_id: string
           id: string
           joined_at: string
@@ -603,6 +849,7 @@ export type Database = {
           status: string
         }
         Insert: {
+          excluded_no_whatsapp?: boolean
           group_id: string
           id?: string
           joined_at?: string
@@ -613,6 +860,7 @@ export type Database = {
           status?: string
         }
         Update: {
+          excluded_no_whatsapp?: boolean
           group_id?: string
           id?: string
           joined_at?: string
@@ -798,6 +1046,7 @@ export type Database = {
           created_at: string
           devis_id: string | null
           email: string | null
+          has_whatsapp: boolean | null
           id: string
           lot_id: string | null
           nom: string
@@ -807,6 +1056,7 @@ export type Database = {
           source: string
           telephone: string | null
           user_id: string
+          whatsapp_checked_at: string | null
         }
         Insert: {
           analyse_id?: string | null
@@ -815,6 +1065,7 @@ export type Database = {
           created_at?: string
           devis_id?: string | null
           email?: string | null
+          has_whatsapp?: boolean | null
           id?: string
           lot_id?: string | null
           nom: string
@@ -824,6 +1075,7 @@ export type Database = {
           source?: string
           telephone?: string | null
           user_id: string
+          whatsapp_checked_at?: string | null
         }
         Update: {
           analyse_id?: string | null
@@ -832,6 +1084,7 @@ export type Database = {
           created_at?: string
           devis_id?: string | null
           email?: string | null
+          has_whatsapp?: boolean | null
           id?: string
           lot_id?: string | null
           nom?: string
@@ -841,6 +1094,7 @@ export type Database = {
           source?: string
           telephone?: string | null
           user_id?: string
+          whatsapp_checked_at?: string | null
         }
         Relationships: [
           {
@@ -1109,21 +1363,25 @@ export type Database = {
       documents_chantier: {
         Row: {
           analyse_id: string | null
+          avenant_motif: string | null
           bucket_path: string
           chantier_id: string
           created_at: string
           date: string | null
           depense_type: string | null
           devis_statut: string | null
+          devis_validated_at: string | null
           document_type: string
           facture_statut: string | null
           id: string
           lot_id: string | null
+          lot_override_reason: string | null
           mime_type: string | null
           montant: number | null
           montant_paye: number | null
           nom: string
           nom_fichier: string
+          parent_devis_id: string | null
           payment_terms: Json | null
           source: string
           statut: string
@@ -1132,24 +1390,30 @@ export type Database = {
           updated_at: string
           url: string
           user_id: string | null
+          vision_description: string | null
+          whatsapp_message_id: string | null
         }
         Insert: {
           analyse_id?: string | null
+          avenant_motif?: string | null
           bucket_path: string
           chantier_id: string
           created_at?: string
           date?: string | null
           depense_type?: string | null
           devis_statut?: string | null
+          devis_validated_at?: string | null
           document_type?: string
           facture_statut?: string | null
           id?: string
           lot_id?: string | null
+          lot_override_reason?: string | null
           mime_type?: string | null
           montant?: number | null
           montant_paye?: number | null
           nom: string
           nom_fichier: string
+          parent_devis_id?: string | null
           payment_terms?: Json | null
           source?: string
           statut?: string
@@ -1158,24 +1422,30 @@ export type Database = {
           updated_at?: string
           url?: string
           user_id?: string | null
+          vision_description?: string | null
+          whatsapp_message_id?: string | null
         }
         Update: {
           analyse_id?: string | null
+          avenant_motif?: string | null
           bucket_path?: string
           chantier_id?: string
           created_at?: string
           date?: string | null
           depense_type?: string | null
           devis_statut?: string | null
+          devis_validated_at?: string | null
           document_type?: string
           facture_statut?: string | null
           id?: string
           lot_id?: string | null
+          lot_override_reason?: string | null
           mime_type?: string | null
           montant?: number | null
           montant_paye?: number | null
           nom?: string
           nom_fichier?: string
+          parent_devis_id?: string | null
           payment_terms?: Json | null
           source?: string
           statut?: string
@@ -1184,6 +1454,8 @@ export type Database = {
           updated_at?: string
           url?: string
           user_id?: string | null
+          vision_description?: string | null
+          whatsapp_message_id?: string | null
         }
         Relationships: [
           {
@@ -1205,6 +1477,13 @@ export type Database = {
             columns: ["lot_id"]
             isOneToOne: false
             referencedRelation: "lots_chantier"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_chantier_parent_devis_id_fkey"
+            columns: ["parent_devis_id"]
+            isOneToOne: false
+            referencedRelation: "documents_chantier"
             referencedColumns: ["id"]
           },
         ]
@@ -1284,51 +1563,6 @@ export type Database = {
         }
         Relationships: []
       }
-      dvf_prices_yearly: {
-        Row: {
-          code_insee: string
-          code_postal: string | null
-          commune: string
-          created_at: string | null
-          id: number
-          nb_ventes: number | null
-          prix_m2_p25: number | null
-          prix_m2_p50: number | null
-          prix_m2_p75: number | null
-          source: string | null
-          type_bien: string
-          year: number
-        }
-        Insert: {
-          code_insee: string
-          code_postal?: string | null
-          commune: string
-          created_at?: string | null
-          id?: number
-          nb_ventes?: number | null
-          prix_m2_p25?: number | null
-          prix_m2_p50?: number | null
-          prix_m2_p75?: number | null
-          source?: string | null
-          type_bien: string
-          year: number
-        }
-        Update: {
-          code_insee?: string
-          code_postal?: string | null
-          commune?: string
-          created_at?: string | null
-          id?: number
-          nb_ventes?: number | null
-          prix_m2_p25?: number | null
-          prix_m2_p50?: number | null
-          prix_m2_p75?: number | null
-          source?: string | null
-          type_bien?: string
-          year?: number
-        }
-        Relationships: []
-      }
       journal_entries: {
         Row: {
           artisan_nom: string | null
@@ -1373,6 +1607,39 @@ export type Database = {
           },
         ]
       }
+      lot_dependencies: {
+        Row: {
+          created_at: string
+          depends_on_id: string
+          lot_id: string
+        }
+        Insert: {
+          created_at?: string
+          depends_on_id: string
+          lot_id: string
+        }
+        Update: {
+          created_at?: string
+          depends_on_id?: string
+          lot_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lot_dependencies_depends_on_id_fkey"
+            columns: ["depends_on_id"]
+            isOneToOne: false
+            referencedRelation: "lots_chantier"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lot_dependencies_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: false
+            referencedRelation: "lots_chantier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lots_chantier: {
         Row: {
           budget_avg_ht: number | null
@@ -1382,11 +1649,13 @@ export type Database = {
           created_at: string
           date_debut: string | null
           date_fin: string | null
+          delai_avant_jours: number
           divers_ht: number | null
           duree_jours: number | null
           emoji: string | null
           id: string
           job_type: string | null
+          lane_index: number | null
           main_oeuvre_ht: number | null
           materiaux_ht: number | null
           nom: string
@@ -1407,11 +1676,13 @@ export type Database = {
           created_at?: string
           date_debut?: string | null
           date_fin?: string | null
+          delai_avant_jours?: number
           divers_ht?: number | null
           duree_jours?: number | null
           emoji?: string | null
           id?: string
           job_type?: string | null
+          lane_index?: number | null
           main_oeuvre_ht?: number | null
           materiaux_ht?: number | null
           nom: string
@@ -1432,11 +1703,13 @@ export type Database = {
           created_at?: string
           date_debut?: string | null
           date_fin?: string | null
+          delai_avant_jours?: number
           divers_ht?: number | null
           duree_jours?: number | null
           emoji?: string | null
           id?: string
           job_type?: string | null
+          lane_index?: number | null
           main_oeuvre_ht?: number | null
           materiaux_ht?: number | null
           nom?: string
@@ -1537,144 +1810,6 @@ export type Database = {
         }
         Relationships: []
       }
-      market_prices_backup: {
-        Row: {
-          confidence: string | null
-          created_at: string | null
-          domain: string | null
-          fixed_avg_ht: number | null
-          fixed_max_ht: number | null
-          fixed_min_ht: number | null
-          id: number | null
-          job_type: string | null
-          label: string | null
-          last_reviewed_at: string | null
-          notes: string | null
-          price_avg_unit_ht: number | null
-          price_max_unit_ht: number | null
-          price_min_unit_ht: number | null
-          sample_size: number | null
-          source: string | null
-          unit: string | null
-          variability_ratio: number | null
-          zip_scope: string | null
-        }
-        Insert: {
-          confidence?: string | null
-          created_at?: string | null
-          domain?: string | null
-          fixed_avg_ht?: number | null
-          fixed_max_ht?: number | null
-          fixed_min_ht?: number | null
-          id?: number | null
-          job_type?: string | null
-          label?: string | null
-          last_reviewed_at?: string | null
-          notes?: string | null
-          price_avg_unit_ht?: number | null
-          price_max_unit_ht?: number | null
-          price_min_unit_ht?: number | null
-          sample_size?: number | null
-          source?: string | null
-          unit?: string | null
-          variability_ratio?: number | null
-          zip_scope?: string | null
-        }
-        Update: {
-          confidence?: string | null
-          created_at?: string | null
-          domain?: string | null
-          fixed_avg_ht?: number | null
-          fixed_max_ht?: number | null
-          fixed_min_ht?: number | null
-          id?: number | null
-          job_type?: string | null
-          label?: string | null
-          last_reviewed_at?: string | null
-          notes?: string | null
-          price_avg_unit_ht?: number | null
-          price_max_unit_ht?: number | null
-          price_min_unit_ht?: number | null
-          sample_size?: number | null
-          source?: string | null
-          unit?: string | null
-          variability_ratio?: number | null
-          zip_scope?: string | null
-        }
-        Relationships: []
-      }
-      "market_prices_duplicate backup": {
-        Row: {
-          confidence: string | null
-          created_at: string | null
-          domain: string
-          fixed_avg_ht: number
-          fixed_max_ht: number
-          fixed_min_ht: number
-          id: number
-          job_type: string
-          label: string
-          last_reviewed_at: string | null
-          notes: string | null
-          price_avg_unit_ht: number
-          price_max_unit_ht: number
-          price_min_unit_ht: number
-          ratio_fixed: number | null
-          ratio_unit: number | null
-          sample_size: number | null
-          source: string | null
-          unit: string
-          variability_ratio: number | null
-          zip_scope: string
-        }
-        Insert: {
-          confidence?: string | null
-          created_at?: string | null
-          domain?: string
-          fixed_avg_ht?: number
-          fixed_max_ht?: number
-          fixed_min_ht?: number
-          id?: number
-          job_type: string
-          label: string
-          last_reviewed_at?: string | null
-          notes?: string | null
-          price_avg_unit_ht?: number
-          price_max_unit_ht?: number
-          price_min_unit_ht?: number
-          ratio_fixed?: number | null
-          ratio_unit?: number | null
-          sample_size?: number | null
-          source?: string | null
-          unit?: string
-          variability_ratio?: number | null
-          zip_scope?: string
-        }
-        Update: {
-          confidence?: string | null
-          created_at?: string | null
-          domain?: string
-          fixed_avg_ht?: number
-          fixed_max_ht?: number
-          fixed_min_ht?: number
-          id?: number
-          job_type?: string
-          label?: string
-          last_reviewed_at?: string | null
-          notes?: string | null
-          price_avg_unit_ht?: number
-          price_max_unit_ht?: number
-          price_min_unit_ht?: number
-          ratio_fixed?: number | null
-          ratio_unit?: number | null
-          sample_size?: number | null
-          source?: string | null
-          unit?: string
-          variability_ratio?: number | null
-          zip_scope?: string
-        }
-        Relationships: []
-      }
       newsletter_subscriptions: {
         Row: {
           email: string
@@ -1702,6 +1837,7 @@ export type Database = {
           created_at: string | null
           due_date: string | null
           financing_source: string | null
+          funding_source_id: string | null
           id: string
           is_override: boolean | null
           label: string | null
@@ -1717,6 +1853,7 @@ export type Database = {
           created_at?: string | null
           due_date?: string | null
           financing_source?: string | null
+          funding_source_id?: string | null
           id?: string
           is_override?: boolean | null
           label?: string | null
@@ -1732,6 +1869,7 @@ export type Database = {
           created_at?: string | null
           due_date?: string | null
           financing_source?: string | null
+          funding_source_id?: string | null
           id?: string
           is_override?: boolean | null
           label?: string | null
@@ -1742,7 +1880,15 @@ export type Database = {
           source_type?: string | null
           status?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "payment_events_funding_source_id_fkey"
+            columns: ["funding_source_id"]
+            isOneToOne: false
+            referencedRelation: "chantier_entrees"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payments: {
         Row: {
@@ -2167,6 +2313,85 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_message_statuses: {
+        Row: {
+          chantier_id: string
+          id: string
+          message_id: string
+          status: string
+          status_code: number | null
+          updated_at: string
+          viewer_id: string
+          viewer_phone: string | null
+        }
+        Insert: {
+          chantier_id: string
+          id?: string
+          message_id: string
+          status: string
+          status_code?: number | null
+          updated_at?: string
+          viewer_id: string
+          viewer_phone?: string | null
+        }
+        Update: {
+          chantier_id?: string
+          id?: string
+          message_id?: string
+          status?: string
+          status_code?: number | null
+          updated_at?: string
+          viewer_id?: string
+          viewer_phone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_message_statuses_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_outgoing_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_outgoing_messages: {
+        Row: {
+          body: string
+          chantier_id: string
+          group_jid: string
+          id: string
+          run_type: string | null
+          sent_at: string
+          sent_by: string
+        }
+        Insert: {
+          body: string
+          chantier_id: string
+          group_jid: string
+          id: string
+          run_type?: string | null
+          sent_at?: string
+          sent_by?: string
+        }
+        Update: {
+          body?: string
+          chantier_id?: string
+          group_jid?: string
+          id?: string
+          run_type?: string | null
+          sent_at?: string
+          sent_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_outgoing_messages_chantier_id_fkey"
+            columns: ["chantier_id"]
+            isOneToOne: false
+            referencedRelation: "chantiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       zones_geographiques: {
         Row: {
           coefficient: number
@@ -2221,6 +2446,33 @@ export type Database = {
           devis_travaux: number | null
           documents_refuses: number | null
           total: number | null
+        }
+        Relationships: []
+      }
+      admin_kpis_retention_daily: {
+        Row: {
+          day: string | null
+          new_users: number | null
+          returning_users: number | null
+        }
+        Relationships: []
+      }
+      admin_kpis_retention_weekly: {
+        Row: {
+          new_users: number | null
+          returning_users: number | null
+          week: string | null
+        }
+        Relationships: []
+      }
+      admin_kpis_returning_users: {
+        Row: {
+          analysis_count: number | null
+          completed_count: number | null
+          email: string | null
+          first_analysis_at: string | null
+          last_analysis_at: string | null
+          user_id: string | null
         }
         Relationships: []
       }
@@ -2292,6 +2544,17 @@ export type Database = {
       }
     }
     Functions: {
+      claim_pending_reminders: {
+        Args: { batch_limit?: number }
+        Returns: {
+          action_type: string
+          chantier_id: string
+          due_at: string
+          id: string
+          payload: Json
+          source: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -2304,6 +2567,7 @@ export type Database = {
         Returns: undefined
       }
       is_admin: { Args: never; Returns: boolean }
+      safe_jsonb: { Args: { val: string }; Returns: Json }
       set_payment_event_status: {
         Args: { p_chantier_id: string; p_event_id: string; p_status: string }
         Returns: boolean
