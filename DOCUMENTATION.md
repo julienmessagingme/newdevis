@@ -409,6 +409,7 @@ devis-clarity/
 │   │   │   │   └── SimulationFinancement.tsx # Simulateur crédit
 │   │   │   ├── BudgetGlobal.tsx       # Vue budget global (camembert + lignes)
 │   │   │   ├── BudgetTab.tsx          # Onglet budget dans le dashboard
+│   │   │   ├── VersementsDrawer.tsx   # Drawer versements échelonnés par artisan
 │   │   │   ├── ChantierTimeline.tsx   # Timeline roadmap chantier
 │   │   │   ├── ConseilsChantier.tsx   # Conseils maître d'œuvre (IA)
 │   │   │   ├── JournalChantier.tsx    # Journal des modifications IA
@@ -1091,8 +1092,12 @@ La edge function `parse-quote` envoie le texte OCR à **Google Gemini** avec un 
 | RGE | ADEME | Certifications énergie renouvelable |
 | Avis | Google Places | Note et nombre d'avis Google |
 | Risques | Georisques | Risques naturels sur la zone |
-| Urbanisme | GPU | Proximité monuments historiques |
+| Urbanisme | GPU (api.gpu-national.fr) | Proximité monuments historiques (ABF) |
 | Prix marché | Table market_prices + Gemini | Groupement par job type, fourchette min/moy/max |
+
+**Géolocalisation (verify.ts)** : la requête est construite depuis `adresse_chantier + code_postal + ville` (les 3 concaténés si disponibles). Le bloc s'active dès qu'AU MOINS un de ces champs est non-null — la présence du `code_postal` seul n'est plus requise. Sans géolocalisation réussie, `patrimoine_status = "inconnu"` et le bloc ABF/GPU est skippé.
+
+**Prix marché (market-prices.ts)** : validation des identifiants catalogue retournés par Gemini en 2 passes : (1) exact match sur `job_type`, (2) fuzzy match normalisé (lowercase + trim + espaces→underscores) comme fallback. Les identifiants non reconnus des deux passes partent en groupe "Autre" (sans prix de référence).
 
 ### Étape 5 : Scoring et résultat
 
@@ -2052,7 +2057,13 @@ Détection basée sur le **contenu** (pas le nom de fichier). Points : `analyze-
 
 **Auth agent → API routes** :
 - `requireChantierAuthOrAgent` (`apiHelpers.ts`) : accepte JWT user OU header `X-Agent-Key`
-- Routes migrées : `budget.ts` GET, `contacts.ts` GET, `payment-events.ts` GET, `taches.ts` CRUD, `planning.ts` GET/PATCH, `lots.ts` GET/POST/PATCH, `documents/depense-rapide.ts` POST
+- Routes migrées : `budget.ts` GET, `contacts.ts` GET, `payment-events.ts` GET/POST/PATCH/DELETE, `taches.ts` CRUD, `planning.ts` GET/PATCH, `lots.ts` GET/POST/PATCH, `documents/depense-rapide.ts` POST
+
+**`payment-events.ts` — endpoints complets :**
+- `GET` : retourne `{ payment_events: [...] }` (clé `payment_events`, pas `data`) pour un chantier. Filtrable par `source_id`.
+- `POST` : crée un event. Body : `{ label, amount, due_date?, source_type?, source_id?, financing_source?, paid? }`. Si `paid: true` → status `paid` + `due_date` = aujourd'hui.
+- `PATCH` : modifie `amount`, `status`, `label`, `due_date`, `financing_source`. Body : `{ eventId, amount?, status?, label?, due_date?, financing_source? }`.
+- `DELETE` : supprime un event. Body : `{ eventId }`. Vérifie ownership via chantier_id.
 
 **Dual-mode** :
 - `edge_function` (défaut) : Gemini 2.5 Flash, on paie

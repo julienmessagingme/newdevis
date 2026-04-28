@@ -257,6 +257,46 @@ UI Settings : checkboxes par catégorie pour activer/désactiver chaque trigger.
 
 ---
 
+## 13. Versements échelonnés — VersementsDrawer
+
+✅ **Livré 2026-04-28, à valider en prod.**
+
+### Ce qui a été livré
+- **`VersementsDrawer.tsx`** : drawer slide-right plein écran mobile / 400px desktop. Affiche les versements passés (payés) + les échéances en attente liées à un artisan (filtre `source_id in sourceIds || id in knownEventIds`). Permet créer / modifier (label + montant + date) / supprimer chaque versement.
+- **Règle plafond** : la somme des versements ne peut pas dépasser le budget engagé de l'artisan (cap validé à la saisie avec message d'erreur inline).
+- **Prompt justificatif** : après chaque création de versement, invite l'utilisateur à joindre un justificatif.
+- **`BudgetBar`** : barre de progression colorée (vert ≤ 80%, orange ≤ 100%, rouge > 100%) avec sous-total visible.
+- **API `payment-events.ts`** : PATCH supporte maintenant `due_date` et `label`. POST supporte `paid: true` (statut `paid` + date = aujourd'hui). DELETE endpoint ajouté.
+- **Prop chain `initialEnveloppePrevue`** : `DashboardUnified → TresoreriePanel → BudgetTab → BudgetKpiDashboard`. La valeur vient de `chantiers.enveloppe_prevue` (DB), plus d'auto-init depuis `engageReel`. useEffect d'auto-init supprimé.
+
+### À valider
+- Tester le flux complet : créer un versement → vérifier affichage dans cashflow et échéancier → modifier → supprimer.
+- Vérifier que le cap plafond bloque bien un ajout dépassant le budget engagé.
+- Vérifier que la suppression supprime bien le `payment_event` et que le rafraîchissement est immédiat.
+
+---
+
+## 14. Fix analyse devis — géolocalisation ABF + prix marché
+
+🟢 **Commité 2026-04-28 (commit `f9b39ff`), à déployer edge function.**
+
+### Géolocalisation ABF (`verify.ts`)
+- **Avant** : `if (codePostal)` bloquait tout le bloc géorisques / patrimoine / GPU quand Gemini n'isolait pas le code postal comme champ séparé.
+- **Après** : `if (hasAddressData)` — tente la géolocalisation dès qu'on a `code_postal` OU `ville` OU `adresse_chantier`. La query est construite en concaténant les 3 (ce qui est dispo).
+
+### Prix marché (`market-prices.ts`)
+- **Avant** : validation stricte `validJobTypes.has(jtype)` — une variation de casse ou d'espace envoyait le groupe en "Autre".
+- **Après** : fuzzy fallback normalisé (lowercase + trim + espaces→underscores) avant de rejeter. Log `[MarketPrices] Fuzzy match "X" → "Y"` pour debug.
+
+### ⚠️ Déploiement requis
+```bash
+npx supabase login
+npx supabase functions deploy analyze-quote --project-ref vhrhgsqxwvouswjaiczn
+```
+Sans ce déploiement, les fixes restent dans le code source mais pas en prod.
+
+---
+
 ## Comment maintenir ce document
 
 - Quand on **commence** une feature → ajouter une section ici avec 🟡
