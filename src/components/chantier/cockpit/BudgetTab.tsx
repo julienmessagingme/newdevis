@@ -1482,9 +1482,9 @@ export default function BudgetTab({
                         },
                       };
 
-                      // Frais (déclarations chat sans pièce) exclus de ce check :
-                      // un frais isolé ne déclenche pas l'alerte "Devis manquant".
-                      const realFactures = artisan.factures.filter(f => f.depense_type !== 'frais');
+                      // frais, ticket_caisse, achat_materiaux n'ont pas de devis associé par définition.
+                      const SANS_DEVIS_TYPES = ['frais', 'ticket_caisse', 'achat_materiaux'];
+                      const realFactures = artisan.factures.filter(f => !SANS_DEVIS_TYPES.includes(f.depense_type ?? ''));
                       const fraisOnly    = artisan.factures.filter(f => f.depense_type === 'frais');
                       const noDevis = artisan.devis.length === 0 && realFactures.length > 0;
                       const totalFrais = fraisOnly.reduce((s, f) => s + (f.montant ?? 0), 0);
