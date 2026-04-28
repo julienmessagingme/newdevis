@@ -4,8 +4,8 @@ Agent IA autonome qui analyse GA4 + GSC chaque lundi et envoie un rapport HTML p
 
 ## Stack
 - **GitHub Actions** (cron lundi 5h UTC = 7h Paris)
-- **Service Account Google Cloud** (lecture GA4 + GSC)
-- **MCPs** : `mcp-server-gsc` + `mcp-server-google-analytics`
+- **OAuth user refresh token** (compte `julien@messagingme.fr` — bypass de la policy Workspace qui bloque les Service Accounts externes)
+- **Script Node** (`googleapis`) qui pull GA4 + GSC en JSON, passe les données au prompt
 - **Claude Code CLI** (modèle Haiku, ~$0.02/run)
 - **Resend API** pour l'envoi email
 - **GitHub Issue** comme backup du rapport
@@ -17,106 +17,105 @@ Agent IA autonome qui analyse GA4 + GSC chaque lundi et envoie un rapport HTML p
 
 ---
 
+## Pourquoi pas un Service Account ?
+
+Tentative initiale → Google Workspace `messagingme.fr` bloque l'ajout d'emails de SA externes (`*.iam.gserviceaccount.com`) sur les propriétés GA4 et GSC. L'erreur "Cette adresse e-mail ne correspond à aucun compte Google" apparaît à l'ajout. Pas accès admin Workspace pour débloquer la policy → on a basculé sur OAuth user-level. Le compte `julien@messagingme.fr` a déjà accès admin GA4 + GSC, donc on emprunte ses droits via un refresh token.
+
+---
+
 ## Setup (à faire une fois)
 
-### 1. Service Account Google Cloud
+### 1. OAuth Client ID dans GCP
 
-1. [Console GCP](https://console.cloud.google.com) → nouveau projet `verifiermondevis-seo-agent`
-2. **APIs & Services** → activer :
-   - Search Console API
+1. https://console.cloud.google.com → projet `verifiermondevis-489918`
+2. **APIs & Services → Library** → activer si pas déjà fait :
+   - Google Search Console API
    - Google Analytics Data API
-3. **IAM** → Créer un Service Account : `seo-agent@verifiermondevis-seo-agent.iam.gserviceaccount.com`
-4. Onglet "Keys" du SA → Add Key → JSON → télécharger
-5. Donner accès lecture à ce SA :
-   - **GA4** : Admin → Property Access Management → ajouter le SA en **Lecteur**
-   - **GSC** : Settings → Users and permissions → ajouter le SA en **Restreinte**
+3. **APIs & Services → OAuth consent screen** :
+   - User type : **External**
+   - App name : `SEO Agent`
+   - Support email : `julien@messagingme.fr`
+   - Test users : ajouter `julien@messagingme.fr` ⚠️ obligatoire
+4. **APIs & Services → Credentials → Create Credentials → OAuth client ID** :
+   - Application type : **Desktop app**
+   - Name : `seo-agent-cli`
+   - Download le JSON
 
-### 2. Secrets GitHub
+### 2. Récupérer un refresh token
 
-Repo Settings → Secrets and variables → Actions → New secret :
+```powershell
+# Depuis la racine du repo
+npm install --no-save googleapis@131
 
-```bash
-# IMPORTANT : utiliser printf (jamais echo, qui ajoute \n et casse les clés)
-
-# 1. Anthropic API key
-printf 'sk-ant-...' | gh secret set ANTHROPIC_API_KEY
-
-# 2. Service Account JSON en base64
-base64 -w0 sa.json | gh secret set GOOGLE_SA_JSON_B64
-
-# 3. Resend API key — RÉUTILISER la même clé que le repo auto-wa-agents
-# (compte Resend avec messagingme.app verified — pas besoin de re-vérifier vmd,
-# le from_address utilise agent@messagingme.app, les destinataires peuvent être ailleurs)
-printf 're_...' | gh secret set RESEND_API_KEY_APP
+$env:GOOGLE_OAUTH_CLIENT_ID="<client_id du JSON>"
+$env:GOOGLE_OAUTH_CLIENT_SECRET="<client_secret du JSON>"
+node scripts/get-refresh-token.mjs
 ```
 
-### 3. Fichiers à créer
+Le script ouvre le navigateur → login `julien@messagingme.fr` → "Continuer vers SEO Agent (non vérifié)" → accepter les 2 scopes → retour terminal avec le refresh token imprimé.
 
-#### `.github/workflows/seo-agent.yml`
+⚠️ Si rerun nécessaire : révoquer d'abord https://myaccount.google.com/permissions (chercher "SEO Agent") sinon Google ne renvoie pas de nouveau refresh token.
 
-Copier le workflow depuis `auto-wa-agents` et adapter la matrix :
+### 3. Secrets GitHub
 
-```yaml
-matrix:
-  include:
-    - site_name: verifiermondevis.fr
-      gsc_url: sc-domain:verifiermondevis.fr
-      ga4_id: "<GA4 PROPERTY ID NUMÉRIQUE>"
-      resend_secret_name: RESEND_API_KEY_APP
-      from_address: "SEO Agent VMD <agent@messagingme.app>"
+```powershell
+gh secret set GOOGLE_OAUTH_CLIENT_ID --body "<client_id>"
+gh secret set GOOGLE_OAUTH_CLIENT_SECRET --body "<client_secret>"
+gh secret set GOOGLE_OAUTH_REFRESH_TOKEN --body "<refresh_token>"
+gh secret set ANTHROPIC_API_KEY --body "sk-ant-..."
+gh secret set RESEND_API_KEY_APP --body "re_..."
 ```
 
-Adapter aussi la liste `recipients` dans le step "Send HTML email via Resend".
+⚠️ **Sur PowerShell, toujours `--body` (pas pipe)** — le pipe ajoute un `\n` final qui casse les clés.
 
-#### `scripts/seo-agent-prompt.md`
-
-Copier tel quel depuis `auto-wa-agents/scripts/seo-agent-prompt.md`.
-Le workflow injecte automatiquement `${SITE_NAME}`, `${GSC_SITE_URL}`, `${GA_PROPERTY_ID}` via `envsubst`.
-
-#### `.gitignore`
-
-Ajouter :
-
-```
-.secrets/
-report.html
-claude-err.log
-issue-body.md
+Vérifier :
+```powershell
+gh secret list
 ```
 
-### 4. Test
+### 4. GA4 Property ID
 
-```bash
+L'ID numérique (PAS `G-HJFMR8ST50` qui est le Measurement ID) est codé en dur dans le matrix du workflow (`ga4_id`). Pour `verifiermondevis.fr` : `526352348`. Si la propriété change, modifier `.github/workflows/seo-agent.yml`.
+
+---
+
+## Test
+
+```powershell
 # Dry run (pas d'issue créée)
 gh workflow run seo-agent.yml -f dry_run=true
 
 # Run réel manuel
 gh workflow run seo-agent.yml
 
-# Vérifier les derniers runs
+# Suivre les runs
 gh run list --workflow=seo-agent.yml --limit 5
 gh run view <RUN_ID> --log
 ```
 
 ---
 
-## Pièges connus
+## Architecture des fichiers
 
-- **GA4 property ID ≠ Measurement ID (G-XXX)** — c'est l'ID numérique, visible dans GA4 Admin → Property Settings (en haut à droite)
-- **Resend free tier = 1 domaine vérifié par compte** : si tu n'as qu'un seul domaine vérifié, le `from_address` doit utiliser ce domaine. Les destinataires peuvent être n'importe où.
-- **GSC accès délai** : après avoir ajouté le SA en GSC, attendre 5-10 min avant de lancer le 1er run (propagation des permissions)
-- **`printf` obligatoire pour les secrets** : `echo` ajoute un `\n` final qui casse les clés API
-- **Le SA JSON ne doit JAMAIS être commité** — vérifier `.gitignore`
-
-## Gestion d'erreurs
-
-- **GSC 403** (accès pas encore donné / propagation en cours) : l'agent produit quand même un rapport GA4-only avec bandeau "GSC non disponible"
-- **Pas de clé Resend** : email step skippé avec warning, rapport toujours archivé en GitHub Issue
-
-## Référence
-
-Setup d'origine : repo `auto-wa-agents` — fichiers `.github/workflows/seo-agent.yml` et `scripts/seo-agent-prompt.md`.
+| Fichier | Rôle |
+|---|---|
+| `.github/workflows/seo-agent.yml` | Workflow cron + steps (data fetch → claude → email → archive) |
+| `scripts/seo-fetch-data.mjs` | Pull GA4 + GSC via OAuth, output JSON |
+| `scripts/seo-agent-prompt.md` | Prompt Claude avec instructions + format HTML email |
+| `scripts/get-refresh-token.mjs` | Helper one-shot pour générer un refresh token (rerun si token expiré ~6 mois) |
 
 ---
 
-Quand tu seras prêt à exécuter : générer le workflow YAML adapté + copier le prompt depuis `auto-wa-agents`.
+## Pièges connus
+
+- **Token expiré (`invalid_grant`)** : tous les ~6 mois OU si l'utilisateur révoque l'app sur https://myaccount.google.com/permissions → relancer `node scripts/get-refresh-token.mjs` et update le secret `GOOGLE_OAUTH_REFRESH_TOKEN`.
+- **`prompt: 'consent'` requis dans le script** : sinon Google retourne juste un `access_token` sans `refresh_token` (puisque l'utilisateur a déjà consenti).
+- **PowerShell + secrets** : toujours `gh secret set --body "..."`, jamais `printf | gh secret set` ni `echo | ...` (PowerShell ajoute un newline).
+- **GA4 Property ID ≠ Measurement ID `G-XXX`** : l'ID numérique est dans Admin → Property → Property Settings.
+- **Resend free tier = 1 domaine vérifié** : on réutilise le compte `auto-wa-agents` (domaine vérifié = `messagingme.app`), donc `from_address: agent@messagingme.app`. Les destinataires peuvent être n'importe où.
+
+---
+
+## Référence
+
+Setup d'origine : repo `auto-wa-agents` (mais en SA, alors qu'ici on a basculé OAuth).

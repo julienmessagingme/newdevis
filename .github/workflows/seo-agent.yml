@@ -25,10 +25,7 @@ jobs:
         include:
           - site_name: verifiermondevis.fr
             gsc_url: sc-domain:verifiermondevis.fr
-            # ⚠️ Remplacer par l'ID numérique GA4 (Admin → Property Settings, en haut à droite)
-            # PAS le Measurement ID G-HJFMR8ST50 — le numérique uniquement.
-            ga4_id: "REPLACE_WITH_GA4_PROPERTY_ID"
-            # Réutilise la même clé Resend que auto-wa-agents (domaine vérifié = messagingme.app)
+            ga4_id: "526352348"
             resend_secret_name: RESEND_API_KEY_APP
             from_address: "SEO Agent VMD <agent@messagingme.app>"
     steps:
@@ -40,44 +37,24 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Restore Service Account JSON
+      - name: Install googleapis
+        run: npm install --no-save googleapis@131
+
+      - name: Fetch GA4 + GSC data
         env:
-          SA_B64: ${{ secrets.GOOGLE_SA_JSON_B64 }}
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
+          GA_PROPERTY_ID: ${{ matrix.ga4_id }}
+          GSC_SITE_URL: ${{ matrix.gsc_url }}
         run: |
-          mkdir -p .secrets
-          # printf avoids trailing newline that echo adds; tr strips any CR
-          printf '%s' "$SA_B64" | tr -d '\r\n ' | base64 -d > .secrets/sa.json
-          node -e "const sa=require('./.secrets/sa.json'); if(!sa.client_email) throw new Error('SA JSON invalide'); console.log('✅ SA loaded:', sa.client_email);"
+          node scripts/seo-fetch-data.mjs > seo-data.json
+          echo "✅ Data fetched ($(wc -c < seo-data.json) bytes)"
+          # Sanity-check structure
+          node -e "const d=require('./seo-data.json'); console.log('GSC available:', d.gsc.available, '| GA4 available:', d.ga4.available);"
 
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code@latest
-
-      - name: Register MCPs (GSC + GA4)
-        run: |
-          node -e "
-            const { execFileSync } = require('child_process');
-            const sa = require('$PWD/.secrets/sa.json');
-            const saPath = '$PWD/.secrets/sa.json';
-
-            const gscConfig = {
-              command: 'npx',
-              args: ['-y', 'mcp-server-gsc'],
-              env: { GOOGLE_APPLICATION_CREDENTIALS: saPath }
-            };
-            const ga4Config = {
-              command: 'npx',
-              args: ['-y', 'mcp-server-google-analytics'],
-              env: {
-                GOOGLE_CLIENT_EMAIL: sa.client_email,
-                GOOGLE_PRIVATE_KEY: sa.private_key,
-                GA_PROPERTY_ID: '${{ matrix.ga4_id }}'
-              }
-            };
-
-            execFileSync('claude', ['mcp', 'add-json', '-s', 'user', 'seo-gsc', JSON.stringify(gscConfig)], { stdio: 'inherit' });
-            execFileSync('claude', ['mcp', 'add-json', '-s', 'user', 'seo-ga4', JSON.stringify(ga4Config)], { stdio: 'inherit' });
-          "
-          claude mcp list
 
       - name: Run SEO Agent (HTML output)
         env:
@@ -86,7 +63,15 @@ jobs:
           GA_PROPERTY_ID: ${{ matrix.ga4_id }}
           SITE_NAME: ${{ matrix.site_name }}
         run: |
-          PROMPT=$(envsubst < scripts/seo-agent-prompt.md)
+          PROMPT_HEAD=$(envsubst < scripts/seo-agent-prompt.md)
+          PROMPT="${PROMPT_HEAD}
+
+          ## Données injectées (JSON)
+
+          \`\`\`json
+          $(cat seo-data.json)
+          \`\`\`
+          "
           set +e
           claude -p "$PROMPT" \
             --model haiku \
@@ -120,7 +105,6 @@ jobs:
           FROM_ADDRESS: ${{ matrix.from_address }}
           SITE_NAME: ${{ matrix.site_name }}
         run: |
-          # Indirect expansion: pick the key matching this matrix cell's site
           RESEND_API_KEY="${!RESEND_SECRET_NAME}"
           if [ -z "$RESEND_API_KEY" ]; then
             echo "⚠️ No Resend API key configured for $SITE_NAME (secret: $RESEND_SECRET_NAME)"
@@ -135,7 +119,8 @@ jobs:
             const date = new Date().toISOString().slice(0, 10);
             const site = process.env.SITE_NAME;
             const recipients = [
-              'julien@messagingme.fr'
+              'julien@messagingme.fr',
+              'bridey.johan@gmail.com'
             ];
             const resp = await fetch('https://api.resend.com/emails', {
               method: 'POST',
@@ -169,7 +154,7 @@ jobs:
           gh label create seo-agent --color "0E8A16" --description "Weekly SEO agent report" 2>/dev/null || true
           DATE=$(date +%Y-%m-%d)
           {
-            echo "📧 Email envoyé le $DATE à julien@messagingme.fr pour **$SITE_NAME**"
+            echo "📧 Email envoyé le $DATE à julien@messagingme.fr + bridey.johan@gmail.com pour **$SITE_NAME**"
             echo ""
             echo "<details><summary>Voir le HTML du rapport</summary>"
             echo ""
@@ -186,4 +171,4 @@ jobs:
 
       - name: Cleanup
         if: always()
-        run: rm -rf .secrets report.html issue-body.md claude-err.log
+        run: rm -rf report.html issue-body.md claude-err.log seo-data.json
