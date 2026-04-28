@@ -1,6 +1,6 @@
 # Refactor cashflow chantier — log d'exécution
 
-> **Statut** : en cours (PR 3/5 mergée). PR4 prochaine.
+> **Statut** : en cours (PR 4/5 mergée). PR5 cleanup à venir.
 > **But** : unifier les 3 voies de saisie de dépense (cf. WIP.md §11) sous une architecture où `documents_chantier` + `cashflow_extras` sont les seules sources de vérité, et `payment_events_v` (VIEW) est le consommateur unique pour Échéancier/Trésorerie.
 > **À supprimer après PR5** stabilisée et merge complète. Garder pour pouvoir tracer en cas de bug pendant les tests.
 
@@ -208,6 +208,88 @@ Switcher l'API en lecture sur `payment_events_v` ET commencer à écrire en para
 UPDATE documents_chantier SET cashflow_terms = '[]';
 -- 3. Reverter le code (git revert <commit_pr3>)
 -- payment_events legacy reste intacte → l'app reprend en lecture legacy
+```
+
+---
+
+## PR4 — Stop écriture legacy + switch budget.ts (mergée 2026-04-28)
+
+### Objectif
+Couper TOUTES les écritures vers `payment_events` legacy. La table reste en lecture-seule pour rollback éventuel jusqu'au PR5 (drop). Les écritures vont :
+- `cashflow_extras` pour les mouvements manuels
+- `documents_chantier.cashflow_terms` pour les versements de devis/facture
+
+### Changements code
+
+- **`src/lib/paymentEvents.ts`** :
+  - `insertPaymentEvents` devient un stub no-op (gardé pour rétro-compat des callers)
+  - `overridePreviousDevisEvents` ne touche plus à legacy, vide juste cashflow_terms du devis parent
+  - `generatePaymentEventsFromAnalyse` et `*FromConditions` : retire DELETE + INSERT legacy
+  - Pipeline simplifié : extract → transform → writeCashflowTermsForDoc → override
+
+- **`src/pages/api/chantier/[id]/payment-events.ts`** :
+  - **POST manuel** : INSERT cashflow_extras seulement
+  - **PATCH** : UPDATE cashflow_extras OU cashflow_terms[term_index] uniquement
+  - **PATCH "Solde restant"** : géré entièrement via cashflow_terms (find/update/append)
+  - **PATCH cleanup remainder** : guard `origin === 'document'` ajouté
+  - **DELETE** : delete cashflow_extras OU retrait du term uniquement
+
+- **`supabase/functions/analyze-quote/index.ts`** :
+  - Retire INSERT legacy
+  - Écrit uniquement cashflow_terms
+
+- **`supabase/functions/agent-checks/index.ts`** :
+  - **CHECK 2 (Overdue payments)** : switch sur `payment_events_v` (sinon les nouveaux events seraient invisibles à ce check)
+
+- **`src/pages/api/chantier/[id]/budget.ts`** :
+  - 2 queries `payment_events` → `payment_events_v`
+  - `eq('is_override', false)` retiré (no-op)
+  - `neq('source_type', 'frais')` ajouté à query "paid" pour éviter double-count avec `alwaysPaid`
+
+### Code review appliqué (2 critiques + 3 importants)
+
+1. ✅ `agent-checks` switché sur la VIEW (sinon overdue checks aveugles aux nouveaux events)
+2. ⚠️ `documents.ts:134` ne passe pas `originalDevisId` pour les factures — pré-existant. Pour le moment, l'override automatique ne se déclenche que via POST `/payment-events` avec `originalDevisId` explicite. À fixer en PR5 (ou plus tard, peu de cas en pratique).
+3. ✅ Guards `origin === 'document'` ajoutés sur PATCH steps 3-4
+4. ✅ Docstrings mises à jour (writeCashflowTermsForDoc, overridePreviousDevisEvents)
+5. ✅ TODO marker pour `funding_source_id` silencieusement ignoré
+
+### État après PR4
+
+| Composant | État |
+|---|---|
+| `payment_events` legacy | LECTURE-SEULE — 29 rows historiques figés |
+| `cashflow_extras` | Source de vérité mouvements manuels |
+| `documents_chantier.cashflow_terms` | Source de vérité versements devis/facture |
+| `payment_events_v` VIEW | Consommé par tous les readers |
+| Edge functions `analyze-quote`, `agent-checks` | À redéployer (modifs source) |
+
+### Risques connus restants (à fixer en PR5)
+
+1. **`documents.ts` import devis n'override pas le parent** : si un facture est uploadée via VMD import (rare flow), le devis parent n'est pas invalidé. Le user verra duplicate display. Workaround : passer par AddDocumentModal ou POST `/payment-events` direct.
+2. **`is_override` dead code** dans frontend hooks (`usePaymentEvents`, `CashflowProjection`) : à nettoyer
+3. **Comments stale** dans paymentEvents.ts (étapes pipeline numérotées)
+
+### Tests à faire avant PR5 (drop legacy)
+
+- [ ] Vérifier prod : `SELECT count(*) FROM payment_events_v` doit donner identique avant/après PR4
+- [ ] Upload nouveau devis → events visibles
+- [ ] Upload facture liée → ancien devis masqué (override)
+- [ ] Marquer paid en partiel → "Solde restant" apparaît
+- [ ] Marquer paid → revenir pending → "Solde restant" disparaît
+- [ ] `register_expense` agent → frais visible Échéancier
+- [ ] `add_payment_event` agent → mouvement visible Échéancier
+- [ ] DELETE event → disparaît partout
+
+### Rollback PR4
+
+⚠️ Plus complexe que PR3 — les nouveaux events depuis PR4 ne sont plus dans legacy.
+
+```bash
+# 1. Revert code commits
+git revert <commit_pr4>
+# 2. Backfill legacy depuis cashflow_terms + cashflow_extras (script à écrire)
+# 3. Redéployer edge functions analyze-quote + agent-checks
 ```
 
 ---

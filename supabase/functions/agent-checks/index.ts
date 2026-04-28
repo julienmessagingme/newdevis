@@ -59,8 +59,10 @@ serve(async (req) => {
   }
 
   // ── CHECK 2: Overdue payments ────────────────────────────────
+  // PR4 : lit la VIEW payment_events_v (la table payment_events legacy
+  // est en lecture-seule depuis PR4, drop prévu PR5).
   const { data: overduePayments } = await supabase
-    .from("payment_events")
+    .from("payment_events_v")
     .select("id, label, amount, due_date, source_type")
     .eq("project_id", chantier_id)
     .eq("status", "pending")

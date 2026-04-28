@@ -261,19 +261,21 @@ export const GET: APIRoute = async ({ params, request }) => {
         .eq('chantier_id', chantierId)
         .eq('document_type', 'preuve_paiement'),
       // Paiements effectués dans l'Échéancier (source de vérité pour totaux.paye)
+      // PR4 : lit la VIEW payment_events_v. Les frais auto-paid (source_type='frais')
+      // sont exclus pour éviter le double-count avec la logique alwaysPaid plus bas.
       ctx.supabase
-        .from('payment_events')
+        .from('payment_events_v')
         .select('id, source_id, amount, source_type')
         .eq('project_id', chantierId)
         .eq('status', 'paid')
-        .not('source_id', 'is', null),
+        .not('source_id', 'is', null)
+        .neq('source_type', 'frais'),
       // Events en attente dans l'Échéancier (pour lier Budget ↔ Échéancier)
       ctx.supabase
-        .from('payment_events')
+        .from('payment_events_v')
         .select('id, source_id, amount, label, source_type')
         .eq('project_id', chantierId)
         .eq('status', 'pending')
-        .eq('is_override', false)
         .eq('source_type', 'devis')
         .not('source_id', 'is', null),
     ]);

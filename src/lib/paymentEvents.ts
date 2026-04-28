@@ -1,15 +1,16 @@
 /**
  * paymentEvents.ts
  * ─────────────────────────────────────────────────────────────────────────────
- * Génération automatique des payment_events à partir des conditions de paiement
+ * Génération automatique de la timeline de paiement à partir des conditions
  * extraites par IA d'un devis ou d'une facture.
  *
- * Pipeline :
+ * Pipeline (depuis PR4 — voir CASHFLOW-REFACTOR.md) :
  *   1. extractConditionsFromAnalyse()       — lit raw_text dans `analyses`
- *   2. transformToPaymentEvents()            — calcule montants + dates
- *   3. insertPaymentEvents()                 — insère dans `payment_events`
- *   4. overridePreviousDevisEvents()         — pour les factures (is_override)
+ *   2. transformToPaymentEvents()            — calcule montants + dates + UUID
+ *   3. writeCashflowTermsForDoc()            — écrit documents_chantier.cashflow_terms
+ *   4. overridePreviousDevisEvents()         — pour les factures (vide cashflow_terms du devis parent)
  *
+ * La table `payment_events` legacy est en lecture-seule depuis PR4. Drop prévu PR5.
  * Point d'entrée principal : generatePaymentEventsFromAnalyse()
  * ─────────────────────────────────────────────────────────────────────────────
  */
@@ -222,45 +223,36 @@ export function transformToPaymentEvents(
   return events;
 }
 
-// ── 3. Insertion en base ──────────────────────────────────────────────────────
+// ── 3. Insertion (PR4 : uniquement cashflow_terms — la legacy a été retirée) ──
 
 /**
- * Insère les événements dans `payment_events`.
- * Utilise la service_role key (passée via le client Supabase fourni).
+ * Stub gardé pour rétro-compat : retourne juste un succès sans écrire
+ * dans payment_events legacy. Toutes les écritures passent désormais par
+ * `writeCashflowTermsForDoc`. La table legacy est en lecture-seule jusqu'à
+ * son drop en PR5.
+ *
+ * @deprecated supprimer en PR5
  */
 export async function insertPaymentEvents(
-  supabase: ReturnType<typeof createClient>,
+  _supabase: ReturnType<typeof createClient>,
   events: PaymentEvent[],
 ): Promise<{ inserted: number; error: string | null }> {
-  if (!events.length) {
-    console.log('[paymentEvents] insert: rien à insérer');
-    return { inserted: 0, error: null };
-  }
-
-  const { error } = await supabase.from('payment_events').insert(events);
-
-  if (error) {
-    console.error('[paymentEvents] insert error:', error.message);
-    return { inserted: 0, error: error.message };
-  }
-
-  console.log(`[paymentEvents] insert: ${events.length} événements insérés avec succès`);
   return { inserted: events.length, error: null };
 }
 
-// ── 3.5 Dual-write : propager events → documents_chantier.cashflow_terms ──────
+// ── 3.5 Écriture cashflow_terms (source de vérité depuis PR4) ─────────────────
 
 /**
- * Met à jour `documents_chantier.cashflow_terms` pour refléter les payment_events
- * d'un document (sourceId). Appelée après insertPaymentEvents pour synchroniser
- * la VIEW `payment_events_v` (PR3 dual-write — cf. CASHFLOW-REFACTOR.md).
+ * Met à jour `documents_chantier.cashflow_terms` pour refléter les events
+ * dérivés d'un document (sourceId). Source de vérité depuis PR4 — la table
+ * legacy `payment_events` n'est plus écrite.
  *
- * Le tableau cashflow_terms est REMPLACÉ intégralement (replace, pas append) —
- * cohérent avec le fait que `generatePaymentEvents*` purge les events existants
- * avant insertion (idempotence). L'ordre suit le tri due_date NULLS LAST puis id.
+ * Le tableau cashflow_terms est REMPLACÉ intégralement (replace, pas append).
+ * Idempotent par construction. L'ordre suit le tri due_date NULLS LAST puis id.
  *
- * Non-bloquant : un échec ici n'empêche pas la fonctionnalité (la table legacy
- * reste source de vérité jusqu'à PR4). Logs explicites pour diagnostic.
+ * ⚠️ Si l'UPDATE échoue : 0 event visible dans la VIEW pour ce document. Logs
+ * `[paymentEvents] writeCashflowTerms error` à monitorer en prod. Pas de retry
+ * automatique — un re-trigger du pipeline (re-validation devis, etc.) recovers.
  */
 export async function writeCashflowTermsForDoc(
   supabase: ReturnType<typeof createClient>,
@@ -298,40 +290,28 @@ export async function writeCashflowTermsForDoc(
 
 /**
  * Quand une facture est reçue pour un devis existant :
- * marque tous les payment_events du devis original comme
- * is_override = true + status = 'cancelled'.
+ * vide le `cashflow_terms` du devis original. La VIEW exclut alors ses
+ * versements automatiquement (jsonb_array_length > 0).
  */
 export async function overridePreviousDevisEvents(
   supabase: ReturnType<typeof createClient>,
-  chantierId: string,
+  _chantierId: string,
   originalDevisId: string,
 ): Promise<void> {
-  // 1. Legacy : marquer cancelled + is_override
+  // PR4 : legacy n'est plus écrite. Seule la vidange du cashflow_terms du
+  // devis parent reste utile — la VIEW exclut alors automatiquement ses
+  // versements (jsonb_array_length > 0).
   const { error } = await supabase
-    .from('payment_events')
-    .update({ is_override: true, status: 'cancelled' })
-    .eq('project_id', chantierId)
-    .eq('source_type', 'devis')
-    .eq('source_id', originalDevisId);
-
-  if (error) {
-    console.error('[paymentEvents] override error:', error.message);
-  } else {
-    console.log(
-      `[paymentEvents] override: events du devis ${originalDevisId} marqués cancelled + is_override=true`,
-    );
-  }
-
-  // 2. Dual-write : vider cashflow_terms du devis parent (PR3+) — sinon la VIEW
-  // continuerait d'exposer les versements du devis alors qu'ils sont remplacés
-  // par ceux de la facture.
-  const { error: clearError } = await supabase
     .from('documents_chantier')
     .update({ cashflow_terms: [] })
     .eq('id', originalDevisId);
 
-  if (clearError) {
-    console.error('[paymentEvents] override cashflow_terms clear error:', clearError.message);
+  if (error) {
+    console.error('[paymentEvents] override cashflow_terms clear error:', error.message);
+  } else {
+    console.log(
+      `[paymentEvents] override: cashflow_terms du devis ${originalDevisId} vidés`,
+    );
   }
 }
 
@@ -371,44 +351,22 @@ export async function generatePaymentEventsFromAnalyse(
       return;
     }
 
-    // 2. Supprimer les events existants pour ce source_id (idempotence)
-    // Évite les doublons si la génération est déclenchée plusieurs fois
-    // (ex: devis re-validé, changement de statut multiple)
-    const { error: delError } = await supabase
-      .from('payment_events')
-      .delete()
-      .eq('project_id', chantierId)
-      .eq('source_id', sourceId)
-      .eq('is_override', false);
-    if (delError) {
-      console.warn('[paymentEvents] pipeline: purge avant insertion échouée:', delError.message);
-    } else {
-      console.log('[paymentEvents] pipeline: events existants purgés pour source_id', sourceId);
-    }
-
-    // 3. Transformation
+    // 2. Transformation
     const events = transformToPaymentEvents(
       conditions, totalAmount, chantierId, sourceType, sourceId,
     );
 
-    // 4. Insertion legacy
-    const { inserted, error } = await insertPaymentEvents(supabase, events);
-    if (error) {
-      console.error('[paymentEvents] pipeline: échec insertion', error);
-      return;
-    }
-
-    // 5. Dual-write cashflow_terms pour la VIEW payment_events_v (PR3+)
+    // 3. Écriture cashflow_terms (REPLACE l'array entier — idempotent par construction).
+    // PR4 : plus d'INSERT dans payment_events legacy (table en lecture-seule jusqu'au drop PR5).
     await writeCashflowTermsForDoc(supabase, sourceId, events);
 
-    // 6. Override devis original si facture (DERNIER step — sinon en cas
-    // d'échec de l'insertion ci-dessus, on aurait vidé les cashflow_terms
-    // du devis parent et perdu sa visibilité avant que la facture n'existe).
+    // 4. Override devis original si facture (DERNIER step — préserve le devis
+    // parent en cas d'échec de l'écriture ci-dessus).
     if (sourceType === 'facture' && originalDevisId) {
       await overridePreviousDevisEvents(supabase, chantierId, originalDevisId);
     }
 
-    console.log(`[paymentEvents] pipeline terminé avec succès — ${inserted} événements`);
+    console.log(`[paymentEvents] pipeline terminé avec succès — ${events.length} événements`);
   } catch (err) {
     // Non-bloquant : ne jamais faire échouer le pipeline principal
     console.error(
@@ -434,23 +392,11 @@ export async function generatePaymentEventsFromConditions(
   try {
     if (!conditions.length) return;
 
-    // Purge des events existants pour ce source_id (idempotence)
-    await supabase
-      .from('payment_events')
-      .delete()
-      .eq('project_id', chantierId)
-      .eq('source_id', sourceId)
-      .eq('is_override', false);
-
     const events = transformToPaymentEvents(
       conditions, totalAmount, chantierId, sourceType, sourceId,
     );
 
-    const { error } = await insertPaymentEvents(supabase, events);
-    if (error) return;
-
-    // Dual-write cashflow_terms (PR3+) AVANT override pour préserver le devis
-    // parent en cas d'échec ultérieur.
+    // PR4 : écriture cashflow_terms uniquement (legacy retirée).
     await writeCashflowTermsForDoc(supabase, sourceId, events);
 
     if (sourceType === 'facture' && originalDevisId) {

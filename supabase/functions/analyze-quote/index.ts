@@ -938,39 +938,31 @@ serve(async (req) => {
             });
 
           if (events.length > 0) {
-            const { error: evtErr } = await supabase.from("payment_events").insert(events);
-            if (evtErr) {
-              console.error("[PaymentEvents] insert error:", evtErr.message);
+            // PR4 : écriture cashflow_terms uniquement (payment_events legacy
+            // est en lecture-seule jusqu'au drop PR5).
+            const cashflow_terms = [...events]
+              .sort((a, b) => {
+                const da = a.due_date ?? "\uffff";
+                const db = b.due_date ?? "\uffff";
+                if (da !== db) return da < db ? -1 : 1;
+                return a.id.localeCompare(b.id);
+              })
+              .map(e => ({
+                event_id: e.id,
+                amount:   e.amount,
+                due_date: e.due_date,
+                status:   e.status,
+                label:    e.label,
+              }));
+
+            const { error: termsErr } = await supabase
+              .from("documents_chantier")
+              .update({ cashflow_terms })
+              .eq("id", docLinked.id);
+            if (termsErr) {
+              console.error("[PaymentEvents] cashflow_terms write error:", termsErr.message);
             } else {
-              console.log(`[PaymentEvents] timeline générée — ${events.length} événements insérés`);
-
-              // Dual-write : propage cashflow_terms sur le doc parent (PR3+ refactor).
-              // Sans ça, les events sont dans payment_events legacy mais invisibles
-              // dans la VIEW payment_events_v → invisibles en Échéancier.
-              const cashflow_terms = [...events]
-                .sort((a, b) => {
-                  const da = a.due_date ?? "\uffff";
-                  const db = b.due_date ?? "\uffff";
-                  if (da !== db) return da < db ? -1 : 1;
-                  return a.id.localeCompare(b.id);
-                })
-                .map(e => ({
-                  event_id: e.id,
-                  amount:   e.amount,
-                  due_date: e.due_date,
-                  status:   e.status,
-                  label:    e.label,
-                }));
-
-              const { error: termsErr } = await supabase
-                .from("documents_chantier")
-                .update({ cashflow_terms })
-                .eq("id", docLinked.id);
-              if (termsErr) {
-                console.error("[PaymentEvents] cashflow_terms dual-write error:", termsErr.message);
-              } else {
-                console.log(`[PaymentEvents] cashflow_terms écrits — ${cashflow_terms.length} terms`);
-              }
+              console.log(`[PaymentEvents] cashflow_terms écrits — ${cashflow_terms.length} terms`);
             }
           }
         }
