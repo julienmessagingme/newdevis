@@ -27,7 +27,7 @@ jobs:
             gsc_url: sc-domain:verifiermondevis.fr
             ga4_id: "526352348"
             resend_secret_name: RESEND_API_KEY_APP
-            from_address: "SEO Agent VMD <agent@messagingme.app>"
+            from_address: "SEO Agent VMD <onboarding@resend.dev>"
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
