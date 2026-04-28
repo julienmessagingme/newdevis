@@ -103,7 +103,9 @@ function buildArtisanGroups(devis: BudgetDevis[], factures: BudgetFacture[]): Bu
     for (const f of g.factures) {
       const m = f.montant ?? 0;
       const p = f.montant_paye ?? 0;
-      if      (f.facture_statut === 'payee')                { paye += p; }
+      // ticket_caisse et frais = toujours considérés comme payés, peu importe facture_statut
+      const alwaysPaid = f.depense_type === 'ticket_caisse' || f.depense_type === 'frais';
+      if      (alwaysPaid || f.facture_statut === 'payee') { paye += m; }
       else if (f.facture_statut === 'payee_partiellement')  { acompte_fact += p; a_payer += Math.max(0, m - p); }
       else if (f.facture_statut === 'en_litige')            { litige += m; }
       else if (f.facture_statut === 'recue')                { a_payer += m; }

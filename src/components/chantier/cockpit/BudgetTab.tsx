@@ -1652,38 +1652,49 @@ export default function BudgetTab({
                                   ) : null}
 
                                   {/* 2a. STATUT — bouton central (si facture) */}
-                                  {primaryFacture && cfg && (
-                                    <div className="relative">
-                                      <button
-                                        disabled={isChanging}
-                                        onClick={e => { e.stopPropagation(); setOpenArtisanMenu(isOpen ? null : artisanKey); }}
-                                        className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all ${cfg.cls}`}
-                                      >
-                                        {isChanging ? <Loader2 className="h-3 w-3 animate-spin" /> : cfg.icon}
-                                        {cfg.short}
-                                        <ChevronDown className="h-2.5 w-2.5 ml-0.5" />
-                                      </button>
-                                      {isOpen && (
-                                        <div className="absolute right-0 bottom-full mb-1 w-52 bg-white rounded-xl shadow-xl border border-gray-100 z-30 overflow-hidden">
-                                          {(Object.entries(FACTURE_STATUT_CFG) as [FactureStatut, typeof FACTURE_STATUT_CFG[FactureStatut]][]).map(([s, c]) => (
-                                            <button key={s}
-                                              onClick={e => {
-                                                e.stopPropagation(); setOpenArtisanMenu(null);
-                                                changeStatut(primaryFacture.id, s, e);
-                                                if (s === 'payee_partiellement') {
-                                                  setTimeout(() => setInlineAcompte({ artisanKey, factureId: primaryFacture.id, value: primaryFacture.montant_paye ? String(primaryFacture.montant_paye) : '' }), 100);
-                                                } else { setInlineAcompte(null); }
-                                              }}
-                                              className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${s === currentStatut ? 'text-indigo-600 bg-indigo-50/50' : 'text-gray-700'}`}
-                                            >
-                                              <span>{c.icon}</span>{c.label}
-                                              {s === currentStatut && <Check className="h-3 w-3 ml-auto text-indigo-500" />}
-                                            </button>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
+                                  {primaryFacture && cfg && (() => {
+                                    // Ticket de caisse ou frais = toujours payé, pas de dropdown
+                                    const isAlwaysPaid = primaryFacture.depense_type === 'ticket_caisse' || primaryFacture.depense_type === 'frais';
+                                    if (isAlwaysPaid) {
+                                      return (
+                                        <span className="flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
+                                          <Check className="h-3 w-3" />Payé
+                                        </span>
+                                      );
+                                    }
+                                    return (
+                                      <div className="relative">
+                                        <button
+                                          disabled={isChanging}
+                                          onClick={e => { e.stopPropagation(); setOpenArtisanMenu(isOpen ? null : artisanKey); }}
+                                          className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all ${cfg.cls}`}
+                                        >
+                                          {isChanging ? <Loader2 className="h-3 w-3 animate-spin" /> : cfg.icon}
+                                          {cfg.short}
+                                          <ChevronDown className="h-2.5 w-2.5 ml-0.5" />
+                                        </button>
+                                        {isOpen && (
+                                          <div className="absolute right-0 bottom-full mb-1 w-52 bg-white rounded-xl shadow-xl border border-gray-100 z-30 overflow-hidden">
+                                            {(Object.entries(FACTURE_STATUT_CFG) as [FactureStatut, typeof FACTURE_STATUT_CFG[FactureStatut]][]).map(([s, c]) => (
+                                              <button key={s}
+                                                onClick={e => {
+                                                  e.stopPropagation(); setOpenArtisanMenu(null);
+                                                  changeStatut(primaryFacture.id, s, e);
+                                                  if (s === 'payee_partiellement') {
+                                                    setTimeout(() => setInlineAcompte({ artisanKey, factureId: primaryFacture.id, value: primaryFacture.montant_paye ? String(primaryFacture.montant_paye) : '' }), 100);
+                                                  } else { setInlineAcompte(null); }
+                                                }}
+                                                className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${s === currentStatut ? 'text-indigo-600 bg-indigo-50/50' : 'text-gray-700'}`}
+                                              >
+                                                <span>{c.icon}</span>{c.label}
+                                                {s === currentStatut && <Check className="h-3 w-3 ml-auto text-indigo-500" />}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
 
                                   {/* 2b. STATUT — bouton central (sans facture, via payment_events) */}
                                   {(!primaryFacture || !cfg) && (() => {
