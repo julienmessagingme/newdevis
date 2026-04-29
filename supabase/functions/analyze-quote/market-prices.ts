@@ -64,6 +64,16 @@ export interface JobTypePriceResult {
   workItemIndices: number[];
 }
 
+/** Debug info stored in raw_text for diagnosis */
+export interface MarketPriceDebug {
+  catalog_size_full: number;
+  catalog_size_filtered: number;
+  detected_domains: string[];
+  gemini_groups: Array<{ label: string; job_types: string[]; matched: string[] }>;
+  groups_matched: number;
+  groups_autre: number;
+}
+
 // ============================================================
 // CATALOG PRE-FILTER
 // With 470+ catalog entries, Gemini (gemini-2.0-flash) cannot reliably
@@ -183,6 +193,52 @@ function buildCatalog(prices: MarketPriceRow[]): string {
 }
 
 /**
+ * Level 5: semantic keyword matching — completely independent of Gemini's identifier compliance.
+ * Scores each catalog entry by how many of its tokens appear in the group's text
+ * (group label + work item descriptions + categories).
+ * Used as final fallback when all 4 identifier-based levels fail.
+ */
+function findCatalogMatchByKeywords(
+  groupLabel: string,
+  workItems: WorkItemFull[],
+  relevantPrices: MarketPriceRow[],
+): string | null {
+  const allText = stripAccents(
+    [groupLabel, ...workItems.map((w) => `${w.description} ${w.category || ""}`)].join(" ").toLowerCase()
+  );
+
+  let bestJobType: string | null = null;
+  let bestScore = 0;
+
+  const seen = new Set<string>();
+  for (const price of relevantPrices) {
+    if (seen.has(price.job_type)) continue;
+    seen.add(price.job_type);
+
+    // Score: sum of lengths of matching tokens (prefer longer/more specific matches)
+    const tokens = [
+      ...price.job_type.split("_"),
+      ...stripAccents(price.label.toLowerCase()).split(/[\s,()/-]+/),
+    ].filter((t) => t.length >= 4); // skip very short tokens
+
+    let score = 0;
+    for (const token of tokens) {
+      if (allText.includes(token)) {
+        score += token.length;
+      }
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestJobType = price.job_type;
+    }
+  }
+
+  // Require a minimum score to avoid spurious matches on very generic tokens
+  return bestScore >= 12 ? bestJobType : null;
+}
+
+/**
  * Ask Gemini to identify job types, determine quantity/unit,
  * and assign each devis line to exactly one job type.
  */
@@ -286,6 +342,9 @@ Réponds UNIQUEMENT en JSON (pas de markdown) :
 
     const data = await response.json();
     const text = data?.choices?.[0]?.message?.content || "";
+
+    // Log the raw Gemini response for diagnosis (first 500 chars)
+    console.log("[MarketPrices] Gemini raw response (500 chars):", text.substring(0, 500));
 
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
@@ -479,8 +538,32 @@ export async function lookupMarketPrices(
         continue;
       }
 
-      console.warn(`[MarketPrices] No match for "${jtype}" in group "${jt.job_type_label}" (all 4 levels failed)`);
+      // Level 5: semantic keyword matching — independent of Gemini identifier compliance
+      // Uses group label + work item descriptions to find best catalog match by token overlap
+      const groupWorkItems = jt.work_items.map((idx) => workItems[idx]).filter(Boolean) as WorkItemFull[];
+      const l5Match = findCatalogMatchByKeywords(jt.job_type_label, groupWorkItems, relevantPrices);
+      if (l5Match) {
+        console.log(`[MarketPrices] L5 semantic "${jtype}" → "${l5Match}" (via group "${jt.job_type_label}")`);
+        validatedJobTypes.push(l5Match);
+        continue;
+      }
+
+      console.warn(`[MarketPrices] ALL 5 LEVELS FAILED for "${jtype}" in group "${jt.job_type_label}"`);
     }
+
+    // Group-level L5 fallback: if job_types was empty [] OR all identifiers failed matching,
+    // directly try semantic match on group label + work items (no jtype loop needed)
+    if (validatedJobTypes.length === 0) {
+      const groupWorkItems2 = jt.work_items.map((idx) => workItems[idx]).filter(Boolean) as WorkItemFull[];
+      const groupL5 = findCatalogMatchByKeywords(jt.job_type_label, groupWorkItems2, relevantPrices);
+      if (groupL5) {
+        console.log(`[MarketPrices] Group-L5 semantic for "${jt.job_type_label}" → "${groupL5}"`);
+        validatedJobTypes.push(groupL5);
+      } else {
+        console.warn(`[MarketPrices] Group-L5 also failed for "${jt.job_type_label}" — going to Autre`);
+      }
+    }
+
     const invalidJobTypes = originalJobTypes.filter((jtype) => !validatedJobTypes.includes(jtype) && !validJobTypes.has(jtype));
     if (invalidJobTypes.length > 0) {
       console.warn(`[MarketPrices] FILTERED invented job_types for "${jt.job_type_label}":`, invalidJobTypes);
@@ -585,7 +668,59 @@ export async function lookupMarketPrices(
     });
   }
 
-  console.log(`[MarketPrices] Final: ${results.length} groups, total lines: ${results.reduce((s, r) => s + r.devis_lines.length, 0)}/${workItems.length}`);
+  const matchedGroups = results.filter((r) => r.prices.length > 0).length;
+  console.log(`[MarketPrices] Final: ${results.length} groups (${matchedGroups} with prices), lines: ${results.reduce((s, r) => s + r.devis_lines.length, 0)}/${workItems.length}`);
+
+  // ── EMERGENCY FALLBACK ───────────────────────────────────────────────────────
+  // If Gemini returned 0 groups (API fail, timeout, bad JSON) OR all groups ended
+  // up in "Autre" (0 matched), fall back to direct per-item semantic matching.
+  // Groups work items by category field from extraction (already classified by Gemini Phase 1).
+  if (matchedGroups === 0) {
+    console.warn("[MarketPrices] 0 matched groups — activating emergency semantic fallback");
+    const byCat = new Map<string, WorkItemFull[]>();
+    for (const item of workItems) {
+      const cat = (item.category || "autre").toLowerCase().trim();
+      if (!byCat.has(cat)) byCat.set(cat, []);
+      byCat.get(cat)!.push(item);
+    }
+
+    const fallbackResults: JobTypePriceResult[] = [];
+    for (const [cat, items] of byCat.entries()) {
+      if (cat === "autre") continue;
+      const bestJobType = findCatalogMatchByKeywords(cat, items, relevantPrices);
+      if (!bestJobType) continue;
+      const matchedPrices = (allPrices as MarketPriceRow[]).filter((p) => p.job_type === bestJobType);
+      if (matchedPrices.length === 0) continue;
+
+      let total = 0; let hasAmt = false;
+      for (const item of items) { if (item.amount_ht !== null) { total += item.amount_ht; hasAmt = true; } }
+
+      const catalogLabel = catalogLabels.get(bestJobType) || cat;
+      console.log(`[MarketPrices] Emergency fallback: cat="${cat}" → "${bestJobType}" (${items.length} items)`);
+      fallbackResults.push({
+        job_type_label: catalogLabel,
+        catalog_job_types: [bestJobType],
+        main_unit: items[0]?.unit || "forfait",
+        main_quantity: items.reduce((s, i) => s + (i.quantity || 0), 0) || 1,
+        devis_lines: items.map((item, idx) => ({
+          index: workItems.indexOf(item),
+          description: item.description,
+          amount_ht: item.amount_ht,
+          quantity: item.quantity,
+          unit: item.unit,
+        })),
+        devis_total_ht: hasAmt ? total : null,
+        prices: matchedPrices,
+        workItemIndices: items.map((item) => workItems.indexOf(item)),
+      });
+    }
+
+    if (fallbackResults.length > 0) {
+      console.log(`[MarketPrices] Emergency fallback produced ${fallbackResults.length} groups`);
+      return fallbackResults;
+    }
+    console.warn("[MarketPrices] Emergency fallback also produced 0 groups");
+  }
 
   return results;
 }
