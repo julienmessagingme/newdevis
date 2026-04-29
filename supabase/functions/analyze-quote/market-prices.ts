@@ -417,17 +417,18 @@ export async function lookupMarketPrices(
   for (const jt of jobTypes) {
     if (jt.work_items.length === 0) continue;
 
-    // Validate job_types against catalog — 3-level fallback
+    // Validate job_types against catalog — 4-level fallback
     const originalJobTypes = [...jt.job_types];
     const validatedJobTypes: string[] = [];
     for (const jtype of jt.job_types) {
-      // Level 1: exact match
-      if (validJobTypes.has(jtype)) {
-        validatedJobTypes.push(jtype);
+      // Level 1: exact match (with trim — guards against leading/trailing spaces)
+      const jtypeTrimmed = jtype.trim();
+      if (validJobTypes.has(jtypeTrimmed)) {
+        validatedJobTypes.push(jtypeTrimmed);
         continue;
       }
 
-      const normalized = jtype.toLowerCase().trim().replace(/\s+/g, "_");
+      const normalized = jtypeTrimmed.toLowerCase().replace(/\s+/g, "_");
 
       // Level 2: normalized exact match (case + spaces)
       const canonicalExact = normalizedToCanonical.get(normalized);
@@ -437,36 +438,48 @@ export async function lookupMarketPrices(
         continue;
       }
 
-      // Level 3: prefix/substring match
-      // e.g. Gemini returns "carrelage_sol" → catalog has "carrelage_sol_fourniture_pose"
-      // e.g. Gemini returns "peinture_mur" → catalog has "peinture_mur_fourniture"
-      let prefixMatch: string | null = null;
-      let prefixMatchScore = 0;
+      // Level 3: prefix match (bidirectional)
+      // e.g. "carrelage_sol" → "carrelage_sol_fourniture_pose" (Gemini shorter than catalog)
+      // e.g. "carrelage_sol_fourniture_pose" → "carrelage_sol" (Gemini longer, catalog is prefix)
+      let bestMatch: string | null = null;
+      let bestScore = 0;
       for (const [catalogNorm, catalogCanonical] of normalizedToCanonical.entries()) {
-        // catalogNorm starts with normalized (Gemini is a prefix of catalog key)
         if (catalogNorm.startsWith(normalized + "_") || catalogNorm === normalized) {
-          const score = normalized.length; // prefer longer prefix matches
-          if (score > prefixMatchScore) {
-            prefixMatchScore = score;
-            prefixMatch = catalogCanonical;
-          }
-        }
-        // normalized starts with catalogNorm (catalog key is a prefix of Gemini's identifier)
-        else if (normalized.startsWith(catalogNorm + "_")) {
-          const score = catalogNorm.length;
-          if (score > prefixMatchScore) {
-            prefixMatchScore = score;
-            prefixMatch = catalogCanonical;
-          }
+          if (normalized.length > bestScore) { bestScore = normalized.length; bestMatch = catalogCanonical; }
+        } else if (normalized.startsWith(catalogNorm + "_")) {
+          if (catalogNorm.length > bestScore) { bestScore = catalogNorm.length; bestMatch = catalogCanonical; }
         }
       }
-      if (prefixMatch) {
-        console.log(`[MarketPrices] L3 prefix-match "${jtype}" → "${prefixMatch}"`);
-        validatedJobTypes.push(prefixMatch);
+      if (bestMatch) {
+        console.log(`[MarketPrices] L3 prefix "${jtype}" → "${bestMatch}"`);
+        validatedJobTypes.push(bestMatch);
         continue;
       }
 
-      console.warn(`[MarketPrices] No match for invented job_type "${jtype}" in group "${jt.job_type_label}"`);
+      // Level 4: token-boundary substring match (handles "pose_carrelage_sol_fourniture" → "carrelage_sol")
+      // Catalog key must contain at least 1 underscore (multi-word) to avoid false positives.
+      // Uses token-boundary regex: catalog key must appear surrounded by _ or start/end.
+      let l4Match: string | null = null;
+      let l4Score = 0;
+      for (const [catalogNorm, catalogCanonical] of normalizedToCanonical.entries()) {
+        if (!catalogNorm.includes("_")) continue; // skip single-word keys
+        try {
+          const pattern = new RegExp(`(?:^|_)${catalogNorm}(?:_|$)`);
+          if (pattern.test(normalized) && catalogNorm.length > l4Score) {
+            l4Score = catalogNorm.length;
+            l4Match = catalogCanonical;
+          }
+        } catch {
+          // skip if regex fails (special chars in key)
+        }
+      }
+      if (l4Match) {
+        console.log(`[MarketPrices] L4 token-boundary "${jtype}" → "${l4Match}"`);
+        validatedJobTypes.push(l4Match);
+        continue;
+      }
+
+      console.warn(`[MarketPrices] No match for "${jtype}" in group "${jt.job_type_label}" (all 4 levels failed)`);
     }
     const invalidJobTypes = originalJobTypes.filter((jtype) => !validatedJobTypes.includes(jtype) && !validJobTypes.has(jtype));
     if (invalidJobTypes.length > 0) {
