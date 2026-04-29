@@ -110,20 +110,19 @@ const DOMAIN_TRIGGERS: Record<string, string[]> = {
  * Pre-filter catalog to relevant entries based on devis content.
  * Reduces from 470+ to ~20-80 entries, improving Gemini matching accuracy.
  */
+/** Strip combining diacritical marks (accents) from a normalized NFD string */
+function stripAccents(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
 function filterRelevantPrices(allPrices: MarketPriceRow[], workItems: WorkItemFull[]): MarketPriceRow[] {
-  const allText = workItems
-    .map((w) => `${w.description} ${w.category || ""}`)
-    .join(" ")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, ""); // strip accents for matching
+  const allText = stripAccents(
+    workItems.map((w) => `${w.description} ${w.category || ""}`).join(" ").toLowerCase()
+  );
 
   const relevantDomains = new Set<string>();
   for (const [domain, triggers] of Object.entries(DOMAIN_TRIGGERS)) {
-    const triggerNorm = triggers.map((t) =>
-      t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
-    );
-    if (triggerNorm.some((t) => allText.includes(t))) {
+    if (triggers.some((t) => allText.includes(stripAccents(t.toLowerCase())))) {
       relevantDomains.add(domain);
     }
   }
@@ -135,11 +134,28 @@ function filterRelevantPrices(allPrices: MarketPriceRow[], workItems: WorkItemFu
     return allPrices;
   }
 
+  // Some domains use different prefixes in job_type than the domain name itself
+  // e.g. salle_bain → entries are "douche_*", "bain_*", "carrelage_sdb_*"
+  const DOMAIN_JT_PATTERNS: Record<string, string[]> = {
+    salle_bain: ["douche", "bain", "sdb", "salle_bain"],
+    chauffage: ["chauffage", "chaudiere", "chaudier", "radiateur", "plancher_ch", "pac_", "ballon"],
+    clim: ["clim", "split", "gainable", "multisplit", "maintenance_clim"],
+    vrd: ["vrd", "enrobe", "voirie", "bitume"],
+    porte: ["porte_", "bloc_porte"],
+    terrassement: ["terrassement", "terrassier", "deblai"],
+    amenagement: ["terrasse", "portail", "cloture", "piscine", "pergola", "allee", "amenagement"],
+    placo: ["placo", "cloison", "doublage"],
+  };
+
   const filtered = allPrices.filter((p) => {
     const jt = p.job_type.toLowerCase();
-    return [...relevantDomains].some(
-      (domain) => jt.startsWith(domain) || jt.includes(`_${domain}`) || jt.includes(`${domain}_`)
-    );
+    return [...relevantDomains].some((domain) => {
+      // Standard: job_type starts with domain or contains _domain_ or domain_
+      if (jt.startsWith(domain) || jt.includes(`_${domain}`) || jt.includes(`${domain}_`)) return true;
+      // Extended: check domain-specific catalog key patterns
+      const patterns = DOMAIN_JT_PATTERNS[domain] || [];
+      return patterns.some((pat) => jt.startsWith(pat) || jt.includes(pat));
+    });
   });
 
   if (filtered.length < 8) {
