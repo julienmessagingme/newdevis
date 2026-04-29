@@ -370,20 +370,24 @@ UI Settings : checkboxes par catégorie pour activer/désactiver chaque trigger.
 
 ## 15. Fix analyse devis — géolocalisation ABF + prix marché
 
-🟢 **Commité 2026-04-28 (commit `f9b39ff`), à déployer edge function.**
+✅ **Déployé 2026-04-29 (commit `33b4edc`).**
 
 ### Géolocalisation ABF (`verify.ts`)
 `if (hasAddressData)` — tente la géolocalisation dès qu'on a `code_postal` OU `ville` OU `adresse_chantier` (avant : bloqué si `code_postal` null).
 
-### Prix marché (`market-prices.ts`)
-Fuzzy fallback normalisé (lowercase + trim + espaces→underscores) sur les identifiants Gemini avant de rejeter en "Autre".
+### Prix marché (`market-prices.ts`) — fix complet 2026-04-29
+**Cause racine identifiée** : catalogue 470+ entrées envoyé entier à Gemini-2.0-flash → le modèle inventait des identifiants inexistants → tout finissait dans "Autre".
 
-### ⚠️ Déploiement requis
-```bash
-npx supabase login
-npx supabase functions deploy analyze-quote --project-ref vhrhgsqxwvouswjaiczn
-```
-Sans ce déploiement, les fixes restent dans le code source mais pas en prod.
+**Fix 1 — Pré-filtrage catalogue** (cause principale) :
+- `filterRelevantPrices()` analyse le texte du devis (descriptions + catégories)
+- Détecte les domaines présents via ~180 triggers de mots-clés (carrelage, peinture, plomberie, menuiserie, etc.)
+- Réduit le catalogue de 470+ à ~20-80 entrées avant l'appel Gemini
+- Fallback : catalogue complet si < 8 entrées filtrées
+
+**Fix 2 — Matching 3 niveaux** :
+- L1 : exact match
+- L2 : normalized (lowercase + underscores)
+- L3 : prefix/substring bidirectionnel (`"carrelage_sol"` → `"carrelage_sol_fourniture_pose"` ✓)
 
 ---
 
