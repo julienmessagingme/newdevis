@@ -64,6 +64,93 @@ export interface JobTypePriceResult {
   workItemIndices: number[];
 }
 
+// ============================================================
+// CATALOG PRE-FILTER
+// With 470+ catalog entries, Gemini (gemini-2.0-flash) cannot reliably
+// match identifiers when the full catalog is sent. Pre-filtering to
+// ~20-80 relevant entries based on devis content dramatically improves
+// accuracy. Falls back to full catalog if no relevant domain is detected.
+// ============================================================
+
+const DOMAIN_TRIGGERS: Record<string, string[]> = {
+  carrelage: ["carrel", "faienc", "ceramiqu", "gres", "mosaiqu", "faïenc"],
+  parquet: ["parquet", "stratifie", "plancher", "lame", "vinyle", "sol souple"],
+  peinture: ["peint", "enduit", "ravalement", "façade", "facade", "lasure", "vernis"],
+  plomberie: ["plombi", "sanitaire", "tuyau", "robinet", "chauffe-eau", "cumulus",
+              "wc", "toilette", "évacuation", "evacuation", "siphon", "mitigeur"],
+  electricite: ["electri", "tableau", "câble", "cable", "prise", "luminaire",
+                "spot", "interrupteur", "disjoncteur", "gaine", "VMC", "vmc"],
+  maconnerie: ["maçon", "macon", "beton", "parpaing", "agglo", "plot", "chape",
+               "ragre", "reprise", "linteau", "enduit facade"],
+  isolation: ["isolat", "thermique", "acoustiqu", "laine", "rigide", "comble",
+              "mousse", "souffl"],
+  toiture: ["toiture", "toit", "tuile", "ardoise", "couvert", "charpent",
+            "zinguerie", "gouttiere", "gouttière", "noue", "faitiere"],
+  menuiserie: ["fenetre", "fenêtre", "porte-fenetre", "porte fenetre", "volet",
+               "baie vitree", "baie vitrée", "chassis", "châssis", "vitrage",
+               "menuiserie", "alu", "pvc", "bois"],
+  porte: ["porte blind", "porte int", "porte ext", "bloc porte", "huisserie"],
+  escalier: ["escalier", "marche", "contremarche", "garde-corps", "rampe"],
+  chauffage: ["chauffag", "chaudier", "chaudiere", "radiateur", "plancher chauffant",
+              "PAC", "pompe a chaleur", "ballon", "poele", "insert"],
+  clim: ["climatisation", "clim", "split", "gainable", "reversible", "multisplit"],
+  terrassement: ["terrassement", "deblai", "remblai", "fouille", "excavat"],
+  vrd: ["vrd", "enrobe", "bitume", "voirie", "chemin", "allee"],
+  placo: ["placo", "cloison", "doublage", "platre", "plâtre", "BA13", "ba13"],
+  salle_bain: ["salle de bain", "sdb", "salle d eau", "douche", "baignoire",
+               "jacuzzi", "hammam"],
+  cuisine: ["cuisin"],
+  piscine: ["piscine", "bassin", "liner", "margelle"],
+  amenagement: ["amenagement", "aménagement", "terasse", "terrasse", "pergola",
+                "portail", "cloture", "clôture", "grillage", "dallage"],
+  nettoyage: ["nettoyage", "debarras"],
+};
+
+/**
+ * Pre-filter catalog to relevant entries based on devis content.
+ * Reduces from 470+ to ~20-80 entries, improving Gemini matching accuracy.
+ */
+function filterRelevantPrices(allPrices: MarketPriceRow[], workItems: WorkItemFull[]): MarketPriceRow[] {
+  const allText = workItems
+    .map((w) => `${w.description} ${w.category || ""}`)
+    .join(" ")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, ""); // strip accents for matching
+
+  const relevantDomains = new Set<string>();
+  for (const [domain, triggers] of Object.entries(DOMAIN_TRIGGERS)) {
+    const triggerNorm = triggers.map((t) =>
+      t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    );
+    if (triggerNorm.some((t) => allText.includes(t))) {
+      relevantDomains.add(domain);
+    }
+  }
+
+  console.log(`[MarketPrices] Detected domains: [${[...relevantDomains].join(", ")}]`);
+
+  if (relevantDomains.size === 0) {
+    console.log("[MarketPrices] No domain detected — using full catalog");
+    return allPrices;
+  }
+
+  const filtered = allPrices.filter((p) => {
+    const jt = p.job_type.toLowerCase();
+    return [...relevantDomains].some(
+      (domain) => jt.startsWith(domain) || jt.includes(`_${domain}`) || jt.includes(`${domain}_`)
+    );
+  });
+
+  if (filtered.length < 8) {
+    console.log(`[MarketPrices] Filtered too small (${filtered.length}) — using full catalog`);
+    return allPrices;
+  }
+
+  console.log(`[MarketPrices] Catalog pre-filtered: ${allPrices.length} → ${filtered.length} entries`);
+  return filtered;
+}
+
 /**
  * Build the catalog string for the Gemini prompt:
  * one line per unique job_type with its label.
@@ -252,7 +339,11 @@ export async function lookupMarketPrices(
 
   console.log("[MarketPrices] Loaded", allPrices.length, "price rows");
 
-  // 2. Build set of valid job_type identifiers + label lookup from catalog
+  // 2. Pre-filter catalog to relevant entries (reduces from 470+ to ~20-80)
+  const relevantPrices = filterRelevantPrices(allPrices as MarketPriceRow[], workItems);
+
+  // Build set of valid job_type identifiers + label lookup from FULL catalog
+  // (used for validation — we validate against ALL catalog entries, not just filtered)
   const validJobTypes = new Set<string>();
   const catalogLabels = new Map<string, string>();
   // Normalized (lowercase + trim) → canonical job_type, for fuzzy fallback
@@ -265,8 +356,8 @@ export async function lookupMarketPrices(
     }
   }
 
-  // 3. Ask Gemini to identify job types and assign lines
-  const catalog = buildCatalog(allPrices as MarketPriceRow[]);
+  // 3. Ask Gemini to identify job types and assign lines — using FILTERED catalog
+  const catalog = buildCatalog(relevantPrices);
   const jobTypes = await groupWithGemini(workItems, catalog, googleApiKey, config.marketPriceExpertPrompt);
 
   console.log(`[MarketPrices] ${workItems.length} work items, ${jobTypes.length} job types from Gemini`);
@@ -310,21 +401,56 @@ export async function lookupMarketPrices(
   for (const jt of jobTypes) {
     if (jt.work_items.length === 0) continue;
 
-    // Validate job_types against catalog — filter out invented ones, with normalized fallback
+    // Validate job_types against catalog — 3-level fallback
     const originalJobTypes = [...jt.job_types];
     const validatedJobTypes: string[] = [];
     for (const jtype of jt.job_types) {
+      // Level 1: exact match
       if (validJobTypes.has(jtype)) {
         validatedJobTypes.push(jtype);
-      } else {
-        // Fuzzy fallback: try normalized (lowercase, trim, spaces→underscores)
-        const normalized = jtype.toLowerCase().trim().replace(/\s+/g, "_");
-        const canonical = normalizedToCanonical.get(normalized);
-        if (canonical) {
-          console.log(`[MarketPrices] Fuzzy match "${jtype}" → "${canonical}"`);
-          validatedJobTypes.push(canonical);
+        continue;
+      }
+
+      const normalized = jtype.toLowerCase().trim().replace(/\s+/g, "_");
+
+      // Level 2: normalized exact match (case + spaces)
+      const canonicalExact = normalizedToCanonical.get(normalized);
+      if (canonicalExact) {
+        console.log(`[MarketPrices] L2 exact-normalized "${jtype}" → "${canonicalExact}"`);
+        validatedJobTypes.push(canonicalExact);
+        continue;
+      }
+
+      // Level 3: prefix/substring match
+      // e.g. Gemini returns "carrelage_sol" → catalog has "carrelage_sol_fourniture_pose"
+      // e.g. Gemini returns "peinture_mur" → catalog has "peinture_mur_fourniture"
+      let prefixMatch: string | null = null;
+      let prefixMatchScore = 0;
+      for (const [catalogNorm, catalogCanonical] of normalizedToCanonical.entries()) {
+        // catalogNorm starts with normalized (Gemini is a prefix of catalog key)
+        if (catalogNorm.startsWith(normalized + "_") || catalogNorm === normalized) {
+          const score = normalized.length; // prefer longer prefix matches
+          if (score > prefixMatchScore) {
+            prefixMatchScore = score;
+            prefixMatch = catalogCanonical;
+          }
+        }
+        // normalized starts with catalogNorm (catalog key is a prefix of Gemini's identifier)
+        else if (normalized.startsWith(catalogNorm + "_")) {
+          const score = catalogNorm.length;
+          if (score > prefixMatchScore) {
+            prefixMatchScore = score;
+            prefixMatch = catalogCanonical;
+          }
         }
       }
+      if (prefixMatch) {
+        console.log(`[MarketPrices] L3 prefix-match "${jtype}" → "${prefixMatch}"`);
+        validatedJobTypes.push(prefixMatch);
+        continue;
+      }
+
+      console.warn(`[MarketPrices] No match for invented job_type "${jtype}" in group "${jt.job_type_label}"`);
     }
     const invalidJobTypes = originalJobTypes.filter((jtype) => !validatedJobTypes.includes(jtype) && !validJobTypes.has(jtype));
     if (invalidJobTypes.length > 0) {
