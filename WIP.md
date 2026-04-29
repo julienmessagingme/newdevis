@@ -370,24 +370,32 @@ UI Settings : checkboxes par catégorie pour activer/désactiver chaque trigger.
 
 ## 15. Fix analyse devis — géolocalisation ABF + prix marché
 
-✅ **Déployé 2026-04-29 (commit `33b4edc`).**
+✅ **Déployé et validé en prod 2026-04-29 (commit final `02cdbbb`).**
 
 ### Géolocalisation ABF (`verify.ts`)
 `if (hasAddressData)` — tente la géolocalisation dès qu'on a `code_postal` OU `ville` OU `adresse_chantier` (avant : bloqué si `code_postal` null).
 
-### Prix marché (`market-prices.ts`) — fix complet 2026-04-29
-**Cause racine identifiée** : catalogue 470+ entrées envoyé entier à Gemini-2.0-flash → le modèle inventait des identifiants inexistants → tout finissait dans "Autre".
+### Prix marché (`market-prices.ts`) — fix complet validé
+**Cause racine** : catalogue 470+ entrées envoyé entier à Gemini-2.0-flash → le modèle inventait des identifiants → tout finissait dans "Autre" → "Aucun poste avec référence de prix marché". L'Indice Stratégique Immobilier tombait aussi (il dépend des mêmes matched groups).
 
-**Fix 1 — Pré-filtrage catalogue** (cause principale) :
-- `filterRelevantPrices()` analyse le texte du devis (descriptions + catégories)
-- Détecte les domaines présents via ~180 triggers de mots-clés (carrelage, peinture, plomberie, menuiserie, etc.)
-- Réduit le catalogue de 470+ à ~20-80 entrées avant l'appel Gemini
-- Fallback : catalogue complet si < 8 entrées filtrées
+**Architecture de résolution — 3 couches indépendantes** :
 
-**Fix 2 — Matching 3 niveaux** :
-- L1 : exact match
-- L2 : normalized (lowercase + underscores)
-- L3 : prefix/substring bidirectionnel (`"carrelage_sol"` → `"carrelage_sol_fourniture_pose"` ✓)
+**Couche 1 — Pré-filtrage catalogue** (`filterRelevantPrices`) :
+- Détecte les domaines du devis via ~180 triggers de mots-clés
+- Réduit 470+ → ~20-80 entrées avant l'appel Gemini
+- Fallback : catalogue complet si < 8 entrées
+
+**Couche 2 — Matching 5 niveaux sur les identifiants Gemini** :
+- L1 exact (+ trim espaces)
+- L2 normalized (lowercase + underscores)
+- L3 préfixe bidirectionnel
+- L4 token-boundary substring (`"pose_carrelage_sol_fourniture"` → `"carrelage_sol"`)
+- L5 sémantique : scoring de tokens sur label + descriptions, indépendant du respect des identifiants
+
+**Couche 3 — Fallback d'urgence** (`matchedGroups === 0`) :
+- Si Gemini API fail, timeout ou JSON invalide → 0 groupes
+- Matching direct par `categorie` des work items (issus de l'extraction Phase 1)
+- Complètement indépendant de Gemini pour cette phase
 
 ---
 

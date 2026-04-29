@@ -1105,7 +1105,23 @@ La edge function `parse-quote` envoie le texte OCR à **Google Gemini** avec un 
 
 **Géolocalisation (verify.ts)** : la requête est construite depuis `adresse_chantier + code_postal + ville` (les 3 concaténés si disponibles). Le bloc s'active dès qu'AU MOINS un de ces champs est non-null — la présence du `code_postal` seul n'est plus requise. Sans géolocalisation réussie, `patrimoine_status = "inconnu"` et le bloc ABF/GPU est skippé.
 
-**Prix marché (market-prices.ts)** : validation des identifiants catalogue retournés par Gemini en 2 passes : (1) exact match sur `job_type`, (2) fuzzy match normalisé (lowercase + trim + espaces→underscores) comme fallback. Les identifiants non reconnus des deux passes partent en groupe "Autre" (sans prix de référence).
+**Prix marché (market-prices.ts)** — architecture de résolution en 3 couches indépendantes (validée prod 2026-04-29) :
+
+**Couche 1 — Pré-filtrage catalogue** (`filterRelevantPrices`) :
+Le catalogue `market_prices` compte 470+ entrées. Envoyer tout à Gemini-2.0-flash provoque des inventions d'identifiants. La fonction détecte les domaines de travaux présents dans les descriptions via ~180 triggers de mots-clés (carrelage, peinture, plomberie, menuiserie, chauffage, etc.) et réduit le catalogue à ~20-80 entrées avant l'appel Gemini. Fallback : catalogue complet si < 8 entrées filtrées.
+
+**Couche 2 — Matching 5 niveaux** sur les identifiants retournés par Gemini :
+- L1 : exact match (+ trim)
+- L2 : normalized exact (lowercase + underscores)
+- L3 : préfixe bidirectionnel (`"carrelage_sol"` → `"carrelage_sol_fourniture_pose"` ✓)
+- L4 : token-boundary substring (`"pose_carrelage_sol_fourniture"` → `"carrelage_sol"` ✓)
+- L5 : scoring sémantique de tokens sur label + descriptions du groupe (indépendant du respect des identifiants par Gemini)
+- Group-L5 : même scoring au niveau groupe entier si `job_types: []`
+
+**Couche 3 — Fallback d'urgence** (si `matchedGroups === 0`) :
+Si Gemini API fail, timeout ou JSON invalide → 0 groupes. Matching direct par champ `categorie` des work items issus de l'extraction Phase 1, complètement sans Gemini. L'Indice Stratégique Immobilier™ dépend des mêmes `matched groups` — il tombe si cette pipeline échoue.
+
+**Diagnostic si régression** : logs Supabase → Functions → analyze-quote → chercher `[MarketPrices] Gemini raw response` (raw Gemini), `ALL 5 LEVELS FAILED` (couche 2 manquante), `Emergency fallback` (couche 3 déclenchée).
 
 ### Étape 5 : Scoring et résultat
 
