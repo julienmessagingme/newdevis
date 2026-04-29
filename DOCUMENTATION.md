@@ -2020,8 +2020,13 @@ Modal pour enregistrer une dépense sans fichier attaché.
 
 | Champ | Valeurs possibles |
 |---|---|
-| `documentType` (type de dépense) | `facture` \| `ticket_caisse` \| `achat_materiaux` |
+| `documentType` (type de dépense) | `facture` \| `ticket_caisse` \| `achat_materiaux` \| `frais` |
 | `factureStatut` (statut) | `recue` \| `payee` \| `payee_partiellement` \| `en_litige` |
+
+**Règles de gestion par `depense_type` dans `budget.ts`** :
+- `ticket_caisse`, `achat_materiaux`, `frais` → toujours comptés en `paye` quelle que soit la valeur de `facture_statut` (jamais en `a_payer`).
+- Ces trois types n'ont pas de devis par définition → exclus de l'alerte "Devis manquant" (constante `SANS_DEVIS_TYPES` dans `BudgetTab.tsx`).
+- UI : affichage d'un badge "Payé" statique sans dropdown de changement de statut.
 
 ---
 

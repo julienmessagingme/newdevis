@@ -255,8 +255,9 @@ Quatre vues complémentaires (sous-onglets internes).
 - Statuts facture cliquables : reçue · payée partiellement · payée · en litige
 - **Recherche + filtres** : par artisan, statut, lot
 - **Indicateurs d'alerte** :
-  - "Devis manquant" (ambre) si une facture existe sans devis associé
+  - "Devis manquant" (ambre) si une facture existe sans devis associé — **exclu** pour `ticket_caisse`, `achat_materiaux`, `frais` (pas de devis par définition)
   - "📝 X€ frais" si des frais déclarés au chat sont rattachés
+- **Statut des tickets et achats** : `ticket_caisse` et `achat_materiaux` affichent un badge "Payé" statique sans dropdown — ces documents sont toujours déjà payés. Ils sont comptés dans le total `payé` peu importe leur `facture_statut` DB.
 - Bouton "+ Ajouter un document" : upload manuel d'un devis/facture/ticket
 - **Gestion des versements échelonnés** (`VersementsDrawer`) : pour chaque artisan dont le devis est "acompte" ou "soldé", un drawer slide-right permet de créer / modifier / supprimer des versements individuels. Règle de plafond : la somme des versements ne peut pas dépasser le montant engagé de l'artisan (cap validé à la saisie). Chaque nouveau versement invite à joindre un justificatif (reçu, virement, photo). Date de versement = jour même par défaut, modifiable. Les versements sont stockés dans `documents_chantier.cashflow_terms` (JSONB) et reflétés via la VIEW `payment_events_v` dans le cashflow et l'échéancier — voir DOCUMENTATION.md § Architecture cashflow.
 - **Enveloppe budget** : la valeur initiale est chargée depuis `chantiers.enveloppe_prevue` (DB) au montage — plus d'initialisation auto depuis le montant engagé.
