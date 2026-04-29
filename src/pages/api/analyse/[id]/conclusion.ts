@@ -50,6 +50,24 @@ const M2_UNITS = ["m²", "m2", "m ²", "mètre carré", "metre carre", "m2 ht", 
 const UNIT_LIKE = ["u", "unité", "unité", "unite", "forfait", "ens", "ensemble",
                    "prestation", "pce", "pièce", "piece", "lot", "global", "art", "article"];
 
+/**
+ * Extrait la surface totale en m² connue depuis les lignes du groupe.
+ * Cherche les lignes ayant une unité m² avec une quantité positive.
+ * Retourne null si aucune surface explicite trouvée.
+ */
+function extractKnownSurface(lines: any[]): number | null {
+  let total = 0;
+  for (const l of lines) {
+    const u = (l.unit || l.unite || "").toLowerCase().trim();
+    const qty = typeof l.quantity === "number" ? l.quantity
+      : typeof l.quantite === "number" ? l.quantite : 0;
+    if (qty > 0 && M2_UNITS.some(m => u.includes(m))) {
+      total += qty;
+    }
+  }
+  return total > 0 ? total : null;
+}
+
 function hasSurfaceUnitMismatch(group: Record<string, any>): boolean {
   const label = (group.job_type_label || "").toLowerCase();
   const unit  = (group.main_unit || "").toLowerCase().trim();
@@ -71,7 +89,13 @@ function hasSurfaceUnitMismatch(group: Record<string, any>): boolean {
   // L'unité ne doit PAS être m²
   const isM2 = M2_UNITS.some(u => unit.includes(u));
   const isUnitLike = UNIT_LIKE.some(u => unit === u || unit.startsWith(u + " "));
-  return !isM2 && isUnitLike;
+  if (!(!isM2 && isUnitLike)) return false;
+
+  // Si la surface est explicitement connue via une ligne m² dans le groupe, pas de mismatch
+  const knownSurface = extractKnownSurface(lines);
+  if (knownSurface !== null) return false;
+
+  return true;
 }
 
 /**
