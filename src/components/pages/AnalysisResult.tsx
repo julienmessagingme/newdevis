@@ -357,6 +357,16 @@ const AnalysisResult = () => {
       return;
     }
 
+    // Admin check inline — admins can view any analysis regardless of owner
+    const { data: roleData } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .maybeSingle();
+    const isAdminFetch = !!roleData;
+    if (isAdminFetch) setIsAdmin(true);
+
     // Check for pending ownership transfer (user logged into existing account after anonymous analysis)
     const pendingRaw = localStorage.getItem("pendingAnalysisTransfer");
     if (pendingRaw) {
@@ -389,16 +399,13 @@ const AnalysisResult = () => {
       }
     }
 
-    const { data, error } = await supabase
-      .from("analyses")
-      .select("*")
-      .eq("id", id)
-      .eq("user_id", user.id)
-      .single();
+    // Admins bypass the user_id ownership filter
+    const query = supabase.from("analyses").select("*").eq("id", id);
+    const { data, error } = await (isAdminFetch ? query : query.eq("user_id", user.id)).single();
 
     if (error || !data) {
       toast.error("Analyse non trouvée");
-      window.location.href = backHref;
+      window.location.href = isAdminFetch ? "/admin" : backHref;
       return;
     }
 
