@@ -514,6 +514,9 @@ export async function lookupMarketPrices(
   // Corrige le cas où Gemini retourne main_quantity=1 pour N éléments distincts (ex: 3 volets roulants × 1U → doit être 3).
   // NE PAS appliquer aux surfaces (m², ml) : Gemini gère le déduplication préparation+finition sur même surface.
   const SURFACE_UNITS = new Set(["m2", "m²", "ml", "ML", "m", "M", "m3", "m³"]);
+  // Unités forfait françaises — NE PAS auto-corriger la quantité pour ces unités
+  // ("F" et "fft" sont des abréviations courantes de "forfait" dans les devis BTP)
+  const FORFAIT_UNITS = new Set(["f", "fft", "ff", "ens", "forfait", "global", "prestation", "ensemble"]);
   for (const jt of jobTypes) {
     const lines = jt.work_items.map((idx) => workItems[idx]).filter(Boolean);
     const linesWithQty = lines.filter(
@@ -523,7 +526,7 @@ export async function lookupMarketPrices(
       const uniqueUnits = new Set(linesWithQty.map((l) => l.unit));
       const unit = linesWithQty[0].unit as string;
       // Seulement pour les unités dénombrables, pas les surfaces
-      if (uniqueUnits.size === 1 && !SURFACE_UNITS.has(unit)) {
+      if (uniqueUnits.size === 1 && !SURFACE_UNITS.has(unit) && !FORFAIT_UNITS.has(unit.toLowerCase())) {
         const sumQty = linesWithQty.reduce((sum, l) => sum + (l.quantity || 0), 0);
         if (sumQty > 0 && sumQty !== jt.main_quantity) {
           console.log(

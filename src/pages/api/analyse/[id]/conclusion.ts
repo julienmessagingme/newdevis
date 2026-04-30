@@ -25,7 +25,8 @@ export type { AnomalieConclusion, ConclusionData } from "@/lib/conclusionTypes";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const FORFAIT_UNIT_KEYWORDS = ["forfait", "global", "prestation", "ensemble", "installation complète"];
+// "f" et "fft" = abréviations françaises de "forfait" courantes dans les devis BTP
+const FORFAIT_UNIT_KEYWORDS = ["forfait", "global", "prestation", "ensemble", "installation complète", "f", "fft", "ff", "ens"];
 
 // Postes dont la comparaison marché se fait en m² mais que l'artisan peut facturer en U/forfait
 const SURFACE_WORK_KEYWORDS = [
