@@ -13,7 +13,7 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ## 20. Bug versements Budget — unification + fix source de vérité
 
-🔴 **Analyse complète, implémentation à faire.**
+✅ **Implémenté et déployé (2026-04-30). Commits `payment-events.ts` + `VersementsDrawer.tsx` + `BudgetTab.tsx` → push `00a2046`.**
 
 ### Problèmes constatés (rapport user 2026-04-30)
 
