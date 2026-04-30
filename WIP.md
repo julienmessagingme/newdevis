@@ -11,6 +11,88 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## 20. Bug versements Budget — unification + fix source de vérité
+
+🔴 **Analyse complète, implémentation à faire.**
+
+### Problèmes constatés (rapport user 2026-04-30)
+
+1. **Bouton "+ Ajouter un versement" ne fait rien (ou quasi rien)** — `VersementsDrawer`
+2. **Modifier un acompte sur une facture écrase l'acompte précédent** — input inline `BudgetTab`
+3. **Deux flows différents pour la même action** — input inline facture vs VersementsDrawer
+
+### Diagnostic technique
+
+#### Bug #1 — Loading loop dans VersementsDrawer
+
+`loadEvents` est un `useCallback` qui dépend de `knownEventIds`. BudgetTab passe `knownEventIds` comme `[...eventIds, ...allPendingEvents.map(e => e.id)]` — **nouvelle référence tableau à chaque render**. Quand BudgetTab re-render (ex: `onRefresh` appelé), `knownEventIds` change d'identité → `loadEvents` change → `useEffect` reffire → `setLoading(true)` → le contenu est remplacé par le spinner → l'état `showForm` (qui a été mis à `true` par le clic) est masqué ou perdu dans la foulée.
+
+Même problème avec `sourceIds` : `artisan.devis.map(d => d.id)` = nouvelle référence à chaque render.
+
+Second bug silencieux : `Authorization: bearer` (sans préfixe `Bearer `) → 401 probable sur l'API → `setLoading(false)` quand même → spinner disparaît → liste vide → pas d'erreur affichée.
+
+#### Bug #2 — Inline acompte écrase la valeur précédente
+
+`saveInlineAcompte` fait `PATCH /api/chantier/[id]/documents/[factureId]` avec `{ factureStatut: 'payee_partiellement', montantPaye }`. C'est un simple `UPDATE documents_chantier SET montant_paye = X`. La valeur précédente est perdue. Pas de cumul, pas d'historique.
+
+#### Bug #3 — cashflow_extras sans source_id ne s'affichent pas dans le Budget
+
+`VersementsDrawer` crée des `cashflow_extras` via `POST { manuel: true }`. L'API insère dans `cashflow_extras` **sans** `source_id`. La VIEW `payment_events_v` (branche 3) expose ces extras avec `source_id = null`. Budget API filtre `.not('source_id', 'is', null)` → les cashflow_extras sans source_id sont exclus de `eventsPayeByDoc` → la colonne "Payé" du Budget ne change pas après un versement. C'est pour ça que "rien ne se passe" visuellement.
+
+#### Architecture source de vérité (rappel)
+
+| Couche | Source | Budget l'utilise ? |
+|--------|--------|--------------------|
+| `cashflow_terms` JSONB dans `documents_chantier` | devis/facture versements | ✅ oui (branche 2 VIEW) |
+| `cashflow_extras` | mouvements manuels flottants | ❌ non (branche 3, source_id=null) |
+| `documents_chantier.montant_paye` | legacy acompte facture | ✅ fallback si pas cashflow_terms |
+
+Pour qu'un versement impacte le Budget → il doit être dans `cashflow_terms` du document source.
+
+### Plan d'implémentation
+
+#### 1. `payment-events.ts` — Nouveau variant POST `addToDocument`
+
+```typescript
+if (body.addToDocument === true) {
+  // Appende un term dans documents_chantier.cashflow_terms
+  // Génère un event_id UUID (pour compatibilité VIEW branche 2)
+  // Si sourceType = 'facture' + status = 'paid' :
+  //   recalcule montant_paye = sum(cashflow_terms paid) + amount
+  //   updates facture_statut = 'payee' | 'payee_partiellement'
+}
+```
+
+#### 2. `VersementsDrawer.tsx` — 3 fixes
+
+- **Stabiliser loadEvents** : `useRef` sur les props instables (sourceIds, knownEventIds) + `refreshKey` state. loadEvents ne dépend plus de props changeantes.
+- **Fixer Authorization header** : `Authorization: bearer` → `Authorization: \`Bearer ${bearer}\``
+- **Ajouter props** `primaryDocumentId?: string` + `primaryDocumentType?: 'devis' | 'facture'` : quand fournis, `addVersement()` utilise `addToDocument: true` au lieu de `manuel: true`
+
+#### 3. `BudgetTab.tsx` — Unification
+
+- **Étendre le type `versementsDrawer`** : ajouter `primaryDocumentId?` + `primaryDocumentType?`
+- **Remplacer l'inline acompte facture** : clic sur "Saisir acompte" / "acompte: Xk€" → `setVersementsDrawer({ ..., primaryDocumentId: primaryFacture.id, primaryDocumentType: 'facture' })` au lieu d'ouvrir l'input inline
+- **Supprimer `saveInlineAcompte`** (la fonction qui fait le PATCH direct `montant_paye`)
+- `saveInlineAcompteDevis` (pour devis sans facture) → inchangé (utilise correctement payment_events PATCH)
+
+### Fichiers à modifier
+
+| Fichier | Changement |
+|---------|------------|
+| `src/pages/api/chantier/[id]/payment-events.ts` | Nouveau variant POST `addToDocument` |
+| `src/components/chantier/cockpit/VersementsDrawer.tsx` | Fix loading loop + auth header + props primaryDocument |
+| `src/components/chantier/cockpit/BudgetTab.tsx` | Unification facture → VersementsDrawer, suppression saveInlineAcompte |
+
+### Ce qui NE change PAS
+
+- `saveInlineAcompteDevis` (devis sans facture) — déjà correct via PATCH payment_events
+- L'API `PATCH payment-events` — inchangée
+- La VIEW `payment_events_v` — inchangée (cashflow_terms branche 2 gère déjà les event_id stables)
+- Le flow Échéancier — inchangé
+
+---
+
 ## 1. Intégration OpenClaw (mode agent alternatif)
 
 🟡 **Partiellement implémentée — utilisable mais incomplète.**
