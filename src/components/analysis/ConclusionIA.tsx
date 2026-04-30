@@ -325,52 +325,35 @@ export function ConclusionIA({ analysisId, conclusionIaRaw }: ConclusionIAProps)
     initialRaw: conclusionIaRaw,
   });
 
-  // ── Pas encore de conclusion ──────────────────────────────────────────────
-  if (!conclusion && !isGenerating) {
-    return (
-      <div className="border-2 border-dashed border-primary/25 rounded-2xl p-5 sm:p-6 mb-6 bg-primary/3">
-        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
-          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <Sparkles className="h-6 w-6 text-primary" />
-          </div>
-          <div className="flex-1 text-center sm:text-left">
-            <p className="font-bold text-foreground text-base">
-              Dois-je signer ce devis ?
-            </p>
-            <p className="text-sm text-muted-foreground mt-1 max-w-md">
-              Obtenez en 10 secondes un verdict expert : anomalies de prix, niveau de risque, surcoût estimé et les 3 actions à faire avant de signer.
-            </p>
-            {error && (
-              <p className="text-xs text-red-600 dark:text-red-400 mt-2">{error}</p>
-            )}
-            <Button
-              onClick={() => generate()}
-              disabled={isGenerating}
-              className="mt-3 gap-2"
-              size="sm"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              Obtenir le verdict expert
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Génération en cours ───────────────────────────────────────────────────
-  if (isGenerating && !conclusion) {
+  // ── Génération en cours ou en attente ────────────────────────────────────
+  if (!conclusion) {
     return (
       <div className="border-2 border-primary/20 rounded-2xl p-5 sm:p-6 mb-6 bg-primary/3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <Loader2 className="h-5 w-5 text-primary animate-spin" />
+            {isGenerating
+              ? <Loader2 className="h-5 w-5 text-primary animate-spin" />
+              : <Sparkles className="h-5 w-5 text-primary" />
+            }
           </div>
-          <div>
-            <p className="font-semibold text-foreground text-sm">Analyse en cours…</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Détection des anomalies, calcul du risque et rédaction des actions
+          <div className="flex-1">
+            <p className="font-semibold text-foreground text-sm">
+              {isGenerating ? "Analyse en cours…" : "Dois-je signer ce devis ?"}
             </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {isGenerating
+                ? "Détection des anomalies, calcul du risque et rédaction des actions"
+                : "Préparation du verdict expert…"
+              }
+            </p>
+            {error && (
+              <div className="mt-2 flex items-center gap-2">
+                <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+                <Button onClick={() => generate()} disabled={isGenerating} size="sm" variant="outline" className="h-7 text-xs px-2">
+                  Réessayer
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>

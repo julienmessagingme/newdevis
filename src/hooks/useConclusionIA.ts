@@ -43,6 +43,15 @@ export function useConclusionIA({
     }
   }, [initialRaw]);
 
+  // ── Auto-trigger : si aucune conclusion en cache, génère automatiquement ──
+  // Déclenché une seule fois au mount. Les appels suivants utilisent le cache DB.
+  useEffect(() => {
+    if (!initialRaw) {
+      generate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionnellement vide — mount uniquement
+
   // ── Génération via l'API route ────────────────────────────────────────────
   const generate = useCallback(async (force = false) => {
     if (isGenerating) return;

@@ -701,7 +701,7 @@ const BlockPrixMarche = ({
             onClick={() => setIsBlockOpen(!isBlockOpen)}
             className="w-full flex items-center gap-3 text-left cursor-pointer"
           >
-            <h2 className="font-bold text-foreground text-xl">Analyse Prix & Cohérence Marché</h2>
+            <h2 className="font-bold text-foreground text-xl">Analyse des postes</h2>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>

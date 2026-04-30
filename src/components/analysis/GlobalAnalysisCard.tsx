@@ -1,13 +1,6 @@
 import type { GlobalAnalysis } from "@/lib/quoteGlobalAnalysis";
 
 // ============================================================
-// HELPERS
-// ============================================================
-
-const fmt = (n: number): string =>
-  n.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + "\u00a0€";
-
-// ============================================================
 // SUB-COMPONENTS
 // ============================================================
 
@@ -33,51 +26,10 @@ function StatChip({ value, label, color }: StatChipProps) {
   );
 }
 
-interface ActionItemProps {
-  text: string;
-  /** Affiche le texte en gras + couleur accent */
-  emphasis?: boolean;
-}
-
-function ActionItem({ text, emphasis = false }: ActionItemProps) {
-  return (
-    <li className="flex items-start gap-2 text-sm">
-      <span className="mt-0.5 flex-shrink-0 text-base leading-none">👉</span>
-      <span className={emphasis ? "font-semibold text-foreground" : "text-foreground/90"}>{text}</span>
-    </li>
-  );
-}
-
-// ============================================================
-// STATUS CONFIG
-// ============================================================
-
-const STATUS_CONFIG = {
-  correct: {
-    containerCls: "bg-green-50  border-green-200  dark:bg-green-950/30  dark:border-green-800",
-    titleCls:     "text-green-800  dark:text-green-300",
-    costCls:      "text-green-700  dark:text-green-400",
-    icon:         "🟢",
-    title:        "Devis globalement cohérent",
-  },
-  a_negocier: {
-    containerCls: "bg-orange-50 border-orange-200 dark:bg-orange-950/30 dark:border-orange-800",
-    titleCls:     "text-orange-800 dark:text-orange-300",
-    costCls:      "text-orange-700 dark:text-orange-400",
-    icon:         "🟠",
-    title:        "Devis à négocier avant signature",
-  },
-  risque_eleve: {
-    containerCls: "bg-red-50    border-red-200    dark:bg-red-950/30    dark:border-red-800",
-    titleCls:     "text-red-800    dark:text-red-300",
-    costCls:      "text-red-700    dark:text-red-400",
-    icon:         "🔴",
-    title:        "Devis à risque élevé",
-  },
-} as const;
-
 // ============================================================
 // MAIN COMPONENT
+// Rôle : afficher UNIQUEMENT le décompte des postes par catégorie de prix.
+// Le verdict, le surcoût et les actions vivent exclusivement dans ConclusionIA.
 // ============================================================
 
 interface GlobalAnalysisCardProps {
@@ -86,168 +38,44 @@ interface GlobalAnalysisCardProps {
 
 export function GlobalAnalysisCard({ analysis }: GlobalAnalysisCardProps) {
   const {
-    status,
     nbNormal,
     nbLegerementEleve,
     nbSurvalue,
     nbAnomalie,
     nbForfait,
-    surcoutEstime,
-    surcoutMin,
-    surcoutMax,
-    anomalieItems,
-    survalueItems,
     totalItemsAnalyzed,
   } = analysis;
 
   // N'affiche rien s'il n'y a aucun poste comparable ET aucun forfait
   if (totalItemsAnalyzed === 0 && nbForfait === 0) return null;
 
-  // Si tous les postes sont des forfaits, on ne peut pas porter de verdict fiable
-  const allForfait = totalItemsAnalyzed === 0 && nbForfait > 0;
-
-  // Si tous les postes sont forfaitaires → affichage spécifique sans verdict
-  if (allForfait) {
+  // Cas forfait global uniquement
+  if (totalItemsAnalyzed === 0 && nbForfait > 0) {
     return (
-      <div
-        className="rounded-2xl border-2 p-4 sm:p-6 mb-5 bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800"
-        role="region"
-        aria-label="Analyse globale du devis"
-      >
-        <div className="flex items-start gap-3">
-          <span className="text-2xl leading-none flex-shrink-0 mt-0.5" aria-hidden="true">ℹ️</span>
-          <div className="min-w-0">
-            <h3 className="font-bold text-base sm:text-lg leading-tight text-blue-800 dark:text-blue-300">
-              Devis au forfait global — comparaison indicative
-            </h3>
-            <p className="text-sm text-blue-700/80 dark:text-blue-400/80 mt-1.5 leading-relaxed">
-              Ce devis est structuré en prestation(s) forfaitaire(s) globale(s).
-              La comparaison ligne par ligne avec les prix unitaires marché est moins pertinente —
-              demandez le détail des postes à l'artisan pour comparer efficacement.
-            </p>
-          </div>
-        </div>
+      <div className="rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 px-4 py-3 mb-4">
+        <p className="text-xs text-blue-700 dark:text-blue-400 leading-snug">
+          <strong>Devis au forfait global.</strong>{" "}
+          Demandez le détail des postes à l&apos;artisan pour comparer efficacement avec le marché.
+        </p>
       </div>
     );
   }
 
-  const cfg = STATUS_CONFIG[status];
-
   return (
-    <div
-      className={`rounded-2xl border-2 p-4 sm:p-6 mb-5 ${cfg.containerCls}`}
-      role="region"
-      aria-label="Analyse globale du devis"
-    >
-      {/* ── En-tête ─────────────────────────────────────────── */}
-      <div className="flex items-start gap-3 mb-5">
-        <span className="text-2xl leading-none flex-shrink-0 mt-0.5" aria-hidden="true">
-          {cfg.icon}
-        </span>
-        <div className="min-w-0">
-          <h3 className={`font-bold text-base sm:text-lg leading-tight ${cfg.titleCls}`}>
-            {cfg.title}
-          </h3>
-          <p className="text-xs text-muted-foreground mt-1">
-            Basé sur{" "}
-            <strong>{totalItemsAnalyzed}</strong>{" "}
-            poste{totalItemsAnalyzed > 1 ? "s" : ""} avec référence marché
-            {nbForfait > 0 && (
-              <> · <span className="text-blue-600 dark:text-blue-400">{nbForfait} forfait{nbForfait > 1 ? "s" : ""} exclu{nbForfait > 1 ? "s" : ""}</span></>
-            )}
-          </p>
-        </div>
-      </div>
-
-      <div className="space-y-5">
-
-        {/* ── Synthèse ─────────────────────────────────────────── */}
-        <section>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
-            📊 Synthèse
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <StatChip value={nbNormal}          label="Correct"           color="green"  />
-            <StatChip value={nbLegerementEleve}  label="Légèrement élevé" color="amber"  />
-            <StatChip value={nbSurvalue}         label="Surévalué"        color="orange" />
-            <StatChip value={nbAnomalie}         label="Anomalie majeure" color="red"    />
-          </div>
-        </section>
-
-        {/* ── Surcoût estimé (uniquement si > 0) ───────────────── */}
-        {surcoutEstime > 0 && (
-          <section>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
-              💸 Surcoût estimé
-            </p>
-            <div className="bg-background/60 rounded-xl border border-border/40 px-4 py-3">
-              <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3">
-                <span className={`text-2xl font-bold tabular-nums ${cfg.costCls}`}>
-                  {fmt(surcoutMin)}{" "}–{" "}{fmt(surcoutMax)}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  au-dessus des fourchettes marché
-                </span>
-              </div>
-              {/* Liste des postes concernés */}
-              {(anomalieItems.length > 0 || survalueItems.length > 0) && (
-                <div className="mt-2.5 pt-2.5 border-t border-border/30 flex flex-wrap gap-x-4 gap-y-1">
-                  {anomalieItems.map((item) => (
-                    <span key={item.label} className="text-[11px] text-red-700 dark:text-red-400 font-medium">
-                      🔴 {item.label} (+{fmt(item.surcout)})
-                    </span>
-                  ))}
-                  {survalueItems.map((item) => (
-                    <span key={item.label} className="text-[11px] text-orange-700 dark:text-orange-400 font-medium">
-                      🟠 {item.label} (+{fmt(item.surcout)})
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
+    <div className="mb-4">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+        Répartition des postes
+        {nbForfait > 0 && (
+          <span className="ml-2 text-blue-600 dark:text-blue-400 normal-case font-normal">
+            &middot; {nbForfait} forfait{nbForfait > 1 ? "s" : ""} exclu{nbForfait > 1 ? "s" : ""} de la comparaison
+          </span>
         )}
-
-        {/* ── Plan d'action (uniquement si des écarts existent) ── */}
-        {(nbAnomalie > 0 || nbSurvalue > 0 || nbForfait > 0 || status !== "correct") && (
-          <section>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
-              Plan d'action
-            </p>
-            <ul className="space-y-2">
-              {nbAnomalie > 0 && (
-                <ActionItem
-                  text={
-                    anomalieItems.length === 1
-                      ? `Demandez des explications détaillées pour le poste "${anomalieItems[0].label}" (prix anormalement élevé)`
-                      : `Demandez des explications détaillées pour les ${nbAnomalie} postes anormalement élevés`
-                  }
-                />
-              )}
-              {nbSurvalue > 0 && (
-                <ActionItem
-                  text={
-                    survalueItems.length === 1
-                      ? `Négociez le poste "${survalueItems[0].label}" ou comparez avec d'autres devis`
-                      : `Négociez les ${nbSurvalue} postes surévalués ou comparez avec d'autres devis`
-                  }
-                />
-              )}
-              {nbForfait > 0 && (
-                <ActionItem
-                  text={`Demandez le détail du forfait${nbForfait > 1 ? " de chaque prestation" : ""} à l'artisan — la comparaison au prix unitaire marché est indicative`}
-                />
-              )}
-              {status !== "correct" && (
-                <ActionItem
-                  text="Nous recommandons de ne pas signer sans clarification des écarts identifiés"
-                  emphasis
-                />
-              )}
-            </ul>
-          </section>
-        )}
-
+      </p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <StatChip value={nbNormal}          label="Prix correct"      color="green"  />
+        <StatChip value={nbLegerementEleve}  label="Légèrement élevé" color="amber"  />
+        <StatChip value={nbSurvalue}         label="Surévalué"        color="orange" />
+        <StatChip value={nbAnomalie}         label="Prix anormal"     color="red"    />
       </div>
     </div>
   );
