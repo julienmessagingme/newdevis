@@ -1,4 +1,5 @@
-import { Loader2, Sparkles, RefreshCw, CheckCircle2 } from "lucide-react";
+import { useState } from "react";
+import { Loader2, Sparkles, RefreshCw, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConclusionIA } from "@/hooks/useConclusionIA";
 import type { ConclusionData, AnomalieConclusion } from "@/lib/conclusionTypes";
@@ -151,11 +152,32 @@ function ConclusionDisplay({
   onRegenerate: () => void;
   isGenerating: boolean;
 }) {
+  const [copied, setCopied] = useState(false);
+
   const decisionCfg = DECISION_CONFIG[conclusion.verdict_decisionnel] ?? DECISION_CONFIG.signer_avec_negociation;
   const risqueCfg   = RISQUE_CONFIG[conclusion.niveau_risque]         ?? RISQUE_CONFIG["modéré"];
   const chipCls     = VERDICT_CHIP[conclusion.verdict_global]         ?? VERDICT_CHIP.a_negocier;
   const chipLabel   = VERDICT_LABEL[conclusion.verdict_global]        ?? "À négocier";
   const hasSurcout  = conclusion.surcout_global.max > 0;
+
+  const handleCopy = () => {
+    const lines: string[] = [
+      `Analyse de devis — ${new Date(conclusion.generated_at).toLocaleDateString("fr-FR")}`,
+      "",
+      `Verdict : ${decisionCfg.label}`,
+    ];
+    if (hasSurcout) {
+      lines.push(`Surcoût estimé : ${fmtPrice(conclusion.surcout_global.min)} – ${fmtPrice(conclusion.surcout_global.max)}`);
+    }
+    if (conclusion.actions_avant_signature.length > 0) {
+      lines.push("", "Points à discuter avant de signer :");
+      conclusion.actions_avant_signature.forEach((a, i) => lines.push(`${i + 1}. ${a}`));
+    }
+    navigator.clipboard.writeText(lines.join("\n")).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -241,9 +263,9 @@ function ConclusionDisplay({
       {conclusion.actions_avant_signature.length > 0 && (
         <div className="rounded-xl border border-border bg-muted/30 px-4 py-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-            ✅ À faire avant de signer
+            Ce que vous devez faire avant de signer
           </p>
-          <ol className="space-y-2.5">
+          <ol className="space-y-2.5 mb-4">
             {conclusion.actions_avant_signature.map((action, i) => (
               <li key={i} className="flex items-start gap-3">
                 <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center mt-0.5">
@@ -253,6 +275,16 @@ function ConclusionDisplay({
               </li>
             ))}
           </ol>
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-border bg-background hover:bg-muted/60 transition-colors text-sm font-medium text-foreground"
+          >
+            {copied
+              ? <><Check className="h-4 w-4 text-green-600" />Copié !</>
+              : <><Copy className="h-4 w-4" />Copier les points à négocier</>
+            }
+          </button>
         </div>
       )}
 

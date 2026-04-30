@@ -18,7 +18,7 @@ import {
   ShieldCheck,
   FileCheck
 } from "lucide-react";
-import { getScoreIcon, getScoreLabel, getScoreBgClass, getScoreTextClass } from "@/lib/scoreUtils";
+import { getScoreBadge } from "@/lib/scoreUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 // generatePdfReport chargé dynamiquement (jsPDF ~250 Ko évité au chargement initial)
@@ -841,92 +841,61 @@ const AnalysisResult = () => {
           {backLabel}
         </a>
 
-        {/* Score Hero */}
-        <div className={`border-2 rounded-2xl p-6 md:p-8 mb-8 ${getScoreBgClass(analysis.score)}`}>
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground mb-2">Score de fiabilité global</p>
-              <h1 className={`text-3xl md:text-4xl font-bold flex items-center gap-3 ${getScoreTextClass(analysis.score)}`}>
-                {getScoreIcon(analysis.score, "h-8 w-8")}
-                {getScoreLabel(analysis.score)}
-              </h1>
-              <p className="text-sm text-muted-foreground mt-3">
-                {analysis.score === "VERT" && "Aucun critère critique ni combinaison de signaux majeurs détectés."}
-                {analysis.score === "ORANGE" && "Certaines informations n'ont pas été trouvées dans le devis transmis."}
-                {analysis.score === "ROUGE" && "Des critères critiques ou une combinaison de signaux forts ont été détectés."}
-              </p>
-              {isAnonymous && (
-                <div className="mt-3 inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-3 py-1.5">
-                  <Lock className="h-3.5 w-3.5 text-primary" />
-                  <span className="text-xs font-medium text-primary">Analyse prix marché verrouillée — créez un compte pour y accéder</span>
-                </div>
-              )}
+        {/* ── Barre de contexte (compacte) ── */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 p-4 bg-card border border-border rounded-xl">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
+              <FileText className="h-5 w-5 text-muted-foreground" />
             </div>
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center">
-                <FileText className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <div>
-                <p className="font-medium text-foreground">{analysis.file_name}</p>
-                <p className="text-sm text-muted-foreground">
-                  Analysé le {new Date(analysis.created_at).toLocaleDateString("fr-FR")}
-                </p>
-              </div>
+            <div className="min-w-0">
+              <p className="font-medium text-sm text-foreground leading-tight truncate">{analysis.file_name}</p>
+              <p className="text-xs text-muted-foreground">
+                Analysé le {new Date(analysis.created_at).toLocaleDateString("fr-FR")}
+              </p>
             </div>
           </div>
-
-          {/* Score explanation */}
-          <div className="mt-6 p-4 bg-background/50 rounded-xl border border-border/50">
-            <p className="text-xs text-muted-foreground mb-3">
-              <strong className="text-foreground">💡 Comment interpréter ce score ?</strong><br />
-              Ce score est calculé selon une hiérarchie de critères : les <strong>critères critiques</strong> entraînent automatiquement un feu rouge, les <strong>critères majeurs</strong> génèrent des vigilances, et les <strong>critères de confort</strong> renforcent la confiance.
-            </p>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {getScoreBadge(analysis.score, analysis.status)}
             <a
               href={`/comprendre-score?fromAnalysis=true&analysisId=${id}`}
-              className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-medium"
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2 whitespace-nowrap"
             >
-              En savoir plus sur le scoring →
+              Comprendre
             </a>
           </div>
         </div>
 
-        {/* Adapted Analysis Banner - for diagnostics and prestations techniques */}
-        {isAdaptedAnalysis && (
-          <AdaptedAnalysisBanner mode={analysisMode} />
-        )}
+        {/* ── Score ROUGE — motifs critiques (si applicable) ── */}
+        {analysis.score === "ROUGE" && (() => {
+          const criteresRougesTop: string[] = (() => {
+            try { return JSON.parse(analysis.raw_text || "")?.scoring?.criteres_rouges ?? []; }
+            catch { return []; }
+          })();
+          if (!criteresRougesTop.length) return null;
+          return (
+            <div className="flex items-start gap-3 p-4 mb-4 bg-red-50 border border-red-200 rounded-xl">
+              <XCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-red-800 text-sm mb-1">Anomalie(s) critique(s) détectée(s)</p>
+                <ul className="space-y-0.5">
+                  {criteresRougesTop.map((c, i) => (
+                    <li key={i} className="text-xs text-red-700 flex items-start gap-1.5">
+                      <span className="shrink-0 mt-0.5">•</span><span>{c}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          );
+        })()}
 
-        {/* Admin Warning if extraction incomplete */}
+        {/* ── Bannière analyse adaptée ── */}
+        {isAdaptedAnalysis && <AdaptedAnalysisBanner mode={analysisMode} />}
+
+        {/* ── Warning extraction incomplète (admin) ── */}
         <ExtractionIncompleteWarning analysisId={analysis.id} />
 
-        {/* Recommandations — en haut, avant les blocs détaillés */}
-        {analysis.recommandations && analysis.recommandations.length > 0 && (
-          <div className="bg-accent/50 border border-border rounded-xl p-6 mb-8">
-            <h2 className="font-semibold text-foreground mb-4">Nos recommandations</h2>
-            <ul className="space-y-3">
-              {analysis.recommandations.map((rec, index) => (
-                <li key={index} className="flex items-start gap-3">
-                  <span className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-medium text-primary">
-                    {index + 1}
-                  </span>
-                  <p className="text-foreground">{rec}</p>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* INDICE STRATÉGIQUE — résumé décisionnel, visible avant les blocs */}
-        <div id="strategic-index">
-          <StrategicBadge
-            rawText={analysis.raw_text ?? null}
-            isPremium={isPermanent || isAdmin}
-            onAuthSuccess={handleAuthConversion}
-            convertToPermanent={convertToPermanent}
-            currentUserId={authUser?.id}
-          />
-        </div>
-
-        {/* Date validité dépassée */}
+        {/* ── Devis expiré ── */}
         {(() => {
           const expiry = parseDevisExpiry(analysis.raw_text);
           if (!expiry || !expiry.expired) return null;
@@ -943,7 +912,26 @@ const AnalysisResult = () => {
           );
         })()}
 
-        {/* BLOC 1 — Entreprise & Fiabilité */}
+        {/* ══════════════════════════════════════════════════════
+            BLOC 1 — VERDICT EXPERT (premier bloc, above the fold)
+        ══════════════════════════════════════════════════════ */}
+        {visibleBlocks.includes("prix_marche") && cachedN8NData && (
+          <ConclusionIA
+            analysisId={analysis.id}
+            conclusionIaRaw={analysis.conclusion_ia ?? null}
+          />
+        )}
+
+        {isAnonymous && (
+          <div className="mb-6 flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-xl px-4 py-3">
+            <Lock className="h-4 w-4 text-primary flex-shrink-0" />
+            <span className="text-sm font-medium text-primary">Analyse prix marché verrouillée — créez un compte pour y accéder</span>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════
+            BLOC 2 — ENTREPRISE (fiabilité artisan)
+        ══════════════════════════════════════════════════════ */}
         {visibleBlocks.includes("entreprise") && (
           <BlockEntreprise
             pointsOk={analysis.points_ok || []}
@@ -953,7 +941,9 @@ const AnalysisResult = () => {
           />
         )}
 
-        {/* BLOC 2 — Analyse Prix & Cohérence Marché (API-driven) */}
+        {/* ══════════════════════════════════════════════════════
+            BLOC 3 — DÉTAIL PRIX MARCHÉ (accordéon)
+        ══════════════════════════════════════════════════════ */}
         {visibleBlocks.includes("prix_marche") && (
           <BlockPrixMarche
             montantTotalHT={totalHT}
@@ -972,15 +962,9 @@ const AnalysisResult = () => {
           />
         )}
 
-        {/* CONCLUSION IA — Verdict expert narratif */}
-        {visibleBlocks.includes("prix_marche") && cachedN8NData && (
-          <ConclusionIA
-            analysisId={analysis.id}
-            conclusionIaRaw={analysis.conclusion_ia ?? null}
-          />
-        )}
-
-        {/* BLOC 3 — Sécurité & Conditions de paiement */}
+        {/* ══════════════════════════════════════════════════════
+            BLOC 4 — SÉCURITÉ & CONDITIONS DE PAIEMENT
+        ══════════════════════════════════════════════════════ */}
         {visibleBlocks.includes("securite") && (
           <BlockSecurite
             pointsOk={analysis.points_ok || []}
@@ -995,7 +979,9 @@ const AnalysisResult = () => {
           />
         )}
 
-        {/* BLOC 4 — Contexte du chantier */}
+        {/* ══════════════════════════════════════════════════════
+            BLOC 5 — CONTEXTE DU CHANTIER
+        ══════════════════════════════════════════════════════ */}
         {visibleBlocks.includes("contexte") && (
           <BlockContexte
             siteContext={analysis.site_context as any}
@@ -1007,12 +993,12 @@ const AnalysisResult = () => {
           />
         )}
 
-        {/* BLOC 5 — Urbanisme & Formalités CERFA */}
+        {/* Urbanisme & Formalités CERFA */}
         {visibleBlocks.includes("urbanisme") && (
           <BlockUrbanisme initialWorkType={analysis.work_type} />
         )}
 
-        {/* Remaining Points OK */}
+        {/* Points conformes & vigilance résiduels */}
         {remainingPointsOk.length > 0 && (
           <div className="bg-card border border-border rounded-xl p-6 mb-6 card-shadow">
             <h2 className="font-semibold text-foreground mb-4 flex items-center gap-2">
@@ -1029,8 +1015,6 @@ const AnalysisResult = () => {
             </ul>
           </div>
         )}
-
-        {/* Remaining Alertes */}
         {remainingAlertes.length > 0 && (
           <div className="bg-card border border-border rounded-xl p-6 mb-6 card-shadow">
             <h2 className="font-semibold text-foreground mb-4 flex items-center gap-2">
@@ -1048,7 +1032,20 @@ const AnalysisResult = () => {
           </div>
         )}
 
-        {/* Post-Signature Tracking Section (permanent users only) */}
+        {/* ══════════════════════════════════════════════════════
+            BLOC 6 — INDICE STRATÉGIQUE (secondaire — bas de page)
+        ══════════════════════════════════════════════════════ */}
+        <div id="strategic-index">
+          <StrategicBadge
+            rawText={analysis.raw_text ?? null}
+            isPremium={isPermanent || isAdmin}
+            onAuthSuccess={handleAuthConversion}
+            convertToPermanent={convertToPermanent}
+            currentUserId={authUser?.id}
+          />
+        </div>
+
+        {/* Suivi post-signature (permanent users) */}
         {!isAdaptedAnalysis && isPermanent && (
           <PostSignatureTrackingSection
             analysisId={analysis.id}
@@ -1061,32 +1058,7 @@ const AnalysisResult = () => {
           />
         )}
 
-        {/* Message de synthèse obligatoire */}
-        <div className="bg-primary/5 border border-primary/20 rounded-xl p-5 mb-6">
-          <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-            📊 Comment interpréter ce score ?
-          </h3>
-          <div className="text-xs text-muted-foreground space-y-2">
-            <p>Le score global résulte d'une <strong className="text-foreground">application stricte de règles prédéfinies</strong>.</p>
-            <p>Un score <strong className="text-score-orange">ORANGE</strong> indique des informations non trouvées dans le devis. <strong className="text-foreground">Vous pouvez les ajouter directement</strong>.</p>
-            <p>Un score <strong className="text-score-red">ROUGE</strong> est réservé à des <strong className="text-foreground">situations factuellement critiques</strong> : entreprise radiée, procédure collective, paiement en espèces, acompte &gt; 50%, ou <strong className="text-foreground">non-dépôt des comptes annuels depuis plus de 6 ans</strong> (obligation légale).</p>
-          </div>
-          {analysis.score === "ROUGE" && criteresRouges.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-border/40">
-              <p className="text-xs font-medium text-red-700 mb-2">Motif(s) du score rouge :</p>
-              <ul className="space-y-1">
-                {criteresRouges.map((critere, i) => (
-                  <li key={i} className="text-xs text-red-700 flex items-start gap-1.5">
-                    <span className="mt-0.5 shrink-0">•</span>
-                    <span>{critere}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-
-        {/* OCR Debug Panel - Admin Only (lazy-loaded, hidden for anonymous users) */}
+        {/* OCR Debug Panel - Admin Only */}
         {!isAnonymous && (
           <Suspense fallback={null}>
             <OcrDebugPanel analysisId={analysis.id} />
