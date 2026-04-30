@@ -466,6 +466,32 @@ Le verdict expert injectait systématiquement "Demandez la surface exacte en m²
 
 ---
 
+## 19. Optimisation homepage copy + UX finale écran analyse
+
+✅ **Déployé 2026-04-30 (commit `4442e11`).**
+
+### Homepage (`index.astro` + `HowItWorksSection.tsx`)
+- **H1** : "Votre devis est-il trop cher ?" — question directe orientée décision
+- **Sous-titre** : promesse en 2 lignes (uploadez PDF, 60s, détecte prix anormaux, quoi négocier)
+- **CTA** : "Voir si je paye trop cher →" (remplace "Analyser mon devis gratuitement")
+- **Micro-copy CTA** : "Gratuit · Sans inscription · Résultat immédiat"
+- **3 proof bullets** : économies 1 200–4 500 €, 470+ postes, résultat < 1min
+- **Meta title/description** alignés avec le nouveau positionnement
+- **HowItWorks** : étapes réorientées verdict/négociation, sous-titre "3 étapes. Moins d'une minute."
+
+### ConclusionIA (`ConclusionIA.tsx`)
+- **Surcoût géant** : chiffre central (midpoint arrondi à 100€) en `text-5xl/6xl`, fourchette en sous-label
+- **Verdict labels décisionnels** : "🟠 À négocier — prix au-dessus du marché" / "🔴 Ne signez pas — anomalies majeures détectées"
+- **Ligne justificatrice** dynamique : "→ N postes dépassent largement les prix du marché"
+- **Crédibilité** : "Analyse basée sur des milliers de prix travaux en France"
+- **CTA remonté** juste après le verdict, pleine largeur, `📋 Copier le message pour négocier`
+- **Micro-copy** : "Voici exactement quoi dire à votre artisan :"
+- **Max 3 anomalies** visible + expand "Voir les X autres anomalies"
+- **Max 3 actions** visible + expand "+X autres points"
+- **Loader 3 étapes** animées (✓ / pulse / cercle) — jamais d'écran vide
+
+---
+
 ## 16. Score HubSpot — Tap Targets + JS Libraries
 
 ✅ **Livré 2026-04-28.**
