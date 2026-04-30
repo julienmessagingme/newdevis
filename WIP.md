@@ -93,6 +93,25 @@ if (body.addToDocument === true) {
 
 ---
 
+## 21. Hallucinations analyse devis — entête entreprise + escalier + surfaces
+
+✅ **Corrigé et déployé (2026-04-30). Commit `a9bd773`.**
+
+### Problèmes constatés
+
+1. **"Pompe + filtre piscine" halluciné** sur un devis de pavage/escalier : la société KERN TERRASSEMENT a "Piscine" dans son en-tête commercial. Gemini lisait cet en-tête et assignait `categorie: "piscine"` → domaine piscine déclenché → catalogue `pompe_piscine` inclus → groupes inventés.
+2. **"Pose monte-escalier"** au lieu de "Carrelage escalier" : Gemini confondait "escalier" (maçonnerie/carrelage) avec l'entrée catalogue `monte_escalier` (équipement mécanique).
+3. **Surface doublée** (136 m² au lieu de 65 m²) : plusieurs opérations sur la même surface physique additionnées à tort (fond de forme 65m² + concassé 65m² + pavé 65m² = 136 affiché).
+
+### Fixes
+
+- **`domain-config.ts` extractionSystemPrompt** : règle critique — `categorie` doit venir des lignes de travaux UNIQUEMENT, jamais de l'en-tête entreprise.
+- **`domain-config.ts` marketPriceExpertPrompt** : 2 règles absolues — (1) en-tête entreprise ≠ travaux, (2) escalier maçonnerie/carrelage ≠ monte-escalier.
+- **`market-prices.ts` filterRelevantPrices** : domaine `piscine` ne se déclenche plus sur le champ `category` (qui peut être contaminé par l'en-tête), seulement sur les `description` des lignes.
+- **`market-prices.ts` règle VRD/pavage** : renforcée avec exemple explicite fond de forme + concassé + pavé = 1 seule surface.
+
+---
+
 ## 1. Intégration OpenClaw (mode agent alternatif)
 
 🟡 **Partiellement implémentée — utilisable mais incomplète.**
