@@ -399,6 +399,23 @@ UI Settings : checkboxes par catégorie pour activer/désactiver chaque trigger.
 
 ---
 
+## 17. Fix verdict expert — message générique surface
+
+✅ **Déployé 2026-04-30 (commit `99b6e27`).**
+
+### Problème
+Le verdict expert injectait systématiquement "Demandez la surface exacte en m² pour X — Si < 8 m² le prix est élevé, négociez ; si > 12 m² le prix est cohérent" même quand les surfaces étaient explicitement présentes dans les lignes du devis (ex: "Achat carreaux mur 15.36 m²").
+
+### Cause
+`hasSurfaceUnitMismatch()` dans `conclusion.ts` détectait un "mismatch" sur les groupes de pose (unité = forfait) sans vérifier si les autres lignes du même groupe avaient une quantité m² explicite.
+
+### Fix
+- `extractKnownSurface(lines)` : scanne les `devis_lines` du groupe, cumule les quantités des lignes avec unité m². Retourne `null` si aucune trouvée.
+- `hasSurfaceUnitMismatch()` : retourne `false` si `extractKnownSurface` trouve une surface — le message générique n'est pas injecté.
+- Cas résolu : devis carrelage avec pose en forfait + achat carreaux en m² dans le même groupe → surface connue, pas de fausse alerte.
+
+---
+
 ## 16. Score HubSpot — Tap Targets + JS Libraries
 
 ✅ **Livré 2026-04-28.**

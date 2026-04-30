@@ -77,6 +77,10 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 - **Prompt "plus de types = mieux"** a causé 1 groupe par ligne de devis. Solution : cibler explicitement 3-7 groupes avec regroupement large.
 - **gemini-2.5-flash sur message court "oui"** après une longue proposition assistant → retourne content vide et `completion_tokens:0`. Compensation dans `index.ts` : injection système "l'utilisateur CONFIRME, appelle le tool maintenant".
 
+### Verdict expert — analyse de devis
+
+- **Message générique "Si < 8 m² le prix est élevé…" même quand la surface est connue** : symptôme = `hasSurfaceUnitMismatch()` retourne `true` sur un groupe de pose (unité = forfait) même si une ligne "achat matériaux" du même groupe précise la surface en m². Cause : la fonction vérifiait uniquement l'unité du groupe (`main_unit`), pas les `devis_lines` individuelles. **Fix dans `src/pages/api/analyse/[id]/conclusion.ts`** : `extractKnownSurface(lines)` scanne les `devis_lines` du groupe — si au moins une ligne a une unité m² avec une quantité > 0, `hasSurfaceUnitMismatch()` retourne `false` et le message générique n'est pas injecté. **Ne pas supprimer ce guard** : sans lui, tout devis carrelage/parquet avec pose forfait + achat m² séparés déclenche un faux message de mise en garde.
+
 ### Frontend / React
 
 - **React hooks après conditional return (Error #310)** : dans `AnalysisResult.tsx`, les hooks (`useState`, `useRef`) doivent être déclarés AVANT tout `if (loading) return`. Sinon React voit un nombre de hooks différent entre renders → crash production.
