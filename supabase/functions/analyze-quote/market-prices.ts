@@ -476,7 +476,41 @@ export async function lookupMarketPrices(
 
   console.log(`[MarketPrices] ${workItems.length} work items, ${jobTypes.length} job types from Gemini`);
 
-  // 3b. Override main_quantity UNIQUEMENT pour les items dénombrables (U/unité/pce).
+  // 3b-bis. FOURNITURE vs HORS-FOURNITURE override (server-side guard).
+  // If Gemini picked a "_mo" / "hors_fourniture" catalog entry but the work item descriptions
+  // clearly mention "fourniture" + "pose", switch to the equivalent "_fourniture_pose" entry.
+  // This guard is independent of prompt instructions and fires even when Gemini ignores the rule.
+  for (const jt of jobTypes) {
+    if (!jt.job_types || jt.job_types.length === 0) continue;
+    const groupWorkItems = jt.work_items.map((idx) => workItems[idx]).filter(Boolean) as WorkItemFull[];
+    const allDesc = stripAccents(groupWorkItems.map((w) => w.description.toLowerCase()).join(" "));
+    const hasFourniturePose = allDesc.includes("fourniture") && (allDesc.includes("pose") || allDesc.includes("posa"));
+
+    if (!hasFourniturePose) continue;
+
+    const overridden: string[] = [];
+    for (const jtype of jt.job_types) {
+      const normalized = jtype.toLowerCase();
+      // Detect "_mo", "_hors_fourniture", "_pose_seule", "_pose_only" suffixes/patterns
+      const isMoOnly = /_mo$/.test(normalized) || normalized.includes("hors_fourniture") || normalized.includes("pose_seule");
+      if (!isMoOnly) { overridden.push(jtype); continue; }
+
+      // Try to find equivalent fourniture_pose entry in full catalog
+      const basePart = normalized.replace(/_mo$/, "").replace(/_hors_fourniture$/, "").replace(/_pose_seule$/, "");
+      const fpCandidate = `${basePart}_fourniture_pose`;
+      const fpCanonical = [...validJobTypes].find((v) => v.toLowerCase() === fpCandidate);
+      if (fpCanonical) {
+        console.log(`[MarketPrices] fourniture-override: "${jtype}" → "${fpCanonical}" (group "${jt.job_type_label}")`);
+        overridden.push(fpCanonical);
+      } else {
+        // Keep as-is if no fourniture_pose variant exists
+        overridden.push(jtype);
+      }
+    }
+    jt.job_types = overridden;
+  }
+
+  // 3c. Override main_quantity UNIQUEMENT pour les items dénombrables (U/unité/pce).
   // Corrige le cas où Gemini retourne main_quantity=1 pour N éléments distincts (ex: 3 volets roulants × 1U → doit être 3).
   // NE PAS appliquer aux surfaces (m², ml) : Gemini gère le déduplication préparation+finition sur même surface.
   const SURFACE_UNITS = new Set(["m2", "m²", "ml", "ML", "m", "M", "m3", "m³"]);
