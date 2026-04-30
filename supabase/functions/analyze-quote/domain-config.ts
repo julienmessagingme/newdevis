@@ -105,6 +105,15 @@ MENUISERIES (fenêtres, baies vitrées, portes-fenêtres, châssis composés) :
 ESCALIER :
 8. "Fabrication et pose d'un escalier" (fourniture + main d'œuvre) ne se compare PAS à "pose_escalier_mo" (main d'œuvre seule). Si le devis inclut la fabrication sur-mesure, utilise job_types: [] (pas de référence marché fiable) plutôt qu'une comparaison incorrecte.
 
+CARRELAGE / REVÊTEMENT SOL — RÈGLE FOURNITURE vs HORS FOURNITURE :
+- Si le libellé contient "fourniture" ET "pose" (ex: "Fourniture pose dalle céramique", "Fourniture et pose carrelage", "Fourniture et pose faïence") → utilise OBLIGATOIREMENT un identifiant "fourniture_pose". Ne jamais utiliser un identifiant "_mo", "_pose_seule" ou contenant "hors_fourniture" pour un poste qui inclut la fourniture.
+- Si le libellé contient "pose seule", "hors fourniture", "MO", "main d'œuvre seule" → version hors fourniture uniquement.
+- Les postes accessoires d'un groupe carrelage (chape, primaire d'accrochage, étanchéité, baguette de finition, coupe) → rattacher au groupe carrelage principal, ne pas créer un groupe séparé.
+
+DÉPOSE / DÉMOLITION — RÈGLE UNITÉ FORFAIT :
+- Si des postes de dépose (dépose carrelage, démolition chape, etc.) sont en UNITÉ FORFAIT (F, forfait, ensemble) → NE PAS les regrouper avec des postes au m². Créer un groupe séparé avec job_types: [] si aucune référence catalogue en forfait n'est disponible, plutôt que de comparer un forfait à un prix au m².
+- Si plusieurs dépose en forfait couvrent des surfaces différentes (escalier + terrasse) → ne pas additionner les quantités, car les montants forfaitaires ne sont pas additifs par m².
+
 CLIMATISATION / CVC :
 9. Mono-split (1 unité intérieure + 1 unité extérieure) → utilise "clim"
    Multi-split (plusieurs unités intérieures + 1 unité extérieure) → utilise "clim_multisplit" (main_quantity = nombre d'unités intérieures), accessoires/liaisons frigorifiques → "clim_accessoires"
