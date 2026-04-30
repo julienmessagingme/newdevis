@@ -500,7 +500,7 @@ const AnalysisResult = () => {
     try {
       if (rawToCheck) {
         const parsed = JSON.parse(rawToCheck);
-        const conclusionScore = VERDICT_TO_SCORE[parsed?.verdict ?? ""] ?? null;
+        const conclusionScore = VERDICT_TO_SCORE[parsed?.verdict_decisionnel ?? ""] ?? null;
         if (conclusionScore && (RANK[conclusionScore] ?? 0) > (RANK[baseScore] ?? 0)) {
           return conclusionScore;
         }
