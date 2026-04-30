@@ -165,7 +165,10 @@ function filterRelevantPrices(allPrices: MarketPriceRow[], workItems: WorkItemFu
     vrd: ["vrd", "enrobe", "voirie", "bitume"],
     porte: ["porte_", "bloc_porte"],
     terrassement: ["terrassement", "terrassier", "deblai"],
-    amenagement: ["terrasse", "portail", "cloture", "piscine", "pergola", "allee", "amenagement"],
+    amenagement: ["terrasse", "portail", "cloture", "pergola", "allee", "amenagement"],
+    // "piscine" retiré intentionnellement de amenagement — les entrées catalogue piscine ne doivent
+    // entrer que si le domaine "piscine" est déclenché directement (descriptions only, pas categories).
+    // Sinon, une entreprise "Aménagement / Piscine" pollue le catalogue même sur un devis de pavage.
     placo: ["placo", "cloison", "doublage"],
   };
 
@@ -183,6 +186,26 @@ function filterRelevantPrices(allPrices: MarketPriceRow[], workItems: WorkItemFu
   if (filtered.length < 8) {
     console.log(`[MarketPrices] Filtered too small (${filtered.length}) — using full catalog`);
     return allPrices;
+  }
+
+  // ── Post-filter : PISCINE hard block ────────────────────────────────────────
+  // Piscine catalog entries are only kept if at least one work item DESCRIPTION
+  // (never category — too easily contaminated by company header) explicitly mentions
+  // actual piscine construction/equipment keywords.
+  // This is the last line of defence against hallucinated "Pompe + filtre piscine"
+  // groups on pavage/carrelage devis from companies that list "Piscine" in their header.
+  const PISCINE_WORK_KEYWORDS = ["bassin", "liner", "margelle", "filtration", "piscine", "nage", "pompe de piscine", "robot piscine"];
+  const hasPiscineWork = workItems.some((w) =>
+    PISCINE_WORK_KEYWORDS.some((kw) => stripAccents(w.description.toLowerCase()).includes(stripAccents(kw)))
+  );
+  const piscineEntries = filtered.filter((p) => p.job_type.toLowerCase().includes("piscine"));
+  if (!hasPiscineWork && piscineEntries.length > 0) {
+    console.log(`[MarketPrices] Post-filter: removing ${piscineEntries.length} piscine entries — no piscine work in descriptions`);
+    const cleaned = filtered.filter((p) => !p.job_type.toLowerCase().includes("piscine"));
+    // Re-check minimum size after removing piscine entries
+    if (cleaned.length >= 8) return cleaned;
+    console.log(`[MarketPrices] Post-filter: cleaned catalog too small (${cleaned.length}), keeping non-piscine + full fallback`);
+    return allPrices.filter((p) => !p.job_type.toLowerCase().includes("piscine"));
   }
 
   console.log(`[MarketPrices] Catalog pre-filtered: ${allPrices.length} → ${filtered.length} entries`);

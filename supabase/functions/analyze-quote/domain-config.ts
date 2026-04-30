@@ -81,6 +81,8 @@ RÈGLE ABSOLUE — EN-TÊTE ENTREPRISE : La raison sociale, le slogan ou la list
 
 ESCALIER vs MONTE-ESCALIER : Un escalier en maçonnerie/carrelage (dépose carrelage, chape ciment, dalle céramique, primaire d'accrochage, coupe dalles, ip14) = travaux de finition sur des marches → utiliser l'identifiant carrelage le plus adapté (carrelage_sol, carrelage_escalier ou similaire). "Monte-escalier" désigne un équipement mécanique d'élévation (stairlift) — ne jamais l'utiliser pour des travaux de maçonnerie ou carrelage sur escalier.
 
+PISCINE — RÈGLE ABSOLUE : N'utilise JAMAIS un identifiant catalogue contenant "piscine" (pompe_piscine, filtration_piscine, liner_piscine, etc.) si aucun poste du devis ne mentionne explicitement les mots "piscine", "bassin", "liner", "margelle" ou "filtration". La présence de "Piscine" dans le nom ou l'en-tête de l'entreprise ne constitue PAS un travaux de piscine.
+
 RÈGLE GÉNÉRALE : Pour tous les postes du devis, sélectionne l'identifiant du CATALOGUE qui correspond le mieux. Les règles ci-dessous sont des précisions pour des cas ambigus uniquement — elles ne remplacent pas la correspondance catalogue pour les autres types de travaux (électricité, plomberie, peinture, maçonnerie, etc.).
 
 PRÉCISIONS PAR TYPE DE TRAVAUX (cas ambigus uniquement) :

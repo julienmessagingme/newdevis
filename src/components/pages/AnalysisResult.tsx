@@ -480,6 +480,30 @@ const AnalysisResult = () => {
   const totalHT = useMemo(() => calculateTotalHT(analysis?.types_travaux), [analysis?.types_travaux]);
   const visibleBlocks = useMemo(() => getVisibleBlocks(analysis?.domain || "travaux"), [analysis?.domain]);
 
+  // Effective score — takes the worst of analysis.score (entreprise) and ConclusionIA verdict (prix marché).
+  // ConclusionIA can only make the score worse, never better — prevents "Feu Vert" header
+  // contradicting "À négocier" verdict below.
+  const effectiveScore = useMemo(() => {
+    if (!analysis) return null;
+    const RANK: Record<string, number> = { VERT: 0, ORANGE: 1, ROUGE: 2 };
+    const VERDICT_TO_SCORE: Record<string, string> = {
+      signer:                  "VERT",
+      signer_avec_negociation: "ORANGE",
+      ne_pas_signer:           "ROUGE",
+    };
+    const baseScore = analysis.score ?? "VERT";
+    try {
+      if (analysis.conclusion_ia) {
+        const parsed = JSON.parse(analysis.conclusion_ia);
+        const conclusionScore = VERDICT_TO_SCORE[parsed?.verdict ?? ""] ?? null;
+        if (conclusionScore && (RANK[conclusionScore] ?? 0) > (RANK[baseScore] ?? 0)) {
+          return conclusionScore;
+        }
+      }
+    } catch { /* ignore parse errors */ }
+    return baseScore;
+  }, [analysis]);
+
   // ---- Waiting message rotation (must be before any conditional return) ----
   const [waitingMsgIdx, setWaitingMsgIdx] = useState(0);
   const waitingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -862,7 +886,7 @@ const AnalysisResult = () => {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            {getScoreBadge(analysis.score, analysis.status)}
+            {getScoreBadge(effectiveScore, analysis.status)}
             <a
               href={`/comprendre-score?fromAnalysis=true&analysisId=${id}`}
               className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2 whitespace-nowrap"
@@ -873,7 +897,7 @@ const AnalysisResult = () => {
         </div>
 
         {/* ── Score ROUGE — motifs critiques (si applicable) ── */}
-        {analysis.score === "ROUGE" && (() => {
+        {effectiveScore === "ROUGE" && (() => {
           const criteresRougesTop: string[] = (() => {
             try { return JSON.parse(analysis.raw_text || "")?.scoring?.criteres_rouges ?? []; }
             catch { return []; }
