@@ -1122,6 +1122,7 @@ export default function BudgetTab({
   // Drawer versements échelonnés
   const [versementsDrawer, setVersementsDrawer] = useState<{
     artisanNom: string; budget: number; sourceIds: string[]; eventIds: string[];
+    primaryDocumentId?: string; primaryDocumentType?: 'devis' | 'facture';
   } | null>(null);
   // Alerte cohérence : montant versé ≠ montant prévu dans l'échéancier
   const [coherenceAlert, setCoherenceAlert] = useState<{
@@ -1726,17 +1727,23 @@ export default function BudgetTab({
 
                                   {/* 3. ACOMPTE INPUT/MODIFIER — facture partiellement payée */}
                                   {isAcompteStatut && primaryFacture && (
-                                    isSavingAcomp ? <Loader2 className="h-3 w-3 text-indigo-400 animate-spin" />
-                                    : isInlineOpen ? <AcompteInput max={primaryFacture.montant ?? undefined} onSave={v => saveInlineAcompte(primaryFacture.id, v)} />
-                                    : (
-                                      <button
-                                        onClick={e => { e.stopPropagation(); setInlineAcompte({ artisanKey, factureId: primaryFacture.id, value: primaryFacture.montant_paye ? String(primaryFacture.montant_paye) : '' }); }}
-                                        className="text-[10px] text-indigo-500 hover:text-indigo-700 flex items-center gap-1"
-                                      >
-                                        <Pencil className="h-2.5 w-2.5" />
-                                        {primaryFacture.montant_paye ? `acompte : ${fmtEur(primaryFacture.montant_paye)}` : 'Saisir acompte'}
-                                      </button>
-                                    )
+                                    <button
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        setVersementsDrawer({
+                                          artisanNom: artisanKey,
+                                          budget,
+                                          sourceIds: artisan.devis.map(d => d.id),
+                                          eventIds: [...eventIds, ...allPendingEvents.map(e => e.id)],
+                                          primaryDocumentId: primaryFacture.id,
+                                          primaryDocumentType: 'facture',
+                                        });
+                                      }}
+                                      className="text-[10px] text-indigo-500 hover:text-indigo-700 flex items-center gap-1"
+                                    >
+                                      <Pencil className="h-2.5 w-2.5" />
+                                      {primaryFacture.montant_paye ? `acompte : ${fmtEur(primaryFacture.montant_paye)}` : 'Saisir acompte'}
+                                    </button>
                                   )}
 
                                 </div>
@@ -1922,6 +1929,8 @@ export default function BudgetTab({
           budget={versementsDrawer.budget}
           sourceIds={versementsDrawer.sourceIds}
           knownEventIds={versementsDrawer.eventIds}
+          primaryDocumentId={versementsDrawer.primaryDocumentId}
+          primaryDocumentType={versementsDrawer.primaryDocumentType}
           onClose={() => setVersementsDrawer(null)}
           onRefresh={refresh}
         />
