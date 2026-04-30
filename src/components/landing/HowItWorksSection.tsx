@@ -1,23 +1,26 @@
-import { Upload, Search, FileCheck, ArrowRight } from "lucide-react";
+import { Upload, ScanSearch, BadgeCheck, ArrowRight } from "lucide-react";
 
 const steps = [
   {
     icon: Upload,
     title: "Déposez votre devis",
     description: "PDF, photo ou scan. L'IA lit tout — pas besoin de ressaisir quoi que ce soit.",
-    step: "01"
+    step: "01",
+    tags: null,
   },
   {
-    icon: Search,
-    title: "On compare chaque prix",
-    description: "Poste par poste, face aux tarifs réels du marché. Les anomalies sont détectées automatiquement.",
-    step: "02"
+    icon: ScanSearch,
+    title: "Analyse complète en 3 dimensions",
+    description: "Prix marché, fiabilité de l'entreprise, conformité du devis.",
+    step: "02",
+    tags: ["Prix marché", "Entreprise", "Conformité"],
   },
   {
-    icon: FileCheck,
-    title: "Vous recevez votre verdict",
-    description: "Surcoût estimé en euros + les arguments exacts pour négocier, prêts à envoyer.",
-    step: "03"
+    icon: BadgeCheck,
+    title: "Verdict clair + arguments prêts",
+    description: "Signer, négocier ou refuser — avec les éléments exacts à dire à votre artisan.",
+    step: "03",
+    tags: ["Signer", "Négocier", "Refuser"],
   }
 ];
 
@@ -54,13 +57,22 @@ const HowItWorksSection = () => {
                   <step.icon className="h-5 w-5 text-primary" />
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <h3 className="text-sm font-semibold text-foreground mb-1">
                     {step.title}
                   </h3>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
+                  <p className="text-xs text-muted-foreground leading-relaxed mb-2">
                     {step.description}
                   </p>
+                  {step.tags && (
+                    <div className="flex flex-wrap gap-1">
+                      {step.tags.map(tag => (
+                        <span key={tag} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-accent text-primary border border-primary/10">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

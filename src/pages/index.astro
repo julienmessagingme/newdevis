@@ -7,6 +7,7 @@ import CTASection from '@/components/landing/CTASection';
 import TrustpilotSection from '@/components/landing/TrustpilotSection';
 import BlogTeaser from '@/components/landing/BlogTeaser';
 import HowItWorksSection from '@/components/landing/HowItWorksSection';
+import WhatYouGetSection from '@/components/landing/WhatYouGetSection';
 import SimulateurAidesCard from '@/components/homepage/SimulateurAidesCard';
 // HeroSection inliné ci-dessous pour modification des textes uniquement
 
@@ -39,8 +40,8 @@ const jsonLd = {
 ---
 
 <BaseLayout
-  title="Votre devis est-il trop cher ? Analysez-le gratuitement | VerifierMonDevis.fr"
-  description="Uploadez votre devis PDF. En 60 secondes, détectez les prix anormaux, estimez le surcoût et obtenez les arguments exacts pour négocier avec votre artisan."
+  title="Votre devis est-il trop cher… ou risqué ? | VerifierMonDevis.fr"
+  description="Uploadez votre devis PDF. Surcoût estimé, entreprise vérifiée, anomalies détectées. Signez en confiance — ou refusez avec les bons arguments."
   canonical="https://www.verifiermondevis.fr/"
   jsonLd={jsonLd}
 >
@@ -64,9 +65,9 @@ const jsonLd = {
             <div class="text-center lg:text-left">
 
               <h1 class="text-2xl sm:text-3xl md:text-5xl lg:text-6xl font-bold text-primary-foreground mb-4 sm:mb-6 leading-tight px-2">
-                Votre devis est-il
+                Votre devis est-il trop cher…
                 <span class="relative inline-block">
-                  trop cher ?
+                  ou risqué ?
                   <svg class="absolute -bottom-1 sm:-bottom-2 left-0 w-full" viewBox="0 0 200 12" fill="none">
                     <path
                       d="M2 10C50 4 150 4 198 10"
@@ -82,8 +83,8 @@ const jsonLd = {
               </h1>
 
               <p class="text-base sm:text-lg md:text-xl text-primary-foreground/80 mb-6 sm:mb-8 max-w-xl mx-auto lg:mx-0 px-2">
-                Uploadez votre PDF. En 60 secondes, on détecte les prix anormaux
-                et vous dit exactement quoi négocier.
+                Uploadez votre PDF. On analyse le prix poste par poste, vérifie l'entreprise
+                et détecte les anomalies du devis. Résultat : signez, négociez ou refusez — avec les arguments exacts.
               </p>
 
               <div class="flex flex-col gap-3 sm:gap-4 sm:flex-row justify-center lg:justify-start mb-8 sm:mb-10 px-2">
@@ -105,7 +106,7 @@ const jsonLd = {
 
               <!-- Micro-copy CTA -->
               <p class="text-xs text-primary-foreground/60 text-center lg:text-left px-2 -mt-2 mb-4">
-                Gratuit · Sans inscription · Résultat immédiat
+                Analyse immédiate · Compte gratuit pour le détail complet
               </p>
 
               <!-- Proof bullets -->
@@ -114,19 +115,19 @@ const jsonLd = {
                   <svg class="h-4 w-4 text-score-green flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
                   </svg>
-                  <span>💶 Économies détectées en moyenne : <strong>1 200 € à 4 500 €</strong> par devis</span>
+                  <span>💶 Surcoût estimé en euros — poste par poste, <strong>470+ références marché</strong></span>
                 </div>
                 <div class="flex items-center gap-2">
                   <svg class="h-4 w-4 text-score-green flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
                   </svg>
-                  <span>✅ <strong>470+ postes</strong> comparés aux prix réels du marché</span>
+                  <span>🏢 Entreprise vérifiée — SIRET, ancienneté, avis clients</span>
                 </div>
                 <div class="flex items-center gap-2">
                   <svg class="h-4 w-4 text-score-green flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
                   </svg>
-                  <span>⚡ Résultat en moins d'une minute — sans rien remplir à la main</span>
+                  <span>⚠️ Risques détectés — acompte excessif, mentions absentes, incohérences</span>
                 </div>
               </div>
 
@@ -202,6 +203,7 @@ const jsonLd = {
 
       <div id="comment-ca-marche"></div>
       <HowItWorksSection client:visible />
+      <WhatYouGetSection client:visible />
 
       <!-- ══ Vous préparez des travaux ? ══ -->
       <section class="py-16 sm:py-20 bg-white border-b border-slate-100">
