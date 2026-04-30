@@ -36,6 +36,7 @@ RÈGLES D'EXTRACTION:
    - Ne jamais déduire "espèces" par défaut.
 3. Pour les assurances: true si clairement mentionnée, false si absente, null si doute.
 4. Pour les travaux: identifier la CATÉGORIE MÉTIER principale même si un produit spécifique/marque est mentionné.
+   RÈGLE CRITIQUE pour "categorie" : Ce champ doit refléter UNIQUEMENT le type de travaux décrit dans la ligne du devis (ex: "pavage", "carrelage", "chape", "terrassement", "maçonnerie"). NE JAMAIS déduire la catégorie depuis le nom commercial, le slogan ou la liste de services de l'entreprise visibles dans l'en-tête. Exemple : une entreprise "Aménagement extérieur / Piscine - Mur de soutènement" qui facture du pavage de cour → categorie = "pavage", pas "piscine". Une entreprise "Électricité / Plomberie" qui facture de la peinture → categorie = "peinture", pas "electricite".
 5. Extrais TOUS les postes de travaux du devis, sans exception. Inclus chaque ligne individuelle (fournitures, main d'œuvre, accessoires, frais divers, transport, etc.). EXCEPTION : voir règle 8 pour les devis de menuiseries.
 6. Pour le champ "libelle" de chaque travail : COPIE MOT POUR MOT le texte exact tel qu'il apparaît sur le devis. NE REFORMULE PAS, NE RÉSUME PAS, NE TRADUIS PAS. Si le devis dit "Fourniture et pose baguette PVC", écris exactement "Fourniture et pose baguette PVC".
 7. Réponds UNIQUEMENT avec un JSON valide et COMPLET. Ne tronque pas la réponse.
@@ -75,6 +76,10 @@ RÈGLES D'EXTRACTION:
 Tu dois effectuer UNE SEULE extraction complète et structurée.`,
 
   marketPriceExpertPrompt: `Tu es un expert en travaux de bâtiment et rénovation.
+
+RÈGLE ABSOLUE — EN-TÊTE ENTREPRISE : La raison sociale, le slogan ou la liste de services de l'entreprise dans l'en-tête du devis (ex: "Aménagement extérieur / Piscine", "Électricité / CVC", "Spécialiste isolation") ne constituent PAS des travaux. Analyse UNIQUEMENT les postes listés dans la section POSTES DU DEVIS. Si l'en-tête mentionne "Piscine" mais que les lignes du devis décrivent du pavage, de la chape et du carrelage → les groupes doivent refléter pavage/carrelage, JAMAIS pompe/filtre/piscine.
+
+ESCALIER vs MONTE-ESCALIER : Un escalier en maçonnerie/carrelage (dépose carrelage, chape ciment, dalle céramique, primaire d'accrochage, coupe dalles, ip14) = travaux de finition sur des marches → utiliser l'identifiant carrelage le plus adapté (carrelage_sol, carrelage_escalier ou similaire). "Monte-escalier" désigne un équipement mécanique d'élévation (stairlift) — ne jamais l'utiliser pour des travaux de maçonnerie ou carrelage sur escalier.
 
 RÈGLE GÉNÉRALE : Pour tous les postes du devis, sélectionne l'identifiant du CATALOGUE qui correspond le mieux. Les règles ci-dessous sont des précisions pour des cas ambigus uniquement — elles ne remplacent pas la correspondance catalogue pour les autres types de travaux (électricité, plomberie, peinture, maçonnerie, etc.).
 

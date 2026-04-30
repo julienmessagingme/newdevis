@@ -82,6 +82,10 @@ export interface MarketPriceDebug {
 // accuracy. Falls back to full catalog if no relevant domain is detected.
 // ============================================================
 
+// Domains that must appear in work DESCRIPTIONS (not just categories) to avoid false positives
+// from company headers leaking into the category field.
+const DESCRIPTION_ONLY_DOMAINS = new Set(["piscine"]);
+
 const DOMAIN_TRIGGERS: Record<string, string[]> = {
   carrelage: ["carrel", "faienc", "ceramiqu", "gres", "mosaiqu", "faïenc"],
   parquet: ["parquet", "stratifie", "plancher", "lame", "vinyle", "sol souple"],
@@ -126,13 +130,21 @@ function stripAccents(s: string): string {
 }
 
 function filterRelevantPrices(allPrices: MarketPriceRow[], workItems: WorkItemFull[]): MarketPriceRow[] {
+  // For most domains: check descriptions + categories
   const allText = stripAccents(
     workItems.map((w) => `${w.description} ${w.category || ""}`).join(" ").toLowerCase()
+  );
+  // For description-only domains: check only descriptions to avoid false positives from
+  // company headers leaking into the category field (e.g. "Entreprise de Piscine" header
+  // causing piscine domain to fire on a pavage devis).
+  const descOnlyText = stripAccents(
+    workItems.map((w) => w.description).join(" ").toLowerCase()
   );
 
   const relevantDomains = new Set<string>();
   for (const [domain, triggers] of Object.entries(DOMAIN_TRIGGERS)) {
-    if (triggers.some((t) => allText.includes(stripAccents(t.toLowerCase())))) {
+    const textToSearch = DESCRIPTION_ONLY_DOMAINS.has(domain) ? descOnlyText : allText;
+    if (triggers.some((t) => textToSearch.includes(stripAccents(t.toLowerCase())))) {
       relevantDomains.add(domain);
     }
   }
@@ -303,7 +315,11 @@ Exemples :
 - Enduisage 25.7m² + Peinture 25.7m² (même plafond) → main_quantity = 25.7m² (même surface, PAS 51.4)
 - Peinture cuisine 56.7m² + Peinture salon 54m² + Peinture chambre 36.4m² → main_quantity = 147.1m² (surfaces distinctes, on somme)
 - Si le groupe est un forfait global sans quantité explicite, main_quantity = 1.
-- CAS VRD/TERRASSEMENT/ENROBÉ (règle clé) : NIVELLEMENT 96m² + ÉVACUATION DÉBLAIS 96m² + PRÉPARATION SUPPORT 96m² + REVÊTEMENT ENROBÉ 96m² → c'est la MÊME surface de 96m² avec 4 opérations successives → main_quantity = 96m² (PAS 384m²). Règle générale : quand plusieurs postes VRD/terrassement (préparation, évacuation, compactage, reprofilage, revêtement) ont une quantité identique en M2, ils travaillent tous sur la MÊME surface — utiliser la quantité UNE SEULE FOIS.
+- CAS VRD/TERRASSEMENT/PAVAGE/DALLAGE (règle clé) : Quand plusieurs opérations successives s'appliquent à la MÊME surface physique avec la même quantité (ou très proche), ne compter cette surface QU'UNE SEULE FOIS.
+  Exemple TERRASSEMENT : fond de forme 65m² + concassé 65m² + pavé 65m² + sablage 65m² = même surface de 65m² → main_quantity = 65m² (PAS 260m²).
+  Exemple ENROBÉ : nivellement 96m² + évacuation 96m² + préparation 96m² + enrobé 96m² → main_quantity = 96m² (PAS 384m²).
+  Règle générale : pour un groupe de travaux sur une même zone (préparation + fourniture + pose + finition), la main_quantity = surface de la zone, pas la somme de toutes les lignes.
+  Cas particulier : si le groupe contient à la fois des lignes en m² ET une ligne en ml (bordure, caniveau), la main_quantity = surface m² principale, en ignorant le ml (unité différente).
 
 Réponds UNIQUEMENT en JSON (pas de markdown) :
 [
