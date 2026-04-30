@@ -3,20 +3,20 @@ import { Upload, Search, FileCheck, ArrowRight } from "lucide-react";
 const steps = [
   {
     icon: Upload,
-    title: "Téléchargez votre devis",
-    description: "Importez votre devis au format PDF ou photo. Notre système sécurisé protège vos données.",
+    title: "Déposez votre devis",
+    description: "PDF, photo ou scan. L'IA lit tout — pas besoin de ressaisir quoi que ce soit.",
     step: "01"
   },
   {
     icon: Search,
-    title: "Analyse automatique",
-    description: "Notre IA analyse l'entreprise, le devis, les garanties et compare les prix du marché.",
+    title: "On compare chaque prix",
+    description: "Poste par poste, face aux tarifs réels du marché. Les anomalies sont détectées automatiquement.",
     step: "02"
   },
   {
     icon: FileCheck,
-    title: "Recevez votre score",
-    description: "Obtenez un rapport détaillé avec un score clair : Feu Vert, Orange ou Rouge.",
+    title: "Vous recevez votre verdict",
+    description: "Surcoût estimé en euros + les arguments exacts pour négocier, prêts à envoyer.",
     step: "03"
   }
 ];
@@ -30,7 +30,7 @@ const HowItWorksSection = () => {
             Comment ça marche ?
           </h2>
           <p className="text-sm text-muted-foreground">
-            Un processus simple et rapide pour sécuriser vos travaux
+            3 étapes. Moins d'une minute. Un verdict clair.
           </p>
         </div>
 

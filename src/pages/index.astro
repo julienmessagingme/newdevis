@@ -39,8 +39,8 @@ const jsonLd = {
 ---
 
 <BaseLayout
-  title="Vérifier un devis artisan gratuitement | VerifierMonDevis.fr"
-  description="Analysez gratuitement votre devis d'artisan en 2 minutes. Score de fiabilité, vérification entreprise, prix marché. Protégez-vous avant de signer."
+  title="Votre devis est-il trop cher ? Analysez-le gratuitement | VerifierMonDevis.fr"
+  description="Uploadez votre devis PDF. En 60 secondes, détectez les prix anormaux, estimez le surcoût et obtenez les arguments exacts pour négocier avec votre artisan."
   canonical="https://www.verifiermondevis.fr/"
   jsonLd={jsonLd}
 >
@@ -64,9 +64,9 @@ const jsonLd = {
             <div class="text-center lg:text-left">
 
               <h1 class="text-2xl sm:text-3xl md:text-5xl lg:text-6xl font-bold text-primary-foreground mb-4 sm:mb-6 leading-tight px-2">
-                Vérifier votre devis artisan
+                Votre devis est-il
                 <span class="relative inline-block">
-                  avant de signer.
+                  trop cher ?
                   <svg class="absolute -bottom-1 sm:-bottom-2 left-0 w-full" viewBox="0 0 200 12" fill="none">
                     <path
                       d="M2 10C50 4 150 4 198 10"
@@ -82,14 +82,14 @@ const jsonLd = {
               </h1>
 
               <p class="text-base sm:text-lg md:text-xl text-primary-foreground/80 mb-6 sm:mb-8 max-w-xl mx-auto lg:mx-0 px-2">
-                Vérifiez les prix, l'entreprise et les points de vigilance.
-                Prenez une décision éclairée avant d'engager votre budget.
+                Uploadez votre PDF. En 60 secondes, on détecte les prix anormaux
+                et vous dit exactement quoi négocier.
               </p>
 
               <div class="flex flex-col gap-3 sm:gap-4 sm:flex-row justify-center lg:justify-start mb-8 sm:mb-10 px-2">
                 <a href="/nouvelle-analyse" class="w-full sm:w-auto group">
                   <button class="inline-flex items-center justify-center gap-2 w-full bg-white text-primary hover:bg-white/90 font-semibold px-6 py-3 sm:px-8 sm:py-4 rounded-xl text-sm sm:text-base transition-colors">
-                    Analyser mon devis gratuitement
+                    Voir si je paye trop cher →
                     <!-- ArrowRight -->
                     <svg class="h-4 w-4 sm:h-5 sm:w-5 transition-transform group-hover:translate-x-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M5 12h14M12 5l7 7-7 7"/>
@@ -103,26 +103,30 @@ const jsonLd = {
                 </a>
               </div>
 
-              <!-- Indicateurs de confiance -->
-              <div class="flex flex-col gap-2 sm:gap-4 sm:flex-row items-center justify-center lg:justify-start text-primary-foreground/70 text-xs sm:text-sm px-2">
+              <!-- Micro-copy CTA -->
+              <p class="text-xs text-primary-foreground/60 text-center lg:text-left px-2 -mt-2 mb-4">
+                Gratuit · Sans inscription · Résultat immédiat
+              </p>
+
+              <!-- Proof bullets -->
+              <div class="flex flex-col gap-2 items-center lg:items-start text-primary-foreground/80 text-xs sm:text-sm px-2">
                 <div class="flex items-center gap-2">
-                  <!-- CheckCircle2 -->
                   <svg class="h-4 w-4 text-score-green flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
                   </svg>
-                  <span>Analyse en 2 minutes</span>
+                  <span>💶 Économies détectées en moyenne : <strong>1 200 € à 4 500 €</strong> par devis</span>
                 </div>
                 <div class="flex items-center gap-2">
                   <svg class="h-4 w-4 text-score-green flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
                   </svg>
-                  <span>100% confidentiel</span>
+                  <span>✅ <strong>470+ postes</strong> comparés aux prix réels du marché</span>
                 </div>
                 <div class="flex items-center gap-2">
                   <svg class="h-4 w-4 text-score-green flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
                   </svg>
-                  <span>Suivi post-signature</span>
+                  <span>⚡ Résultat en moins d'une minute — sans rien remplir à la main</span>
                 </div>
               </div>
 

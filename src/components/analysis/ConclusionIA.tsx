@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, Sparkles, RefreshCw, Copy, Check } from "lucide-react";
+import { Loader2, Sparkles, RefreshCw, Copy, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConclusionIA } from "@/hooks/useConclusionIA";
 import type { ConclusionData, AnomalieConclusion } from "@/lib/conclusionTypes";
@@ -9,77 +9,116 @@ import type { ConclusionData, AnomalieConclusion } from "@/lib/conclusionTypes";
 // ============================================================
 
 const fmtPrice = (n: number): string =>
-  n.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + "\u00a0€";
+  n.toLocaleString("fr-FR", { maximumFractionDigits: 0 }) + " €";
 
 const fmtUnitPrice = (n: number, unit: string): string =>
-  `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\u00a0€/${unit}`;
+  `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/${unit}`;
+
+/** Calcule le chiffre central de la fourchette (arrondi à la centaine) */
+function midpoint(min: number, max: number): number {
+  const raw = (min + max) / 2;
+  return Math.round(raw / 100) * 100;
+}
 
 // ============================================================
-// CONFIG VERDICT DÉCISIONNEL — élément le plus visible
+// CONFIG VERDICT DÉCISIONNEL
+// Labels porteurs de décision (pas juste descriptifs)
 // ============================================================
 
 const DECISION_CONFIG = {
   signer: {
-    bg:        "bg-green-600  dark:bg-green-700",
-    border:    "border-green-700 dark:border-green-600",
-    text:      "text-white",
-    icon:      "✅",
-    label:     "Vous pouvez signer ce devis",
-    sublabel:  "Le devis est cohérent avec le marché",
+    bg:       "bg-green-600  dark:bg-green-700",
+    border:   "border-green-700 dark:border-green-600",
+    text:     "text-white",
+    icon:     "✅",
+    label:    "Vous pouvez signer",
+    sublabel: "Les prix sont cohérents avec le marché",
   },
   signer_avec_negociation: {
-    bg:        "bg-orange-500  dark:bg-orange-600",
-    border:    "border-orange-600 dark:border-orange-500",
-    text:      "text-white",
-    icon:      "🟠",
-    label:     "Négociez avant de signer",
-    sublabel:  "Quelques points méritent clarification",
+    bg:       "bg-orange-500  dark:bg-orange-600",
+    border:   "border-orange-600 dark:border-orange-500",
+    text:     "text-white",
+    icon:     "🟠",
+    label:    "À négocier — prix au-dessus du marché",
+    sublabel: "Négociez ces points avant de signer",
   },
   ne_pas_signer: {
-    bg:        "bg-red-600  dark:bg-red-700",
-    border:    "border-red-700 dark:border-red-600",
-    text:      "text-white",
-    icon:      "🛑",
-    label:     "Ne signez pas sans clarifications",
-    sublabel:  "Des anomalies importantes ont été détectées",
+    bg:       "bg-red-600  dark:bg-red-700",
+    border:   "border-red-700 dark:border-red-600",
+    text:     "text-white",
+    icon:     "🔴",
+    label:    "Ne signez pas — anomalies majeures détectées",
+    sublabel: "Des clarifications sont indispensables",
   },
 } as const;
 
 // ============================================================
-// CONFIG NIVEAU DE RISQUE — chip compact
+// LOADER — étapes de chargement simulées
 // ============================================================
 
-const RISQUE_CONFIG = {
-  "faible": {
-    cls: "bg-green-100  text-green-800  border-green-200  dark:bg-green-900/30  dark:text-green-300  dark:border-green-800",
-    dot: "bg-green-500",
-  },
-  "modéré": {
-    cls: "bg-amber-100  text-amber-800  border-amber-200  dark:bg-amber-900/30  dark:text-amber-300  dark:border-amber-800",
-    dot: "bg-amber-500",
-  },
-  "élevé": {
-    cls: "bg-red-100    text-red-800    border-red-200    dark:bg-red-900/30    dark:text-red-300    dark:border-red-800",
-    dot: "bg-red-500",
-  },
-} as const;
+const LOAD_STEPS = [
+  "Lecture du devis",
+  "Comparaison prix marché",
+  "Détection des anomalies",
+] as const;
 
-// ============================================================
-// VERDICT GLOBAL (analyse narrative) — config couleur chip
-// ============================================================
+function ConclusionLoader({ isGenerating, error, onRetry }: {
+  isGenerating: boolean;
+  error: string | null;
+  onRetry: () => void;
+}) {
+  // Étape active simulée : bascule toutes les 1,4s
+  const [step, setStep] = useState(0);
+  if (isGenerating && step < LOAD_STEPS.length - 1) {
+    setTimeout(() => setStep(s => Math.min(s + 1, LOAD_STEPS.length - 1)), 1400);
+  }
 
-const VERDICT_CHIP: Record<string, string> = {
-  dans_la_norme:  "bg-green-100  text-green-800  border-green-200  dark:bg-green-900/30  dark:text-green-300  dark:border-green-800",
-  eleve_justifie: "bg-amber-100  text-amber-800  border-amber-200  dark:bg-amber-900/30  dark:text-amber-300  dark:border-amber-800",
-  a_negocier:     "bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800",
-  a_risque:       "bg-red-100    text-red-800    border-red-200    dark:bg-red-900/30    dark:text-red-300    dark:border-red-800",
-};
-const VERDICT_LABEL: Record<string, string> = {
-  dans_la_norme:  "Dans la norme",
-  eleve_justifie: "Élevé mais justifié",
-  a_negocier:     "À négocier",
-  a_risque:       "À risque",
-};
+  return (
+    <div className="border-2 border-primary/20 rounded-2xl p-5 sm:p-6 mb-6 bg-primary/3">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+          {isGenerating
+            ? <Loader2 className="h-5 w-5 text-primary animate-spin" />
+            : <Sparkles className="h-5 w-5 text-primary" />
+          }
+        </div>
+        <p className="font-semibold text-foreground text-sm">
+          {isGenerating ? "Analyse en cours…" : "Préparation du verdict…"}
+        </p>
+      </div>
+
+      {isGenerating && (
+        <div className="space-y-2.5 pl-1">
+          {LOAD_STEPS.map((label, i) => (
+            <div key={label} className="flex items-center gap-2.5">
+              {i < step ? (
+                <span className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center text-[10px] text-primary font-bold flex-shrink-0">✓</span>
+              ) : i === step ? (
+                <span className="w-4 h-4 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                </span>
+              ) : (
+                <span className="w-4 h-4 rounded-full border-2 border-muted-foreground/30 flex-shrink-0" />
+              )}
+              <span className={`text-xs ${i <= step ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                {label}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {error && (
+        <div className="mt-4 flex items-center gap-2">
+          <p className="text-xs text-red-600 dark:text-red-400 flex-1">{error}</p>
+          <Button onClick={onRetry} size="sm" variant="outline" className="h-7 text-xs px-2 flex-shrink-0">
+            Réessayer
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ============================================================
 // ANOMALIE CARD
@@ -140,7 +179,7 @@ function AnomalieCard({ item }: { item: AnomalieConclusion }) {
 }
 
 // ============================================================
-// CONCLUSION DISPLAY — version complète avec 4 sections
+// CONCLUSION DISPLAY
 // ============================================================
 
 function ConclusionDisplay({
@@ -152,13 +191,18 @@ function ConclusionDisplay({
   onRegenerate: () => void;
   isGenerating: boolean;
 }) {
-  const [copied, setCopied] = useState(false);
+  const [copied,       setCopied]       = useState(false);
+  const [showAllAnom,  setShowAllAnom]  = useState(false);
+  const [showAllActs,  setShowAllActs]  = useState(false);
 
-  const decisionCfg = DECISION_CONFIG[conclusion.verdict_decisionnel] ?? DECISION_CONFIG.signer_avec_negociation;
-  const risqueCfg   = RISQUE_CONFIG[conclusion.niveau_risque]         ?? RISQUE_CONFIG["modéré"];
-  const chipCls     = VERDICT_CHIP[conclusion.verdict_global]         ?? VERDICT_CHIP.a_negocier;
-  const chipLabel   = VERDICT_LABEL[conclusion.verdict_global]        ?? "À négocier";
-  const hasSurcout  = conclusion.surcout_global.max > 0;
+  const decisionCfg  = DECISION_CONFIG[conclusion.verdict_decisionnel] ?? DECISION_CONFIG.signer_avec_negociation;
+  const hasSurcout   = conclusion.surcout_global.max > 0;
+  const mid          = hasSurcout ? midpoint(conclusion.surcout_global.min, conclusion.surcout_global.max) : 0;
+  const anomalies    = conclusion.anomalies ?? [];
+  const anomCount    = anomalies.length;
+  const visibleAnom  = showAllAnom ? anomalies : anomalies.slice(0, 3);
+  const actions      = conclusion.actions_avant_signature ?? [];
+  const visibleActs  = showAllActs ? actions : actions.slice(0, 3);
 
   const handleCopy = () => {
     const lines: string[] = [
@@ -167,11 +211,11 @@ function ConclusionDisplay({
       `Verdict : ${decisionCfg.label}`,
     ];
     if (hasSurcout) {
-      lines.push(`Surcoût estimé : ${fmtPrice(conclusion.surcout_global.min)} – ${fmtPrice(conclusion.surcout_global.max)}`);
+      lines.push(`Surcoût estimé : environ ${fmtPrice(mid)} (entre ${fmtPrice(conclusion.surcout_global.min)} et ${fmtPrice(conclusion.surcout_global.max)})`);
     }
-    if (conclusion.actions_avant_signature.length > 0) {
+    if (actions.length > 0) {
       lines.push("", "Points à discuter avant de signer :");
-      conclusion.actions_avant_signature.forEach((a, i) => lines.push(`${i + 1}. ${a}`));
+      actions.forEach((a, i) => lines.push(`${i + 1}. ${a}`));
     }
     navigator.clipboard.writeText(lines.join("\n")).then(() => {
       setCopied(true);
@@ -183,90 +227,77 @@ function ConclusionDisplay({
     <div className="space-y-4">
 
       {/* ═══════════════════════════════════════════════════════════
-          SECTION 1 — VERDICT DÉCISIONNEL (la plus visible)
+          SECTION 1 — SURCOÛT (chiffre principal, le plus visible)
+      ════════════════════════════════════════════════════════════ */}
+      {hasSurcout && (
+        <div className="text-center py-2">
+          <p className="text-5xl sm:text-6xl font-extrabold text-foreground tracking-tight leading-none">
+            +{fmtPrice(mid)}
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">environ payé en trop</p>
+          <p className="text-xs text-muted-foreground/70 mt-0.5">
+            (entre {fmtPrice(conclusion.surcout_global.min)} et {fmtPrice(conclusion.surcout_global.max)})
+          </p>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════
+          SECTION 2 — VERDICT DÉCISIONNEL + ligne justificatrice
       ════════════════════════════════════════════════════════════ */}
       <div className={`rounded-xl border px-5 py-4 ${decisionCfg.bg} ${decisionCfg.border}`}>
-        <div className="flex items-center gap-3">
-          <span className="text-3xl leading-none flex-shrink-0" aria-hidden="true">
+        <div className="flex items-start gap-3">
+          <span className="text-3xl leading-none flex-shrink-0 mt-0.5" aria-hidden="true">
             {decisionCfg.icon}
           </span>
           <div className="min-w-0">
             <p className={`text-lg sm:text-xl font-extrabold leading-tight ${decisionCfg.text}`}>
               {decisionCfg.label}
             </p>
-            <p className={`text-sm mt-0.5 opacity-85 ${decisionCfg.text}`}>
-              {decisionCfg.sublabel}
-            </p>
+            {/* Ligne justificatrice : nombre d'anomalies ou sous-label */}
+            {anomCount > 0 ? (
+              <p className={`text-sm mt-1 font-medium opacity-90 ${decisionCfg.text}`}>
+                → {anomCount} poste{anomCount > 1 ? "s" : ""} dépass{anomCount > 1 ? "ent" : "e"} largement les prix du marché
+              </p>
+            ) : (
+              <p className={`text-sm mt-0.5 opacity-85 ${decisionCfg.text}`}>
+                {decisionCfg.sublabel}
+              </p>
+            )}
           </div>
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════
-          SECTION 2 — SYNTHÈSE : phrase intro + risque + surcoût
-      ════════════════════════════════════════════════════════════ */}
-      <div className="space-y-3">
-        {/* Phrase intro + chip verdict global */}
-        <div className="flex flex-col sm:flex-row sm:items-start gap-2">
-          <p className="flex-1 text-sm sm:text-base text-foreground leading-relaxed font-medium">
-            {conclusion.phrase_intro}
-          </p>
-          <span className={`inline-block self-start flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold border whitespace-nowrap ${chipCls}`}>
-            {chipLabel}
-          </span>
-        </div>
-
-        {/* Risque + surcoût sur la même ligne */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Niveau de risque */}
-          <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold ${risqueCfg.cls}`}>
-            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${risqueCfg.dot}`} aria-hidden="true" />
-            Risque {conclusion.niveau_risque}
-          </div>
-
-          {/* Surcoût global */}
-          {hasSurcout && (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/30 text-xs font-semibold text-orange-800 dark:text-orange-300">
-              <span aria-hidden="true">💸</span>
-              Surcoût estimé :&nbsp;
-              <span className="font-bold">
-                {fmtPrice(conclusion.surcout_global.min)} – {fmtPrice(conclusion.surcout_global.max)}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Crédibilité */}
+      <p className="text-center text-[11px] text-muted-foreground/70">
+        Analyse basée sur des milliers de prix travaux en France
+      </p>
 
       {/* ═══════════════════════════════════════════════════════════
-          SECTION 3 — ANOMALIES (si présentes)
+          CTA — visible sans scroll, juste après le verdict
       ════════════════════════════════════════════════════════════ */}
-      {conclusion.has_anomalies && conclusion.anomalies.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Anomalies détectées
-          </p>
-          {conclusion.anomalies.map((item, i) => (
-            <AnomalieCard key={`${item.poste}-${i}`} item={item} />
-          ))}
-        </div>
-      )}
-
-      {/* Justifications */}
-      {conclusion.justifications && (
-        <p className="text-sm text-muted-foreground leading-relaxed border-l-2 border-border pl-3">
-          {conclusion.justifications}
-        </p>
+      {actions.length > 0 && (
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl border-2 border-primary bg-primary hover:bg-primary/90 transition-colors text-sm font-semibold text-primary-foreground shadow-sm"
+        >
+          {copied
+            ? <><Check className="h-4 w-4" />Copié !</>
+            : <><Copy className="h-4 w-4" />📋 Copier le message pour négocier</>
+          }
+        </button>
       )}
 
       {/* ═══════════════════════════════════════════════════════════
-          SECTION 4 — ACTIONS AVANT SIGNATURE
+          SECTION 3 — ACTIONS AVANT SIGNATURE
       ════════════════════════════════════════════════════════════ */}
-      {conclusion.actions_avant_signature.length > 0 && (
+      {actions.length > 0 && (
         <div className="rounded-xl border border-border bg-muted/30 px-4 py-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-            Ce que vous devez faire avant de signer
+          <p className="text-sm font-bold text-foreground mb-3">
+            Voici exactement quoi dire à votre artisan :
           </p>
-          <ol className="space-y-2.5 mb-4">
-            {conclusion.actions_avant_signature.map((action, i) => (
+          <ol className="space-y-2.5">
+            {visibleActs.map((action, i) => (
               <li key={i} className="flex items-start gap-3">
                 <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center mt-0.5">
                   {i + 1}
@@ -275,17 +306,52 @@ function ConclusionDisplay({
               </li>
             ))}
           </ol>
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-border bg-background hover:bg-muted/60 transition-colors text-sm font-medium text-foreground"
-          >
-            {copied
-              ? <><Check className="h-4 w-4 text-green-600" />Copié !</>
-              : <><Copy className="h-4 w-4" />Copier les points à négocier</>
-            }
-          </button>
+          {actions.length > 3 && (
+            <button
+              type="button"
+              onClick={() => setShowAllActs(v => !v)}
+              className="mt-3 flex items-center gap-1 text-xs text-primary hover:underline font-medium"
+            >
+              {showAllActs
+                ? <><ChevronUp className="h-3 w-3" />Réduire</>
+                : <><ChevronDown className="h-3 w-3" />+{actions.length - 3} autres points</>
+              }
+            </button>
+          )}
         </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════
+          SECTION 4 — ANOMALIES DÉTECTÉES (max 3 visible, expand)
+      ════════════════════════════════════════════════════════════ */}
+      {conclusion.has_anomalies && anomalies.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Anomalies détectées
+          </p>
+          {visibleAnom.map((item, i) => (
+            <AnomalieCard key={`${item.poste}-${i}`} item={item} />
+          ))}
+          {anomCount > 3 && (
+            <button
+              type="button"
+              onClick={() => setShowAllAnom(v => !v)}
+              className="flex items-center gap-1 text-xs text-primary hover:underline font-medium mt-1"
+            >
+              {showAllAnom
+                ? <><ChevronUp className="h-3 w-3" />Réduire</>
+                : <><ChevronDown className="h-3 w-3" />Voir les {anomCount - 3} autres anomalies</>
+              }
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Justifications */}
+      {conclusion.justifications && (
+        <p className="text-sm text-muted-foreground leading-relaxed border-l-2 border-border pl-3">
+          {conclusion.justifications}
+        </p>
       )}
 
       {/* ── Footer ────────────────────────────────────────────────── */}
@@ -328,65 +394,37 @@ export function ConclusionIA({ analysisId, conclusionIaRaw }: ConclusionIAProps)
   // ── Génération en cours ou en attente ────────────────────────────────────
   if (!conclusion) {
     return (
-      <div className="border-2 border-primary/20 rounded-2xl p-5 sm:p-6 mb-6 bg-primary/3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-            {isGenerating
-              ? <Loader2 className="h-5 w-5 text-primary animate-spin" />
-              : <Sparkles className="h-5 w-5 text-primary" />
-            }
-          </div>
-          <div className="flex-1">
-            <p className="font-semibold text-foreground text-sm">
-              {isGenerating ? "Analyse en cours…" : "Dois-je signer ce devis ?"}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {isGenerating
-                ? "Détection des anomalies, calcul du risque et rédaction des actions"
-                : "Préparation du verdict expert…"
-              }
-            </p>
-            {error && (
-              <div className="mt-2 flex items-center gap-2">
-                <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
-                <Button onClick={() => generate()} disabled={isGenerating} size="sm" variant="outline" className="h-7 text-xs px-2">
-                  Réessayer
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      <ConclusionLoader
+        isGenerating={isGenerating}
+        error={error}
+        onRetry={() => generate()}
+      />
     );
   }
 
   // ── Conclusion disponible ─────────────────────────────────────────────────
-  if (conclusion) {
-    return (
-      <div className="border-2 rounded-2xl p-4 sm:p-6 mb-6 bg-card border-border/60">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="p-1.5 bg-primary/10 rounded-lg">
-            <Sparkles className="h-4 w-4 text-primary" />
-          </div>
-          <h3 className="font-bold text-foreground text-base">
-            Verdict expert — Dois-je signer ?
-          </h3>
+  return (
+    <div className="border-2 rounded-2xl p-4 sm:p-6 mb-6 bg-card border-border/60">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="p-1.5 bg-primary/10 rounded-lg">
+          <Sparkles className="h-4 w-4 text-primary" />
         </div>
-
-        <ConclusionDisplay
-          conclusion={conclusion}
-          onRegenerate={regenerate}
-          isGenerating={isGenerating}
-        />
-
-        {error && (
-          <p className="text-xs text-red-600 dark:text-red-400 mt-3">{error}</p>
-        )}
+        <h3 className="font-bold text-foreground text-base">
+          Verdict expert — Dois-je signer ?
+        </h3>
       </div>
-    );
-  }
 
-  return null;
+      <ConclusionDisplay
+        conclusion={conclusion}
+        onRegenerate={regenerate}
+        isGenerating={isGenerating}
+      />
+
+      {error && (
+        <p className="text-xs text-red-600 dark:text-red-400 mt-3">{error}</p>
+      )}
+    </div>
+  );
 }
 
 export default ConclusionIA;
