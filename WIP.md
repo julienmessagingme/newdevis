@@ -399,6 +399,56 @@ UI Settings : checkboxes par catégorie pour activer/désactiver chaque trigger.
 
 ---
 
+## 18. Refonte UX écran d'analyse — unification source de vérité
+
+✅ **Déployé 2026-04-30 (commits `eaacc07` → `b36c1c3`).**
+
+### Problèmes corrigés
+Plusieurs composants calculaient et affichaient indépendamment le verdict, le surcoût et les actions → contradictions frontales visibles par l'utilisateur.
+
+### Structure avant / après
+
+| Élément | Avant | Après |
+|---|---|---|
+| Verdict | 3 sources (Score Hero + GlobalAnalysisCard + ConclusionIA) | 1 seule (ConclusionIA) |
+| Surcoût | 2 valeurs différentes (+10k–19k vs +13k–25k) | 1 seule (ConclusionIA) |
+| Plan d'action | 2 listes indépendantes | 1 seule (ConclusionIA) |
+| Verdict visible | Nécessitait un clic | Automatique au chargement |
+
+### Fichiers modifiés
+
+**`src/hooks/useConclusionIA.ts`** :
+- Auto-trigger `generate()` au mount si `initialRaw` est null (plus de clic nécessaire)
+- Les appels suivants utilisent le cache DB (`analyses.conclusion_ia`)
+
+**`src/components/analysis/ConclusionIA.tsx`** :
+- Suppression de l'état CTA "Obtenir le verdict expert"
+- Affichage automatique du spinner de chargement
+- Bouton "Réessayer" visible uniquement en cas d'erreur réseau
+- Bouton "Copier les points à négocier" → clipboard (verdict + surcoût + 3 actions)
+
+**`src/components/analysis/GlobalAnalysisCard.tsx`** (refonte complète) :
+- SUPPRIMÉ : titre verdict ("Devis à risque élevé" / "Devis à négocier") → source de vérité = ConclusionIA
+- SUPPRIMÉ : section "SURCOÛT ESTIMÉ" → source de vérité = ConclusionIA
+- SUPPRIMÉ : section "PLAN D'ACTION" → source de vérité = ConclusionIA
+- CONSERVÉ : décompte des 4 catégories de postes (Prix correct / Légèrement élevé / Surévalué / Prix anormal)
+- Renommé : "Anomalie majeure" → "Prix anormal"
+
+**`src/components/analysis/BlockPrixMarche.tsx`** :
+- Titre : "Analyse Prix & Cohérence Marché" → "Analyse des postes"
+
+**`src/components/pages/AnalysisResult.tsx`** :
+- Score Hero "FEU ORANGE" remplacé par barre de contexte compacte (fichier + date + chip score)
+- Bloc "Nos recommandations" supprimé (contradisait l'analyse prix)
+- ConclusionIA remonté en position 1 (above the fold)
+- StrategicBadge (IVP/IPI) déplacé en bas de page
+- Bloc "Comment interpréter ce score ?" redondant supprimé
+
+### Règle d'architecture établie
+**ConclusionIA est la seule source de vérité pour le verdict, le surcoût et les actions.** Aucun autre composant ne doit afficher ces trois éléments. `GlobalAnalysisCard` = statistiques de répartition des postes uniquement.
+
+---
+
 ## 17. Fix verdict expert — message générique surface
 
 ✅ **Déployé 2026-04-30 (commit `99b6e27`).**

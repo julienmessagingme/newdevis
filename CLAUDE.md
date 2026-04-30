@@ -79,6 +79,10 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
 ### Verdict expert — analyse de devis
 
+- **Architecture source de vérité unique (règle absolue)** : `ConclusionIA` est le seul composant autorisé à afficher le verdict, le surcoût et les actions. `GlobalAnalysisCard` affiche uniquement la répartition des postes par catégorie de prix (chips 4 couleurs). `BlockPrixMarche` affiche uniquement le détail poste par poste. **Ne jamais ajouter** de surcoût, verdict ou plan d'action dans `GlobalAnalysisCard` ou `BlockPrixMarche` — cela crée des contradictions visibles (deux surcoûts différents, deux plans d'action). Règle établie 2026-04-30, commits `eaacc07`→`b36c1c3`.
+
+- **Auto-trigger ConclusionIA** : `useConclusionIA` déclenche `generate()` automatiquement au mount si `initialRaw` est null. Les appels suivants utilisent le cache DB (`analyses.conclusion_ia`). **Ne pas supprimer ce useEffect** : sans lui, l'utilisateur doit cliquer pour voir le verdict (friction critique sur une page de décision).
+
 - **Message générique "Si < 8 m² le prix est élevé…" même quand la surface est connue** : symptôme = `hasSurfaceUnitMismatch()` retourne `true` sur un groupe de pose (unité = forfait) même si une ligne "achat matériaux" du même groupe précise la surface en m². Cause : la fonction vérifiait uniquement l'unité du groupe (`main_unit`), pas les `devis_lines` individuelles. **Fix dans `src/pages/api/analyse/[id]/conclusion.ts`** : `extractKnownSurface(lines)` scanne les `devis_lines` du groupe — si au moins une ligne a une unité m² avec une quantité > 0, `hasSurfaceUnitMismatch()` retourne `false` et le message générique n'est pas injecté. **Ne pas supprimer ce guard** : sans lui, tout devis carrelage/parquet avec pose forfait + achat m² séparés déclenche un faux message de mise en garde.
 
 ### Frontend / React
