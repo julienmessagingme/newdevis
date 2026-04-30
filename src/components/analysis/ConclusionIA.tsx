@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Loader2, Sparkles, RefreshCw, Copy, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConclusionIA } from "@/hooks/useConclusionIA";
@@ -381,15 +381,26 @@ function ConclusionDisplay({
 // ============================================================
 
 interface ConclusionIAProps {
-  analysisId:      string;
-  conclusionIaRaw?: string | null;
+  analysisId:          string;
+  conclusionIaRaw?:    string | null;
+  /** Called once conclusion is available (first generation or from cache) — passes the raw JSON string so parent can update effectiveScore */
+  onVerdictReady?:     (rawJson: string) => void;
 }
 
-export function ConclusionIA({ analysisId, conclusionIaRaw }: ConclusionIAProps) {
+export function ConclusionIA({ analysisId, conclusionIaRaw, onVerdictReady }: ConclusionIAProps) {
   const { conclusion, isGenerating, error, generate, regenerate } = useConclusionIA({
     analysisId,
     initialRaw: conclusionIaRaw,
   });
+
+  // Notify parent once conclusion is available (generated or from cache)
+  const notifiedRef = useRef(false);
+  useEffect(() => {
+    if (conclusion && onVerdictReady && !notifiedRef.current) {
+      notifiedRef.current = true;
+      onVerdictReady(JSON.stringify(conclusion));
+    }
+  }, [conclusion, onVerdictReady]);
 
   // ── Génération en cours ou en attente ────────────────────────────────────
   if (!conclusion) {

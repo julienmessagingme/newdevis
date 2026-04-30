@@ -312,6 +312,8 @@ const AnalysisResult = () => {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  // Raw conclusion_ia JSON received from ConclusionIA once generated (may arrive after initial render)
+  const [conclusionIaLive, setConclusionIaLive] = useState<string | null>(null);
   const [showTrustpilotModal, setShowTrustpilotModal] = useState(false);
   const { user: authUser, isAnonymous: rawIsAnonymous, isPermanent: rawIsPermanent, loading: authLoading, convertToPermanent } = useAnonymousAuth();
   const { isPremium, lifetimeAnalysisCount } = usePremium();
@@ -483,6 +485,8 @@ const AnalysisResult = () => {
   // Effective score — takes the worst of analysis.score (entreprise) and ConclusionIA verdict (prix marché).
   // ConclusionIA can only make the score worse, never better — prevents "Feu Vert" header
   // contradicting "À négocier" verdict below.
+  // conclusionIaLive takes priority: it is set via onVerdictReady callback once ConclusionIA
+  // finishes generating, even when analysis.conclusion_ia was null at page load time.
   const effectiveScore = useMemo(() => {
     if (!analysis) return null;
     const RANK: Record<string, number> = { VERT: 0, ORANGE: 1, ROUGE: 2 };
@@ -492,9 +496,10 @@ const AnalysisResult = () => {
       ne_pas_signer:           "ROUGE",
     };
     const baseScore = analysis.score ?? "VERT";
+    const rawToCheck = conclusionIaLive ?? analysis.conclusion_ia;
     try {
-      if (analysis.conclusion_ia) {
-        const parsed = JSON.parse(analysis.conclusion_ia);
+      if (rawToCheck) {
+        const parsed = JSON.parse(rawToCheck);
         const conclusionScore = VERDICT_TO_SCORE[parsed?.verdict ?? ""] ?? null;
         if (conclusionScore && (RANK[conclusionScore] ?? 0) > (RANK[baseScore] ?? 0)) {
           return conclusionScore;
@@ -502,7 +507,7 @@ const AnalysisResult = () => {
       }
     } catch { /* ignore parse errors */ }
     return baseScore;
-  }, [analysis]);
+  }, [analysis, conclusionIaLive]);
 
   // ---- Waiting message rotation (must be before any conditional return) ----
   const [waitingMsgIdx, setWaitingMsgIdx] = useState(0);
@@ -950,6 +955,7 @@ const AnalysisResult = () => {
           <ConclusionIA
             analysisId={analysis.id}
             conclusionIaRaw={analysis.conclusion_ia ?? null}
+            onVerdictReady={(raw) => setConclusionIaLive(raw)}
           />
         )}
 
