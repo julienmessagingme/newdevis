@@ -3,7 +3,7 @@ const items = [
     emoji: "🔍",
     title: "Verdict global",
     description: "Signer en l'état, négocier, ou refuser — une décision claire avec les raisons.",
-    highlight: true,
+    highlight: false,
   },
   {
     emoji: "💶",
