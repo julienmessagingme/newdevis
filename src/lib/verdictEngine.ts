@@ -156,8 +156,15 @@ export function computeVerdict(input: VerdictInput): VerdictResult {
 
   // ── 4. Merge — gravité maximale ───────────────────────────────────────────────
   const SEVERITY: Record<VerdictDecision, number> = { signer: 0, a_negocier: 1, refuser: 2 };
-  const verdict: VerdictDecision =
+  let verdict: VerdictDecision =
     SEVERITY[price_verdict] >= SEVERITY[risk_verdict] ? price_verdict : risk_verdict;
+
+  // ── 4b. Edge case anomalies multiples ────────────────────────────────────────
+  // Si plusieurs postes sont anormaux (≥2) mais le prix global reste dans la norme,
+  // on monte à "a_negocier" : plusieurs anomalies isolées constituent un signal fort.
+  if (anomalies_major_count >= 2 && verdict === "signer") {
+    verdict = "a_negocier";
+  }
 
   // ── 5. Couleur ────────────────────────────────────────────────────────────────
   const color: VerdictColor =

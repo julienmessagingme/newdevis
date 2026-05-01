@@ -355,6 +355,14 @@ function ConclusionDisplay({
         </p>
       )}
 
+      {/* Note contextuelle seuils adaptatifs — affiché seulement si marché large ou chantier complexe */}
+      {(conclusion as any).market_context_note && (
+        <p className="text-xs text-muted-foreground/70 flex items-center gap-1.5 bg-muted/40 rounded px-2.5 py-1.5">
+          <span className="text-base leading-none">ℹ️</span>
+          <span>{(conclusion as any).market_context_note}</span>
+        </p>
+      )}
+
       {/* ── Footer ────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between pt-1">
         <p className="text-[11px] text-muted-foreground">

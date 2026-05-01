@@ -35,6 +35,10 @@ export interface ConclusionData {
   /** 3 actions concrètes à réaliser avant de signer */
   actions_avant_signature: string[];
 
+  // ── Contexte marché (seuils adaptatifs — affiché dans ConclusionIA) ──────────
+  /** Phrase courte expliquant pourquoi les seuils ont été ajustés (dispersion / complexité) */
+  market_context_note?: string;
+
   // ── Métadonnée ─────────────────────────────────────────────────────────────
   generated_at: string;
 }

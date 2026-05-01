@@ -155,6 +155,40 @@ function computeServerSurcout(priceData: unknown[]): { min: number; max: number 
     max: Math.round(surcoutEstime * 1.3),
   };
 }
+// ── Sanitisation texte LLM ───────────────────────────────────────────────────
+
+/**
+ * Supprime les formulations contradictoires avec le verdict dans les textes générés par Gemini.
+ * Appelé AVANT toute persistance ou affichage.
+ *
+ * Règle : si le verdict n'est pas "signer", les termes validants sont interdits.
+ */
+function sanitizeLLMText(text: string, verdict: "signer" | "a_negocier" | "refuser"): string {
+  if (!text || verdict === "signer") return text;
+
+  // Termes interdits quand verdict ≠ signer (ordre : du plus spécifique au plus générique)
+  const FORBIDDEN: Array<[RegExp, string]> = [
+    [/vous pouvez (signer|procéder|valider)/gi,  "vous pouvez négocier ce devis"],
+    [/\bbon devis\b/gi,                           "devis à vérifier"],
+    [/\bdevis (est |semble |paraît )?(correct|acceptable|conforme|cohérent)\b/gi,
+                                                  "devis présente des écarts"],
+    [/\bprix (est |semble |paraît )?(correct|acceptable|conforme|cohérent|dans la norme)\b/gi,
+                                                  "prix présente des écarts"],
+    [/\b(est |semble |paraît )(correct|acceptable|conforme|cohérent)\b/gi,
+                                                  "présente des écarts"],
+    [/\bprix (est |reste )?(justifié|raisonnable|normal)\b/gi,
+                                                  "prix est à négocier"],
+    [/\bpas d['']anomalie\b/gi,                   "des points à vérifier"],
+    [/\baucune anomalie\b/gi,                     "des points à vérifier"],
+  ];
+
+  let result = text;
+  for (const [pattern, replacement] of FORBIDDEN) {
+    result = result.replace(pattern, replacement);
+  }
+  return result;
+}
+
 const FORFAIT_DESC_KEYWORDS = ["forfait", "forfait global", "prestation globale", "au forfait", "tout compris"];
 
 function isForfaitGroup(g: any): boolean {
@@ -702,10 +736,37 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       "Faites inscrire dans le contrat la date de début et la durée prévisionnelle des travaux.",
     ];
     while (mergedActions.length < 3) mergedActions.push(DEFAULT_ACTIONS[mergedActions.length % DEFAULT_ACTIONS.length]);
-    const rawActions = mergedActions.slice(0, 3);
 
-    const phraseIntro    = typeof parsed.phrase_intro  === "string" ? parsed.phrase_intro.trim()   : "";
-    const justifications = typeof parsed.justifications === "string" ? parsed.justifications.trim() : "";
+    // ── Sanitisation texte LLM — supprime les contradictions avec le verdict ─────
+    // Appliqué avant toute persistance ou affichage.
+    const sanitizeVerdict = preEngine.verdict; // "signer" | "a_negocier" | "refuser"
+    const phraseIntro    = sanitizeLLMText(
+      typeof parsed.phrase_intro  === "string" ? parsed.phrase_intro.trim()   : "",
+      sanitizeVerdict,
+    );
+    const justifications = sanitizeLLMText(
+      typeof parsed.justifications === "string" ? parsed.justifications.trim() : "",
+      sanitizeVerdict,
+    );
+    // Sanitise les explications des anomalies
+    sanitizedAnomalies.forEach(a => {
+      if (a.explication) a.explication = sanitizeLLMText(a.explication, sanitizeVerdict);
+    });
+    // Sanitise les actions (évite "vous pouvez signer" dans les actions quand verdict ≠ signer)
+    const rawActions = mergedActions.slice(0, 3).map(a => sanitizeLLMText(a, sanitizeVerdict));
+
+    // ── Note contextuelle marché (seuils adaptatifs UX) ──────────────────────────
+    // Affichée dans ConclusionIA quand le moteur a assoupli les seuils.
+    const marketContextParts: string[] = [];
+    if (preEngine.market_dispersion_pct > 0.4) {
+      marketContextParts.push("Marché avec forte variation de prix — tolérance ajustée");
+    }
+    if (preEngine.chantier_complexity === "high") {
+      marketContextParts.push("Travaux complexes — variation de prix normale");
+    }
+    const market_context_note = marketContextParts.length > 0
+      ? marketContextParts.join(" · ")
+      : undefined;
 
     // ── Verdict déterministe — appliqué depuis preEngine (calculé avant Gemini) ──
     // Le LLM génère uniquement les explications textuelles.
@@ -743,6 +804,7 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       surcout_global:          { min: surcoutMin, max: surcoutMax },
       niveau_risque:           niveauRisque,
       actions_avant_signature: rawActions,
+      ...(market_context_note ? { market_context_note } : {}),
       generated_at:            new Date().toISOString(),
     };
 
