@@ -22,3 +22,4 @@ export { default as ExtractionBlocker, ExtractionIncompleteWarning, useExtractio
 export { MissingDataBanner, MissingDataButton, FACTUAL_TEXTS } from './MissingDataActions';
 export { default as BlockUrbanisme } from './BlockUrbanisme';
 export { ConclusionIA } from './ConclusionIA';
+export { useFeedback } from './FeedbackModal';

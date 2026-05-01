@@ -40,6 +40,7 @@ import {
   ExtractionBlocker,
   ExtractionIncompleteWarning,
   ConclusionIA,
+  useFeedback,
 } from "@/components/analysis";
 import { PostSignatureTrackingSection } from "@/components/tracking";
 const OcrDebugPanel = lazy(() => import("@/components/analysis/OcrDebugPanel").then(m => ({ default: m.OcrDebugPanel })));
@@ -314,6 +315,7 @@ const AnalysisResult = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   // Raw conclusion_ia JSON received from ConclusionIA once generated (may arrive after initial render)
   const [conclusionIaLive, setConclusionIaLive] = useState<string | null>(null);
+  const { openFeedback, FeedbackModal } = useFeedback();
   const [showTrustpilotModal, setShowTrustpilotModal] = useState(false);
   const { user: authUser, isAnonymous: rawIsAnonymous, isPermanent: rawIsPermanent, loading: authLoading, convertToPermanent } = useAnonymousAuth();
   const { isPremium, lifetimeAnalysisCount } = usePremium();
@@ -956,6 +958,7 @@ const AnalysisResult = () => {
             analysisId={analysis.id}
             conclusionIaRaw={analysis.conclusion_ia ?? null}
             onVerdictReady={(raw) => setConclusionIaLive(raw)}
+            onCopy={openFeedback}
           />
         )}
 
@@ -1135,7 +1138,10 @@ const AnalysisResult = () => {
       </main>
     </div>
 
-    {/* Trustpilot Review Modal — appears 5s after analysis loads */}
+    {/* Feedback + reward + Trustpilot modal */}
+    {FeedbackModal}
+
+    {/* Trustpilot Review Modal (legacy — remplacé par FeedbackModal) — appears 5s after analysis loads */}
     {showTrustpilotModal && (
       <div
         className="fixed inset-0 z-[9997] flex items-end sm:items-center justify-center p-4 bg-black/40"

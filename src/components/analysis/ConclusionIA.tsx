@@ -220,6 +220,7 @@ function ConclusionDisplay({
     navigator.clipboard.writeText(lines.join("\n")).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
+      onCopy?.();
     });
   };
 
@@ -383,11 +384,13 @@ function ConclusionDisplay({
 interface ConclusionIAProps {
   analysisId:          string;
   conclusionIaRaw?:    string | null;
-  /** Called once conclusion is available (first generation or from cache) — passes the raw JSON string so parent can update effectiveScore */
+  /** Called once conclusion is available — passes raw JSON so parent can update effectiveScore */
   onVerdictReady?:     (rawJson: string) => void;
+  /** Called when user clicks "Copier le message" — used to trigger FeedbackModal */
+  onCopy?:             () => void;
 }
 
-export function ConclusionIA({ analysisId, conclusionIaRaw, onVerdictReady }: ConclusionIAProps) {
+export function ConclusionIA({ analysisId, conclusionIaRaw, onVerdictReady, onCopy }: ConclusionIAProps) {
   const { conclusion, isGenerating, error, generate, regenerate } = useConclusionIA({
     analysisId,
     initialRaw: conclusionIaRaw,
