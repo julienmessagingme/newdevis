@@ -901,6 +901,50 @@ L'IA fait aussi des contrôles déterministes (pas de jetons IA consommés) à c
 
 ---
 
+## 17. Homepage VerifierMonDevis — refonte positionnement (2026-04-30)
+
+La page d'accueil VMD a été rebalancée pour couvrir les 3 dimensions du produit (prix, entreprise, risques) et améliorer la conversion.
+
+### Changements
+
+- **H1** : "Votre devis est-il trop cher… ou risqué ?"
+- **Sous-titre** : analyse en 3 dimensions (prix poste par poste, vérification entreprise, anomalies)
+- **Micro-copy** : "Analyse immédiate · Compte gratuit pour le détail complet"
+- **Bullets** : 💶 Surcoût en euros / 🏢 Entreprise vérifiée / ⚠️ Risques détectés
+- **HowItWorksSection** : Step 2 "Analyse en 3 dimensions" + tags [Prix marché][Entreprise][Conformité], Step 3 verdict + tags [Signer][Négocier][Refuser]
+- **WhatYouGetSection** (nouveau) : 5 livrables avec cartes uniformes — Verdict global, Surcoût estimé, Arguments négociation, Fiabilité entreprise, Risques détectés
+- **Positionnement** : "Pas un comparateur de prix — un outil pour décider en toute connaissance de cause."
+
+---
+
+## 18. Feedback post-analyse — FeedbackModal (2026-05-01)
+
+Popup de feedback contextuel qui s'ouvre après la consultation d'une analyse.
+
+### Flow
+
+1. **Step 1 — Feedback** : question "Cette analyse vous a-t-elle aidé ?" + 3 boutons (👍/😐/❌) + textarea optionnelle (max 200 chars)
+2. **Step 2 — Reward** : offre d'activation GérerMonChantier gratuit ("🎁 Débloquer mon accès offert")
+3. **Step 3 — Done** : si 👍/😐 → bouton Trustpilot avec phrase de transition ; si ❌ → message empathique uniquement
+
+### Triggers
+
+- **Auto** : scroll > 60% de la page OU 5 secondes après la première interaction (scroll/clic) — jamais sur page idle
+- **Manuel** : clic sur "Copier le message pour négocier" dans ConclusionIA
+- **Anti-spam** : `localStorage` avec TTL 7 jours
+
+### Tracking Amplitude
+
+`feedback_open` · `feedback_choice` · `feedback_text` · `reward_activated` · `reward_skipped` · `trustpilot_click`
+
+### Architecture
+
+- `useFeedback()` hook — source de vérité unique, expose `{ openFeedback, FeedbackModal }`
+- `POST /api/activate-chantier` — userId déduit du JWT Bearer, écrit `user_metadata.gerer_mon_chantier_access: true`
+- Intégré dans `AnalysisResult.tsx` + prop `onCopy` dans `ConclusionIA`
+
+---
+
 ## 16. Récapitulatif navigation
 
 | Groupe sidebar | Onglets | Réponse à la question |

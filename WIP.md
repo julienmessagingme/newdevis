@@ -93,6 +93,37 @@ if (body.addToDocument === true) {
 
 ---
 
+## 24. FeedbackModal post-analyse
+
+✅ **Implémenté et déployé (2026-05-01). Commits `ec1daf1` → `e2604ba`.**
+
+### Ce qui a été fait
+- Composant `FeedbackModal.tsx` + hook `useFeedback()` — source de vérité unique
+- Intégré dans `AnalysisResult.tsx` + prop `onCopy` dans `ConclusionIA` (trigger sur "Copier message")
+- API route `POST /api/activate-chantier` — lit userId depuis JWT, écrit `user_metadata.gerer_mon_chantier_access`
+- Tracking Amplitude : `feedback_open`, `feedback_choice`, `feedback_text`, `reward_activated`, `reward_skipped`, `trustpilot_click`
+
+### À faire encore
+- Supprimer l'ancien modal Trustpilot legacy (`showTrustpilotModal` dans `AnalysisResult.tsx`) une fois qu'on confirme que le nouveau flow couvre le même besoin
+- Monitorer le taux de réponse et conversion Trustpilot via Amplitude
+- Vérifier que `user_metadata.gerer_mon_chantier_access` est bien lu côté GMC pour débloquer l'accès
+
+---
+
+## 23. Score badge cohérence + fausses anomalies marché (devis KERN)
+
+✅ **Corrigé et déployé (2026-05-01). Commits `bb7a9a1` → `6e9ea11`.**
+
+### Problèmes corrigés
+
+1. **Feu Vert header ≠ Feu Orange ConclusionIA** : `effectiveScore` lisait `parsed?.verdict` au lieu de `parsed?.verdict_decisionnel` → toujours `undefined` → badge jamais mis à jour. Fix : bon nom de champ + callback `onVerdictReady` dans `ConclusionIA` pour mettre à jour le badge dès la génération même si `conclusion_ia` était null au chargement.
+
+2. **Fausse anomalie carrelage fourniture vs hors-fourniture** : Gemini choisissait `carrelage_sol_mo` pour "Fourniture pose dalle céramique". Validation Level 1 l'acceptait (identifiant exact dans catalogue). Fix : override serveur post-Gemini dans `market-prices.ts` — si descriptions contiennent "fourniture" + "pose" et job_type est `_mo` → swap vers `_fourniture_pose`.
+
+3. **Fausses anomalies unité forfait "F"** : `"F"` (abréviation française de "forfait" dans les devis BTP) non reconnu → comparaison m² invalide → anomalies fantômes sur "Dépose carrelage 2F", "Habillage escalier 2F". Fix : ajout de `"f"`, `"fft"`, `"ff"`, `"ens"` dans `FORFAIT_UNIT_KEYWORDS` (`conclusion.ts`) et `FORFAIT_UNITS` (`market-prices.ts`).
+
+---
+
 ## 21. Hallucinations analyse devis — entête entreprise + escalier + surfaces
 
 ✅ **Corrigé et déployé (2026-04-30). Commit `a9bd773`.**
