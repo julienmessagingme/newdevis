@@ -524,14 +524,22 @@ const AnalysisResult = () => {
       if (typeof t === "number") totalHT = t;
     } catch { /* ignore */ }
 
+    // Dispersion marché — calculée ici, transmise au moteur pour seuils adaptatifs
+    const avgMarket = marketBounds.min > 0 || marketBounds.max > 0
+      ? (marketBounds.min + marketBounds.max) / 2 : 0;
+    const marketDispersionPct = (avgMarket > 0 && marketBounds.max > 0)
+      ? (marketBounds.max - marketBounds.min) / avgMarket : 0;
+
     const result = computeVerdict({
-      total_amount:          totalHT,
-      market_estimate_min:   marketBounds.min,
-      market_estimate_max:   marketBounds.max,
-      anomalies_major_count: majorAnomalies,
-      anomalies_total_count: majorAnomalies, // approximation côté client
-      company_risk:          extractCompanyRisk(criteres_rouges, criteres_oranges),
-      flags:                 extractFlagsFromCriteria(criteres_rouges, criteres_oranges),
+      total_amount:           totalHT,
+      market_estimate_min:    marketBounds.min,
+      market_estimate_max:    marketBounds.max,
+      anomalies_major_count:  majorAnomalies,
+      anomalies_total_count:  majorAnomalies,
+      company_risk:           extractCompanyRisk(criteres_rouges, criteres_oranges),
+      flags:                  extractFlagsFromCriteria(criteres_rouges, criteres_oranges),
+      market_dispersion_pct:  marketDispersionPct,
+      // chantier_complexity non disponible côté client pour l'instant → fallback "medium" auto
     });
 
     return result.score_legacy;

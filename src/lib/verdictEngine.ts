@@ -5,6 +5,8 @@
  * Utilisé côté client (AnalysisResult) ET côté serveur (conclusion.ts API route).
  *
  * Ordre de priorité : hard_block > prix > risque
+ *
+ * V2 : seuils adaptatifs (dispersion marché + complexité chantier)
  */
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -28,6 +30,9 @@ export interface VerdictInput {
   anomalies_total_count: number;   // tous les postes avec anomalie prix
   company_risk:          "low" | "medium" | "high";
   flags:                 VerdictFlags;
+  // V2 — optionnels, fallback automatique si absent
+  market_dispersion_pct?: number;              // (max−min)/avg_market — calculé si absent
+  chantier_complexity?:   "low" | "medium" | "high";
 }
 
 export type VerdictDecision = "signer" | "a_negocier" | "refuser";
@@ -38,36 +43,73 @@ export interface VerdictResult {
   color:                 VerdictColor;
   /** Couleur au format legacy VERT/ORANGE/ROUGE pour compatibilité getScoreBadge() */
   score_legacy:          "VERT" | "ORANGE" | "ROUGE";
-  overprice:             number;   // € au-dessus de la moyenne marché (peut être négatif)
-  overprice_pct:         number;   // ratio vs moyenne (0.10 = 10% au-dessus)
+  overprice:             number;         // € au-dessus de la moyenne marché (peut être négatif)
+  overprice_pct:         number;         // ratio vs moyenne (0.10 = 10% au-dessus)
   anomalies_major_count: number;
-  is_hard_block:         boolean;  // vrai si entreprise bloquante indépendamment du prix
-  has_market_data:       boolean;  // faux si market_estimate_max === 0
-  /** Libellé court pour le label de prix (évite "signer" quand prix élevé) */
-  price_label:           string;
+  is_hard_block:         boolean;        // vrai si entreprise bloquante indépendamment du prix
+  has_market_data:       boolean;        // faux si market_estimate_max === 0
+  price_label:           string;         // libellé UX du positionnement prix
+  // V2
+  threshold_ok:          number;         // seuil "dans la norme" calculé (adaptatif)
+  threshold_refuse:      number;         // seuil "refuser" (fixe : 0.20)
+  market_dispersion_pct: number;         // dispersion effective utilisée
+  chantier_complexity:   "low" | "medium" | "high";
 }
 
 // ─── Constantes de seuil ─────────────────────────────────────────────────────
 
-/** Surcoût ≤ 5% : dans la norme, pas d'alerte prix */
-const THRESHOLD_NORMAL   = 0.05;
-/** Surcoût ≤ 15% : négociable */
-const THRESHOLD_NEGOCIER = 0.15;
+/** Seuil de base "dans la norme" : surcoût ≤ 8% acceptable */
+const THRESHOLD_OK_BASE    = 0.08;
+/** Seuil de refus : surcoût > 20% → refuser */
+const THRESHOLD_REFUSE     = 0.20;
+/** Borne min du threshold_ok après ajustements */
+const THRESHOLD_OK_MIN     = 0.06;
+/** Borne max du threshold_ok après ajustements */
+const THRESHOLD_OK_MAX     = 0.15;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
 
 // ─── Moteur ───────────────────────────────────────────────────────────────────
 
 export function computeVerdict(input: VerdictInput): VerdictResult {
-  const { total_amount, market_estimate_min, market_estimate_max,
-          anomalies_major_count, company_risk, flags } = input;
+  const {
+    total_amount, market_estimate_min, market_estimate_max,
+    anomalies_major_count, company_risk, flags,
+    chantier_complexity = "medium",
+  } = input;
 
   const has_market_data = market_estimate_max > 0;
 
-  // Calcul prix
-  const avg_market   = has_market_data ? (market_estimate_min + market_estimate_max) / 2 : 0;
-  const overprice    = has_market_data ? total_amount - avg_market : 0;
+  // ── Calcul prix ───────────────────────────────────────────────────────────────
+  const avg_market    = has_market_data ? (market_estimate_min + market_estimate_max) / 2 : 0;
+  const overprice     = has_market_data ? total_amount - avg_market : 0;
   const overprice_pct = (has_market_data && avg_market > 0) ? overprice / avg_market : 0;
 
-  // ── 1. Hard block — sécurité absolue ────────────────────────────────────────
+  // ── Dispersion marché — fallback auto ─────────────────────────────────────────
+  const market_dispersion_pct = input.market_dispersion_pct !== undefined
+    ? input.market_dispersion_pct
+    : (has_market_data && avg_market > 0)
+      ? (market_estimate_max - market_estimate_min) / avg_market
+      : 0;
+
+  // ── Seuils adaptatifs ─────────────────────────────────────────────────────────
+  // Plus le marché est large (dispersion élevée), plus on tolère un surcoût apparent
+  // Plus le chantier est complexe, plus on tolère un surcoût apparent
+  let threshold_ok = THRESHOLD_OK_BASE;
+
+  if (market_dispersion_pct > 0.40) threshold_ok += 0.03;
+  if (market_dispersion_pct > 0.60) threshold_ok += 0.02;
+
+  if (chantier_complexity === "high") threshold_ok += 0.03;
+  if (chantier_complexity === "low")  threshold_ok -= 0.02;
+
+  threshold_ok = clamp(threshold_ok, THRESHOLD_OK_MIN, THRESHOLD_OK_MAX);
+
+  // ── 1. Hard block — sécurité absolue ─────────────────────────────────────────
   const is_hard_block = (
     flags.entreprise_radiee      ||
     flags.siret_invalide         ||
@@ -81,25 +123,26 @@ export function computeVerdict(input: VerdictInput): VerdictResult {
       verdict: "refuser", color: "red", score_legacy: "ROUGE",
       overprice, overprice_pct, anomalies_major_count,
       is_hard_block: true, has_market_data,
-      price_label: "Risque entreprise critique",
+      price_label: "🛑 Devis anormal — ne signez pas",
+      threshold_ok, threshold_refuse: THRESHOLD_REFUSE,
+      market_dispersion_pct, chantier_complexity,
     };
   }
 
-  // ── 2. Verdict prix ──────────────────────────────────────────────────────────
+  // ── 2. Verdict prix ───────────────────────────────────────────────────────────
   let price_verdict: VerdictDecision;
 
   if (!has_market_data) {
-    // Pas de données marché → on ne peut pas condamner sur le prix
     price_verdict = "signer";
-  } else if (overprice_pct <= THRESHOLD_NORMAL && anomalies_major_count === 0) {
+  } else if (overprice_pct <= threshold_ok && anomalies_major_count === 0) {
     price_verdict = "signer";
-  } else if (overprice_pct <= THRESHOLD_NEGOCIER && anomalies_major_count <= 1) {
+  } else if (overprice_pct <= THRESHOLD_REFUSE && anomalies_major_count <= 1) {
     price_verdict = "a_negocier";
   } else {
     price_verdict = "refuser";
   }
 
-  // ── 3. Verdict risque ────────────────────────────────────────────────────────
+  // ── 3. Verdict risque ─────────────────────────────────────────────────────────
   let risk_verdict: VerdictDecision = "signer";
 
   if (
@@ -111,14 +154,14 @@ export function computeVerdict(input: VerdictInput): VerdictResult {
     risk_verdict = "a_negocier";
   }
 
-  // ── 4. Merge — gravité maximale ──────────────────────────────────────────────
+  // ── 4. Merge — gravité maximale ───────────────────────────────────────────────
   const SEVERITY: Record<VerdictDecision, number> = { signer: 0, a_negocier: 1, refuser: 2 };
   const verdict: VerdictDecision =
     SEVERITY[price_verdict] >= SEVERITY[risk_verdict] ? price_verdict : risk_verdict;
 
-  // ── 5. Couleur ───────────────────────────────────────────────────────────────
+  // ── 5. Couleur ────────────────────────────────────────────────────────────────
   const color: VerdictColor =
-    verdict === "refuser"   ? "red"    :
+    verdict === "refuser"    ? "red"    :
     verdict === "a_negocier" ? "orange" : "green";
 
   const score_legacy =
@@ -126,17 +169,24 @@ export function computeVerdict(input: VerdictInput): VerdictResult {
     verdict === "a_negocier" ? "ORANGE" : "VERT";
 
   // ── 6. Label prix (règle UX critique) ────────────────────────────────────────
-  // INTERDIT d'afficher "Vous pouvez signer" si prix > 5% au-dessus
-  const price_label = (verdict === "signer" && overprice_pct > THRESHOLD_NORMAL && has_market_data)
-    ? "Prix légèrement au-dessus du marché — à vérifier"
-    : verdict === "signer"    ? "Prix dans la norme"
-    : verdict === "a_negocier" ? "Prix à négocier"
-    : "Prix trop élevé";
+  // INTERDIT d'afficher "juste prix" si prix > threshold_ok et données marché disponibles
+  const price_label =
+    verdict === "refuser"
+      ? "🛑 Devis anormal — ne signez pas"
+    : verdict === "a_negocier"
+      ? (overprice_pct <= threshold_ok
+          ? "⚠️ Prix légèrement au-dessus du marché"
+          : "⚠️ À négocier — prix au-dessus du marché")
+    : (has_market_data && overprice_pct > threshold_ok)
+      ? "⚠️ Prix légèrement au-dessus du marché"
+      : "✅ Ce devis est au juste prix";
 
   return {
     verdict, color, score_legacy,
     overprice, overprice_pct, anomalies_major_count,
     is_hard_block: false, has_market_data, price_label,
+    threshold_ok, threshold_refuse: THRESHOLD_REFUSE,
+    market_dispersion_pct, chantier_complexity,
   };
 }
 

@@ -385,14 +385,16 @@ export const POST: APIRoute = async ({ params, request }) => {
     // raw_text invalide
   }
 
-  // ── Parse scoring (critères rouges pour injecter dans le contexte IA) ────────
-  let criteres_rouges: string[] = [];
+  // ── Parse scoring (critères rouges + oranges pour verdictEngine) ────────────
+  let criteres_rouges: string[]  = [];
+  let criteres_oranges: string[] = [];
   let entreprise_radiee = false;
   try {
     const scoreData = typeof analysis.score === "string"
       ? JSON.parse(analysis.score)
       : (analysis.score as Record<string, unknown>) || {};
-    criteres_rouges = Array.isArray(scoreData.criteres_rouges) ? scoreData.criteres_rouges : [];
+    criteres_rouges  = Array.isArray(scoreData.criteres_rouges)  ? scoreData.criteres_rouges  : [];
+    criteres_oranges = Array.isArray(scoreData.criteres_oranges) ? scoreData.criteres_oranges : [];
     entreprise_radiee = criteres_rouges.some((r: string) => r.toLowerCase().includes("radié"));
   } catch {
     // score invalide
@@ -424,8 +426,58 @@ export const POST: APIRoute = async ({ params, request }) => {
     }
   }
 
-  const groupsSummary = buildGroupSummary(priceData);
+  const groupsSummary  = buildGroupSummary(priceData);
   const marketPosition = computeServerMarketPosition(priceData);
+
+  // ── Verdict déterministe PRÉ-CALCULÉ (injecté dans le prompt) ───────────────
+  // Le moteur tourne AVANT Gemini pour contraindre le LLM, pas après.
+  const preMarketBounds   = computeMarketBounds(priceData);
+  const preMajorAnomalies = countMajorAnomalies(priceData);
+  const preFlags          = extractFlagsFromCriteria(criteres_rouges, criteres_oranges);
+  const preRisk           = extractCompanyRisk(criteres_rouges, criteres_oranges);
+  const preAvgMarket = (preMarketBounds.min + preMarketBounds.max) / 2;
+  const preDispersion = preAvgMarket > 0
+    ? (preMarketBounds.max - preMarketBounds.min) / preAvgMarket : 0;
+
+  const preEngine         = computeVerdict({
+    total_amount:          typeof totalHT === "number" ? totalHT : 0,
+    market_estimate_min:   preMarketBounds.min,
+    market_estimate_max:   preMarketBounds.max,
+    anomalies_major_count: preMajorAnomalies,
+    anomalies_total_count: preMajorAnomalies,
+    company_risk:          preRisk,
+    flags:                 preFlags,
+    market_dispersion_pct: preDispersion,
+    // chantier_complexity : V2 — non disponible encore, fallback "medium" automatique
+  });
+
+  // Mapping engine verdict → labels lisibles dans le prompt LLM
+  const ENGINE_DECISION_LABEL: Record<string, string> = {
+    signer:    "signer",
+    a_negocier: "signer_avec_negociation",
+    refuser:   "ne_pas_signer",
+  };
+  const ENGINE_GLOBAL_LABEL: Record<string, string> = {
+    signer:    "dans_la_norme",
+    a_negocier: "a_negocier",
+    refuser:   "a_risque",
+  };
+  const imposedDecision = ENGINE_DECISION_LABEL[preEngine.verdict] ?? "signer_avec_negociation";
+  const imposedGlobal   = ENGINE_GLOBAL_LABEL[preEngine.verdict]   ?? "a_negocier";
+
+  const verdictImposedBlock = `
+VERDICT IMPOSÉ PAR LE MOTEUR DÉTERMINISTE:
+- verdict_decisionnel: "${imposedDecision}"
+- verdict_global: "${imposedGlobal}"
+- Surcoût estimé: ${preEngine.overprice > 0 ? `+${Math.round(preEngine.overprice_pct * 100)}% vs moyenne marché (${Math.round(preEngine.overprice).toLocaleString("fr-FR")} €)` : "dans la norme ou sous la moyenne"}
+- Seuil de tolérance appliqué: ${Math.round(preEngine.threshold_ok * 100)}%${preEngine.is_hard_block ? "\n- HARD BLOCK ACTIF (entreprise radiée ou paiement suspect)" : ""}
+
+RÈGLES ABSOLUES (ne pas déroger):
+1. Tu DOIS produire exactement verdict_decisionnel="${imposedDecision}" et verdict_global="${imposedGlobal}".
+2. INTERDIT de contredire ce verdict dans phrase_intro, justifications ou actions_avant_signature.
+3. Si verdict_decisionnel="ne_pas_signer" → INTERDIT d'écrire des phrases comme "vous pouvez signer", "le devis est acceptable", "le prix est cohérent".
+4. Si verdict_decisionnel="signer" → INTERDIT de recommander de "négocier le prix" ou de "demander une réduction".
+5. Ton rôle : EXPLIQUER et JUSTIFIER ce verdict factuel, pas le recalculer.`;
 
   const marketPositionContext = marketPosition.globalLabel !== "hors_catalogue"
     ? `\nPOSITIONNEMENT GLOBAL DU DEVIS vs MARCHÉ:
@@ -440,6 +492,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     : "";
 
   const userPrompt = `Tu es un expert en rénovation immobilière. Analyse ce devis et aide un particulier à décider s'il doit signer ou non.
+${verdictImposedBlock}
 
 CONTEXTE DU DEVIS:
 - Entreprise: ${nomEntreprise || "inconnue"}
@@ -654,23 +707,9 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     const phraseIntro    = typeof parsed.phrase_intro  === "string" ? parsed.phrase_intro.trim()   : "";
     const justifications = typeof parsed.justifications === "string" ? parsed.justifications.trim() : "";
 
-    // ── Verdict déterministe (verdictEngine — source de vérité unique) ─────────
-    // Le LLM génère les explications ; le moteur impose le verdict final.
-    const marketBounds    = computeMarketBounds(priceData);
-    const majorAnomalies  = countMajorAnomalies(priceData);
-    const engineFlags     = extractFlagsFromCriteria(criteres_rouges, []);
-    const engineRisk      = extractCompanyRisk(criteres_rouges, []);
-    const engineResult    = computeVerdict({
-      total_amount:          typeof totalHT === "number" ? totalHT : 0,
-      market_estimate_min:   marketBounds.min,
-      market_estimate_max:   marketBounds.max,
-      anomalies_major_count: majorAnomalies,
-      anomalies_total_count: sanitizedAnomalies.length,
-      company_risk:          engineRisk,
-      flags:                 engineFlags,
-    });
-
-    // Mapping engine → ConclusionData fields
+    // ── Verdict déterministe — appliqué depuis preEngine (calculé avant Gemini) ──
+    // Le LLM génère uniquement les explications textuelles.
+    // preEngine est la source de vérité absolue pour le verdict final.
     const DECISION_MAP: Record<string, ConclusionData["verdict_decisionnel"]> = {
       signer:    "signer",
       a_negocier: "signer_avec_negociation",
@@ -682,37 +721,10 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       refuser:   "a_risque",
     };
 
-    let verdictGlobal: ConclusionData["verdict_global"]      = GLOBAL_MAP[engineResult.verdict]   ?? "a_negocier";
-    let verdictDecision: ConclusionData["verdict_decisionnel"] = DECISION_MAP[engineResult.verdict] ?? "signer_avec_negociation";
-
-    // ── Override critique : entreprise radiée → ne_pas_signer + a_risque ────────
-    // Ce override est ABSOLU et prime sur tout le reste, y compris l'analyse de prix.
-    // Une entreprise radiée ne peut pas exécuter les travaux légalement.
-    if (entreprise_radiee) {
-      verdictGlobal   = "a_risque";
-      verdictDecision = "ne_pas_signer";
-    }
-
-    // ── Override : prix sous la moyenne marché + aucune anomalie → signer ─────
-    // Gemini peut dire "négociez" même quand le devis est attractif car il détecte
-    // des variations de prix entre lignes. Si le total est sous la moyenne marché
-    // et qu'il n'y a aucune vraie anomalie, on force "signer".
-    // Exception : si l'entreprise est radiée, on ne passe jamais à "signer".
-    if (
-      !entreprise_radiee &&
-      marketPosition.isBelowAverage &&
-      sanitizedAnomalies.length === 0 &&
-      verdictDecision !== "signer"
-    ) {
-      verdictDecision = "signer";
-      // Ajuste également le verdict global si Gemini a été trop conservateur
-      if (verdictGlobal === "a_negocier" || verdictGlobal === "eleve_justifie") {
-        verdictGlobal = "dans_la_norme";
-      }
-    }
+    let verdictGlobal: ConclusionData["verdict_global"]        = GLOBAL_MAP[preEngine.verdict]   ?? "a_negocier";
+    let verdictDecision: ConclusionData["verdict_decisionnel"] = DECISION_MAP[preEngine.verdict] ?? "signer_avec_negociation";
 
     // ── Cohérence forcée : niveau_risque DOIT correspondre à verdict_global ──
-    // Calculé après les overrides pour refléter le verdict final.
     const RISQUE_FORCED: Record<string, "faible" | "modéré" | "élevé"> = {
       dans_la_norme:  "faible",
       eleve_justifie: "modéré",
