@@ -24,7 +24,7 @@ import type { AnomalieConclusion, ConclusionData } from "@/lib/conclusionTypes";
 export type { AnomalieConclusion, ConclusionData } from "@/lib/conclusionTypes";
 import {
   computeVerdict, computeMarketBounds, countMajorAnomalies,
-  extractFlagsFromCriteria, extractCompanyRisk,
+  extractFlagsFromCriteria, extractCompanyRisk, generateVerdictReasons,
 } from "@/lib/verdictEngine";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -768,6 +768,20 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       ? marketContextParts.join(" · ")
       : undefined;
 
+    // ── Raisons du verdict (section "Pourquoi ce verdict ?") ─────────────────────
+    const verdict_reasons = generateVerdictReasons({
+      verdict:               preEngine.verdict,
+      overprice:             preEngine.overprice,
+      overprice_pct:         preEngine.overprice_pct,
+      anomalies_major_count: preMajorAnomalies,
+      company_risk:          preRisk,
+      flags:                 preFlags,
+      has_market_data:       preEngine.has_market_data,
+      market_dispersion_pct: preEngine.market_dispersion_pct,
+      chantier_complexity:   preEngine.chantier_complexity,
+      threshold_ok:          preEngine.threshold_ok,
+    });
+
     // ── Verdict déterministe — appliqué depuis preEngine (calculé avant Gemini) ──
     // Le LLM génère uniquement les explications textuelles.
     // preEngine est la source de vérité absolue pour le verdict final.
@@ -804,7 +818,8 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       surcout_global:          { min: surcoutMin, max: surcoutMax },
       niveau_risque:           niveauRisque,
       actions_avant_signature: rawActions,
-      ...(market_context_note ? { market_context_note } : {}),
+      ...(verdict_reasons.length  > 0 ? { verdict_reasons }  : {}),
+      ...(market_context_note     ? { market_context_note } : {}),
       generated_at:            new Date().toISOString(),
     };
 

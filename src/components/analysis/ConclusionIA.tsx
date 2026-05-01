@@ -274,6 +274,27 @@ function ConclusionDisplay({
       </p>
 
       {/* ═══════════════════════════════════════════════════════════
+          SECTION "POURQUOI CE VERDICT ?" — 1 à 3 raisons courtes
+      ════════════════════════════════════════════════════════════ */}
+      {Array.isArray((conclusion as any).verdict_reasons) &&
+       (conclusion as any).verdict_reasons.length > 0 && (
+        <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 space-y-2">
+          <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide flex items-center gap-1.5">
+            <span aria-hidden="true">🔍</span>
+            <span>Pourquoi ce verdict ?</span>
+          </p>
+          <ul className="space-y-1.5">
+            {((conclusion as any).verdict_reasons as string[]).map((reason: string, i: number) => (
+              <li key={i} className="text-sm text-foreground leading-snug flex items-start gap-2">
+                <span className="mt-[2px] shrink-0 text-muted-foreground" aria-hidden="true">•</span>
+                <span>{reason}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════
           CTA — visible sans scroll, juste après le verdict
       ════════════════════════════════════════════════════════════ */}
       {actions.length > 0 && (

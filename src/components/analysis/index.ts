@@ -23,3 +23,5 @@ export { MissingDataBanner, MissingDataButton, FACTUAL_TEXTS } from './MissingDa
 export { default as BlockUrbanisme } from './BlockUrbanisme';
 export { ConclusionIA } from './ConclusionIA';
 export { useFeedback } from './FeedbackModal';
+export { VerdictReasons } from './VerdictReasons';
+export type { VerdictReasonsInput } from '@/lib/verdictEngine';
