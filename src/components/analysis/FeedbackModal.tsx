@@ -2,19 +2,14 @@
  * FeedbackModal — popup post-analyse
  *
  * Triggers :
- *   1. Auto : 2.5s après le mount (si pas déjà affiché)
- *   2. Externe : appeler openFeedback() retourné par useFeedback()
+ *   1. Auto : scroll > 60% OU 5s après première interaction (scroll/clic) — jamais sur page idle
+ *   2. Externe : openFeedback() — ex. clic "Copier le message"
  *
- * Flow : feedback (👍/😐/❌ + texte optionnel) → reward (activation GMC) → done (Trustpilot ou message)
- *
- * Usage :
- *   const { openFeedback, FeedbackModal } = useFeedback({ userId });
- *   // dans le JSX :
- *   <button onClick={openFeedback}>Copier message</button>
- *   <FeedbackModal />
+ * Flow : feedback (👍/😐/❌ + texte) → reward (activation GMC) → done (Trustpilot conditionnel)
+ * Persistence : localStorage 'vmdf_feedback_shown' avec TTL 7 jours
  */
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { X, Loader2, CheckCircle2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trackEvent } from "@/lib/amplitude";
@@ -23,19 +18,44 @@ import { toast } from "sonner";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const STORAGE_KEY    = "vmdf_feedback_shown";
-const TRUSTPILOT_URL = "https://fr.trustpilot.com/evaluate/verifiermondevis.fr";
-const AUTO_DELAY_MS  = 2500;
+const STORAGE_KEY      = "vmdf_feedback_shown";
+const TTL_DAYS         = 7;
+const INTERACTION_WAIT = 5_000;   // ms après première interaction
+const SCROLL_THRESHOLD = 0.60;    // 60% de la page
+const TRUSTPILOT_URL   = "https://fr.trustpilot.com/evaluate/verifiermondevis.fr";
+const TEXT_MAX         = 200;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Choice = "positive" | "neutral" | "negative";
-type Step   = "feedback" | "reward" | "done";
+type Choice  = "positive" | "neutral" | "negative";
+type Step    = "feedback" | "reward" | "done";
+// État intermédiaire de l'activation (credibility delay)
+type Activating = "idle" | "activating" | "activated";
 
 // ─── Tracking helper ──────────────────────────────────────────────────────────
 
 function track(eventName: string, payload?: Record<string, unknown>) {
   try { trackEvent(eventName, payload); } catch { /* never throw */ }
+}
+
+// ─── Persistence helpers (TTL 7 jours) ───────────────────────────────────────
+
+function hasBeenShown(): boolean {
+  if (typeof localStorage === "undefined") return false;
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return false;
+  try {
+    const { ts } = JSON.parse(raw);
+    const ageDays = (Date.now() - ts) / (1000 * 60 * 60 * 24);
+    return ageDays < TTL_DAYS;
+  } catch {
+    return true; // valeur legacy sans TTL → on respecte quand même
+  }
+}
+
+function markShown() {
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ts: Date.now() }));
 }
 
 // ─── API ──────────────────────────────────────────────────────────────────────
@@ -59,7 +79,7 @@ async function activateGererMonChantier(): Promise<void> {
   }
 }
 
-// ─── Step components ──────────────────────────────────────────────────────────
+// ─── Step 1 — Feedback ───────────────────────────────────────────────────────
 
 const CHOICES: { id: Choice; emoji: string; label: string }[] = [
   { id: "positive", emoji: "👍", label: "Oui, vraiment" },
@@ -68,11 +88,10 @@ const CHOICES: { id: Choice; emoji: string; label: string }[] = [
 ];
 
 function StepFeedback({
-  choice, text,
-  onChoice, onText, onNext,
+  choice, text, onChoice, onText, onNext,
 }: {
-  choice: Choice | null;
-  text: string;
+  choice:   Choice | null;
+  text:     string;
   onChoice: (c: Choice) => void;
   onText:   (t: string) => void;
   onNext:   () => void;
@@ -83,7 +102,7 @@ function StepFeedback({
         <p className="text-base font-semibold text-slate-900">
           Cette analyse vous a-t-elle aidé ?
         </p>
-        <p className="text-xs text-slate-400 mt-0.5">Votre avis améliore l'outil</p>
+        <p className="text-xs text-slate-400 mt-0.5">30 secondes — aucune obligation</p>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
@@ -105,15 +124,23 @@ function StepFeedback({
         ))}
       </div>
 
-      <textarea
-        value={text}
-        onChange={(e) => onText(e.target.value)}
-        placeholder="Un commentaire ? (optionnel)"
-        rows={2}
-        className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2
-                   text-sm text-slate-700 placeholder:text-slate-400
-                   focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40"
-      />
+      <div className="relative">
+        <textarea
+          value={text}
+          onChange={(e) => onText(e.target.value.slice(0, TEXT_MAX))}
+          placeholder="Ex : le verdict n'était pas clair / prix incohérent / très utile"
+          rows={2}
+          maxLength={TEXT_MAX}
+          className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2
+                     text-sm text-slate-700 placeholder:text-slate-400
+                     focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40"
+        />
+        {text.length > 0 && (
+          <span className="absolute bottom-2 right-3 text-[10px] text-slate-400">
+            {text.length}/{TEXT_MAX}
+          </span>
+        )}
+      </div>
 
       <Button
         onClick={onNext}
@@ -126,10 +153,12 @@ function StepFeedback({
   );
 }
 
+// ─── Step 2 — Reward ─────────────────────────────────────────────────────────
+
 function StepReward({
-  loading, onActivate, onSkip,
+  activating, onActivate, onSkip,
 }: {
-  loading:    boolean;
+  activating: Activating;
   onActivate: () => void;
   onSkip:     () => void;
 }) {
@@ -139,41 +168,54 @@ function StepReward({
         <span className="text-3xl">🏗️</span>
       </div>
 
-      <div>
-        <p className="text-lg font-bold text-slate-900">Merci pour votre retour !</p>
-        <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
-          Débloquez{" "}
-          <strong className="text-slate-700">GérerMonChantier</strong>{" "}
-          gratuitement — suivez votre chantier, vos dépenses et vos artisans depuis une seule interface.
-        </p>
-      </div>
+      {activating === "activating" ? (
+        <div className="flex flex-col items-center gap-2 py-2">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <p className="text-sm font-medium text-slate-600">
+            Merci pour votre retour 🙏<br />
+            <span className="text-slate-400">Activation en cours…</span>
+          </p>
+        </div>
+      ) : (
+        <>
+          <div>
+            <p className="text-lg font-bold text-slate-900">Merci pour votre retour !</p>
+            <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
+              Débloquez{" "}
+              <strong className="text-slate-700">GérerMonChantier</strong>{" "}
+              gratuitement — suivez votre chantier, paiements et alertes depuis une seule interface.
+            </p>
+            <p className="text-xs text-slate-400 mt-2">Utilisé par +200 propriétaires</p>
+          </div>
 
-      <Button
-        onClick={onActivate}
-        disabled={loading}
-        className="w-full h-12 rounded-xl font-semibold text-base"
-      >
-        {loading
-          ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Activation…</>
-          : "Activer mon accès →"}
-      </Button>
+          <div>
+            <Button
+              onClick={onActivate}
+              disabled={activating !== "idle"}
+              className="w-full h-12 rounded-xl font-semibold text-base"
+            >
+              🎁 Débloquer mon accès offert
+            </Button>
+            <p className="text-xs text-slate-400 mt-1.5">
+              Suivi chantier, paiements et alertes
+            </p>
+          </div>
 
-      <button
-        onClick={onSkip}
-        className="text-xs text-slate-400 hover:text-slate-600 transition-colors touch-manipulation"
-      >
-        Non merci, plus tard
-      </button>
+          <button
+            onClick={onSkip}
+            className="text-xs text-slate-400 hover:text-slate-600 transition-colors touch-manipulation"
+          >
+            Non merci, plus tard
+          </button>
+        </>
+      )}
     </div>
   );
 }
 
-function StepDone({
-  choice, onClose,
-}: {
-  choice:  Choice;
-  onClose: () => void;
-}) {
+// ─── Step 3 — Done ───────────────────────────────────────────────────────────
+
+function StepDone({ choice, onClose }: { choice: Choice; onClose: () => void }) {
   return (
     <div className="flex flex-col gap-5 text-center">
       <div className="mx-auto w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
@@ -181,34 +223,37 @@ function StepDone({
       </div>
 
       <div>
-        <p className="text-base font-bold text-slate-900">Accès activé ! 🎉</p>
+        <p className="text-base font-bold text-slate-900">🎁 Accès débloqué !</p>
         <p className="text-sm text-slate-500 mt-1">
           Votre accès GérerMonChantier est maintenant actif.
         </p>
       </div>
 
       {choice !== "negative" ? (
-        <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-          <p className="text-sm text-slate-600 font-medium mb-3">
-            Vous avez 2 min ? Votre avis nous aide énormément 🙏
+        <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 text-left">
+          <p className="text-sm text-slate-700 leading-relaxed mb-3">
+            Merci 🙏<br />
+            Votre retour nous aide vraiment à améliorer l'outil.
+            <br /><br />
+            Si l'analyse vous a été utile, vous pouvez nous aider en laissant un avis.
           </p>
           <a
             href={TRUSTPILOT_URL}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={() => track("trustpilot_click", { from: "feedback_modal" })}
+            onClick={() => track("trustpilot_click", { from: "feedback_modal", choice })}
             className="inline-flex items-center gap-2 bg-[#00B67A] hover:bg-[#00a369]
                        text-white font-semibold text-sm px-5 py-2.5 rounded-xl
-                       transition-colors touch-manipulation"
+                       transition-colors touch-manipulation w-full justify-center"
           >
             <ExternalLink className="h-4 w-4" />
-            Laisser un avis Trustpilot
+            Laisser un avis sur Trustpilot
           </a>
         </div>
       ) : (
         <p className="text-sm text-slate-500 leading-relaxed">
           On travaille continuellement à améliorer les analyses.
-          Votre retour nous aide à progresser — merci. 🙏
+          Votre retour honnête nous aide à progresser — merci. 🙏
         </p>
       )}
 
@@ -219,19 +264,19 @@ function StepDone({
   );
 }
 
-// ─── Progress dots ─────────────────────────────────────────────────────────────
+// ─── Progress bar ─────────────────────────────────────────────────────────────
 
 const STEPS: Step[] = ["feedback", "reward", "done"];
 
 function ProgressBar({ step }: { step: Step }) {
-  const currentIdx = STEPS.indexOf(step);
+  const idx = STEPS.indexOf(step);
   return (
     <div className="flex gap-1.5 mb-5">
       {STEPS.map((_, i) => (
         <div
           key={i}
           className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
-            i <= currentIdx ? "bg-primary" : "bg-slate-200"
+            i <= idx ? "bg-primary" : "bg-slate-200"
           }`}
         />
       ))}
@@ -239,34 +284,73 @@ function ProgressBar({ step }: { step: Step }) {
   );
 }
 
-// ─── Hook — single source of truth ───────────────────────────────────────────
+// ─── Hook — source de vérité unique ───────────────────────────────────────────
 
 export function useFeedback() {
-  const [open, setOpen]       = useState(false);
-  const [step, setStep]       = useState<Step>("feedback");
-  const [choice, setChoice]   = useState<Choice | null>(null);
-  const [text, setText]       = useState("");
-  const [loading, setLoading] = useState(false);
+  const [open,       setOpen]       = useState(false);
+  const [step,       setStep]       = useState<Step>("feedback");
+  const [choice,     setChoice]     = useState<Choice | null>(null);
+  const [text,       setText]       = useState("");
+  const [activating, setActivating] = useState<Activating>("idle");
 
-  // Auto-trigger
-  useEffect(() => {
-    if (typeof localStorage === "undefined") return;
-    if (localStorage.getItem(STORAGE_KEY)) return;
-    const t = setTimeout(() => {
-      setOpen(true);
-      track("feedback_open", { trigger: "auto" });
-    }, AUTO_DELAY_MS);
-    return () => clearTimeout(t);
+  // ── Trigger intelligent (scroll > 60% OU 5s après première interaction) ───
+  const triggeredRef   = useRef(false);
+  const interactedRef  = useRef(false);
+  const interactTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const tryOpen = useCallback((trigger: string) => {
+    if (triggeredRef.current) return;
+    if (hasBeenShown()) return;
+    triggeredRef.current = true;
+    setOpen(true);
+    track("feedback_open", { trigger });
   }, []);
 
+  useEffect(() => {
+    if (hasBeenShown()) return;
+
+    const onInteraction = () => {
+      if (interactedRef.current) return;
+      interactedRef.current = true;
+      interactTimerRef.current = setTimeout(() => tryOpen("interaction_timer"), INTERACTION_WAIT);
+    };
+
+    const onScroll = () => {
+      onInteraction(); // l'interaction démarre aussi le timer
+      const scrolled = window.scrollY / (document.body.scrollHeight - window.innerHeight);
+      if (scrolled >= SCROLL_THRESHOLD) tryOpen("scroll");
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("click",  onInteraction, { passive: true, once: true });
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("click",  onInteraction);
+      if (interactTimerRef.current) clearTimeout(interactTimerRef.current);
+    };
+  }, [tryOpen]);
+
+  // ── ESC pour fermer ───────────────────────────────────────────────────────
+  const close = useCallback(() => setOpen(false), []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, close]);
+
+  // ── Trigger externe ───────────────────────────────────────────────────────
   const openFeedback = useCallback(() => {
-    if (typeof localStorage !== "undefined" && localStorage.getItem(STORAGE_KEY)) return;
+    if (hasBeenShown()) return;
+    triggeredRef.current = true; // évite double-trigger auto
+    if (interactTimerRef.current) clearTimeout(interactTimerRef.current);
     setOpen(true);
     track("feedback_open", { trigger: "manual" });
   }, []);
 
-  const close = useCallback(() => setOpen(false), []);
-
+  // ── Handlers ──────────────────────────────────────────────────────────────
   const handleChoice = useCallback((c: Choice) => {
     setChoice(c);
     track("feedback_choice", { choice: c });
@@ -275,33 +359,39 @@ export function useFeedback() {
   const handleNext = useCallback(() => {
     if (!choice) return;
     if (text.trim()) track("feedback_text", { length: text.trim().length });
-    localStorage.setItem(STORAGE_KEY, "true");
+    markShown();
     setStep("reward");
   }, [choice, text]);
 
   const handleActivate = useCallback(async () => {
-    setLoading(true);
+    setActivating("activating");
     try {
+      // Délai crédibilité : 600–800ms avant d'appeler l'API
+      await new Promise((r) => setTimeout(r, 700));
       await activateGererMonChantier();
       track("reward_activated");
+      setActivating("activated");
       toast.success("Accès GérerMonChantier activé !");
     } catch {
       toast.error("Erreur lors de l'activation. Réessayez.");
-    } finally {
-      setLoading(false);
-      setStep("done");
+      setActivating("idle");
+      return;
     }
+    setStep("done");
   }, []);
 
-  const handleSkip = useCallback(() => setStep("done"), []);
+  const handleSkip = useCallback(() => {
+    track("reward_skipped");
+    setStep("done");
+  }, []);
 
-  // Le composant modal est mémoïsé pour éviter les re-renders inutiles du parent
+  // ── Modal mémoïsé (zéro re-render parent lors de la frappe textarea) ──────
   const Modal = useMemo(() => {
     if (!open) return null;
 
     return (
       <>
-        {/* Backdrop */}
+        {/* Backdrop — clic ferme */}
         <div
           className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
           onClick={close}
@@ -321,8 +411,9 @@ export function useFeedback() {
             w-auto sm:w-[400px] max-w-full
             pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:pb-6
           "
+          onClick={(e) => e.stopPropagation()}
         >
-          {/* Close */}
+          {/* Bouton fermer */}
           <button
             onClick={close}
             aria-label="Fermer"
@@ -345,7 +436,7 @@ export function useFeedback() {
 
           {step === "reward" && (
             <StepReward
-              loading={loading}
+              activating={activating}
               onActivate={handleActivate}
               onSkip={handleSkip}
             />
@@ -358,7 +449,7 @@ export function useFeedback() {
       </>
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, step, choice, text, loading]);
+  }, [open, step, choice, text, activating]);
 
   return { openFeedback, FeedbackModal: Modal };
 }
