@@ -19,6 +19,10 @@ import {
   FileCheck
 } from "lucide-react";
 import { getScoreBadge } from "@/lib/scoreUtils";
+import {
+  computeVerdict, computeMarketBounds, countMajorAnomalies,
+  extractFlagsFromCriteria, extractCompanyRisk,
+} from "@/lib/verdictEngine";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 // generatePdfReport chargé dynamiquement (jsPDF ~250 Ko évité au chargement initial)
@@ -485,31 +489,53 @@ const AnalysisResult = () => {
   const visibleBlocks = useMemo(() => getVisibleBlocks(analysis?.domain || "travaux"), [analysis?.domain]);
 
   // Effective score — takes the worst of analysis.score (entreprise) and ConclusionIA verdict (prix marché).
-  // ConclusionIA can only make the score worse, never better — prevents "Feu Vert" header
-  // contradicting "À négocier" verdict below.
-  // conclusionIaLive takes priority: it is set via onVerdictReady callback once ConclusionIA
-  // finishes generating, even when analysis.conclusion_ia was null at page load time.
+  // effectiveScore — source de vérité unique via verdictEngine (déterministe).
+  // Utilise conclusionIaLive en priorité (disponible dès génération) puis analysis.conclusion_ia (cache).
   const effectiveScore = useMemo(() => {
     if (!analysis) return null;
-    const RANK: Record<string, number> = { VERT: 0, ORANGE: 1, ROUGE: 2 };
-    const VERDICT_TO_SCORE: Record<string, string> = {
-      signer:                  "VERT",
-      signer_avec_negociation: "ORANGE",
-      ne_pas_signer:           "ROUGE",
-    };
-    const baseScore = analysis.score ?? "VERT";
-    const rawToCheck = conclusionIaLive ?? analysis.conclusion_ia;
+
+    // Extraire les critères depuis analysis.score (JSON stocké par score.ts)
+    let criteres_rouges: string[] = [];
+    let criteres_oranges: string[] = [];
     try {
-      if (rawToCheck) {
-        const parsed = JSON.parse(rawToCheck);
-        const conclusionScore = VERDICT_TO_SCORE[parsed?.verdict_decisionnel ?? ""] ?? null;
-        if (conclusionScore && (RANK[conclusionScore] ?? 0) > (RANK[baseScore] ?? 0)) {
-          return conclusionScore;
-        }
-      }
-    } catch { /* ignore parse errors */ }
-    return baseScore;
-  }, [analysis, conclusionIaLive]);
+      const scoreData = typeof analysis.score === "string"
+        ? JSON.parse(analysis.score)
+        : (analysis.score as Record<string, unknown> | null) || {};
+      criteres_rouges  = Array.isArray(scoreData?.criteres_rouges)  ? scoreData.criteres_rouges  : [];
+      criteres_oranges = Array.isArray(scoreData?.criteres_oranges) ? scoreData.criteres_oranges : [];
+    } catch { /* score peut être une string simple "VERT"/"ORANGE"/"ROUGE" */ }
+
+    // Si analysis.score est un string simple (legacy), le convertir
+    if (criteres_rouges.length === 0 && criteres_oranges.length === 0) {
+      const rawScore = typeof analysis.score === "string" ? analysis.score : "";
+      if (rawScore === "ROUGE") criteres_rouges = ["score_legacy_rouge"];
+      else if (rawScore === "ORANGE") criteres_oranges = ["score_legacy_orange"];
+    }
+
+    const priceData = cachedN8NData as unknown[];
+    const marketBounds   = computeMarketBounds(Array.isArray(priceData) ? priceData : []);
+    const majorAnomalies = countMajorAnomalies(Array.isArray(priceData) ? priceData : []);
+
+    // Total HT depuis raw_text
+    let totalHT = 0;
+    try {
+      const raw = JSON.parse(analysis.raw_text || "{}");
+      const t = raw?.extracted_data?.totaux?.ht ?? raw?.extracted?.totaux?.ht;
+      if (typeof t === "number") totalHT = t;
+    } catch { /* ignore */ }
+
+    const result = computeVerdict({
+      total_amount:          totalHT,
+      market_estimate_min:   marketBounds.min,
+      market_estimate_max:   marketBounds.max,
+      anomalies_major_count: majorAnomalies,
+      anomalies_total_count: majorAnomalies, // approximation côté client
+      company_risk:          extractCompanyRisk(criteres_rouges, criteres_oranges),
+      flags:                 extractFlagsFromCriteria(criteres_rouges, criteres_oranges),
+    });
+
+    return result.score_legacy;
+  }, [analysis, cachedN8NData, conclusionIaLive]);
 
   // ---- Waiting message rotation (must be before any conditional return) ----
   const [waitingMsgIdx, setWaitingMsgIdx] = useState(0);

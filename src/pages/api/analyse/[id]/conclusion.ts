@@ -22,6 +22,10 @@ const GEMINI_URL =
 
 import type { AnomalieConclusion, ConclusionData } from "@/lib/conclusionTypes";
 export type { AnomalieConclusion, ConclusionData } from "@/lib/conclusionTypes";
+import {
+  computeVerdict, computeMarketBounds, countMajorAnomalies,
+  extractFlagsFromCriteria, extractCompanyRisk,
+} from "@/lib/verdictEngine";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -647,35 +651,39 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     while (mergedActions.length < 3) mergedActions.push(DEFAULT_ACTIONS[mergedActions.length % DEFAULT_ACTIONS.length]);
     const rawActions = mergedActions.slice(0, 3);
 
-    let verdictGlobal    = validVerdicts.includes(parsed.verdict_global)       ? parsed.verdict_global       : "a_negocier";
-    const phraseIntro      = typeof parsed.phrase_intro  === "string"            ? parsed.phrase_intro.trim()  : "";
-    const justifications   = typeof parsed.justifications === "string"           ? parsed.justifications.trim() : "";
-    let   verdictDecision  = validDecisions.includes(parsed.verdict_decisionnel) ? parsed.verdict_decisionnel  : "signer_avec_negociation";
+    const phraseIntro    = typeof parsed.phrase_intro  === "string" ? parsed.phrase_intro.trim()   : "";
+    const justifications = typeof parsed.justifications === "string" ? parsed.justifications.trim() : "";
 
-    // ── Cohérence verdict_decisionnel ──────────────────────────────────────────
-    // Empêche "signer" avec un verdict négatif, et "ne_pas_signer" sur un verdict correct
-    if (verdictGlobal === "dans_la_norme") {
-      verdictDecision = "signer";
-    } else if ((verdictGlobal === "a_negocier" || verdictGlobal === "eleve_justifie") && verdictDecision === "signer") {
-      verdictDecision = "signer_avec_negociation";
-    } else if (verdictGlobal === "a_risque") {
-      const totalHTNum = typeof totalHT === "number" ? totalHT : 0;
-      const surcoutRatio = totalHTNum > 0 ? surcoutMax / totalHTNum : 0;
-      // "ne_pas_signer" uniquement si le surcoût est RÉELLEMENT significatif :
-      //   - 2+ anomalies ET surcoût > 10% du total HT (vraie surfacturation)
-      //   - OU surcoût > 30% du total HT (seul critère suffisant)
-      // Si les anomalies sont des sous-tarifications (scope risk) mais surcoût global faible
-      // → on downgrade à "signer_avec_negociation" pour éviter l'alarme injustifiée.
-      if ((sanitizedAnomalies.length >= 2 && surcoutRatio > 0.10) || surcoutRatio > 0.30) {
-        verdictDecision = "ne_pas_signer";
-      } else {
-        // Surcoût faible → downgrade "a_risque" → "a_negocier" pour cohérence risque/verdict
-        verdictGlobal = "a_negocier";
-        if (verdictDecision === "signer" || verdictDecision === "ne_pas_signer") {
-          verdictDecision = "signer_avec_negociation";
-        }
-      }
-    }
+    // ── Verdict déterministe (verdictEngine — source de vérité unique) ─────────
+    // Le LLM génère les explications ; le moteur impose le verdict final.
+    const marketBounds    = computeMarketBounds(priceData);
+    const majorAnomalies  = countMajorAnomalies(priceData);
+    const engineFlags     = extractFlagsFromCriteria(criteres_rouges, []);
+    const engineRisk      = extractCompanyRisk(criteres_rouges, []);
+    const engineResult    = computeVerdict({
+      total_amount:          typeof totalHT === "number" ? totalHT : 0,
+      market_estimate_min:   marketBounds.min,
+      market_estimate_max:   marketBounds.max,
+      anomalies_major_count: majorAnomalies,
+      anomalies_total_count: sanitizedAnomalies.length,
+      company_risk:          engineRisk,
+      flags:                 engineFlags,
+    });
+
+    // Mapping engine → ConclusionData fields
+    const DECISION_MAP: Record<string, ConclusionData["verdict_decisionnel"]> = {
+      signer:    "signer",
+      a_negocier: "signer_avec_negociation",
+      refuser:   "ne_pas_signer",
+    };
+    const GLOBAL_MAP: Record<string, ConclusionData["verdict_global"]> = {
+      signer:    "dans_la_norme",
+      a_negocier: "a_negocier",
+      refuser:   "a_risque",
+    };
+
+    let verdictGlobal: ConclusionData["verdict_global"]      = GLOBAL_MAP[engineResult.verdict]   ?? "a_negocier";
+    let verdictDecision: ConclusionData["verdict_decisionnel"] = DECISION_MAP[engineResult.verdict] ?? "signer_avec_negociation";
 
     // ── Override critique : entreprise radiée → ne_pas_signer + a_risque ────────
     // Ce override est ABSOLU et prime sur tout le reste, y compris l'analyse de prix.
