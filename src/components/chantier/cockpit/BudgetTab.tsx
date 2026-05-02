@@ -1134,6 +1134,9 @@ export default function BudgetTab({
     artisanNom: string; budget: number; sourceIds: string[]; eventIds: string[];
     primaryDocumentId?: string; primaryDocumentType?: 'devis' | 'facture';
     legacyMontantPaye?: number;
+    /** Pour le sélecteur de statut intégré au drawer */
+    factureId?: string;
+    factureStatut?: string;
   } | null>(null);
   // Drawer dépense rapide (achat matériaux, paiement liquide)
   const [depenseRapide, setDepenseRapide] = useState<null | 'open'>(null);
@@ -1709,7 +1712,7 @@ export default function BudgetTab({
                                     <span className="text-[11px] text-gray-300">—</span>
                                   ) : null}
 
-                                  {/* 2a. STATUT — bouton central (si facture) */}
+                                  {/* 2a. STATUT — bouton central (si facture) → ouvre drawer versements */}
                                   {primaryFacture && cfg && (() => {
                                     if (isAlwaysPaid) {
                                       return (
@@ -1719,36 +1722,28 @@ export default function BudgetTab({
                                       );
                                     }
                                     return (
-                                      <div className="relative">
-                                        <button
-                                          disabled={isChanging}
-                                          onClick={e => { e.stopPropagation(); setOpenArtisanMenu(isOpen ? null : artisanKey); }}
-                                          className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all ${cfg.cls}`}
-                                        >
-                                          {isChanging ? <Loader2 className="h-3 w-3 animate-spin" /> : cfg.icon}
-                                          {cfg.short}
-                                          <ChevronDown className="h-2.5 w-2.5 ml-0.5" />
-                                        </button>
-                                        {isOpen && (
-                                          <div className="absolute right-0 bottom-full mb-1 w-52 bg-white rounded-xl shadow-xl border border-gray-100 z-30 overflow-hidden">
-                                            {(Object.entries(FACTURE_STATUT_CFG) as [FactureStatut, typeof FACTURE_STATUT_CFG[FactureStatut]][]).map(([s, c]) => (
-                                              <button key={s}
-                                                onClick={e => {
-                                                  e.stopPropagation(); setOpenArtisanMenu(null);
-                                                  changeStatut(primaryFacture.id, s, e);
-                                                  if (s === 'payee_partiellement') {
-                                                    setTimeout(() => setInlineAcompte({ artisanKey, factureId: primaryFacture.id, value: primaryFacture.montant_paye ? String(primaryFacture.montant_paye) : '' }), 100);
-                                                  } else { setInlineAcompte(null); }
-                                                }}
-                                                className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium hover:bg-gray-50 transition-colors text-left ${s === currentStatut ? 'text-indigo-600 bg-indigo-50/50' : 'text-gray-700'}`}
-                                              >
-                                                <span>{c.icon}</span>{c.label}
-                                                {s === currentStatut && <Check className="h-3 w-3 ml-auto text-indigo-500" />}
-                                              </button>
-                                            ))}
-                                          </div>
-                                        )}
-                                      </div>
+                                      <button
+                                        disabled={isChanging}
+                                        onClick={e => {
+                                          e.stopPropagation();
+                                          setVersementsDrawer({
+                                            artisanNom: artisanKey,
+                                            budget,
+                                            sourceIds: [...artisan.devis.map(d => d.id), primaryFacture.id],
+                                            eventIds: [...eventIds, ...allPendingEvents.map(ev => ev.id)],
+                                            primaryDocumentId: primaryFacture.id,
+                                            primaryDocumentType: 'facture',
+                                            legacyMontantPaye: primaryFacture.montant_paye ?? 0,
+                                            factureId: primaryFacture.id,
+                                            factureStatut: currentStatut ?? 'recue',
+                                          });
+                                        }}
+                                        className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all ${cfg.cls}`}
+                                      >
+                                        {isChanging ? <Loader2 className="h-3 w-3 animate-spin" /> : cfg.icon}
+                                        {cfg.short}
+                                        <ChevronDown className="h-2.5 w-2.5 ml-0.5" />
+                                      </button>
                                     );
                                   })()}
 
@@ -1788,32 +1783,7 @@ export default function BudgetTab({
                                     );
                                   })()}
 
-                                  {/* 3. VERSEMENTS — facture partiellement payée ou reçue */}
-                                  {primaryFacture && !isAlwaysPaid && (
-                                    <button
-                                      onClick={e => {
-                                        e.stopPropagation();
-                                        setVersementsDrawer({
-                                          artisanNom: artisanKey,
-                                          budget,
-                                          // ⚠️ Inclure primaryFacture.id dans sourceIds sinon les cashflow_terms
-                                          // de la facture sont exclus du filtre VersementsDrawer (bug 2026-05-02)
-                                          sourceIds: [...artisan.devis.map(d => d.id), primaryFacture.id],
-                                          eventIds: [...eventIds, ...allPendingEvents.map(e => e.id)],
-                                          primaryDocumentId: primaryFacture.id,
-                                          primaryDocumentType: 'facture',
-                                          // Legacy montant_paye → affiché comme entrée synthétique si pas de cashflow_terms
-                                          legacyMontantPaye: primaryFacture.montant_paye ?? 0,
-                                        });
-                                      }}
-                                      className="text-[10px] text-indigo-500 hover:text-indigo-700 flex items-center gap-1"
-                                    >
-                                      <Pencil className="h-2.5 w-2.5" />
-                                      {primaryFacture.montant_paye
-                                        ? `${fmtEur(primaryFacture.montant_paye)} versé`
-                                        : 'Saisir versement'}
-                                    </button>
-                                  )}
+                                  {/* 3. Supprimé — le bouton statut (2a) ouvre directement le drawer versements */}
 
                                 </div>
                               </td>
@@ -2001,6 +1971,11 @@ export default function BudgetTab({
           primaryDocumentId={versementsDrawer.primaryDocumentId}
           primaryDocumentType={versementsDrawer.primaryDocumentType}
           legacyMontantPaye={versementsDrawer.legacyMontantPaye ?? 0}
+          factureStatut={versementsDrawer.factureStatut}
+          onStatutChange={versementsDrawer.factureId ? (s) => {
+            changeStatut(versementsDrawer.factureId!, s as FactureStatut);
+            setVersementsDrawer(prev => prev ? { ...prev, factureStatut: s } : prev);
+          } : undefined}
           onClose={() => setVersementsDrawer(null)}
           onRefresh={refresh}
         />

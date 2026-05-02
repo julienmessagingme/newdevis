@@ -42,6 +42,14 @@ interface PaymentEvent {
   proof_signed_url: string | null;
 }
 
+// Options statut facture (ordre affiché dans le drawer)
+const FACTURE_STATUT_OPTS = [
+  { value: 'recue',               label: 'Reçue — à payer',    cls: 'bg-amber-50 text-amber-700 border-amber-300' },
+  { value: 'payee_partiellement', label: 'Acompte versé',       cls: 'bg-blue-50 text-blue-700 border-blue-300' },
+  { value: 'en_litige',           label: 'En litige',           cls: 'bg-red-50 text-red-700 border-red-300' },
+  { value: 'payee',               label: 'Payée intégralement', cls: 'bg-emerald-50 text-emerald-700 border-emerald-300' },
+] as const;
+
 interface VersementsDrawerProps {
   chantierId:          string;
   token:               string;
@@ -58,6 +66,10 @@ interface VersementsDrawerProps {
    * Migration automatique côté serveur lors du premier addVersement.
    */
   legacyMontantPaye?:  number;
+  /** Statut courant de la facture (si drawer ouvert depuis une facture) */
+  factureStatut?:      string;
+  /** Callback pour changer le statut de la facture depuis le drawer */
+  onStatutChange?:     (statut: string) => void;
   onClose:             () => void;
   onRefresh:           () => void;
 }
@@ -259,6 +271,7 @@ export default function VersementsDrawer({
   sourceIds, knownEventIds,
   primaryDocumentId, primaryDocumentType,
   legacyMontantPaye = 0,
+  factureStatut, onStatutChange,
   onClose, onRefresh,
 }: VersementsDrawerProps) {
   const [events,  setEvents]  = useState<PaymentEvent[]>([]);
@@ -460,6 +473,30 @@ export default function VersementsDrawer({
             <X className="h-5 w-5" />
           </button>
         </div>
+
+        {/* Statut de paiement — sélecteur (si facture) */}
+        {factureStatut !== undefined && onStatutChange && (
+          <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/50">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Statut</p>
+            <div className="flex flex-wrap gap-1.5">
+              {FACTURE_STATUT_OPTS.map(opt => {
+                const isActive = factureStatut === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => onStatutChange(opt.value)}
+                    className={`flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full border transition-all ${
+                      isActive ? opt.cls : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300 hover:text-gray-600'
+                    }`}
+                  >
+                    {isActive && <Check className="h-3 w-3 shrink-0" />}
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Budget bar */}
         <div className="px-5 py-3 border-b border-gray-50">
