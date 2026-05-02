@@ -57,7 +57,7 @@ Problème central : l'interface reflète l'architecture du code, pas le modèle 
 - **Corrigé le :** —
 
 #### C3 — KPIs header non orientés action
-- **Statut :** 🟠 À corriger
+- **Statut :** ✅ Corrigé — 2026-05-02 · commit `c588f59`
 - **Description :** KPIs actuels (Budget / Intervenants / Documents / À traiter) informent sans orienter. "Documents: 14" ne dit pas quoi faire.
 - **Impact :** Le header est regardé à chaque visite mais ne génère aucune action.
 - **Correction :** Remplacer par "X€ à payer cette semaine", "X artisans sans devis", alerte dépassement budget.
