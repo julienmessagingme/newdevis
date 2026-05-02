@@ -616,12 +616,14 @@ function ActionBar({
   filterPay, onFilterPay,
   sortBy, onSort,
   onAddDocument,
+  onAddDepense,
 }: {
   search: string; onSearch: (v: string) => void;
   filterDevis: FilterDevis; onFilterDevis: (v: FilterDevis) => void;
   filterPay: FilterPay; onFilterPay: (v: FilterPay) => void;
   sortBy: SortBy; onSort: (v: SortBy) => void;
   onAddDocument?: () => void;
+  onAddDepense?: () => void;
 }) {
   const sel = 'text-[12px] border border-gray-200 rounded-lg px-2.5 py-2 bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-300 w-full md:w-auto';
   return (
@@ -661,6 +663,14 @@ function ActionBar({
         </select>
       </div>
       <div className="hidden md:block md:flex-1" />
+      {/* Dépense rapide — achat matériaux / paiement liquide sans document */}
+      <button
+        onClick={onAddDepense}
+        className="w-full md:w-auto flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg border border-orange-200 bg-orange-50 text-orange-700 text-[12px] font-semibold hover:bg-orange-100 transition-colors shrink-0"
+      >
+        <Plus className="h-3.5 w-3.5" />
+        Dépense
+      </button>
       <button
         onClick={onAddDocument}
         className="w-full md:w-auto flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600 text-white text-[12px] font-semibold hover:bg-indigo-700 transition-colors shrink-0"
@@ -1123,7 +1133,17 @@ export default function BudgetTab({
   const [versementsDrawer, setVersementsDrawer] = useState<{
     artisanNom: string; budget: number; sourceIds: string[]; eventIds: string[];
     primaryDocumentId?: string; primaryDocumentType?: 'devis' | 'facture';
+    legacyMontantPaye?: number;
   } | null>(null);
+  // Drawer dépense rapide (achat matériaux, paiement liquide)
+  const [depenseRapide, setDepenseRapide] = useState<null | 'open'>(null);
+  const [depenseForm, setDepenseForm] = useState<{
+    label: string; amount: string; depense_type: 'achat_materiaux' | 'frais' | 'ticket_caisse';
+    lot_id: string; note: string; date: string;
+  }>({ label: '', amount: '', depense_type: 'achat_materiaux', lot_id: '', note: '', date: new Date().toISOString().slice(0, 10) });
+  const [savingDepense, setSavingDepense] = useState(false);
+  const [depenseError,  setDepenseError]  = useState<string | null>(null);
+
   // Alerte cohérence : montant versé ≠ montant prévu dans l'échéancier
   const [coherenceAlert, setCoherenceAlert] = useState<{
     eventId: string; plannedAmount: number; plannedLabel: string | null;
@@ -1336,6 +1356,39 @@ export default function BudgetTab({
     setSavingAcompte(null);
   }, [chantierId, token, handleStatutChange, refresh]);
 
+  // Enregistre une dépense rapide (achat matériaux, frais liquide)
+  const saveDepenseRapide = useCallback(async () => {
+    const amount = parseFloat(depenseForm.amount.replace(',', '.'));
+    if (!depenseForm.label.trim() || isNaN(amount) || amount <= 0) {
+      setDepenseError('Libellé et montant requis'); return;
+    }
+    setSavingDepense(true); setDepenseError(null);
+    try {
+      const bearer = await freshToken(token);
+      const res = await fetch(`/api/chantier/${chantierId}/quick-expense`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
+        body: JSON.stringify({
+          label:        depenseForm.label.trim(),
+          amount,
+          depense_type: depenseForm.depense_type,
+          lot_id:       depenseForm.lot_id || null,
+          note:         depenseForm.note.trim() || null,
+          date:         depenseForm.date,
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setDepenseError(j.error ?? 'Erreur lors de l\'enregistrement');
+        setSavingDepense(false); return;
+      }
+      setDepenseRapide(null);
+      setDepenseForm({ label: '', amount: '', depense_type: 'achat_materiaux', lot_id: '', note: '', date: new Date().toISOString().slice(0, 10) });
+      refresh();
+    } catch { setDepenseError('Erreur réseau. Réessayez.'); }
+    setSavingDepense(false);
+  }, [chantierId, token, depenseForm, refresh]);
+
   const toggleExpand = useCallback((lotId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setExpanded(prev => {
@@ -1383,6 +1436,7 @@ export default function BudgetTab({
         filterPay={filterPay}     onFilterPay={setFilterPay}
         sortBy={sortBy}           onSort={setSortBy}
         onAddDocument={() => setShowAddDoc(true)}
+        onAddDepense={() => setDepenseRapide('open')}
       />
 
       {/* ── Tableau ───────────────────────────────────────────────────────── */}
@@ -1733,24 +1787,30 @@ export default function BudgetTab({
                                     );
                                   })()}
 
-                                  {/* 3. ACOMPTE INPUT/MODIFIER — facture partiellement payée */}
-                                  {isAcompteStatut && primaryFacture && (
+                                  {/* 3. VERSEMENTS — facture partiellement payée ou reçue */}
+                                  {primaryFacture && !isAlwaysPaid && (
                                     <button
                                       onClick={e => {
                                         e.stopPropagation();
                                         setVersementsDrawer({
                                           artisanNom: artisanKey,
                                           budget,
-                                          sourceIds: artisan.devis.map(d => d.id),
+                                          // ⚠️ Inclure primaryFacture.id dans sourceIds sinon les cashflow_terms
+                                          // de la facture sont exclus du filtre VersementsDrawer (bug 2026-05-02)
+                                          sourceIds: [...artisan.devis.map(d => d.id), primaryFacture.id],
                                           eventIds: [...eventIds, ...allPendingEvents.map(e => e.id)],
                                           primaryDocumentId: primaryFacture.id,
                                           primaryDocumentType: 'facture',
+                                          // Legacy montant_paye → affiché comme entrée synthétique si pas de cashflow_terms
+                                          legacyMontantPaye: primaryFacture.montant_paye ?? 0,
                                         });
                                       }}
                                       className="text-[10px] text-indigo-500 hover:text-indigo-700 flex items-center gap-1"
                                     >
                                       <Pencil className="h-2.5 w-2.5" />
-                                      {primaryFacture.montant_paye ? `acompte : ${fmtEur(primaryFacture.montant_paye)}` : 'Saisir acompte'}
+                                      {primaryFacture.montant_paye
+                                        ? `${fmtEur(primaryFacture.montant_paye)} versé`
+                                        : 'Saisir versement'}
                                     </button>
                                   )}
 
@@ -1939,9 +1999,124 @@ export default function BudgetTab({
           knownEventIds={versementsDrawer.eventIds}
           primaryDocumentId={versementsDrawer.primaryDocumentId}
           primaryDocumentType={versementsDrawer.primaryDocumentType}
+          legacyMontantPaye={versementsDrawer.legacyMontantPaye ?? 0}
           onClose={() => setVersementsDrawer(null)}
           onRefresh={refresh}
         />
+      )}
+
+      {/* ── Drawer dépense rapide ─────────────────────────────────────────── */}
+      {depenseRapide === 'open' && (
+        <>
+          <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setDepenseRapide(null)} />
+          <div className="fixed right-0 top-0 bottom-0 w-full sm:w-[400px] bg-white shadow-2xl z-50 flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">Budget</p>
+                <h3 className="text-[15px] font-bold text-gray-900">Enregistrer une dépense</h3>
+                <p className="text-[10px] text-orange-500 mt-0.5">Achat matériaux, paiement liquide, frais annexes…</p>
+              </div>
+              <button onClick={() => setDepenseRapide(null)} className="p-2 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Formulaire */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+              <div>
+                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Libellé *</label>
+                <input
+                  autoFocus type="text" value={depenseForm.label}
+                  onChange={e => setDepenseForm(f => ({ ...f, label: e.target.value }))}
+                  placeholder="ex : Carrelage chez Brico, Paiement plombier…"
+                  className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Montant (€) *</label>
+                  <input
+                    type="number" inputMode="decimal" value={depenseForm.amount}
+                    onChange={e => setDepenseForm(f => ({ ...f, amount: e.target.value }))}
+                    placeholder="0"
+                    className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-orange-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Date</label>
+                  <input
+                    type="date" value={depenseForm.date}
+                    onChange={e => setDepenseForm(f => ({ ...f, date: e.target.value }))}
+                    className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Type de dépense</label>
+                <select
+                  value={depenseForm.depense_type}
+                  onChange={e => setDepenseForm(f => ({ ...f, depense_type: e.target.value as any }))}
+                  className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+                >
+                  <option value="achat_materiaux">Achat matériaux</option>
+                  <option value="frais">Frais annexes</option>
+                  <option value="ticket_caisse">Ticket de caisse</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Lot / poste</label>
+                <select
+                  value={depenseForm.lot_id}
+                  onChange={e => setDepenseForm(f => ({ ...f, lot_id: e.target.value }))}
+                  className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+                >
+                  <option value="">— Aucun lot spécifique —</option>
+                  {lotsForModal.map(l => (
+                    <option key={l.id} value={l.id}>{l.emoji ? `${l.emoji} ` : ''}{l.nom}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Note (optionnel)</label>
+                <input
+                  type="text" value={depenseForm.note}
+                  onChange={e => setDepenseForm(f => ({ ...f, note: e.target.value }))}
+                  placeholder="ex : Ticket garde en poche"
+                  className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+                />
+              </div>
+
+              {depenseError && (
+                <p className="text-[11px] text-red-600 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3 shrink-0" />
+                  {depenseError}
+                </p>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={() => setDepenseRapide(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 hover:bg-gray-50"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={saveDepenseRapide}
+                  disabled={savingDepense || !depenseForm.label.trim() || !depenseForm.amount}
+                  className="flex-1 py-2.5 rounded-xl bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 disabled:opacity-40 flex items-center justify-center gap-2"
+                >
+                  {savingDepense ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                  Enregistrer
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

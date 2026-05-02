@@ -210,9 +210,10 @@ export const POST: APIRoute = async ({ params, request }) => {
     if (!finalDueDate)  return jsonError('La date est requise', 400);
 
     // Vérifier ownership + récupérer cashflow_terms actuels
+    // ⚠️ Sélectionner montant_paye pour la migration legacy (bug 2026-05-02)
     const { data: doc } = await ctx.supabase
       .from('documents_chantier')
-      .select('id, cashflow_terms, montant, facture_statut')
+      .select('id, cashflow_terms, montant, facture_statut, montant_paye')
       .eq('id', documentId)
       .eq('chantier_id', chantierId)
       .maybeSingle();
@@ -220,7 +221,21 @@ export const POST: APIRoute = async ({ params, request }) => {
     if (!doc) return jsonError('Document introuvable ou non autorisé', 404);
 
     const currentTerms: Array<Record<string, unknown>> =
-      Array.isArray(doc.cashflow_terms) ? (doc.cashflow_terms as Array<Record<string, unknown>>) : [];
+      Array.isArray(doc.cashflow_terms) ? [...(doc.cashflow_terms as Array<Record<string, unknown>>)] : [];
+
+    // Auto-migration legacy : si cashflow_terms est vide mais montant_paye > 0 sur une facture
+    // → créer un term "seed" pour éviter d'écraser la valeur précédente lors du calcul totalPaid.
+    // Fix bug 2026-05-02 : sans ce seed, totalPaid = 0 + newAmount → montant_paye écrasé.
+    const legacyPaye = typeof (doc as any).montant_paye === 'number' ? (doc as any).montant_paye as number : 0;
+    if (documentType === 'facture' && currentTerms.length === 0 && legacyPaye > 0) {
+      currentTerms.push({
+        event_id: randomUUID(),
+        amount:   legacyPaye,
+        due_date: new Date().toISOString().slice(0, 10),
+        status:   'paid',
+        label:    'Acompte (enregistrement précédent)',
+      });
+    }
 
     // Générer un event_id stable (requis par VIEW branche 2)
     const newEventId = randomUUID();
@@ -240,11 +255,11 @@ export const POST: APIRoute = async ({ params, request }) => {
     if (documentType === 'facture' && paid) {
       const montant = typeof doc.montant === 'number' ? doc.montant : 0;
       if (montant > 0) {
-        // Cumul des terms payés (existants + nouveau)
+        // Cumul de TOUS les terms payés (inclut la migration legacy le cas échéant)
         const totalPaid = currentTerms
           .filter(t => t.status === 'paid')
           .reduce((s, t) => s + (typeof t.amount === 'number' ? t.amount : 0), 0)
-          + amount;
+          + (status === 'paid' ? amount : 0);
         const newStatut = totalPaid >= montant * 0.99 ? 'payee' : 'payee_partiellement';
         await ctx.supabase
           .from('documents_chantier')

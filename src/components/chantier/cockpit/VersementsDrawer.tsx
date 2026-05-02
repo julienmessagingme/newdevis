@@ -47,11 +47,17 @@ interface VersementsDrawerProps {
   token:               string;
   artisanNom:          string;
   budget:              number;          // montant engagé artisan (plafond)
-  sourceIds:           string[];        // IDs des devis de cet artisan
+  sourceIds:           string[];        // IDs des devis + facture de cet artisan
   knownEventIds:       string[];        // IDs des payment_events déjà connus
   /** Document cible pour les nouveaux versements (cashflow_terms) */
   primaryDocumentId?:  string;
   primaryDocumentType?: 'devis' | 'facture';
+  /**
+   * Montant legacy issu de documents_chantier.montant_paye (ancien système inline).
+   * Affiché comme entrée synthétique si aucun cashflow_terms n'existe encore.
+   * Migration automatique côté serveur lors du premier addVersement.
+   */
+  legacyMontantPaye?:  number;
   onClose:             () => void;
   onRefresh:           () => void;
 }
@@ -252,6 +258,7 @@ export default function VersementsDrawer({
   chantierId, token, artisanNom, budget,
   sourceIds, knownEventIds,
   primaryDocumentId, primaryDocumentType,
+  legacyMontantPaye = 0,
   onClose, onRefresh,
 }: VersementsDrawerProps) {
   const [events,  setEvents]  = useState<PaymentEvent[]>([]);
@@ -314,7 +321,12 @@ export default function VersementsDrawer({
   const pendingEvents = events.filter(e => e.status === 'pending').sort((a, b) =>
     (a.due_date ?? '').localeCompare(b.due_date ?? ''),
   );
-  const totalVerse = paidEvents.reduce((s, e) => s + (e.amount ?? 0), 0);
+  const cashflowTotal = paidEvents.reduce((s, e) => s + (e.amount ?? 0), 0);
+  // Si aucun cashflow_term payé mais legacy montant_paye > 0 → inclure dans totalVerse
+  // (la migration vers cashflow_terms se fera automatiquement au prochain addVersement)
+  const totalVerse = cashflowTotal > 0
+    ? cashflowTotal
+    : legacyMontantPaye > 0 ? legacyMontantPaye : 0;
 
   const parsedNew  = parseFloat(newAmount.replace(',', '.'));
   const maxNew     = budget > 0 ? Math.max(0, budget - totalVerse) : Infinity;
@@ -468,7 +480,20 @@ export default function VersementsDrawer({
                   Versements effectués {paidEvents.length > 0 && `(${paidEvents.length})`}
                 </p>
 
-                {paidEvents.length === 0 ? (
+                {/* Ligne legacy : montant_paye ancien système, affiché si pas encore migré */}
+                {paidEvents.length === 0 && legacyMontantPaye > 0 && (
+                  <div className="flex items-start gap-3 py-3 border-b border-gray-50 bg-amber-50/40 rounded-xl px-3 mb-2">
+                    <div className="shrink-0 bg-amber-100 border border-amber-200 rounded-lg px-2 py-1 text-center min-w-[60px]">
+                      <span className="text-[10px] text-amber-600 font-medium leading-none">Ancien</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[14px] font-bold text-gray-700">{fmtEur(legacyMontantPaye)}</p>
+                      <p className="text-[10px] text-amber-600">Acompte précédent — ajoutez un versement pour migrer</p>
+                    </div>
+                  </div>
+                )}
+
+                {paidEvents.length === 0 && legacyMontantPaye === 0 ? (
                   <p className="text-[13px] text-gray-300 text-center py-6">Aucun versement enregistré</p>
                 ) : (
                   paidEvents.map(ev => (
