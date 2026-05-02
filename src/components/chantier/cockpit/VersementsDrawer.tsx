@@ -1,10 +1,16 @@
 /**
- * VersementsDrawer — gestion des acomptes versés pour un artisan.
+ * VersementsDrawer — gestion des versements pour un artisan.
  *
- * Affiche : liste datée des versements, total vs plafond, ajout/modif/suppression.
- * Règle métier : total cumulé des versements ≤ montant engagé (bloquant).
+ * Source de vérité : cashflow_terms du document source (devis ou facture).
+ * Les versements créés ici apparaissent dans payment_events_v branche 2
+ * et sont comptés dans la colonne "Payé" du Budget.
+ *
+ * Fix 2026-04-30 :
+ * - Loading loop corrigé : useRef pour les props instables, loadEvents stable
+ * - Authorization header corrigé : "Bearer ${token}"
+ * - Variant addToDocument pour lier les versements au document source
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
   X, Plus, Pencil, Trash2, Check, Loader2,
@@ -37,14 +43,17 @@ interface PaymentEvent {
 }
 
 interface VersementsDrawerProps {
-  chantierId:   string;
-  token:        string;
-  artisanNom:   string;
-  budget:       number;          // montant engagé artisan (plafond)
-  sourceIds:    string[];        // IDs des devis de cet artisan
-  knownEventIds: string[];       // IDs des payment_events déjà connus (manuel sans source_id)
-  onClose:      () => void;
-  onRefresh:    () => void;
+  chantierId:          string;
+  token:               string;
+  artisanNom:          string;
+  budget:              number;          // montant engagé artisan (plafond)
+  sourceIds:           string[];        // IDs des devis de cet artisan
+  knownEventIds:       string[];        // IDs des payment_events déjà connus
+  /** Document cible pour les nouveaux versements (cashflow_terms) */
+  primaryDocumentId?:  string;
+  primaryDocumentType?: 'devis' | 'facture';
+  onClose:             () => void;
+  onRefresh:           () => void;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -65,7 +74,7 @@ function todayIso(): string {
 function BudgetBar({ total, budget }: { total: number; budget: number }) {
   if (budget <= 0) return null;
   const pct = Math.min(100, Math.round(total / budget * 100));
-  const over = total > budget * 1.005;
+  const over  = total > budget * 1.005;
   const close = !over && pct >= 90;
   const color = over ? 'bg-red-500' : close ? 'bg-orange-400' : 'bg-indigo-500';
   return (
@@ -82,7 +91,7 @@ function BudgetBar({ total, budget }: { total: number; budget: number }) {
       {over && (
         <p className="text-[10px] text-red-500 flex items-center gap-1">
           <AlertTriangle className="h-3 w-3" />
-          Dépassement de {fmtEur(total - budget)} — impossible d'ajouter un versement supplémentaire
+          Dépassement de {fmtEur(total - budget)} — impossible d&apos;ajouter un versement
         </p>
       )}
     </div>
@@ -92,25 +101,25 @@ function BudgetBar({ total, budget }: { total: number; budget: number }) {
 // ── Ligne de versement ────────────────────────────────────────────────────────
 
 interface VersementRowProps {
-  ev:           PaymentEvent;
-  budget:       number;
-  totalOthers:  number; // total des autres versements (pour valider plafond à l'édition)
-  onSave:       (id: string, amount: number, date: string, label: string) => Promise<void>;
-  onDelete:     (id: string) => Promise<void>;
-  saving:       boolean;
+  ev:          PaymentEvent;
+  budget:      number;
+  totalOthers: number;
+  onSave:      (id: string, amount: number, date: string, label: string) => Promise<void>;
+  onDelete:    (id: string) => Promise<void>;
+  saving:      boolean;
 }
 
 function VersementRow({ ev, budget, totalOthers, onSave, onDelete, saving }: VersementRowProps) {
-  const [editing, setEditing] = useState(false);
-  const [amount, setAmount]   = useState(String(ev.amount ?? ''));
-  const [date, setDate]       = useState(ev.due_date?.slice(0, 10) ?? todayIso());
-  const [label, setLabel]     = useState(ev.label ?? '');
+  const [editing,    setEditing]    = useState(false);
+  const [amount,     setAmount]     = useState(String(ev.amount ?? ''));
+  const [date,       setDate]       = useState(ev.due_date?.slice(0, 10) ?? todayIso());
+  const [label,      setLabel]      = useState(ev.label ?? '');
   const [confirmDel, setConfirmDel] = useState(false);
 
   const parsedAmount = parseFloat(amount.replace(',', '.'));
-  const maxAllowed = budget > 0 ? budget - totalOthers : Infinity;
-  const isOver = !isNaN(parsedAmount) && parsedAmount > maxAllowed * 1.005;
-  const isValid = !isNaN(parsedAmount) && parsedAmount > 0 && !isOver;
+  const maxAllowed   = budget > 0 ? budget - totalOthers : Infinity;
+  const isOver       = !isNaN(parsedAmount) && parsedAmount > maxAllowed * 1.005;
+  const isValid      = !isNaN(parsedAmount) && parsedAmount > 0 && !isOver;
 
   function cancelEdit() {
     setEditing(false);
@@ -139,9 +148,7 @@ function VersementRow({ ev, budget, totalOthers, onSave, onDelete, saving }: Ver
               onChange={e => setAmount(e.target.value)}
               className={`mt-0.5 w-full border rounded-lg px-2 py-1.5 text-sm font-semibold outline-none ${isOver ? 'border-red-400 text-red-700 bg-red-50' : 'border-indigo-300 text-gray-900'}`}
             />
-            {isOver && (
-              <p className="text-[10px] text-red-500 mt-0.5">Max {fmtEur(maxAllowed)}</p>
-            )}
+            {isOver && <p className="text-[10px] text-red-500 mt-0.5">Max {fmtEur(maxAllowed)}</p>}
           </div>
           <div>
             <label className="text-[10px] text-gray-500 font-medium">Date du versement</label>
@@ -182,18 +189,13 @@ function VersementRow({ ev, budget, totalOthers, onSave, onDelete, saving }: Ver
 
   return (
     <div className="flex items-start gap-3 py-3 border-b border-gray-50 last:border-0">
-      {/* Date badge */}
       <div className="shrink-0 bg-gray-50 border border-gray-100 rounded-lg px-2 py-1 text-center min-w-[60px]">
         <span className="text-[11px] text-gray-500 font-medium leading-none">{fmtDate(ev.due_date)}</span>
       </div>
-
-      {/* Amount + label */}
       <div className="flex-1 min-w-0">
         <p className="text-[14px] font-bold text-gray-900">{ev.amount != null ? fmtEur(ev.amount) : '—'}</p>
         {ev.label && <p className="text-[11px] text-gray-400 truncate">{ev.label}</p>}
       </div>
-
-      {/* Justificatif */}
       {ev.proof_signed_url ? (
         <a
           href={ev.proof_signed_url}
@@ -209,8 +211,6 @@ function VersementRow({ ev, budget, totalOthers, onSave, onDelete, saving }: Ver
           <Paperclip className="h-3 w-3" /> Aucun
         </span>
       )}
-
-      {/* Actions */}
       <div className="shrink-0 flex items-center gap-1">
         <button
           onClick={() => setEditing(true)}
@@ -250,110 +250,178 @@ function VersementRow({ ev, budget, totalOthers, onSave, onDelete, saving }: Ver
 
 export default function VersementsDrawer({
   chantierId, token, artisanNom, budget,
-  sourceIds, knownEventIds, onClose, onRefresh,
+  sourceIds, knownEventIds,
+  primaryDocumentId, primaryDocumentType,
+  onClose, onRefresh,
 }: VersementsDrawerProps) {
   const [events,  setEvents]  = useState<PaymentEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving,  setSaving]  = useState<string | null>(null); // event ID or 'new'
+  const [saving,  setSaving]  = useState<string | null>(null);
 
   // Formulaire nouveau versement
-  const [showForm, setShowForm]   = useState(false);
-  const [newAmount, setNewAmount] = useState('');
-  const [newDate,   setNewDate]   = useState(todayIso());
-  const [newLabel,  setNewLabel]  = useState('');
-  const [newSaved,  setNewSaved]  = useState(false); // pour inciter au justificatif
+  const [showForm,   setShowForm]   = useState(false);
+  const [newAmount,  setNewAmount]  = useState('');
+  const [newDate,    setNewDate]    = useState(todayIso());
+  const [newLabel,   setNewLabel]   = useState('');
+  const [newSaved,   setNewSaved]   = useState(false);
+  const [formError,  setFormError]  = useState<string | null>(null);
 
-  // Pending events (échéances planifiées)
+  // Échéances planifiées
   const [showPending, setShowPending] = useState(false);
 
+  // ── Stabilisation des props instables via useRef ──────────────────────────
+  // NE PAS inclure sourceIds/knownEventIds dans loadEvents deps :
+  // ces tableaux sont recréés à chaque render de BudgetTab → loading loop.
+  // On les lit depuis un ref qui est toujours à jour.
+  const propsRef = useRef({ chantierId, token, sourceIds, knownEventIds });
+  propsRef.current = { chantierId, token, sourceIds, knownEventIds };
+
+  // refreshKey = seul déclencheur explicite de loadEvents (après mutation)
+  const [refreshKey, setRefreshKey] = useState(0);
+  const reload = useCallback(() => setRefreshKey(k => k + 1), []);
+
+  // ── loadEvents stable — jamais de loop ───────────────────────────────────
   const loadEvents = useCallback(async () => {
+    const { chantierId, token, sourceIds, knownEventIds } = propsRef.current;
     setLoading(true);
     try {
       const bearer = await freshToken(token);
       const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
-        headers: { Authorization: bearer },
+        // ⚠️ Toujours "Bearer " — sans préfixe = 401 silencieux
+        headers: { Authorization: `Bearer ${bearer}` },
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       const all: PaymentEvent[] = json.payment_events ?? [];
-      // Filtrer : events liés à un devis de cet artisan OU events connus (manuels)
+      // Filtrer : events liés aux devis de cet artisan OU events manuels connus
       const relevant = all.filter(e =>
         (e.source_id && sourceIds.includes(e.source_id)) ||
-        knownEventIds.includes(e.id)
+        knownEventIds.includes(e.id),
       );
       setEvents(relevant);
-    } catch { /* silencieux */ }
+    } catch (err) {
+      console.error('[VersementsDrawer] loadEvents error:', err instanceof Error ? err.message : err);
+    }
     setLoading(false);
-  }, [chantierId, token, sourceIds, knownEventIds]);
+  }, []); // stable — lit les props via propsRef
 
-  useEffect(() => { loadEvents(); }, [loadEvents]);
+  // Mount + refreshes manuels seulement (plus de loop sur props)
+  useEffect(() => { loadEvents(); }, [loadEvents, refreshKey]);
 
   const paidEvents    = events.filter(e => e.status === 'paid').sort((a, b) =>
-    (a.due_date ?? '').localeCompare(b.due_date ?? '')
+    (a.due_date ?? '').localeCompare(b.due_date ?? ''),
   );
   const pendingEvents = events.filter(e => e.status === 'pending').sort((a, b) =>
-    (a.due_date ?? '').localeCompare(b.due_date ?? '')
+    (a.due_date ?? '').localeCompare(b.due_date ?? ''),
   );
   const totalVerse = paidEvents.reduce((s, e) => s + (e.amount ?? 0), 0);
 
-  const parsedNew = parseFloat(newAmount.replace(',', '.'));
-  const maxNew = budget > 0 ? Math.max(0, budget - totalVerse) : Infinity;
-  const newIsOver = !isNaN(parsedNew) && parsedNew > maxNew * 1.005;
-  const newIsValid = !isNaN(parsedNew) && parsedNew > 0 && !newIsOver && newDate;
+  const parsedNew  = parseFloat(newAmount.replace(',', '.'));
+  const maxNew     = budget > 0 ? Math.max(0, budget - totalVerse) : Infinity;
+  const newIsOver  = !isNaN(parsedNew) && parsedNew > maxNew * 1.005;
+  const newIsValid = !isNaN(parsedNew) && parsedNew > 0 && !newIsOver && !!newDate;
 
+  // ── Ajouter un versement ──────────────────────────────────────────────────
   async function addVersement() {
     if (!newIsValid) return;
+    setFormError(null);
     setSaving('new');
     try {
       const bearer = await freshToken(token);
-      await fetch(`/api/chantier/${chantierId}/payment-events`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: bearer },
-        body: JSON.stringify({
+      const label  = newLabel.trim() || `Versement — ${artisanNom}`;
+
+      let body: Record<string, unknown>;
+
+      if (primaryDocumentId && primaryDocumentType) {
+        // Versement lié au document source → cashflow_terms → visible dans Budget
+        body = {
+          addToDocument: true,
+          documentId:    primaryDocumentId,
+          documentType:  primaryDocumentType,
+          paid:          true,
+          label,
+          amount:        parsedNew,
+          dueDate:       newDate,
+        };
+      } else {
+        // Versement flottant (sans document) → cashflow_extras → Échéancier seulement
+        body = {
           manuel: true,
-          paid: true,
-          label: newLabel.trim() || `Versement — ${artisanNom}`,
+          paid:   true,
+          label,
           amount: parsedNew,
           dueDate: newDate,
-        }),
+        };
+      }
+
+      const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
+        body: JSON.stringify(body),
       });
+
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setFormError(json.error ?? 'Erreur lors de l\'enregistrement');
+        setSaving(null);
+        return;
+      }
+
       setNewAmount('');
       setNewLabel('');
       setNewDate(todayIso());
       setShowForm(false);
       setNewSaved(true);
-      await loadEvents();
-      onRefresh();
-    } catch { /* silencieux */ }
+      reload();        // rafraîchit la liste interne
+      onRefresh();     // rafraîchit le Budget du parent
+    } catch (err) {
+      setFormError('Erreur réseau. Réessayez.');
+      console.error('[VersementsDrawer] addVersement error:', err instanceof Error ? err.message : err);
+    }
     setSaving(null);
   }
 
+  // ── Modifier un versement ─────────────────────────────────────────────────
   async function editVersement(id: string, amount: number, date: string, label: string) {
     setSaving(id);
     try {
       const bearer = await freshToken(token);
-      await fetch(`/api/chantier/${chantierId}/payment-events`, {
+      const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: bearer },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
         body: JSON.stringify({ id, amount, due_date: date, label }),
       });
-      await loadEvents();
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        console.error('[VersementsDrawer] editVersement error:', json.error);
+      }
+      reload();
       onRefresh();
-    } catch { /* silencieux */ }
+    } catch (err) {
+      console.error('[VersementsDrawer] editVersement error:', err instanceof Error ? err.message : err);
+    }
     setSaving(null);
   }
 
+  // ── Supprimer un versement ────────────────────────────────────────────────
   async function deleteVersement(id: string) {
     setSaving(id);
     try {
       const bearer = await freshToken(token);
-      await fetch(`/api/chantier/${chantierId}/payment-events`, {
+      const res = await fetch(`/api/chantier/${chantierId}/payment-events`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', Authorization: bearer },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
         body: JSON.stringify({ id }),
       });
-      await loadEvents();
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        console.error('[VersementsDrawer] deleteVersement error:', json.error);
+      }
+      reload();
       onRefresh();
-    } catch { /* silencieux */ }
+    } catch (err) {
+      console.error('[VersementsDrawer] deleteVersement error:', err instanceof Error ? err.message : err);
+    }
     setSaving(null);
   }
 
@@ -370,6 +438,11 @@ export default function VersementsDrawer({
           <div>
             <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">Versements</p>
             <h3 className="text-[15px] font-bold text-gray-900 truncate max-w-[280px]">{artisanNom}</h3>
+            {primaryDocumentType && (
+              <p className="text-[10px] text-indigo-500 mt-0.5">
+                Lié à la {primaryDocumentType} — impacte le Budget
+              </p>
+            )}
           </div>
           <button onClick={onClose} className="p-2 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
             <X className="h-5 w-5" />
@@ -383,7 +456,6 @@ export default function VersementsDrawer({
 
         {/* Contenu scrollable */}
         <div className="flex-1 overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]">
-
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-5 w-5 text-indigo-400 animate-spin" />
@@ -420,7 +492,7 @@ export default function VersementsDrawer({
                   <div className="flex-1">
                     <p className="text-[12px] font-semibold text-amber-800">Pensez à joindre un justificatif</p>
                     <p className="text-[11px] text-amber-600 mt-0.5">
-                      Facture acompte, preuve de virement… Joignez le document depuis l'onglet Documents.
+                      Facture acompte, preuve de virement… Joignez le document depuis l&apos;onglet Documents.
                     </p>
                   </div>
                   <button onClick={() => setNewSaved(false)} className="text-amber-300 hover:text-amber-500">
@@ -433,7 +505,7 @@ export default function VersementsDrawer({
               <div className="px-5 mt-4">
                 {!showForm ? (
                   <button
-                    onClick={() => { setShowForm(true); setNewSaved(false); }}
+                    onClick={() => { setShowForm(true); setNewSaved(false); setFormError(null); }}
                     disabled={budget > 0 && totalVerse >= budget * 1.005}
                     className="w-full flex items-center justify-center gap-2 text-[13px] font-semibold text-indigo-600 border border-indigo-200 rounded-xl py-3 hover:bg-indigo-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
@@ -459,7 +531,7 @@ export default function VersementsDrawer({
                           <p className="text-[10px] text-red-500 mt-0.5">Max {fmtEur(maxNew)}</p>
                         )}
                         {budget > 0 && !newIsOver && maxNew < budget && (
-                          <p className="text-[10px] text-gray-400 mt-0.5">Restant possible : {fmtEur(maxNew)}</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">Restant : {fmtEur(maxNew)}</p>
                         )}
                       </div>
                       <div>
@@ -484,13 +556,20 @@ export default function VersementsDrawer({
                       />
                     </div>
 
+                    {formError && (
+                      <p className="text-[11px] text-red-600 flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3 shrink-0" />
+                        {formError}
+                      </p>
+                    )}
+
                     <div className="flex items-center gap-2 pt-1">
                       <p className="text-[10px] text-gray-400 flex items-center gap-1 flex-1">
                         <Paperclip className="h-3 w-3" />
-                        Pensez à joindre un justificatif après la saisie
+                        Pensez à joindre un justificatif après
                       </p>
                       <button
-                        onClick={() => { setShowForm(false); setNewAmount(''); setNewLabel(''); setNewDate(todayIso()); }}
+                        onClick={() => { setShowForm(false); setNewAmount(''); setNewLabel(''); setNewDate(todayIso()); setFormError(null); }}
                         className="text-xs text-gray-400 hover:text-gray-600 px-3 py-1.5 rounded-lg border border-gray-200"
                       >
                         Annuler

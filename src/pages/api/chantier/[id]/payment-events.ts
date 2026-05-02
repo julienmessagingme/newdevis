@@ -188,7 +188,77 @@ export const POST: APIRoute = async ({ params, request }) => {
     return jsonError('Corps de requête invalide', 400);
   }
 
-  // ── Dépense manuelle (source_type = 'manuel') ──────────────────────────────
+  // ── Versement lié à un document (cashflow_terms) ─────────────────────────
+  // Utilisé par VersementsDrawer quand primaryDocumentId est fourni.
+  // Appende un term dans documents_chantier.cashflow_terms du document source
+  // (devis ou facture). Cela est la seule façon d'impacter la colonne "Payé"
+  // du Budget (cf. eventsPayeByDoc dans budget.ts qui lit payment_events_v
+  // branche 2 = cashflow_terms, avec source_id non null).
+  if (body.addToDocument === true) {
+    const documentId   = typeof body.documentId   === 'string' && body.documentId   ? body.documentId   : null;
+    const documentType = body.documentType === 'facture' ? 'facture' : 'devis';
+    const label        = typeof body.label   === 'string' && body.label.trim()   ? body.label.trim()   : null;
+    const amount       = typeof body.amount  === 'number' && body.amount  > 0    ? body.amount         : null;
+    const dueDate      = typeof body.dueDate === 'string' && body.dueDate        ? body.dueDate        : null;
+    const paid         = body.paid === true;
+    const status       = paid ? 'paid' : 'pending';
+    const finalDueDate = dueDate ?? (paid ? new Date().toISOString().slice(0, 10) : null);
+
+    if (!documentId)    return jsonError('documentId requis', 400);
+    if (!amount)        return jsonError('Le montant est requis (> 0)', 400);
+    if (!label)         return jsonError('Le libellé est requis', 400);
+    if (!finalDueDate)  return jsonError('La date est requise', 400);
+
+    // Vérifier ownership + récupérer cashflow_terms actuels
+    const { data: doc } = await ctx.supabase
+      .from('documents_chantier')
+      .select('id, cashflow_terms, montant, facture_statut')
+      .eq('id', documentId)
+      .eq('chantier_id', chantierId)
+      .maybeSingle();
+
+    if (!doc) return jsonError('Document introuvable ou non autorisé', 404);
+
+    const currentTerms: Array<Record<string, unknown>> =
+      Array.isArray(doc.cashflow_terms) ? (doc.cashflow_terms as Array<Record<string, unknown>>) : [];
+
+    // Générer un event_id stable (requis par VIEW branche 2)
+    const newEventId = randomUUID();
+    const newTerm = { event_id: newEventId, amount, due_date: finalDueDate, status, label };
+
+    const { error: updateErr } = await ctx.supabase
+      .from('documents_chantier')
+      .update({ cashflow_terms: [...currentTerms, newTerm] })
+      .eq('id', documentId);
+
+    if (updateErr) {
+      console.error('[payment-events] addToDocument update error:', updateErr.message);
+      return jsonError('Erreur lors de l\'ajout du versement', 500);
+    }
+
+    // Si facture + versement payé : mettre à jour facture_statut + montant_paye
+    if (documentType === 'facture' && paid) {
+      const montant = typeof doc.montant === 'number' ? doc.montant : 0;
+      if (montant > 0) {
+        // Cumul des terms payés (existants + nouveau)
+        const totalPaid = currentTerms
+          .filter(t => t.status === 'paid')
+          .reduce((s, t) => s + (typeof t.amount === 'number' ? t.amount : 0), 0)
+          + amount;
+        const newStatut = totalPaid >= montant * 0.99 ? 'payee' : 'payee_partiellement';
+        await ctx.supabase
+          .from('documents_chantier')
+          .update({ facture_statut: newStatut, montant_paye: totalPaid })
+          .eq('id', documentId);
+      }
+    }
+
+    return jsonOk({ event_id: newEventId, message: 'Versement ajouté' }, 201);
+  }
+
+  // ── Dépense manuelle flottante (cashflow_extras, source_type = 'manuel') ────
+  // Pour les mouvements sans document source (apport, crédit, etc.).
+  // NE PAS utiliser pour des versements liés à un devis/facture → budget ne le verra pas.
   if (body.manuel === true) {
     const label   = typeof body.label   === 'string' && body.label.trim()   ? body.label.trim()   : null;
     const amount  = typeof body.amount  === 'number' && body.amount  > 0    ? body.amount         : null;
