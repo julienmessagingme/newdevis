@@ -93,6 +93,41 @@ if (body.addToDocument === true) {
 
 ---
 
+## 25. verdictEngine — source de vérité unique du verdict
+
+✅ **Implémenté et déployé (2026-05-01). Commit `f462dcc`.**
+
+### Problème résolu
+Contradiction structurelle entre 3 sources de verdict indépendantes :
+- `analysis.score` (edge function `score.ts`) — entreprise uniquement
+- `analysis.conclusion_ia.verdict_decisionnel` (LLM Gemini via `conclusion.ts`) — prix + anomalies
+- `effectiveScore` (client `AnalysisResult.tsx`) — pire des deux, mais parsing fragile
+
+Résultat : header Feu Vert alors que ConclusionIA affichait Feu Orange.
+
+### Architecture
+
+`src/lib/verdictEngine.ts` — moteur déterministe pur (zéro IA, zéro état) :
+1. **Hard block** (radiée / SIRET / assurance / cash / IBAN) → `refuser` immédiat, STOP
+2. **Verdict prix** : `overprice_pct` vs seuils 5%/15% + `anomalies_major_count`
+3. **Verdict risque** : flags mentions légales / acompte / incohérence / `company_risk`
+4. **Merge** : gravité maximale (`refuser > a_negocier > signer`)
+5. **Règle UX** : INTERDIT `price_label = "signer"` si `overprice > 5%`
+
+Helpers exposés : `computeMarketBounds`, `countMajorAnomalies`, `extractFlagsFromCriteria`, `extractCompanyRisk`
+
+### Intégration
+
+| Fichier | Rôle |
+|---|---|
+| `conclusion.ts` | Remplace logique de cohérence post-LLM — le LLM génère les explications, le moteur impose `verdict_decisionnel` + `verdict_global` |
+| `AnalysisResult.tsx` | `effectiveScore` calculé par `computeVerdict` depuis `analysis.score` JSON + `cachedN8NData` + `raw_text` |
+
+### Règle absolue
+Ne jamais recalculer le verdict ailleurs. Si un nouveau composant affiche un badge → importer `computeVerdict` depuis `verdictEngine.ts`, jamais écrire une logique locale.
+
+---
+
 ## 24. FeedbackModal post-analyse
 
 ✅ **Implémenté et déployé (2026-05-01). Commits `ec1daf1` → `e2604ba`.**

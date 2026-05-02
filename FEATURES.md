@@ -917,6 +917,30 @@ La page d'accueil VMD a été rebalancée pour couvrir les 3 dimensions du produ
 
 ---
 
+## 19. Moteur de verdict déterministe — verdictEngine (2026-05-01)
+
+Remplace la logique de verdict dispersée dans 3 fichiers par une source de vérité unique.
+
+### Ce que l'utilisateur voit
+
+- **Zéro contradiction** entre le badge Feu en haut de page et le verdict de l'expert ci-dessous
+- Le badge se met à jour dès que l'analyse prix est disponible, sans attendre l'IA
+- La règle "À négocier" s'affiche dès que le prix dépasse 5% du marché, même si l'IA n'a pas encore généré son verdict
+
+### Logique
+
+| Priorité | Condition | Verdict |
+|---|---|---|
+| 1 (absolu) | Entreprise radiée / SIRET invalide / absence assurance / paiement cash / IBAN suspect | Refuser |
+| 2 | Surcoût ≤ 5% ET 0 anomalie majeure | Signer |
+| 2 | Surcoût ≤ 15% ET ≤ 1 anomalie majeure | À négocier |
+| 2 | Au-delà | Refuser |
+| 3 | Mentions légales manquantes / acompte excessif / risque entreprise élevé | Au moins À négocier |
+
+Résultat final = gravité maximale des critères prix + risque.
+
+---
+
 ## 18. Feedback post-analyse — FeedbackModal (2026-05-01)
 
 Popup de feedback contextuel qui s'ouvre après la consultation d'une analyse.
