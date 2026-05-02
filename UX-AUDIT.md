@@ -79,7 +79,7 @@ Problème central : l'interface reflète l'architecture du code, pas le modèle 
 - Risque de mise en litige accidentelle. Correction : confirmation requise + note obligatoire.
 
 #### I2 — Sous-lignes devis visibles par défaut
-- **Statut :** 🟠 Backlog
+- **Statut :** ✅ Corrigé — 2026-05-02 · commit `ebe745c`
 - Le tableau Budget affiche toutes les sous-lignes. Sur un artisan avec 3 devis = surcharge. Masquer par défaut, expand on click.
 
 #### I3 — Assistant IA invisible sauf dans son onglet

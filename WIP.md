@@ -31,7 +31,7 @@ Audit complet → voir [`UX-AUDIT.md`](UX-AUDIT.md) (baseline + historique des i
 | # | Problème | Statut |
 |---|----------|--------|
 | I1 | Statut "En litige" = confirmation requise | 🟠 Backlog |
-| I2 | Sous-lignes devis masquées par défaut dans Budget | 🟠 Backlog |
+| I2 | Sous-lignes devis masquées par défaut dans Budget | ✅ Fait `ebe745c` |
 | I3 | Surface persistante alertes IA (bandeau, pas onglet) | 🟠 Backlog |
 | I4 | "Reste" en orange → neutre sauf retard réel | 🟠 Backlog |
 | I5 | Vue expert en toggle | 🟠 Backlog |
