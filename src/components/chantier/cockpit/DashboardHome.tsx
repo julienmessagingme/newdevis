@@ -378,9 +378,12 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
   const total     = lots.length;
   const validated = lots.filter(l => {
     if (STATUTS_VALIDES.includes(l.statut ?? '')) return true;
-    return (docsByLot[l.id] ?? []).some(
-      d => d.document_type === 'devis' && (d.devis_statut === 'valide' || d.devis_statut === 'attente_facture'),
-    );
+    const docs = docsByLot[l.id] ?? [];
+    // Devis signé ou en attente de facture
+    if (docs.some(d => d.document_type === 'devis' && (d.devis_statut === 'valide' || d.devis_statut === 'attente_facture'))) return true;
+    // Facture reçue avec au moins un paiement = artisan engagé même sans devis "valide"
+    if (docs.some(d => d.document_type === 'facture' && (d.facture_statut === 'payee' || d.facture_statut === 'payee_partiellement'))) return true;
+    return false;
   }).length;
   const withDevis = lots.filter(l => {
     if (STATUTS_VALIDES.includes(l.statut ?? '')) return false;
