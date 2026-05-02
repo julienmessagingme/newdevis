@@ -14,6 +14,7 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 ## 20. Bug versements Budget — unification + fix source de vérité
 
 ✅ **Implémenté et déployé (2026-04-30). Commits `payment-events.ts` + `VersementsDrawer.tsx` + `BudgetTab.tsx` → push `00a2046`.**
+✅ **Bug complémentaire corrigé (2026-05-02). Commit `531ed07` — bouton "Paiement" (sans facture) ne passait pas `primaryDocumentId` → versements allaient dans `cashflow_extras` (source_id=null) → invisibles dans Budget. Fix : on passe maintenant `primaryDocumentId: artisan.devis[0].id` + `primaryDocumentType: 'devis'` → versements sauvegardés dans `cashflow_terms` du devis → comptabilisés dans la colonne Payé.**
 
 ### Problèmes constatés (rapport user 2026-04-30)
 
