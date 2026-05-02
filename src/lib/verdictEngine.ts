@@ -352,6 +352,15 @@ export interface VerdictReasonsInput {
   threshold_ok:          number;
 }
 
+export interface VerdictReasonsResult {
+  /** Résumé 1 ligne — impact immédiat, affiché en tête. */
+  summary: string;
+  /** Problèmes : prix, anomalies, risque. Max 3. Jamais dispersion ni complexité. */
+  reasons: string[];
+  /** Contexte secondaire : dispersion marché, complexité chantier. Max 2. */
+  context: string[];
+}
+
 /** Formatte un montant en k€ si ≥ 1 000, sinon en € entiers. */
 function fmtEur(n: number): string {
   const abs = Math.abs(n);
@@ -365,20 +374,27 @@ function fmtPct(pct: number): string {
 }
 
 /**
- * Génère 1 à 3 raisons courtes expliquant le verdict au particulier.
- * Aucun jargon, 1 chiffre si possible, cohérent avec computeVerdict().
- * Utilisé dans la section UI "Pourquoi ce verdict ?".
+ * Génère le bloc "Pourquoi ce verdict ?" structuré en 3 parties :
+ *   - summary : résumé 1 ligne (impact immédiat)
+ *   - reasons : problèmes réels (prix, anomalies, risque) — max 3
+ *   - context : informations secondaires (dispersion, complexité) — max 2, séparés visuellement
  */
-export function generateVerdictReasons(input: VerdictReasonsInput): string[] {
+export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReasonsResult {
   const {
     verdict, overprice, overprice_pct, anomalies_major_count,
     company_risk, flags, has_market_data,
     market_dispersion_pct, chantier_complexity, threshold_ok,
   } = input;
 
+  // ── Summary — 1 ligne, toujours présent ──────────────────────────────────────
+  const summary =
+    verdict === "refuser"    ? "Ce devis présente un risque élevé — ne signez pas" :
+    verdict === "a_negocier" ? "Ce devis est au-dessus du marché et doit être renégocié" :
+                               "Ce devis est cohérent avec les prix du marché";
+
   const reasons: string[] = [];
 
-  // ── 1. Hard blocks — priorité absolue ────────────────────────────────────────
+  // ── 1. Hard blocks ────────────────────────────────────────────────────────────
   if (flags.entreprise_radiee) {
     reasons.push("⛔ Cette entreprise est radiée — elle ne peut pas légalement réaliser les travaux");
   }
@@ -395,17 +411,19 @@ export function generateVerdictReasons(input: VerdictReasonsInput): string[] {
     reasons.push("⛔ IBAN étranger ou invalide — risque de fraude");
   }
 
-  // Si hard block détecté, les raisons suivantes ne sont pas utiles
-  if (reasons.length > 0) return reasons.slice(0, 3);
+  // Hard block : on retourne immédiatement, sans contexte (pas pertinent ici)
+  if (reasons.length > 0) {
+    return { summary, reasons: reasons.slice(0, 3), context: [] };
+  }
 
   // ── 2. Prix ───────────────────────────────────────────────────────────────────
   if (has_market_data) {
     if (verdict === "signer") {
-      if (overprice_pct <= threshold_ok && overprice_pct >= -0.05) {
-        reasons.push("✅ Prix conforme au marché");
-      } else if (overprice_pct < -0.05) {
-        reasons.push(`✅ Prix attractif — environ ${fmtEur(-overprice)} sous la moyenne du marché`);
-      }
+      reasons.push(
+        overprice_pct < -0.05
+          ? `✅ Prix attractif — environ ${fmtEur(-overprice)} sous la moyenne du marché`
+          : "✅ Prix conforme au marché"
+      );
     } else if (verdict === "a_negocier") {
       reasons.push(
         overprice_pct <= threshold_ok
@@ -413,50 +431,48 @@ export function generateVerdictReasons(input: VerdictReasonsInput): string[] {
           : `⚠️ Vous payez environ ${fmtEur(overprice)} au-dessus du marché (${fmtPct(overprice_pct)})`
       );
     } else {
-      // refuser
       reasons.push(`🛑 Prix fortement au-dessus du marché — surcoût estimé ${fmtEur(overprice)} (${fmtPct(overprice_pct)})`);
     }
-  } else if (verdict === "signer") {
-    // Pas de données marché et verdict OK → rassurer sans chiffre
-    reasons.push("✅ Aucune anomalie de prix détectée");
   }
 
   // ── 3. Anomalies ──────────────────────────────────────────────────────────────
+  if (verdict === "signer") {
+    // Cas signer : ton uniquement positif, max 2 raisons, jamais ⚠️
+    if (anomalies_major_count === 0) {
+      reasons.push("✅ Aucun écart significatif détecté sur les postes");
+    }
+    // Cap à 2 pour le cas signer
+    return { summary, reasons: reasons.slice(0, 2), context: [] };
+  }
+
+  // Cas a_negocier ou refuser
   if (anomalies_major_count >= 2) {
     reasons.push(`⚠️ ${anomalies_major_count} postes présentent des prix anormalement élevés`);
   } else if (anomalies_major_count === 1) {
-    if (verdict !== "signer") {
-      reasons.push("⚠️ 1 poste présente un prix anormalement élevé");
-    }
-  } else if (verdict === "signer") {
-    reasons.push("✅ Aucune anomalie détectée sur les postes de travaux");
+    reasons.push("⚠️ 1 poste présente un prix anormalement élevé");
   }
 
-  // ── 4. Risque contractuel / entreprise ───────────────────────────────────────
-  if (flags.mentions_legales_manquantes) {
-    reasons.push("⚠️ Informations légales incomplètes sur le devis");
-  } else if (flags.acompte_excessif) {
-    reasons.push("⚠️ Acompte demandé trop élevé (risque financier)");
-  } else if (flags.incoherence_contractuelle) {
-    reasons.push("⚠️ Incohérences dans les clauses contractuelles");
-  } else if (company_risk === "high" && reasons.length < 3) {
-    reasons.push("⚠️ Signaux d'alerte sur la situation de l'entreprise");
-  }
-
-  // ── 5. Contexte intelligent (marché + complexité) ─────────────────────────────
-  // Ajouté uniquement si on a encore de la place et que c'est pertinent
+  // ── 4. Risque contractuel ─────────────────────────────────────────────────────
   if (reasons.length < 3) {
-    if (market_dispersion_pct > 0.4) {
-      reasons.push("ℹ️ Les prix varient fortement selon les artisans — comparez plusieurs devis");
-    } else if (chantier_complexity === "high" && verdict !== "signer") {
-      reasons.push("ℹ️ Travaux complexes — des écarts de prix sont possibles");
+    if (flags.mentions_legales_manquantes) {
+      reasons.push("⚠️ Informations légales incomplètes sur le devis");
+    } else if (flags.acompte_excessif) {
+      reasons.push("⚠️ Acompte demandé trop élevé (risque financier)");
+    } else if (flags.incoherence_contractuelle) {
+      reasons.push("⚠️ Incohérences dans les clauses contractuelles");
+    } else if (company_risk === "high") {
+      reasons.push("⚠️ Signaux d'alerte sur la situation de l'entreprise");
     }
   }
 
-  // ── Cas signer sans raison générée (très rare) ────────────────────────────────
-  if (reasons.length === 0) {
-    reasons.push("✅ Prix dans la norme, aucune anomalie, entreprise identifiable");
+  // ── 5. Contexte (séparé des raisons — jamais mélangé) ────────────────────────
+  const context: string[] = [];
+  if (market_dispersion_pct > 0.4) {
+    context.push("📊 Marché très variable — les prix peuvent fortement différer selon les artisans");
+  }
+  if (chantier_complexity === "high") {
+    context.push("🔧 Travaux complexes — des écarts de prix sont possibles");
   }
 
-  return reasons.slice(0, 3);
+  return { summary, reasons: reasons.slice(0, 3), context: context.slice(0, 2) };
 }

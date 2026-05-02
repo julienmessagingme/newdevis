@@ -36,8 +36,12 @@ export interface ConclusionData {
   actions_avant_signature: string[];
 
   // ── Explication verdict (section "Pourquoi ce verdict ?") ───────────────────
-  /** 1 à 3 raisons courtes, lisibles, générées par generateVerdictReasons() */
-  verdict_reasons?: string[];
+  /** Bloc structuré généré par generateVerdictReasons() */
+  verdict_reasons?: {
+    summary: string;
+    reasons: string[];
+    context: string[];
+  };
 
   // ── Contexte marché (seuils adaptatifs — affiché dans ConclusionIA) ──────────
   /** Phrase courte expliquant pourquoi les seuils ont été ajustés (dispersion / complexité) */

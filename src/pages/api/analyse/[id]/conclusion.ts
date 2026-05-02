@@ -818,7 +818,7 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       surcout_global:          { min: surcoutMin, max: surcoutMax },
       niveau_risque:           niveauRisque,
       actions_avant_signature: rawActions,
-      ...(verdict_reasons.length  > 0 ? { verdict_reasons }  : {}),
+      verdict_reasons,
       ...(market_context_note     ? { market_context_note } : {}),
       generated_at:            new Date().toISOString(),
     };

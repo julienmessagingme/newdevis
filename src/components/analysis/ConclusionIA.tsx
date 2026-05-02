@@ -274,23 +274,48 @@ function ConclusionDisplay({
       </p>
 
       {/* ═══════════════════════════════════════════════════════════
-          SECTION "POURQUOI CE VERDICT ?" — 1 à 3 raisons courtes
+          SECTION "POURQUOI CE VERDICT ?" — summary + raisons + contexte
       ════════════════════════════════════════════════════════════ */}
-      {Array.isArray((conclusion as any).verdict_reasons) &&
-       (conclusion as any).verdict_reasons.length > 0 && (
-        <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 space-y-2">
+      {(conclusion as any).verdict_reasons && (
+        <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 space-y-2.5">
+
+          {/* En-tête */}
           <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide flex items-center gap-1.5">
             <span aria-hidden="true">🔍</span>
             <span>Pourquoi ce verdict ?</span>
           </p>
-          <ul className="space-y-1.5">
-            {((conclusion as any).verdict_reasons as string[]).map((reason: string, i: number) => (
-              <li key={i} className="text-sm text-foreground leading-snug flex items-start gap-2">
-                <span className="mt-[2px] shrink-0 text-muted-foreground" aria-hidden="true">•</span>
-                <span>{reason}</span>
-              </li>
-            ))}
-          </ul>
+
+          {/* Résumé 1 ligne */}
+          <p className="text-sm font-medium text-foreground leading-snug">
+            👉 {(conclusion as any).verdict_reasons.summary}
+          </p>
+
+          {/* Raisons — problèmes uniquement */}
+          {(conclusion as any).verdict_reasons.reasons?.length > 0 && (
+            <ul className="space-y-1.5">
+              {((conclusion as any).verdict_reasons.reasons as string[]).map((r: string, i: number) => (
+                <li key={i} className="text-sm text-foreground leading-snug flex items-start gap-2">
+                  <span className="mt-[2px] shrink-0 text-muted-foreground" aria-hidden="true">•</span>
+                  <span>{r}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* Contexte — badges secondaires séparés */}
+          {(conclusion as any).verdict_reasons.context?.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
+              {((conclusion as any).verdict_reasons.context as string[]).map((c: string, i: number) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center text-xs text-muted-foreground bg-background border border-border rounded-full px-2.5 py-1 leading-none"
+                >
+                  {c}
+                </span>
+              ))}
+            </div>
+          )}
+
         </div>
       )}
 
