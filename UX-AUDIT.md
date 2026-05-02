@@ -43,7 +43,7 @@ Problème central : l'interface reflète l'architecture du code, pas le modèle 
 ### Problèmes critiques identifiés
 
 #### C1 — Bouton direct "Enregistrer paiement" manquant
-- **Statut :** 🟠 À corriger
+- **Statut :** ✅ Corrigé — 2026-05-02 · commit `6be85c8`
 - **Description :** Pour enregistrer un versement, l'utilisateur doit trouver la facture → cliquer le badge statut → ouvrir le drawer → cliquer "+ Ajouter". 6 étapes pour 1 action banale.
 - **Impact :** Les utilisateurs n'enregistrent pas leurs paiements → données fausses → produit perd sa valeur.
 - **Correction :** Bouton "💸 Paiement" visible sur chaque ligne artisan avec facture. Formulaire ultra-minimal : montant pré-rempli (restant dû), date = aujourd'hui, 1 clic = validé.

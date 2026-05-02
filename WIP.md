@@ -21,7 +21,7 @@ Audit complet → voir [`UX-AUDIT.md`](UX-AUDIT.md) (baseline + historique des i
 
 | # | Problème | Statut | Commit |
 |---|----------|--------|--------|
-| C1 | Bouton direct "Enregistrer paiement" sur chaque ligne artisan | 🟠 À faire | — |
+| C1 | Bouton direct "Enregistrer paiement" sur chaque ligne artisan | ✅ Fait | `6be85c8` |
 | C2 | Supprimer messages techniques de l'UI (legacy, migrer, cashflow) | 🟠 À faire | — |
 | C3 | KPIs header orientés action (X€ à payer, alertes) | 🟠 À faire | — |
 | C4 | État vide + progression d'onboarding | 🟠 À faire | — |
