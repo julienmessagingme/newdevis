@@ -50,7 +50,7 @@ Problème central : l'interface reflète l'architecture du code, pas le modèle 
 - **Corrigé le :** —
 
 #### C2 — Terminologie technique visible en UI
-- **Statut :** 🟠 À corriger
+- **Statut :** ✅ Corrigé — 2026-05-02 · commit `c697b3c`
 - **Description :** Messages "Lié à la facture — impacte le Budget", "Acompte précédent — ajoutez un versement pour migrer" visibles en prod.
 - **Impact :** Perte de confiance. L'utilisateur voit les coulisses de la DB.
 - **Correction :** Supprimer ou reformuler : "✓ Comptabilisé dans le budget" / supprimer le message legacy migration.
