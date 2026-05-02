@@ -87,7 +87,7 @@ Problème central : l'interface reflète l'architecture du code, pas le modèle 
 - L'IA tourne en arrière-plan et génère des insights mais personne ne va dans l'onglet "Assistant". Surface persistante nécessaire.
 
 #### I4 — Couleur "Reste à payer" anxiogène par défaut
-- **Statut :** 🟠 Backlog
+- **Statut :** ✅ Corrigé — 2026-05-02 · commit `2d16ca2`
 - Orange sur le restant dû = signal d'alerte sur un état normal. Passer en gris neutre, orange seulement si retard réel.
 
 #### I5 — Vue expert = vue par défaut
