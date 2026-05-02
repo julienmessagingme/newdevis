@@ -9,6 +9,96 @@ import ComparateurDevisModal from '@/components/chantier/cockpit/ComparateurDevi
 import { fmtK } from '@/lib/dashboardHelpers';
 import type { BreakdownItem } from './BudgetTresorerie';
 import { useAnalysisScores } from '@/hooks/useAnalysisScores';
+import { Check } from 'lucide-react';
+
+// ── Barre d'onboarding ────────────────────────────────────────────────────────
+
+interface OnboardingStep {
+  id:       string;
+  label:    string;
+  done:     boolean;
+  cta?:     string;
+  onCta?:   () => void;
+}
+
+function OnboardingBar({ steps }: { steps: OnboardingStep[] }) {
+  const [dismissed, setDismissed] = useState(false);
+  const allDone = steps.every(s => s.done);
+
+  // Disparaît automatiquement si tout est fait, ou si l'utilisateur ferme
+  if (allDone || dismissed) return null;
+
+  const doneCount = steps.filter(s => s.done).length;
+  const pct       = Math.round((doneCount / steps.length) * 100);
+
+  return (
+    <div className="bg-white border border-indigo-100 rounded-2xl px-5 py-4 shadow-sm relative overflow-hidden">
+      {/* Barre de fond */}
+      <div className="absolute inset-x-0 bottom-0 h-1 bg-gray-100">
+        <div
+          className="h-full bg-indigo-400 rounded-full transition-all duration-500"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-base">🚀</span>
+          <p className="text-[13px] font-bold text-gray-800">
+            Démarrez votre suivi de chantier
+          </p>
+          <span className="text-[11px] font-semibold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">
+            {doneCount}/{steps.length}
+          </span>
+        </div>
+        <button
+          onClick={() => setDismissed(true)}
+          className="text-gray-300 hover:text-gray-500 transition-colors p-1"
+          title="Masquer"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* Étapes */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {steps.map((step, i) => (
+          <div
+            key={step.id}
+            className={`flex items-start gap-2 rounded-xl px-3 py-2.5 transition-all ${
+              step.done
+                ? 'bg-emerald-50 border border-emerald-100'
+                : 'bg-gray-50 border border-gray-100'
+            }`}
+          >
+            {/* Numéro / check */}
+            <div className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold mt-0.5 ${
+              step.done
+                ? 'bg-emerald-500 text-white'
+                : 'bg-white border-2 border-gray-200 text-gray-400'
+            }`}>
+              {step.done ? <Check className="h-3 w-3" /> : i + 1}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-[11px] font-semibold leading-tight ${step.done ? 'text-emerald-700' : 'text-gray-600'}`}>
+                {step.label}
+              </p>
+              {!step.done && step.cta && step.onCta && (
+                <button
+                  onClick={step.onCta}
+                  className="mt-1 text-[10px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-0.5"
+                >
+                  <Plus className="h-3 w-3" />{step.cta}
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // ── Tooltip breakdown budget ──────────────────────────────────────────────────
 
@@ -411,8 +501,22 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
     return { aRegler: sum, nbARegler: nb };
   }, [documents]);
 
+  // Étapes d'onboarding
+  const hasDevis    = documents.some(d => d.document_type === 'devis');
+  const hasFacture  = documents.some(d => d.document_type === 'facture');
+  const hasBudget   = !!(budgetReel && budgetReel > 0);
+  const onboardingSteps: OnboardingStep[] = [
+    { id: 'chantier', label: 'Chantier créé',       done: true },
+    { id: 'artisan',  label: '1er artisan ajouté',   done: lots.length > 0, cta: 'Ajouter',  onCta: onAddIntervenant },
+    { id: 'devis',    label: '1er devis importé',    done: hasDevis,        cta: 'Importer', onCta: onAddDoc },
+    { id: 'budget',   label: 'Budget défini',         done: hasBudget,       cta: 'Définir',  onCta: onAffineBudget },
+  ];
+
   return (
     <div className="px-5 py-5 space-y-5">
+
+      {/* ── Onboarding (masqué dès que les 4 étapes sont complètes) ── */}
+      <OnboardingBar steps={onboardingSteps} />
 
       {/* ── KPI cards ──────────────────────────────────────────── */}
       <div className={`grid grid-cols-2 gap-3 ${nextRdv ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}`}>
