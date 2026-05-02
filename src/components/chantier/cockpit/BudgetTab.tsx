@@ -781,7 +781,7 @@ function ArtisanDrawer({
           {[
             { label: 'Facturé', value: fmtEur(totalFacture), red: false },
             { label: 'Payé',    value: fmtEur(totalPaye),    red: false },
-            { label: 'Reste',   value: fmtEur(row.reste),    red: row.reste > 0 },
+            { label: 'Reste',   value: fmtEur(row.reste),    red: false },
           ].map(item => (
             <div key={item.label} className="px-4 py-3 text-center">
               <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">{item.label}</p>
@@ -1739,7 +1739,7 @@ export default function BudgetTab({
                                       <Check className="h-3.5 w-3.5" />Soldé
                                     </span>
                                   ) : artisan.totaux.a_payer > 0 ? (
-                                    <span className="text-[13px] font-black text-orange-600">{fmtEur(artisan.totaux.a_payer)}</span>
+                                    <span className="text-[13px] font-black text-gray-700">{fmtEur(artisan.totaux.a_payer)}</span>
                                   ) : !primaryFacture && !hasDevisAcompte ? (
                                     <span className="text-[11px] text-gray-300">—</span>
                                   ) : null}
