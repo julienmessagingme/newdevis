@@ -218,24 +218,29 @@ export function AssistantActiveBlock({ lots, docsByLot, onAddDevisForLot, onGoTo
 
 // ── Dashboard Home ─────────────────────────────────────────────────────────────
 
-export function KpiCard({ icon, label, value, sub, accent = 'gray', action }: {
+export function KpiCard({ icon, label, value, sub, accent = 'gray', action, onClick }: {
   icon: string;
   label: string;
   value: string | number;
   sub?: string;
-  accent?: 'gray' | 'emerald' | 'blue' | 'red' | 'amber';
+  accent?: 'gray' | 'emerald' | 'blue' | 'red' | 'amber' | 'orange';
   action?: ReactNode;
+  onClick?: () => void;
 }) {
-  const colors: Record<string, { bg: string; value: string; sub: string }> = {
-    gray:    { bg: 'bg-gray-50',    value: 'text-gray-900',    sub: 'text-gray-400'   },
-    emerald: { bg: 'bg-emerald-50', value: 'text-emerald-700', sub: 'text-emerald-500' },
-    blue:    { bg: 'bg-blue-50',    value: 'text-blue-700',    sub: 'text-blue-400'   },
-    red:     { bg: 'bg-red-50',     value: 'text-red-600',     sub: 'text-red-400'    },
-    amber:   { bg: 'bg-amber-50',   value: 'text-amber-700',   sub: 'text-amber-500'  },
+  const colors: Record<string, { bg: string; value: string; sub: string; ring: string }> = {
+    gray:    { bg: 'bg-gray-50',    value: 'text-gray-900',    sub: 'text-gray-400',    ring: 'hover:ring-gray-200'    },
+    emerald: { bg: 'bg-emerald-50', value: 'text-emerald-700', sub: 'text-emerald-500', ring: 'hover:ring-emerald-200' },
+    blue:    { bg: 'bg-blue-50',    value: 'text-blue-700',    sub: 'text-blue-400',    ring: 'hover:ring-blue-200'    },
+    red:     { bg: 'bg-red-50',     value: 'text-red-600',     sub: 'text-red-400',     ring: 'hover:ring-red-200'     },
+    amber:   { bg: 'bg-amber-50',   value: 'text-amber-700',   sub: 'text-amber-500',   ring: 'hover:ring-amber-200'   },
+    orange:  { bg: 'bg-orange-50',  value: 'text-orange-700',  sub: 'text-orange-500',  ring: 'hover:ring-orange-200'  },
   };
-  const c = colors[accent];
+  const c = colors[accent] ?? colors.gray;
   return (
-    <div className={`${c.bg} rounded-2xl px-4 py-4 flex items-start gap-3`}>
+    <div
+      onClick={onClick}
+      className={`${c.bg} rounded-2xl px-4 py-4 flex items-start gap-3 transition-all ${onClick ? `cursor-pointer ring-1 ring-transparent ${c.ring}` : ''}`}
+    >
       <span className="text-2xl leading-none mt-0.5 shrink-0">{icon}</span>
       <div className="min-w-0 flex-1">
         <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">{label}</p>

@@ -393,7 +393,23 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
     return docs.some(d => d.document_type === 'devis');
   }).length;
   const blocked   = Math.max(0, total - validated - withDevis);
-  const totalDocs = documents.length;
+
+  // Montant total restant à régler (factures reçues + partiellement payées)
+  const { aRegler, nbARegler } = useMemo(() => {
+    let sum = 0;
+    let nb  = 0;
+    for (const d of documents) {
+      if (d.document_type !== 'facture') continue;
+      if (d.facture_statut === 'recue') {
+        sum += d.montant ?? 0;
+        nb++;
+      } else if (d.facture_statut === 'payee_partiellement') {
+        sum += Math.max(0, (d.montant ?? 0) - (d.montant_paye ?? 0));
+        nb++;
+      }
+    }
+    return { aRegler: sum, nbARegler: nb };
+  }, [documents]);
 
   return (
     <div className="px-5 py-5 space-y-5">
@@ -425,22 +441,35 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
         </div>
 
         <KpiCard
-          icon="✅" label="Intervenants"
+          icon={validated === total && total > 0 ? '✅' : '👷'}
+          label="Intervenants"
           value={total > 0 ? `${validated}/${total}` : '0'}
-          sub={total > 0 ? 'validés' : 'aucun intervenant'}
-          accent={validated === total && total > 0 ? 'emerald' : 'gray'}
+          sub={
+            total === 0          ? 'aucun intervenant' :
+            validated === total  ? 'tous engagés' :
+            blocked > 0          ? `${blocked} sans devis` :
+                                   `${total - validated} en cours`
+          }
+          accent={validated === total && total > 0 ? 'emerald' : blocked > 0 ? 'amber' : 'gray'}
+          onClick={onGoToPlanning}
         />
         <KpiCard
-          icon="📄" label="Documents"
-          value={totalDocs}
-          sub={totalDocs > 0 ? `devis, factures, photos` : 'aucun document'}
-          accent={totalDocs > 0 ? 'blue' : 'gray'}
+          icon={aRegler > 0 ? '💸' : '✓'}
+          label="À régler"
+          value={aRegler > 0 ? fmtEurShort(aRegler) : '0 €'}
+          sub={
+            nbARegler === 0 ? 'aucune facture en attente' :
+            nbARegler === 1 ? '1 facture à régler' :
+                              `${nbARegler} factures à régler`
+          }
+          accent={aRegler > 0 ? 'orange' : 'emerald'}
         />
         <KpiCard
           icon="⚡" label="À traiter"
           value={blocked}
           sub={blocked > 0 ? `intervenant${blocked > 1 ? 's' : ''} sans devis` : 'tout est suivi'}
           accent={blocked > 0 ? 'red' : 'emerald'}
+          onClick={onGoToAssistant}
         />
 
         {/* Prochain RDV — uniquement si planifié */}
