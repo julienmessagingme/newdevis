@@ -24,7 +24,7 @@ Audit complet → voir [`UX-AUDIT.md`](UX-AUDIT.md) (baseline + historique des i
 | C1 | Bouton direct "Enregistrer paiement" sur chaque ligne artisan | ✅ Fait | `6be85c8` |
 | C2 | Supprimer messages techniques de l'UI (legacy, migrer, cashflow) | ✅ Fait | `c697b3c` |
 | C3 | KPIs header orientés action (X€ à payer, alertes) | ✅ Fait | `c588f59` |
-| C4 | État vide + progression d'onboarding | 🟠 À faire | — |
+| C4 | État vide + progression d'onboarding | ✅ Fait | `62234d9` |
 
 ### Problèmes importants — backlog
 

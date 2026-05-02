@@ -64,7 +64,7 @@ Problème central : l'interface reflète l'architecture du code, pas le modèle 
 - **Corrigé le :** —
 
 #### C4 — État vide sans guidance
-- **Statut :** 🟠 À corriger
+- **Statut :** ✅ Corrigé — 2026-05-02 · commit `62234d9`
 - **Description :** Chantier avec peu de données = KPIs à 0 + tableau vide. Pas de "prochaine étape".
 - **Impact :** Churn à l'adoption. Le produit est utile quand rempli mais ne guide pas pour le remplir.
 - **Correction :** Prompt d'action contextuel + barre de progression onboarding (5 étapes).
