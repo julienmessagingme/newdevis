@@ -474,8 +474,9 @@ export default function VersementsDrawer({
             <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">Versements</p>
             <h3 className="text-[15px] font-bold text-gray-900 truncate max-w-[280px]">{artisanNom}</h3>
             {primaryDocumentType && (
-              <p className="text-[10px] text-indigo-500 mt-0.5">
-                Lié à la {primaryDocumentType} — impacte le Budget
+              <p className="text-[10px] text-emerald-600 mt-0.5 flex items-center gap-1">
+                <Check className="h-3 w-3 shrink-0" />
+                Comptabilisé dans le budget
               </p>
             )}
           </div>
@@ -527,15 +528,15 @@ export default function VersementsDrawer({
                   Versements effectués {paidEvents.length > 0 && `(${paidEvents.length})`}
                 </p>
 
-                {/* Ligne legacy : montant_paye ancien système, affiché si pas encore migré */}
+                {/* Versement initial enregistré avant le nouveau système */}
                 {paidEvents.length === 0 && legacyMontantPaye > 0 && (
-                  <div className="flex items-start gap-3 py-3 border-b border-gray-50 bg-amber-50/40 rounded-xl px-3 mb-2">
-                    <div className="shrink-0 bg-amber-100 border border-amber-200 rounded-lg px-2 py-1 text-center min-w-[60px]">
-                      <span className="text-[10px] text-amber-600 font-medium leading-none">Ancien</span>
+                  <div className="flex items-start gap-3 py-3 border-b border-gray-50 last:border-0">
+                    <div className="shrink-0 bg-gray-50 border border-gray-100 rounded-lg px-2 py-1 text-center min-w-[60px]">
+                      <span className="text-[11px] text-gray-400 font-medium leading-none">—</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[14px] font-bold text-gray-700">{fmtEur(legacyMontantPaye)}</p>
-                      <p className="text-[10px] text-amber-600">Acompte précédent — ajoutez un versement pour migrer</p>
+                      <p className="text-[14px] font-bold text-gray-900">{fmtEur(legacyMontantPaye)}</p>
+                      <p className="text-[11px] text-gray-400">Versement enregistré</p>
                     </div>
                   </div>
                 )}
