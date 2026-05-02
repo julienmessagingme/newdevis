@@ -1,5 +1,7 @@
 export const prerender = false;
 
+import { randomUUID } from 'node:crypto';
+
 /**
  * POST /api/chantier/[id]/quick-expense
  *
@@ -64,7 +66,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   // ⚠️ MAIS: branche 1 ne couvre que 'frais' | 'ticket_caisse'. Pour 'achat_materiaux' → cashflow_terms
   // Donc on injecte un cashflow_term paid pour garantir la visibilité dans le Budget quelle que soit la branche.
   const cashflow_terms = [{
-    event_id: crypto.randomUUID(),
+    event_id: randomUUID(),
     amount,
     due_date: date,
     status:   'paid',

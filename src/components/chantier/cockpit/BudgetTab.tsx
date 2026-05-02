@@ -1651,6 +1651,9 @@ export default function BudgetTab({
                             const isAcompteStatut = currentStatut === 'payee_partiellement';
                             const isInlineOpen = inlineAcompte?.artisanKey === artisanKey;
                             const isSavingAcomp = primaryFacture ? savingAcompte === primaryFacture.id : false;
+                            // Ticket/frais = toujours payé, pas de dropdown ni bouton versement
+                            // Déclaré ici (scope outer) pour être accessible en section 3
+                            const isAlwaysPaid = primaryFacture?.depense_type === 'ticket_caisse' || primaryFacture?.depense_type === 'frais';
 
                             // Artisan sans facture : acompte via payment_events
                             const devisWithEvents = artisan.devis.filter(d => (d.payment_event_ids?.length ?? 0) > 0);
@@ -1708,8 +1711,6 @@ export default function BudgetTab({
 
                                   {/* 2a. STATUT — bouton central (si facture) */}
                                   {primaryFacture && cfg && (() => {
-                                    // Ticket de caisse ou frais = toujours payé, pas de dropdown
-                                    const isAlwaysPaid = primaryFacture.depense_type === 'ticket_caisse' || primaryFacture.depense_type === 'frais';
                                     if (isAlwaysPaid) {
                                       return (
                                         <span className="flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
