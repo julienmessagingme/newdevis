@@ -1705,6 +1705,9 @@ export default function BudgetTab({
                                       : devisStatut === 'acompte'
                                       ? { icon: <span>⏳</span>, short: 'Acompte', cls: 'border-indigo-200 bg-indigo-50 text-indigo-700' }
                                       : { icon: <Plus className="h-3 w-3" />, short: 'Paiement', cls: 'border-gray-200 bg-gray-50 text-gray-400' };
+                                    // Premier devis valide = document cible pour cashflow_terms
+                                    // Sans primaryDocumentId → cashflow_extras flottant → invisible dans Budget
+                                    const primaryDevis = artisan.devis[0] ?? null;
                                     return (
                                       <button
                                         onClick={e => {
@@ -1714,6 +1717,11 @@ export default function BudgetTab({
                                             budget,
                                             sourceIds: artisan.devis.map(d => d.id),
                                             eventIds: [...eventIds, ...allPendingEvents.map(e => e.id)],
+                                            // Lier au devis source → versement compté dans Budget
+                                            ...(primaryDevis ? {
+                                              primaryDocumentId:   primaryDevis.id,
+                                              primaryDocumentType: 'devis' as const,
+                                            } : {}),
                                           });
                                         }}
                                         className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all ${devisCfg.cls}`}
