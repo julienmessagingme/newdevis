@@ -796,11 +796,38 @@ function ArtisanDrawer({
         <div className="flex-1 overflow-y-auto px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-5">
 
           {/* Devis */}
-          {lot.devis.length > 0 && (
+          {lot.devis.length > 0 && (() => {
+            // Devis primaire = validé ou attente_facture en priorité, sinon le plus récent
+            const primaryDevisId = (
+              lot.devis.find(d => d.devis_statut === 'valide' || d.devis_statut === 'attente_facture')
+              ?? lot.devis[0]
+            )?.id;
+            const [showAllDevis, setShowAllDevis] = useState(false);
+            const visibleDevis = (showAllDevis || lot.devis.length <= 1)
+              ? lot.devis
+              : lot.devis.filter(d => d.id === primaryDevisId);
+            const hiddenCount = lot.devis.length - visibleDevis.length;
+
+            return (
             <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Devis</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                  Devis {lot.devis.length > 1 && `(${lot.devis.length})`}
+                </p>
+                {lot.devis.length > 1 && (
+                  <button
+                    onClick={() => setShowAllDevis(v => !v)}
+                    className="text-[10px] font-semibold text-indigo-500 hover:text-indigo-700 flex items-center gap-1"
+                  >
+                    {showAllDevis
+                      ? <><ChevronDown className="h-3 w-3" />Réduire</>
+                      : <><ChevronRight className="h-3 w-3" />+{hiddenCount} autre{hiddenCount > 1 ? 's' : ''}</>
+                    }
+                  </button>
+                )}
+              </div>
               <div className="space-y-0">
-                {lot.devis.map(d => {
+                {visibleDevis.map(d => {
                   const isAvenant = !!d.parent_devis_id;
                   const validatedDay = d.devis_validated_at ? d.devis_validated_at.slice(0, 10) : null;
                   return (
@@ -910,7 +937,8 @@ function ArtisanDrawer({
                 </div>
               )}
             </div>
-          )}
+            );
+          })()}
 
           {/* Factures */}
           {lot.factures.length > 0 && (
