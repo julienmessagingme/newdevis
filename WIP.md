@@ -11,6 +11,34 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## 21. Plan UX/UI — Amélioration continue GMC (Audit 2026-05-02)
+
+🟡 **En cours — corrections critiques priorisées une par une, validées par le Product Owner.**
+
+Audit complet → voir [`UX-AUDIT.md`](UX-AUDIT.md) (baseline + historique des itérations).
+
+### Problèmes critiques — statut
+
+| # | Problème | Statut | Commit |
+|---|----------|--------|--------|
+| C1 | Bouton direct "Enregistrer paiement" sur chaque ligne artisan | 🟠 À faire | — |
+| C2 | Supprimer messages techniques de l'UI (legacy, migrer, cashflow) | 🟠 À faire | — |
+| C3 | KPIs header orientés action (X€ à payer, alertes) | 🟠 À faire | — |
+| C4 | État vide + progression d'onboarding | 🟠 À faire | — |
+
+### Problèmes importants — backlog
+
+| # | Problème | Statut |
+|---|----------|--------|
+| I1 | Statut "En litige" = confirmation requise | 🟠 Backlog |
+| I2 | Sous-lignes devis masquées par défaut dans Budget | 🟠 Backlog |
+| I3 | Surface persistante alertes IA (bandeau, pas onglet) | 🟠 Backlog |
+| I4 | "Reste" en orange → neutre sauf retard réel | 🟠 Backlog |
+| I5 | Vue expert en toggle | 🟠 Backlog |
+| I6 | Dépense rapide mieux visible | 🟠 Backlog |
+
+---
+
 ## 20. Bug versements Budget — unification + fix source de vérité
 
 ✅ **Implémenté et déployé (2026-04-30). Commits `payment-events.ts` + `VersementsDrawer.tsx` + `BudgetTab.tsx` → push `00a2046`.**

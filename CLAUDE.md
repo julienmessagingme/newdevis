@@ -304,6 +304,13 @@ Pour le détail complet (modèle CPM, agent IA dual-mode, pipeline de générati
 
 ---
 
+## UX/UI → voir [`UX-AUDIT.md`](UX-AUDIT.md)
+
+Audit UX complet daté du 2026-05-02. Score global : **3.4/10**. Corrections critiques C1→C4 en cours dans `WIP.md § 21`.  
+**Règle** : tout changement UX majeur → mettre à jour le statut dans `UX-AUDIT.md`. Refaire un audit tous les 2-3 mois.
+
+---
+
 ## TODO → voir [`WIP.md`](WIP.md)
 
 Toutes les features en cours, partiellement implémentées, idées et dette technique sont centralisées dans **`WIP.md`** à la racine du repo. À mettre à jour à chaque session quand on commence/finit/bloque quelque chose.
