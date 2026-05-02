@@ -70,6 +70,12 @@ interface VersementsDrawerProps {
   factureStatut?:      string;
   /** Callback pour changer le statut de la facture depuis le drawer */
   onStatutChange?:     (statut: string) => void;
+  /** Ouvre directement le formulaire d'ajout au montage (bouton "Paiement" rapide) */
+  autoOpenForm?:       boolean;
+  /** Pré-remplit le montant du formulaire (= restant dû) */
+  autoFillAmount?:     number;
+  /** Pré-remplit le libellé du formulaire */
+  autoFillLabel?:      string;
   onClose:             () => void;
   onRefresh:           () => void;
 }
@@ -272,6 +278,9 @@ export default function VersementsDrawer({
   primaryDocumentId, primaryDocumentType,
   legacyMontantPaye = 0,
   factureStatut, onStatutChange,
+  autoOpenForm = false,
+  autoFillAmount,
+  autoFillLabel,
   onClose, onRefresh,
 }: VersementsDrawerProps) {
   const [events,  setEvents]  = useState<PaymentEvent[]>([]);
@@ -279,10 +288,11 @@ export default function VersementsDrawer({
   const [saving,  setSaving]  = useState<string | null>(null);
 
   // Formulaire nouveau versement
-  const [showForm,   setShowForm]   = useState(false);
-  const [newAmount,  setNewAmount]  = useState('');
+  // autoOpenForm = true → formulaire ouvert immédiatement (bouton "Paiement" rapide)
+  const [showForm,   setShowForm]   = useState(autoOpenForm);
+  const [newAmount,  setNewAmount]  = useState(autoFillAmount != null && autoFillAmount > 0 ? String(autoFillAmount) : '');
   const [newDate,    setNewDate]    = useState(todayIso());
-  const [newLabel,   setNewLabel]   = useState('');
+  const [newLabel,   setNewLabel]   = useState(autoFillLabel ?? '');
   const [newSaved,   setNewSaved]   = useState(false);
   const [formError,  setFormError]  = useState<string | null>(null);
 

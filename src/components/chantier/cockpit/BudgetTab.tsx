@@ -1137,6 +1137,10 @@ export default function BudgetTab({
     /** Pour le sélecteur de statut intégré au drawer */
     factureId?: string;
     factureStatut?: string;
+    /** Bouton "Paiement" rapide : ouvre le formulaire directement pré-rempli */
+    autoOpenForm?: boolean;
+    autoFillAmount?: number;
+    autoFillLabel?: string;
   } | null>(null);
   // Drawer dépense rapide (achat matériaux, paiement liquide)
   const [depenseRapide, setDepenseRapide] = useState<null | 'open'>(null);
@@ -1783,7 +1787,35 @@ export default function BudgetTab({
                                     );
                                   })()}
 
-                                  {/* 3. Supprimé — le bouton statut (2a) ouvre directement le drawer versements */}
+                                  {/* 3. BOUTON PAIEMENT RAPIDE — visible si montant restant à régler */}
+                                  {primaryFacture && !isAlwaysPaid && artisan.totaux.a_payer > 0 && (
+                                    <button
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        const resteARegler = artisan.totaux.a_payer;
+                                        const isAcompte = (statutOverrides[primaryFacture.id] ?? primaryFacture.facture_statut) === 'payee_partiellement';
+                                        setVersementsDrawer({
+                                          artisanNom: artisanKey,
+                                          budget,
+                                          sourceIds: [...artisan.devis.map(d => d.id), primaryFacture.id],
+                                          eventIds: [...eventIds, ...allPendingEvents.map(ev => ev.id)],
+                                          primaryDocumentId: primaryFacture.id,
+                                          primaryDocumentType: 'facture',
+                                          legacyMontantPaye: primaryFacture.montant_paye ?? 0,
+                                          factureId: primaryFacture.id,
+                                          factureStatut: currentStatut ?? 'recue',
+                                          autoOpenForm: true,
+                                          autoFillAmount: resteARegler,
+                                          autoFillLabel: isAcompte
+                                            ? `Solde — ${artisanKey}`
+                                            : `Paiement — ${artisanKey}`,
+                                        });
+                                      }}
+                                      className="flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
+                                    >
+                                      💸 Paiement
+                                    </button>
+                                  )}
 
                                 </div>
                               </td>
@@ -1976,6 +2008,9 @@ export default function BudgetTab({
             changeStatut(versementsDrawer.factureId!, s as FactureStatut);
             setVersementsDrawer(prev => prev ? { ...prev, factureStatut: s } : prev);
           } : undefined}
+          autoOpenForm={versementsDrawer.autoOpenForm}
+          autoFillAmount={versementsDrawer.autoFillAmount}
+          autoFillLabel={versementsDrawer.autoFillLabel}
           onClose={() => setVersementsDrawer(null)}
           onRefresh={refresh}
         />
