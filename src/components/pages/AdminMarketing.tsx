@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Megaphone, RefreshCw, ArrowLeft, FileText, Settings } from "lucide-react";
+import { Megaphone, RefreshCw, ArrowLeft, FileText, Settings, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { AdminLoading, AdminAccessDenied } from "@/components/admin/sections/AdminGuards";
@@ -163,6 +163,12 @@ export default function AdminMarketing() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <a href="/admin/marketing/agents">
+              <Button variant="outline" size="sm" title="Description des agents IA">
+                <Bot className="h-4 w-4 mr-2" />
+                <span className="hidden lg:inline">Agents</span>
+              </Button>
+            </a>
             <a href="/admin/marketing/settings">
               <Button variant="outline" size="sm">
                 <Settings className="h-4 w-4 mr-2" />
@@ -203,12 +209,36 @@ export default function AdminMarketing() {
           )}
         </section>
 
-        {/* KPIs rapides */}
+        {/* KPIs rapides — cliquables pour appliquer le filtre statut correspondant */}
         <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <KpiCard label="Affichés" value={counts.total} />
-          <KpiCard label="Approuvés" value={counts.approved} accent="emerald" />
-          <KpiCard label="Publiés" value={counts.published} accent="green" />
-          <KpiCard label="Rejetés / Failed" value={counts.rejected} accent="red" />
+          <KpiCard
+            label="Affichés"
+            value={counts.total}
+            onClick={() => setFilters({ ...filters, status: "all" })}
+            active={filters.status === "all"}
+          />
+          <KpiCard
+            label="Approuvés"
+            value={counts.approved}
+            accent="emerald"
+            onClick={() => setFilters({ ...filters, status: "approved" })}
+            active={filters.status === "approved"}
+          />
+          <KpiCard
+            label="Publiés"
+            value={counts.published}
+            accent="green"
+            onClick={() => setFilters({ ...filters, status: "published" })}
+            active={filters.status === "published"}
+          />
+          <KpiCard
+            label="Rejetés / Failed"
+            value={counts.rejected}
+            accent="red"
+            onClick={() => setFilters({ ...filters, status: "rejected" })}
+            active={filters.status === "rejected" || filters.status === "failed"}
+            hint="Clique pour voir uniquement les rejetés (et bascule sur 'failed' si tu veux voir les échecs techniques)."
+          />
         </section>
 
         {/* Filtres */}
@@ -248,19 +278,38 @@ interface KpiCardProps {
   label: string;
   value: number;
   accent?: "emerald" | "green" | "red";
+  /** Si fourni, la card devient cliquable et applique le filtre correspondant */
+  onClick?: () => void;
+  /** Si true, ring bleu pour signaler que ce filtre est actif */
+  active?: boolean;
+  /** Tooltip optionnel sur hover (title HTML) */
+  hint?: string;
 }
 
-function KpiCard({ label, value, accent }: KpiCardProps) {
+function KpiCard({ label, value, accent, onClick, active, hint }: KpiCardProps) {
   const accentClass =
     accent === "emerald" ? "text-emerald-700"
     : accent === "green" ? "text-green-700"
     : accent === "red" ? "text-red-700"
     : "text-foreground";
 
+  const baseClass = "bg-card rounded-xl border p-4 transition";
+  const activeRing = active ? "ring-2 ring-primary border-primary" : "";
+  const interactive = onClick
+    ? "cursor-pointer hover:bg-muted/50 hover:border-foreground/20 active:scale-[0.98]"
+    : "";
+
+  const Tag = onClick ? "button" : "div";
+
   return (
-    <div className="bg-card rounded-xl border p-4">
+    <Tag
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      title={hint}
+      className={`${baseClass} ${activeRing} ${interactive} text-left w-full`}
+    >
       <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className={`text-2xl font-bold mt-1 ${accentClass}`}>{value}</div>
-    </div>
+    </Tag>
   );
 }

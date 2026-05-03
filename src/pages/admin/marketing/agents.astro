@@ -1,0 +1,14 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AdminMarketingAgentsApp from '@/components/app/AdminMarketingAgentsApp';
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="Agents IA Marketing | VerifierMonDevis.fr"
+  description="Description des agents IA marketing GérerMonChantier (Strategist, Researcher, Copywriter, Visual Director, Quality Gate, Publisher)"
+  noindex={true}
+>
+  <AdminMarketingAgentsApp client:only="react" />
+</BaseLayout>
