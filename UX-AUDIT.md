@@ -95,8 +95,9 @@ Problème central : l'interface reflète l'architecture du code, pas le modèle 
 - Le tableau dense avec 9 colonnes devrait être la vue "expert" accessible via toggle.
 
 #### I6 — Dépense rapide introuvable
-- **Statut :** 🟠 Backlog
+- **Statut :** ✅ Corrigé — 2026-05-03
 - Le bouton "Dépense" (achat matériaux, paiement liquide) est dans la barre d'actions du Budget. Un novice ne le trouvera jamais là.
+- **Correction :** Bouton "🧾 Dépense rapide" ajouté dans une barre "Actions rapides" sur le tableau de bord principal (DashboardHome), entre les KPIs et le planning. Ouvre un drawer complet (libellé, montant, type, lot, note) sans naviguer ailleurs. Token passé depuis les props (pas de createClient au niveau module).
 
 ---
 
