@@ -1,0 +1,14 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AdminMarketingSettingsApp from '@/components/app/AdminMarketingSettingsApp';
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="Réglages Marketing | VerifierMonDevis.fr"
+  description="Réglages dynamiques des agents IA marketing GérerMonChantier"
+  noindex={true}
+>
+  <AdminMarketingSettingsApp client:only="react" />
+</BaseLayout>

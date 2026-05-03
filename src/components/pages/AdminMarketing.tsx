@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Megaphone, RefreshCw, ArrowLeft, FileText } from "lucide-react";
+import { Megaphone, RefreshCw, ArrowLeft, FileText, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { AdminLoading, AdminAccessDenied } from "@/components/admin/sections/AdminGuards";
@@ -163,6 +163,12 @@ export default function AdminMarketing() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <a href="/admin/marketing/settings">
+              <Button variant="outline" size="sm">
+                <Settings className="h-4 w-4 mr-2" />
+                <span className="hidden sm:inline">Réglages</span>
+              </Button>
+            </a>
             <a href="/admin/blog" className="hidden md:inline-flex">
               <Button variant="outline" size="sm">
                 <FileText className="h-4 w-4 mr-2" />

@@ -134,3 +134,61 @@ export interface MarketingStatus {
   ready_to_publish?: number;
   [key: string]: unknown;
 }
+
+/**
+ * Marketing settings — singleton row de marketing.settings.
+ * Pilotable depuis /admin/marketing/settings.
+ *
+ * Source de vérité : `agents/src/models/marketing_settings.py` côté Python.
+ * Validation côté serveur : helper FastAPI rejette toute valeur hors range.
+ */
+export interface MarketingSettings {
+  id: 1;
+  /** Cible CTA GMC vs VMD sur 30 jours, 0-100 (default 70 = 70% GMC) */
+  gmc_ratio_pct: number;
+  /** Score min Quality Gate pour APPROVED, 1-12 (default 10) */
+  quality_threshold: number;
+  /** Cap dur coût par flow en USD, > 0 et <= 50 (default 2.0) */
+  max_flow_cost_usd: number;
+  /** Heure tick quotidien, 0-23 Europe/Paris (default 9) */
+  scheduler_hour: number;
+  /** Minute tick quotidien, 0-59 (default 0) */
+  scheduler_minute: number;
+  /** Mode test : pas de publication réelle (default true) */
+  dry_run: boolean;
+  updated_at: string | null;
+  updated_by: string;
+}
+
+/**
+ * Payload envoyé PAR LE CLIENT à `/api/admin/marketing/settings` (route Astro proxy).
+ * `updated_by` est INJECTÉ CÔTÉ SERVEUR (admin email auth) — pas du body — pour empêcher
+ * un admin d'usurper l'identité d'un autre dans les logs d'audit. Ne jamais l'envoyer
+ * depuis le client : il sera ignoré.
+ */
+export interface MarketingSettingsClientPayload {
+  gmc_ratio_pct?: number;
+  quality_threshold?: number;
+  max_flow_cost_usd?: number;
+  scheduler_hour?: number;
+  scheduler_minute?: number;
+  dry_run?: boolean;
+}
+
+/**
+ * Payload envoyé PAR LA ROUTE ASTRO à FastAPI `/api/settings`.
+ * `updated_by` est requis — c'est l'email de l'admin authentifié, injecté côté serveur.
+ */
+export interface MarketingSettingsUpdate extends MarketingSettingsClientPayload {
+  updated_by: string;
+}
+
+/**
+ * Réponse de POST /api/settings — settings post-update + hint UI sur le restart scheduler.
+ * Le flag `scheduler_restart_required` est true si scheduler_hour ou scheduler_minute
+ * a été modifié — le frontend doit afficher un avertissement "restart container nécessaire
+ * pour la prise en compte" car APScheduler tient un trigger statique au boot.
+ */
+export interface MarketingSettingsUpdateResponse extends MarketingSettings {
+  scheduler_restart_required: boolean;
+}
