@@ -39,6 +39,75 @@ Audit complet → voir [`UX-AUDIT.md`](UX-AUDIT.md) (baseline + historique des i
 
 ---
 
+## 21bis. Phase F — Dashboard `/admin/marketing` (gerermonchantier-marketing)
+
+🟢 **Code livré 2026-05-03. Tests TS/build OK sur les nouveaux fichiers. Reste : config env Vercel + DNS + smoke prod.**
+
+Suite des phases A/0/B/C/D/E livrées dans le repo `gerermonchantier-marketing` (cf wip.md là-bas). C'est l'UI admin qui consomme l'API FastAPI marketing pour permettre à Julien de gérer les carrousels générés par les agents IA (lister, prévisualiser, télécharger ZIP, marquer publié, kill switch).
+
+### Architecture livrée
+
+**Sécurité — proxy serveur obligatoire (delta vs spec wip.md du repo marketing)**
+La spec disait "fetch côté frontend avec sb_publishable_*". Refusé : aurait exposé `MARKETING_API_BEARER_TOKEN` dans le bundle JS. Toutes les requêtes passent par des routes Astro server-side qui :
+1. Vérifient JWT user + rôle admin (helper `requireAdmin`)
+2. Appellent FastAPI avec le Bearer token côté serveur
+3. Pour les requêtes Supabase (liste/détail posts), utilisent `service_role` + `.schema('marketing' as never)` puisque le types.ts auto-généré ne couvre que le schema `public`.
+
+**Routes API créées** (toutes sous `/api/admin/marketing/`) :
+- `GET /status` — proxy `/api/status` (kill switch + recent_runs + ready_to_publish)
+- `POST /kill-switch` — proxy avec validation reason obligatoire si pause + cap 500 chars
+- `GET /posts` — Supabase direct, filtres status/persona/platform/dates avec whitelist serveur
+- `GET /posts/[id]` — détail + assets jointes
+- `GET /posts/[id]/zip` — stream proxy (forward body + Content-Disposition + Content-Length)
+- `POST /posts/[id]/publish` — proxy mark-published
+
+**Page UI** : `/admin/marketing.astro` → `AdminMarketingApp` → page React `AdminMarketing` avec :
+- KillSwitchToggle (icône état + dialog pause avec reason obligatoire)
+- 4 cartes KPI rapides (affichés / approuvés / publiés / rejetés-failed)
+- Filtres : status / persona / platform / dates (avec reset)
+- Liste posts (table avec covers thumbnails)
+- Dialog détail : CarouselPreview (slide-by-slide avec dots) + caption + hashtags + CTA + boutons download ZIP / mark-published
+
+**Pattern réutilisable** : nouveau helper `src/lib/adminAuth.ts:requireAdmin(request)` factorise le check JWT + role admin (réutilisable pour futures routes admin).
+
+**Bouton "Marketing"** ajouté à `AdminHeader.tsx` à côté de "Blog" (pattern cohérent).
+
+### Code review effectuée (règle Julien)
+
+3 findings, tous fixés :
+- **HIGH** `AdminMarketing.tsx` : un seul useEffect `[fetchStatus, fetchPosts]` re-déclenchait `fetchStatus` à chaque changement de filtre. Split en 2 useEffects.
+- **MEDIUM** `KillSwitchToggle.tsx` : affichait "Système actif" pendant le loading initial (status null) → trompeur. Ajout d'un état "Vérification en cours".
+- **MEDIUM** `kill-switch.ts` route serveur : pas de cap longueur sur `reason` (le frontend mettait `maxLength=500` mais un appel direct API bypassait). Cap serveur 500.
+
+### Reste à faire côté Julien (config infra, hors code newdevis)
+
+Cf `gerermonchantier-marketing/todo.md` Phase E/F :
+- [ ] DNS Cloudflare `marketing.messagingme.app` → 146.59.233.252 (Proxied + SSL Full strict)
+- [ ] Build + run du container marketing-agents sur le VPS (RUNBOOK sections 2→6)
+- [ ] **Côté newdevis (Vercel)** : ajouter 2 env vars
+  - `MARKETING_API_URL` = `https://marketing.messagingme.app` (ou `http://localhost:8082` en dev)
+  - `MARKETING_API_BEARER_TOKEN` = même valeur que `API_BEARER_TOKEN` côté FastAPI
+- [ ] Smoke test : ouvrir `/admin/marketing`, vérifier que la liste des posts s'affiche (vide au début, normal), vérifier que le kill switch toggle fonctionne, lancer un run de DRY_RUN=true côté FastAPI, télécharger le ZIP du premier post généré.
+
+### Pièges connus
+
+- **MARKETING_API_BEARER_TOKEN ne doit JAMAIS être préfixé `PUBLIC_` ni `VITE_`.** Sinon il finirait dans le bundle JS client. Le helper `marketingApi.ts` lit `process.env.MARKETING_API_BEARER_TOKEN ?? import.meta.env.MARKETING_API_BEARER_TOKEN` — Vercel injecte via `process.env` au runtime.
+- **Schema Supabase non typé** : les requêtes `.schema('marketing' as never)` perdent les types Supabase. On cast les rows manuellement via les types dans `src/types/marketing.ts`. Si un champ DB change, mettre à jour ce fichier.
+- **Stream ZIP** : la route `/zip.ts` retourne `new Response(upstream.body, ...)`. Sur Vercel Node runtime OK, surveiller le timeout fonction (60s Pro, 300s avec `maxDuration`). Pour un carrousel ~5MB largement OK.
+- **Validation date_to** : `${dateTo}T23:59:59.999Z` est UTC, donc le filtre coupe la dernière heure en heure française. Acceptable pour un dashboard interne.
+
+### Backend marketing — état infra (mise à jour 2026-05-03)
+
+Le déploiement Phase E (backend Python sur VPS) est **LIVE** :
+- URL : `https://marketing.messagingme.app`
+- Container `gmc-marketing-agents` Up healthy sur VPS OVH (NPM proxy id=13, cert LE id=14)
+- Scheduler in-process actif, premier tick auto demain 9h Paris en `DRY_RUN=true`
+- Env vars Vercel (MARKETING_API_URL + MARKETING_API_BEARER_TOKEN) chargées par Julien
+
+Du coup côté Phase F : il ne reste plus que le smoke prod après push sur Vercel (ouvrir `/admin/marketing`, vérifier que la liste s'affiche, tester kill switch toggle, télécharger un ZIP quand un post sera créé).
+
+---
+
 ## 20. Bug versements Budget — unification + fix source de vérité
 
 ✅ **Implémenté et déployé (2026-04-30). Commits `payment-events.ts` + `VersementsDrawer.tsx` + `BudgetTab.tsx` → push `00a2046`.**

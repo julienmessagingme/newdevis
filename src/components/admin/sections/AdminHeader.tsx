@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { FileText, RefreshCw, LogOut } from "lucide-react";
+import { FileText, Megaphone, RefreshCw, LogOut } from "lucide-react";
 
 interface AdminHeaderProps {
   onRefresh: () => void;
@@ -31,6 +31,12 @@ export default function AdminHeader({ onRefresh, refreshing }: AdminHeaderProps)
             <Button variant="outline" size="sm">
               <FileText className="h-4 w-4 mr-2" />
               Blog
+            </Button>
+          </a>
+          <a href="/admin/marketing">
+            <Button variant="outline" size="sm">
+              <Megaphone className="h-4 w-4 mr-2" />
+              Marketing
             </Button>
           </a>
           <Button

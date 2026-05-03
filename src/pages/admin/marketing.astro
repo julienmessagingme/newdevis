@@ -1,0 +1,14 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AdminMarketingApp from '@/components/app/AdminMarketingApp';
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="Administration Marketing | VerifierMonDevis.fr"
+  description="Gestion des carrousels marketing GérerMonChantier"
+  noindex={true}
+>
+  <AdminMarketingApp client:only="react" />
+</BaseLayout>
