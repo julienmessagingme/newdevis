@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Star, Building2, Globe, ChevronDown, TrendingUp, AlertCircle } from "lucide-react";
+import { Star, Building2, Globe, ChevronDown, TrendingUp, AlertCircle, Ban } from "lucide-react";
+import { normalizeCompanyStatus } from "@/lib/verdictEngine";
 import { getScoreIcon, getScoreBgClass, getScoreTextClass } from "@/lib/scoreUtils";
 import { extractEntrepriseData, computeFinancialHealth } from "@/lib/entrepriseUtils";
 import type { FinancialRatios } from "@/lib/entrepriseUtils";
@@ -12,6 +13,8 @@ interface BlockEntrepriseProps {
   alertes: string[];
   companyData?: CompanyDisplayData | null;
   defaultOpen?: boolean;
+  /** Statut juridique brut extrait de criteres_rouges (ex: "cessation d'activité"). */
+  companyStatus?: string | null;
 }
 
 // ── Formatage montants ──────────────────────────────────────
@@ -59,7 +62,7 @@ const formatSiret = (siret: string): string => {
   return siret;
 };
 
-const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }: BlockEntrepriseProps) => {
+const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, companyStatus }: BlockEntrepriseProps) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [financesOpen, setFinancesOpen] = useState(false);
   const info = extractEntrepriseData(pointsOk, alertes);
@@ -87,6 +90,21 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
   // Statut affiché dans la sous-section "Santé financière"
   const financialDisplayStatus = isFinanciallyStaleRouge ? "ROUGE" as const : financialHealth.status;
 
+  // Statut juridique à risque (priorité absolue sur le verdict)
+  const isLegalRisk = (companyStatus && normalizeCompanyStatus(companyStatus) === "risk") ||
+                      companyData?.procedure_collective === true ||
+                      companyData?.entreprise_radiee === true;
+
+  // Libellé du statut à risque pour affichage UI
+  const legalRiskLabel = companyStatus && normalizeCompanyStatus(companyStatus) === "risk"
+    ? companyStatus
+    : companyData?.procedure_collective ? "procédure collective"
+    : companyData?.entreprise_radiee ? "entreprise radiée"
+    : null;
+
+  // Score effectif du bloc : ROUGE si statut juridique à risque, sinon selon les alertes
+  const effectiveScoreWithLegal = isLegalRisk ? "ROUGE" as const : effectiveScore;
+
   // Check if we have any meaningful data
   const hasData = info.siren_siret || info.anciennete || info.financesDisponibles !== null ||
                   info.chiffreAffaires || info.procedureCollective !== null || info.reputation || companyData;
@@ -104,7 +122,7 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
   const lookupStatus = companyData?.lookup_status || null;
 
   return (
-    <div className={`border-2 rounded-2xl p-3 sm:p-6 mb-6 ${getScoreBgClass(effectiveScore)}`}>
+    <div className={`border-2 rounded-2xl p-3 sm:p-6 mb-6 ${getScoreBgClass(effectiveScoreWithLegal)}`}>
       <div className="flex items-start gap-3 sm:gap-4">
         <div className="p-2 sm:p-3 bg-background/50 rounded-xl flex-shrink-0">
           <Building2 className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
@@ -120,6 +138,28 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
           </button>
 
           {isOpen && (<>
+
+          {/* ── BANNIÈRE STATUT JURIDIQUE À RISQUE (priorité 0) ────────────── */}
+          {isLegalRisk && (
+            <div className="mb-4 flex items-start gap-3 rounded-xl border-2 border-red-400 bg-red-50 px-4 py-4">
+              <Ban className="h-6 w-6 text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-red-800 text-sm">
+                  ⛔ Situation juridique à risque
+                  {legalRiskLabel ? ` — ${legalRiskLabel}` : ""}
+                </p>
+                <p className="text-red-700 text-xs mt-0.5 leading-relaxed">
+                  {companyData?.procedure_collective
+                    ? "Entreprise en procédure collective (redressement ou liquidation judiciaire)."
+                    : companyData?.entreprise_radiee
+                    ? "Entreprise radiée du registre — elle n'est plus légalement active."
+                    : "Entreprise en cessation, redressement ou liquidation d'activité."}
+                  {" "}Ne signez pas sans vérification approfondie.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Company identification card */}
           <div className="p-3 sm:p-4 bg-background/40 rounded-xl border border-border/30 mb-4">
             <div className="mb-3">
@@ -127,7 +167,7 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
                 {nomEntreprise && (
                   <p className="font-semibold text-foreground text-base sm:text-lg leading-tight">{nomEntreprise}</p>
                 )}
-                {isImmatriculee === true && lookupStatus === "ok" && (
+                {isImmatriculee === true && lookupStatus === "ok" && !isLegalRisk && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-green-700 bg-green-500/10 whitespace-nowrap">
                     Entreprise active
                   </span>
@@ -614,10 +654,11 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
 
           {/* Score explanation with pedagogic message */}
           <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-            <p className={`text-sm font-medium ${getScoreTextClass(effectiveScore)}`}>
-              {effectiveScore === "VERT" && "✓ Entreprise avec des indicateurs de fiabilité positifs."}
-              {effectiveScore === "ORANGE" && "ℹ️ Certains indicateurs invitent à une vérification complémentaire."}
-              {effectiveScore === "ROUGE" && (
+            <p className={`text-sm font-medium ${getScoreTextClass(effectiveScoreWithLegal)}`}>
+              {effectiveScoreWithLegal === "VERT" && !isLegalRisk && "✓ Aucun indicateur à risque détecté sur cette entreprise."}
+              {effectiveScoreWithLegal === "ORANGE" && !isLegalRisk && "ℹ️ Certains indicateurs invitent à une vérification complémentaire."}
+              {isLegalRisk && "⛔ Situation juridique critique — ne signez pas ce devis avant une vérification approfondie (tribunal de commerce, infogreffe.fr)."}
+              {effectiveScoreWithLegal === "ROUGE" && !isLegalRisk && (
                 isFinanciallyStaleRouge
                   ? `⚠️ Comptes annuels non déposés depuis ${retardAns} ans (dernier exercice connu\u00a0: ${financialHealth.dernier_exercice_year})\u00a0— une société commerciale a l'obligation légale de déposer ses comptes chaque année. Cette absence prolongée peut masquer une situation financière préoccupante.`
                   : financialHealth.rougeSignals.includes("endettement_critique")
@@ -627,7 +668,7 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true }:
                   : "⚠️ Des éléments critiques ont été détectés — vérifiez les alertes ci-dessus avant de signer."
               )}
             </p>
-            {effectiveScore === "ORANGE" && (
+            {effectiveScoreWithLegal === "ORANGE" && !isLegalRisk && (
               <p className="text-xs text-muted-foreground mt-2">
                 Aucun élément critique n'a été détecté. Les points signalés sont des invitations à vérifier, non des alertes.
               </p>

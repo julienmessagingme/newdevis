@@ -25,6 +25,7 @@ export type { AnomalieConclusion, ConclusionData } from "@/lib/conclusionTypes";
 import {
   computeVerdict, computeMarketBounds, countMajorAnomalies,
   extractFlagsFromCriteria, extractCompanyRisk, generateVerdictReasons,
+  extractCompanyStatusFromCriteria,
 } from "@/lib/verdictEngine";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -469,6 +470,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   const preMajorAnomalies = countMajorAnomalies(priceData);
   const preFlags          = extractFlagsFromCriteria(criteres_rouges, criteres_oranges);
   const preRisk           = extractCompanyRisk(criteres_rouges, criteres_oranges);
+  const preCompanyStatus  = extractCompanyStatusFromCriteria(criteres_rouges);
   const preAvgMarket = (preMarketBounds.min + preMarketBounds.max) / 2;
   const preDispersion = preAvgMarket > 0
     ? (preMarketBounds.max - preMarketBounds.min) / preAvgMarket : 0;
@@ -482,6 +484,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     company_risk:          preRisk,
     flags:                 preFlags,
     market_dispersion_pct: preDispersion,
+    company_status:        preCompanyStatus ?? undefined,
     // chantier_complexity : V2 — non disponible encore, fallback "medium" automatique
   });
 
@@ -504,7 +507,7 @@ VERDICT IMPOSÉ PAR LE MOTEUR DÉTERMINISTE:
 - verdict_decisionnel: "${imposedDecision}"
 - verdict_global: "${imposedGlobal}"
 - Surcoût estimé: ${preEngine.overprice > 0 ? `+${Math.round(preEngine.overprice_pct * 100)}% vs moyenne marché (${Math.round(preEngine.overprice).toLocaleString("fr-FR")} €)` : "dans la norme ou sous la moyenne"}
-- Seuil de tolérance appliqué: ${Math.round(preEngine.threshold_ok * 100)}%${preEngine.is_hard_block ? "\n- HARD BLOCK ACTIF (entreprise radiée ou paiement suspect)" : ""}
+- Seuil de tolérance appliqué: ${Math.round(preEngine.threshold_ok * 100)}%${preEngine.hard_block_reason === "company_status" ? `\n- HARD BLOCK PRIORITÉ 0 : STATUT JURIDIQUE À RISQUE (${preCompanyStatus ?? "cessation/liquidation/redressement/radiée"}) — verdict REFUSER forcé indépendamment du prix` : preEngine.is_hard_block ? "\n- HARD BLOCK ACTIF (entreprise radiée ou paiement suspect)" : ""}
 
 RÈGLES ABSOLUES (ne pas déroger):
 1. Tu DOIS produire exactement verdict_decisionnel="${imposedDecision}" et verdict_global="${imposedGlobal}".

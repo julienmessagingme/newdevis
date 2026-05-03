@@ -4,7 +4,12 @@
  * Règles déterministes, sans IA, sans état.
  * Utilisé côté client (AnalysisResult) ET côté serveur (conclusion.ts API route).
  *
- * Ordre de priorité : hard_block > prix > risque
+ * Ordre de priorité :
+ *   0. HARD BLOCK statut juridique entreprise (cessation, liquidation, redressement, radiée…)
+ *      → verdict forcé REFUSER, indépendamment de tout autre critère
+ *   1. hard_block autres (SIRET invalide, paiement cash, IBAN suspect…)
+ *   2. prix
+ *   3. risque
  *
  * V2 : seuils adaptatifs (dispersion marché + complexité chantier)
  */
@@ -33,6 +38,12 @@ export interface VerdictInput {
   // V2 — optionnels, fallback automatique si absent
   market_dispersion_pct?: number;              // (max−min)/avg_market — calculé si absent
   chantier_complexity?:   "low" | "medium" | "high";
+  /**
+   * Statut juridique brut de l'entreprise (ex: "cessation", "liquidation judiciaire"…).
+   * Normalisé par normalizeCompanyStatus() — si "risk", force verdict REFUSER immédiatement.
+   * Règle priorité 0 : prime sur prix, anomalies, ancienneté, score global.
+   */
+  company_status?:        string;
 }
 
 export type VerdictDecision = "signer" | "a_negocier" | "refuser";
@@ -47,6 +58,7 @@ export interface VerdictResult {
   overprice_pct:         number;         // ratio vs moyenne (0.10 = 10% au-dessus)
   anomalies_major_count: number;
   is_hard_block:         boolean;        // vrai si entreprise bloquante indépendamment du prix
+  hard_block_reason?:    "company_status" | "flags";  // cause du hard block (priorité 0 vs 1)
   has_market_data:       boolean;        // faux si market_estimate_max === 0
   price_label:           string;         // libellé UX du positionnement prix
   // V2
@@ -73,6 +85,67 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+/**
+ * Normalise un statut juridique brut en "ok" ou "risk".
+ *
+ * "risk" = entreprise qui ne peut pas légalement réaliser des travaux ou
+ *           dont la situation juridique met en danger le client.
+ *
+ * Gère toutes les variations de casse et de libellé rencontrées en pratique :
+ *   "cessation", "cessation d'activité", "en cessation", "cessation/pause"
+ *   "radiation", "radiée", "radié"
+ *   "redressement", "redressement judiciaire"
+ *   "liquidation", "liquidation judiciaire"
+ *   "inactive", "inactif"
+ *
+ * Tout statut ≠ "active" / "en activité" → "risk" par défaut de sécurité.
+ */
+export function normalizeCompanyStatus(status: string): "ok" | "risk" {
+  if (!status || typeof status !== "string") return "ok";
+  const s = status.toLowerCase().trim();
+
+  // ── Statuts clairement actifs ──────────────────────────────────────────────
+  if (
+    s === "active"        ||
+    s === "en activité"   ||
+    s === "en activite"   ||
+    s === "actif"         ||
+    s === "actif (inscrit au rcs)"
+  ) return "ok";
+
+  // ── Statuts à risque explicites ────────────────────────────────────────────
+  const RISK_KEYWORDS = [
+    "cessation",
+    "radiation",
+    "radiée",
+    "radiee",
+    "radié",
+    "radie",
+    "liquidation",
+    "redressement",
+    "inactive",
+    "inactif",
+    "dissoute",
+    "dissoute",
+    "dissolution",
+    "fermée",
+    "ferme",
+    "radiée du rcs",
+    "procédure collective",
+    "procedure collective",
+  ];
+
+  for (const keyword of RISK_KEYWORDS) {
+    if (s.includes(keyword)) return "risk";
+  }
+
+  // ── Règle de sécurité : tout statut inconnu qui n'est pas "active" → risk ──
+  // Commenté pour ne pas pénaliser les statuts vides / non renseignés :
+  // return "risk";
+
+  return "ok";
+}
+
 // ─── Moteur ───────────────────────────────────────────────────────────────────
 
 export function computeVerdict(input: VerdictInput): VerdictResult {
@@ -80,9 +153,25 @@ export function computeVerdict(input: VerdictInput): VerdictResult {
     total_amount, market_estimate_min, market_estimate_max,
     anomalies_major_count, company_risk, flags,
     chantier_complexity = "medium",
+    company_status,
   } = input;
 
   const has_market_data = market_estimate_max > 0;
+
+  // ── 0. PRIORITÉ ABSOLUE — Statut juridique entreprise ────────────────────────
+  // Une entreprise en cessation, liquidation, redressement ou radiée force
+  // un verdict REFUSER immédiatement, sans exception.
+  // Cette règle est prioritaire sur TOUT : prix, anomalies, score, dispersion.
+  if (company_status && normalizeCompanyStatus(company_status) === "risk") {
+    return {
+      verdict: "refuser", color: "red", score_legacy: "ROUGE",
+      overprice: 0, overprice_pct: 0, anomalies_major_count,
+      is_hard_block: true, hard_block_reason: "company_status", has_market_data,
+      price_label: "🛑 Entreprise juridiquement à risque — ne signez pas",
+      threshold_ok: THRESHOLD_OK_BASE, threshold_refuse: THRESHOLD_REFUSE,
+      market_dispersion_pct: 0, chantier_complexity,
+    };
+  }
 
   // ── Calcul prix ───────────────────────────────────────────────────────────────
   const avg_market    = has_market_data ? (market_estimate_min + market_estimate_max) / 2 : 0;
@@ -122,7 +211,7 @@ export function computeVerdict(input: VerdictInput): VerdictResult {
     return {
       verdict: "refuser", color: "red", score_legacy: "ROUGE",
       overprice, overprice_pct, anomalies_major_count,
-      is_hard_block: true, has_market_data,
+      is_hard_block: true, hard_block_reason: "flags", has_market_data,
       price_label: "🛑 Devis anormal — ne signez pas",
       threshold_ok, threshold_refuse: THRESHOLD_REFUSE,
       market_dispersion_pct, chantier_complexity,
@@ -308,7 +397,13 @@ export function extractFlagsFromCriteria(
   const rouge = criteres_rouges.map((s) => s.toLowerCase()).join(" | ");
 
   return {
-    entreprise_radiee:           rouge.includes("radié") || rouge.includes("radiee"),
+    entreprise_radiee: (
+      rouge.includes("radié")      || rouge.includes("radiee")     ||
+      rouge.includes("cessation")  || rouge.includes("liquidation") ||
+      rouge.includes("redressement") || rouge.includes("inactive") ||
+      rouge.includes("inactif")    || rouge.includes("dissoute")   ||
+      rouge.includes("dissolution")
+    ),
     siret_invalide:              rouge.includes("siret") && (rouge.includes("invalid") || rouge.includes("inconnu")),
     absence_assurance:           rouge.includes("assurance") && rouge.includes("absente"),
     paiement_cash_suspect:       rouge.includes("espèces") || rouge.includes("especes") || rouge.includes("cash"),
@@ -317,6 +412,36 @@ export function extractFlagsFromCriteria(
     acompte_excessif:            join.includes("acompte") && (join.includes("50%") || join.includes("excessif") || join.includes("30%")),
     incoherence_contractuelle:   join.includes("incohér") || join.includes("incoher") || join.includes("contractuelle"),
   };
+}
+
+/**
+ * Extrait le statut juridique brut de l'entreprise depuis les critères produits par score.ts.
+ * Retourne la chaîne brute à passer dans VerdictInput.company_status (normalisée par normalizeCompanyStatus).
+ * Retourne null si aucun statut détectable.
+ */
+export function extractCompanyStatusFromCriteria(criteres_rouges: string[]): string | null {
+  const COMPANY_STATUS_PATTERNS: Array<{ pattern: RegExp; status: string }> = [
+    { pattern: /cessation\s*d.activit/i,      status: "cessation d'activité" },
+    { pattern: /en\s+cessation/i,             status: "cessation" },
+    { pattern: /cessation/i,                  status: "cessation" },
+    { pattern: /liquidation\s+judiciaire/i,   status: "liquidation judiciaire" },
+    { pattern: /liquidation/i,                status: "liquidation" },
+    { pattern: /redressement\s+judiciaire/i,  status: "redressement judiciaire" },
+    { pattern: /redressement/i,               status: "redressement" },
+    { pattern: /radi[eé]{1,2}/i,              status: "radiée" },
+    { pattern: /radiation/i,                  status: "radiation" },
+    { pattern: /inactif|inactive/i,           status: "inactive" },
+    { pattern: /dissout[e]?|dissolution/i,    status: "dissoute" },
+    { pattern: /procédure\s+collective/i,     status: "procédure collective" },
+    { pattern: /procedure\s+collective/i,     status: "procédure collective" },
+  ];
+
+  for (const crit of criteres_rouges) {
+    for (const { pattern, status } of COMPANY_STATUS_PATTERNS) {
+      if (pattern.test(crit)) return status;
+    }
+  }
+  return null;
 }
 
 /**
@@ -350,6 +475,10 @@ export interface VerdictReasonsInput {
   market_dispersion_pct: number;
   chantier_complexity:   "low" | "medium" | "high";
   threshold_ok:          number;
+  /** Cause du hard block si applicable ("company_status" | "flags"). */
+  hard_block_reason?:    "company_status" | "flags";
+  /** Statut brut de l'entreprise (ex: "cessation d'activité"). Affiché dans le reason. */
+  company_status?:       string;
 }
 
 export interface VerdictReasonsResult {
@@ -384,17 +513,29 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
     verdict, overprice, overprice_pct, anomalies_major_count,
     company_risk, flags, has_market_data,
     market_dispersion_pct, chantier_complexity, threshold_ok,
+    hard_block_reason, company_status,
   } = input;
 
   // ── Summary — 1 ligne, toujours présent ──────────────────────────────────────
   const summary =
-    verdict === "refuser"    ? "Ce devis présente un risque élevé — ne signez pas" :
-    verdict === "a_negocier" ? "Ce devis est au-dessus du marché et doit être renégocié" :
-                               "Ce devis est cohérent avec les prix du marché";
+    hard_block_reason === "company_status"
+      ? "🛑 Ne signez pas ce devis — entreprise juridiquement à risque"
+    : verdict === "refuser"    ? "Ce devis présente un risque élevé — ne signez pas" :
+      verdict === "a_negocier" ? "Ce devis est au-dessus du marché et doit être renégocié" :
+                                 "Ce devis est cohérent avec les prix du marché";
 
   const reasons: string[] = [];
 
-  // ── 1. Hard blocks ────────────────────────────────────────────────────────────
+  // ── 0. Hard block priorité absolue — statut juridique ────────────────────────
+  // RÈGLE : une entreprise à risque juridique force REFUSER, sans exception.
+  if (hard_block_reason === "company_status") {
+    const statusLabel = company_status ? ` (${company_status})` : "";
+    reasons.push(`⛔ Situation juridique à risque${statusLabel} — ne signez pas sans vérification approfondie`);
+    reasons.push("⛔ Une entreprise en cessation, liquidation ou redressement ne peut pas garantir l'achèvement des travaux");
+    return { summary, reasons, context: [] };
+  }
+
+  // ── 1. Hard blocks (flags) ────────────────────────────────────────────────────
   if (flags.entreprise_radiee) {
     reasons.push("⛔ Cette entreprise est radiée — elle ne peut pas légalement réaliser les travaux");
   }

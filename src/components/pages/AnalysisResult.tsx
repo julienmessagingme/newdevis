@@ -21,7 +21,7 @@ import {
 import { getScoreBadge } from "@/lib/scoreUtils";
 import {
   computeVerdict, computeMarketBounds, countMajorAnomalies,
-  extractFlagsFromCriteria, extractCompanyRisk,
+  extractFlagsFromCriteria, extractCompanyRisk, extractCompanyStatusFromCriteria,
 } from "@/lib/verdictEngine";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -539,6 +539,7 @@ const AnalysisResult = () => {
       company_risk:           extractCompanyRisk(criteres_rouges, criteres_oranges),
       flags:                  extractFlagsFromCriteria(criteres_rouges, criteres_oranges),
       market_dispersion_pct:  marketDispersionPct,
+      company_status:         extractCompanyStatusFromCriteria(criteres_rouges) ?? undefined,
       // chantier_complexity non disponible côté client pour l'instant → fallback "medium" auto
     });
 
@@ -1011,6 +1012,14 @@ const AnalysisResult = () => {
             pointsOk={analysis.points_ok || []}
             alertes={analysis.alertes || []}
             companyData={companyData}
+            companyStatus={(() => {
+              try {
+                const scoreData = typeof analysis.score === "string"
+                  ? JSON.parse(analysis.score) : (analysis.score as Record<string, unknown> | null) || {};
+                const rouges: string[] = Array.isArray(scoreData?.criteres_rouges) ? scoreData.criteres_rouges : [];
+                return extractCompanyStatusFromCriteria(rouges);
+              } catch { return null; }
+            })()}
             defaultOpen={false}
           />
         )}
