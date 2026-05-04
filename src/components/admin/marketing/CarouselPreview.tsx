@@ -92,6 +92,21 @@ export default function CarouselPreview({ slides, assets }: CarouselPreviewProps
             src={slide.imageUrl}
             alt={`Slide ${slide.slide_n}`}
             className="w-full h-full object-contain"
+            // Backblaze B2 peut bloquer en hotlink protection si on envoie
+            // un Referer = verifiermondevis.fr (Referrer-Policy default
+            // strict-origin-when-cross-origin sur newdevis). On force
+            // no-referrer pour que B2 voit juste une req anonyme.
+            referrerPolicy="no-referrer"
+            loading="lazy"
+            onError={(e) => {
+              const img = e.currentTarget;
+              console.warn("[CarouselPreview] image failed to load:", {
+                slide_n: slide.slide_n,
+                src: img.src,
+                naturalWidth: img.naturalWidth,
+                naturalHeight: img.naturalHeight,
+              });
+            }}
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 p-6 text-center">
