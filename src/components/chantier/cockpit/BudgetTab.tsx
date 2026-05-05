@@ -641,7 +641,8 @@ function ActionBar({
           </button>
         )}
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:flex md:gap-3 md:contents">
+      {/* Filtres & tri — masqués sur mobile (remplacés par les cartes) */}
+      <div className="hidden sm:grid sm:grid-cols-3 gap-2 md:flex md:gap-3 md:contents">
         <select value={filterDevis} onChange={e => onFilterDevis(e.target.value as FilterDevis)} className={sel}>
           <option value="all">Tous statuts devis</option>
           <option value="pending">En attente</option>
@@ -1083,6 +1084,109 @@ function ArtisanDrawer({
   );
 }
 
+// ── Card artisan mobile (ÉTAPE 2) ─────────────────────────────────────────────
+
+function ArtisanCardMobile({
+  artisan,
+  lot,
+  statutOverrides,
+  onDetail,
+  onPay,
+}: {
+  artisan:        BudgetArtisanGroup;
+  lot:            BudgetLot;
+  statutOverrides: Record<string, FactureStatut>;
+  onDetail:       () => void;
+  onPay:          () => void;
+}) {
+  const totalPaye = artisan.totaux.paye + artisan.totaux.acompte;
+  const budget    = artisan.totaux.devis_valides || artisan.totaux.facture;
+  const reste     = artisan.totaux.a_payer;
+  const isSolde   = budget > 0 && totalPaye >= budget && artisan.totaux.a_payer === 0;
+  const pct       = budget > 0 ? Math.min(100, Math.round(totalPaye / budget * 100)) : 0;
+  const SANS_DEVIS_TYPES = ['frais', 'ticket_caisse', 'achat_materiaux'];
+  const isAlwaysPaid = artisan.factures.length > 0 && artisan.factures.every(f => SANS_DEVIS_TYPES.includes(f.depense_type ?? ''));
+  const hasActionable = !isSolde && !isAlwaysPaid && (reste > 0 || artisan.devis.length > 0);
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+      {/* En-tête artisan */}
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="flex items-start gap-2 min-w-0">
+          {lot.emoji && <span className="text-xl shrink-0 leading-none mt-0.5">{lot.emoji}</span>}
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-gray-900 leading-tight truncate">{artisan.nom}</p>
+            <p className="text-xs text-gray-400 mt-0.5 truncate">{lot.nom}</p>
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          {budget > 0 && (
+            <p className="text-sm font-bold text-gray-800 tabular-nums">{fmtEur(budget)}</p>
+          )}
+          {isSolde ? (
+            <span className="text-[10px] font-bold text-emerald-600 flex items-center justify-end gap-0.5 mt-0.5">
+              <Check className="h-3 w-3" />Soldé
+            </span>
+          ) : isAlwaysPaid ? (
+            <span className="text-[10px] font-bold text-emerald-600 mt-0.5 flex justify-end items-center gap-0.5">
+              <Check className="h-3 w-3" />Payé
+            </span>
+          ) : reste > 0 ? (
+            <p className="text-[11px] text-amber-600 font-semibold mt-0.5 tabular-nums">
+              {fmtEur(reste)} restant
+            </p>
+          ) : artisan.totaux.devis_valides > 0 ? (
+            <p className="text-[11px] text-gray-400 mt-0.5">Pas de facture</p>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Barre de progression */}
+      {budget > 0 && (
+        <div className="flex items-center gap-2 mb-3">
+          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${
+                isSolde ? 'bg-emerald-500' : pct > 0 ? 'bg-indigo-500' : 'bg-gray-200'
+              }`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <span className="text-[10px] text-gray-400 w-8 text-right tabular-nums shrink-0">{pct}%</span>
+        </div>
+      )}
+
+      {/* Ligne payé / à payer */}
+      {(totalPaye > 0 || reste > 0) && (
+        <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+          <span className="tabular-nums">{totalPaye > 0 ? `${fmtEur(totalPaye)} payés` : '—'}</span>
+          {reste > 0 && (
+            <span className="font-semibold text-amber-600 tabular-nums">{fmtEur(reste)} à payer</span>
+          )}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-2">
+        {hasActionable && (
+          <button
+            onClick={onPay}
+            className="flex-1 flex items-center justify-center gap-1.5 min-h-[44px] bg-indigo-600 text-white rounded-xl text-sm font-semibold touch-manipulation"
+          >
+            💸 Payer
+          </button>
+        )}
+        <button
+          onClick={onDetail}
+          className={`${hasActionable ? '' : 'flex-1'} flex items-center justify-center gap-1.5 min-h-[44px] px-4 border border-gray-200 rounded-xl text-sm text-gray-600 font-medium touch-manipulation`}
+        >
+          Voir détail
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Tableau squelette ─────────────────────────────────────────────────────────
 
 const TH = 'px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider';
@@ -1474,8 +1578,103 @@ export default function BudgetTab({
         onAddDepense={() => setDepenseRapide('open')}
       />
 
-      {/* ── Tableau ───────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-auto overscroll-x-contain">
+      {/* ── Vue mobile : cartes artisans (ÉTAPE 1&2) ───────────────────────── */}
+      <div className="sm:hidden flex-1 overflow-y-auto px-4 py-4 pb-[max(4rem,env(safe-area-inset-bottom))] space-y-3">
+        {loading ? (
+          <div className="space-y-3">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="h-32 bg-gray-50 rounded-2xl animate-pulse" />
+            ))}
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+            <p className="text-sm">{search ? `Aucun résultat pour "${search}"` : 'Aucun artisan pour ce chantier'}</p>
+          </div>
+        ) : (
+          rows.flatMap(row =>
+            row.lot.artisans.map(artisan => {
+              const virtualLot: BudgetLot = {
+                ...row.lot,
+                devis: artisan.devis,
+                factures: artisan.factures.map(f => statutOverrides[f.id] ? { ...f, facture_statut: statutOverrides[f.id] } : f),
+                artisans: [artisan],
+                totaux: {
+                  devis_recus:   artisan.totaux.devis_valides,
+                  devis_valides: artisan.totaux.devis_valides,
+                  facture:       artisan.totaux.facture,
+                  paye:          artisan.totaux.paye,
+                  acompte:       artisan.totaux.acompte,
+                  litige:        artisan.totaux.litige,
+                  a_payer:       artisan.totaux.a_payer,
+                },
+              };
+              const SANS_DEVIS_TYPES = ['frais', 'ticket_caisse', 'achat_materiaux'];
+              const isAlwaysPaid = artisan.factures.length > 0 && artisan.factures.every(f => SANS_DEVIS_TYPES.includes(f.depense_type ?? ''));
+              const primaryFacture = artisan.factures.find(f => {
+                const s = statutOverrides[f.id] ?? f.facture_statut ?? '';
+                return ['recue', 'payee_partiellement', 'en_litige'].includes(s);
+              }) ?? artisan.factures[0];
+              const primaryDevis = artisan.devis[0] ?? null;
+              const eventIds      = artisan.devis.flatMap(d => d.payment_event_ids ?? []);
+              const allPendingEvts = artisan.devis.flatMap(d => d.pending_events ?? []);
+
+              return (
+                <ArtisanCardMobile
+                  key={`${row.lot.id}-${artisan.nom}`}
+                  artisan={artisan}
+                  lot={row.lot}
+                  statutOverrides={statutOverrides}
+                  onDetail={() => setSelected(buildRow(virtualLot))}
+                  onPay={() => {
+                    if (primaryFacture && !isAlwaysPaid) {
+                      setVersementsDrawer({
+                        artisanNom:          artisan.nom,
+                        budget:              artisan.totaux.devis_valides || artisan.totaux.facture,
+                        sourceIds:           [...artisan.devis.map(d => d.id), primaryFacture.id],
+                        eventIds:            [...eventIds, ...allPendingEvts.map(e => e.id)],
+                        primaryDocumentId:   primaryFacture.id,
+                        primaryDocumentType: 'facture',
+                        legacyMontantPaye:   primaryFacture.montant_paye ?? 0,
+                        factureId:           primaryFacture.id,
+                        factureStatut:       (statutOverrides[primaryFacture.id] ?? primaryFacture.facture_statut) ?? 'recue',
+                        autoOpenForm:        artisan.totaux.a_payer > 0,
+                        autoFillAmount:      artisan.totaux.a_payer > 0 ? artisan.totaux.a_payer : undefined,
+                        autoFillLabel:       `Paiement — ${artisan.nom}`,
+                      });
+                    } else {
+                      setVersementsDrawer({
+                        artisanNom: artisan.nom,
+                        budget:     artisan.totaux.devis_valides || artisan.totaux.facture,
+                        sourceIds:  artisan.devis.map(d => d.id),
+                        eventIds:   [...eventIds, ...allPendingEvts.map(e => e.id)],
+                        ...(primaryDevis ? { primaryDocumentId: primaryDevis.id, primaryDocumentType: 'devis' as const } : {}),
+                      });
+                    }
+                  }}
+                />
+              );
+            })
+          )
+        )}
+        {/* Boutons d'ajout mobile */}
+        <div className="flex gap-2 pt-2">
+          <button
+            onClick={() => setDepenseRapide('open')}
+            className="flex-1 flex items-center justify-center gap-1.5 min-h-[44px] border border-orange-200 bg-orange-50 text-orange-700 rounded-xl text-sm font-semibold touch-manipulation"
+          >
+            <Plus className="h-4 w-4" />Dépense
+          </button>
+          <button
+            onClick={() => setShowAddDoc(true)}
+            className="flex-1 flex items-center justify-center gap-1.5 min-h-[44px] bg-indigo-600 text-white rounded-xl text-sm font-semibold touch-manipulation"
+          >
+            <Plus className="h-4 w-4" />Document
+          </button>
+        </div>
+      </div>
+
+      {/* ── Tableau desktop ───────────────────────────────────────────────────── */}
+      <div className="hidden sm:flex sm:flex-1 sm:overflow-auto sm:overscroll-x-contain">
         <table className="min-w-[860px] w-full text-left border-collapse table-fixed">
           <colgroup>
             <col style={{ width: 210 }} />
@@ -1576,7 +1775,8 @@ export default function BudgetTab({
                       const SANS_DEVIS_TYPES = ['frais', 'ticket_caisse', 'achat_materiaux'];
                       const realFactures = artisan.factures.filter(f => !SANS_DEVIS_TYPES.includes(f.depense_type ?? ''));
                       const fraisOnly    = artisan.factures.filter(f => f.depense_type === 'frais');
-                      const noDevis = artisan.devis.length === 0 && realFactures.length > 0;
+                      const noDevis    = artisan.devis.length === 0 && realFactures.length > 0;
+                      const noFacture  = artisan.devis.length > 0 && artisan.totaux.devis_valides > 0 && realFactures.length === 0 && !isSolde;
                       const totalFrais = fraisOnly.reduce((s, f) => s + (f.montant ?? 0), 0);
 
                       return (
@@ -1614,6 +1814,19 @@ export default function BudgetTab({
                                       <AlertTriangle className="h-2.5 w-2.5" />Devis manquant
                                     </button>
                                   )}
+                                  {noFacture && (
+                                    <button
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        setAddDocLotId(row.lot.id);
+                                        setShowAddDoc(true);
+                                      }}
+                                      title="Ajouter une facture pour cet artisan"
+                                      className="inline-flex items-center gap-0.5 text-amber-600 font-medium mr-1.5 hover:text-amber-800 hover:underline cursor-pointer"
+                                    >
+                                      <AlertTriangle className="h-2.5 w-2.5" />Facture manquante
+                                    </button>
+                                  )}
                                   {realFactures.length > 0 && `${realFactures.length} facture${realFactures.length > 1 ? 's' : ''}`}
                                   {fraisOnly.length > 0 && (
                                     <span className="ml-1.5 text-amber-600 font-medium">📝 {fmtEur(totalFrais)} frais</span>
@@ -1649,17 +1862,26 @@ export default function BudgetTab({
                           {/* PAYÉ — montants uniquement (read-only) */}
                           <td className="px-3 py-3">
                             <div className="flex flex-col items-end gap-0.5">
-                              {artisan.totaux.acompte > 0 && (
-                                <span className="text-[11px] font-semibold text-indigo-600 flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
-                                  {fmtEur(artisan.totaux.acompte)} acompte
-                                </span>
-                              )}
-                              {artisan.totaux.paye > 0 && (
+                              {isSolde && totalPaye > 0 ? (
                                 <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
                                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                                  {fmtEur(artisan.totaux.paye)} réglé
+                                  {fmtEur(totalPaye)} réglé
                                 </span>
+                              ) : (
+                                <>
+                                  {artisan.totaux.acompte > 0 && (
+                                    <span className="text-[11px] font-semibold text-indigo-600 flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                                      {fmtEur(artisan.totaux.acompte)} acompte
+                                    </span>
+                                  )}
+                                  {artisan.totaux.paye > 0 && (
+                                    <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                                      {fmtEur(artisan.totaux.paye)} réglé
+                                    </span>
+                                  )}
+                                </>
                               )}
                               {artisan.totaux.litige > 0 && (
                                 <span className="text-[11px] font-semibold text-red-600 flex items-center gap-1">

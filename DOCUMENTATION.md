@@ -1994,11 +1994,12 @@ La table `chantier_conversations` expose une colonne `reply_address` : adresse u
 
 `components/chantier/cockpit/TresorerieView.tsx` (1093 lignes) — remplace l'onglet "Trésorerie" dans `TresoreriePanel`. Données chargées depuis `/api/chantier/[id]/budget`.
 
-#### 3 sections
+#### 2 sections actives
 
 - **Plan de financement** — grande jauge colorée + 3 cartes : Apport (`#6366f1`), Crédit (`#f97316`), Aides (`#10b981`). Config persistée en localStorage avec sync serveur via PATCH `metadonnees`.
-- **Projection trésorerie** — graphique SVG multi-courbes par artisan (palette 8 couleurs).
 - **Consommation par source** — 3 donuts restants + barres artisans.
+
+> **Section supprimée (2026-05-05)** : la section "Projection trésorerie" (graphique SVG multi-courbes par artisan + 3 cartes insights) a été entièrement retirée de `TresorerieView`.
 
 #### Hooks internes
 
@@ -2041,7 +2042,7 @@ Modal pour enregistrer une dépense sans fichier attaché.
 
 **Règles de gestion par `depense_type` dans `budget.ts`** :
 - `ticket_caisse`, `achat_materiaux`, `frais` → toujours comptés en `paye` quelle que soit la valeur de `facture_statut` (jamais en `a_payer`).
-- Ces trois types n'ont pas de devis par définition → exclus de l'alerte "Devis manquant" (constante `SANS_DEVIS_TYPES` dans `BudgetTab.tsx`).
+- Ces trois types n'ont pas de devis par définition → exclus de l'alerte "Devis manquant" ET de l'alerte "Facture manquante" (constante `SANS_DEVIS_TYPES` dans `BudgetTab.tsx`).
 - UI : affichage d'un badge "Payé" statique sans dropdown de changement de statut.
 
 ---
@@ -2238,6 +2239,8 @@ Distinction sémantique entre tickets/factures (avec pièce uploadable) et frais
 - `DocumentsView.tsx` : nouvelle section "Frais déclarés" (📝 ambre) ouverte par défaut
 - `documentFilters.ts` : `getFraisDeclares()`, `getDevisEtFactures()` exclut désormais les frais
 - `BudgetTab.tsx` : `noDevis` ignore les frais → un lot avec un frais seul ne déclenche plus "Devis manquant"
+- `BudgetTab.tsx` — colonne PAYÉ : quand `isSolde` (totalPaye ≥ budget), le montant s'affiche en vert "réglé" quelle que soit la source (acompte ou facture payée). Avant : si payé via acompte uniquement, le label restait "acompte" en indigo même quand c'était soldé.
+- `BudgetTab.tsx` — alerte "Facture manquante" : badge ambre ⚠ dans la cellule artisan quand : artisan a un devis validé (devis_valides > 0) ET pas de facture réelle (hors `ticket_caisse`/`achat_materiaux`/`frais`) ET non soldé. Cliquable pour ouvrir le modal d'ajout de document. Symétrique à l'alerte "Devis manquant" existante.
 
 ### 21.4 Fil d'activité Assistant chantier (24h)
 

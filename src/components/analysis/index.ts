@@ -22,6 +22,8 @@ export { default as ExtractionBlocker, ExtractionIncompleteWarning, useExtractio
 export { MissingDataBanner, MissingDataButton, FACTUAL_TEXTS } from './MissingDataActions';
 export { default as BlockUrbanisme } from './BlockUrbanisme';
 export { ConclusionIA } from './ConclusionIA';
+export { default as MultiDevisBlock } from './MultiDevisBlock';
+export type { DevisSegment, SegmentAnalysis, GlobalMetrics } from './MultiDevisBlock';
 export { useFeedback } from './FeedbackModal';
 export { VerdictReasons } from './VerdictReasons';
 export type { VerdictReasonsInput } from '@/lib/verdictEngine';

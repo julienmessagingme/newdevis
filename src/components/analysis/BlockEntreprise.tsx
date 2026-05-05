@@ -610,8 +610,8 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
                     </p>
                   </PedagogicExplanation>
                 )}
-                {/* Avertissement si peu d'avis au regard de l'ancienneté */}
-                {ancienneteAnnees !== null && ancienneteAnnees >= 5 && (() => {
+                {/* Avertissement si peu d'avis au regard de l'ancienneté (ignoré si > 50 avis) */}
+                {ancienneteAnnees !== null && ancienneteAnnees >= 5 && info.reputation.reviews_count <= 50 && (() => {
                   const seuilAvis = Math.max(3, Math.min(10, Math.floor(ancienneteAnnees / 3)));
                   return info.reputation.reviews_count < seuilAvis ? (
                     <p className="text-sm text-score-orange mt-2">
@@ -619,6 +619,12 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
                     </p>
                   ) : null;
                 })()}
+                {/* Alerte incohérence : beaucoup d'avis mais entreprise très jeune */}
+                {info.reputation.reviews_count > 500 && ancienneteAnnees !== null && ancienneteAnnees < 2 && (
+                  <p className="text-sm text-score-orange mt-2">
+                    ⚠️ Incohérence détectée&nbsp;: {info.reputation.reviews_count} avis Google pour une entreprise de moins de 2 ans. Ce volume inhabituel peut indiquer un transfert de compte, des avis achetés ou une confusion avec un autre établissement. Vérifiez l'historique sur Google Maps.
+                  </p>
+                )}
                 {/* Message positif si note >= 4/5 ET suffisamment d'avis */}
                 {info.reputation.rating >= 4.0 && (ancienneteAnnees === null || ancienneteAnnees < 5 || info.reputation.reviews_count >= Math.max(3, Math.min(10, Math.floor((ancienneteAnnees ?? 0) / 3)))) && (
                   <p className="text-sm text-score-green mt-2">

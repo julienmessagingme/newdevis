@@ -162,6 +162,13 @@ RÈGLES MULTI-PAGES :
 - Les TOTAUX (Total HT, Total TTC, Net à payer) figurent souvent sur une page de récapitulatif séparée (ex: page 2/3), dans un tableau en bas à droite. Si une telle page existe, utilise ses valeurs pour "totaux".
 - L'ADRESSE CLIENT / CHANTIER peut apparaître dans une mise en page à deux colonnes (adresse à gauche et dans un encadré à droite) — lire les deux colonnes.
 
+DÉTECTION MULTI-DEVIS (PRIORITÉ HAUTE) :
+Certains PDF sont des recueils de plusieurs devis distincts pour un même chantier (un artisan par lot : maçonnerie, plomberie, électricité, etc.).
+SIGNAL de détection : le document contient 2+ blocs distincts ayant chacun (a) un nom d'entreprise différent, (b) un identifiant légal (SIRET/RCS) différent, (c) un total HT/TTC propre.
+Si détecté : mets "multiple_quotes": true et remplis "devis_list" avec UN objet par devis (dans l'ordre d'apparition).
+Pour les champs racines (entreprise, totaux, travaux) : utilise les données du PREMIER devis uniquement.
+"devis_list" : extrait TOUS les devis présents dans le PDF, sans en omettre aucun.
+
 EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes de travaux) :
 
 {
@@ -219,7 +226,22 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
     "taux_tva": 20
   },
   "anomalies_detectees": [],
-  "resume_factuel": "description factuelle courte"
+  "resume_factuel": "description factuelle courte",
+  "multiple_quotes": false,
+  "devis_list": [
+    {
+      "lot_type": "MACONNERIE",
+      "entreprise_nom": "SARL PINTO ALEXANDRE",
+      "siret": "753114388",
+      "total_ht": 86500,
+      "total_ttc": 103800,
+      "taux_tva": 20,
+      "assurance_decennale": null,
+      "lignes": [
+        { "libelle": "Fondations", "categorie": "gros_oeuvre", "montant": 12000, "quantite": 1, "unite": "F" }
+      ]
+    }
+  ]
 }`;
 
   try {
@@ -426,6 +448,27 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
       },
       anomalies_detectees: Array.isArray(parsed.anomalies_detectees) ? parsed.anomalies_detectees : [],
       resume_factuel: parsed.resume_factuel || "Devis analysé",
+      multiple_quotes: parsed.multiple_quotes === true,
+      devis_list: Array.isArray(parsed.devis_list) && parsed.multiple_quotes === true
+        ? parsed.devis_list.map((d: any) => ({
+            lot_type: d.lot_type || "Lot",
+            entreprise_nom: d.entreprise_nom || d.entreprise || "Entreprise inconnue",
+            siret: d.siret ? String(d.siret).replace(/\s/g, "") : null,
+            total_ht: typeof d.total_ht === "number" ? d.total_ht : null,
+            total_ttc: typeof d.total_ttc === "number" ? d.total_ttc : null,
+            taux_tva: typeof d.taux_tva === "number" ? d.taux_tva : null,
+            assurance_decennale: d.assurance_decennale ?? null,
+            lignes: Array.isArray(d.lignes)
+              ? d.lignes.map((l: any) => ({
+                  libelle: l.libelle || "",
+                  categorie: l.categorie || "autre",
+                  montant: typeof l.montant === "number" ? l.montant : null,
+                  quantite: typeof l.quantite === "number" ? l.quantite : null,
+                  unite: l.unite || null,
+                }))
+              : [],
+          }))
+        : undefined,
     };
 
   } catch (error) {

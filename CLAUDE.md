@@ -125,6 +125,25 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
 - **Logs — fuites de secrets** : les `catch` blocks peuvent logger des objets Error contenant des clés API ou Bearer tokens. Solution : toujours `error.message` (pas l'objet complet) + masquer avec regex `Bearer\s+[a-zA-Z0-9_.-]+` → `Bearer ***`.
 
+### Multi-devis — règles d'architecture (2026-05-04)
+
+- **RÈGLE ABSOLUE : un PDF multi-artisans = N analyses indépendantes.** Jamais de mélange de lignes entre artisans, jamais de verdict calculé sur des données croisées.
+
+- **`attributeGroupsToSegments` — matching STRICT 3 niveaux** (ne pas revenir au fuzzy) :
+  - Niveau 1 : exact match `normalizeStrict(devis_line.description)` = `normalizeStrict(seg.lignes.libelle)` — la description ET le libellé viennent de la même extraction Gemini, doivent être identiques.
+  - Niveau 2 : fallback `lot_type` du groupe vs `lot_type` du segment.
+  - Niveau 3 : fallback proportionnel (segment le plus volumineux) + warning.
+  - INTERDIT : scoring probabiliste, token-overlap — supprimé le 2026-05-04.
+  - En cas d'ambiguïté : log `[MultiDevis] WARN` + assigne au premier gagnant (pas de drop silencieux).
+
+- **`computeGlobalFromSegments` — delta sur segments avec données marché uniquement** : `overprice_total` et `overprice_pct` ne comptent que les segments avec `has_market_data = true`. `total_devis_ht` reste Σ ALL pour information. Ne jamais revenir à l'ancienne formule qui gonflait le surcoût avec les segments hors-catalogue.
+
+- **`conclusion.ts` mode multi — source de vérité = `global_metrics`** : quand `isMultipleQuotes = true`, le `preEngine` est construit depuis `global_metrics` pré-calculé (pas depuis `computeVerdict` appliqué sur `priceData` mélangé). Le bloc `multiDevisBlock` injecté dans le prompt liste les verdicts par artisan + contraintes LLM strictes : INTERDIT "cohérent" si ≥1 artisan à risque.
+
+- **`AnalysisResult.tsx` — `effectiveScore` multi lit `verdict_global` directement** : mapping inline `verdict_global → VERT/ORANGE/ROUGE`, jamais via `score_legacy` (champ intermédiaire supprimé de la chaîne critique).
+
+- **Logs de diagnostic** : en cas de doute sur l'attribution, chercher `[MultiDevis]` dans Supabase Dashboard → Functions → analyze-quote. `WARN` = fallback déclenché (problème de matching). Absence de WARN = matching niveau 1 exact pour tous les groupes.
+
 ### Module Chantier — pièges spécifiques
 
 - **`contacts_chantier` colonnes** : la colonne téléphone est `telephone` (pas `phone`), le rôle est `role` (pas `metier`). `context.ts` agent doit utiliser `c.telephone` et `c.role`.

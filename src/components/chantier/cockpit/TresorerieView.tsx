@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
   Pencil, Check, ChevronDown, ChevronUp, AlertTriangle,
-  ExternalLink, Loader2, TrendingUp,
+  ExternalLink, Loader2,
 } from 'lucide-react';
 import {
   fmtEur,
@@ -788,195 +788,6 @@ function FinancementSection({
   );
 }
 
-// ── Section 2 : Projection trésorerie ────────────────────────────────────────
-
-function ProjectionSection({ lots, loading }: { lots: BudgetLot[]; loading: boolean }) {
-  const months     = useMemo(() => {
-    const now   = new Date();
-    return Array.from({ length: 8 }, (_, i) => {
-      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-      return d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
-    });
-  }, []);
-
-  // Construction données par lot
-  const lotData = useMemo(() => {
-    const activeLots = lots.filter(l => l.totaux.devis_valides > 0 || l.totaux.facture > 0 || l.totaux.paye > 0);
-    return activeLots.slice(0, 6).map((lot, idx) => {
-      const paid      = (lot.totaux.paye ?? 0) + (lot.totaux.acompte ?? 0);
-      const remaining = Math.max(0, (lot.totaux.facture ?? 0) - paid);
-      const projected  = Math.max(0, (lot.totaux.devis_valides ?? 0) - lot.totaux.facture);
-
-      // Distribution sur 8 mois : mois 0 = déjà payé, mois 1-2 = factures restantes, mois 3-5 = devis restant
-      const cumulative = Array.from({ length: 8 }, (_, m) => {
-        if (m === 0) return paid;
-        if (m <= 2)  return paid + (remaining * m / 2);
-        if (m <= 5)  return paid + remaining + (projected * (m - 2) / 3);
-        return paid + remaining + projected;
-      }).map(Math.round);
-
-      return { lot, cumulative, color: ARTISAN_PALETTE[idx % ARTISAN_PALETTE.length] };
-    });
-  }, [lots]);
-
-  const totalBudget = useMemo(() => lots.reduce((s, l) => s + (l.totaux.devis_valides || l.totaux.facture), 0), [lots]);
-  const totalPaid   = useMemo(() => lots.reduce((s, l) => s + l.totaux.paye + l.totaux.acompte, 0), [lots]);
-  const nextPmnt    = useMemo(() => lots.find(l => l.totaux.facture > (l.totaux.paye + l.totaux.acompte)), [lots]);
-
-  if (loading) {
-    return (
-      <div className="p-5 border-b border-gray-100">
-        <div className="h-48 bg-gray-50 rounded-xl animate-pulse" />
-      </div>
-    );
-  }
-
-  if (lotData.length === 0) {
-    return (
-      <div className="p-5 border-b border-gray-100 text-center py-12">
-        <TrendingUp className="h-8 w-8 text-gray-200 mx-auto mb-2" />
-        <p className="text-[12px] text-gray-400">Ajoutez des devis pour visualiser la projection</p>
-      </div>
-    );
-  }
-
-  // SVG
-  const W = 900, H = 220;
-  const PAD = { t: 10, r: 20, b: 28, l: 48 };
-  const CW = W - PAD.l - PAD.r, CH = H - PAD.t - PAD.b;
-  const MAX_Y = Math.max(totalBudget, 1000);
-  const N = months.length;
-
-  function px(i: number) { return PAD.l + i * CW / (N - 1); }
-  function py(v: number)  { return PAD.t + CH - Math.min(v / MAX_Y, 1) * CH; }
-
-  function smooth(pts: [number,number][]) {
-    if (pts.length < 2) return '';
-    let d = `M ${pts[0][0]} ${pts[0][1]}`;
-    for (let i = 1; i < pts.length; i++) {
-      const cpx1 = pts[i-1][0] + (pts[i][0] - pts[i-1][0]) * 0.4;
-      const cpy1 = pts[i-1][1];
-      const cpx2 = pts[i][0]   - (pts[i][0] - pts[i-1][0]) * 0.4;
-      const cpy2 = pts[i][1];
-      d += ` C ${cpx1} ${cpy1}, ${cpx2} ${cpy2}, ${pts[i][0]} ${pts[i][1]}`;
-    }
-    return d;
-  }
-
-  const gridY = [0, MAX_Y*0.25, MAX_Y*0.5, MAX_Y*0.75, MAX_Y].map(Math.round);
-
-  return (
-    <div className="border-b border-gray-100">
-      <div className="flex items-center justify-between px-5 py-4">
-        <div className="flex items-center gap-2">
-          <span className="w-7 h-7 bg-amber-50 rounded-lg flex items-center justify-center text-[13px]">📈</span>
-          <div>
-            <p className="text-[13px] font-black text-gray-900">Projection de trésorerie</p>
-            <p className="text-[10px] text-gray-400">Cumul des paiements par artisan · trait plein = réel · tirets = projeté</p>
-          </div>
-        </div>
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-600 border-emerald-200">
-          ✓ Pas d'alerte
-        </span>
-      </div>
-
-      {/* Légende */}
-      <div className="flex gap-4 px-5 mb-3 flex-wrap">
-        {lotData.map(({ lot, color }) => (
-          <div key={lot.id} className="flex items-center gap-1.5">
-            <div style={{ width: 8, height: 8, borderRadius: 4, background: color, flexShrink: 0 }} />
-            <span className="text-[10px] font-semibold text-gray-500">{lot.emoji ?? ''} {lot.nom}</span>
-          </div>
-        ))}
-        <div className="flex items-center gap-1.5 ml-auto">
-          <div style={{ width: 16, height: 1, borderTop: '1.5px dashed #cbd5e1' }} />
-          <span className="text-[10px] text-gray-400">Budget engagé</span>
-        </div>
-      </div>
-
-      {/* SVG chart */}
-      <div className="px-5 pb-4" style={{ overflowX: 'auto' }}>
-        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', minWidth: 500, display: 'block' }}>
-          <defs>
-            {lotData.map(({ color }, si) => (
-              <linearGradient key={si} id={`tv-g${si}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={color} stopOpacity="0.1" />
-                <stop offset="100%" stopColor={color} stopOpacity="0.01" />
-              </linearGradient>
-            ))}
-          </defs>
-
-          {/* Grid */}
-          {gridY.map(v => (
-            <g key={v}>
-              <line x1={PAD.l} y1={py(v)} x2={W-PAD.r} y2={py(v)} stroke="#f1f5f9" strokeWidth="1" />
-              <text x={PAD.l-6} y={py(v)+4} fontSize="9" fill="#94a3b8" textAnchor="end">
-                {v === 0 ? '0' : v >= 1000 ? Math.round(v/1000)+'k' : v}
-              </text>
-            </g>
-          ))}
-
-          {/* Budget line dashed */}
-          {totalBudget > 0 && (
-            <>
-              <line x1={PAD.l} y1={py(totalBudget)} x2={W-PAD.r} y2={py(totalBudget)}
-                stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="6 4" />
-              <text x={W-PAD.r+3} y={py(totalBudget)+4} fontSize="8" fill="#94a3b8">
-                {Math.round(totalBudget/1000)}k
-              </text>
-            </>
-          )}
-
-          {/* X labels */}
-          {months.map((m, i) => (
-            <text key={i} x={px(i)} y={H-4} fontSize="9" fill="#94a3b8" textAnchor="middle">{m}</text>
-          ))}
-
-          {/* Series */}
-          {lotData.map(({ cumulative, color }, si) => {
-            const pts = cumulative.map((v, i) => [px(i), py(v)] as [number, number]);
-            const actualPts    = pts.slice(0, 2);
-            const projectedPts = pts.slice(1);
-            const areaPath     = `${smooth(projectedPts)} L ${px(N-1)} ${py(0)} L ${px(1)} ${py(0)} Z`;
-            return (
-              <g key={si}>
-                <path d={areaPath} fill={`url(#tv-g${si})`} />
-                <path d={smooth(actualPts)}    fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
-                <path d={smooth(projectedPts)} fill="none" stroke={color} strokeWidth="2" strokeDasharray="5 4" strokeLinecap="round" />
-                {pts.map(([x, y], i) => (
-                  <circle key={i} cx={x} cy={y} r={i === 0 ? 4 : 3}
-                    fill={i <= 1 ? color : '#fff'} stroke={color} strokeWidth="2" />
-                ))}
-              </g>
-            );
-          })}
-        </svg>
-      </div>
-
-      {/* Insights */}
-      <div className="grid grid-cols-3 gap-3 px-5 pb-5">
-        <div className="rounded-xl p-3 text-center border" style={{ background: '#f0fdf4', borderColor: '#bbf7d0' }}>
-          <p className="text-[10px] font-bold text-emerald-700 mb-1">✓ Trésorerie positive</p>
-          <p className="text-[12px] font-black text-emerald-800">Tout le projet</p>
-          <p className="text-[10px] text-emerald-600 mt-1">Plan de financement complet</p>
-        </div>
-        <div className="rounded-xl p-3 text-center border" style={{ background: '#eff6ff', borderColor: '#bfdbfe' }}>
-          <p className="text-[10px] font-bold text-blue-700 mb-1">💰 Déjà payé</p>
-          <p className="text-[12px] font-black text-blue-800">{fmtEur(totalPaid)}</p>
-          <p className="text-[10px] text-blue-600 mt-1">sur {fmtEur(totalBudget)} engagé</p>
-        </div>
-        <div className="rounded-xl p-3 text-center border" style={{ background: '#fef3c7', borderColor: '#fde68a' }}>
-          <p className="text-[10px] font-bold text-amber-700 mb-1">⏳ Prochain paiement</p>
-          <p className="text-[12px] font-black text-amber-800">
-            {nextPmnt ? fmtEur(Math.max(0, nextPmnt.totaux.facture - nextPmnt.totaux.paye - nextPmnt.totaux.acompte)) : '—'}
-          </p>
-          <p className="text-[10px] text-amber-600 mt-1">{nextPmnt ? nextPmnt.nom : 'Aucune facture en attente'}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Section 3 : Consommation par source ──────────────────────────────────────
 
 function ConsommationSection({
@@ -1160,9 +971,6 @@ export default function TresorerieView({
         data={data}
         devisValides={devisValides}
       />
-
-      {/* Section 2 — Projection */}
-      <ProjectionSection lots={lots} loading={loading} />
 
       {/* Section 3 — Consommation */}
       <ConsommationSection lots={lots} cfg={cfg} totalAides={totalAides} chantierId={chantierId} token={token} />

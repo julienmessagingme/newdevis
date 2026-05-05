@@ -605,6 +605,33 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
         <main className={`flex-1 ${activeSection === 'tresorerie' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
           {renderContent()}
         </main>
+
+        {/* ── Footer sticky mobile — ÉTAPES 4 & 5 ──────────────────────────── */}
+        <div className="lg:hidden shrink-0 border-t border-gray-100 bg-white pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          {/* Bandeau assistant — ÉTAPE 5 */}
+          {totalAlertCount > 0 && (
+            <button
+              onClick={() => navigateTo('assistant')}
+              className="w-full flex items-center gap-2 px-4 pt-2.5 pb-1 text-left touch-manipulation"
+            >
+              <span className="flex-1 text-[12px] font-semibold text-amber-700">
+                💬 L'assistant a {totalAlertCount} recommandation{totalAlertCount > 1 ? 's' : ''} →
+              </span>
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${hasCriticalInsight ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700'}`}>
+                {totalAlertCount}
+              </span>
+            </button>
+          )}
+          {/* CTA principal — ÉTAPE 4 */}
+          <div className="px-4 pt-2">
+            <button
+              onClick={() => activeSection === 'budget' ? setChatOpen(true) : navigateTo('budget')}
+              className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl min-h-[44px] touch-manipulation transition-colors"
+            >
+              👉 {activeSection === 'budget' ? 'Demander à l\'assistant' : 'Continuer mon chantier'}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* ── Upload modal ──────────────────────────────────────────────────── */}

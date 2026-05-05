@@ -19,6 +19,35 @@ export interface ConditionPaiement {
 }
 
 // ============================================================
+// MULTI-DEVIS — Un PDF contenant plusieurs artisans/lots
+// ============================================================
+
+export interface DevisSegment {
+  /** Intitulé du lot (ex: "MACONNERIE", "PLOMBERIE SANITAIRES") */
+  lot_type: string;
+  /** Nom de l'entreprise pour ce lot */
+  entreprise_nom: string;
+  /** SIRET (14 chiffres) ou SIREN/RCS (9 chiffres) ou null */
+  siret: string | null;
+  /** Total HT en euros */
+  total_ht: number | null;
+  /** Total TTC en euros */
+  total_ttc: number | null;
+  /** Taux de TVA (ex: 20) */
+  taux_tva: number | null;
+  /** Assurance décennale mentionnée */
+  assurance_decennale: boolean | null;
+  /** Lignes de travaux du lot */
+  lignes: Array<{
+    libelle: string;
+    categorie: string;
+    montant: number | null;
+    quantite: number | null;
+    unite: string | null;
+  }>;
+}
+
+// ============================================================
 // PHASE 1 — EXTRACTION UNIQUE (UN SEUL APPEL IA)
 // ============================================================
 
@@ -68,6 +97,10 @@ export interface ExtractedData {
   tva_non_applicable: boolean | null;
   devis_manuscrit: boolean | null;
   materiaux_fournis_client: boolean | null;
+  /** true si le PDF regroupe plusieurs devis de différentes entreprises */
+  multiple_quotes?: boolean;
+  /** Liste des devis individuels (peuplé uniquement si multiple_quotes=true) */
+  devis_list?: DevisSegment[];
 }
 
 // ============================================================

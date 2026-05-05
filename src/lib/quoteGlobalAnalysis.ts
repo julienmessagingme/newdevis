@@ -149,10 +149,12 @@ export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
   }
 
   // Statut global — anomalies en premier (priorité maximale)
+  // RÈGLE 2 : tout poste "survalue" (+30 % au-dessus du max marché) déclenche a_negocier.
+  // Un seul poste anomalie suffit. Plusieurs anomalies → risque_eleve.
   let status: GlobalStatus;
   if (nbAnomalie >= 2) {
     status = "risque_eleve";
-  } else if (nbAnomalie >= 1 || nbSurvalue >= 3) {
+  } else if (nbAnomalie >= 1 || nbSurvalue >= 1) {
     status = "a_negocier";
   } else {
     status = "correct";

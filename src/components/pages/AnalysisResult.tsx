@@ -45,7 +45,9 @@ import {
   ExtractionIncompleteWarning,
   ConclusionIA,
   useFeedback,
+  MultiDevisBlock,
 } from "@/components/analysis";
+import type { DevisSegment } from "@/components/analysis/MultiDevisBlock";
 import { PostSignatureTrackingSection } from "@/components/tracking";
 const OcrDebugPanel = lazy(() => import("@/components/analysis/OcrDebugPanel").then(m => ({ default: m.OcrDebugPanel })));
 import type { TravauxItem } from "@/components/analysis";
@@ -59,8 +61,10 @@ import { getVisibleBlocks } from "@/lib/domainConfig";
 
 type DocumentDetection = {
   type: "devis_travaux" | "devis_prestation_technique" | "devis_diagnostic_immobilier" | "facture" | "autre";
-  analysis_mode: "full" | "adapted" | "diagnostic" | "rejected";
+  analysis_mode: "full" | "adapted" | "diagnostic" | "rejected" | "multiple";
   diagnostic_types?: string[];
+  multiple_quotes?: boolean;
+  quotes_count?: number;
 };
 
 type Analysis = {
@@ -98,6 +102,8 @@ const parseDocumentDetection = (rawText?: string): DocumentDetection | null => {
         type: parsed.document_detection.type,
         analysis_mode: parsed.document_detection.analysis_mode,
         diagnostic_types: parsed.document_detection.diagnostic_types,
+        multiple_quotes: parsed.document_detection.multiple_quotes === true,
+        quotes_count: parsed.document_detection.quotes_count,
       };
     }
   } catch {
@@ -494,6 +500,14 @@ const AnalysisResult = () => {
   const effectiveScore = useMemo(() => {
     if (!analysis) return null;
 
+    // RÈGLE 3+6 — SOURCE UNIQUE DE VÉRITÉ multi-devis :
+    // Lecture directe de verdict_global (jamais de recalcul frontend).
+    // score_legacy est un alias dérivé — on mappe nous-mêmes pour éliminer toute dépendance indirecte.
+    if (documentDetection?.multiple_quotes && globalMetrics?.verdict_global) {
+      const v = globalMetrics.verdict_global as string;
+      return (v === "refuser" ? "ROUGE" : v === "a_negocier" ? "ORANGE" : "VERT") as "VERT" | "ORANGE" | "ROUGE";
+    }
+
     // Extraire les critères depuis analysis.score (JSON stocké par score.ts)
     let criteres_rouges: string[] = [];
     let criteres_oranges: string[] = [];
@@ -752,6 +766,39 @@ const AnalysisResult = () => {
   // Parse document detection from raw_text
   const documentDetection = parseDocumentDetection(analysis.raw_text);
 
+  // Parse devis_list + segment_analyses + global_metrics for multi-quote PDFs
+  const devisList: DevisSegment[] | null = (() => {
+    if (!documentDetection?.multiple_quotes) return null;
+    try {
+      const parsed = JSON.parse(analysis.raw_text || "");
+      return Array.isArray(parsed?.devis_list) && parsed.devis_list.length > 0
+        ? parsed.devis_list as DevisSegment[]
+        : null;
+    } catch { return null; }
+  })();
+
+  // Analyses indépendantes par artisan (disponibles après analyse marché complète)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segmentAnalyses: any[] | null = (() => {
+    if (!documentDetection?.multiple_quotes) return null;
+    try {
+      const parsed = JSON.parse(analysis.raw_text || "");
+      return Array.isArray(parsed?.segment_analyses) && parsed.segment_analyses.length > 0
+        ? parsed.segment_analyses
+        : null;
+    } catch { return null; }
+  })();
+
+  // Métriques globales agrégées (source de vérité pour le badge header en mode multi)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const globalMetrics: any | null = (() => {
+    if (!documentDetection?.multiple_quotes) return null;
+    try {
+      const parsed = JSON.parse(analysis.raw_text || "");
+      return parsed?.global_metrics ?? null;
+    } catch { return null; }
+  })();
+
   // Extract scoring criteria for the interpretation section
   const criteresRouges: string[] = (() => {
     try {
@@ -984,6 +1031,29 @@ const AnalysisResult = () => {
             </div>
           );
         })()}
+
+        {/* ══════════════════════════════════════════════════════
+            BLOC 0 — MULTI-DEVIS (affiché uniquement si PDF multi-artisans)
+        ══════════════════════════════════════════════════════ */}
+        {documentDetection?.multiple_quotes && devisList && devisList.length > 0 && (
+          <MultiDevisBlock
+            devisList={devisList}
+            segmentAnalyses={segmentAnalyses ?? undefined}
+            globalMetrics={globalMetrics ?? undefined}
+            clientVille={(() => {
+              try {
+                const p = JSON.parse(analysis.raw_text || "");
+                return p?.extracted?.client?.ville ?? p?.extracted_data?.client?.ville ?? null;
+              } catch { return null; }
+            })()}
+            dateDevis={(() => {
+              try {
+                const p = JSON.parse(analysis.raw_text || "");
+                return p?.extracted?.dates?.date_devis ?? p?.extracted_data?.dates?.date_devis ?? null;
+              } catch { return null; }
+            })()}
+          />
+        )}
 
         {/* ══════════════════════════════════════════════════════
             BLOC 1 — VERDICT EXPERT (premier bloc, above the fold)

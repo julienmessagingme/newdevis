@@ -412,10 +412,20 @@ export const POST: APIRoute = async ({ params, request }) => {
   // ── Parse raw_text ────────────────────────────────────────────────────────
   let priceData: unknown[] = [];
   let extractedData: Record<string, unknown> = {};
+  let isMultipleQuotes = false;
+  let segmentAnalyses: Array<Record<string, unknown>> = [];
+  let globalMetricsRaw: Record<string, unknown> | null = null;
   try {
     const parsed = JSON.parse(analysis.raw_text || "{}");
     priceData       = Array.isArray(parsed.n8n_price_data) ? parsed.n8n_price_data : [];
     extractedData   = (parsed.extracted_data as Record<string, unknown>) || {};
+    // Multi-devis : lire segment_analyses + global_metrics pré-calculés
+    const docDet    = parsed.document_detection as Record<string, unknown> | undefined;
+    isMultipleQuotes = docDet?.multiple_quotes === true && Array.isArray(parsed.segment_analyses) && parsed.segment_analyses.length > 1;
+    if (isMultipleQuotes) {
+      segmentAnalyses  = parsed.segment_analyses as Array<Record<string, unknown>>;
+      globalMetricsRaw = parsed.global_metrics as Record<string, unknown> | null ?? null;
+    }
   } catch {
     // raw_text invalide
   }
@@ -465,28 +475,58 @@ export const POST: APIRoute = async ({ params, request }) => {
   const marketPosition = computeServerMarketPosition(priceData);
 
   // ── Verdict déterministe PRÉ-CALCULÉ (injecté dans le prompt) ───────────────
-  // Le moteur tourne AVANT Gemini pour contraindre le LLM, pas après.
-  const preMarketBounds   = computeMarketBounds(priceData);
-  const preMajorAnomalies = countMajorAnomalies(priceData);
-  const preFlags          = extractFlagsFromCriteria(criteres_rouges, criteres_oranges);
-  const preRisk           = extractCompanyRisk(criteres_rouges, criteres_oranges);
-  const preCompanyStatus  = extractCompanyStatusFromCriteria(criteres_rouges);
-  const preAvgMarket = (preMarketBounds.min + preMarketBounds.max) / 2;
-  const preDispersion = preAvgMarket > 0
-    ? (preMarketBounds.max - preMarketBounds.min) / preAvgMarket : 0;
+  // RÈGLE 5 — Le moteur tourne AVANT Gemini pour contraindre le LLM, pas après.
+  // En mode multi-devis : utilise global_metrics pré-calculé (source de vérité unique).
+  // En mode mono-devis : calcul normal via verdictEngine.
 
-  const preEngine         = computeVerdict({
-    total_amount:          typeof totalHT === "number" ? totalHT : 0,
-    market_estimate_min:   preMarketBounds.min,
-    market_estimate_max:   preMarketBounds.max,
-    anomalies_major_count: preMajorAnomalies,
-    anomalies_total_count: preMajorAnomalies,
-    company_risk:          preRisk,
-    flags:                 preFlags,
-    market_dispersion_pct: preDispersion,
-    company_status:        preCompanyStatus ?? undefined,
-    // chantier_complexity : V2 — non disponible encore, fallback "medium" automatique
-  });
+  const preFlags         = extractFlagsFromCriteria(criteres_rouges, criteres_oranges);
+  const preRisk          = extractCompanyRisk(criteres_rouges, criteres_oranges);
+  const preCompanyStatus = extractCompanyStatusFromCriteria(criteres_rouges);
+
+  let preEngine: ReturnType<typeof computeVerdict>;
+
+  if (isMultipleQuotes && globalMetricsRaw) {
+    // Multi-devis : construire un VerdictResult factice depuis global_metrics
+    // Le verdict réel est déjà dans global_metrics.verdict_global
+    const gVerdict = String(globalMetricsRaw.verdict_global ?? "signer") as "signer" | "a_negocier" | "refuser";
+    const gOverpricePct = typeof globalMetricsRaw.overprice_pct === "number" ? globalMetricsRaw.overprice_pct : 0;
+    const gOverprice    = typeof globalMetricsRaw.overprice_total === "number" ? globalMetricsRaw.overprice_total : 0;
+    const gRouge        = typeof globalMetricsRaw.segments_rouge === "number" ? globalMetricsRaw.segments_rouge : 0;
+    preEngine = {
+      verdict:               gVerdict,
+      color:                 gVerdict === "refuser" ? "red" : gVerdict === "a_negocier" ? "orange" : "green",
+      score_legacy:          gVerdict === "refuser" ? "ROUGE" : gVerdict === "a_negocier" ? "ORANGE" : "VERT",
+      overprice:             gOverprice,
+      overprice_pct:         gOverpricePct,
+      anomalies_major_count: gRouge,
+      is_hard_block:         preFlags.entreprise_radiee || preFlags.siret_invalide || preFlags.absence_assurance || preFlags.paiement_cash_suspect || preFlags.iban_suspect,
+      has_market_data:       (typeof globalMetricsRaw.total_marche_max === "number" ? globalMetricsRaw.total_marche_max : 0) > 0,
+      price_label:           gVerdict === "refuser" ? "🛑 Devis anormal" : gVerdict === "a_negocier" ? "⚠️ À négocier" : "✅ Juste prix",
+      threshold_ok:          0.08,
+      threshold_refuse:      0.20,
+      market_dispersion_pct: 0,
+      chantier_complexity:   "medium",
+    };
+  } else {
+    // Mono-devis : calcul normal
+    const preMarketBounds   = computeMarketBounds(priceData);
+    const preMajorAnomalies = countMajorAnomalies(priceData);
+    const preAvgMarket = (preMarketBounds.min + preMarketBounds.max) / 2;
+    const preDispersion = preAvgMarket > 0
+      ? (preMarketBounds.max - preMarketBounds.min) / preAvgMarket : 0;
+
+    preEngine = computeVerdict({
+      total_amount:          typeof totalHT === "number" ? totalHT : 0,
+      market_estimate_min:   preMarketBounds.min,
+      market_estimate_max:   preMarketBounds.max,
+      anomalies_major_count: preMajorAnomalies,
+      anomalies_total_count: preMajorAnomalies,
+      company_risk:          preRisk,
+      flags:                 preFlags,
+      market_dispersion_pct: preDispersion,
+      company_status:        preCompanyStatus ?? undefined,
+    });
+  }
 
   // Mapping engine verdict → labels lisibles dans le prompt LLM
   const ENGINE_DECISION_LABEL: Record<string, string> = {
@@ -512,15 +552,26 @@ VERDICT IMPOSÉ PAR LE MOTEUR DÉTERMINISTE:
 RÈGLES ABSOLUES (ne pas déroger):
 1. Tu DOIS produire exactement verdict_decisionnel="${imposedDecision}" et verdict_global="${imposedGlobal}".
 2. INTERDIT de contredire ce verdict dans phrase_intro, justifications ou actions_avant_signature.
-3. Si verdict_decisionnel="ne_pas_signer" → INTERDIT d'écrire des phrases comme "vous pouvez signer", "le devis est acceptable", "le prix est cohérent".
+3. Si verdict_decisionnel="ne_pas_signer" → INTERDIT d'écrire des phrases comme "vous pouvez signer", "le devis est acceptable", "le prix est cohérent", "prix attractif", "bon rapport qualité-prix", "devis compétitif". Le prix peut être bas ET le verdict refuser (ex: entreprise en cessation) — ne jamais valoriser le prix dans ce cas.
 4. Si verdict_decisionnel="signer" → INTERDIT de recommander de "négocier le prix" ou de "demander une réduction".
-5. Ton rôle : EXPLIQUER et JUSTIFIER ce verdict factuel, pas le recalculer.`;
+5. Si verdict_decisionnel="signer_avec_negociation" → INTERDIT d'écrire "vous pouvez signer en confiance" ou "aucune anomalie". Il y a au moins un poste trop élevé.
+6. Ton rôle : EXPLIQUER et JUSTIFIER ce verdict factuel, pas le recalculer.`;
 
+  // Si hard block (company_status ou flags), ne pas contextualiser le prix comme "attractif"
+  const pricePositionLabel = (() => {
+    if (preEngine.is_hard_block) return "NON PERTINENT — blocage juridique/sécurité prioritaire";
+    switch (marketPosition.globalLabel) {
+      case "inférieur_au_marché":    return "INFÉRIEUR À LA MOYENNE — le devis est sous les prix du marché";
+      case "au_dessus_du_max":       return "AU-DESSUS DU MAX — prix anormalement élevé";
+      case "au_dessus_de_la_moyenne": return "AU-DESSUS DE LA MOYENNE";
+      default:                       return "DANS LA NORME";
+    }
+  })();
   const marketPositionContext = marketPosition.globalLabel !== "hors_catalogue"
     ? `\nPOSITIONNEMENT GLOBAL DU DEVIS vs MARCHÉ:
 - Total devis (postes comparables): ${marketPosition.totalDevis.toFixed(0)} €
 - Fourchette marché totale: ${marketPosition.totalMarketMin.toFixed(0)} – ${marketPosition.totalMarketMax.toFixed(0)} € (moyenne: ${marketPosition.totalMarketAvg.toFixed(0)} €)
-- Position: ${marketPosition.globalLabel === "inférieur_au_marché" ? "INFÉRIEUR À LA MOYENNE — le devis est attractif" : marketPosition.globalLabel === "au_dessus_du_max" ? "AU-DESSUS DU MAX — prix anormalement élevé" : marketPosition.globalLabel === "au_dessus_de_la_moyenne" ? "AU-DESSUS DE LA MOYENNE" : "DANS LA NORME"}`
+- Position: ${pricePositionLabel}`
     : "";
 
   // ── Prompt Gemini ─────────────────────────────────────────────────────────
@@ -528,11 +579,56 @@ RÈGLES ABSOLUES (ne pas déroger):
     ? `\nALERTES CRITIQUES DÉTECTÉES (facteurs bloquants) :\n${criteres_rouges.map(r => `🔴 ${r}`).join("\n")}\n⚠️ CES ALERTES PRIMENT sur l'analyse de prix. Si l'entreprise est radiée ou en procédure collective, la conclusion DOIT être "ne_pas_signer" et "a_risque", indépendamment du positionnement tarifaire.`
     : "";
 
+  // ── Bloc multi-devis (RÈGLE 5) ───────────────────────────────────────────────
+  const multiDevisBlock = isMultipleQuotes && segmentAnalyses.length > 0 ? (() => {
+    const segLines = segmentAnalyses.map((seg, i) => {
+      const v = String(seg.verdict ?? "signer");
+      const emoji = v === "refuser" ? "🔴" : v === "a_negocier" ? "🟠" : "🟢";
+      const totalHtSeg = typeof seg.total_ht === "number" ? `${seg.total_ht.toLocaleString("fr-FR")} € HT` : "montant inconnu";
+      const marketMin = typeof seg.market_min === "number" ? seg.market_min : 0;
+      const marketMax = typeof seg.market_max === "number" ? seg.market_max : 0;
+      const hasMarket = typeof seg.has_market_data === "boolean" ? seg.has_market_data : marketMax > 0;
+      const marketStr = hasMarket ? `fourchette marché ${marketMin.toLocaleString("fr-FR")}–${marketMax.toLocaleString("fr-FR")} €` : "hors catalogue marché";
+      const anomalies = typeof seg.anomalies_count === "number" ? seg.anomalies_count : 0;
+      const overpricePct = typeof seg.overprice_pct === "number" ? `${seg.overprice_pct >= 0 ? "+" : ""}${Math.round(seg.overprice_pct * 100)}%` : "";
+      return `  ${emoji} Artisan ${i + 1}: ${String(seg.entreprise_nom ?? "Inconnu")} (${String(seg.lot_type ?? "lot")})
+     Total: ${totalHtSeg} | Verdict: ${v.toUpperCase()} | ${marketStr}${overpricePct ? ` | Écart marché: ${overpricePct}` : ""}${anomalies > 0 ? ` | ${anomalies} anomalie(s)` : ""}`;
+    }).join("\n");
+
+    const artisansARisque = segmentAnalyses
+      .filter(s => String(s.verdict) === "refuser" || String(s.verdict) === "a_negocier")
+      .map(s => `${String(s.entreprise_nom ?? "?")} (${String(s.verdict ?? "?")})`);
+
+    const globalV = String(globalMetricsRaw?.verdict_global ?? "signer");
+    const globalTotal = typeof globalMetricsRaw?.total_devis_ht === "number"
+      ? `${(globalMetricsRaw.total_devis_ht as number).toLocaleString("fr-FR")} € HT`
+      : "montant total inconnu";
+
+    return `
+⚠️ MODE MULTI-DEVIS — PDF contenant ${segmentAnalyses.length} artisans distincts.
+RÈGLE ABSOLUE : chaque artisan est analysé INDÉPENDAMMENT. Ne jamais mélanger leurs données.
+
+VERDICTS PAR ARTISAN (pré-calculés — NE PAS recalculer) :
+${segLines}
+
+VERDICT GLOBAL : ${globalV.toUpperCase()} | Total chantier : ${globalTotal}
+${artisansARisque.length > 0 ? `ARTISANS À RISQUE : ${artisansARisque.join(", ")}` : "Aucun artisan à risque."}
+
+CONTRAINTES ABSOLUES MULTI-DEVIS (RÈGLE 5) :
+1. INTERDIT d'écrire "le devis est cohérent" ou "vous pouvez signer" si verdict_global ≠ signer.
+2. INTERDIT d'écrire "le devis est acceptable" si ≥ 1 artisan a verdict refuser ou a_negocier.
+3. Si un artisan a verdict REFUSER → mentionner explicitement son nom et la raison.
+4. Ton rôle : expliquer et justifier global_verdict="${globalV}", pas le recalculer.
+5. La phrase_intro DOIT mentionner le nombre d'artisans et le verdict global.
+6. Les anomalies et actions doivent être attribuées à l'artisan concerné (indiquer le nom).`;
+  })() : "";
+
   const userPrompt = `Tu es un expert en rénovation immobilière. Analyse ce devis et aide un particulier à décider s'il doit signer ou non.
 ${verdictImposedBlock}
+${multiDevisBlock}
 
 CONTEXTE DU DEVIS:
-- Entreprise: ${nomEntreprise || "inconnue"}
+- Entreprise: ${isMultipleQuotes ? `${segmentAnalyses.length} artisans (voir détail ci-dessus)` : nomEntreprise || "inconnue"}
 - Montant HT: ${totalHT ? `${totalHT.toLocaleString("fr-FR")} €` : "inconnu"}
 - Montant TTC: ${totalTTC ? `${totalTTC.toLocaleString("fr-FR")} €` : "inconnu"}
 - TVA: ${tauxTVA ? `${tauxTVA}%` : "inconnue"}

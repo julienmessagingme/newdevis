@@ -11,6 +11,68 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## 22. Multi-devis — PDF contenant plusieurs artisans
+
+🟢 **Architecture complète + 7 règles de fiabilité implémentées (2026-05-04). À déployer + valider.**
+
+RÈGLE ABSOLUE : UN PDF MULTI-ENTREPRISE = N ANALYSES INDÉPENDANTES.
+
+### Ce qui est fait (sessions 2026-05-03 → 2026-05-04)
+
+#### Architecture initiale (2026-05-03)
+- `verdict-utils.ts` (nouveau) : copie Deno-compatible de `verdictEngine.ts`
+- `index.ts` phase 2.5 : analyse par segment, stocke `segment_analyses` + `global_metrics` dans `raw_text`
+- `MultiDevisBlock.tsx` : verdicts par artisan, badge global, récap vert/orange/rouge
+- `AnalysisResult.tsx` : parse `segment_analyses` + `global_metrics`, `effectiveScore` multi
+
+#### 7 règles de fiabilité (2026-05-04)
+
+**RÈGLE 1 — Matching STRICT** (`verdict-utils.ts` → `attributeGroupsToSegments`):
+- Remplace l'ancien fuzzy token-overlap par 3 niveaux déterministes :
+  - Niveau 1 : exact match `normalizeStrict(devis_line.description)` = `normalizeStrict(seg.lignes.libelle)`
+  - Niveau 2 : fallback `lot_type` du groupe vs `lot_type` du segment
+  - Niveau 3 : fallback proportionnel (segment le plus volumineux) + warning
+- Libellés ambigus (même texte chez 2 artisans) marqués `-1` → pas d'attribution silencieuse
+- Logs `[MultiDevis] WARN` explicites pour chaque fallback
+
+**RÈGLE 4 — Agrégation stricte** (`computeGlobalFromSegments`):
+- `verdict_global` = worst verdict (inchangé)
+- `overprice_total` / `overprice_pct` = calculé UNIQUEMENT sur segments avec `has_market_data = true`
+- `total_devis_ht` = Σ ALL segments (inchangé, pour information complète)
+- Avant : les segments hors-catalogue gonflaient le surcoût calculé
+
+**RÈGLE 5 — LLM contraint** (`conclusion.ts`):
+- Mode multi-devis détecté via `document_detection.multiple_quotes + segment_analyses`
+- `preEngine` construit depuis `global_metrics` (pas recalculé depuis `priceData` mélangé)
+- Bloc `multiDevisBlock` injecté dans le prompt :
+  - Verdicts par artisan avec nom, lot_type, total, écart marché
+  - Liste des artisans à risque
+  - Contraintes LLM strictes : INTERDIT "cohérent" si ≥1 à risque, INTERDIT "signer" si verdict ≠ signer
+  - LLM explicite que `verdict_global` est PRÉ-CALCULÉ, il ne le redécide pas
+- Contexte entreprise adapté : "N artisans (voir détail ci-dessus)" au lieu d'un seul nom
+
+**RÈGLE 3+6 — Source unique de vérité UI** (`AnalysisResult.tsx`):
+- `effectiveScore` multi-devis lit `globalMetrics.verdict_global` directement
+- Mapping inline `verdict_global → VERT/ORANGE/ROUGE` (pas via `score_legacy`)
+- Élimine toute dépendance à un champ intermédiaire
+
+### À déployer
+- [ ] `supabase functions deploy analyze-quote` (verdict-utils.ts modifié)
+- [ ] `vercel deploy` (conclusion.ts + AnalysisResult.tsx)
+
+### À valider après déploiement
+- [ ] PDF test (14 devis, 11 artisans, ~223k€ HT) : vérifier logs `[MultiDevis]` dans Supabase Dashboard
+- [ ] Vérifier que chaque artisan a son verdict indépendant dans sa card
+- [ ] Vérifier que 0 warning WARN = matching exact niveau 1 pour tous les groupes
+- [ ] Vérifier que `global_metrics.verdict_global` = worst verdict des segments
+- [ ] Cas test RÈGLE 7 : 3 segments (bon + surévalué + critique) → 3 verdicts distincts + global = refuser
+
+### Restant
+- Vérification SIRET par artisan (aujourd'hui = seulement le 1er artisan vérifié)
+- Export PDF résumé multi-artisans
+
+---
+
 ## 21. Plan UX/UI — Amélioration continue GMC (Audit 2026-05-02)
 
 🟡 **En cours — corrections critiques priorisées une par une, validées par le Product Owner.**
@@ -420,15 +482,23 @@ Scénario prod à valider end-to-end : créer un groupe → vérifier que les me
 
 ## 9. Vue mobile — passes restantes
 
-🟠 **Backlog mobile P0 cockpit (cf. CLAUDE.md "Status des P0 mobile cockpit").**
+🟡 **En cours — refacto UX mobile "orienté action" (session 2026-05-03).**
 
-Closed : BudgetTab table, BudgetKpiDashboard, ArtisanDrawer, MessagerieSection, ActionBar, AddDocumentModal.
+### Fait (session 2026-05-03)
+- ✅ ÉTAPE 1 : Table 9 colonnes cachée sur mobile (`sm:hidden`) — remplacée par cartes artisans
+- ✅ ÉTAPE 2 : `ArtisanCardMobile` dans BudgetTab (nom, lot, budget, payé/restant, barre progression, boutons Payer/Voir)
+- ✅ ÉTAPE 3 : `NextActionsMobile` en haut de DashboardHome — bloc "À faire" (€ à payer, devis à valider, intervenants sans devis) avec CTA "Voir mes actions"
+- ✅ ÉTAPE 4 : Footer sticky mobile dans DashboardUnified — CTA "👉 Continuer mon chantier"
+- ✅ ÉTAPE 5 : Bandeau assistant sticky mobile — "💬 L'assistant a X recommandations →" si `totalAlertCount > 0`
+- ✅ ÉTAPE 6 : KpiCard "Intervenants" masquée sur mobile (`hidden sm:block`)
+- ✅ ÉTAPE 8 : BudgetProgressBars → bouton "Affiner" + bottom sheet détail par poste (mobile)
 
-À faire :
+### Restant
+- 🟠 ÉTAPE 7 : Touch targets 44px min (surtout chevrons, icon buttons dans DocumentsView, ContactsSection)
+- 🟠 ÉTAPE 9 : AnalysisResult blocs secondaires collapsés par défaut sur mobile
+- 🟠 ÉTAPE 10 : Homepage — résultat visuel + exemple concret
 - `PlanningTimeline` (#12) — gros chantier mobile, le Gantt est galère sur petit écran
 - `ContactsSection`, `DocumentsView` (#16)
-- Touch targets chevrons (#17)
-- `Button size=icon` à passer à 44px min (#18)
 
 ---
 

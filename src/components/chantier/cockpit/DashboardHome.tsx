@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, SlidersHorizontal, HelpCircle, X, Check, AlertTriangle, Loader2 } from 'lucide-react';
+import { Plus, SlidersHorizontal, HelpCircle, X, Check, AlertTriangle, Loader2, ChevronRight } from 'lucide-react';
 import type { DocumentChantier, LotChantier } from '@/types/chantier-ia';
 import { KpiCard, ViewToggle, DiyCard, RDV_EMOJI } from './DashboardWidgets';
 import LotIntervenantCard from './LotIntervenantCard';
@@ -180,6 +180,46 @@ function BudgetBreakdownPopover({ items }: { items: BreakdownItem[] }) {
 
 const fmtEurShort = (n: number) => n >= 1000 ? `${fmtK(n)}` : `${n} €`;
 
+// ── Bloc actions prioritaires mobile (ÉTAPE 3) ────────────────────────────────
+
+function NextActionsMobile({
+  aRegler, nbARegler, nbDevisAValider, blocked, onAction,
+}: {
+  aRegler: number;
+  nbARegler: number;
+  nbDevisAValider: number;
+  blocked: number;
+  onAction: () => void;
+}) {
+  const actions: { emoji: string; label: string; urgent?: boolean }[] = [];
+  if (aRegler > 0) actions.push({ emoji: '💸', label: `${fmtEurShort(aRegler)} à régler (${nbARegler} facture${nbARegler > 1 ? 's' : ''})`, urgent: true });
+  if (nbDevisAValider > 0) actions.push({ emoji: '⚠️', label: `${nbDevisAValider} devis à valider`, urgent: true });
+  if (blocked > 0) actions.push({ emoji: '⚠️', label: `${blocked} intervenant${blocked > 1 ? 's' : ''} sans devis` });
+
+  if (actions.length === 0) return null;
+
+  return (
+    <div className="sm:hidden bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-2">À faire</p>
+      <div className="space-y-1.5">
+        {actions.map((a, i) => (
+          <div key={i} className={`flex items-center gap-2 text-sm font-medium ${a.urgent ? 'text-amber-800' : 'text-amber-700'}`}>
+            <span>{a.emoji}</span>
+            <span className="flex-1 min-w-0">{a.label}</span>
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={onAction}
+        className="mt-3 w-full flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl py-2.5 min-h-[44px] touch-manipulation transition-colors"
+      >
+        👉 Voir mes actions
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
 // ── Info label avec tooltip ───────────────────────────────────────────────────
 
 function InfoLabel({ label, tip }: { label: string; tip: string }) {
@@ -306,14 +346,18 @@ function BudgetDonutCard({
 // ── Budget progress bars (mobile only) ────────────────────────────────────────
 
 function BudgetProgressBars({
-  budgetReel, budgetEngage, totalPaye, iaMin, iaMax,
+  budgetReel, budgetEngage, totalPaye, iaMin, iaMax, refinedBreakdown, onAffineBudget, hasRefinedBreakdown,
 }: {
   budgetReel?: number | null;
   budgetEngage: number;
   totalPaye: number;
   iaMin: number;
   iaMax: number;
+  refinedBreakdown?: BreakdownItem[];
+  onAffineBudget?: () => void;
+  hasRefinedBreakdown?: boolean;
 }) {
+  const [sheetOpen, setSheetOpen] = useState(false);
   const ref = (budgetReel && budgetReel > 0) ? budgetReel : iaMax;
 
   const bars = [
@@ -344,23 +388,79 @@ function BudgetProgressBars({
   ];
 
   return (
-    <div className="bg-blue-50 rounded-2xl px-4 py-4 space-y-2.5">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Budget chantier</p>
-      {bars.map(b => (
-        <div key={b.label}>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[11px] text-gray-500">{b.label}</span>
-            <span className="text-[13px] font-bold text-gray-800 tabular-nums">{b.text}</span>
+    <>
+      <div className="bg-blue-50 rounded-2xl px-4 py-4 space-y-2.5">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Budget chantier</p>
+        {bars.map(b => (
+          <div key={b.label}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] text-gray-500">{b.label}</span>
+              <span className="text-[13px] font-bold text-gray-800 tabular-nums">{b.text}</span>
+            </div>
+            <div className={`h-2 rounded-full ${b.bg} overflow-hidden`}>
+              <div
+                className={`h-full rounded-full ${b.color} transition-all duration-500`}
+                style={{ width: `${b.pct}%` }}
+              />
+            </div>
           </div>
-          <div className={`h-2 rounded-full ${b.bg} overflow-hidden`}>
-            <div
-              className={`h-full rounded-full ${b.color} transition-all duration-500`}
-              style={{ width: `${b.pct}%` }}
-            />
+        ))}
+        {onAffineBudget && (
+          <button
+            onClick={() => refinedBreakdown && refinedBreakdown.length > 0 ? setSheetOpen(true) : onAffineBudget()}
+            className="flex items-center gap-1 text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1.5 touch-manipulation transition-colors"
+          >
+            <SlidersHorizontal className="h-3 w-3" />
+            {hasRefinedBreakdown ? 'Voir le détail' : 'Affiner le budget'}
+          </button>
+        )}
+      </div>
+
+      {/* Bottom sheet détail (ÉTAPE 8) */}
+      {sheetOpen && refinedBreakdown && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setSheetOpen(false)} />
+          <div className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+              <p className="text-sm font-bold text-gray-900">Estimation par poste</p>
+              <button onClick={() => setSheetOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 touch-manipulation">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <ul className="divide-y divide-gray-50 max-h-[60vh] overflow-y-auto">
+              {refinedBreakdown.map(item => {
+                const rel =
+                  item.reliability === 'haute'   ? { dot: 'bg-emerald-400', text: 'text-emerald-600', label: 'Haute'  } :
+                  item.reliability === 'moyenne' ? { dot: 'bg-amber-400',   text: 'text-amber-600',   label: 'Moy.'   } :
+                                                   { dot: 'bg-gray-300',    text: 'text-gray-400',    label: 'Faible' };
+                return (
+                  <li key={item.id} className="px-5 py-3 flex items-center gap-3">
+                    <span className="text-lg shrink-0">{item.emoji}</span>
+                    <span className="flex-1 min-w-0 text-sm text-gray-700">{item.label}</span>
+                    <span className="shrink-0 tabular-nums text-sm font-bold text-gray-900 whitespace-nowrap">
+                      {fmtK(item.min)}–{fmtK(item.max)}
+                    </span>
+                    <span className={`shrink-0 flex items-center gap-0.5 text-[11px] font-bold ${rel.text}`}>
+                      <span className={`inline-block h-1.5 w-1.5 rounded-full ${rel.dot}`} />
+                      {rel.label}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="px-5 pt-3">
+              <button
+                onClick={() => { setSheetOpen(false); onAffineBudget?.(); }}
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white text-sm font-bold rounded-xl py-3 min-h-[44px] touch-manipulation"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                Recalculer le budget
+              </button>
+            </div>
           </div>
-        </div>
-      ))}
-    </div>
+        </>
+      )}
+    </>
   );
 }
 
@@ -523,6 +623,12 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
   }).length;
   const blocked   = Math.max(0, total - validated - withDevis);
 
+  // Devis reçus mais pas encore validés
+  const nbDevisAValider = useMemo(() =>
+    documents.filter(d => d.document_type === 'devis' && d.devis_statut === 'recu').length,
+    [documents],
+  );
+
   // Montant total restant à régler (factures reçues + partiellement payées)
   const { aRegler, nbARegler } = useMemo(() => {
     let sum = 0;
@@ -555,6 +661,15 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
     <>
     <div className="px-5 py-5 space-y-5">
 
+      {/* ── Bloc actions prioritaires mobile (ÉTAPE 3) ─────────────────── */}
+      <NextActionsMobile
+        aRegler={aRegler}
+        nbARegler={nbARegler}
+        nbDevisAValider={nbDevisAValider}
+        blocked={blocked}
+        onAction={onGoToAssistant}
+      />
+
       {/* ── Onboarding (masqué dès que les 4 étapes sont complètes) ── */}
       <OnboardingBar steps={onboardingSteps} />
 
@@ -581,22 +696,29 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
             totalPaye={totalPaye}
             iaMin={displayMin}
             iaMax={displayMax}
+            refinedBreakdown={refinedBreakdown}
+            onAffineBudget={onAffineBudget}
+            hasRefinedBreakdown={refinedBreakdown.length > 0}
           />
         </div>
 
-        <KpiCard
-          icon={validated === total && total > 0 ? '✅' : '👷'}
-          label="Intervenants"
-          value={total > 0 ? `${validated}/${total}` : '0'}
-          sub={
-            total === 0          ? 'aucun intervenant' :
-            validated === total  ? 'tous engagés' :
-            blocked > 0          ? `${blocked} sans devis` :
-                                   `${total - validated} en cours`
-          }
-          accent={validated === total && total > 0 ? 'emerald' : blocked > 0 ? 'amber' : 'gray'}
-          onClick={onGoToPlanning}
-        />
+        {/* ÉTAPE 6 — Intervenants masqué sur mobile (gardé sur sm+) */}
+        <div className="hidden sm:block">
+          <KpiCard
+            icon={validated === total && total > 0 ? '✅' : '👷'}
+            label="Intervenants"
+            value={total > 0 ? `${validated}/${total}` : '0'}
+            sub={
+              total === 0          ? 'aucun intervenant' :
+              validated === total  ? 'tous engagés' :
+              blocked > 0          ? `${blocked} sans devis` :
+                                     `${total - validated} en cours`
+            }
+            accent={validated === total && total > 0 ? 'emerald' : blocked > 0 ? 'amber' : 'gray'}
+            onClick={onGoToPlanning}
+          />
+        </div>
+
         <KpiCard
           icon={aRegler > 0 ? '💸' : '✓'}
           label="À régler"

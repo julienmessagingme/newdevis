@@ -10,6 +10,15 @@ import { renderOutput } from "./render.ts";
 import { lookupMarketPrices, type WorkItemFull, type JobTypePriceResult } from "./market-prices.ts";
 import { summarizeWorkItems } from "./summarize.ts";
 import { getDomainConfig } from "./domain-config.ts";
+import {
+  computeMarketBounds,
+  countMajorAnomalies,
+  computeVerdict,
+  attributeGroupsToSegments,
+  computeGlobalFromSegments,
+  type SegmentAnalysis,
+  type GlobalMetrics,
+} from "./verdict-utils.ts";
 
 // ============ STRATEGIC SCORES — IVP / IPI ============
 
@@ -652,6 +661,88 @@ serve(async (req) => {
       prices: jt.prices,
     }));
 
+    // ============ PHASE 2.5: ANALYSE PAR SEGMENT (multi-devis) ============
+    // RÈGLE ABSOLUE : UN PDF MULTI-ENTREPRISE = N ANALYSES INDÉPENDANTES
+    // Chaque artisan reçoit son propre verdict basé uniquement sur ses lignes.
+    // Pas d'appel IA supplémentaire — matching textuel déterministe uniquement.
+
+    let segmentAnalyses: SegmentAnalysis[] | undefined;
+    let globalMetrics: GlobalMetrics | undefined;
+
+    if (isMultipleQuotes && extracted.devis_list && extracted.devis_list.length > 0) {
+      console.log("[MultiDevis] Début analyse par segment —", extracted.devis_list.length, "artisans");
+
+      // Attribuer les groupes de prix à chaque segment
+      const groupsBySegment = attributeGroupsToSegments(
+        n8nPriceDataForFrontend,
+        extracted.devis_list,
+      );
+
+      // Flags vides pour chaque artisan (les flags globaux viennent de verified, pas dupliqués par segment)
+      const emptyFlags = {
+        entreprise_radiee: false, siret_invalide: false, absence_assurance: false,
+        paiement_cash_suspect: false, iban_suspect: false,
+        mentions_legales_manquantes: false, acompte_excessif: false,
+        incoherence_contractuelle: false,
+      };
+
+      segmentAnalyses = extracted.devis_list.map((seg, si) => {
+        const segGroups = groupsBySegment.get(si) ?? [];
+        const bounds    = computeMarketBounds(segGroups);
+        const anomalies = countMajorAnomalies(segGroups);
+        // assurance décennale absente = flag pour ce segment spécifique
+        const segFlags = {
+          ...emptyFlags,
+          absence_assurance: seg.assurance_decennale === false,
+        };
+        const result = computeVerdict({
+          total_amount:          seg.total_ht ?? 0,
+          market_estimate_min:   bounds.min,
+          market_estimate_max:   bounds.max,
+          anomalies_major_count: anomalies,
+          anomalies_total_count: anomalies,
+          company_risk:          "low",
+          flags:                 segFlags,
+        });
+
+        console.log(
+          `[MultiDevis] Segment ${si} (${seg.entreprise_nom}) →`,
+          `verdict=${result.verdict}`,
+          `groupes=${segGroups.length}`,
+          `bounds=[${bounds.min}, ${bounds.max}]`,
+          `anomalies=${anomalies}`,
+        );
+
+        return {
+          lot_type:        seg.lot_type,
+          entreprise_nom:  seg.entreprise_nom,
+          siret:           seg.siret,
+          total_ht:        seg.total_ht,
+          total_ttc:       seg.total_ttc,
+          market_min:      bounds.min,
+          market_max:      bounds.max,
+          market_avg:      bounds.avg,
+          verdict:         result.verdict,
+          score_legacy:    result.score_legacy,
+          overprice:       result.overprice,
+          overprice_pct:   result.overprice_pct,
+          anomalies_count: anomalies,
+          has_market_data: result.has_market_data,
+          market_groups:   segGroups,
+        } satisfies SegmentAnalysis;
+      });
+
+      globalMetrics = computeGlobalFromSegments(segmentAnalyses);
+      console.log(
+        "[MultiDevis] Métriques globales →",
+        `verdict_global=${globalMetrics.verdict_global}`,
+        `total_ht=${globalMetrics.total_devis_ht}`,
+        `rouge=${globalMetrics.segments_rouge}`,
+        `orange=${globalMetrics.segments_orange}`,
+        `vert=${globalMetrics.segments_vert}`,
+      );
+    }
+
     // ============ STRATEGIC SCORES (IVP/IPI) — non-bloquant ============
     let strategicScores: ReturnType<typeof computeStrategicScores> | null = null;
     try {
@@ -777,14 +868,23 @@ serve(async (req) => {
     }
 
     // Store debug data
+    const isMultipleQuotes = extracted.multiple_quotes === true && Array.isArray(extracted.devis_list) && extracted.devis_list.length > 1;
     const rawDataForDebug = JSON.stringify({
       type_document: extracted.type_document,
       extracted,
       verified,
       scoring,
-      document_detection: { type: extracted.type_document, analysis_mode: "full" },
+      document_detection: {
+        type: extracted.type_document,
+        analysis_mode: isMultipleQuotes ? "multiple" : "full",
+        multiple_quotes: isMultipleQuotes,
+        quotes_count: isMultipleQuotes ? extracted.devis_list!.length : undefined,
+      },
       n8n_price_data: n8nPriceDataForFrontend,
       strategic_scores: strategicScores,
+      devis_list: isMultipleQuotes ? extracted.devis_list : undefined,
+      segment_analyses: segmentAnalyses,
+      global_metrics: globalMetrics,
     });
 
     // Update the analysis with results
