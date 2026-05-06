@@ -484,6 +484,8 @@ export const POST: APIRoute = async ({ params, request }) => {
   const preCompanyStatus = extractCompanyStatusFromCriteria(criteres_rouges);
 
   let preEngine: ReturnType<typeof computeVerdict>;
+  // NOTE: déclaré ici (scope externe) car utilisé après le bloc if/else à la ligne ~875
+  let preMajorAnomalies = 0;
 
   if (isMultipleQuotes && globalMetricsRaw) {
     // Multi-devis : construire un VerdictResult factice depuis global_metrics
@@ -492,6 +494,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     const gOverpricePct = typeof globalMetricsRaw.overprice_pct === "number" ? globalMetricsRaw.overprice_pct : 0;
     const gOverprice    = typeof globalMetricsRaw.overprice_total === "number" ? globalMetricsRaw.overprice_total : 0;
     const gRouge        = typeof globalMetricsRaw.segments_rouge === "number" ? globalMetricsRaw.segments_rouge : 0;
+    preMajorAnomalies   = gRouge; // segments en rouge = anomalies majeures en mode multi
     preEngine = {
       verdict:               gVerdict,
       color:                 gVerdict === "refuser" ? "red" : gVerdict === "a_negocier" ? "orange" : "green",
@@ -510,7 +513,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   } else {
     // Mono-devis : calcul normal
     const preMarketBounds   = computeMarketBounds(priceData);
-    const preMajorAnomalies = countMajorAnomalies(priceData);
+    preMajorAnomalies       = countMajorAnomalies(priceData);
     const preAvgMarket = (preMarketBounds.min + preMarketBounds.max) / 2;
     const preDispersion = preAvgMarket > 0
       ? (preMarketBounds.max - preMarketBounds.min) / preAvgMarket : 0;
