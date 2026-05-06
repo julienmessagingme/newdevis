@@ -253,38 +253,55 @@ if (body.addToDocument === true) {
 
 ---
 
-## 25. verdictEngine — source de vérité unique du verdict
+## 25. verdictEngine V1→V3 — moteur de verdict déterministe
 
-✅ **Implémenté et déployé (2026-05-01). Commit `f462dcc`.**
+✅ **V1 déployée (2026-05-01, commit `f462dcc`). V3 pondérée déployée (2026-05-06, commit `7a45610`).**
 
-### Problème résolu
-Contradiction structurelle entre 3 sources de verdict indépendantes :
-- `analysis.score` (edge function `score.ts`) — entreprise uniquement
-- `analysis.conclusion_ia.verdict_decisionnel` (LLM Gemini via `conclusion.ts`) — prix + anomalies
-- `effectiveScore` (client `AnalysisResult.tsx`) — pire des deux, mais parsing fragile
+### V1 — Source de vérité unique (2026-05-01)
+Résout la contradiction entre badge header et ConclusionIA. `src/lib/verdictEngine.ts` est le seul endroit où le verdict est calculé — importé par `conclusion.ts` (serveur) et `AnalysisResult.tsx` (client).
 
-Résultat : header Feu Vert alors que ConclusionIA affichait Feu Orange.
-
-### Architecture
-
-`src/lib/verdictEngine.ts` — moteur déterministe pur (zéro IA, zéro état) :
-1. **Hard block** (radiée / SIRET / assurance / cash / IBAN) → `refuser` immédiat, STOP
-2. **Verdict prix** : `overprice_pct` vs seuils 5%/15% + `anomalies_major_count`
-3. **Verdict risque** : flags mentions légales / acompte / incohérence / `company_risk`
-4. **Merge** : gravité maximale (`refuser > a_negocier > signer`)
-5. **Règle UX** : INTERDIT `price_label = "signer"` si `overprice > 5%`
-
-Helpers exposés : `computeMarketBounds`, `countMajorAnomalies`, `extractFlagsFromCriteria`, `extractCompanyRisk`
-
-### Intégration
-
-| Fichier | Rôle |
-|---|---|
-| `conclusion.ts` | Remplace logique de cohérence post-LLM — le LLM génère les explications, le moteur impose `verdict_decisionnel` + `verdict_global` |
-| `AnalysisResult.tsx` | `effectiveScore` calculé par `computeVerdict` depuis `analysis.score` JSON + `cachedN8NData` + `raw_text` |
+### V3 — Anomalies pondérées par poids dans le devis (2026-05-06)
+Résout les faux verdicts "Refuser" causés par un poste isolé cher sur un devis globalement correct. Nouvelle fonction `computeWeightedAnomalies()` : analyse poste par poste, calcule le poids de chaque anomalie dans le total HT. Verdict basé sur `poids_anomalies` (< 20% = signer, 20-50% = négocier, ≥ 50% = refuser). Cf. `FEATURES.md § 20`.
 
 ### Règle absolue
-Ne jamais recalculer le verdict ailleurs. Si un nouveau composant affiche un badge → importer `computeVerdict` depuis `verdictEngine.ts`, jamais écrire une logique locale.
+Ne jamais recalculer le verdict ailleurs. Importer `computeVerdict` depuis `verdictEngine.ts`.
+
+---
+
+## 26. Fixes TDZ (Temporal Dead Zone) — crashes production (2026-05-06)
+
+✅ **Corrigés et déployés. Commits `a4b6326`, `b36b1be`, `e280a10`.**
+
+3 bugs TDZ distincts causant des crashes page blanche ou erreurs 502 :
+
+1. **`AnalysisResult.tsx`** : `effectiveScore` useMemo référençait `documentDetection` (ligne ~767) déclaré après early returns. Fix : parse inline dans le useMemo.
+2. **`analyze-quote/index.ts`** : `const isMultipleQuotes` déclaré à la ligne 871, utilisé à la ligne 672. Fix : déclaration déplacée avant l'utilisation.
+3. **`conclusion.ts`** : `preMajorAnomalies` déclaré dans un bloc `else` (scope limité), utilisé hors du bloc. Fix : `let preMajorAnomalies = 0` avant le `if/else`.
+
+---
+
+## 27. Wording "Comptes non déposés" → neutre (2026-05-06)
+
+✅ **Corrigé et déployé.**
+
+Remplacement du wording accusatoire "Comptes non déposés depuis X années / obligation légale" par "Comptes non accessibles publiquement" avec contexte pédagogique (déclaration de confidentialité = pratique légale fréquente) et badge ORANGE au lieu de ROUGE. Modifié dans `score.ts`, `render.ts`, `BlockEntreprise.tsx`, `entrepriseUtils.ts`.
+
+---
+
+## 28. Alerte admin + maintenance automatique des analyses en erreur (2026-05-06)
+
+✅ **Implémenté et déployé. Commit `d72587f`.**
+
+Voir `FEATURES.md § 21` pour le détail fonctionnel.
+
+### Architecture déployée
+- Edge function `analysis-maintenance` (cron `*/15 * * * *`, retry max 2, fenêtre 4h)
+- `alertAdminOnFailure()` dans `analyze-quote` — alerte immédiate Resend à la 1ère erreur
+- Migration `20260506120000_analysis_maintenance_cron.sql` — à appliquer avec `npx supabase db push`
+- Destinataires : `julien@messagingme.fr` + `bridey.johan@gmail.com`
+
+### ⚠️ À faire
+- Appliquer la migration cron : `npx supabase db push`
 
 ---
 

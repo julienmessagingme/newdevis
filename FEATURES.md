@@ -969,6 +969,68 @@ Popup de feedback contextuel qui s'ouvre après la consultation d'une analyse.
 
 ---
 
+## 20. Verdict pondéré V3 — anomalies par poids dans le devis (2026-05-06)
+
+Évite les faux verdicts "Refuser" causés par un seul poste aberrant isolé sur un devis globalement correct.
+
+### Problème résolu
+
+Avant : un poste à 80% de surcoût représentant 3% du total faisait basculer l'analyse en rouge. L'utilisateur voyait "Refuser" alors que 97% du devis était correct.
+
+### Nouvelle logique
+
+Chaque poste est analysé individuellement :
+- **Surcoût poste** = prix devis vs médiane marché
+- **Poids poste** = montant HT du poste / total devis HT
+- **Impact global** = somme des poids des postes surdévalués (> 30% au-dessus du marché)
+
+| Impact (poids des postes surdévalués) | Verdict |
+|---|---|
+| < 20% du total | Signer — anomalies isolées, impact limité |
+| 20–50% du total | À négocier — part significative mais pas majoritaire |
+| ≥ 50% du total | Refuser — plus de la moitié du devis est surévaluée |
+
+### Ce que l'utilisateur voit
+
+- La ConclusionIA mentionne "X postes présentent des prix élevés — impact limité (X% du total)" pour les cas faibles
+- Le message de négociation précise le montant en euros ET le poids dans le devis, pas juste un pourcentage de surcoût global
+- Un devis avec 1 poste cher isolé ne génère plus de faux "Refuser"
+
+---
+
+## 21. Alerte admin + maintenance automatique des analyses en erreur (2026-05-06)
+
+Surveillance automatique des analyses qui échouent (visibles en admin par un "-" à la place du score).
+
+### Alerte immédiate
+
+Dès qu'une analyse échoue (peu importe la raison), un email est envoyé à `julien@messagingme.fr` et `bridey.johan@gmail.com` avec :
+- ID de l'analyse + nom du fichier + user concerné
+- Message d'erreur exact
+- Lien direct vers le dashboard admin
+
+### Maintenance automatique (cron 15 min)
+
+Toutes les 15 minutes, un job automatique :
+1. **Détecte** les analyses en `error`/`failed` dans les 4 dernières heures
+2. **Retente** automatiquement jusqu'à 2 fois les analyses éligibles (en les re-soumettant au pipeline complet)
+3. **Escalade** par email les analyses qui échouent encore après 2 tentatives (marquées "⛔ Intervention requise")
+
+### Email admin récapitulatif
+
+- Section bleue 🔄 : analyses relancées automatiquement (tentative N/2)
+- Section rouge ⛔ : échecs persistants nécessitant une intervention manuelle
+- Email non envoyé si aucune action requise (run silencieux)
+
+### Architecture
+
+- Edge function `analysis-maintenance` (Supabase, cron `*/15 * * * *`)
+- `alertAdminOnFailure()` dans `analyze-quote` (fire-and-forget, Resend API)
+- Retry tracking via tag `[auto-retry-N]` dans `error_message` — pas de migration DB
+- Auth cron : `X-Cron-Secret` (même pattern que l'agent chantier)
+
+---
+
 ## 16. Récapitulatif navigation
 
 | Groupe sidebar | Onglets | Réponse à la question |
