@@ -186,10 +186,12 @@ function ConclusionDisplay({
   conclusion,
   onRegenerate,
   isGenerating,
+  onCopy,
 }: {
   conclusion: ConclusionData;
   onRegenerate: () => void;
   isGenerating: boolean;
+  onCopy?: () => void;
 }) {
   const [copied,       setCopied]       = useState(false);
   const [showAllAnom,  setShowAllAnom]  = useState(false);
@@ -486,6 +488,7 @@ export function ConclusionIA({ analysisId, conclusionIaRaw, onVerdictReady, onCo
         conclusion={conclusion}
         onRegenerate={regenerate}
         isGenerating={isGenerating}
+        onCopy={onCopy}
       />
 
       {error && (
