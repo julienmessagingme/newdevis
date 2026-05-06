@@ -14,7 +14,7 @@ export default function SlideFieldEditor({ templateName, fields, onChange }: Pro
     onChange({ ...fields, [key]: value });
 
   const textField = (key: string, label: string, multiline = false) => {
-    const val = (fields as Record<string, unknown>)[key];
+    const val = (fields as unknown as Record<string, unknown>)[key];
     if (typeof val !== "string" && val !== undefined) return null;
     return (
       <CharCountInput
