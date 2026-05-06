@@ -1234,7 +1234,27 @@ Génère 4-5 questions contextuelles via Gemini pour qualifier un projet avant g
 
 **Fichier** : `supabase/functions/system-alerts/index.ts`
 
-Gestion des alertes système.
+Surveillance santé du pipeline d'analyse de devis. Envoie un email Resend à `julien@messagingme.fr` quand des analyses se bloquent ou échouent en série.
+
+**Trigger** : pg_cron job `system-health-alerts` toutes les 5 minutes (cf. `supabase/migrations/20260228.sql`) → `POST /functions/v1/system-alerts` avec Bearer service_role.
+
+**3 health checks lancés en parallèle** (`Promise.all`) :
+
+| Check | Sévérité | Condition | Fenêtre |
+|---|---|---|---|
+| `checkStuckAnalyses` | **CRITIQUE** | analyses en `pending`/`processing` depuis > 15 min | max 24h (pour ne pas re-signaler des analyses mortes depuis des jours) |
+| `checkErrorSpike` | **ERREUR** | ≥ 3 analyses en `error`/`failed` | sur 30 min |
+| `checkHighErrorRate` | **WARNING** | taux d'erreur > 50% (min 4 analyses pour éviter faux positifs sur faible volume) | sur 1h |
+
+**Email Resend** :
+- From : `VerifierMonDevis <onboarding@resend.dev>` (domaine `verifiermondevis.fr` pas encore vérifié — TODO en haut du fichier pour passer à `alerts@verifiermondevis.fr` et réintégrer `bridey.johan@gmail.com` dans `RECIPIENTS`).
+- To : `julien@messagingme.fr` uniquement.
+- HTML coloré par sévérité (rouge/orange/jaune) + tableau des analyses concernées (8 premiers chars de l'ID, statut, date Paris, error_message tronqué à 80 chars) + CTA vers `/admin`.
+- **Idempotency-Key** = `{category}_{ids_fingerprint}` où `ids_fingerprint` = jointure triée des 8 premiers chars des IDs concernés. Conséquence : mêmes analyses bloquées = même clé = Resend dédoublonne et ne renvoie pas. Une nouvelle analyse bloquée = clé différente = email envoyé. Pas de cap horaire dur — c'est l'idempotency Resend qui fait le dédoublonnage.
+
+**Variables d'env** requises côté edge fn : `RESEND_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
+
+**Logs** : `Alert sent: {category} (idempotency: {key})` en cas de succès, `Resend error ({status}): {body}` en cas d'échec API. Le résultat de chaque tick est loggé en JSON (`alerts_triggered`, `alerts_sent`, `send_errors`) pour audit.
 
 ### read-invoice — `verify_jwt = false`
 
