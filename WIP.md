@@ -866,6 +866,26 @@ Tous les éléments interactifs sur la landing portés à ≥ 44px sur mobile :
 
 ---
 
+## 26. PaiementDrawer — drawer unifié paiement (homepage + budget) 🟡
+
+**Objectif** : éliminer la confusion entre "Enregistrer un paiement" homepage et "Payer" dans Budget. Un seul composant visuel, deux contextes.
+
+**Architecture décidée** :
+- `PaiementDrawer.tsx` (nouveau) — deux modes :
+  - **Libre** (depuis homepage, sans contexte) → appelle `/api/chantier/[id]/quick-expense`
+  - **Contextualisé** (depuis Budget, avec artisan + facture + montant restant pré-remplis) → appelle `/api/chantier/[id]/payment-events` avec `addToDocument: true`
+- Footer réassurance : "Tous les paiements sont automatiquement pris en compte dans votre budget"
+- Wording uniforme : "💸 Enregistrer un paiement" partout
+- `VersementsDrawer` conservé pour l'historique complet
+
+**Points d'entrée** :
+1. `ActionCenter` dans `DashboardHome` (mode libre) — remplace le drawer inline actuel
+2. Bouton "💸 Payer cette facture" sur les lignes facture dans `BudgetTab` (mode contextualisé)
+
+**État** : 🟡 en cours — implémentation à démarrer.
+
+---
+
 ## Comment maintenir ce document
 
 - Quand on **commence** une feature → ajouter une section ici avec 🟡
