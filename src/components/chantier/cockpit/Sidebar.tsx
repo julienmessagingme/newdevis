@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   ArrowLeft, Pencil, Wallet, Layers,
-  FileSearch, Calendar, FolderOpen, Bot, Settings, Users, Mail, BookOpen,
+  Calendar, FolderOpen, Bot, Settings, Users, Mail, BookOpen,
 } from 'lucide-react';
 import type { ChantierIAResult } from '@/types/chantier-ia';
 
@@ -33,12 +33,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: 'budget',     label: 'Accueil',             icon: Layers    },
       { id: 'tresorerie', label: 'Budget & Trésorerie', icon: Wallet    },
       { id: 'planning',   label: 'Planning',             icon: Calendar  },
-    ],
-  },
-  {
-    label: 'Devis & Finances',
-    items: [
-      { id: 'analyse',    label: 'Intervenants & Devis', icon: FileSearch },
       { id: 'documents',  label: 'Documents',             icon: FolderOpen },
     ],
   },

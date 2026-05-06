@@ -2242,6 +2242,53 @@ Distinction sémantique entre tickets/factures (avec pièce uploadable) et frais
 - `BudgetTab.tsx` — colonne PAYÉ : quand `isSolde` (totalPaye ≥ budget), le montant s'affiche en vert "réglé" quelle que soit la source (acompte ou facture payée). Avant : si payé via acompte uniquement, le label restait "acompte" en indigo même quand c'était soldé.
 - `BudgetTab.tsx` — alerte "Facture manquante" : badge ambre ⚠ dans la cellule artisan quand : artisan a un devis validé (devis_valides > 0) ET pas de facture réelle (hors `ticket_caisse`/`achat_materiaux`/`frais`) ET non soldé. Cliquable pour ouvrir le modal d'ajout de document. Symétrique à l'alerte "Devis manquant" existante.
 
+### 21.3b UX Cockpit — Homepage & Navigation (2026-05-06)
+
+#### TresorerieView — "Paiements effectués par artisan" en accordéon
+
+Section extractée du composant `ConsommationSection` en sous-composant `ArtisanPaymentDetail`. Repliée par défaut (doublon avec `BudgetTab`). Icône chevron animé (rotate-180 à l'ouverture).
+
+#### EcheancierRefonte — Registre en accordéon + filtres
+
+Le tableau "Registre des paiements effectués" est désormais dans un accordéon `PaidEventsAccordion` (replié par défaut). Quand ouvert : 2 filtres au-dessus de la liste — sélecteur artisan (`filterArtisan`) + sélecteur tri (`PaidSort` : `date_desc | date_asc | amount_desc | amount_asc`). Mobile-first : filtres full-width en flex-wrap.
+
+#### PVReceptionModal — Pré-remplissage automatique
+
+Fetch parallèle (`Promise.all`) au mount :
+1. `supabase.auth.getSession()` → `user_metadata` → `mo_nom`, `mo_adresse`
+2. `GET /api/chantier/[id]/contacts` → contact `role=entreprise_generale` → `entrepreneur_nom`, `entrepreneur_adresse`, `entrepreneur_siret`
+3. `GET /api/chantier/[id]/budget` → devis noms → `contrat_ref`
+
+Tracking des champs auto-remplis via `Set<keyof PVData>` (state `autofilled`). Badge "✓ Pré-rempli" vert sur les champs concernés + fond `bg-emerald-50/40`. La modification manuelle retire le badge.
+
+#### Sidebar — Menu allégé
+
+- Suppression du groupe "Devis & Finances" (doublon avec homepage)
+- `documents` intégré dans le groupe "Projet" (entre Planning et les items Équipe)
+- Import `FileSearch` retiré
+
+#### DashboardHome — Copilote actionnable (2026-05-06)
+
+**`ActionCenter`** (nouveau composant, placé en haut de la homepage) :
+- 3 boutons larges, labels clairs : "💸 Enregistrer un paiement" / "📄 Ajouter un devis ou facture" / "👷 Ajouter un artisan"
+- Grid 1-col mobile → 3-col sm+, padding généreux, hover:shadow-md, active:scale
+- "Enregistrer un paiement" → ouvre le drawer inline `depenseOpen` (dépense rapide)
+- "Ajouter un devis ou facture" → `onAddDoc`
+- "Ajouter un artisan" → `onAddIntervenant`
+
+**Suppressions** :
+- `DiyCard` ("Travaux par vous-même") — retiré du grid intervenants
+- `NextActionsMobile` — remplacé par `NextActionsBlock` (couvre les deux)
+- Section "Actions rapides" (boutons pill dispersés)
+- Bouton "Ajouter un intervenant" dans le header de la section Intervenants
+
+**`NextActionsBlock`** (inchangé — juste en dessous des KPIs) : liste contextuelle max 3 items priorisés (P1 factures → P2 devis → P3 lots bloqués → P4 factures manquantes).
+
+**`DashboardUnified`** :
+- `urgentActions` calculé depuis `documents` (factures recues/partielles + devis reçus)
+- Badge sidebar `assistant` : "⚠ N action(s)" ambre si urgentActions > 0, sinon "✓ OK" vert
+- KPI "À traiter" : accent amber/emerald selon `urgentActions`
+
 ### 21.4 Fil d'activité Assistant chantier (24h)
 
 Onglet Assistant en 2 colonnes (desktop) ou stack vertical (mobile).

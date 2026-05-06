@@ -19,6 +19,7 @@ import {
   Loader2, RefreshCw, AlertCircle, RotateCcw,
   Info, Paperclip, Upload, ExternalLink,
   TrendingDown, TrendingUp, Zap, BellRing, Wallet,
+  ChevronDown,
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { usePaymentEvents, type PaymentEvent } from '@/hooks/usePaymentEvents';
@@ -881,6 +882,127 @@ function PaymentEventRow({ ev, chantierId, token, confirmingId, setConfirmingId,
   );
 }
 
+// ── Registre paiements — accordéon + filtres ─────────────────────────────────
+
+type PaidSort = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc';
+
+function PaidEventsAccordion({
+  paidEvents, chantierId, token,
+  confirmingId, setConfirmingId,
+  proofPromptId, setProofPromptId,
+  proofInputRef, proofUploading, setProofUploading,
+  markPaid, markUnpaid, refreshEvents,
+  entrees, allEvents,
+}: {
+  paidEvents: PaymentEvent[];
+  chantierId: string;
+  token: string;
+  confirmingId: string | null;
+  setConfirmingId: (v: string | null) => void;
+  proofPromptId: string | null;
+  setProofPromptId: (v: string | null) => void;
+  proofInputRef: React.RefObject<HTMLInputElement>;
+  proofUploading: boolean;
+  setProofUploading: (v: boolean) => void;
+  markPaid: (id: string) => void;
+  markUnpaid: (id: string) => void;
+  refreshEvents: () => void;
+  entrees: EntreeChantier[];
+  allEvents: PaymentEvent[];
+}) {
+  const [open,        setOpen]        = useState(false);
+  const [sort,        setSort]        = useState<PaidSort>('date_desc');
+  const [filterArtisan, setFilterArtisan] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+
+  const artisans = useMemo(() => {
+    const names = [...new Set(paidEvents.map(e => e.artisan_nom ?? e.lot_nom ?? '—'))].filter(Boolean);
+    return names.sort();
+  }, [paidEvents]);
+
+  const filtered = useMemo(() => {
+    let list = [...paidEvents];
+    if (filterArtisan) list = list.filter(e => (e.artisan_nom ?? e.lot_nom) === filterArtisan);
+    list.sort((a, b) => {
+      if (sort === 'date_desc')   return (b.due_date ?? '').localeCompare(a.due_date ?? '');
+      if (sort === 'date_asc')    return (a.due_date ?? '').localeCompare(b.due_date ?? '');
+      if (sort === 'amount_desc') return (b.amount ?? 0) - (a.amount ?? 0);
+      return (a.amount ?? 0) - (b.amount ?? 0);
+    });
+    return list;
+  }, [paidEvents, sort, filterArtisan]);
+
+  const total = paidEvents.reduce((s, e) => s + (e.amount ?? 0), 0);
+
+  return (
+    <div className="border border-emerald-100 rounded-2xl overflow-hidden bg-white shadow-sm">
+      {/* En-tête accordéon */}
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-emerald-50/60 transition-colors"
+      >
+        <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1.5">
+          <Check className="h-3 w-3" />
+          Registre des paiements effectués
+          <span className="bg-emerald-100 text-emerald-700 rounded-full px-1.5 py-0.5 font-bold">
+            {paidEvents.length}
+          </span>
+        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-extrabold text-emerald-700 tabular-nums">{fmtEur(total)}</span>
+          <ChevronDown className={`h-3.5 w-3.5 text-emerald-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </div>
+      </button>
+
+      {open && (
+        <div className="border-t border-emerald-50">
+          {/* Barre filtres */}
+          <div className="px-3 py-2 border-b border-gray-50 flex items-center gap-2 flex-wrap">
+            {/* Filtre artisan */}
+            <select
+              value={filterArtisan}
+              onChange={e => setFilterArtisan(e.target.value)}
+              className="text-[11px] border border-gray-200 rounded-lg px-2 py-1.5 bg-white outline-none focus:border-indigo-400 flex-1 min-w-0"
+            >
+              <option value="">Tous les artisans</option>
+              {artisans.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+
+            {/* Tri */}
+            <select
+              value={sort}
+              onChange={e => setSort(e.target.value as PaidSort)}
+              className="text-[11px] border border-gray-200 rounded-lg px-2 py-1.5 bg-white outline-none focus:border-indigo-400 shrink-0"
+            >
+              <option value="date_desc">Date ↓</option>
+              <option value="date_asc">Date ↑</option>
+              <option value="amount_desc">Montant ↓</option>
+              <option value="amount_asc">Montant ↑</option>
+            </select>
+          </div>
+
+          {/* Liste filtrée */}
+          {filtered.length === 0 ? (
+            <p className="text-[11px] text-gray-400 text-center py-6">Aucun paiement pour ce filtre</p>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {filtered.map(ev => (
+                <PaymentEventRow key={ev.id} ev={ev} chantierId={chantierId} token={token}
+                  confirmingId={confirmingId} setConfirmingId={setConfirmingId}
+                  proofPromptId={proofPromptId} setProofPromptId={setProofPromptId}
+                  proofInputRef={proofInputRef} proofUploading={proofUploading} setProofUploading={setProofUploading}
+                  markPaid={markPaid} markUnpaid={markUnpaid} refresh={refreshEvents}
+                  entrees={entrees} allEvents={allEvents}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Composant principal ───────────────────────────────────────────────────────
 
 export default function EcheancierRefonte({
@@ -1199,31 +1321,16 @@ export default function EcheancierRefonte({
               ))}
 
               {paidEvents.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between px-1 mb-2">
-                    <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-1.5">
-                      <Check className="h-3 w-3" />
-                      Registre des paiements effectués
-                      <span className="bg-emerald-100 text-emerald-700 rounded-full px-1.5 py-0.5 font-bold">
-                        {paidEvents.length}
-                      </span>
-                    </p>
-                    <span className="text-xs font-extrabold text-emerald-700 tabular-nums">
-                      {fmtEur(paidEvents.reduce((s, e) => s + (e.amount ?? 0), 0))}
-                    </span>
-                  </div>
-                  <div className="bg-white border border-emerald-100 rounded-2xl divide-y divide-gray-50 overflow-hidden shadow-sm">
-                    {paidEvents.map(ev => (
-                      <PaymentEventRow key={ev.id} ev={ev} chantierId={chantierId} token={token}
-                        confirmingId={confirmingId} setConfirmingId={setConfirmingId}
-                        proofPromptId={proofPromptId} setProofPromptId={setProofPromptId}
-                        proofInputRef={proofInputRef} proofUploading={proofUploading} setProofUploading={setProofUploading}
-                        markPaid={markPaid} markUnpaid={markUnpaid} refresh={refreshEvents}
-                        entrees={entrees} allEvents={events}
-                      />
-                    ))}
-                  </div>
-                </div>
+                <PaidEventsAccordion
+                  paidEvents={paidEvents}
+                  chantierId={chantierId}
+                  token={token}
+                  confirmingId={confirmingId} setConfirmingId={setConfirmingId}
+                  proofPromptId={proofPromptId} setProofPromptId={setProofPromptId}
+                  proofInputRef={proofInputRef} proofUploading={proofUploading} setProofUploading={setProofUploading}
+                  markPaid={markPaid} markUnpaid={markUnpaid} refreshEvents={refreshEvents}
+                  entrees={entrees} allEvents={events}
+                />
               )}
             </div>
           )}

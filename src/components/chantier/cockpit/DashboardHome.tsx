@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, SlidersHorizontal, HelpCircle, X, Check, AlertTriangle, Loader2, ChevronRight } from 'lucide-react';
+import { Plus, SlidersHorizontal, HelpCircle, X, Check, AlertTriangle, Loader2 } from 'lucide-react';
 import type { DocumentChantier, LotChantier } from '@/types/chantier-ia';
-import { KpiCard, ViewToggle, DiyCard, RDV_EMOJI } from './DashboardWidgets';
+import { KpiCard, ViewToggle, RDV_EMOJI } from './DashboardWidgets';
 import LotIntervenantCard from './LotIntervenantCard';
 import IntervenantsListView from '@/components/chantier/cockpit/IntervenantsListView';
 import PlanningWidget from '@/components/chantier/cockpit/planning/PlanningWidget';
@@ -180,42 +180,54 @@ function BudgetBreakdownPopover({ items }: { items: BreakdownItem[] }) {
 
 const fmtEurShort = (n: number) => n >= 1000 ? `${fmtK(n)}` : `${n} €`;
 
-// ── Bloc actions prioritaires mobile (ÉTAPE 3) ────────────────────────────────
+// ── Centre d'actions ──────────────────────────────────────────────────────────
 
-function NextActionsMobile({
-  aRegler, nbARegler, nbDevisAValider, blocked, onAction,
-}: {
-  aRegler: number;
-  nbARegler: number;
-  nbDevisAValider: number;
-  blocked: number;
-  onAction: () => void;
+function ActionCenter({ onPaiement, onDocument, onArtisan }: {
+  onPaiement: () => void;
+  onDocument: () => void;
+  onArtisan:  () => void;
 }) {
-  const actions: { emoji: string; label: string; urgent?: boolean }[] = [];
-  if (aRegler > 0) actions.push({ emoji: '💸', label: `${fmtEurShort(aRegler)} à régler (${nbARegler} facture${nbARegler > 1 ? 's' : ''})`, urgent: true });
-  if (nbDevisAValider > 0) actions.push({ emoji: '⚠️', label: `${nbDevisAValider} devis à valider`, urgent: true });
-  if (blocked > 0) actions.push({ emoji: '⚠️', label: `${blocked} intervenant${blocked > 1 ? 's' : ''} sans devis` });
-
-  if (actions.length === 0) return null;
-
+  const actions = [
+    {
+      icon: '💸',
+      label: 'Enregistrer un paiement',
+      sub: 'Facture, acompte, dépense…',
+      onClick: onPaiement,
+      cls: 'bg-orange-50 border-orange-100 hover:bg-orange-100 text-orange-800 hover:shadow-orange-100',
+    },
+    {
+      icon: '📄',
+      label: 'Ajouter un devis ou facture',
+      sub: 'Importer un document artisan',
+      onClick: onDocument,
+      cls: 'bg-indigo-50 border-indigo-100 hover:bg-indigo-100 text-indigo-800 hover:shadow-indigo-100',
+    },
+    {
+      icon: '👷',
+      label: 'Ajouter un artisan',
+      sub: 'Nouveau lot / intervenant',
+      onClick: onArtisan,
+      cls: 'bg-blue-50 border-blue-100 hover:bg-blue-100 text-blue-800 hover:shadow-blue-100',
+    },
+  ];
   return (
-    <div className="sm:hidden bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-2">À faire</p>
-      <div className="space-y-1.5">
-        {actions.map((a, i) => (
-          <div key={i} className={`flex items-center gap-2 text-sm font-medium ${a.urgent ? 'text-amber-800' : 'text-amber-700'}`}>
-            <span>{a.emoji}</span>
-            <span className="flex-1 min-w-0">{a.label}</span>
-          </div>
+    <div>
+      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">🧭 Vos prochaines actions</p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {actions.map(a => (
+          <button
+            key={a.label}
+            onClick={a.onClick}
+            className={`flex items-center gap-4 sm:flex-col sm:items-start rounded-2xl border px-5 py-4 sm:py-5 text-left transition-all hover:shadow-md active:scale-[0.98] touch-manipulation ${a.cls}`}
+          >
+            <span className="text-[28px] sm:text-[32px] shrink-0 leading-none">{a.icon}</span>
+            <div>
+              <p className="text-[13px] font-bold leading-snug">{a.label}</p>
+              <p className="text-[11px] opacity-60 mt-0.5">{a.sub}</p>
+            </div>
+          </button>
         ))}
       </div>
-      <button
-        onClick={onAction}
-        className="mt-3 w-full flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl py-2.5 min-h-[44px] touch-manipulation transition-colors"
-      >
-        👉 Voir mes actions
-        <ChevronRight className="h-4 w-4" />
-      </button>
     </div>
   );
 }
@@ -464,12 +476,153 @@ function BudgetProgressBars({
   );
 }
 
+// ── NextActionsBlock ──────────────────────────────────────────────────────────
+
+type QuickAction = { priority: number; icon: string; label: string; sub?: string; onClick: () => void };
+
+function NextActionsBlock({ documents, lots, onGoToAssistant, onGoToPlanning, onAddDoc }: {
+  documents: DocumentChantier[];
+  lots: LotChantier[];
+  onGoToAssistant: () => void;
+  onGoToPlanning:  () => void;
+  onAddDoc:        () => void;
+}) {
+  const actions = useMemo<QuickAction[]>(() => {
+    const list: QuickAction[] = [];
+
+    // P1 — Factures en retard (statut recue, montant dû)
+    const facturesRecues = documents.filter(
+      d => d.document_type === 'facture' && d.facture_statut === 'recue',
+    );
+    for (const f of facturesRecues.slice(0, 2)) {
+      const artisan = f.nom?.split(' – ')[0] ?? f.nom ?? '';
+      const montant = f.montant ? ` (${fmtEurShort(f.montant)})` : '';
+      list.push({
+        priority: 1,
+        icon: '💸',
+        label: `Régler la facture — ${artisan}${montant}`,
+        sub: 'Facture reçue non soldée',
+        onClick: onGoToAssistant,
+      });
+    }
+
+    // P1 — Partiellement payées
+    const facturesPartielles = documents.filter(
+      d => d.document_type === 'facture' && d.facture_statut === 'payee_partiellement',
+    );
+    for (const f of facturesPartielles.slice(0, 1)) {
+      const reste = (f.montant ?? 0) - (f.montant_paye ?? 0);
+      list.push({
+        priority: 1,
+        icon: '💸',
+        label: `Solde restant — ${f.nom ?? ''}${reste > 0 ? ` (${fmtEurShort(reste)})` : ''}`,
+        sub: 'Paiement partiel enregistré',
+        onClick: onGoToAssistant,
+      });
+    }
+
+    // P2 — Devis à valider
+    const devisAValider = documents.filter(
+      d => d.document_type === 'devis' && d.devis_statut === 'recu',
+    );
+    for (const d of devisAValider.slice(0, 2)) {
+      const montant = d.montant ? ` (${fmtEurShort(d.montant)})` : '';
+      list.push({
+        priority: 2,
+        icon: '📋',
+        label: `Valider le devis — ${d.nom ?? ''}${montant}`,
+        sub: 'En attente de signature',
+        onClick: onGoToAssistant,
+      });
+    }
+
+    // P3 — Lots sans devis (bloqués)
+    const STATUTS_VALIDES = ['en_cours', 'termine', 'valide', 'signe'];
+    const lotsBloqués = lots.filter(l =>
+      !STATUTS_VALIDES.includes(l.statut ?? '') &&
+      !documents.some(d => d.lot_id === l.id && d.document_type === 'devis'),
+    );
+    for (const l of lotsBloqués.slice(0, 1)) {
+      list.push({
+        priority: 3,
+        icon: '📄',
+        label: `Ajouter un devis — ${l.emoji ?? ''} ${l.nom}`,
+        sub: 'Aucun devis reçu',
+        onClick: onAddDoc,
+      });
+    }
+
+    // P4 — Devis validés sans facture
+    const devisValides = documents.filter(
+      d => d.document_type === 'devis' &&
+           (d.devis_statut === 'signe' || d.devis_statut === 'valide' || d.devis_statut === 'attente_facture'),
+    );
+    for (const d of devisValides) {
+      const hasFacture = documents.some(f => f.document_type === 'facture' && f.lot_id === d.lot_id);
+      if (!hasFacture) {
+        list.push({
+          priority: 4,
+          icon: '🧾',
+          label: `Facture manquante — ${d.nom ?? ''}`,
+          sub: 'Devis signé, facture non reçue',
+          onClick: onAddDoc,
+        });
+        break;
+      }
+    }
+
+    return list.sort((a, b) => a.priority - b.priority).slice(0, 3);
+  }, [documents, lots]);
+
+  if (actions.length === 0) {
+    return (
+      <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-3.5">
+        <span className="text-[22px] shrink-0">✅</span>
+        <div>
+          <p className="text-[13px] font-black text-emerald-800">Tout est sous contrôle</p>
+          <p className="text-[11px] text-emerald-600 mt-0.5">Aucune action en attente sur ce chantier</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
+      <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
+        <p className="text-[11px] font-black text-gray-700 uppercase tracking-wider">🧠 Prochaines étapes</p>
+        <button
+          onClick={onGoToAssistant}
+          className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+        >
+          Tout voir →
+        </button>
+      </div>
+      <div className="divide-y divide-gray-50">
+        {actions.map((action, i) => (
+          <button
+            key={i}
+            onClick={action.onClick}
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 active:bg-gray-100 transition-colors text-left"
+          >
+            <span className="text-[20px] shrink-0 w-7 text-center">{action.icon}</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[12px] font-semibold text-gray-800 truncate">{action.label}</p>
+              {action.sub && <p className="text-[10px] text-gray-400 mt-0.5">{action.sub}</p>}
+            </div>
+            <span className="text-gray-300 shrink-0">›</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── DashboardHome ─────────────────────────────────────────────────────────────
 
 function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, budgetReel, refinedBreakdown, onAffineBudget,
   onAddDevisForLot, onAddDocForLot, onGoToLot, onGoToAnalyse, onGoToPlanning, onAddDoc,
   onGoToAssistant, onAddIntervenant, onDeleteLot, onDeleteDoc, onGoToDiy, chantierId, token,
-  viewMode, onViewModeChange, onDocStatutUpdated, onDocMoved,
+  viewMode, onViewModeChange, onDocStatutUpdated, onDocMoved, urgentActions,
 }: {
   lots: LotChantier[];
   documents: DocumentChantier[];
@@ -496,6 +649,7 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
   onViewModeChange: (v: 'cards' | 'list') => void;
   onDocStatutUpdated?: (docId: string, statut: string) => void;
   onDocMoved?: (docId: string, newLotId: string) => void;
+  urgentActions?: number;
 }) {
 
   const [comparingLot, setComparingLot] = useState<{ lot: LotChantier; docs: DocumentChantier[] } | null>(null);
@@ -661,13 +815,11 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
     <>
     <div className="px-5 py-5 space-y-5">
 
-      {/* ── Bloc actions prioritaires mobile (ÉTAPE 3) ─────────────────── */}
-      <NextActionsMobile
-        aRegler={aRegler}
-        nbARegler={nbARegler}
-        nbDevisAValider={nbDevisAValider}
-        blocked={blocked}
-        onAction={onGoToAssistant}
+      {/* ── Centre d'actions ──────────────────────────────────────────── */}
+      <ActionCenter
+        onPaiement={() => { setDepenseForm(f => ({ ...f, date: new Date().toISOString().slice(0, 10) })); setDepenseOpen(true); }}
+        onDocument={onAddDoc}
+        onArtisan={onAddIntervenant}
       />
 
       {/* ── Onboarding (masqué dès que les 4 étapes sont complètes) ── */}
@@ -731,10 +883,11 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
           accent={aRegler > 0 ? 'orange' : 'emerald'}
         />
         <KpiCard
-          icon="⚡" label="À traiter"
-          value={blocked}
-          sub={blocked > 0 ? `intervenant${blocked > 1 ? 's' : ''} sans devis` : 'tout est suivi'}
-          accent={blocked > 0 ? 'red' : 'emerald'}
+          icon={urgentActions ? '⚡' : '✓'}
+          label="À traiter"
+          value={urgentActions ? `${urgentActions} action${urgentActions > 1 ? 's' : ''}` : '—'}
+          sub={urgentActions ? 'en attente de votre action' : 'Tout est sous contrôle'}
+          accent={urgentActions ? 'amber' : 'emerald'}
           onClick={onGoToAssistant}
         />
 
@@ -758,29 +911,14 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
         )}
       </div>
 
-      {/* ── Actions rapides ──────────────────────────────────── */}
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={() => { setDepenseForm(f => ({ ...f, date: new Date().toISOString().slice(0, 10) })); setDepenseOpen(true); }}
-          className="flex items-center gap-2 bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-700 font-semibold text-sm px-4 py-2.5 rounded-xl transition-colors"
-        >
-          🧾 Dépense rapide
-        </button>
-        <button
-          onClick={onAddDoc}
-          className="flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-semibold text-sm px-4 py-2.5 rounded-xl transition-colors"
-        >
-          <Plus className="h-4 w-4" /> Importer un document
-        </button>
-        {aRegler > 0 && (
-          <button
-            onClick={onGoToAssistant}
-            className="flex items-center gap-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 font-semibold text-sm px-4 py-2.5 rounded-xl transition-colors"
-          >
-            💸 {nbARegler} facture{nbARegler > 1 ? 's' : ''} à régler
-          </button>
-        )}
-      </div>
+      {/* ── Prochaines étapes recommandées ──────────────────── */}
+      <NextActionsBlock
+        documents={documents}
+        lots={lots}
+        onGoToAssistant={onGoToAssistant}
+        onGoToPlanning={onGoToPlanning}
+        onAddDoc={onAddDoc}
+      />
 
       {/* ── Planning mini-résumé ────────────────────────────── */}
       <PlanningWidget
@@ -791,19 +929,11 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
 
       {/* ── Intervenants (pleine largeur) ────────────────────── */}
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-              Intervenants · {total}
-            </p>
-            {total > 0 && <ViewToggle value={viewMode} onChange={onViewModeChange} />}
-          </div>
-          <button
-            onClick={onAddIntervenant}
-            className="flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-xl transition-colors"
-          >
-            <Plus className="h-3 w-3" /> Ajouter un intervenant
-          </button>
+        <div className="flex items-center gap-3 mb-3">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+            Intervenants · {total}
+          </p>
+          {total > 0 && <ViewToggle value={viewMode} onChange={onViewModeChange} />}
         </div>
 
         {total === 0 ? (
@@ -849,7 +979,6 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
                   onCompare={(l, d) => setComparingLot({ lot: l, docs: d })}
                 />
               ))}
-              <DiyCard onAddDoc={onAddDoc} onGoToDiy={onGoToDiy} />
             </div>
             {comparingLot && (
               <ComparateurDevisModal

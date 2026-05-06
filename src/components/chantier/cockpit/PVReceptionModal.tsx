@@ -4,7 +4,7 @@
  */
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { X, Plus, Trash2, Download, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { X, Plus, Trash2, Download, AlertCircle, CheckCircle2, Loader2, Pencil } from 'lucide-react';
 
 function getSupabaseClient() {
   return createClient(
@@ -254,10 +254,13 @@ export default function PVReceptionModal({ artisanNom, lotNoms, chantierId, toke
     remarques: '',
   });
 
+  // Champs pré-remplis automatiquement (pour afficher le badge)
+  const [autofilled, setAutofilled] = useState<Set<keyof PVData>>(new Set());
+
   const [prefilling, setPrefilling] = useState(true);
   const [generating, setGenerating] = useState(false);
 
-  // ── Pré-remplissage depuis contacts + session Supabase ────────────────────
+  // ── Pré-remplissage depuis contacts + budget + session Supabase ───────────
   useEffect(() => {
     const prefill = async () => {
       try {
@@ -266,23 +269,26 @@ export default function PVReceptionModal({ artisanNom, lotNoms, chantierId, toke
 
         // Maître d'ouvrage depuis le profil Supabase Auth
         const userMeta = session?.user?.user_metadata;
-        const moNom = [userMeta?.first_name, userMeta?.last_name].filter(Boolean).join(' ') || '';
+        const moNom     = [userMeta?.first_name, userMeta?.last_name].filter(Boolean).join(' ') || '';
+        const moAdresse = userMeta?.address ?? userMeta?.adresse ?? '';
 
-        // Artisan depuis l'API contacts (cherche par nom)
-        const contactsRes = await fetch(`/api/chantier/${chantierId}/contacts`, {
-          headers: { Authorization: `Bearer ${bearer}` },
-        });
+        // Appels parallèles : contacts + chantier + budget
+        const [contactsRes, chantierRes, budgetRes] = await Promise.all([
+          fetch(`/api/chantier/${chantierId}/contacts`,  { headers: { Authorization: `Bearer ${bearer}` } }),
+          fetch(`/api/chantier/${chantierId}`,           { headers: { Authorization: `Bearer ${bearer}` } }),
+          fetch(`/api/chantier/${chantierId}/budget`,    { headers: { Authorization: `Bearer ${bearer}` } }),
+        ]);
 
         let entAdresse = '';
         let entSiret = '';
         let entAssuranceNom = '';
         let entAssurancePolice = '';
         let chantierAdresse = '';
+        let contratRef = '';
 
+        // ── Artisan depuis contacts ──
         if (contactsRes.ok) {
           const { analyseArtisans, contacts } = await contactsRes.json();
-
-          // Cherche l'artisan correspondant au nom (fuzzy — insensible à la casse)
           const artisanLower = artisanNom.toLowerCase();
           const match = [
             ...(analyseArtisans ?? []),
@@ -291,32 +297,58 @@ export default function PVReceptionModal({ artisanNom, lotNoms, chantierId, toke
             || artisanLower.includes((a.nom ?? '').toLowerCase().slice(0, 6)));
 
           if (match) {
-            entAdresse       = match.adresse_siege ?? match.adresse ?? '';
-            entSiret         = match.siret ?? '';
-            entAssuranceNom  = match.assurance_nom ?? '';
+            entAdresse         = match.adresse_siege ?? match.adresse ?? '';
+            entSiret           = match.siret ?? '';
+            entAssuranceNom    = match.assurance_nom ?? '';
             entAssurancePolice = match.assurance_police ?? '';
-          }
-
-          // Adresse chantier depuis les métadonnées chantier
-          const chantierRes = await fetch(`/api/chantier/${chantierId}`, {
-            headers: { Authorization: `Bearer ${bearer}` },
-          });
-          if (chantierRes.ok) {
-            const ch = await chantierRes.json();
-            const meta = ch?.chantier?.metadonnees ?? ch?.metadonnees ?? {};
-            chantierAdresse = meta?.adresse ?? meta?.localisation ?? ch?.chantier?.ville ?? '';
           }
         }
 
-        setData(d => ({
-          ...d,
-          mo_nom:              moNom || d.mo_nom,
-          ent_adresse:         entAdresse || d.ent_adresse,
-          ent_siret:           entSiret || d.ent_siret,
-          ent_assurance_nom:   entAssuranceNom || d.ent_assurance_nom,
-          ent_assurance_police: entAssurancePolice || d.ent_assurance_police,
-          chantier_adresse:    chantierAdresse || d.chantier_adresse,
-        }));
+        // ── Adresse chantier depuis métadonnées ──
+        if (chantierRes.ok) {
+          const ch   = await chantierRes.json();
+          const meta = ch?.chantier?.metadonnees ?? ch?.metadonnees ?? {};
+          chantierAdresse = meta?.adresse ?? meta?.localisation ?? ch?.chantier?.ville ?? '';
+        }
+
+        // ── Référence contrat depuis les devis de l'artisan ──
+        if (budgetRes.ok) {
+          const budget = await budgetRes.json();
+          const artisanLower = artisanNom.toLowerCase();
+          // Cherche le lot correspondant à cet artisan
+          const allLots: any[] = budget?.lots ?? [];
+          const matchLot = allLots.find((l: any) =>
+            l.nom?.toLowerCase().includes(artisanLower) ||
+            artisanLower.includes(l.nom?.toLowerCase().slice(0, 6))
+          );
+          // Fallback : cherche dans artisans imbriqués
+          const devis: any[] = matchLot?.devis ?? allLots.flatMap((l: any) =>
+            (l.artisans ?? []).filter((a: any) =>
+              (a.nom ?? '').toLowerCase().includes(artisanLower)
+            ).flatMap((a: any) => a.devis ?? [])
+          );
+          const validDevis = devis.filter((d: any) => d.devis_statut === 'signe' || d.devis_statut === 'accepte');
+          const refDevis = (validDevis.length > 0 ? validDevis : devis).slice(0, 2);
+          if (refDevis.length > 0) {
+            contratRef = refDevis.map((d: any) => d.nom).filter(Boolean).join(' · ');
+          }
+        }
+
+        // ── Applique les champs et marque ceux qui ont été trouvés ──
+        const filled = new Set<keyof PVData>();
+        setData(d => {
+          const next = { ...d };
+          if (moNom        && !d.mo_nom)               { next.mo_nom = moNom;                       filled.add('mo_nom'); }
+          if (moAdresse    && !d.mo_adresse)            { next.mo_adresse = moAdresse;               filled.add('mo_adresse'); }
+          if (entAdresse   && !d.ent_adresse)           { next.ent_adresse = entAdresse;             filled.add('ent_adresse'); }
+          if (entSiret     && !d.ent_siret)             { next.ent_siret = entSiret;                 filled.add('ent_siret'); }
+          if (entAssuranceNom    && !d.ent_assurance_nom)    { next.ent_assurance_nom = entAssuranceNom;       filled.add('ent_assurance_nom'); }
+          if (entAssurancePolice && !d.ent_assurance_police) { next.ent_assurance_police = entAssurancePolice; filled.add('ent_assurance_police'); }
+          if (chantierAdresse && !d.chantier_adresse)   { next.chantier_adresse = chantierAdresse;  filled.add('chantier_adresse'); }
+          if (contratRef   && !d.contrat_ref)           { next.contrat_ref = contratRef;             filled.add('contrat_ref'); }
+          return next;
+        });
+        setAutofilled(filled);
       } catch { /* silencieux — l'utilisateur remplit manuellement */ }
       setPrefilling(false);
     };
@@ -324,8 +356,19 @@ export default function PVReceptionModal({ artisanNom, lotNoms, chantierId, toke
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const set = (field: keyof PVData, value: unknown) =>
+  const set = (field: keyof PVData, value: unknown) => {
     setData(d => ({ ...d, [field]: value }));
+    // Dès que l'utilisateur modifie, on retire le badge auto
+    setAutofilled(s => { const n = new Set(s); n.delete(field); return n; });
+  };
+
+  // Badge affiché à côté du label quand le champ a été pré-rempli automatiquement
+  const AutoBadge = ({ field }: { field: keyof PVData }) =>
+    autofilled.has(field) ? (
+      <span className="ml-1.5 inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-1.5 py-0.5">
+        <span>✓</span> Pré-rempli
+      </span>
+    ) : null;
 
   const setReserve = (id: string, field: keyof Reserve, value: string) =>
     set('reserves', data.reserves.map(r => r.id === id ? { ...r, [field]: value } : r));
@@ -345,7 +388,12 @@ export default function PVReceptionModal({ artisanNom, lotNoms, chantierId, toke
     }
   }
 
-  const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-[12px] text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 placeholder-gray-300';
+  const inputCls = (field?: keyof PVData) =>
+    `w-full border rounded-lg px-3 py-2 text-[12px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 placeholder-gray-300 ${
+      field && autofilled.has(field)
+        ? 'border-emerald-200 bg-emerald-50/40'
+        : 'border-gray-200 bg-white'
+    }`;
   const labelCls = 'block text-[11px] font-semibold text-gray-500 mb-1';
 
   return (
@@ -388,12 +436,12 @@ export default function PVReceptionModal({ artisanNom, lotNoms, chantierId, toke
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>Date de visite de réception *</label>
-                <input type="date" className={inputCls} value={data.date_visite}
+                <input type="date" className={inputCls()} value={data.date_visite}
                   onChange={e => set('date_visite', e.target.value)} />
               </div>
               <div>
                 <label className={labelCls}>Date de réception des travaux *</label>
-                <input type="date" className={inputCls} value={data.date_reception}
+                <input type="date" className={inputCls()} value={data.date_reception}
                   onChange={e => set('date_reception', e.target.value)} />
               </div>
             </div>
@@ -404,13 +452,17 @@ export default function PVReceptionModal({ artisanNom, lotNoms, chantierId, toke
             <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider mb-3">Maître d'ouvrage (vous)</p>
             <div className="space-y-3">
               <div>
-                <label className={labelCls}>Nom / Raison sociale *</label>
-                <input type="text" placeholder="Jean Dupont" className={inputCls}
+                <label className={labelCls}>
+                  Nom / Raison sociale *<AutoBadge field="mo_nom" />
+                </label>
+                <input type="text" placeholder="Jean Dupont" className={inputCls('mo_nom')}
                   value={data.mo_nom} onChange={e => set('mo_nom', e.target.value)} />
               </div>
               <div>
-                <label className={labelCls}>Adresse</label>
-                <input type="text" placeholder="12 rue des Lilas, 75001 Paris" className={inputCls}
+                <label className={labelCls}>
+                  Adresse<AutoBadge field="mo_adresse" />
+                </label>
+                <input type="text" placeholder="12 rue des Lilas, 75001 Paris" className={inputCls('mo_adresse')}
                   value={data.mo_adresse} onChange={e => set('mo_adresse', e.target.value)} />
               </div>
             </div>
@@ -421,29 +473,39 @@ export default function PVReceptionModal({ artisanNom, lotNoms, chantierId, toke
             <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider mb-3">Entrepreneur</p>
             <div className="space-y-3">
               <div>
-                <label className={labelCls}>Nom / Raison sociale *</label>
-                <input type="text" className={inputCls} value={data.ent_nom}
+                <label className={labelCls}>
+                  Nom / Raison sociale *<AutoBadge field="ent_nom" />
+                </label>
+                <input type="text" className={inputCls('ent_nom')} value={data.ent_nom}
                   onChange={e => set('ent_nom', e.target.value)} />
               </div>
               <div>
-                <label className={labelCls}>Adresse</label>
-                <input type="text" placeholder="Siège social de l'entreprise" className={inputCls}
+                <label className={labelCls}>
+                  Adresse<AutoBadge field="ent_adresse" />
+                </label>
+                <input type="text" placeholder="Siège social de l'entreprise" className={inputCls('ent_adresse')}
                   value={data.ent_adresse} onChange={e => set('ent_adresse', e.target.value)} />
               </div>
               <div>
-                <label className={labelCls}>SIRET</label>
-                <input type="text" placeholder="XXX XXX XXX XXXXX" className={inputCls}
+                <label className={labelCls}>
+                  SIRET<AutoBadge field="ent_siret" />
+                </label>
+                <input type="text" placeholder="XXX XXX XXX XXXXX" className={inputCls('ent_siret')}
                   value={data.ent_siret} onChange={e => set('ent_siret', e.target.value)} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelCls}>Assurance décennale *</label>
-                  <input type="text" placeholder="Nom de l'assureur" className={inputCls}
+                  <label className={labelCls}>
+                    Assurance décennale *<AutoBadge field="ent_assurance_nom" />
+                  </label>
+                  <input type="text" placeholder="Nom de l'assureur" className={inputCls('ent_assurance_nom')}
                     value={data.ent_assurance_nom} onChange={e => set('ent_assurance_nom', e.target.value)} />
                 </div>
                 <div>
-                  <label className={labelCls}>N° de police *</label>
-                  <input type="text" placeholder="N° contrat" className={inputCls}
+                  <label className={labelCls}>
+                    N° de police *<AutoBadge field="ent_assurance_police" />
+                  </label>
+                  <input type="text" placeholder="N° contrat" className={inputCls('ent_assurance_police')}
                     value={data.ent_assurance_police} onChange={e => set('ent_assurance_police', e.target.value)} />
                 </div>
               </div>
@@ -455,18 +517,22 @@ export default function PVReceptionModal({ artisanNom, lotNoms, chantierId, toke
             <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider mb-3">Chantier</p>
             <div className="space-y-3">
               <div>
-                <label className={labelCls}>Adresse du chantier *</label>
-                <input type="text" placeholder="Adresse exacte des travaux" className={inputCls}
+                <label className={labelCls}>
+                  Adresse du chantier *<AutoBadge field="chantier_adresse" />
+                </label>
+                <input type="text" placeholder="Adresse exacte des travaux" className={inputCls('chantier_adresse')}
                   value={data.chantier_adresse} onChange={e => set('chantier_adresse', e.target.value)} />
               </div>
               <div>
                 <label className={labelCls}>Nature des travaux *</label>
-                <input type="text" className={inputCls} value={data.nature_travaux}
+                <input type="text" className={inputCls('nature_travaux')} value={data.nature_travaux}
                   onChange={e => set('nature_travaux', e.target.value)} />
               </div>
               <div>
-                <label className={labelCls}>Référence contrat / devis signé</label>
-                <input type="text" placeholder="Ex : Devis n°2024-047 du 15/03/2024" className={inputCls}
+                <label className={labelCls}>
+                  Référence contrat / devis signé<AutoBadge field="contrat_ref" />
+                </label>
+                <input type="text" placeholder="Ex : Devis n°2024-047 du 15/03/2024" className={inputCls('contrat_ref')}
                   value={data.contrat_ref} onChange={e => set('contrat_ref', e.target.value)} />
               </div>
             </div>
@@ -513,24 +579,24 @@ export default function PVReceptionModal({ artisanNom, lotNoms, chantierId, toke
                       <div>
                         <label className={labelCls}>Nature exacte du désordre *</label>
                         <textarea rows={2} placeholder="Ex : Fissure horizontale d'environ 40 cm sur le mur porteur nord..."
-                          className={`${inputCls} resize-none`} value={r.nature}
+                          className={`${inputCls()} resize-none`} value={r.nature}
                           onChange={e => setReserve(r.id, 'nature', e.target.value)} />
                       </div>
                       <div>
                         <label className={labelCls}>Localisation précise *</label>
                         <input type="text" placeholder="Ex : Mur nord cuisine, RDC, hauteur appui fenêtre"
-                          className={inputCls} value={r.localisation}
+                          className={inputCls()} value={r.localisation}
                           onChange={e => setReserve(r.id, 'localisation', e.target.value)} />
                       </div>
                       <div>
                         <label className={labelCls}>Dimensions / étendue (si pertinent)</label>
                         <input type="text" placeholder="Ex : 40 cm de long, surface 2 m²"
-                          className={inputCls} value={r.dimensions}
+                          className={inputCls()} value={r.dimensions}
                           onChange={e => setReserve(r.id, 'dimensions', e.target.value)} />
                       </div>
                       <div>
                         <label className={labelCls}>Délai de levée de réserve (date butoir) *</label>
-                        <input type="date" className={inputCls} value={r.delai}
+                        <input type="date" className={inputCls()} value={r.delai}
                           onChange={e => setReserve(r.id, 'delai', e.target.value)} />
                       </div>
                     </div>
@@ -554,7 +620,7 @@ export default function PVReceptionModal({ artisanNom, lotNoms, chantierId, toke
           <section>
             <p className="text-[11px] font-black text-gray-400 uppercase tracking-wider mb-3">Remarques libres (optionnel)</p>
             <textarea rows={3} placeholder="Observations complémentaires, conditions particulières..."
-              className={`${inputCls} resize-none`} value={data.remarques}
+              className={`${inputCls()} resize-none`} value={data.remarques}
               onChange={e => set('remarques', e.target.value)} />
           </section>
 

@@ -873,46 +873,65 @@ function ConsommationSection({
         })}
       </div>
 
-      {/* Détail par artisan */}
-      {activeLots.length > 0 && (
+      {/* Détail par artisan — accordéon */}
+      {activeLots.length > 0 && <ArtisanPaymentDetail activeLots={activeLots} budgetRef={budgetRef} totalCredit={totalCredit} totalAides={totalAides} />}
+    </div>
+  );
+}
+
+function ArtisanPaymentDetail({ activeLots, budgetRef, totalCredit, totalAides }: {
+  activeLots: BudgetLot[];
+  budgetRef: number;
+  totalCredit: number;
+  totalAides: number;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border-t border-gray-100">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors"
+      >
+        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Paiements effectués par artisan</p>
+        <ChevronDown className={`h-3.5 w-3.5 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
         <div className="px-5 pb-5">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-4">Paiements effectués par artisan</p>
           {activeLots.map((lot, idx) => {
-            const paye    = lot.totaux.paye + lot.totaux.acompte;
-            const total   = Math.max(lot.totaux.devis_valides, lot.totaux.facture, paye);
-            const pct     = total > 0 ? Math.min(Math.round((paye / total) * 100), 100) : 0;
-            const color   = ARTISAN_PALETTE[idx % ARTISAN_PALETTE.length];
-            // Répartition source heuristique
-            const maxApport = Math.max(0, budgetRef - totalCredit - totalAides);
-            const fromApport = Math.min(paye, maxApport);
-            const fromCredit = Math.min(Math.max(0, paye - fromApport), totalCredit);
-            const fromAides  = Math.min(Math.max(0, paye - fromApport - fromCredit), totalAides);
-            const pApport    = paye > 0 ? Math.round((fromApport / paye) * 100) : 0;
-            const pCredit    = paye > 0 ? Math.round((fromCredit / paye) * 100) : 0;
-            const pAides     = paye > 0 ? Math.round((fromAides  / paye) * 100) : 0;
-            return (
-              <div key={lot.id} className="mb-4">
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <div style={{ width: 9, height: 9, borderRadius: '50%', background: color, flexShrink: 0 }} />
-                    <span className="text-[12px] font-bold text-gray-700">{lot.emoji ?? ''} {lot.nom}</span>
-                  </div>
-                  <span className="text-[11px] text-gray-400">{fmtEur(paye)} / {fmtEur(total)}</span>
+          const paye    = lot.totaux.paye + lot.totaux.acompte;
+          const total   = Math.max(lot.totaux.devis_valides, lot.totaux.facture, paye);
+          const pct     = total > 0 ? Math.min(Math.round((paye / total) * 100), 100) : 0;
+          const color   = ARTISAN_PALETTE[idx % ARTISAN_PALETTE.length];
+          const maxApport = Math.max(0, budgetRef - totalCredit - totalAides);
+          const fromApport = Math.min(paye, maxApport);
+          const fromCredit = Math.min(Math.max(0, paye - fromApport), totalCredit);
+          const fromAides  = Math.min(Math.max(0, paye - fromApport - fromCredit), totalAides);
+          const pApport    = paye > 0 ? Math.round((fromApport / paye) * 100) : 0;
+          const pCredit    = paye > 0 ? Math.round((fromCredit / paye) * 100) : 0;
+          const pAides     = paye > 0 ? Math.round((fromAides  / paye) * 100) : 0;
+          return (
+            <div key={lot.id} className="mb-4">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2">
+                  <div style={{ width: 9, height: 9, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                  <span className="text-[12px] font-bold text-gray-700">{lot.emoji ?? ''} {lot.nom}</span>
                 </div>
-                <div className="h-2.5 rounded-full overflow-hidden flex" style={{ background: '#f1f5f9' }}>
-                  <div style={{ width: `${pct * pApport / 100}%`, background: C.apport.main, transition: 'width 0.5s ease' }} />
-                  <div style={{ width: `${pct * pCredit / 100}%`, background: C.credit.main, transition: 'width 0.5s ease' }} />
-                  <div style={{ width: `${pct * pAides  / 100}%`, background: C.aides.main,  transition: 'width 0.5s ease' }} />
-                </div>
-                <div className="flex gap-4 mt-1.5">
-                  {fromApport > 0 && <span className="text-[10px] text-gray-400 flex items-center gap-1"><span style={{ display:'inline-block', width:6, height:6, borderRadius:1.5, background:C.apport.main }}></span>Apport : {fmtEur(fromApport)}</span>}
-                  {fromCredit > 0 && <span className="text-[10px] text-gray-400 flex items-center gap-1"><span style={{ display:'inline-block', width:6, height:6, borderRadius:1.5, background:C.credit.main }}></span>Crédit : {fmtEur(fromCredit)}</span>}
-                  {fromAides  > 0 && <span className="text-[10px] text-gray-400 flex items-center gap-1"><span style={{ display:'inline-block', width:6, height:6, borderRadius:1.5, background:C.aides.main }}></span>Aides : {fmtEur(fromAides)}</span>}
-                  {paye === 0    && <span className="text-[10px] text-gray-300">Aucun paiement effectué</span>}
-                </div>
+                <span className="text-[11px] text-gray-400">{fmtEur(paye)} / {fmtEur(total)}</span>
               </div>
-            );
-          })}
+              <div className="h-2.5 rounded-full overflow-hidden flex" style={{ background: '#f1f5f9' }}>
+                <div style={{ width: `${pct * pApport / 100}%`, background: C.apport.main, transition: 'width 0.5s ease' }} />
+                <div style={{ width: `${pct * pCredit / 100}%`, background: C.credit.main, transition: 'width 0.5s ease' }} />
+                <div style={{ width: `${pct * pAides  / 100}%`, background: C.aides.main,  transition: 'width 0.5s ease' }} />
+              </div>
+              <div className="flex gap-4 mt-1.5">
+                {fromApport > 0 && <span className="text-[10px] text-gray-400 flex items-center gap-1"><span style={{ display:'inline-block', width:6, height:6, borderRadius:1.5, background:C.apport.main }}></span>Apport : {fmtEur(fromApport)}</span>}
+                {fromCredit > 0 && <span className="text-[10px] text-gray-400 flex items-center gap-1"><span style={{ display:'inline-block', width:6, height:6, borderRadius:1.5, background:C.credit.main }}></span>Crédit : {fmtEur(fromCredit)}</span>}
+                {fromAides  > 0 && <span className="text-[10px] text-gray-400 flex items-center gap-1"><span style={{ display:'inline-block', width:6, height:6, borderRadius:1.5, background:C.aides.main }}></span>Aides : {fmtEur(fromAides)}</span>}
+                {paye === 0    && <span className="text-[10px] text-gray-300">Aucun paiement effectué</span>}
+              </div>
+            </div>
+          );
+        })}
         </div>
       )}
     </div>

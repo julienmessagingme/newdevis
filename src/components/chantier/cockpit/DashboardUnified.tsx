@@ -175,6 +175,17 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
 
   const totalAlertCount = agentInsights.unreadCount + chatUnread;
 
+  // ── Urgent actions : factures à régler + devis à valider (source de vérité badge + KPI) ─
+  const urgentActions = useMemo(() => {
+    let count = 0;
+    for (const d of documents) {
+      if (d.document_type === 'facture' &&
+          (d.facture_statut === 'recue' || d.facture_statut === 'payee_partiellement')) count++;
+      if (d.document_type === 'devis' && d.devis_statut === 'recu') count++;
+    }
+    return count;
+  }, [documents]);
+
   // ── Toast notifications for recent agent alerts (not historical) ──────────
   const toastedIds = useRef(new Set<string>());
   useEffect(() => {
@@ -210,14 +221,9 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
       messagerie: msgUnread > 0
         ? { text: `${msgUnread}`, style: 'bg-blue-100 text-blue-700' }
         : undefined,
-      assistant:  totalAlertCount > 0
-        ? {
-            text: `${totalAlertCount}`,
-            style: hasCriticalInsight
-              ? 'bg-red-500 text-white'
-              : 'bg-amber-400 text-white',
-          }
-        : undefined,
+      assistant: urgentActions > 0
+        ? { text: `⚠ ${urgentActions} action${urgentActions > 1 ? 's' : ''}`, style: 'bg-amber-100 text-amber-700 border border-amber-200' }
+        : { text: '✓ OK', style: 'bg-emerald-100 text-emerald-700' },
     };
   }, [documents, msgUnread, totalAlertCount, hasCriticalInsight]);
 
@@ -344,6 +350,7 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
               }))
             }
             onDocMoved={handleDocMoved}
+            urgentActions={urgentActions}
           />
         );
 
