@@ -1,0 +1,14 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AdminMarketingAssetsApp from '@/components/app/AdminMarketingAssetsApp';
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="Assets Marketing | VerifierMonDevis.fr"
+  description="Pool de fonds et carousels générés"
+  noindex={true}
+>
+  <AdminMarketingAssetsApp client:only="react" />
+</BaseLayout>
