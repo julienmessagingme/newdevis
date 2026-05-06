@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Megaphone, RefreshCw, ArrowLeft, FileText, Settings, Bot } from "lucide-react";
+import { Megaphone, RefreshCw, ArrowLeft, FileText, Settings, Image, LayoutList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { AdminLoading, AdminAccessDenied } from "@/components/admin/sections/AdminGuards";
@@ -10,6 +10,7 @@ import PostFilters, {
 } from "@/components/admin/marketing/PostFilters";
 import PostList from "@/components/admin/marketing/PostList";
 import PostDetailDialog from "@/components/admin/marketing/PostDetailDialog";
+import GenerateButton from "@/components/admin/marketing/GenerateButton";
 import type {
   MarketingPostListItem,
   MarketingStatus,
@@ -163,10 +164,17 @@ export default function AdminMarketing() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <a href="/admin/marketing/agents">
-              <Button variant="outline" size="sm" title="Description des agents IA">
-                <Bot className="h-4 w-4 mr-2" />
-                <span className="hidden lg:inline">Agents</span>
+            <GenerateButton authToken={authToken} onGenerated={handleRefreshAll} />
+            <a href="/admin/marketing/templates">
+              <Button variant="outline" size="sm">
+                <LayoutList className="h-4 w-4 mr-2" />
+                <span className="hidden lg:inline">Templates</span>
+              </Button>
+            </a>
+            <a href="/admin/marketing/assets">
+              <Button variant="outline" size="sm">
+                <Image className="h-4 w-4 mr-2" />
+                <span className="hidden lg:inline">Assets</span>
               </Button>
             </a>
             <a href="/admin/marketing/settings">
