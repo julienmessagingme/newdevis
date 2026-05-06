@@ -18,6 +18,7 @@ import {
 import { fmtEur } from '@/lib/financingUtils';
 import AddDocumentModal from './AddDocumentModal';
 import VersementsDrawer from './VersementsDrawer';
+import PaiementDrawer, { type PaiementContext } from './PaiementDrawer';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 
@@ -1274,6 +1275,8 @@ export default function BudgetTab({
     autoFillAmount?: number;
     autoFillLabel?: string;
   } | null>(null);
+  // PaiementDrawer contextualisé (bouton "Payer" mobile)
+  const [paiementCtx, setPaiementCtx] = useState<PaiementContext | null>(null);
   // Drawer dépense rapide (achat matériaux, paiement liquide)
   const [depenseRapide, setDepenseRapide] = useState<null | 'open'>(null);
   const [depenseForm, setDepenseForm] = useState<{
@@ -1627,27 +1630,20 @@ export default function BudgetTab({
                   onDetail={() => setSelected(buildRow(virtualLot))}
                   onPay={() => {
                     if (primaryFacture && !isAlwaysPaid) {
-                      setVersementsDrawer({
-                        artisanNom:          artisan.nom,
-                        budget:              artisan.totaux.devis_valides || artisan.totaux.facture,
-                        sourceIds:           [...artisan.devis.map(d => d.id), primaryFacture.id],
-                        eventIds:            [...eventIds, ...allPendingEvts.map(e => e.id)],
-                        primaryDocumentId:   primaryFacture.id,
-                        primaryDocumentType: 'facture',
-                        legacyMontantPaye:   primaryFacture.montant_paye ?? 0,
-                        factureId:           primaryFacture.id,
-                        factureStatut:       (statutOverrides[primaryFacture.id] ?? primaryFacture.facture_statut) ?? 'recue',
-                        autoOpenForm:        artisan.totaux.a_payer > 0,
-                        autoFillAmount:      artisan.totaux.a_payer > 0 ? artisan.totaux.a_payer : undefined,
-                        autoFillLabel:       `Paiement — ${artisan.nom}`,
+                      setPaiementCtx({
+                        artisanNom:     artisan.nom,
+                        montantRestant: artisan.totaux.a_payer > 0 ? artisan.totaux.a_payer : 0,
+                        documentId:     primaryFacture.id,
+                        documentType:   'facture',
+                        label:          `Paiement — ${artisan.nom}`,
                       });
                     } else {
-                      setVersementsDrawer({
-                        artisanNom: artisan.nom,
-                        budget:     artisan.totaux.devis_valides || artisan.totaux.facture,
-                        sourceIds:  artisan.devis.map(d => d.id),
-                        eventIds:   [...eventIds, ...allPendingEvts.map(e => e.id)],
-                        ...(primaryDevis ? { primaryDocumentId: primaryDevis.id, primaryDocumentType: 'devis' as const } : {}),
+                      setPaiementCtx({
+                        artisanNom:     artisan.nom,
+                        montantRestant: artisan.totaux.a_payer > 0 ? artisan.totaux.a_payer : 0,
+                        documentId:     primaryDevis?.id ?? '',
+                        documentType:   'devis',
+                        label:          `Paiement — ${artisan.nom}`,
                       });
                     }
                   }}
@@ -2263,6 +2259,18 @@ export default function BudgetTab({
           autoFillLabel={versementsDrawer.autoFillLabel}
           onClose={() => setVersementsDrawer(null)}
           onRefresh={refresh}
+        />
+      )}
+
+      {/* ── PaiementDrawer contextualisé (bouton "Payer" mobile) ─────────── */}
+      {paiementCtx && (
+        <PaiementDrawer
+          chantierId={chantierId}
+          token={token}
+          lots={[]}
+          context={paiementCtx}
+          onClose={() => setPaiementCtx(null)}
+          onSuccess={refresh}
         />
       )}
 

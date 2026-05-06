@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, SlidersHorizontal, HelpCircle, X, Check, AlertTriangle, Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Plus, SlidersHorizontal, HelpCircle, X, Check } from 'lucide-react';
 import type { DocumentChantier, LotChantier } from '@/types/chantier-ia';
 import { KpiCard, ViewToggle, RDV_EMOJI } from './DashboardWidgets';
+import PaiementDrawer from './PaiementDrawer';
 import LotIntervenantCard from './LotIntervenantCard';
 import IntervenantsListView from '@/components/chantier/cockpit/IntervenantsListView';
 import PlanningWidget from '@/components/chantier/cockpit/planning/PlanningWidget';
@@ -654,45 +655,8 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
 
   const [comparingLot, setComparingLot] = useState<{ lot: LotChantier; docs: DocumentChantier[] } | null>(null);
 
-  // ── Dépense rapide ─────────────────────────────────────────────────────────
-  const [depenseOpen, setDepenseOpen]   = useState(false);
-  const [depenseForm, setDepenseForm]   = useState({
-    label: '', amount: '', depense_type: 'achat_materiaux' as 'achat_materiaux' | 'frais' | 'ticket_caisse',
-    lot_id: '', note: '', date: new Date().toISOString().slice(0, 10),
-  });
-  const [depenseError,  setDepenseError]  = useState<string | null>(null);
-  const [savingDepense, setSavingDepense] = useState(false);
-
-  const saveDepense = useCallback(async () => {
-    const amount = parseFloat(depenseForm.amount.replace(',', '.'));
-    if (!depenseForm.label.trim() || isNaN(amount) || amount <= 0) {
-      setDepenseError('Libellé et montant requis'); return;
-    }
-    setSavingDepense(true); setDepenseError(null);
-    try {
-      const bearer = token ?? '';
-      const res = await fetch(`/api/chantier/${chantierId}/quick-expense`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
-        body: JSON.stringify({
-          label:        depenseForm.label.trim(),
-          amount,
-          depense_type: depenseForm.depense_type,
-          lot_id:       depenseForm.lot_id || null,
-          note:         depenseForm.note.trim() || null,
-          date:         depenseForm.date,
-        }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        setDepenseError(j.error ?? 'Erreur lors de l\'enregistrement');
-        setSavingDepense(false); return;
-      }
-      setDepenseOpen(false);
-      setDepenseForm({ label: '', amount: '', depense_type: 'achat_materiaux', lot_id: '', note: '', date: new Date().toISOString().slice(0, 10) });
-    } catch { setDepenseError('Erreur réseau. Réessayez.'); }
-    setSavingDepense(false);
-  }, [chantierId, token, depenseForm]);
+  // ── PaiementDrawer (mode libre) ────────────────────────────────────────────
+  const [paiementOpen, setPaiementOpen] = useState(false);
 
   // Date de début globale du planning (lot le plus tôt avec date_debut)
   const planningStartDate = useMemo(() => {
@@ -817,7 +781,7 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
 
       {/* ── Centre d'actions ──────────────────────────────────────────── */}
       <ActionCenter
-        onPaiement={() => { setDepenseForm(f => ({ ...f, date: new Date().toISOString().slice(0, 10) })); setDepenseOpen(true); }}
+        onPaiement={() => setPaiementOpen(true)}
         onDocument={onAddDoc}
         onArtisan={onAddIntervenant}
       />
@@ -992,118 +956,15 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
       </div>
     </div>
 
-      {/* ── Drawer dépense rapide (portal-like, position fixed) ──────────── */}
-      {depenseOpen && (
-        <>
-          <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setDepenseOpen(false)} />
-          <div className="fixed right-0 top-0 bottom-0 w-full sm:w-[400px] bg-white shadow-2xl z-50 flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <div>
-                <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wider">Budget</p>
-                <h3 className="text-[15px] font-bold text-gray-900">Enregistrer une dépense</h3>
-                <p className="text-[10px] text-orange-500 mt-0.5">Achat matériaux, paiement liquide, frais annexes…</p>
-              </div>
-              <button onClick={() => setDepenseOpen(false)} className="p-2 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* Formulaire */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-              <div>
-                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Libellé *</label>
-                <input
-                  autoFocus type="text" value={depenseForm.label}
-                  onChange={e => setDepenseForm(f => ({ ...f, label: e.target.value }))}
-                  placeholder="ex : Carrelage chez Brico, Paiement plombier…"
-                  className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-orange-400"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Montant (€) *</label>
-                  <input
-                    type="number" inputMode="decimal" value={depenseForm.amount}
-                    onChange={e => setDepenseForm(f => ({ ...f, amount: e.target.value }))}
-                    placeholder="0"
-                    className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none focus:border-orange-400"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Date</label>
-                  <input
-                    type="date" value={depenseForm.date}
-                    onChange={e => setDepenseForm(f => ({ ...f, date: e.target.value }))}
-                    className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-orange-400"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Type de dépense</label>
-                <select
-                  value={depenseForm.depense_type}
-                  onChange={e => setDepenseForm(f => ({ ...f, depense_type: e.target.value as any }))}
-                  className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-orange-400"
-                >
-                  <option value="achat_materiaux">Achat matériaux</option>
-                  <option value="frais">Frais annexes</option>
-                  <option value="ticket_caisse">Ticket de caisse</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Lot / poste</label>
-                <select
-                  value={depenseForm.lot_id}
-                  onChange={e => setDepenseForm(f => ({ ...f, lot_id: e.target.value }))}
-                  className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-orange-400"
-                >
-                  <option value="">— Aucun lot spécifique —</option>
-                  {lots.map(l => (
-                    <option key={l.id} value={l.id}>{(l as any).emoji ? `${(l as any).emoji} ` : ''}{l.nom}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Note (optionnel)</label>
-                <input
-                  type="text" value={depenseForm.note}
-                  onChange={e => setDepenseForm(f => ({ ...f, note: e.target.value }))}
-                  placeholder="ex : Ticket gardé en poche"
-                  className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-orange-400"
-                />
-              </div>
-
-              {depenseError && (
-                <p className="text-[11px] text-red-600 flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3 shrink-0" />
-                  {depenseError}
-                </p>
-              )}
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  onClick={() => setDepenseOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-500 hover:bg-gray-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={saveDepense}
-                  disabled={savingDepense || !depenseForm.label.trim() || !depenseForm.amount}
-                  className="flex-1 py-2.5 rounded-xl bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 disabled:opacity-40 flex items-center justify-center gap-2"
-                >
-                  {savingDepense ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                  Enregistrer
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
+      {/* ── PaiementDrawer (mode libre) ──────────────────────────────────── */}
+      {paiementOpen && (
+        <PaiementDrawer
+          chantierId={chantierId}
+          token={token}
+          lots={lots}
+          onClose={() => setPaiementOpen(false)}
+          onSuccess={() => {}}
+        />
       )}
     </>
   );
