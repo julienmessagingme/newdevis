@@ -5,7 +5,7 @@ import { corsHeaders, PipelineError, isPipelineError, computeFileHash, checkCirc
 
 // ── Alerte admin immédiate (email Resend) ──────────────────────────────────────
 const RESEND_API_KEY  = Deno.env.get("RESEND_API_KEY") ?? "";
-const ADMIN_EMAILS    = ["julien@messagingme.fr"];
+const ADMIN_EMAILS    = ["julien@messagingme.fr", "bridey.johan@gmail.com"];
 const ADMIN_URL       = "https://www.verifiermondevis.fr/admin";
 
 async function alertAdminOnFailure(params: {

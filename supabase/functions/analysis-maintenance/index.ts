@@ -18,7 +18,7 @@ const SERVICE_ROLE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const CRON_SECRET       = Deno.env.get("AGENT_CRON_SECRET") ?? "";
 const RESEND_API_KEY    = Deno.env.get("RESEND_API_KEY") ?? "";
 
-const RECIPIENTS  = ["julien@messagingme.fr"];
+const RECIPIENTS  = ["julien@messagingme.fr", "bridey.johan@gmail.com"];
 const ADMIN_URL   = "https://www.verifiermondevis.fr/admin";
 const MAX_RETRIES = 2;               // max tentatives auto avant escalade admin
 const RETRY_TAG   = "[auto-retry-"; // marqueur dans error_message pour suivre les tentatives
