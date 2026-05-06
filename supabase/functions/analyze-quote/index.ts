@@ -666,6 +666,10 @@ serve(async (req) => {
     // Chaque artisan reçoit son propre verdict basé uniquement sur ses lignes.
     // Pas d'appel IA supplémentaire — matching textuel déterministe uniquement.
 
+    // NOTE: déclaré ICI (avant usage ligne ~672) pour éviter TDZ — la déclaration
+    // "Store debug data" plus bas a été supprimée et remplacée par une référence à cette const.
+    const isMultipleQuotes = extracted.multiple_quotes === true && Array.isArray(extracted.devis_list) && extracted.devis_list.length > 1;
+
     let segmentAnalyses: SegmentAnalysis[] | undefined;
     let globalMetrics: GlobalMetrics | undefined;
 
@@ -868,7 +872,6 @@ serve(async (req) => {
     }
 
     // Store debug data
-    const isMultipleQuotes = extracted.multiple_quotes === true && Array.isArray(extracted.devis_list) && extracted.devis_list.length > 1;
     const rawDataForDebug = JSON.stringify({
       type_document: extracted.type_document,
       extracted,
