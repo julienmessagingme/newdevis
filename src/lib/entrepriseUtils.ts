@@ -256,7 +256,7 @@ export const extractEntrepriseData = (pointsOk: string[], alertes: string[]): En
      a.toLowerCase().includes("cessation") ||
      a.toLowerCase().includes("dissoute") ||
      a.toLowerCase().includes("liquidation") ||
-     a.toLowerCase().includes("comptes non déposés"))
+     a.toLowerCase().includes("comptes non accessibles"))
   );
 
   // Réputation Google : considérée bonne si >= 4.0 OU si pas de données Google (pas pénalisant)

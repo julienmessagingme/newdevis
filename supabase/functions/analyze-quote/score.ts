@@ -39,9 +39,9 @@ export function calculateScore(
     const latest = verified.finances[0];
 
     // ── Règle : données financières périmées ──────────────────────────────────
-    // Une société (SARL, SAS, EURL…) a l'obligation légale de déposer ses comptes
-    // chaque année. Des données > 2 ans = non-conformité répétée OU situation
-    // financière masquée. Des données > 4 ans = signal orange fort. > 6 ans = rouge.
+    // Les comptes peuvent être non accessibles publiquement pour diverses raisons légales
+    // (déclaration de confidentialité, délai de traitement infogreffe…). On ne présume
+    // pas d'infraction — on signale un manque d'information, pas une irrégularité.
     if (latest.date_cloture) {
       const anneeExercice = parseInt(latest.date_cloture.substring(0, 4), 10);
       const anneeActuelle = new Date().getFullYear();
@@ -49,17 +49,17 @@ export function calculateScore(
 
       if (retardAns >= 6) {
         rouges.push(
-          `Comptes non déposés depuis ${retardAns} ans (dernier exercice : ${anneeExercice}) — ` +
-          `obligation légale non respectée, situation financière réelle inconnue et potentiellement préoccupante`
+          `Comptes non accessibles publiquement depuis ${retardAns} ans (dernier exercice connu : ${anneeExercice}) — ` +
+          `situation financière récente inconnue, analyse de solvabilité impossible`
         );
       } else if (retardAns >= 4) {
         oranges.push(
-          `Données financières très anciennes (dernier exercice : ${anneeExercice}, il y a ${retardAns} ans) — ` +
+          `Comptes non accessibles publiquement (dernier exercice connu : ${anneeExercice}, il y a ${retardAns} ans) — ` +
           `impossible d'évaluer la solvabilité actuelle de l'entreprise`
         );
       } else if (retardAns >= 2) {
         oranges.push(
-          `Données financières non récentes (dernier exercice : ${anneeExercice}) — ` +
+          `Données financières non récentes (dernier exercice connu : ${anneeExercice}) — ` +
           `interpréter les indicateurs ci-dessous avec prudence`
         );
       }
@@ -337,7 +337,7 @@ export function calculateScore(
   }
 
   const scores_blocs = {
-    entreprise: rouges.some(r => r.includes("Entreprise") || r.includes("Procédure") || r.includes("endettement") || r.includes("Pertes") || r.includes("Comptes non déposés"))
+    entreprise: rouges.some(r => r.includes("Entreprise") || r.includes("Procédure") || r.includes("endettement") || r.includes("Pertes") || r.includes("Comptes non accessibles"))
       ? "ROUGE" as ScoringColor
       : oranges.some(o => o.includes("Entreprise") || o.includes("SIRET") || o.includes("récente") || o.includes("Note Google") || o.includes("avis Google") || o.includes("endettement") || o.includes("liquidité"))
         ? "ORANGE" as ScoringColor

@@ -56,7 +56,7 @@ export function renderOutput(
       if (latest.date_cloture) {
         const retardAns = new Date().getFullYear() - parseInt(latest.date_cloture.substring(0, 4), 10);
         if (retardAns >= 6) {
-          alertes.push(`🔴 Comptes non déposés depuis ${retardAns} ans (dernier exercice connu : ${year}) — une société commerciale a l'obligation légale de déposer ses comptes chaque année. Cette absence prolongée peut masquer une situation financière préoccupante.`);
+          alertes.push(`🔴 Comptes non accessibles publiquement (dernier exercice connu : ${year}, il y a ${retardAns} ans) — cela peut s'expliquer par une déclaration de confidentialité, procédure légale fréquente. Nous ne pouvons pas analyser la santé financière avec précision — demandez des références ou assurances complémentaires.`);
         } else if (retardAns >= 4) {
           alertes.push(`🟠 Données financières très anciennes (dernier exercice : ${year}, il y a ${retardAns} ans) — impossible d'évaluer la solvabilité actuelle de l'entreprise.`);
         } else if (retardAns >= 2) {

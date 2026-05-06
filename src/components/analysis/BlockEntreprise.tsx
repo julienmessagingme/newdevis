@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { Star, Building2, Globe, ChevronDown, TrendingUp, AlertCircle, Ban } from "lucide-react";
 import { normalizeCompanyStatus } from "@/lib/verdictEngine";
 import { getScoreIcon, getScoreBgClass, getScoreTextClass } from "@/lib/scoreUtils";
@@ -83,12 +83,12 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
     : 0;
   const isFinanciallyStaleRouge = retardAns >= 6 && finances.length > 0;
 
-  // Score effectif du bloc : ROUGE si non-dépôt des comptes >= 6 ans,
+  // Score effectif du bloc : ORANGE si comptes non accessibles >= 6 ans (manque d'info, pas infraction),
   // sinon score calculé à partir des alertes (info.score).
-  const effectiveScore = isFinanciallyStaleRouge ? "ROUGE" as const : info.score;
+  const effectiveScore = isFinanciallyStaleRouge ? "ORANGE" as const : info.score;
 
   // Statut affiché dans la sous-section "Santé financière"
-  const financialDisplayStatus = isFinanciallyStaleRouge ? "ROUGE" as const : financialHealth.status;
+  const financialDisplayStatus = isFinanciallyStaleRouge ? "ORANGE" as const : financialHealth.status;
 
   // Statut juridique à risque (priorité absolue sur le verdict)
   const isLegalRisk = (companyStatus && normalizeCompanyStatus(companyStatus) === "risk") ||
@@ -662,13 +662,12 @@ const BlockEntreprise = ({ pointsOk, alertes, companyData, defaultOpen = true, c
           <div className="mt-4 p-3 bg-muted/50 rounded-lg">
             <p className={`text-sm font-medium ${getScoreTextClass(effectiveScoreWithLegal)}`}>
               {effectiveScoreWithLegal === "VERT" && !isLegalRisk && "✓ Aucun indicateur à risque détecté sur cette entreprise."}
-              {effectiveScoreWithLegal === "ORANGE" && !isLegalRisk && "ℹ️ Certains indicateurs invitent à une vérification complémentaire."}
+              {isFinanciallyStaleRouge && !isLegalRisk && `ℹ️ Comptes non accessibles publiquement (dernier exercice connu : ${financialHealth.dernier_exercice_year}, il y a ${retardAns} ans) — cela peut s'expliquer par une déclaration de confidentialité, procédure légale fréquente. Nous ne pouvons pas analyser la santé financière avec précision. Demandez des références ou assurances complémentaires à l'artisan.`}
+              {effectiveScoreWithLegal === "ORANGE" && !isLegalRisk && !isFinanciallyStaleRouge && "ℹ️ Certains indicateurs invitent à une vérification complémentaire."}
               {isLegalRisk && "⛔ Situation juridique critique — ne signez pas ce devis avant une vérification approfondie (tribunal de commerce, infogreffe.fr)."}
               {effectiveScoreWithLegal === "ROUGE" && !isLegalRisk && (
-                isFinanciallyStaleRouge
-                  ? `⚠️ Comptes annuels non déposés depuis ${retardAns} ans (dernier exercice connu\u00a0: ${financialHealth.dernier_exercice_year})\u00a0— une société commerciale a l'obligation légale de déposer ses comptes chaque année. Cette absence prolongée peut masquer une situation financière préoccupante.`
-                  : financialHealth.rougeSignals.includes("endettement_critique")
-                  ? `⚠️ Taux d'endettement critique (${financialHealth.latestRatios?.taux_endettement?.toFixed(0)}\u00a0%) — malgré un résultat net positif, ce niveau d'endettement représente un risque pour la pérennité de l'entreprise. Vérifiez les alertes financières avant de signer.`
+                  financialHealth.rougeSignals.includes("endettement_critique")
+                  ? `⚠️ Taux d'endettement critique (${financialHealth.latestRatios?.taux_endettement?.toFixed(0)} %) — malgré un résultat net positif, ce niveau d'endettement représente un risque pour la pérennité de l'entreprise. Vérifiez les alertes financières avant de signer.`
                   : financialHealth.rougeSignals.includes("capitaux_propres_negatifs")
                   ? "⚠️ Capitaux propres négatifs — la situation bilancielle de l'entreprise est structurellement fragile. Vérifiez les alertes ci-dessus avant de signer."
                   : "⚠️ Des éléments critiques ont été détectés — vérifiez les alertes ci-dessus avant de signer."
