@@ -503,9 +503,19 @@ const AnalysisResult = () => {
     // RÈGLE 3+6 — SOURCE UNIQUE DE VÉRITÉ multi-devis :
     // Lecture directe de verdict_global (jamais de recalcul frontend).
     // score_legacy est un alias dérivé — on mappe nous-mêmes pour éliminer toute dépendance indirecte.
-    if (documentDetection?.multiple_quotes && globalMetrics?.verdict_global) {
-      const v = globalMetrics.verdict_global as string;
-      return (v === "refuser" ? "ROUGE" : v === "a_negocier" ? "ORANGE" : "VERT") as "VERT" | "ORANGE" | "ROUGE";
+    // NOTE: on parse raw_text ici directement pour éviter une dépendance à documentDetection /
+    // globalMetrics qui sont déclarés plus bas dans le composant (après plusieurs early returns) —
+    // les référencer depuis ce useMemo causerait une erreur TDZ (Cannot access before initialization).
+    const _dd = parseDocumentDetection(analysis.raw_text);
+    if (_dd?.multiple_quotes) {
+      try {
+        const _raw = JSON.parse(analysis.raw_text || "{}");
+        const _gm = _raw?.global_metrics;
+        if (_gm?.verdict_global) {
+          const v = _gm.verdict_global as string;
+          return (v === "refuser" ? "ROUGE" : v === "a_negocier" ? "ORANGE" : "VERT") as "VERT" | "ORANGE" | "ROUGE";
+        }
+      } catch { /* ignore */ }
     }
 
     // Extraire les critères depuis analysis.score (JSON stocké par score.ts)
@@ -558,7 +568,7 @@ const AnalysisResult = () => {
     });
 
     return result.score_legacy;
-  }, [analysis, cachedN8NData, conclusionIaLive]);
+  }, [analysis, cachedN8NData, conclusionIaLive]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- Waiting message rotation (must be before any conditional return) ----
   const [waitingMsgIdx, setWaitingMsgIdx] = useState(0);
