@@ -22,6 +22,7 @@ import { getScoreBadge } from "@/lib/scoreUtils";
 import {
   computeVerdict, computeMarketBounds, countMajorAnomalies,
   extractFlagsFromCriteria, extractCompanyRisk, extractCompanyStatusFromCriteria,
+  computeWeightedAnomalies,
 } from "@/lib/verdictEngine";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -548,6 +549,12 @@ const AnalysisResult = () => {
       if (typeof t === "number") totalHT = t;
     } catch { /* ignore */ }
 
+    // V3 — analyse pondérée des anomalies (poids réel vs surcoût global)
+    const weightedAnomalies = computeWeightedAnomalies(
+      Array.isArray(priceData) ? priceData : [],
+      totalHT,
+    );
+
     // Dispersion marché — calculée ici, transmise au moteur pour seuils adaptatifs
     const avgMarket = marketBounds.min > 0 || marketBounds.max > 0
       ? (marketBounds.min + marketBounds.max) / 2 : 0;
@@ -564,6 +571,7 @@ const AnalysisResult = () => {
       flags:                  extractFlagsFromCriteria(criteres_rouges, criteres_oranges),
       market_dispersion_pct:  marketDispersionPct,
       company_status:         extractCompanyStatusFromCriteria(criteres_rouges) ?? undefined,
+      weighted_anomalies:     weightedAnomalies,
       // chantier_complexity non disponible côté client pour l'instant → fallback "medium" auto
     });
 

@@ -25,7 +25,7 @@ export type { AnomalieConclusion, ConclusionData } from "@/lib/conclusionTypes";
 import {
   computeVerdict, computeMarketBounds, countMajorAnomalies,
   extractFlagsFromCriteria, extractCompanyRisk, generateVerdictReasons,
-  extractCompanyStatusFromCriteria,
+  extractCompanyStatusFromCriteria, computeWeightedAnomalies,
 } from "@/lib/verdictEngine";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -514,6 +514,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     // Mono-devis : calcul normal
     const preMarketBounds   = computeMarketBounds(priceData);
     preMajorAnomalies       = countMajorAnomalies(priceData);
+    const weightedAnomalies = computeWeightedAnomalies(priceData, typeof totalHT === "number" ? totalHT : 0);
     const preAvgMarket = (preMarketBounds.min + preMarketBounds.max) / 2;
     const preDispersion = preAvgMarket > 0
       ? (preMarketBounds.max - preMarketBounds.min) / preAvgMarket : 0;
@@ -528,6 +529,7 @@ export const POST: APIRoute = async ({ params, request }) => {
       flags:                 preFlags,
       market_dispersion_pct: preDispersion,
       company_status:        preCompanyStatus ?? undefined,
+      weighted_anomalies:    weightedAnomalies,
     });
   }
 
@@ -545,12 +547,22 @@ export const POST: APIRoute = async ({ params, request }) => {
   const imposedDecision = ENGINE_DECISION_LABEL[preEngine.verdict] ?? "signer_avec_negociation";
   const imposedGlobal   = ENGINE_GLOBAL_LABEL[preEngine.verdict]   ?? "a_negocier";
 
+  // Bloc analyse pondérée V3 pour le LLM
+  const wa = preEngine.weighted_anomalies;
+  const weightedBlock = wa
+    ? `\nANALYSE PONDÉRÉE DES ANOMALIES (V3 — source de vérité):
+- Postes surdévalués (> +30% médiane marché): ${wa.anomalies_count} sur ${wa.total_analyzed} postes comparables
+- Poids de ces postes dans le devis: ${Math.round(wa.poids_anomalies * 100)}%
+- Surcoût réel issu de ces postes: ${wa.surcout_total > 0 ? `+${wa.surcout_total.toLocaleString("fr-FR")} € (+${Math.round(wa.surcout_pct * 100)}% du total)` : "aucun"}
+- Impact global des anomalies: ${wa.impact_anomalies.toUpperCase()}${wa.impact_anomalies === "faible" ? " (< 20% du total — anomalies isolées)" : wa.impact_anomalies === "modéré" ? " (20–50% du total)" : " (≥ 50% du total)"}`
+    : "";
+
   const verdictImposedBlock = `
 VERDICT IMPOSÉ PAR LE MOTEUR DÉTERMINISTE:
 - verdict_decisionnel: "${imposedDecision}"
 - verdict_global: "${imposedGlobal}"
 - Surcoût estimé: ${preEngine.overprice > 0 ? `+${Math.round(preEngine.overprice_pct * 100)}% vs moyenne marché (${Math.round(preEngine.overprice).toLocaleString("fr-FR")} €)` : "dans la norme ou sous la moyenne"}
-- Seuil de tolérance appliqué: ${Math.round(preEngine.threshold_ok * 100)}%${preEngine.hard_block_reason === "company_status" ? `\n- HARD BLOCK PRIORITÉ 0 : STATUT JURIDIQUE À RISQUE (${preCompanyStatus ?? "cessation/liquidation/redressement/radiée"}) — verdict REFUSER forcé indépendamment du prix` : preEngine.is_hard_block ? "\n- HARD BLOCK ACTIF (entreprise radiée ou paiement suspect)" : ""}
+- Seuil de tolérance appliqué: ${Math.round(preEngine.threshold_ok * 100)}%${preEngine.hard_block_reason === "company_status" ? `\n- HARD BLOCK PRIORITÉ 0 : STATUT JURIDIQUE À RISQUE (${preCompanyStatus ?? "cessation/liquidation/redressement/radiée"}) — verdict REFUSER forcé indépendamment du prix` : preEngine.is_hard_block ? "\n- HARD BLOCK ACTIF (entreprise radiée ou paiement suspect)" : ""}${weightedBlock}
 
 RÈGLES ABSOLUES (ne pas déroger):
 1. Tu DOIS produire exactement verdict_decisionnel="${imposedDecision}" et verdict_global="${imposedGlobal}".
@@ -558,7 +570,11 @@ RÈGLES ABSOLUES (ne pas déroger):
 3. Si verdict_decisionnel="ne_pas_signer" → INTERDIT d'écrire des phrases comme "vous pouvez signer", "le devis est acceptable", "le prix est cohérent", "prix attractif", "bon rapport qualité-prix", "devis compétitif". Le prix peut être bas ET le verdict refuser (ex: entreprise en cessation) — ne jamais valoriser le prix dans ce cas.
 4. Si verdict_decisionnel="signer" → INTERDIT de recommander de "négocier le prix" ou de "demander une réduction".
 5. Si verdict_decisionnel="signer_avec_negociation" → INTERDIT d'écrire "vous pouvez signer en confiance" ou "aucune anomalie". Il y a au moins un poste trop élevé.
-6. Ton rôle : EXPLIQUER et JUSTIFIER ce verdict factuel, pas le recalculer.`;
+6. Ton rôle : EXPLIQUER et JUSTIFIER ce verdict factuel, pas le recalculer.${wa?.impact_anomalies === "faible" ? `
+7. IMPACT ANOMALIES FAIBLE (${Math.round((wa?.poids_anomalies ?? 0) * 100)}% du total) — RÈGLES DE WORDING OBLIGATOIRES :
+   - INTERDIT : "surcoût massif", "devis très au-dessus du marché", tout montant global en k€ présenté comme alarmant
+   - OBLIGATOIRE dans phrase_intro : "Devis globalement cohérent avec le marché"
+   - OBLIGATOIRE : mentionner les postes élevés comme négociation locale, pas comme rejet global` : ""}`;
 
   // Si hard block (company_status ou flags), ne pas contextualiser le prix comme "attractif"
   const pricePositionLabel = (() => {
@@ -882,6 +898,7 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       market_dispersion_pct: preEngine.market_dispersion_pct,
       chantier_complexity:   preEngine.chantier_complexity,
       threshold_ok:          preEngine.threshold_ok,
+      weighted_anomalies:    preEngine.weighted_anomalies,
     });
 
     // ── Verdict déterministe — appliqué depuis preEngine (calculé avant Gemini) ──

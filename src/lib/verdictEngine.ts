@@ -27,6 +27,34 @@ export interface VerdictFlags {
   incoherence_contractuelle: boolean;
 }
 
+/**
+ * Résultat de l'analyse pondérée des anomalies par poste.
+ *
+ * Règle fondamentale : un devis ne doit jamais être jugé sur ses pires lignes,
+ * mais sur l'impact RÉEL des postes aberrants dans le montant total.
+ *
+ * Calcul :
+ *   - Pour chaque poste : delta_pct = (devis_price - market_median) / market_median
+ *   - Surdévalué si delta_pct > +30%
+ *   - poids_poste = devis_total_ht / total_devis
+ *   - poids_anomalies = Σ poids des postes surdévalués
+ *   - surcout_total  = Σ delta € des postes surdévalués
+ */
+export interface WeightedAnomaliesResult {
+  /** Somme des poids (0–1) des postes surdévalués dans le total devis. */
+  poids_anomalies:  number;
+  /** Surplus € cumulé des postes surdévalués uniquement. */
+  surcout_total:    number;
+  /** surcout_total / total_devis — ratio d'impact réel. */
+  surcout_pct:      number;
+  /** Classification de l'impact global. */
+  impact_anomalies: "faible" | "modéré" | "élevé";
+  /** Nombre de postes surdévalués (> +30% vs médiane marché). */
+  anomalies_count:  number;
+  /** Nombre total de postes avec données marché analysés. */
+  total_analyzed:   number;
+}
+
 export interface VerdictInput {
   total_amount:          number;   // total HT du devis
   market_estimate_min:   number;   // borne basse marché (0 si inconnu)
@@ -44,6 +72,14 @@ export interface VerdictInput {
    * Règle priorité 0 : prime sur prix, anomalies, ancienneté, score global.
    */
   company_status?:        string;
+  /**
+   * V3 — Analyse pondérée des anomalies par poids réel dans le devis.
+   * Calculée par computeWeightedAnomalies(priceData, totalDevis).
+   * Si fournie, remplace la logique legacy (overprice_pct + anomalies_major_count).
+   * Règle anti-bug : si surcout_pct > 30% MAIS poids_anomalies < 20% → verdict "signer"
+   * (anomalie isolée sur un petit poste, ne pas pénaliser le verdict global).
+   */
+  weighted_anomalies?:    WeightedAnomaliesResult;
 }
 
 export type VerdictDecision = "signer" | "a_negocier" | "refuser";
@@ -66,6 +102,8 @@ export interface VerdictResult {
   threshold_refuse:      number;         // seuil "refuser" (fixe : 0.20)
   market_dispersion_pct: number;         // dispersion effective utilisée
   chantier_complexity:   "low" | "medium" | "high";
+  // V3 — analyse pondérée (pass-through pour LLM et UI)
+  weighted_anomalies?:   WeightedAnomaliesResult;
 }
 
 // ─── Constantes de seuil ─────────────────────────────────────────────────────
@@ -223,12 +261,38 @@ export function computeVerdict(input: VerdictInput): VerdictResult {
 
   if (!has_market_data) {
     price_verdict = "signer";
-  } else if (overprice_pct <= threshold_ok && anomalies_major_count === 0) {
-    price_verdict = "signer";
-  } else if (overprice_pct <= THRESHOLD_REFUSE && anomalies_major_count <= 1) {
-    price_verdict = "a_negocier";
+  } else if (input.weighted_anomalies) {
+    // ── V3 : décision basée sur le POIDS RÉEL des anomalies (pas le surcoût global) ──
+    // Règle fondamentale : un devis ne doit jamais être jugé sur ses pires lignes,
+    // mais sur l'impact réel des anomalies dans le montant total.
+    const { poids_anomalies, surcout_pct } = input.weighted_anomalies;
+
+    // Anti-bug critique : surcoût % élevé MAIS anomalies sur petits postes → ne pas pénaliser
+    // Ex : 1 poste de 500€ à +200% sur un devis de 25 000€ = surcoût 1 000€ (+4% réel)
+    // → verdict signer, ne pas afficher "+23 600€ trop cher"
+    if (poids_anomalies < 0.20) {
+      // CAS 1 — anomalies faibles (< 20% du total) : devis globalement OK
+      // Règle anti-bug : même si surcout_pct > 30%, l'anomalie est isolée → ignorer
+      price_verdict = "signer";
+    } else if (poids_anomalies < 0.50) {
+      // CAS 2 — anomalies modérées (20-50% du total) : à négocier
+      price_verdict = "a_negocier";
+    } else {
+      // CAS 3 — anomalies fortes (≥ 50% du total) : trop cher
+      price_verdict = "refuser";
+    }
+
+    // Log debug (utile en cas de litige)
+    console.log(`[verdictEngine V3] poids_anomalies=${Math.round(poids_anomalies * 100)}% | surcout_pct=${Math.round(surcout_pct * 100)}% | impact=${input.weighted_anomalies.impact_anomalies} | anomalies_count=${input.weighted_anomalies.anomalies_count}/${input.weighted_anomalies.total_analyzed} | price_verdict=${price_verdict}`);
   } else {
-    price_verdict = "refuser";
+    // ── Legacy (sans données pondérées) — backward compat ────────────────────
+    if (overprice_pct <= threshold_ok && anomalies_major_count === 0) {
+      price_verdict = "signer";
+    } else if (overprice_pct <= THRESHOLD_REFUSE && anomalies_major_count <= 1) {
+      price_verdict = "a_negocier";
+    } else {
+      price_verdict = "refuser";
+    }
   }
 
   // ── 3. Verdict risque ─────────────────────────────────────────────────────────
@@ -248,10 +312,11 @@ export function computeVerdict(input: VerdictInput): VerdictResult {
   let verdict: VerdictDecision =
     SEVERITY[price_verdict] >= SEVERITY[risk_verdict] ? price_verdict : risk_verdict;
 
-  // ── 4b. Edge case anomalies multiples ────────────────────────────────────────
-  // Si plusieurs postes sont anormaux (≥2) mais le prix global reste dans la norme,
-  // on monte à "a_negocier" : plusieurs anomalies isolées constituent un signal fort.
-  if (anomalies_major_count >= 2 && verdict === "signer") {
+  // ── 4b. Edge case anomalies multiples (legacy uniquement) ────────────────────
+  // Avec pondération V3, le poids réel est déjà intégré dans price_verdict.
+  // En mode legacy : si plusieurs postes anormaux mais prix global dans la norme,
+  // monter à "a_negocier".
+  if (!input.weighted_anomalies && anomalies_major_count >= 2 && verdict === "signer") {
     verdict = "a_negocier";
   }
 
@@ -283,6 +348,7 @@ export function computeVerdict(input: VerdictInput): VerdictResult {
     is_hard_block: false, has_market_data, price_label,
     threshold_ok, threshold_refuse: THRESHOLD_REFUSE,
     market_dispersion_pct, chantier_complexity,
+    weighted_anomalies: input.weighted_anomalies,
   };
 }
 
@@ -386,6 +452,108 @@ export function countMajorAnomalies(priceData: unknown[]): number {
 }
 
 /**
+ * Analyse pondérée des anomalies par poste — V3.
+ *
+ * Pour chaque poste avec données marché :
+ *   market_median = (price_min + price_max) / 2 × qty
+ *   delta_pct     = (devis_total_ht - market_median) / market_median
+ *   → surdévalué si delta_pct > +30%
+ *   poids_poste   = devis_total_ht / totalDevis
+ *
+ * Règle anti-bug : un poste à +200% qui représente 2% du devis
+ * contribue 2% au poids_anomalies, pas au surcoût global.
+ *
+ * @param priceData  Tableau n8n_price_data (groupes de postes)
+ * @param totalDevis Total HT du devis (pour calculer les poids relatifs)
+ */
+export function computeWeightedAnomalies(
+  priceData: unknown[],
+  totalDevis: number,
+): WeightedAnomaliesResult {
+  const empty: WeightedAnomaliesResult = {
+    poids_anomalies: 0, surcout_total: 0, surcout_pct: 0,
+    impact_anomalies: "faible", anomalies_count: 0, total_analyzed: 0,
+  };
+
+  if (!Array.isArray(priceData) || totalDevis <= 0) return empty;
+
+  const FORFAIT_UNITS = new Set(["f", "fft", "ff", "ens", "forfait", "global", "prestation", "ensemble"]);
+  const M2_UNITS      = ["m2", "m²", "m3", "m³"];
+  const UNIT_LIKE     = ["u", "unité", "unite", "pce", "piece", "pièce"];
+
+  let poids_anomalies = 0;
+  let surcout_total   = 0;
+  let anomalies_count = 0;
+  let total_analyzed  = 0;
+
+  for (const g of priceData) {
+    if (!g || typeof g !== "object") continue;
+    const group = g as Record<string, unknown>;
+    if (group.job_type_label === "Autre") continue;
+
+    const unit   = ((group.main_unit as string) || "").toLowerCase().trim();
+    const prices = Array.isArray(group.prices) ? group.prices : [];
+    if (prices.length === 0) continue;
+
+    // Skip forfaits (comparaison par unité non fiable)
+    if (FORFAIT_UNITS.has(unit)) continue;
+
+    // Skip mismatch surface/unité
+    const isUnitLike = UNIT_LIKE.some((u) => unit === u || unit.startsWith(u + " "));
+    const isM2       = M2_UNITS.some((u)  => unit.includes(u));
+    if (isUnitLike && !isM2) continue;
+
+    const devisTotal = typeof group.devis_total_ht === "number" ? group.devis_total_ht : 0;
+    if (devisTotal <= 0) continue;
+
+    const qty = typeof group.main_quantity === "number" && (group.main_quantity as number) > 0
+      ? (group.main_quantity as number) : 1;
+
+    // Médiane marché = (min + max) / 2
+    let medMin = 0;
+    let medMax = 0;
+    for (const p of prices) {
+      if (!p || typeof p !== "object") continue;
+      const pr = p as Record<string, unknown>;
+      medMin += (typeof pr.price_min_unit_ht === "number" ? pr.price_min_unit_ht : 0) * qty
+              + (typeof pr.fixed_min_ht       === "number" ? pr.fixed_min_ht       : 0);
+      medMax += (typeof pr.price_max_unit_ht === "number" ? pr.price_max_unit_ht : 0) * qty
+              + (typeof pr.fixed_max_ht       === "number" ? pr.fixed_max_ht       : 0);
+    }
+    if (medMax <= 0) continue;
+
+    total_analyzed++;
+
+    const marketMedian = (medMin + medMax) / 2;
+    const delta        = devisTotal - marketMedian;
+    const delta_pct    = marketMedian > 0 ? delta / marketMedian : 0;
+    const poids_poste  = devisTotal / totalDevis;
+
+    // Seuil surdévaluation : +30% au-dessus de la médiane
+    if (delta_pct > 0.30) {
+      anomalies_count++;
+      poids_anomalies += poids_poste;
+      surcout_total   += delta;
+    }
+  }
+
+  const surcout_pct = totalDevis > 0 ? surcout_total / totalDevis : 0;
+
+  const impact_anomalies: WeightedAnomaliesResult["impact_anomalies"] =
+    poids_anomalies >= 0.50 ? "élevé"  :
+    poids_anomalies >= 0.20 ? "modéré" : "faible";
+
+  return {
+    poids_anomalies: Math.round(poids_anomalies * 1000) / 1000,
+    surcout_total:   Math.round(surcout_total),
+    surcout_pct:     Math.round(surcout_pct * 1000) / 1000,
+    impact_anomalies,
+    anomalies_count,
+    total_analyzed,
+  };
+}
+
+/**
  * Extrait les VerdictFlags depuis les tableaux criteres_rouges / criteres_oranges
  * produits par score.ts. Compatible serveur et client.
  */
@@ -479,6 +647,8 @@ export interface VerdictReasonsInput {
   hard_block_reason?:    "company_status" | "flags";
   /** Statut brut de l'entreprise (ex: "cessation d'activité"). Affiché dans le reason. */
   company_status?:       string;
+  /** V3 — analyse pondérée (si disponible, module le wording prix). */
+  weighted_anomalies?:   WeightedAnomaliesResult;
 }
 
 export interface VerdictReasonsResult {
@@ -513,16 +683,23 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
     verdict, overprice, overprice_pct, anomalies_major_count,
     company_risk, flags, has_market_data,
     market_dispersion_pct, chantier_complexity, threshold_ok,
-    hard_block_reason, company_status,
+    hard_block_reason, company_status, weighted_anomalies,
   } = input;
 
+  const wa = weighted_anomalies;
+
   // ── Summary — 1 ligne, toujours présent ──────────────────────────────────────
+  // V3 : si impact faible → message neutre même si overprice_pct est élevé
   const summary =
     hard_block_reason === "company_status"
       ? "🛑 Ne signez pas ce devis — entreprise juridiquement à risque"
-    : verdict === "refuser"    ? "Ce devis présente un risque élevé — ne signez pas" :
-      verdict === "a_negocier" ? "Ce devis est au-dessus du marché et doit être renégocié" :
-                                 "Ce devis est cohérent avec les prix du marché";
+    : verdict === "refuser"
+      ? "Ce devis présente un risque élevé — ne signez pas"
+    : verdict === "a_negocier"
+      ? (wa?.impact_anomalies === "faible"
+          ? "Devis globalement cohérent avec le marché"
+          : "Ce devis est au-dessus du marché et doit être renégocié")
+    : "Ce devis est cohérent avec les prix du marché";
 
   const reasons: string[] = [];
 
@@ -560,26 +737,49 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
   // ── 2. Prix ───────────────────────────────────────────────────────────────────
   if (has_market_data) {
     if (verdict === "signer") {
-      reasons.push(
-        overprice_pct < -0.05
-          ? `✅ Prix attractif — environ ${fmtEur(-overprice)} sous la moyenne du marché`
-          : "✅ Prix conforme au marché"
-      );
+      // V3 : si anomalies faibles → ne pas afficher un surcoût global trompeur
+      if (wa && wa.anomalies_count > 0 && wa.impact_anomalies === "faible") {
+        // Message neutre : anomalies isolées mais non représentatives du devis global
+        reasons.push("✅ Devis globalement conforme au marché");
+      } else if (overprice_pct < -0.05) {
+        reasons.push(`✅ Prix attractif — environ ${fmtEur(-overprice)} sous la moyenne du marché`);
+      } else {
+        reasons.push("✅ Prix conforme au marché");
+      }
     } else if (verdict === "a_negocier") {
-      reasons.push(
-        overprice_pct <= threshold_ok
-          ? `⚠️ Prix légèrement au-dessus du marché (${fmtPct(overprice_pct)})`
-          : `⚠️ Vous payez environ ${fmtEur(overprice)} au-dessus du marché (${fmtPct(overprice_pct)})`
-      );
+      if (wa && wa.impact_anomalies === "faible") {
+        // Impact faible : ne pas alarmer avec un gros montant global
+        reasons.push(`⚠️ Certains postes présentent des prix élevés — impact sur le total : ${fmtPct(wa.surcout_pct)}`);
+      } else if (wa) {
+        reasons.push(`⚠️ Postes trop élevés représentant ${Math.round(wa.poids_anomalies * 100)}% du devis (surcoût estimé : ${fmtEur(wa.surcout_total)})`);
+      } else {
+        reasons.push(
+          overprice_pct <= threshold_ok
+            ? `⚠️ Prix légèrement au-dessus du marché (${fmtPct(overprice_pct)})`
+            : `⚠️ Vous payez environ ${fmtEur(overprice)} au-dessus du marché (${fmtPct(overprice_pct)})`
+        );
+      }
     } else {
-      reasons.push(`🛑 Prix fortement au-dessus du marché — surcoût estimé ${fmtEur(overprice)} (${fmtPct(overprice_pct)})`);
+      // refuser — prix fortement dépassé
+      if (wa) {
+        reasons.push(`🛑 Postes trop élevés représentant ${Math.round(wa.poids_anomalies * 100)}% du devis — surcoût estimé ${fmtEur(wa.surcout_total)}`);
+      } else {
+        reasons.push(`🛑 Prix fortement au-dessus du marché — surcoût estimé ${fmtEur(overprice)} (${fmtPct(overprice_pct)})`);
+      }
     }
   }
 
   // ── 3. Anomalies ──────────────────────────────────────────────────────────────
   if (verdict === "signer") {
-    // Cas signer : ton uniquement positif, max 2 raisons, jamais ⚠️
-    if (anomalies_major_count === 0) {
+    // Cas signer : ton positif ou neutre, max 2 raisons
+    if (wa && wa.anomalies_count > 0 && wa.impact_anomalies === "faible") {
+      // V3 : anomalies faibles — message pédagogique séparé du verdict global
+      const n = wa.anomalies_count;
+      reasons.push(
+        `ℹ️ ${n} poste${n > 1 ? "s" : ""} présente${n > 1 ? "nt" : ""} des prix élevés — ` +
+        `impact limité (${Math.round(wa.poids_anomalies * 100)}% du total) — négociation recommandée sur ces postes`
+      );
+    } else if (anomalies_major_count === 0) {
       reasons.push("✅ Aucun écart significatif détecté sur les postes");
     }
     // Cap à 2 pour le cas signer
@@ -587,9 +787,10 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
   }
 
   // Cas a_negocier ou refuser
-  if (anomalies_major_count >= 2) {
-    reasons.push(`⚠️ ${anomalies_major_count} postes présentent des prix anormalement élevés`);
-  } else if (anomalies_major_count === 1) {
+  const effectiveAnomaliesCount = wa ? wa.anomalies_count : anomalies_major_count;
+  if (effectiveAnomaliesCount >= 2) {
+    reasons.push(`⚠️ ${effectiveAnomaliesCount} postes présentent des prix anormalement élevés`);
+  } else if (effectiveAnomaliesCount === 1) {
     reasons.push("⚠️ 1 poste présente un prix anormalement élevé");
   }
 
