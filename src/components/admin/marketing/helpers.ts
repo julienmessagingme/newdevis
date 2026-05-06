@@ -2,6 +2,7 @@ import type {
   MarketingPersonaCode,
   MarketingPlatform,
   MarketingPostStatus,
+  NarrativeType,
 } from '@/types/marketing';
 
 export const STATUS_LABELS: Record<MarketingPostStatus, string> = {
@@ -87,3 +88,55 @@ export function formatRelativeDate(iso: string | null | undefined): string {
   if (diffD < 30) return `il y a ${diffD} j`;
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
+
+// ─── V2 Generator Constants ──────────────────────────────────────────────────
+
+export const NARRATIVE_LABELS: Record<NarrativeType, string> = {
+  A: 'Pain → Solution',
+  B: 'Étude de cas',
+  C: 'Tuto pas-à-pas',
+  D: 'Prise de position',
+  E: 'Mythe vs Réalité',
+  F: 'Checklist',
+  G: 'Stat-driven',
+  H: 'POV / Storytelling',
+};
+
+export const MOOD_LABELS: Record<string, string> = {
+  pain: 'Douleur',
+  revelation: 'Révélation',
+  stat_choc: 'Stat choc',
+  complicite: 'Complicité',
+  celebration: 'Célébration',
+};
+
+export const PRODUCT_BADGE: Record<string, { label: string; class: string }> = {
+  vmd: { label: 'VMD', class: 'bg-orange-100 text-orange-800 border-orange-200' },
+  gmc: { label: 'GMC', class: 'bg-teal-100 text-teal-800 border-teal-200' },
+};
+
+export const CHAR_LIMITS: Record<string, Record<string, number>> = {
+  texte_creme: { text: 60, subtext: 40 },
+  image_overlay: { text: 80 },
+  stat_geante: { stat_value: 8, text: 50 },
+  cta: { text: 40, short_url: 30 },
+  fond_couleur: { text: 120 },
+  punchline_noir: { text: 60 },
+  gradient_doux: { text: 100 },
+  titre_section: { section_label: 20, text: 60 },
+  etape_numerotee: { text: 60, subtext: 40 },
+  temoignage: { text: 120, author: 30 },
+  avant_apres: { before_text: 80, after_text: 80 },
+  mythe_realite: { myth_text: 80, reality_text: 80 },
+  verdict: { text: 60, verdict_label: 20 },
+  comparatif: { left_label: 20, left_value: 60, right_label: 20, right_value: 60 },
+  checklist: { text: 40 },
+  liste_puces: { text: 40 },
+  hero_image: { text: 60, label: 20 },
+  question_reponse: { question: 80, answer: 120 },
+  pov_whatsapp: { text: 60 },
+  emoji_accent: { text: 80, emoji: 2 },
+};
+
+export const ALL_MOODS = ['pain', 'revelation', 'stat_choc', 'complicite', 'celebration'] as const;
+export const ALL_NARRATIVES: NarrativeType[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];

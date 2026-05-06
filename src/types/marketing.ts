@@ -192,3 +192,74 @@ export interface MarketingSettingsUpdate extends MarketingSettingsClientPayload 
 export interface MarketingSettingsUpdateResponse extends MarketingSettings {
   scheduler_restart_required: boolean;
 }
+
+// ─── V2 Generator Types ──────────────────────────────────────────────────────
+
+export type NarrativeType = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
+
+export interface TemplateListItem {
+  id: string;
+  product: 'vmd' | 'gmc';
+  narrative_type: NarrativeType;
+  format_size: 5 | 7;
+  title: string;
+  mood: string;
+  is_active: boolean;
+  last_usage: { platform: string; date: string; post_id: string } | null;
+  cooldown_until: Record<string, string | null>;
+  total_uses: number;
+}
+
+export interface SlideData {
+  template: string;
+  text?: string;
+  subtext?: string;
+  stat_value?: string;
+  step_number?: number;
+  author?: string;
+  before_text?: string;
+  after_text?: string;
+  myth_text?: string;
+  reality_text?: string;
+  items?: string[];
+  checked_count?: number;
+  question?: string;
+  answer?: string;
+  messages?: { text: string; time: string; is_sent: boolean }[];
+  verdict_label?: string;
+  section_label?: string;
+  emoji?: string;
+  label?: string;
+  short_url?: string;
+  left_label?: string;
+  left_value?: string;
+  right_label?: string;
+  right_value?: string;
+}
+
+export interface TemplateDetail extends TemplateListItem {
+  slides: Record<string, SlideData>;
+  caption: string;
+  hashtags: string[];
+}
+
+export interface UsageEntry {
+  platform: string;
+  post_id: string;
+  created_at: string;
+}
+
+export interface BackgroundItem {
+  id: string;
+  category: string;
+  compatible_moods: string[];
+  public_url: string;
+  tags: string[];
+}
+
+export interface GenerateResponse {
+  post_id: string;
+  script_id: string;
+  slides: { index: number; url: string; template: string }[];
+  status: string;
+}
