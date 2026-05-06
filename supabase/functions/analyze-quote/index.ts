@@ -2,6 +2,64 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { corsHeaders, PipelineError, isPipelineError, computeFileHash, checkCircuitBreaker } from "./utils.ts";
+
+// ── Alerte admin immédiate (email Resend) ──────────────────────────────────────
+const RESEND_API_KEY  = Deno.env.get("RESEND_API_KEY") ?? "";
+const ADMIN_EMAILS    = ["julien@messagingme.fr"];
+const ADMIN_URL       = "https://www.verifiermondevis.fr/admin";
+
+async function alertAdminOnFailure(params: {
+  analysisId: string;
+  fileName?: string;
+  userId?: string;
+  errorMsg: string;
+  errorType: "fatal" | "unexpected";
+}): Promise<void> {
+  if (!RESEND_API_KEY) return; // silencieux si pas configuré
+  // Ne pas alerter les retries automatiques (évite le spam)
+  if (params.errorMsg.includes("[auto-retry-")) return;
+
+  const date = new Date().toLocaleString("fr-FR", { timeZone: "Europe/Paris" });
+  const label = params.errorType === "fatal" ? "Erreur fatale" : "Erreur inattendue";
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:20px;background:#f9fafb;font-family:sans-serif">
+<div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)">
+  <div style="background:#dc2626;padding:16px 20px;color:#fff">
+    <h1 style="margin:0;font-size:17px">🚨 [ERREUR] Analyse échouée — ${label}</h1>
+    <p style="margin:6px 0 0;opacity:.85;font-size:13px">VerifierMonDevis · ${date}</p>
+  </div>
+  <div style="padding:20px">
+    <table style="width:100%;border-collapse:collapse;font-size:14px">
+      <tr><td style="padding:8px 0;color:#6b7280;width:140px">Analyse ID</td><td style="padding:8px 0;font-family:monospace">${params.analysisId}</td></tr>
+      <tr><td style="padding:8px 0;color:#6b7280">Fichier</td><td style="padding:8px 0">${params.fileName ?? "—"}</td></tr>
+      <tr><td style="padding:8px 0;color:#6b7280">User ID</td><td style="padding:8px 0;font-family:monospace;font-size:12px">${params.userId ?? "—"}</td></tr>
+      <tr><td style="padding:8px 0;color:#6b7280">Type</td><td style="padding:8px 0;color:#dc2626;font-weight:600">${label}</td></tr>
+      <tr><td style="padding:8px 0;color:#6b7280;vertical-align:top">Message</td><td style="padding:8px 0;color:#dc2626;font-size:13px">${params.errorMsg.slice(0, 300)}</td></tr>
+    </table>
+    <div style="margin-top:16px;padding:12px;background:#fef2f2;border-radius:6px;font-size:13px;color:#7f1d1d">
+      ℹ️ La maintenance automatique retente cette analyse dans les 15 minutes. Si elle échoue à nouveau, une alerte de suivi sera envoyée.
+    </div>
+    <div style="margin-top:16px;text-align:center">
+      <a href="${ADMIN_URL}" style="display:inline-block;background:#dc2626;color:#fff;padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px">Voir dans l'admin</a>
+    </div>
+  </div>
+</div>
+</body></html>`;
+
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "VerifierMonDevis <onboarding@resend.dev>",
+        to: ADMIN_EMAILS,
+        subject: `🚨 [VerifierMonDevis] Analyse échouée — ${params.fileName ?? params.analysisId.slice(0, 8)}`,
+        html,
+      }),
+    });
+  } catch { /* silencieux — l'alerte ne doit pas bloquer */ }
+}
 import type { ExtractedData, DomainType } from "./types.ts";
 import { extractDataFromDocument } from "./extract.ts";
 import { verifyData } from "./verify.ts";
@@ -529,6 +587,17 @@ serve(async (req) => {
         .from("analyses")
         .update({ status: "failed", error_message: publicMessage })
         .eq("id", analysisId);
+
+      // Alerte admin immédiate (fire-and-forget)
+      const { data: _a } = await supabase
+        .from("analyses").select("file_name, user_id").eq("id", analysisId).maybeSingle();
+      alertAdminOnFailure({
+        analysisId,
+        fileName:  (_a as any)?.file_name,
+        userId:    (_a as any)?.user_id,
+        errorMsg:  publicMessage,
+        errorType: "fatal",
+      }).catch(() => {});
 
       return new Response(
         JSON.stringify({ error: errorCode, message: publicMessage }),
@@ -1269,10 +1338,26 @@ serve(async (req) => {
     if (analysisId) {
       try {
         const errorSupabase = createClient(supabaseUrl, supabaseServiceKey);
+        const { data: _meta } = await errorSupabase
+          .from("analyses")
+          .select("file_name, user_id, error_message")
+          .eq("id", analysisId)
+          .maybeSingle();
         await errorSupabase
           .from("analyses")
           .update({ status: "error", error_message: errorMsg })
           .eq("id", analysisId);
+        // Alerte admin (fire-and-forget) — sauf si déjà un retry en cours
+        const prevMsg = (_meta as any)?.error_message ?? "";
+        if (!prevMsg.includes("[auto-retry-")) {
+          alertAdminOnFailure({
+            analysisId,
+            fileName: (_meta as any)?.file_name,
+            userId: (_meta as any)?.user_id,
+            errorMsg,
+            errorType: "unexpected",
+          }).catch(() => {});
+        }
       } catch (cleanupError) {
         console.error("Failed to update analysis status on error:", cleanupError);
       }

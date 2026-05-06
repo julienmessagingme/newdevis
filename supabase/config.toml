@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.wa-photo-describe]
 verify_jwt = false
+
+[functions.analysis-maintenance]
+verify_jwt = false
