@@ -258,6 +258,20 @@ function EmptyBlock({ icon, title, sub, cta }: {
 
 // ── Modal ajout entrée ────────────────────────────────────────────────────────
 
+// ── Mapping source → catégorie (dupliqué depuis TresorerieView pour cohérence) ─
+const SRC_TO_CAT_LOCAL: Record<string, 'apport' | 'credit' | 'aides'> = {
+  apport_personnel: 'apport', remboursement: 'apport', autre: 'apport',
+  deblocage_credit: 'credit', eco_ptz: 'credit',
+  aide_maprime: 'aides', aide_cee: 'aides',
+};
+
+interface CoherenceAlert {
+  cat: 'credit' | 'aides';
+  catLabel: string;
+  newTotal: number;
+  planAmount: number;
+}
+
 function AddEntreeModal({ chantierId, token, onAdded, onClose }: {
   chantierId: string; token: string; onAdded: () => void; onClose: () => void;
 }) {
@@ -269,6 +283,8 @@ function AddEntreeModal({ chantierId, token, onAdded, onClose }: {
     statut: 'attendu' as StatutEntree,
   });
   const [saving, setSaving] = useState(false);
+  const [coherenceAlert, setCoherenceAlert] = useState<CoherenceAlert | null>(null);
+  const [updatingPlan, setUpdatingPlan] = useState(false);
 
   const set = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
 
@@ -283,21 +299,117 @@ function AddEntreeModal({ chantierId, token, onAdded, onClose }: {
         headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, montant: parseFloat(form.montant) }),
       });
-      if (res.ok) { onAdded(); onClose(); }
+      if (!res.ok) return;
+
+      // Entrée sauvegardée → notifier le parent (rafraîchit la liste)
+      onAdded();
+
+      // ── Vérification cohérence avec le plan de financement ──────────────────
+      const cat = SRC_TO_CAT_LOCAL[form.source_type];
+      if (cat === 'credit' || cat === 'aides') {
+        try {
+          // Re-fetch toutes les entrées pour avoir le nouveau total
+          const entrRes = await fetch(`/api/chantier/${chantierId}/entrees`, {
+            headers: { Authorization: `Bearer ${bearer}` },
+          });
+          if (entrRes.ok) {
+            const { entrees } = await entrRes.json() as { entrees: { source_type: string; montant: number }[] };
+            const newTotal = entrees
+              .filter(e => SRC_TO_CAT_LOCAL[e.source_type] === cat)
+              .reduce((s, e) => s + e.montant, 0);
+
+            // Lire le plan depuis localStorage
+            const planKey  = `tresorerie_v3_${chantierId}`;
+            const planSaved = localStorage.getItem(planKey);
+            const plan = planSaved ? JSON.parse(planSaved) : {};
+            const planAmount = cat === 'credit'
+              ? (plan.creditMontant ?? 0)
+              : ((plan.maprimeOn ? (plan.maprime ?? 0) : 0)
+               + (plan.ceeOn    ? (plan.cee    ?? 0) : 0)
+               + (plan.ecoptzOn ? (plan.ecoptz ?? 0) : 0));
+
+            if (planAmount > 0 && newTotal > planAmount * 1.01) {
+              // Montrer la confirmation AVANT de fermer
+              setCoherenceAlert({
+                cat,
+                catLabel: cat === 'credit' ? 'crédit bancaire' : 'aides & subventions',
+                newTotal,
+                planAmount,
+              });
+              setSaving(false);
+              return; // ne pas fermer encore
+            }
+          }
+        } catch { /* non-bloquant — fermeture normale */ }
+      }
+
+      onClose();
     } finally { setSaving(false); }
+  }
+
+  async function confirmUpdatePlan() {
+    if (!coherenceAlert) return;
+    setUpdatingPlan(true);
+    try {
+      const bearer = await freshToken(token);
+      const planKey = `tresorerie_v3_${chantierId}`;
+      const planSaved = localStorage.getItem(planKey);
+      const current = planSaved ? JSON.parse(planSaved) : {};
+      const updated = coherenceAlert.cat === 'credit'
+        ? { ...current, creditMontant: coherenceAlert.newTotal }
+        : current; // pour les aides, on ne modifie pas auto (trop complexe, renvoi vers onglet)
+      localStorage.setItem(planKey, JSON.stringify(updated));
+      // Sync serveur
+      await fetch(`/api/chantier/${chantierId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ metadonnees: { tresoreieFinancing: updated } }),
+      });
+    } catch { /* non-bloquant */ } finally { setUpdatingPlan(false); }
+    onClose();
   }
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
         <div className="px-5 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-sm font-extrabold text-gray-900">Ajouter une entrée de fonds</h3>
+          <h3 className="text-sm font-extrabold text-gray-900">
+            {coherenceAlert ? '⚠️ Plan de financement à mettre à jour' : 'Ajouter une entrée de fonds'}
+          </h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <form onSubmit={submit} className="p-5 space-y-4">
+        {/* ── Étape de confirmation cohérence ──────────────────── */}
+        {coherenceAlert && (
+          <div className="p-5 space-y-4">
+            <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 space-y-1.5">
+              <p className="text-[12px] font-bold text-amber-800">
+                Vos entrées {coherenceAlert.catLabel} ({fmtEur(coherenceAlert.newTotal)}) dépassent le montant configuré dans votre plan ({fmtEur(coherenceAlert.planAmount)}).
+              </p>
+              <p className="text-[11px] text-amber-700 leading-relaxed">
+                Souhaitez-vous mettre à jour le plan de financement avec le montant réel ?
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={confirmUpdatePlan} disabled={updatingPlan}
+                className="py-2.5 rounded-xl bg-amber-600 text-white text-[12px] font-bold hover:bg-amber-700 transition-colors disabled:opacity-50">
+                {updatingPlan ? 'Mise à jour…' : `✓ Oui, mettre à jour → ${fmtEur(coherenceAlert.newTotal)}`}
+              </button>
+              <button onClick={onClose}
+                className="py-2.5 rounded-xl border border-gray-200 text-gray-600 text-[12px] font-semibold hover:bg-gray-50 transition-colors">
+                Garder le plan actuel
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-400 text-center">
+              L'entrée a bien été enregistrée. Cette question concerne uniquement votre plan prévisionnel.
+            </p>
+          </div>
+        )}
+
+        {/* ── Formulaire principal ──────────────────────────────── */}
+        {!coherenceAlert && <form onSubmit={submit} className="p-5 space-y-4">
           {/* Type */}
           <div>
             <label className="text-[11px] font-extrabold text-gray-400 uppercase tracking-wider block mb-2">
@@ -377,7 +489,7 @@ function AddEntreeModal({ chantierId, token, onAdded, onClose }: {
             className="w-full py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold disabled:opacity-50 hover:bg-indigo-700 transition-colors">
             {saving ? 'Enregistrement…' : "Ajouter l'entrée"}
           </button>
-        </form>
+        </form>}
       </div>
     </div>
   );

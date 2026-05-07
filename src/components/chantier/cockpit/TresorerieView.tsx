@@ -185,6 +185,117 @@ function useFinancingConfig(chantierId: string, token: string, initial?: Record<
   return { cfg, setCfg, syncServer };
 }
 
+// ── Hook totaux des entrées par catégorie ────────────────────────────────────
+
+interface EntreesTotaux { credit: number; apport: number; aides: number; loaded: boolean; }
+
+function useEntreesTotaux(chantierId: string, token: string): EntreesTotaux {
+  const [totaux, setTotaux] = useState<EntreesTotaux>({ credit: 0, apport: 0, aides: 0, loaded: false });
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const t = await freshToken(token);
+        const res = await fetch(`/api/chantier/${chantierId}/entrees`, { headers: { Authorization: `Bearer ${t}` } });
+        if (!res.ok || cancelled) return;
+        const { entrees } = await res.json() as { entrees: { source_type: string; montant: number; statut: string }[] };
+        const acc = { credit: 0, apport: 0, aides: 0 };
+        for (const e of entrees) {
+          // On compte toutes les entrées (reçues ET attendues) pour le plan prévisionnel
+          const cat = SRC_TO_CAT[e.source_type];
+          if (cat) acc[cat] += e.montant;
+        }
+        if (!cancelled) setTotaux({ ...acc, loaded: true });
+      } catch {}
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [chantierId, token]);
+  return totaux;
+}
+
+// ── Bannière de cohérence financement ─────────────────────────────────────────
+
+function CoherenceAlertsBanner({
+  entresTotaux, cfg, budgetRef, data,
+  onUpdateCredit, onUpdateBudget,
+}: {
+  entresTotaux:   EntreesTotaux;
+  cfg:            FinancingConfig;
+  budgetRef:      number;
+  data:           BudgetData | null;
+  onUpdateCredit: (val: number) => void;
+  onUpdateBudget: (val: number) => void;
+}) {
+  if (!entresTotaux.loaded) return null;
+
+  const totalAides = (cfg.maprimeOn ? cfg.maprime : 0) + (cfg.ceeOn ? cfg.cee : 0) + (cfg.ecoptzOn ? cfg.ecoptz : 0);
+  const decaisse   = (data?.totaux.paye ?? 0) + (data?.totaux.acompte ?? 0);
+  const aPayer     = data?.totaux.a_payer ?? 0;
+  const fluxCertains = decaisse + aPayer;
+
+  const creditGap  = entresTotaux.credit  - cfg.creditMontant;
+  const aidesGap   = entresTotaux.aides   - totalAides;
+  const fluxGap    = fluxCertains - budgetRef;
+
+  const alerts: { key: string; icon: string; title: string; detail: string; action?: { label: string; onClick: () => void } }[] = [];
+
+  // Crédit enregistré > crédit prévu
+  if (creditGap > 100) {
+    alerts.push({
+      key: 'credit',
+      icon: '🏦',
+      title: `Crédit enregistré (${fmtEur(entresTotaux.credit)}) > crédit prévu (${fmtEur(cfg.creditMontant)})`,
+      detail: `Vous avez enregistré ${fmtEur(entresTotaux.credit)} de déblocages crédit mais votre plan prévoit seulement ${fmtEur(cfg.creditMontant)}.`,
+      action: { label: `Mettre à jour le plan → ${fmtEur(entresTotaux.credit)}`, onClick: () => onUpdateCredit(entresTotaux.credit) },
+    });
+  }
+
+  // Aides enregistrées > aides prévues
+  if (entresTotaux.aides > 0 && aidesGap > 100) {
+    alerts.push({
+      key: 'aides',
+      icon: '🌿',
+      title: `Aides encaissées (${fmtEur(entresTotaux.aides)}) > aides configurées (${fmtEur(totalAides)})`,
+      detail: `Les aides que vous avez enregistrées dépassent celles configurées dans le plan de financement.`,
+      action: undefined,
+    });
+  }
+
+  // Flux certains > budget cible
+  if (budgetRef > 0 && fluxGap > 100) {
+    alerts.push({
+      key: 'flux',
+      icon: '📊',
+      title: `Flux certains (${fmtEur(fluxCertains)}) dépassent le budget cible (${fmtEur(budgetRef)})`,
+      detail: `Décaissé ${fmtEur(decaisse)} + à payer ${fmtEur(aPayer)} = ${fmtEur(fluxCertains)} de sorties certaines. Écart : +${fmtEur(fluxGap)}.`,
+      action: { label: `Ajuster le budget → ${fmtEur(fluxCertains)}`, onClick: () => onUpdateBudget(fluxCertains) },
+    });
+  }
+
+  if (alerts.length === 0) return null;
+
+  return (
+    <div className="mx-5 mb-3 space-y-2">
+      {alerts.map(a => (
+        <div key={a.key} className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-3">
+          <span className="text-[16px] shrink-0 mt-0.5">{a.icon}</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-bold text-amber-800">{a.title}</p>
+            <p className="text-[10px] text-amber-700 mt-0.5 leading-relaxed">{a.detail}</p>
+          </div>
+          {a.action && (
+            <button onClick={a.action.onClick}
+              className="shrink-0 px-3 py-1.5 text-[11px] font-bold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors whitespace-nowrap">
+              {a.action.label}
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── SVG Donut ─────────────────────────────────────────────────────────────────
 
 function DonutRing({ pct, color, track = '#f1f5f9', size = 56, stroke = 5 }: {
@@ -953,6 +1064,7 @@ export default function TresorerieView({
 }: TresorerieViewProps) {
   const { data, loading }           = useBudget(chantierId, token);
   const { cfg, setCfg, syncServer } = useFinancingConfig(chantierId, token, initialFinancing);
+  const entresTotaux                = useEntreesTotaux(chantierId, token);
 
   const lots = useMemo(() => [
     ...(data?.lots ?? []),
@@ -979,8 +1091,26 @@ export default function TresorerieView({
     + (cfg.ecoptzOn ? cfg.ecoptz : 0)
     + (cfg.tvaOn ? cfg.tva : 0);
 
+  // ── Handlers cohérence ─────────────────────────────────────────────────────
+  function handleUpdateCreditFromEntrees(val: number) {
+    setCfg(p => { const n = { ...p, creditMontant: val }; syncServer(n); return n; });
+  }
+  function handleUpdateBudgetFromFlux(val: number) {
+    setCfg(p => { const n = { ...p, budgetReel: Math.ceil(val / 100) * 100 }; syncServer(n); return n; });
+  }
+
   return (
     <div className="flex flex-col bg-white">
+      {/* Bannière de cohérence (entrées réelles vs plan) */}
+      <CoherenceAlertsBanner
+        entresTotaux={entresTotaux}
+        cfg={cfg}
+        budgetRef={budgetRef}
+        data={data}
+        onUpdateCredit={handleUpdateCreditFromEntrees}
+        onUpdateBudget={handleUpdateBudgetFromFlux}
+      />
+
       {/* Section 1 — Financement */}
       <FinancementSection
         cfg={cfg}

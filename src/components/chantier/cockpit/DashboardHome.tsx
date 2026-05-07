@@ -250,11 +250,13 @@ function InfoLabel({ label, tip }: { label: string; tip: string }) {
 // ── Budget donut card ─────────────────────────────────────────────────────────
 
 function BudgetDonutCard({
-  budgetReel, budgetEngage, totalPaye, iaMin, iaMax, refinedBreakdown, onAffineBudget, hasRefinedBreakdown,
+  budgetReel, budgetEngage, totalPaye, decaisse, aPayer30j, iaMin, iaMax, refinedBreakdown, onAffineBudget, hasRefinedBreakdown,
 }: {
   budgetReel?: number | null;
   budgetEngage: number;
   totalPaye: number;
+  decaisse?: number;
+  aPayer30j?: number;
   iaMin: number;
   iaMax: number;
   refinedBreakdown: BreakdownItem[];
@@ -334,13 +336,22 @@ function BudgetDonutCard({
             </div>
           </div>
 
-          {/* Payé */}
+          {/* Décaissé */}
           <div className="flex items-center justify-between gap-2">
-            <InfoLabel label="Payé" tip="Somme des factures déjà réglées (virements, chèques…). Ce qui est sorti de votre compte." />
-            <span className={`text-sm font-bold tabular-nums ${totalPaye > 0 ? 'text-emerald-600' : 'text-gray-300'}`}>
-              {totalPaye > 0 ? fmtEurShort(totalPaye) : '—'}
+            <InfoLabel label="Décaissé" tip="Somme réellement sortie de votre compte : acomptes versés + factures réglées." />
+            <span className={`text-sm font-bold tabular-nums ${(decaisse ?? totalPaye) > 0 ? 'text-emerald-600' : 'text-gray-300'}`}>
+              {(decaisse ?? totalPaye) > 0 ? fmtEurShort(decaisse ?? totalPaye) : '—'}
             </span>
           </div>
+          {/* À payer (flux certains) */}
+          {(aPayer30j ?? 0) > 0 && (
+            <div className="flex items-center justify-between gap-2">
+              <InfoLabel label="À payer" tip="Paiements planifiés : devis signés sans facture + factures reçues non réglées. Ces sorties sont certaines." />
+              <span className="text-sm font-bold tabular-nums text-orange-500">
+                {fmtEurShort(aPayer30j!)}
+              </span>
+            </div>
+          )}
 
         </div>
 
@@ -359,11 +370,13 @@ function BudgetDonutCard({
 // ── Budget progress bars (mobile only) ────────────────────────────────────────
 
 function BudgetProgressBars({
-  budgetReel, budgetEngage, totalPaye, iaMin, iaMax, refinedBreakdown, onAffineBudget, hasRefinedBreakdown,
+  budgetReel, budgetEngage, totalPaye, decaisse, aPayer30j, iaMin, iaMax, refinedBreakdown, onAffineBudget, hasRefinedBreakdown,
 }: {
   budgetReel?: number | null;
   budgetEngage: number;
   totalPaye: number;
+  decaisse?: number;
+  aPayer30j?: number;
   iaMin: number;
   iaMax: number;
   refinedBreakdown?: BreakdownItem[];
@@ -372,6 +385,8 @@ function BudgetProgressBars({
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const ref = (budgetReel && budgetReel > 0) ? budgetReel : iaMax;
+  const displayDecaisse = decaisse ?? totalPaye;
+  const displayAPayer  = aPayer30j ?? 0;
 
   const bars = [
     {
@@ -391,13 +406,21 @@ function BudgetProgressBars({
       text: budgetEngage > 0 ? fmtEurShort(budgetEngage) : '—',
     },
     {
-      label: 'Payé',
-      value: totalPaye,
-      pct: ref > 0 ? Math.min((totalPaye / ref) * 100, 100) : 0,
+      label: 'Décaissé',
+      value: displayDecaisse,
+      pct: ref > 0 ? Math.min((displayDecaisse / ref) * 100, 100) : 0,
       color: 'bg-emerald-500',
       bg: 'bg-emerald-100',
-      text: totalPaye > 0 ? fmtEurShort(totalPaye) : '—',
+      text: displayDecaisse > 0 ? fmtEurShort(displayDecaisse) : '—',
     },
+    ...(displayAPayer > 0 ? [{
+      label: 'À payer',
+      value: displayAPayer,
+      pct: ref > 0 ? Math.min((displayAPayer / ref) * 100, 100) : 0,
+      color: 'bg-orange-500',
+      bg: 'bg-orange-100',
+      text: fmtEurShort(displayAPayer),
+    }] : []),
   ];
 
   return (
@@ -658,6 +681,25 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
   // ── PaiementDrawer (mode libre) ────────────────────────────────────────────
   const [paiementOpen, setPaiementOpen] = useState(false);
 
+  // ── Budget réel décaissé + à payer (API budget) ───────────────────────────
+  const [budgetTotaux, setBudgetTotaux] = useState<{ paye: number; acompte: number; a_payer: number } | null>(null);
+  useEffect(() => {
+    if (!chantierId || !token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/chantier/${chantierId}/budget`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok && !cancelled) {
+          const d = await res.json();
+          setBudgetTotaux({ paye: d.totaux?.paye ?? 0, acompte: d.totaux?.acompte ?? 0, a_payer: d.totaux?.a_payer ?? 0 });
+        }
+      } catch { /* non-bloquant */ }
+    })();
+    return () => { cancelled = true; };
+  }, [chantierId, token]);
+
   // Date de début globale du planning (lot le plus tôt avec date_debut)
   const planningStartDate = useMemo(() => {
     const dates = lots
@@ -695,6 +737,11 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
       .reduce((sum, d) => sum + (d.facture_statut === 'payee_partiellement' ? (d.montant_paye ?? 0) : (d.montant ?? 0)), 0),
     [documents],
   );
+  // Décaissé réel = paye (factures) + acompte (échéancier) depuis l'API budget
+  const decaisse  = budgetTotaux ? (budgetTotaux.paye + budgetTotaux.acompte) : totalPaye;
+  const aPayer30j = budgetTotaux?.a_payer ?? 0;
+  // Flux certains sortants = ce qui est sorti + ce qui va sortir de façon certaine
+  const fluxCertains = decaisse + aPayer30j;
 
   // ── Prochain RDV depuis localStorage ──────────────────────────────────────
   const [nextRdv, setNextRdv] = useState<{ titre: string; date: string; time?: string; type: string } | null>(null);
@@ -798,6 +845,8 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
             budgetReel={budgetReel}
             budgetEngage={budgetEngage}
             totalPaye={totalPaye}
+            decaisse={decaisse}
+            aPayer30j={aPayer30j}
             iaMin={displayMin}
             iaMax={displayMax}
             refinedBreakdown={refinedBreakdown}
@@ -810,6 +859,8 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
             budgetReel={budgetReel}
             budgetEngage={budgetEngage}
             totalPaye={totalPaye}
+            decaisse={decaisse}
+            aPayer30j={aPayer30j}
             iaMin={displayMin}
             iaMax={displayMax}
             refinedBreakdown={refinedBreakdown}
@@ -874,6 +925,23 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
           />
         )}
       </div>
+
+      {/* ── Alerte flux certains ─────────────────────────────── */}
+      {budgetReel && budgetReel > 0 && fluxCertains > budgetReel * 1.01 && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3.5 flex items-start gap-3">
+          <span className="text-lg shrink-0 mt-0.5">⚠️</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-bold text-red-800">
+              Dépassement de budget certain : {fmtEurShort(fluxCertains - budgetReel)} de plus que prévu
+            </p>
+            <p className="text-[11px] text-red-700 mt-1 leading-relaxed">
+              Décaissé <strong>{fmtEurShort(decaisse)}</strong> + à payer <strong>{fmtEurShort(aPayer30j)}</strong> = <strong>{fmtEurShort(fluxCertains)}</strong> de flux certains,{' '}
+              contre un budget cible de <strong>{fmtEurShort(budgetReel)}</strong>.{' '}
+              Ajustez votre budget ou votre plan de financement dans l'onglet Trésorerie.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── Prochaines étapes recommandées ──────────────────── */}
       <NextActionsBlock
