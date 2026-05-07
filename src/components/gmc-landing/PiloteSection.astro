@@ -1,0 +1,107 @@
+---
+const tools = [
+  ['analyze-quote', 'Analyse les devis · score fiabilité 🟢🟡🔴'],
+  ['chantier-generer', 'Génère lots, détermine le planning, adapte le budget'],
+  ['orchestrator', 'Lit WhatsApp · répond aux artisans'],
+  ['agent-checks', 'Surveille budget, retards, devis manquants'],
+  ['scheduled-tick', 'Envoie vos rappels au bon moment'],
+];
+---
+
+<section id="pilote" class="bg-white py-24 scroll-mt-20">
+  <div class="max-w-[1200px] mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center">
+    <div>
+      <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Pilote IA</p>
+      <h2 class="font-display font-extrabold text-[#0E1730] text-4xl sm:text-5xl leading-[1.05] tracking-tight">
+        +40 fonctions.<br />Un seul interlocuteur.
+      </h2>
+      <p class="mt-5 text-gray-600 text-lg leading-relaxed">
+        Sous le capot, sept agents IA spécialisés. Chacun son métier : analyser un devis, recalculer un planning, écrire à l'artisan, surveiller la trésorerie. Vous, vous discutez avec le Pilote — comme avec un chef de projet.
+      </p>
+
+      <div class="mt-7 space-y-2.5">
+        {tools.map(([n, d]) => (
+          <div class="flex items-center gap-3">
+            <code class="font-mono text-[11px] font-semibold bg-[#0E1730] text-[#7DD3FC] px-2.5 py-1 rounded-md">{n}</code>
+            <span class="text-sm text-gray-700">{d}</span>
+          </div>
+        ))}
+      </div>
+
+      <div class="mt-8 bg-[#0E1730] rounded-2xl p-5 border border-[#1B3FA1]/40 relative overflow-hidden">
+        <div class="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-[#F58A06] opacity-20 blur-3xl"></div>
+        <div class="relative">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-[10px] font-bold tracking-[.18em] text-[#F58A06] uppercase">Intégrations</span>
+            <span class="text-[10px] font-bold bg-[#F58A06]/20 text-[#F58A06] px-2 py-0.5 rounded-full">DEV</span>
+          </div>
+          <h3 class="font-display font-bold text-white text-xl leading-snug">
+            Branchez le Pilote à votre&nbsp;stack.
+          </h3>
+          <p class="mt-2 text-white/70 text-sm leading-relaxed">
+            Connectez votre Pilote IA à <strong class="text-white">OpenClaw</strong> pour
+            déléguer les tâches autonomes, ou exposez vos propres tool calls
+            via <strong class="text-white">MCP</strong>. Le copilote orchestre vos outils, pas l'inverse.
+          </p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <span class="inline-flex items-center gap-1.5 bg-white/10 border border-white/15 text-white text-[11px] font-semibold px-2.5 py-1 rounded-md">
+              <span class="w-1.5 h-1.5 rounded-full bg-[#1FB664]"></span>OpenClaw · agent autonome
+            </span>
+            <span class="inline-flex items-center gap-1.5 bg-white/10 border border-white/15 text-white text-[11px] font-semibold px-2.5 py-1 rounded-md">
+              <span class="w-1.5 h-1.5 rounded-full bg-[#7DD3FC]"></span>MCP · tool calling
+            </span>
+            <span class="inline-flex items-center gap-1.5 bg-white/10 border border-white/15 text-white text-[11px] font-semibold px-2.5 py-1 rounded-md">
+              <span class="w-1.5 h-1.5 rounded-full bg-[#F58A06]"></span>SDK · à venir
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-[#F5F6FA] rounded-3xl p-6 border border-gray-100 shadow-sm">
+      <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+        <div class="px-4 py-3 border-b border-gray-50 flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-[#1B3FA1] to-[#16348A] text-white flex items-center justify-center text-xs font-bold">🤖</div>
+          <div>
+            <p class="text-xs font-bold text-gray-800">Pilote de chantier</p>
+            <p class="text-[10px] text-gray-400">En ligne · WhatsApp privé</p>
+          </div>
+          <span class="ml-auto w-2 h-2 rounded-full bg-[#1FB664]"></span>
+        </div>
+        <div class="p-4 space-y-3 bg-gray-50/30">
+          <div class="flex justify-start">
+            <div class="bg-white border border-gray-100 rounded-2xl rounded-bl-sm px-3 py-2 max-w-[80%] text-xs text-gray-700 shadow-sm">
+              Jean (plombier) propose +5j de délai. Cascade ou détaché&nbsp;?
+            </div>
+          </div>
+          <div class="flex justify-end">
+            <div class="bg-[#1B3FA1] text-white rounded-2xl rounded-br-sm px-3 py-2 max-w-[80%] text-xs">Cascade.</div>
+          </div>
+          <div class="flex justify-start">
+            <div class="bg-white border border-gray-100 rounded-2xl rounded-bl-sm px-3 py-2 max-w-[80%] text-xs text-gray-700 shadow-sm space-y-1.5">
+              <p>Fait. Recalcul CPM&nbsp;:</p>
+              <div class="bg-[#F5F6FA] rounded-lg p-2 text-[10px]">
+                <p>📅 Plombier <span class="text-gray-400">→</span> <strong>+5j</strong></p>
+                <p>📅 Carreleur <span class="text-gray-400">→</span> <strong>+5j</strong></p>
+                <p>📅 Peintre <span class="text-gray-400">→</span> <strong>+3j</strong></p>
+              </div>
+              <p>Réception décalée au <strong>14 juin</strong>. Je préviens Patrick&nbsp;?</p>
+            </div>
+          </div>
+          <div class="flex justify-end">
+            <div class="bg-[#1B3FA1] text-white rounded-2xl rounded-br-sm px-3 py-2 max-w-[80%] text-xs">Oui, écris-lui.</div>
+          </div>
+          <div class="flex justify-center">
+            <div class="bg-white border border-blue-100 rounded-xl px-3 py-1.5 text-[10px] text-blue-700 shadow-sm">
+              ⚙️ Message envoyé · Patrick · accusé attendu
+            </div>
+          </div>
+        </div>
+        <div class="px-3 py-2.5 border-t border-gray-50 flex items-center gap-2 bg-white">
+          <input class="flex-1 h-8 px-3 rounded-lg bg-[#F5F6FA] text-xs text-gray-700" placeholder="Écrire au Pilote…" />
+          <button type="button" class="w-8 h-8 rounded-lg bg-[#1B3FA1] text-white text-xs font-bold">→</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

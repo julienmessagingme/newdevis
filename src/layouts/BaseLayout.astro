@@ -12,6 +12,7 @@ interface Props {
   canonical?: string;
   ogType?: string;
   ogImage?: string;
+  siteName?: string;
   jsonLd?: object;
   breadcrumbs?: BreadcrumbItem[];
   noindex?: boolean;
@@ -23,6 +24,7 @@ const {
   canonical,
   ogType = 'website',
   ogImage = 'https://www.verifiermondevis.fr/og-image.png',
+  siteName = 'VerifierMonDevis.fr',
   jsonLd,
   breadcrumbs,
   noindex = false,
@@ -71,7 +73,7 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
     <meta property="og:url" content={autoCanonical} />
     <meta property="og:image" content={ogImage} />
     <meta property="og:locale" content="fr_FR" />
-    <meta property="og:site_name" content="VerifierMonDevis.fr" />
+    <meta property="og:site_name" content={siteName} />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />

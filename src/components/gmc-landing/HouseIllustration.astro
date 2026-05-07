@@ -1,0 +1,152 @@
+---
+interface Props {
+  compact?: boolean;
+}
+const { compact = false } = Astro.props;
+const beacons = [
+  { cx: 152, cy: 350, delay: 0 },
+  { cx: 530, cy: 360, delay: 0.5 },
+  { cx: 240, cy: 470, delay: 1.0 },
+  { cx: 200, cy: 595, delay: 1.5 },
+  { cx: 488, cy: 555, delay: 2.0 },
+];
+const dots = [
+  { x: 80, y: 720, d: 0.2 },
+  { x: 604, y: 720, d: 0.2 },
+  { x: 604, y: 260, d: 0.6 },
+  { x: 80, y: 260, d: 0.6 },
+  { x: 342, y: 100, d: 1.4 },
+];
+---
+
+<div
+  class:list={['relative w-full mx-auto select-none', compact ? 'max-w-[520px]' : 'max-w-[600px]']}
+  style="aspect-ratio:684/806"
+>
+  <img
+    src="/images/gmc/hero-illustration.png"
+    alt="Plan d'architecture annoté avec un propriétaire au centre du chantier"
+    class="absolute inset-0 w-full h-full object-contain"
+    style="filter: contrast(1.04) saturate(1.06)"
+  />
+
+  <svg
+    viewBox="0 0 684 806"
+    class="absolute inset-0 w-full h-full pointer-events-none"
+    aria-hidden="true"
+  >
+    <defs>
+      <linearGradient id="houseLineGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#1B3FA1" />
+        <stop offset="1" stop-color="#2563EB" />
+      </linearGradient>
+      <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+        <feGaussianBlur stdDeviation="2" result="blur" />
+        <feMerge>
+          <feMergeNode in="blur" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
+
+    <g style="filter:url(#glow)">
+      <path class="house-line" d="M 80 720 L 604 720" stroke="url(#houseLineGrad)" stroke-width="3" fill="none" stroke-linecap="round" style="animation-delay:.2s" />
+      <path class="house-line" d="M 604 720 L 604 260" stroke="url(#houseLineGrad)" stroke-width="3" fill="none" stroke-linecap="round" style="animation-delay:.6s" />
+      <path class="house-line" d="M 80 720 L 80 260" stroke="url(#houseLineGrad)" stroke-width="3" fill="none" stroke-linecap="round" style="animation-delay:.6s" />
+      <path class="house-line" d="M 80 260 L 604 260" stroke="url(#houseLineGrad)" stroke-width="3" fill="none" stroke-linecap="round" style="animation-delay:1s" />
+      <path class="house-line" d="M 80 260 L 342 100" stroke="url(#houseLineGrad)" stroke-width="3" fill="none" stroke-linecap="round" style="animation-delay:1.4s" />
+      <path class="house-line" d="M 342 100 L 604 260" stroke="url(#houseLineGrad)" stroke-width="3" fill="none" stroke-linecap="round" style="animation-delay:1.4s" />
+    </g>
+
+    {dots.map((p) => (
+      <circle cx={p.x} cy={p.y} r="3.5" fill="#1B3FA1" class="house-dot" style={`animation-delay:${p.d + 0.6}s`} />
+    ))}
+
+    {beacons.map((p, i) => (
+      <g class="house-beacon" style={`animation-delay:${2.8 + i * 0.2}s`}>
+        <circle
+          cx={p.cx} cy={p.cy} r="7"
+          fill="none" stroke="#1FB664" stroke-width="1.5"
+          class="house-ping"
+          style={`transform-origin:${p.cx}px ${p.cy}px;animation-delay:${p.delay}s`}
+        />
+        <circle cx={p.cx} cy={p.cy} r="4" fill="#1FB664" />
+        <circle cx={p.cx} cy={p.cy} r="2" fill="#fff" />
+      </g>
+    ))}
+
+    <g class="house-fade" style="animation-delay:3.4s">
+      <g transform="translate(20 110)">
+        <rect width="180" height="46" rx="10" fill="#fff" stroke="#E6E8EE" stroke-width="1" />
+        <rect x="0" y="0" width="4" height="46" rx="2" fill="#2563EB" />
+        <text x="14" y="18" font-size="8.5" font-weight="800" fill="#9AA1AC" font-family="DM Sans" letter-spacing="1.4">PLANNING · IA</text>
+        <text x="14" y="32" font-size="11" font-weight="700" fill="#0E1730" font-family="DM Sans">Plomberie décalée · J+5</text>
+        <text x="14" y="42" font-size="9" font-weight="500" fill="#677084" font-family="DM Sans">Recalcul CPM en cours</text>
+      </g>
+    </g>
+
+    <g class="house-fade" style="animation-delay:3.8s">
+      <g transform="translate(465 60)">
+        <rect width="200" height="50" rx="10" fill="#fff" stroke="#E6E8EE" stroke-width="1" />
+        <circle cx="20" cy="25" r="11" fill="#1FB664" />
+        <text x="20" y="29" text-anchor="middle" font-size="11" font-weight="700" fill="#fff" font-family="DM Sans">W</text>
+        <text x="38" y="20" font-size="9" font-weight="800" fill="#9AA1AC" font-family="DM Sans" letter-spacing="1.2">RÉPONSE ENVOYÉE</text>
+        <text x="38" y="33" font-size="11" font-weight="700" fill="#0E1730" font-family="DM Sans">Patrick (carreleur)</text>
+        <text x="38" y="44" font-size="9" font-weight="500" fill="#677084" font-family="DM Sans">« Validé pour mardi 9h »</text>
+      </g>
+    </g>
+
+    <g class="house-fade" style="animation-delay:4.2s">
+      <g transform="translate(420 686)">
+        <rect width="200" height="36" rx="10" fill="#0E1730" />
+        <circle cx="18" cy="18" r="8" fill="#1FB664" />
+        <path d="M 13 18 l 4 4 l 7 -7" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        <text x="34" y="23" font-size="11.5" font-weight="800" fill="#fff" font-family="DM Sans">Chantier sous contrôle</text>
+      </g>
+    </g>
+
+    <g class="house-fade" style="animation-delay:4.5s">
+      <g transform="translate(20 686)">
+        <rect width="180" height="36" rx="10" fill="#fff" stroke="#E6E8EE" />
+        <rect x="10" y="9" width="14" height="18" rx="2" fill="#F58A06" opacity="0.18" />
+        <text x="17" y="22" text-anchor="middle" font-size="11">📄</text>
+        <text x="34" y="17" font-size="8.5" font-weight="800" fill="#9AA1AC" font-family="DM Sans" letter-spacing="1.2">DOC RANGÉ</text>
+        <text x="34" y="29" font-size="10.5" font-weight="700" fill="#0E1730" font-family="DM Sans">Devis plombier v3 → Lot 04</text>
+      </g>
+    </g>
+  </svg>
+</div>
+
+<style>
+  .house-line {
+    stroke-dasharray: 1000;
+    stroke-dashoffset: 1000;
+    animation: house-draw 1.4s ease-out forwards;
+  }
+  @keyframes house-draw { to { stroke-dashoffset: 0; } }
+  .house-fade {
+    opacity: 0;
+    transform: translateY(4px);
+    transform-box: fill-box;
+    animation: house-fade .7s ease-out forwards;
+  }
+  @keyframes house-fade { to { opacity: 1; transform: translateY(0); } }
+  .house-dot {
+    opacity: 0;
+    animation: house-fade-dot .35s ease-out forwards;
+  }
+  @keyframes house-fade-dot { to { opacity: 1; } }
+  .house-beacon {
+    opacity: 0;
+    animation: house-beacon-fade .5s ease-out forwards;
+  }
+  @keyframes house-beacon-fade { to { opacity: 1; } }
+  .house-ping {
+    animation: house-ping 2.6s ease-out infinite;
+  }
+  @keyframes house-ping {
+    0%   { r: 7;  opacity: .9; stroke-width: 1.5; }
+    80%  { r: 26; opacity: 0;  stroke-width: 0.5; }
+    100% { r: 26; opacity: 0; }
+  }
+</style>

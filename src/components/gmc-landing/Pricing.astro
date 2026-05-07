@@ -1,0 +1,178 @@
+---
+const plans = [
+  {
+    n: 'Essentiel',
+    priceM: '12', priceY: '120',
+    subM: '€/mois · par chantier', subY: '€/an · par chantier',
+    saving: '2 mois offerts',
+    f: ['Cockpit complet', 'Pilote IA — 40+ fonctions', 'Messagerie WhatsApp + email', 'Documents illimités'],
+    cta: 'Démarrer',
+    highlight: false,
+  },
+  {
+    n: 'Multi-chantiers',
+    priceM: '25', priceY: '210',
+    subM: '€/mois · projets illimités', subY: '€/an · projets illimités',
+    saving: '-30 % vs mensuel',
+    f: ['Tout Essentiel', 'Multi-chantiers illimités', 'Journal IA quotidien', 'Branchement OpenClaw + MCP', 'Support prioritaire'],
+    cta: 'Essayer Multi',
+    highlight: true,
+  },
+  {
+    n: 'Sur mesure',
+    priceM: '—', priceY: '—',
+    subM: 'pour MOE & architectes', subY: 'pour MOE & architectes',
+    saving: null,
+    f: ['Marque blanche', 'API + SSO', 'Onboarding dédié', 'SLA contractuel'],
+    cta: 'Nous contacter',
+    highlight: false,
+  },
+];
+---
+
+<section id="tarifs" class="bg-[#F8F9FC] py-24 scroll-mt-20">
+  <div class="max-w-[1200px] mx-auto px-6">
+    <div class="text-center max-w-2xl mx-auto mb-10">
+      <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Tarifs</p>
+      <h2 class="font-display font-extrabold text-[#0E1730] text-4xl sm:text-5xl leading-[1.05] tracking-tight">
+        Simple. Au prix d'un café par semaine.
+      </h2>
+      <p class="mt-4 text-gray-600 text-lg">15 jours d'essai libre, sans CB.</p>
+    </div>
+
+    <div class="flex justify-center mb-10">
+      <div class="inline-flex items-center bg-white border border-gray-200 rounded-full p-1 shadow-sm" role="tablist">
+        <button type="button" data-pricing-mode="m" class="pricing-btn px-5 h-9 rounded-full text-sm font-bold transition-all bg-[#0E1730] text-white shadow-sm">
+          Mensuel
+        </button>
+        <button type="button" data-pricing-mode="y" class="pricing-btn px-5 h-9 rounded-full text-sm font-bold transition-all flex items-center gap-2 text-gray-500 hover:text-gray-800">
+          Annuel
+          <span class="pricing-badge text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#F58A06]/15 text-[#F58A06]">−30 %</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-5">
+      {plans.map((pl) => (
+        <div class:list={[
+          'relative rounded-2xl p-7 border transition-all',
+          pl.highlight ? 'bg-[#0E1730] border-[#1B3FA1] text-white shadow-2xl scale-[1.02]' : 'bg-white border-gray-100 hover:shadow-lg',
+        ]}>
+          {pl.highlight && (
+            <span class="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#F58A06] text-white text-[10px] font-bold px-3 py-1 rounded-full">RECOMMANDÉ</span>
+          )}
+          <p class:list={['text-xs font-bold uppercase tracking-wider', pl.highlight ? 'text-[#F58A06]' : 'text-[#1B3FA1]']}>{pl.n}</p>
+          <div class="mt-2 flex items-baseline gap-1">
+            <p
+              class:list={['font-display font-extrabold text-5xl tabular-nums', pl.highlight ? 'text-white' : 'text-[#0E1730]']}
+              data-price-m={pl.priceM}
+              data-price-y={pl.priceY}
+            >
+              {pl.priceM === '—' ? '—' : (<span><span class="price-num">{pl.priceM}</span><span class="text-2xl">€</span></span>)}
+            </p>
+          </div>
+          <p
+            class:list={['text-xs', pl.highlight ? 'text-white/60' : 'text-gray-500']}
+            data-sub-m={pl.subM}
+            data-sub-y={pl.subY}
+          >
+            {pl.subM}
+          </p>
+          {pl.saving && pl.priceM !== '—' && (
+            <p
+              class:list={[
+                'pricing-saving mt-1.5 inline-block text-[10px] font-bold px-2 py-0.5 rounded',
+                pl.highlight ? 'bg-[#F58A06]/25 text-[#F58A06]' : 'bg-[#1FB664]/15 text-[#1FB664]',
+                'hidden',
+              ]}
+              data-saving={pl.saving}
+            >
+              ✓ {pl.saving}
+            </p>
+          )}
+          <ul class:list={['mt-5 space-y-2 text-sm', pl.highlight ? 'text-white/85' : 'text-gray-700']}>
+            {pl.f.map((f) => (
+              <li class="flex items-start gap-2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1FB664" stroke-width="3" class="shrink-0 mt-0.5">
+                  <path d="m5 12 5 5L20 7" />
+                </svg>
+                <span>{f}</span>
+              </li>
+            ))}
+          </ul>
+          <a
+            href={pl.cta === 'Nous contacter' ? '/contact' : '/mon-chantier/nouveau'}
+            class:list={[
+              'mt-6 inline-flex items-center justify-center w-full gap-1.5 text-sm font-bold px-5 h-11 rounded-xl cursor-pointer transition-colors',
+              pl.highlight ? 'bg-[#F58A06] hover:bg-[#E47C00] text-white' : 'bg-[#1B3FA1] hover:bg-[#16348A] text-white',
+            ]}
+          >
+            {pl.cta}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M5 12h14M13 5l7 7-7 7" />
+            </svg>
+          </a>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<script>
+  const buttons = document.querySelectorAll<HTMLButtonElement>('.pricing-btn');
+  const priceEls = document.querySelectorAll<HTMLElement>('[data-price-m]');
+  const subEls = document.querySelectorAll<HTMLElement>('[data-sub-m]');
+  const savings = document.querySelectorAll<HTMLElement>('.pricing-saving');
+  const badge = document.querySelector<HTMLElement>('.pricing-badge');
+
+  buttons.forEach((b) =>
+    b.addEventListener('click', () => {
+      const mode = b.dataset.pricingMode as 'm' | 'y';
+      const annual = mode === 'y';
+
+      buttons.forEach((other) => {
+        const isActive = other === b;
+        if (isActive) {
+          other.classList.add('bg-[#0E1730]', 'text-white', 'shadow-sm');
+          other.classList.remove('text-gray-500', 'hover:text-gray-800');
+        } else {
+          other.classList.remove('bg-[#0E1730]', 'text-white', 'shadow-sm');
+          other.classList.add('text-gray-500', 'hover:text-gray-800');
+        }
+      });
+
+      if (badge) {
+        if (annual) {
+          badge.classList.remove('bg-[#F58A06]/15', 'text-[#F58A06]');
+          badge.classList.add('bg-[#F58A06]', 'text-white');
+        } else {
+          badge.classList.add('bg-[#F58A06]/15', 'text-[#F58A06]');
+          badge.classList.remove('bg-[#F58A06]', 'text-white');
+        }
+      }
+
+      priceEls.forEach((el) => {
+        const m = el.dataset.priceM!;
+        const y = el.dataset.priceY!;
+        const target = annual ? y : m;
+        const numEl = el.querySelector<HTMLElement>('.price-num');
+        if (target === '—') {
+          el.textContent = '—';
+        } else if (numEl) {
+          numEl.textContent = target;
+        } else {
+          el.innerHTML = `<span><span class="price-num">${target}</span><span class="text-2xl">€</span></span>`;
+        }
+      });
+
+      subEls.forEach((el) => {
+        el.textContent = annual ? el.dataset.subY! : el.dataset.subM!;
+      });
+
+      savings.forEach((el) => {
+        if (annual) el.classList.remove('hidden');
+        else el.classList.add('hidden');
+      });
+    })
+  );
+</script>

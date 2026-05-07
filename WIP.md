@@ -11,6 +11,45 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## NEW. Landing publique gerermonchantier.fr (multi-domaine sur newdevis)
+
+🟡 **En route (2026-05-07)** — domaine acheté, DNS configuré, déploiement initial en cours.
+
+### Stratégie retenue (Option A)
+
+Un seul projet Vercel `newdevis` sert deux domaines :
+- `verifiermondevis.fr` (existant, inchangé)
+- `gerermonchantier.fr` (nouveau)
+
+Mécanisme : **rewrite Vercel edge** sur `/` quand Host = gerermonchantier.fr → réécrit vers `/gmc-home`. Toutes les autres routes (mon-chantier, auth, etc.) restent accessibles transparemment. Pas de middleware Astro nécessaire (rewrite edge plus performant que SSR).
+
+### Ce qui est livré
+
+- `vercel.json` : rewrites pour `(www.)?gerermonchantier.fr/` → `/gmc-home`
+- `src/pages/gmc-home.astro` : nouvelle landing GMC avec canonical/siteName dédiés
+- `src/components/gmc-landing/` : composants Astro purs (Hero animé, HowItWorks avec toggle, Features grid, PiloteSection avec OpenClaw+MCP, Pricing avec toggle annuel/mensuel, CTA, Footer)
+- `public/images/gmc/hero-illustration.png` : photo maison + propriétaire (~1Mo)
+- `BaseLayout.astro` : nouveau prop `siteName` pour og:site_name (default = "VerifierMonDevis.fr")
+- DNS OVH : A `@` → 216.198.79.1, CNAME `www` → vercel-dns-017.com
+
+### À valider après deploy
+
+- gerermonchantier.fr/ rend bien la landing GMC (rewrite edge OK)
+- gerermonchantier.fr/mon-chantier rend le hub chantier (page partagée OK)
+- verifiermondevis.fr/ rend toujours la landing VMD (zéro régression)
+- canonical de gmc-home pointe bien vers https://gerermonchantier.fr/
+- og:site_name = "GérerMonChantier" sur gmc-home
+
+### Reste à faire (v2)
+
+- Image OG dédiée `og-gmc.png` (1200x630)
+- Bouton "Importer mes devis VMD" sur la landing GMC → flow cross-app
+- Bouton "Voir mes chantiers" sur la landing VMD → lien vers gerermonchantier.fr
+- Sitemap.xml dédié pour gerermonchantier.fr
+- Optimiser hero-illustration.png (1Mo → <300Ko en webp/avif)
+
+---
+
 ## 22. Multi-devis — PDF contenant plusieurs artisans
 
 🟢 **Architecture complète + 7 règles de fiabilité implémentées (2026-05-04). À déployer + valider.**

@@ -1,0 +1,154 @@
+---
+const steps = {
+  start: [
+    {
+      n: '01', ic: '✏️',
+      t: 'Décrivez votre projet, en français.',
+      d: '« Rénovation maison 120 m² + salle de bain. » Le Pilote détecte les lots, pose 4 questions ciblées et calibre le projet.',
+      tag: 'Génération en 60 s',
+    },
+    {
+      n: '02', ic: '📐',
+      t: 'Le Pilote structure le chantier.',
+      d: "Lots chaînés, planning, budget min/moyen/max par poste, formalités, aides éligibles, équipe d'artisans à briefer.",
+      tag: 'Catalogue 1000+ prix',
+    },
+    {
+      n: '03', ic: '🤖',
+      t: 'Il gère, vous arbitrez.',
+      d: "Il lit vos WhatsApp et emails, répond aux artisans, programme les rappels, surveille le budget. Vous validez d'un tap.",
+      tag: '+40 fonctions actives',
+    },
+  ],
+  resume: [
+    {
+      n: '01', ic: '📂',
+      t: 'Déposez vos devis (signés ou non).',
+      d: 'PDF, photos, captures WhatsApp. Le Pilote extrait artisan, lots, montants, dates et reconstitue votre projet.',
+      tag: 'OCR + IA · < 2 min',
+    },
+    {
+      n: '02', ic: '🧩',
+      t: 'Il reconstitue le chantier.',
+      d: 'Planning CPM auto-monté à partir des dates connues, tréso prête, alertes sur les pièces manquantes (assurances, devis non signés…).',
+      tag: 'Sans ressaisie',
+    },
+    {
+      n: '03', ic: '🤖',
+      t: 'Il prend la main.',
+      d: "Messagerie unifiée avec vos artisans, rappels d'échéances, suivi des paiements. Vous reprenez le pilotage là où vous en étiez.",
+      tag: 'Opérationnel en 10 min',
+    },
+  ],
+};
+---
+
+<section id="etapes" class="relative bg-white py-24 scroll-mt-20">
+  <div class="max-w-[1200px] mx-auto px-6">
+    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-6 max-w-3xl">
+      <div>
+        <p class="text-[11px] font-bold uppercase tracking-[.18em] text-[#1B3FA1] mb-3">Comment ça marche</p>
+        <h2 class="font-display font-extrabold text-[#0E1730] text-4xl sm:text-5xl leading-[1.05] tracking-tight" data-hiw-title>
+          Du texte libre au chantier piloté, en 3 étapes.
+        </h2>
+      </div>
+    </div>
+
+    <div class="mt-7 inline-flex items-center bg-[#F5F6FA] border border-gray-200 rounded-full p-1" role="tablist">
+      <button
+        type="button"
+        data-hiw-mode="start"
+        class="hiw-btn px-5 h-10 rounded-full text-sm font-bold transition-all flex items-center gap-2 bg-white text-[#0E1730] shadow-sm"
+      >
+        <span>🌱</span> Je démarre un projet
+      </button>
+      <button
+        type="button"
+        data-hiw-mode="resume"
+        class="hiw-btn px-5 h-10 rounded-full text-sm font-bold transition-all flex items-center gap-2 text-gray-500 hover:text-gray-800"
+      >
+        <span>📂</span> J'ai déjà mes devis
+      </button>
+    </div>
+
+    <ol class="mt-10 grid md:grid-cols-3 gap-5 relative" id="hiw-grid">
+      <div class="hidden md:block absolute top-[42px] left-[8%] right-[8%] h-px bg-gradient-to-r from-transparent via-[#1B3FA1]/30 to-transparent"></div>
+      {steps.start.map((s, i) => (
+        <li
+          data-mode="start"
+          class="hiw-step relative bg-[#F8F9FC] border border-gray-100 rounded-2xl p-7 hover:border-[#1B3FA1]/30 hover:bg-white transition-all hover:-translate-y-1 hover:shadow-lg group hi-fade"
+          style={`animation-delay:${i * 0.08}s`}
+        >
+          <div class="flex items-center gap-3 mb-5">
+            <span class="w-12 h-12 rounded-2xl bg-white shadow-sm border border-gray-100 flex items-center justify-center text-2xl">{s.ic}</span>
+            <span class="font-display font-extrabold text-3xl text-[#1B3FA1]/15 group-hover:text-[#1B3FA1]/25 transition-colors">{s.n}</span>
+          </div>
+          <h3 class="font-display font-bold text-[#0E1730] text-xl leading-snug">{s.t}</h3>
+          <p class="mt-3 text-gray-600 text-sm leading-relaxed">{s.d}</p>
+          <span class="mt-5 inline-flex items-center gap-1.5 text-[11px] font-bold text-[#1B3FA1] bg-[#1B3FA1]/8 px-2.5 py-1 rounded-full">
+            <span class="w-1.5 h-1.5 rounded-full bg-[#1FB664]"></span>{s.tag}
+          </span>
+        </li>
+      ))}
+      {steps.resume.map((s, i) => (
+        <li
+          data-mode="resume"
+          class="hiw-step relative bg-[#F8F9FC] border border-gray-100 rounded-2xl p-7 hover:border-[#1B3FA1]/30 hover:bg-white transition-all hover:-translate-y-1 hover:shadow-lg group hidden"
+          style={`animation-delay:${i * 0.08}s`}
+        >
+          <div class="flex items-center gap-3 mb-5">
+            <span class="w-12 h-12 rounded-2xl bg-white shadow-sm border border-gray-100 flex items-center justify-center text-2xl">{s.ic}</span>
+            <span class="font-display font-extrabold text-3xl text-[#1B3FA1]/15 group-hover:text-[#1B3FA1]/25 transition-colors">{s.n}</span>
+          </div>
+          <h3 class="font-display font-bold text-[#0E1730] text-xl leading-snug">{s.t}</h3>
+          <p class="mt-3 text-gray-600 text-sm leading-relaxed">{s.d}</p>
+          <span class="mt-5 inline-flex items-center gap-1.5 text-[11px] font-bold text-[#1B3FA1] bg-[#1B3FA1]/8 px-2.5 py-1 rounded-full">
+            <span class="w-1.5 h-1.5 rounded-full bg-[#1FB664]"></span>{s.tag}
+          </span>
+        </li>
+      ))}
+    </ol>
+  </div>
+</section>
+
+<style>
+  .hi-fade {
+    opacity: 0;
+    transform: translateY(8px);
+    animation: hi-fade .8s ease-out forwards;
+  }
+  @keyframes hi-fade { to { opacity: 1; transform: none; } }
+</style>
+
+<script>
+  const buttons = document.querySelectorAll<HTMLButtonElement>('.hiw-btn');
+  const steps = document.querySelectorAll<HTMLLIElement>('.hiw-step');
+  const titleEl = document.querySelector<HTMLElement>('[data-hiw-title]');
+
+  const titles = {
+    start: 'Du texte libre au chantier piloté, en 3 étapes.',
+    resume: "Vos devis sont déjà là ? On reprend en marche, sans tout redémarrer.",
+  };
+
+  buttons.forEach((b) =>
+    b.addEventListener('click', () => {
+      const mode = b.dataset.hiwMode as 'start' | 'resume';
+      buttons.forEach((other) => {
+        if (other === b) {
+          other.className = 'hiw-btn px-5 h-10 rounded-full text-sm font-bold transition-all flex items-center gap-2 bg-white text-[#0E1730] shadow-sm';
+        } else {
+          other.className = 'hiw-btn px-5 h-10 rounded-full text-sm font-bold transition-all flex items-center gap-2 text-gray-500 hover:text-gray-800';
+        }
+      });
+      steps.forEach((step) => {
+        if (step.dataset.mode === mode) {
+          step.classList.remove('hidden');
+          step.classList.add('hi-fade');
+        } else {
+          step.classList.add('hidden');
+        }
+      });
+      if (titleEl) titleEl.textContent = titles[mode];
+    })
+  );
+</script>

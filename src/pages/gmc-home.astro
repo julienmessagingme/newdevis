@@ -1,0 +1,71 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Header from '@/components/gmc-landing/Header.astro';
+import Hero from '@/components/gmc-landing/Hero.astro';
+import HowItWorks from '@/components/gmc-landing/HowItWorks.astro';
+import Features from '@/components/gmc-landing/Features.astro';
+import PiloteSection from '@/components/gmc-landing/PiloteSection.astro';
+import Pricing from '@/components/gmc-landing/Pricing.astro';
+import FinalCTA from '@/components/gmc-landing/FinalCTA.astro';
+import Footer from '@/components/gmc-landing/Footer.astro';
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'GérerMonChantier',
+  description:
+    'Le copilote IA des chantiers — planning, messagerie WhatsApp, devis, trésorerie, rappels. Vous arbitrez, le Pilote exécute.',
+  url: 'https://gerermonchantier.fr',
+  applicationCategory: 'BusinessApplication',
+  operatingSystem: 'Web',
+  inLanguage: 'fr-FR',
+  offers: [
+    {
+      '@type': 'Offer',
+      price: '12',
+      priceCurrency: 'EUR',
+      name: 'Essentiel · mensuel',
+    },
+    {
+      '@type': 'Offer',
+      price: '120',
+      priceCurrency: 'EUR',
+      name: 'Essentiel · annuel',
+    },
+    {
+      '@type': 'Offer',
+      price: '25',
+      priceCurrency: 'EUR',
+      name: 'Multi-chantiers · mensuel',
+    },
+    {
+      '@type': 'Offer',
+      price: '210',
+      priceCurrency: 'EUR',
+      name: 'Multi-chantiers · annuel',
+    },
+  ],
+};
+---
+
+<BaseLayout
+  title="GérerMonChantier — le copilote IA des chantiers"
+  description="Planifier les lots, répondre aux artisans sur WhatsApp, classer les devis, suivre la trésorerie, déclencher les rappels — GMC orchestre tout. Vous arbitrez, le Pilote exécute."
+  canonical="https://gerermonchantier.fr/"
+  ogImage="https://gerermonchantier.fr/images/gmc/hero-illustration.png"
+  siteName="GérerMonChantier"
+  jsonLd={jsonLd}
+>
+  <div class="min-h-screen flex flex-col">
+    <Header />
+    <main class="flex-1">
+      <Hero />
+      <HowItWorks />
+      <Features />
+      <PiloteSection />
+      <Pricing />
+      <FinalCTA />
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>

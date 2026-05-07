@@ -1,0 +1,53 @@
+---
+import Logo from './Logo.astro';
+
+const cols = [
+  { h: 'Produit', l: [
+    { label: 'Fonctionnalités', href: '#fonctionnalites' },
+    { label: 'Pilote IA', href: '#pilote' },
+    { label: 'Tarifs', href: '#tarifs' },
+    { label: 'Sécurité', href: '#' },
+  ]},
+  { h: 'Ressources', l: [
+    { label: 'Guide rénovation', href: '#' },
+    { label: 'Aides énergétiques', href: '#' },
+    { label: 'API & MCP', href: '#' },
+    { label: 'Blog', href: '#' },
+  ]},
+  { h: 'Société', l: [
+    { label: 'À propos', href: '/qui-sommes-nous' },
+    { label: 'Contact', href: '/contact' },
+    { label: 'CGU', href: '/cgu' },
+    { label: 'Confidentialité', href: '/confidentialite' },
+  ]},
+];
+---
+
+<footer class="bg-[#0E1730] text-white/70 py-14">
+  <div class="max-w-[1200px] mx-auto px-6 grid md:grid-cols-[2fr_1fr_1fr_1fr] gap-10">
+    <div>
+      <Logo size="md" dark animated={false} />
+      <p class="mt-4 text-sm leading-relaxed max-w-sm">
+        Le copilote des chantiers. Conçu en France, hébergé chez OVH.
+      </p>
+      <p class="mt-4 text-xs flex items-center gap-2">
+        <span class="bg-white/10 px-2 py-1 rounded-md">Sœur de</span>
+        <a class="font-semibold text-white hover:text-[#F58A06] cursor-pointer" href="https://www.verifiermondevis.fr">VerifierMonDevis.fr →</a>
+      </p>
+    </div>
+    {cols.map((c) => (
+      <div>
+        <p class="text-[11px] font-bold uppercase tracking-[.15em] text-white mb-3">{c.h}</p>
+        <ul class="space-y-2 text-xs">
+          {c.l.map((i) => (
+            <li><a class="hover:text-white cursor-pointer" href={i.href}>{i.label}</a></li>
+          ))}
+        </ul>
+      </div>
+    ))}
+  </div>
+  <div class="max-w-[1200px] mx-auto px-6 mt-10 pt-6 border-t border-white/10 flex flex-wrap justify-between items-center gap-4 text-[11px]">
+    <p>© 2026 GérerMonChantier · Tous droits réservés</p>
+    <p>RGPD · Données hébergées en France</p>
+  </div>
+</footer>
