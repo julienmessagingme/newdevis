@@ -497,21 +497,170 @@ function AddEntreeModal({ chantierId, token, onAdded, onClose }: {
 
 // ── Entrée Row ────────────────────────────────────────────────────────────────
 
-function EntreeRow({ entree, onToggle, onDelete, deleting }: {
+function EntreeRow({ entree, onToggle, onDelete, onSave, deleting }: {
   entree: EntreeChantier;
   onToggle: () => void;
   onDelete: () => void;
+  onSave: (patch: Partial<EntreeChantier>) => Promise<void>;
   deleting: boolean;
 }) {
-  const src = SOURCE_CFG[entree.source_type] ?? SOURCE_CFG.autre;
+  const [editing, setEditing] = useState(false);
+  const [saving,  setSaving]  = useState(false);
+  const [draft, setDraft] = useState({
+    label:       entree.label,
+    montant:     String(entree.montant),
+    date_entree: entree.date_entree,
+    source_type: entree.source_type,
+    statut:      entree.statut,
+  });
+
+  // Sync draft quand l'entrée change depuis l'extérieur
+  useEffect(() => {
+    setDraft({
+      label:       entree.label,
+      montant:     String(entree.montant),
+      date_entree: entree.date_entree,
+      source_type: entree.source_type,
+      statut:      entree.statut,
+    });
+  }, [entree]);
+
+  function openEdit(e: React.MouseEvent) {
+    // Ne pas ouvrir si clic sur toggle statut ou delete
+    if ((e.target as HTMLElement).closest('[data-no-edit]')) return;
+    setEditing(true);
+  }
+
+  async function handleSave() {
+    const montantNum = parseFloat(draft.montant.replace(/\s/g, '').replace(',', '.'));
+    if (isNaN(montantNum) || montantNum <= 0) return;
+    const effectiveLabel = draft.label.trim() || SOURCE_CFG[draft.source_type as SourceType]?.label || entree.label;
+    setSaving(true);
+    try {
+      await onSave({
+        label:       effectiveLabel,
+        montant:     montantNum,
+        date_entree: draft.date_entree,
+        source_type: draft.source_type,
+        statut:      draft.statut,
+      });
+      setEditing(false);
+    } finally { setSaving(false); }
+  }
+
+  function handleCancel() {
+    setDraft({
+      label:       entree.label,
+      montant:     String(entree.montant),
+      date_entree: entree.date_entree,
+      source_type: entree.source_type,
+      statut:      entree.statut,
+    });
+    setEditing(false);
+  }
+
+  const src    = SOURCE_CFG[entree.source_type] ?? SOURCE_CFG.autre;
   const isRecu = entree.statut === 'recu';
+
+  /* ── Mode édition ── */
+  if (editing) {
+    return (
+      <div className="bg-white border-2 border-indigo-200 rounded-xl p-4 shadow-sm space-y-3">
+        {/* Type */}
+        <div className="grid grid-cols-2 gap-1.5">
+          {(Object.entries(SOURCE_CFG) as [SourceType, typeof SOURCE_CFG[SourceType]][]).map(([key, cfg]) => (
+            <button key={key} type="button"
+              onClick={() => setDraft(d => ({
+                ...d,
+                source_type: key,
+                label: d.label === SOURCE_CFG[d.source_type as SourceType]?.label ? cfg.label : d.label,
+              }))}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[10px] font-semibold transition-all ${
+                draft.source_type === key
+                  ? 'bg-indigo-600 border-indigo-600 text-white'
+                  : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50'
+              }`}>
+              <span>{cfg.emoji}</span>
+              <span className="truncate">{cfg.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Libellé */}
+        <input
+          value={draft.label}
+          onChange={e => setDraft(d => ({ ...d, label: e.target.value }))}
+          placeholder={SOURCE_CFG[draft.source_type as SourceType]?.label}
+          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-200"
+        />
+
+        {/* Montant + Date */}
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <label className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-1">Montant (€)</label>
+            <input
+              value={draft.montant}
+              onChange={e => setDraft(d => ({ ...d, montant: e.target.value }))}
+              inputMode="decimal"
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-200"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-1">Date</label>
+            <input
+              type="date"
+              value={draft.date_entree}
+              onChange={e => setDraft(d => ({ ...d, date_entree: e.target.value }))}
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-200"
+            />
+          </div>
+        </div>
+
+        {/* Statut */}
+        <div className="flex gap-2">
+          {(['attendu', 'recu'] as StatutEntree[]).map(s => (
+            <button key={s} type="button"
+              onClick={() => setDraft(d => ({ ...d, statut: s }))}
+              className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${
+                draft.statut === s
+                  ? s === 'recu' ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-indigo-600 border-indigo-600 text-white'
+                  : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+              }`}>
+              {s === 'recu' ? '✓ Déjà reçu' : '⏳ Attendu / à venir'}
+            </button>
+          ))}
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2 pt-1">
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 py-2 rounded-lg bg-indigo-600 text-white text-[12px] font-bold disabled:opacity-50 hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1.5">
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            Sauvegarder
+          </button>
+          <button onClick={handleCancel}
+            className="px-4 py-2 rounded-lg border border-gray-200 text-gray-500 text-[12px] font-semibold hover:bg-gray-50 transition-colors">
+            Annuler
+          </button>
+          <button data-no-edit onClick={onDelete} disabled={deleting}
+            className="p-2 rounded-lg border border-red-100 text-red-300 hover:text-red-500 hover:border-red-300 transition-colors">
+            {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Mode lecture — clic sur la ligne pour éditer ── */
   return (
-    <div className={`bg-white border rounded-xl px-4 py-3 flex items-center gap-3 shadow-sm ${
-      isRecu ? 'border-emerald-100' : 'border-gray-100'
-    }`}>
+    <div
+      onClick={openEdit}
+      className={`bg-white border rounded-xl px-4 py-3 flex items-center gap-3 shadow-sm cursor-pointer hover:border-indigo-200 hover:shadow-md transition-all group ${
+        isRecu ? 'border-emerald-100' : 'border-gray-100'
+      }`}>
       <span className="text-xl shrink-0">{src.emoji}</span>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-800 truncate">{entree.label}</p>
+        <p className="text-sm font-semibold text-gray-800 truncate group-hover:text-indigo-700 transition-colors">{entree.label}</p>
         <p className="text-[10px] text-gray-400 mt-0.5">
           {fmtDateShort(entree.date_entree)} · {src.label}
         </p>
@@ -520,7 +669,7 @@ function EntreeRow({ entree, onToggle, onDelete, deleting }: {
         <p className={`text-sm font-extrabold tabular-nums ${isRecu ? 'text-emerald-700' : 'text-gray-700'}`}>
           +{fmtEur(entree.montant)}
         </p>
-        <button onClick={onToggle}
+        <button data-no-edit onClick={e => { e.stopPropagation(); onToggle(); }}
           className={`text-[10px] font-bold mt-0.5 px-2 py-0.5 rounded-full border transition-colors ${
             isRecu
               ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
@@ -529,7 +678,7 @@ function EntreeRow({ entree, onToggle, onDelete, deleting }: {
           {isRecu ? '✓ Reçu' : '⏳ Attendu'}
         </button>
       </div>
-      <button onClick={onDelete} disabled={deleting}
+      <button data-no-edit onClick={e => { e.stopPropagation(); onDelete(); }} disabled={deleting}
         className="text-gray-200 hover:text-red-400 transition-colors p-1 rounded-lg shrink-0">
         {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
       </button>
@@ -1180,6 +1329,16 @@ export default function EcheancierRefonte({
     } finally { setDeletingId(null); }
   }, [chantierId, token, fetchEntrees]);
 
+  const saveEntree = useCallback(async (id: string, patch: Partial<EntreeChantier>) => {
+    const bearer = await freshToken(token);
+    const res = await fetch(`/api/chantier/${chantierId}/entrees`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, ...patch }),
+    });
+    if (res.ok) fetchEntrees();
+  }, [chantierId, token, fetchEntrees]);
+
   // ── Données dérivées ───────────────────────────────────────────────────────
 
   const { buckets, currentBalance } = useMemo(
@@ -1503,6 +1662,7 @@ export default function EcheancierRefonte({
                 <EntreeRow key={e.id} entree={e}
                   onToggle={() => toggleEntreeStatut(e.id, e.statut)}
                   onDelete={() => deleteEntree(e.id)}
+                  onSave={patch => saveEntree(e.id, patch)}
                   deleting={deletingId === e.id}
                 />
               ))}

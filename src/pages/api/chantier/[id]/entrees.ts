@@ -80,12 +80,13 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   try { body = await request.json(); }
   catch { return jsonError('Corps JSON invalide', 400); }
 
-  const { id, statut, montant, label, date_entree, notes } = body as {
+  const { id, statut, montant, label, date_entree, source_type, notes } = body as {
     id: string;
     statut?: string;
     montant?: number;
     label?: string;
     date_entree?: string;
+    source_type?: string;
     notes?: string;
   };
 
@@ -97,6 +98,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   if (montant !== undefined)     update.montant     = montant;
   if (label !== undefined)       update.label       = String(label).slice(0, 200);
   if (date_entree !== undefined) update.date_entree = date_entree;
+  if (source_type !== undefined) update.source_type = source_type;
   if (notes !== undefined)       update.notes       = notes ? String(notes).slice(0, 500) : null;
 
   if (Object.keys(update).length === 0) return jsonError('Aucun champ à modifier', 400);
