@@ -23,12 +23,21 @@ const dots = [
   class:list={['relative w-full mx-auto select-none', compact ? 'max-w-[520px]' : 'max-w-[600px]']}
   style="aspect-ratio:684/806"
 >
-  <img
-    src="/images/gmc/hero-illustration.png"
-    alt="Plan d'architecture annoté avec un propriétaire au centre du chantier"
-    class="absolute inset-0 w-full h-full object-contain"
-    style="filter: contrast(1.04) saturate(1.06)"
-  />
+  <picture>
+    <source srcset="/images/gmc/hero-illustration.avif" type="image/avif" />
+    <source srcset="/images/gmc/hero-illustration.webp" type="image/webp" />
+    <img
+      src="/images/gmc/hero-illustration.png"
+      alt="Plan d'architecture annoté avec un propriétaire au centre du chantier"
+      width="684"
+      height="806"
+      loading="eager"
+      fetchpriority="high"
+      decoding="async"
+      class="absolute inset-0 w-full h-full object-contain"
+      style="filter: contrast(1.04) saturate(1.06)"
+    />
+  </picture>
 
   <svg
     viewBox="0 0 684 806"
