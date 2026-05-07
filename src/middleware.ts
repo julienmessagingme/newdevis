@@ -14,10 +14,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   const host = context.request.headers.get('host') ?? '';
   if (GMC_HOST.test(host)) {
-    // 302 redirect (URL change visible) — un vrai rewrite côté Astro static ne
-    // fonctionne pas vers une page prerendered (`/gmc-home/index.html`).
-    // À itérer en v2 : rewrite Vercel edge OU faire passer /gmc-home en SSR.
-    return Response.redirect(new URL('/gmc-home', context.request.url), 302);
+    // 302 redirect avec Location RELATIF — sur Vercel SSR, context.request.url
+    // peut résoudre vers https://localhost/... donc on évite Response.redirect()
+    // (qui exige une URL absolue) et on laisse le navigateur composer avec l'origine.
+    return new Response(null, { status: 302, headers: { Location: '/gmc-home' } });
   }
 
   return next();
