@@ -1,16 +1,4 @@
 {
-  "rewrites": [
-    {
-      "source": "/",
-      "has": [{ "type": "host", "value": "gerermonchantier.fr" }],
-      "destination": "/gmc-home"
-    },
-    {
-      "source": "/",
-      "has": [{ "type": "host", "value": "www.gerermonchantier.fr" }],
-      "destination": "/gmc-home"
-    }
-  ],
   "headers": [
     {
       "source": "/_astro/(.*)",

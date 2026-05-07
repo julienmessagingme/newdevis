@@ -1,4 +1,9 @@
 ---
+// Multi-domaine : SSR pour permettre au middleware (src/middleware.ts) de rewrite
+// vers /gmc-home quand Host = (www.)gerermonchantier.fr.
+// Sur verifiermondevis.fr, comportement inchangé — page rendue côté serveur.
+export const prerender = false;
+
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import AstroHeader from '@/components/astro/Header.astro';
 import AstroFooter from '@/components/astro/Footer.astro';
