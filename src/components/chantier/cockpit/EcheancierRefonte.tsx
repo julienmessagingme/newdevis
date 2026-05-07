@@ -695,6 +695,212 @@ const STATUS_CFG = {
   cancelled: { dot: 'bg-gray-300',    badge: 'bg-gray-50 text-gray-400 border-gray-100',           label: 'Annulé' },
 };
 
+// ── Payment Detail Panel — détail + édition + split d'une échéance ────────────
+
+function PaymentDetailPanel({ ev, allEvents, chantierId, token, onClose, onRefresh, onMarkPaid }: {
+  ev:         PaymentEvent;
+  allEvents:  PaymentEvent[];
+  chantierId: string;
+  token:      string;
+  onClose:    () => void;
+  onRefresh:  () => void;
+  onMarkPaid: () => void;  // ouvre le wizard existant
+}) {
+  const originalAmount = ev.amount ?? ev.amount_estimate ?? 0;
+
+  const [label,         setLabel]         = useState(ev.label);
+  const [amount,        setAmount]        = useState(String(Math.round(originalAmount)));
+  const [dueDate,       setDueDate]       = useState(ev.due_date ?? '');
+  const [remainDate,    setRemainDate]    = useState('');
+  const [saving,        setSaving]        = useState(false);
+  const [error,         setError]         = useState('');
+
+  // ── Context : autres termes du même document ──
+  const siblings = allEvents.filter(
+    e => e.source_id && e.source_id === ev.source_id && e.id !== ev.id && e.status !== 'cancelled',
+  );
+  const alreadyPaid = siblings.filter(e => e.status === 'paid').reduce((s, e) => s + (e.amount ?? 0), 0);
+  const otherPending = siblings.filter(e => e.status !== 'paid').reduce((s, e) => s + (e.amount ?? e.amount_estimate ?? 0), 0);
+  const docTotal    = alreadyPaid + otherPending + originalAmount;
+
+  // ── Calcul du reste si split ──
+  const newAmount   = parseFloat(amount.replace(/\s/g, '').replace(',', '.'));
+  const isValidAmt  = !isNaN(newAmount) && newAmount > 0;
+  const remainder   = isValidAmt ? Math.round((originalAmount - newAmount) * 100) / 100 : 0;
+  const hasSplit    = isValidAmt && remainder > 1 && newAmount < originalAmount * 0.99;
+
+  async function handleSave() {
+    if (!isValidAmt) { setError('Montant invalide'); return; }
+    if (hasSplit && !remainDate) { setError('Indiquez la date du solde restant'); return; }
+    setError('');
+    setSaving(true);
+    try {
+      const bearer = await freshToken(token);
+
+      // 1. Modifier l'échéance courante
+      const patch: Record<string, unknown> = {
+        id: ev.id,
+        label: label.trim() || ev.label,
+        amount: newAmount,
+      };
+      if (dueDate) patch.due_date = dueDate;
+
+      const r1 = await fetch(`/api/chantier/${chantierId}/payment-events`, {
+        method:  'PATCH',
+        headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify(patch),
+      });
+      if (!r1.ok) { setError('Erreur lors de la modification'); setSaving(false); return; }
+
+      // 2. Si split → créer un nouveau terme pour le solde restant
+      if (hasSplit && ev.source_id && ev.origin === 'document') {
+        const splitLabel = `Solde restant — ${label.trim() || ev.label}`;
+        await fetch(`/api/chantier/${chantierId}/payment-events`, {
+          method:  'POST',
+          headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            addToDocument: true,
+            documentId:    ev.source_id,
+            label:         splitLabel,
+            amount:        remainder,
+            dueDate:       remainDate,
+          }),
+        });
+      }
+
+      onRefresh();
+      onClose();
+    } finally { setSaving(false); }
+  }
+
+  const isPaid = ev.status === 'paid';
+
+  return (
+    <div className="mt-2 rounded-xl border-2 border-indigo-100 bg-indigo-50/30 p-4 space-y-4">
+
+      {/* ── Contexte document ── */}
+      {docTotal > 0 && (
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: 'Total facture',  val: docTotal,       color: 'text-gray-700' },
+            { label: 'Déjà payé',      val: alreadyPaid,    color: 'text-emerald-700' },
+            { label: 'Cette échéance', val: originalAmount, color: 'text-indigo-700' },
+          ].map(({ label: l, val, color }) => (
+            <div key={l} className="bg-white rounded-lg px-3 py-2 text-center border border-gray-100">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">{l}</p>
+              <p className={`text-sm font-extrabold tabular-nums ${color}`}>{fmtEur(val)}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Autres échéances ── */}
+      {siblings.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Autres échéances</p>
+          {siblings.map(s => (
+            <div key={s.id} className="flex items-center justify-between text-[11px] bg-white rounded-lg px-3 py-1.5 border border-gray-100">
+              <span className={`truncate flex-1 ${s.status === 'paid' ? 'line-through text-gray-400' : 'text-gray-700'}`}>{s.label}</span>
+              <span className="text-gray-400 mx-2">{s.due_date ? fmtDateShort(s.due_date) : '—'}</span>
+              <span className={`font-bold tabular-nums shrink-0 ${s.status === 'paid' ? 'text-emerald-600' : 'text-gray-700'}`}>
+                {s.status === 'paid' ? '✓ ' : ''}{fmtEur(s.amount ?? s.amount_estimate ?? 0)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Formulaire édition ── */}
+      {!isPaid && (
+        <div className="space-y-3">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Modifier cette échéance</p>
+
+          {/* Libellé */}
+          <input
+            value={label}
+            onChange={e => setLabel(e.target.value)}
+            placeholder="Libellé"
+            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-indigo-200"
+          />
+
+          {/* Montant + Date */}
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-1">
+                Montant (€)
+                {docTotal > 0 && isValidAmt && (
+                  <span className="ml-1 normal-case font-normal text-gray-400">
+                    = {Math.round((newAmount / docTotal) * 100)}% du total
+                  </span>
+                )}
+              </label>
+              <input
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                inputMode="decimal"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-indigo-200"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-1">Date prévue</label>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={e => setDueDate(e.target.value)}
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-indigo-200"
+              />
+            </div>
+          </div>
+
+          {/* Solde restant — affiché si montant réduit */}
+          {hasSplit && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-base">📋</span>
+                <p className="text-[11px] font-bold text-amber-800">
+                  Solde restant : {fmtEur(remainder)} — une nouvelle échéance sera créée
+                </p>
+              </div>
+              <div>
+                <label className="text-[9px] font-bold uppercase tracking-wider text-amber-600 block mb-1">
+                  Date du solde restant <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={remainDate}
+                  onChange={e => setRemainDate(e.target.value)}
+                  className="w-full text-sm border border-amber-300 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-amber-200"
+                />
+              </div>
+            </div>
+          )}
+
+          {error && <p className="text-[11px] text-red-500 font-semibold">{error}</p>}
+
+          {/* Actions */}
+          <div className="flex gap-2">
+            <button onClick={handleSave} disabled={saving}
+              className="flex-1 py-2 rounded-lg bg-indigo-600 text-white text-[12px] font-bold disabled:opacity-50 hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1.5">
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+              {hasSplit ? 'Modifier + créer solde restant' : 'Sauvegarder'}
+            </button>
+            <button onClick={onMarkPaid} data-no-detail
+              className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-[12px] font-bold hover:bg-emerald-700 transition-colors whitespace-nowrap flex items-center gap-1.5">
+              <Check className="h-3.5 w-3.5" /> Payé
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Fermer ── */}
+      <button onClick={onClose}
+        className="w-full text-[11px] text-gray-400 hover:text-gray-600 py-1 transition-colors">
+        Fermer ↑
+      </button>
+    </div>
+  );
+}
+
 // ── Wizard paiement (4 étapes guidées) ───────────────────────────────────────
 
 type WizardStep = 'confirm' | 'facture' | 'financement' | 'preuve';
@@ -1008,6 +1214,8 @@ function PaymentEventRow({ ev, chantierId, token, confirmingId, setConfirmingId,
   entrees: EntreeChantier[];
   allEvents: PaymentEvent[];
 }) {
+  const [detailOpen, setDetailOpen] = useState(false);
+
   const cfg      = STATUS_CFG[ev.status] ?? STATUS_CFG.pending;
   const isPaid   = ev.status === 'paid';
   const isLate   = ev.status === 'late';
@@ -1022,123 +1230,152 @@ function PaymentEventRow({ ev, chantierId, token, confirmingId, setConfirmingId,
     else if (days !== null && days <= 7) delayLabel = `Dans ${days} jours`;
   }
 
-  return (
-    <div className={`px-4 py-3.5 ${isLate ? 'bg-red-50/40' : isPaid ? 'bg-emerald-50/20' : ''}`}>
-      <div className="flex items-start gap-3">
-        <div className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${cfg.dot}`} />
-        <div className="flex-1 min-w-0">
-          {/* Ligne 1 : label + montant */}
-          <div className="flex items-baseline justify-between gap-2">
-            <p className={`text-sm font-semibold leading-snug ${isPaid ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
-              {ev.label}
-            </p>
-            {ev.amount != null ? (
-              <span className={`text-sm font-extrabold tabular-nums shrink-0 ${
-                isLate ? 'text-red-700' : isPaid ? 'text-gray-400' : 'text-gray-900'
-              }`}>
-                {fmtEur(ev.amount)}
-              </span>
-            ) : ev.amount_estimate != null ? (
-              <span className="flex items-center gap-1 shrink-0" title="Solde estimé = montant total − acomptes">
-                <span className="text-sm font-extrabold tabular-nums text-amber-600">
-                  {fmtEur(ev.amount_estimate)}
-                </span>
-                <span className="text-[9px] font-bold text-amber-400 bg-amber-50 border border-amber-100 rounded px-1 py-0.5 leading-none">
-                  estimé
-                </span>
-              </span>
-            ) : null}
-          </div>
+  function handleRowClick(e: React.MouseEvent) {
+    if ((e.target as HTMLElement).closest('[data-no-detail]')) return;
+    setDetailOpen(d => !d);
+    // Fermer le wizard si ouvert
+    if (confirmingId === ev.id) setConfirmingId(null);
+  }
 
-          {/* Artisan + source */}
-          {(ev.artisan_nom || ev.lot_nom) && (
-            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-              {(ev.artisan_nom || ev.lot_nom) && (
+  return (
+    <div className={`${isLate ? 'bg-red-50/40' : isPaid ? 'bg-emerald-50/20' : ''}`}>
+      {/* ── Ligne principale — cliquable ── */}
+      <div
+        className={`px-4 py-3.5 cursor-pointer transition-colors ${detailOpen ? 'bg-indigo-50/40' : 'hover:bg-gray-50/60'}`}
+        onClick={handleRowClick}
+      >
+        <div className="flex items-start gap-3">
+          <div className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${cfg.dot}`} />
+          <div className="flex-1 min-w-0">
+            {/* Ligne 1 : label + montant + chevron */}
+            <div className="flex items-baseline justify-between gap-2">
+              <p className={`text-sm font-semibold leading-snug ${isPaid ? 'text-gray-400 line-through' : detailOpen ? 'text-indigo-700' : 'text-gray-800'}`}>
+                {ev.label}
+              </p>
+              <div className="flex items-center gap-2 shrink-0">
+                {ev.amount != null ? (
+                  <span className={`text-sm font-extrabold tabular-nums ${
+                    isLate ? 'text-red-700' : isPaid ? 'text-gray-400' : 'text-gray-900'
+                  }`}>
+                    {fmtEur(ev.amount)}
+                  </span>
+                ) : ev.amount_estimate != null ? (
+                  <span className="flex items-center gap-1" title="Solde estimé = montant total − acomptes">
+                    <span className="text-sm font-extrabold tabular-nums text-amber-600">
+                      {fmtEur(ev.amount_estimate)}
+                    </span>
+                    <span className="text-[9px] font-bold text-amber-400 bg-amber-50 border border-amber-100 rounded px-1 py-0.5 leading-none">
+                      estimé
+                    </span>
+                  </span>
+                ) : null}
+                <ChevronDown className={`h-3.5 w-3.5 text-gray-300 transition-transform ${detailOpen ? 'rotate-180 text-indigo-400' : ''}`} />
+              </div>
+            </div>
+
+            {/* Artisan + source */}
+            {(ev.artisan_nom || ev.lot_nom) && (
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                 <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${
                   isPaid ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-blue-600'
                 }`}>
                   🔧 {ev.artisan_nom ?? ev.lot_nom}
                 </span>
+                {ev.source_name && (
+                  <span className="text-[10px] text-gray-400 truncate max-w-[150px]">
+                    {ev.source_name.replace(/\.(pdf|PDF)$/, '')}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Date + badge + délai */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
+              {ev.due_date && (
+                <span className={`text-[11px] font-medium ${isLate ? 'text-red-500 font-bold' : 'text-gray-400'}`}>
+                  {fmtDateFR(ev.due_date)}
+                </span>
               )}
-              {ev.source_name && (
-                <span className="text-[10px] text-gray-400 truncate max-w-[150px]">
-                  {ev.source_name.replace(/\.(pdf|PDF)$/, '')}
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${cfg.badge}`}>
+                {cfg.label}
+              </span>
+              {delayLabel && (
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                  isLate ? 'bg-red-100 text-red-700'
+                  : days !== null && days <= 3 ? 'bg-amber-100 text-amber-700'
+                  : 'bg-gray-100 text-gray-500'
+                }`}>
+                  {delayLabel}
                 </span>
               )}
             </div>
-          )}
 
-          {/* Date + badge + délai */}
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
-            {ev.due_date && (
-              <span className={`text-[11px] font-medium ${isLate ? 'text-red-500 font-bold' : 'text-gray-400'}`}>
-                {fmtDateFR(ev.due_date)}
-              </span>
+            {/* CTA Marquer payé — masqué si detail ouvert (bouton dans le panel) */}
+            {(ev.status === 'pending' || ev.status === 'late') && !isConf && !detailOpen && (
+              <button type="button" data-no-detail
+                onClick={() => setConfirmingId(ev.id)}
+                className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors">
+                <Check className="h-3 w-3" /> Marquer payé
+              </button>
             )}
-            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${cfg.badge}`}>
-              {cfg.label}
-            </span>
-            {delayLabel && (
-              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                isLate ? 'bg-red-100 text-red-700'
-                : days !== null && days <= 3 ? 'bg-amber-100 text-amber-700'
-                : 'bg-gray-100 text-gray-500'
-              }`}>
-                {delayLabel}
-              </span>
+
+            {/* ── WIZARD PAIEMENT ─────────────────────────────────── */}
+            {isConf && (
+              <PaymentWizard
+                ev={ev}
+                chantierId={chantierId}
+                token={token}
+                markPaid={markPaid}
+                proofInputRef={proofInputRef}
+                proofUploading={proofUploading}
+                setProofUploading={setProofUploading}
+                onClose={() => setConfirmingId(null)}
+                onDone={() => { setConfirmingId(null); setDetailOpen(false); refresh(); }}
+                entrees={entrees}
+                allEvents={allEvents}
+              />
+            )}
+
+            {/* Lien justificatif */}
+            {isPaid && ev.proof_doc_id && (
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <Paperclip className="h-3 w-3 text-gray-300 shrink-0" />
+                {ev.proof_signed_url
+                  ? <a href={ev.proof_signed_url} target="_blank" rel="noopener noreferrer" data-no-detail
+                      className="text-[11px] text-blue-600 hover:underline flex items-center gap-1">
+                      {ev.proof_doc_name ?? 'Justificatif'} <ExternalLink className="h-2.5 w-2.5" />
+                    </a>
+                  : <span className="text-[11px] text-gray-400">{ev.proof_doc_name ?? 'Justificatif joint'}</span>
+                }
+              </div>
+            )}
+
+            {/* Annuler paiement */}
+            {isPaid && (
+              <button type="button" data-no-detail
+                onClick={() => markUnpaid(ev.id)}
+                className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-amber-200 text-amber-600 bg-amber-50 hover:bg-amber-100 transition-colors">
+                <RotateCcw className="h-3 w-3" /> Remettre en attente
+              </button>
             )}
           </div>
-
-          {/* CTA Marquer payé */}
-          {(ev.status === 'pending' || ev.status === 'late') && !isConf && (
-            <button type="button"
-              onClick={() => setConfirmingId(ev.id)}
-              className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors">
-              <Check className="h-3 w-3" /> Marquer payé
-            </button>
-          )}
-
-          {/* ── WIZARD PAIEMENT ─────────────────────────────────── */}
-          {isConf && (
-            <PaymentWizard
-              ev={ev}
-              chantierId={chantierId}
-              token={token}
-              markPaid={markPaid}
-              proofInputRef={proofInputRef}
-              proofUploading={proofUploading}
-              setProofUploading={setProofUploading}
-              onClose={() => setConfirmingId(null)}
-              onDone={() => { setConfirmingId(null); refresh(); }}
-              entrees={entrees}
-              allEvents={allEvents}
-            />
-          )}
-
-          {/* Lien justificatif */}
-          {isPaid && ev.proof_doc_id && (
-            <div className="mt-1.5 flex items-center gap-1.5">
-              <Paperclip className="h-3 w-3 text-gray-300 shrink-0" />
-              {ev.proof_signed_url
-                ? <a href={ev.proof_signed_url} target="_blank" rel="noopener noreferrer"
-                    className="text-[11px] text-blue-600 hover:underline flex items-center gap-1">
-                    {ev.proof_doc_name ?? 'Justificatif'} <ExternalLink className="h-2.5 w-2.5" />
-                  </a>
-                : <span className="text-[11px] text-gray-400">{ev.proof_doc_name ?? 'Justificatif joint'}</span>
-              }
-            </div>
-          )}
-
-          {/* Annuler paiement */}
-          {isPaid && (
-            <button type="button"
-              onClick={() => markUnpaid(ev.id)}
-              className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border border-amber-200 text-amber-600 bg-amber-50 hover:bg-amber-100 transition-colors">
-              <RotateCcw className="h-3 w-3" /> Remettre en attente
-            </button>
-          )}
         </div>
       </div>
+
+      {/* ── Panel détail / édition ── */}
+      {detailOpen && (
+        <div className="px-4 pb-4">
+          <PaymentDetailPanel
+            ev={ev}
+            allEvents={allEvents}
+            chantierId={chantierId}
+            token={token}
+            onClose={() => setDetailOpen(false)}
+            onRefresh={() => { refresh(); setDetailOpen(false); }}
+            onMarkPaid={() => { setDetailOpen(false); setConfirmingId(ev.id); }}
+          />
+        </div>
+      )}
     </div>
   );
 }
