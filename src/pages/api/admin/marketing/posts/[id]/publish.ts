@@ -1,26 +1,14 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, parseJsonBody } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, parseJsonBody, createServiceClient } from '@/lib/apiHelpers';
 import { requireAdmin } from '@/lib/adminAuth';
-import { marketingFetch, marketingErrorResponse } from '@/lib/marketingApi';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface PublishBody {
   external_url?: string;
   external_id?: string;
-  snapshot_kpis?: {
-    impressions?: number;
-    reach?: number;
-    likes?: number;
-    comments?: number;
-    shares?: number;
-    saves?: number;
-    clicks?: number;
-    profile_visits?: number;
-    follows?: number;
-  };
 }
 
 export const POST: APIRoute = async ({ request, params }) => {
@@ -30,7 +18,6 @@ export const POST: APIRoute = async ({ request, params }) => {
   const id = params.id;
   if (!id || !UUID_RE.test(id)) return jsonError('id invalide (UUID requis)', 400);
 
-  // Body optionnel — FastAPI accepte un body vide pour mark-published
   let body: PublishBody = {};
   const contentLength = request.headers.get('content-length');
   if (contentLength && contentLength !== '0') {
@@ -39,7 +26,6 @@ export const POST: APIRoute = async ({ request, params }) => {
     body = parsed;
   }
 
-  // Validation légère côté proxy (FastAPI revalide derrière)
   if (body.external_url && body.external_url.length > 2048) {
     return jsonError('external_url trop longue (max 2048)', 400);
   }
@@ -48,14 +34,31 @@ export const POST: APIRoute = async ({ request, params }) => {
   }
 
   try {
-    const data = await marketingFetch(`/api/posts/${id}/mark-published`, {
-      method: 'POST',
-      body,
-      timeoutMs: 30_000,
-    });
-    return jsonOk(data);
+    const sb = createServiceClient();
+
+    const updates: Record<string, unknown> = {
+      status: 'published',
+      published_at: new Date().toISOString(),
+    };
+    if (body.external_url) updates.external_url = body.external_url;
+    if (body.external_id) updates.external_id = body.external_id;
+
+    const { data, error } = await sb
+      .schema('marketing' as never)
+      .from('posts')
+      .update(updates)
+      .eq('id', id)
+      .is('deleted_at', null)
+      .select('id, status, published_at')
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return jsonError('Post introuvable', 404);
+
+    return jsonOk({ ok: true, post: data });
   } catch (err) {
-    return marketingErrorResponse(err);
+    const msg = err instanceof Error ? err.message : 'Erreur inconnue';
+    return jsonError(msg, 500);
   }
 };
 

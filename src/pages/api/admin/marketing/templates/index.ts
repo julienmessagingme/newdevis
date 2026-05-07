@@ -1,29 +1,58 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk } from '@/lib/apiHelpers';
+import { createClient } from '@supabase/supabase-js';
+import { optionsResponse, jsonOk, jsonError } from '@/lib/apiHelpers';
 import { requireAdmin } from '@/lib/adminAuth';
-import { marketingFetch, marketingErrorResponse } from '@/lib/marketingApi';
+
+function marketingClient() {
+  return createClient(
+    import.meta.env.PUBLIC_SUPABASE_URL,
+    import.meta.env.SUPABASE_SERVICE_ROLE_KEY,
+    { db: { schema: 'marketing' } },
+  );
+}
 
 export const GET: APIRoute = async ({ request }) => {
   const ctx = await requireAdmin(request);
   if (ctx instanceof Response) return ctx;
 
   const url = new URL(request.url);
-  const params = new URLSearchParams();
-  for (const key of ['product', 'narrative_type', 'mood', 'usage_status']) {
-    const val = url.searchParams.get(key);
-    if (val) params.set(key, val);
-  }
+  const product = url.searchParams.get('product');
+  const narrativeType = url.searchParams.get('narrative_type');
+  const mood = url.searchParams.get('mood');
 
   try {
-    const qs = params.toString();
-    const data = await marketingFetch(`/api/templates${qs ? `?${qs}` : ''}`, {
-      timeoutMs: 15_000,
-    });
-    return jsonOk(data);
+    const sb = marketingClient();
+    let query = sb
+      .from('script_templates')
+      .select('id, product, narrative_type, format_size, title, mood, is_active, total_uses, slides')
+      .order('id');
+
+    if (product) query = query.eq('product', product);
+    if (narrativeType) query = query.eq('narrative_type', narrativeType);
+    if (mood) query = query.eq('mood', mood);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const templates = (data ?? []).map((t: Record<string, unknown>) => ({
+      id: t.id,
+      product: t.product,
+      narrative_type: t.narrative_type,
+      format_size: t.format_size,
+      title: t.title,
+      mood: t.mood,
+      is_active: t.is_active,
+      total_uses: t.total_uses ?? 0,
+      last_usage: null,
+      cooldown_until: {},
+    }));
+
+    return jsonOk({ templates });
   } catch (err) {
-    return marketingErrorResponse(err);
+    const msg = err instanceof Error ? err.message : 'Erreur inconnue';
+    return jsonError(msg, 500);
   }
 };
 
