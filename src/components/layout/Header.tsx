@@ -32,9 +32,10 @@ const Header = () => {
   const closeUserDropdown = () => { userTimeoutRef.current = setTimeout(() => setUserDropdownOpen(false), 150); };
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    sessionStorage.removeItem("vmd_session_active");
-    window.location.href = "/";
+    // Logout cross-domaine : invalide les refresh tokens serveur-side et
+    // vide le localStorage des deux origines via iframe caché.
+    const { signOutCrossDomain } = await import("@/lib/signOut");
+    await signOutCrossDomain("/");
   };
 
   useEffect(() => {

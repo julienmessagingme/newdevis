@@ -18,8 +18,8 @@ export const prerender = false;
 
   <script>
     import { createClient } from "@supabase/supabase-js";
-    import { hasGmcAccess } from "@/lib/gmcAccess";
     import { detectBrandFromHost } from "@/lib/brand";
+    import { performPostLoginRedirect } from "@/lib/postLoginRedirect";
 
     const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL || "";
     const supabaseKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
@@ -29,8 +29,11 @@ export const prerender = false;
       const params = new URLSearchParams(window.location.search);
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
 
-      // Extract redirect param BEFORE Supabase processes the URL (it may get lost)
-      const redirect = params.get("redirect") || hashParams.get("redirect") || null;
+      // Extract redirect param BEFORE Supabase processes the URL (it may get lost).
+      // `next` est utilisé par le SSO handoff cross-domaine (api/sso/handoff),
+      // `redirect` est l'ancien param legacy (compatibilité).
+      const redirect = params.get("next") || params.get("redirect")
+        || hashParams.get("next") || hashParams.get("redirect") || null;
       if (redirect) {
         sessionStorage.setItem("vmd_oauth_redirect", redirect);
       }
@@ -111,19 +114,17 @@ export const prerender = false;
       const savedRedirect = sessionStorage.getItem("vmd_oauth_redirect");
       sessionStorage.removeItem("vmd_oauth_redirect");
       const params = new URLSearchParams(window.location.search);
-      const redirect = savedRedirect || params.get("redirect");
+      const redirect = savedRedirect || params.get("next") || params.get("redirect");
 
-      // Default redirect : adapté au domaine d'origine du login.
-      // Sur (www.)gerermonchantier.fr + email dans l'allowlist GMC →
-      // cockpit /mon-chantier. Sinon → /tableau-de-bord (VMD).
-      const isGmcBrand = detectBrandFromHost(window.location.hostname) === "gmc";
-      const smartDefault = isGmcBrand && hasGmcAccess(user.email)
-        ? "/mon-chantier"
-        : "/tableau-de-bord";
-
-      window.location.href = redirect && redirect.startsWith("/") && !redirect.startsWith("//")
-        ? redirect
-        : smartDefault;
+      // Délègue le calcul du redirect au helper partagé : il gère le SSO
+      // handoff cross-domaine si l'user est sur le mauvais brand par rapport
+      // à son accès produit (allowlist GMC).
+      await performPostLoginRedirect({
+        currentBrand: detectBrandFromHost(window.location.hostname),
+        userEmail: user.email ?? "",
+        accessToken: session.access_token,
+        explicitRedirect: redirect,
+      });
     }
 
     handleCallback();

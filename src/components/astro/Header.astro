@@ -43,7 +43,7 @@ const pathname = Astro.url.pathname;
         </div>
       </div>
       <div class="flex items-center gap-3">
-        <a id="mon-chantier-desktop" href="/mon-chantier" class="hidden items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors text-sm font-medium text-primary">
+        <a id="mon-chantier-desktop" href="https://gerermonchantier.fr/" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors text-sm font-medium text-primary">
           <span>🏗️</span>
           Mon Chantier
         </a>
@@ -119,7 +119,7 @@ const pathname = Astro.url.pathname;
           <a href="/contact" class="text-sm text-muted-foreground py-3 block">Contact</a>
         </div>
       </div>
-      <a id="mon-chantier-mobile" href="/mon-chantier" class="hidden items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium">
+      <a id="mon-chantier-mobile" href="https://gerermonchantier.fr/" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium">
         <span>🏗️</span>
         Mon Chantier
       </a>
@@ -171,16 +171,6 @@ const pathname = Astro.url.pathname;
       if (data?.user) { user = data.user; break; }
     }
     if (user) {
-      // Mon Chantier — admins uniquement
-      if (user.email && ADMIN_EMAILS.includes(user.email)) {
-        const lastId = localStorage.getItem("lastChantierId");
-        const chantierHref = lastId ? `/mon-chantier/${lastId}` : "/mon-chantier";
-        const d = document.getElementById("mon-chantier-desktop");
-        const m = document.getElementById("mon-chantier-mobile");
-        if (d) { d.href = chantierHref; d.classList.remove("hidden"); d.classList.add("flex"); }
-        if (m) { m.href = chantierHref; m.classList.remove("hidden"); m.classList.add("flex"); }
-      }
-
       // Espace NOM Prenom — tous les utilisateurs connectés
       const firstName = user.user_metadata?.first_name || "";
       const lastName = user.user_metadata?.last_name || "";
@@ -245,6 +235,43 @@ const pathname = Astro.url.pathname;
     }
   } catch {}
 
+  // ── Bouton "Mon Chantier" (toujours visible) — SSO handoff cross-domaine ──
+  // - Visiteur non connecté        → href par défaut = https://gerermonchantier.fr/ (landing)
+  // - Connecté + email allowlisté  → SSO handoff via /api/sso/handoff vers gmc.fr/mon-chantier
+  // - Connecté NON-allowlisté      → href par défaut = https://gerermonchantier.fr/ (landing, futur upsell Stripe)
+  ['mon-chantier-desktop', 'mon-chantier-mobile'].forEach(id => {
+    const btn = document.getElementById(id) as HTMLAnchorElement | null;
+    if (!btn) return;
+    btn.addEventListener('click', async (e) => {
+      const authKey = Object.keys(localStorage).find(k => k.includes('auth-token'));
+      const authData = authKey ? JSON.parse(localStorage.getItem(authKey) || "{}") : null;
+      const accessToken = authData?.access_token;
+      const userEmail = (authData?.user?.email || "").toLowerCase();
+      // Pas connecté ou pas allowlisté → laisse aller sur gmc.fr/ landing (href défaut)
+      if (!accessToken || !userEmail || !ADMIN_EMAILS.includes(userEmail)) return;
+      // Allowlisté → SSO handoff
+      e.preventDefault();
+      const lastId = localStorage.getItem("lastChantierId");
+      const targetPath = lastId ? `/mon-chantier/${lastId}` : "/mon-chantier";
+      try {
+        const res = await fetch('/api/sso/handoff', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetBrand: 'gmc', targetPath }),
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.handoff_url) {
+            window.location.href = json.handoff_url;
+            return;
+          }
+        }
+      } catch {}
+      // Fallback : redirect hard cross-domain (forcera re-login sur gmc.fr si SSO HS)
+      window.location.href = `https://gerermonchantier.fr${targetPath}`;
+    });
+  });
+
   const toggle = document.getElementById('mobile-menu-toggle');
   const menu = document.getElementById('mobile-menu');
   const menuIcon = document.getElementById('menu-icon');
@@ -307,12 +334,14 @@ const pathname = Astro.url.pathname;
     }, 150);
   });
 
-  // Sign out
-  const handleSignOut = () => {
-    // Clear Supabase session from localStorage
-    Object.keys(localStorage).filter(k => k.includes('auth-token')).forEach(k => localStorage.removeItem(k));
-    sessionStorage.removeItem("vmd_session_active");
-    window.location.href = "/";
+  // Sign out cross-domaine — délégué au helper partagé qui gère :
+  // 1. supabase.auth.signOut({ scope: 'global' }) (invalide tokens serveur-side)
+  // 2. Clean localStorage local
+  // 3. Iframe caché vers l'autre origin pour vider son localStorage
+  // 4. Redirect / après court délai
+  const handleSignOut = async () => {
+    const { signOutCrossDomain } = await import('@/lib/signOut');
+    await signOutCrossDomain('/');
   };
   document.getElementById('signout-btn-desktop')?.addEventListener('click', handleSignOut);
   document.getElementById('signout-btn-mobile')?.addEventListener('click', handleSignOut);

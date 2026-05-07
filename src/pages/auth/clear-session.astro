@@ -1,0 +1,46 @@
+---
+/**
+ * Page cible pour le logout cross-domaine via iframe caché.
+ *
+ * Quand un user clique "Déconnexion" sur verifiermondevis.fr, le Header
+ * insère un iframe pointant vers `gerermonchantier.fr/auth/clear-session`
+ * (et inversement). Cette page :
+ * 1. Vide le localStorage de l'origine courante (les tokens Supabase y vivent).
+ * 2. Vide aussi `sessionStorage`.
+ * 3. Notifie le parent via postMessage (pour debug, optionnel).
+ *
+ * Effet : le user est instantanément déconnecté sur les deux domaines, sans
+ * attendre l'expiration des tokens (1h par défaut).
+ *
+ * Sécurité : ce script ne lit aucune donnée utilisateur, il ne fait que
+ * supprimer ses propres clés (auth-token + session marker). Pas de
+ * postMessage de données sensibles.
+ */
+import BaseLayout from '@/layouts/BaseLayout.astro';
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="Déconnexion…"
+  description="Nettoyage de session."
+  noindex={true}
+>
+  <div class="min-h-screen flex items-center justify-center text-sm text-muted-foreground">
+    Déconnexion en cours…
+  </div>
+
+  <script>
+    try {
+      // Supprime les tokens Supabase (clés 'sb-*-auth-token' typiquement)
+      Object.keys(localStorage)
+        .filter((k) => k.includes('auth-token'))
+        .forEach((k) => localStorage.removeItem(k));
+      sessionStorage.removeItem('vmd_session_active');
+      // Notify parent (debug, ignoré si parent n'écoute pas)
+      try { (window.parent || window).postMessage('cleared', '*'); } catch {}
+    } catch {
+      // Non-bloquant : si localStorage indisponible (mode privé strict), tant pis.
+    }
+  </script>
+</BaseLayout>

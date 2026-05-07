@@ -10,7 +10,7 @@ import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import BrandLogo from "@/components/auth/BrandLogo";
 import { SESSION_ACTIVE_KEY } from "@/hooks/useSessionGuard";
 import { type Brand, getBrandConfig, getConfigForBrand } from "@/lib/brand";
-import { hasGmcAccess } from "@/lib/gmcAccess";
+import { performPostLoginRedirect } from "@/lib/postLoginRedirect";
 
 interface Props {
   /** Brand détecté côté serveur (Astro page → wrapper App). Si absent,
@@ -48,21 +48,15 @@ const Login = ({ brand }: Props) => {
         // Ce marqueur est utilisé par useSessionGuard pour détecter les nouvelles sessions
         sessionStorage.setItem(SESSION_ACTIVE_KEY, "1");
         const params = new URLSearchParams(window.location.search);
-        const redirect = params.get("redirect");
-        // Default redirect : sur GMC + email allowlisté → cockpit GMC.
-        // Sinon (VMD ou GMC sans accès) → tableau de bord VMD.
-        // On lit `data.user.email` plutôt que le champ `email` du form pour
-        // gérer les cas où Supabase normalise l'adresse (capitalisation, aliases).
-        const authedEmail = data?.user?.email ?? email;
-        const smartDefault =
-          config.brand === "gmc" && hasGmcAccess(authedEmail)
-            ? config.defaultRedirect
-            : "/tableau-de-bord";
-        // Security: only allow relative paths starting with / (prevent open redirect to external sites)
-        const safeRedirect = redirect && redirect.startsWith("/") && !redirect.startsWith("//")
-          ? redirect
-          : smartDefault;
-        window.location.href = safeRedirect;
+        // Le helper gère le SSO handoff cross-domaine si nécessaire.
+        // On passe `data.user.email` (Supabase peut normaliser l'adresse) et
+        // `data.session.access_token` requis pour appeler /api/sso/handoff.
+        await performPostLoginRedirect({
+          currentBrand: config.brand,
+          userEmail: data?.user?.email ?? email,
+          accessToken: data?.session?.access_token ?? "",
+          explicitRedirect: params.get("redirect"),
+        });
       }
     } catch (error) {
       toast.error("Une erreur est survenue");
