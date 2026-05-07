@@ -368,22 +368,14 @@ function BudgetKpiDashboard({
   const decaisse       = (totaux?.paye ?? 0) + (totaux?.acompte ?? 0); // tout ce qui est sorti du compte
   const aRegler        = totaux?.a_payer  ?? 0;                         // factures reçues non soldées
   const litige         = totaux?.litige   ?? 0;
-  const devisValides   = totaux?.devis_valides ?? 0;
-  // Engage réel = devis validés + factures d'artisans sans devis (engagement même sans devis)
-  const engageReel = data
-    ? [...(data.lots ?? []), ...(data.sans_lot ? [data.sans_lot] : [])].reduce((s, lot) =>
-        s + lot.artisans.reduce((ls, a) => ls + (a.devis.length > 0 ? a.totaux.devis_valides : a.totaux.facture), 0), 0
-      )
-    : devisValides;
-  const effectiveReel  = budgetReel ?? (engageReel > 0 ? engageReel : null);
+  // Budget cible : saisi manuellement OU estimation IA (jamais "engagé")
+  const effectiveReel  = budgetReel ?? ((data?.budget_ia ?? 0) > 0 ? data!.budget_ia : null);
   const budgetRestant  = effectiveReel ? Math.max(0, effectiveReel - decaisse - aRegler) : 0;
 
-  const pctEngagement = effectiveReel && effectiveReel > 0 ? Math.round((engageReel / effectiveReel) * 100) : 0;
   const pctDecaisse   = effectiveReel && effectiveReel > 0 ? Math.round((decaisse / effectiveReel) * 100) : 0;
   const pctARegler    = effectiveReel && effectiveReel > 0 ? Math.round((aRegler / effectiveReel) * 100) : 0;
 
   // Couleurs dynamiques
-  const colorEngagement = pctEngagement > 100 ? '#ef4444' : pctEngagement > 80 ? '#f59e0b' : '#6366f1';
   const colorDecaisse   = pctDecaisse  >= 100 ? '#10b981' : pctDecaisse  > 0   ? '#3b82f6' : '#d1d5db';
   const colorARegler    = aRegler > 0 ? '#f59e0b' : '#d1d5db';
 
@@ -433,21 +425,6 @@ function BudgetKpiDashboard({
     setEditing(false);
   }
 
-  // Détection conflit : budget choisi < engagé réel (tolérance 1%)
-  const conflict      = budgetReel !== null && engageReel > 0 && engageReel > (budgetReel ?? 0) * 1.01;
-  const conflictDiff  = conflict ? Math.round(engageReel - (budgetReel ?? 0)) : 0;
-
-  function adjustToDevis() {
-    persistBudgetReel(engageReel);
-    // Active l'auto-update dans TresorerieView pour les prochaines fois
-    try {
-      const tvKey = `tresorerie_v3_${chantierId}`;
-      const saved = localStorage.getItem(tvKey);
-      const parsed = saved ? JSON.parse(saved) : {};
-      localStorage.setItem(tvKey, JSON.stringify({ ...parsed, budgetReel: engageReel, autoUpdateBudget: true }));
-    } catch {}
-  }
-
   if (loading) return (
     <div className="px-7 py-6 border-b border-gray-100">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 sm:gap-6">
@@ -469,16 +446,16 @@ function BudgetKpiDashboard({
     <div className="border-b border-gray-100 bg-white">
       <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
 
-        {/* ── 1. Budget réel (éditable) ─────────────────── */}
+        {/* ── 1. Budget cible (éditable) ─────────────────── */}
         <div className="px-5 py-5 sm:px-7 sm:py-6">
           <div className="flex items-center justify-between mb-4">
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex items-center">
-              Budget réel
+              Budget cible
               <InfoTooltip lines={[
                 'Votre enveloppe globale pour ce chantier.',
-                devisValides > 0 ? `Devis validés : ${fmtEur(devisValides)}` : 'Aucun devis validé pour l\'instant.',
-                budgetReel ? `Budget saisi manuellement : ${fmtEur(budgetReel)}` : 'Cliquez sur "Modifier" pour définir votre budget.',
-              ]} />
+                effectiveReel ? `Budget actuel : ${fmtEur(effectiveReel)}` : 'Cliquez sur "Modifier" pour définir votre budget.',
+                budgetRestant > 0 ? `Reste disponible : ${fmtEur(budgetRestant)}` : '',
+              ].filter(Boolean) as string[]} />
             </p>
             {!editing && (
               <button onClick={startEdit}
@@ -488,42 +465,37 @@ function BudgetKpiDashboard({
               </button>
             )}
           </div>
-          <div className="flex items-center gap-4">
-            <div className="relative shrink-0">
-              <DonutRing pct={pctEngagement} color={colorEngagement} size={80} stroke={7} />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-[12px] font-black text-gray-700">{pctEngagement}%</span>
+          <div className="min-w-0">
+            {editing ? (
+              <div className="flex items-center gap-1 mb-1.5">
+                <input
+                  autoFocus
+                  type="number"
+                  inputMode="decimal"
+                  value={editVal}
+                  onChange={e => setEditVal(e.target.value)}
+                  onBlur={commitEdit}
+                  onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(false); }}
+                  className="w-32 text-[20px] font-black border-b-2 border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5"
+                  placeholder="Ex: 45000"
+                />
+                <span className="text-[14px] text-gray-400">€</span>
               </div>
-            </div>
-            <div className="min-w-0">
-              {editing ? (
-                <div className="flex items-center gap-1">
-                  <input
-                    autoFocus
-                    type="number"
-                    inputMode="decimal"
-                    value={editVal}
-                    onChange={e => setEditVal(e.target.value)}
-                    onBlur={commitEdit}
-                    onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(false); }}
-                    className="w-28 text-[16px] font-black border-b-2 border-indigo-400 outline-none bg-transparent text-gray-800 pb-0.5"
-                    placeholder="Ex: 45000"
-                  />
-                  <span className="text-[13px] text-gray-400">€</span>
-                </div>
-              ) : (
-                <button onClick={startEdit} className="group text-left">
-                  <p className="text-[18px] font-black text-gray-800 group-hover:text-indigo-600 transition-colors leading-none">
-                    {effectiveReel ? fmtEur(effectiveReel) : <span className="text-gray-300 text-[13px]">Cliquer pour définir</span>}
-                  </p>
-                </button>
-              )}
-              <p className="text-[11px] text-gray-400 mt-1.5">
-                {pctEngagement > 0
-                  ? <span className={pctEngagement > 100 ? 'text-red-500 font-semibold' : ''}>{pctEngagement}% engagé</span>
-                  : 'devis en cours'}
+            ) : (
+              <button onClick={startEdit} className="group text-left mb-1.5">
+                <p className="text-[22px] font-black text-gray-800 group-hover:text-indigo-600 transition-colors leading-none">
+                  {effectiveReel ? fmtEur(effectiveReel) : <span className="text-gray-300 text-[13px]">Cliquer pour définir</span>}
+                </p>
+              </button>
+            )}
+            {effectiveReel && !budgetReel && (
+              <p className="text-[10px] text-indigo-400 mt-1">Estimation IA — cliquez Modifier pour ajuster</p>
+            )}
+            {budgetRestant > 0 && (
+              <p className="text-[11px] text-emerald-600 font-semibold mt-1.5">
+                Reste : {fmtEur(budgetRestant)}
               </p>
-            </div>
+            )}
           </div>
         </div>
 
@@ -616,36 +588,6 @@ function BudgetKpiDashboard({
 
       </div>
 
-      {/* ── Bannière conflit budget ────────────────────────────────────────────── */}
-      {conflict && (
-        <div className="mx-5 mb-4 mt-1 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-3">
-          <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-          <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-bold text-amber-800">
-              Budget en dépassement de {fmtEur(conflictDiff)}
-            </p>
-            <p className="text-[10px] text-amber-700 mt-0.5 leading-relaxed">
-              L'ensemble de vos engagements (devis + factures) totalise <strong>{fmtEur(engageReel)}</strong>, soit {fmtEur(conflictDiff)} de plus
-              que votre budget de <strong>{fmtEur(budgetReel ?? 0)}</strong>.
-              Souhaitez-vous ajuster votre budget ou revoir les devis ?
-            </p>
-          </div>
-          <div className="flex gap-2 shrink-0">
-            <button
-              onClick={adjustToDevis}
-              className="px-3 py-1.5 text-[11px] font-bold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors whitespace-nowrap"
-            >
-              Ajuster à {fmtEur(engageReel)}
-            </button>
-            <button
-              onClick={startEdit}
-              className="px-3 py-1.5 text-[11px] font-semibold rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-100 transition-colors whitespace-nowrap"
-            >
-              Modifier le budget
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

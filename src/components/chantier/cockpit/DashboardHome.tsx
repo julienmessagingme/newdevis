@@ -250,10 +250,9 @@ function InfoLabel({ label, tip }: { label: string; tip: string }) {
 // ── Budget donut card ─────────────────────────────────────────────────────────
 
 function BudgetDonutCard({
-  budgetReel, budgetEngage, totalPaye, decaisse, aPayer30j, iaMin, iaMax, refinedBreakdown, onAffineBudget, hasRefinedBreakdown,
+  budgetReel, totalPaye, decaisse, aPayer30j, iaMin, iaMax, refinedBreakdown, onAffineBudget, hasRefinedBreakdown,
 }: {
   budgetReel?: number | null;
-  budgetEngage: number;
   totalPaye: number;
   decaisse?: number;
   aPayer30j?: number;
@@ -269,100 +268,114 @@ function BudgetDonutCard({
   const circ = 2 * Math.PI * r;
 
   const ref = (budgetReel && budgetReel > 0) ? budgetReel : iaMax;
-  const pct = ref > 0 && budgetEngage > 0 ? Math.min((budgetEngage / ref) * 100, 100) : 0;
-  const displayPct = ref > 0 && budgetEngage > 0 ? Math.round((budgetEngage / ref) * 100) : 0;
-  const filled = (pct / 100) * circ;
 
-  // Arrondi à l'euro entier pour éviter les résidus flottants (ex: 1.599999... €)
-  const overAmount = Math.round(budgetEngage - ref);
-  const isOver = overAmount > 0 && ref > 0;
-  const isNear = !isOver && ref > 0 && budgetEngage > ref * 0.85;
-  const color = budgetEngage === 0 ? '#cbd5e1' : isOver ? '#ef4444' : isNear ? '#f59e0b' : '#6366f1';
+  const displayDecaisse   = decaisse ?? totalPaye;
+  const displayAPayer     = aPayer30j ?? 0;
+  const fluxCertains      = displayDecaisse + displayAPayer;
+  const fluxGap           = ref > 0 ? fluxCertains - ref : 0;
+  const fluxOver          = fluxGap > 100;
 
-  const statusLabel = budgetEngage === 0 ? null
-    : isOver  ? `dépassement +${fmtEurShort(overAmount)}`
-    : isNear  ? 'proche du plafond'
+  // Donut : flux certains vs budget cible
+  const pctFlux = ref > 0 && fluxCertains > 0 ? Math.min((fluxCertains / ref) * 100, 100) : 0;
+  const displayPctFlux = ref > 0 && fluxCertains > 0 ? Math.round((fluxCertains / ref) * 100) : 0;
+  const filled = (pctFlux / 100) * circ;
+  const color = fluxOver ? '#ef4444' : pctFlux > 85 ? '#f59e0b' : '#6366f1';
+
+  const statusLabel = fluxCertains === 0 ? null
+    : fluxOver  ? `dépassement +${fmtEurShort(fluxGap)}`
+    : pctFlux > 85 ? 'proche du plafond'
     : 'dans le budget';
-  const statusCls = isOver ? 'text-red-500' : isNear ? 'text-amber-500' : 'text-indigo-500';
+  const statusCls = fluxOver ? 'text-red-500' : pctFlux > 85 ? 'text-amber-500' : 'text-indigo-500';
 
   const hasBudgetRef = ref > 0;
 
   return (
-    <div className="bg-blue-50 rounded-2xl px-4 py-4 flex items-center gap-3 col-span-2 xl:col-span-1">
-      {/* Donut */}
-      {hasBudgetRef && (
-        <div className="relative shrink-0" style={{ width: size, height: size }}>
-          <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}
-               style={{ transform: 'rotate(-90deg)', display: 'block' }}>
-            <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#dbeafe" strokeWidth={stroke} />
-            {budgetEngage > 0 && (
-              <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
-                strokeDasharray={`${filled} ${circ - filled}`} strokeLinecap="round"
-                style={{ transition: 'stroke-dasharray 0.65s ease' }}
-              />
-            )}
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-[11px] font-extrabold" style={{ color: budgetEngage > 0 ? color : '#94a3b8' }}>
-              {budgetEngage > 0 ? `${displayPct}%` : '—'}
-            </span>
+    <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden col-span-2 xl:col-span-1 shadow-sm">
+
+      {/* ── En-tête avec donut ── */}
+      <div className="bg-blue-50 px-4 py-3 flex items-center gap-3">
+        {hasBudgetRef && (
+          <div className="relative shrink-0" style={{ width: size, height: size }}>
+            <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}
+                 style={{ transform: 'rotate(-90deg)', display: 'block' }}>
+              <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#dbeafe" strokeWidth={stroke} />
+              {fluxCertains > 0 && (
+                <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+                  strokeDasharray={`${filled} ${circ - filled}`} strokeLinecap="round"
+                  style={{ transition: 'stroke-dasharray 0.65s ease' }}
+                />
+              )}
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-[11px] font-extrabold" style={{ color: fluxCertains > 0 ? color : '#94a3b8' }}>
+                {fluxCertains > 0 ? `${displayPctFlux}%` : '—'}
+              </span>
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* 3 lignes */}
-      <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Budget chantier</p>
-        <div className="space-y-1">
-
-          {/* Budget cible */}
-          <div className="flex items-center justify-between gap-2">
-            <InfoLabel label="Budget cible" tip="Montant maximum que vous souhaitez ne pas dépasser pour ce chantier. Modifiable dans l'onglet Budget." />
-            <span className="text-sm font-extrabold text-gray-900 tabular-nums">
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Budget chantier</p>
+          <div className="flex items-baseline gap-1.5 mt-0.5">
+            <span className="text-[17px] font-extrabold text-gray-900 leading-none">
               {budgetReel && budgetReel > 0 ? fmtEurShort(budgetReel) : (iaMin > 0 ? `${fmtK(iaMin)}–${fmtK(iaMax)}` : '—')}
             </span>
+            <span className="text-[10px] text-gray-400">cible</span>
           </div>
+          {statusLabel && <p className={`text-[10px] font-semibold mt-0.5 ${statusCls}`}>{statusLabel}</p>}
+        </div>
+      </div>
 
-          {/* Engagé */}
-          <div className="flex items-start justify-between gap-2">
-            <InfoLabel label="Engagé" tip="Devis validés + factures d'artisans sans devis associé. Représente votre engagement financier total." />
+      {/* ── Section Trésorerie → onglet Trésorerie ── */}
+      <div className="px-4 pt-2 pb-3 space-y-1.5">
+        <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-400 mb-1.5">
+          Trésorerie réelle · <span className="normal-case font-normal">onglet Trésorerie</span>
+        </p>
+
+        {/* Décaissé */}
+        <div className="flex items-center justify-between">
+          <InfoLabel label="Décaissé" tip="Sorti de votre compte : acomptes versés + factures réglées." />
+          <span className={`text-[13px] font-extrabold tabular-nums ${displayDecaisse > 0 ? 'text-emerald-600' : 'text-gray-300'}`}>
+            {displayDecaisse > 0 ? fmtEurShort(displayDecaisse) : '—'}
+          </span>
+        </div>
+
+        {/* À payer */}
+        {displayAPayer > 0 && (
+          <div className="flex items-center justify-between">
+            <InfoLabel label="À payer (certain)" tip="Devis signés sans facture + factures reçues non réglées. Ces sorties sont inévitables." />
+            <span className="text-[13px] font-extrabold tabular-nums text-orange-500">
+              {fmtEurShort(displayAPayer)}
+            </span>
+          </div>
+        )}
+
+        {/* Flux certains = total */}
+        {(displayDecaisse > 0 || displayAPayer > 0) && (
+          <div className={`flex items-center justify-between rounded-lg px-2.5 py-1.5 mt-1 ${fluxOver ? 'bg-red-50' : 'bg-gray-50'}`}>
+            <span className={`text-[11px] font-bold ${fluxOver ? 'text-red-700' : 'text-gray-600'}`}>
+              {fluxOver ? '⚠️ ' : '= '}Flux certains
+            </span>
             <div className="text-right">
-              <span className={`text-sm font-bold tabular-nums ${budgetEngage > 0 ? 'text-gray-800' : 'text-gray-300'}`}>
-                {budgetEngage > 0 ? fmtEurShort(budgetEngage) : '—'}
+              <span className={`text-[13px] font-extrabold tabular-nums ${fluxOver ? 'text-red-600' : 'text-gray-700'}`}>
+                {fmtEurShort(fluxCertains)}
               </span>
-              {statusLabel && (
-                <p className={`text-[10px] font-semibold ${statusCls}`}>{statusLabel}</p>
+              {fluxOver && ref > 0 && (
+                <span className="ml-1.5 text-[10px] font-bold text-red-500">+{fmtEurShort(fluxGap)}</span>
               )}
             </div>
           </div>
-
-          {/* Décaissé */}
-          <div className="flex items-center justify-between gap-2">
-            <InfoLabel label="Décaissé" tip="Somme réellement sortie de votre compte : acomptes versés + factures réglées." />
-            <span className={`text-sm font-bold tabular-nums ${(decaisse ?? totalPaye) > 0 ? 'text-emerald-600' : 'text-gray-300'}`}>
-              {(decaisse ?? totalPaye) > 0 ? fmtEurShort(decaisse ?? totalPaye) : '—'}
-            </span>
-          </div>
-          {/* À payer (flux certains) */}
-          {(aPayer30j ?? 0) > 0 && (
-            <div className="flex items-center justify-between gap-2">
-              <InfoLabel label="À payer" tip="Paiements planifiés : devis signés sans facture + factures reçues non réglées. Ces sorties sont certaines." />
-              <span className="text-sm font-bold tabular-nums text-orange-500">
-                {fmtEurShort(aPayer30j!)}
-              </span>
-            </div>
-          )}
-
-        </div>
-
-        <div className="mt-2">
-          <button onClick={onAffineBudget}
-            className="flex items-center gap-1 text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-1 transition-colors">
-            <SlidersHorizontal className="h-3 w-3" />
-            {hasRefinedBreakdown ? 'Recalculer' : 'Affiner'}
-          </button>
-        </div>
+        )}
       </div>
+
+      {/* ── Footer action ── */}
+      <div className="px-4 pb-3">
+        <button onClick={onAffineBudget}
+          className="flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg px-2.5 py-1.5 transition-colors w-full justify-center">
+          <SlidersHorizontal className="h-3 w-3" />
+          {hasRefinedBreakdown ? 'Recalculer le budget' : 'Affiner le budget'}
+        </button>
+      </div>
+
     </div>
   );
 }
@@ -370,10 +383,9 @@ function BudgetDonutCard({
 // ── Budget progress bars (mobile only) ────────────────────────────────────────
 
 function BudgetProgressBars({
-  budgetReel, budgetEngage, totalPaye, decaisse, aPayer30j, iaMin, iaMax, refinedBreakdown, onAffineBudget, hasRefinedBreakdown,
+  budgetReel, totalPaye, decaisse, aPayer30j, iaMin, iaMax, refinedBreakdown, onAffineBudget, hasRefinedBreakdown,
 }: {
   budgetReel?: number | null;
-  budgetEngage: number;
   totalPaye: number;
   decaisse?: number;
   aPayer30j?: number;
@@ -396,14 +408,6 @@ function BudgetProgressBars({
       color: 'bg-indigo-500',
       bg: 'bg-indigo-100',
       text: ref > 0 ? fmtEurShort(ref) : '—',
-    },
-    {
-      label: 'Engagé',
-      value: budgetEngage,
-      pct: ref > 0 ? Math.min((budgetEngage / ref) * 100, 100) : 0,
-      color: budgetEngage > ref * 0.85 ? (budgetEngage > ref ? 'bg-red-500' : 'bg-amber-500') : 'bg-blue-500',
-      bg: 'bg-blue-100',
-      text: budgetEngage > 0 ? fmtEurShort(budgetEngage) : '—',
     },
     {
       label: 'Décaissé',
@@ -843,7 +847,6 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
         <div className="hidden sm:block col-span-2 xl:col-span-1">
           <BudgetDonutCard
             budgetReel={budgetReel}
-            budgetEngage={budgetEngage}
             totalPaye={totalPaye}
             decaisse={decaisse}
             aPayer30j={aPayer30j}
@@ -857,7 +860,6 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
         <div className="sm:hidden col-span-2">
           <BudgetProgressBars
             budgetReel={budgetReel}
-            budgetEngage={budgetEngage}
             totalPaye={totalPaye}
             decaisse={decaisse}
             aPayer30j={aPayer30j}
