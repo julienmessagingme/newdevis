@@ -1,17 +1,8 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
-import { optionsResponse, jsonOk, jsonError } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, createServiceClient } from '@/lib/apiHelpers';
 import { requireAdmin } from '@/lib/adminAuth';
-
-function marketingClient() {
-  return createClient(
-    import.meta.env.PUBLIC_SUPABASE_URL,
-    import.meta.env.SUPABASE_SERVICE_ROLE_KEY,
-    { db: { schema: 'marketing' } },
-  );
-}
 
 export const GET: APIRoute = async ({ request }) => {
   const ctx = await requireAdmin(request);
@@ -22,8 +13,9 @@ export const GET: APIRoute = async ({ request }) => {
   const mood = url.searchParams.get('mood');
 
   try {
-    const sb = marketingClient();
+    const sb = createServiceClient();
     let query = sb
+      .schema('marketing' as never)
       .from('backgrounds')
       .select('id, category, url, compatible_moods, width, height, created_at')
       .order('created_at', { ascending: false });

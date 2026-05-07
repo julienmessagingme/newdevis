@@ -1,17 +1,8 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
-import { optionsResponse, jsonOk, jsonError, parseJsonBody } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, parseJsonBody, createServiceClient } from '@/lib/apiHelpers';
 import { requireAdmin } from '@/lib/adminAuth';
-
-function marketingClient() {
-  return createClient(
-    import.meta.env.PUBLIC_SUPABASE_URL,
-    import.meta.env.SUPABASE_SERVICE_ROLE_KEY,
-    { db: { schema: 'marketing' } },
-  );
-}
 
 export const GET: APIRoute = async ({ params, request }) => {
   const ctx = await requireAdmin(request);
@@ -21,8 +12,9 @@ export const GET: APIRoute = async ({ params, request }) => {
   if (!id) return jsonError('Missing template id', 400);
 
   try {
-    const sb = marketingClient();
+    const sb = createServiceClient();
     const { data, error } = await sb
+      .schema('marketing' as never)
       .from('script_templates')
       .select('*')
       .eq('id', id)
@@ -69,8 +61,9 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   }
 
   try {
-    const sb = marketingClient();
+    const sb = createServiceClient();
     const { data, error } = await sb
+      .schema('marketing' as never)
       .from('script_templates')
       .update(updates)
       .eq('id', id)
