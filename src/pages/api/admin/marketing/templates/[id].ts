@@ -13,22 +13,17 @@ export const GET: APIRoute = async ({ params, request }) => {
 
   try {
     const sb = createServiceClient();
-    const { data, error } = await sb
-      .schema('marketing' as never)
-      .from('script_templates')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
+    const { data, error } = await sb.rpc('get_marketing_template', { p_id: id });
 
     if (error) {
-      console.error('[marketing/templates/:id GET] Supabase error:', error.message, error.code);
+      console.error('[marketing/templates/:id GET] RPC error:', error.message, error.code);
       return jsonError(error.message || 'Erreur Supabase', 500);
     }
     if (!data) return jsonError('Template non trouvé', 404);
 
     const template = {
-      ...data,
-      total_uses: data.total_uses ?? 0,
+      ...(data as Record<string, unknown>),
+      total_uses: (data as Record<string, unknown>).total_uses ?? 0,
       last_usage: null,
       cooldown_until: {},
     };
@@ -68,16 +63,13 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 
   try {
     const sb = createServiceClient();
-    const { data, error } = await sb
-      .schema('marketing' as never)
-      .from('script_templates')
-      .update(updates)
-      .eq('id', id)
-      .select('*')
-      .maybeSingle();
+    const { data, error } = await sb.rpc('update_marketing_template', {
+      p_id: id,
+      p_updates: JSON.stringify(updates),
+    });
 
     if (error) {
-      console.error('[marketing/templates/:id PATCH] Supabase error:', error.message, error.code);
+      console.error('[marketing/templates/:id PATCH] RPC error:', error.message, error.code);
       return jsonError(error.message || 'Erreur Supabase', 500);
     }
     if (!data) return jsonError('Template non trouvé', 404);

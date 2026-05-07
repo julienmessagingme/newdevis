@@ -15,23 +15,14 @@ export const GET: APIRoute = async ({ request }) => {
 
   try {
     const sb = createServiceClient();
-    let query = sb
-      .schema('marketing' as never)
-      .from('script_templates')
-      .select('id, product, narrative_type, format_size, title, mood, is_active, total_uses, slides')
-      .order('id');
+    const { data, error } = await sb.rpc('get_marketing_templates');
 
-    if (product) query = query.eq('product', product);
-    if (narrativeType) query = query.eq('narrative_type', narrativeType);
-    if (mood) query = query.eq('mood', mood);
-
-    const { data, error } = await query;
     if (error) {
-      console.error('[marketing/templates] Supabase error:', error.message, error.code, error.details);
+      console.error('[marketing/templates] RPC error:', error.message, error.code, error.details);
       return jsonError(error.message || 'Erreur Supabase', 500);
     }
 
-    const templates = (data ?? []).map((t: Record<string, unknown>) => ({
+    let templates = (data ?? []).map((t: Record<string, unknown>) => ({
       id: t.id,
       product: t.product,
       narrative_type: t.narrative_type,
@@ -39,10 +30,15 @@ export const GET: APIRoute = async ({ request }) => {
       title: t.title,
       mood: t.mood,
       is_active: t.is_active,
-      total_uses: t.total_uses ?? 0,
+      total_uses: (t.total_uses as number) ?? 0,
+      slides: t.slides,
       last_usage: null,
       cooldown_until: {},
     }));
+
+    if (product) templates = templates.filter((t: Record<string, unknown>) => t.product === product);
+    if (narrativeType) templates = templates.filter((t: Record<string, unknown>) => t.narrative_type === narrativeType);
+    if (mood) templates = templates.filter((t: Record<string, unknown>) => t.mood === mood);
 
     return jsonOk({ templates });
   } catch (err) {
