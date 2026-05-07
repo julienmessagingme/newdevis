@@ -104,6 +104,10 @@ export const NARRATIVE_LABELS: Record<NarrativeType, string> = {
 
 export const MOOD_LABELS: Record<string, string> = {
   pain: 'Douleur',
+  fear: 'Peur / Urgence',
+  trust: 'Confiance',
+  empowerment: 'Empowerment',
+  authority: 'Autorité',
   revelation: 'Révélation',
   stat_choc: 'Stat choc',
   complicite: 'Complicité',
@@ -138,5 +142,5 @@ export const CHAR_LIMITS: Record<string, Record<string, number>> = {
   emoji_accent: { text: 80, emoji: 2 },
 };
 
-export const ALL_MOODS = ['pain', 'revelation', 'stat_choc', 'complicite', 'celebration'] as const;
+export const ALL_MOODS = ['pain', 'fear', 'trust', 'empowerment', 'authority', 'revelation', 'stat_choc', 'complicite', 'celebration'] as const;
 export const ALL_NARRATIVES: NarrativeType[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,6 +10,7 @@ import {
 import { toast } from "sonner";
 import CharCountInput from "./CharCountInput";
 import SlideFieldEditor from "./SlideFieldEditor";
+import SlidePreview from "./SlidePreview";
 import { MOOD_LABELS, ALL_MOODS, formatDate } from "./helpers";
 import type { TemplateDetail, SlideData, UsageEntry } from "@/types/marketing";
 
@@ -177,6 +178,14 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
               </label>
             </section>
 
+            {/* Aperçu carrousel */}
+            <section className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Aperçu carrousel
+              </h3>
+              <SlideCarouselPreview slides={draft.slides} />
+            </section>
+
             {/* Slides */}
             <section className="space-y-4">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
@@ -227,5 +236,56 @@ export default function TemplateEditDialog({ templateId, authToken, onClose, onS
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SlideCarouselPreview({ slides }: { slides: Record<string, SlideData> }) {
+  const entries = Object.entries(slides).sort(([a], [b]) => a.localeCompare(b));
+  const [current, setCurrent] = useState(0);
+
+  if (entries.length === 0) return null;
+
+  const safeIdx = Math.min(Math.max(current, 0), entries.length - 1);
+  const [key, slide] = entries[safeIdx];
+
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <div className="relative">
+        <SlidePreview templateName={slide.template} fields={slide} />
+        {entries.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={() => setCurrent(c => c <= 0 ? entries.length - 1 : c - 1)}
+              className="absolute left-1 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/40 hover:bg-black/60 text-white"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrent(c => c >= entries.length - 1 ? 0 : c + 1)}
+              className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/40 hover:bg-black/60 text-white"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </>
+        )}
+      </div>
+      <div className="flex gap-1.5">
+        {entries.map((_, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => setCurrent(i)}
+            className={`w-2 h-2 rounded-full transition-all ${
+              i === safeIdx ? "bg-primary w-5" : "bg-muted-foreground/30"
+            }`}
+          />
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {safeIdx + 1}/{entries.length} · <span className="font-mono">{slide.template}</span> · {key}
+      </p>
+    </div>
   );
 }
