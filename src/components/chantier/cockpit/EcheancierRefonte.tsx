@@ -276,7 +276,7 @@ function AddEntreeModal({ chantierId, token, onAdded, onClose }: {
   chantierId: string; token: string; onAdded: () => void; onClose: () => void;
 }) {
   const [form, setForm] = useState({
-    label: '',
+    label: SOURCE_CFG['deblocage_credit'].label,
     montant: '',
     source_type: 'deblocage_credit' as SourceType,
     date_entree: new Date().toISOString().slice(0, 10),
@@ -290,14 +290,15 @@ function AddEntreeModal({ chantierId, token, onAdded, onClose }: {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.label || !form.montant) return;
+    if (!form.montant) return;
+    const effectiveLabel = form.label.trim() || SOURCE_CFG[form.source_type].label;
     setSaving(true);
     try {
       const bearer = await freshToken(token);
       const res = await fetch(`/api/chantier/${chantierId}/entrees`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, montant: parseFloat(form.montant) }),
+        body: JSON.stringify({ ...form, label: effectiveLabel, montant: parseFloat(form.montant) }),
       });
       if (!res.ok) return;
 
@@ -437,9 +438,8 @@ function AddEntreeModal({ chantierId, token, onAdded, onClose }: {
               Libellé
             </label>
             <input value={form.label} onChange={e => set('label', e.target.value)}
-              placeholder={`Ex : ${SOURCE_CFG[form.source_type].label}`}
-              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-200 placeholder:text-gray-300"
-              required />
+              placeholder={SOURCE_CFG[form.source_type].label}
+              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-200 placeholder:text-gray-300" />
           </div>
 
           {/* Montant + Date */}
@@ -485,7 +485,7 @@ function AddEntreeModal({ chantierId, token, onAdded, onClose }: {
             </div>
           </div>
 
-          <button type="submit" disabled={saving || !form.label || !form.montant}
+          <button type="submit" disabled={saving || !form.montant}
             className="w-full py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold disabled:opacity-50 hover:bg-indigo-700 transition-colors">
             {saving ? 'Enregistrement…' : "Ajouter l'entrée"}
           </button>
