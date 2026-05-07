@@ -9,14 +9,23 @@ import SEOHead from "@/components/SEOHead";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import BrandLogo from "@/components/auth/BrandLogo";
 import { SESSION_ACTIVE_KEY } from "@/hooks/useSessionGuard";
-import { getBrandConfig } from "@/lib/brand";
+import { type Brand, getBrandConfig, getConfigForBrand } from "@/lib/brand";
 import { hasGmcAccess } from "@/lib/gmcAccess";
 
-const Login = () => {
+interface Props {
+  /** Brand détecté côté serveur (Astro page → wrapper App). Si absent,
+   * fallback à la détection runtime via window.location. */
+  brand?: Brand;
+}
+
+const Login = ({ brand }: Props) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const config = useMemo(() => getBrandConfig(), []);
+  const config = useMemo(
+    () => (brand ? getConfigForBrand(brand) : getBrandConfig()),
+    [brand],
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

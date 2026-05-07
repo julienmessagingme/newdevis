@@ -66,3 +66,16 @@ export const GMC_CONFIG: BrandConfig = {
 export function getBrandConfig(): BrandConfig {
   return getBrand() === 'gmc' ? GMC_CONFIG : VMD_CONFIG;
 }
+
+/** Server-side helper : à appeler depuis une page Astro avec le résultat de
+ * `detectBrandFromHost()`. */
+export function getConfigForBrand(brand: Brand): BrandConfig {
+  return brand === 'gmc' ? GMC_CONFIG : VMD_CONFIG;
+}
+
+/** Détection du brand côté serveur (pages Astro). À appeler avec
+ * `Astro.request.headers.get('host')`. */
+export function detectBrandFromHost(host: string | null): Brand {
+  if (!host) return 'vmd';
+  return GMC_HOST_RE.test(host) ? 'gmc' : 'vmd';
+}

@@ -7,16 +7,23 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import SEOHead from "@/components/SEOHead";
 import BrandLogo from "@/components/auth/BrandLogo";
-import { getBrandConfig } from "@/lib/brand";
+import { type Brand, getBrandConfig, getConfigForBrand } from "@/lib/brand";
 
-const ResetPassword = () => {
+interface Props {
+  brand?: Brand;
+}
+
+const ResetPassword = ({ brand }: Props) => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const config = useMemo(() => getBrandConfig(), []);
+  const config = useMemo(
+    () => (brand ? getConfigForBrand(brand) : getBrandConfig()),
+    [brand],
+  );
 
   useEffect(() => {
     // Supabase automatically picks up the token from the URL hash

@@ -1,15 +1,23 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import LoginApp from '@/components/app/LoginApp';
+import { detectBrandFromHost, getConfigForBrand } from '@/lib/brand';
 
 export const prerender = false;
+
+const brand = detectBrandFromHost(Astro.request.headers.get('host'));
+const config = getConfigForBrand(brand);
+const canonicalBase = brand === 'gmc'
+  ? 'https://gerermonchantier.fr'
+  : 'https://www.verifiermondevis.fr';
 ---
 
 <BaseLayout
-  title="Connexion | VerifierMonDevis.fr"
-  description="Connectez-vous à votre compte VerifierMonDevis.fr pour analyser vos devis d'artisans."
-  canonical="https://www.verifiermondevis.fr/connexion"
+  title={`Connexion | ${config.name}`}
+  description={`Connectez-vous à votre compte ${config.name}.`}
+  canonical={`${canonicalBase}/connexion`}
+  siteName={config.name}
   noindex={true}
 >
-  <LoginApp client:only="react" />
+  <LoginApp client:only="react" brand={brand} />
 </BaseLayout>

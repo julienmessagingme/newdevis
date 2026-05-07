@@ -7,13 +7,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import SEOHead from "@/components/SEOHead";
 import BrandLogo from "@/components/auth/BrandLogo";
-import { getBrandConfig } from "@/lib/brand";
+import { type Brand, getBrandConfig, getConfigForBrand } from "@/lib/brand";
 
-const ForgotPassword = () => {
+interface Props {
+  brand?: Brand;
+}
+
+const ForgotPassword = ({ brand }: Props) => {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
-  const config = useMemo(() => getBrandConfig(), []);
+  const config = useMemo(
+    () => (brand ? getConfigForBrand(brand) : getBrandConfig()),
+    [brand],
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

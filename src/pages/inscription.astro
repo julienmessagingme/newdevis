@@ -1,15 +1,23 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import RegisterApp from '@/components/app/RegisterApp';
+import { detectBrandFromHost, getConfigForBrand } from '@/lib/brand';
 
 export const prerender = false;
+
+const brand = detectBrandFromHost(Astro.request.headers.get('host'));
+const config = getConfigForBrand(brand);
+const canonicalBase = brand === 'gmc'
+  ? 'https://gerermonchantier.fr'
+  : 'https://www.verifiermondevis.fr';
 ---
 
 <BaseLayout
-  title="Créer un compte | VerifierMonDevis.fr"
-  description="Créez votre compte gratuit sur VerifierMonDevis.fr pour analyser vos devis d'artisans."
-  canonical="https://www.verifiermondevis.fr/inscription"
+  title={`Créer un compte | ${config.name}`}
+  description={`Inscrivez-vous gratuitement sur ${config.name}.`}
+  canonical={`${canonicalBase}/inscription`}
+  siteName={config.name}
   noindex={true}
 >
-  <RegisterApp client:only="react" />
+  <RegisterApp client:only="react" brand={brand} />
 </BaseLayout>

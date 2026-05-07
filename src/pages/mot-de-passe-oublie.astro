@@ -1,15 +1,23 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
 import ForgotPasswordApp from '@/components/app/ForgotPasswordApp';
+import { detectBrandFromHost, getConfigForBrand } from '@/lib/brand';
 
 export const prerender = false;
+
+const brand = detectBrandFromHost(Astro.request.headers.get('host'));
+const config = getConfigForBrand(brand);
+const canonicalBase = brand === 'gmc'
+  ? 'https://gerermonchantier.fr'
+  : 'https://www.verifiermondevis.fr';
 ---
 
 <BaseLayout
-  title="Mot de passe oublié | VerifierMonDevis.fr"
-  description="Réinitialisez votre mot de passe VerifierMonDevis.fr pour retrouver l'accès à vos analyses de devis."
-  canonical="https://www.verifiermondevis.fr/mot-de-passe-oublie"
+  title={`Mot de passe oublié | ${config.name}`}
+  description={`Réinitialisez votre mot de passe ${config.name}.`}
+  canonical={`${canonicalBase}/mot-de-passe-oublie`}
+  siteName={config.name}
   noindex={true}
 >
-  <ForgotPasswordApp client:only="react" />
+  <ForgotPasswordApp client:only="react" brand={brand} />
 </BaseLayout>

@@ -8,7 +8,11 @@ import { toast } from "sonner";
 import SEOHead from "@/components/SEOHead";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import BrandLogo from "@/components/auth/BrandLogo";
-import { getBrandConfig } from "@/lib/brand";
+import { type Brand, getBrandConfig, getConfigForBrand } from "@/lib/brand";
+
+interface Props {
+  brand?: Brand;
+}
 
 const COUNTRY_CODES = [
   { code: "+33", flag: "🇫🇷", label: "France", maxDigits: 9 },
@@ -27,7 +31,7 @@ const COUNTRY_CODES = [
   { code: "+213", flag: "🇩🇿", label: "Algérie", maxDigits: 9 },
 ];
 
-const Register = () => {
+const Register = ({ brand }: Props) => {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -37,7 +41,10 @@ const Register = () => {
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [acceptCommercial, setAcceptCommercial] = useState(false);
   const [loading, setLoading] = useState(false);
-  const config = useMemo(() => getBrandConfig(), []);
+  const config = useMemo(
+    () => (brand ? getConfigForBrand(brand) : getBrandConfig()),
+    [brand],
+  );
 
   const selectedCountry = COUNTRY_CODES.find(c => c.code === countryCode) || COUNTRY_CODES[0];
 
