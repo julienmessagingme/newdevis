@@ -26,7 +26,10 @@ export const GET: APIRoute = async ({ request }) => {
     if (mood) query = query.eq('mood', mood);
 
     const { data, error } = await query;
-    if (error) throw error;
+    if (error) {
+      console.error('[marketing/templates] Supabase error:', error.message, error.code, error.details);
+      return jsonError(error.message || 'Erreur Supabase', 500);
+    }
 
     const templates = (data ?? []).map((t: Record<string, unknown>) => ({
       id: t.id,
@@ -43,7 +46,10 @@ export const GET: APIRoute = async ({ request }) => {
 
     return jsonOk({ templates });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Erreur inconnue';
+    const msg = err instanceof Error ? err.message
+      : (typeof err === 'object' && err && 'message' in err) ? String((err as { message: unknown }).message)
+      : 'Erreur inconnue';
+    console.error('[marketing/templates] catch:', msg);
     return jsonError(msg, 500);
   }
 };

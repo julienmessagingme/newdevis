@@ -20,7 +20,10 @@ export const GET: APIRoute = async ({ params, request }) => {
       .eq('id', id)
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      console.error('[marketing/templates/:id GET] Supabase error:', error.message, error.code);
+      return jsonError(error.message || 'Erreur Supabase', 500);
+    }
     if (!data) return jsonError('Template non trouvé', 404);
 
     const template = {
@@ -32,7 +35,10 @@ export const GET: APIRoute = async ({ params, request }) => {
 
     return jsonOk(template);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Erreur inconnue';
+    const msg = err instanceof Error ? err.message
+      : (typeof err === 'object' && err && 'message' in err) ? String((err as { message: unknown }).message)
+      : 'Erreur inconnue';
+    console.error('[marketing/templates/:id GET] catch:', msg);
     return jsonError(msg, 500);
   }
 };
@@ -70,12 +76,18 @@ export const PATCH: APIRoute = async ({ params, request }) => {
       .select('*')
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      console.error('[marketing/templates/:id PATCH] Supabase error:', error.message, error.code);
+      return jsonError(error.message || 'Erreur Supabase', 500);
+    }
     if (!data) return jsonError('Template non trouvé', 404);
 
     return jsonOk(data);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Erreur inconnue';
+    const msg = err instanceof Error ? err.message
+      : (typeof err === 'object' && err && 'message' in err) ? String((err as { message: unknown }).message)
+      : 'Erreur inconnue';
+    console.error('[marketing/templates/:id PATCH] catch:', msg);
     return jsonError(msg, 500);
   }
 };
