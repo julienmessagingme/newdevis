@@ -560,7 +560,6 @@ function FinancementSection({
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Apport personnel</span>
           </div>
           <p className="text-[18px] font-black leading-none" style={{ color: C.apport.text }}>{fmtEur(apport)}</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">Budget ref − crédit − aides</p>
 
           {/* PEE */}
           {peeLots.length > 0 && (
