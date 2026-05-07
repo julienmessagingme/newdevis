@@ -18,6 +18,8 @@ export const prerender = false;
 
   <script>
     import { createClient } from "@supabase/supabase-js";
+    import { hasGmcAccess } from "@/lib/gmcAccess";
+    import { detectBrandFromHost } from "@/lib/brand";
 
     const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL || "";
     const supabaseKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
@@ -81,6 +83,9 @@ export const prerender = false;
       if (isNewUser) {
         // Fire webhook for new Google signups
         const meta = user.user_metadata || {};
+        const signupSource = detectBrandFromHost(window.location.hostname) === "gmc"
+          ? "gerermonchantier"
+          : "verifiermondevis";
         try {
           await fetch("/api/webhook-registration", {
             method: "POST",
@@ -91,6 +96,7 @@ export const prerender = false;
               first_name: meta.full_name?.split(" ")[0] || meta.name || "",
               last_name: meta.full_name?.split(" ").slice(1).join(" ") || "",
               accept_commercial: false,
+              signup_source: signupSource,
             }),
           });
         } catch {
@@ -110,14 +116,10 @@ export const prerender = false;
       // Default redirect : adapté au domaine d'origine du login.
       // Sur (www.)gerermonchantier.fr + email dans l'allowlist GMC →
       // cockpit /mon-chantier. Sinon → /tableau-de-bord (VMD).
-      // L'allowlist est dupliquée ici (pas d'import TS dans ce script inline) ;
-      // source unique = src/lib/gmcAccess.ts.
-      const GMC_HOST_RE = /^(www\.)?gerermonchantier\.fr$/i;
-      const GMC_ACCESS_EMAILS = ["julien@messagingme.fr", "bridey.johan@gmail.com"];
-      const isGmcBrand = GMC_HOST_RE.test(window.location.hostname);
-      const userEmail = (user.email ?? "").toLowerCase();
-      const hasGmcAccess = GMC_ACCESS_EMAILS.includes(userEmail);
-      const smartDefault = isGmcBrand && hasGmcAccess ? "/mon-chantier" : "/tableau-de-bord";
+      const isGmcBrand = detectBrandFromHost(window.location.hostname) === "gmc";
+      const smartDefault = isGmcBrand && hasGmcAccess(user.email)
+        ? "/mon-chantier"
+        : "/tableau-de-bord";
 
       window.location.href = redirect && redirect.startsWith("/") && !redirect.startsWith("//")
         ? redirect

@@ -32,7 +32,7 @@ const Login = ({ brand }: Props) => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -51,8 +51,11 @@ const Login = ({ brand }: Props) => {
         const redirect = params.get("redirect");
         // Default redirect : sur GMC + email allowlisté → cockpit GMC.
         // Sinon (VMD ou GMC sans accès) → tableau de bord VMD.
+        // On lit `data.user.email` plutôt que le champ `email` du form pour
+        // gérer les cas où Supabase normalise l'adresse (capitalisation, aliases).
+        const authedEmail = data?.user?.email ?? email;
         const smartDefault =
-          config.brand === "gmc" && hasGmcAccess(email)
+          config.brand === "gmc" && hasGmcAccess(authedEmail)
             ? config.defaultRedirect
             : "/tableau-de-bord";
         // Security: only allow relative paths starting with / (prevent open redirect to external sites)

@@ -14,6 +14,10 @@ export const POST: APIRoute = async ({ request }) => {
     first_name?: string;
     last_name?: string;
     accept_commercial?: boolean;
+    /** Domaine d'entrée — `verifiermondevis` ou `gerermonchantier`.
+     * Tracé pour l'analytics d'acquisition. À terme, sera persisté
+     * en DB (colonne `subscriptions.signup_source` ou similaire). */
+    signup_source?: string;
   };
 
   try {
@@ -33,6 +37,13 @@ export const POST: APIRoute = async ({ request }) => {
     );
   }
 
+  // Whitelist des sources autorisées pour éviter d'avoir n'importe quelle string
+  // arbitraire envoyée à l'analytics depuis le client.
+  const allowedSources = ['verifiermondevis', 'gerermonchantier'];
+  const signupSource = body.signup_source && allowedSources.includes(body.signup_source)
+    ? body.signup_source
+    : 'verifiermondevis';
+
   try {
     const res = await fetch("https://ai.messagingme.app/api/iwh/25a2bb855e30cf49b1fc2aac9697478c", {
       method: "POST",
@@ -45,6 +56,7 @@ export const POST: APIRoute = async ({ request }) => {
         last_name: body.last_name || "",
         accept_commercial: body.accept_commercial ?? false,
         source: "inscription",
+        signup_source: signupSource,
         registered_at: new Date().toISOString(),
       }),
     });

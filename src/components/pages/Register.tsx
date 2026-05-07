@@ -101,6 +101,7 @@ const Register = ({ brand }: Props) => {
       } else {
         // Send webhook via server-side API route (await to ensure it fires before redirect)
         const phoneFormatted = countryCode + phoneLocal;
+        const signupSource = config.brand === "gmc" ? "gerermonchantier" : "verifiermondevis";
         try {
           await fetch("/api/webhook-registration", {
             method: "POST",
@@ -111,6 +112,7 @@ const Register = ({ brand }: Props) => {
               first_name: firstName,
               last_name: lastName,
               accept_commercial: acceptCommercial,
+              signup_source: signupSource,
             }),
           });
         } catch {

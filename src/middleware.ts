@@ -1,10 +1,9 @@
 import { defineMiddleware } from 'astro:middleware';
+import { detectBrandFromHost } from '@/lib/brand';
 
-// Hosts servis par le projet newdevis. Le rewrite ne s'applique qu'à `/`
-// (la home GMC), toutes les autres routes restent partagées entre les deux
-// domaines (mon-chantier, auth, api, etc.).
-const GMC_HOST = /^(www\.)?gerermonchantier\.fr$/i;
-
+// Multi-domaine : sur (www.)gerermonchantier.fr, le path "/" rewrite (302)
+// vers /gmc-home. Toutes les autres routes (mon-chantier, auth, api…)
+// restent partagées entre les deux domaines.
 export const onRequest = defineMiddleware(async (context, next) => {
   const path = new URL(context.request.url).pathname;
 
@@ -12,8 +11,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // au build time pour les pages prerendered, ce qui déclenche un warning).
   if (path !== '/') return next();
 
-  const host = context.request.headers.get('host') ?? '';
-  if (GMC_HOST.test(host)) {
+  const host = context.request.headers.get('host');
+  if (detectBrandFromHost(host) === 'gmc') {
     // 302 redirect avec Location RELATIF — sur Vercel SSR, context.request.url
     // peut résoudre vers https://localhost/... donc on évite Response.redirect()
     // (qui exige une URL absolue) et on laisse le navigateur composer avec l'origine.
