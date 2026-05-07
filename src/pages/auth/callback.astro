@@ -107,9 +107,21 @@ export const prerender = false;
       const params = new URLSearchParams(window.location.search);
       const redirect = savedRedirect || params.get("redirect");
 
+      // Default redirect : adapté au domaine d'origine du login.
+      // Sur (www.)gerermonchantier.fr + email dans l'allowlist GMC →
+      // cockpit /mon-chantier. Sinon → /tableau-de-bord (VMD).
+      // L'allowlist est dupliquée ici (pas d'import TS dans ce script inline) ;
+      // source unique = src/lib/gmcAccess.ts.
+      const GMC_HOST_RE = /^(www\.)?gerermonchantier\.fr$/i;
+      const GMC_ACCESS_EMAILS = ["julien@messagingme.fr", "bridey.johan@gmail.com"];
+      const isGmcBrand = GMC_HOST_RE.test(window.location.hostname);
+      const userEmail = (user.email ?? "").toLowerCase();
+      const hasGmcAccess = GMC_ACCESS_EMAILS.includes(userEmail);
+      const smartDefault = isGmcBrand && hasGmcAccess ? "/mon-chantier" : "/tableau-de-bord";
+
       window.location.href = redirect && redirect.startsWith("/") && !redirect.startsWith("//")
         ? redirect
-        : "/tableau-de-bord";
+        : smartDefault;
     }
 
     handleCallback();

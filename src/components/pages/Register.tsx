@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import SEOHead from "@/components/SEOHead";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
+import BrandLogo from "@/components/auth/BrandLogo";
+import { getBrandConfig } from "@/lib/brand";
 
 const COUNTRY_CODES = [
   { code: "+33", flag: "🇫🇷", label: "France", maxDigits: 9 },
@@ -35,6 +37,7 @@ const Register = () => {
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [acceptCommercial, setAcceptCommercial] = useState(false);
   const [loading, setLoading] = useState(false);
+  const config = useMemo(() => getBrandConfig(), []);
 
   const selectedCountry = COUNTRY_CODES.find(c => c.code === countryCode) || COUNTRY_CODES[0];
 
@@ -121,24 +124,27 @@ const Register = () => {
 
   return (
     <div className="min-h-screen bg-background flex">
-      <SEOHead 
-        title="Créer un compte gratuit | VerifierMonDevis.fr"
-        description="Inscrivez-vous gratuitement sur VerifierMonDevis.fr. Analysez vos devis d'artisans, vérifiez les entreprises et protégez-vous avant de signer."
-        canonical="https://www.verifiermondevis.fr/inscription"
+      <SEOHead
+        title={`Créer un compte | ${config.name}`}
+        description={`Inscrivez-vous gratuitement sur ${config.name}.`}
+        canonical={
+          config.brand === "gmc"
+            ? "https://gerermonchantier.fr/inscription"
+            : "https://www.verifiermondevis.fr/inscription"
+        }
       />
       {/* Left Panel - Form */}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
-            <a href="/" className="inline-flex items-center gap-2 mb-6">
-              <img src="/images/logo-detoure.webp" alt="VerifierMonDevis.fr" className="h-12 w-12 object-contain" />
-              <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
+            <a href="/" className="inline-flex mb-6">
+              <BrandLogo brand={config.brand} size="md" />
             </a>
             <h1 className="text-2xl font-bold text-foreground mb-2">
-              Créer votre compte
+              {config.registerTitle}
             </h1>
             <p className="text-muted-foreground">
-              Gratuit pour les particuliers
+              {config.registerSubtitle}
             </p>
           </div>
 
@@ -318,15 +324,23 @@ const Register = () => {
       </div>
 
       {/* Right Panel - Visual */}
-      <div className="hidden lg:flex flex-1 hero-gradient items-center justify-center p-8">
+      <div
+        className={
+          config.brand === "gmc"
+            ? "hidden lg:flex flex-1 items-center justify-center p-8 bg-gradient-to-br from-[#1B3FA1] to-[#0E1730]"
+            : "hidden lg:flex flex-1 hero-gradient items-center justify-center p-8"
+        }
+      >
         <div className="max-w-md text-center text-primary-foreground">
           <div className="mb-8">
-            <img src="/images/logo-detoure.webp" alt="VerifierMonDevis.fr" className="h-20 w-20 object-contain mx-auto mb-6 drop-shadow-lg" />
-            <h2 className="text-2xl font-bold mb-4">
-              Rejoignez des milliers de particuliers
+            <div className="mx-auto mb-6 inline-flex">
+              <BrandLogo brand={config.brand} size="lg" dark />
+            </div>
+            <h2 className="text-2xl font-bold mb-4 text-white">
+              {config.heroPanelTitle}
             </h2>
-            <p className="text-primary-foreground/80">
-              Analysez vos devis gratuitement et protégez-vous des arnaques aux travaux.
+            <p className="text-white/80">
+              {config.heroPanelText}
             </p>
           </div>
         </div>

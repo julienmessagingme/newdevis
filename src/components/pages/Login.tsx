@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,12 +7,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import SEOHead from "@/components/SEOHead";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
+import BrandLogo from "@/components/auth/BrandLogo";
 import { SESSION_ACTIVE_KEY } from "@/hooks/useSessionGuard";
+import { getBrandConfig } from "@/lib/brand";
+import { hasGmcAccess } from "@/lib/gmcAccess";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const config = useMemo(() => getBrandConfig(), []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,10 +40,16 @@ const Login = () => {
         sessionStorage.setItem(SESSION_ACTIVE_KEY, "1");
         const params = new URLSearchParams(window.location.search);
         const redirect = params.get("redirect");
+        // Default redirect : sur GMC + email allowlisté → cockpit GMC.
+        // Sinon (VMD ou GMC sans accès) → tableau de bord VMD.
+        const smartDefault =
+          config.brand === "gmc" && hasGmcAccess(email)
+            ? config.defaultRedirect
+            : "/tableau-de-bord";
         // Security: only allow relative paths starting with / (prevent open redirect to external sites)
         const safeRedirect = redirect && redirect.startsWith("/") && !redirect.startsWith("//")
           ? redirect
-          : "/tableau-de-bord";
+          : smartDefault;
         window.location.href = safeRedirect;
       }
     } catch (error) {
@@ -51,24 +61,27 @@ const Login = () => {
 
   return (
     <div className="min-h-screen bg-background flex">
-      <SEOHead 
-        title="Connexion | VerifierMonDevis.fr"
-        description="Connectez-vous à votre compte VerifierMonDevis.fr pour accéder à vos analyses de devis d'artisans et suivre vos projets de travaux."
-        canonical="https://www.verifiermondevis.fr/connexion"
+      <SEOHead
+        title={`Connexion | ${config.name}`}
+        description={`Connectez-vous à votre compte ${config.name}.`}
+        canonical={
+          config.brand === "gmc"
+            ? "https://gerermonchantier.fr/connexion"
+            : "https://www.verifiermondevis.fr/connexion"
+        }
       />
       {/* Left Panel - Form */}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
-            <a href="/" className="inline-flex items-center gap-2 mb-6">
-              <img src="/images/logo-detoure.webp" alt="VerifierMonDevis.fr" className="h-12 w-12 object-contain" />
-              <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
+            <a href="/" className="inline-flex mb-6">
+              <BrandLogo brand={config.brand} size="md" />
             </a>
             <h1 className="text-2xl font-bold text-foreground mb-2">
-              Connexion à votre compte
+              {config.loginTitle}
             </h1>
             <p className="text-muted-foreground">
-              Accédez à vos analyses de devis
+              {config.loginSubtitle}
             </p>
           </div>
 
@@ -152,15 +165,23 @@ const Login = () => {
       </div>
 
       {/* Right Panel - Visual */}
-      <div className="hidden lg:flex flex-1 hero-gradient items-center justify-center p-8">
+      <div
+        className={
+          config.brand === "gmc"
+            ? "hidden lg:flex flex-1 items-center justify-center p-8 bg-gradient-to-br from-[#1B3FA1] to-[#0E1730]"
+            : "hidden lg:flex flex-1 hero-gradient items-center justify-center p-8"
+        }
+      >
         <div className="max-w-md text-center text-primary-foreground">
           <div className="mb-8">
-            <img src="/images/logo-detoure.webp" alt="VerifierMonDevis.fr" className="h-20 w-20 object-contain mx-auto mb-6 drop-shadow-lg" />
-            <h2 className="text-2xl font-bold mb-4">
-              Sécurisez vos projets de travaux
+            <div className="mx-auto mb-6 inline-flex">
+              <BrandLogo brand={config.brand} size="lg" dark />
+            </div>
+            <h2 className="text-2xl font-bold mb-4 text-white">
+              {config.heroPanelTitle}
             </h2>
-            <p className="text-primary-foreground/80">
-              Analysez vos devis d'artisans en quelques minutes et évitez les mauvaises surprises.
+            <p className="text-white/80">
+              {config.heroPanelText}
             </p>
           </div>
         </div>
