@@ -1,20 +1,25 @@
 ---
 /**
- * Page cible pour le logout cross-domaine via iframe caché.
+ * Page cible pour le logout cross-domaine.
  *
- * Quand un user clique "Déconnexion" sur verifiermondevis.fr, le Header
- * insère un iframe pointant vers `gerermonchantier.fr/auth/clear-session`
+ * Quand un user clique "Déconnexion" sur verifiermondevis.fr, le helper
+ * `signOutCrossDomain` navigue (full page) vers `gerermonchantier.fr/auth/clear-session?return=…`
  * (et inversement). Cette page :
  * 1. Vide le localStorage de l'origine courante (les tokens Supabase y vivent).
  * 2. Vide aussi `sessionStorage`.
- * 3. Notifie le parent via postMessage (pour debug, optionnel).
+ * 3. Redirige vers le `return=` reçu en query string, mais SEULEMENT s'il
+ *    pointe vers une origine autorisée (anti open-redirect).
  *
  * Effet : le user est instantanément déconnecté sur les deux domaines, sans
  * attendre l'expiration des tokens (1h par défaut).
  *
- * Sécurité : ce script ne lit aucune donnée utilisateur, il ne fait que
- * supprimer ses propres clés (auth-token + session marker). Pas de
- * postMessage de données sensibles.
+ * UX : le user voit brièvement (~300ms) le texte "Déconnexion en cours…"
+ * pendant que le script s'exécute, puis revient sur l'origine d'origine.
+ *
+ * Sécurité :
+ * - Aucune donnée sensible lue/transmise.
+ * - L'URL `return` est validée contre une whitelist d'origines pour éviter
+ *   qu'un attaquant force un redirect vers `evil.com` via cette page.
  */
 import BaseLayout from '@/layouts/BaseLayout.astro';
 
@@ -31,16 +36,36 @@ export const prerender = false;
   </div>
 
   <script>
+    // 1. Vide les tokens Supabase + le marqueur de session actif
     try {
-      // Supprime les tokens Supabase (clés 'sb-*-auth-token' typiquement)
       Object.keys(localStorage)
         .filter((k) => k.includes('auth-token'))
         .forEach((k) => localStorage.removeItem(k));
       sessionStorage.removeItem('vmd_session_active');
-      // Notify parent (debug, ignoré si parent n'écoute pas)
-      try { (window.parent || window).postMessage('cleared', '*'); } catch {}
     } catch {
-      // Non-bloquant : si localStorage indisponible (mode privé strict), tant pis.
+      // Mode privé strict, etc. — non-bloquant
     }
+
+    // 2. Redirige vers `?return=…` si l'URL est sur une origine autorisée.
+    //    Sinon fallback sur `/` de l'origine courante.
+    const ALLOWED_ORIGINS = new Set([
+      'https://www.verifiermondevis.fr',
+      'https://verifiermondevis.fr',
+      'https://www.gerermonchantier.fr',
+      'https://gerermonchantier.fr',
+    ]);
+    let target = '/';
+    try {
+      const returnRaw = new URLSearchParams(window.location.search).get('return');
+      if (returnRaw) {
+        const u = new URL(returnRaw);
+        if (ALLOWED_ORIGINS.has(u.origin)) {
+          target = u.toString();
+        }
+      }
+    } catch {
+      // URL invalide → fallback `/`
+    }
+    window.location.href = target;
   </script>
 </BaseLayout>
