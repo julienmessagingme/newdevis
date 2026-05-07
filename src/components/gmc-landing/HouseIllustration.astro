@@ -24,8 +24,16 @@ const dots = [
   style="aspect-ratio:684/806"
 >
   <picture>
-    <source srcset="/images/gmc/hero-illustration.avif" type="image/avif" />
-    <source srcset="/images/gmc/hero-illustration.webp" type="image/webp" />
+    <source
+      type="image/avif"
+      srcset="/images/gmc/hero-illustration-480.avif 480w, /images/gmc/hero-illustration.avif 684w"
+      sizes="(max-width: 640px) 480px, 600px"
+    />
+    <source
+      type="image/webp"
+      srcset="/images/gmc/hero-illustration-480.webp 480w, /images/gmc/hero-illustration.webp 684w"
+      sizes="(max-width: 640px) 480px, 600px"
+    />
     <img
       src="/images/gmc/hero-illustration.png"
       alt="Plan d'architecture annoté avec un propriétaire au centre du chantier"
