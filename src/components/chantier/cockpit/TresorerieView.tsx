@@ -217,26 +217,19 @@ function useEntreesTotaux(chantierId: string, token: string): EntreesTotaux {
 // ── Bannière de cohérence financement ─────────────────────────────────────────
 
 function CoherenceAlertsBanner({
-  entresTotaux, cfg, budgetRef, data,
-  onUpdateCredit, onUpdateBudget,
+  entresTotaux, cfg,
+  onUpdateCredit,
 }: {
   entresTotaux:   EntreesTotaux;
   cfg:            FinancingConfig;
-  budgetRef:      number;
-  data:           BudgetData | null;
   onUpdateCredit: (val: number) => void;
-  onUpdateBudget: (val: number) => void;
 }) {
   if (!entresTotaux.loaded) return null;
 
   const totalAides = (cfg.maprimeOn ? cfg.maprime : 0) + (cfg.ceeOn ? cfg.cee : 0) + (cfg.ecoptzOn ? cfg.ecoptz : 0);
-  const decaisse   = (data?.totaux.paye ?? 0) + (data?.totaux.acompte ?? 0);
-  const aPayer     = data?.totaux.a_payer ?? 0;
-  const fluxCertains = decaisse + aPayer;
 
   const creditGap  = entresTotaux.credit  - cfg.creditMontant;
   const aidesGap   = entresTotaux.aides   - totalAides;
-  const fluxGap    = fluxCertains - budgetRef;
 
   const alerts: { key: string; icon: string; title: string; detail: string; action?: { label: string; onClick: () => void } }[] = [];
 
@@ -262,16 +255,8 @@ function CoherenceAlertsBanner({
     });
   }
 
-  // Flux certains > budget cible
-  if (budgetRef > 0 && fluxGap > 100) {
-    alerts.push({
-      key: 'flux',
-      icon: '📊',
-      title: `Flux certains (${fmtEur(fluxCertains)}) dépassent le budget cible (${fmtEur(budgetRef)})`,
-      detail: `Décaissé ${fmtEur(decaisse)} + à payer ${fmtEur(aPayer)} = ${fmtEur(fluxCertains)} de sorties certaines. Écart : +${fmtEur(fluxGap)}.`,
-      action: { label: `Ajuster le budget → ${fmtEur(fluxCertains)}`, onClick: () => onUpdateBudget(fluxCertains) },
-    });
-  }
+  // NB : le dépassement flux certains > budget est géré inline dans FinancementSection
+  //      (badge + bouton "Actualiser" directement sur la ligne "Budget de référence")
 
   if (alerts.length === 0) return null;
 
@@ -319,14 +304,16 @@ function DonutRing({ pct, color, track = '#f1f5f9', size = 56, stroke = 5 }: {
 // ── Section 1 : Plan de financement ──────────────────────────────────────────
 
 function FinancementSection({
-  cfg, setCfg, syncServer, budgetRef, data, devisValides,
+  cfg, setCfg, syncServer, budgetRef, data, devisValides, fluxCertains, onUpdateBudget,
 }: {
-  cfg:          FinancingConfig;
-  setCfg:       (u: (p: FinancingConfig) => FinancingConfig) => void;
-  syncServer:   (c: FinancingConfig) => void;
-  budgetRef:    number;
-  data:         BudgetData | null;
-  devisValides: number;
+  cfg:             FinancingConfig;
+  setCfg:          (u: (p: FinancingConfig) => FinancingConfig) => void;
+  syncServer:      (c: FinancingConfig) => void;
+  budgetRef:       number;
+  data:            BudgetData | null;
+  devisValides:    number;
+  fluxCertains:    number;
+  onUpdateBudget:  (val: number) => void;
 }) {
   // Panneaux ouverts
   const [creditOpen, setCreditOpen] = useState(false);
@@ -395,6 +382,11 @@ function FinancementSection({
   // Conflit : budget choisi par le client < total devis validés
   const conflict     = cfg.budgetReel !== null && devisValides > 0 && devisValides > (cfg.budgetReel ?? 0) * 1.01;
   const conflictDiff = conflict ? Math.round(devisValides - (cfg.budgetReel ?? 0)) : 0;
+
+  // Dépassement flux certains (décaissé + à payer > budget de référence)
+  const fluxGap           = budgetRef > 0 ? fluxCertains - budgetRef : 0;
+  const fluxOverBudget    = fluxGap > 100;
+  const fluxRounded       = Math.ceil(fluxCertains / 100) * 100; // arrondi au 100€ supérieur
 
   function adjustToDevis() {
     setCfg(p => { const n = { ...p, budgetReel: devisValides }; syncServer(n); return n; });
@@ -475,9 +467,24 @@ function FinancementSection({
               <Pencil className="h-3 w-3 text-gray-300 group-hover:text-indigo-400 transition-colors" />
             </button>
           )}
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${manque > 0 ? 'bg-red-50 text-red-600 border-red-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}>
-            {manque > 0 ? `⚠ Manque ${fmtEur(manque)}` : '✓ Couvert'}
-          </span>
+          {fluxOverBudget ? (
+            /* ── Alerte dépassement flux certains ── */
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-300">
+                ⚠ Flux certains +{fmtEur(fluxGap)}
+              </span>
+              <button
+                onClick={() => onUpdateBudget(fluxRounded)}
+                className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors whitespace-nowrap"
+              >
+                Actualiser à {fmtEur(fluxRounded)} ?
+              </button>
+            </div>
+          ) : (
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${manque > 0 ? 'bg-red-50 text-red-600 border-red-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'}`}>
+              {manque > 0 ? `⚠ Manque ${fmtEur(manque)}` : '✓ Couvert'}
+            </span>
+          )}
         </div>
       </div>
 
@@ -1101,14 +1108,11 @@ export default function TresorerieView({
 
   return (
     <div className="flex flex-col bg-white">
-      {/* Bannière de cohérence (entrées réelles vs plan) */}
+      {/* Bannière de cohérence (entrées réelles vs plan — crédit + aides) */}
       <CoherenceAlertsBanner
         entresTotaux={entresTotaux}
         cfg={cfg}
-        budgetRef={budgetRef}
-        data={data}
         onUpdateCredit={handleUpdateCreditFromEntrees}
-        onUpdateBudget={handleUpdateBudgetFromFlux}
       />
 
       {/* Section 1 — Financement */}
@@ -1119,6 +1123,8 @@ export default function TresorerieView({
         budgetRef={budgetRef}
         data={data}
         devisValides={devisValides}
+        fluxCertains={(data?.totaux.paye ?? 0) + (data?.totaux.acompte ?? 0) + (data?.totaux.a_payer ?? 0)}
+        onUpdateBudget={handleUpdateBudgetFromFlux}
       />
 
       {/* Section 3 — Consommation */}
