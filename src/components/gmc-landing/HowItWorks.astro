@@ -168,6 +168,13 @@ const steps = {
       }
     }
   }
-  window.addEventListener('DOMContentLoaded', applyHashMode);
+  // Astro bundle les scripts en modules ES deferred — DOMContentLoaded peut
+  // déjà être passé quand on s'exécute. On appelle directement si le DOM est
+  // prêt, sinon on attend.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', applyHashMode);
+  } else {
+    applyHashMode();
+  }
   window.addEventListener('hashchange', applyHashMode);
 </script>

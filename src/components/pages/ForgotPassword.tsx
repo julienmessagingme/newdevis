@@ -1,16 +1,19 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Mail, ArrowRight, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
+import { Mail, ArrowRight, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import SEOHead from "@/components/SEOHead";
+import BrandLogo from "@/components/auth/BrandLogo";
+import { getBrandConfig } from "@/lib/brand";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const config = useMemo(() => getBrandConfig(), []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,17 +39,14 @@ const ForgotPassword = () => {
   return (
     <div className="min-h-screen bg-background flex">
       <SEOHead
-        title="Mot de passe oublié | VerifierMonDevis.fr"
-        description="Réinitialisez votre mot de passe VerifierMonDevis.fr."
+        title={`Mot de passe oublié | ${config.name}`}
+        description={`Réinitialisez votre mot de passe ${config.name}.`}
       />
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
-            <a href="/" className="inline-flex items-center gap-2 mb-6">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Shield className="h-6 w-6 text-primary" />
-              </div>
-              <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
+            <a href="/" className="inline-flex mb-6">
+              <BrandLogo brand={config.brand} size="md" />
             </a>
             <h1 className="text-2xl font-bold text-foreground mb-2">
               Mot de passe oublié

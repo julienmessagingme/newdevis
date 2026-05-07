@@ -1,11 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Lock, ArrowRight, Loader2, CheckCircle2 } from "lucide-react";
+import { Lock, ArrowRight, Loader2, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import SEOHead from "@/components/SEOHead";
+import BrandLogo from "@/components/auth/BrandLogo";
+import { getBrandConfig } from "@/lib/brand";
 
 const ResetPassword = () => {
   const [password, setPassword] = useState("");
@@ -14,6 +16,7 @@ const ResetPassword = () => {
   const [success, setSuccess] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const config = useMemo(() => getBrandConfig(), []);
 
   useEffect(() => {
     // Supabase automatically picks up the token from the URL hash
@@ -78,17 +81,14 @@ const ResetPassword = () => {
   return (
     <div className="min-h-screen bg-background flex">
       <SEOHead
-        title="Nouveau mot de passe | VerifierMonDevis.fr"
-        description="Choisissez un nouveau mot de passe pour votre compte VerifierMonDevis.fr."
+        title={`Nouveau mot de passe | ${config.name}`}
+        description={`Choisissez un nouveau mot de passe pour votre compte ${config.name}.`}
       />
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
-            <a href="/" className="inline-flex items-center gap-2 mb-6">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Shield className="h-6 w-6 text-primary" />
-              </div>
-              <span className="text-xl font-bold text-foreground">VerifierMonDevis.fr</span>
+            <a href="/" className="inline-flex mb-6">
+              <BrandLogo brand={config.brand} size="md" />
             </a>
             <h1 className="text-2xl font-bold text-foreground mb-2">
               Nouveau mot de passe
