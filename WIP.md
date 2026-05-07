@@ -883,6 +883,25 @@ Tous les éléments interactifs sur la landing portés à ≥ 44px sur mobile :
 
 ---
 
+## 29. UX Échéancier & Entrées — session 2026-05-07 ✅ En prod
+
+### Fait cette session
+
+- **Libellé entrées non-bloquant** : fallback sur le nom du type si champ vide ; libellé pré-rempli à l'ouverture du modal (`AddEntreeModal`)
+- **Édition inline entrées** : clic sur une entrée → formulaire inline (type, libellé, montant, date, statut) + PATCH API étendu (`source_type` ajouté)
+- **Panel détail échéance** (`PaymentDetailPanel`) : 3 cartes contexte (total/déjà payé/cette échéance), autres termes du document, édition + split automatique (PATCH + POST addToDocument)
+- **Badge inline "Flux certains"** sur la ligne "Budget de référence" en Trésorerie : remplace l'ancienne bannière séparée — bouton "Actualiser à X€ ?" à côté du chiffre
+- **Source unique de vérité `budgetReel`** : TresorerieView + BudgetTab écrivent dans les 2 localStorage (`budget_reel_*` + `tresorerie_v3_*`) + les 2 champs DB (`chantiers.budget` + `metadonnees.tresoreieFinancing`) + dispatche `budgetReelChanged` → plus de divergence entre onglets
+- **Auto-update budget** : flag `autoUpdateBudget` dans `FinancingConfig` — après 1ère confirmation manuelle, les dépassements suivants sont mis à jour silencieusement sans popup
+
+### Reste à faire / valider en prod
+
+- [ ] Tester le split d'échéance (modifier 60% → 30% + 30% avec date) sur un vrai devis
+- [ ] Vérifier que BudgetTab et homepage affichent bien 67k€ après modification dans Trésorerie (sans rechargement)
+- [ ] Valider l'auto-update : modifier budget une fois → vérifier que les dépassements suivants s'auto-corrigent
+
+---
+
 ## 26. PaiementDrawer — drawer unifié paiement (homepage + budget) 🟡
 
 **Objectif** : éliminer la confusion entre "Enregistrer un paiement" homepage et "Payer" dans Budget. Un seul composant visuel, deux contextes.

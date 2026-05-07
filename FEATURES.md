@@ -1031,6 +1031,101 @@ Toutes les 15 minutes, un job automatique :
 
 ---
 
+## 22. Cohérence financière — logique globale (2026-05-07, mis à jour 2026-05-07)
+
+### Modèle mental : 5 chiffres qui racontent l'histoire du chantier
+
+```
+Budget cible (50k€)   ← ce que tu pensais dépenser, défini par toi
+Engagé (67k€)         ← ce à quoi tu t'es engagé (devis signés)
+─────────────────────────────────────────────────────
+Décaissé (24,6k€)     ← ce qui est sorti de ton compte
+À payer (30,1k€)      ← ce qui va sortir de façon certaine
+= Flux certains (54,7k€) ← tu sais que tu vas dépenser ça, quoi qu'il arrive
+```
+
+### Source unique de vérité pour `budgetReel`
+
+`budgetReel` est **un seul chiffre** synchronisé sur tous les onglets via 3 couches :
+1. `localStorage budget_reel_${chantierId}` — lecture prioritaire au démarrage
+2. `window.budgetReelChanged` custom event — propagation temps réel entre composants
+3. DB : `chantiers.budget` (enveloppePrevue) + `chantiers.metadonnees.tresoreieFinancing.budgetReel`
+
+Écriture toujours via `persistBudgetReel` (BudgetTab) ou `setCfg+syncServer` (TresorerieView) qui alimentent **les deux** destinations DB + les deux localStorage + l'event.
+
+### Règle de cohérence
+
+| Comparaison | Si vrai → alerte |
+|---|---|
+| Engagé > Budget cible | Dépassement d'engagement (onglet Budget) |
+| Déblocages crédit enregistrés > crédit prévu dans le plan | Plan de financement obsolète (onglet Trésorerie) |
+| Flux certains > Budget cible | Badge ambre inline sur "Budget de référence" + bouton "Actualiser à X€ ?" |
+| Flux certains > Financement disponible | Risque de découvert (onglet Trésorerie) |
+
+### Auto-update après 1ère confirmation
+
+- Flag `autoUpdateBudget: boolean` dans `FinancingConfig` (localStorage + DB)
+- Première fois → l'utilisateur clique "Actualiser" ou "Ajuster à X€" → flag = `true`
+- Fois suivantes → si flux certains > budget : **mise à jour silencieuse automatique** sans popup
+- S'active depuis TresorerieView ET BudgetTab
+
+### Où chaque chiffre vit
+
+| Chiffre | Source de données | Onglet de détail |
+|---|---|---|
+| Budget cible | `chantiers.budget` + `metadonnees.tresoreieFinancing.budgetReel` (même valeur) | Budget + Trésorerie |
+| Engagé | Somme des devis validés + factures sans devis | Budget |
+| Décaissé | `budget API totaux.paye + totaux.acompte` | Trésorerie |
+| À payer | `budget API totaux.a_payer` | Trésorerie |
+| Flux certains | Décaissé + À payer | Trésorerie |
+| Plan de financement | `chantiers.metadonnees.tresoreieFinancing` (crédit, aides) | Trésorerie |
+| Entrées réelles | `chantier_entrees` (déblocages crédit, apports, aides reçus) | Trésorerie → Entrées |
+
+### Card "Budget chantier" sur la homepage
+
+Résumé en 3 secondes, structuré en 2 sections :
+
+**Section "Engagements" (→ onglet Budget)**
+- Budget cible + donut d'engagement
+- Engagé : total devis signés, badge rouge si dépassement
+
+**Section "Trésorerie réelle" (→ onglet Trésorerie)**
+- Décaissé : acomptes + factures réglées (valeur réelle, API budget)
+- À payer (certain) : sorties inévitables
+- Flux certains = Décaissé + À payer — fond rouge si > budget cible
+
+### Entrées de fonds (`chantier_entrees`)
+
+- Libellé facultatif : fallback automatique sur le nom du type si laissé vide
+- Édition inline : clic sur une entrée → formulaire inline (type, libellé, montant, date, statut)
+- PATCH API accepte `label`, `montant`, `date_entree`, `source_type`, `statut`
+
+### Échéancier — panel détail par échéance
+
+Clic sur une ligne d'échéance → `PaymentDetailPanel` inline :
+- **3 cartes contexte** : Total facture / Déjà payé / Cette échéance
+- **Autres échéances** du même document (barré si payées)
+- **Édition** : libellé, montant (avec % du total), date prévue
+- **Split automatique** : si montant réduit → badge "Solde restant X€" + date obligatoire → PATCH terme courant + POST nouveau terme `addToDocument`
+- Bouton "Payé" → ouvre le wizard de paiement guidé existant
+
+### Alertes et mises à jour
+
+1. **À l'ajout d'une entrée** : si déblocages crédit > crédit prévu → confirmation "Mettre à jour le plan ?"
+2. **Onglet Trésorerie — badge inline** : si flux certains > budget de référence → badge ambre + "Actualiser à X€ ?" sur la ligne budget (sans bannière séparée)
+3. **Onglet Trésorerie — bannière** : si entrées crédit réelles > crédit configuré
+4. **Homepage** : alerte rouge si flux certains > budget cible
+
+### Types d'entrées et catégories
+
+| `source_type` | Catégorie | Plan de financement |
+|---|---|---|
+| `deblocage_credit`, `eco_ptz` | Crédit | Colonne Crédit travaux |
+| `apport_personnel`, `remboursement`, `autre` | Apport | Colonne Apport (déduit) |
+| `aide_maprime`, `aide_cee` | Aides | Colonne Aides & subventions |
+
+---
+
 ## 16. Récapitulatif navigation
 
 | Groupe sidebar | Onglets | Réponse à la question |
