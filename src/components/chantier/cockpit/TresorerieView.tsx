@@ -119,13 +119,15 @@ function useBudget(chantierId: string, token: string) {
 // ── Hook config financement (localStorage + sync serveur) ─────────────────────
 
 interface FinancingConfig {
-  budgetReel:    number | null;
-  creditMontant: number;
-  creditTaux:    number;
-  creditDuree:   number;
-  maprime:       number; maprimeOn: boolean;
-  cee:           number; ceeOn:     boolean;
-  ecoptz:        number; ecoptzOn:  boolean; ecoptzDuree: number;
+  budgetReel:       number | null;
+  creditMontant:    number;
+  creditTaux:       number;
+  creditDuree:      number;
+  maprime:          number; maprimeOn: boolean;
+  cee:              number; ceeOn:     boolean;
+  ecoptz:           number; ecoptzOn:  boolean; ecoptzDuree: number;
+  /** Après la première confirmation manuelle "Actualiser le budget" → true = auto-update sans re-demander */
+  autoUpdateBudget: boolean;
 }
 
 function defaultConfig(initial?: Record<string, unknown> | null): FinancingConfig {
@@ -135,13 +137,14 @@ function defaultConfig(initial?: Record<string, unknown> | null): FinancingConfi
   const cr = parseFloat(String((initial as any)?.credit  ?? '0')) || 0;
   const ed = parseFloat(String((initial as any)?.ecoptzDuree ?? '15')) || 15;
   return {
-    budgetReel:    null,
-    creditMontant: cr,
-    creditTaux:    3.5,
-    creditDuree:   20,
+    budgetReel:       null,
+    creditMontant:    cr,
+    creditTaux:       3.5,
+    creditDuree:      20,
     maprime: m, maprimeOn: m > 0,
     cee:     c, ceeOn:     c > 0,
     ecoptz:  e, ecoptzOn:  e > 0, ecoptzDuree: ed,
+    autoUpdateBudget: false,
   };
 }
 
@@ -164,21 +167,37 @@ function useFinancingConfig(chantierId: string, token: string, initial?: Record<
       const next = updater(prev);
       try {
         localStorage.setItem(key, JSON.stringify(next));
-        if (next.budgetReel !== null) localStorage.setItem(budgetKey, String(next.budgetReel));
+        if (next.budgetReel !== null) {
+          localStorage.setItem(budgetKey, String(next.budgetReel));
+          // ── Synchronise DashboardUnified + BudgetTab en temps réel ──
+          window.dispatchEvent(new CustomEvent('budgetReelChanged', {
+            detail: { chantierId, value: next.budgetReel },
+          }));
+        }
       } catch {}
       return next;
     });
-  }, [key, budgetKey]);
+  }, [key, budgetKey, chantierId]);
 
-  // Sync serveur (fire and forget)
+  // Sync serveur (fire and forget) — met à jour à la fois metadonnees.tresoreieFinancing
+  // ET chantiers.budget (enveloppePrevue) pour que BudgetTab lise le bon chiffre au rechargement
   const syncServer = useCallback(async (next: FinancingConfig) => {
     try {
       const t = await freshToken(token);
+      // 1. Financing config complète dans metadonnees
       await fetch(`/api/chantier/${chantierId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
         body: JSON.stringify({ metadonnees: { tresoreieFinancing: next } }),
       });
+      // 2. budgetReel → chantiers.budget (lue par BudgetTab via initialEnveloppePrevue)
+      if (next.budgetReel != null) {
+        await fetch(`/api/chantier/${chantierId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
+          body: JSON.stringify({ enveloppePrevue: next.budgetReel }),
+        });
+      }
     } catch {}
   }, [chantierId, token]);
 
@@ -313,7 +332,7 @@ function FinancementSection({
   data:            BudgetData | null;
   devisValides:    number;
   fluxCertains:    number;
-  onUpdateBudget:  (val: number) => void;
+  onUpdateBudget:  (val: number, autoEnable?: boolean) => void;
 }) {
   // Panneaux ouverts
   const [creditOpen, setCreditOpen] = useState(false);
@@ -474,7 +493,7 @@ function FinancementSection({
                 ⚠ Flux certains +{fmtEur(fluxGap)}
               </span>
               <button
-                onClick={() => onUpdateBudget(fluxRounded)}
+                onClick={() => onUpdateBudget(fluxRounded, true)}
                 className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors whitespace-nowrap"
               >
                 Actualiser à {fmtEur(fluxRounded)} ?
@@ -1101,9 +1120,29 @@ export default function TresorerieView({
   function handleUpdateCreditFromEntrees(val: number) {
     setCfg(p => { const n = { ...p, creditMontant: val }; syncServer(n); return n; });
   }
-  function handleUpdateBudgetFromFlux(val: number) {
-    setCfg(p => { const n = { ...p, budgetReel: Math.ceil(val / 100) * 100 }; syncServer(n); return n; });
+  function handleUpdateBudgetFromFlux(val: number, autoEnable = false) {
+    setCfg(p => {
+      const n = {
+        ...p,
+        budgetReel: Math.ceil(val / 100) * 100,
+        // Première confirmation → active l'auto-update pour les prochaines fois
+        autoUpdateBudget: autoEnable ? true : p.autoUpdateBudget,
+      };
+      syncServer(n);
+      return n;
+    });
   }
+
+  // ── Auto-update budget si déjà confirmé une première fois ─────────────────
+  const fluxCertains = (data?.totaux.paye ?? 0) + (data?.totaux.acompte ?? 0) + (data?.totaux.a_payer ?? 0);
+  useEffect(() => {
+    if (!cfg.autoUpdateBudget) return;
+    if (!budgetRef || budgetRef <= 0) return;
+    if (fluxCertains <= budgetRef * 1.01) return;
+    // Auto-update silencieux (sans demander) — l'utilisateur a déjà confirmé une fois
+    handleUpdateBudgetFromFlux(fluxCertains, false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cfg.autoUpdateBudget, fluxCertains, budgetRef]);
 
   return (
     <div className="flex flex-col bg-white">

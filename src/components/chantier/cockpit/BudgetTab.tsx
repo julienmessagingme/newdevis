@@ -343,9 +343,24 @@ function BudgetKpiDashboard({
 }) {
   const storageKey = `budget_reel_${chantierId}`;
 
-  const [budgetReel, setBudgetReel] = useState<number | null>(
-    () => initialEnveloppePrevue ?? null
-  );
+  // Priorité : localStorage (mis à jour par TresorerieView en temps réel) > prop serveur
+  const [budgetReel, setBudgetReel] = useState<number | null>(() => {
+    try {
+      const stored = localStorage.getItem(storageKey);
+      if (stored) return parseFloat(stored);
+    } catch {}
+    return initialEnveloppePrevue ?? null;
+  });
+
+  // Écoute les mises à jour de TresorerieView/DashboardHome en temps réel
+  useEffect(() => {
+    function handler(e: Event) {
+      const { chantierId: cid, value } = (e as CustomEvent).detail;
+      if (cid === chantierId) setBudgetReel(value);
+    }
+    window.addEventListener('budgetReelChanged', handler);
+    return () => window.removeEventListener('budgetReelChanged', handler);
+  }, [chantierId]);
   const [editing,  setEditing]  = useState(false);
   const [editVal,  setEditVal]  = useState('');
 
@@ -379,15 +394,36 @@ function BudgetKpiDashboard({
 
   function persistBudgetReel(v: number) {
     setBudgetReel(v);
-    try { localStorage.setItem(storageKey, String(v)); } catch {}
+    try {
+      // ── localStorage partagé avec TresorerieView et DashboardUnified ──
+      localStorage.setItem(storageKey, String(v));
+      // Sync dans tresorerie_v3 pour que TresorerieView lise la bonne valeur
+      const tvKey = `tresorerie_v3_${chantierId}`;
+      try {
+        const saved = localStorage.getItem(tvKey);
+        const parsed = saved ? JSON.parse(saved) : {};
+        localStorage.setItem(tvKey, JSON.stringify({ ...parsed, budgetReel: v }));
+      } catch {}
+    } catch {}
     window.dispatchEvent(new CustomEvent('budgetReelChanged', { detail: { chantierId, value: v } }));
-    // Persist to DB (fire & forget)
-    freshToken(token).then(tk => {
-      fetch(`/api/chantier/${chantierId}`, {
+    // Persist to DB — enveloppePrevue ET metadonnees.tresoreieFinancing.budgetReel
+    freshToken(token).then(async tk => {
+      await fetch(`/api/chantier/${chantierId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tk}` },
         body: JSON.stringify({ enveloppePrevue: v }),
       }).catch(() => {});
+      // Patch tresoreieFinancing pour que TresorerieView reload avec la bonne valeur
+      const tvKey2 = `tresorerie_v3_${chantierId}`;
+      try {
+        const saved = localStorage.getItem(tvKey2);
+        const parsed = saved ? JSON.parse(saved) : {};
+        await fetch(`/api/chantier/${chantierId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tk}` },
+          body: JSON.stringify({ metadonnees: { tresoreieFinancing: { ...parsed, budgetReel: v } } }),
+        }).catch(() => {});
+      } catch {}
     }).catch(() => {});
   }
 
@@ -401,7 +437,16 @@ function BudgetKpiDashboard({
   const conflict      = budgetReel !== null && engageReel > 0 && engageReel > (budgetReel ?? 0) * 1.01;
   const conflictDiff  = conflict ? Math.round(engageReel - (budgetReel ?? 0)) : 0;
 
-  function adjustToDevis() { persistBudgetReel(engageReel); }
+  function adjustToDevis() {
+    persistBudgetReel(engageReel);
+    // Active l'auto-update dans TresorerieView pour les prochaines fois
+    try {
+      const tvKey = `tresorerie_v3_${chantierId}`;
+      const saved = localStorage.getItem(tvKey);
+      const parsed = saved ? JSON.parse(saved) : {};
+      localStorage.setItem(tvKey, JSON.stringify({ ...parsed, budgetReel: engageReel, autoUpdateBudget: true }));
+    } catch {}
+  }
 
   if (loading) return (
     <div className="px-7 py-6 border-b border-gray-100">
