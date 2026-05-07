@@ -28,7 +28,7 @@ export const GET: APIRoute = async ({ params, request }) => {
       cooldown_until: {},
     };
 
-    return jsonOk(template);
+    return jsonOk({ template });
   } catch (err) {
     const msg = err instanceof Error ? err.message
       : (typeof err === 'object' && err && 'message' in err) ? String((err as { message: unknown }).message)
