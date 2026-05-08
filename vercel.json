@@ -1,4 +1,16 @@
 {
+  "redirects": [
+    {
+      "source": "/Messaging Me",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/Messaging%20Me",
+      "destination": "/",
+      "permanent": true
+    }
+  ],
   "headers": [
     {
       "source": "/_astro/(.*)",
