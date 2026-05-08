@@ -151,6 +151,12 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
 - **Logs de diagnostic** : en cas de doute sur l'attribution, chercher `[MultiDevis]` dans Supabase Dashboard → Functions → analyze-quote. `WARN` = fallback déclenché (problème de matching). Absence de WARN = matching niveau 1 exact pour tous les groupes.
 
+### Multi-domaine GMC ↔ VMD — pièges auth
+
+- **Loop auth GMC↔VMD (bug corrigé 2026-05-08)** : `postLoginRedirect.ts` appelait `hasGmcAccess()` même quand `currentBrand === 'gmc'`. Si l'email n'était pas allowlisté → `targetBrand = 'vmd'` → SSO handoff *inverse* → user renvoyé sur vmd.fr → clique "Mon Chantier" → retour sur gmc.fr landing → boucle. **Fix** : si `currentBrand === 'gmc'` → toujours `window.location.href = '/mon-chantier'` sans aucune vérification allowlist. La logique allowlist ne s'applique que depuis vmd.fr. **Règle** : ne jamais remettre de `hasGmcAccess()` dans la branche `currentBrand === 'gmc'` de ce helper.
+
+- **Header VMD "Mon Chantier" → href vers landing (bug corrigé 2026-05-08)** : les deux liens "Mon Chantier" pointaient vers `gerermonchantier.fr/` (landing) au lieu de `gerermonchantier.fr/mon-chantier`. Un user connecté qui ne passait pas le check allowlist (dynamic import échouant silencieusement) se retrouvait sur la landing, pas sur son espace. Fix : href hardcodé vers `/mon-chantier` + click handler sans allowlist (SSO handoff pour tout user connecté). **Règle** : ne jamais remettre de vérification `hasGmcAccess` dans le click handler "Mon Chantier" du Header VMD — le contrôle d'accès vit côté serveur sur gmc.fr.
+
 ### Module Chantier — pièges spécifiques
 
 - **`contacts_chantier` colonnes** : la colonne téléphone est `telephone` (pas `phone`), le rôle est `role` (pas `metier`). `context.ts` agent doit utiliser `c.telephone` et `c.role`.

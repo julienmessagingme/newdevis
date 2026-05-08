@@ -83,13 +83,29 @@ Plan initial = "rewrite Vercel edge + un seul build". Ça n'a pas marché : `ver
   - `https://www.verifiermondevis.fr/auth/callback?next=*`
   (Julien a confirmé avoir ajouté.)
 
+### Fix loop auth GMC↔VMD (2026-05-08)
+
+Deux bugs corrigés qui créaient une boucle : login gmc.fr → vmd.fr → gmc.fr landing → vmd.fr…
+
+**Bug 1 — `postLoginRedirect.ts`** : quand `currentBrand === 'gmc'` et `hasGmcAccess() === false`,
+l'user était renvoyé sur vmd.fr (SSO handoff inverse). Fix : si on est sur gmc.fr → toujours `/mon-chantier`,
+sans vérifier l'allowlist. Le contrôle d'accès GMC est géré côté middleware Astro, pas dans le helper.
+
+**Bug 2 — `Header.astro` (VMD)** : les deux hrefs "Mon Chantier" pointaient vers `gerermonchantier.fr/`
+(landing) au lieu de `gerermonchantier.fr/mon-chantier`. Corrigé. Le click handler ne vérifie plus
+l'allowlist : SSO handoff pour tous les users connectés (le contrôle d'accès vit côté GMC).
+
+**Prérequis Supabase (action Julien, probablement déjà fait)** :
+`https://gerermonchantier.fr/auth/callback?next=*` dans Auth → URL Configuration → Redirect URLs.
+
 ### À valider E2E (browser)
 
 - [ ] Login Julien sur vmd.fr/connexion → URL bascule sur gerermonchantier.fr/mon-chantier (handoff)
 - [ ] Click bandeau Chantier sur vmd.fr/tableau-de-bord → idem (handoff)
-- [ ] Login Julien sur gmc.fr/connexion → reste sur gmc.fr/mon-chantier (pas de handoff inutile)
+- [ ] Login Julien sur gmc.fr/connexion → **reste sur gmc.fr/mon-chantier** (pas de handoff inutile, pas de boucle)
+- [ ] Click "Mon Chantier" sur vmd.fr (connecté) → SSO handoff → gmc.fr/mon-chantier ✓
+- [ ] Click "Mon Chantier" sur vmd.fr (non connecté) → gerermonchantier.fr/mon-chantier (login là-bas)
 - [ ] Logout depuis gmc.fr ou vmd.fr → user déco des deux domaines (rouvrir l'autre, vérifier /connexion)
-- [ ] Visiteur non-logué clique "Mon chantier" sur vmd.fr → atterrit sur gerermonchantier.fr/ (landing)
 - [ ] Bouton Déconnexion visible sur gmc.fr/ (Espace dropdown), gmc.fr/mon-chantier (sidebar), gmc.fr/mon-chantier/nouveau (header)
 
 ### Reste à faire (v2)

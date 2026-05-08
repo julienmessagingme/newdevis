@@ -43,7 +43,7 @@ const pathname = Astro.url.pathname;
         </div>
       </div>
       <div class="flex items-center gap-3">
-        <a id="mon-chantier-desktop" href="https://gerermonchantier.fr/" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors text-sm font-medium text-primary">
+        <a id="mon-chantier-desktop" href="https://gerermonchantier.fr/mon-chantier" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors text-sm font-medium text-primary">
           <span>🏗️</span>
           Mon Chantier
         </a>
@@ -119,7 +119,7 @@ const pathname = Astro.url.pathname;
           <a href="/contact" class="text-sm text-muted-foreground py-3 block">Contact</a>
         </div>
       </div>
-      <a id="mon-chantier-mobile" href="https://gerermonchantier.fr/" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium">
+      <a id="mon-chantier-mobile" href="https://gerermonchantier.fr/mon-chantier" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium">
         <span>🏗️</span>
         Mon Chantier
       </a>
@@ -236,9 +236,11 @@ const pathname = Astro.url.pathname;
   } catch {}
 
   // ── Bouton "Mon Chantier" (toujours visible) — SSO handoff cross-domaine ──
-  // - Visiteur non connecté        → href par défaut = https://gerermonchantier.fr/ (landing)
-  // - Connecté + email allowlisté  → SSO handoff via /api/sso/handoff vers gmc.fr/mon-chantier
-  // - Connecté NON-allowlisté      → href par défaut = https://gerermonchantier.fr/ (landing, futur upsell Stripe)
+  // - Visiteur non connecté → href par défaut = https://gerermonchantier.fr/mon-chantier
+  //   (l'user devra se connecter sur gmc.fr)
+  // - Connecté (peu importe l'allowlist) → SSO handoff vers gmc.fr/mon-chantier
+  //   Note : allowlist supprimée ici. Le contrôle d'accès GMC est géré côté
+  //   serveur sur gerermonchantier.fr, pas dans ce bouton de navigation.
   ['mon-chantier-desktop', 'mon-chantier-mobile'].forEach(id => {
     const btn = document.getElementById(id) as HTMLAnchorElement | null;
     if (!btn) return;
@@ -246,11 +248,9 @@ const pathname = Astro.url.pathname;
       const authKey = Object.keys(localStorage).find(k => k.includes('auth-token'));
       const authData = authKey ? JSON.parse(localStorage.getItem(authKey) || "{}") : null;
       const accessToken = authData?.access_token;
-      const userEmail = authData?.user?.email;
-      // Pas connecté ou pas allowlisté → laisse aller sur gmc.fr/ landing (href défaut)
-      const { hasGmcAccess } = await import('@/lib/gmcAccess');
-      if (!accessToken || !hasGmcAccess(userEmail)) return;
-      // Allowlisté → SSO handoff
+      // Pas connecté → laisse aller sur gmc.fr/mon-chantier (href défaut, login là-bas)
+      if (!accessToken) return;
+      // Connecté → SSO handoff vers gmc.fr/mon-chantier
       e.preventDefault();
       const lastId = localStorage.getItem("lastChantierId");
       const targetPath = lastId ? `/mon-chantier/${lastId}` : "/mon-chantier";
