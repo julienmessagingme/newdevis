@@ -183,13 +183,64 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 ## Règles importantes
 
 - **Git workflow — main only** : jamais de branches `claude/<nom>-<hash>` ni de worktrees. Commit et push directement sur `main`. Ne pas utiliser `superpowers:using-git-worktrees` sur ce projet.
-- **Header / Footer** existent en 2 versions : `layout/Header.tsx` (React) + `astro/Header.astro`. Toute modif doit être faite dans les **2**.
+- **Header / Footer** existent en 2 versions : `layout/Header.tsx` (React) + `astro/Header.astro`. Toute modif doit être faite dans les **2**. **Plus le Header GMC** `gmc-landing/Header.astro` (pour gerermonchantier.fr) qui est encore une 3e variante — toute modif d'auth state visible dans les headers doit synchroniser les 3.
 - **shadcn-ui** (`src/components/ui/`) : ne pas modifier manuellement (exception documentée : `button.tsx` contient `touch-manipulation` dans la base CVA).
 - **types.ts** (`src/integrations/supabase/`) : auto-généré, ne pas modifier. Régénérer : `npx supabase gen types typescript --project-id vhrhgsqxwvouswjaiczn > src/integrations/supabase/types.ts`.
 - **Alias** : `@/` → `src/`.
 - **Interface** en français, **code** en anglais.
 - **Params dynamiques** : `[id].astro` et `[slug].astro` — les composants React extraient les params de `window.location.pathname`.
 - **Commandes** : `npm run dev` | `npm run build` | `npm run preview` | `npm run lint`.
+
+---
+
+## Multi-domaine — verifiermondevis.fr ↔ gerermonchantier.fr
+
+Le projet sert **deux domaines depuis le même build Vercel** : VMD (analyse de devis) et GMC (cockpit chantier). Mêmes routes Astro, branding adaptatif côté serveur, accès produit gating par allowlist.
+
+### Architecture
+
+| Domaine | Sert | Page d'accueil servie |
+|---|---|---|
+| `(www.)verifiermondevis.fr` | Landing VMD + analyse de devis + cockpit chantier (legacy) | `src/pages/index.astro` (SSR) |
+| `(www.)gerermonchantier.fr` | Landing GMC + cockpit chantier | `src/pages/gmc-home.astro` (prerendered, redirigé via `src/middleware.ts` quand le host est gmc) |
+
+Le middleware Astro (`src/middleware.ts`) intercepte uniquement le path `/` et fait un 302 vers `/gmc-home` quand le host est gerermonchantier. Toutes les autres routes (`/mon-chantier/*`, `/auth/*`, `/api/*`, etc.) sont partagées entre les deux domaines.
+
+### Modules clés
+
+| Fichier | Rôle |
+|---|---|
+| `src/lib/brand.ts` | `detectBrandFromHost(host)` (server-side) + `getBrand()` (client) + `VMD_CONFIG` / `GMC_CONFIG` (titres, sous-titres, redirect par défaut) |
+| `src/lib/gmcAccess.ts` | `hasGmcAccess(email)` — **source unique** de l'allowlist GMC. Aujourd'hui hardcodée `["julien@messagingme.fr", "bridey.johan@gmail.com"]`. À remplacer par lecture DB quand on ouvrira GMC. |
+| `src/lib/postLoginRedirect.ts` | Helper post-login : calcule la cible naturelle selon `hasGmcAccess`, fait SSO handoff cross-brand si nécessaire, fallback hard redirect. |
+| `src/lib/ssoHandoffClient.ts` | `navigateToGmc(targetPath)` : pour les liens VMD-side qui doivent envoyer l'utilisateur sur gmc.fr (e.g. bandeau "Mon chantier" sur le tableau de bord). |
+| `src/lib/signOut.ts` | `signOutCrossDomain()` : déco serveur-side `scope: 'global'` + redirect chain pour vider localStorage de l'autre origin. |
+| `src/pages/api/sso/handoff.ts` | Endpoint POST qui génère un magic link Supabase via `auth.admin.generateLink({ type: 'magiclink' })` (admin API → **pas d'email envoyé**). Vérifie le JWT du caller via service_role. |
+| `src/pages/auth/clear-session.astro` | Cible de la redirect chain logout. Vide localStorage de son origin, redirige vers `?return=` (whitelist d'origines validée). |
+
+### Règles à respecter
+
+- **NE JAMAIS DUPLIQUER l'allowlist** : importer `hasGmcAccess` depuis `@/lib/gmcAccess`. Sinon drift assuré quand on ajoute un user. Une seule exception légitime : `astro/Header.astro` ligne ~197 où `ADMIN_EMAILS` contrôle le lien `/admin` (admin platform role, distinct de l'accès GMC).
+- **NE JAMAIS rediriger directement vers `/mon-chantier*` depuis une page VMD** sans SSO handoff. Sinon l'utilisateur reste sur `verifiermondevis.fr/mon-chantier/...` au lieu de `gerermonchantier.fr/mon-chantier/...`. Utiliser `navigateToGmc(targetPath)` du helper `ssoHandoffClient`. Cas typique : tout `<a href="/mon-chantier...">` dans Dashboard.tsx, layout/Header.tsx, AnalysisResult.tsx, SimulateurAidesCard.tsx.
+- **Liens INTRA-cockpit** (composants sous `src/components/chantier/cockpit/*`) gardent les paths relatifs `/mon-chantier/...` — ils s'exécutent déjà sur gmc.fr post-SSO, pas besoin de cross-domain handoff.
+- **Pages d'auth** (connexion / inscription / mot-de-passe-oublié / reset-password) lisent le brand côté serveur via `Astro.request.headers.get('host')` + `detectBrandFromHost()`, passent la prop `brand` au composant React via `<XApp brand={brand} client:only="react" />`. Les composants `Login.tsx` etc. acceptent une prop optionnelle `brand` qui override la détection runtime `getBrand()`.
+- **Auth callback OAuth Google** : `auth/callback.astro` lit `next` (et `redirect` legacy) depuis la URL et délègue à `performPostLoginRedirect`. Pour le SSO handoff, le magic link redirige vers `gmc.fr/auth/callback?next=/mon-chantier#access_token=...`.
+- **Logout** : tous les boutons "Déconnexion" (3 emplacements actuels : `astro/Header.astro` inline, `layout/Header.tsx` React, `gmc-landing/Header.astro` inline, plus le cockpit GMC dans `Sidebar.tsx`, `MonChantierHub.tsx`, `ScreenPrompt.tsx`) appellent `signOutCrossDomain('/')` du helper partagé. Ne jamais réinventer le flow déco — il faut le scope global + redirect chain pour que les 2 origines soient déco.
+- **CSP `frame-ancestors 'none'` empêche les iframes** vers le projet (vercel.json header global). Si on a besoin d'embed cross-domain, OUBLIER l'iframe — utiliser une redirect chain ou un nouveau path avec CSP override spécifique.
+
+### Pré-requis Supabase pour le SSO
+
+Dashboard → Authentication → URL Configuration → **Redirect URLs** doit contenir :
+- `https://gerermonchantier.fr/auth/callback?next=*`
+- `https://www.gerermonchantier.fr/auth/callback?next=*`
+- `https://www.verifiermondevis.fr/auth/callback?next=*`
+
+Sans ces URLs, le magic link `generateLink({ type: 'magiclink', options: { redirectTo: ... } })` rejette `redirectTo` → 500 silencieux côté SSO endpoint.
+
+### DNS (côté OVH, déjà configuré)
+
+- `gerermonchantier.fr` → A record `216.198.79.1`
+- `www.gerermonchantier.fr` → CNAME vers `*.vercel-dns-017.com.`
 
 ---
 

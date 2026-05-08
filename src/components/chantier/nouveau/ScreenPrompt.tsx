@@ -195,6 +195,17 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
           <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
           Mes chantiers
         </a>
+        {/* Déconnexion cross-domain — helper partagé */}
+        <button
+          type="button"
+          onClick={async () => {
+            const { signOutCrossDomain } = await import('@/lib/signOut');
+            await signOutCrossDomain('/');
+          }}
+          className="text-sm text-white/50 hover:text-white transition-colors"
+        >
+          Déconnexion
+        </button>
       </div>
 
       {/* ── Contenu central ──────────────────────────────────────────────── */}

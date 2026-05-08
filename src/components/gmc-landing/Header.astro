@@ -14,7 +14,39 @@ import Logo from './Logo.astro';
       <a href="https://www.verifiermondevis.fr" class="cursor-pointer hover:text-gray-900">Verifier&shy;MonDevis</a>
     </nav>
     <div class="flex-1"></div>
-    <a href="/connexion" class="hidden md:inline-flex text-sm font-semibold cursor-pointer text-gray-700 hover:text-gray-900">Connexion</a>
+
+    {/* Connexion (visiteur non logué) — caché par JS si user logué */}
+    <a
+      id="gmc-login-btn"
+      href="/connexion"
+      class="hidden md:inline-flex text-sm font-semibold cursor-pointer text-gray-700 hover:text-gray-900"
+    >
+      Connexion
+    </a>
+
+    {/* User dropdown (utilisateur logué) — révélé par JS si auth-token en localStorage */}
+    <div id="gmc-user-dropdown" class="relative hidden">
+      <button
+        id="gmc-user-trigger"
+        type="button"
+        class="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors px-3 py-1.5"
+      >
+        <span id="gmc-user-name"></span>
+        <svg class="h-3.5 w-3.5 transition-transform" id="gmc-user-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+      <div id="gmc-user-menu" class="absolute top-full right-0 mt-1 w-48 rounded-lg border border-gray-100 bg-white shadow-lg py-1 z-50 hidden">
+        <a id="gmc-user-chantier-link" href="/mon-chantier" class="hidden px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+          🏗️ Mes chantiers
+        </a>
+        <button id="gmc-signout-btn" type="button" class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
+          Déconnexion
+        </button>
+      </div>
+    </div>
+
+    {/* CTA principal — toujours visible */}
     <a
       href="/mon-chantier/nouveau"
       class="inline-flex items-center gap-1.5 text-sm font-semibold px-4 h-10 rounded-xl shadow-sm cursor-pointer transition-colors bg-[#1B3FA1] hover:bg-[#16348A] text-white"
@@ -26,3 +58,71 @@ import Logo from './Logo.astro';
     </a>
   </div>
 </header>
+
+<script>
+  // ── Détection user connecté + bascule UI Connexion / Espace ─────────────
+  // Lit localStorage Supabase (clé `sb-*-auth-token`) au load. Si user trouvé,
+  // remplace le bouton "Connexion" par le menu user (Mes chantiers + Déconnexion).
+  // Le lien "Mes chantiers" n'apparaît que pour les users allowlistés
+  // (hasGmcAccess) — pour les autres, juste Déconnexion.
+  try {
+    const keys = Object.keys(localStorage).filter(k => k.includes('auth-token'));
+    let user: { email?: string; user_metadata?: { first_name?: string; last_name?: string } } | null = null;
+    for (const key of keys) {
+      const data = JSON.parse(localStorage.getItem(key) || '{}');
+      if (data?.user) { user = data.user; break; }
+    }
+    if (user) {
+      // Hide login button, show user dropdown
+      document.getElementById('gmc-login-btn')?.classList.add('hidden');
+      const dropdown = document.getElementById('gmc-user-dropdown');
+      dropdown?.classList.remove('hidden');
+
+      // User name
+      const firstName = user.user_metadata?.first_name || '';
+      const lastName = user.user_metadata?.last_name || '';
+      const displayName = [firstName, lastName].filter(Boolean).join(' ')
+        || (user.email ? user.email.split('@')[0] : '');
+      const nameEl = document.getElementById('gmc-user-name');
+      if (nameEl) nameEl.textContent = `Espace ${displayName}`;
+
+      // "Mes chantiers" visible si user allowlisté
+      const { hasGmcAccess } = await import('@/lib/gmcAccess');
+      if (hasGmcAccess(user.email)) {
+        const link = document.getElementById('gmc-user-chantier-link');
+        link?.classList.remove('hidden');
+      }
+    }
+  } catch {
+    // Mode privé strict ou similaire — non bloquant, on garde le bouton Connexion
+  }
+
+  // ── Dropdown hover/click ────────────────────────────────────────────────
+  const trigger = document.getElementById('gmc-user-trigger');
+  const menu = document.getElementById('gmc-user-menu');
+  const chevron = document.getElementById('gmc-user-chevron');
+  const dropdown = document.getElementById('gmc-user-dropdown');
+  let hideTimer: ReturnType<typeof setTimeout>;
+
+  dropdown?.addEventListener('mouseenter', () => {
+    clearTimeout(hideTimer);
+    menu?.classList.remove('hidden');
+    chevron?.style.setProperty('transform', 'rotate(180deg)');
+  });
+  dropdown?.addEventListener('mouseleave', () => {
+    hideTimer = setTimeout(() => {
+      menu?.classList.add('hidden');
+      chevron?.style.setProperty('transform', '');
+    }, 150);
+  });
+  // Click ouvre/ferme aussi (mobile et accessibilité)
+  trigger?.addEventListener('click', () => {
+    menu?.classList.toggle('hidden');
+  });
+
+  // ── Sign out (helper partagé qui gère le cross-domain) ──────────────────
+  document.getElementById('gmc-signout-btn')?.addEventListener('click', async () => {
+    const { signOutCrossDomain } = await import('@/lib/signOut');
+    await signOutCrossDomain('/');
+  });
+</script>

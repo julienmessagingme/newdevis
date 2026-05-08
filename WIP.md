@@ -11,42 +11,68 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
-## NEW. Landing publique gerermonchantier.fr (multi-domaine sur newdevis)
+## NEW. Landing publique gerermonchantier.fr + multi-domaine + SSO cross-domaine
 
-🟡 **En route (2026-05-07)** — domaine acheté, DNS configuré, déploiement initial en cours.
+🟢 **Livré 2026-05-07/08 — en prod, à valider E2E par Julien.**
 
-### Stratégie retenue (Option A)
+### Architecture finale (déviation du plan initial)
 
-Un seul projet Vercel `newdevis` sert deux domaines :
-- `verifiermondevis.fr` (existant, inchangé)
-- `gerermonchantier.fr` (nouveau)
+Plan initial = "rewrite Vercel edge + un seul build". Ça n'a pas marché : `vercel.json` rewrites avec `has.host` ne s'appliquaient pas à la racine `/` car l'adapter Astro sert son `index.html` directement et bypass les rewrites Vercel pour ce path.
 
-Mécanisme : **rewrite Vercel edge** sur `/` quand Host = gerermonchantier.fr → réécrit vers `/gmc-home`. Toutes les autres routes (mon-chantier, auth, etc.) restent accessibles transparemment. Pas de middleware Astro nécessaire (rewrite edge plus performant que SSR).
+**Solution livrée** : middleware Astro `src/middleware.ts` qui intercepte uniquement `/` et fait un 302 vers `/gmc-home` quand le host est gerermonchantier. Pour permettre au middleware de tourner au runtime, `index.astro` est passé à `prerender = false` (la home VMD devient SSR — coût perf léger, mitigé par edge cache).
 
-### Ce qui est livré
+### Composants livrés
 
-- `vercel.json` : rewrites pour `(www.)?gerermonchantier.fr/` → `/gmc-home`
-- `src/pages/gmc-home.astro` : nouvelle landing GMC avec canonical/siteName dédiés
-- `src/components/gmc-landing/` : composants Astro purs (Hero animé, HowItWorks avec toggle, Features grid, PiloteSection avec OpenClaw+MCP, Pricing avec toggle annuel/mensuel, CTA, Footer)
-- `public/images/gmc/hero-illustration.png` : photo maison + propriétaire (~1Mo)
-- `BaseLayout.astro` : nouveau prop `siteName` pour og:site_name (default = "VerifierMonDevis.fr")
-- DNS OVH : A `@` → 216.198.79.1, CNAME `www` → vercel-dns-017.com
+**Landing GMC (gerermonchantier.fr/)** :
+- `src/pages/gmc-home.astro` (prerendered)
+- `src/components/gmc-landing/` : Header, Logo, Hero, HouseIllustration (SVG animé), HowItWorks (toggle "Je démarre / J'ai déjà mes devis" avec hash anchor `#etapes-start`/`#etapes-resume`), Features, PiloteSection (avec OpenClaw + MCP), Pricing (toggle mensuel/annuel), FinalCTA, Footer
+- Image hero : 1Mo PNG → 84KB AVIF + 47KB AVIF mobile (480w) via `<picture>` srcset
 
-### À valider après deploy
+**Pages d'auth brandées par host** :
+- `connexion.astro`, `inscription.astro`, `mot-de-passe-oublie.astro`, `reset-password.astro` lisent `Astro.request.headers.get('host')` côté serveur et passent la prop `brand` au composant React
+- `Login.tsx`, `Register.tsx`, `ForgotPassword.tsx`, `ResetPassword.tsx` acceptent prop `brand` (avec fallback `getBrand()` si non fournie)
+- `BrandLogo.tsx` : SVG inline GMC OU image WebP VMD selon brand
+- `BaseLayout.astro` : nouveau prop `siteName` pour adapter `og:site_name`
 
-- gerermonchantier.fr/ rend bien la landing GMC (rewrite edge OK)
-- gerermonchantier.fr/mon-chantier rend le hub chantier (page partagée OK)
-- verifiermondevis.fr/ rend toujours la landing VMD (zéro régression)
-- canonical de gmc-home pointe bien vers https://gerermonchantier.fr/
-- og:site_name = "GérerMonChantier" sur gmc-home
+**SSO handoff cross-domaine** :
+- `POST /api/sso/handoff` : génère magic link Supabase (admin API, pas d'email envoyé) avec `redirectTo` sur l'autre origine
+- `src/lib/postLoginRedirect.ts` : helper post-login (Login.tsx + auth/callback.astro)
+- `src/lib/ssoHandoffClient.ts` : helper pour les liens VMD vers /mon-chantier (Dashboard, layout/Header, AnalysisResult, SimulateurAidesCard)
+- `auth/callback.astro` accepte `next` param + délègue au helper
+
+**Logout cross-domaine** :
+- `src/lib/signOut.ts` : `signOutCrossDomain()` (global scope + redirect chain pas iframe car CSP `frame-ancestors 'none'`)
+- `src/pages/auth/clear-session.astro` : page cible de la redirect chain (whitelist d'origines validée anti open-redirect)
+- Bouton Déconnexion ajouté dans : `gmc-landing/Header.astro` (user dropdown), `astro/Header.astro` (existant), `layout/Header.tsx` (existant), `chantier/cockpit/Sidebar.tsx`, `pages/MonChantierHub.tsx`, `chantier/nouveau/ScreenPrompt.tsx`
+
+**Tracking acquisition** :
+- `signup_source` (`verifiermondevis` | `gerermonchantier`) envoyé au webhook `/api/webhook-registration` pour analytics. Whitelist côté API anti-pollution.
+
+### Pré-requis prod (à vérifier)
+
+- Supabase Dashboard → Auth → URL Configuration → Redirect URLs contient :
+  - `https://gerermonchantier.fr/auth/callback?next=*`
+  - `https://www.gerermonchantier.fr/auth/callback?next=*`
+  - `https://www.verifiermondevis.fr/auth/callback?next=*`
+  (Julien a confirmé avoir ajouté.)
+
+### À valider E2E (browser)
+
+- [ ] Login Julien sur vmd.fr/connexion → URL bascule sur gerermonchantier.fr/mon-chantier (handoff)
+- [ ] Click bandeau Chantier sur vmd.fr/tableau-de-bord → idem (handoff)
+- [ ] Login Julien sur gmc.fr/connexion → reste sur gmc.fr/mon-chantier (pas de handoff inutile)
+- [ ] Logout depuis gmc.fr ou vmd.fr → user déco des deux domaines (rouvrir l'autre, vérifier /connexion)
+- [ ] Visiteur non-logué clique "Mon chantier" sur vmd.fr → atterrit sur gerermonchantier.fr/ (landing)
+- [ ] Bouton Déconnexion visible sur gmc.fr/ (Espace dropdown), gmc.fr/mon-chantier (sidebar), gmc.fr/mon-chantier/nouveau (header)
 
 ### Reste à faire (v2)
 
-- Image OG dédiée `og-gmc.png` (1200x630)
+- Migration DB `signup_source` + `has_gmc_access` (aujourd'hui = allowlist hardcodée dans `src/lib/gmcAccess.ts`)
+- Image OG dédiée `og-gmc.png` (1200x630) — actuellement la landing GMC utilise hero-illustration.png comme OG
 - Bouton "Importer mes devis VMD" sur la landing GMC → flow cross-app
-- Bouton "Voir mes chantiers" sur la landing VMD → lien vers gerermonchantier.fr
 - Sitemap.xml dédié pour gerermonchantier.fr
-- Optimiser hero-illustration.png (1Mo → <300Ko en webp/avif)
+- Webhook email `/api/webhooks/inbound-email.ts` : ligne 273 génère URL hardcodée `https://www.verifiermondevis.fr/mon-chantier/...` — à brand-adapter pour les chantiers GMC
+- Quand Stripe sera prêt : remplacer la logique allowlist par vraie souscription, proposer 15j gratuits aux non-allowlistés qui cliquent "Mon chantier"
 
 ---
 

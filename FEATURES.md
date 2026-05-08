@@ -100,6 +100,47 @@ Chaque analyse VMD insère une ligne dans `price_observations` (anonymisée, ave
 
 ---
 
+## 0ter. Multi-domaine : verifiermondevis.fr + gerermonchantier.fr
+
+Depuis 2026-05-07/08, les deux produits ont leur propre domaine — mais c'est **toujours le même build** Vercel, le même Supabase, le même utilisateur sous-jacent.
+
+### Ce que voit l'utilisateur
+
+| Quand il est sur… | Il voit… |
+|---|---|
+| `verifiermondevis.fr` | Marque VMD (logo "VerifierMonDevis.fr"), landing analyse de devis, tableau de bord VMD |
+| `gerermonchantier.fr` | Marque GMC (logo "GérerMonChantier" + Syne), landing produit chantier, cockpit |
+| `verifiermondevis.fr/connexion` | Form de connexion brandé VMD (titre, panneau droit, OG, canonical) |
+| `gerermonchantier.fr/connexion` | Form de connexion brandé GMC (titre "Connexion à votre Pilote IA", panneau navy, OG GMC) |
+
+### Comportement post-login
+
+- Login Julien (allowlist GMC) sur `vmd.fr/connexion` → handoff SSO → atterit sur `gerermonchantier.fr/mon-chantier`. URL et marque cohérentes avec le produit accessible.
+- Login Julien sur `gmc.fr/connexion` → reste sur `gmc.fr/mon-chantier` (pas de handoff inutile, déjà sur la bonne marque).
+- Login d'un user random VMD (pas allowlist GMC) → reste sur `vmd.fr/tableau-de-bord` (son produit).
+
+### "Mon chantier" = bouton omniprésent côté VMD
+
+- Toujours visible dans le header VMD (desktop + mobile) et le bandeau Chantier sur le tableau de bord VMD.
+- Pour un user allowlisté GMC : click → SSO handoff → cockpit GMC sur `gerermonchantier.fr/mon-chantier`.
+- Pour les autres : click → landing GMC `gerermonchantier.fr/` (futur upsell Stripe avec 15j gratuits).
+
+### Déconnexion = cross-domaine
+
+Cliquer "Déconnexion" sur **n'importe quel domaine** déconnecte instantanément l'utilisateur des **deux** :
+1. Supabase global signOut serveur-side (invalide tous les refresh tokens).
+2. Redirect chain visible (~300ms) vers `<other>/auth/clear-session` qui vide le localStorage de l'autre origine, puis revient.
+
+### Tracking d'acquisition
+
+Tout signup envoie un champ `signup_source` (`verifiermondevis` ou `gerermonchantier`) au webhook analytics. À terme, sera persisté en DB pour distinguer les cohortes d'acquisition.
+
+### Limitation v1
+
+L'accès GMC est aujourd'hui **par allowlist hardcodée** (`src/lib/gmcAccess.ts` : julien + Johan). Quand Stripe sera prêt, sera remplacé par lecture DB (colonne `subscriptions.has_gmc_access`) avec proposition d'onboarding 15 jours gratuits.
+
+---
+
 ## 1. Création d'un chantier — phase Conception
 
 Accès : **/mon-chantier/nouveau**

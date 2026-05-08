@@ -313,14 +313,27 @@ export default function MonChantierHub() {
 
           {/* ── Header ── */}
           <div className="mb-8 animate-fade-up">
-            {/* Retour site principal */}
-            <a
-              href="/tableau-de-bord"
-              className="inline-flex items-center gap-1.5 text-gray-400 hover:text-gray-600 text-xs transition-colors group mb-6"
-            >
-              <LayoutDashboard className="h-3.5 w-3.5" />
-              Retour au tableau de bord
-            </a>
+            <div className="flex items-center justify-between mb-6">
+              {/* Retour site principal */}
+              <a
+                href="/tableau-de-bord"
+                className="inline-flex items-center gap-1.5 text-gray-400 hover:text-gray-600 text-xs transition-colors group"
+              >
+                <LayoutDashboard className="h-3.5 w-3.5" />
+                Retour au tableau de bord
+              </a>
+              {/* Déconnexion (cross-domain via helper partagé) */}
+              <button
+                type="button"
+                onClick={async () => {
+                  const { signOutCrossDomain } = await import('@/lib/signOut');
+                  await signOutCrossDomain('/');
+                }}
+                className="text-xs text-gray-400 hover:text-red-600 transition-colors"
+              >
+                Déconnexion
+              </button>
+            </div>
 
             <div className="flex items-center gap-2.5 mb-3">
               <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100

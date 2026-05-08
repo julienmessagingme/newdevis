@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   ArrowLeft, Pencil, Wallet, Layers,
-  Calendar, FolderOpen, Bot, Settings, Users, Mail, BookOpen,
+  Calendar, FolderOpen, Bot, Settings, Users, Mail, BookOpen, LogOut,
 } from 'lucide-react';
 import type { ChantierIAResult } from '@/types/chantier-ia';
 
@@ -123,8 +123,8 @@ export default function Sidebar({ result, activeSection, onSelect, rangeMin, ran
           ))}
         </nav>
 
-        {/* Paramètres (bas) */}
-        <div className="px-3 pb-4 pt-3 border-t border-gray-50">
+        {/* Paramètres + Déconnexion (bas) */}
+        <div className="px-3 pb-4 pt-3 border-t border-gray-50 space-y-1">
           <button
             onClick={() => { onSelect('settings'); onCloseMobile(); }}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
@@ -132,6 +132,17 @@ export default function Sidebar({ result, activeSection, onSelect, rangeMin, ran
             }`}>
             <Settings className={`h-4 w-4 ${activeSection === 'settings' ? 'text-blue-600' : 'text-gray-400'}`} />
             Paramètres
+          </button>
+          {/* Sign out cross-domain (vmd.fr ET gmc.fr) — délégué au helper partagé */}
+          <button
+            type="button"
+            onClick={async () => {
+              const { signOutCrossDomain } = await import('@/lib/signOut');
+              await signOutCrossDomain('/');
+            }}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-all">
+            <LogOut className="h-4 w-4 text-gray-400" />
+            Déconnexion
           </button>
         </div>
       </aside>
