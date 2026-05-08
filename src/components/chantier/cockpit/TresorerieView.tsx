@@ -470,7 +470,7 @@ function FinancementSection({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-gray-400">Budget de référence :</span>
+          <span className="text-[10px] text-gray-400">Budget cible :</span>
           {editingBudget ? (
             <div className="flex items-center gap-1">
               <input autoFocus type="number" inputMode="decimal" value={editBudgetVal} onChange={e => setEditBudgetVal(e.target.value)}

@@ -8,12 +8,12 @@
  *      Colonnes : Artisan · Poste · Devis + dl · Statut devis · Factures · Statut · Reste · Progression · Docs
  *   4. Drawer détail artisan (devis + factures avec statut cliquable)
  */
-import { useState, useMemo, useCallback, useEffect, Fragment } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef, Fragment } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
   Search, Plus, Paperclip, X, Download,
   AlertCircle, Loader2, RotateCw, AlertTriangle,
-  Check, Clock, ChevronDown, ChevronRight, Scale, Pencil,
+  Check, Clock, ChevronDown, ChevronUp, ChevronRight, Scale, Pencil,
 } from 'lucide-react';
 import { fmtEur } from '@/lib/financingUtils';
 import AddDocumentModal from './AddDocumentModal';
@@ -143,7 +143,10 @@ function buildRow(lot: BudgetLot): BudgetRow {
     : devis_valides + (devis_valides > 0 ? Math.max(0, facture - devis_valides) : facture);
   const factureHorsDevis = Math.max(0, facture - devis_valides);
   const totalPaye = paye + acompte;
-  const reste = Math.max(0, facture - totalPaye);
+  // Si facture existe → solde restant sur la facture ; sinon → engagement devis moins acomptes déjà versés
+  const reste = facture > 0
+    ? Math.max(0, facture - totalPaye)
+    : Math.max(0, devis_valides - totalPaye);
 
   const statuses = lot.devis.map(d => d.devis_statut);
   let devisStatut: DevisStatut = 'pending';
@@ -368,16 +371,21 @@ function BudgetKpiDashboard({
   const decaisse       = (totaux?.paye ?? 0) + (totaux?.acompte ?? 0); // tout ce qui est sorti du compte
   const aRegler        = totaux?.a_payer  ?? 0;                         // factures reçues non soldées
   const litige         = totaux?.litige   ?? 0;
+  const devisValides   = totaux?.devis_valides ?? 0;
+  // Montant encore à facturer = devis signés - déjà facturé
+  const aVenir         = Math.max(0, devisValides - (totaux?.facture ?? 0));
   // Budget cible : saisi manuellement OU estimation IA (jamais "engagé")
   const effectiveReel  = budgetReel ?? ((data?.budget_ia ?? 0) > 0 ? data!.budget_ia : null);
   const budgetRestant  = effectiveReel ? Math.max(0, effectiveReel - decaisse - aRegler) : 0;
 
   const pctDecaisse   = effectiveReel && effectiveReel > 0 ? Math.round((decaisse / effectiveReel) * 100) : 0;
   const pctARegler    = effectiveReel && effectiveReel > 0 ? Math.round((aRegler / effectiveReel) * 100) : 0;
+  const pctAVenir     = effectiveReel && effectiveReel > 0 ? Math.round((aVenir  / effectiveReel) * 100) : 0;
 
   // Couleurs dynamiques
   const colorDecaisse   = pctDecaisse  >= 100 ? '#10b981' : pctDecaisse  > 0   ? '#3b82f6' : '#d1d5db';
   const colorARegler    = aRegler > 0 ? '#f59e0b' : '#d1d5db';
+  const colorAVenir     = aVenir  > 0 ? '#8b5cf6' : '#d1d5db';
 
   function startEdit() {
     setEditVal(effectiveReel ? String(Math.round(effectiveReel)) : '');
@@ -427,10 +435,10 @@ function BudgetKpiDashboard({
 
   if (loading) return (
     <div className="px-7 py-6 border-b border-gray-100">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 sm:gap-6">
-        {[0,1,2].map(i => (
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-5 sm:gap-6">
+        {[0,1,2,3].map(i => (
           <div key={i} className="flex items-center gap-4">
-            <div className="h-20 w-20 rounded-full bg-gray-100 animate-pulse shrink-0" />
+            <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-gray-100 animate-pulse shrink-0" />
             <div className="space-y-2 flex-1">
               <div className="h-2.5 w-24 bg-gray-100 rounded animate-pulse" />
               <div className="h-5 w-20 bg-gray-100 rounded animate-pulse" />
@@ -444,7 +452,7 @@ function BudgetKpiDashboard({
 
   return (
     <div className="border-b border-gray-100 bg-white">
-      <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
+      <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
 
         {/* ── 1. Budget cible (éditable) ─────────────────── */}
         <div className="px-5 py-5 sm:px-7 sm:py-6">
@@ -586,6 +594,36 @@ function BudgetKpiDashboard({
           </div>
         </div>
 
+        {/* ── 4. À venir (devis signés, pas encore facturés) ─────── */}
+        <div className="px-5 py-5 sm:px-7 sm:py-6">
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center">
+            À venir
+            <InfoTooltip lines={[
+              'Montant encore à facturer par vos artisans.',
+              'Calculé sur la base de vos devis validés moins ce qui a déjà été facturé.',
+              aVenir > 0
+                ? `Reste à recevoir : ${fmtEur(aVenir)}`
+                : 'Tous vos devis ont été facturés.',
+            ].filter(Boolean) as string[]} />
+          </p>
+          <div className="flex items-center gap-4">
+            <div className="relative shrink-0">
+              <DonutRing pct={pctAVenir} color={colorAVenir} size={80} stroke={7} />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-[12px] font-black text-gray-700">{pctAVenir}%</span>
+              </div>
+            </div>
+            <div>
+              <p className="text-[18px] font-black text-gray-800 leading-none">
+                {aVenir > 0 ? fmtEur(aVenir) : '—'}
+              </p>
+              <p className="text-[11px] text-gray-400 mt-1.5">
+                {aVenir > 0 ? 'encore à facturer' : devisValides > 0 ? 'Tout facturé ✓' : 'Aucun devis signé'}
+              </p>
+            </div>
+          </div>
+        </div>
+
       </div>
 
     </div>
@@ -605,6 +643,8 @@ function ActionBar({
   sortBy, onSort,
   onAddDocument,
   onAddDepense,
+  onToggleAll,
+  allExpanded,
 }: {
   search: string; onSearch: (v: string) => void;
   filterDevis: FilterDevis; onFilterDevis: (v: FilterDevis) => void;
@@ -612,6 +652,8 @@ function ActionBar({
   sortBy: SortBy; onSort: (v: SortBy) => void;
   onAddDocument?: () => void;
   onAddDepense?: () => void;
+  onToggleAll?: () => void;
+  allExpanded?: boolean;
 }) {
   const sel = 'text-[12px] border border-gray-200 rounded-lg px-2.5 py-2 bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-300 w-full md:w-auto';
   return (
@@ -652,6 +694,16 @@ function ActionBar({
         </select>
       </div>
       <div className="hidden md:block md:flex-1" />
+      {/* Tout développer / réduire */}
+      {onToggleAll && (
+        <button
+          onClick={onToggleAll}
+          className="hidden sm:flex w-full md:w-auto items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg border border-gray-200 bg-white text-gray-600 text-[12px] font-medium hover:bg-gray-50 transition-colors shrink-0"
+        >
+          {allExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          {allExpanded ? 'Tout réduire' : 'Tout développer'}
+        </button>
+      )}
       {/* Dépense rapide — achat matériaux / paiement liquide sans document */}
       <button
         onClick={onAddDepense}
@@ -1527,6 +1579,27 @@ export default function BudgetTab({
     });
   }, []);
 
+  // Auto-expand si ≤4 lots (au premier chargement uniquement)
+  const autoExpandDone = useRef(false);
+  useEffect(() => {
+    if (!data || autoExpandDone.current) return;
+    const allLots = [...data.lots, ...(data.sans_lot ? [data.sans_lot] : [])];
+    if (allLots.length <= 4) {
+      setExpanded(new Set(allLots.map(l => l.id)));
+    }
+    autoExpandDone.current = true;
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Helper : tout développer / tout réduire
+  const allLotIds = useMemo(() => {
+    if (!data) return [] as string[];
+    return [...data.lots, ...(data.sans_lot ? [data.sans_lot] : [])].map(l => l.id);
+  }, [data]);
+  const allExpanded = allLotIds.length > 0 && allLotIds.every(id => expanded.has(id));
+  const toggleAll = useCallback(() => {
+    setExpanded(allExpanded ? new Set() : new Set(allLotIds));
+  }, [allExpanded, allLotIds]);
+
   // Sync drawer row quand les données serveur se rechargent
   useEffect(() => {
     if (!selected || !data) return;
@@ -1566,6 +1639,8 @@ export default function BudgetTab({
         sortBy={sortBy}           onSort={setSortBy}
         onAddDocument={() => setShowAddDoc(true)}
         onAddDepense={() => setDepenseRapide('open')}
+        onToggleAll={allLotIds.length > 0 ? toggleAll : undefined}
+        allExpanded={allExpanded}
       />
 
       {/* ── Vue mobile : cartes artisans (ÉTAPE 1&2) ───────────────────────── */}
@@ -1837,9 +1912,19 @@ export default function BudgetTab({
 
                           {/* FACTURÉ */}
                           <td className="px-3 py-3 text-right">
-                            {artisan.totaux.facture > 0
-                              ? <span className="text-[12px] font-semibold text-gray-700">{fmtEur(artisan.totaux.facture)}</span>
-                              : <span className="text-[12px] text-gray-300">—</span>}
+                            {artisan.totaux.facture > 0 ? (
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="text-[12px] font-semibold text-gray-700">{fmtEur(artisan.totaux.facture)}</span>
+                                {artisan.totaux.devis_valides > 0 && artisan.totaux.facture > artisan.totaux.devis_valides * 1.05 && (
+                                  <span className="text-[10px] text-red-500 font-semibold flex items-center gap-0.5 whitespace-nowrap">
+                                    <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                                    +{fmtEur(artisan.totaux.facture - artisan.totaux.devis_valides)}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-[12px] text-gray-300">—</span>
+                            )}
                           </td>
 
                           {/* PAYÉ — montants uniquement (read-only) */}
