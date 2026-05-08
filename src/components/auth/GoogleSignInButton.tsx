@@ -22,7 +22,9 @@ export default function GoogleSignInButton({ redirectAfter }: GoogleSignInButton
     setLoading(true);
     const callbackUrl = new URL("/auth/callback", window.location.origin);
     if (redirectAfter) {
-      callbackUrl.searchParams.set("redirect", redirectAfter);
+      // On utilise "next" (pas "redirect") pour matcher le pattern Supabase
+      // whitelist : https://gerermonchantier.fr/auth/callback?next=*
+      callbackUrl.searchParams.set("next", redirectAfter);
     }
 
     const { error } = await supabase.auth.signInWithOAuth({

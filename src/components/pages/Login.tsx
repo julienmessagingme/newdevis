@@ -92,7 +92,16 @@ const Login = ({ brand }: Props) => {
           </div>
 
           <div className="mb-6">
-            <GoogleSignInButton redirectAfter={new URLSearchParams(window.location.search).get("redirect") || undefined} />
+            <GoogleSignInButton
+              redirectAfter={
+                new URLSearchParams(window.location.search).get("redirect") ||
+                new URLSearchParams(window.location.search).get("next") ||
+                // Sur gmc.fr sans redirect explicite : envoyer vers /mon-chantier.
+                // Sans ça, le callback URL n'a pas de ?next= → ne matche pas le
+                // pattern Supabase whitelist → redirect vers la Site URL (vmd.fr).
+                (config.brand === 'gmc' ? '/mon-chantier' : undefined)
+              }
+            />
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-border" />
