@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { usePremium } from "@/hooks/usePremium";
 
-const ADMIN_EMAILS = ["julien@messagingme.fr", "bridey.johan@gmail.com"];
+import { hasGmcAccess } from "@/lib/gmcAccess";
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -41,7 +41,7 @@ const Header = () => {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
-        if (user.email && ADMIN_EMAILS.includes(user.email)) setIsAdmin(true);
+        if (hasGmcAccess(user.email)) setIsAdmin(true);
         const firstName = (user.user_metadata?.first_name as string) || "";
         const lastName = (user.user_metadata?.last_name as string) || "";
         const name = [firstName, lastName].filter(Boolean).join(" ");

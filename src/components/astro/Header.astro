@@ -246,9 +246,10 @@ const pathname = Astro.url.pathname;
       const authKey = Object.keys(localStorage).find(k => k.includes('auth-token'));
       const authData = authKey ? JSON.parse(localStorage.getItem(authKey) || "{}") : null;
       const accessToken = authData?.access_token;
-      const userEmail = (authData?.user?.email || "").toLowerCase();
+      const userEmail = authData?.user?.email;
       // Pas connecté ou pas allowlisté → laisse aller sur gmc.fr/ landing (href défaut)
-      if (!accessToken || !userEmail || !ADMIN_EMAILS.includes(userEmail)) return;
+      const { hasGmcAccess } = await import('@/lib/gmcAccess');
+      if (!accessToken || !hasGmcAccess(userEmail)) return;
       // Allowlisté → SSO handoff
       e.preventDefault();
       const lastId = localStorage.getItem("lastChantierId");

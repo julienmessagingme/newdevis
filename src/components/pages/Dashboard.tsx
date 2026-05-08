@@ -17,6 +17,7 @@ import { getStatusIcon, getScoreBadge } from "@/lib/scoreUtils";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { useSessionGuard } from "@/hooks/useSessionGuard";
 import { usePremium } from "@/hooks/usePremium";
+import { hasGmcAccess } from "@/lib/gmcAccess";
 
 type Analysis = {
   id: string;
@@ -32,8 +33,6 @@ const formatDate = (dateString: string) =>
     month: "2-digit",
     year: "numeric"
   });
-
-const ADMIN_EMAILS = ["julien@messagingme.fr", "bridey.johan@gmail.com"];
 
 const Dashboard = () => {
   const [user, setUser] = useState<SupabaseUser | null>(null);
@@ -175,9 +174,9 @@ const Dashboard = () => {
         {/* Mon Chantier CTA — SSO handoff vers gerermonchantier.fr pour les
             utilisateurs allowlistés ; fallback "bientôt" pour les autres. */}
         <a
-          href={ADMIN_EMAILS.includes(user?.email || "") ? "https://gerermonchantier.fr/mon-chantier" : "/mon-chantier/bientot"}
+          href={hasGmcAccess(user?.email) ? "https://gerermonchantier.fr/mon-chantier" : "/mon-chantier/bientot"}
           onClick={async (e) => {
-            if (!ADMIN_EMAILS.includes(user?.email || "")) return;
+            if (!hasGmcAccess(user?.email)) return;
             e.preventDefault();
             const { navigateToGmc } = await import("@/lib/ssoHandoffClient");
             await navigateToGmc("/mon-chantier");

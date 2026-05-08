@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import AidesTravaux from '@/components/chantier/cockpit/financing/AidesTravaux';
 
-const ADMIN_EMAILS = ['julien@messagingme.fr', 'bridey.johan@gmail.com'];
+import { hasGmcAccess } from '@/lib/gmcAccess';
 
 function useIsAdmin() {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -11,7 +11,7 @@ function useIsAdmin() {
       const keys = Object.keys(localStorage).filter(k => k.includes('auth-token'));
       for (const key of keys) {
         const data = JSON.parse(localStorage.getItem(key) || '{}');
-        if (data?.user?.email && ADMIN_EMAILS.includes(data.user.email)) {
+        if (hasGmcAccess(data?.user?.email)) {
           setIsAdmin(true);
           break;
         }
