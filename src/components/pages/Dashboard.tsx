@@ -172,8 +172,18 @@ const Dashboard = () => {
           </p>
         </div>
 
-        {/* Mon Chantier CTA */}
-        <a href={ADMIN_EMAILS.includes(user?.email || "") ? "/mon-chantier" : "/mon-chantier/bientot"} className="block mb-4">
+        {/* Mon Chantier CTA — SSO handoff vers gerermonchantier.fr pour les
+            utilisateurs allowlistés ; fallback "bientôt" pour les autres. */}
+        <a
+          href={ADMIN_EMAILS.includes(user?.email || "") ? "https://gerermonchantier.fr/mon-chantier" : "/mon-chantier/bientot"}
+          onClick={async (e) => {
+            if (!ADMIN_EMAILS.includes(user?.email || "")) return;
+            e.preventDefault();
+            const { navigateToGmc } = await import("@/lib/ssoHandoffClient");
+            await navigateToGmc("/mon-chantier");
+          }}
+          className="block mb-4"
+        >
           <div className="bg-gradient-to-r from-primary/10 to-blue-500/10 border border-primary/30 rounded-2xl p-5 hover:border-primary hover:shadow-sm transition-all duration-200 cursor-pointer group">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-primary/15 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-200 text-2xl">

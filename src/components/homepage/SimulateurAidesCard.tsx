@@ -78,9 +78,12 @@ export default function SimulateurAidesCard() {
             <div className="p-5">
               <AidesTravaux
                 {...(isAdmin ? {
-                  onImportAides: () => {
+                  onImportAides: async () => {
                     setOpen(false);
-                    window.location.href = '/mon-chantier/nouveau';
+                    // SSO handoff vers gmc.fr/mon-chantier/nouveau (au lieu du
+                    // path relatif qui resterait sur vmd.fr).
+                    const { navigateToGmc } = await import('@/lib/ssoHandoffClient');
+                    await navigateToGmc('/mon-chantier/nouveau');
                   }
                 } : {})}
                 standalone

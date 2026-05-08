@@ -340,12 +340,21 @@ const AnalysisResult = () => {
   // Retour chantier — si l'analyse a été ouverte depuis un lot/chantier
   const fromChantier = searchParams.get("from") === "chantier";
   const chantierId = searchParams.get("chantierId");
+  // Le backHref pointe vers gmc.fr en absolu pour le cas chantier (fallback si
+  // JS désactivé). Le onClick fait le SSO handoff propre via navigateToGmc.
   const backHref = fromChantier && chantierId
-    ? `/mon-chantier/${chantierId}`
+    ? `https://gerermonchantier.fr/mon-chantier/${chantierId}`
     : isPermanent ? "/tableau-de-bord" : "/";
   const backLabel = fromChantier && chantierId
     ? "Retour au chantier"
     : isPermanent ? "Retour au tableau de bord" : "Retour à l'accueil";
+  const handleBackClick = async (e: React.MouseEvent) => {
+    if (fromChantier && chantierId) {
+      e.preventDefault();
+      const { navigateToGmc } = await import("@/lib/ssoHandoffClient");
+      await navigateToGmc(`/mon-chantier/${chantierId}`);
+    }
+  };
 
   const handleAuthConversion = () => {
     window.location.reload();
@@ -420,7 +429,16 @@ const AnalysisResult = () => {
 
     if (error || !data) {
       toast.error("Analyse non trouvée");
-      window.location.href = isAdminFetch ? "/admin" : backHref;
+      if (isAdminFetch) {
+        window.location.href = "/admin";
+      } else if (fromChantier && chantierId) {
+        // Cas chantier : SSO handoff vers gmc.fr (sinon backHref absolu enverrait
+        // l'utilisateur sur gmc.fr non-logué → /connexion).
+        const { navigateToGmc } = await import("@/lib/ssoHandoffClient");
+        await navigateToGmc(`/mon-chantier/${chantierId}`);
+      } else {
+        window.location.href = backHref;
+      }
       return;
     }
 
@@ -634,7 +652,7 @@ const AnalysisResult = () => {
           <p className="text-muted-foreground text-sm">
             Cette analyse n'existe pas ou vous n'y avez pas accès.
           </p>
-          <a href={backHref}>
+          <a href={backHref} onClick={handleBackClick}>
             <Button variant="outline" size="lg">
               <ArrowLeft className="h-4 w-4 mr-2" />
               {backLabel}
@@ -913,7 +931,7 @@ const AnalysisResult = () => {
           </div>
         </header>
         <main className="container py-8 max-w-4xl">
-          <a href={backHref} className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors">
+          <a href={backHref} onClick={handleBackClick} className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors">
             <ArrowLeft className="h-4 w-4" />
             {backLabel}
           </a>
@@ -974,7 +992,7 @@ const AnalysisResult = () => {
         {/* Funnel Stepper */}
         <FunnelStepper currentStep={isPermanent ? 3 : 2} />
 
-        <a href={backHref} className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors">
+        <a href={backHref} onClick={handleBackClick} className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors">
           <ArrowLeft className="h-4 w-4" />
           {backLabel}
         </a>

@@ -98,7 +98,17 @@ const Header = () => {
           </a>
           <div className="flex items-center gap-3">
             {isAdmin && (
-              <a href={typeof window !== 'undefined' && localStorage.getItem('lastChantierId') ? `/mon-chantier/${localStorage.getItem('lastChantierId')}` : '/mon-chantier'} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors text-sm font-medium text-primary">
+              <a
+                href="https://gerermonchantier.fr/mon-chantier"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  const lastId = typeof window !== 'undefined' ? localStorage.getItem('lastChantierId') : null;
+                  const targetPath = lastId ? `/mon-chantier/${lastId}` : '/mon-chantier';
+                  const { navigateToGmc } = await import('@/lib/ssoHandoffClient');
+                  await navigateToGmc(targetPath);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors text-sm font-medium text-primary"
+              >
                 <span>🏗️</span>
                 Mon Chantier
               </a>
@@ -190,7 +200,18 @@ const Header = () => {
               Arbitrage travaux
             </a>
             {isAdmin && (
-              <a href={typeof window !== 'undefined' && localStorage.getItem('lastChantierId') ? `/mon-chantier/${localStorage.getItem('lastChantierId')}` : '/mon-chantier'} onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium">
+              <a
+                href="https://gerermonchantier.fr/mon-chantier"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  setMobileMenuOpen(false);
+                  const lastId = typeof window !== 'undefined' ? localStorage.getItem('lastChantierId') : null;
+                  const targetPath = lastId ? `/mon-chantier/${lastId}` : '/mon-chantier';
+                  const { navigateToGmc } = await import('@/lib/ssoHandoffClient');
+                  await navigateToGmc(targetPath);
+                }}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium"
+              >
                 <span>🏗️</span>
                 Mon Chantier
               </a>
