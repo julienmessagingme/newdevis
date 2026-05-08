@@ -517,24 +517,33 @@ Mémoire long-terme du chantier — un digest IA par jour, en livre.
 >
 > **Avantage marché** : véritable copilote IA qui **connaît le chantier en profondeur** (planning, budget, contacts, messages reçus, photos). Peut PRENDRE des actions (décaler le planning, créer une facture, envoyer un WhatsApp à l'artisan) — pas juste répondre. Channel WhatsApp privé pour notifs proactives même quand l'app est fermée. Aucun équivalent grand public.
 
-Centre de discussion avec l'IA + traçabilité de ses actions. Layout 2 colonnes (desktop) ou empilé (mobile).
+Centre de discussion avec l'IA + traçabilité de ses actions. Layout **3 colonnes** (desktop) ou **tabs** (mobile, switch entre les 3 panneaux).
 
-### Colonne gauche — Chat IA
+### Colonne gauche — Alertes IA
+- Tout ce que l'IA a remonté **qui demande ton attention** : budget dépassé, retard paiement, risque détecté, demandes de clarification.
+- 30 derniers jours, triés chrono décroissant.
+- Click sur une alerte = marquée comme lue (le point bleu disparaît). Bouton "Tout marquer lu" en haut à droite.
+- Icônes colorées : 🔴 critique, 💰 budget, 📅 planning, ⏰ retard, 🔄 changement statut, ⚠️ risque, 🔔 clarification, 💭 résumé conv.
+- Compteur d'alertes non-lues affiché dans le badge sidebar de l'onglet Assistant (orange si non-critique, rouge si critique, vert "✓ OK" si rien à voir).
+
+### Colonne centrale — Chat IA
 - Historique des messages user/assistant
 - Messages "agent_initiated" (initiative IA) marqués différemment
 - Zone de saisie : Ctrl+Entrée pour envoyer
 - Badge non-lus quand l'IA a écrit en proactif
 
-### Colonne droite — Fil d'activité IA
-- **Reset à minuit Paris** : ne montre que les événements du jour (la mémoire long-terme reste dans le Journal)
-- **3 types d'items mélangés**, triés chrono décroissant :
-  1. **Décisions** (tool_calls de l'IA) : "📅 Plombier décalé +5j (cascade)", "💰 Frais 300€ déclaré", "✅ Lot Toiture marqué terminé"
-  2. **Alertes** : budget dépassé, retard paiement, risque détecté
-  3. **Clarifications** : "Je pense que cette photo est mal affectée au lot Maçon, confirme ?"
-- Icônes colorées par catégorie (planning bleu, frais ambre, statut vert, alertes rouge/ambre, clarifications orange)
-- Heure exacte affichée pour chaque item
-- Auto-refresh toutes les 20s
-- Footer "Voir journal complet" → onglet Journal
+### Colonne droite — Décisions IA du jour
+- Tout ce que l'IA a **fait** aujourd'hui (les tool_calls qui ont muté ton chantier).
+- Reset à minuit Paris (la mémoire long-terme reste dans le Journal de chantier).
+- Exemples : "📅 Plombier décalé +5j (cascade)", "💰 Frais 300€ déclaré", "✅ Lot Toiture marqué terminé", "💬 Message WhatsApp envoyé".
+- Auto-refresh toutes les 20s.
+- Footer "Voir journal complet" → onglet Journal.
+
+### Cohérence avec la sidebar
+Chaque badge ⚠ dans la sidebar pointe vers l'onglet où l'action se résout :
+- **Documents** ⚠ N → devis à valider (statut "reçu")
+- **Budget & Trésorerie** ⚠ N → factures à régler (reçues ou partiellement payées)
+- **Assistant chantier** ⚠ N → alertes IA non-lues (= ce qui est dans la colonne gauche de l'onglet)
 
 ### Workflow chat — exemples
 - *"Bouge la plomberie de 3 jours"* → l'IA détecte les successeurs, demande "cascade ou détaché ?", attend la réponse, exécute, met à jour le planning

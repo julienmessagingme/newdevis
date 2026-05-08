@@ -2304,33 +2304,39 @@ Tracking des champs auto-remplis via `Set<keyof PVData>` (state `autofilled`). B
 
 **`NextActionsBlock`** (inchangé — juste en dessous des KPIs) : liste contextuelle max 3 items priorisés (P1 factures → P2 devis → P3 lots bloqués → P4 factures manquantes).
 
-**`DashboardUnified`** :
-- `urgentActions` calculé depuis `documents` (factures recues/partielles + devis reçus)
-- Badge sidebar `assistant` : "⚠ N action(s)" ambre si urgentActions > 0, sinon "✓ OK" vert
-- KPI "À traiter" : accent amber/emerald selon `urgentActions`
+**`DashboardUnified`** — calcul des actions par onglet (split 2026-05-08) :
+- `factureActions` = factures `recue` ou `payee_partiellement` → badge sidebar `tresorerie`
+- `devisActions` = devis `recu` → badge sidebar `documents`
+- `agentInsights.unreadCount` (hook `useAgentInsights`) → badge sidebar `assistant`
+- `urgentActions = factureActions + devisActions` → KPI home "actions en attente" uniquement
+- Règle : chaque badge pointe vers l'onglet qui résout l'action. **Ne pas réutiliser `urgentActions` sur le badge `assistant`** — c'était le bug d'origine, le badge pointait vers un onglet sans contenu lié.
 
-### 21.4 Fil d'activité Assistant chantier (24h)
+### 21.4 Onglet Assistant chantier — 3 colonnes (refacto 2026-05-08)
 
-Onglet Assistant en 2 colonnes (desktop) ou stack vertical (mobile).
+Rendu par `AssistantTriPane.tsx`. Layout 3 colonnes desktop, tabs mobile.
 
-**Composants** :
-- Gauche (flex-1) : `ChantierAssistantChat` (existant, inchangé)
-- Droite (w-[360px]) : `AgentActivityFeed.tsx` (nouveau)
+**Layout desktop (lg+)** : `flex-row`, 3 panneaux côte-à-côte.
+- **Alertes (gauche, w-[300px])** — `agent_insights` du hook `useAgentInsights` partagé. 30 derniers jours. Click ligne = `markAsRead(id)`. Bouton "Tout marquer lu" si `unreadCount > 0`.
+- **Chat (centre, flex-1)** — `ChantierAssistantChat size="full"` inchangé.
+- **Décisions IA (droite, w-[300px])** — tool_calls mutateurs du jour, fetch `/api/chantier/[id]/assistant/activity-feed`, auto-refresh 20s, reset visuel à minuit Paris.
 
-**API** :
-- `GET /api/chantier/[id]/assistant/activity-feed`
+**Layout mobile** : tabs en haut (Alertes / Chat / Décisions), un seul panel visible. Compteurs sur les tabs (unreadCount alertes + count décisions du jour).
+
+**Source de données — 2 fetchs distincts** :
+- Alertes : `useAgentInsights(chantierId, token)` (partagé avec toasts + badge sidebar). Endpoint `/api/chantier/[id]/agent-insights?limit=30`.
+- Décisions : fetch interne dans `AssistantTriPane`, endpoint `/api/chantier/[id]/assistant/activity-feed`.
+
+**API `/api/chantier/[id]/assistant/activity-feed`** :
 - Fenêtre temporelle : `created_at >= startOfDay(Paris)`. Approximation UTC+2 (DST hiver/été : 1h de décalage acceptable).
-- Filtre `MUTATION_TOOLS` : exclut les GET passifs
-- Retour : `{ since, decisions, insights }`
+- Filtre `MUTATION_TOOLS` : exclut les GET passifs.
+- Retour : `{ since, decisions, insights }`. Le champ `insights` n'est plus consommé par le frontend (alertes viennent de `useAgentInsights`) mais reste pour rétro-compat.
 
-**`AgentActivityFeed.tsx`** :
-- Fusion décisions (tool_calls mutateurs) + insights, tri chrono desc
-- Auto-refresh 20s
-- Reset visuel à minuit (filtre serveur, rien n'est supprimé en DB)
-- Icônes par catégorie : 📅 planning, 💰 frais, ✅ statut, ☑️ tâche, 💬 WhatsApp, 🔔 clarification, 🔴 critique, ⏰ retard, 🔄 changement, 💭 résumé conv, ⚠️ risque
-- Footer "Voir journal complet" → `navigateTo('journal')`
+**Icônes catégories décisions** : 📅 planning, 💰 frais, ✅ statut, ☑️ tâche, 💬 WhatsApp, 🔔 clarification, 💡 insight, ⚙️ default.
+**Icônes catégories alertes** : 🔔 clarification, 🔴 critique, 💰 budget, 📅 planning, ⏰ retard, 🔄 changement, ⚠️ risque, 💭 résumé conv, 📌 default.
 
-**Bandeau alertes du haut supprimé** : tout est centralisé dans le panneau droit (décision UX 2026-04-25).
+**Footer panneau Décisions** : "Voir journal complet" → `navigateTo('journal')`.
+
+**Avant 2026-05-08 (déprécié)** : layout 2 colonnes via `AgentActivityFeed.tsx` (fichier supprimé), feed unifié décisions + insights. Le bandeau alertes du haut avait été supprimé en 2026-04-25 et tout centralisé dans le feed unique. Le refacto 2026-05-08 sépare alertes (gauche) et décisions (droite) en panneaux distincts pour clarifier la hiérarchie cognitive (problèmes à traiter vs ce qui a été fait).
 
 **Digest quotidien (19h Paris, edge function `agent-orchestrator` cron)** :
 Annexe au markdown body de `chantier_journal` 3 sections déterministes :
