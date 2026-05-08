@@ -186,6 +186,12 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
 - **`EntreeRow` édition inline (2026-05-07)** : clic sur la ligne → formulaire inline (type, libellé, montant, date, statut). `data-no-edit` sur les boutons toggle/delete pour ne pas déclencher l'édition. Libellé vide au save → fallback `SOURCE_CFG[source_type].label` (même règle que l'ajout). PATCH API `/entrees` accepte désormais `source_type` en plus des autres champs.
 
+- **`BudgetKpiDashboard` — 4 KPIs canoniques (2026-05-08)** : Budget cible · Décaissé · À régler · À venir. Grid mobile = 2 cols, desktop = 4 cols. `À venir = max(0, devis_valides - facture)` représente ce que l'artisan va encore facturer. **Ne jamais retirer le KPI "À venir"** : sans lui, l'utilisateur n'a pas de visibilité sur les engagements signés non encore concrétisés en facture. Le bug `devisValides` undefined (ReferenceError silencieux ligne 538 du `pctDecaisse >= 100 && devisValides > 0` check) a été corrigé en déclarant explicitement `const devisValides = totaux?.devis_valides ?? 0;` en haut du composant — toujours déclarer ces alias au début, jamais inline dans le JSX.
+
+- **`buildRow.reste` — formule défensive (2026-05-08)** : `reste = facture > 0 ? max(0, facture - totalPaye) : max(0, devis_valides - totalPaye)`. **Ne jamais revenir** à `reste = max(0, facture - totalPaye)` seul : sur un devis signé sans facture émise mais avec acompte versé, l'ancienne formule retournait 0 (le `Math.max(0, ...)` masquait l'acompte). La nouvelle formule reflète le vrai engagement restant : si pas de facture, le reste à payer = montant du devis - acomptes déjà versés.
+
+- **Filtre statut devis dans `budget.ts` ligne 444 — devis `en_cours` invisibles** (à corriger pour atteindre 8/10) : `if (statut !== 'valide' && statut !== 'attente_facture') continue;` exclut silencieusement les devis `en_cours` (reçus, non signés) de l'agrégation par lot. Conséquence : un artisan dont le devis est reçu mais pas validé n'apparaît pas dans le tableau Budget. Plan de correction documenté dans `WIP.md § "Audit Budget & Trésorerie — vague 2 C1"`.
+
 ---
 
 ## Règles importantes

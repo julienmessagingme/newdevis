@@ -11,6 +11,51 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## NEW. Audit Budget & Trésorerie — chemin vers 8/10
+
+🟡 **Vague 1 livrée 2026-05-08 (commit `c063196`). Reste 4 chantiers pour atteindre 8/10.**
+
+### Score actuel : ~6.5/10 (était ~5.5/10 avant la vague 1)
+
+### Vague 1 — livrée
+- [x] **4e KPI "À venir"** (devis signés non encore facturés, donut violet) + grid 2 cols mobile / 4 cols desktop
+- [x] **Fix `devisValides` undefined** dans `BudgetKpiDashboard` (ReferenceError silencieux ligne 538)
+- [x] **Formule `reste` corrigée** dans `buildRow` : si pas de facture, `reste = devis_valides - acomptes` au lieu de `0 - acompte` (acomptes versés sur devis non facturé maintenant pris en compte)
+- [x] **Auto-expand ≤4 lots** au 1er chargement + bouton "Tout développer / Tout réduire" dans ActionBar (desktop)
+- [x] **`alertOverrun` visible dans la colonne FACTURÉ** : badge rouge "+XX€" si facture > devis × 1.05 (avant : visible uniquement dans le drawer)
+- [x] **Terminologie cohérente** : "Budget de référence" → "Budget cible" dans TresorerieView
+
+### Vague 2 — pour atteindre 8/10 (par ordre d'impact)
+
+- [ ] **C1 · Devis non signés visibles dans le tableau** (priorité MAX, ~2h)
+  - `src/pages/api/chantier/[id]/budget.ts` ligne 444 filtre `if (statut !== 'valide' && statut !== 'attente_facture') continue;` → les devis `en_cours` (reçus, non signés) sont silencieusement exclus de l'agrégation par lot.
+  - Conséquence : un artisan qui a envoyé un devis mais que l'utilisateur n'a pas encore signé n'apparaît PAS dans le tableau Budget, alors qu'il est l'élément central de l'arbitrage.
+  - Fix : laisser passer `en_cours` avec un flag `is_pending: true`, afficher la ligne grisée + italique avec mention "(non signé)" dans la colonne ENGAGÉ, exclure du KPI "Engagé" mais inclure dans un compteur "X devis en attente de signature" en haut du tableau.
+
+- [ ] **C2 · Empty state "premier chantier"** (~1h)
+  - Si `data.lots.length === 0 && !loading` → grand placeholder pédagogique avec 3 actions claires : "Ajouter un devis", "Saisir une dépense", "Définir mon budget cible".
+  - Aujourd'hui : tableau vide silencieux, l'utilisateur ne sait pas quoi faire.
+
+- [ ] **C3 · Heuristique de répartition des sources de financement dans TresorerieView** (~3h)
+  - `TresorerieView.tsx` répartit les paiements entre Apport / Crédit / Aides selon une formule arbitraire (cf. `tresorerie_v3` localStorage) sans demander à l'utilisateur. Présenté comme un fait dans les graphes camemberts.
+  - Fix : (a) ajouter un mode "saisie manuelle" où l'utilisateur affecte chaque paiement à une source, OU (b) afficher clairement "Estimation" + bouton "Ajuster la répartition", OU (c) supprimer le camembert sources et garder uniquement le total décaissé.
+
+- [ ] **C4 · Mobile : tableau Budget illisible sur petit écran** (~2h)
+  - Sur mobile, le tableau passe en cartes (lignes 1571+) — bien — mais les KPIs en haut sont en grid 2 colonnes (récemment ajusté pour 4 KPIs sur mobile aussi). Vérifier qu'aucune cellule ne déborde + que les pourcentages sont lisibles à 360px.
+  - Audit 1 prise d'écran iPhone SE + 1 prise d'écran iPhone 14 Pro Max sur un chantier dense.
+
+- [ ] **C5 · DonutRing dupliqué** (~30min, dette technique)
+  - Composant défini à la fois dans `BudgetTab.tsx` (ligne ~315) et `TresorerieView.tsx` (ligne ~305) avec signatures légèrement différentes (`track` prop dans Trésorerie). Extraire dans `src/components/chantier/cockpit/shared/DonutRing.tsx`.
+
+### Notes sur le scoring
+
+- 5/10 → fonctionnel mais avec bugs visibles (devisValides ReferenceError, reste à 0 sur acompte sans facture)
+- 6.5/10 → bugs corrigés + KPI "À venir" comble le manque le plus visible (vague 1)
+- 8/10 → devis en cours visibles + empty state + estimation sources de financement honnête
+- 9-10/10 → mobile parfait + DonutRing factorisé + tests E2E sur 5 scénarios chantier types
+
+---
+
 ## NEW. Onglet Assistant chantier — refacto 3 colonnes + cohérence badges sidebar
 
 🟢 **Livré 2026-05-08 — à tester E2E.**
