@@ -2,9 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Loader2, AlertCircle, ArrowLeft, Info, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
-import DashboardPremium from '@/components/chantier/cockpit/DashboardPremium';
-import ScreenAmeliorations from '@/components/chantier/nouveau/ScreenAmeliorations';
-import type { ChantierIAResult, StatutArtisan, ProjectMode } from '@/types/chantier-ia';
+import ChantierCockpit from '@/components/chantier/cockpit/ChantierCockpit';
+import type { ChantierIAResult, StatutArtisan } from '@/types/chantier-ia';
 
 const supabase = createClient(
   import.meta.env.PUBLIC_SUPABASE_URL,
@@ -25,12 +24,10 @@ export default function ChantierDetail() {
   const [result, setResult] = useState<ChantierIAResult | null>(null);
   const [chantierId, setChantierId] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // false = chantier manuel sans plan IA détaillé
   const [isPlanComplet, setIsPlanComplet] = useState(true);
-  const [projectMode, setProjectMode] = useState<ProjectMode | null>(null);
   const [budgetAffine, setBudgetAffine] = useState<{ min: number; max: number; breakdown: unknown[] } | null>(null);
   const [initialFinancing, setInitialFinancing] = useState<Record<string, unknown> | null>(null);
   const [enveloppePrevue, setEnveloppePrevue] = useState<number | null>(null);
@@ -67,7 +64,6 @@ export default function ChantierDetail() {
         return;
       }
       setToken(t);
-      setUserId(session!.user.id);
 
       let res: Response;
       try {
@@ -95,7 +91,6 @@ export default function ChantierDetail() {
       const data = await res.json();
       setResult(data.result ?? null);
       setIsPlanComplet(data.isPlanComplet !== false); // false explicite uniquement
-      setProjectMode(data.projectMode ?? null);
       setBudgetAffine(data.budgetAffine ?? null);
       setInitialFinancing(data.financing ?? null);
       setEnveloppePrevue(data.enveloppePrevue ?? null);
@@ -104,39 +99,7 @@ export default function ChantierDetail() {
     })();
   }, [getToken]);
 
-  /** Persiste le toggle d'un todo en DB — fire and forget, ne bloque pas l'UI */
-  const handleToggleTache = useCallback(async (todoId: string, done: boolean) => {
-    const id = chantierId;
-    if (!id) return;
-
-    // Réutilise le token en mémoire ou le recharge si expiré
-    const t = token ?? await getToken();
-    if (!t) return;
-
-    try {
-      const res = await fetch(`/api/chantier/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${t}`,
-        },
-        body: JSON.stringify({ todoId, done }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        console.error('[ChantierDetail] PATCH todo failed:', err?.error ?? res.status);
-        toast.error('La tâche n\'a pas pu être sauvegardée', { duration: 2500 });
-      }
-    } catch (e) {
-      console.error('[ChantierDetail] PATCH todo network error:', e instanceof Error ? e.message : String(e));
-      toast.error('La tâche n\'a pas pu être sauvegardée', { duration: 2500 });
-    }
-    // L'état local dans DashboardChantier est déjà mis à jour avant cet appel —
-    // une erreur ici ne le révertit pas : UX reste cohérente
-  }, [token, chantierId, getToken]);
-
-  /** Persiste le statut d'un lot en DB — fire and forget, même pattern que handleToggleTache.
+  /** Persiste le statut d'un lot en DB — fire and forget.
    *  Si lotId commence par 'fallback-', le lot est read-only (ancien chantier) : no-op. */
   const handleLotStatutChange = useCallback(async (lotId: string, statut: StatutArtisan) => {
     if (lotId.startsWith('fallback-')) return; // lot dérivé de meta.artisans, pas persistable
@@ -168,10 +131,6 @@ export default function ChantierDetail() {
     }
     // L'état local dans DashboardChantier est déjà mis à jour avant cet appel
   }, [token, chantierId, getToken]);
-
-  const handleUpdate = useCallback((updated: ChantierIAResult) => {
-    setResult(updated);
-  }, []);
 
   // ── États de chargement / erreur ────────────────────────────────────────────
 
@@ -246,29 +205,13 @@ export default function ChantierDetail() {
         </div>
       )}
 
-      <DashboardPremium
+      <ChantierCockpit
         result={result}
         chantierId={chantierId}
         token={token}
-        userId={userId}
-        projectMode={projectMode}
         initialBudgetAffine={budgetAffine}
         initialFinancing={initialFinancing}
         initialEnveloppePrevue={enveloppePrevue}
-        onProjectModeChange={async (mode) => {
-          setProjectMode(mode);
-          if (!chantierId || !token) return;
-          try {
-            await fetch(`/api/chantier/${chantierId}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-              body: JSON.stringify({ projectMode: mode }),
-            });
-          } catch (err) {
-            console.error('[ChantierDetail] Erreur PATCH project_mode:', err instanceof Error ? err.message : String(err));
-          }
-        }}
-        onToggleTache={handleToggleTache}
         onLotStatutChange={handleLotStatutChange}
       />
     </>

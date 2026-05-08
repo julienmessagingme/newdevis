@@ -1,5 +1,5 @@
 /**
- * DashboardUnified — cockpit chantier avec sidebar premium.
+ * ChantierCockpit — cockpit chantier avec sidebar premium.
  * Orchestrateur : routing entre sections, state management, modals.
  */
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -52,7 +52,7 @@ interface Props {
   initialEnveloppePrevue?: number | null;
 }
 
-export default function DashboardUnified({ result: resultProp, chantierId, token, initialBudgetAffine, initialFinancing, initialEnveloppePrevue }: Props) {
+export default function ChantierCockpit({ result: resultProp, chantierId, token, initialBudgetAffine, initialFinancing, initialEnveloppePrevue }: Props) {
   const [result, setResult]               = useState(resultProp);
   const [showAmelioration, setShowAmelioration] = useState(false);
   const [showBudgetDetail, setShowBudgetDetail]   = useState(false);

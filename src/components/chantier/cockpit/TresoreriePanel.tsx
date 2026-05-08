@@ -14,7 +14,7 @@ import {
   ArrowRight, Shield, Info, TrendingDown, Pencil, FileText, Download, UploadCloud,
 } from 'lucide-react';
 import PVReceptionModal from './PVReceptionModal';
-import EcheancierRefonte from './EcheancierRefonte';
+import Echeancier from './Echeancier';
 import BudgetTab from './BudgetTab';
 import TresorerieView from './TresorerieView';
 import type { SourceKey } from './FinancingSources';
@@ -1610,7 +1610,7 @@ export default function TresoreriePanel({
       {/* ── Echeancier ──────────────────────────────────────────────────────── */}
       {tab === 'timeline' && (
         <div className="flex-1 overflow-y-auto p-4">
-          <EcheancierRefonte chantierId={chantierId} token={token} />
+          <Echeancier chantierId={chantierId} token={token} />
         </div>
       )}
 

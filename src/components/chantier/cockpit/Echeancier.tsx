@@ -1,5 +1,5 @@
 /**
- * EcheancierRefonte — Dashboard trésorerie prédictif
+ * Echeancier — Dashboard trésorerie prédictif
  * Répond à : "Vais-je avoir des difficultés de trésorerie ? Ai-je oublié de relancer ma banque ?"
  *
  * Sections :
@@ -1503,7 +1503,7 @@ function PaidEventsAccordion({
 
 // ── Composant principal ───────────────────────────────────────────────────────
 
-export default function EcheancierRefonte({
+export default function Echeancier({
   chantierId,
   token,
 }: {

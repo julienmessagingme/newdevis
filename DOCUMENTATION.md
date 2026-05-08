@@ -2268,7 +2268,7 @@ Distinction sémantique entre tickets/factures (avec pièce uploadable) et frais
 
 Section extractée du composant `ConsommationSection` en sous-composant `ArtisanPaymentDetail`. Repliée par défaut (doublon avec `BudgetTab`). Icône chevron animé (rotate-180 à l'ouverture).
 
-#### EcheancierRefonte — Registre en accordéon + filtres
+#### Echeancier — Registre en accordéon + filtres
 
 Le tableau "Registre des paiements effectués" est désormais dans un accordéon `PaidEventsAccordion` (replié par défaut). Quand ouvert : 2 filtres au-dessus de la liste — sélecteur artisan (`filterArtisan`) + sélecteur tri (`PaidSort` : `date_desc | date_asc | amount_desc | amount_asc`). Mobile-first : filtres full-width en flex-wrap.
 
@@ -2304,7 +2304,7 @@ Tracking des champs auto-remplis via `Set<keyof PVData>` (state `autofilled`). B
 
 **`NextActionsBlock`** (inchangé — juste en dessous des KPIs) : liste contextuelle max 3 items priorisés (P1 factures → P2 devis → P3 lots bloqués → P4 factures manquantes).
 
-**`DashboardUnified`** — calcul des actions par onglet (split 2026-05-08) :
+**`ChantierCockpit`** (anciennement `DashboardUnified`, renommé 2026-05-08) — calcul des actions par onglet :
 - `factureActions` = factures `recue` ou `payee_partiellement` → badge sidebar `tresorerie`
 - `devisActions` = devis `recu` → badge sidebar `documents`
 - `agentInsights.unreadCount` (hook `useAgentInsights`) → badge sidebar `assistant`

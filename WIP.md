@@ -69,7 +69,7 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 - **Alertes (gauche, 300px)** = `agent_insights` du hook `useAgentInsights` partagé. Click ligne = `markAsRead`. Bouton "Tout marquer lu" si non-lus > 0.
 - **Chat (centre)** = `ChantierAssistantChat size="full"` inchangé.
 - **Décisions IA (droite, 300px)** = tool_calls mutateurs du jour, source `/api/chantier/[id]/assistant/activity-feed`, auto-refresh 20s, reset à minuit.
-- **Cohérence badges sidebar** dans `DashboardUnified.tsx` — `urgentActions` splitté en `factureActions` + `devisActions` + `agentInsights.unreadCount` :
+- **Cohérence badges sidebar** dans `ChantierCockpit.tsx` — `urgentActions` splitté en `factureActions` + `devisActions` + `agentInsights.unreadCount` :
   - Badge `documents` → `⚠ N` devis à valider (au lieu du compteur total qui était noise)
   - Badge `tresorerie` → **NEW** `⚠ N` factures à régler
   - Badge `assistant` → `⚠ N alertes` (rouge si critical, orange sinon, ✓ OK vert sinon)
@@ -664,7 +664,7 @@ Scénario prod à valider end-to-end : créer un groupe → vérifier que les me
 - ✅ ÉTAPE 1 : Table 9 colonnes cachée sur mobile (`sm:hidden`) — remplacée par cartes artisans
 - ✅ ÉTAPE 2 : `ArtisanCardMobile` dans BudgetTab (nom, lot, budget, payé/restant, barre progression, boutons Payer/Voir)
 - ✅ ÉTAPE 3 : `NextActionsMobile` en haut de DashboardHome — bloc "À faire" (€ à payer, devis à valider, intervenants sans devis) avec CTA "Voir mes actions"
-- ✅ ÉTAPE 4 : Footer sticky mobile dans DashboardUnified — CTA "👉 Continuer mon chantier"
+- ✅ ÉTAPE 4 : Footer sticky mobile dans ChantierCockpit — CTA "👉 Continuer mon chantier"
 - ✅ ÉTAPE 5 : Bandeau assistant sticky mobile — "💬 L'assistant a X recommandations →" si `totalAlertCount > 0`
 - ✅ ÉTAPE 6 : KpiCard "Intervenants" masquée sur mobile (`hidden sm:block`)
 - ✅ ÉTAPE 8 : BudgetProgressBars → bouton "Affiner" + bottom sheet détail par poste (mobile)
@@ -869,7 +869,7 @@ UI Settings : checkboxes par catégorie pour activer/désactiver chaque trigger.
 - **Règle plafond** : la somme des versements ne peut pas dépasser le budget engagé (cap validé à la saisie).
 - **Prompt justificatif** : après chaque création de versement, invite à joindre un justificatif.
 - **API `payment-events.ts`** : PATCH supporte `due_date` + `label`. POST supporte `paid: true`. DELETE endpoint ajouté.
-- **Prop chain `initialEnveloppePrevue`** : `DashboardUnified → TresoreriePanel → BudgetTab → BudgetKpiDashboard`. Valeur depuis `chantiers.enveloppe_prevue` (DB), plus d'auto-init localStorage.
+- **Prop chain `initialEnveloppePrevue`** : `ChantierCockpit → TresoreriePanel → BudgetTab → BudgetKpiDashboard`. Valeur depuis `chantiers.enveloppe_prevue` (DB), plus d'auto-init localStorage.
 - **`ticket_caisse` + `achat_materiaux` + `frais` = toujours Payé** : badge statique vert sans dropdown. Comptés en `paye` dans les totaux (plus de faux "à payer"). Plus d'alerte "Devis manquant" pour ces types.
 
 ### À valider
