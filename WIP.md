@@ -85,7 +85,7 @@ Plan initial = "rewrite Vercel edge + un seul build". Ça n'a pas marché : `ver
 
 ### Fix loop auth GMC↔VMD (2026-05-08)
 
-Deux bugs corrigés qui créaient une boucle : login gmc.fr → vmd.fr → gmc.fr landing → vmd.fr…
+Trois bugs corrigés qui créaient une boucle : login gmc.fr → vmd.fr → gmc.fr landing → vmd.fr…
 
 **Bug 1 — `postLoginRedirect.ts`** : quand `currentBrand === 'gmc'` et `hasGmcAccess() === false`,
 l'user était renvoyé sur vmd.fr (SSO handoff inverse). Fix : si on est sur gmc.fr → toujours `/mon-chantier`,
@@ -95,7 +95,13 @@ sans vérifier l'allowlist. Le contrôle d'accès GMC est géré côté middlewa
 (landing) au lieu de `gerermonchantier.fr/mon-chantier`. Corrigé. Le click handler ne vérifie plus
 l'allowlist : SSO handoff pour tous les users connectés (le contrôle d'accès vit côté GMC).
 
-**Prérequis Supabase (action Julien, probablement déjà fait)** :
+**Bug 3 — `GoogleSignInButton.tsx` + `Login.tsx`** : `GoogleSignInButton` utilisait
+`callbackUrl.searchParams.set("redirect", ...)` → URL générée = `/auth/callback?redirect=/mon-chantier`.
+La whitelist Supabase est `?next=*`. Mismatch silencieux → Supabase ignore `redirectTo` → repasse
+sur Site URL (vmd.fr). Fix : param renommé `"next"`. Sur gmc.fr, `Login.tsx` force
+`redirectAfter = '/mon-chantier'` si pas de redirect explicite, pour toujours avoir `?next=` dans l'URL.
+
+**Prérequis Supabase (confirmé OK par Julien)** :
 `https://gerermonchantier.fr/auth/callback?next=*` dans Auth → URL Configuration → Redirect URLs.
 
 ### À valider E2E (browser)
