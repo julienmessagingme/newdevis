@@ -1595,6 +1595,19 @@ export default function BudgetTab({
     if (!data) return [] as string[];
     return [...data.lots, ...(data.sans_lot ? [data.sans_lot] : [])].map(l => l.id);
   }, [data]);
+
+  // Compteur de devis reçus mais non signés (en_cours / recu) — pour bannière d'incitation
+  const pendingDevisCount = useMemo(() => {
+    if (!data) return 0;
+    const all = [...data.lots, ...(data.sans_lot ? [data.sans_lot] : [])];
+    let count = 0;
+    for (const lot of all) {
+      for (const d of lot.devis) {
+        if (d.devis_statut !== 'valide' && d.devis_statut !== 'attente_facture') count++;
+      }
+    }
+    return count;
+  }, [data]);
   const allExpanded = allLotIds.length > 0 && allLotIds.every(id => expanded.has(id));
   const toggleAll = useCallback(() => {
     setExpanded(allExpanded ? new Set() : new Set(allLotIds));
@@ -1631,6 +1644,19 @@ export default function BudgetTab({
       {/* ── KPIs ──────────────────────────────────────────────────────────── */}
       <BudgetKpiDashboard data={data} loading={loading} chantierId={chantierId} token={token} initialEnveloppePrevue={initialEnveloppePrevue} />
 
+      {/* ── Bannière : devis reçus en attente de signature ────────────────── */}
+      {!loading && pendingDevisCount > 0 && (
+        <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+          <Clock className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+          <p className="text-[12px] text-amber-800 font-medium">
+            {pendingDevisCount} devis reçu{pendingDevisCount > 1 ? 's' : ''} en attente de signature
+          </p>
+          <span className="text-[11px] text-amber-600/80">
+            — non comptés dans l'engagement tant que non signés
+          </span>
+        </div>
+      )}
+
       {/* ── Barre d'actions ───────────────────────────────────────────────── */}
       <ActionBar
         search={search}           onSearch={setSearch}
@@ -1652,9 +1678,43 @@ export default function BudgetTab({
             ))}
           </div>
         ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-            <p className="text-sm">{search ? `Aucun résultat pour "${search}"` : 'Aucun artisan pour ce chantier'}</p>
-          </div>
+          search ? (
+            <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+              <p className="text-sm">Aucun résultat pour "{search}"</p>
+            </div>
+          ) : (
+            <div className="py-8">
+              <div className="mx-auto h-14 w-14 rounded-full bg-indigo-50 flex items-center justify-center mb-4">
+                <Plus className="h-6 w-6 text-indigo-500" />
+              </div>
+              <p className="text-[14px] font-bold text-gray-800 mb-1 text-center">Pilotez votre budget en 3 étapes</p>
+              <p className="text-[11px] text-gray-500 mb-5 text-center px-4">
+                Ajoutez vos devis et factures, déclarez les paiements, gardez le contrôle.
+              </p>
+              <div className="space-y-2.5">
+                <button
+                  onClick={() => setShowAddDoc(true)}
+                  className="w-full p-3.5 border border-gray-200 rounded-xl text-left active:bg-indigo-50/30"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-lg">📄</span>
+                    <span className="text-[12px] font-semibold text-gray-800">Ajouter un devis</span>
+                  </div>
+                  <p className="text-[11px] text-gray-500">Pour comparer et signer avec vos artisans</p>
+                </button>
+                <button
+                  onClick={() => setDepenseRapide('open')}
+                  className="w-full p-3.5 border border-gray-200 rounded-xl text-left active:bg-orange-50/30"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-lg">🧾</span>
+                    <span className="text-[12px] font-semibold text-gray-800">Saisir une dépense</span>
+                  </div>
+                  <p className="text-[11px] text-gray-500">Achat matériaux, frais ponctuels, liquide</p>
+                </button>
+              </div>
+            </div>
+          )
         ) : (
           rows.flatMap(row =>
             row.lot.artisans.map(artisan => {
@@ -1757,10 +1817,49 @@ export default function BudgetTab({
               <TableSkeleton />
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={COLS} className="py-16 text-center">
-                  <p className="text-[13px] text-gray-400">
-                    {search ? `Aucun résultat pour "${search}"` : 'Aucun artisan pour ce chantier'}
-                  </p>
+                <td colSpan={COLS} className="py-12 px-8">
+                  {search ? (
+                    <p className="text-[13px] text-gray-400 text-center">Aucun résultat pour "{search}"</p>
+                  ) : (
+                    <div className="max-w-2xl mx-auto text-center">
+                      <div className="mx-auto h-14 w-14 rounded-full bg-indigo-50 flex items-center justify-center mb-4">
+                        <Plus className="h-6 w-6 text-indigo-500" />
+                      </div>
+                      <p className="text-[15px] font-bold text-gray-800 mb-1">Pilotez votre budget en 3 étapes</p>
+                      <p className="text-[12px] text-gray-500 mb-6">
+                        Ajoutez vos devis et factures, déclarez les paiements, gardez le contrôle.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-left">
+                        <button
+                          onClick={() => setShowAddDoc(true)}
+                          className="p-4 border border-gray-200 rounded-xl hover:border-indigo-300 hover:bg-indigo-50/30 transition-all group"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xl">📄</span>
+                            <span className="text-[12px] font-semibold text-gray-800 group-hover:text-indigo-700">Ajouter un devis</span>
+                          </div>
+                          <p className="text-[11px] text-gray-500">Pour comparer et signer avec vos artisans</p>
+                        </button>
+                        <button
+                          onClick={() => setDepenseRapide('open')}
+                          className="p-4 border border-gray-200 rounded-xl hover:border-orange-300 hover:bg-orange-50/30 transition-all group"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xl">🧾</span>
+                            <span className="text-[12px] font-semibold text-gray-800 group-hover:text-orange-700">Saisir une dépense</span>
+                          </div>
+                          <p className="text-[11px] text-gray-500">Achat matériaux, frais ponctuels, paiement liquide</p>
+                        </button>
+                        <div className="p-4 border border-gray-200 rounded-xl bg-gray-50/40">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xl">🎯</span>
+                            <span className="text-[12px] font-semibold text-gray-700">Définir un budget cible</span>
+                          </div>
+                          <p className="text-[11px] text-gray-500">Cliquez sur "Modifier" dans le KPI ci-dessus pour fixer votre enveloppe</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </td>
               </tr>
             ) : (
@@ -1836,13 +1935,20 @@ export default function BudgetTab({
                       const noDevis    = artisan.devis.length === 0 && realFactures.length > 0;
                       const noFacture  = artisan.devis.length > 0 && artisan.totaux.devis_valides > 0 && realFactures.length === 0 && !isSolde;
                       const totalFrais = fraisOnly.reduce((s, f) => s + (f.montant ?? 0), 0);
+                      // Tous les devis pending (reçus, non signés) ET pas de facture = ligne "à signer"
+                      const pendingDevis  = artisan.devis.filter(d => d.devis_statut !== 'valide' && d.devis_statut !== 'attente_facture');
+                      const isFullyPending = artisan.devis.length > 0
+                        && artisan.totaux.devis_valides === 0
+                        && artisan.factures.length === 0
+                        && pendingDevis.length > 0;
+                      const pendingMontant = pendingDevis.reduce((s, d) => s + (d.montant ?? 0), 0);
 
                       return (
                         <tr
                           key={artisan.nom}
                           className={`border-b transition-colors cursor-pointer hover:bg-indigo-50/30 ${
                             isLast ? 'border-b-2 border-gray-200' : 'border-gray-50'
-                          }`}
+                          } ${isFullyPending ? 'bg-amber-50/30' : ''}`}
                           onClick={() => setSelected(buildRow(virtualLot))}
                         >
                           {/* ARTISAN */}
@@ -1850,11 +1956,15 @@ export default function BudgetTab({
                             <div className="flex items-center gap-1.5 min-w-0">
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                  <p className="text-[12px] font-semibold text-gray-800 truncate">{artisan.nom}</p>
+                                  <p className={`text-[12px] font-semibold truncate ${isFullyPending ? 'text-gray-500 italic' : 'text-gray-800'}`}>{artisan.nom}</p>
                                   {hasAlert && <span className="text-amber-500 text-[10px] shrink-0" title="Vérifier la cohérence">⚠</span>}
                                 </div>
                                 <p className="text-[10px] text-gray-400 mt-0.5">
-                                  {artisan.devis.length > 0 && (
+                                  {isFullyPending ? (
+                                    <span className="inline-flex items-center gap-0.5 text-amber-600 font-medium mr-1.5">
+                                      <Clock className="h-2.5 w-2.5" />À signer
+                                    </span>
+                                  ) : artisan.devis.length > 0 && (
                                     <span className="inline-flex items-center gap-0.5 text-emerald-600 font-medium mr-1.5">
                                       <Check className="h-2.5 w-2.5" />Validé
                                     </span>
@@ -1901,6 +2011,13 @@ export default function BudgetTab({
                           <td className="px-3 py-3 text-right">
                             {artisan.totaux.devis_valides > 0 ? (
                               <span className="text-[12px] font-bold text-gray-800">{fmtEur(artisan.totaux.devis_valides)}</span>
+                            ) : isFullyPending && pendingMontant > 0 ? (
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="text-[12px] font-medium italic text-gray-400" title="Devis reçu mais non signé — non compté dans l'engagement">
+                                  {fmtEur(pendingMontant)}
+                                </span>
+                                <span className="text-[9px] text-amber-600 italic">non signé</span>
+                              </div>
                             ) : noDevis && artisan.totaux.facture > 0 ? (
                               <span className="text-[12px] font-bold text-amber-600" title="Montant de la facture (devis manquant)">
                                 {fmtEur(artisan.totaux.facture)}

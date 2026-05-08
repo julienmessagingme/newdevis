@@ -391,7 +391,9 @@
       "Bash(npm update *)",
       "Bash(npm audit *)",
       "Bash(npx supabase@2.95.6 functions logs analyze-quote --project-ref vhrhgsqxwvouswjaiczn)",
-      "Bash(npx supabase@2.95.6 functions deploy analyze-quote --project-ref vhrhgsqxwvouswjaiczn)"
+      "Bash(npx supabase@2.95.6 functions deploy analyze-quote --project-ref vhrhgsqxwvouswjaiczn)",
+      "Bash(npx madge *)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp"
     ]
   }
 }

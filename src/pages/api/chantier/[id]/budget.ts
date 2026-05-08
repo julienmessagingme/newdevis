@@ -96,9 +96,15 @@ function buildArtisanGroups(devis: BudgetDevis[], factures: BudgetFacture[]): Bu
     map.get(key)!.factures.push(f);
   }
   return [...map.entries()].map(([nom, g]) => {
-    const devis_valides  = g.devis.reduce((s, d) => s + (d.montant ?? 0), 0);
+    // devis_valides : uniquement les devis SIGNÉS (valide / attente_facture).
+    // Les pending (en_cours / recu) sont visibles dans le tableau mais non comptés
+    // dans l'engagement financier.
+    const isSigned = (d: BudgetDevis) =>
+      d.devis_statut === 'valide' || d.devis_statut === 'attente_facture';
+    const devis_valides  = g.devis.filter(isSigned).reduce((s, d) => s + (d.montant ?? 0), 0);
     const facture        = g.factures.reduce((s, f) => s + (f.montant ?? 0), 0);
-    const acompte_devis  = g.devis.reduce((s, d) => s + (d.montant_acompte_echeancier ?? 0), 0);
+    // Acomptes uniquement sur les devis signés (les pending n'ont pas d'acompte légitime)
+    const acompte_devis  = g.devis.filter(isSigned).reduce((s, d) => s + (d.montant_acompte_echeancier ?? 0), 0);
     let paye = 0, acompte_fact = 0, litige = 0, a_payer = 0;
     for (const f of g.factures) {
       const m = f.montant ?? 0;
@@ -439,9 +445,12 @@ export const GET: APIRoute = async ({ params, request }) => {
       if (doc.document_type === 'devis') {
         // Compter tous les devis reçus (pour le contexte agent)
         bucket.nb_devis_recus = (bucket.nb_devis_recus ?? 0) + 1;
-        // N'afficher sur l'écran budget que les devis acceptés
         const statut = doc.devis_statut ?? 'en_cours';
-        if (statut !== 'valide' && statut !== 'attente_facture') continue;
+        // On affiche TOUS les devis (y compris non signés) pour que l'utilisateur
+        // voie l'artisan dans le tableau dès la réception. Le frontend distingue
+        // les pending (en_cours/recu) via `devis_statut`. Seuls valide/attente_facture
+        // sont comptés dans `devis_valides`.
+        const isSigned = statut === 'valide' || statut === 'attente_facture';
 
         // Montant : doc.montant (write-back pipeline) ou fallback raw_text analyse
         const montant = (doc.montant != null && doc.montant > 0)
@@ -472,7 +481,9 @@ export const GET: APIRoute = async ({ params, request }) => {
           devis_validated_at: (doc as any).devis_validated_at ?? null,
         });
         bucket.totaux.devis_recus   += montant ?? 0;
-        bucket.totaux.devis_valides += montant ?? 0;
+        if (isSigned) {
+          bucket.totaux.devis_valides += montant ?? 0;
+        }
 
         // Paiements sur devis → uniquement dans acompte (pas dans paye)
         // paye = paiements complets sur factures / acompte = avances (devis + factures partielles)

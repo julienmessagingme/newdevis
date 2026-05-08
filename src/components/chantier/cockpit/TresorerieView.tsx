@@ -577,8 +577,17 @@ function FinancementSection({
           <div className="flex items-center gap-2 mb-2">
             <span className="text-[16px]">🏦</span>
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Apport personnel</span>
+            <span
+              className="text-[9px] text-gray-400 font-medium px-1.5 py-0.5 rounded bg-gray-100"
+              title={`Calculé automatiquement : budget cible (${fmtEur(budgetRef)}) − crédit (${fmtEur(cfg.creditMontant)}) − aides (${fmtEur(totalAides)})`}
+            >
+              calculé
+            </span>
           </div>
           <p className="text-[18px] font-black leading-none" style={{ color: C.apport.text }}>{fmtEur(apport)}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5 italic">
+            ce qu'il vous reste à apporter
+          </p>
 
           {/* PEE */}
           {peeLots.length > 0 && (
