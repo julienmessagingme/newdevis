@@ -27,8 +27,7 @@ import LotDetail from './LotDetail';
 import DashboardHome from './DashboardHome';
 import AnalyseDevisSection from './AnalyseDevisSection';
 import TravauxDIYSection from './TravauxDIYSection';
-import ChantierAssistantChat from '@/components/chantier/ChantierAssistantChat';
-import AgentActivityFeed from './AgentActivityFeed';
+import AssistantTriPane from './AssistantTriPane';
 import JournalChantierSection from './JournalChantierSection';
 import UserCoordonnees from './UserCoordonnees';
 import { useAgentInsights } from '@/hooks/useAgentInsights';
@@ -175,16 +174,22 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
 
   const totalAlertCount = agentInsights.unreadCount + chatUnread;
 
-  // ── Urgent actions : factures à régler + devis à valider (source de vérité badge + KPI) ─
-  const urgentActions = useMemo(() => {
-    let count = 0;
-    for (const d of documents) {
-      if (d.document_type === 'facture' &&
-          (d.facture_statut === 'recue' || d.facture_statut === 'payee_partiellement')) count++;
-      if (d.document_type === 'devis' && d.devis_statut === 'recu') count++;
-    }
-    return count;
-  }, [documents]);
+  // ── Actions à traiter par onglet (source de vérité badges sidebar + KPI home) ──
+  // Chaque compteur pointe vers l'onglet où l'action se résout réellement, pour que
+  // le badge sidebar et le contenu de la page soient cohérents.
+  const factureActions = useMemo(
+    () => documents.filter(d =>
+      d.document_type === 'facture' &&
+      (d.facture_statut === 'recue' || d.facture_statut === 'payee_partiellement')
+    ).length,
+    [documents],
+  );
+  const devisActions = useMemo(
+    () => documents.filter(d => d.document_type === 'devis' && d.devis_statut === 'recu').length,
+    [documents],
+  );
+  // urgentActions : KPI global "actions en attente" sur DashboardHome — total documentaire
+  const urgentActions = factureActions + devisActions;
 
   // ── Toast notifications for recent agent alerts (not historical) ──────────
   const toastedIds = useRef(new Set<string>());
@@ -213,19 +218,31 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
   }, [agentInsights.insights]);
 
   // ── Badges sidebar ────────────────────────────────────────────────────────
+  // Règle : chaque badge pointe vers le contenu de l'onglet qu'il décore.
+  //  - documents : devis à valider (devis_statut = 'recu')
+  //  - tresorerie: factures à régler (facture_statut = 'recue' / 'payee_partiellement')
+  //  - assistant : alertes IA non lues + clarifications en attente (agent_insights)
   const navBadges = useMemo<Partial<Record<Section, NavBadge>>>(() => {
     return {
-      documents:  documents.length > 0
-        ? { text: `${documents.length}`, style: 'bg-gray-100 text-gray-600' }
+      documents: devisActions > 0
+        ? { text: `⚠ ${devisActions}`, style: 'bg-amber-100 text-amber-700 border border-amber-200' }
+        : undefined,
+      tresorerie: factureActions > 0
+        ? { text: `⚠ ${factureActions}`, style: 'bg-amber-100 text-amber-700 border border-amber-200' }
         : undefined,
       messagerie: msgUnread > 0
         ? { text: `${msgUnread}`, style: 'bg-blue-100 text-blue-700' }
         : undefined,
-      assistant: urgentActions > 0
-        ? { text: `⚠ ${urgentActions} action${urgentActions > 1 ? 's' : ''}`, style: 'bg-amber-100 text-amber-700 border border-amber-200' }
+      assistant: agentInsights.unreadCount > 0
+        ? {
+            text: `⚠ ${agentInsights.unreadCount} alerte${agentInsights.unreadCount > 1 ? 's' : ''}`,
+            style: hasCriticalInsight
+              ? 'bg-red-100 text-red-700 border border-red-200'
+              : 'bg-amber-100 text-amber-700 border border-amber-200',
+          }
         : { text: '✓ OK', style: 'bg-emerald-100 text-emerald-700' },
     };
-  }, [documents, msgUnread, totalAlertCount, hasCriticalInsight]);
+  }, [devisActions, factureActions, msgUnread, agentInsights.unreadCount, hasCriticalInsight]);
 
   const selectedLot = lots.find(l => l.id === selectedLotId);
   const hasDiyOpportunity = lots.some(l => l.statut === 'a_trouver');
@@ -465,26 +482,20 @@ export default function DashboardUnified({ result: resultProp, chantierId, token
         );
 
       case 'assistant': {
-        // Layout 2-col : chat à gauche (flex-1), feed d'activité à droite (360px).
-        // Le bandeau d'alertes du haut est supprimé — tout est centralisé dans le feed.
-        // Mobile : stack vertical (chat full puis feed dessous).
+        // Layout 3-col desktop : Alertes (300px) | Chat (flex-1) | Décisions IA (300px)
+        // Mobile : tabs en haut, un seul panel visible.
         return (
-          <div className="flex flex-col lg:flex-row h-full min-h-0">
-            <div className="flex-1 min-h-0 min-w-0 lg:border-r lg:border-gray-100">
-              <ChantierAssistantChat
-                chantierId={chantierId ?? ''}
-                token={token}
-                size="full"
-              />
-            </div>
-            <div className="w-full lg:w-[360px] shrink-0 h-[60vh] lg:h-full border-t lg:border-t-0 border-gray-100">
-              <AgentActivityFeed
-                chantierId={chantierId ?? ''}
-                token={token}
-                onOpenJournal={() => navigateTo('journal')}
-              />
-            </div>
-          </div>
+          <AssistantTriPane
+            chantierId={chantierId ?? ''}
+            token={token}
+            insights={agentInsights.insights}
+            unreadCount={agentInsights.unreadCount}
+            insightsLoading={agentInsights.loading}
+            markAsRead={agentInsights.markAsRead}
+            markAllRead={agentInsights.markAllRead}
+            refreshInsights={agentInsights.refresh}
+            onOpenJournal={() => navigateTo('journal')}
+          />
         );
       }
 

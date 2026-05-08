@@ -382,10 +382,17 @@ Pour le détail complet (modèle CPM, agent IA dual-mode, pipeline de générati
 - `documents_chantier.depense_type` étendu à `'frais'` (CHECK constraint élargi).
 - Tool agent `register_expense` (défaut `frais`). UI distincte : badge ambre 📝, section "Frais annexes déclarés" dans LotDetail / IntervenantsListView, catégorie dans DocumentsView, exclus de l'alerte "Devis manquant".
 
-### Fil d'activité Assistant chantier (24h)
-- Onglet Assistant en 2 colonnes : chat à gauche, `AgentActivityFeed` à droite.
-- Mélange tool_calls mutateurs + agent_insights du jour, **reset à minuit Paris**.
-- API `/api/chantier/[id]/assistant/activity-feed`. Auto-refresh 20s.
+### Fil d'activité Assistant chantier — 3 colonnes (2026-05-08)
+- Onglet Assistant rendu par `AssistantTriPane.tsx` :
+  - **Alertes (gauche, 300px)** — `agent_insights` (hook `useAgentInsights`, partagé avec toasts + badge sidebar). Click = `markAsRead`. Bouton "Tout marquer lu" si `unreadCount > 0`.
+  - **Chat (centre, flex-1)** — `ChantierAssistantChat size="full"`.
+  - **Décisions IA (droite, 300px)** — tool_calls mutateurs du jour via `/api/chantier/[id]/assistant/activity-feed`, reset minuit Paris, auto-refresh 20s.
+- **Mobile** : tabs en haut (Alertes / Chat / Décisions) — un seul panel visible, compteurs sur les tabs.
+- **Cohérence badges sidebar** (règle absolue, ne jamais réintroduire le bug d'origine) : chaque badge pointe vers le contenu réel de l'onglet.
+  - `documents` → `devisActions` (`devis_statut = 'recu'`)
+  - `tresorerie` → `factureActions` (`facture_statut = 'recue' | 'payee_partiellement'`)
+  - `assistant` → `agentInsights.unreadCount` (alertes IA non lues, rouge si critical)
+  - `urgentActions = factureActions + devisActions` reste le KPI "actions en attente" sur DashboardHome — **ne pas l'utiliser sur le badge `assistant`** (c'était le bug avant 2026-05-08, le badge pointait sur un onglet sans contenu lié).
 - Digest journal quotidien (19h) annexe au markdown body 3 sections : ⚙️ Décisions / ⚠️ Alertes / ❓ Clarifications.
 
 ---

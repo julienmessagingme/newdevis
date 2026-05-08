@@ -11,6 +11,33 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## NEW. Onglet Assistant chantier — refacto 3 colonnes + cohérence badges sidebar
+
+🟢 **Livré 2026-05-08 — à tester E2E.**
+
+### Problème d'origine
+- Badge sidebar `Assistant chantier` affichait `⚠ 2 actions` en comptant des factures à régler + devis à valider — mais ces actions ne sont **pas** dans l'onglet Assistant. Click sur le badge → page sans contenu lié → confusion.
+- L'onglet Assistant était en 2 colonnes (chat + feed unifié décisions+alertes mélangées), pas en 3 (Alertes / Chat / Décisions séparés).
+
+### Livré
+- **`AssistantTriPane.tsx`** (nouveau) — 3 colonnes desktop + tabs mobile (Alertes / Chat / Décisions). `AgentActivityFeed.tsx` supprimé (remplacé).
+- **Alertes (gauche, 300px)** = `agent_insights` du hook `useAgentInsights` partagé. Click ligne = `markAsRead`. Bouton "Tout marquer lu" si non-lus > 0.
+- **Chat (centre)** = `ChantierAssistantChat size="full"` inchangé.
+- **Décisions IA (droite, 300px)** = tool_calls mutateurs du jour, source `/api/chantier/[id]/assistant/activity-feed`, auto-refresh 20s, reset à minuit.
+- **Cohérence badges sidebar** dans `DashboardUnified.tsx` — `urgentActions` splitté en `factureActions` + `devisActions` + `agentInsights.unreadCount` :
+  - Badge `documents` → `⚠ N` devis à valider (au lieu du compteur total qui était noise)
+  - Badge `tresorerie` → **NEW** `⚠ N` factures à régler
+  - Badge `assistant` → `⚠ N alertes` (rouge si critical, orange sinon, ✓ OK vert sinon)
+  - Le KPI home "actions en attente" garde le total `urgentActions = factureActions + devisActions`.
+
+### À valider
+- [ ] Sur un chantier avec factures `recue` + devis `recu` + insights non lus → 3 badges distincts dans sidebar (documents, tresorerie, assistant)
+- [ ] Click sur "Assistant chantier" → 3 colonnes visibles (lg) ou tabs (mobile)
+- [ ] Click sur une alerte non-lue → passe en lu (point bleu disparaît)
+- [ ] "Tout marquer lu" décrémente le badge sidebar à 0 → repasse à `✓ OK`
+
+---
+
 ## NEW. Landing publique gerermonchantier.fr + multi-domaine + SSO cross-domaine
 
 🟢 **Livré 2026-05-07/08 — en prod, à valider E2E par Julien.**
