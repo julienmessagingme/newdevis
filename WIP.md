@@ -288,8 +288,9 @@ RÈGLE ABSOLUE : UN PDF MULTI-ENTREPRISE = N ANALYSES INDÉPENDANTES.
 🟡 **En cours — corrections critiques priorisées une par une, validées par le Product Owner.**
 
 Audit complet → voir [`UX-AUDIT.md`](UX-AUDIT.md) (baseline + historique des itérations).
+Backlog des items pas encore commencés → voir [`TODO.md`](TODO.md).
 
-### Problèmes critiques — statut
+### Problèmes critiques — historique
 
 | # | Problème | Statut | Commit |
 |---|----------|--------|--------|
@@ -298,16 +299,16 @@ Audit complet → voir [`UX-AUDIT.md`](UX-AUDIT.md) (baseline + historique des i
 | C3 | KPIs header orientés action (X€ à payer, alertes) | ✅ Fait | `c588f59` |
 | C4 | État vide + progression d'onboarding | ✅ Fait | `62234d9` |
 
-### Problèmes importants — backlog
+### Problèmes importants — historique
 
 | # | Problème | Statut |
 |---|----------|--------|
 | I1 | Statut "En litige" = confirmation requise | ✅ Fait 2026-05-09 (panel inline + raison ≥ 10 chars) |
 | I2 | Sous-lignes devis masquées par défaut dans Budget | ✅ Fait `ebe745c` |
-| I3 | Surface persistante alertes IA (bandeau, pas onglet) | 🟠 Backlog |
 | I4 | "Reste" en orange → neutre sauf retard réel | ✅ Fait `2d16ca2` (desktop) + 2026-05-09 (mobile) |
-| I5 | Vue expert en toggle | 🟠 Backlog (refonte tableau invasive — reporté) |
 | I6 | Dépense rapide mieux visible | ✅ Fait 2026-05-03 |
+
+I3 (Surface persistante Assistant IA) et I5 (Vue expert toggle) → `TODO.md`.
 
 ### AUDIT #2 — sprint correctifs 2026-05-09
 
@@ -315,7 +316,7 @@ Audit complet → voir [`UX-AUDIT.md`](UX-AUDIT.md) (baseline + historique des i
 
 **Corrigés** : N1 (reste mobile gris) · N3 (bandeau 5 KPIs canoniques en Trésorerie) · N4 (cue visuel split échéance) · N5a (sidebar 280px mobile + safe-area) · N6a (touch targets 44×44) · N6b (PanneauDetail safe-area) · N6c (inputMode numeric durée) · N7 (code mort `cfg.tvaOn`) · I1 (confirmation litige) · I4 (reste mobile, régression partielle audit #1).
 
-**Skipped (justifiés)** : I3 (bandeau IA — décision UX dédiée) · I5 (toggle vue — refonte invasive) · N5b (IntervenantsListView cards mobile) · N5c (touch events Planning).
+Items pas attaqués (jugés trop risqués pour la session "no breaking") déplacés dans [`TODO.md`](TODO.md) : I3, I5, N5b (cards intervenants mobile), N5c (touch events Planning), pencil edit LotDetail.
 
 Voir [`UX-AUDIT.md`](UX-AUDIT.md) "Sprint correctifs 2026-05-09" pour le détail.
 

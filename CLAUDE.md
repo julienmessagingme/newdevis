@@ -9,26 +9,31 @@ Ce fichier = **règles + pièges + décisions récentes** pour ne pas casser qua
 | Tu cherches… | Fichier |
 |---|---|
 | **Ce que l'utilisateur peut faire** (features prod + pain résolu + avantage marché + détail des 7 agents IA) | [`FEATURES.md`](FEATURES.md) |
-| **Ce qui est en cours / pas fini / idée** (OpenClaw, dette, backlog) | [`WIP.md`](WIP.md) |
+| **Ce qu'on a commencé et pas encore fini** (en cours, partiellement implémenté, bloqué) | [`WIP.md`](WIP.md) |
+| **Backlog — ce qu'on doit/veut faire mais qu'on n'a pas commencé** | [`TODO.md`](TODO.md) |
 | **Référence technique exhaustive** (toutes les routes, schéma DB, pipeline, deploy) | [`DOCUMENTATION.md`](DOCUMENTATION.md) |
 | **Plan de test E2E agent IA** (10 scénarios + cas d'erreur, avec 3 numéros WhatsApp GMC `+33633921577`/USER/ARTISAN + outils debug SQL) | [`TEST-PLAN-AGENT-IA.md`](TEST-PLAN-AGENT-IA.md) |
 | **Règles + pièges + décisions** | ← ce fichier |
 
 **Si tu ajoutes une info** :
 - Un user peut faire ça aujourd'hui ? → `FEATURES.md`
-- C'est partiellement fait, en réflexion, dette ? → `WIP.md`
+- C'est commencé mais pas terminé / bloqué / en réflexion active ? → `WIP.md`
+- C'est une idée / un fix identifié mais qu'on n'a pas attaqué ? → `TODO.md`
 - C'est exhaustif et stable (route, table, composant) ? → `DOCUMENTATION.md`
 - C'est une règle / un piège / une décision récente que Claude doit savoir ? → ici
 
+**Règle absolue WIP vs TODO** : un item ne va dans `WIP.md` qu'à partir du moment où on l'attaque (premier commit, première décision, premier code). Tant que c'est un "à faire" non démarré, c'est `TODO.md` exclusivement. Ne jamais polluer WIP avec du backlog non commencé — ça brouille la lecture "où on en est".
+
 ### Workflow obligatoire à chaque session
 
-1. **Quand on commence un truc nouveau** (feature, refacto, exploration) → ajouter une entrée 🟡 dans `WIP.md` immédiatement.
-2. **Quand on finit et que ça marche en prod** → déplacer l'entrée WIP vers `FEATURES.md` (en retirer du WIP).
-3. **Quand on bloque** ou qu'on change d'avis → mettre 🔴 dans WIP avec la raison.
-4. **Quand on change un comportement, une règle, une décision** qui doit survivre les sessions → ajouter ici (CLAUDE.md, sections "Pièges connus" ou "Règles importantes").
-5. **Quand on ajoute un truc structurel** (route API, table DB, edge function, composant majeur) → mettre à jour `DOCUMENTATION.md`.
+1. **Quand on identifie un truc à faire mais qu'on ne l'attaque pas tout de suite** → entrée dans `TODO.md`.
+2. **Quand on commence un truc** (feature, refacto, exploration) → migrer de `TODO.md` vers `WIP.md` avec entrée 🟡 immédiatement.
+3. **Quand on finit et que ça marche en prod** → retirer l'entrée WIP, ajouter à `FEATURES.md` si user-facing.
+4. **Quand on bloque** ou qu'on change d'avis → mettre 🔴 dans WIP avec la raison (ne pas remettre dans TODO — bloqué ≠ pas commencé).
+5. **Quand on change un comportement, une règle, une décision** qui doit survivre les sessions → ajouter ici (CLAUDE.md, sections "Pièges connus" ou "Règles importantes").
+6. **Quand on ajoute un truc structurel** (route API, table DB, edge function, composant majeur) → mettre à jour `DOCUMENTATION.md`.
 
-À l'ouverture d'une session : **toujours ouvrir `WIP.md`** pour reprendre là où on s'était arrêté. Si l'utilisateur dit "on bosse sur X", on commence par `WIP.md` pour voir si X y est déjà.
+À l'ouverture d'une session : **toujours ouvrir `WIP.md`** pour reprendre là où on s'était arrêté, et `TODO.md` pour voir le backlog. Si l'utilisateur dit "on bosse sur X", on commence par `WIP.md` puis `TODO.md` pour voir si X y est déjà.
 
 ---
 
@@ -423,6 +428,9 @@ Audit UX complet daté du 2026-05-02. Score global : **3.4/10**. Corrections cri
 
 ---
 
-## TODO → voir [`WIP.md`](WIP.md)
+## Backlog & travail en cours
 
-Toutes les features en cours, partiellement implémentées, idées et dette technique sont centralisées dans **`WIP.md`** à la racine du repo. À mettre à jour à chaque session quand on commence/finit/bloque quelque chose.
+- **Backlog (à faire, pas commencé)** → [`TODO.md`](TODO.md)
+- **En cours / partiellement fait / bloqué** → [`WIP.md`](WIP.md)
+
+À mettre à jour à chaque session : ajouter au TODO quand on identifie quelque chose, migrer vers WIP quand on attaque, retirer du WIP quand c'est fini (et ajouter à `FEATURES.md` si user-facing).

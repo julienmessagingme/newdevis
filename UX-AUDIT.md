@@ -300,13 +300,13 @@ Vague A + B + C livrées en une session, à scope contraint pour éviter les ré
 | I1 | Confirmation "En litige" + raison ≥ 10 chars | `VersementsDrawer.tsx:302-305, 504-512, 526-572` |
 | I4 | Reste à payer mobile gris (régression partielle de l'audit #1) | `BudgetTab.tsx:1204` |
 
-### Skipped (avec justification)
+### Items pas attaqués → migrés dans [`TODO.md`](TODO.md)
 
-- **I3** Assistant IA bandeau persistant — demande une décision UX (où placer le bandeau, quel message) qui mérite une session dédiée
-- **I5** Toggle vue novice/expert — refonte invasive du tableau (colgroup table-fixed + headers + cells), risque de régression élevé pour cette session "no breaking"
-- **N5b** IntervenantsListView en cards mobile — refonte UI de la vue Lots, scope > 1 j
-- **N5c** Touch events Planning Gantt — chantier dédié (PlanningTimeline complet), 1 j minimum
-- **Pencil edit durée LotDetail** (24×24) — peu critique, le bouton Check/X adjacent (28×28) est aussi sous-dimensionné, à traiter ensemble dans une passe globale touch-targets
+- **I3** Assistant IA bandeau persistant (P0)
+- **I5** Toggle vue novice/expert (P1, refonte tableau invasive)
+- **N5b** IntervenantsListView en cards mobile (P0)
+- **N5c** Touch events Planning Gantt (P0)
+- **Pencil edit durée LotDetail** (P1, passe globale touch-targets)
 
 ### Score global révisé
 
