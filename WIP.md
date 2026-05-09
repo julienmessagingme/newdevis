@@ -643,7 +643,7 @@ Voir `FEATURES.md § 21` pour le détail fonctionnel.
 ### À valider après usage réel
 - L'affichage des libellés decisions (ex: "Lot décalé +5j (cascade)") couvre-t-il bien tous les cas d'usage ? Ajouter des branches dans `formatDecision()` au fur et à mesure des feedbacks.
 - Le reset à minuit Paris utilise une approximation UTC+2 (DST). En hiver ça décale d'1h. Acceptable pour l'instant — à corriger si les utilisateurs voient apparaître des items "d'hier" entre minuit et 1h du matin.
-- Auto-refresh 20s : peut-être trop fréquent si la page est en arrière-plan. Couper si `document.hidden` ?
+- ✅ Auto-refresh 20s pause si onglet en background (2026-05-09) : `AssistantTriPane.tsx:380-405` écoute `visibilitychange`, stop le `setInterval` quand `document.hidden=true`, fetch immédiat de rattrapage au retour. Économise ~3 fetch/min par onglet inactif.
 
 ---
 
@@ -695,14 +695,6 @@ Hérité de la session précédente (cf. CLAUDE.md "TODO — prochaine session")
 
 ---
 
-
-## 7. Type debt — `assistant.ts` DevisInfo
-
-🟡 **Quick fix.**
-
-L'interface `DevisInfo` dans `api/chantier/assistant.ts` ne déclare pas `lot_id` / `lot_nom` alors que ces champs sont injectés runtime via spread. La détection mismatch fonctionne mais le type TS ment. Fix : ajouter ces champs à l'interface (5 minutes).
-
----
 
 ## 8. WhatsApp multi-groupes — feature complète mais peu testée prod
 

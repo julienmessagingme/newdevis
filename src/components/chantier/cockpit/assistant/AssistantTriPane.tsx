@@ -378,8 +378,33 @@ export default function AssistantTriPane({
 
   useEffect(() => { fetchDecisions(); }, [fetchDecisions]);
   useEffect(() => {
-    const id = setInterval(() => fetchDecisions(true), 20000);
-    return () => clearInterval(id);
+    // Auto-refresh 20s, sauf quand l'onglet est en background (économise les
+    // fetch inutiles quand le user n'est pas devant l'écran). Un visibilitychange
+    // → visible déclenche un fetch immédiat pour rattraper.
+    let id: ReturnType<typeof setInterval> | null = null;
+    function start() {
+      if (id !== null) return;
+      id = setInterval(() => fetchDecisions(true), 20000);
+    }
+    function stop() {
+      if (id === null) return;
+      clearInterval(id);
+      id = null;
+    }
+    function onVisibility() {
+      if (document.hidden) {
+        stop();
+      } else {
+        fetchDecisions(true); // rattrapage immédiat
+        start();
+      }
+    }
+    if (!document.hidden) start();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [fetchDecisions]);
 
   // Décisions = nb du jour ; sert juste au compteur du tab mobile
