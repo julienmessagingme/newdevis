@@ -31,16 +31,39 @@ export interface GeminiFetchOptions {
  * Fetch avec timeout dur (sans retry).
  * Utiliser quand on ne veut pas de retry mais qu'on veut quand même couper net
  * en cas de stale (ex: extract.ts qui a son propre budget de temps).
+ *
+ * Note compat Deno : on n'utilise PAS `AbortSignal.any()` (introduit Deno 1.40+,
+ * historiquement non dispo sur certaines versions Edge Functions Supabase).
+ * À la place, on chaîne manuellement : un AbortController custom + relais
+ * de l'abort externe via un listener. Compatible toutes versions Deno récentes.
  */
 export async function fetchWithTimeout(
   url: string,
   init: RequestInit,
   timeoutMs = 30000,
 ): Promise<Response> {
-  const signal = init.signal
-    ? AbortSignal.any([init.signal, AbortSignal.timeout(timeoutMs)])
-    : AbortSignal.timeout(timeoutMs);
-  return fetch(url, { ...init, signal });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  // Relais de l'abort externe vers notre controller (sans AbortSignal.any).
+  let externalAbortHandler: (() => void) | null = null;
+  if (init.signal) {
+    if (init.signal.aborted) {
+      controller.abort();
+    } else {
+      externalAbortHandler = () => controller.abort();
+      init.signal.addEventListener("abort", externalAbortHandler);
+    }
+  }
+
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+    if (externalAbortHandler && init.signal) {
+      init.signal.removeEventListener("abort", externalAbortHandler);
+    }
+  }
 }
 
 /**

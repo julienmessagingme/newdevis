@@ -465,10 +465,24 @@ export default function VersementsDrawer({
     setSaving(null);
   }
 
+  // Wrapper onClose : si une raison de litige est en cours de saisie, demande
+  // confirmation avant de fermer le drawer (sinon la raison saisie disparaît
+  // silencieusement). Pas de persistance backend pour cette session — au
+  // moins on évite la perte accidentelle.
+  function handleClose() {
+    if (litigeConfirmOpen && litigeReason.trim().length > 0) {
+      const confirmed = confirm(
+        "Vous avez commencé à saisir une raison de litige. Fermer ce panneau effacera votre texte. Continuer ?",
+      );
+      if (!confirmed) return;
+    }
+    onClose();
+  }
+
   return (
     <>
       {/* Overlay */}
-      <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/30 z-40" onClick={handleClose} />
 
       {/* Drawer */}
       <div className="fixed right-0 top-0 bottom-0 w-full sm:w-[420px] bg-white shadow-2xl z-50 flex flex-col">
@@ -485,7 +499,7 @@ export default function VersementsDrawer({
               </p>
             )}
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+          <button onClick={handleClose} className="p-2 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
             <X className="h-5 w-5" />
           </button>
         </div>

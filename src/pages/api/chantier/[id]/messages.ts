@@ -39,6 +39,13 @@ export const POST: APIRoute = async ({ params, request }) => {
   // ET contre clics manuels excessifs côté Messagerie. Compté via les rows
   // chantier_messages déjà persistées (source unique de vérité — recouvre
   // l'agent et l'UI sans tracker l'origine séparément).
+  //
+  // ⚠️ Race window connue : check + INSERT non atomiques. Si 2 requêtes
+  // simultanées passent le check à 4 messages, les 2 peuvent INSERT → 6 au
+  // total. Window très étroite en pratique (ms entre check et insert) et
+  // la 7e requête sera bien bloquée. Acceptable pour ce cap soft.
+  // Pour atomiser strictement : RPC Postgres `enqueue_email_with_cap()` qui
+  // fait check + INSERT dans une transaction. Pas critique aujourd'hui.
   const since24h = new Date(Date.now() - 86_400_000).toISOString();
   const { data: convCheck } = await ctx.supabase
     .from('chantier_conversations')
