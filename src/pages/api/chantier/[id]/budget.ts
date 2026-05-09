@@ -139,6 +139,10 @@ interface BudgetLot {
     facture: number;
     paye: number;
     acompte: number;
+    /** Acomptes versés sur des devis non encore signés (en_cours/recu).
+     *  Exclus du KPI Décaissé pour ne pas fausser le ratio budget cible
+     *  (qui suppose que tout est signé). Visible dans une bannière distincte. */
+    acompte_pending: number;
     litige: number;
     a_payer: number;
   };
@@ -419,7 +423,7 @@ export const GET: APIRoute = async ({ params, request }) => {
     const lotMap = new Map<string, BudgetLot>();
     const emptyTotaux = () => ({
       devis_recus: 0, devis_valides: 0,
-      facture: 0, paye: 0, acompte: 0, litige: 0, a_payer: 0,
+      facture: 0, paye: 0, acompte: 0, acompte_pending: 0, litige: 0, a_payer: 0,
     });
 
     for (const lot of lotsRaw ?? []) {
@@ -485,10 +489,15 @@ export const GET: APIRoute = async ({ params, request }) => {
           bucket.totaux.devis_valides += montant ?? 0;
         }
 
-        // Paiements sur devis → uniquement dans acompte (pas dans paye)
-        // paye = paiements complets sur factures / acompte = avances (devis + factures partielles)
+        // Paiements sur devis → comptés en acompte SI le devis est signé.
+        // Sinon : compteur séparé `acompte_pending` (l'argent est sorti mais
+        // ne doit pas fausser le ratio Budget cible / Décaissé).
         if (evDevisPaid > 0) {
-          bucket.totaux.acompte += evDevisPaid;
+          if (isSigned) {
+            bucket.totaux.acompte += evDevisPaid;
+          } else {
+            bucket.totaux.acompte_pending += evDevisPaid;
+          }
         }
       } else if (doc.document_type === 'facture') {
         // Paiements Échéancier sur cette facture (prioritaires sur facture_statut)
@@ -551,13 +560,14 @@ export const GET: APIRoute = async ({ params, request }) => {
     // ── 8. Totaux globaux ───────────────────────────────────────────────────
     const allBuckets = [...lotMap.values(), sanslot];
     const totaux = {
-      devis_recus:   allBuckets.reduce((s, b) => s + b.totaux.devis_recus,   0),
-      devis_valides: allBuckets.reduce((s, b) => s + b.totaux.devis_valides, 0),
-      facture:       allBuckets.reduce((s, b) => s + b.totaux.facture,       0),
-      paye:          allBuckets.reduce((s, b) => s + b.totaux.paye,          0),
-      acompte:       allBuckets.reduce((s, b) => s + b.totaux.acompte,       0),
-      litige:        allBuckets.reduce((s, b) => s + b.totaux.litige,        0),
-      a_payer:       allBuckets.reduce((s, b) => s + b.totaux.a_payer,       0),
+      devis_recus:     allBuckets.reduce((s, b) => s + b.totaux.devis_recus,     0),
+      devis_valides:   allBuckets.reduce((s, b) => s + b.totaux.devis_valides,   0),
+      facture:         allBuckets.reduce((s, b) => s + b.totaux.facture,         0),
+      paye:            allBuckets.reduce((s, b) => s + b.totaux.paye,            0),
+      acompte:         allBuckets.reduce((s, b) => s + b.totaux.acompte,         0),
+      acompte_pending: allBuckets.reduce((s, b) => s + b.totaux.acompte_pending, 0),
+      litige:          allBuckets.reduce((s, b) => s + b.totaux.litige,          0),
+      a_payer:         allBuckets.reduce((s, b) => s + b.totaux.a_payer,         0),
     };
 
     // ── 8. Preuves de paiement (proofCount déjà fetché en Phase A) ─────────

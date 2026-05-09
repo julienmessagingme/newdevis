@@ -73,13 +73,15 @@ interface BudgetFacture {
 }
 
 interface BudgetLotTotaux {
-  devis_recus:   number;
-  devis_valides: number;
-  facture:       number;
-  paye:          number;
-  acompte:       number;
-  litige:        number;
-  a_payer:       number;
+  devis_recus:     number;
+  devis_valides:   number;
+  facture:         number;
+  paye:            number;
+  acompte:         number;
+  /** Acomptes versés sur des devis non encore signés — exclus du KPI Décaissé */
+  acompte_pending?: number;
+  litige:          number;
+  a_payer:         number;
 }
 
 interface BudgetArtisanGroup {
@@ -1646,13 +1648,30 @@ export default function BudgetTab({
 
       {/* ── Bannière : devis reçus en attente de signature ────────────────── */}
       {!loading && pendingDevisCount > 0 && (
-        <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
-          <Clock className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-          <p className="text-[12px] text-amber-800 font-medium">
-            {pendingDevisCount} devis reçu{pendingDevisCount > 1 ? 's' : ''} en attente de signature
-          </p>
-          <span className="text-[11px] text-amber-600/80">
+        <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-100 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-2">
+            <Clock className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+            <p className="text-[12px] text-amber-800 font-medium">
+              {pendingDevisCount} devis reçu{pendingDevisCount > 1 ? 's' : ''} en attente de signature
+            </p>
+          </div>
+          <span className="text-[11px] text-amber-600/80 sm:ml-1">
             — non comptés dans l'engagement tant que non signés
+          </span>
+        </div>
+      )}
+
+      {/* ── Bannière : acomptes versés sur des devis non signés (Bug A) ───── */}
+      {!loading && (data?.totaux as any)?.acompte_pending > 0 && (
+        <div className="px-5 py-2.5 bg-orange-50 border-b border-orange-100 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-3.5 w-3.5 text-orange-600 shrink-0" />
+            <p className="text-[12px] text-orange-800 font-medium">
+              {fmtEur((data!.totaux as any).acompte_pending)} d'acomptes versés sur des devis non signés
+            </p>
+          </div>
+          <span className="text-[11px] text-orange-600/80 sm:ml-1">
+            — signez le devis pour les inclure dans le suivi
           </span>
         </div>
       )}
