@@ -54,6 +54,64 @@ Pages Astro : `<LoginApp client:only="react" />`. Toujours `client:only`, jamais
 
 Liste complète des routes existantes : `DOCUMENTATION.md` § 6.
 
+## Structure du code (refacto 2026-05-08/09)
+
+`src/components/chantier/cockpit/` et `src/lib/` sont partitionnés **par domaine**. Quand tu importes ou tu cherches un fichier, vérifie le bon sous-dossier :
+
+### `src/lib/` — utils & domain logic
+```
+lib/
+├── analyse/      verdictEngine, scoreUtils, conclusionTypes, entrepriseUtils,
+│                 urbanismeUtils, securiteUtils, devisUtils, quoteGlobalAnalysis,
+│                 contexteUtils, architecteUtils
+├── chantier/     planningUtils, lotUtils, paymentEvents, financingUtils,
+│                 budgetAffinageData, budgetHelpers, dashboardHelpers, roadmapUtils,
+│                 documentFilters, formalitesLinks, workTypeReferentiel
+├── auth/         gmcAccess, postLoginRedirect, signOut, ssoHandoffClient,
+│                 adminAuth, brand, domainConfig
+├── integrations/ whapiUtils, marketingApi, amplitude, subscription
+├── api/          apiHelpers
+├── blog/         blogUtils
+└── (root)        utils.ts, constants.ts, prompts/
+```
+Imports : `@/lib/<domain>/<file>`. Ex : `@/lib/chantier/financingUtils`, `@/lib/analyse/verdictEngine`. Si tu vois un import `@/lib/X` sans domaine, c'est cassé — corriger.
+
+### `src/components/chantier/cockpit/` — UI cockpit
+```
+cockpit/
+├── ChantierCockpit.tsx       (orchestrateur principal — anciennement DashboardUnified)
+├── DashboardHome.tsx          (vue accueil)
+├── Sidebar.tsx, PageHeader.tsx, useInsights.ts (partagés)
+├── AnalyseDevisSection.tsx, TravauxDIYSection.tsx, UserCoordonnees.tsx
+├── PlanningChantier.tsx, TimelineHorizontale.tsx (planning racine)
+├── ComparateurDevisModal.tsx, ConceptionPage.tsx, PanneauDetail.tsx, SimulateurOptions.tsx
+├── assistant/    AssistantTriPane, AlertsPanel, ChatDrawer, JournalChantierSection
+├── budget/       BudgetTab, BudgetGaugeReal, BudgetGauge, BudgetKpiCard,
+│                 BudgetAffinageModal, BudgetBandeau, BudgetComparaison, BudgetExplication,
+│                 LotBreakdown, AlertesIA, FacturesPaiements, DepenseRapideModal,
+│                 ProjectHeader, QuickActions, ReliabilityBadge, TresoreriePhases
+├── contacts/     ContactsSection, AddIntervenantModal
+├── documents/    DocumentsView, UploadDocumentModal, AddDocumentModal
+├── financing/    AidesTravaux, CreditSimulator, FinancementTab
+├── lots/         LotDetail, LotCard, LotIntervenantCard, IntervenantsListView, PVReceptionModal
+├── messagerie/   MessagerieSection, ConversationList, ConversationThread, MessageComposer,
+│                 TemplateSelector, WhatsAppGroupsPanel, WhatsAppThread
+├── planning/     PlanningTimeline, PlanningWidget
+└── tresorerie/   TresoreriePanel, TresorerieView, BudgetTresorerie, Echeancier,
+                  PaiementDrawer, VersementsDrawer, CashflowProjection, CashflowTab,
+                  PaymentTimeline, FinancingSources
+```
+Avant de créer un nouveau composant cockpit : trouver le bon dossier domaine. Si le composant ne rentre dans aucun, soit c'est un orchestrateur qui reste à la racine, soit il manque un dossier (à discuter).
+
+### Renames récents — éviter les références fantômes
+
+| Ancien nom | Nouveau nom | Date |
+|---|---|---|
+| `DashboardUnified.tsx` | `ChantierCockpit.tsx` | 2026-05-08 |
+| `DashboardPremium.tsx` | (supprimé, inliné) | 2026-05-08 |
+| `DashboardWidgets.tsx` | (supprimé, 3 exports inlinés dans DashboardHome) | 2026-05-08 |
+| `EcheancierRefonte.tsx` | `Echeancier.tsx` | 2026-05-08 |
+
 ---
 
 ## Modèles IA par tâche

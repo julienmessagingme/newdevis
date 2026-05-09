@@ -11,19 +11,22 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
-## NEW. Audit structure code — étapes 1-4 livrées, suite à programmer
+## NEW. Audit structure code — étapes 1-4 + 7 livrées, suite à programmer
 
-🟢 **Étapes 1-4 livrées 2026-05-08/09** (commits `cf359fd`, `65e6cb4`, prochain commit). Voir CLAUDE.md "Audit structure" pour le contexte complet.
+🟢 **Étapes 1-4 + 7 livrées 2026-05-08/09**. Voir CLAUDE.md section "Structure du code" pour le layout final.
 
 ### Livré
-- ✅ **Étape 1** : `DashboardPremium` (wrapper de 34 lignes inutile) inliné, `DashboardUnified.tsx` → `ChantierCockpit.tsx` (le nom dit ce que c'est). Dead state nettoyé dans ChantierDetail.
-- ✅ **Étape 2** : `EcheancierRefonte.tsx` → `Echeancier.tsx` (le suffixe "Refonte" suggérait du code en transition jamais stabilisé).
-- ✅ **Étape 3** : `cockpit/` partitionné par domaine — 47 fichiers à plat → 9 sous-dossiers (`assistant/`, `budget/`, `contacts/`, `documents/`, `financing/`, `lots/`, `messagerie/`, `planning/`, `tresorerie/`). 0 nouvelle erreur TS.
-- ✅ **Étape 4** : `DashboardWidgets.tsx` (8 exports dont 5 dead) supprimé, les 3 utilisés (`KpiCard`, `ViewToggle`, `RDV_EMOJI`) inlinés dans DashboardHome (seul consommateur).
+- ✅ **Étape 1** (`cf359fd`) : `DashboardPremium` (wrapper de 34 lignes inutile) inliné, `DashboardUnified.tsx` → `ChantierCockpit.tsx`. Dead state nettoyé dans ChantierDetail.
+- ✅ **Étape 2** (`cf359fd`) : `EcheancierRefonte.tsx` → `Echeancier.tsx`.
+- ✅ **Étape 3** (`65e6cb4`) : `cockpit/` partitionné — 47 fichiers à plat → 9 sous-dossiers (`assistant/`, `budget/`, `contacts/`, `documents/`, `financing/`, `lots/`, `messagerie/`, `planning/`, `tresorerie/`).
+- ✅ **Étape 4** (`b1de1d2`) : `DashboardWidgets.tsx` (8 exports dont 5 dead) supprimé, les 3 utilisés inlinés dans DashboardHome.
+- ✅ **Étape 7** (`5d6ff19` + `8b07ec1`) : `lib/` partitionné — 38 fichiers à plat → 6 sous-dossiers (`analyse/`, `chantier/`, `auth/`, `integrations/`, `api/`, `blog/`). 249 imports mis à jour automatiquement (sed) dans 164 fichiers consommateurs.
+
+Bilan TS pour les 5 étapes : **0 nouvelle erreur introduite**. Le repo a perdu ~600 lignes de code mort (DashboardPremium + DashboardWidgets dead exports + dead state ChantierDetail) et tout est rangé par domaine.
 
 ### Reste à faire
 
-Étapes 5-10 (refacto BudgetTab, Trésorerie, lib/, Header×3, AnalysisResult, tests) → [`TODO.md`](TODO.md) section "Refacto code".
+Étapes 5, 6, 8, 9, 10 (BudgetTab, Trésorerie consolidation, Header×3, AnalysisResult, tests) → [`TODO.md`](TODO.md) section "Refacto code".
 
 ---
 

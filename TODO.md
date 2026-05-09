@@ -37,18 +37,8 @@ Pour le rationnel et l'historique des audits UX, voir `UX-AUDIT.md`.
 - [ ] **Étape 6 — Consolider Trésorerie ×3**
   `tresorerie/{TresoreriePanel, TresorerieView, BudgetTresorerie}` = 4 niveaux de cascade pour afficher un même domaine. Effort : ~1j. Risque : moyen — `showBudgetDetail` flag dans ChantierCockpit suggère 2 modes distincts. **Audit avant de fusionner**.
 
-- [ ] **Étape 7 — Partition `lib/` par domaine**
-  38 fichiers plats. Mêmes domaines que `cockpit/` :
-  ```
-  lib/
-  ├── api/         (apiHelpers)
-  ├── analyse/     (verdictEngine, scoreUtils, conclusionTypes, entrepriseUtils, urbanismeUtils, blogUtils, securiteUtils, devisUtils, quoteGlobalAnalysis, contexteUtils, architecteUtils)
-  ├── chantier/    (planningUtils, lotUtils, paymentEvents, financingUtils, budgetAffinageData, budgetHelpers, dashboardHelpers, roadmapUtils)
-  ├── auth/        (gmcAccess, postLoginRedirect, signOut, ssoHandoffClient, adminAuth, brand, domainConfig)
-  ├── integrations/ (whapiUtils, marketingApi, amplitude, subscription)
-  └── data/        (workTypeReferentiel, formalitesLinks, prompts/)
-  ```
-  Effort : 30min. Risque : bas. Faire en `git mv` + bulk update des imports `@/lib/X` → `@/lib/<domain>/X`.
+- [x] ~~**Étape 7 — Partition `lib/` par domaine**~~ — fait 2026-05-09 (commits `5d6ff19` + `8b07ec1`).
+  38 fichiers plats → 6 sous-dossiers : `analyse/` (11), `chantier/` (11), `auth/` (7), `integrations/` (4), `api/` (1), `blog/` (1). Restent à la racine : `utils.ts`, `constants.ts`, `prompts/`. 249 imports mis à jour automatiquement via sed dans 164 fichiers consommateurs. 0 nouvelle erreur TS introduite.
 
 - [ ] **Étape 8 — Header ×3 sync**
   3 variantes (`layout/Header.tsx` React + `astro/Header.astro` + `gmc-landing/Header.astro`) imposent de modifier 3 fichiers à chaque changement d'auth state. Extraire un `<HeaderUserMenu />` partagé client:only — les 3 Headers se réduisent à layout + branding + import du même menu.
