@@ -34,6 +34,33 @@ export const POST: APIRoute = async ({ params, request }) => {
   if (!contact.email)
     return jsonError('Ce contact n\'a pas d\'adresse email', 400);
 
+  // Rate limit anti-spam : 5 emails outbound max vers ce contact / 24h.
+  // Protège contre boucle agent / hallucination "envoie à tous les artisans"
+  // ET contre clics manuels excessifs côté Messagerie. Compté via les rows
+  // chantier_messages déjà persistées (source unique de vérité — recouvre
+  // l'agent et l'UI sans tracker l'origine séparément).
+  const since24h = new Date(Date.now() - 86_400_000).toISOString();
+  const { data: convCheck } = await ctx.supabase
+    .from('chantier_conversations')
+    .select('id')
+    .eq('chantier_id', chantierId)
+    .eq('contact_id', contactId)
+    .maybeSingle();
+  if (convCheck?.id) {
+    const { count: recentCount } = await ctx.supabase
+      .from('chantier_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('conversation_id', convCheck.id)
+      .eq('direction', 'outbound')
+      .gte('created_at', since24h);
+    if ((recentCount ?? 0) >= 5) {
+      return jsonError(
+        `Cap de 5 emails sortants sur 24h atteint pour ${contact.nom}. Patientez avant d'en envoyer un nouveau.`,
+        429,
+      );
+    }
+  }
+
   // Find or create conversation
   const { data: existingConv } = await ctx.supabase
     .from('chantier_conversations')
