@@ -16,6 +16,7 @@ import {
   Check, Clock, ChevronDown, ChevronUp, ChevronRight, Scale, Pencil,
 } from 'lucide-react';
 import { fmtEur } from '@/lib/financingUtils';
+import { toast } from 'sonner';
 import AddDocumentModal from '../documents/AddDocumentModal';
 import VersementsDrawer from '../tresorerie/VersementsDrawer';
 import PaiementDrawer, { type PaiementContext } from '../tresorerie/PaiementDrawer';
@@ -364,18 +365,37 @@ function BudgetKpiDashboard({
   token:                   string;
   initialEnveloppePrevue?: number | null;
 }) {
+  // ── Source de vérité unique : chantiers.budget (passé via initialEnveloppePrevue) ──
+  // Avant 2026-05-09 : localStorage avait priorité sur le serveur → drift possible
+  // (l'utilisateur saisissait 73 998 € en local mais la DB gardait 38 000 €).
+  // Maintenant : on initialise depuis le serveur, on écrit DB en premier sur édition,
+  // localStorage devient un simple miroir pour la sync cross-onglet.
   const storageKey = `budget_reel_${chantierId}`;
+  const [budgetReel, setBudgetReel] = useState<number | null>(initialEnveloppePrevue ?? null);
 
-  // Priorité : localStorage (mis à jour par TresorerieView en temps réel) > prop serveur
-  const [budgetReel, setBudgetReel] = useState<number | null>(() => {
+  // Quand le serveur renvoie une nouvelle valeur (après PATCH ou refresh), on resync
+  useEffect(() => {
+    if (initialEnveloppePrevue != null) setBudgetReel(initialEnveloppePrevue);
+  }, [initialEnveloppePrevue]);
+
+  // ── Détection de drift localStorage vs serveur (ancienne valeur saisie en local
+  //    qui n'a jamais été persistée en DB, typiquement avant le fix 2026-05-09).
+  //    On affiche une bannière qui demande à l'utilisateur quelle valeur garder. ──
+  const [driftValue, setDriftValue] = useState<number | null>(null);
+  useEffect(() => {
     try {
       const stored = localStorage.getItem(storageKey);
-      if (stored) return parseFloat(stored);
+      if (!stored) return;
+      const local = parseFloat(stored);
+      if (isNaN(local) || local <= 0) return;
+      const server = initialEnveloppePrevue ?? 0;
+      // Drift = local existe ET diffère du serveur de plus de 1 €
+      if (Math.abs(local - server) > 1) setDriftValue(local);
+      else setDriftValue(null);
     } catch {}
-    return initialEnveloppePrevue ?? null;
-  });
+  }, [storageKey, initialEnveloppePrevue]);
 
-  // Écoute les mises à jour de TresorerieView/DashboardHome en temps réel
+  // Écoute les mises à jour cross-component (autre onglet, TresorerieView)
   useEffect(() => {
     function handler(e: Event) {
       const { chantierId: cid, value } = (e as CustomEvent).detail;
@@ -384,6 +404,7 @@ function BudgetKpiDashboard({
     window.addEventListener('budgetReelChanged', handler);
     return () => window.removeEventListener('budgetReelChanged', handler);
   }, [chantierId]);
+
   const [editing,  setEditing]  = useState(false);
   const [editVal,  setEditVal]  = useState('');
 
@@ -412,12 +433,29 @@ function BudgetKpiDashboard({
     setEditing(true);
   }
 
-  function persistBudgetReel(v: number) {
-    setBudgetReel(v);
+  // DB-first : on PATCH le serveur D'ABORD, localStorage devient un miroir post-succès.
+  // En cas d'échec, on prévient l'utilisateur au lieu de divergir silencieusement.
+  async function persistBudgetReel(v: number): Promise<boolean> {
     try {
-      // ── localStorage partagé avec TresorerieView et DashboardUnified ──
+      const tk = await freshToken(token);
+      const res = await fetch(`/api/chantier/${chantierId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tk}` },
+        body: JSON.stringify({ enveloppePrevue: v }),
+      });
+      if (!res.ok) {
+        toast.error('Impossible d\'enregistrer le budget cible. Réessayez.');
+        return false;
+      }
+    } catch {
+      toast.error('Erreur réseau. Le budget cible n\'a pas été sauvegardé.');
+      return false;
+    }
+    // DB ok → on met à jour le state local + localStorage miroir
+    setBudgetReel(v);
+    setDriftValue(null);
+    try {
       localStorage.setItem(storageKey, String(v));
-      // Sync dans tresorerie_v3 pour que TresorerieView lise la bonne valeur
       const tvKey = `tresorerie_v3_${chantierId}`;
       try {
         const saved = localStorage.getItem(tvKey);
@@ -426,14 +464,8 @@ function BudgetKpiDashboard({
       } catch {}
     } catch {}
     window.dispatchEvent(new CustomEvent('budgetReelChanged', { detail: { chantierId, value: v } }));
-    // Persist to DB — enveloppePrevue ET metadonnees.tresoreieFinancing.budgetReel
+    // Sync miroir tresoreieFinancing (legacy, pour TresorerieView)
     freshToken(token).then(async tk => {
-      await fetch(`/api/chantier/${chantierId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tk}` },
-        body: JSON.stringify({ enveloppePrevue: v }),
-      }).catch(() => {});
-      // Patch tresoreieFinancing pour que TresorerieView reload avec la bonne valeur
       const tvKey2 = `tresorerie_v3_${chantierId}`;
       try {
         const saved = localStorage.getItem(tvKey2);
@@ -472,6 +504,40 @@ function BudgetKpiDashboard({
 
   return (
     <div className="border-b border-gray-100 bg-white">
+
+      {/* ── Bannière de drift localStorage vs serveur ─────────────────── */}
+      {driftValue !== null && (
+        <div className="px-5 py-3 bg-amber-50 border-b border-amber-200 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[12px] font-semibold text-amber-900">
+              Budget cible incohérent — quel chiffre garder ?
+            </p>
+            <p className="text-[11px] text-amber-700/90">
+              <strong>Saisi localement</strong> : {fmtEur(driftValue)} ·
+              <strong className="ml-1.5">Enregistré en base</strong> : {effectiveReel ? fmtEur(effectiveReel) : '—'}
+            </p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={async () => { await persistBudgetReel(driftValue); }}
+              className="px-3 py-1.5 text-[11px] font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors"
+            >
+              Garder {fmtEur(driftValue)}
+            </button>
+            <button
+              onClick={() => {
+                try { localStorage.removeItem(storageKey); } catch {}
+                setDriftValue(null);
+              }}
+              className="px-3 py-1.5 text-[11px] font-semibold text-amber-700 border border-amber-300 hover:bg-amber-100 rounded-lg transition-colors"
+            >
+              Garder {effectiveReel ? fmtEur(effectiveReel) : 'serveur'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
 
         {/* ── 1. Budget cible (éditable) ─────────────────── */}
