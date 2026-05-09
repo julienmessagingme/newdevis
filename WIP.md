@@ -11,27 +11,6 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
-## ⚠️ ACTION MANUELLE EN ATTENTE — migration RLS à appliquer en prod
-
-🟡 **Migration corrective RLS livrée 2026-05-09 (PR #11) mais PAS encore appliquée sur la prod Supabase.**
-
-Fichier : `supabase/migrations/20260509133525_rls_wrap_remaining_auth_uid_and_drop_duplicates.sql`
-
-**À faire quand Julien est sur sa machine** :
-```bash
-cd ~/newdevis  # (ou wherever)
-npx supabase db push
-```
-Puis vérifier le succès en exécutant la query de validation en bas du fichier de migration (doit retourner 0).
-
-**Pourquoi c'est important** : la migration wrappe 18 policies `auth.uid()` (perfs ~100x sur tables 100k+ rows) + drop 7 policies doublons (`multiple_permissive_policies` qui multiplient le coût RLS). Pas critique aujourd'hui mais essentiel avant de scale au-delà de 30 chantiers actifs.
-
-**Sécurité** : la migration préserve 100% la sémantique (mêmes conditions, même résultat fonctionnel — uniquement la performance change). Drops de doublons ciblent uniquement des policies dont une jumelle existe déjà.
-
-À retirer de WIP dès que la migration est appliquée + vérifiée.
-
----
-
 ## NEW. Audit structure code — étapes 1-4 livrées, suite à programmer
 
 🟢 **Étapes 1-4 livrées 2026-05-08/09** (commits `cf359fd`, `65e6cb4`, prochain commit). Voir CLAUDE.md "Audit structure" pour le contexte complet.
