@@ -248,7 +248,7 @@ export const GET: APIRoute = async ({ params, request }) => {
     // ── Phase A : 4 queries indépendantes en parallèle ─────────────────────
     // chantier, lots, docs et proofCount ne dépendent d'aucune autre query.
     // Si chantier est 404, on return early et on jette les autres résultats.
-    const [chantierRes, lotsRawRes, docsRes, proofCountRes, paidEventsRes, pendingEventsRes] = await Promise.all([
+    const [chantierRes, lotsRawRes, docsRes, proofCountRes, paidEventsRes, pendingEventsRes, orphansRes] = await Promise.all([
       ctx.supabase
         .from('chantiers')
         .select('id, nom, type_projet, metadonnees')
@@ -288,6 +288,14 @@ export const GET: APIRoute = async ({ params, request }) => {
         .eq('status', 'pending')
         .eq('source_type', 'devis')
         .not('source_id', 'is', null),
+      // Orphans : cashflow_extras du chantier (mouvements sans pièce ni rattachement)
+      // → exposés tels quels au frontend pour permettre la réconciliation manuelle.
+      ctx.supabase
+        .from('cashflow_extras')
+        .select('id, label, amount, due_date, status, financing_source, notes, created_at')
+        .eq('project_id', chantierId)
+        .neq('status', 'cancelled')
+        .order('due_date', { ascending: false }),
     ]);
 
     const chantier   = chantierRes.data;
@@ -596,6 +604,16 @@ export const GET: APIRoute = async ({ params, request }) => {
       conseils,
       type_projet:       chantier.type_projet ?? 'autre',
       backfilled_count:  backfilledCount,
+      cashflow_orphans:  (orphansRes.data ?? []).map(o => ({
+        id:               o.id,
+        label:            o.label,
+        amount:           Number(o.amount),
+        due_date:         o.due_date,
+        status:           o.status,
+        financing_source: o.financing_source,
+        notes:            o.notes,
+        created_at:       o.created_at,
+      })),
     });
 
   } catch (err) {

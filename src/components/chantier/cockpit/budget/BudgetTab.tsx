@@ -20,6 +20,8 @@ import { toast } from 'sonner';
 import AddDocumentModal from '../documents/AddDocumentModal';
 import VersementsDrawer from '../tresorerie/VersementsDrawer';
 import PaiementDrawer, { type PaiementContext } from '../tresorerie/PaiementDrawer';
+import OrphansReconciliationModal from './OrphansReconciliationModal';
+import type { LotChantier } from '@/types/chantier-ia';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 
@@ -109,13 +111,25 @@ interface BudgetLot {
   totaux:   BudgetLotTotaux;
 }
 
+interface CashflowOrphan {
+  id:               string;
+  label:            string;
+  amount:           number;
+  due_date:         string;
+  status:           'pending' | 'paid' | 'late' | 'cancelled';
+  financing_source: string | null;
+  notes:            string | null;
+  created_at:       string;
+}
+
 interface BudgetData {
-  budget_ia:        number;
-  lots:             BudgetLot[];
-  sans_lot:         BudgetLot | null;
-  totaux:           BudgetLotTotaux;
-  type_projet:      string;
-  backfilled_count: number;
+  budget_ia:         number;
+  lots:              BudgetLot[];
+  sans_lot:          BudgetLot | null;
+  totaux:            BudgetLotTotaux;
+  type_projet:       string;
+  backfilled_count:  number;
+  cashflow_orphans?: CashflowOrphan[];
 }
 
 // ── Ligne enrichie ────────────────────────────────────────────────────────────
@@ -1370,6 +1384,26 @@ export default function BudgetTab({
   const [showAddDoc,   setShowAddDoc]   = useState(false);
   const [addDocLotId,  setAddDocLotId]  = useState<string | undefined>(undefined);
   const [expanded,     setExpanded]     = useState<Set<string>>(new Set());
+  const [showOrphansModal, setShowOrphansModal] = useState(false);
+  const [orphanLots, setOrphanLots] = useState<LotChantier[]>([]);
+
+  // Fetch lots à l'ouverture du modal de réconciliation (lazy)
+  useEffect(() => {
+    if (!showOrphansModal || orphanLots.length > 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const bearer = await freshToken(token);
+        const res = await fetch(`/api/chantier/${chantierId}/lots`, {
+          headers: { Authorization: `Bearer ${bearer}` },
+        });
+        if (!res.ok || cancelled) return;
+        const d = await res.json();
+        if (!cancelled) setOrphanLots(d.lots ?? []);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [showOrphansModal, chantierId, token, orphanLots.length]);
   const [changingId,   setChangingId]   = useState<string | null>(null);
   const [openMenu,     setOpenMenu]     = useState<string | null>(null);
   // Acompte avec saisie montant inline
@@ -1757,6 +1791,28 @@ export default function BudgetTab({
           <span className="text-[11px] text-orange-600/80 sm:ml-1">
             — signez le devis pour les inclure dans le suivi
           </span>
+        </div>
+      )}
+
+      {/* ── Bannière : mouvements financiers non rattachés (orphelins) ────── */}
+      {!loading && (data?.cashflow_orphans?.length ?? 0) > 0 && (
+        <div className="px-5 py-2.5 bg-rose-50 border-b border-rose-100 flex flex-col sm:flex-row sm:items-center gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <AlertCircle className="h-3.5 w-3.5 text-rose-600 shrink-0" />
+            <p className="text-[12px] text-rose-800 font-medium">
+              {data!.cashflow_orphans!.length} mouvement{data!.cashflow_orphans!.length > 1 ? 's' : ''} non rattaché{data!.cashflow_orphans!.length > 1 ? 's' : ''} ·{' '}
+              {fmtEur(data!.cashflow_orphans!.reduce((s, o) => s + o.amount, 0))}
+            </p>
+            <span className="text-[11px] text-rose-600/80 hidden sm:inline">
+              — invisibles dans le tableau, à rattacher ou supprimer
+            </span>
+          </div>
+          <button
+            onClick={() => setShowOrphansModal(true)}
+            className="px-3 py-1.5 text-[11px] font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors shrink-0"
+          >
+            Réconcilier
+          </button>
         </div>
       )}
 
@@ -2487,6 +2543,18 @@ export default function BudgetTab({
           defaultLotId={addDocLotId}
           onClose={() => { setShowAddDoc(false); setAddDocLotId(undefined); }}
           onSuccess={() => { setShowAddDoc(false); setAddDocLotId(undefined); refresh(); }}
+        />
+      )}
+
+      {/* ── Modal réconciliation des cashflow_extras orphelins ────────────── */}
+      {showOrphansModal && data && (
+        <OrphansReconciliationModal
+          chantierId={chantierId}
+          token={token}
+          lots={orphanLots}
+          orphans={data.cashflow_orphans ?? []}
+          onClose={() => setShowOrphansModal(false)}
+          onChange={() => { refresh(); }}
         />
       )}
 
