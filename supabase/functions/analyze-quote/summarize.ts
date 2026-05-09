@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { ExtractedData } from "./types.ts";
+import { fetchGeminiWithRetry } from "../_shared/gemini-fetch.ts";
 
 interface WorkItemSummary {
   description: string;
@@ -41,7 +42,7 @@ Format attendu :
 ]`;
 
   try {
-    const response = await fetch(
+    const response = await fetchGeminiWithRetry(
       "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
       {
         method: "POST",
@@ -56,6 +57,7 @@ Format attendu :
           max_tokens: 4096,
         }),
       },
+      { timeoutMs: 20000, maxAttempts: 3, logPrefix: "[Summarize]" },
     );
 
     if (!response.ok) {

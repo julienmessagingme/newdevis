@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { ArrowLeft, Loader2, MessageSquare, Download } from "lucide-react";
 // generateConversationPdf chargé dynamiquement (jsPDF ~250 Ko évité au chargement initial)
 import MessageComposer from "./MessageComposer";
+import { sanitizeForRender } from "@/lib/blogUtils";
 
 interface ConversationThreadProps {
   conversation: {
@@ -139,7 +140,9 @@ export default function ConversationThread({
                   {!isOutbound && msg.body_html ? (
                     <div
                       className="prose prose-sm max-w-none text-sm"
-                      dangerouslySetInnerHTML={{ __html: msg.body_html }}
+                      // body_html provient d'un email entrant (SendGrid inbound) — contenu externe
+                      // non maîtrisé, sanitize obligatoire avant injection.
+                      dangerouslySetInnerHTML={{ __html: sanitizeForRender(msg.body_html) }}
                     />
                   ) : (
                     <p className="text-sm whitespace-pre-wrap">{msg.body_text}</p>
