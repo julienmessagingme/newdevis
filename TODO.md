@@ -229,6 +229,101 @@ Pas de **passerelle UX** entre les deux. Quand l'utilisateur passe de "j'ai mon 
 
 ---
 
+## Audit scalabilité + dette technique (2026-05-09)
+
+Audit en 4 axes (DB/Supabase, edge functions/agent IA, dette code, coûts/observabilité). Les items déjà listés ailleurs dans ce TODO ne sont pas dupliqués — référencés inline.
+
+**Verdict global** : aujourd'hui le projet scale bien jusqu'à ~30 chantiers actifs. Plafonds identifiés à 50-100 chantiers : (1) timeouts edge functions Supabase 60s sur extraction PDF gros, (2) cap Gemini 1k req/min sur batch evening, (3) queries DB en cascade sur views complexes (`payment_events_v`, `admin_kpis_*` non matérialisées). **Coût marginal estimé : ~€0.65-1.65/chantier actif/mois variable + ~€25-50/mois fixe (Supabase Pro + Vercel)**.
+
+### P0 — Critique (à traiter avant 50 chantiers actifs)
+
+- [ ] **Sentry / error tracking centralisé** — pas de Sentry installé. Silent failures détectés : whapi photo download (`webhooks/whapi.ts:69`), JSON truncation extraction (CLAUDE.md piège connu), agent tool_calls aborted, edge functions catch sans alerte. À faire : `npm i @sentry/node` + init dans edge functions Deno + serverless routes Vercel. ROI très haut, effort ~M (½ j).
+
+- [ ] **Webhook idempotence whapi + SendGrid** — whapi peut retry une 2e fois en cas de timeout edge fn → INSERT `chantier_whatsapp_messages` même `id` deux fois (PK constraint silently fails). Fix : UPSERT par `message_id` (whapi) + idempotency key SendGrid inbound. Effort ~L (1-2h).
+
+- [ ] **Timeouts explicites sur tous les fetch Gemini** — `analyze-quote` enchaîne 3 calls Gemini en série (extract → market-prices → summary). Si l'un stale, 60s Supabase atteint silencieusement. À faire : `AbortSignal.timeout(8000)` sur chaque fetch + circuit breaker partagé. Fichiers : `supabase/functions/analyze-quote/extract.ts`, `market-prices.ts`. Effort 4h.
+
+- [ ] **Sanitize XSS sur `dangerouslySetInnerHTML`** — 5 utilisations détectées, dont 2 sans sanitize stricte (`ScreenAmeliorations.tsx`, `ChatDrawer.tsx`). Le contenu vient parfois de l'IA, donc injection possible. Fix : DOMPurify partout, ou regex stricte documentée. Effort 4h.
+
+- [ ] **Gemini timeout sur gros PDF (>50 pages)** — `extract-document` peut hit le 240s edge function ceiling. À faire : chunk async + multi-part upload via Gemini Files API (déjà à moitié construit dans `extract.ts:86`). Effort ~M (½ j).
+
+### P1 — Important (entre 50 et 100 chantiers)
+
+- [ ] **Retry avec backoff exponentiel sur Gemini 429/500** — aujourd'hui `MAX_RETRIES=0` sur extract.ts:130 et market-prices.ts:802. Un 429 transitoire = 1 tool_call wasted, agent abandonne. Fix : 3 retries avec backoff (500ms → 2s → 8s) sur les codes retryables. Effort ~M (½ j).
+
+- [ ] **Prompt caching côté agent orchestrator** — supprimé 2026-04-23 pour garantir sync, mais `context.ts` rebuild ~6-10k tokens à chaque appel (cf. CLAUDE.md). Réimplémenter via Gemini `cache_control={"type":"ephemeral", "ttl_seconds": 3600}` sur le system prompt + portion stable du contexte. Gain : ~30-40% sur LLM agent ≈ -€0.05-0.06/chantier/mois. *Recouvre P5 backlog archi agent IA*. Effort ~M (1 j).
+
+- [ ] **Audit RLS systématique (152 policies)** — la migration `20260401400000_optimize_rls_indexes` a wrappé `(select auth.uid())` partiellement. Reste : `chantier_conversations`, `agent_pending_decisions` et autres avec EXISTS subqueries non corrélées → potentiel 100x slowdown sur 1M rows. Action : grep `IN (SELECT` dans toutes les policies + tester perf sur 10k rows + wrapper systématique. Effort ~H (1-2 j).
+
+- [ ] **`payment_events_v` — vue UNION 3 branches sur JSONB** — `cashflow_terms` JSONB sans index, CROSS JOIN LATERAL + UNION ALL = O(N²) à O(N³). Risque timeout sur admin KPIs à 1M+ events. Refacto : table matérialisée incrémentale (refresh sur trigger) ou MATERIALIZED VIEW avec refresh cron 15min. Fichier : migration `20260428230000_drop_payment_events_legacy.sql:34-115`. Effort ~M (½-1 j).
+
+- [ ] **Partitionnement temporel `agent_insights` / `agent_scheduled_actions`** — tables à croissance explosive (10-100k rows/jour à terme). Sans range partitioning par mois, WAL + VACUUM vont paralyser à 10M rows. Ajouter partitioning + politique d'archivage (insights > 90 j → cold storage). Effort ~M (½-1 j).
+
+- [ ] **Fan-out cron evening — throttle + backoff** — `agent-orchestrator` MAX_FAN_OUT=200 hardcoded sans throttling Google Gemini (1k req/min cap). 200 invocations parallèles + 8 tool_rounds = pic 1600 req/min. Fix : queue + adaptive throttle si 429 détecté. *Recouvre P4 backlog archi agent IA*. Effort ~M (1 j).
+
+- [ ] **Réduire 118 `as any` sans justification** — concentrés dans `conclusion.ts`, `budget.ts`, `BudgetTab.tsx`, `analyze-quote/index.ts`. Cherche : `grep -rn "as any" src/ | wc -l` = 118. Action : typage strict ou `// @ts-expect-error` justifié. Effort 2 j.
+
+- [ ] **SendGrid 5/contact/24h cap non tracké** — CLAUDE.md mentionne le cap mais aucune table de comptage. 6e email = silently dropped, no user-facing error. Fix : table `email_rate_limits(contact_id, sent_at)` + check avant POST. Effort ~L (2-3h).
+
+### P2 — Polish observabilité + qualité
+
+- [ ] **Logger centralisé (268 console.log/error/warn non filtrés)** — risque fuite données sensibles en prod (CLAUDE.md règle "fuites de secrets"). Fix : `lib/logger.ts` avec `isDev ? console.log : noop`, et masquage automatique des `Bearer\s+[a-zA-Z0-9_.-]+`. Effort 4h.
+
+- [ ] **`/api/health` endpoint** — pas de moyen de monitorer la plateforme except customer complaints. Fix : route Astro qui check Supabase ping + Gemini API + Stripe + whapi + SendGrid. Effort XS (15 min).
+
+- [ ] **Code mort — `skipN8N`, `score_legacy`, hacks 2.5-flash** — `analyze-quote/index.ts:195` skipN8N jamais utilisé en prod ; `verdict-utils.ts:45,74,86` score_legacy duplique verdict_decisionnel ; prompt agent contient examples obsolètes (`register_avenant`). Effort 8h cumulé.
+
+- [ ] **`lot_dependencies` batch delete/insert** — API planning fait `for (lotId, depIds)` → 1 SELECT + 1 DELETE + 1 INSERT par lot. Acceptable < 100 lots mais pas atomique. Fix : `DELETE ... IN (...)` + `INSERT ... VALUES (...)`. Fichier `src/pages/api/chantier/[id]/planning.ts:195-227`. Effort ~S (1h).
+
+- [ ] **MATERIALIZED VIEWS pour `admin_kpis_*`** — 8+ vues temps-réel non matérialisées (daily_evolution, retention_weekly, documents safe_json) avec CTE complexes sur tables volumineuses. Cron `REFRESH MATERIALIZED VIEW` 15 min → gain ~100x sur dashboards admin. Fichier : `20260227200000_optimize_rls_views_constraints.sql:58-175`. Effort ~M (½ j).
+
+- [ ] **Logs trop verbeux (1 MB/min en batch evening)** — 60+ console.log dans `analyze-quote` + agent-orchestrator log raw_body 2k chars sliced. Couper 80% des logs verbeux, garder WARN/ERROR + opt-in DEBUG. Effort 4h.
+
+- [ ] **Stripe webhook CORS restreint** — `*` aujourd'hui (vercel.json header global). Restreindre à signature-only en prod (déjà signé mais belt-and-suspenders). Effort ~S (1h).
+
+- [ ] **Hook CI types Supabase drift** — `src/integrations/supabase/types.ts` à jour aujourd'hui (2026-05-09) mais pas de garde-fou si une migration ajoute une colonne et types.ts n'est pas régénéré. Fix : GitHub Action qui run `supabase gen types` + diff fail si change. Effort ~S (1h).
+
+### P3 — Nice to have
+
+- [ ] **Correlation IDs end-to-end** — aucun trace ID partagé entre agent-orchestrator + tools + APIs. Debug en prod = matching manuel sur chantier_id + timestamp. Fix : injecter UUID au start de chaque run + propager via `X-Correlation-ID` sur tous les fetch. Effort ~M (½ j).
+
+- [ ] **Tools dispatcher — runtime monitoring "Unknown tool"** — collisions noms checkées au boot ✅ mais hallucinations Gemini runtime → "Unknown tool" silencieux. Ajouter `console.error("[tools] ${chantierId} unknown: ${toolName}")` line 85 de `tools/index.ts`. Effort 30 min.
+
+- [ ] **RLS `chantier_whatsapp_messages` optimisation** — triple subquery (chantier_id → groups → user_id). Index sur `group_id` créé récemment mais pattern reste lourd. Évaluer denormalization de `user_id` sur la table messages directement. Effort ~M (½ j).
+
+### Quick wins isolables (< 4h, sans risque régression)
+
+1. **`/api/health` endpoint** (15 min) — visibilité ops, pas d'effet de bord
+2. **Logger centralisé** (4h) — supprime risque fuite secrets en logs
+3. **DOMPurify sur dangerouslySetInnerHTML** (4h) — élimine 5 vecteurs XSS potentiels
+4. **Sentry init basique** (1h sur edge fns + 30min sur API routes) — capture les silent fails immédiatement
+5. **Webhook UPSERT idempotence** (2h) — évite double WhatsApp / double facturation
+6. **Stripe CORS restreint** (1h) — durcissement low-effort
+
+### Coûts marginaux estimés
+
+| Composant | Par chantier actif / mois |
+|---|---|
+| Gemini extraction (1-2 devis) | €0.06-0.16 |
+| Gemini agent (2-3 runs/jour) | €0.18-0.45 |
+| Supabase (DB + edge fn marginal) | €0.05-0.10 |
+| Vercel functions (Hobby = 0, Pro = ~€0.05) | €0-0.05 |
+| WhatsApp (whapi, ~20-30 msg) | €0.40-1.20 |
+| SendGrid + Google Places | €0-0.05 |
+| **Total variable** | **€0.65-1.65** |
+| **Fixe (Supabase Pro + Vercel Pro)** | **~€25-50/mois total** |
+
+**Gains potentiels du prompt caching agent** : -30 à -40% sur LLM agent ≈ **-€0.05-0.06/chantier/mois** + meilleure latence.
+
+**Plafonds identifiés** :
+- Gemini free tier 1k req/min → ~100+ chantiers en batch evening = saturation
+- Supabase edge function 60s timeout → extraction PDF >50 pages risquée
+- Supabase free tier 5k queries/sec → fan-out 200 chantiers × 8 queries context = 1600 req/min spike OK mais sans marge
+
+**Recommandation** : avant 30 chantiers, attaquer P0 (Sentry + idempotence + timeouts). Avant 50 chantiers, P1 (caching + RLS audit + payment_events_v + retry backoff). P2/P3 = polish à mesure que la base grossit.
+
+---
+
 ## Comment ce fichier fonctionne
 
 - **Quand on ajoute un item** : description courte + fichier:ligne quand pertinent + effort estimé si on l'a.
