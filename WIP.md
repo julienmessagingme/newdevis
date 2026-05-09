@@ -11,6 +11,57 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## NEW. Audit structure code — étapes 1-4 livrées, suite à programmer
+
+🟢 **Étapes 1-4 livrées 2026-05-08/09** (commits `cf359fd`, `65e6cb4`, prochain commit). Voir CLAUDE.md "Audit structure" pour le contexte complet.
+
+### Livré
+- ✅ **Étape 1** : `DashboardPremium` (wrapper de 34 lignes inutile) inliné, `DashboardUnified.tsx` → `ChantierCockpit.tsx` (le nom dit ce que c'est). Dead state nettoyé dans ChantierDetail.
+- ✅ **Étape 2** : `EcheancierRefonte.tsx` → `Echeancier.tsx` (le suffixe "Refonte" suggérait du code en transition jamais stabilisé).
+- ✅ **Étape 3** : `cockpit/` partitionné par domaine — 47 fichiers à plat → 9 sous-dossiers (`assistant/`, `budget/`, `contacts/`, `documents/`, `financing/`, `lots/`, `messagerie/`, `planning/`, `tresorerie/`). 0 nouvelle erreur TS.
+- ✅ **Étape 4** : `DashboardWidgets.tsx` (8 exports dont 5 dead) supprimé, les 3 utilisés (`KpiCard`, `ViewToggle`, `RDV_EMOJI`) inlinés dans DashboardHome (seul consommateur).
+
+### Reste à faire (backlog priorisé par ROI)
+
+#### 🟠 Étape 5 — Casser `BudgetTab.tsx` (2581 lignes 🔥)
+Le pire fichier du repo. Effort : ~1j. Risque : moyen (fichier critique, plusieurs flux paiement).
+Plan minimal : extraire 4-5 sous-composants (`IntervenantsList`, `PaymentSummary`, `MissingDocAlerts`, `LineItemRow`) en gardant `BudgetTab.tsx` comme orchestrateur < 500 lignes.
+
+#### 🟠 Étape 6 — Consolider Trésorerie ×3
+`tresorerie/{TresoreriePanel, TresorerieView, BudgetTresorerie}` = 4 niveaux de cascade pour afficher un même domaine. Effort : ~1j. Risque : moyen — `showBudgetDetail` flag dans ChantierCockpit suggère 2 modes distincts. **Audit avant de fusionner**.
+
+#### 🟠 Étape 7 — Partition `lib/` par domaine
+38 fichiers plats. Mêmes domaines que `cockpit/` :
+```
+lib/
+├── api/         (apiHelpers)
+├── analyse/     (verdictEngine, scoreUtils, conclusionTypes, entrepriseUtils, urbanismeUtils, blogUtils, securiteUtils, devisUtils, quoteGlobalAnalysis, contexteUtils, architecteUtils)
+├── chantier/    (planningUtils, lotUtils, paymentEvents, financingUtils, budgetAffinageData, budgetHelpers, dashboardHelpers, roadmapUtils)
+├── auth/        (gmcAccess, postLoginRedirect, signOut, ssoHandoffClient, adminAuth, brand, domainConfig)
+├── integrations/ (whapiUtils, marketingApi, amplitude, subscription)
+└── data/        (workTypeReferentiel, formalitesLinks, prompts/)
+```
+Effort : 30min. Risque : bas. Faire en `git mv` + bulk update des imports `@/lib/X` → `@/lib/<domain>/X`.
+
+#### 🟠 Étape 8 — Header ×3 sync
+3 variantes (`layout/Header.tsx` React + `astro/Header.astro` + `gmc-landing/Header.astro`) imposent de modifier 3 fichiers à chaque changement d'auth state. Extraire un `<HeaderUserMenu />` partagé client:only — les 3 Headers se réduisent à layout + branding + import du même menu.
+Effort : 2-3h. Risque : moyen.
+
+#### 🟠 Étape 9 — Découper `AnalysisResult.tsx` (1341 lignes)
+Page principale d'analyse de devis. Les sections `Block*` sont déjà extraites — reste 1341 lignes d'orchestrateur dont gros useMemo (`effectiveScore`, `weightedAnomalies`) à sortir en hooks dédiés (`useEffectiveScore.ts`, `useWeightedAnomalies.ts`). Cible : ~600 lignes.
+Effort : ~1j. Risque : moyen (page critique, beaucoup de logique TDZ-sensible — cf. règle "TDZ in edge functions and React").
+
+#### 🟠 Étape 10 — Tests unitaires (couverture critique)
+Au minimum couvrir avec Vitest :
+- `lib/planningUtils.ts` (CPM forward pass — bug zone historique)
+- `lib/market-prices.ts` (matching 5 niveaux + emergency fallback)
+- `pages/api/analyse/[id]/conclusion.ts` (`extractKnownSurface`, `hasSurfaceUnitMismatch`)
+- `verdictEngine.ts` ✅ déjà couvert (27 cas)
+
+Effort : 2-3j. Risque : bas. Filet de sécurité critique vu que l'agent IA prend des actions destructives.
+
+---
+
 ## NEW. Audit Budget & Trésorerie — 8/10 atteint
 
 🟢 **Vagues 1+2 livrées 2026-05-08 (commits `c063196` + `a9cfe67`). Cible 8/10 atteinte. Vague 3 = polish 9-10/10.**

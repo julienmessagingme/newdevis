@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { Plus, SlidersHorizontal, HelpCircle, X, Check } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
+import { Plus, SlidersHorizontal, HelpCircle, X, Check, LayoutGrid, List } from 'lucide-react';
 import type { DocumentChantier, LotChantier } from '@/types/chantier-ia';
-import { KpiCard, ViewToggle, RDV_EMOJI } from './DashboardWidgets';
 import PaiementDrawer from './tresorerie/PaiementDrawer';
 import LotIntervenantCard from './lots/LotIntervenantCard';
 import IntervenantsListView from './lots/IntervenantsListView';
@@ -1041,3 +1040,62 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
 }
 
 export default DashboardHome;
+
+// ── Composants utilitaires (inlinés depuis DashboardWidgets le 2026-05-08) ──
+
+function KpiCard({ icon, label, value, sub, accent = 'gray', action, onClick }: {
+  icon: string;
+  label: string;
+  value: string | number;
+  sub?: string;
+  accent?: 'gray' | 'emerald' | 'blue' | 'red' | 'amber' | 'orange';
+  action?: ReactNode;
+  onClick?: () => void;
+}) {
+  const colors: Record<string, { bg: string; value: string; sub: string; ring: string }> = {
+    gray:    { bg: 'bg-gray-50',    value: 'text-gray-900',    sub: 'text-gray-400',    ring: 'hover:ring-gray-200'    },
+    emerald: { bg: 'bg-emerald-50', value: 'text-emerald-700', sub: 'text-emerald-500', ring: 'hover:ring-emerald-200' },
+    blue:    { bg: 'bg-blue-50',    value: 'text-blue-700',    sub: 'text-blue-400',    ring: 'hover:ring-blue-200'    },
+    red:     { bg: 'bg-red-50',     value: 'text-red-600',     sub: 'text-red-400',     ring: 'hover:ring-red-200'     },
+    amber:   { bg: 'bg-amber-50',   value: 'text-amber-700',   sub: 'text-amber-500',   ring: 'hover:ring-amber-200'   },
+    orange:  { bg: 'bg-orange-50',  value: 'text-orange-700',  sub: 'text-orange-500',  ring: 'hover:ring-orange-200'  },
+  };
+  const c = colors[accent] ?? colors.gray;
+  return (
+    <div
+      onClick={onClick}
+      className={`${c.bg} rounded-2xl px-4 py-4 flex items-start gap-3 transition-all ${onClick ? `cursor-pointer ring-1 ring-transparent ${c.ring}` : ''}`}
+    >
+      <span className="text-2xl leading-none mt-0.5 shrink-0">{icon}</span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">{label}</p>
+        <p className={`text-2xl font-extrabold tabular-nums leading-none ${c.value}`}>{value}</p>
+        {sub && <p className={`text-xs font-medium mt-1 ${c.sub}`}>{sub}</p>}
+        {action && <div className="mt-2">{action}</div>}
+      </div>
+    </div>
+  );
+}
+
+function ViewToggle({ value, onChange }: { value: 'cards' | 'list'; onChange: (v: 'cards' | 'list') => void }) {
+  return (
+    <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-0.5">
+      <button
+        onClick={() => onChange('cards')}
+        className={`flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-all ${value === 'cards' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
+      >
+        <LayoutGrid className="h-3 w-3" /> Cartes
+      </button>
+      <button
+        onClick={() => onChange('list')}
+        className={`flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-all ${value === 'list' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
+      >
+        <List className="h-3 w-3" /> Liste
+      </button>
+    </div>
+  );
+}
+
+const RDV_EMOJI: Record<'artisan' | 'visite' | 'signature' | 'autre', string> = {
+  artisan: '👷', visite: '🏠', signature: '✍️', autre: '📅',
+};
