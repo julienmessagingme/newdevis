@@ -141,6 +141,8 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
 - **Toujours sanitize les sorties LLM avant injection HTML** (2026-05-09) : tout `dangerouslySetInnerHTML` qui affiche du contenu généré par un LLM (Gemini agent, chat, suggestions) DOIT passer par `sanitizeForRender()` de `@/lib/blogUtils` (DOMPurify allowlist-based). Vu : `ChatDrawer.tsx`, `ScreenAmeliorations.tsx`. Sans ça, un LLM jailbreaké ou un prompt injection peut produire `<script>` ou des handlers `onerror`. Idem pour les contenus externes non maîtrisés (ex: `body_html` d'emails entrants SendGrid → sanitize obligatoire).
 
+- **Rate limit emails sortants — 5/contact/24h enforcé côté API ET agent** (2026-05-09) : le cap est appliqué à la fois dans `src/pages/api/chantier/[id]/messages.ts` (avant INSERT) ET dans `supabase/functions/agent-orchestrator/tools/comm.ts:252-267` (avant l'appel API). Source unique de vérité = `chantier_messages` (count outbound sur 24h). Ne jamais ajouter une nouvelle voie d'envoi qui bypass ce check — sinon boucle agent / clic excessif user → spam. Si on ajoute un canal alternatif (web push, autre email provider), répliquer le check en amont.
+
 ### Multi-devis — règles d'architecture (2026-05-04)
 
 - **RÈGLE ABSOLUE : un PDF multi-artisans = N analyses indépendantes.** Jamais de mélange de lignes entre artisans, jamais de verdict calculé sur des données croisées.
