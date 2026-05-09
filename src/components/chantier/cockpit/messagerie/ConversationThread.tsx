@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { ArrowLeft, Loader2, MessageSquare, Download } from "lucide-react";
 // generateConversationPdf chargé dynamiquement (jsPDF ~250 Ko évité au chargement initial)
 import MessageComposer from "./MessageComposer";
-import { sanitizeForRender } from "@/lib/blogUtils";
+import { sanitizeForRender } from "@/lib/blog/blogUtils";
 
 interface ConversationThreadProps {
   conversation: {

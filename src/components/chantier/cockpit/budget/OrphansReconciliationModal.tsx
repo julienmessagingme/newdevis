@@ -12,7 +12,7 @@
 
 import { useState } from 'react';
 import { X, Link2, Trash2, Loader2, AlertCircle } from 'lucide-react';
-import { fmtEur } from '@/lib/financingUtils';
+import { fmtEur } from '@/lib/chantier/financingUtils';
 import { createClient } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import type { LotChantier } from '@/types/chantier-ia';

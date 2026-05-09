@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, ArrowLeft, Wand2 } from 'lucide-react';
 import type { ChantierIAResult, ChangeItem, ArtisanIA, FormaliteIA, TacheIA } from '@/types/chantier-ia';
-import { sanitizeForRender } from '@/lib/blogUtils';
+import { sanitizeForRender } from '@/lib/blog/blogUtils';
 
 interface ScreenAmeliorationsProps {
   result: ChantierIAResult;

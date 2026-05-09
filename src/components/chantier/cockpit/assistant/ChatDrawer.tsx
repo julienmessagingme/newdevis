@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Loader2, ArrowRight } from 'lucide-react';
 import type { ChantierIAResult, DocumentChantier, LotChantier } from '@/types/chantier-ia';
 import { ExpertAvatar } from '@/components/chantier/MATERIAL_IMAGES';
-import { sanitizeForRender } from '@/lib/blogUtils';
+import { sanitizeForRender } from '@/lib/blog/blogUtils';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

@@ -400,7 +400,8 @@
       "Bash(bash /tmp/sedscript.sh)",
       "Bash(awk '$1==0 && $2==0 {count++} END {print count \" files only differ in line endings\"}')",
       "Bash(awk '{print $1}')",
-      "Bash(git update-index *)"
+      "Bash(git update-index *)",
+      "Bash(xargs -0 sed -i -e 's|@/lib/blogUtils|@/lib/blog/blogUtils|g' -e 's|@/lib/financingUtils|@/lib/chantier/financingUtils|g')"
     ]
   }
 }
