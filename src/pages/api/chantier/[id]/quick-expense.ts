@@ -73,13 +73,21 @@ export const POST: APIRoute = async ({ params, request }) => {
     label,
   }];
 
+  // bucket_path est NOT NULL UNIQUE → on génère un chemin fictif unique
+  // (cohérent avec /documents/depense-rapide qui fait pareil pour les
+  // dépenses sans fichier physique).
+  const bucketPath = `manual/${chantierId}/${randomUUID()}`;
+
   const { data: inserted, error } = await ctx.supabase
     .from('documents_chantier')
     .insert({
       chantier_id:    chantierId,
       nom:            label,
       nom_fichier:    note ?? label,
+      bucket_path:    bucketPath,
       document_type:  'facture',
+      type:           'facture',
+      source:         'manual_entry',
       depense_type,
       facture_statut: 'payee',
       montant:        amount,
@@ -92,7 +100,10 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   if (error || !inserted) {
     console.error('[quick-expense] insert error:', error?.message);
-    return jsonError('Erreur lors de la création de la dépense', 500);
+    return jsonError(
+      `Erreur lors de la création de la dépense${error?.message ? ' : ' + error.message : ''}`,
+      500,
+    );
   }
 
   return jsonOk({ document: inserted, message: 'Dépense enregistrée' }, 201);

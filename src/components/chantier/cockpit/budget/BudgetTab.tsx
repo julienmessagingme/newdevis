@@ -613,8 +613,12 @@ function BudgetKpiDashboard({
             Décaissé
             <InfoTooltip lines={[
               'Tout l\'argent qui a quitté votre compte.',
-              totaux?.acompte ? `Acomptes versés : ${fmtEur(totaux.acompte)}` : null,
-              totaux?.paye ? `Factures réglées : ${fmtEur(totaux.paye)}` : null,
+              totaux?.acompte
+                ? `Versés sur devis : ${fmtEur(totaux.acompte)} (acomptes ou solde sans facture émise)`
+                : null,
+              totaux?.paye
+                ? `Versés sur factures : ${fmtEur(totaux.paye)} (factures payées intégralement)`
+                : null,
               `Total sorti : ${fmtEur(decaisse)}`,
             ].filter(Boolean) as string[]} />
           </p>
@@ -632,14 +636,14 @@ function BudgetKpiDashboard({
                   {(totaux?.acompte ?? 0) > 0 && (
                     <p className="text-[10px] flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
-                      <span className="text-gray-500">Acomptes</span>
+                      <span className="text-gray-500">Versés sur devis</span>
                       <span className="font-semibold text-indigo-600 ml-auto">{fmtEur(totaux!.acompte)}</span>
                     </p>
                   )}
                   {(totaux?.paye ?? 0) > 0 && (
                     <p className="text-[10px] flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                      <span className="text-gray-500">Factures réglées</span>
+                      <span className="text-gray-500">Versés sur factures</span>
                       <span className="font-semibold text-emerald-600 ml-auto">{fmtEur(totaux!.paye)}</span>
                     </p>
                   )}

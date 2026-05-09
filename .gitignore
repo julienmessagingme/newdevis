@@ -36,3 +36,4 @@ dist-ssr
 report.html
 claude-err.log
 issue-body.md
+.claude/worktrees/
