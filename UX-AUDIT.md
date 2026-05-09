@@ -163,11 +163,11 @@ Les corrections C1-C4 et I2/I4/I6 sont **toutes confirmées en place**. Le Dashb
 
 | # | Problème | Statut | Vérification AUDIT #2 |
 |---|----------|--------|------------------------|
-| I1 | "En litige" en 1 clic | 🟠 Backlog | Toujours dans dropdown direct (`VersementsDrawer.tsx:49`) sans confirmation ni note obligatoire |
+| I1 | "En litige" en 1 clic | ✅ Corrigé 2026-05-09 | Panel de confirmation inline + raison obligatoire ≥ 10 chars avant d'appliquer le statut (`VersementsDrawer.tsx:526-572`) |
 | I2 | Sous-lignes devis collapsed | ✅ Confirmé | Devis multiples dans drawer collapsed, "+N autres" expand on click |
 | I3 | Assistant IA invisible hors onglet | 🔴 **Backlog persistant** | Pas de bandeau alerts sur DashboardHome ni BudgetTab. Seuls les toasts < 5 min + badge sidebar signalent. User qui n'ouvre jamais l'onglet ne voit rien. |
-| I4 | "Reste" couleur neutre | ⚠️ **Partiel** | Desktop = gris (`BudgetTab.tsx:2149`) ✅ · **Mobile = `text-amber-600` par défaut** (`:1204`) ❌ → incohérence à corriger |
-| I5 | Vue expert en toggle | 🟠 Backlog | Toujours un seul mode (dense). Pas de toggle "Vue novice / Expert" |
+| I4 | "Reste" couleur neutre | ✅ Corrigé 2026-05-09 | Desktop déjà gris ✅ · Mobile passé de `text-amber-600` à `text-gray-700` (`BudgetTab.tsx:1204`) |
+| I5 | Vue expert en toggle | 🟠 Backlog | Refonte invasive du tableau (colgroup table-fixed + headers + cells) jugée trop risquée pour la session "no breaking". Le toggle "Tout réduire/développer" existant couvre partiellement l'intention. |
 | I6 | Dépense rapide visible | ✅ Confirmé | Bouton "🧾" dans QuickActions DashboardHome, modal complète avec lot/note |
 
 ---
@@ -176,10 +176,9 @@ Les corrections C1-C4 et I2/I4/I6 sont **toutes confirmées en place**. Le Dashb
 
 #### N1 — Couleur "Reste à payer" incohérente mobile vs desktop
 - **Sévérité :** P1
-- **Statut :** 🔴 À corriger
+- **Statut :** ✅ Corrigé 2026-05-09
 - **Description :** I4 a été corrigé sur le tableau desktop (gris-700) mais la card mobile `ArtisanCardMobile` affiche encore `text-amber-600` (orange) par défaut sur le restant dû — exactement le pattern anxiogène que I4 voulait éliminer.
-- **Fichier :** `src/components/chantier/cockpit/budget/BudgetTab.tsx:1200-1207`
-- **Fix :** Aligner sur la règle desktop — `text-gray-700` par défaut, `text-orange-600` uniquement si retard avéré (date dépassée ou anomalie).
+- **Fix appliqué :** `text-amber-600` → `text-gray-700` (`BudgetTab.tsx:1204`). Aligné sur le tableau desktop.
 
 #### N2 — Assistant IA invisible hors onglet (régression I3 non résolue)
 - **Sévérité :** P0 — **frein produit majeur**
@@ -190,25 +189,24 @@ Les corrections C1-C4 et I2/I4/I6 sont **toutes confirmées en place**. Le Dashb
 
 #### N3 — 5 KPIs financiers non harmonisés Budget ↔ Trésorerie
 - **Sévérité :** P2
-- **Statut :** 🟠 Backlog
-- **Description :** CLAUDE.md définit 5 chiffres canoniques (Budget cible / Engagé / Décaissé / À payer / Flux certains). Le BudgetTab les affiche tous via `BudgetKpiDashboard`. La vue Trésorerie en affiche seulement 2-3 explicitement (Budget cible + À payer 30j) ; Engagé / Décaissé / Flux certains sont implicites dans la consommation par source. L'utilisateur doit naviguer entre onglets pour confronter les chiffres.
-- **Fix :** Header KPI commun aux deux onglets (Budget + Trésorerie) reprenant les 5 chiffres avec mêmes labels et mêmes couleurs.
+- **Statut :** ✅ Corrigé 2026-05-09
+- **Description :** CLAUDE.md définit 5 chiffres canoniques (Budget cible / Engagé / Décaissé / À payer / Flux certains). Le BudgetTab les affiche tous via `BudgetKpiDashboard`. La vue Trésorerie en affichait seulement 2-3 explicitement.
+- **Fix appliqué :** Composant `KpiBandeauCanonique` ajouté en haut de `TresorerieView` (`TresorerieView.tsx:240-275`) qui affiche les 5 chiffres en grid responsive (2 cols mobile, 5 cols desktop) avec mêmes labels que BudgetTab.
 
 #### N4 — PaymentDetailPanel découvrabilité faible
 - **Sévérité :** P2
-- **Statut :** 🟠 Backlog
-- **Description :** Le split d'échéance s'ouvre au clic sur la row d'un payment_event dans Echeancier. Pas de cue visuel (cursor pointer + hover state suffisants ne sont pas assez explicites). L'utilisateur novice ne saura pas qu'on peut splitter une échéance.
-- **Fichier :** `src/components/chantier/cockpit/tresorerie/Echeancier.tsx`
-- **Fix :** Icon "✏️" ou label "Modifier / Splitter" visible sur hover, ou un menu kebab par row.
+- **Statut :** ✅ Corrigé 2026-05-09 (cue visuel ajouté)
+- **Description :** Le split d'échéance s'ouvre au clic sur la row d'un payment_event dans Echeancier. Pas de cue visuel (cursor pointer + hover state suffisants ne sont pas assez explicites).
+- **Fix appliqué :** Title HTML "Cliquer pour modifier ou splitter cette échéance" + chevron passé de `text-gray-300` à `text-gray-400` avec `group-hover:text-indigo-400` pour mieux signaler l'interactivité (`Echeancier.tsx:1244-1272`).
 
 #### N5 — Mobile critiques (NO GO sur ces 3 points)
 - **Sévérité :** P0
 - **Statut :** 🔴 À corriger
 
-**N5a — Sidebar 240px sur mobile**  
+**N5a — Sidebar 240px sur mobile** ✅ Corrigé 2026-05-09  
 La sidebar est `w-[240px]` même sur 375px → ~135px de contenu utile (35% perdu).  
 Fichier : `src/components/chantier/cockpit/Sidebar.tsx:67`  
-Fix : `w-full sm:w-[240px]` ou drawer fullscreen mobile (pattern PanneauDetail).
+**Fix appliqué :** `w-[280px] lg:w-[240px]` + `pb-[max(0.5rem,env(safe-area-inset-bottom))]` pour le notch iOS.
 
 **N5b — IntervenantsListView : tableau horizontal sur mobile**  
 Tableau 6 colonnes `min-w-[760px]` qui force scroll-X sur 375px, font 10px illisible.  
@@ -222,23 +220,25 @@ Fix : ajouter touch events parallèles (ou utiliser `pointerdown` qui couvre les
 
 #### N6 — Mobile importants
 - **Sévérité :** P1
-- **Statut :** 🟠 Backlog
+- **Statut :** ✅ Corrigés 2026-05-09 (sauf pencil edit durée — laissé en backlog, peu critique)
 
-**N6a — Icon buttons sous 44×44px**  
-Bouton retour ChantierCockpit (`:610`) et LotDetail (`:71`) en `w-8 h-8` (32px). Pencil edit durée LotDetail (`:162`) en `w-6 h-6` (24px). Bouton retour ConversationThread (`:71`) en `p-1` (~20px). Violations WCAG 2.1 (cible tactile minimale 44×44).
+**N6a — Icon buttons sous 44×44px** ✅  
+- Bouton menu mobile ChantierCockpit (`:610`) → `w-11 h-11` + `aria-label`
+- Bouton retour LotDetail (`:71`) → `w-11 h-11 lg:w-9 lg:h-9` (44 mobile, 36 desktop)
+- Bouton retour ConversationThread (`:71`) → `w-11 h-11 flex items-center justify-center` + `aria-label`
+- Pencil edit durée LotDetail (`:162`) — laissé en backlog (24×24, intégré dans une row, peu critique)
 
-**N6b — PanneauDetail sans safe-area iOS**  
-Drawer fullscreen sur mobile mais le `overflow-y-auto` du contenu n'a pas `pb-[max(1rem,env(safe-area-inset-bottom))]` — sur iPhone à gesture bar, le contenu scrollable est masqué.  
-Fichier : `src/components/chantier/cockpit/PanneauDetail.tsx:60`
+**N6b — PanneauDetail sans safe-area iOS** ✅  
+**Fix appliqué :** `pb-[max(1.25rem,env(safe-area-inset-bottom))]` sur le scroll content (`PanneauDetail.tsx:60`).
 
-**N6c — LotDetail durée sans inputMode**  
-`type="number"` sans `inputMode="numeric"` → pavé alpha sur iOS au lieu de pavé numérique.  
-Fichier : `src/components/chantier/cockpit/lots/LotDetail.tsx:136`
+**N6c — LotDetail durée sans inputMode** ✅  
+**Fix appliqué :** `inputMode="numeric"` ajouté sur l'input number durée (`LotDetail.tsx:131`).
 
 #### N7 — TresorerieView : référence à champ FinancingConfig non typé
 - **Sévérité :** P3
-- **Description :** `cfg.tvaOn` et `cfg.tva` référencés mais absents de l'interface `FinancingConfig` (`TresorerieView.tsx:1126`). Pas de bug user-facing immédiat mais TypeScript laxiste = risque TDZ-style en prod (cf. CLAUDE.md "Pièges connus / TDZ").
-- **Fix :** Compléter l'interface ou supprimer les références.
+- **Statut :** ✅ Corrigé 2026-05-09
+- **Description :** `cfg.tvaOn` et `cfg.tva` référencés mais absents de l'interface `FinancingConfig` (`TresorerieView.tsx:1126`).
+- **Fix appliqué :** Référence supprimée. Code mort confirmé (aucun autre usage dans le repo). `totalAides` se calcule désormais sans le terme TVA (toujours nul de fait).
 
 ---
 
@@ -279,9 +279,44 @@ Aucune régression franche par rapport à l'audit #1 — les correctifs C1-C4 n'
 
 ---
 
+---
+
+## Sprint correctifs 2026-05-09 — résumé
+
+Vague A + B + C livrées en une session, à scope contraint pour éviter les régressions.
+
+### Corrigés (10 items)
+
+| # | Item | Fichier:ligne |
+|---|------|---------------|
+| N1 | Reste mobile passé en gris (alignement desktop) | `BudgetTab.tsx:1204` |
+| N3 | Bandeau 5 KPIs canoniques en haut de Trésorerie | `TresorerieView.tsx:240-275, 1194-1200` |
+| N4 | Cue visuel chevron + title sur split d'échéance | `Echeancier.tsx:1244-1272` |
+| N5a | Sidebar 280px mobile + safe-area | `Sidebar.tsx:67-71` |
+| N6a | Touch targets 44×44 (3 boutons retour/menu) | `ChantierCockpit.tsx:609`, `LotDetail.tsx:71`, `ConversationThread.tsx:67-74` |
+| N6b | PanneauDetail safe-area iOS sur scroll | `PanneauDetail.tsx:60` |
+| N6c | LotDetail durée `inputMode="numeric"` | `LotDetail.tsx:131` |
+| N7 | Code mort `cfg.tvaOn` supprimé | `TresorerieView.tsx:1126` |
+| I1 | Confirmation "En litige" + raison ≥ 10 chars | `VersementsDrawer.tsx:302-305, 504-512, 526-572` |
+| I4 | Reste à payer mobile gris (régression partielle de l'audit #1) | `BudgetTab.tsx:1204` |
+
+### Skipped (avec justification)
+
+- **I3** Assistant IA bandeau persistant — demande une décision UX (où placer le bandeau, quel message) qui mérite une session dédiée
+- **I5** Toggle vue novice/expert — refonte invasive du tableau (colgroup table-fixed + headers + cells), risque de régression élevé pour cette session "no breaking"
+- **N5b** IntervenantsListView en cards mobile — refonte UI de la vue Lots, scope > 1 j
+- **N5c** Touch events Planning Gantt — chantier dédié (PlanningTimeline complet), 1 j minimum
+- **Pencil edit durée LotDetail** (24×24) — peu critique, le bouton Check/X adjacent (28×28) est aussi sous-dimensionné, à traiter ensemble dans une passe globale touch-targets
+
+### Score global révisé
+
+Avant : 6.7/10 · Après : **7.6/10** (+0.9). Reste bloqué par I3 et N5b/N5c côté mobile.
+
+---
+
 ## AUDIT #3 — À venir
 
-*(Refaire après corrections N1-N7 + clarification I3/I5)*
+*(Refaire après I3 bandeau IA + N5b/N5c chantier mobile)*
 
 ---
 

@@ -1201,7 +1201,7 @@ function ArtisanCardMobile({
         <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
           <span className="tabular-nums">{totalPaye > 0 ? `${fmtEur(totalPaye)} payés` : '—'}</span>
           {reste > 0 && (
-            <span className="font-semibold text-amber-600 tabular-nums">{fmtEur(reste)} à payer</span>
+            <span className="font-semibold text-gray-700 tabular-nums">{fmtEur(reste)} à payer</span>
           )}
         </div>
       )}

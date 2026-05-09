@@ -302,12 +302,22 @@ Audit complet → voir [`UX-AUDIT.md`](UX-AUDIT.md) (baseline + historique des i
 
 | # | Problème | Statut |
 |---|----------|--------|
-| I1 | Statut "En litige" = confirmation requise | 🟠 Backlog |
+| I1 | Statut "En litige" = confirmation requise | ✅ Fait 2026-05-09 (panel inline + raison ≥ 10 chars) |
 | I2 | Sous-lignes devis masquées par défaut dans Budget | ✅ Fait `ebe745c` |
 | I3 | Surface persistante alertes IA (bandeau, pas onglet) | 🟠 Backlog |
-| I4 | "Reste" en orange → neutre sauf retard réel | ✅ Fait `2d16ca2` |
-| I5 | Vue expert en toggle | 🟠 Backlog |
-| I6 | Dépense rapide mieux visible | 🟠 Backlog |
+| I4 | "Reste" en orange → neutre sauf retard réel | ✅ Fait `2d16ca2` (desktop) + 2026-05-09 (mobile) |
+| I5 | Vue expert en toggle | 🟠 Backlog (refonte tableau invasive — reporté) |
+| I6 | Dépense rapide mieux visible | ✅ Fait 2026-05-03 |
+
+### AUDIT #2 — sprint correctifs 2026-05-09
+
+10 fixes livrés en une session (Vague A + B + C). Score global 6.7 → 7.6/10.
+
+**Corrigés** : N1 (reste mobile gris) · N3 (bandeau 5 KPIs canoniques en Trésorerie) · N4 (cue visuel split échéance) · N5a (sidebar 280px mobile + safe-area) · N6a (touch targets 44×44) · N6b (PanneauDetail safe-area) · N6c (inputMode numeric durée) · N7 (code mort `cfg.tvaOn`) · I1 (confirmation litige) · I4 (reste mobile, régression partielle audit #1).
+
+**Skipped (justifiés)** : I3 (bandeau IA — décision UX dédiée) · I5 (toggle vue — refonte invasive) · N5b (IntervenantsListView cards mobile) · N5c (touch events Planning).
+
+Voir [`UX-AUDIT.md`](UX-AUDIT.md) "Sprint correctifs 2026-05-09" pour le détail.
 
 ---
 

@@ -57,7 +57,7 @@ export default function PanneauDetail({ open, onClose, title, children }: Pannea
         </div>
 
         {/* Contenu scrollable */}
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           {children}
         </div>
       </div>
