@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { usePremium } from "@/hooks/usePremium";
 
-import { hasGmcAccess } from "@/lib/gmcAccess";
+import { hasGmcAccess } from "@/lib/auth/gmcAccess";
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -34,7 +34,7 @@ const Header = () => {
   const handleSignOut = async () => {
     // Logout cross-domaine : invalide les refresh tokens serveur-side et
     // vide le localStorage des deux origines via iframe caché.
-    const { signOutCrossDomain } = await import("@/lib/signOut");
+    const { signOutCrossDomain } = await import("@/lib/auth/signOut");
     await signOutCrossDomain("/");
   };
 
@@ -104,7 +104,7 @@ const Header = () => {
                   e.preventDefault();
                   const lastId = typeof window !== 'undefined' ? localStorage.getItem('lastChantierId') : null;
                   const targetPath = lastId ? `/mon-chantier/${lastId}` : '/mon-chantier';
-                  const { navigateToGmc } = await import('@/lib/ssoHandoffClient');
+                  const { navigateToGmc } = await import('@/lib/auth/ssoHandoffClient');
                   await navigateToGmc(targetPath);
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors text-sm font-medium text-primary"
@@ -207,7 +207,7 @@ const Header = () => {
                   setMobileMenuOpen(false);
                   const lastId = typeof window !== 'undefined' ? localStorage.getItem('lastChantierId') : null;
                   const targetPath = lastId ? `/mon-chantier/${lastId}` : '/mon-chantier';
-                  const { navigateToGmc } = await import('@/lib/ssoHandoffClient');
+                  const { navigateToGmc } = await import('@/lib/auth/ssoHandoffClient');
                   await navigateToGmc(targetPath);
                 }}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium"

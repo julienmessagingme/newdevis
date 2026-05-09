@@ -21,7 +21,7 @@ import UploadDocumentModal from './documents/UploadDocumentModal';
 import AddIntervenantModal from './contacts/AddIntervenantModal';
 import ChatDrawer from './assistant/ChatDrawer';
 import DocumentsView from './documents/DocumentsView';
-import { fmtK } from '@/lib/dashboardHelpers';
+import { fmtK } from '@/lib/chantier/dashboardHelpers';
 import Sidebar, { type Section, type NavBadge } from './Sidebar';
 import LotDetail from './lots/LotDetail';
 import DashboardHome from './DashboardHome';

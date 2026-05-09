@@ -19,7 +19,7 @@ import {
   jsonOk,
   jsonError,
   createServiceClient,
-} from '@/lib/apiHelpers';
+} from '@/lib/api/apiHelpers';
 
 // Tools qui RÉELLEMENT mutent l'état (exclus les GET passifs)
 const MUTATION_TOOLS = new Set([

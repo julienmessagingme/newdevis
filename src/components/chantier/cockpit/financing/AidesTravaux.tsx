@@ -10,7 +10,7 @@ import {
   ECO_PTZ_MAX_AMOUNT,
   type EffyResult,
   fmtEur,
-} from '@/lib/financingUtils';
+} from '@/lib/chantier/financingUtils';
 import type { SourceKey } from '../tresorerie/FinancingSources';
 
 export interface SimulationData {

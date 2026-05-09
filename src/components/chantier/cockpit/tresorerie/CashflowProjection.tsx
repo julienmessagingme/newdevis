@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Info } from 'lucide-react';
 import { usePaymentEvents } from '@/hooks/usePaymentEvents';
-import { fmtEur, fmtDateShort } from '@/lib/financingUtils';
+import { fmtEur, fmtDateShort } from '@/lib/chantier/financingUtils';
 
 export default function CashflowProjection({
   next7, next30, next60, events,

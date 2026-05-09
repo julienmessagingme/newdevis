@@ -2,8 +2,8 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { createClient } from '@supabase/supabase-js';
-import { formatPhone } from '@/lib/whapiUtils';
-import { triggerAgentIfOpenClaw } from '@/lib/apiHelpers';
+import { formatPhone } from '@/lib/integrations/whapiUtils';
+import { triggerAgentIfOpenClaw } from '@/lib/api/apiHelpers';
 
 const supabaseUrl     = import.meta.env.PUBLIC_SUPABASE_URL;
 const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;

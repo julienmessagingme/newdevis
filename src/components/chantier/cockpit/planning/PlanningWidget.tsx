@@ -5,7 +5,7 @@
 import { useMemo } from 'react';
 import { Calendar, ChevronRight } from 'lucide-react';
 import type { LotChantier } from '@/types/chantier-ia';
-import { formatDuration, getWeekNumber, getTotalWeeks } from '@/lib/planningUtils';
+import { formatDuration, getWeekNumber, getTotalWeeks } from '@/lib/chantier/planningUtils';
 
 interface Props {
   lots: LotChantier[];

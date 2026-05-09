@@ -1,9 +1,9 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonError } from '@/lib/apiHelpers';
-import { requireAdmin } from '@/lib/adminAuth';
-import { marketingFetchRaw, marketingErrorResponse } from '@/lib/marketingApi';
+import { optionsResponse, jsonError } from '@/lib/api/apiHelpers';
+import { requireAdmin } from '@/lib/auth/adminAuth';
+import { marketingFetchRaw, marketingErrorResponse } from '@/lib/integrations/marketingApi';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

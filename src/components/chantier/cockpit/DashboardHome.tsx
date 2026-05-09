@@ -6,7 +6,7 @@ import LotIntervenantCard from './lots/LotIntervenantCard';
 import IntervenantsListView from './lots/IntervenantsListView';
 import PlanningWidget from './planning/PlanningWidget';
 import ComparateurDevisModal from './ComparateurDevisModal';
-import { fmtK } from '@/lib/dashboardHelpers';
+import { fmtK } from '@/lib/chantier/dashboardHelpers';
 import type { BreakdownItem } from './tresorerie/BudgetTresorerie';
 import { useAnalysisScores } from '@/hooks/useAnalysisScores';
 

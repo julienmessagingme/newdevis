@@ -6,7 +6,7 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Receipt, Plus, ShoppingCart, Wrench, ChevronDown, Check, AlertTriangle, Clock, Scale, StickyNote } from 'lucide-react';
-import { fmtFull } from '@/lib/budgetHelpers';
+import { fmtFull } from '@/lib/chantier/budgetHelpers';
 import type { DocumentChantier, FactureStatut } from '@/types/chantier-ia';
 
 // ── Config statuts ────────────────────────────────────────────────────────────

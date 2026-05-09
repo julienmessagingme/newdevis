@@ -24,7 +24,7 @@
  * }}>Voir mon chantier</a>
  * ```
  */
-import { hasGmcAccess } from '@/lib/gmcAccess';
+import { hasGmcAccess } from '@/lib/auth/gmcAccess';
 
 const GMC_LANDING = 'https://gerermonchantier.fr/';
 

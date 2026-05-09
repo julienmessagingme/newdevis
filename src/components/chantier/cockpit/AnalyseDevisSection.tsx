@@ -9,7 +9,7 @@ import { useState, useEffect } from 'react';
 import { Plus, FileText, Sparkles, CheckCircle2, Clock, AlertCircle, ChevronRight, ExternalLink } from 'lucide-react';
 import type { DocumentChantier, LotChantier } from '@/types/chantier-ia';
 import DocScoreCell from '@/components/chantier/shared/DocScoreCell';
-import { fmtDate, fmtEur } from '@/lib/dashboardHelpers';
+import { fmtDate, fmtEur } from '@/lib/chantier/dashboardHelpers';
 import type { InsightsData } from './useInsights';
 
 // ── Statut par lot ────────────────────────────────────────────────────────────

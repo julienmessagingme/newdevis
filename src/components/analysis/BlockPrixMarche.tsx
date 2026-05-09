@@ -7,7 +7,7 @@ import { useMarketPriceEditor } from "@/hooks/useMarketPriceEditor";
 import MarketPositionAnalysis from "./MarketPositionAnalysis";
 import PremiumGate from "@/components/funnel/PremiumGate";
 import { GlobalAnalysisCard } from "./GlobalAnalysisCard";
-import { analyzeQuoteGlobal, classifyRow } from "@/lib/quoteGlobalAnalysis";
+import { analyzeQuoteGlobal, classifyRow } from "@/lib/analyse/quoteGlobalAnalysis";
 
 // =======================
 // TYPES

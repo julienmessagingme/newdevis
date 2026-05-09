@@ -20,8 +20,8 @@
  * - `Login.tsx` (form submit success)
  * - `auth/callback.astro` (script inline, après OAuth Google success)
  */
-import type { Brand } from '@/lib/brand';
-import { hasGmcAccess } from '@/lib/gmcAccess';
+import type { Brand } from '@/lib/auth/brand';
+import { hasGmcAccess } from '@/lib/auth/gmcAccess';
 
 const ORIGIN_BY_BRAND: Record<Brand, string> = {
   vmd: 'https://www.verifiermondevis.fr',

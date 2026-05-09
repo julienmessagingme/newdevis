@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import AidesTravaux from '@/components/chantier/cockpit/financing/AidesTravaux';
 
-import { hasGmcAccess } from '@/lib/gmcAccess';
+import { hasGmcAccess } from '@/lib/auth/gmcAccess';
 
 function useIsAdmin() {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -82,7 +82,7 @@ export default function SimulateurAidesCard() {
                     setOpen(false);
                     // SSO handoff vers gmc.fr/mon-chantier/nouveau (au lieu du
                     // path relatif qui resterait sur vmd.fr).
-                    const { navigateToGmc } = await import('@/lib/ssoHandoffClient');
+                    const { navigateToGmc } = await import('@/lib/auth/ssoHandoffClient');
                     await navigateToGmc('/mon-chantier/nouveau');
                   }
                 } : {})}

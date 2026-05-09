@@ -3,13 +3,13 @@ import {
   Plus, X, Trash2, ArrowLeft, FileText, HelpCircle, Calendar, Pencil, Check,
 } from 'lucide-react';
 import type { LotChantier, DocumentChantier } from '@/types/chantier-ia';
-import { fmtK, fmtEur, fmtDate, TYPE_LABELS } from '@/lib/dashboardHelpers';
-import { formatDuration } from '@/lib/planningUtils';
+import { fmtK, fmtEur, fmtDate, TYPE_LABELS } from '@/lib/chantier/dashboardHelpers';
+import { formatDuration } from '@/lib/chantier/planningUtils';
 import DocScoreCell from '@/components/chantier/shared/DocScoreCell';
 import DocStatusSelect from '@/components/chantier/shared/DocStatusSelect';
 import DocTypeBadge from '@/components/chantier/shared/DocTypeBadge';
 import { useAnalysisScores } from '@/hooks/useAnalysisScores';
-import { getDevisEtFactures, getPhotos, getFraisDeclares } from '@/lib/documentFilters';
+import { getDevisEtFactures, getPhotos, getFraisDeclares } from '@/lib/chantier/documentFilters';
 
 function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token, onDocStatutUpdated, onDurationChange }: {
   lot: LotChantier;

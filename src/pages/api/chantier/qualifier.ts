@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { CORS, optionsResponse, requireAuth, parseJsonBody } from '@/lib/apiHelpers';
+import { CORS, optionsResponse, requireAuth, parseJsonBody } from '@/lib/api/apiHelpers';
 import type { FollowUpQuestion } from '@/types/chantier-ia';
 
 const googleApiKey = import.meta.env.GOOGLE_AI_API_KEY ?? import.meta.env.GOOGLE_API_KEY;

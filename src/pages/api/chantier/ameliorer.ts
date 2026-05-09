@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody } from '@/lib/api/apiHelpers';
 import { SYSTEM_PROMPT_UPDATE } from '@/lib/prompts/chantier-ia';
 import type { ArtisanIA, FormaliteIA, TacheIA, ChangeItem } from '@/types/chantier-ia';
 

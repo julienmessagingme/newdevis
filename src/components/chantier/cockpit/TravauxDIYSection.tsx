@@ -2,7 +2,7 @@ import {
   Plus, Wrench, Receipt,
 } from 'lucide-react';
 import type { DocumentChantier } from '@/types/chantier-ia';
-import { fmtDate } from '@/lib/dashboardHelpers';
+import { fmtDate } from '@/lib/chantier/dashboardHelpers';
 
 // ── Section Travaux réalisés par vous ─────────────────────────────────────────
 

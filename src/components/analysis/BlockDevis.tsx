@@ -1,6 +1,6 @@
 import { Receipt } from "lucide-react";
-import { getScoreIcon, getScoreBgClass, getScoreTextClass } from "@/lib/scoreUtils";
-import { extractDevisData } from "@/lib/devisUtils";
+import { getScoreIcon, getScoreBgClass, getScoreTextClass } from "@/lib/analyse/scoreUtils";
+import { extractDevisData } from "@/lib/analyse/devisUtils";
 import MarketComparisonGauge from "./MarketComparisonGauge";
 import PedagogicExplanation from "./PedagogicExplanation";
 

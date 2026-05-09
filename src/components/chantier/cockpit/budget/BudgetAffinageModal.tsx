@@ -7,14 +7,14 @@ import type {
   ProjectElementDef,
   BreakdownItem,
   AffinageAnswers,
-} from '@/lib/budgetAffinageData';
+} from '@/lib/chantier/budgetAffinageData';
 import {
   ELEMENT_DEFS,
   INITIAL_ANSWERS,
   buildElementsFromLots,
   computeRefinedRange,
   computeScore,
-} from '@/lib/budgetAffinageData';
+} from '@/lib/chantier/budgetAffinageData';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

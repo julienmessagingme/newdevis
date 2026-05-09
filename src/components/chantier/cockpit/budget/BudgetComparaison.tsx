@@ -1,4 +1,4 @@
-import { fmtK, fmtFull } from '@/lib/budgetHelpers';
+import { fmtK, fmtFull } from '@/lib/chantier/budgetHelpers';
 import type { DocumentChantier } from '@/types/chantier-ia';
 
 function BudgetComparaison({ rangeMin, rangeMax, documents }: {

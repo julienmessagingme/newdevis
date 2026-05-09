@@ -16,7 +16,7 @@ import {
   X, Plus, Pencil, Trash2, Check, Loader2,
   AlertTriangle, Paperclip, ChevronDown, ChevronUp,
 } from 'lucide-react';
-import { fmtEur } from '@/lib/financingUtils';
+import { fmtEur } from '@/lib/chantier/financingUtils';
 
 const _sb = createClient(
   (import.meta as any).env.PUBLIC_SUPABASE_URL,

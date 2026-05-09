@@ -341,7 +341,7 @@ const pathname = Astro.url.pathname;
   // 3. Iframe caché vers l'autre origin pour vider son localStorage
   // 4. Redirect / après court délai
   const handleSignOut = async () => {
-    const { signOutCrossDomain } = await import('@/lib/signOut');
+    const { signOutCrossDomain } = await import('@/lib/auth/signOut');
     await signOutCrossDomain('/');
   };
   document.getElementById('signout-btn-desktop')?.addEventListener('click', handleSignOut);

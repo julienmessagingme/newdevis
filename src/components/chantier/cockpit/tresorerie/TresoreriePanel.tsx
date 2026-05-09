@@ -23,7 +23,7 @@ import {
   usePaymentEvents,
   type PaymentEvent,
 } from '@/hooks/usePaymentEvents';
-import { fmtEur, fmtDateShort, daysUntil } from '@/lib/financingUtils';
+import { fmtEur, fmtDateShort, daysUntil } from '@/lib/chantier/financingUtils';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 

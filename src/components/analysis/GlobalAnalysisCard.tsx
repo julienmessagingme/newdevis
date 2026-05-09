@@ -1,4 +1,4 @@
-import type { GlobalAnalysis } from "@/lib/quoteGlobalAnalysis";
+import type { GlobalAnalysis } from "@/lib/analyse/quoteGlobalAnalysis";
 
 // ============================================================
 // SUB-COMPONENTS

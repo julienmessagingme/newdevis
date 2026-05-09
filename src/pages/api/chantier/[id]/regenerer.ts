@@ -2,7 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import type { ArtisanIA, ChantierIAResult } from '@/types/chantier-ia';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/api/apiHelpers';
 
 /** PATCH /api/chantier/[id]/regenerer — Met à jour un chantier existant avec un nouveau résultat IA */
 export const PATCH: APIRoute = async ({ params, request }) => {

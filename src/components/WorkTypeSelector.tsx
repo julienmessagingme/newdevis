@@ -17,7 +17,7 @@ import {
   createWorkTypeValue,
   type Categorie,
   type SousType 
-} from "@/lib/workTypeReferentiel";
+} from "@/lib/chantier/workTypeReferentiel";
 
 interface WorkTypeSelectorProps {
   value: string;

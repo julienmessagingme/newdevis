@@ -87,7 +87,7 @@ import Logo from './Logo.astro';
       if (nameEl) nameEl.textContent = `Espace ${displayName}`;
 
       // "Mes chantiers" visible si user allowlisté
-      const { hasGmcAccess } = await import('@/lib/gmcAccess');
+      const { hasGmcAccess } = await import('@/lib/auth/gmcAccess');
       if (hasGmcAccess(user.email)) {
         const link = document.getElementById('gmc-user-chantier-link');
         link?.classList.remove('hidden');
@@ -122,7 +122,7 @@ import Logo from './Logo.astro';
 
   // ── Sign out (helper partagé qui gère le cross-domain) ──────────────────
   document.getElementById('gmc-signout-btn')?.addEventListener('click', async () => {
-    const { signOutCrossDomain } = await import('@/lib/signOut');
+    const { signOutCrossDomain } = await import('@/lib/auth/signOut');
     await signOutCrossDomain('/');
   });
 </script>

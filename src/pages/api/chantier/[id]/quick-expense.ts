@@ -22,7 +22,7 @@ import { randomUUID } from 'node:crypto';
  */
 
 import type { APIRoute } from 'astro';
-import { requireChantierAuth, jsonOk, jsonError, optionsResponse } from '@/lib/apiHelpers';
+import { requireChantierAuth, jsonOk, jsonError, optionsResponse } from '@/lib/api/apiHelpers';
 
 const ALLOWED_TYPES = ['achat_materiaux', 'frais', 'ticket_caisse'] as const;
 type DepenseType = typeof ALLOWED_TYPES[number];

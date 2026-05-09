@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Upload, FileCheck, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { getScoreIcon } from "@/lib/scoreUtils";
+import { getScoreIcon } from "@/lib/analyse/scoreUtils";
 
 interface AttestationUploadProps {
   analysisId: string;

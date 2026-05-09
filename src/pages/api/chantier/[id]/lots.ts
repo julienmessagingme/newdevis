@@ -1,8 +1,8 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuthOrAgent } from '@/lib/apiHelpers';
-import { estimateMissingPlanningData, computePlanningDates } from '@/lib/planningUtils';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuthOrAgent } from '@/lib/api/apiHelpers';
+import { estimateMissingPlanningData, computePlanningDates } from '@/lib/chantier/planningUtils';
 
 /**
  * POST /api/chantier/[id]/lots
@@ -53,7 +53,7 @@ export const POST: APIRoute = async ({ request, params }) => {
       .eq('chantier_id', params.id!);
 
     if (allLots && allLots.length > 0) {
-      const { inferDefaultPredecessors } = await import('@/lib/planningUtils');
+      const { inferDefaultPredecessors } = await import('@/lib/chantier/planningUtils');
       const enriched = estimateMissingPlanningData(allLots as any);
       const durationUpdates = enriched
         .filter(lot => {

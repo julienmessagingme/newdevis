@@ -6,7 +6,7 @@ import {
   extractAddressFromRawText,
   extractSiteContextFromPoints,
   getRiskLevelColor,
-} from "@/lib/contexteUtils";
+} from "@/lib/analyse/contexteUtils";
 import UrbanismeAssistant from "@/components/analysis/UrbanismeAssistant";
 
 interface BlockContexteProps {

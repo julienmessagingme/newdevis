@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { ConclusionData } from "@/lib/conclusionTypes";
+import type { ConclusionData } from "@/lib/analyse/conclusionTypes";
 
-export type { ConclusionData, AnomalieConclusion } from "@/lib/conclusionTypes";
+export type { ConclusionData, AnomalieConclusion } from "@/lib/analyse/conclusionTypes";
 
 interface UseConclusionIAParams {
   analysisId: string;

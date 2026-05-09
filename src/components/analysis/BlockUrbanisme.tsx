@@ -28,14 +28,14 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import InfoTooltip from "./InfoTooltip";
-import type { Formalite, WorkCategory } from "@/lib/urbanismeUtils";
+import type { Formalite, WorkCategory } from "@/lib/analyse/urbanismeUtils";
 import {
   computeUrbanismePiscine,
   computeUrbanismeCloture,
   computeUrbanismeAbriJardin,
   computeUrbanismeExtension,
   detectInitialCategory,
-} from "@/lib/urbanismeUtils";
+} from "@/lib/analyse/urbanismeUtils";
 
 // ============================================================
 // BADGE COMPONENT

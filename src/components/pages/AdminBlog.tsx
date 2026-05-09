@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Plus, RefreshCw, XCircle, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { sanitizeArticleHtml } from "@/lib/blogUtils";
+import { sanitizeArticleHtml } from "@/lib/blog/blogUtils";
 import Header from "@/components/layout/Header";
 import { Button } from "@/components/ui/button";
 import { type BlogPost, emptyPost } from "@/components/admin/blogTypes";

@@ -1,5 +1,5 @@
 import { Info } from 'lucide-react';
-import { fmtEur } from '@/lib/financingUtils';
+import { fmtEur } from '@/lib/chantier/financingUtils';
 
 export const SOURCES_CFG = [
   { key: 'apport',      label: 'Apport personnel',  emoji: '💰', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-100' },

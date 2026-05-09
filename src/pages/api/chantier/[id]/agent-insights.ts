@@ -4,7 +4,7 @@ import type { APIRoute } from 'astro';
 import {
   optionsResponse, jsonOk, jsonError,
   requireChantierAuth, authenticateUserOrAgent,
-} from '@/lib/apiHelpers';
+} from '@/lib/api/apiHelpers';
 
 // ── GET — list agent insights for a chantier (user auth) ────────────────────
 

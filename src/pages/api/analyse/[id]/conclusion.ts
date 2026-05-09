@@ -15,18 +15,18 @@ export const config = { maxDuration: 60 };
 
 import type { APIRoute } from "astro";
 import { createClient } from "@supabase/supabase-js";
-import { jsonOk, jsonError, optionsResponse } from "@/lib/apiHelpers";
+import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
-import type { AnomalieConclusion, ConclusionData } from "@/lib/conclusionTypes";
-export type { AnomalieConclusion, ConclusionData } from "@/lib/conclusionTypes";
+import type { AnomalieConclusion, ConclusionData } from "@/lib/analyse/conclusionTypes";
+export type { AnomalieConclusion, ConclusionData } from "@/lib/analyse/conclusionTypes";
 import {
   computeVerdict, computeMarketBounds, countMajorAnomalies,
   extractFlagsFromCriteria, extractCompanyRisk, generateVerdictReasons,
   extractCompanyStatusFromCriteria, computeWeightedAnomalies,
-} from "@/lib/verdictEngine";
+} from "@/lib/analyse/verdictEngine";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

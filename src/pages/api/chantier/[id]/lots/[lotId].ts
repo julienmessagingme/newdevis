@@ -1,8 +1,8 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/apiHelpers';
-import { computePlanningDates, type DependencyMap } from '@/lib/planningUtils';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth } from '@/lib/api/apiHelpers';
+import { computePlanningDates, type DependencyMap } from '@/lib/chantier/planningUtils';
 
 /**
  * DELETE /api/chantier/[id]/lots/[lotId]

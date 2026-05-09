@@ -5,7 +5,7 @@
  *
  * Utilisé dans les pages d'auth partagées (Login, Register).
  */
-import type { Brand } from '@/lib/brand';
+import type { Brand } from '@/lib/auth/brand';
 
 interface Props {
   brand: Brand;

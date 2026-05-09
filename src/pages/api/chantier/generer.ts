@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { requireAuth, parseJsonBody } from '@/lib/apiHelpers';
+import { requireAuth, parseJsonBody } from '@/lib/api/apiHelpers';
 import { SYSTEM_PROMPT_CHANTIER } from '@/lib/prompts/chantier-ia';
 import type { ChantierIAResult, SseEvent } from '@/types/chantier-ia';
 

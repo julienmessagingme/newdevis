@@ -2,8 +2,8 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
-import { generatePaymentEventsFromAnalyse } from '@/lib/paymentEvents';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth, requireChantierAuthOrAgent } from '@/lib/apiHelpers';
+import { generatePaymentEventsFromAnalyse } from '@/lib/chantier/paymentEvents';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth, requireChantierAuthOrAgent } from '@/lib/api/apiHelpers';
 
 // ── GET /api/chantier/[id]/payment-events ─────────────────────────────────────
 // Retourne tous les payment_events_v du chantier, triés par due_date ASC.

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getPremiumStatus, type SubscriptionInfo } from "@/lib/subscription";
+import { getPremiumStatus, type SubscriptionInfo } from "@/lib/integrations/subscription";
 
 interface UsePremiumReturn extends SubscriptionInfo {
   isLoading: boolean;

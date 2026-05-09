@@ -2,8 +2,8 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import type { DocumentType } from '@/types/chantier-ia';
-import { generatePaymentEventsFromAnalyse } from '@/lib/paymentEvents';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth, createServiceClient } from '@/lib/apiHelpers';
+import { generatePaymentEventsFromAnalyse } from '@/lib/chantier/paymentEvents';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth, createServiceClient } from '@/lib/api/apiHelpers';
 
 const BUCKET          = 'chantier-documents';
 const MAX_BYTES       = 10 * 1024 * 1024; // 10 Mo — cohérent avec bucket file_size_limit

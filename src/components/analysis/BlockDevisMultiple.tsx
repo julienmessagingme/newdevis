@@ -1,5 +1,5 @@
 import { CheckCircle2, Receipt, TrendingUp, TrendingDown, Minus, HelpCircle, MapPin, FileText, List, Calculator } from "lucide-react";
-import { getScoreIcon, getScoreBgClass } from "@/lib/scoreUtils";
+import { getScoreIcon, getScoreBgClass } from "@/lib/analyse/scoreUtils";
 import PedagogicExplanation from "./PedagogicExplanation";
 
 // Interface for structured work type data from database

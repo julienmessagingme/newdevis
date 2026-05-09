@@ -3,7 +3,7 @@
  * Affiche : Estimation IA / Budget réel / Payé + barre de progression + message intelligent.
  */
 import { SlidersHorizontal, Pencil } from 'lucide-react';
-import { fmtK, fmtFull } from '@/lib/budgetHelpers';
+import { fmtK, fmtFull } from '@/lib/chantier/budgetHelpers';
 
 interface Props {
   emoji: string;

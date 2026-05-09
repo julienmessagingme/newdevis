@@ -6,7 +6,7 @@ import {
   type DetectedCategory,
   type DemarcheInputs,
   type DemarcheItem,
-} from "@/lib/urbanismeUtils";
+} from "@/lib/analyse/urbanismeUtils";
 
 interface UrbanismeAssistantProps {
   rawText?: string | null;

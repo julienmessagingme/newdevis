@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { sanitizeArticleHtml, generateSlug } from "@/lib/blogUtils";
+import { sanitizeArticleHtml, generateSlug } from "@/lib/blog/blogUtils";
 import ArticleContent from "@/components/blog/ArticleContent";
 import RichTextToolbar from "./RichTextToolbar";
 import ImageManagement from "./ImageManagement";

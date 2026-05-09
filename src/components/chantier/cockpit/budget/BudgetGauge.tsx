@@ -1,4 +1,4 @@
-import { fmtFull } from '@/lib/budgetHelpers';
+import { fmtFull } from '@/lib/chantier/budgetHelpers';
 import type { DocumentChantier } from '@/types/chantier-ia';
 
 function BudgetGauge({ rangeMin, rangeMax, documents }: {

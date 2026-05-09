@@ -1,5 +1,5 @@
 import { defineMiddleware } from 'astro:middleware';
-import { detectBrandFromHost } from '@/lib/brand';
+import { detectBrandFromHost } from '@/lib/auth/brand';
 
 // Multi-domaine : sur (www.)gerermonchantier.fr, le path "/" rewrite (302)
 // vers /gmc-home. Toutes les autres routes (mon-chantier, auth, api…)

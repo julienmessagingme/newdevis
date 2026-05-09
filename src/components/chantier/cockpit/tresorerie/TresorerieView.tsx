@@ -20,7 +20,7 @@ import {
   fmtEur,
   WORK_TYPES_EFFY, type EffyWorkType, detectBracket,
   MPR_RATES, MPR_CAP, CEE_AMOUNT, type MprBracket,
-} from '@/lib/financingUtils';
+} from '@/lib/chantier/financingUtils';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 

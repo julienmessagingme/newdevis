@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { fmtK } from '@/lib/budgetHelpers';
-import { PHASE_LABELS, PHASE_COLORS } from '@/lib/budgetHelpers';
+import { fmtK } from '@/lib/chantier/budgetHelpers';
+import { PHASE_LABELS, PHASE_COLORS } from '@/lib/chantier/budgetHelpers';
 import type { ChantierIAResult } from '@/types/chantier-ia';
 
 function TresoreriePhases({ result }: { result: ChantierIAResult }) {

@@ -1,4 +1,4 @@
-import { fmtK } from '@/lib/budgetHelpers';
+import { fmtK } from '@/lib/chantier/budgetHelpers';
 import type { LotChantier } from '@/types/chantier-ia';
 
 function BudgetExplication({ lots }: { lots: LotChantier[] }) {

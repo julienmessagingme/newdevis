@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { trackEvent } from "@/lib/amplitude";
+import { trackEvent } from "@/lib/integrations/amplitude";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";

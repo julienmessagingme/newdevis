@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody } from '@/lib/api/apiHelpers';
 
 export const POST: APIRoute = async ({ request }) => {
   const ctx = await requireAuth(request);

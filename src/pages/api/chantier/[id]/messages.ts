@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuthOrAgent, createServiceClient } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuthOrAgent, createServiceClient } from '@/lib/api/apiHelpers';
 
 // ── POST — send a message to a contact via SendGrid ──────────────────────
 

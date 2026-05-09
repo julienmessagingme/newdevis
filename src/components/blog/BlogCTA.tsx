@@ -1,6 +1,6 @@
 import { ArrowRight, FileCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getCTAUrl } from "@/lib/blogUtils";
+import { getCTAUrl } from "@/lib/blog/blogUtils";
 
 interface BlogCTAProps {
   variant?: "top" | "bottom" | "inline";

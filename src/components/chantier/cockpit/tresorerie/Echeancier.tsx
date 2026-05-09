@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { usePaymentEvents, type PaymentEvent } from '@/hooks/usePaymentEvents';
-import { fmtEur, fmtDateFR, fmtDateShort, daysUntil } from '@/lib/financingUtils';
+import { fmtEur, fmtDateFR, fmtDateShort, daysUntil } from '@/lib/chantier/financingUtils';
 import DepenseRapideModal from '../budget/DepenseRapideModal';
 import type { LotChantier } from '@/types/chantier-ia';
 

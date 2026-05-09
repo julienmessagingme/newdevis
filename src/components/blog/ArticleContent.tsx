@@ -1,4 +1,4 @@
-import { sanitizeForRender } from "@/lib/blogUtils";
+import { sanitizeForRender } from "@/lib/blog/blogUtils";
 
 interface ArticleContentProps {
   html: string;

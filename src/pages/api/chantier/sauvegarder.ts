@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody } from '@/lib/api/apiHelpers';
 import type { ArtisanIA, ChantierIAResult } from '@/types/chantier-ia';
 
 /** POST /api/chantier/sauvegarder — Sauvegarde le résultat IA en base */
@@ -208,7 +208,7 @@ export const POST: APIRoute = async ({ request }) => {
           .eq('chantier_id', chantierId);
 
         if (lotsForPlanning && lotsForPlanning.length > 0) {
-          const { computePlanningDates, computeStartDateFromEnd } = await import('@/lib/planningUtils');
+          const { computePlanningDates, computeStartDateFromEnd } = await import('@/lib/chantier/planningUtils');
 
           const { data: depsRows } = await supabase
             .from('lot_dependencies')

@@ -6,7 +6,7 @@ import {
   Info, Paperclip, Upload, ExternalLink,
 } from 'lucide-react';
 import { usePaymentEvents } from '@/hooks/usePaymentEvents';
-import { fmtEur, fmtDateFR, fmtDateShort, daysUntil } from '@/lib/financingUtils';
+import { fmtEur, fmtDateFR, fmtDateShort, daysUntil } from '@/lib/chantier/financingUtils';
 
 // Client léger pour récupérer un token frais lors des uploads de justificatifs
 const _supabase = createClient(

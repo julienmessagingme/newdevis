@@ -1,8 +1,8 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, parseJsonBody, createServiceClient } from '@/lib/apiHelpers';
-import { requireAdmin } from '@/lib/adminAuth';
+import { optionsResponse, jsonOk, jsonError, parseJsonBody, createServiceClient } from '@/lib/api/apiHelpers';
+import { requireAdmin } from '@/lib/auth/adminAuth';
 
 export const GET: APIRoute = async ({ params, request }) => {
   const ctx = await requireAdmin(request);

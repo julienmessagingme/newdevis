@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Check, X, Pencil, Euro, Info } from 'lucide-react';
-import { fmtEur } from '@/lib/financingUtils';
+import { fmtEur } from '@/lib/chantier/financingUtils';
 
 export default function BudgetGaugeReal({
   totalEngaged,

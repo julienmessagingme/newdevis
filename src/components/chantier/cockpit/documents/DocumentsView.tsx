@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { DocumentChantier, LotChantier } from '@/types/chantier-ia';
-import { getSemanticEmoji } from '@/lib/lotUtils';
+import { getSemanticEmoji } from '@/lib/chantier/lotUtils';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

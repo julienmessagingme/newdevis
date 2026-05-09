@@ -6,7 +6,7 @@ import {
   computeCashflow,
   computeTotalEngaged,
 } from '@/hooks/usePaymentEvents';
-import { fmtEur } from '@/lib/financingUtils';
+import { fmtEur } from '@/lib/chantier/financingUtils';
 import { AlertsPanel } from '../assistant/AlertsPanel';
 import BudgetGaugeReal from '../budget/BudgetGaugeReal';
 import CashflowProjection from './CashflowProjection';

@@ -8,7 +8,7 @@ import Footer from "@/components/layout/Footer";
 import SEOHead from "@/components/SEOHead";
 import ArticleContent from "@/components/blog/ArticleContent";
 import BlogCTA from "@/components/blog/BlogCTA";
-import { calculateReadingTime, formatArticleDate, getCTAUrl } from "@/lib/blogUtils";
+import { calculateReadingTime, formatArticleDate, getCTAUrl } from "@/lib/blog/blogUtils";
 
 interface BlogPost {
   id: string;

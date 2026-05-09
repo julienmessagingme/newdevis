@@ -1,4 +1,4 @@
-import { jsonError, requireAuth, type AuthContext } from '@/lib/apiHelpers';
+import { jsonError, requireAuth, type AuthContext } from '@/lib/api/apiHelpers';
 
 /**
  * Authentifie + vérifie que l'utilisateur a le rôle admin.

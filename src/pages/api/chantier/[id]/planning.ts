@@ -1,8 +1,8 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuthOrAgent } from '@/lib/apiHelpers';
-import { estimateMissingPlanningData, computePlanningDates, type DependencyMap } from '@/lib/planningUtils';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuthOrAgent } from '@/lib/api/apiHelpers';
+import { estimateMissingPlanningData, computePlanningDates, type DependencyMap } from '@/lib/chantier/planningUtils';
 
 type LotRow = {
   id: string;

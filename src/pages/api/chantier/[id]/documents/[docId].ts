@@ -3,7 +3,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DocumentType } from '@/types/chantier-ia';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth, requireChantierAuthOrAgent, createServiceClient } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth, requireChantierAuthOrAgent, createServiceClient } from '@/lib/api/apiHelpers';
 import { detectDevisType } from '@/utils/extractProjectElements';
 
 const BUCKET          = 'chantier-documents';

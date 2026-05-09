@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import SEOHead from "@/components/SEOHead";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import BrandLogo from "@/components/auth/BrandLogo";
-import { type Brand, getBrandConfig, getConfigForBrand } from "@/lib/brand";
+import { type Brand, getBrandConfig, getConfigForBrand } from "@/lib/auth/brand";
 
 interface Props {
   brand?: Brand;

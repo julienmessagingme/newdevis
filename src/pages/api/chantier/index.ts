@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { CORS, optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody } from '@/lib/apiHelpers';
+import { CORS, optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody } from '@/lib/api/apiHelpers';
 import type { CreateChantierPayload } from '@/types/chantier-dashboard';
 
 /** GET /api/chantier — Retourne tous les chantiers de l'utilisateur avec leurs devis */

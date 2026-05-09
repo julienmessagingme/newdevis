@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Zap } from 'lucide-react';
-import { fmtK } from '@/lib/budgetHelpers';
+import { fmtK } from '@/lib/chantier/budgetHelpers';
 import type { LotChantier, DocumentChantier } from '@/types/chantier-ia';
 
 export interface ActionAlert {

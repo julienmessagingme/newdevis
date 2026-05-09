@@ -1,6 +1,6 @@
 import { CheckCircle2, AlertCircle, Ruler, Building2, ClipboardCheck, HardHat } from "lucide-react";
-import { getScoreIcon, getScoreBgClass, getScoreTextClass } from "@/lib/scoreUtils";
-import { extractArchitecteInfo } from "@/lib/architecteUtils";
+import { getScoreIcon, getScoreBgClass, getScoreTextClass } from "@/lib/analyse/scoreUtils";
+import { extractArchitecteInfo } from "@/lib/analyse/architecteUtils";
 import PedagogicExplanation from "./PedagogicExplanation";
 
 interface BlockArchitecteProps {

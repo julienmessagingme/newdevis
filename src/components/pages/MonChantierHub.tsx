@@ -326,7 +326,7 @@ export default function MonChantierHub() {
               <button
                 type="button"
                 onClick={async () => {
-                  const { signOutCrossDomain } = await import('@/lib/signOut');
+                  const { signOutCrossDomain } = await import('@/lib/auth/signOut');
                   await signOutCrossDomain('/');
                 }}
                 className="text-xs text-gray-400 hover:text-red-600 transition-colors"

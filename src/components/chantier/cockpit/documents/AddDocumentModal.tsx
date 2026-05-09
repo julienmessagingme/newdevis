@@ -15,7 +15,7 @@ import {
   X, FileUp, Receipt, ShoppingCart, Wrench, FileText,
   Loader2, Check, AlertTriangle, Plus, ChevronDown, Sparkles,
 } from 'lucide-react';
-import { getSemanticEmoji } from '@/lib/lotUtils';
+import { getSemanticEmoji } from '@/lib/chantier/lotUtils';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 

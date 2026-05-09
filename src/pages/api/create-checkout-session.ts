@@ -2,7 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import Stripe from 'stripe';
-import { optionsResponse, jsonOk, jsonError, requireAuth } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireAuth } from '@/lib/api/apiHelpers';
 
 const stripeSecretKey = import.meta.env.STRIPE_SECRET_KEY;
 

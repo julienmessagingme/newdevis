@@ -2,8 +2,8 @@ import type { DocumentType } from '@/types/chantier-ia';
 import type { InsightItem } from '@/components/chantier/cockpit/useInsights';
 
 // ── Formatters — re-exportés depuis les sources canoniques ────────────────────
-export { fmtK } from '@/lib/budgetHelpers';
-export { fmtEur } from '@/lib/financingUtils';
+export { fmtK } from '@/lib/chantier/budgetHelpers';
+export { fmtEur } from '@/lib/chantier/financingUtils';
 
 export function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });

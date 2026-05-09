@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { CreditCard } from 'lucide-react';
-import { fmtEur, fmtEurPrecis } from '@/lib/financingUtils';
+import { fmtEur, fmtEurPrecis } from '@/lib/chantier/financingUtils';
 
 export function SliderField({ label, value, min, max, step, onChange, display }: {
   label: string;

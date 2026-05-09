@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } from "react";
-import { trackEvent } from "@/lib/amplitude";
+import { trackEvent } from "@/lib/integrations/amplitude";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft,
@@ -18,12 +18,12 @@ import {
   ShieldCheck,
   FileCheck
 } from "lucide-react";
-import { getScoreBadge } from "@/lib/scoreUtils";
+import { getScoreBadge } from "@/lib/analyse/scoreUtils";
 import {
   computeVerdict, computeMarketBounds, countMajorAnomalies,
   extractFlagsFromCriteria, extractCompanyRisk, extractCompanyStatusFromCriteria,
   computeWeightedAnomalies,
-} from "@/lib/verdictEngine";
+} from "@/lib/analyse/verdictEngine";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 // generatePdfReport chargé dynamiquement (jsPDF ~250 Ko évité au chargement initial)
@@ -58,7 +58,7 @@ import { usePremium } from "@/hooks/usePremium";
 import FunnelStepper from "@/components/funnel/FunnelStepper";
 import PassSereniteGate from "@/components/funnel/PassSereniteGate";
 import { ANALYSIS } from "@/lib/constants";
-import { getVisibleBlocks } from "@/lib/domainConfig";
+import { getVisibleBlocks } from "@/lib/auth/domainConfig";
 
 type DocumentDetection = {
   type: "devis_travaux" | "devis_prestation_technique" | "devis_diagnostic_immobilier" | "facture" | "autre";
@@ -209,7 +209,7 @@ export interface CompanyDisplayData {
   procedure_collective: boolean | null;
   lookup_status: string | null;
   // Données financières brutes issues de verified.finances (data.economie.gouv.fr)
-  finances: import("@/lib/entrepriseUtils").FinancialRatios[];
+  finances: import("@/lib/analyse/entrepriseUtils").FinancialRatios[];
   finances_status: string;
   // Qualifications RGE (ADEME)
   rge_pertinent: boolean;
@@ -351,7 +351,7 @@ const AnalysisResult = () => {
   const handleBackClick = async (e: React.MouseEvent) => {
     if (fromChantier && chantierId) {
       e.preventDefault();
-      const { navigateToGmc } = await import("@/lib/ssoHandoffClient");
+      const { navigateToGmc } = await import("@/lib/auth/ssoHandoffClient");
       await navigateToGmc(`/mon-chantier/${chantierId}`);
     }
   };
@@ -434,7 +434,7 @@ const AnalysisResult = () => {
       } else if (fromChantier && chantierId) {
         // Cas chantier : SSO handoff vers gmc.fr (sinon backHref absolu enverrait
         // l'utilisateur sur gmc.fr non-logué → /connexion).
-        const { navigateToGmc } = await import("@/lib/ssoHandoffClient");
+        const { navigateToGmc } = await import("@/lib/auth/ssoHandoffClient");
         await navigateToGmc(`/mon-chantier/${chantierId}`);
       } else {
         window.location.href = backHref;

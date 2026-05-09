@@ -199,7 +199,7 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
         <button
           type="button"
           onClick={async () => {
-            const { signOutCrossDomain } = await import('@/lib/signOut');
+            const { signOutCrossDomain } = await import('@/lib/auth/signOut');
             await signOutCrossDomain('/');
           }}
           className="text-sm text-white/50 hover:text-white transition-colors"

@@ -1,8 +1,8 @@
 import jsPDF from "jspdf";
-import { getScoreLabel } from "@/lib/scoreUtils";
-import { extractEntrepriseData, filterOutEntrepriseItems } from "@/lib/entrepriseUtils";
-import { extractSecuriteData, filterOutSecuriteItems } from "@/lib/securiteUtils";
-import { extractSiteContextFromPoints, filterOutContexteItems } from "@/lib/contexteUtils";
+import { getScoreLabel } from "@/lib/analyse/scoreUtils";
+import { extractEntrepriseData, filterOutEntrepriseItems } from "@/lib/analyse/entrepriseUtils";
+import { extractSecuriteData, filterOutSecuriteItems } from "@/lib/analyse/securiteUtils";
+import { extractSiteContextFromPoints, filterOutContexteItems } from "@/lib/analyse/contexteUtils";
 
 type Analysis = {
   id: string;

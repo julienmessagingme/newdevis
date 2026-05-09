@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { X, Receipt, ShoppingCart, Wrench, Loader2 } from 'lucide-react';
 import type { LotChantier } from '@/types/chantier-ia';
-import { fmtFull } from '@/lib/budgetHelpers';
+import { fmtFull } from '@/lib/chantier/budgetHelpers';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { ShieldCheck, CreditCard, FileCheck, ChevronDown } from "lucide-react";
-import { getScoreIcon, getScoreBgClass, getScoreTextClass } from "@/lib/scoreUtils";
+import { getScoreIcon, getScoreBgClass, getScoreTextClass } from "@/lib/analyse/scoreUtils";
 import {
   extractSecuriteData,
   getComparisonStatusText,
   getComparisonStatusClass,
   type AttestationComparison,
-} from "@/lib/securiteUtils";
+} from "@/lib/analyse/securiteUtils";
 import AttestationUpload from "@/components/AttestationUpload";
 import PedagogicExplanation from "./PedagogicExplanation";
 

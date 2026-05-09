@@ -14,7 +14,7 @@ export const prerender = false;
  */
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth, createServiceClient } from '@/lib/apiHelpers';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth, createServiceClient } from '@/lib/api/apiHelpers';
 import { detectDevisType } from '@/utils/extractProjectElements';
 
 const GOOGLE_API_KEY = import.meta.env.GOOGLE_API_KEY;

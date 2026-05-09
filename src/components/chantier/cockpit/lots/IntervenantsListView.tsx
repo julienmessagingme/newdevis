@@ -9,7 +9,7 @@ import DocStatusSelect from '@/components/chantier/shared/DocStatusSelect';
 import DocTypeBadge from '@/components/chantier/shared/DocTypeBadge';
 import ComparateurDevisModal from '@/components/chantier/cockpit/ComparateurDevisModal';
 import { useAnalysisScores } from '@/hooks/useAnalysisScores';
-import { getDevisEtFactures } from '@/lib/documentFilters';
+import { getDevisEtFactures } from '@/lib/chantier/documentFilters';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

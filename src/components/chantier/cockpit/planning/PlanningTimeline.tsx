@@ -7,7 +7,7 @@ import { useState, useRef, useCallback, useMemo } from 'react';
 import { Calendar, Loader2, AlertCircle, Users, AlignLeft, Plus } from 'lucide-react';
 import type { LotChantier } from '@/types/chantier-ia';
 import { usePlanning } from '@/hooks/usePlanning';
-import { formatDuration, getWeekLabels, businessDaysBetween } from '@/lib/planningUtils';
+import { formatDuration, getWeekLabels, businessDaysBetween } from '@/lib/chantier/planningUtils';
 
 // -- Couleurs par lot (cyclique) ----------------------------------------------
 

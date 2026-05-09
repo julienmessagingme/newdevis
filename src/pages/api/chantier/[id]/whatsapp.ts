@@ -1,8 +1,8 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, requireChantierAuth, requireChantierAuthOrAgent, parseJsonBody, createServiceClient } from '@/lib/apiHelpers';
-import { formatPhone, createWhatsAppGroup, addGroupParticipants } from '@/lib/whapiUtils';
+import { optionsResponse, jsonOk, jsonError, requireChantierAuth, requireChantierAuthOrAgent, parseJsonBody, createServiceClient } from '@/lib/api/apiHelpers';
+import { formatPhone, createWhatsAppGroup, addGroupParticipants } from '@/lib/integrations/whapiUtils';
 
 const GMC_PHONE = '33633921577';
 

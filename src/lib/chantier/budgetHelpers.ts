@@ -6,7 +6,7 @@ export function fmtK(n: number): string {
 }
 
 /** @deprecated Use fmtEur from financingUtils instead */
-export { fmtEur as fmtFull } from '@/lib/financingUtils';
+export { fmtEur as fmtFull } from '@/lib/chantier/financingUtils';
 
 export const PHASE_LABELS: Record<string, string> = {
   preparation: 'Préparation', autorisations: 'Autorisations',

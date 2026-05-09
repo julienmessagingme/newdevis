@@ -13,11 +13,11 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { getStatusIcon, getScoreBadge } from "@/lib/scoreUtils";
+import { getStatusIcon, getScoreBadge } from "@/lib/analyse/scoreUtils";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { useSessionGuard } from "@/hooks/useSessionGuard";
 import { usePremium } from "@/hooks/usePremium";
-import { hasGmcAccess } from "@/lib/gmcAccess";
+import { hasGmcAccess } from "@/lib/auth/gmcAccess";
 
 type Analysis = {
   id: string;
@@ -178,7 +178,7 @@ const Dashboard = () => {
           onClick={async (e) => {
             if (!hasGmcAccess(user?.email)) return;
             e.preventDefault();
-            const { navigateToGmc } = await import("@/lib/ssoHandoffClient");
+            const { navigateToGmc } = await import("@/lib/auth/ssoHandoffClient");
             await navigateToGmc("/mon-chantier");
           }}
           className="block mb-4"

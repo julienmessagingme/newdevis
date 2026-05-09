@@ -10,7 +10,7 @@ export const prerender = false;
 
 import type { APIRoute } from "astro";
 import { createClient } from "@supabase/supabase-js";
-import { jsonOk, jsonError, optionsResponse } from "@/lib/apiHelpers";
+import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 export const POST: APIRoute = async ({ params, request }) => {
   const authHeader = request.headers.get("Authorization");

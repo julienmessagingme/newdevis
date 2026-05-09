@@ -12,7 +12,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { X, Loader2, CheckCircle2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { trackEvent } from "@/lib/amplitude";
+import { trackEvent } from "@/lib/integrations/amplitude";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 

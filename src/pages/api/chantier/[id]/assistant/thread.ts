@@ -13,7 +13,7 @@ import {
   jsonOk,
   jsonError,
   createServiceClient,
-} from '@/lib/apiHelpers';
+} from '@/lib/api/apiHelpers';
 
 const MESSAGES_LIMIT = 100;
 

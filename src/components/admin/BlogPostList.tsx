@@ -6,7 +6,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatArticleDate } from "@/lib/blogUtils";
+import { formatArticleDate } from "@/lib/blog/blogUtils";
 import { workflowBadge, type BlogPost } from "./blogTypes";
 
 interface BlogPostListProps {

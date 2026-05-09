@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Loader2, Sparkles, RefreshCw, Copy, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConclusionIA } from "@/hooks/useConclusionIA";
-import type { ConclusionData, AnomalieConclusion } from "@/lib/conclusionTypes";
+import type { ConclusionData, AnomalieConclusion } from "@/lib/analyse/conclusionTypes";
 
 // ============================================================
 // HELPERS

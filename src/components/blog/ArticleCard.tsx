@@ -1,6 +1,6 @@
 import { Clock, Tag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { calculateReadingTime, formatArticleDate } from "@/lib/blogUtils";
+import { calculateReadingTime, formatArticleDate } from "@/lib/blog/blogUtils";
 
 interface ArticleCardProps {
   slug: string;

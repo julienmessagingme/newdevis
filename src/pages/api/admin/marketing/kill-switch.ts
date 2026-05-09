@@ -1,9 +1,9 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { optionsResponse, jsonOk, jsonError, parseJsonBody } from '@/lib/apiHelpers';
-import { requireAdmin } from '@/lib/adminAuth';
-import { marketingFetch, marketingErrorResponse } from '@/lib/marketingApi';
+import { optionsResponse, jsonOk, jsonError, parseJsonBody } from '@/lib/api/apiHelpers';
+import { requireAdmin } from '@/lib/auth/adminAuth';
+import { marketingFetch, marketingErrorResponse } from '@/lib/integrations/marketingApi';
 
 interface KillSwitchBody {
   paused?: boolean;

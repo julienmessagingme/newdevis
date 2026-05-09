@@ -2,8 +2,8 @@ import {
   Plus, ChevronRight, FileText, Trash2, Receipt, Scale, Calendar,
 } from 'lucide-react';
 import type { LotChantier, DocumentChantier } from '@/types/chantier-ia';
-import { formatDuration, getWeekNumber } from '@/lib/planningUtils';
-import { fmtK, fmtEur, IS } from '@/lib/dashboardHelpers';
+import { formatDuration, getWeekNumber } from '@/lib/chantier/planningUtils';
+import { fmtK, fmtEur, IS } from '@/lib/chantier/dashboardHelpers';
 import type { InsightItem } from '../useInsights';
 
 // ── Statut artisan ─────────────────────────────────────────────────────────────

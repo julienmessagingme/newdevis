@@ -15,7 +15,7 @@ import {
   AlertCircle, Loader2, RotateCw, AlertTriangle,
   Check, Clock, ChevronDown, ChevronUp, ChevronRight, Scale, Pencil,
 } from 'lucide-react';
-import { fmtEur } from '@/lib/financingUtils';
+import { fmtEur } from '@/lib/chantier/financingUtils';
 import { toast } from 'sonner';
 import AddDocumentModal from '../documents/AddDocumentModal';
 import VersementsDrawer from '../tresorerie/VersementsDrawer';

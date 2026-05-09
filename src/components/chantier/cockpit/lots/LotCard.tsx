@@ -1,7 +1,7 @@
 import { Plus, ChevronRight, FileText } from 'lucide-react';
 import type { LotChantier, DocumentChantier } from '@/types/chantier-ia';
 import type { InsightItem } from '../useInsights';
-import { fmtK, IS } from '@/lib/dashboardHelpers';
+import { fmtK, IS } from '@/lib/chantier/dashboardHelpers';
 
 function LotCard({ lot, docs, insight, onAdd, onDetail }: {
   lot: LotChantier; docs: DocumentChantier[];

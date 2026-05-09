@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { generateSlug, sanitizeArticleHtml } from "@/lib/blogUtils";
+import { generateSlug, sanitizeArticleHtml } from "@/lib/blog/blogUtils";
 import RichTextToolbar from "./RichTextToolbar";
 import ImageManagement from "./ImageManagement";
 import ArticleContent from "@/components/blog/ArticleContent";

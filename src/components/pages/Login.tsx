@@ -9,8 +9,8 @@ import SEOHead from "@/components/SEOHead";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import BrandLogo from "@/components/auth/BrandLogo";
 import { SESSION_ACTIVE_KEY } from "@/hooks/useSessionGuard";
-import { type Brand, getBrandConfig, getConfigForBrand } from "@/lib/brand";
-import { performPostLoginRedirect } from "@/lib/postLoginRedirect";
+import { type Brand, getBrandConfig, getConfigForBrand } from "@/lib/auth/brand";
+import { performPostLoginRedirect } from "@/lib/auth/postLoginRedirect";
 
 interface Props {
   /** Brand détecté côté serveur (Astro page → wrapper App). Si absent,

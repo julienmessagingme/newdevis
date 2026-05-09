@@ -5,8 +5,8 @@
  * Les raisons sont générées par generateVerdictReasons() (verdictEngine.ts).
  */
 
-import type { VerdictReasonsInput } from "@/lib/verdictEngine";
-import { generateVerdictReasons } from "@/lib/verdictEngine";
+import type { VerdictReasonsInput } from "@/lib/analyse/verdictEngine";
+import { generateVerdictReasons } from "@/lib/analyse/verdictEngine";
 
 interface VerdictReasonsProps {
   input: VerdictReasonsInput;

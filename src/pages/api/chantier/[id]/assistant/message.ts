@@ -13,7 +13,7 @@ import {
   jsonOk,
   jsonError,
   createServiceClient,
-} from '@/lib/apiHelpers';
+} from '@/lib/api/apiHelpers';
 
 const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
 const supabaseService = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;

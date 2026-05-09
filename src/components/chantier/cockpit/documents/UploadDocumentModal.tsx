@@ -5,7 +5,7 @@ import {
   Sparkles, ChevronRight, Plus,
 } from 'lucide-react';
 import type { DocumentChantier, DocumentType, LotChantier } from '@/types/chantier-ia';
-import { getSemanticEmoji } from '@/lib/lotUtils';
+import { getSemanticEmoji } from '@/lib/chantier/lotUtils';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 

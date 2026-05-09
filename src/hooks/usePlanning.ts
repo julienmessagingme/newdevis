@@ -14,7 +14,7 @@ import {
   getTotalWeeks,
   parseDate,
   type DependencyMap,
-} from '@/lib/planningUtils';
+} from '@/lib/chantier/planningUtils';
 
 interface PlanningState {
   lots: LotChantier[];

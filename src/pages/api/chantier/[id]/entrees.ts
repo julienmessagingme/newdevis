@@ -11,7 +11,7 @@ import type { APIRoute } from 'astro';
 import {
   optionsResponse, jsonOk, jsonError,
   requireChantierAuth,
-} from '@/lib/apiHelpers';
+} from '@/lib/api/apiHelpers';
 
 // ── GET ───────────────────────────────────────────────────────────────────────
 

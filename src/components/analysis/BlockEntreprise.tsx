@@ -1,9 +1,9 @@
 ﻿import { useState } from "react";
 import { Star, Building2, Globe, ChevronDown, TrendingUp, AlertCircle, Ban } from "lucide-react";
-import { normalizeCompanyStatus } from "@/lib/verdictEngine";
-import { getScoreIcon, getScoreBgClass, getScoreTextClass } from "@/lib/scoreUtils";
-import { extractEntrepriseData, computeFinancialHealth } from "@/lib/entrepriseUtils";
-import type { FinancialRatios } from "@/lib/entrepriseUtils";
+import { normalizeCompanyStatus } from "@/lib/analyse/verdictEngine";
+import { getScoreIcon, getScoreBgClass, getScoreTextClass } from "@/lib/analyse/scoreUtils";
+import { extractEntrepriseData, computeFinancialHealth } from "@/lib/analyse/entrepriseUtils";
+import type { FinancialRatios } from "@/lib/analyse/entrepriseUtils";
 import InfoTooltip from "./InfoTooltip";
 import PedagogicExplanation from "./PedagogicExplanation";
 import type { CompanyDisplayData } from "@/components/pages/AnalysisResult";
