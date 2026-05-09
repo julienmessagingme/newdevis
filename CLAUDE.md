@@ -157,9 +157,9 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
 - **Wording "Comptes non déposés" → "Comptes non accessibles" (2026-05-06)** : le wording accusatoire "comptes non déposés depuis X années / obligation légale" a été remplacé par "Comptes non accessibles publiquement" + contexte pédagogique (déclaration de confidentialité = procédure légale fréquente) + badge ORANGE au lieu de ROUGE. Fichiers concernés : `score.ts`, `render.ts`, `BlockEntreprise.tsx`, `entrepriseUtils.ts`. Le filtre de détection dans `entrepriseUtils.ts` cherche désormais `"comptes non accessibles"` (pas `"comptes non déposés"`).
 
-- **verdictEngine — source de vérité unique (règle absolue, 2026-05-01)** : `src/lib/verdictEngine.ts` est le SEUL endroit où la logique de verdict est écrite. Utilisé dans `conclusion.ts` (serveur, override du verdict LLM) ET dans `AnalysisResult.tsx` (client, `effectiveScore`). **Ne jamais** écrire une logique de verdict locale dans un composant ou une route API — importer `computeVerdict`. Helpers à réutiliser : `computeMarketBounds`, `countMajorAnomalies`, `extractFlagsFromCriteria`, `extractCompanyRisk`, `extractCompanyStatusFromCriteria`, `normalizeCompanyStatus`.
+- **verdictEngine — source de vérité unique (règle absolue, 2026-05-01)** : `src/lib/analyse/verdictEngine.ts` est le SEUL endroit où la logique de verdict est écrite. Utilisé dans `conclusion.ts` (serveur, override du verdict LLM) ET dans `AnalysisResult.tsx` (client, `effectiveScore`). **Ne jamais** écrire une logique de verdict locale dans un composant ou une route API — importer `computeVerdict`. Helpers à réutiliser : `computeMarketBounds`, `countMajorAnomalies`, `extractFlagsFromCriteria`, `extractCompanyRisk`, `extractCompanyStatusFromCriteria`, `normalizeCompanyStatus`.
 
-- **Entreprise à risque juridique → verdict REFUSER forcé (règle absolue, 2026-05-03)** : une entreprise en cessation, liquidation, redressement judiciaire ou radiée force un verdict REFUSER **sans exception**, indépendamment du prix, des anomalies, de l'ancienneté ou du score global. Implémenté en priorité 0 dans `computeVerdict()` via le champ `company_status` de `VerdictInput` + `normalizeCompanyStatus()`. `extractCompanyStatusFromCriteria(criteres_rouges)` extrait le statut brut depuis les critères. `hard_block_reason === "company_status"` distingue ce cas du hard block classique (flags). **Ne jamais placer cette logique dans un composant ou le LLM** — uniquement dans `verdictEngine.ts`. Test unitaire : `npx tsx src/lib/verdictEngine.test.ts` (27 cas, 0 régression). Anti-régression : une entreprise "active" avec prix attractif doit toujours produire "signer".
+- **Entreprise à risque juridique → verdict REFUSER forcé (règle absolue, 2026-05-03)** : une entreprise en cessation, liquidation, redressement judiciaire ou radiée force un verdict REFUSER **sans exception**, indépendamment du prix, des anomalies, de l'ancienneté ou du score global. Implémenté en priorité 0 dans `computeVerdict()` via le champ `company_status` de `VerdictInput` + `normalizeCompanyStatus()`. `extractCompanyStatusFromCriteria(criteres_rouges)` extrait le statut brut depuis les critères. `hard_block_reason === "company_status"` distingue ce cas du hard block classique (flags). **Ne jamais placer cette logique dans un composant ou le LLM** — uniquement dans `verdictEngine.ts`. Test unitaire : `npx tsx src/lib/analyse/verdictEngine.test.ts` (27 cas, 0 régression). Anti-régression : une entreprise "active" avec prix attractif doit toujours produire "signer".
 
 - **effectiveScore figé si `conclusion_ia` null au chargement** (bug détecté 2026-05-01, commit `bb7a9a1`) : quand `analysis.conclusion_ia` est null (première visite, conclusion pas encore générée), `effectiveScore` se calcule à partir de `analysis.score` uniquement. Quand `ConclusionIA` génère ensuite le verdict, il ne met à jour que son propre state local — `analysis` dans le parent n'est jamais mis à jour. Fix : prop `onVerdictReady(rawJson)` dans `ConclusionIA` → `setConclusionIaLive(rawJson)` dans `AnalysisResult` → `effectiveScore` utilise `conclusionIaLive ?? analysis.conclusion_ia`. **Ne pas supprimer `onVerdictReady`** ni `conclusionIaLive`.
 
@@ -302,11 +302,11 @@ Le middleware Astro (`src/middleware.ts`) intercepte uniquement le path `/` et f
 
 | Fichier | Rôle |
 |---|---|
-| `src/lib/brand.ts` | `detectBrandFromHost(host)` (server-side) + `getBrand()` (client) + `VMD_CONFIG` / `GMC_CONFIG` (titres, sous-titres, redirect par défaut) |
-| `src/lib/gmcAccess.ts` | `hasGmcAccess(email)` — **source unique** de l'allowlist GMC. Aujourd'hui hardcodée `["julien@messagingme.fr", "bridey.johan@gmail.com"]`. À remplacer par lecture DB quand on ouvrira GMC. |
-| `src/lib/postLoginRedirect.ts` | Helper post-login : calcule la cible naturelle selon `hasGmcAccess`, fait SSO handoff cross-brand si nécessaire, fallback hard redirect. |
-| `src/lib/ssoHandoffClient.ts` | `navigateToGmc(targetPath)` : pour les liens VMD-side qui doivent envoyer l'utilisateur sur gmc.fr (e.g. bandeau "Mon chantier" sur le tableau de bord). |
-| `src/lib/signOut.ts` | `signOutCrossDomain()` : déco serveur-side `scope: 'global'` + redirect chain pour vider localStorage de l'autre origin. |
+| `src/lib/auth/brand.ts` | `detectBrandFromHost(host)` (server-side) + `getBrand()` (client) + `VMD_CONFIG` / `GMC_CONFIG` (titres, sous-titres, redirect par défaut) |
+| `src/lib/auth/gmcAccess.ts` | `hasGmcAccess(email)` — **source unique** de l'allowlist GMC. Aujourd'hui hardcodée `["julien@messagingme.fr", "bridey.johan@gmail.com"]`. À remplacer par lecture DB quand on ouvrira GMC. |
+| `src/lib/auth/postLoginRedirect.ts` | Helper post-login : calcule la cible naturelle selon `hasGmcAccess`, fait SSO handoff cross-brand si nécessaire, fallback hard redirect. |
+| `src/lib/auth/ssoHandoffClient.ts` | `navigateToGmc(targetPath)` : pour les liens VMD-side qui doivent envoyer l'utilisateur sur gmc.fr (e.g. bandeau "Mon chantier" sur le tableau de bord). |
+| `src/lib/auth/signOut.ts` | `signOutCrossDomain()` : déco serveur-side `scope: 'global'` + redirect chain pour vider localStorage de l'autre origin. |
 | `src/pages/api/sso/handoff.ts` | Endpoint POST qui génère un magic link Supabase via `auth.admin.generateLink({ type: 'magiclink' })` (admin API → **pas d'email envoyé**). Vérifie le JWT du caller via service_role. |
 | `src/pages/auth/clear-session.astro` | Cible de la redirect chain logout. Vide localStorage de son origin, redirige vers `?return=` (whitelist d'origines validée). |
 
@@ -435,7 +435,7 @@ Pour le détail complet (modèle CPM, agent IA dual-mode, pipeline de générati
 
 ### Planning CPM
 - **DAG multi-parent** : `lots_chantier` (durée + délai + lane_index) + `lot_dependencies` (Finish-to-Start).
-- Dates **dérivées** via tri topologique (Kahn) + forward pass (`src/lib/planningUtils.ts`).
+- Dates **dérivées** via tri topologique (Kahn) + forward pass (`src/lib/chantier/planningUtils.ts`).
 - API `/api/chantier/[id]/planning` : GET / PATCH (recompute global), `/shift-lot` (cascade ou détaché).
 - Frontend : `PlanningTimeline.tsx` (Gantt drag/resize), `usePlanning.ts` (state + reqSeqRef anti-rollback réseau).
 

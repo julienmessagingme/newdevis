@@ -607,6 +607,7 @@ Ces pages ont `export const prerender = false` et sont rendues côté serveur ou
 | `api/chantier/[id]/documents/[docId]/analyser.ts` | `/api/chantier/:id/documents/:docId/analyser` | Déclencher analyse d'un document |
 | `api/chantier/[id]/devis/index.ts` | `/api/chantier/:id/devis` | Liste devis d'un chantier |
 | `api/chantier/[id]/devis/[devisId].ts` | `/api/chantier/:id/devis/:devisId` | Détail devis individuel |
+| `api/health.ts` | `/api/health` | Health check ops — ping Supabase + check env vars. 200 si tout OK, 503 sinon. Pas de check externe (Gemini, whapi, SendGrid) pour ne pas gonfler la latence — leurs APIs ont leurs propres SLA. Réponse JSON `{ status, checks }`. |
 
 ### Pages dynamiques avec paramètres
 
@@ -1483,6 +1484,18 @@ Les variables `VITE_*` et `PUBLIC_*` doivent être définies au moment du build 
 
 Les secrets des edge functions sont configurés dans le dashboard Supabase.
 
+### CI — workflows GitHub Actions
+
+Définis dans `.github/workflows/` :
+
+- **`supabase-types-drift.yml`** — vérifie que `src/integrations/supabase/types.ts` est à jour avec le schéma Supabase distant. Tourne sur chaque PR qui modifie `supabase/migrations/**` ou `types.ts`. Sans ce check, une migration qui ajoute une colonne peut être déployée sans régénérer `types.ts` → la TS compile mais les nouveaux champs sont invisibles côté code (silently `undefined`). Pré-requis : secret repo `SUPABASE_ACCESS_TOKEN` (token personnel généré via https://supabase.com/dashboard/account/tokens). Si la check fail, régénérer localement : `npx supabase gen types typescript --project-id vhrhgsqxwvouswjaiczn > src/integrations/supabase/types.ts`.
+
+- **`seo-agent.yml`** — agent SEO (analyse périodique).
+
+### Health check ops
+
+`/api/health` (cf. § 6 API Routes) — endpoint à brancher sur un monitoring externe (UptimeRobot, BetterUptime, Vercel monitoring) pour alerter en cas de panne Supabase ou variable d'env manquante.
+
 ---
 
 ## 17. Patterns et conventions
@@ -1823,7 +1836,7 @@ Intégration whapi.cloud pour créer et gérer de vrais groupes WhatsApp depuis 
 
 #### Lib
 
-- `src/lib/whapiUtils.ts` — `formatPhone()`, `createWhatsAppGroup()`, `addGroupParticipants()`
+- `src/lib/integrations/whapiUtils.ts` — `formatPhone()`, `createWhatsAppGroup()`, `addGroupParticipants()`
 - `GMC_PHONE = '33633921577'` — toujours inclus dans les groupes, rôle `'gmc'`
 
 ---
@@ -1839,7 +1852,7 @@ Planification temporelle des lots de chantier avec vue Gantt drag/resize.
 - `chantiers` : `date_debut_chantier DATE`
 - Index : `idx_lots_planning ON lots_chantier(chantier_id, ordre_planning)`
 
-#### Lib partagée (`src/lib/planningUtils.ts`)
+#### Lib partagée (`src/lib/chantier/planningUtils.ts`)
 
 | Fonction | Signature | Description |
 |---|---|---|
@@ -1889,8 +1902,8 @@ Le composant `BudgetTresorerie` a été refactorisé. Les 12 sous-composants viv
 | `BudgetKpiCard` | Carte KPI budget (réutilisable) |
 
 Données partagées :
-- `src/lib/budgetAffinageData.ts` — `ELEMENT_DEFS`, `TRADE_QUESTION_DEFS`, `computeRefinedRange()`, `computeScore()` (pure TS, extrait du monolithe `BudgetTresorerie`)
-- `src/lib/budgetHelpers.ts` — `fmtK()`, `fmtFull()`, `PHASE_LABELS`, `PHASE_COLORS`
+- `src/lib/chantier/budgetAffinageData.ts` — `ELEMENT_DEFS`, `TRADE_QUESTION_DEFS`, `computeRefinedRange()`, `computeScore()` (pure TS, extrait du monolithe `BudgetTresorerie`)
+- `src/lib/chantier/budgetHelpers.ts` — `fmtK()`, `fmtFull()`, `PHASE_LABELS`, `PHASE_COLORS`
 
 ---
 
@@ -1954,21 +1967,36 @@ CHECK constraint `jsonb_typeof(cashflow_terms) = 'array'`. Le `event_id` est un 
 
 Colonnes exposées : `id, project_id, source_type ('devis'|'facture'|'manuel'|'frais'), source_id, term_index, lot_id, amount, due_date, status, label, funding_source_id, origin ('document'|'extra'), created_at`.
 
-#### Voies de saisie unifiées
+#### Voies de saisie unifiées (refacto 2026-05-09 — Option 2)
+
+**Règle absolue** : 1 seul chemin de saisie utilisateur pour les dépenses → `DepenseRapideModal` du Budget. Plus de désync architecture-level. Statut auto-dérivé par la VIEW depuis depense_type + facture_statut + cashflow_terms.
 
 | Voie | Cible | Visible Budget | Visible Échéancier |
 |---|---|---|---|
 | Agent IA `register_expense` (frais déclaré) | `documents_chantier` `depense_type='frais'` | ✅ alwaysPaid | ✅ via VIEW branche 1 |
+| UI `+ Dépense` Budget OU Échéancier → `DepenseRapideModal` | `documents_chantier` `depense_type='ticket_caisse'\|'achat_materiaux'\|'frais'` | ✅ | ✅ via VIEW branche 1 |
 | UI `+ Document > Achat/Ticket` (AddDocumentModal) | `documents_chantier` `depense_type='ticket_caisse'\|'achat_materiaux'` | ✅ | ✅ via cashflow_terms (si analyse) |
 | Devis upload (analyze-quote edge fn) | `documents_chantier.cashflow_terms` (array) | ✅ | ✅ N versements |
 | Facture upload | `documents_chantier.cashflow_terms` + override parent_devis | ✅ | ✅ remplace devis |
-| UI `+ dépense` Échéancier (agent `add_payment_event`) | `cashflow_extras` | ❌ par design (mouvement global) | ✅ via VIEW branche 3 |
+| Agent IA `add_payment_event` (mouvement global, e.g. apport) | `cashflow_extras` | ❌ par design | ✅ via VIEW branche 3 |
 
-Plus de désync architecture-level. Statut auto-dérivé par la VIEW depuis depense_type + facture_statut + cashflow_terms.
+**Suppression** : l'ancienne `AddDepenseModal` (POST `/payment-events` `manuel: true` → cashflow_extras orphelins) supprimée. Le bouton `+ Dépense` Échéancier ouvre désormais le `DepenseRapideModal` du Budget (lots fetchés lazy via `/api/chantier/[id]/lots`).
+
+**Synchro inter-écran via `chantierBudgetChanged`** : `BudgetTab.useBudgetData.refresh` dispatche un `CustomEvent('chantierBudgetChanged')` après chaque load. `Echeancier` et `BudgetTab` écoutent et re-fetch → saisie dans Échéancier visible immédiatement dans Budget sans reload.
+
+#### Bug A — `acompte_pending` séparé (2026-05-09)
+
+**Règle** : un acompte versé sur un devis non signé alimente `totaux.acompte_pending`, **pas** `totaux.acompte`. Le KPI Décaissé ne compte que `acompte` (= devis signés). Le `acompte_pending` est exposé en bannière orange dédiée dans `BudgetTab` : "X € d'acomptes versés sur des devis non signés — signez le devis pour les inclure dans le suivi".
+
+**Pourquoi** : avant ce fix, les `evDevisPaid` (paiements rattachés au devis via Échéancier) gonflaient le KPI Décaissé même quand le devis n'était pas signé (cas réel : ISO & FACE 64, 43 508 €, faisait passer le KPI à 119% du budget).
+
+**Quand le devis bascule en signé** → les versements migrent automatiquement de `acompte_pending` vers `acompte`. Pas de duplication de données — c'est calculé à la volée par `budget.ts` selon `devis_statut`.
+
+**Ne pas réintroduire le bug** : si on touche `bucket.totaux.acompte` dans `budget.ts`, vérifier que la condition `devis_statut === 'signe' || devis_statut === 'contrat_signe'` est respectée. Sinon → KPI Décaissé faussé.
 
 #### Génération des `cashflow_terms`
 
-`src/lib/paymentEvents.ts` contient le pipeline :
+`src/lib/chantier/paymentEvents.ts` contient le pipeline :
 1. `extractConditionsFromAnalyse` : lit `analyses.raw_text` JSON (résultat Gemini)
 2. `transformToPaymentEvents` : calcule montants + dates + génère un `event_id = randomUUID()` par event
 3. `writeCashflowTermsForDoc` : UPDATE `documents_chantier.cashflow_terms` (REPLACE l'array entier — idempotent)
@@ -2012,7 +2040,7 @@ La table `chantier_conversations` expose une colonne `reply_address` : adresse u
 
 ### TresorerieView
 
-`components/chantier/cockpit/TresorerieView.tsx` (1093 lignes) — remplace l'onglet "Trésorerie" dans `TresoreriePanel`. Données chargées depuis `/api/chantier/[id]/budget`.
+`components/chantier/cockpit/tresorerie/TresorerieView.tsx` (1093 lignes) — remplace l'onglet "Trésorerie" dans `TresoreriePanel`. Données chargées depuis `/api/chantier/[id]/budget`.
 
 #### 2 sections actives
 
@@ -2028,7 +2056,7 @@ La table `chantier_conversations` expose une colonne `reply_address` : adresse u
 | `useBudget(chantierId, token)` | interne | Fetch `/api/chantier/[id]/budget` |
 | `useFinancingConfig(chantierId, token, initial)` | interne | localStorage `tresorerie_v3_{chantierId}` + `budget_reel_{chantierId}`, sync PATCH metadonnees |
 
-#### Lib associée (`src/lib/financingUtils.ts`)
+#### Lib associée (`src/lib/chantier/financingUtils.ts`)
 
 | Export | Type | Description |
 |---|---|---|
@@ -2045,7 +2073,7 @@ La table `chantier_conversations` expose une colonne `reply_address` : adresse u
 
 ### AddDocumentModal et DepenseRapideModal
 
-#### `AddDocumentModal` (`cockpit/AddDocumentModal.tsx`)
+#### `AddDocumentModal` (`cockpit/documents/AddDocumentModal.tsx`)
 
 Modal d'ajout de document avec deux modes :
 - **Upload fichier classique** — sélection + upload vers bucket `chantier-documents`
@@ -2122,7 +2150,7 @@ Modèle **DAG multi-parent** standard MS Project / Primavera, remplace l'ancien 
 - `lot_dependencies (lot_id, depends_on_id)` — arêtes du DAG (Finish-to-Start, multi-parent)
 
 **Dérivé (recalculé, non stocké)** :
-- `date_debut` / `date_fin` — recomputés par `computePlanningDates` (`src/lib/planningUtils.ts`)
+- `date_debut` / `date_fin` — recomputés par `computePlanningDates` (`src/lib/chantier/planningUtils.ts`)
 - Lanes visuelles — first-fit par date avec préférence pour `lane_index` si défini
 
 **Algo `computePlanningDates`** :
