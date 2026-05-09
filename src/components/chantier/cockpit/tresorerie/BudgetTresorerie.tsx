@@ -5,19 +5,19 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Wallet, FileCheck, ExternalLink } from 'lucide-react';
 import type { ChantierIAResult, DocumentChantier, FactureStatut } from '@/types/chantier-ia';
-import type { InsightsData } from './useInsights';
+import type { InsightsData } from '../useInsights';
 import TresoreriePanel from './TresoreriePanel';
 import { fmtK, fmtFull } from '@/lib/budgetHelpers';
 import { type BreakdownItem } from '@/lib/budgetAffinageData';
-import LotBreakdown from './budget/LotBreakdown';
-import AlertesIA from './budget/AlertesIA';
-import TresoreriePhases from './budget/TresoreriePhases';
-import FacturesPaiements from './budget/FacturesPaiements';
-import DepenseRapideModal from './budget/DepenseRapideModal';
-import BudgetComparaison from './budget/BudgetComparaison';
-import BudgetExplication from './budget/BudgetExplication';
-import BudgetAffinageModal, { ScoreBadge } from './budget/BudgetAffinageModal';
-import BudgetBandeau from './budget/BudgetBandeau';
+import LotBreakdown from '../budget/LotBreakdown';
+import AlertesIA from '../budget/AlertesIA';
+import TresoreriePhases from '../budget/TresoreriePhases';
+import FacturesPaiements from '../budget/FacturesPaiements';
+import DepenseRapideModal from '../budget/DepenseRapideModal';
+import BudgetComparaison from '../budget/BudgetComparaison';
+import BudgetExplication from '../budget/BudgetExplication';
+import BudgetAffinageModal, { ScoreBadge } from '../budget/BudgetAffinageModal';
+import BudgetBandeau from '../budget/BudgetBandeau';
 import { useAnalysisScores } from '@/hooks/useAnalysisScores';
 
 // Re-export for consumers (DashboardUnified imports BreakdownItem from here)

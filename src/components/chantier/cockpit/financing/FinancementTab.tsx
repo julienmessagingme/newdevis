@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import AidesTravaux, { type SimulationData } from '@/components/chantier/cockpit/financing/AidesTravaux';
 import CreditSimulator from '@/components/chantier/cockpit/financing/CreditSimulator';
-import type { SourceKey } from '@/components/chantier/cockpit/FinancingSources';
+import type { SourceKey } from '../tresorerie/FinancingSources';
 
 export default function FinancementTab({
   onImportAides,

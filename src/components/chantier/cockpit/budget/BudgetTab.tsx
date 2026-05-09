@@ -16,9 +16,9 @@ import {
   Check, Clock, ChevronDown, ChevronUp, ChevronRight, Scale, Pencil,
 } from 'lucide-react';
 import { fmtEur } from '@/lib/financingUtils';
-import AddDocumentModal from './AddDocumentModal';
-import VersementsDrawer from './VersementsDrawer';
-import PaiementDrawer, { type PaiementContext } from './PaiementDrawer';
+import AddDocumentModal from '../documents/AddDocumentModal';
+import VersementsDrawer from '../tresorerie/VersementsDrawer';
+import PaiementDrawer, { type PaiementContext } from '../tresorerie/PaiementDrawer';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 

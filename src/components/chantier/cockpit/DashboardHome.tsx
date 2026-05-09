@@ -2,13 +2,13 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { Plus, SlidersHorizontal, HelpCircle, X, Check } from 'lucide-react';
 import type { DocumentChantier, LotChantier } from '@/types/chantier-ia';
 import { KpiCard, ViewToggle, RDV_EMOJI } from './DashboardWidgets';
-import PaiementDrawer from './PaiementDrawer';
-import LotIntervenantCard from './LotIntervenantCard';
-import IntervenantsListView from '@/components/chantier/cockpit/IntervenantsListView';
-import PlanningWidget from '@/components/chantier/cockpit/planning/PlanningWidget';
-import ComparateurDevisModal from '@/components/chantier/cockpit/ComparateurDevisModal';
+import PaiementDrawer from './tresorerie/PaiementDrawer';
+import LotIntervenantCard from './lots/LotIntervenantCard';
+import IntervenantsListView from './lots/IntervenantsListView';
+import PlanningWidget from './planning/PlanningWidget';
+import ComparateurDevisModal from './ComparateurDevisModal';
 import { fmtK } from '@/lib/dashboardHelpers';
-import type { BreakdownItem } from './BudgetTresorerie';
+import type { BreakdownItem } from './tresorerie/BudgetTresorerie';
 import { useAnalysisScores } from '@/hooks/useAnalysisScores';
 
 // ── Barre d'onboarding ────────────────────────────────────────────────────────

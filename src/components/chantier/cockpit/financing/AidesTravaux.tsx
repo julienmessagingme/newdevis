@@ -11,7 +11,7 @@ import {
   type EffyResult,
   fmtEur,
 } from '@/lib/financingUtils';
-import type { SourceKey } from '@/components/chantier/cockpit/FinancingSources';
+import type { SourceKey } from '../tresorerie/FinancingSources';
 
 export interface SimulationData {
   workType: EffyWorkType;

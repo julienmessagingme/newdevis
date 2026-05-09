@@ -13,12 +13,12 @@ import {
   ChevronRight, X, Check, Loader2, Paperclip,
   ArrowRight, Shield, Info, TrendingDown, Pencil, FileText, Download, UploadCloud,
 } from 'lucide-react';
-import PVReceptionModal from './PVReceptionModal';
+import PVReceptionModal from '../lots/PVReceptionModal';
 import Echeancier from './Echeancier';
-import BudgetTab from './BudgetTab';
+import BudgetTab from '../budget/BudgetTab';
 import TresorerieView from './TresorerieView';
 import type { SourceKey } from './FinancingSources';
-import type { SimulationData } from './financing/AidesTravaux';
+import type { SimulationData } from '../financing/AidesTravaux';
 import {
   usePaymentEvents,
   type PaymentEvent,

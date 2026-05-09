@@ -4,7 +4,7 @@ import {
 import type { LotChantier, DocumentChantier } from '@/types/chantier-ia';
 import { formatDuration, getWeekNumber } from '@/lib/planningUtils';
 import { fmtK, fmtEur, IS } from '@/lib/dashboardHelpers';
-import type { InsightItem } from './useInsights';
+import type { InsightItem } from '../useInsights';
 
 // ── Statut artisan ─────────────────────────────────────────────────────────────
 

@@ -7,10 +7,10 @@ import {
   computeTotalEngaged,
 } from '@/hooks/usePaymentEvents';
 import { fmtEur } from '@/lib/financingUtils';
-import { AlertsPanel } from '@/components/chantier/cockpit/AlertsPanel';
-import BudgetGaugeReal from '@/components/chantier/cockpit/BudgetGaugeReal';
-import CashflowProjection from '@/components/chantier/cockpit/CashflowProjection';
-import FinancingSources, { type SourceKey } from '@/components/chantier/cockpit/FinancingSources';
+import { AlertsPanel } from '../assistant/AlertsPanel';
+import BudgetGaugeReal from '../budget/BudgetGaugeReal';
+import CashflowProjection from './CashflowProjection';
+import FinancingSources, { type SourceKey } from './FinancingSources';
 
 export default function CashflowTab({
   chantierId,
