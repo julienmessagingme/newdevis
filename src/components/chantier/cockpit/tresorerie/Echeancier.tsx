@@ -1241,8 +1241,9 @@ function PaymentEventRow({ ev, chantierId, token, confirmingId, setConfirmingId,
     <div className={`${isLate ? 'bg-red-50/40' : isPaid ? 'bg-emerald-50/20' : ''}`}>
       {/* ── Ligne principale — cliquable ── */}
       <div
-        className={`px-4 py-3.5 cursor-pointer transition-colors ${detailOpen ? 'bg-indigo-50/40' : 'hover:bg-gray-50/60'}`}
+        className={`group px-4 py-3.5 cursor-pointer transition-colors ${detailOpen ? 'bg-indigo-50/40' : 'hover:bg-gray-50/60'}`}
         onClick={handleRowClick}
+        title="Cliquer pour modifier ou splitter cette échéance"
       >
         <div className="flex items-start gap-3">
           <div className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${cfg.dot}`} />
@@ -1269,7 +1270,7 @@ function PaymentEventRow({ ev, chantierId, token, confirmingId, setConfirmingId,
                     </span>
                   </span>
                 ) : null}
-                <ChevronDown className={`h-3.5 w-3.5 text-gray-300 transition-transform ${detailOpen ? 'rotate-180 text-indigo-400' : ''}`} />
+                <ChevronDown className={`h-3.5 w-3.5 transition-all ${detailOpen ? 'rotate-180 text-indigo-500' : 'text-gray-400 group-hover:text-indigo-400'}`} />
               </div>
             </div>
 

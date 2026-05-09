@@ -64,10 +64,11 @@ export default function Sidebar({ result, activeSection, onSelect, rangeMin, ran
       )}
 
       <aside className={`
-        fixed top-0 left-0 h-full w-[240px] bg-white border-r border-gray-100 z-40 flex flex-col
+        fixed top-0 left-0 h-full w-[280px] lg:w-[240px] bg-white border-r border-gray-100 z-40 flex flex-col
+        pb-[max(0.5rem,env(safe-area-inset-bottom))]
         transition-transform duration-300 ease-in-out
         ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
-        lg:relative lg:translate-x-0 lg:z-auto lg:flex-none
+        lg:relative lg:translate-x-0 lg:z-auto lg:flex-none lg:pb-0
       `}>
         {/* Projet — logo seul, pas de doublon nom/budget */}
         <div className="px-4 py-4 border-b border-gray-50">

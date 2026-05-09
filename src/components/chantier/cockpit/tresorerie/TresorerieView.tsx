@@ -233,6 +233,39 @@ function useEntreesTotaux(chantierId: string, token: string): EntreesTotaux {
   return totaux;
 }
 
+// ── Bandeau 5 KPIs canoniques (alignés avec BudgetTab) ──────────────────────
+// CLAUDE.md "Cohérence financière 5 chiffres clés (2026-05-07)" :
+// Budget cible · Engagé · Décaissé · À payer · Flux certains.
+
+function KpiBandeauCanonique({ budgetCible, engage, decaisse, aPayer, fluxCertains }: {
+  budgetCible:  number;
+  engage:       number;
+  decaisse:     number;
+  aPayer:       number;
+  fluxCertains: number;
+}) {
+  const items = [
+    { label: 'Budget cible',  value: budgetCible,  hint: 'Enveloppe fixée' },
+    { label: 'Engagé',        value: engage,       hint: 'Devis signés' },
+    { label: 'Décaissé',      value: decaisse,     hint: 'Acomptes + paiements' },
+    { label: 'À payer',       value: aPayer,       hint: 'Factures reçues' },
+    { label: 'Flux certains', value: fluxCertains, hint: 'Décaissé + à payer' },
+  ];
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-px bg-gray-100 border-b border-gray-100">
+      {items.map(item => (
+        <div key={item.label} className="bg-white px-4 py-2.5 flex flex-col">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">{item.label}</span>
+          <span className="text-[14px] font-extrabold text-gray-900 tabular-nums leading-tight mt-0.5">
+            {fmtEur(item.value)}
+          </span>
+          <span className="text-[10px] text-gray-400 leading-tight mt-0.5">{item.hint}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Bannière de cohérence financement ─────────────────────────────────────────
 
 function CoherenceAlertsBanner({
@@ -1122,8 +1155,7 @@ export default function TresorerieView({
 
   const totalAides = (cfg.maprimeOn ? cfg.maprime : 0)
     + (cfg.ceeOn ? cfg.cee : 0)
-    + (cfg.ecoptzOn ? cfg.ecoptz : 0)
-    + (cfg.tvaOn ? cfg.tva : 0);
+    + (cfg.ecoptzOn ? cfg.ecoptz : 0);
 
   // ── Handlers cohérence ─────────────────────────────────────────────────────
   function handleUpdateCreditFromEntrees(val: number) {
@@ -1153,8 +1185,20 @@ export default function TresorerieView({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cfg.autoUpdateBudget, fluxCertains, budgetRef]);
 
+  const decaisse = (data?.totaux.paye ?? 0) + (data?.totaux.acompte ?? 0);
+  const aPayer   = data?.totaux.a_payer ?? 0;
+
   return (
     <div className="flex flex-col bg-white">
+      {/* Bandeau cohérence 5 chiffres clés (alignés avec BudgetTab — CLAUDE.md) */}
+      <KpiBandeauCanonique
+        budgetCible={budgetRef}
+        engage={devisValides}
+        decaisse={decaisse}
+        aPayer={aPayer}
+        fluxCertains={fluxCertains}
+      />
+
       {/* Bannière de cohérence (entrées réelles vs plan — crédit + aides) */}
       <CoherenceAlertsBanner
         entresTotaux={entresTotaux}

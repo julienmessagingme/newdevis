@@ -68,7 +68,8 @@ export default function ConversationThread({
         <button
           type="button"
           onClick={onBack}
-          className="lg:hidden p-1 rounded-lg hover:bg-gray-100 transition-colors"
+          aria-label="Retour à la liste"
+          className="lg:hidden w-11 h-11 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors touch-manipulation shrink-0"
         >
           <ArrowLeft className="h-5 w-5 text-gray-600" />
         </button>

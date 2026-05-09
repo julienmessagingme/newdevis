@@ -68,7 +68,7 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
 
       {/* ── Back + header ── */}
       <div className="flex items-center gap-3">
-        <button onClick={onBack} className="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-500 transition-colors shrink-0">
+        <button onClick={onBack} aria-label="Retour" className="w-11 h-11 lg:w-9 lg:h-9 flex items-center justify-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-500 transition-colors shrink-0 touch-manipulation">
           <ArrowLeft className="h-4 w-4" />
         </button>
         <span className="text-2xl leading-none">{lot.emoji ?? '🔧'}</span>
@@ -128,6 +128,7 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
+                    inputMode="numeric"
                     min={1}
                     max={365}
                     value={dureeInput}

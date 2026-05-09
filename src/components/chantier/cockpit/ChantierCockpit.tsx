@@ -607,8 +607,9 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
         <header className="bg-white border-b border-gray-100 px-5 py-3 shrink-0">
           <div className="flex items-center gap-3">
             <button onClick={() => setMobileOpen(v => !v)}
-              className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 shrink-0">
-              <Menu className="h-4 w-4" />
+              aria-label="Ouvrir le menu"
+              className="lg:hidden w-11 h-11 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 shrink-0 touch-manipulation">
+              <Menu className="h-5 w-5" />
             </button>
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center text-lg shrink-0">
               {result.emoji ?? '🏗️'}

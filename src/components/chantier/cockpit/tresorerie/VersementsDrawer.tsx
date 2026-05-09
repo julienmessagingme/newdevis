@@ -299,6 +299,11 @@ export default function VersementsDrawer({
   // Échéances planifiées
   const [showPending, setShowPending] = useState(false);
 
+  // Confirmation "En litige" — friction volontaire pour éviter un clic accidentel
+  // sur un statut à fort signal (déclare un désaccord avec l'artisan).
+  const [litigeConfirmOpen, setLitigeConfirmOpen] = useState(false);
+  const [litigeReason, setLitigeReason] = useState('');
+
   // ── Stabilisation des props instables via useRef ──────────────────────────
   // NE PAS inclure sourceIds/knownEventIds dans loadEvents deps :
   // ces tableaux sont recréés à chaque render de BudgetTab → loading loop.
@@ -492,10 +497,20 @@ export default function VersementsDrawer({
             <div className="flex flex-wrap gap-1.5">
               {FACTURE_STATUT_OPTS.map(opt => {
                 const isActive = factureStatut === opt.value;
+                const isLitige = opt.value === 'en_litige';
                 return (
                   <button
                     key={opt.value}
-                    onClick={() => onStatutChange(opt.value)}
+                    onClick={() => {
+                      // Friction volontaire pour "En litige" : confirmation + raison obligatoire,
+                      // sauf si ce statut est déjà actif (clic = no-op).
+                      if (isLitige && !isActive) {
+                        setLitigeReason('');
+                        setLitigeConfirmOpen(true);
+                        return;
+                      }
+                      onStatutChange(opt.value);
+                    }}
                     className={`flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-full border transition-all ${
                       isActive ? opt.cls : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300 hover:text-gray-600'
                     }`}
@@ -506,6 +521,51 @@ export default function VersementsDrawer({
                 );
               })}
             </div>
+
+            {/* Panel de confirmation litige */}
+            {litigeConfirmOpen && (
+              <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3">
+                <div className="flex items-start gap-2 mb-2">
+                  <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-[12px] font-bold text-red-800">Mettre cette facture en litige ?</p>
+                    <p className="text-[11px] text-red-600 mt-0.5">
+                      Ce statut signale un désaccord formel avec l&apos;artisan. Décrivez la raison pour mémoire (≥&nbsp;10 caractères).
+                    </p>
+                  </div>
+                </div>
+                <textarea
+                  value={litigeReason}
+                  onChange={e => setLitigeReason(e.target.value)}
+                  placeholder="Ex : montant incorrect, prestation non conforme…"
+                  rows={2}
+                  className="w-full text-[12px] bg-white border border-red-200 rounded-lg px-2.5 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-red-300 resize-none"
+                  autoFocus
+                />
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    onClick={() => { setLitigeConfirmOpen(false); setLitigeReason(''); }}
+                    className="text-[12px] font-semibold text-gray-500 hover:text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (litigeReason.trim().length < 10) return;
+                      onStatutChange('en_litige');
+                      setLitigeConfirmOpen(false);
+                      // La raison reste en mémoire locale uniquement (pas de persistance backend
+                      // pour le moment — éviter la régression côté API). À étendre si besoin.
+                      setLitigeReason('');
+                    }}
+                    disabled={litigeReason.trim().length < 10}
+                    className="text-[12px] font-semibold bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Confirmer le litige
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

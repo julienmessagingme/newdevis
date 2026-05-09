@@ -21,44 +21,9 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 - ✅ **Étape 3** : `cockpit/` partitionné par domaine — 47 fichiers à plat → 9 sous-dossiers (`assistant/`, `budget/`, `contacts/`, `documents/`, `financing/`, `lots/`, `messagerie/`, `planning/`, `tresorerie/`). 0 nouvelle erreur TS.
 - ✅ **Étape 4** : `DashboardWidgets.tsx` (8 exports dont 5 dead) supprimé, les 3 utilisés (`KpiCard`, `ViewToggle`, `RDV_EMOJI`) inlinés dans DashboardHome (seul consommateur).
 
-### Reste à faire (backlog priorisé par ROI)
+### Reste à faire
 
-#### 🟠 Étape 5 — Casser `BudgetTab.tsx` (2581 lignes 🔥)
-Le pire fichier du repo. Effort : ~1j. Risque : moyen (fichier critique, plusieurs flux paiement).
-Plan minimal : extraire 4-5 sous-composants (`IntervenantsList`, `PaymentSummary`, `MissingDocAlerts`, `LineItemRow`) en gardant `BudgetTab.tsx` comme orchestrateur < 500 lignes.
-
-#### 🟠 Étape 6 — Consolider Trésorerie ×3
-`tresorerie/{TresoreriePanel, TresorerieView, BudgetTresorerie}` = 4 niveaux de cascade pour afficher un même domaine. Effort : ~1j. Risque : moyen — `showBudgetDetail` flag dans ChantierCockpit suggère 2 modes distincts. **Audit avant de fusionner**.
-
-#### 🟠 Étape 7 — Partition `lib/` par domaine
-38 fichiers plats. Mêmes domaines que `cockpit/` :
-```
-lib/
-├── api/         (apiHelpers)
-├── analyse/     (verdictEngine, scoreUtils, conclusionTypes, entrepriseUtils, urbanismeUtils, blogUtils, securiteUtils, devisUtils, quoteGlobalAnalysis, contexteUtils, architecteUtils)
-├── chantier/    (planningUtils, lotUtils, paymentEvents, financingUtils, budgetAffinageData, budgetHelpers, dashboardHelpers, roadmapUtils)
-├── auth/        (gmcAccess, postLoginRedirect, signOut, ssoHandoffClient, adminAuth, brand, domainConfig)
-├── integrations/ (whapiUtils, marketingApi, amplitude, subscription)
-└── data/        (workTypeReferentiel, formalitesLinks, prompts/)
-```
-Effort : 30min. Risque : bas. Faire en `git mv` + bulk update des imports `@/lib/X` → `@/lib/<domain>/X`.
-
-#### 🟠 Étape 8 — Header ×3 sync
-3 variantes (`layout/Header.tsx` React + `astro/Header.astro` + `gmc-landing/Header.astro`) imposent de modifier 3 fichiers à chaque changement d'auth state. Extraire un `<HeaderUserMenu />` partagé client:only — les 3 Headers se réduisent à layout + branding + import du même menu.
-Effort : 2-3h. Risque : moyen.
-
-#### 🟠 Étape 9 — Découper `AnalysisResult.tsx` (1341 lignes)
-Page principale d'analyse de devis. Les sections `Block*` sont déjà extraites — reste 1341 lignes d'orchestrateur dont gros useMemo (`effectiveScore`, `weightedAnomalies`) à sortir en hooks dédiés (`useEffectiveScore.ts`, `useWeightedAnomalies.ts`). Cible : ~600 lignes.
-Effort : ~1j. Risque : moyen (page critique, beaucoup de logique TDZ-sensible — cf. règle "TDZ in edge functions and React").
-
-#### 🟠 Étape 10 — Tests unitaires (couverture critique)
-Au minimum couvrir avec Vitest :
-- `lib/planningUtils.ts` (CPM forward pass — bug zone historique)
-- `lib/market-prices.ts` (matching 5 niveaux + emergency fallback)
-- `pages/api/analyse/[id]/conclusion.ts` (`extractKnownSurface`, `hasSurfaceUnitMismatch`)
-- `verdictEngine.ts` ✅ déjà couvert (27 cas)
-
-Effort : 2-3j. Risque : bas. Filet de sécurité critique vu que l'agent IA prend des actions destructives.
+Étapes 5-10 (refacto BudgetTab, Trésorerie, lib/, Header×3, AnalysisResult, tests) → [`TODO.md`](TODO.md) section "Refacto code".
 
 ---
 
@@ -288,8 +253,9 @@ RÈGLE ABSOLUE : UN PDF MULTI-ENTREPRISE = N ANALYSES INDÉPENDANTES.
 🟡 **En cours — corrections critiques priorisées une par une, validées par le Product Owner.**
 
 Audit complet → voir [`UX-AUDIT.md`](UX-AUDIT.md) (baseline + historique des itérations).
+Backlog des items pas encore commencés → voir [`TODO.md`](TODO.md).
 
-### Problèmes critiques — statut
+### Problèmes critiques — historique
 
 | # | Problème | Statut | Commit |
 |---|----------|--------|--------|
@@ -298,16 +264,26 @@ Audit complet → voir [`UX-AUDIT.md`](UX-AUDIT.md) (baseline + historique des i
 | C3 | KPIs header orientés action (X€ à payer, alertes) | ✅ Fait | `c588f59` |
 | C4 | État vide + progression d'onboarding | ✅ Fait | `62234d9` |
 
-### Problèmes importants — backlog
+### Problèmes importants — historique
 
 | # | Problème | Statut |
 |---|----------|--------|
-| I1 | Statut "En litige" = confirmation requise | 🟠 Backlog |
+| I1 | Statut "En litige" = confirmation requise | ✅ Fait 2026-05-09 (panel inline + raison ≥ 10 chars) |
 | I2 | Sous-lignes devis masquées par défaut dans Budget | ✅ Fait `ebe745c` |
-| I3 | Surface persistante alertes IA (bandeau, pas onglet) | 🟠 Backlog |
-| I4 | "Reste" en orange → neutre sauf retard réel | ✅ Fait `2d16ca2` |
-| I5 | Vue expert en toggle | 🟠 Backlog |
-| I6 | Dépense rapide mieux visible | 🟠 Backlog |
+| I4 | "Reste" en orange → neutre sauf retard réel | ✅ Fait `2d16ca2` (desktop) + 2026-05-09 (mobile) |
+| I6 | Dépense rapide mieux visible | ✅ Fait 2026-05-03 |
+
+I3 (Surface persistante Assistant IA) et I5 (Vue expert toggle) → `TODO.md`.
+
+### AUDIT #2 — sprint correctifs 2026-05-09
+
+10 fixes livrés en une session (Vague A + B + C). Score global 6.7 → 7.6/10.
+
+**Corrigés** : N1 (reste mobile gris) · N3 (bandeau 5 KPIs canoniques en Trésorerie) · N4 (cue visuel split échéance) · N5a (sidebar 280px mobile + safe-area) · N6a (touch targets 44×44) · N6b (PanneauDetail safe-area) · N6c (inputMode numeric durée) · N7 (code mort `cfg.tvaOn`) · I1 (confirmation litige) · I4 (reste mobile, régression partielle audit #1).
+
+Items pas attaqués (jugés trop risqués pour la session "no breaking") déplacés dans [`TODO.md`](TODO.md) : I3, I5, N5b (cards intervenants mobile), N5c (touch events Planning), pencil edit LotDetail.
+
+Voir [`UX-AUDIT.md`](UX-AUDIT.md) "Sprint correctifs 2026-05-09" pour le détail.
 
 ---
 
@@ -659,31 +635,6 @@ Hérité de la session précédente (cf. CLAUDE.md "TODO — prochaine session")
 
 ---
 
-## 5. Cron timeout — fan-out pattern
-
-🟠 **Décidé, pas commencé.**
-
-Le cron quotidien `agent-orchestrator-evening-digest` traite les chantiers actifs en batches de 3. Au-delà de ~10 chantiers actifs, on risque le timeout edge function 60s.
-
-**Solution** : edge function "dispatcher" qui fire N appels indépendants à l'edge function `agent-orchestrator` (1 par chantier). Pas bloquant — juste à anticiper avant que la base utilisateur grossisse.
-
----
-
-## 6. Migration `useInsights` legacy → `agent_insights`
-
-🟠 **Dette technique, pas urgent.**
-
-6 composants utilisent encore `cockpit/useInsights.ts` (ancien système Gemini MOE — appel éphémère sans persistance) :
-- `BudgetTresorerie.tsx`
-- `AnalyseDevisSection.tsx`
-- `LotCard.tsx`
-- `LotIntervenantCard.tsx`
-- `BudgetKpiCard.tsx`
-- `dashboardHelpers.ts`
-
-À terme : remplacer par lecture des `agent_insights` persistants (mêmes données mais cachées + traçables). Pas urgent — ça marche aujourd'hui.
-
----
 
 ## 7. Type debt — `assistant.ts` DevisInfo
 
@@ -721,60 +672,11 @@ Scénario prod à valider end-to-end : créer un groupe → vérifier que les me
 - ✅ ÉTAPE 8 : BudgetProgressBars → bouton "Affiner" + bottom sheet détail par poste (mobile)
 
 ### Restant
-- 🟠 ÉTAPE 7 : Touch targets 44px min (surtout chevrons, icon buttons dans DocumentsView, ContactsSection)
-- 🟠 ÉTAPE 9 : AnalysisResult blocs secondaires collapsés par défaut sur mobile
-- 🟠 ÉTAPE 10 : Homepage — résultat visuel + exemple concret
-- `PlanningTimeline` (#12) — gros chantier mobile, le Gantt est galère sur petit écran
-- `ContactsSection`, `DocumentsView` (#16)
+
+Étapes 7, 9, 10 (touch targets 44px, AnalysisResult collapse mobile, homepage résultat visuel) + Planning Gantt mobile + ContactsSection/DocumentsView mobile → [`TODO.md`](TODO.md) section "Vue mobile — passes restantes".
 
 ---
 
-## 10. Cohérence Budget initial (estimation IA) ↔ Budget/Trésorerie (suivi réel)
-
-🟠 **UX à repenser — fracture entre les 2 phases du chantier.**
-
-Aujourd'hui on a deux mondes parallèles autour du budget :
-
-- **Phase 1 — "Avant travaux"** : Accueil → Budget chantier → bouton "Affiner". Logique vague d'estimation IA (`market_prices`, qualification), l'utilisateur ne sait pas vraiment combien ça va coûter, on lui donne une fourchette. Réfine progressivement par questions (surface précise, choix matériaux, etc.).
-- **Phase 2 — "On a lancé"** : Budget & Trésorerie. Logique de suivi de dépenses réelles. On a des devis signés, des factures, des paiements. Échéancier prévisionnel et réel. Cashflow.
-
-### Le problème
-Pas de **passerelle UX** entre les deux. Quand l'utilisateur passe de "j'ai mon estimation IA" à "j'ai mes devis et je commence à payer", il y a une rupture :
-- Le budget IA initial n'apparaît plus en référence dans Budget & Trésorerie (sauf un encadré statique "budget cible XXX €").
-- Pas de comparaison "estimation IA vs devis reçus" mise en avant — l'écart n'est visible qu'à travers les conseils proactifs (`buildConseils` "dépassement budget").
-- L'utilisateur n'est pas guidé vers "tu peux maintenant figer ton budget réel à partir des devis validés" — on reste sur l'estimation initiale.
-
-### Pistes de hitch / passerelle
-- **Étape de transition explicite** : quand X% des lots ont un devis validé, proposer "Bascule vers le suivi réel — fige ton budget cible à partir des devis signés". Stocke un nouveau `budget_real` distinct du `budget_ia` initial.
-- **Vue comparée side-by-side** dans Budget & Trésorerie : "Estimation IA initiale | Devis validés | Écart | % engagement". Visible en haut de l'onglet.
-- **Sur l'écran Affiner** : à la fin du flow d'affinage, CTA explicite "Tu as ton estimation. Maintenant uploade tes devis pour passer en suivi de dépenses réelles" → routage vers tab Budget.
-- **Ligne du temps narrative** dans l'Accueil : "Phase 1 estimation → Phase 2 suivi → Phase 3 bilan" avec progression visible (pourcentage de devis validés).
-
-### À décider
-- Faut-il créer un champ `budget_real_locked` distinct de `budget_ia` ?
-- Le passage Phase 1 → Phase 2 est-il automatique (heuristique sur nb devis validés) ou manuel (CTA user) ?
-- Faut-il garder l'estimation IA visible en permanence comme "rétroviseur" ou la masquer après bascule ?
-
----
-
-## 11. Idées en réflexion (pas codées)
-
-### 🟠 "Joindre une preuve a posteriori"
-Quand un frais est déclaré au chat, l'utilisateur reçoit le ticket plusieurs jours après. Pouvoir uploader le ticket et "promouvoir" le frais en `ticket_caisse` rattaché au document. Évite la double saisie.
-
-### 🟠 Notification push proactive
-Aujourd'hui les insights critical apparaissent dans le fil d'activité + WhatsApp digest. Pour des alertes vraiment urgentes (paiement à faire dans 24h, retard critique chantier), envisager push browser ou email immédiat.
-
-### 🟠 Rapport PDF chantier
-À la fin du chantier, générer un PDF récap : timeline, lots, devis, factures, photos, total dépensé vs budget initial. Genre "livret de fin de chantier" remis au propriétaire.
-
-### 🟠 Mode "invité collaborateur"
-Inviter un conjoint / un proche à voir le chantier sans pouvoir tout modifier. Lecture + commentaires uniquement.
-
-### 🟠 Recommandation artisan
-Quand un lot a 0 devis depuis X jours, proposer une short-list d'artisans RGE / proches géographiquement / bien notés Google.
-
----
 
 ## 12. Architecture agent IA — évolution
 
@@ -809,71 +711,13 @@ Chaque module exporte `{ schemas: [...], handlers: { name: handler } }`. L'index
 **Pourquoi** : un workflow type "Reçoit msg artisan → vérifie planning → propose au user → notif 2 autres artisans → update planning → add payment_event" = 5-7 tool_calls. Aujourd'hui MAX=3 → l'agent abandonne en plein milieu.
 **Quoi** : passer à 8 rounds. Ajouter un cap `MAX_TOTAL_TOKENS_PER_RUN = 100000` pour couper net si emballement.
 
-### 🟠 P4 — Fan-out cron evening
-**Pourquoi** : aujourd'hui batch 3 séquentiels → > 30-50 chantiers actifs = timeout edge function 60s.
-**Quoi** : edge function "dispatcher" qui fire N invocations indépendantes (1 par chantier) au lieu de boucler. Chaque invocation = 1 chantier, timeout indépendant.
-
-### 🟠 P5 — POC Claude Sonnet 4.7 + prompt caching
-
-**Hypothèse à valider** : Claude + prompt caching réduit le TCO total malgré un prix au token brut plus élevé, parce que :
-- Prompt caching = -90% sur le contexte (notre `context.ts` rebuild ~6-10k tokens à chaque appel — gain énorme)
-- Taux de succès tool_call plus élevé = moins de retries
-- Moins d'hallucinations = moins de "défaire ce qu'a fait l'agent" côté user
-- Suppression progressive des hacks Gemini
-
-**À mesurer sur 1 chantier de test, 1 mois** : taux tool_calls qui aboutissent, coût par run (avec cache hit rate visible), latence (avec streaming Anthropic), qualité subjective des messages générés.
-
-**Quand le faire** : > 100 chantiers actifs OU dès qu'un user signale un comportement bizarre récurrent qu'on ne peut pas patcher facilement.
-
-**Risque** : compatibilité tool calling (Anthropic format ≠ OpenAI format Gemini). Réécriture du dispatcher tools. Mais après P2 modularisation, c'est isolé.
-
-### 🟠 P6 — Multi-agents chaînés (planner + executors)
-
-**Hypothèse** : splitter l'orchestrator en 2 niveaux :
-- 1 agent **planner** (full context) qui décide quoi faire
-- N agents **executors** spécialisés (planning, finance, comm) avec prompt minimal et tools restreints
-
-**Bénéfices attendus** : -40 à -60% sur les tokens cumulés, prompts plus précis par domaine, meilleure observabilité (chaque sous-agent loggé séparément).
-
-**Coût** : latence cumulée (2-3 calls Gemini/Claude par tour), complexité du dispatcher.
-
-**Quand le faire** : si après P5 on a encore des problèmes de qualité tool_call sur les workflows à 6+ étapes. Pas avant.
-
-### 🟠 P7 — Évaluer un framework agent (Vercel AI SDK / Mastra)
-
-**Contexte** : aujourd'hui dispatcher, retry logic, history compaction = 100% custom artisanal.
-
-**Hypothèse** : Vercel AI SDK (déjà sur Vercel, intégration TS native) ou Mastra (TS-first, workflows + memory natifs) pourrait remplacer 60% du code custom.
-
-**Bénéfices potentiels** : streaming natif (UX chat améliorée), observabilité native (LangSmith, Helicone), memory long terme (résumés glissants automatiques), workflows multi-step sans bricolage.
-
-**Coût** : courbe d'apprentissage, dépendance externe (lock-in, breaking changes), perte de contrôle fin (ex: nos hacks Gemini).
-
-**Quand le faire** : POC à 6 mois (mi-2026) sur 1 fonctionnalité périphérique avant de migrer le coeur.
-
-**À NE PAS faire** : 🔴 LangGraph en Python — ajoute Python à notre stack (Astro + Deno + Python = 3 runtimes), trop de friction pour le bénéfice.
-
-### 🟠 P8 — State machine explicite pour workflows critiques
-
-Si la complexité des workflows pending explose (>3 états avec branches conditionnelles), envisager XState ou home-made. Aujourd'hui : pending → resolved/expired suffit, donc pas pertinent. À reconsidérer si on ajoute des workflows multi-acteurs (ex: validation simultanée artisan + comptable).
-
-### 🟠 P10 — Canaux proactifs alternatifs (Web Push / email)
-
-⚠️ **À ne pas confondre avec la vague 3** qui livre le canal proactif principal **via WhatsApp privé** (groupe "Mon Chantier — X" avec uniquement le user dedans). P10 = canaux **alternatifs** pour les users qui ne veulent pas / ne peuvent pas WhatsApp.
-
-Pistes :
-- **Web Push API** (notif browser) : permission demandée au premier login, push depuis edge function via VAPID. Fonctionne même app fermée si browser ouvert.
-- **Email transactionnel SendGrid** : digest quotidien ou notif immédiate sur les triggers critiques (alertes, clarifications urgentes).
-
-Settings UI à enrichir : checkboxes par canal (WhatsApp / Web Push / Email) × par catégorie de trigger (clarifications / alertes critiques / rappels / etc.). Sinon spam.
-
-Pas urgent : à activer si on identifie une cohorte significative de users sans WhatsApp.
+P4-P10 (Fan-out cron, POC Claude Sonnet, multi-agents, framework agent, state machine, canaux alternatifs) → [`TODO.md`](TODO.md) section "Architecture agent IA — évolutions à programmer".
 
 ---
 
 ## 13. Tools agent IA — vagues à implémenter
 
-🟠 **Prêts à coder dès que P1+P2 livrés** (P1 nécessaire pour vague 3, P2 nécessaire pour ne pas exploser le monolithe).
+🟢 **Vagues 1, 2, 3 livrées 2026-04-26.** Reste à câbler (UI activation owner channel + 8 triggers proactifs) → [`TODO.md`](TODO.md).
 
 ### ✅ Vague 1 — LIVRÉE 2026-04-26
 
@@ -891,23 +735,9 @@ Pas urgent : à activer si on identifie une cohorte significative de users sans 
 - **Edge function `agent-scheduled-tick`** : cron pg_cron toutes les 15min. Auth Bearer service_role OU X-Cron-Secret. RPC `claim_pending_reminders` avec FOR UPDATE SKIP LOCKED → atomic claim. Process parallèle batches 8.
 - **Workflow décision à prendre** : tool `notify_owner_for_decision` (P1) + `resolve_pending_decision` (livrés round précédent). Section prompt "DÉTECTION DE DÉCISION À ARBITRER" et "DÉCISIONS EN ATTENTE".
 
-### 🟠 Vague 3 reste à coder — UI activation canal owner
+### Reste à câbler
 
-Bouton dans Settings (chantier) "Activer notifications WhatsApp IA" qui appelle `POST /api/chantier/[id]/whatsapp { is_owner_channel: true }`. Aujourd'hui c'est l'agent qui peut le créer via `create_owner_whatsapp_channel` à la demande user au chat. Mais idéal : exposer aussi le bouton UI pour les users qui ne passent pas par le chat. Petit dev, ~30 min.
-
-### 🟠 Vague 3 — 8 triggers proactifs à câbler
-
-Définis dans `WIP § 12` round précédent. Pas encore tous implémentés. À faire après stabilisation de la vague 3 :
-1. Clarification urgente (`request_clarification`) — déjà routé via `agent_insights`
-2. Alerte critique (`severity=critical`) — à câbler vers WA owner channel
-3. Paiement en retard — déjà détecté par `agent-checks`, à router vers WA owner
-4. Lot bloqué sans devis depuis 14j — à ajouter dans `agent-checks`
-5. Rappel programmé (`schedule_reminder`) — ✅ implémenté via `agent-scheduled-tick`
-6. Déblocage attendu non reçu — nécessite tracking sur `payment_events` type entrée
-7. Action automatique prise (debrief) — à câbler dans `log_insight`
-8. Décision à prendre — ✅ implémenté via `notify_owner_for_decision`
-
-UI Settings : checkboxes par catégorie pour activer/désactiver chaque trigger. Sinon risque de spam owner.
+UI activation canal owner WhatsApp + 8 triggers proactifs → [`TODO.md`](TODO.md) section "Tools agent IA — vague 3 reste à câbler".
 
 ---
 

@@ -9,26 +9,31 @@ Ce fichier = **règles + pièges + décisions récentes** pour ne pas casser qua
 | Tu cherches… | Fichier |
 |---|---|
 | **Ce que l'utilisateur peut faire** (features prod + pain résolu + avantage marché + détail des 7 agents IA) | [`FEATURES.md`](FEATURES.md) |
-| **Ce qui est en cours / pas fini / idée** (OpenClaw, dette, backlog) | [`WIP.md`](WIP.md) |
+| **Ce qu'on a commencé et pas encore fini** (en cours, partiellement implémenté, bloqué) | [`WIP.md`](WIP.md) |
+| **Backlog — ce qu'on doit/veut faire mais qu'on n'a pas commencé** | [`TODO.md`](TODO.md) |
 | **Référence technique exhaustive** (toutes les routes, schéma DB, pipeline, deploy) | [`DOCUMENTATION.md`](DOCUMENTATION.md) |
 | **Plan de test E2E agent IA** (10 scénarios + cas d'erreur, avec 3 numéros WhatsApp GMC `+33633921577`/USER/ARTISAN + outils debug SQL) | [`TEST-PLAN-AGENT-IA.md`](TEST-PLAN-AGENT-IA.md) |
 | **Règles + pièges + décisions** | ← ce fichier |
 
 **Si tu ajoutes une info** :
 - Un user peut faire ça aujourd'hui ? → `FEATURES.md`
-- C'est partiellement fait, en réflexion, dette ? → `WIP.md`
+- C'est commencé mais pas terminé / bloqué / en réflexion active ? → `WIP.md`
+- C'est une idée / un fix identifié mais qu'on n'a pas attaqué ? → `TODO.md`
 - C'est exhaustif et stable (route, table, composant) ? → `DOCUMENTATION.md`
 - C'est une règle / un piège / une décision récente que Claude doit savoir ? → ici
 
+**Règle absolue WIP vs TODO** : un item ne va dans `WIP.md` qu'à partir du moment où on l'attaque (premier commit, première décision, premier code). Tant que c'est un "à faire" non démarré, c'est `TODO.md` exclusivement. Ne jamais polluer WIP avec du backlog non commencé — ça brouille la lecture "où on en est".
+
 ### Workflow obligatoire à chaque session
 
-1. **Quand on commence un truc nouveau** (feature, refacto, exploration) → ajouter une entrée 🟡 dans `WIP.md` immédiatement.
-2. **Quand on finit et que ça marche en prod** → déplacer l'entrée WIP vers `FEATURES.md` (en retirer du WIP).
-3. **Quand on bloque** ou qu'on change d'avis → mettre 🔴 dans WIP avec la raison.
-4. **Quand on change un comportement, une règle, une décision** qui doit survivre les sessions → ajouter ici (CLAUDE.md, sections "Pièges connus" ou "Règles importantes").
-5. **Quand on ajoute un truc structurel** (route API, table DB, edge function, composant majeur) → mettre à jour `DOCUMENTATION.md`.
+1. **Quand on identifie un truc à faire mais qu'on ne l'attaque pas tout de suite** → entrée dans `TODO.md`.
+2. **Quand on commence un truc** (feature, refacto, exploration) → migrer de `TODO.md` vers `WIP.md` avec entrée 🟡 immédiatement.
+3. **Quand on finit et que ça marche en prod** → retirer l'entrée WIP, ajouter à `FEATURES.md` si user-facing.
+4. **Quand on bloque** ou qu'on change d'avis → mettre 🔴 dans WIP avec la raison (ne pas remettre dans TODO — bloqué ≠ pas commencé).
+5. **Quand on change un comportement, une règle, une décision** qui doit survivre les sessions → ajouter ici (CLAUDE.md, sections "Pièges connus" ou "Règles importantes").
+6. **Quand on ajoute un truc structurel** (route API, table DB, edge function, composant majeur) → mettre à jour `DOCUMENTATION.md`.
 
-À l'ouverture d'une session : **toujours ouvrir `WIP.md`** pour reprendre là où on s'était arrêté. Si l'utilisateur dit "on bosse sur X", on commence par `WIP.md` pour voir si X y est déjà.
+À l'ouverture d'une session : **toujours ouvrir `WIP.md`** pour reprendre là où on s'était arrêté, et `TODO.md` pour voir le backlog. Si l'utilisateur dit "on bosse sur X", on commence par `WIP.md` puis `TODO.md` pour voir si X y est déjà.
 
 ---
 
@@ -179,6 +184,9 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 - **VersementsDrawer — loading loop sur prop instable** : `loadEvents` ne doit JAMAIS dépendre de `knownEventIds` ni `sourceIds` passés comme props, car ces tableaux sont recréés à chaque render de BudgetTab. Utiliser `useRef` pour capturer les props instables et les lire dans le callback sans les inclure en dépendance. Sans ça : chaque `onRefresh()` déclenche un re-render BudgetTab → nouveau tableau → `loadEvents` change d'identité → `useEffect` reffire → `setLoading(true)` → spinner masque le formulaire.
 - **Authorization header dans les fetch chantier** : toujours `Authorization: \`Bearer ${bearer}\`` (avec le préfixe "Bearer "). Un `Authorization: bearer` (sans préfixe) retourne 401 silencieux — le `catch` vide masque l'erreur.
 - **Cohérence financière — 5 chiffres clés (2026-05-07)** : le modèle mental est Budget cible → Engagé → Décaissé → À payer → Flux certains. `Décaissé = budget API totaux.paye + totaux.acompte` (PAS la somme des factures payées depuis `documents`). `À payer = budget API totaux.a_payer`. `Flux certains = Décaissé + À payer`. Ne jamais utiliser `totalPaye` (factures seulement) pour représenter le décaissé — toujours l'API budget. Cf. `FEATURES.md § 22` pour le modèle complet.
+  - **Affichage harmonisé Budget ↔ Trésorerie (2026-05-09)** : les 5 chiffres apparaissent désormais dans deux composants distincts mais avec **mêmes labels et mêmes valeurs** : `BudgetKpiDashboard` (BudgetTab) et `KpiBandeauCanonique` (TresorerieView en haut, juste sous CoherenceAlertsBanner). Toute modification d'un label/calcul doit se répercuter dans les 2 composants — sinon l'utilisateur voit deux chiffres différents pour la même notion en passant d'un onglet à l'autre.
+
+- **Statut "En litige" — friction volontaire (2026-05-09)** : dans `VersementsDrawer`, cliquer sur le bouton "En litige" ne déclenche PAS directement `onStatutChange('en_litige')`. Le clic ouvre un panel de confirmation inline (`litigeConfirmOpen` state) qui exige une raison textuelle ≥ 10 caractères avant d'appliquer le statut. La raison est gardée en mémoire locale uniquement (pas de persistance backend pour cette session — éviter de toucher l'API). Ne pas court-circuiter ce flow : le statut "en litige" engage la relation contractuelle avec l'artisan, un clic accidentel = perte de confiance.
 
 - **`budgetReel` — source unique de vérité (2026-05-07)** : un seul chiffre, 3 couches de sync. (1) localStorage `budget_reel_${chantierId}` — prioritaire au démarrage dans BudgetTab ET ChantierCockpit. (2) Custom event `budgetReelChanged` — propagation temps réel entre composants (dispatché par TresorerieView ET BudgetTab). (3) DB double : `chantiers.budget` (via PATCH `enveloppePrevue`) ET `chantiers.metadonnees.tresoreieFinancing.budgetReel`. **Ne jamais écrire `budgetReel` dans un seul endroit** — toujours via `persistBudgetReel` (BudgetTab) ou `setCfg+syncServer` (TresorerieView) qui alimentent les deux destinations. `autoUpdateBudget: boolean` dans `FinancingConfig` — après 1ère confirmation manuelle, les dépassements flux certains > budget se corrigent automatiquement sans popup.
 
@@ -420,6 +428,9 @@ Audit UX complet daté du 2026-05-02. Score global : **3.4/10**. Corrections cri
 
 ---
 
-## TODO → voir [`WIP.md`](WIP.md)
+## Backlog & travail en cours
 
-Toutes les features en cours, partiellement implémentées, idées et dette technique sont centralisées dans **`WIP.md`** à la racine du repo. À mettre à jour à chaque session quand on commence/finit/bloque quelque chose.
+- **Backlog (à faire, pas commencé)** → [`TODO.md`](TODO.md)
+- **En cours / partiellement fait / bloqué** → [`WIP.md`](WIP.md)
+
+À mettre à jour à chaque session : ajouter au TODO quand on identifie quelque chose, migrer vers WIP quand on attaque, retirer du WIP quand c'est fini (et ajouter à `FEATURES.md` si user-facing).
