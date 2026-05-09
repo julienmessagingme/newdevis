@@ -434,7 +434,7 @@ const NewAnalysis = () => {
 
       // Déclencher l'analyse (synchrone, avec timeout)
       const invokePromise = supabase.functions.invoke("analyze-quote", {
-        body: { analysisId: analysis.id, skipN8N: false },
+        body: { analysisId: analysis.id },
       });
 
       // Timeout — redirige même si la fonction n'a pas fini

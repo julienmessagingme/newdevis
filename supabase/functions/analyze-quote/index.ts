@@ -192,7 +192,6 @@ serve(async (req) => {
   try {
     const body = await req.json();
     analysisId = body.analysisId;
-    const skipN8N = body.skipN8N === true;
 
     // Validate analysisId: required and must be a valid UUID
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -656,13 +655,9 @@ serve(async (req) => {
     }));
 
     // Call verifyData and market price lookup in parallel
-    const marketPricePromise: Promise<JobTypePriceResult[]> = skipN8N
-      ? Promise.resolve([])
-      : lookupMarketPrices(supabase, priceWorkItems, googleApiKey, domainConfig);
-
     const [verifyResult, marketPriceResult] = await Promise.allSettled([
       verifyData(extracted, supabase),
-      marketPricePromise,
+      lookupMarketPrices(supabase, priceWorkItems, googleApiKey, domainConfig),
     ]);
 
     // If verifyData failed, re-throw (preserve current behavior)
@@ -678,9 +673,6 @@ serve(async (req) => {
         : [];
     if (marketPriceResult.status === "rejected") {
       console.warn("[MarketPrices] Promise rejected:", marketPriceResult.reason);
-    }
-    if (skipN8N) {
-      console.log("[MarketPrices] Skipped for anonymous user");
     }
     console.log("[MarketPrices] Job types:", jobTypePrices.length,
       "with prices:", jobTypePrices.filter(jt => jt.prices.length > 0).length);
@@ -848,7 +840,7 @@ serve(async (req) => {
           console.log("[StrategicScores] Aucune ligne trouvée dans strategic_matrix pour ces job_types");
         }
       } else {
-        console.log("[StrategicScores] Aucun catalog_job_type disponible (skipN8N ou groupe Autre uniquement)");
+        console.log("[StrategicScores] Aucun catalog_job_type disponible (groupe Autre uniquement)");
       }
     } catch (strategicError) {
       console.warn("[StrategicScores] Erreur non-bloquante:", strategicError instanceof Error ? strategicError.message : strategicError);

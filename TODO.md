@@ -22,7 +22,7 @@ Pour le rationnel et l'historique des audits UX, voir `UX-AUDIT.md`.
 
 - [ ] **I5 — Vue expert / novice en toggle** : le tableau Budget reste dense par défaut (6 colonnes). À faire : toggle "🌱 Vue simple / 🔧 Vue détaillée" dans ActionBar. En mode simple → masquer "Facturé" et "Avancement", garder Artisan/Engagé/Solde/Actions. Persistance localStorage. Refonte invasive du tableau (colgroup table-fixed + headers + cells) → planifier un sprint dédié pour éviter régressions.
 
-- [ ] **Pencil edit durée LotDetail (touch target)** : `w-6 h-6` (24×24) — sous WCAG 44×44. À traiter dans une passe globale "touch targets" avec aussi les boutons Check/X durée (28×28). Fichier : `src/components/chantier/cockpit/lots/LotDetail.tsx:162`.
+- [x] ~~**Pencil edit durée LotDetail (touch target)**~~ — fait 2026-05-09. Pencil + Check + X durée passés à `w-11 h-11 lg:w-7 lg:h-7` (44 mobile, 28 desktop) avec `aria-label` + `touch-manipulation`. `LotDetail.tsx:143,148,162`.
 
 ---
 
@@ -152,8 +152,7 @@ Pour le rationnel et l'historique des audits UX, voir `UX-AUDIT.md`.
 
 Vagues 1, 2, 3 livrées (cf. WIP § 13 historique). Sous-items non commencés :
 
-- [ ] **UI activation canal owner WhatsApp**
-  Bouton dans Settings (chantier) "Activer notifications WhatsApp IA" qui appelle `POST /api/chantier/[id]/whatsapp { is_owner_channel: true }`. Aujourd'hui c'est l'agent qui peut le créer via `create_owner_whatsapp_channel` à la demande user au chat. Mais idéal : exposer aussi le bouton UI pour les users qui ne passent pas par le chat. Petit dev, ~30 min.
+- [x] ~~**UI activation canal owner WhatsApp**~~ — fait 2026-05-09. Composant `OwnerChannelToggle.tsx` ajouté dans la section Settings de `ChantierCockpit`. Bouton "Activer le canal WhatsApp IA" qui POST `is_owner_channel: true`. Gère 4 états : idle / loading / success (avec `already_existed` flag + invite_link) / error. Touch target 44×44 sur mobile. Le user qui ne passe jamais par le chat peut maintenant activer le canal via UI.
 
 - [ ] **8 triggers proactifs à câbler**
   Définis dans `WIP § 12` round précédent. Pas encore tous implémentés. À faire après stabilisation de la vague 3 :
@@ -174,7 +173,7 @@ Vagues 1, 2, 3 livrées (cf. WIP § 13 historique). Sous-items non commencés :
 
 Étapes 1-6+8 livrées (cf. WIP § 9). Reste :
 
-- [ ] **ÉTAPE 7 — Touch targets 44px min** : surtout chevrons, icon buttons dans DocumentsView, ContactsSection. Recouvre N6a/N5b de l'audit UX #2.
+- [x] ~~**ÉTAPE 7 — Touch targets 44px min**~~ — fait 2026-05-09 sur DocumentsView mobile (boutons Analyse + Supprimer 44×44 avec aria-label). Pencil/Check/X dur ée LotDetail aussi. **Reste à finir** : ContactsSection icon buttons, chevrons divers — à compléter dans une passe globale.
 - [ ] **ÉTAPE 9 — AnalysisResult blocs secondaires collapsés par défaut sur mobile** : aujourd'hui tous les blocs (Entreprise, Sécurité, Urbanisme…) sont déroulés → page très longue sur mobile. Collapse les blocs secondaires, garder l'essentiel ouvert (Conclusion + Prix marché).
 - [ ] **ÉTAPE 10 — Homepage : résultat visuel + exemple concret** : la homepage parle au mobile mais ne montre pas un exemple concret de résultat d'analyse. Ajouter un screenshot annoté ou un mini-flow interactif.
 - [ ] **PlanningTimeline mobile** (gros chantier) — le Gantt est galère sur petit écran. Recouvre N5c de l'audit UX #2.
@@ -271,9 +270,9 @@ Audit en 4 axes (DB/Supabase, edge functions/agent IA, dette code, coûts/observ
 
 - [x] ~~**`/api/health` endpoint**~~ — fait 2026-05-09. `src/pages/api/health.ts` retourne 200 si DB Supabase ping OK + variables d'env présentes, 503 sinon. Pas de check externe (Gemini, whapi, SendGrid) pour ne pas gonfler la latence — ces APIs ont leurs propres SLA. Réponse JSON avec `status` + `checks` détaillés.
 
-- [ ] **Code mort — `skipN8N`, `score_legacy`, hacks 2.5-flash** — `analyze-quote/index.ts:195` skipN8N jamais utilisé en prod ; `verdict-utils.ts:45,74,86` score_legacy duplique verdict_decisionnel ; prompt agent contient examples obsolètes (`register_avenant`). Effort 8h cumulé.
+- [x] ~~**Code mort — partiel**~~ — fait 2026-05-09 sur 2 items. **`skipN8N` supprimé** de `analyze-quote/index.ts` + des 2 callers (`NewAnalysis.tsx`, `documents/[docId]/analyser.ts`) — confirmé jamais `true` en prod. **Fichier `n8n.ts` supprimé** — aucun import dans le repo, complètement orphelin. **Pas supprimé** : `score_legacy` (encore actif dans verdictEngine + types + 4 consumers — migration progressive nécessaire) ; `register_avenant` (vrai tool actif dans `tools/finance.ts:60`, pas obsolète) ; hacks Gemini 2.5-flash (workarounds nécessaires pour bugs documentés CLAUDE.md).
 
-- [ ] **`lot_dependencies` batch delete/insert** — API planning fait `for (lotId, depIds)` → 1 SELECT + 1 DELETE + 1 INSERT par lot. Acceptable < 100 lots mais pas atomique. Fix : `DELETE ... IN (...)` + `INSERT ... VALUES (...)`. Fichier `src/pages/api/chantier/[id]/planning.ts:195-227`. Effort ~S (1h).
+- [x] ~~**`lot_dependencies` batch delete/insert**~~ — fait 2026-05-09. Refacto `planning.ts:194-249` : 1 SELECT global (au lieu de N) + 1 DELETE batch sur ids (au lieu de N) + 1 INSERT batch (au lieu de N). 3 round trips DB max quel que soit le nombre de lots, contre 3N avant.
 
 - [ ] **MATERIALIZED VIEWS pour `admin_kpis_*`** — 8+ vues temps-réel non matérialisées (daily_evolution, retention_weekly, documents safe_json) avec CTE complexes sur tables volumineuses. Cron `REFRESH MATERIALIZED VIEW` 15 min → gain ~100x sur dashboards admin. Fichier : `20260227200000_optimize_rls_views_constraints.sql:58-175`. Effort ~M (½ j).
 
@@ -281,13 +280,13 @@ Audit en 4 axes (DB/Supabase, edge functions/agent IA, dette code, coûts/observ
 
 - [ ] **Stripe webhook CORS restreint** — `*` aujourd'hui (vercel.json header global). Restreindre à signature-only en prod (déjà signé mais belt-and-suspenders). Effort ~S (1h).
 
-- [ ] **Hook CI types Supabase drift** — `src/integrations/supabase/types.ts` à jour aujourd'hui (2026-05-09) mais pas de garde-fou si une migration ajoute une colonne et types.ts n'est pas régénéré. Fix : GitHub Action qui run `supabase gen types` + diff fail si change. Effort ~S (1h).
+- [x] ~~**Hook CI types Supabase drift**~~ — fait 2026-05-09. Workflow `.github/workflows/supabase-types-drift.yml` qui run sur PR touchant `supabase/migrations/**` ou `types.ts`. Compare la régen distante avec le fichier committé, fail avec instruction de régénération si drift. **Pré-requis** : configurer le secret `SUPABASE_ACCESS_TOKEN` dans GitHub Settings → Secrets → Actions (token perso depuis https://supabase.com/dashboard/account/tokens). Sans le secret, le workflow skip avec un warning (pas un fail).
 
 ### P3 — Nice to have
 
 - [ ] **Correlation IDs end-to-end** — aucun trace ID partagé entre agent-orchestrator + tools + APIs. Debug en prod = matching manuel sur chantier_id + timestamp. Fix : injecter UUID au start de chaque run + propager via `X-Correlation-ID` sur tous les fetch. Effort ~M (½ j).
 
-- [ ] **Tools dispatcher — runtime monitoring "Unknown tool"** — collisions noms checkées au boot ✅ mais hallucinations Gemini runtime → "Unknown tool" silencieux. Ajouter `console.error("[tools] ${chantierId} unknown: ${toolName}")` line 85 de `tools/index.ts`. Effort 30 min.
+- [x] ~~**Tools dispatcher — runtime monitoring "Unknown tool"**~~ — fait 2026-05-09. `console.error("[tools] ${chantierId} unknown tool '${toolName}' (run_type=...)")` ajouté dans `tools/index.ts:85`. Trace désormais les hallucinations LLM côté Supabase logs.
 
 - [ ] **RLS `chantier_whatsapp_messages` optimisation** — triple subquery (chantier_id → groups → user_id). Index sur `group_id` créé récemment mais pattern reste lourd. Évaluer denormalization de `user_id` sur la table messages directement. Effort ~M (½ j).
 

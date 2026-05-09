@@ -141,15 +141,17 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
                   <button
                     onClick={saveDuree}
                     disabled={savingDuree}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+                    aria-label="Valider la durée"
+                    className="w-11 h-11 lg:w-7 lg:h-7 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors disabled:opacity-50 touch-manipulation"
                   >
-                    <Check className="h-3.5 w-3.5" />
+                    <Check className="h-4 w-4 lg:h-3.5 lg:w-3.5" />
                   </button>
                   <button
                     onClick={() => setEditingDuree(false)}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-50 text-gray-400 hover:bg-gray-100 transition-colors"
+                    aria-label="Annuler l'édition"
+                    className="w-11 h-11 lg:w-7 lg:h-7 flex items-center justify-center rounded-lg bg-gray-50 text-gray-400 hover:bg-gray-100 transition-colors touch-manipulation"
                   >
-                    <X className="h-3.5 w-3.5" />
+                    <X className="h-4 w-4 lg:h-3.5 lg:w-3.5" />
                   </button>
                 </div>
               ) : (
@@ -160,10 +162,11 @@ function LotDetail({ lot, docs, onAddDoc, onDeleteDoc, onBack, chantierId, token
                   {onDurationChange && (
                     <button
                       onClick={() => { setDureeInput(String(lot.duree_jours ?? 5)); setEditingDuree(true); }}
-                      className="w-6 h-6 flex items-center justify-center rounded-md text-gray-300 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+                      aria-label="Modifier la durée"
+                      className="w-11 h-11 lg:w-6 lg:h-6 flex items-center justify-center rounded-md text-gray-300 hover:text-blue-500 hover:bg-blue-50 transition-colors touch-manipulation"
                       title="Modifier la durée"
                     >
-                      <Pencil className="h-3 w-3" />
+                      <Pencil className="h-3.5 w-3.5 lg:h-3 lg:w-3" />
                     </button>
                   )}
                 </div>
