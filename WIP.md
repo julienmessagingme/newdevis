@@ -27,6 +27,45 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## NEW. Saisie de dépenses unifiée — 1 seul chemin d'écriture
+
+🟢 **Livré 2026-05-09 (commits `0a9dc03` Bug A + `dfda27c` Option 2). À valider E2E par Julien.**
+
+### Problème d'origine identifié par Julien
+1. **Bug A** : ISO & FACE 64 (devis 43 508 € en `en_cours`) faisait gonfler le KPI Décaissé à 119% du budget cible (88 138 € au lieu de ~18 000 € attendus). Cause : les `evDevisPaid` (paiements rattachés au devis via Échéancier) étaient ajoutés à `bucket.totaux.acompte` même quand le devis n'était pas signé.
+2. **Bug B** : Dépenses créées dans Échéancier ("Matériau carrelage 10 000 €", "maçon au black 5 000 €") invisibles dans Budget et Accueil. Cause : `cashflow_extras` orphelins (`manuel: true`, `source_id null`) → filtre `.not('source_id', 'is', null)` les exclut.
+3. **Bug C (architectural)** : 3 chemins de saisie indépendants (Échéancier / Budget / Accueil) avec modèles de stockage différents → 3 vérités qui ne se parlent pas.
+
+### Livré
+
+**Bug A — `acompte_pending` séparé**
+- `budget.ts` : nouveau champ `totaux.acompte_pending` distinct de `acompte`. Si devis non signé → l'acompte versé alimente `acompte_pending` (l'argent est sorti mais ne fausse pas le KPI Décaissé).
+- BudgetTab : bannière orange dédiée "X € d'acomptes versés sur des devis non signés — signez le devis pour les inclure dans le suivi".
+
+**Option 2 — Échéancier devient une vue projetée**
+- Le bouton "+ Dépense" de l'Échéancier ouvre désormais le **DepenseRapideModal du Budget** (lots fetchés lazy via `/api/chantier/[id]/lots`).
+- Toute dépense saisie crée une vraie ligne `documents_chantier` (facture + depense_type + lot_id) → visible immédiatement dans Budget ET Accueil.
+- L'ancienne `AddDepenseModal` (POST `/payment-events` `manuel: true` → `cashflow_extras` orphelins) supprimée.
+
+**Synchro inter-écran via event `chantierBudgetChanged`**
+- `BudgetTab.useBudgetData` : `refresh` wrappé → dispatch après chaque `load` 
+- `Echeancier` : listener qui refresh `payment_events` + entrées
+- `BudgetTab` : listener qui re-fetch budget data
+- → saisie dans Échéancier apparaît dans Budget sans recharger ; modif dans Budget remonte dans Échéancier
+
+### À valider E2E par Julien
+
+- [ ] Sur le chantier "Portail, Clôture et Terrasse Bois" — recharger après deploy : KPI Décaissé doit baisser (acomptes ISO & FACE 64 sortis), bannière orange "X € d'acomptes versés sur des devis non signés" affichée.
+- [ ] Test 1 : créer une dépense via "+ Dépense" Échéancier → onglet Budget → la voir apparaître immédiatement (sans F5) dans le tableau.
+- [ ] Test 2 : modifier statut d'une facture dans Budget → onglet Échéancier → la voir mise à jour.
+- [ ] Test 3 : signer le devis ISO & FACE 64 (changer statut) → bannière orange disparaît, montant bascule de `acompte_pending` vers `acompte` → KPI Décaissé reflète maintenant l'argent réellement engagé.
+
+### Migration data des cashflow_extras orphelins existants (optionnelle)
+
+Pour les chantiers déjà existants, les `cashflow_extras` créés avant ce fix restent orphelins. Pas de migration auto pour l'instant — l'utilisateur peut soit les supprimer manuellement, soit les rattacher à un lot via une UI à concevoir. À évaluer selon le volume.
+
+---
+
 ## NEW. Audit Budget & Trésorerie — 8/10 atteint
 
 🟢 **Vagues 1+2 livrées 2026-05-08 (commits `c063196` + `a9cfe67`). Cible 8/10 atteinte. Vague 3 = polish 9-10/10.**
