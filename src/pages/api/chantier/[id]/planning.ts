@@ -206,46 +206,78 @@ export const PATCH: APIRoute = async ({ request, params }) => {
     if (wantedByLot.size > 0) {
       const lotIds = Array.from(wantedByLot.keys());
 
-      // 1 SELECT global pour tous les lots — au lieu de N (un par lot).
+      // 1 SELECT global pour tous les lots concernés.
       const { data: currentRows } = await ctx.supabase
         .from('lot_dependencies')
-        .select('id, lot_id, depends_on_id')
+        .select('lot_id, depends_on_id')
         .in('lot_id', lotIds);
 
-      const currentByLot = new Map<string, Map<string, string>>(); // lot_id → (depends_on_id → row.id)
-      for (const row of (currentRows ?? []) as Array<{ id: string; lot_id: string; depends_on_id: string }>) {
+      const currentByLot = new Map<string, Set<string>>();
+      for (const row of (currentRows ?? []) as Array<{ lot_id: string; depends_on_id: string }>) {
         let entry = currentByLot.get(row.lot_id);
-        if (!entry) { entry = new Map(); currentByLot.set(row.lot_id, entry); }
-        entry.set(row.depends_on_id, row.id);
+        if (!entry) { entry = new Set(); currentByLot.set(row.lot_id, entry); }
+        entry.add(row.depends_on_id);
       }
 
-      // Diff en mémoire : ids à drop + nouvelles paires à insérer.
-      const idsToDelete: string[] = [];
+      // Diff en mémoire : nouvelles paires à insérer + paires obsolètes par lot.
       const rowsToInsert: Array<{ lot_id: string; depends_on_id: string }> = [];
-
+      const toDeleteByLot = new Map<string, string[]>();
       for (const [lotId, wantedSet] of wantedByLot.entries()) {
-        const currentMap = currentByLot.get(lotId) ?? new Map<string, string>();
-        for (const [depId, rowId] of currentMap.entries()) {
-          if (!wantedSet.has(depId)) idsToDelete.push(rowId);
+        const currentSet = currentByLot.get(lotId) ?? new Set<string>();
+        for (const depId of currentSet) {
+          if (!wantedSet.has(depId)) {
+            const arr = toDeleteByLot.get(lotId) ?? [];
+            arr.push(depId);
+            toDeleteByLot.set(lotId, arr);
+          }
         }
         for (const depId of wantedSet) {
-          if (!currentMap.has(depId)) rowsToInsert.push({ lot_id: lotId, depends_on_id: depId });
+          if (!currentSet.has(depId)) rowsToInsert.push({ lot_id: lotId, depends_on_id: depId });
         }
       }
 
-      // 1 DELETE batch via la liste des rows.id à supprimer (atomique côté Postgres).
-      if (idsToDelete.length > 0) {
-        await ctx.supabase
+      // ── Ordre INSERT-then-DELETE pour garantir un état dégradé safe ─────────
+      // Si l'INSERT échoue, on conserve les anciennes deps (pas de perte).
+      // Si l'INSERT réussit mais le DELETE échoue, on a des deps stales (les
+      // anciennes coexistent avec les nouvelles) — incohérent mais réparable
+      // au prochain edit user. C'est BIEN MIEUX que l'inverse (DELETE puis
+      // INSERT échoue = lot avec 0 dépendance alors qu'il devrait en avoir).
+      // Pas de transaction PostgREST pure côté JS Supabase — pour vraiment
+      // atomiser il faudrait une RPC SQL dédiée (à faire si bug détecté).
+
+      // 1 INSERT batch idempotent (PK composite (lot_id, depends_on_id)).
+      if (rowsToInsert.length > 0) {
+        const { error: insertErr } = await ctx.supabase
           .from('lot_dependencies')
-          .delete()
-          .in('id', idsToDelete);
+          .upsert(rowsToInsert, { onConflict: 'lot_id,depends_on_id', ignoreDuplicates: true });
+        if (insertErr) {
+          console.error('[planning] lot_dependencies insert failed:', insertErr.message);
+          // On bail-out : ne pas tenter le DELETE si l'INSERT a échoué, sinon
+          // on aggrave l'état (perte des anciennes ET pas de nouvelles).
+          throw new Error(`Erreur dépendances : ${insertErr.message}`);
+        }
         anyDepsChanged = true;
       }
-      // 1 INSERT batch.
-      if (rowsToInsert.length > 0) {
-        await ctx.supabase
-          .from('lot_dependencies')
-          .insert(rowsToInsert);
+
+      // DELETE des paires obsolètes — un DELETE par lot (filtré par lot_id +
+      // depends_on_id IN (...)). Promise.all pour parallélisme.
+      if (toDeleteByLot.size > 0) {
+        const deleteResults = await Promise.all(
+          Array.from(toDeleteByLot.entries()).map(([lotId, depIds]) =>
+            ctx.supabase
+              .from('lot_dependencies')
+              .delete()
+              .eq('lot_id', lotId)
+              .in('depends_on_id', depIds),
+          ),
+        );
+        for (const r of deleteResults) {
+          if (r.error) {
+            console.error('[planning] lot_dependencies delete partial fail:', r.error.message);
+            // On ne throw pas : les nouvelles deps sont déjà en place,
+            // on accepte un état "stale mais cohérent" plutôt qu'un erreur 500.
+          }
+        }
         anyDepsChanged = true;
       }
     }

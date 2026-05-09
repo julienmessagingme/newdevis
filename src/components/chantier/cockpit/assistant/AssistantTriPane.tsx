@@ -13,7 +13,7 @@
  *               toasts + badge sidebar)
  *  - Décisions: GET /api/chantier/[id]/assistant/activity-feed (refresh 20s)
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle, BookOpen, Bot, Check, CheckCheck, MessageSquare,
   RefreshCcw, Sparkles,
@@ -377,19 +377,23 @@ export default function AssistantTriPane({
   }, [chantierId, token]);
 
   useEffect(() => { fetchDecisions(); }, [fetchDecisions]);
+
+  // useRef pour tracker l'interval id de manière stable entre re-runs du useEffect.
+  // Avec un `let` en scope, deux visibilitychange rapprochés pendant un re-run
+  // pouvaient créer un double-interval (race subtile, accélération du polling).
+  const intervalIdRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     // Auto-refresh 20s, sauf quand l'onglet est en background (économise les
     // fetch inutiles quand le user n'est pas devant l'écran). Un visibilitychange
     // → visible déclenche un fetch immédiat pour rattraper.
-    let id: ReturnType<typeof setInterval> | null = null;
     function start() {
-      if (id !== null) return;
-      id = setInterval(() => fetchDecisions(true), 20000);
+      if (intervalIdRef.current !== null) return;
+      intervalIdRef.current = setInterval(() => fetchDecisions(true), 20000);
     }
     function stop() {
-      if (id === null) return;
-      clearInterval(id);
-      id = null;
+      if (intervalIdRef.current === null) return;
+      clearInterval(intervalIdRef.current);
+      intervalIdRef.current = null;
     }
     function onVisibility() {
       if (document.hidden) {
