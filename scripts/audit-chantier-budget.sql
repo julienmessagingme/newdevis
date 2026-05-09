@@ -3,15 +3,22 @@
 -- ============================================================================
 -- Usage : Supabase Dashboard → SQL Editor → paste ce script
 --   Avant de RUN : remplace 'Portail, Clôture et Terrasse Bois' par le nom
---   exact du chantier à auditer (ligne ~25 dans la CTE _ctx).
+--   exact du chantier à auditer (présent dans CHAQUE section, 9 endroits —
+--   utilise Ctrl+H pour remplacer en une fois).
+--
+-- ⚠️  Le SQL Editor de Supabase n'affiche que le résultat de la DERNIÈRE
+-- requête. Pour voir les 9 sections, lance-les UNE PAR UNE :
+--   - sélectionne uniquement la section voulue (clique-glisse pour
+--     surligner du commentaire de section jusqu'au point-virgule final)
+--   - clique Run → screenshot du résultat
+--   - répète pour chaque section
 --
 -- Sortie : 9 sections numérotées (1️⃣ → 9️⃣). Chaque section répond à une
 -- question précise pour identifier d'où viennent les incohérences observées
--- côté UI (KPI Décaissé qui ne matche pas, doublons d'échéances, budget
--- cible différent entre Accueil et Budget, etc.).
+-- côté UI.
 --
--- À partager : le résultat complet (copier-coller chaque tableau) pour
--- diagnostic. Aucune écriture — read-only.
+-- À partager : le résultat de chaque section (screenshots ou copier-coller
+-- des tableaux) pour diagnostic. Aucune écriture — read-only.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -33,12 +40,12 @@ SELECT
   c.id::text                                    AS chantier_id,
   c.nom                                         AS chantier_nom,
   c.budget                                      AS source_1_chantiers_budget,
-  (c.metadonnees->>'budgetTotal')::numeric      AS source_2_meta_budgetTotal,
-  (c.metadonnees->'tresoreieFinancing'->>'budgetReel')::numeric
+  ((c.metadonnees::jsonb)->>'budgetTotal')::numeric      AS source_2_meta_budgetTotal,
+  ((c.metadonnees::jsonb)->'tresoreieFinancing'->>'budgetReel')::numeric
                                                 AS source_3_meta_tresoreieFinancing_budgetReel,
   CASE
-    WHEN c.budget IS DISTINCT FROM (c.metadonnees->>'budgetTotal')::numeric
-      OR c.budget IS DISTINCT FROM (c.metadonnees->'tresoreieFinancing'->>'budgetReel')::numeric
+    WHEN c.budget IS DISTINCT FROM ((c.metadonnees::jsonb)->>'budgetTotal')::numeric
+      OR c.budget IS DISTINCT FROM ((c.metadonnees::jsonb)->'tresoreieFinancing'->>'budgetReel')::numeric
     THEN '⚠️ DRIFT : les 3 sources ne matchent pas'
     ELSE '✅ cohérent'
   END                                           AS verdict
