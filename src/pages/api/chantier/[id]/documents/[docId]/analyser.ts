@@ -118,7 +118,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   // Si invoke throw : log uniquement, l'analyse reste "pending",
   // AnalysisResult.tsx gère le timeout et affiche un état d'erreur.
   ctx.supabase.functions.invoke('analyze-quote', {
-    body: { analysisId, skipN8N: false },
+    body: { analysisId },
   }).catch((e: unknown) => {
     console.error('[api/analyser] invoke error:', e instanceof Error ? e.message : String(e));
   });

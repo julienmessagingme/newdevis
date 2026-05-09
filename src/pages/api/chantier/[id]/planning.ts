@@ -192,35 +192,60 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 
   let anyDepsChanged = false;
   if (depsInput) {
+    // Validation + normalisation upfront : (lot_id, [depends_on_ids])
+    const wantedByLot = new Map<string, Set<string>>();
     for (const [lotId, depIdsRaw] of Object.entries(depsInput)) {
       if (typeof lotId !== 'string') continue;
       if (!Array.isArray(depIdsRaw)) continue;
-      const depIds = depIdsRaw.filter(d => typeof d === 'string' && d !== lotId) as string[];
+      const cleanDeps = depIdsRaw.filter(
+        (d): d is string => typeof d === 'string' && d !== lotId,
+      );
+      wantedByLot.set(lotId, new Set(cleanDeps));
+    }
 
-      // Récupère deps actuelles
-      const { data: currentDeps } = await ctx.supabase
+    if (wantedByLot.size > 0) {
+      const lotIds = Array.from(wantedByLot.keys());
+
+      // 1 SELECT global pour tous les lots — au lieu de N (un par lot).
+      const { data: currentRows } = await ctx.supabase
         .from('lot_dependencies')
-        .select('depends_on_id')
-        .eq('lot_id', lotId);
+        .select('id, lot_id, depends_on_id')
+        .in('lot_id', lotIds);
 
-      const current = new Set((currentDeps ?? []).map((r: { depends_on_id: string }) => r.depends_on_id));
-      const wanted = new Set(depIds);
+      const currentByLot = new Map<string, Map<string, string>>(); // lot_id → (depends_on_id → row.id)
+      for (const row of (currentRows ?? []) as Array<{ id: string; lot_id: string; depends_on_id: string }>) {
+        let entry = currentByLot.get(row.lot_id);
+        if (!entry) { entry = new Map(); currentByLot.set(row.lot_id, entry); }
+        entry.set(row.depends_on_id, row.id);
+      }
 
-      const toDelete = [...current].filter(d => !wanted.has(d));
-      const toInsert = [...wanted].filter(d => !current.has(d));
+      // Diff en mémoire : ids à drop + nouvelles paires à insérer.
+      const idsToDelete: string[] = [];
+      const rowsToInsert: Array<{ lot_id: string; depends_on_id: string }> = [];
 
-      if (toDelete.length > 0) {
+      for (const [lotId, wantedSet] of wantedByLot.entries()) {
+        const currentMap = currentByLot.get(lotId) ?? new Map<string, string>();
+        for (const [depId, rowId] of currentMap.entries()) {
+          if (!wantedSet.has(depId)) idsToDelete.push(rowId);
+        }
+        for (const depId of wantedSet) {
+          if (!currentMap.has(depId)) rowsToInsert.push({ lot_id: lotId, depends_on_id: depId });
+        }
+      }
+
+      // 1 DELETE batch via la liste des rows.id à supprimer (atomique côté Postgres).
+      if (idsToDelete.length > 0) {
         await ctx.supabase
           .from('lot_dependencies')
           .delete()
-          .eq('lot_id', lotId)
-          .in('depends_on_id', toDelete);
+          .in('id', idsToDelete);
         anyDepsChanged = true;
       }
-      if (toInsert.length > 0) {
+      // 1 INSERT batch.
+      if (rowsToInsert.length > 0) {
         await ctx.supabase
           .from('lot_dependencies')
-          .insert(toInsert.map(d => ({ lot_id: lotId, depends_on_id: d })));
+          .insert(rowsToInsert);
         anyDepsChanged = true;
       }
     }

@@ -30,6 +30,7 @@ import TravauxDIYSection from './TravauxDIYSection';
 import AssistantTriPane from './assistant/AssistantTriPane';
 import JournalChantierSection from './assistant/JournalChantierSection';
 import UserCoordonnees from './UserCoordonnees';
+import OwnerChannelToggle from './OwnerChannelToggle';
 import { useAgentInsights } from '@/hooks/useAgentInsights';
 import { useAnalysisScores } from '@/hooks/useAnalysisScores';
 
@@ -528,6 +529,11 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
                 ))}
               </div>
             </div>
+
+            {/* Notifications WhatsApp IA — canal owner privé */}
+            {chantierId && token && (
+              <OwnerChannelToggle chantierId={chantierId} token={token} />
+            )}
 
             {/* Coordonnées personnelles */}
             <UserCoordonnees supabase={supabase} />

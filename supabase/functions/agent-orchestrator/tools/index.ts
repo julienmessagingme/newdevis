@@ -83,6 +83,10 @@ export async function executeTool(
 
   const handler = handlerMap[toolName];
   if (!handler) {
+    // Log explicite : trace les hallucinations LLM (Gemini invente un nom de tool).
+    // Sans ce log, le "Unknown tool" disparait dans le JSON renvoyé au modèle et
+    // on perd la trace côté observabilité.
+    console.error(`[tools] ${chantierId} unknown tool '${toolName}' (run_type=${meta.run_type})`);
     return JSON.stringify({ ok: false, error: `Unknown tool: ${toolName}` });
   }
 
