@@ -209,8 +209,26 @@ function useBudgetData(chantierId: string, token: string) {
     }
   }, [chantierId, token]);
 
+  // Wrapper refresh : recharge ET notifie les autres écrans (Échéancier, Accueil)
+  const refreshAndBroadcast = useCallback(async () => {
+    await load();
+    window.dispatchEvent(new CustomEvent('chantierBudgetChanged', { detail: { chantierId } }));
+  }, [load, chantierId]);
+
   useEffect(() => { load(); }, [load]);
-  return { data, loading, error, refresh: load, backfillToast };
+
+  // Recharge automatiquement quand une dépense est créée depuis un autre écran
+  // (Échéancier, Accueil) → événement `chantierBudgetChanged` dispatch global.
+  useEffect(() => {
+    function onChange(e: Event) {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.chantierId === chantierId) load();
+    }
+    window.addEventListener('chantierBudgetChanged', onChange);
+    return () => window.removeEventListener('chantierBudgetChanged', onChange);
+  }, [chantierId, load]);
+
+  return { data, loading, error, refresh: refreshAndBroadcast, backfillToast };
 }
 
 // ── Configs statuts ───────────────────────────────────────────────────────────
