@@ -2,15 +2,20 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Loader2, ArrowRight } from 'lucide-react';
 import type { ChantierIAResult, DocumentChantier, LotChantier } from '@/types/chantier-ia';
 import { ExpertAvatar } from '@/components/chantier/MATERIAL_IMAGES';
+import { sanitizeForRender } from '@/lib/blogUtils';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// Le content vient d'un LLM (Gemini) → toujours faire passer par sanitizeForRender
+// avant injection HTML. Sans ça, un LLM jailbreaké peut produire <script>...</script>
+// ou des handlers onerror dans le markdown rendu.
 function renderMarkdown(text: string): string {
-  return text
+  const html = text
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/^- (.+)$/gm, '<li style="margin-left:1rem;list-style:disc">$1</li>')
     .replace(/\n\n/g, '<br/><br/>')
     .replace(/\n/g, '<br/>');
+  return sanitizeForRender(html);
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────

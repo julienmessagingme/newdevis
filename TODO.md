@@ -239,17 +239,17 @@ Audit en 4 axes (DB/Supabase, edge functions/agent IA, dette code, coûts/observ
 
 - [ ] **Sentry / error tracking centralisé** — pas de Sentry installé. Silent failures détectés : whapi photo download (`webhooks/whapi.ts:69`), JSON truncation extraction (CLAUDE.md piège connu), agent tool_calls aborted, edge functions catch sans alerte. À faire : `npm i @sentry/node` + init dans edge functions Deno + serverless routes Vercel. ROI très haut, effort ~M (½ j).
 
-- [ ] **Webhook idempotence whapi + SendGrid** — whapi peut retry une 2e fois en cas de timeout edge fn → INSERT `chantier_whatsapp_messages` même `id` deux fois (PK constraint silently fails). Fix : UPSERT par `message_id` (whapi) + idempotency key SendGrid inbound. Effort ~L (1-2h).
+- [x] ~~**Webhook idempotence whapi**~~ — vérifié 2026-05-09 : `whapi.ts` utilise déjà `upsert({ onConflict: 'id' })` ligne 264 ✅. **Reste à faire** : idempotence pour `inbound-email.ts` (SendGrid) qui fait un `.insert()` simple ligne 189 — nécessite migration DB pour stocker `message-id` SendGrid externe.
 
-- [ ] **Timeouts explicites sur tous les fetch Gemini** — `analyze-quote` enchaîne 3 calls Gemini en série (extract → market-prices → summary). Si l'un stale, 60s Supabase atteint silencieusement. À faire : `AbortSignal.timeout(8000)` sur chaque fetch + circuit breaker partagé. Fichiers : `supabase/functions/analyze-quote/extract.ts`, `market-prices.ts`. Effort 4h.
+- [x] ~~**Timeouts explicites + retry backoff sur fetch Gemini**~~ — fait 2026-05-09. Helper partagé `supabase/functions/_shared/gemini-fetch.ts` avec `fetchWithTimeout` + `fetchGeminiWithRetry` (timeout dur, retry 429/5xx avec backoff exponentiel + jitter). Appliqué sur `market-prices.ts:359` et `summarize.ts:44` (3 tentatives, timeout 20s). **Reste à étendre** sur `agent-orchestrator/index.ts` (5 fetchs Gemini, scope laissé en TODO car critique — appliquer prudemment avec maxAttempts=2 pour respecter le budget time 60s par tour).
 
-- [ ] **Sanitize XSS sur `dangerouslySetInnerHTML`** — 5 utilisations détectées, dont 2 sans sanitize stricte (`ScreenAmeliorations.tsx`, `ChatDrawer.tsx`). Le contenu vient parfois de l'IA, donc injection possible. Fix : DOMPurify partout, ou regex stricte documentée. Effort 4h.
+- [x] ~~**Sanitize XSS sur `dangerouslySetInnerHTML`**~~ — fait 2026-05-09. `ChatDrawer.tsx`, `ScreenAmeliorations.tsx` (contenu LLM) et `ConversationThread.tsx` (body_html email entrant) passent désormais par `sanitizeForRender()` (DOMPurify allowlist-based). `ArticleContent.tsx` était déjà sanitizé. `BlogArticle.tsx` JSON-LD = `JSON.stringify` direct (script type=application/ld+json) → safe.
 
 - [ ] **Gemini timeout sur gros PDF (>50 pages)** — `extract-document` peut hit le 240s edge function ceiling. À faire : chunk async + multi-part upload via Gemini Files API (déjà à moitié construit dans `extract.ts:86`). Effort ~M (½ j).
 
 ### P1 — Important (entre 50 et 100 chantiers)
 
-- [ ] **Retry avec backoff exponentiel sur Gemini 429/500** — aujourd'hui `MAX_RETRIES=0` sur extract.ts:130 et market-prices.ts:802. Un 429 transitoire = 1 tool_call wasted, agent abandonne. Fix : 3 retries avec backoff (500ms → 2s → 8s) sur les codes retryables. Effort ~M (½ j).
+- [x] ~~**Retry avec backoff exponentiel sur Gemini 429/500**~~ — fait 2026-05-09 sur market-prices et summarize via le helper partagé. Pour extract.ts : laissé sans retry car chaque tentative ~40s vs budget Supabase 60s (commentaire historique respecté). Pour agent-orchestrator : à étendre dans une prochaine session (5 fetchs Gemini, prudence requise).
 
 - [ ] **Prompt caching côté agent orchestrator** — supprimé 2026-04-23 pour garantir sync, mais `context.ts` rebuild ~6-10k tokens à chaque appel (cf. CLAUDE.md). Réimplémenter via Gemini `cache_control={"type":"ephemeral", "ttl_seconds": 3600}` sur le system prompt + portion stable du contexte. Gain : ~30-40% sur LLM agent ≈ -€0.05-0.06/chantier/mois. *Recouvre P5 backlog archi agent IA*. Effort ~M (1 j).
 
@@ -269,7 +269,7 @@ Audit en 4 axes (DB/Supabase, edge functions/agent IA, dette code, coûts/observ
 
 - [ ] **Logger centralisé (268 console.log/error/warn non filtrés)** — risque fuite données sensibles en prod (CLAUDE.md règle "fuites de secrets"). Fix : `lib/logger.ts` avec `isDev ? console.log : noop`, et masquage automatique des `Bearer\s+[a-zA-Z0-9_.-]+`. Effort 4h.
 
-- [ ] **`/api/health` endpoint** — pas de moyen de monitorer la plateforme except customer complaints. Fix : route Astro qui check Supabase ping + Gemini API + Stripe + whapi + SendGrid. Effort XS (15 min).
+- [x] ~~**`/api/health` endpoint**~~ — fait 2026-05-09. `src/pages/api/health.ts` retourne 200 si DB Supabase ping OK + variables d'env présentes, 503 sinon. Pas de check externe (Gemini, whapi, SendGrid) pour ne pas gonfler la latence — ces APIs ont leurs propres SLA. Réponse JSON avec `status` + `checks` détaillés.
 
 - [ ] **Code mort — `skipN8N`, `score_legacy`, hacks 2.5-flash** — `analyze-quote/index.ts:195` skipN8N jamais utilisé en prod ; `verdict-utils.ts:45,74,86` score_legacy duplique verdict_decisionnel ; prompt agent contient examples obsolètes (`register_avenant`). Effort 8h cumulé.
 

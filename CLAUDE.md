@@ -137,6 +137,10 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
 - **Logs — fuites de secrets** : les `catch` blocks peuvent logger des objets Error contenant des clés API ou Bearer tokens. Solution : toujours `error.message` (pas l'objet complet) + masquer avec regex `Bearer\s+[a-zA-Z0-9_.-]+` → `Bearer ***`.
 
+- **Helper partagé `_shared/gemini-fetch.ts` (2026-05-09)** : tout nouveau call Gemini doit passer par `fetchGeminiWithRetry()` (retry 429/5xx + backoff exponentiel + jitter + timeout dur) ou `fetchWithTimeout()` (timeout sans retry). Ne pas faire de `fetch()` brut sur `generativelanguage.googleapis.com` — un 429 transitoire fait abandonner silencieusement. Exception documentée : `extract.ts` utilise un AbortController custom car chaque tentative ~40s vs budget Supabase 60s. Quand on étend l'agent-orchestrator (5 fetchs Gemini), utiliser `maxAttempts: 2` max pour respecter le budget time par tour.
+
+- **Toujours sanitize les sorties LLM avant injection HTML** (2026-05-09) : tout `dangerouslySetInnerHTML` qui affiche du contenu généré par un LLM (Gemini agent, chat, suggestions) DOIT passer par `sanitizeForRender()` de `@/lib/blogUtils` (DOMPurify allowlist-based). Vu : `ChatDrawer.tsx`, `ScreenAmeliorations.tsx`. Sans ça, un LLM jailbreaké ou un prompt injection peut produire `<script>` ou des handlers `onerror`. Idem pour les contenus externes non maîtrisés (ex: `body_html` d'emails entrants SendGrid → sanitize obligatoire).
+
 ### Multi-devis — règles d'architecture (2026-05-04)
 
 - **RÈGLE ABSOLUE : un PDF multi-artisans = N analyses indépendantes.** Jamais de mélange de lignes entre artisans, jamais de verdict calculé sur des données croisées.

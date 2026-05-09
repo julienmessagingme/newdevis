@@ -1,4 +1,5 @@
 import type { DomainConfig } from "./domain-config.ts";
+import { fetchGeminiWithRetry } from "../_shared/gemini-fetch.ts";
 
 // ============================================================
 // MARKET PRICES LOOKUP — Hierarchical job type system
@@ -356,7 +357,7 @@ Réponds UNIQUEMENT en JSON (pas de markdown) :
 ]`;
 
   try {
-    const response = await fetch(
+    const response = await fetchGeminiWithRetry(
       "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
       {
         method: "POST",
@@ -371,6 +372,7 @@ Réponds UNIQUEMENT en JSON (pas de markdown) :
           max_tokens: 4096,
         }),
       },
+      { timeoutMs: 20000, maxAttempts: 3, logPrefix: "[MarketPrices]" },
     );
 
     if (!response.ok) {

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, ArrowLeft, Wand2 } from 'lucide-react';
 import type { ChantierIAResult, ChangeItem, ArtisanIA, FormaliteIA, TacheIA } from '@/types/chantier-ia';
+import { sanitizeForRender } from '@/lib/blogUtils';
 
 interface ScreenAmeliorationsProps {
   result: ChantierIAResult;
@@ -114,10 +115,11 @@ export default function ScreenAmeliorations({
   };
 
   const renderText = (text: string) => {
-    // Markdown bold et sauts de ligne
-    return text
+    // Le text vient d'un LLM → sanitize avant injection HTML.
+    const html = text
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\n/g, '<br/>');
+    return sanitizeForRender(html);
   };
 
   return (
