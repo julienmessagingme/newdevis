@@ -2,6 +2,12 @@
 // UI-first: phone frame in the middle, screens swap with kinetic captions.
 // 60s total.
 
+// DigestLine and msgIn live in scene-v1.jsx and are exposed via window.
+// Babel-standalone wraps each script in an IIFE; pulling them into local
+// scope here lets the JSX references in this file resolve cleanly.
+const DigestLine = window.DigestLine;
+const msgIn = window.msgIn;
+
 function SceneV2({ w = 1920, h = 1080 }) {
   const time = useTime();
   const isPortrait = h > w;

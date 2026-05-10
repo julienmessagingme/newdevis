@@ -88,12 +88,16 @@ import HouseIllustration from './HouseIllustration.astro';
       </div>
 
       <div class="mt-4 hi-fade" style="animation-delay:.5s">
-        <a class="inline-flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-[#0E1730] cursor-pointer transition-colors" href="/demo/" target="_blank" rel="noopener">
+        <button
+          type="button"
+          id="demo-open-btn"
+          class="inline-flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-[#0E1730] cursor-pointer transition-colors bg-transparent border-0 p-0"
+        >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="5 3 19 12 5 21 5 3" />
           </svg>
           Voir une démo en 40 s
-        </a>
+        </button>
       </div>
     </div>
 
@@ -102,6 +106,74 @@ import HouseIllustration from './HouseIllustration.astro';
     </div>
   </div>
 </section>
+
+<div
+  id="demo-modal"
+  class="fixed inset-0 z-[60] hidden opacity-0 transition-opacity duration-200"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Démo Gérer Mon Chantier"
+>
+  <div id="demo-backdrop" class="absolute inset-0 bg-black/30 backdrop-blur-md cursor-pointer"></div>
+
+  <div class="absolute inset-0 flex items-center justify-center p-4 sm:p-8 pointer-events-none">
+    <div class="relative w-full max-w-[1280px] aspect-video bg-black rounded-2xl shadow-2xl overflow-hidden pointer-events-auto">
+      <iframe
+        id="demo-iframe"
+        title="Démo Gérer Mon Chantier"
+        class="w-full h-full border-0 block"
+        allow="autoplay"
+        loading="lazy"
+      ></iframe>
+      <button
+        type="button"
+        id="demo-close-btn"
+        aria-label="Fermer la démo"
+        class="absolute top-3 right-3 w-10 h-10 rounded-full bg-white/95 hover:bg-white shadow-lg flex items-center justify-center text-gray-700 transition-colors"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <path d="M18 6L6 18M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script is:inline>
+  (() => {
+    const openBtn = document.getElementById('demo-open-btn');
+    const modal = document.getElementById('demo-modal');
+    const backdrop = document.getElementById('demo-backdrop');
+    const closeBtn = document.getElementById('demo-close-btn');
+    const iframe = document.getElementById('demo-iframe');
+    if (!openBtn || !modal || !iframe) return;
+
+    const open = () => {
+      iframe.src = '/demo/?embed=1';
+      modal.classList.remove('hidden');
+      // Force reflow so the opacity transition fires.
+      void modal.offsetWidth;
+      modal.classList.remove('opacity-0');
+      document.body.style.overflow = 'hidden';
+    };
+    const close = () => {
+      modal.classList.add('opacity-0');
+      document.body.style.overflow = '';
+      // Wait for the fade-out, then unmount the iframe (stops playback + frees memory).
+      setTimeout(() => {
+        modal.classList.add('hidden');
+        iframe.src = 'about:blank';
+      }, 200);
+    };
+
+    openBtn.addEventListener('click', open);
+    closeBtn?.addEventListener('click', close);
+    backdrop?.addEventListener('click', close);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) close();
+    });
+  })();
+</script>
 
 <style>
   .hi-fade {
