@@ -2362,7 +2362,7 @@ Détection basée sur le **contenu** (pas le nom de fichier). Points : `analyze-
 
 ### Widget homepage — FAB + bulle (refacto 2026-05-10)
 
-`assistant/AssistantWidget.tsx` — bouton flottant en bas-droite du cockpit, accessible depuis tous les onglets sauf l'onglet Assistant lui-même (caché via prop `hidden`). Click → bulle popover 380×600px desktop, fullscreen mobile.
+`assistant/AssistantWidget.tsx` — bouton flottant en bas-**gauche** du cockpit (le bas-droite est réservé au widget WhatsApp / support tiers pour éviter la collision), accessible depuis tous les onglets sauf l'onglet Assistant lui-même (caché via prop `hidden`). Click → bulle popover 380×600px desktop ouvrant aussi côté gauche, fullscreen mobile.
 
 **Architecture — un seul agent, deux surfaces** :
 - Le widget **partage la même thread** que l'onglet Assistant (`chantier_assistant_messages`). Click "↗ Ouvrir l'Assistant complet" → ferme la bulle + navigateTo('assistant'). L'historique du widget apparaît automatiquement dans la colonne Chat de l'onglet (cohérence par construction).
@@ -2380,9 +2380,9 @@ Détection basée sur le **contenu** (pas le nom de fichier). Points : `analyze-
 **Badge FAB** : compteur d'agent_initiated messages non lus (cron digest 19h, alertes proactives). Lit `unread_count` depuis GET `/assistant/thread`. Le GET marque comme lus les messages agent_initiated → le badge se vide quand l'user ouvre le widget.
 
 **FAB design** :
-- Position `fixed bottom-6 right-6` (lg: bottom-8 right-8)
+- Position `fixed bottom-6 left-6` (lg: bottom-8 left-8) — **bas-gauche** pour éviter la collision avec le widget WhatsApp/support en bas-droite
 - 56×56px, gradient `from-indigo-500 to-violet-600`, icône Sparkles
-- Pulse animation 1× au mount, hover scale 1.05, tooltip desktop "Assistant chantier"
+- Hover scale 1.05, tooltip desktop sort vers la droite "Assistant chantier"
 - Safe-area iOS via `marginBottom: 'env(safe-area-inset-bottom)'`
 
 **Mobile** : la bulle devient un overlay plein écran avec backdrop noir 30% — comportement standard pattern bottom-sheet.
