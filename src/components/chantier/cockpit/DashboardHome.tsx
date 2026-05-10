@@ -507,12 +507,15 @@ function BudgetProgressBars({
 
 type QuickAction = { priority: number; icon: string; label: string; sub?: string; onClick: () => void };
 
-function NextActionsBlock({ documents, lots, onGoToAssistant, onGoToPlanning, onAddDoc }: {
+function NextActionsBlock({ documents, lots, onGoToTresorerie, onGoToDocuments, onGoToPlanning, onAddDoc, highlight }: {
   documents: DocumentChantier[];
   lots: LotChantier[];
-  onGoToAssistant: () => void;
-  onGoToPlanning:  () => void;
-  onAddDoc:        () => void;
+  onGoToTresorerie: () => void;
+  onGoToDocuments:  () => void;
+  onGoToPlanning:   () => void;
+  onAddDoc:         () => void;
+  /** Flash 1.5s background pour signaler "voilà la liste" au scroll-to depuis le KPI. */
+  highlight?:       boolean;
 }) {
   const actions = useMemo<QuickAction[]>(() => {
     const list: QuickAction[] = [];
@@ -529,7 +532,7 @@ function NextActionsBlock({ documents, lots, onGoToAssistant, onGoToPlanning, on
         icon: '💸',
         label: `Régler la facture — ${artisan}${montant}`,
         sub: 'Facture reçue non soldée',
-        onClick: onGoToAssistant,
+        onClick: onGoToTresorerie,
       });
     }
 
@@ -544,7 +547,7 @@ function NextActionsBlock({ documents, lots, onGoToAssistant, onGoToPlanning, on
         icon: '💸',
         label: `Solde restant — ${f.nom ?? ''}${reste > 0 ? ` (${fmtEurShort(reste)})` : ''}`,
         sub: 'Paiement partiel enregistré',
-        onClick: onGoToAssistant,
+        onClick: onGoToTresorerie,
       });
     }
 
@@ -559,7 +562,7 @@ function NextActionsBlock({ documents, lots, onGoToAssistant, onGoToPlanning, on
         icon: '📋',
         label: `Valider le devis — ${d.nom ?? ''}${montant}`,
         sub: 'En attente de signature',
-        onClick: onGoToAssistant,
+        onClick: onGoToDocuments,
       });
     }
 
@@ -614,11 +617,11 @@ function NextActionsBlock({ documents, lots, onGoToAssistant, onGoToPlanning, on
   }
 
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
+    <div className={`bg-white border rounded-2xl overflow-hidden shadow-sm transition-all duration-300 ${highlight ? 'border-amber-400 ring-4 ring-amber-200/60' : 'border-gray-100'}`}>
       <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
         <p className="text-[11px] font-black text-gray-700 uppercase tracking-wider">🧠 Prochaines étapes</p>
         <button
-          onClick={onGoToAssistant}
+          onClick={onGoToTresorerie}
           className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
         >
           Tout voir →
@@ -648,7 +651,7 @@ function NextActionsBlock({ documents, lots, onGoToAssistant, onGoToPlanning, on
 
 function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, budgetReel, refinedBreakdown, onAffineBudget,
   onAddDevisForLot, onAddDocForLot, onGoToLot, onGoToAnalyse, onGoToPlanning, onAddDoc,
-  onGoToAssistant, onAddIntervenant, onDeleteLot, onDeleteDoc, onGoToDiy, chantierId, token,
+  onGoToAssistant, onGoToTresorerie, onGoToDocuments, onAddIntervenant, onDeleteLot, onDeleteDoc, onGoToDiy, chantierId, token,
   viewMode, onViewModeChange, onDocStatutUpdated, onDocMoved, urgentActions,
 }: {
   lots: LotChantier[];
@@ -666,6 +669,8 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
   onGoToPlanning: () => void;
   onAddDoc: () => void;
   onGoToAssistant: () => void;
+  onGoToTresorerie: () => void;
+  onGoToDocuments: () => void;
   onAddIntervenant: () => void;
   onDeleteLot: (lotId: string) => void;
   onDeleteDoc: (docId: string) => void;
@@ -680,6 +685,15 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
 }) {
 
   const [comparingLot, setComparingLot] = useState<{ lot: LotChantier; docs: DocumentChantier[] } | null>(null);
+
+  // ── Scroll vers NextActionsBlock + flash highlight quand l'user clique le KPI "À traiter"
+  const nextActionsRef = useRef<HTMLDivElement>(null);
+  const [actionsHighlight, setActionsHighlight] = useState(false);
+  function scrollToActions() {
+    nextActionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setActionsHighlight(true);
+    setTimeout(() => setActionsHighlight(false), 1500);
+  }
 
   // ── PaiementDrawer (mode libre) ────────────────────────────────────────────
   const [paiementOpen, setPaiementOpen] = useState(false);
@@ -902,9 +916,9 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
           icon={urgentActions ? '⚡' : '✓'}
           label="À traiter"
           value={urgentActions ? `${urgentActions} action${urgentActions > 1 ? 's' : ''}` : '—'}
-          sub={urgentActions ? 'en attente de votre action' : 'Tout est sous contrôle'}
+          sub={urgentActions ? 'voir la liste ↓' : 'Tout est sous contrôle'}
           accent={urgentActions ? 'amber' : 'emerald'}
-          onClick={onGoToAssistant}
+          onClick={urgentActions ? scrollToActions : undefined}
         />
 
         {/* Prochain RDV — uniquement si planifié */}
@@ -944,14 +958,18 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
         </div>
       )}
 
-      {/* ── Prochaines étapes recommandées ──────────────────── */}
-      <NextActionsBlock
-        documents={documents}
-        lots={lots}
-        onGoToAssistant={onGoToAssistant}
-        onGoToPlanning={onGoToPlanning}
-        onAddDoc={onAddDoc}
-      />
+      {/* ── Prochaines étapes recommandées (cible du scroll depuis KPI "À traiter") ─── */}
+      <div ref={nextActionsRef}>
+        <NextActionsBlock
+          documents={documents}
+          lots={lots}
+          onGoToTresorerie={onGoToTresorerie}
+          onGoToDocuments={onGoToDocuments}
+          onGoToPlanning={onGoToPlanning}
+          onAddDoc={onAddDoc}
+          highlight={actionsHighlight}
+        />
+      </div>
 
       {/* ── Planning mini-résumé ────────────────────────────── */}
       <PlanningWidget

@@ -85,7 +85,7 @@ cockpit/
 ├── AnalyseDevisSection.tsx, TravauxDIYSection.tsx, UserCoordonnees.tsx
 ├── PlanningChantier.tsx, TimelineHorizontale.tsx (planning racine)
 ├── ComparateurDevisModal.tsx, ConceptionPage.tsx, PanneauDetail.tsx, SimulateurOptions.tsx
-├── assistant/    AssistantTriPane, AlertsPanel, ChatDrawer, JournalChantierSection
+├── assistant/    AssistantTriPane (onglet 3 colonnes), AssistantWidget (FAB + bulle), AlertsPanel, JournalChantierSection
 ├── budget/       BudgetTab, BudgetGaugeReal, BudgetGauge, BudgetKpiCard,
 │                 BudgetAffinageModal, BudgetBandeau, BudgetComparaison, BudgetExplication,
 │                 LotBreakdown, AlertesIA, FacturesPaiements, DepenseRapideModal,
@@ -197,7 +197,9 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
 - **Helper partagé `_shared/gemini-fetch.ts` (2026-05-09)** : tout nouveau call Gemini doit passer par `fetchGeminiWithRetry()` (retry 429/5xx + backoff exponentiel + jitter + timeout dur) ou `fetchWithTimeout()` (timeout sans retry). Ne pas faire de `fetch()` brut sur `generativelanguage.googleapis.com` — un 429 transitoire fait abandonner silencieusement. Exception documentée : `extract.ts` utilise un AbortController custom car chaque tentative ~40s vs budget Supabase 60s. Quand on étend l'agent-orchestrator (5 fetchs Gemini), utiliser `maxAttempts: 2` max pour respecter le budget time par tour.
 
-- **Toujours sanitize les sorties LLM avant injection HTML** (2026-05-09) : tout `dangerouslySetInnerHTML` qui affiche du contenu généré par un LLM (Gemini agent, chat, suggestions) DOIT passer par `sanitizeForRender()` de `@/lib/blogUtils` (DOMPurify allowlist-based). Vu : `ChatDrawer.tsx`, `ScreenAmeliorations.tsx`. Sans ça, un LLM jailbreaké ou un prompt injection peut produire `<script>` ou des handlers `onerror`. Idem pour les contenus externes non maîtrisés (ex: `body_html` d'emails entrants SendGrid → sanitize obligatoire).
+- **Toujours sanitize les sorties LLM avant injection HTML** (2026-05-09) : tout `dangerouslySetInnerHTML` qui affiche du contenu généré par un LLM (Gemini agent, chat, suggestions) DOIT passer par `sanitizeForRender()` de `@/lib/blog/blogUtils` (DOMPurify allowlist-based). Vu : `ScreenAmeliorations.tsx`. Sans ça, un LLM jailbreaké ou un prompt injection peut produire `<script>` ou des handlers `onerror`. Idem pour les contenus externes non maîtrisés (ex: `body_html` d'emails entrants SendGrid → sanitize obligatoire).
+
+- **Un seul agent IA cockpit — `agent-orchestrator` (règle absolue, 2026-05-10)** : tous les chats agent du cockpit chantier (onglet Assistant `AssistantTriPane` + widget `AssistantWidget` FAB+bulle sur la home) appellent `/api/chantier/[id]/assistant/message` qui délègue à l'edge function `agent-orchestrator` (Gemini 2.5-flash, function calling, peut prendre des actions). **Ne jamais réintroduire** un endpoint chat parallèle type `/api/chantier/chat` (le legacy "Maître d'œuvre" Gemini 2.0-flash, supprimé le 2026-05-10) — ça crée 2 historiques disjoints, 2 personas IA distincts, et plante l'UX. La table `chantier_assistant_messages` est la **source unique** de l'historique. Le widget homepage et l'onglet Assistant lisent/écrivent dans la même thread → cohérence par construction.
 
 - **Rate limit emails sortants — 5/contact/24h enforcé côté API ET agent** (2026-05-09) : le cap est appliqué à la fois dans `src/pages/api/chantier/[id]/messages.ts` (avant INSERT) ET dans `supabase/functions/agent-orchestrator/tools/comm.ts:252-267` (avant l'appel API). Source unique de vérité = `chantier_messages` (count outbound sur 24h). Ne jamais ajouter une nouvelle voie d'envoi qui bypass ce check — sinon boucle agent / clic excessif user → spam. Si on ajoute un canal alternatif (web push, autre email provider), répliquer le check en amont.
 

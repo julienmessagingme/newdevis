@@ -11,6 +11,47 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## NEW. Refonte Assistant — widget homepage cohérent + suppression legacy
+
+🟢 **Livré 2026-05-10. À tester E2E par Julien — Vercel preview attendu.**
+
+### Problème d'origine
+
+- KPI "À traiter X actions" sur la home ouvrait un **ChatDrawer "Maître d'œuvre"** (legacy `/api/chantier/chat`, Gemini 2.0-flash, prompt expert) qui plantait + agent totalement différent de l'onglet Assistant chantier (`agent-orchestrator` Gemini 2.5-flash function calling).
+- Conversation perdue : ce que l'user disait au "maître d'œuvre" n'apparaissait jamais dans l'onglet Assistant.
+- Les actions du `NextActionsBlock` (P1 facture / P2 devis) cliquaient toutes sur `onGoToAssistant` → ouvrait le chat au lieu d'aller sur Trésorerie/Documents.
+- Pas de surface chat permanente accessible depuis tous les onglets.
+
+### Livré
+
+- **`AssistantWidget.tsx`** (nouveau) — FAB indigo→violet bas-droite + bulle popover 380×600px. Accessible depuis tous les onglets cockpit, caché sur l'onglet Assistant. Mobile : fullscreen overlay.
+- **6 suggestions au démarrage** : 3 Q&A (fond blanc, démarches admin / aides / risques) + 3 Actions IA (fond ambre, créer tâche / décaler lot / envoyer WhatsApp). Différenciation visuelle pour montrer ce que l'agent peut **faire**.
+- **Architecture 1 agent, 2 surfaces** : widget et onglet Assistant lisent/écrivent dans la même table `chantier_assistant_messages` via `/api/chantier/[id]/assistant/message`. Click "↗ Ouvrir en grand" sur le widget → ferme + `navigateTo('assistant')` → la conversation continue côté onglet.
+- **Encart vert "✅ Action prise"** affiché juste sous le message assistant si l'agent a exécuté un tool mutateur (lit `tools_executed[]` de la réponse API).
+- **KPI "À traiter"** → scroll smooth + flash highlight 1.5s vers le `NextActionsBlock` (au lieu d'ouvrir le chat). Sub-text "voir la liste ↓".
+- **Reroute actions** : P1 facture → `navigateTo('tresorerie')`, P2 devis → `navigateTo('documents')`. Bouton "Tout voir" → `navigateTo('tresorerie')`. Plus aucune action ne déclenche l'agent.
+- **Suppression legacy** : `ChatDrawer.tsx`, `/api/chantier/chat`, prompt "Maître d'œuvre" supprimés. Plus aucun chat parallèle.
+- **Règle absolue ajoutée à CLAUDE.md** : 1 seul agent IA cockpit (`agent-orchestrator`). Anti-régression.
+
+### À valider E2E
+
+- [ ] Sur un chantier actif, click FAB → bulle s'ouvre avec greeting + 6 suggestions
+- [ ] Click sur une chip Q&A → message envoyé, réponse de l'agent apparaît
+- [ ] Click sur une chip Action → l'agent peut prendre l'action (créer tâche, décaler lot…) → encart "✅ Action prise" visible
+- [ ] Click "↗ Ouvrir en grand" → arrive sur onglet Assistant, l'historique du widget est visible dans la colonne Chat
+- [ ] Click KPI "À traiter X actions" sur la home → scroll smooth vers `NextActionsBlock` + flash ambre 1.5s
+- [ ] Click action P1 facture du `NextActionsBlock` → navigue vers Trésorerie (pas le chat)
+- [ ] Click action P2 devis → navigue vers Documents
+- [ ] Mobile : FAB tap → bulle plein écran avec backdrop
+- [ ] Vérifier badge FAB : si `unread_count` agent_initiated > 0, badge rouge visible
+
+### Gotchas / pièges connus
+
+- Le GET `/assistant/thread` ne sélectionne **pas** `tool_calls` → l'encart "Action prise" est uniquement visible juste après envoi (pas après refresh historique). Si on veut le persister visuel, il faut exposer `tool_calls` dans la requête (à backloguer).
+- Le widget refetch le thread à chaque ouverture (pas de polling auto). Si l'agent envoie un message proactif (cron 19h), il sera visible quand l'user rouvrira le widget.
+
+---
+
 ## NEW. Audit structure code — étapes 1-4 + 7 livrées, suite à programmer
 
 🟢 **Étapes 1-4 + 7 livrées 2026-05-08/09**. Voir CLAUDE.md section "Structure du code" pour le layout final.

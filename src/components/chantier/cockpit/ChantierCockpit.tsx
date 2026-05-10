@@ -19,7 +19,7 @@ import MessagerieSection from './messagerie/MessagerieSection';
 import { useConversations } from '@/hooks/useConversations';
 import UploadDocumentModal from './documents/UploadDocumentModal';
 import AddIntervenantModal from './contacts/AddIntervenantModal';
-import ChatDrawer from './assistant/ChatDrawer';
+import AssistantWidget from './assistant/AssistantWidget';
 import DocumentsView from './documents/DocumentsView';
 import { fmtK } from '@/lib/chantier/dashboardHelpers';
 import Sidebar, { type Section, type NavBadge } from './Sidebar';
@@ -93,7 +93,6 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
   const [refinedBreakdown, setRefinedBreakdown] = useState<BreakdownItem[]>((initialBudgetAffine?.breakdown ?? []) as BreakdownItem[]);
   const [affineBudgetModal, setAffineBudgetModal] = useState(false);
   const [showAddIntervenant, setShowAddIntervenant] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
   const displayMin = refinedRangeMin ?? baseRangeMin;
   const displayMax = refinedRangeMax ?? baseRangeMax;
 
@@ -350,7 +349,9 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
             onGoToAnalyse={() => navigateTo('analyse')}
             onGoToPlanning={() => navigateTo('planning')}
             onAddDoc={() => setUploadModal({ open: true })}
-            onGoToAssistant={() => setChatOpen(true)}
+            onGoToAssistant={() => navigateTo('assistant')}
+            onGoToTresorerie={() => navigateTo('tresorerie')}
+            onGoToDocuments={() => navigateTo('documents')}
             onAddIntervenant={() => setShowAddIntervenant(true)}
             onDeleteLot={deleteLot}
             onDeleteDoc={handleDeleteDoc}
@@ -650,7 +651,7 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
           {/* CTA principal — ÉTAPE 4 */}
           <div className="px-4 pt-2">
             <button
-              onClick={() => activeSection === 'budget' ? setChatOpen(true) : navigateTo('budget')}
+              onClick={() => navigateTo(activeSection === 'budget' ? 'assistant' : 'budget')}
               className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl min-h-[44px] touch-manipulation transition-colors"
             >
               👉 {activeSection === 'budget' ? 'Demander à l\'assistant' : 'Continuer mon chantier'}
@@ -732,14 +733,12 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
         />
       )}
 
-      {/* ── Chat Drawer ── */}
-      <ChatDrawer
-        isOpen={chatOpen}
-        onClose={() => setChatOpen(false)}
-        result={result}
-        documents={documents}
-        lots={lots}
+      {/* ── Assistant Widget — FAB + bulle (caché sur l'onglet Assistant) ─ */}
+      <AssistantWidget
+        chantierId={chantierId ?? ''}
         token={token}
+        hidden={activeSection === 'assistant' || !chantierId}
+        onOpenFull={() => navigateTo('assistant')}
       />
     </div>
   );

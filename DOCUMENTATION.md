@@ -1768,7 +1768,6 @@ Chaque badge ⚠ N pointe vers l'onglet où l'action se résout. **Ne pas réuti
 | `/api/chantier/ameliorer` | POST | Amélioration IA d'un chantier existant | Gemini |
 | `/api/chantier/conseils` | POST | Conseils maître d'œuvre (3-5 conseils typés) | Gemini |
 | `/api/chantier/synthese` | POST | Synthèse courte du chantier (3 phrases max) | Gemini |
-| `/api/chantier/chat` | POST | Chat expert copilote (contexte projet complet) | Gemini 2.0-flash |
 | `/api/chantier/materiaux` | POST | Génération 3 options matériaux pour une étape | Gemini |
 
 Routes spécialisées (documents, lots, devis, planning, payment-events, assistant…) couvertes dans les sections dédiées (§ 21-26).
@@ -2360,6 +2359,33 @@ Détection basée sur le **contenu** (pas le nom de fichier). Points : `analyze-
 - `chantier_journal` — journal de chantier, 1 page/jour. Body markdown, alerts_count, max_severity.
 - `chantier_assistant_messages` — historique chat user/agent. `tool_calls` JSONB pour traçabilité.
 - ~~`agent_context_cache`~~ — table dépréciée 2026-04-23 (peut être droppée).
+
+### Widget homepage — FAB + bulle (refacto 2026-05-10)
+
+`assistant/AssistantWidget.tsx` — bouton flottant en bas-droite du cockpit, accessible depuis tous les onglets sauf l'onglet Assistant lui-même (caché via prop `hidden`). Click → bulle popover 380×600px desktop, fullscreen mobile.
+
+**Architecture — un seul agent, deux surfaces** :
+- Le widget **partage la même thread** que l'onglet Assistant (`chantier_assistant_messages`). Click "↗ Ouvrir l'Assistant complet" → ferme la bulle + navigateTo('assistant'). L'historique du widget apparaît automatiquement dans la colonne Chat de l'onglet (cohérence par construction).
+- Endpoint backend identique : `POST /api/chantier/[id]/assistant/message` (puis edge function `agent-orchestrator`, Gemini 2.5-flash, function calling). Pas de chat parallèle. Le legacy `/api/chantier/chat` ("Maître d'œuvre" Gemini 2.0-flash) a été supprimé le 2026-05-10.
+
+**État vide — greeting + 6 suggestions** :
+- 3 chips Q&A (fond blanc) : "📋 Démarches admin urgentes ?", "💰 Suis-je éligible aux aides ?", "⚠️ Quels risques actuels ?"
+- 3 chips Actions (fond ambre) : "✅ Crée une tâche pour demain", "📅 Décale un lot dans le planning", "💬 Envoie un WhatsApp à un artisan"
+- Différenciation visuelle Q&A vs Action assumée (montre que l'agent peut **agir**, pas juste répondre).
+
+**Refresh** : pas de polling auto. Refetch de l'historique à chaque ouverture du widget (pour voir les messages proactifs du cron 19h ou alertes critiques arrivés entre-temps).
+
+**Encart "✅ Action prise"** : si la réponse `assistant/message` retourne `tools_executed.length > 0`, un encart vert apparaît juste sous le message assistant avec la liste des tools mutateurs exécutés. Visible uniquement après envoi (la GET `/thread` ne sélectionne pas le champ `tool_calls` côté backend — limitation acceptable).
+
+**Badge FAB** : compteur d'agent_initiated messages non lus (cron digest 19h, alertes proactives). Lit `unread_count` depuis GET `/assistant/thread`. Le GET marque comme lus les messages agent_initiated → le badge se vide quand l'user ouvre le widget.
+
+**FAB design** :
+- Position `fixed bottom-6 right-6` (lg: bottom-8 right-8)
+- 56×56px, gradient `from-indigo-500 to-violet-600`, icône Sparkles
+- Pulse animation 1× au mount, hover scale 1.05, tooltip desktop "Assistant chantier"
+- Safe-area iOS via `marginBottom: 'env(safe-area-inset-bottom)'`
+
+**Mobile** : la bulle devient un overlay plein écran avec backdrop noir 30% — comportement standard pattern bottom-sheet.
 
 ### Onglet Assistant chantier — 3 colonnes (refacto 2026-05-08)
 

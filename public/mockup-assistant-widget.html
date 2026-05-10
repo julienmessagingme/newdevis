@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mockup — Assistant chantier widget (FAB + bulle)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .anim-fade-up { animation: fadeInUp 200ms ease-out; }
+    @keyframes fabPulse {
+      0%, 100% { box-shadow: 0 10px 25px -5px rgba(99,102,241,0.4), 0 0 0 0 rgba(99,102,241,0.4); }
+      50% { box-shadow: 0 10px 25px -5px rgba(99,102,241,0.4), 0 0 0 12px rgba(99,102,241,0); }
+    }
+    .fab-pulse { animation: fabPulse 2.5s ease-out 1; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- ── DEV TOGGLE BAR (visible uniquement dans le mockup, pas en prod) ────── -->
+  <div class="bg-gray-900 text-white px-4 py-2 sticky top-0 z-50 flex items-center gap-3 text-[12px]">
+    <span class="font-bold">🎨 Mockup widget Assistant</span>
+    <span class="text-gray-400">|</span>
+    <span class="text-gray-300">État :</span>
+    <button onclick="setState('closed')" class="state-btn px-2 py-1 rounded bg-gray-800 hover:bg-gray-700">FAB fermé</button>
+    <button onclick="setState('empty')" class="state-btn px-2 py-1 rounded bg-gray-800 hover:bg-gray-700">Bulle ouverte (vide)</button>
+    <button onclick="setState('history')" class="state-btn px-2 py-1 rounded bg-gray-800 hover:bg-gray-700">Bulle ouverte (avec historique)</button>
+    <span class="text-gray-400 ml-auto text-[10px]">N'apparaît pas en prod</span>
+  </div>
+
+  <!-- ── FAUX FOND HOMEPAGE (juste un teaser visuel) ───────────────────────── -->
+  <div class="max-w-5xl mx-auto p-6 opacity-60 select-none">
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-gray-900">🏠 Rénovation maison</h1>
+      <p class="text-sm text-gray-500">Chantier en cours · 4 lots actifs</p>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+        <p class="text-[10px] font-bold uppercase text-gray-400 mb-1">Budget</p>
+        <p class="text-2xl font-extrabold text-gray-900">85k–120k €</p>
+      </div>
+      <div class="bg-amber-50 rounded-2xl p-4 border border-amber-100 shadow-sm">
+        <p class="text-[10px] font-bold uppercase text-gray-400 mb-1">À traiter</p>
+        <p class="text-2xl font-extrabold text-amber-700">⚡ 2 actions</p>
+      </div>
+      <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+        <p class="text-[10px] font-bold uppercase text-gray-400 mb-1">RDV</p>
+        <p class="text-2xl font-extrabold text-gray-900">Demain 14h</p>
+      </div>
+      <div class="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+        <p class="text-[10px] font-bold uppercase text-gray-400 mb-1">Intervenants</p>
+        <p class="text-2xl font-extrabold text-gray-900">6 artisans</p>
+      </div>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+      <p class="text-[11px] font-black text-gray-700 uppercase tracking-wider mb-2">🧠 Prochaines étapes</p>
+      <div class="space-y-2 text-sm text-gray-600">
+        <div class="px-3 py-2 bg-gray-50 rounded-lg">💸 Régler la facture — Plombier Dupont (3 200 €)</div>
+        <div class="px-3 py-2 bg-gray-50 rounded-lg">📋 Valider le devis — Carreleur Martin (8 500 €)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- ── LE WIDGET (FAB + BULLE) — c'est ça qu'on construit ─────────────── -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+
+  <!-- FAB — bouton flottant ─────────────────────────────────────────────── -->
+  <button
+    id="fab"
+    onclick="setState('empty')"
+    class="fab-pulse fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center z-40 group"
+    aria-label="Ouvrir l'Assistant chantier"
+  >
+    <!-- Icône Sparkles -->
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z" />
+      <path d="M19 14l.75 2.25L22 17l-2.25.75L19 20l-.75-2.25L16 17l2.25-.75L19 14z" />
+      <path d="M5 4l.5 1.5L7 6l-1.5.5L5 8l-.5-1.5L3 6l1.5-.5L5 4z" />
+    </svg>
+
+    <!-- Badge compteur alertes non lues -->
+    <span id="fab-badge" class="absolute -top-1 -right-1 min-w-[20px] h-5 rounded-full bg-red-500 border-2 border-white text-white text-[10px] font-bold flex items-center justify-center px-1">2</span>
+
+    <!-- Tooltip hover desktop -->
+    <span class="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-gray-900 text-white text-[11px] font-medium px-2 py-1 rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+      Assistant chantier
+    </span>
+  </button>
+
+  <!-- BULLE — popover qui s'ouvre depuis le FAB ─────────────────────────── -->
+  <div id="bubble" class="hidden fixed bottom-6 right-6 w-[380px] h-[600px] max-h-[calc(100vh-3rem)] bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 flex flex-col overflow-hidden anim-fade-up">
+
+    <!-- Header bulle ────────────────────────────────────────────────────── -->
+    <div class="px-4 py-3 border-b border-gray-100 bg-gradient-to-br from-indigo-50/60 to-violet-50/40 flex items-center gap-3">
+      <!-- Avatar gradient -->
+      <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shrink-0 shadow-md">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z" />
+        </svg>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-bold text-gray-900 leading-tight">Assistant chantier</p>
+        <p class="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          En ligne · Pilote IA
+        </p>
+      </div>
+      <!-- Bouton "ouvrir en grand" → onglet Assistant -->
+      <button
+        onclick="alert('→ navigateTo(assistant) + ferme la bulle')"
+        title="Ouvrir l'Assistant complet"
+        class="w-8 h-8 rounded-lg hover:bg-white/60 flex items-center justify-center text-gray-500 hover:text-indigo-600 transition-colors"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M21 14v7H3V3h7"/>
+        </svg>
+      </button>
+      <!-- Bouton close -->
+      <button
+        onclick="setState('closed')"
+        class="w-8 h-8 rounded-lg hover:bg-white/60 flex items-center justify-center text-gray-400 hover:text-gray-700 transition-colors"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Body bulle ─────────────────────────────────────────────────────── -->
+    <div id="bubble-body" class="flex-1 overflow-y-auto scrollbar-thin px-4 py-4 space-y-4">
+
+      <!-- ÉTAT VIDE (welcome + suggestions) ────────────────────────────── -->
+      <div id="empty-state" class="space-y-4">
+        <!-- Greeting bulle assistant -->
+        <div class="flex gap-2">
+          <div class="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shrink-0 shadow-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z" />
+            </svg>
+          </div>
+          <div class="flex-1 bg-gray-50 rounded-2xl rounded-tl-sm px-3.5 py-2.5">
+            <p class="text-[13px] text-gray-800 leading-relaxed">
+              Salut 👋 Je suis ton <strong>Pilote de Chantier IA</strong>. Je peux répondre à tes questions <strong>et prendre des actions</strong> sur le chantier.
+            </p>
+          </div>
+        </div>
+
+        <!-- Section Q&A -->
+        <div class="space-y-2">
+          <p class="text-[10px] font-black text-gray-400 uppercase tracking-wider px-1">💬 Demande-moi</p>
+          <button onclick="sendSuggested('Quelles démarches administratives sont urgentes ?')"
+            class="w-full text-left text-[12px] px-3 py-2.5 bg-white border border-gray-200 rounded-xl hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors">
+            <span class="text-base mr-1.5">📋</span> Démarches admin urgentes ?
+          </button>
+          <button onclick="sendSuggested('Suis-je éligible aux aides MaPrimeRénov / CEE / éco-PTZ ?')"
+            class="w-full text-left text-[12px] px-3 py-2.5 bg-white border border-gray-200 rounded-xl hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors">
+            <span class="text-base mr-1.5">💰</span> Suis-je éligible aux aides ?
+          </button>
+          <button onclick="sendSuggested('Quels risques sur mon chantier en ce moment ?')"
+            class="w-full text-left text-[12px] px-3 py-2.5 bg-white border border-gray-200 rounded-xl hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors">
+            <span class="text-base mr-1.5">⚠️</span> Quels risques actuels ?
+          </button>
+        </div>
+
+        <!-- Section Actions IA -->
+        <div class="space-y-2">
+          <p class="text-[10px] font-black text-amber-600 uppercase tracking-wider px-1">⚡ Demande-moi de faire</p>
+          <button onclick="sendSuggested('Crée une tâche urgente pour demain')"
+            class="w-full text-left text-[12px] px-3 py-2.5 bg-amber-50/40 border border-amber-200/70 rounded-xl hover:bg-amber-50 hover:border-amber-300 transition-colors">
+            <span class="text-base mr-1.5">✅</span> Crée une tâche pour demain
+          </button>
+          <button onclick="sendSuggested('Décale le lot Plomberie de 3 jours')"
+            class="w-full text-left text-[12px] px-3 py-2.5 bg-amber-50/40 border border-amber-200/70 rounded-xl hover:bg-amber-50 hover:border-amber-300 transition-colors">
+            <span class="text-base mr-1.5">📅</span> Décale un lot dans le planning
+          </button>
+          <button onclick="sendSuggested('Envoie un message WhatsApp au plombier pour confirmer le RDV')"
+            class="w-full text-left text-[12px] px-3 py-2.5 bg-amber-50/40 border border-amber-200/70 rounded-xl hover:bg-amber-50 hover:border-amber-300 transition-colors">
+            <span class="text-base mr-1.5">💬</span> Envoie un WhatsApp à un artisan
+          </button>
+        </div>
+
+        <!-- Footer indication "ou tape ta question" -->
+        <p class="text-[10px] text-gray-400 text-center px-1 pt-1">
+          Ou tape ta question directement ci-dessous ↓
+        </p>
+      </div>
+
+      <!-- ÉTAT AVEC HISTORIQUE ─────────────────────────────────────────── -->
+      <div id="history-state" class="hidden space-y-3">
+        <!-- Message user -->
+        <div class="flex gap-2 flex-row-reverse">
+          <div class="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center shrink-0 text-[11px] font-bold text-gray-600">JB</div>
+          <div class="flex-1 max-w-[82%] flex justify-end">
+            <div class="bg-indigo-600 text-white rounded-2xl rounded-tr-sm px-3.5 py-2.5">
+              <p class="text-[13px] leading-relaxed">Quelles démarches admin urgentes ?</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Message assistant -->
+        <div class="flex gap-2">
+          <div class="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z" />
+            </svg>
+          </div>
+          <div class="flex-1 bg-gray-50 rounded-2xl rounded-tl-sm px-3.5 py-2.5">
+            <p class="text-[13px] text-gray-800 leading-relaxed">
+              Pour ton projet, deux démarches sont à finaliser cette semaine :
+              <br/><br/>
+              <strong>1.</strong> 📄 La <strong>déclaration préalable</strong> en mairie (extension &lt; 40m²) — délai 1 mois<br/>
+              <strong>2.</strong> ⚡ Le <strong>Consuel</strong> avant mise en service électrique — à demander au moins 30 jours avant la fin des travaux
+              <br/><br/>
+              Veux-tu que je crée des rappels pour ces 2 échéances ?
+            </p>
+          </div>
+        </div>
+
+        <!-- Action prise par l'IA (visualisation) -->
+        <div class="mx-7 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2">
+          <span class="text-base">✅</span>
+          <p class="text-[11px] text-emerald-800 font-medium">L'IA a créé 2 tâches dans ton planning</p>
+        </div>
+
+        <!-- Message user follow-up -->
+        <div class="flex gap-2 flex-row-reverse">
+          <div class="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center shrink-0 text-[11px] font-bold text-gray-600">JB</div>
+          <div class="flex-1 max-w-[82%] flex justify-end">
+            <div class="bg-indigo-600 text-white rounded-2xl rounded-tr-sm px-3.5 py-2.5">
+              <p class="text-[13px] leading-relaxed">Oui crée-les</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action confirmation -->
+        <div class="flex gap-2">
+          <div class="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z" />
+            </svg>
+          </div>
+          <div class="flex-1 bg-gray-50 rounded-2xl rounded-tl-sm px-3.5 py-2.5">
+            <p class="text-[13px] text-gray-800 leading-relaxed">
+              Parfait ✓ J'ai créé deux rappels dans ton planning. Tu les retrouveras dans l'onglet <strong>Tâches</strong>.
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer input ──────────────────────────────────────────────────── -->
+    <div class="px-3 py-3 border-t border-gray-100 bg-white">
+      <form onsubmit="event.preventDefault(); fakeUserSend(this.querySelector('input').value); this.querySelector('input').value='';" class="flex gap-2 items-center">
+        <input
+          type="text"
+          placeholder="Pose une question ou demande une action..."
+          class="flex-1 text-[13px] bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400"
+        />
+        <button type="submit"
+          class="w-9 h-9 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 flex items-center justify-center text-white transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+          </svg>
+        </button>
+      </form>
+      <p class="text-[9px] text-gray-400 text-center mt-2">
+        💡 L'IA peut prendre des actions — tu valideras avant chaque envoi externe (WhatsApp, email)
+      </p>
+    </div>
+
+  </div>
+
+  <!-- ── INFO FOOTER MOCKUP ────────────────────────────────────────────── -->
+  <div class="fixed bottom-2 left-2 bg-white/90 backdrop-blur border border-gray-200 rounded-lg px-3 py-2 text-[10px] text-gray-600 max-w-xs shadow-sm">
+    <p class="font-bold text-gray-900 mb-1">📐 Specs</p>
+    <p>FAB : 56×56px, gradient indigo→violet, badge alertes non lues</p>
+    <p>Bulle : 380×600px desktop, plein écran mobile</p>
+    <p>Mobile : tap FAB → fullscreen overlay (pas une bulle)</p>
+  </div>
+
+  <script>
+    function setState(s) {
+      const fab = document.getElementById('fab');
+      const bubble = document.getElementById('bubble');
+      const empty = document.getElementById('empty-state');
+      const history = document.getElementById('history-state');
+
+      if (s === 'closed') {
+        bubble.classList.add('hidden');
+        fab.classList.remove('hidden');
+      } else if (s === 'empty') {
+        fab.classList.add('hidden');
+        bubble.classList.remove('hidden');
+        empty.classList.remove('hidden');
+        history.classList.add('hidden');
+      } else if (s === 'history') {
+        fab.classList.add('hidden');
+        bubble.classList.remove('hidden');
+        empty.classList.add('hidden');
+        history.classList.remove('hidden');
+      }
+    }
+
+    function sendSuggested(text) {
+      // Dans la vraie app : POST /api/chantier/[id]/assistant/message + maj historique
+      // Ici on bascule juste en mode "history" pour montrer le rendu
+      setState('history');
+    }
+
+    function fakeUserSend(text) {
+      if (!text.trim()) return;
+      setState('history');
+    }
+
+    // Init : commence en état "closed" (FAB visible)
+    setState('closed');
+  </script>
+
+</body>
+</html>
