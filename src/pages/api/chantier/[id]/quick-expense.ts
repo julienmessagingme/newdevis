@@ -44,6 +44,10 @@ export const POST: APIRoute = async ({ params, request }) => {
   const lotId       = typeof body.lot_id === 'string' && body.lot_id         ? body.lot_id         : null;
   const note        = typeof body.note   === 'string' && body.note.trim()    ? body.note.trim()    : null;
   const date        = typeof body.date   === 'string' && body.date           ? body.date           : new Date().toISOString().slice(0, 10);
+  // Source de financement (chantier_entrees.id) — optionnel
+  const fundingSourceId = typeof body.funding_source_id === 'string' && body.funding_source_id
+    ? body.funding_source_id
+    : null;
 
   if (!label)  return jsonError('Le libellé est requis', 400);
   if (!amount) return jsonError('Le montant est requis (> 0)', 400);
@@ -71,6 +75,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     due_date: date,
     status:   'paid',
     label,
+    ...(fundingSourceId ? { funding_source_id: fundingSourceId } : {}),
   }];
 
   // bucket_path est NOT NULL UNIQUE → on génère un chemin fictif unique

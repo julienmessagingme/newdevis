@@ -195,14 +195,18 @@ export const POST: APIRoute = async ({ params, request }) => {
   // du Budget (cf. eventsPayeByDoc dans budget.ts qui lit payment_events_v
   // branche 2 = cashflow_terms, avec source_id non null).
   if (body.addToDocument === true) {
-    const documentId   = typeof body.documentId   === 'string' && body.documentId   ? body.documentId   : null;
-    const documentType = body.documentType === 'facture' ? 'facture' : 'devis';
-    const label        = typeof body.label   === 'string' && body.label.trim()   ? body.label.trim()   : null;
-    const amount       = typeof body.amount  === 'number' && body.amount  > 0    ? body.amount         : null;
-    const dueDate      = typeof body.dueDate === 'string' && body.dueDate        ? body.dueDate        : null;
-    const paid         = body.paid === true;
-    const status       = paid ? 'paid' : 'pending';
-    const finalDueDate = dueDate ?? (paid ? new Date().toISOString().slice(0, 10) : null);
+    const documentId      = typeof body.documentId   === 'string' && body.documentId   ? body.documentId   : null;
+    const documentType    = body.documentType === 'facture' ? 'facture' : 'devis';
+    const label           = typeof body.label   === 'string' && body.label.trim()   ? body.label.trim()   : null;
+    const amount          = typeof body.amount  === 'number' && body.amount  > 0    ? body.amount         : null;
+    const dueDate         = typeof body.dueDate === 'string' && body.dueDate        ? body.dueDate        : null;
+    const paid            = body.paid === true;
+    const status          = paid ? 'paid' : 'pending';
+    const finalDueDate    = dueDate ?? (paid ? new Date().toISOString().slice(0, 10) : null);
+    // Source de financement (chantier_entrees.id) pour suivi par enveloppe
+    const fundingSourceId = typeof body.funding_source_id === 'string' && body.funding_source_id
+      ? body.funding_source_id
+      : null;
 
     if (!documentId)    return jsonError('documentId requis', 400);
     if (!amount)        return jsonError('Le montant est requis (> 0)', 400);
@@ -239,7 +243,14 @@ export const POST: APIRoute = async ({ params, request }) => {
 
     // Générer un event_id stable (requis par VIEW branche 2)
     const newEventId = randomUUID();
-    const newTerm = { event_id: newEventId, amount, due_date: finalDueDate, status, label };
+    const newTerm: Record<string, unknown> = {
+      event_id: newEventId,
+      amount,
+      due_date: finalDueDate,
+      status,
+      label,
+      ...(fundingSourceId ? { funding_source_id: fundingSourceId } : {}),
+    };
 
     const { error: updateErr } = await ctx.supabase
       .from('documents_chantier')

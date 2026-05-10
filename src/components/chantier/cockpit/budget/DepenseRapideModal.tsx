@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { X, Receipt, ShoppingCart, Wrench, Loader2 } from 'lucide-react';
 import type { LotChantier } from '@/types/chantier-ia';
 import { fmtFull } from '@/lib/chantier/budgetHelpers';
+import FundingSourceSelect from '../tresorerie/FundingSourceSelect';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -56,10 +57,13 @@ export default function DepenseRapideModal({ chantierId, token, lots, onClose, o
   const [montantPaye,   setMontantPaye]   = useState('');
   const [statut,        setStatut]        = useState<FactureStatut>('recue');
   const [lotId,         setLotId]         = useState<string>('');
+  const [fundingSource, setFundingSource] = useState<string>(''); // entree.id ou ''
   const [saving,        setSaving]        = useState(false);
   const [error,         setError]         = useState<string | null>(null);
 
   const showAcompte = statut === 'payee_partiellement' || statut === 'en_litige';
+  // La source de financement n'a de sens que si quelque chose est versé
+  const showFunding = statut === 'payee' || statut === 'payee_partiellement';
   const isValid     = nom.trim() && montant && parseFloat(montant) > 0;
 
   async function handleSave() {
@@ -87,6 +91,10 @@ export default function DepenseRapideModal({ chantierId, token, lots, onClose, o
       };
       if (showAcompte && montantPaye) {
         body.montantPaye = parseFloat(montantPaye);
+      }
+      // Source de financement (uniquement si paiement réellement effectué)
+      if (showFunding && fundingSource) {
+        body.fundingSourceId = fundingSource;
       }
 
       const res = await fetch(`/api/chantier/${chantierId}/documents/depense-rapide`, {
@@ -239,6 +247,16 @@ export default function DepenseRapideModal({ chantierId, token, lots, onClose, o
                 </p>
               )}
             </div>
+          )}
+
+          {/* Source de financement (apport / crédit / aide) */}
+          {showFunding && (
+            <FundingSourceSelect
+              chantierId={chantierId}
+              token={token}
+              value={fundingSource}
+              onChange={setFundingSource}
+            />
           )}
 
           {error && (

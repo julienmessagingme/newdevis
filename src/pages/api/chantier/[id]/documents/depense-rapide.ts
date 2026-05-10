@@ -35,6 +35,10 @@ export const POST: APIRoute = async ({ params, request }) => {
   const montant       = typeof body.montant       === 'number' ? body.montant       : null;
   const montantPaye   = typeof body.montantPaye   === 'number' ? body.montantPaye   : null;
   const lotIdRaw      = typeof body.lotId         === 'string' ? body.lotId         : null;
+  // Source de financement choisie côté UI (chantier_entrees.id) — optionnel
+  const fundingSourceId = typeof body.fundingSourceId === 'string' && body.fundingSourceId
+    ? body.fundingSourceId
+    : null;
 
   if (!VALID_DEPENSE_TYPES.has(depenseType))
     return jsonError('Type de dépense invalide', 400);
@@ -50,6 +54,26 @@ export const POST: APIRoute = async ({ params, request }) => {
       .from('lots_chantier').select('id')
       .eq('id', lotId).eq('chantier_id', chantierId).single();
     if (!lot) lotId = null;
+  }
+
+  // Si le statut implique un versement réel (payee ou payee_partiellement),
+  // on injecte un cashflow_term paid avec funding_source_id pour permettre
+  // le suivi par enveloppe (apport / crédit / aides). Sans ça, le paiement
+  // n'est pas attribué dans le KPI "Consommation par source".
+  const cashflowTerms: Array<Record<string, unknown>> = [];
+  const versement =
+    factureStatut === 'payee'                ? montant ?? 0 :
+    factureStatut === 'payee_partiellement'  ? montantPaye ?? 0 :
+    0;
+  if (versement > 0) {
+    cashflowTerms.push({
+      event_id: crypto.randomUUID(),
+      amount:   versement,
+      due_date: new Date().toISOString().slice(0, 10),
+      status:   'paid',
+      label:    nom,
+      ...(fundingSourceId ? { funding_source_id: fundingSourceId } : {}),
+    });
   }
 
   const { data: doc, error } = await ctx.supabase
@@ -71,6 +95,7 @@ export const POST: APIRoute = async ({ params, request }) => {
                         ? montantPaye
                         : null,
       facture_statut: factureStatut,
+      cashflow_terms: cashflowTerms,
     })
     .select()
     .single();

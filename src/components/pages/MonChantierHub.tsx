@@ -227,13 +227,23 @@ export default function MonChantierHub() {
           headers: { Authorization: `Bearer ${tok}` },
         });
 
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          // Récupère le détail serveur pour exposer la cause réelle (avant : message
+          // générique qui empêchait de diagnostiquer rapidement les problèmes API/DB)
+          let detail = '';
+          try {
+            const body = await res.json();
+            detail = body?.error ?? body?.message ?? '';
+          } catch {}
+          throw new Error(`HTTP ${res.status}${detail ? ' · ' + detail : ''}`);
+        }
 
         const json = await res.json();
         if (!cancelled) setChantiers(json.chantiers ?? []);
       } catch (err) {
         if (!cancelled) {
-          setError('Impossible de charger vos chantiers. Veuillez réessayer.');
+          const msg = err instanceof Error ? err.message : 'Erreur inconnue';
+          setError(`Impossible de charger vos chantiers. Détail : ${msg}`);
           console.error('[MonChantierHub] fetch error:', err);
         }
       } finally {
