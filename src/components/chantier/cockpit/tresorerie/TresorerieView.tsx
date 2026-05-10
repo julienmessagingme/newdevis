@@ -61,36 +61,41 @@ const SRC_TO_CAT: Record<string, 'apport' | 'credit' | 'aides'> = {
   aide_cee:         'aides',
 };
 
-// ── Hook consommation réelle par source (payment_events.funding_source_id) ─────
+// ── Hook consommation réelle par source ──────────────────────────────────────
+// Source de vérité = endpoint /funding-consumption (Fix #6 + #7, 2026-05-10) :
+//   1. Allocations explicites multi-source priorité 1 (Fix #6 split)
+//   2. funding_source_id legacy priorité 2 (Fix #5 mono)
+//   3. Auto-allocation FIFO (Apport → Crédit → Aides) priorité 3 (Fix #7)
+// L'ancien calcul client a été supprimé : un seul algo, côté serveur, testable.
 function useEntreeConsumption(chantierId: string, token: string) {
-  const [consumed, setConsumed] = useState({ apport: 0, credit: 0, aides: 0, totalLinked: 0 });
+  const [consumed, setConsumed] = useState({
+    apport: 0, credit: 0, aides: 0, totalLinked: 0,
+    autoCount: 0, manualCount: 0,
+  });
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       try {
         const t = await freshToken(token);
-        const [er, pr] = await Promise.all([
-          fetch(`/api/chantier/${chantierId}/entrees`,         { headers: { Authorization: `Bearer ${t}` } }),
-          fetch(`/api/chantier/${chantierId}/payment-events`,  { headers: { Authorization: `Bearer ${t}` } }),
-        ]);
-        if (!er.ok || !pr.ok || cancelled) return;
-        const [ed, pd] = await Promise.all([er.json(), pr.json()]);
-        const entrees: { id: string; source_type: string }[] = ed.entrees ?? [];
-        const events:  { status: string; funding_source_id: string | null; amount: number | null }[] = pd.payment_events ?? [];
-
-        const idToCat: Record<string, 'apport' | 'credit' | 'aides'> = {};
-        for (const e of entrees) idToCat[e.id] = SRC_TO_CAT[e.source_type] ?? 'apport';
-
-        const acc = { apport: 0, credit: 0, aides: 0, totalLinked: 0 };
-        for (const ev of events) {
-          if (ev.status === 'paid' && ev.funding_source_id && idToCat[ev.funding_source_id]) {
-            const cat = idToCat[ev.funding_source_id];
-            acc[cat]        += ev.amount ?? 0;
-            acc.totalLinked += ev.amount ?? 0;
-          }
+        const res = await fetch(`/api/chantier/${chantierId}/funding-consumption`, {
+          headers: { Authorization: `Bearer ${t}` },
+        });
+        if (!res.ok || cancelled) return;
+        const d = await res.json();
+        const c = d.consumed ?? { apport: 0, credit: 0, aides: 0 };
+        const counts = d.counts ?? { auto: 0, manual: 0 };
+        if (!cancelled) {
+          const apport = Number(c.apport ?? 0);
+          const credit = Number(c.credit ?? 0);
+          const aides  = Number(c.aides  ?? 0);
+          setConsumed({
+            apport, credit, aides,
+            totalLinked: apport + credit + aides,
+            autoCount:   Number(counts.auto   ?? 0),
+            manualCount: Number(counts.manual ?? 0),
+          });
         }
-        if (!cancelled) setConsumed(acc);
       } catch {}
     };
     load();

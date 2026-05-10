@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { X, Receipt, ShoppingCart, Wrench, Loader2 } from 'lucide-react';
 import type { LotChantier } from '@/types/chantier-ia';
 import { fmtFull } from '@/lib/chantier/budgetHelpers';
-import FundingSourceSelect from '../tresorerie/FundingSourceSelect';
+import FundingAllocations, { type AllocationItem } from '../tresorerie/FundingAllocations';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -57,7 +57,7 @@ export default function DepenseRapideModal({ chantierId, token, lots, onClose, o
   const [montantPaye,   setMontantPaye]   = useState('');
   const [statut,        setStatut]        = useState<FactureStatut>('recue');
   const [lotId,         setLotId]         = useState<string>('');
-  const [fundingSource, setFundingSource] = useState<string>(''); // entree.id ou ''
+  const [allocations, setAllocations] = useState<AllocationItem[]>([]);
   const [saving,        setSaving]        = useState(false);
   const [error,         setError]         = useState<string | null>(null);
 
@@ -92,9 +92,9 @@ export default function DepenseRapideModal({ chantierId, token, lots, onClose, o
       if (showAcompte && montantPaye) {
         body.montantPaye = parseFloat(montantPaye);
       }
-      // Source de financement (uniquement si paiement réellement effectué)
-      if (showFunding && fundingSource) {
-        body.fundingSourceId = fundingSource;
+      // Allocations multi-source (Fix #6) — empty = auto-FIFO côté serveur (Fix #7)
+      if (showFunding && allocations.length > 0) {
+        body.allocations = allocations;
       }
 
       const res = await fetch(`/api/chantier/${chantierId}/documents/depense-rapide`, {
@@ -249,13 +249,18 @@ export default function DepenseRapideModal({ chantierId, token, lots, onClose, o
             </div>
           )}
 
-          {/* Source de financement (apport / crédit / aide) */}
+          {/* Source de financement (apport / crédit / aide) — mode simple ou split */}
           {showFunding && (
-            <FundingSourceSelect
+            <FundingAllocations
               chantierId={chantierId}
               token={token}
-              value={fundingSource}
-              onChange={setFundingSource}
+              totalAmount={
+                statut === 'payee'
+                  ? parseFloat(montant || '0') || 0
+                  : parseFloat(montantPaye || '0') || 0
+              }
+              value={allocations}
+              onChange={setAllocations}
             />
           )}
 

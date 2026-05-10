@@ -69,6 +69,79 @@ Pour les chantiers déjà existants, les `cashflow_extras` créés avant ce fix 
 
 ---
 
+## NEW. Allocations multi-source + auto-FIFO — Fix #5/#6/#7 livrés
+
+🟢 **Livré 2026-05-09 (Fix #5 commit `489ea91`) + 2026-05-10 (Fix #6+#7). À valider E2E.**
+
+### Problème d'origine identifié par Julien
+> "Dans Trésorerie, je ne sais plus comment je valide qu'une facture entame mon enveloppe Apport / Crédit / Aide. Quid si un paiement est utilisé partiellement en apport et partiellement en crédit ?"
+
+Trois trous identifiés :
+1. **Wizard caché** : l'attribution à une source n'était possible QUE via le wizard 4 étapes de l'Échéancier, étape 3 "financement". Saisies via Budget / Accueil / DepenseRapideModal → 0 attribution silencieuse.
+2. **Mono-source seulement** : `payment_events.funding_source_id` est UN id, pas un array → impossible de splitter "5 000 € dont 3 000 € apport + 2 000 € crédit".
+3. **Skip silencieux** : si l'utilisateur fermait le wizard sans choisir, le paiement validé n'était attribué à rien → invisible dans la jauge "Consommation par source".
+
+### Livré
+
+**Fix #5 — Sélecteur "Financé par" partout (2026-05-09 commit `489ea91`)**
+- Composant réutilisable `FundingSourceSelect` (legacy, mono-source)
+- Intégré dans `DepenseRapideModal` + `PaiementDrawer`
+- Backends acceptent `funding_source_id` : `/documents/depense-rapide`, `/quick-expense`, `/payment-events POST addToDocument`
+
+**Fix #6 — Allocations multi-source split (2026-05-10)**
+- Nouveau composant `FundingAllocations.tsx` qui remplace `FundingSourceSelect` :
+  - Mode **simple** par défaut (= 1 allocation 100% sur 1 source)
+  - Toggle **"Répartir entre plusieurs sources"** → multi-input avec validation total = montant payé
+- Modèle de stockage : nouveau champ `cashflow_term.allocations: [{entree_id, amount}]` JSONB. Compat-rétro avec `funding_source_id` legacy : si `allocations` absent mais `funding_source_id` présent → traité comme 1 allocation 100%.
+- Backends étendus pour accepter `allocations: [...]` (priorité 1 sur funding_source_id) :
+  - `/documents/depense-rapide`
+  - `/quick-expense`
+  - `/payment-events POST addToDocument`
+
+**Fix #7 — Auto-allocation FIFO (2026-05-10)**
+- Nouvel endpoint **`GET /api/chantier/[id]/funding-consumption`** = source de vérité unique pour la jauge "Consommation par source", remplace l'ancien calcul client de `useEntreeConsumption`.
+- Algorithme à 3 niveaux par paiement :
+  1. Si `allocations[]` présent → utilisé tel quel (Fix #6)
+  2. Sinon si `funding_source_id` présent → 1 allocation 100% (Fix #5 legacy)
+  3. Sinon → **auto-FIFO chronologique** : on remplit Apport → Crédit → Aides selon les enveloppes disponibles au moment de chaque paiement (Fix #7)
+- Si la dernière enveloppe est épuisée et qu'il reste à allouer → tout passe en surplus Apport (jauge montre alors >100%).
+- Réponse : `{ consumed, remaining, totals, breakdown, counts: { manual, auto, unallocated } }` — UI peut afficher "X paiements auto-alloués · Y manuels".
+
+### Architecture du modèle d'allocation (règle absolue)
+
+Stockage dans `documents_chantier.cashflow_terms[i]` :
+```ts
+{
+  event_id: 'uuid',
+  amount: 5000,
+  due_date: '2026-05-10',
+  status: 'paid',
+  label: '...',
+  allocations: [                              // Fix #6 — autorité priorité 1
+    { entree_id: 'uuid_apport', amount: 3000 },
+    { entree_id: 'uuid_credit', amount: 2000 },
+  ],
+  funding_source_id: 'uuid_apport',           // Fix #5 — legacy mono, fallback priorité 2
+  // si ni allocations ni funding_source_id → Fix #7 auto-FIFO côté serveur
+}
+```
+
+**Ne jamais** réécrire la logique de consommation côté client : tout passe par `/funding-consumption`. **Ne jamais** mettre `allocations` ET `funding_source_id` en doublon — `allocations` prime.
+
+### À valider E2E par Julien
+
+- [ ] Mode SIMPLE : enregistrer un paiement, choisir une source dans "Financé par" → la jauge Trésorerie reflète la consommation immédiatement.
+- [ ] Mode SPLIT : cliquer "Répartir entre plusieurs sources" → saisir 3 000 € apport + 2 000 € crédit → validation total = 5 000 € → save → jauge Trésorerie montre 3 000 € sur Apport et 2 000 € sur Crédit.
+- [ ] AUTO-FIFO : enregistrer un paiement de 10 000 € sans choisir de source ("À répartir automatiquement") → la jauge épuise d'abord Apport, puis déborde sur Crédit.
+- [ ] Migration douce : les anciens paiements avec `funding_source_id` legacy doivent rester correctement comptés (non régressé par le passage à `allocations[]`).
+
+### Limites connues
+
+- **`cashflow_extras` (mouvements orphelins)** : la table SQL n'a pas de colonne `allocations` JSONB, seulement `funding_source_id` mono. Si on a besoin de splitter un extra, il faut soit ajouter la colonne, soit forcer la réconciliation préalable via le modal `OrphansReconciliationModal`. Pour l'instant : extras = mono-source (Fix #5 only).
+- **Pas de réallocation rétroactive UI** : le `breakdown` est exposé par l'API mais pas encore rendu dans une UI "ajuster cette allocation". Si Julien veut modifier après coup, il doit éditer le doc directement.
+
+---
+
 ## NEW. Audit Budget & Trésorerie — 8/10 atteint
 
 🟢 **Vagues 1+2 livrées 2026-05-08 (commits `c063196` + `a9cfe67`). Cible 8/10 atteinte. Vague 3 = polish 9-10/10.**

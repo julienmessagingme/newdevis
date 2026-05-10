@@ -39,6 +39,17 @@ export const POST: APIRoute = async ({ params, request }) => {
   const fundingSourceId = typeof body.fundingSourceId === 'string' && body.fundingSourceId
     ? body.fundingSourceId
     : null;
+  // Allocations multi-source (Fix #6) — array [{entree_id, amount}, ...]
+  const rawAllocations = Array.isArray(body.allocations) ? body.allocations : null;
+  const allocations: Array<{ entree_id: string; amount: number }> | null =
+    rawAllocations
+      ? rawAllocations
+          .map((a: any) => ({
+            entree_id: typeof a?.entree_id === 'string' ? a.entree_id : '',
+            amount:    typeof a?.amount    === 'number' ? a.amount    : 0,
+          }))
+          .filter((a: any) => a.entree_id && a.amount > 0)
+      : null;
 
   if (!VALID_DEPENSE_TYPES.has(depenseType))
     return jsonError('Type de dépense invalide', 400);
@@ -72,7 +83,12 @@ export const POST: APIRoute = async ({ params, request }) => {
       due_date: new Date().toISOString().slice(0, 10),
       status:   'paid',
       label:    nom,
-      ...(fundingSourceId ? { funding_source_id: fundingSourceId } : {}),
+      // allocations[] prime sur funding_source_id (Fix #6 > Fix #5)
+      ...(allocations && allocations.length > 0
+        ? { allocations }
+        : fundingSourceId
+        ? { funding_source_id: fundingSourceId }
+        : {}),
     });
   }
 

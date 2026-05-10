@@ -48,6 +48,17 @@ export const POST: APIRoute = async ({ params, request }) => {
   const fundingSourceId = typeof body.funding_source_id === 'string' && body.funding_source_id
     ? body.funding_source_id
     : null;
+  // Allocations multi-source (Fix #6) — prime sur funding_source_id si présent
+  const rawAllocations = Array.isArray(body.allocations) ? body.allocations : null;
+  const allocations: Array<{ entree_id: string; amount: number }> | null =
+    rawAllocations
+      ? rawAllocations
+          .map((a: any) => ({
+            entree_id: typeof a?.entree_id === 'string' ? a.entree_id : '',
+            amount:    typeof a?.amount    === 'number' ? a.amount    : 0,
+          }))
+          .filter((a: any) => a.entree_id && a.amount > 0)
+      : null;
 
   if (!label)  return jsonError('Le libellé est requis', 400);
   if (!amount) return jsonError('Le montant est requis (> 0)', 400);
@@ -75,7 +86,12 @@ export const POST: APIRoute = async ({ params, request }) => {
     due_date: date,
     status:   'paid',
     label,
-    ...(fundingSourceId ? { funding_source_id: fundingSourceId } : {}),
+    // allocations[] prime sur funding_source_id (Fix #6 > Fix #5)
+    ...(allocations && allocations.length > 0
+      ? { allocations }
+      : fundingSourceId
+      ? { funding_source_id: fundingSourceId }
+      : {}),
   }];
 
   // bucket_path est NOT NULL UNIQUE → on génère un chemin fictif unique

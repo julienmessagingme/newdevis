@@ -15,7 +15,7 @@
 import { useState, useCallback } from 'react';
 import { X, Check, AlertTriangle, Loader2 } from 'lucide-react';
 import type { LotChantier } from '@/types/chantier-ia';
-import FundingSourceSelect from './FundingSourceSelect';
+import FundingAllocations, { type AllocationItem } from './FundingAllocations';
 
 export interface PaiementContext {
   artisanNom:        string;
@@ -45,7 +45,7 @@ export default function PaiementDrawer({
   const [lotId,   setLotId]   = useState('');
   const [depType, setDepType] = useState<'achat_materiaux' | 'frais' | 'ticket_caisse'>('achat_materiaux');
   const [note,    setNote]    = useState('');
-  const [fundingSource, setFundingSource] = useState<string>(''); // entree.id ou ''
+  const [allocations, setAllocations] = useState<AllocationItem[]>([]);
 
   const [saving,  setSaving]  = useState(false);
   const [error,   setError]   = useState<string | null>(null);
@@ -72,7 +72,7 @@ export default function PaiementDrawer({
             amount:        num,
             dueDate:       date,
             paid:          true,
-            ...(fundingSource ? { funding_source_id: fundingSource } : {}),
+            ...(allocations.length > 0 ? { allocations } : {}),
           }),
         });
         if (!res.ok) {
@@ -92,7 +92,7 @@ export default function PaiementDrawer({
             lot_id:       lotId || null,
             note:         note.trim() || null,
             date,
-            ...(fundingSource ? { funding_source_id: fundingSource } : {}),
+            ...(allocations.length > 0 ? { allocations } : {}),
           }),
         });
         if (!res.ok) {
@@ -220,19 +220,14 @@ export default function PaiementDrawer({
             </>
           )}
 
-          {/* Source de financement (apport / crédit / aide) */}
-          <div>
-            <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Financé par</label>
-            <div className="mt-1">
-              <FundingSourceSelect
-                chantierId={chantierId}
-                token={token ?? ''}
-                value={fundingSource}
-                onChange={setFundingSource}
-                showLabel={false}
-              />
-            </div>
-          </div>
+          {/* Source de financement (apport / crédit / aide) — mode simple ou split */}
+          <FundingAllocations
+            chantierId={chantierId}
+            token={token ?? ''}
+            totalAmount={parseFloat(amount.replace(',', '.')) || 0}
+            value={allocations}
+            onChange={setAllocations}
+          />
 
           {/* Erreur */}
           {error && (

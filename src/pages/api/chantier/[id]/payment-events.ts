@@ -207,6 +207,18 @@ export const POST: APIRoute = async ({ params, request }) => {
     const fundingSourceId = typeof body.funding_source_id === 'string' && body.funding_source_id
       ? body.funding_source_id
       : null;
+    // Allocations multi-source (Fix #6) : array [{entree_id, amount}, ...]
+    // Si présent → prioritaire sur funding_source_id (qui devient legacy mono-source).
+    const rawAllocations = Array.isArray(body.allocations) ? body.allocations : null;
+    const allocations: Array<{ entree_id: string; amount: number }> | null =
+      rawAllocations
+        ? rawAllocations
+            .map((a: any) => ({
+              entree_id: typeof a?.entree_id === 'string' ? a.entree_id : '',
+              amount:    typeof a?.amount    === 'number' ? a.amount    : 0,
+            }))
+            .filter((a: any) => a.entree_id && a.amount > 0)
+        : null;
 
     if (!documentId)    return jsonError('documentId requis', 400);
     if (!amount)        return jsonError('Le montant est requis (> 0)', 400);
@@ -249,7 +261,12 @@ export const POST: APIRoute = async ({ params, request }) => {
       due_date: finalDueDate,
       status,
       label,
-      ...(fundingSourceId ? { funding_source_id: fundingSourceId } : {}),
+      // Priorité allocations[] (Fix #6) > funding_source_id (Fix #5 legacy)
+      ...(allocations && allocations.length > 0
+        ? { allocations }
+        : fundingSourceId
+        ? { funding_source_id: fundingSourceId }
+        : {}),
     };
 
     const { error: updateErr } = await ctx.supabase
