@@ -686,7 +686,69 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
 
   const [comparingLot, setComparingLot] = useState<{ lot: LotChantier; docs: DocumentChantier[] } | null>(null);
 
-  // ── Scroll vers NextActionsBlock + flash highlight quand l'user clique le KPI "À traiter"
+  // ── Popover "À traiter" — liste exacte des actions qui composent le compteur ─
+  // (factures recue/payee_partiellement + devis recu). On affiche LITTÉRALEMENT
+  // ce que le KPI compte, pas un mix de suggestions priorisées.
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const actionsBtnRef = useRef<HTMLDivElement>(null);
+  const actionsPopoverRef = useRef<HTMLDivElement>(null);
+  // Liste des actions strictes du KPI (alignée avec urgentActions de ChantierCockpit)
+  const kpiActions = useMemo(() => {
+    const list: Array<{
+      kind: 'facture' | 'devis';
+      doc: DocumentChantier;
+      label: string;
+      sub: string;
+      onClick: () => void;
+    }> = [];
+    for (const d of documents) {
+      if (d.document_type === 'facture' && (d.facture_statut === 'recue' || d.facture_statut === 'payee_partiellement')) {
+        const artisan = d.nom?.split(' – ')[0] ?? d.nom ?? 'Facture';
+        const reste = d.facture_statut === 'payee_partiellement' ? ((d.montant ?? 0) - (d.montant_paye ?? 0)) : (d.montant ?? 0);
+        const amount = reste > 0 ? ` (${fmtEurShort(reste)})` : '';
+        list.push({
+          kind: 'facture',
+          doc: d,
+          label: `Régler ${artisan}${amount}`,
+          sub: d.facture_statut === 'payee_partiellement' ? 'Solde restant' : 'Facture reçue non soldée',
+          onClick: () => { setActionsOpen(false); onGoToTresorerie(); },
+        });
+      } else if (d.document_type === 'devis' && d.devis_statut === 'recu') {
+        const amount = d.montant ? ` (${fmtEurShort(d.montant)})` : '';
+        list.push({
+          kind: 'devis',
+          doc: d,
+          label: `Valider ${d.nom ?? 'devis'}${amount}`,
+          sub: 'En attente de signature',
+          onClick: () => { setActionsOpen(false); onGoToDocuments(); },
+        });
+      }
+    }
+    return list;
+  }, [documents, onGoToTresorerie, onGoToDocuments]);
+
+  // Click outside / Escape ferme le popover
+  useEffect(() => {
+    if (!actionsOpen) return;
+    function onDocClick(e: MouseEvent) {
+      const target = e.target as Node;
+      if (
+        actionsPopoverRef.current && !actionsPopoverRef.current.contains(target) &&
+        actionsBtnRef.current && !actionsBtnRef.current.contains(target)
+      ) setActionsOpen(false);
+    }
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === 'Escape') setActionsOpen(false);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [actionsOpen]);
+
+  // ── (legacy) Ref vers NextActionsBlock — gardé pour compat scroll smooth si besoin
   const nextActionsRef = useRef<HTMLDivElement>(null);
   const [actionsHighlight, setActionsHighlight] = useState(false);
   function scrollToActions() {
@@ -912,14 +974,61 @@ function DashboardHome({ lots, documents, docsByLot, displayMin, displayMax, bud
           }
           accent={aRegler > 0 ? 'orange' : 'emerald'}
         />
-        <KpiCard
-          icon={urgentActions ? '⚡' : '✓'}
-          label="À traiter"
-          value={urgentActions ? `${urgentActions} action${urgentActions > 1 ? 's' : ''}` : '—'}
-          sub={urgentActions ? 'voir la liste ↓' : 'Tout est sous contrôle'}
-          accent={urgentActions ? 'amber' : 'emerald'}
-          onClick={urgentActions ? scrollToActions : undefined}
-        />
+        {/* KPI "À traiter" — click ouvre un popover avec EXACTEMENT les actions du compteur */}
+        <div ref={actionsBtnRef} className="relative">
+          <KpiCard
+            icon={urgentActions ? '⚡' : '✓'}
+            label="À traiter"
+            value={urgentActions ? `${urgentActions} action${urgentActions > 1 ? 's' : ''}` : '—'}
+            sub={urgentActions ? (actionsOpen ? 'fermer ▴' : 'voir la liste ▾') : 'Tout est sous contrôle'}
+            accent={urgentActions ? 'amber' : 'emerald'}
+            onClick={urgentActions ? () => setActionsOpen(o => !o) : undefined}
+          />
+          {actionsOpen && kpiActions.length > 0 && (
+            <div
+              ref={actionsPopoverRef}
+              className="absolute left-0 right-0 top-full mt-2 z-30 bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden"
+              role="dialog"
+              aria-label="Actions à traiter"
+            >
+              <div className="px-4 py-3 border-b border-gray-100 bg-amber-50/40 flex items-center justify-between">
+                <p className="text-[11px] font-black text-amber-700 uppercase tracking-wider">
+                  ⚡ À traiter — {kpiActions.length} {kpiActions.length > 1 ? 'actions' : 'action'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setActionsOpen(false)}
+                  className="text-gray-400 hover:text-gray-700 text-sm"
+                  aria-label="Fermer"
+                >
+                  ✕
+                </button>
+              </div>
+              <ul className="divide-y divide-gray-50 max-h-[60vh] overflow-y-auto">
+                {kpiActions.map(action => (
+                  <li key={action.doc.id}>
+                    <button
+                      type="button"
+                      onClick={action.onClick}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-amber-50/60 active:bg-amber-100/60 transition-colors text-left"
+                    >
+                      <span className="text-[20px] shrink-0 w-7 text-center">
+                        {action.kind === 'facture' ? '💸' : '📋'}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-semibold text-gray-900 truncate">{action.label}</p>
+                        <p className="text-[11px] text-gray-500 mt-0.5">{action.sub}</p>
+                      </div>
+                      <span className="text-[10px] font-bold text-amber-700 shrink-0">
+                        {action.kind === 'facture' ? 'Trésorerie →' : 'Documents →'}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
 
         {/* Prochain RDV — uniquement si planifié */}
         {nextRdv && (
