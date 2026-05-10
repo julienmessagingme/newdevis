@@ -2,6 +2,8 @@
 
 ## Table des matières
 
+### Partie 1 — VerifierMonDevis (analyse de devis)
+
 1. [Présentation du projet](#1-présentation-du-projet)
 2. [Stack technique](#2-stack-technique)
 3. [Architecture](#3-architecture)
@@ -16,12 +18,26 @@
 12. [Système de scoring](#12-système-de-scoring)
 13. [APIs externes](#13-apis-externes)
 14. [Système de style et design](#14-système-de-style-et-design)
+
+### Partie 2 — Infra commune (auth, déploiement, conventions)
+
+14b. [Intégrations externes (CRM & Email)](#14b-intégrations-externes-crm--email)
 15. [Configuration](#15-configuration)
 16. [Déploiement](#16-déploiement)
 17. [Patterns et conventions](#17-patterns-et-conventions)
 18. [Guide de développement](#18-guide-de-développement)
 19. [Dépannage](#19-dépannage)
-20. [Module Chantier (Mon Chantier)](#20-module-chantier-mon-chantier)
+
+### Partie 3 — GérerMonChantier (cockpit chantier — produit principal)
+
+20. [Cockpit chantier — vue d'ensemble](#20-cockpit-chantier--vue-densemble)
+21. [Budget & Trésorerie](#21-budget--trésorerie)
+22. [Planning CPM (Critical Path Method)](#22-planning-cpm-critical-path-method)
+23. [Lots, intervenants, contacts, formalités](#23-lots-intervenants-contacts-formalités)
+24. [Documents — storage, upload, analyse intra-chantier](#24-documents--storage-upload-analyse-intra-chantier)
+25. [Messagerie & WhatsApp](#25-messagerie--whatsapp)
+26. [Assistant IA (cockpit)](#26-assistant-ia-cockpit)
+27. [Actions proactives — décisions & actions programmées](#27-actions-proactives--décisions--actions-programmées-vague-3)
 
 ---
 
@@ -1644,18 +1660,20 @@ Voir la section dans [CLAUDE.md](./CLAUDE.md#ajouter-une-nouvelle-page) pour le 
 
 ---
 
-## 20. Module Chantier (Mon Chantier)
+## 20. Cockpit chantier — vue d'ensemble
 
-Module complet de gestion de projet de travaux avec génération IA. Permet à un particulier de créer, piloter et suivre un chantier de A à Z.
+Module de gestion de projet de travaux avec génération IA. Permet à un particulier de créer, piloter et suivre un chantier de A à Z.
 
-### Vue d'ensemble
+> Le cockpit chantier est désormais le **produit principal** (GérerMonChantier) — VMD reste le lead magnet. Cette section et les suivantes (§ 20-27) couvrent l'architecture cockpit. Pour les concepts purement analyse de devis, voir § 1-19.
+
+### Vue d'ensemble du flux
 
 ```
 Choix du mode (guided/flexible/investor)
   → Description projet (texte libre)
     → Qualification IA (4-5 questions Gemini)
       → Génération plan complet (edge function chantier-generer)
-        → Dashboard chantier (budget, roadmap, lots, documents, conseils, chat expert, matériaux)
+        → Cockpit chantier (budget, planning, lots, documents, messagerie, assistant IA)
 ```
 
 ### Modes de projet (`project_mode`)
@@ -1668,7 +1686,7 @@ Choix du mode (guided/flexible/investor)
 
 Le mode est stocké dans `chantiers.project_mode` (TEXT, nullable pour rétrocompatibilité). Il conditionne l'affichage des conseils et l'UI du dashboard.
 
-### Flux utilisateur
+### Flux utilisateur de création
 
 1. **Mode** (`ScreenModeSelection`) : choix du mode de gestion (guided/flexible/investor)
 2. **Saisie** (`ScreenPrompt`) : l'utilisateur décrit son projet en texte libre ou via formulaire guidé
@@ -1676,51 +1694,55 @@ Le mode est stocké dans `chantiers.project_mode` (TEXT, nullable pour rétrocom
 4. **Génération** (`ScreenGenerating`) : appel edge function `chantier-generer` → plan complet JSON
 5. **Wow** (`ScreenWow`) : affichage animé des stats (budget, durée, artisans, formalités)
 6. **Sauvegarde** (`/api/chantier/sauvegarder`) : persiste en base (chantiers + lots_chantier + todo_chantier)
-7. **Dashboard** (`DashboardChantier`) : pilotage complet du chantier
+7. **Cockpit** (`ChantierCockpit`) : pilotage complet du chantier
 
-### Écrans du dashboard chantier
+### Sections du cockpit
 
-Le `DashboardChantier` est le composant central du détail chantier avec plusieurs sections :
+`ChantierCockpit.tsx` (orchestrateur) route entre 9 onglets via la sidebar :
 
-- **Synthèse IA** (`SyntheseChantier`) : résumé auto-généré via `/api/chantier/synthese` (Gemini)
-- **Budget** (`BudgetGlobal`) : camembert + lignes de budget, total, indicateur fiabilité (`BudgetFiabilite` basé sur `estimationSignaux`)
-- **Lots de travaux** (`LotGrid` → `LotCard` → `LotDetail`) : grille de lots avec statut artisan, prix de référence (enrichi depuis `market_prices`), sélection de matériaux intégrée, documents attachés, comparateur de devis
-- **Timeline** (`ChantierTimeline` + `TimelineHorizontale`) : roadmap avec phases (preparation → autorisations → travaux → finitions → reception), étape courante mise en avant. Timeline horizontale cliquable dans le cockpit.
-- **Prochaine action** (`NextActionCard`) : action prioritaire calculée automatiquement (`getNextAction.ts`)
-- **Tâches** : checklist interactive (todo_chantier), tri par priorité (urgent/important/normal)
-- **Documents** (`DocumentsSection`) : upload multi-fichiers, classement par type (devis, facture, photo, plan, autorisation, assurance), rattachement à un lot, lancement d'analyse avec scoring (VERT/ORANGE/ROUGE)
-- **Conseils** (`ConseilsChantier`) : conseils maître d'œuvre IA via `/api/chantier/conseils` (Gemini), typés (ordre, synergie, technique, economie, risque). Adaptés au mode projet.
-- **Chat expert** (`CockpitV1` panneau chat) : assistant copilote via `/api/chantier/chat` (Gemini 2.0-flash), avec contexte complet du projet (lots, budget, timeline, formalités, aides)
-- **Diagnostic projet** (`DiagnosticProjet`) : indice de maîtrise 0-100% (6 dimensions pondérées), fourchette budget marché, points positifs/alertes
-- **Matériaux** (`MaterialSelector`, `SimulateurOptions`) : sélection de matériaux avec 3 options (économique/intermédiaire/premium), slider surface, impact budget temps réel. Simulateur de scénarios budget multi-options.
-- **Conception** (`ConceptionPage`) : workflow décisionnel étape par étape pour les choix matériaux avec photos et prix
-- **Journal** (`JournalChantier`) : historique des modifications IA (chantier_updates)
-- **Financement** (`SimulationFinancement`) : simulation crédit (mensualité, durée, taux)
-- **Formalités** : liens officiels .gouv.fr (`formalitesLinks.ts`) avec numéros CERFA
+- **Accueil** (`DashboardHome`) : vue synthèse — KPIs budget/trésorerie/intervenants/RDV, ActionCenter (3 boutons priorisés), NextActionsBlock (max 3 actions à traiter), liste des intervenants avec leurs lots
+- **Budget & Trésorerie** (`tresorerie/TresoreriePanel`) : 4 onglets internes — Budget · Trésorerie · Échéancier · Preuves de financement (cf. § 21)
+- **Planning** (`PlanningChantier` + `planning/PlanningTimeline`) : Gantt drag/resize avec dépendances DAG (cf. § 22)
+- **Documents** (`documents/DocumentsView`) : upload, analyse, classement (cf. § 24)
+- **Contacts** (`contacts/ContactsSection`) : intervenants, artisans, rôles
+- **Messagerie** (`messagerie/MessagerieSection`) : email + WhatsApp multi-groupes (cf. § 25)
+- **Journal** (`assistant/JournalChantierSection`) : digest quotidien IA (cf. § 26)
+- **Assistant chantier** (`assistant/AssistantTriPane`) : 3 colonnes alertes/chat/décisions (cf. § 26)
+- **Paramètres** (`UserCoordonnees`) : coordonnées utilisateur
 
-### Cockpit V1 (`components/chantier/cockpit/`)
+### Cockpit — composants orchestrateurs racine
 
-Dashboard avancé avec système multi-panneaux. Composants :
+Vivent à `src/components/chantier/cockpit/` (racine, pas dans un sous-dossier domaine) :
 
-- **`CockpitV1.tsx`** : hub principal avec panneaux glissants (budget-detail, lots, planning, artisans, documents, journal, chat, alerts, radar, bouclier). Intègre sélection matériaux, upload documents avec scoring IA, simulateur budget.
-- **`ConceptionPage.tsx`** : UI de décision matériaux (cartes markdown, slider surface, impact budget, actions par étape)
-- **`PanneauDetail.tsx`** : panneau latéral glissant réutilisable (overlay, fermeture Escape, scroll lock)
-- **`SimulateurOptions.tsx`** : comparaison 2-4 options matériaux côte à côte avec barres d'impact (durabilité, entretien, drainage)
-- **`TimelineHorizontale.tsx`** : timeline horizontale connectée, cliquable, responsive
+- **`ChantierCockpit.tsx`** : orchestrateur principal — state global du chantier (`result`, `documents`, `chantierId`, `token`), routing entre `activeSection`, gestion des modals (upload, ajout intervenant, chat drawer). Anciennement `DashboardUnified` (renommé 2026-05-08).
+- **`Sidebar.tsx`** : navigation gauche, liste des sections, badges (`navBadges`) avec compteurs ciblés.
+- **`DashboardHome.tsx`** : vue Accueil — KPIs, ActionCenter, NextActionsBlock, IntervenantsListView. `KpiCard`, `ViewToggle`, `RDV_EMOJI` inlinés depuis l'ancien `DashboardWidgets` (supprimé 2026-05-08).
+- **`PageHeader.tsx`** : header de page partagé.
+- **`useInsights.ts`** : hook legacy d'alertes Gemini MOE (à migrer vers `agent_insights` — cf. WIP).
 
-### Catalogue matériaux (`data/MATERIALS_MAP.ts`)
+### Cohérence badges sidebar (règle absolue, 2026-05-08)
 
-Registre statique de 17 types de chantier avec options matériaux :
-- Carrelage, Parquet, Peinture, Salle de bain, Cuisine, Terrasse, Isolation, Toiture, Pergola, Extension, Piscine, Électricité, Plomberie, Rénovation maison, Façade, Menuiseries, Autre
-- Chaque type : 3+ options (économique/intermédiaire/premium) avec `priceMin/Max` par unité, tags durabilité/entretien, URLs images
-- Auto-détection via `detectChantierType(typeProjet, keywords)` → match par mots-clés
-- Option "Autre / Je ne sais pas" ajoutée automatiquement à chaque type
+Chaque badge ⚠ N pointe vers l'onglet où l'action se résout. **Ne pas réutiliser un compteur global sur un onglet qui n'expose pas le contenu correspondant** — c'était le bug d'origine, le badge `assistant` pointait vers un onglet sans contenu lié.
 
-### Hooks matériaux
+| Onglet | Compteur | Source |
+|---|---|---|
+| `documents` | `devisActions` | devis avec `devis_statut = 'recu'` |
+| `tresorerie` | `factureActions` | factures `recue` ou `payee_partiellement` |
+| `assistant` | `agentInsights.unreadCount` | alertes IA non lues (rouge si critical) |
+| `urgentActions = factureActions + devisActions` | KPI home "actions en attente" uniquement |
 
-- **`useMaterialAI.ts`** : détecte les étapes nécessitant un choix matériau → appel `/api/chantier/materiaux` (Gemini) → 3 options générées
-- **`useMaterialDetection.ts`** : wrapper React pour `detectChantierType()` (lookup catalogue statique)
-- **`useMaterialSuggestions.ts`** : catalogue dynamique de cartes matériaux par type de projet (5 catégories hardcodées : revêtement, terrasse, façade, isolation, salle de bain, toiture)
+### ActionCenter et NextActionsBlock (refacto 2026-05-06)
+
+- **`ActionCenter`** (en haut de DashboardHome) : 3 boutons larges, labels clairs — "💸 Enregistrer un paiement" / "📄 Ajouter un devis ou facture" / "👷 Ajouter un artisan". Grid 1-col mobile → 3-col sm+, padding généreux. "Enregistrer un paiement" → drawer inline `depenseOpen`. "Ajouter un devis ou facture" → `onAddDoc`. "Ajouter un artisan" → `onAddIntervenant`.
+- **`NextActionsBlock`** (juste sous les KPIs) : liste contextuelle max 3 items priorisés (P1 factures → P2 devis → P3 lots bloqués → P4 factures manquantes).
+
+**Suppressions 2026-05-06** : `DiyCard` retiré du grid intervenants · `NextActionsMobile` remplacé par `NextActionsBlock` · section "Actions rapides" (boutons pill dispersés) · bouton "Ajouter un intervenant" du header section Intervenants.
+
+### Sidebar — Menu allégé (2026-05-06)
+
+- Suppression du groupe "Devis & Finances" (doublon avec homepage)
+- `documents` intégré dans le groupe "Projet" (entre Planning et les items Équipe)
+- Import `FileSearch` retiré
 
 ### Types principaux (`types/chantier-ia.ts`)
 
@@ -1728,10 +1750,10 @@ Registre statique de 17 types de chantier avec options matériaux :
 - `LotChantier` : lot de travaux avec prix de référence (job_type → market_prices)
 - `EstimationSignaux` : signaux de fiabilité (hasLocalisation, hasBudget, hasDate, hasSurface, typeProjetPrecis, nbLignesBudget)
 - `TypeProjet` : enum des types (renovation_maison, salle_de_bain, cuisine, extension, terrasse, pergola, isolation, toiture, piscine, electricite, plomberie, autre)
-- `PhaseChantier` : phases du chantier (idee, preparation, autorisations, travaux, finitions, reception, termine)
+- `PhaseChantier` : phases (idee, preparation, autorisations, travaux, finitions, reception, termine)
 - `ProjectMode` : mode de gestion ('guided' | 'flexible' | 'investor')
 
-### API Routes chantier
+### API Routes chantier — vue d'ensemble
 
 | Route | Méthode | Description | IA |
 |---|---|---|---|
@@ -1748,143 +1770,18 @@ Registre statique de 17 types de chantier avec options matériaux :
 | `/api/chantier/synthese` | POST | Synthèse courte du chantier (3 phrases max) | Gemini |
 | `/api/chantier/chat` | POST | Chat expert copilote (contexte projet complet) | Gemini 2.0-flash |
 | `/api/chantier/materiaux` | POST | Génération 3 options matériaux pour une étape | Gemini |
-| `/api/chantier/:id/documents` | GET/POST | CRUD documents d'un chantier | Non |
-| `/api/chantier/:id/documents/:docId` | GET/DELETE | Document individuel (URL signée) | Non |
-| `/api/chantier/:id/documents/:docId/analyser` | POST | Déclenche analyse d'un document | Non |
-| `/api/chantier/:id/lots` | POST | Création d'un lot individuel | Non |
-| `/api/chantier/:id/devis` | GET | Liste devis d'un chantier | Non |
-| `/api/chantier/:id/devis/:devisId` | GET/PATCH | Détail d'un devis / mise à jour (lotId, artisan) | Non |
 
-### Rattachement devis aux lots
-
-3 modes d'ajout de devis depuis un lot (`AjouterDevisModal`, modal 3 tabs) :
-1. **Importer depuis mes analyses** : rattache une analyse VerifierMonDevis existante → auto-populate artisan
-2. **Uploader un devis** : upload PDF + lance l'analyse VerifierMonDevis + crée `devis_chantier` avec `lot_id`
-3. **Saisie manuelle** : prix + coordonnées artisan (accord verbal, sans devis officiel)
-
-**Pont DocumentsSection** : quand un utilisateur uploade un devis via l'onglet Documents et clique "Analyser", un `devis_chantier` est automatiquement créé et rattaché au lot du document.
-
-**Création de lot inline** : partout où un sélecteur de lot apparaît (`LotSelector`), l'utilisateur peut créer un nouveau lot via "+ Créer un lot" (POST `/api/chantier/:id/lots`).
-
-Composants clés :
-- `LotSelector.tsx` : dropdown de lots + création inline, réutilisé dans AjouterDevisModal et DocumentsSection
-- `AjouterDevisModal.tsx` : modal 3 tabs, pré-sélection lot si ouvert depuis LotCard
-- Table `devis_chantier.lot_id` : FK vers `lots_chantier` (ON DELETE SET NULL)
-
-### Enrichissement géographique
-
-L'edge function `chantier-generer` enrichit automatiquement le prompt si un code postal est détecté :
-1. Détecte le code postal dans les réponses de qualification (ou résout le nom de ville via `geo.api.gouv.fr`)
-2. Lookup dans `zones_geographiques` → type_zone + coefficient
-3. Injecte dans le prompt : "Zone géographique : grande_ville (coefficient : 1.15)"
-4. Gemini ajuste les estimations de budget en conséquence
-
-### Fiabilité de l'estimation (`BudgetFiabilite`)
-
-L'indicateur de fiabilité est calculé côté edge function à partir de signaux factuels (aucune IA) :
-- **hasLocalisation** : zone géo connue → prix ajustés
-- **hasBudget** : budget cible renseigné → calibrage
-- **hasDate** : date de début → roadmap temporelle
-- **hasSurface** : dimensions détectées → quantités précises
-- **typeProjetPrecis** : type ≠ "autre" → prix catalogue pertinents
-- **nbLignesBudget** : ≥ 4 lignes → budget détaillé
-
-Score affiché en pourcentage avec libellé (Estimation approximative → Estimation fiable → Estimation très détaillée).
-
-### Storage
-
-- **Bucket `chantier-documents`** : documents de chantier (privé, user-scoped via RLS). Upload via `/api/chantier/:id/documents`, URLs signées (TTL 1h) pour la lecture.
-
-### Comparateur de devis (`ComparateurDevis`)
-
-Compare plusieurs devis rattachés au même lot. Utilise `compareQuotes.ts` pour extraire et aligner les postes de travaux depuis les analyses liées.
-
-### WhatsApp multi-groupes
-
-Intégration whapi.cloud pour créer et gérer de vrais groupes WhatsApp depuis le cockpit chantier. N groupes par chantier.
-
-#### Tables
-
-| Table | Colonnes clés | Notes |
-|---|---|---|
-| `chantier_whatsapp_groups` | `id UUID PK`, `chantier_id UUID FK`, `name TEXT`, `group_jid TEXT UNIQUE`, `invite_link TEXT`, `created_at` | Un chantier peut avoir N groupes |
-| `chantier_whatsapp_members` | `id UUID PK`, `group_id UUID FK→chantier_whatsapp_groups`, `phone TEXT`, `name TEXT`, `role TEXT` (gmc/client/artisan), `status TEXT` (active/left/removed), `joined_at`, `left_at` | UNIQUE(group_id, phone). Cascade delete si groupe supprimé. |
-| `chantier_whatsapp_messages` | `id TEXT PK` (whapi msg id — idempotent), `chantier_id UUID`, `group_id TEXT` (JID brut, **pas FK UUID**), `from_number TEXT`, `from_me BOOLEAN`, `type TEXT`, `body TEXT`, `media_url TEXT`, `timestamp TIMESTAMPTZ` | RLS SELECT via `chantier_id`. `group_id` est un TEXT JID brut (ex: `120363xxxxx@g.us`) — intentionnel, antérieur à la table groups. |
-
-> **Point important** : `chantier_whatsapp_messages.group_id` n'est pas une FK UUID vers `chantier_whatsapp_groups`. Les messages orphelins persistent si un groupe est supprimé. Ne pas migrer en UUID FK sans plan de migration des données.
-
-#### API Routes
-
-| Méthode | Route | Description |
-|---|---|---|
-| GET | `/api/chantier/:id/whatsapp-groups` | Groupes + membres imbriqués (2 requêtes, pas de N+1) |
-| DELETE | `/api/chantier/:id/whatsapp-groups?groupId=<uuid>` | Supprime groupe (membres supprimés en cascade) |
-| POST | `/api/chantier/:id/whatsapp` | Crée groupe whapi + INSERT `chantier_whatsapp_groups` + `chantier_whatsapp_members` |
-| PATCH | `/api/chantier/:id/whatsapp` | Ajoute participants à un groupe existant |
-| GET | `/api/chantier/:id/whatsapp-messages?groupJid=<jid>` | Messages filtrés par groupe, limit 200 |
-| POST | `/api/webhooks/whapi` | Webhook whapi : messages entrants + events (join/leave/remove/delete). Toujours 200. |
-
-**Webhook whapi events** : `group.participants.add` via PUT, `group.participants.remove` via PATCH. Whapi ne supporte pas l'event delete de groupe côté webhook.
-
-**Config webhook whapi** : URL `https://www.verifiermondevis.fr/api/webhooks/whapi`, events actifs : messages POST + groups POST/PUT/PATCH.
-
-#### Composants
-
-- `WhatsAppGroupsPanel.tsx` — liste groupes, membres dépliables, modale création avec sélection participants, bouton supprimer groupe
-- `WhatsAppThread.tsx` — bulles colorées par rôle : gmc→`#DCF8C6` droite, client→`#DBEAFE` droite, artisan→blanc gauche. Props : `userPhone`, `groupJid`, `groupName`
-- `MessagerieSection.tsx` — orchestrateur messagerie (email + WhatsApp). `fetchWaGroups` = `useCallback([chantierId, token])`. Reset automatique du thread actif si le groupe est supprimé (useEffect sur `waGroups`).
-
-#### Lib
-
-- `src/lib/integrations/whapiUtils.ts` — `formatPhone()`, `createWhatsAppGroup()`, `addGroupParticipants()`
-- `GMC_PHONE = '33633921577'` — toujours inclus dans les groupes, rôle `'gmc'`
+Routes spécialisées (documents, lots, devis, planning, payment-events, assistant…) couvertes dans les sections dédiées (§ 21-26).
 
 ---
 
-### Planning / Gantt
+## 21. Budget & Trésorerie
 
-Planification temporelle des lots de chantier avec vue Gantt drag/resize.
-
-#### Migration
-
-`supabase/migrations/20260329120000_add_planning_columns.sql` :
-- `lots_chantier` : `duree_jours INT`, `date_debut DATE`, `date_fin DATE`, `ordre_planning INT`, `parallel_group INT`
-- `chantiers` : `date_debut_chantier DATE`
-- Index : `idx_lots_planning ON lots_chantier(chantier_id, ordre_planning)`
-
-#### Lib partagée (`src/lib/chantier/planningUtils.ts`)
-
-| Fonction | Signature | Description |
-|---|---|---|
-| `addBusinessDays` | `(date, days) → Date` | Ajoute N jours ouvrés (skip weekends) |
-| `computePlanningDates` | `(lots, startDate) → lots[]` | Recalcule toutes les dates, gère `parallel_group` |
-| `computeStartDateFromEnd` | `(lots, endDate) → lots[]` | Calcul inverse depuis date de fin |
-| `formatDuration` | `(days) → string` | "2 semaines", "3 jours" |
-| `getWeekNumber` | `(date, startDate) → number` | Numéro semaine relative S1, S2… |
-
-#### API Route (`src/pages/api/chantier/[id]/planning.ts`)
-
-- `GET` → lots avec champs planning + `date_debut_chantier`
-- `PATCH` → body `{ lots: [{id, duree_jours?, ordre_planning?, parallel_group?}], date_debut_chantier? }` → `computePlanningDates()` → UPDATE batch via `Promise.all` (évite les deadlocks séquentiels)
-
-#### Hook (`src/hooks/usePlanning.ts`)
-
-State : `lots`, `startDate`, `totalWeeks`, `loading`. Actions : `moveLot()`, `updateEndDate()`, `recompute()`. Utilise `setState(s => ...)` pour éviter les stale closures dans les callbacks.
-
-#### Composants (`components/chantier/cockpit/planning/`)
-
-- `PlanningTimeline.tsx` — Gantt drag/resize, colonnes hebdomadaires S1..Sn, colonne gauche sticky, scroll horizontal mobile
-- `PlanningWidget.tsx` — mini-résumé vue d'ensemble : durée totale, date début→fin, mini-barres colorées, lien "Voir le planning"
-
-#### Intégration IA
-
-L'edge function `chantier-generer` génère `duree_jours_estime`, `ordre_planning`, `parallel_group` pour chaque lot. `sauvegarder.ts` stocke ces valeurs et appelle `computePlanningDates()` si `date_debut_chantier` est disponible.
-
----
+L'écran financier du cockpit. Onglet `Budget & Trésorerie` rendu par `tresorerie/TresoreriePanel.tsx` avec 4 sous-onglets : **Budget** (BudgetTab) · **Trésorerie** (TresorerieView) · **Échéancier** (Echeancier) · **Preuves** (FinancementTab).
 
 ### BudgetTresorerie — 12 sous-composants
 
-Le composant `BudgetTresorerie` a été refactorisé. Les 12 sous-composants vivent dans `components/chantier/cockpit/budget/` :
+`tresorerie/BudgetTresorerie.tsx` orchestre l'écran financier. Sous-composants dans `cockpit/budget/` :
 
 | Composant | Rôle |
 |---|---|
@@ -1904,8 +1801,6 @@ Le composant `BudgetTresorerie` a été refactorisé. Les 12 sous-composants viv
 Données partagées :
 - `src/lib/chantier/budgetAffinageData.ts` — `ELEMENT_DEFS`, `TRADE_QUESTION_DEFS`, `computeRefinedRange()`, `computeScore()` (pure TS, extrait du monolithe `BudgetTresorerie`)
 - `src/lib/chantier/budgetHelpers.ts` — `fmtK()`, `fmtFull()`, `PHASE_LABELS`, `PHASE_COLORS`
-
----
 
 ### Architecture cashflow — VIEW dérivée + 2 sources
 
@@ -1967,7 +1862,7 @@ CHECK constraint `jsonb_typeof(cashflow_terms) = 'array'`. Le `event_id` est un 
 
 Colonnes exposées : `id, project_id, source_type ('devis'|'facture'|'manuel'|'frais'), source_id, term_index, lot_id, amount, due_date, status, label, funding_source_id, origin ('document'|'extra'), created_at`.
 
-#### Voies de saisie unifiées (refacto 2026-05-09 — Option 2)
+### Voies de saisie unifiées (refacto 2026-05-09 — Option 2)
 
 **Règle absolue** : 1 seul chemin de saisie utilisateur pour les dépenses → `DepenseRapideModal` du Budget. Plus de désync architecture-level. Statut auto-dérivé par la VIEW depuis depense_type + facture_statut + cashflow_terms.
 
@@ -1984,7 +1879,7 @@ Colonnes exposées : `id, project_id, source_type ('devis'|'facture'|'manuel'|'f
 
 **Synchro inter-écran via `chantierBudgetChanged`** : `BudgetTab.useBudgetData.refresh` dispatche un `CustomEvent('chantierBudgetChanged')` après chaque load. `Echeancier` et `BudgetTab` écoutent et re-fetch → saisie dans Échéancier visible immédiatement dans Budget sans reload.
 
-#### Bug A — `acompte_pending` séparé (2026-05-09)
+### Bug A — `acompte_pending` séparé (2026-05-09)
 
 **Règle** : un acompte versé sur un devis non signé alimente `totaux.acompte_pending`, **pas** `totaux.acompte`. Le KPI Décaissé ne compte que `acompte` (= devis signés). Le `acompte_pending` est exposé en bannière orange dédiée dans `BudgetTab` : "X € d'acomptes versés sur des devis non signés — signez le devis pour les inclure dans le suivi".
 
@@ -1994,7 +1889,7 @@ Colonnes exposées : `id, project_id, source_type ('devis'|'facture'|'manuel'|'f
 
 **Ne pas réintroduire le bug** : si on touche `bucket.totaux.acompte` dans `budget.ts`, vérifier que la condition `devis_statut === 'signe' || devis_statut === 'contrat_signe'` est respectée. Sinon → KPI Décaissé faussé.
 
-#### Génération des `cashflow_terms`
+### Génération des `cashflow_terms`
 
 `src/lib/chantier/paymentEvents.ts` contient le pipeline :
 1. `extractConditionsFromAnalyse` : lit `analyses.raw_text` JSON (résultat Gemini)
@@ -2004,48 +1899,35 @@ Colonnes exposées : `id, project_id, source_type ('devis'|'facture'|'manuel'|'f
 
 Idempotence par construction (REPLACE de l'array). Non-bloquant en cas d'erreur (logs `[paymentEvents] writeCashflowTerms error`).
 
-#### Edge functions impactées
+### Edge functions impactées
 
 - **`analyze-quote`** (post-extraction) : génère les events inline + écrit `cashflow_terms`. Code dupliqué de `paymentEvents.ts` car edge function ne peut pas importer depuis `src/`.
 - **`agent-checks`** : lit `payment_events_v` (CHECK 2 Overdue payments).
 
-#### Fichier de tracking refactor
+### `payment-events.ts` — endpoints (refactor cashflow PR1-PR5)
 
-`CASHFLOW-REFACTOR.md` à la racine — log d'exécution PR1→PR5 (à supprimer après stabilisation des tests E2E).
+Lecture sur la VIEW `payment_events_v`. Écriture dual-routée selon `origin` du flux.
 
----
-
-### Contacts chantier — colonnes et index supplémentaires
-
-La table `contacts_chantier` a été enrichie :
-
-| Colonne | Type | Comportement | Description |
-|---|---|---|---|
-| `lot_id` | UUID FK → `lots_chantier` | ON DELETE SET NULL | Lot rattaché au contact |
-| `devis_id` | UUID FK | ON DELETE SET NULL | Devis d'origine |
-| `analyse_id` | UUID FK | ON DELETE SET NULL | Analyse source |
-| `source` | TEXT | CHECK ('manual','devis','facture') | Origine du contact |
-
-Index FK associés : `idx_contacts_lot_id`, `idx_contacts_devis_id`, `idx_contacts_analyse_id`.
-
----
-
-### Messagerie email — précisions SendGrid Inbound Parse
-
-La table `chantier_conversations` expose une colonne `reply_address` : adresse unique de la forme `chantier-{id}+{convId}@{REPLY_EMAIL_DOMAIN}`. Cette adresse est utilisée comme `Reply-To` sur les emails sortants, ce qui permet à SendGrid Inbound Parse de router les réponses des artisans vers le webhook `POST /api/webhooks/inbound-email`.
-
-**Flux réception** : artisan répond à l'email → SendGrid détecte le sous-domaine `reply.verifiermondevis.fr` → POST multipart vers `/api/webhooks/inbound-email` → parsing de l'adresse `reply_address` → INSERT dans `chantier_messages` (direction `inbound`).
-
----
+- `GET` : retourne `{ payment_events: [...] }` (clé `payment_events`, pas `data`) pour un chantier. La VIEW UNION 3 sources : (1) frais/ticket auto-paid dérivés de `documents_chantier.depense_type`, (2) versements explicites de devis/facture depuis `cashflow_terms`, (3) mouvements manuels de `cashflow_extras`. Champs exposés : `id, project_id, source_type, source_id, term_index, lot_id, amount, due_date, status, label, funding_source_id, origin, created_at` + enrichissements API (`source_name`, `lot_nom`, `artisan_nom`, `proof_doc_*`, `amount_estimate`).
+- `POST` :
+  - **manuel** (`{ manuel: true, label, amount, dueDate, paid? }`) : INSERT dans `cashflow_extras` avec UUID partagé (re-fetch via la VIEW pour la réponse).
+  - **analyse** (`{ analyseId, sourceType, sourceId, originalDevisId? }`) : déclenche `generatePaymentEventsFromAnalyse` qui écrit dans `documents_chantier.cashflow_terms`. Si `originalDevisId` fourni pour une facture, vide le `cashflow_terms` du devis parent (override implicite).
+- `PATCH` : Body `{ id, status?, amount?, due_date?, label?, funding_source_id? }`.
+  - **422** si `source_type='frais'` (modifier le doc parent à la place).
+  - Lookup VIEW pour récupérer `origin` + `source_id`/`term_index`.
+  - Si `origin='extra'` → UPDATE `cashflow_extras`.
+  - Si `origin='document'` → read-modify-write sur `cashflow_terms[term_index]`.
+  - **Solde restant** : si `status='paid'` avec `amount < planned×99%`, append/update un term "Solde restant — …" dans `cashflow_terms`. Si retour à `pending`, le term Solde restant est filtré.
+- `DELETE` : Body `{ id }`. Refuse 422 pour les frais. Sinon DELETE `cashflow_extras` OU retire le term de `cashflow_terms`.
 
 ### TresorerieView
 
-`components/chantier/cockpit/tresorerie/TresorerieView.tsx` (1093 lignes) — remplace l'onglet "Trésorerie" dans `TresoreriePanel`. Données chargées depuis `/api/chantier/[id]/budget`.
+`components/chantier/cockpit/tresorerie/TresorerieView.tsx` (1093 lignes) — onglet "Trésorerie" dans `TresoreriePanel`. Données chargées depuis `/api/chantier/[id]/budget`.
 
 #### 2 sections actives
 
 - **Plan de financement** — grande jauge colorée + 3 cartes : Apport (`#6366f1`), Crédit (`#f97316`), Aides (`#10b981`). Config persistée en localStorage avec sync serveur via PATCH `metadonnees`.
-- **Consommation par source** — 3 donuts restants + barres artisans.
+- **Consommation par source** — 3 donuts restants + barres artisans. Sous-composant `ArtisanPaymentDetail` extrait en accordéon (replié par défaut, doublon avec `BudgetTab`). Icône chevron animé (rotate-180 à l'ouverture).
 
 > **Section supprimée (2026-05-05)** : la section "Projection trésorerie" (graphique SVG multi-courbes par artisan + 3 cartes insights) a été entièrement retirée de `TresorerieView`.
 
@@ -2069,7 +1951,9 @@ La table `chantier_conversations` expose une colonne `reply_address` : adresse u
 | `EffyWorkType` | type | Union des types de travaux Effy |
 | `MprBracket` | type | Union des tranches de revenus MPR |
 
----
+### Echeancier — Registre en accordéon + filtres (2026-05-06)
+
+`tresorerie/Echeancier.tsx` (anciennement `EcheancierRefonte.tsx`, renommé 2026-05-08). Le tableau "Registre des paiements effectués" est dans un accordéon `PaidEventsAccordion` (replié par défaut). Quand ouvert : 2 filtres au-dessus de la liste — sélecteur artisan (`filterArtisan`) + sélecteur tri (`PaidSort` : `date_desc | date_asc | amount_desc | amount_asc`). Mobile-first : filtres full-width en flex-wrap.
 
 ### AddDocumentModal et DepenseRapideModal
 
@@ -2093,174 +1977,7 @@ Modal pour enregistrer une dépense sans fichier attaché.
 - Ces trois types n'ont pas de devis par définition → exclus de l'alerte "Devis manquant" ET de l'alerte "Facture manquante" (constante `SANS_DEVIS_TYPES` dans `BudgetTab.tsx`).
 - UI : affichage d'un badge "Payé" statique sans dropdown de changement de statut.
 
----
-
-### API Routes documents (nouvelles — 2026-04-03)
-
-| Méthode | Route | Description |
-|---|---|---|
-| POST | `/api/chantier/:id/documents/extract-invoice` | Extraction Gemini d'une facture uploadée : `artisan_nom`, `montant_total`, `type_facture` (acompte/solde/facture), `pct_acompte`, `date_facture`. Body : `{ bucketPath }`. Non-bloquant, `confidence: 'low'` si échec. Modèle : gemini-2.0-flash, timeout 8s. |
-| POST | `/api/chantier/:id/documents/depense-rapide` | Enregistre une dépense rapide sans fichier. Body : `{ nom, documentType, depenseType, montant, factureStatut, lotId?, montantPaye? }` |
-| POST | `/api/chantier/:id/documents/register` | Enregistre un document en base après upload storage |
-
----
-
-### Migrations 2026-04-03
-
-#### `20260403120000_add_menuiserie_accessoires.sql`
-
-3 nouveaux prix dans `market_prices` :
-
-| `job_type` | Label | Unité | Prix min–max HT |
-|---|---|---|---|
-| `grille_entree_air` | Grille d'entrée d'air auto-réglable | unité | 14–45 € |
-| `mortaise_grille_ventilation` | Mortaise menuiserie existante + grille | forfait | 60–180 € |
-| `differentiel_disjoncteur_lot` | Lot différentiel 30mA + disjoncteur | forfait | 100–280 € |
-
-#### `20260403130000_add_work_type_distribution_view.sql`
-
-Vue `admin_kpis_work_type_distribution` : répartition des types de travaux analysés (exclut 2 comptes admin), dominant type par analyse, top 30.
-
-#### `20260403140000_add_facture_statut_litige.sql`
-
-Table `documents_chantier` :
-- Contrainte `facture_statut` mise à jour : ajout de `'en_litige'` (existaient déjà `recue` / `payee` / `payee_partiellement`)
-- Nouvelle colonne `depense_type TEXT DEFAULT 'facture'` CHECK (`facture` | `ticket_caisse` | `achat_materiaux`)
-
----
-
-### Liens formalités (`formalitesLinks.ts`)
-
-Catalogue de ~15 mappings mot-clé → URL officielle .gouv.fr pour les formalités administratives (déclaration préalable, permis de construire, Consuel, DT-DICT, etc.). Chaque entrée contient un lien primaire (formulaire CERFA) et optionnellement un lien secondaire (fiche pratique).
-
----
-
-## 21. Chantier — Architecture 2026 (Planning CPM, Agent IA, Frais, Activity Feed)
-
-Ces sections couvrent les évolutions majeures du module Chantier post-2026-04-01. Pour les concepts initiaux (modes de projet, écrans cockpit, MATERIALS_MAP, etc.), voir § 20.
-
-### 21.1 Planning CPM (Critical Path Method)
-
-Modèle **DAG multi-parent** standard MS Project / Primavera, remplace l'ancien `ordre_planning` linéaire.
-
-**Source de vérité (BDD)** :
-- `lots_chantier.duree_jours` — durée en jours ouvrés
-- `lots_chantier.delai_avant_jours` — délai avant démarrage (décalage sans cascade)
-- `lots_chantier.lane_index` — lane visuelle explicite (0 = main, 1+ = side lanes, NULL = first-fit)
-- `lot_dependencies (lot_id, depends_on_id)` — arêtes du DAG (Finish-to-Start, multi-parent)
-
-**Dérivé (recalculé, non stocké)** :
-- `date_debut` / `date_fin` — recomputés par `computePlanningDates` (`src/lib/chantier/planningUtils.ts`)
-- Lanes visuelles — first-fit par date avec préférence pour `lane_index` si défini
-
-**Algo `computePlanningDates`** :
-1. Tri topologique Kahn sur le DAG (prédécesseurs en premier)
-2. Forward pass : `date_debut = max(startDate, max(dep.date_fin)) + addBusinessDays(delai_avant_jours)`, `date_fin = addBusinessDays(date_debut, duree_jours)`
-3. Cycles gérés gracieusement (lots restants placés à startDate)
-
-**Flux modifications** :
-- D&D utilisateur (`PlanningTimeline.handleLotMoveWithLane`) : drop sur ghost row → indépendant ; drop sur lane existante → predecessor = dernier lot dont le centre ≤ drop X. Transfert auto : quand X bouge, ses ex-successeurs perdent X et héritent des ex-prédécesseurs de X. Position visuelle convertie en `delai_avant_jours` (jours ouvrés depuis predecessor.date_fin OU startDate).
-- Race conditions : `usePlanning.reqSeqRef` ignore les réponses périmées (l'optimiste local reste, la réponse la plus récente écrase).
-
-**API routes** :
-- `GET /api/chantier/[id]/planning` → `{ dateDebutChantier, lots, dependencies }`
-- `PATCH /api/chantier/[id]/planning` → recompute global CPM
-- `POST /api/chantier/[id]/planning/shift-lot` → `{ lot_id, jours, cascade, raison }`
-- `DELETE /api/chantier/[id]/lots/[lotId]` → cascade : transfert deps (A→X→B avec X supprimé → A→B) + recompute
-- `POST /api/chantier/[id]/lots` → `inferDefaultPredecessors` basé sur TRADE_DURATIONS métier
-
-**Migrations clés** :
-- `20260422230000_lot_dependencies_cpm.sql` — création table + backfill depuis dates existantes (A.fin = B.debut ⇒ A → B)
-- `20260423090000_lot_lane_index.sql` — colonne `lane_index`
-- `20260422220000_lots_chantier_delai_avant_jours.sql` — colonne `delai_avant_jours`
-
-**Règles métier** :
-- Ghost row = indépendant (deps vides, pas hériter du partner)
-- Drop sur lane existante = chaîne au predecessor. Side lane vide → indépendant.
-- Couleur stable : `getLotColor(lot.id)` hash djb2, indépendant de l'ordre
-- Lanes (rendu) : pass 1 place les lots avec `lane_index` explicite, pass 2 first-fit pour le reste
-
-### 21.2 Agent IA — Pilote de Chantier
-
-Architecture temps réel + digest quotidien. Edge function `agent-orchestrator` (Gemini 2.5-flash, function calling).
-
-**Triggers temps réel** :
-- Upload document → `agent-checks` (SQL déterministe, $0) fire-and-forget. L'orchestrator (Gemini) fire après extraction IA.
-- Message WhatsApp → `agent-orchestrator` depuis `whapi.ts` (mode `edge_function`) ou `triggerAgentIfOpenClaw` (mode openclaw)
-- Email entrant → `agent-orchestrator` depuis `inbound-email.ts`
-- Affectation lot → `agent-checks` + orchestrator + mismatch detection via `detectDevisType`
-
-**Mismatch detection (document ↔ lot)** :
-Détection basée sur le **contenu** (pas le nom de fichier). Points : `analyze-quote/index.ts`, `extract-invoice.ts`, `describe.ts`, `[docId].ts` PATCH. Utilise `detectDevisType()` de `utils/extractProjectElements.ts`. Edge function réplique le mapping inline (Deno).
-
-**Pas de cache contexte (suppression 2026-04-23)** :
-- `context.ts` : fresh fetch à chaque appel via APIs internes + Supabase (~5-7 requêtes, < 300ms)
-- `safeFetchJson` avec AbortController 5s timeout par appel
-- Fallback : si l'API planning retourne 0 lots mais DB > 0, query DB directement
-
-**Tools agent** (`supabase/functions/agent-orchestrator/tools.ts`) :
-
-| Tool | Mode | Usage |
-|---|---|---|
-| `get_chantier_summary` | batch + interactive | Infos générales, budget, lots |
-| `get_chantier_planning` | batch + interactive | Ordre lots, dates, durées, dépendances |
-| `get_chantier_data` | batch + interactive | Requêtes ad-hoc (count devis, sum travaux…) |
-| `get_contacts_chantier` | batch + interactive | Contacts filtrés par lot/rôle |
-| `get_recent_photos` | batch + interactive | Photos WhatsApp + descriptions Vision IA |
-| `list_chantier_groups` | batch + interactive | Groupes WhatsApp avec membres |
-| `get_message_read_status` | batch + interactive | Accusés de lecture WhatsApp |
-| `update_planning` | interactive | `lot_id, duree_jours?, delai_avant_jours?, depends_on_ids?` — `depends_on_ids` remplace la liste complète |
-| `shift_lot` | interactive | `lot_id, jours, cascade, raison`. Protocole 2 tours dans le prompt si successeurs détectés. |
-| `arrange_lot` | interactive | `mode: chain_after \| parallel_with`. Modèle CPM DAG : écrit `lot_dependencies` + force `lane_index = ref.lane_index` pour chain_after. |
-| `update_lot_dates` | interactive | Legacy (compat). Préférer `shift_lot`. |
-| `update_lot_status` / `mark_lot_completed` | interactive | Statut lot |
-| `create_task` / `complete_task` | interactive | Checklist (priorite : urgent/important/normal) |
-| `register_expense` | interactive | `amount, label, lot_id? OR lot_name?, vendor?, depense_type?` (défaut `frais`). Si `lot_name` fourni, recherche/crée le lot. |
-| `send_whatsapp_message` | interactive | Confirmation explicite obligatoire |
-| `log_insight` / `request_clarification` | interactive | Mémoire long-terme + clarifications |
-
-**Optimisations coût** :
-- Debounce WhatsApp (`whapi.ts`) : `Set<string>` pour 1 trigger/chantier/batch webhook
-- Cooldown 60s pour `morning` (skip si lastRun < 60s) — pas pour `evening`
-- Cron soir : `chantiers WHERE phase != 'reception'`
-- Parallélisation cron : `Promise.allSettled` par batches de 3
-- `max_tokens: 16384` (pas 4096 — thinking budget)
-
-**Auth agent → API routes** :
-- `requireChantierAuthOrAgent` (`apiHelpers.ts`) : accepte JWT user OU header `X-Agent-Key`
-- Routes migrées : `budget.ts` GET, `contacts.ts` GET, `payment-events.ts` GET/POST/PATCH/DELETE, `taches.ts` CRUD, `planning.ts` GET/PATCH, `lots.ts` GET/POST/PATCH, `documents/depense-rapide.ts` POST
-
-**`payment-events.ts` — endpoints (refactor cashflow PR1-PR5) :**
-
-Lecture sur la VIEW `payment_events_v`. Écriture dual-routée selon `origin` du flux.
-
-- `GET` : retourne `{ payment_events: [...] }` (clé `payment_events`, pas `data`) pour un chantier. La VIEW UNION 3 sources : (1) frais/ticket auto-paid dérivés de `documents_chantier.depense_type`, (2) versements explicites de devis/facture depuis `cashflow_terms`, (3) mouvements manuels de `cashflow_extras`. Champs exposés : `id, project_id, source_type, source_id, term_index, lot_id, amount, due_date, status, label, funding_source_id, origin, created_at` + enrichissements API (`source_name`, `lot_nom`, `artisan_nom`, `proof_doc_*`, `amount_estimate`).
-- `POST` :
-  - **manuel** (`{ manuel: true, label, amount, dueDate, paid? }`) : INSERT dans `cashflow_extras` avec UUID partagé (re-fetch via la VIEW pour la réponse).
-  - **analyse** (`{ analyseId, sourceType, sourceId, originalDevisId? }`) : déclenche `generatePaymentEventsFromAnalyse` qui écrit dans `documents_chantier.cashflow_terms`. Si `originalDevisId` fourni pour une facture, vide le `cashflow_terms` du devis parent (override implicite).
-- `PATCH` : Body `{ id, status?, amount?, due_date?, label?, funding_source_id? }`.
-  - **422** si `source_type='frais'` (modifier le doc parent à la place).
-  - Lookup VIEW pour récupérer `origin` + `source_id`/`term_index`.
-  - Si `origin='extra'` → UPDATE `cashflow_extras`.
-  - Si `origin='document'` → read-modify-write sur `cashflow_terms[term_index]`.
-  - **Solde restant** : si `status='paid'` avec `amount < planned×99%`, append/update un term "Solde restant — …" dans `cashflow_terms`. Si retour à `pending`, le term Solde restant est filtré.
-- `DELETE` : Body `{ id }`. Refuse 422 pour les frais. Sinon DELETE `cashflow_extras` OU retire le term de `cashflow_terms`.
-
-**Dual-mode** :
-- `edge_function` (défaut) : Gemini 2.5 Flash, on paie
-- `openclaw` : instance user, user paie. Stateful, multi-tour. **Implémentation partielle — voir `WIP.md` § 1.**
-- `disabled` : agent inactif
-- Config : `/api/chantier/agent-config` GET/PUT, UI dans `Settings` (`AgentConfigCard`)
-
-**Tables associées** :
-- `agent_insights` — observations (planning_impact, budget_alert, payment_overdue, conversation_summary, risk_detected, digest, lot_status_change, needs_clarification). Sévérité info/warning/critical. Index dedup unique.
-- `agent_runs` — log des runs LLM (morning/evening). Messages analysés, insights créés, actions prises, tokens.
-- `agent_config` — configuration dual-mode par user.
-- `chantier_journal` — journal de chantier, 1 page/jour. Body markdown, alerts_count, max_severity.
-- `chantier_assistant_messages` — historique chat user/agent. `tool_calls` JSONB pour traçabilité.
-- ~~`agent_context_cache`~~ — table dépréciée 2026-04-23 (peut être droppée).
-
-### 21.3 Catégorie `frais` (déclarations sans pièce jointe)
+### Catégorie `frais` (déclarations sans pièce jointe)
 
 Distinction sémantique entre tickets/factures (avec pièce uploadable) et frais déclarés au chat (sans justificatif).
 
@@ -2284,64 +2001,369 @@ Distinction sémantique entre tickets/factures (avec pièce uploadable) et frais
 - `IntervenantsListView.tsx` : chip ambre "📝 X€" dans la colonne nb devis
 - `LotIntervenantCard.tsx` : badge ambre "📝 X€ frais" à côté de devis/photos
 - `AnalyseDevisSection.tsx` : section ambre "Frais annexes déclarés" sous chaque card lot
-- `DocumentsView.tsx` : nouvelle section "Frais déclarés" (📝 ambre) ouverte par défaut
+- `DocumentsView.tsx` : section "Frais déclarés" (📝 ambre) ouverte par défaut
 - `documentFilters.ts` : `getFraisDeclares()`, `getDevisEtFactures()` exclut désormais les frais
 - `BudgetTab.tsx` : `noDevis` ignore les frais → un lot avec un frais seul ne déclenche plus "Devis manquant"
-- `BudgetTab.tsx` — colonne PAYÉ : quand `isSolde` (totalPaye ≥ budget), le montant s'affiche en vert "réglé" quelle que soit la source (acompte ou facture payée). Avant : si payé via acompte uniquement, le label restait "acompte" en indigo même quand c'était soldé.
-- `BudgetTab.tsx` — alerte "Facture manquante" : badge ambre ⚠ dans la cellule artisan quand : artisan a un devis validé (devis_valides > 0) ET pas de facture réelle (hors `ticket_caisse`/`achat_materiaux`/`frais`) ET non soldé. Cliquable pour ouvrir le modal d'ajout de document. Symétrique à l'alerte "Devis manquant" existante.
+- `BudgetTab.tsx` — colonne PAYÉ : quand `isSolde` (totalPaye ≥ budget), le montant s'affiche en vert "réglé" quelle que soit la source (acompte ou facture payée).
+- `BudgetTab.tsx` — alerte "Facture manquante" : badge ambre ⚠ dans la cellule artisan quand : artisan a un devis validé (devis_valides > 0) ET pas de facture réelle (hors `ticket_caisse`/`achat_materiaux`/`frais`) ET non soldé. Cliquable pour ouvrir le modal d'ajout de document.
 
-### 21.3b UX Cockpit — Homepage & Navigation (2026-05-06)
+### Fiabilité de l'estimation (`BudgetFiabilite`)
 
-#### TresorerieView — "Paiements effectués par artisan" en accordéon
+L'indicateur de fiabilité est calculé côté edge function à partir de signaux factuels (aucune IA) :
+- **hasLocalisation** : zone géo connue → prix ajustés
+- **hasBudget** : budget cible renseigné → calibrage
+- **hasDate** : date de début → roadmap temporelle
+- **hasSurface** : dimensions détectées → quantités précises
+- **typeProjetPrecis** : type ≠ "autre" → prix catalogue pertinents
+- **nbLignesBudget** : ≥ 4 lignes → budget détaillé
 
-Section extractée du composant `ConsommationSection` en sous-composant `ArtisanPaymentDetail`. Repliée par défaut (doublon avec `BudgetTab`). Icône chevron animé (rotate-180 à l'ouverture).
+Score affiché en pourcentage avec libellé (Estimation approximative → Estimation fiable → Estimation très détaillée).
 
-#### Echeancier — Registre en accordéon + filtres
+### Migrations 2026-04-03
 
-Le tableau "Registre des paiements effectués" est désormais dans un accordéon `PaidEventsAccordion` (replié par défaut). Quand ouvert : 2 filtres au-dessus de la liste — sélecteur artisan (`filterArtisan`) + sélecteur tri (`PaidSort` : `date_desc | date_asc | amount_desc | amount_asc`). Mobile-first : filtres full-width en flex-wrap.
+#### `20260403120000_add_menuiserie_accessoires.sql`
 
-#### PVReceptionModal — Pré-remplissage automatique
+3 nouveaux prix dans `market_prices` :
 
-Fetch parallèle (`Promise.all`) au mount :
+| `job_type` | Label | Unité | Prix min–max HT |
+|---|---|---|---|
+| `grille_entree_air` | Grille d'entrée d'air auto-réglable | unité | 14–45 € |
+| `mortaise_grille_ventilation` | Mortaise menuiserie existante + grille | forfait | 60–180 € |
+| `differentiel_disjoncteur_lot` | Lot différentiel 30mA + disjoncteur | forfait | 100–280 € |
+
+#### `20260403130000_add_work_type_distribution_view.sql`
+
+Vue `admin_kpis_work_type_distribution` : répartition des types de travaux analysés (exclut 2 comptes admin), dominant type par analyse, top 30.
+
+#### `20260403140000_add_facture_statut_litige.sql`
+
+Table `documents_chantier` :
+- Contrainte `facture_statut` mise à jour : ajout de `'en_litige'` (existaient déjà `recue` / `payee` / `payee_partiellement`)
+- Nouvelle colonne `depense_type TEXT DEFAULT 'facture'` CHECK (`facture` | `ticket_caisse` | `achat_materiaux`)
+
+### Fichier de tracking refactor
+
+`CASHFLOW-REFACTOR.md` à la racine — log d'exécution PR1→PR5 (à supprimer après stabilisation des tests E2E).
+
+---
+
+## 22. Planning CPM (Critical Path Method)
+
+Planification temporelle des lots de chantier avec vue Gantt drag/resize. Modèle **DAG multi-parent** standard MS Project / Primavera, remplace l'ancien `ordre_planning` linéaire.
+
+### Source de vérité (BDD)
+
+- `lots_chantier.duree_jours` — durée en jours ouvrés
+- `lots_chantier.delai_avant_jours` — délai avant démarrage (décalage sans cascade)
+- `lots_chantier.lane_index` — lane visuelle explicite (0 = main, 1+ = side lanes, NULL = first-fit)
+- `lot_dependencies (lot_id, depends_on_id)` — arêtes du DAG (Finish-to-Start, multi-parent)
+
+### Dérivé (recalculé, non stocké)
+
+- `date_debut` / `date_fin` — recomputés par `computePlanningDates` (`src/lib/chantier/planningUtils.ts`)
+- Lanes visuelles — first-fit par date avec préférence pour `lane_index` si défini
+
+### Algo `computePlanningDates`
+
+1. Tri topologique Kahn sur le DAG (prédécesseurs en premier)
+2. Forward pass : `date_debut = max(startDate, max(dep.date_fin)) + addBusinessDays(delai_avant_jours)`, `date_fin = addBusinessDays(date_debut, duree_jours)`
+3. Cycles gérés gracieusement (lots restants placés à startDate)
+
+### Flux modifications
+
+- D&D utilisateur (`PlanningTimeline.handleLotMoveWithLane`) : drop sur ghost row → indépendant ; drop sur lane existante → predecessor = dernier lot dont le centre ≤ drop X. Transfert auto : quand X bouge, ses ex-successeurs perdent X et héritent des ex-prédécesseurs de X. Position visuelle convertie en `delai_avant_jours` (jours ouvrés depuis predecessor.date_fin OU startDate).
+- Race conditions : `usePlanning.reqSeqRef` ignore les réponses périmées (l'optimiste local reste, la réponse la plus récente écrase).
+
+### API routes
+
+- `GET /api/chantier/[id]/planning` → `{ dateDebutChantier, lots, dependencies }`
+- `PATCH /api/chantier/[id]/planning` → recompute global CPM
+- `POST /api/chantier/[id]/planning/shift-lot` → `{ lot_id, jours, cascade, raison }`
+- `DELETE /api/chantier/[id]/lots/[lotId]` → cascade : transfert deps (A→X→B avec X supprimé → A→B) + recompute
+- `POST /api/chantier/[id]/lots` → `inferDefaultPredecessors` basé sur TRADE_DURATIONS métier
+
+### Migrations clés
+
+- `20260329120000_add_planning_columns.sql` (originale) — `lots_chantier` : `duree_jours INT`, `date_debut DATE`, `date_fin DATE`, `ordre_planning INT`, `parallel_group INT` ; `chantiers.date_debut_chantier DATE` ; index `idx_lots_planning ON lots_chantier(chantier_id, ordre_planning)`
+- `20260422230000_lot_dependencies_cpm.sql` — création table + backfill depuis dates existantes (A.fin = B.debut ⇒ A → B)
+- `20260423090000_lot_lane_index.sql` — colonne `lane_index`
+- `20260422220000_lots_chantier_delai_avant_jours.sql` — colonne `delai_avant_jours`
+
+### Lib partagée (`src/lib/chantier/planningUtils.ts`)
+
+| Fonction | Signature | Description |
+|---|---|---|
+| `addBusinessDays` | `(date, days) → Date` | Ajoute N jours ouvrés (skip weekends) |
+| `computePlanningDates` | `(lots, startDate) → lots[]` | Recalcule toutes les dates, gère DAG + parallel_group legacy |
+| `computeStartDateFromEnd` | `(lots, endDate) → lots[]` | Calcul inverse depuis date de fin |
+| `formatDuration` | `(days) → string` | "2 semaines", "3 jours" |
+| `getWeekNumber` | `(date, startDate) → number` | Numéro semaine relative S1, S2… |
+
+### Hook (`src/hooks/usePlanning.ts`)
+
+State : `lots`, `startDate`, `totalWeeks`, `loading`. Actions : `moveLot()`, `updateEndDate()`, `recompute()`. Utilise `setState(s => ...)` pour éviter les stale closures dans les callbacks.
+
+### Composants (`components/chantier/cockpit/planning/`)
+
+- `PlanningTimeline.tsx` — Gantt drag/resize, colonnes hebdomadaires S1..Sn, colonne gauche sticky, scroll horizontal mobile
+- `PlanningWidget.tsx` — mini-résumé vue d'ensemble : durée totale, date début→fin, mini-barres colorées, lien "Voir le planning"
+
+### Règles métier
+
+- Ghost row = indépendant (deps vides, pas hériter du partner)
+- Drop sur lane existante = chaîne au predecessor. Side lane vide → indépendant.
+- Couleur stable : `getLotColor(lot.id)` hash djb2, indépendant de l'ordre
+- Lanes (rendu) : pass 1 place les lots avec `lane_index` explicite, pass 2 first-fit pour le reste
+
+### Intégration IA
+
+L'edge function `chantier-generer` génère `duree_jours_estime`, `ordre_planning`, `parallel_group` pour chaque lot. `sauvegarder.ts` stocke ces valeurs et appelle `computePlanningDates()` si `date_debut_chantier` est disponible. L'agent IA peut modifier le planning via `update_planning`, `shift_lot`, `arrange_lot` (cf. § 26).
+
+### PVReceptionModal — Pré-remplissage automatique (2026-05-06)
+
+`lots/PVReceptionModal.tsx` — fetch parallèle (`Promise.all`) au mount :
 1. `supabase.auth.getSession()` → `user_metadata` → `mo_nom`, `mo_adresse`
 2. `GET /api/chantier/[id]/contacts` → contact `role=entreprise_generale` → `entrepreneur_nom`, `entrepreneur_adresse`, `entrepreneur_siret`
 3. `GET /api/chantier/[id]/budget` → devis noms → `contrat_ref`
 
 Tracking des champs auto-remplis via `Set<keyof PVData>` (state `autofilled`). Badge "✓ Pré-rempli" vert sur les champs concernés + fond `bg-emerald-50/40`. La modification manuelle retire le badge.
 
-#### Sidebar — Menu allégé
+---
 
-- Suppression du groupe "Devis & Finances" (doublon avec homepage)
-- `documents` intégré dans le groupe "Projet" (entre Planning et les items Équipe)
-- Import `FileSearch` retiré
+## 23. Lots, intervenants, contacts, formalités
 
-#### DashboardHome — Copilote actionnable (2026-05-06)
+### Catalogue matériaux (`data/MATERIALS_MAP.ts`)
 
-**`ActionCenter`** (nouveau composant, placé en haut de la homepage) :
-- 3 boutons larges, labels clairs : "💸 Enregistrer un paiement" / "📄 Ajouter un devis ou facture" / "👷 Ajouter un artisan"
-- Grid 1-col mobile → 3-col sm+, padding généreux, hover:shadow-md, active:scale
-- "Enregistrer un paiement" → ouvre le drawer inline `depenseOpen` (dépense rapide)
-- "Ajouter un devis ou facture" → `onAddDoc`
-- "Ajouter un artisan" → `onAddIntervenant`
+Registre statique de 17 types de chantier avec options matériaux :
+- Carrelage, Parquet, Peinture, Salle de bain, Cuisine, Terrasse, Isolation, Toiture, Pergola, Extension, Piscine, Électricité, Plomberie, Rénovation maison, Façade, Menuiseries, Autre
+- Chaque type : 3+ options (économique/intermédiaire/premium) avec `priceMin/Max` par unité, tags durabilité/entretien, URLs images
+- Auto-détection via `detectChantierType(typeProjet, keywords)` → match par mots-clés
+- Option "Autre / Je ne sais pas" ajoutée automatiquement à chaque type
 
-**Suppressions** :
-- `DiyCard` ("Travaux par vous-même") — retiré du grid intervenants
-- `NextActionsMobile` — remplacé par `NextActionsBlock` (couvre les deux)
-- Section "Actions rapides" (boutons pill dispersés)
-- Bouton "Ajouter un intervenant" dans le header de la section Intervenants
+### Hooks matériaux
 
-**`NextActionsBlock`** (inchangé — juste en dessous des KPIs) : liste contextuelle max 3 items priorisés (P1 factures → P2 devis → P3 lots bloqués → P4 factures manquantes).
+- **`useMaterialAI.ts`** : détecte les étapes nécessitant un choix matériau → appel `/api/chantier/materiaux` (Gemini) → 3 options générées
+- **`useMaterialDetection.ts`** : wrapper React pour `detectChantierType()` (lookup catalogue statique)
+- **`useMaterialSuggestions.ts`** : catalogue dynamique de cartes matériaux par type de projet (5 catégories hardcodées : revêtement, terrasse, façade, isolation, salle de bain, toiture)
 
-**`ChantierCockpit`** (anciennement `DashboardUnified`, renommé 2026-05-08) — calcul des actions par onglet :
-- `factureActions` = factures `recue` ou `payee_partiellement` → badge sidebar `tresorerie`
-- `devisActions` = devis `recu` → badge sidebar `documents`
-- `agentInsights.unreadCount` (hook `useAgentInsights`) → badge sidebar `assistant`
-- `urgentActions = factureActions + devisActions` → KPI home "actions en attente" uniquement
-- Règle : chaque badge pointe vers l'onglet qui résout l'action. **Ne pas réutiliser `urgentActions` sur le badge `assistant`** — c'était le bug d'origine, le badge pointait vers un onglet sans contenu lié.
+### Rattachement devis aux lots
 
-### 21.4 Onglet Assistant chantier — 3 colonnes (refacto 2026-05-08)
+3 modes d'ajout de devis depuis un lot (`AjouterDevisModal`, modal 3 tabs) :
+1. **Importer depuis mes analyses** : rattache une analyse VerifierMonDevis existante → auto-populate artisan
+2. **Uploader un devis** : upload PDF + lance l'analyse VerifierMonDevis + crée `devis_chantier` avec `lot_id`
+3. **Saisie manuelle** : prix + coordonnées artisan (accord verbal, sans devis officiel)
 
-Rendu par `AssistantTriPane.tsx`. Layout 3 colonnes desktop, tabs mobile.
+**Pont DocumentsSection** : quand un utilisateur uploade un devis via l'onglet Documents et clique "Analyser", un `devis_chantier` est automatiquement créé et rattaché au lot du document.
+
+**Création de lot inline** : partout où un sélecteur de lot apparaît (`LotSelector`), l'utilisateur peut créer un nouveau lot via "+ Créer un lot" (POST `/api/chantier/:id/lots`).
+
+Composants clés :
+- `LotSelector.tsx` : dropdown de lots + création inline, réutilisé dans AjouterDevisModal et DocumentsSection
+- `AjouterDevisModal.tsx` : modal 3 tabs, pré-sélection lot si ouvert depuis LotCard
+- Table `devis_chantier.lot_id` : FK vers `lots_chantier` (ON DELETE SET NULL)
+
+### Comparateur de devis (`ComparateurDevis`)
+
+Compare plusieurs devis rattachés au même lot. Utilise `compareQuotes.ts` pour extraire et aligner les postes de travaux depuis les analyses liées.
+
+### Contacts chantier — colonnes et index supplémentaires
+
+La table `contacts_chantier` a été enrichie :
+
+| Colonne | Type | Comportement | Description |
+|---|---|---|---|
+| `lot_id` | UUID FK → `lots_chantier` | ON DELETE SET NULL | Lot rattaché au contact |
+| `devis_id` | UUID FK | ON DELETE SET NULL | Devis d'origine |
+| `analyse_id` | UUID FK | ON DELETE SET NULL | Analyse source |
+| `source` | TEXT | CHECK ('manual','devis','facture') | Origine du contact |
+
+Index FK associés : `idx_contacts_lot_id`, `idx_contacts_devis_id`, `idx_contacts_analyse_id`.
+
+### Enrichissement géographique
+
+L'edge function `chantier-generer` enrichit automatiquement le prompt si un code postal est détecté :
+1. Détecte le code postal dans les réponses de qualification (ou résout le nom de ville via `geo.api.gouv.fr`)
+2. Lookup dans `zones_geographiques` → type_zone + coefficient
+3. Injecte dans le prompt : "Zone géographique : grande_ville (coefficient : 1.15)"
+4. Gemini ajuste les estimations de budget en conséquence
+
+### Liens formalités (`formalitesLinks.ts`)
+
+Catalogue de ~15 mappings mot-clé → URL officielle .gouv.fr pour les formalités administratives (déclaration préalable, permis de construire, Consuel, DT-DICT, etc.). Chaque entrée contient un lien primaire (formulaire CERFA) et optionnellement un lien secondaire (fiche pratique).
+
+---
+
+## 24. Documents — storage, upload, analyse intra-chantier
+
+### Storage
+
+**Bucket `chantier-documents`** : documents de chantier (privé, user-scoped via RLS). Upload via `/api/chantier/:id/documents`, URLs signées (TTL 1h) pour la lecture.
+
+### API Routes documents
+
+| Méthode | Route | Description |
+|---|---|---|
+| GET/POST | `/api/chantier/:id/documents` | CRUD documents d'un chantier |
+| GET/PATCH/DELETE | `/api/chantier/:id/documents/:docId` | Document individuel (URL signée à la lecture) |
+| POST | `/api/chantier/:id/documents/:docId/analyser` | Déclenche analyse d'un document |
+| POST | `/api/chantier/:id/documents/extract-invoice` | Extraction Gemini d'une facture uploadée : `artisan_nom`, `montant_total`, `type_facture` (acompte/solde/facture), `pct_acompte`, `date_facture`. Body : `{ bucketPath }`. Non-bloquant, `confidence: 'low'` si échec. Modèle : gemini-2.0-flash, timeout 8s. |
+| POST | `/api/chantier/:id/documents/depense-rapide` | Enregistre une dépense rapide sans fichier. Body : `{ nom, documentType, depenseType, montant, factureStatut, lotId?, montantPaye? }` |
+| POST | `/api/chantier/:id/documents/register` | Enregistre un document en base après upload storage |
+
+### Modals d'upload
+
+Voir § 21 "AddDocumentModal et DepenseRapideModal" pour le détail. `AddDocumentModal` est dans `cockpit/documents/`, `DepenseRapideModal` dans `cockpit/budget/` (ils sont liés par le mode "dépense rapide sans fichier").
+
+---
+
+## 25. Messagerie & WhatsApp
+
+### WhatsApp multi-groupes
+
+Intégration whapi.cloud pour créer et gérer de vrais groupes WhatsApp depuis le cockpit chantier. N groupes par chantier.
+
+#### Tables
+
+| Table | Colonnes clés | Notes |
+|---|---|---|
+| `chantier_whatsapp_groups` | `id UUID PK`, `chantier_id UUID FK`, `name TEXT`, `group_jid TEXT UNIQUE`, `invite_link TEXT`, `is_owner_channel BOOLEAN`, `created_at` | Un chantier peut avoir N groupes. `is_owner_channel` flagge le canal privé owner (cf. § 25.3). |
+| `chantier_whatsapp_members` | `id UUID PK`, `group_id UUID FK→chantier_whatsapp_groups`, `phone TEXT`, `name TEXT`, `role TEXT` (gmc/client/artisan), `status TEXT` (active/left/removed), `joined_at`, `left_at` | UNIQUE(group_id, phone). Cascade delete si groupe supprimé. |
+| `chantier_whatsapp_messages` | `id TEXT PK` (whapi msg id — idempotent), `chantier_id UUID`, `group_id TEXT` (JID brut, **pas FK UUID**), `from_number TEXT`, `from_me BOOLEAN`, `type TEXT`, `body TEXT`, `media_url TEXT`, `timestamp TIMESTAMPTZ` | RLS SELECT via `chantier_id`. `group_id` est un TEXT JID brut (ex: `120363xxxxx@g.us`) — intentionnel, antérieur à la table groups. |
+
+> **Point important** : `chantier_whatsapp_messages.group_id` n'est pas une FK UUID vers `chantier_whatsapp_groups`. Les messages orphelins persistent si un groupe est supprimé. Ne pas migrer en UUID FK sans plan de migration des données.
+
+#### API Routes
+
+| Méthode | Route | Description |
+|---|---|---|
+| GET | `/api/chantier/:id/whatsapp-groups` | Groupes + membres imbriqués (2 requêtes, pas de N+1) |
+| DELETE | `/api/chantier/:id/whatsapp-groups?groupId=<uuid>` | Supprime groupe (membres supprimés en cascade) |
+| POST | `/api/chantier/:id/whatsapp` | Crée groupe whapi + INSERT `chantier_whatsapp_groups` + `chantier_whatsapp_members`. Accepte `{ is_owner_channel: true }` pour créer un canal privé (cf. § 25.3). |
+| PATCH | `/api/chantier/:id/whatsapp` | Ajoute participants à un groupe existant |
+| GET | `/api/chantier/:id/whatsapp-messages?groupJid=<jid>` | Messages filtrés par groupe, limit 200 |
+| POST | `/api/webhooks/whapi` | Webhook whapi : messages entrants + events (join/leave/remove/delete). Toujours 200. |
+
+**Webhook whapi events** : `group.participants.add` via PUT, `group.participants.remove` via PATCH. Whapi ne supporte pas l'event delete de groupe côté webhook.
+
+**Config webhook whapi** : URL `https://www.verifiermondevis.fr/api/webhooks/whapi`, events actifs : messages POST + groups POST/PUT/PATCH.
+
+#### Composants
+
+- `WhatsAppGroupsPanel.tsx` — liste groupes, membres dépliables, modale création avec sélection participants, bouton supprimer groupe
+- `WhatsAppThread.tsx` — bulles colorées par rôle : gmc→`#DCF8C6` droite, client→`#DBEAFE` droite, artisan→blanc gauche. Props : `userPhone`, `groupJid`, `groupName`
+- `MessagerieSection.tsx` — orchestrateur messagerie (email + WhatsApp). `fetchWaGroups` = `useCallback([chantierId, token])`. Reset automatique du thread actif si le groupe est supprimé (useEffect sur `waGroups`).
+
+#### Lib
+
+- `src/lib/integrations/whapiUtils.ts` — `formatPhone()`, `createWhatsAppGroup()`, `addGroupParticipants()`
+- `GMC_PHONE = '33633921577'` — toujours inclus dans les groupes, rôle `'gmc'`
+
+### Messagerie email — précisions SendGrid Inbound Parse
+
+La table `chantier_conversations` expose une colonne `reply_address` : adresse unique de la forme `chantier-{id}+{convId}@{REPLY_EMAIL_DOMAIN}`. Cette adresse est utilisée comme `Reply-To` sur les emails sortants, ce qui permet à SendGrid Inbound Parse de router les réponses des artisans vers le webhook `POST /api/webhooks/inbound-email`.
+
+**Flux réception** : artisan répond à l'email → SendGrid détecte le sous-domaine `reply.verifiermondevis.fr` → POST multipart vers `/api/webhooks/inbound-email` → parsing de l'adresse `reply_address` → INSERT dans `chantier_messages` (direction `inbound`).
+
+### Canal WhatsApp privé owner (vague 3 — 2026-04-26)
+
+Canal de notification owner ↔ agent pour les rappels, alertes, décisions à arbitrer.
+
+**DB** :
+- `chantier_whatsapp_groups.is_owner_channel BOOLEAN DEFAULT FALSE`
+- `UNIQUE INDEX uq_owner_channel_per_chantier (chantier_id) WHERE is_owner_channel = TRUE` — un seul canal owner par chantier
+- Migration `20260426150000_vague3_proactive_channel.sql`
+
+**API** :
+- `POST /api/chantier/[id]/whatsapp` accepte `{ is_owner_channel: true }` :
+  - Si canal owner existe déjà → retourne `{ already_exists: true, group: ... }` (idempotent)
+  - Sinon : récupère phone du user (mode JWT via `auth.getUser(token)` ; mode agent via `auth.admin.getUserById(user_id)`), force participants = [user_phone] + GMC, INSERT avec flag
+- Route migrée vers `requireChantierAuthOrAgent` (l'agent peut créer via `create_owner_whatsapp_channel`)
+
+**Tool agent** :
+- `create_owner_whatsapp_channel()` : appelle l'API ci-dessus, retourne `{ ok, group_jid, already_exists?, message }`
+
+**Webhook routing** :
+- `lookupGroupByJid` retourne désormais `is_owner_channel`. Passe en `.maybeSingle()` (résilient aux doublons / JID inconnus)
+- Quand un message arrive dans un groupe avec `is_owner_channel=true` → accumulé dans `ownerChannelMsgs.set(chantier_id, [...bodies])` (concaténation multi-msg même batch)
+- Au moment du dispatch agent : si owner channel msg → mode `interactive` avec `user_message: bodies.join('\n')` ET `conversation_history: <20 derniers msgs depuis chantier_assistant_messages>` (sinon l'agent perd le contexte des messages proactifs précédents)
+- Si pas de msg owner → mode `morning` standard
+
+---
+
+## 26. Assistant IA (cockpit)
+
+L'agent IA "Pilote de Chantier" : architecture temps réel + digest quotidien. Edge function `agent-orchestrator` (Gemini 2.5-flash, function calling).
+
+### Triggers temps réel
+
+- Upload document → `agent-checks` (SQL déterministe, $0) fire-and-forget. L'orchestrator (Gemini) fire après extraction IA.
+- Message WhatsApp → `agent-orchestrator` depuis `whapi.ts` (mode `edge_function`) ou `triggerAgentIfOpenClaw` (mode openclaw)
+- Email entrant → `agent-orchestrator` depuis `inbound-email.ts`
+- Affectation lot → `agent-checks` + orchestrator + mismatch detection via `detectDevisType`
+
+### Mismatch detection (document ↔ lot)
+
+Détection basée sur le **contenu** (pas le nom de fichier). Points : `analyze-quote/index.ts`, `extract-invoice.ts`, `describe.ts`, `[docId].ts` PATCH. Utilise `detectDevisType()` de `utils/extractProjectElements.ts`. Edge function réplique le mapping inline (Deno).
+
+### Pas de cache contexte (suppression 2026-04-23)
+
+- `context.ts` : fresh fetch à chaque appel via APIs internes + Supabase (~5-7 requêtes, < 300ms)
+- `safeFetchJson` avec AbortController 5s timeout par appel
+- Fallback : si l'API planning retourne 0 lots mais DB > 0, query DB directement
+
+### Tools agent (`supabase/functions/agent-orchestrator/tools.ts`)
+
+| Tool | Mode | Usage |
+|---|---|---|
+| `get_chantier_summary` | batch + interactive | Infos générales, budget, lots |
+| `get_chantier_planning` | batch + interactive | Ordre lots, dates, durées, dépendances |
+| `get_chantier_data` | batch + interactive | Requêtes ad-hoc (count devis, sum travaux…) |
+| `get_contacts_chantier` | batch + interactive | Contacts filtrés par lot/rôle |
+| `get_recent_photos` | batch + interactive | Photos WhatsApp + descriptions Vision IA |
+| `list_chantier_groups` | batch + interactive | Groupes WhatsApp avec membres |
+| `get_message_read_status` | batch + interactive | Accusés de lecture WhatsApp |
+| `update_planning` | interactive | `lot_id, duree_jours?, delai_avant_jours?, depends_on_ids?` — `depends_on_ids` remplace la liste complète |
+| `shift_lot` | interactive | `lot_id, jours, cascade, raison`. Protocole 2 tours dans le prompt si successeurs détectés. |
+| `arrange_lot` | interactive | `mode: chain_after \| parallel_with`. Modèle CPM DAG : écrit `lot_dependencies` + force `lane_index = ref.lane_index` pour chain_after. |
+| `update_lot_dates` | interactive | Legacy (compat). Préférer `shift_lot`. |
+| `update_lot_status` / `mark_lot_completed` | interactive | Statut lot |
+| `create_task` / `complete_task` | interactive | Checklist (priorite : urgent/important/normal) |
+| `register_expense` | interactive | `amount, label, lot_id? OR lot_name?, vendor?, depense_type?` (défaut `frais`). Si `lot_name` fourni, recherche/crée le lot. |
+| `send_whatsapp_message` | interactive | Confirmation explicite obligatoire |
+| `log_insight` / `request_clarification` | interactive | Mémoire long-terme + clarifications |
+
+### Optimisations coût
+
+- Debounce WhatsApp (`whapi.ts`) : `Set<string>` pour 1 trigger/chantier/batch webhook
+- Cooldown 60s pour `morning` (skip si lastRun < 60s) — pas pour `evening`
+- Cron soir : `chantiers WHERE phase != 'reception'`
+- Parallélisation cron : `Promise.allSettled` par batches de 3
+- `max_tokens: 16384` (pas 4096 — thinking budget)
+
+### Auth agent → API routes
+
+- `requireChantierAuthOrAgent` (`apiHelpers.ts`) : accepte JWT user OU header `X-Agent-Key`
+- Routes migrées : `budget.ts` GET, `contacts.ts` GET, `payment-events.ts` GET/POST/PATCH/DELETE, `taches.ts` CRUD, `planning.ts` GET/PATCH, `lots.ts` GET/POST/PATCH, `documents/depense-rapide.ts` POST
+
+### Dual-mode
+
+- `edge_function` (défaut) : Gemini 2.5 Flash, on paie
+- `openclaw` : instance user, user paie. Stateful, multi-tour. **Implémentation partielle — voir `WIP.md`.**
+- `disabled` : agent inactif
+- Config : `/api/chantier/agent-config` GET/PUT, UI dans `Settings` (`AgentConfigCard`)
+
+### Tables associées
+
+- `agent_insights` — observations (planning_impact, budget_alert, payment_overdue, conversation_summary, risk_detected, digest, lot_status_change, needs_clarification). Sévérité info/warning/critical. Index dedup unique.
+- `agent_runs` — log des runs LLM (morning/evening). Messages analysés, insights créés, actions prises, tokens.
+- `agent_config` — configuration dual-mode par user.
+- `chantier_journal` — journal de chantier, 1 page/jour. Body markdown, alerts_count, max_severity.
+- `chantier_assistant_messages` — historique chat user/agent. `tool_calls` JSONB pour traçabilité.
+- ~~`agent_context_cache`~~ — table dépréciée 2026-04-23 (peut être droppée).
+
+### Onglet Assistant chantier — 3 colonnes (refacto 2026-05-08)
+
+Rendu par `assistant/AssistantTriPane.tsx`. Layout 3 colonnes desktop, tabs mobile.
 
 **Layout desktop (lg+)** : `flex-row`, 3 panneaux côte-à-côte.
 - **Alertes (gauche, w-[300px])** — `agent_insights` du hook `useAgentInsights` partagé. 30 derniers jours. Click ligne = `markAsRead(id)`. Bouton "Tout marquer lu" si `unreadCount > 0`.
@@ -2366,8 +2388,9 @@ Rendu par `AssistantTriPane.tsx`. Layout 3 colonnes desktop, tabs mobile.
 
 **Avant 2026-05-08 (déprécié)** : layout 2 colonnes via `AgentActivityFeed.tsx` (fichier supprimé), feed unifié décisions + insights. Le bandeau alertes du haut avait été supprimé en 2026-04-25 et tout centralisé dans le feed unique. Le refacto 2026-05-08 sépare alertes (gauche) et décisions (droite) en panneaux distincts pour clarifier la hiérarchie cognitive (problèmes à traiter vs ce qui a été fait).
 
-**Digest quotidien (19h Paris, edge function `agent-orchestrator` cron)** :
-Annexe au markdown body de `chantier_journal` 3 sections déterministes :
+### Digest quotidien
+
+19h Paris, edge function `agent-orchestrator` cron. Annexe au markdown body de `chantier_journal` 3 sections déterministes :
 - ⚙️ Décisions prises aujourd'hui (tool_calls mutateurs, formattage humain par tool)
 - ⚠️ Alertes du jour (insights severity warning/critical)
 - ❓ Clarifications demandées (insights type=needs_clarification)
@@ -2376,33 +2399,11 @@ Garantit la mémoire long-terme : le panneau Assistant montre **aujourd'hui**, l
 
 ---
 
-## 22. Architecture pro-active agent (vague 3 — 2026-04-26)
+## 27. Actions proactives — décisions & actions programmées (vague 3)
 
-Canal de notification owner ↔ agent + actions programmées. Permet à l'agent de devenir autonome sur les rappels, alertes, décisions à arbitrer.
+Permet à l'agent de devenir autonome sur les rappels, alertes, décisions à arbitrer. Le canal WhatsApp privé owner (cf. § 25.3) est le canal de sortie de ces actions proactives.
 
-### 22.1 Canal WhatsApp privé owner
-
-**DB** :
-- `chantier_whatsapp_groups.is_owner_channel BOOLEAN DEFAULT FALSE`
-- `UNIQUE INDEX uq_owner_channel_per_chantier (chantier_id) WHERE is_owner_channel = TRUE` — un seul canal owner par chantier
-- Migration `20260426150000_vague3_proactive_channel.sql`
-
-**API** :
-- `POST /api/chantier/[id]/whatsapp` accepte `{ is_owner_channel: true }` :
-  - Si canal owner existe déjà → retourne `{ already_exists: true, group: ... }` (idempotent)
-  - Sinon : récupère phone du user (mode JWT via `auth.getUser(token)` ; mode agent via `auth.admin.getUserById(user_id)`), force participants = [user_phone] + GMC, INSERT avec flag
-- Route migrée vers `requireChantierAuthOrAgent` (l'agent peut créer via `create_owner_whatsapp_channel`)
-
-**Tool agent** :
-- `create_owner_whatsapp_channel()` : appelle l'API ci-dessus, retourne `{ ok, group_jid, already_exists?, message }`
-
-**Webhook routing** :
-- `lookupGroupByJid` retourne désormais `is_owner_channel`. Passe en `.maybeSingle()` (résilient aux doublons / JID inconnus)
-- Quand un message arrive dans un groupe avec `is_owner_channel=true` → accumulé dans `ownerChannelMsgs.set(chantier_id, [...bodies])` (concaténation multi-msg même batch)
-- Au moment du dispatch agent : si owner channel msg → mode `interactive` avec `user_message: bodies.join('\n')` ET `conversation_history: <20 derniers msgs depuis chantier_assistant_messages>` (sinon l'agent perd le contexte des messages proactifs précédents)
-- Si pas de msg owner → mode `morning` standard
-
-### 22.2 Actions programmées
+### Actions programmées
 
 **Table `agent_scheduled_actions`** :
 - `id, chantier_id, due_at TIMESTAMPTZ, action_type ('reminder'|'auto_message'), payload JSONB, status ('pending'|'firing'|'fired'|'cancelled'|'failed'), fired_at, fired_result JSONB, source TEXT, created_at`
@@ -2431,7 +2432,7 @@ Canal de notification owner ↔ agent + actions programmées. Permet à l'agent 
 - Job 28 : `agent-scheduled-tick` toutes les 15min (`*/15 * * * *`)
 - Pattern `Authorization: Bearer ${service_role_key from vault}` (cohérent avec les autres crons)
 
-### 22.3 Workflow décision à prendre
+### Workflow décision à prendre
 
 Pas un nouveau tool — orchestré par 2 tools existants :
 - `notify_owner_for_decision(question, expected_action, ...)` : crée ligne `agent_pending_decisions` + envoie WhatsApp dans canal owner via `findOwnerChannelJid` (helper avec fallback "premier groupe créé" pour rétrocompat). L'`expected_action` stockée en JSONB = `{ tool, args }` à exécuter si confirmation.
@@ -2439,7 +2440,7 @@ Pas un nouveau tool — orchestré par 2 tools existants :
 
 Déclenché par le prompt section "DÉTECTION DE DÉCISION À ARBITRER" : *"Quand un message externe propose un changement (montant, date, ajout/retrait), tu DOIS notifier le owner via `notify_owner_for_decision` et NE PAS répondre à l'artisan tant que le owner n'a pas validé."*
 
-### 22.4 Triggers proactifs WhatsApp privé — état
+### Triggers proactifs WhatsApp privé — état
 
 8 triggers identifiés (cf. `WIP § 12`). État actuel :
 - ✅ Clarification urgente (`request_clarification`) — routée via `agent_insights`, visible Activité IA
