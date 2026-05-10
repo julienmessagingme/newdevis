@@ -4,7 +4,7 @@
  * This only applies to lots created inline (UploadDocumentModal, DocumentsView, AddDocumentModal).
  */
 const EMOJI_MAP: Record<string, string> = {
-  toiture: '🏠', charpente: '🏠', couvreur: '🏠', toit: '🏠',
+  toiture: '🪜', charpente: '🪜', couvreur: '🪜', toit: '🪜', tuile: '🪜', ardoise: '🪜', zinguerie: '🪜', gouttiere: '🪜',
   plomberie: '🚿', plombier: '🚿', chauffage: '🚿', chaudiere: '🚿',
   electricite: '⚡', electri: '⚡', tableau: '⚡',
   maconnerie: '🧱', macon: '🧱', beton: '🧱',
