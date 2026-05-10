@@ -28,13 +28,19 @@ export const GET: APIRoute = async ({ params, request }) => {
   if (type) query = query.eq('type', type);
 
   // Parallel fetch: insights list + unread count (independent queries)
+  // Le compteur unread (badge sidebar `assistant` + badge FAB widget) exclut :
+  //  - `digest`              : résumé journalier — info, pas une action
+  //  - `conversation_summary`: résumé de conversation — info
+  //  - `lot_status_change`   : changement statut lot — info
+  // Ces 3 types restent visibles dans la liste mais ne font pas sonner le badge.
   const [listRes, countRes] = await Promise.all([
     query,
     ctx.supabase
       .from('agent_insights')
       .select('id', { count: 'exact', head: true })
       .eq('chantier_id', params.id!)
-      .eq('read_by_user', false),
+      .eq('read_by_user', false)
+      .not('type', 'in', '(digest,conversation_summary,lot_status_change)'),
   ]);
 
   if (listRes.error) return jsonError(listRes.error.message, 500);
