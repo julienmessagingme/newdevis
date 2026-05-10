@@ -1,0 +1,145 @@
+/* ─────────────────────────────────────────────────────────────
+   Gérer Mon Chantier — Colors & Type
+   Module VerifierMonDevis.fr · cockpit chantier
+   Source: julienmessagingme/newdevis (tailwind.config.ts, src/index.css)
+   ───────────────────────────────────────────────────────────── */
+
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@400;600;700;800&display=swap");
+
+:root {
+  /* ─── Core palette (HSL components, used as `hsl(var(--x))`) ─── */
+  --background: 220 20% 97%;            /* #F5F6FA  page bg */
+  --foreground: 220 30% 15%;            /* #1A2233  body text */
+
+  --card: 0 0% 100%;                    /* #FFFFFF  card surface */
+  --card-foreground: 220 30% 15%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 30% 15%;
+
+  /* Primary — deep professional blue (trust + expertise) */
+  --primary: 220 70% 35%;               /* #1B3FA1 */
+  --primary-foreground: 0 0% 100%;
+
+  /* Secondary — soft blue-gray */
+  --secondary: 220 15% 92%;             /* #E6E8EE */
+  --secondary-foreground: 220 30% 25%;
+
+  --muted: 220 15% 94%;                 /* #ECEEF2 */
+  --muted-foreground: 220 15% 45%;      /* #677084 */
+
+  --accent: 220 60% 95%;                /* #E8EFFB  pale primary tint */
+  --accent-foreground: 220 70% 35%;
+
+  --destructive: 0 72% 51%;             /* #DD3838 */
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 220 20% 88%;
+  --input: 220 20% 88%;
+  --ring: 220 70% 35%;
+
+  --radius: 0.75rem;                    /* 12px — base radius */
+
+  /* ─── Scoring (traffic light) ─── */
+  --score-green: 142 71% 45%;           /* #1FB664 */
+  --score-green-bg: 142 71% 95%;        /* #E5F8EE */
+  --score-green-foreground: 142 71% 25%;
+
+  --score-orange: 32 95% 50%;           /* #F58A06 */
+  --score-orange-bg: 32 95% 95%;        /* #FEF1E0 */
+  --score-orange-foreground: 32 95% 30%;
+
+  --score-red: 0 72% 51%;               /* #DD3838 */
+  --score-red-bg: 0 72% 95%;            /* #FBE5E5 */
+  --score-red-foreground: 0 72% 30%;
+
+  /* ─── Cockpit accents (used in the chantier module) ─── */
+  --cockpit-blue-50:  220 100% 97%;     /* #EFF4FF */
+  --cockpit-blue-100: 220 100% 92%;     /* #DBE6FF */
+  --cockpit-blue-600: 222 90% 55%;      /* #2563EB */
+  --cockpit-blue-700: 222 90% 47%;      /* #1D4ED8 */
+  --cockpit-emerald: 152 76% 40%;       /* "Payé" KPI green */
+  --cockpit-violet: 262 83% 58%;        /* facture badge */
+  --cockpit-amber:  38 92% 50%;         /* frais badge */
+
+  /* ─── Composed tokens ─── */
+  --hero-gradient: linear-gradient(135deg, hsl(220 70% 35%) 0%, hsl(220 60% 25%) 100%);
+  --card-shadow:    0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --card-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+
+  /* ─── Type families ─── */
+  --font-sans:    "DM Sans", system-ui, -apple-system, sans-serif;
+  --font-display: "Syne",    system-ui, sans-serif;          /* marketing headlines only */
+  --font-mono:    ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* ─── Type scale (px) ─── */
+  --fs-xs:   12px;  --lh-xs:   16px;
+  --fs-sm:   14px;  --lh-sm:   20px;
+  --fs-base: 16px;  --lh-base: 24px;
+  --fs-lg:   18px;  --lh-lg:   28px;
+  --fs-xl:   20px;  --lh-xl:   28px;
+  --fs-2xl:  24px;  --lh-2xl:  32px;
+  --fs-3xl:  30px;  --lh-3xl:  36px;
+  --fs-4xl:  36px;  --lh-4xl:  40px;
+  --fs-5xl:  48px;  --lh-5xl:  1;
+  --fs-6xl:  60px;  --lh-6xl:  1;
+
+  /* ─── Spacing scale (Tailwind 0.25rem unit) ─── */
+  --sp-1:  4px;  --sp-2:  8px;  --sp-3: 12px;  --sp-4: 16px;
+  --sp-5: 20px;  --sp-6: 24px;  --sp-8: 32px;  --sp-10: 40px;
+  --sp-12: 48px; --sp-16: 64px;
+
+  /* ─── Radii ─── */
+  --r-sm:  calc(var(--radius) - 4px);   /* 8  */
+  --r-md:  calc(var(--radius) - 2px);   /* 10 */
+  --r-lg:  var(--radius);                /* 12 */
+  --r-xl:  16px;
+  --r-2xl: 20px;
+  --r-pill: 999px;
+}
+
+/* ─── Element-level base styles ─── */
+html { font-family: var(--font-sans); color: hsl(var(--foreground)); background: hsl(var(--background)); }
+body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+
+h1, h2, h3, h4, h5, h6 { font-weight: 600; letter-spacing: -0.01em; color: hsl(var(--foreground)); margin: 0; }
+h1 { font-size: var(--fs-4xl); line-height: var(--lh-4xl); font-weight: 700; }
+h2 { font-size: var(--fs-3xl); line-height: var(--lh-3xl); font-weight: 700; }
+h3 { font-size: var(--fs-2xl); line-height: var(--lh-2xl); }
+h4 { font-size: var(--fs-xl);  line-height: var(--lh-xl); }
+h5 { font-size: var(--fs-lg);  line-height: var(--lh-lg); }
+h6 { font-size: var(--fs-base);line-height: var(--lh-base); }
+
+p { font-size: var(--fs-base); line-height: var(--lh-base); color: hsl(var(--foreground)); margin: 0; }
+small, .text-sm { font-size: var(--fs-sm); line-height: var(--lh-sm); }
+code { font-family: var(--font-mono); font-size: 0.9em; }
+
+/* Display headlines (Syne) — reserve for hero/marketing */
+.display, .font-display { font-family: var(--font-display); letter-spacing: -0.02em; font-weight: 700; }
+
+/* ─── Cockpit micro-label (used everywhere in the app) ─── */
+.eyebrow {
+  font-size: 10px; line-height: 1; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: hsl(var(--muted-foreground));
+}
+
+/* ─── Convenience semantic classes ─── */
+.fg1 { color: hsl(var(--foreground)); }
+.fg2 { color: hsl(var(--muted-foreground)); }
+.fg-primary { color: hsl(var(--primary)); }
+
+.bg-page  { background: hsl(var(--background)); }
+.bg-card  { background: hsl(var(--card)); }
+.bg-muted { background: hsl(var(--muted)); }
+
+.score-green-badge  { color: hsl(var(--score-green-foreground));  background: hsl(var(--score-green-bg));  border: 1px solid hsl(var(--score-green) / 0.25); }
+.score-orange-badge { color: hsl(var(--score-orange-foreground)); background: hsl(var(--score-orange-bg)); border: 1px solid hsl(var(--score-orange) / 0.25); }
+.score-red-badge    { color: hsl(var(--score-red-foreground));    background: hsl(var(--score-red-bg));    border: 1px solid hsl(var(--score-red) / 0.25); }
+
+.hero-gradient { background: var(--hero-gradient); }
+.shadow-card     { box-shadow: var(--card-shadow); }
+.shadow-card-lg  { box-shadow: var(--card-shadow-lg); }
+
+/* Tabular numbers for KPIs / amounts */
+.tabular-nums { font-variant-numeric: tabular-nums; }
