@@ -679,12 +679,20 @@ export interface VerdictReasonsInput {
    * V3.3.2 — Surcoût serveur (médiane min/max) calculé par `computeServerSurcout`
    * dans conclusion.ts. Si fourni, OVERRIDE `wa.surcout_total` dans le wording prix
    * pour garantir la cohérence avec le HERO de ConclusionIA.
-   *
-   * Sans ça : hero affichait "+3 400 €" (devis - max marché) tandis que reasons
-   * affichaient "surcoût estimé 6.2 k€" (devis - médiane). Méthodologies différentes,
-   * confusion utilisateur. Le hero étant le plus visible, on aligne les reasons dessus.
    */
   server_surcout_mid?:   number;
+  /**
+   * V3.3.3 — Nombre d'anomalies effectivement AFFICHÉES dans le rapport (sortie LLM
+   * filtrée par sanitization). Si fourni, OVERRIDE le compteur déterministe pour
+   * garantir la cohérence du wording "N postes présentent des prix anormalement élevés"
+   * avec le bandeau "→ N postes dépassent largement les prix du marché" et avec
+   * la liste détaillée des anomalies plus bas dans la page.
+   *
+   * Sans ça : le LLM peut filtrer/regrouper 3 anomalies en 2 (ou inversement), et
+   * le compteur du moteur ne matche pas la liste affichée. Confusion utilisateur :
+   * "vous dites 2 postes, je vois 3 lignes — qui croire ?".
+   */
+  display_anomalies_count?: number;
 }
 
 export interface VerdictReasonsResult {
@@ -720,7 +728,7 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
     company_risk, flags, has_market_data,
     market_dispersion_pct, chantier_complexity, threshold_ok,
     hard_block_reason, company_status, weighted_anomalies,
-    server_surcout_mid,
+    server_surcout_mid, display_anomalies_count,
   } = input;
 
   const wa = weighted_anomalies;
@@ -860,7 +868,12 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
   }
 
   // Cas a_negocier ou refuser
-  const effectiveAnomaliesCount = wa ? wa.anomalies_count : anomalies_major_count;
+  // V3.3.3 — priorité au compteur d'affichage (sanitizedAnomalies.length) si fourni,
+  // pour aligner le wording sur ce que le user voit réellement dans la liste détaillée.
+  // Sinon fallback sur les compteurs déterministes du moteur.
+  const effectiveAnomaliesCount = typeof display_anomalies_count === "number" && display_anomalies_count >= 0
+    ? display_anomalies_count
+    : (wa ? wa.anomalies_count : anomalies_major_count);
   if (effectiveAnomaliesCount >= 2) {
     reasons.push(`⚠️ ${effectiveAnomaliesCount} postes présentent des prix anormalement élevés`);
   } else if (effectiveAnomaliesCount === 1) {

@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.3.2";
+const ENGINE_VERSION = "3.3.3";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -1194,6 +1194,11 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       ? Math.round((surcoutMin + surcoutMax) / 2)
       : undefined;
 
+    // V3.3.3 — compteur d'anomalies aligné sur ce qui est AFFICHÉ dans le rapport
+    // (sanitizedAnomalies.length, source de la section "Anomalies détectées" et du sublabel
+    // bandeau). Évite l'incohérence "2 postes" (bandeau) ≠ "3 postes" (reasons).
+    const displayAnomaliesCount = sanitizedAnomalies.length;
+
     const verdict_reasons = generateVerdictReasons({
       verdict:               finalVerdictForReasons,
       overprice:             preEngine.overprice,
@@ -1207,6 +1212,7 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       threshold_ok:          preEngine.threshold_ok,
       weighted_anomalies:    preEngine.weighted_anomalies,         // vraie valeur, pas boostée
       server_surcout_mid:    serverSurcoutMid,                     // cohérence avec hero
+      display_anomalies_count: displayAnomaliesCount,              // cohérence avec bandeau + liste
     });
 
     // ──────────────────────────────────────────────────────────────────────────
