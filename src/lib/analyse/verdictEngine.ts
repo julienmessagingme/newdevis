@@ -675,6 +675,16 @@ export interface VerdictReasonsInput {
   company_status?:       string;
   /** V3 — analyse pondérée (si disponible, module le wording prix). */
   weighted_anomalies?:   WeightedAnomaliesResult;
+  /**
+   * V3.3.2 — Surcoût serveur (médiane min/max) calculé par `computeServerSurcout`
+   * dans conclusion.ts. Si fourni, OVERRIDE `wa.surcout_total` dans le wording prix
+   * pour garantir la cohérence avec le HERO de ConclusionIA.
+   *
+   * Sans ça : hero affichait "+3 400 €" (devis - max marché) tandis que reasons
+   * affichaient "surcoût estimé 6.2 k€" (devis - médiane). Méthodologies différentes,
+   * confusion utilisateur. Le hero étant le plus visible, on aligne les reasons dessus.
+   */
+  server_surcout_mid?:   number;
 }
 
 export interface VerdictReasonsResult {
@@ -710,9 +720,17 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
     company_risk, flags, has_market_data,
     market_dispersion_pct, chantier_complexity, threshold_ok,
     hard_block_reason, company_status, weighted_anomalies,
+    server_surcout_mid,
   } = input;
 
   const wa = weighted_anomalies;
+
+  // V3.3.2 — Source unique pour le wording surcout : si server_surcout_mid est fourni,
+  // on l'utilise plutôt que wa.surcout_total pour garantir la cohérence avec le hero
+  // affiché par ConclusionIA. Fallback sur wa.surcout_total si non fourni.
+  const surcoutForWording = (typeof server_surcout_mid === "number" && server_surcout_mid > 0)
+    ? server_surcout_mid
+    : (wa?.surcout_total ?? 0);
 
   // ── Summary — 1 ligne, toujours présent ──────────────────────────────────────
   // V3.1 : le wording du summary doit toujours être cohérent avec le verdict.
@@ -777,10 +795,10 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
     if (verdict === "signer") {
       if (hasAnomalies) {
         const n = wa?.anomalies_count ?? anomalies_major_count;
-        const surcoutPostes = wa?.surcout_total ?? 0;
+        // V3.3.2 — utilise surcoutForWording (aligné sur le hero) plutôt que wa.surcout_total
         reasons.push(
-          surcoutPostes > 0
-            ? `⚠️ ${n} poste${n > 1 ? "s" : ""} au-dessus du marché — surcoût ${fmtEur(surcoutPostes)} à renégocier`
+          surcoutForWording > 0
+            ? `⚠️ ${n} poste${n > 1 ? "s" : ""} au-dessus du marché — surcoût ~${fmtEur(surcoutForWording)} à renégocier`
             : `⚠️ ${n} poste${n > 1 ? "s" : ""} à vérifier avant signature`
         );
       } else if (overprice_pct < -0.05) {
@@ -793,7 +811,8 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
         // Impact faible : ne pas alarmer avec un gros montant global
         reasons.push(`⚠️ Certains postes présentent des prix élevés — impact sur le total : ${fmtPct(wa.surcout_pct)}`);
       } else if (wa) {
-        reasons.push(`⚠️ Postes trop élevés représentant ${Math.round(wa.poids_anomalies * 100)}% du devis (surcoût estimé : ${fmtEur(wa.surcout_total)})`);
+        // V3.3.2 — surcoût aligné sur le hero (server_surcout_mid si fourni)
+        reasons.push(`⚠️ Postes trop élevés représentant ${Math.round(wa.poids_anomalies * 100)}% du devis (surcoût estimé : ~${fmtEur(surcoutForWording)})`);
       } else {
         reasons.push(
           overprice_pct <= threshold_ok
@@ -803,8 +822,9 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
       }
     } else {
       // refuser — prix fortement dépassé
+      // V3.3.2 — surcoût aligné sur le hero (server_surcout_mid si fourni)
       if (wa) {
-        reasons.push(`🛑 Postes trop élevés représentant ${Math.round(wa.poids_anomalies * 100)}% du devis — surcoût estimé ${fmtEur(wa.surcout_total)}`);
+        reasons.push(`🛑 Postes trop élevés représentant ${Math.round(wa.poids_anomalies * 100)}% du devis — surcoût estimé ~${fmtEur(surcoutForWording)}`);
       } else {
         reasons.push(`🛑 Prix fortement au-dessus du marché — surcoût estimé ${fmtEur(overprice)} (${fmtPct(overprice_pct)})`);
       }

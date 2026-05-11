@@ -116,8 +116,46 @@ export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
   for (const row of analyzable) {
     const price = row.devisTotalHT!;
     const marketMax = row.theoreticalMaxHT;
-    const classification = classifyItem(price, marketMax);
+    let classification = classifyItem(price, marketMax);
     const surcout = price > marketMax ? price - marketMax : 0;
+
+    // V3.3.2 (2026-05-11) — Détection d'anomalies au niveau LIGNE individuelle.
+    //
+    // Avant : seul le total du groupe était comparé au marché. Un groupe avec 37 m²
+    // de carrelage à 2 822€ pouvait être classé "normal" (vs 1702-3478€ marché)
+    // alors qu'une LIGNE individuelle dans le groupe facturait 209€/m² (vs 46-94 attendu).
+    // → contradiction avec le verdict expert qui remonte bien ces anomalies de ligne.
+    //
+    // Désormais : on scanne aussi les devis_lines individuelles. Si une ligne dépasse
+    // >50% son prix unitaire max marché, le groupe est upgradé en "anomalie" (à moins
+    // qu'il ne le soit déjà). Garde stricte pour éviter les faux positifs :
+    //   - line.unit doit matcher mainUnit (ou les deux doivent être en m²)
+    //   - line.quantity > 0
+    //   - line.amountHT > 0
+    if (classification === "normal" || classification === "legerement_eleve") {
+      const mainUnit = row.mainUnit?.toLowerCase().trim() || "";
+      const mainQty  = row.mainQuantity > 0 ? row.mainQuantity : 0;
+      const unitMaxMarket = mainQty > 0 ? marketMax / mainQty : 0;
+
+      if (unitMaxMarket > 0) {
+        const lineAnomalyDetected = row.devisLines.some(line => {
+          const lineUnit = (line.unit || "").toLowerCase().trim();
+          const lineQty  = typeof line.quantity === "number" ? line.quantity : 0;
+          const lineAmt  = typeof line.amountHT === "number" ? line.amountHT : 0;
+          // Unité ligne doit matcher unité groupe (sinon comparaison invalide)
+          const sameUnit = lineUnit === mainUnit
+            || (lineUnit.includes("m²") && mainUnit.includes("m²"))
+            || (lineUnit.includes("m2") && mainUnit.includes("m2"));
+          if (!sameUnit || lineQty <= 0 || lineAmt <= 0) return false;
+          const lineUnitPrice = lineAmt / lineQty;
+          // Seuil : ligne anormale si > 1.5× le prix unitaire max marché
+          return lineUnitPrice > unitMaxMarket * 1.5;
+        });
+        if (lineAnomalyDetected) {
+          classification = "anomalie";
+        }
+      }
+    }
 
     surcoutEstime += surcout;
 
