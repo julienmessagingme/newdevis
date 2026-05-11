@@ -19,7 +19,32 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.2";
+const ENGINE_VERSION = "3.2.1";
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
+// ──────────────────────────────────────────────────────────────────────────────
+// Un surcoût n'est "matériel" (= digne d'escalader le verdict ou de bannir les
+// wordings positifs) que si :
+//   1. son montant absolu dépasse un seuil (sinon "ridicule de renégocier")
+//   2. son poids relatif sur le devis dépasse un seuil (sinon noise statistique)
+//
+// Exemples :
+//   - Devis 48 000 € + surcout 180 €  → 0.4% → NON MATÉRIEL → pas d'escalade
+//   - Devis 48 000 € + surcout 1 500 € → 3.1% → MATÉRIEL → escalade
+//   - Devis 16 000 € + surcout 3 400 € → 21%  → MATÉRIEL → escalade (Kern)
+//   - Devis 100 000 € + surcout 2 000 € → 2%  → NON MATÉRIEL → pas d'escalade
+//
+// Sans cette double garde, on recrée le bug inverse (faux orange sur micro-écarts).
+const MATERIAL_SURCOUT_EUR_THRESHOLD = 1000;   // €
+const MATERIAL_SURCOUT_PCT_THRESHOLD = 0.03;   // 3% du total devis
+
+function isMaterialServerSurcout(surcoutMax: unknown, totalDevis: unknown): boolean {
+  if (typeof surcoutMax !== "number" || surcoutMax <= MATERIAL_SURCOUT_EUR_THRESHOLD) return false;
+  if (typeof totalDevis !== "number" || totalDevis <= 0) return false;
+  const ratio = surcoutMax / totalDevis;
+  return ratio > MATERIAL_SURCOUT_PCT_THRESHOLD;
+}
 
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
@@ -932,11 +957,11 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     while (mergedActions.length < 3) mergedActions.push(DEFAULT_ACTIONS[mergedActions.length % DEFAULT_ACTIONS.length]);
 
     // ── Sanitisation texte LLM — supprime les contradictions avec le verdict ─────
-    // V3.2 : on passe aussi `hasServerSurcout` (vrai si computeServerSurcout > 500€) pour
-    // déclencher le filet anti-"prix attractif" / "bonne affaire" même quand verdict="signer".
-    // Source de vérité = le calcul serveur déterministe, pas la narration LLM.
+    // V3.2.1 : `hasServerSurcout` utilise la triple garde matérielle (montant absolu
+    // > 1 000€ ET poids relatif > 3% du devis) pour éviter de bannir "avantageux"
+    // sur un devis 48k€ avec 180€ de surcoût (faux positif de sanitization).
     const sanitizeVerdict = preEngine.verdict; // "signer" | "a_negocier" | "refuser"
-    const hasServerSurcout = typeof surcoutMax === "number" && surcoutMax > 500;
+    const hasServerSurcout = isMaterialServerSurcout(surcoutMax, totalHT);
 
     const phraseIntro    = sanitizeLLMText(
       typeof parsed.phrase_intro  === "string" ? parsed.phrase_intro.trim()   : "",
@@ -986,34 +1011,29 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     let verdictDecision: ConclusionData["verdict_decisionnel"] = DECISION_MAP[preEngine.verdict] ?? "signer_avec_negociation";
 
     // ──────────────────────────────────────────────────────────────────────────
-    // GARDE DE COHÉRENCE FINALE (V3.2 — 2026-05-11)
+    // GARDE DE COHÉRENCE FINALE (V3.2.1 — 2026-05-11)
     //
     // Source de vérité ultime : `computeServerSurcout` (déterministe).
-    // Si le serveur a détecté un surcoût matériel sur les postes (surcoutMax > 500€)
-    // mais que `preEngine.verdict === "signer"` (parce que `weighted_anomalies`
-    // a raté les anomalies pour une raison quelconque), on ESCALADE automatiquement
-    // en "signer_avec_negociation".
+    // Si le serveur a détecté un surcoût MATÉRIEL (cf. isMaterialServerSurcout :
+    // > 1 000€ ABSOLU ET > 3% du devis RELATIF) mais que preEngine.verdict === "signer"
+    // (parce que `weighted_anomalies` a raté les anomalies), on ESCALADE
+    // automatiquement en "signer_avec_negociation".
     //
-    // Sans cette garde, on a vu le devis Kern Terrassement afficher SIMULTANÉMENT :
-    //   - chiffre "+3 400 € environ payé en trop" (computeServerSurcout)
-    //   - bandeau "Vous pouvez signer" (preEngine.verdict = signer)
-    //   - "Prix attractif sous la moyenne" (generateVerdictReasons)
-    // Triple contradiction inacceptable pour la crédibilité du produit.
+    // ⚠️ La triple garde (absolu + relatif) est CRITIQUE pour éviter le bug inverse :
+    //   - 48 000€ + 180€ surcout → 0.4% → PAS MATÉRIEL → pas d'escalade (verdict reste signer)
+    //   - 16 390€ + 3 400€ surcout → 21% → MATÉRIEL → escalade (cas Kern Terrassement)
     //
-    // Seuil 500€ : aligné sur la matérialité absolue (cohérent avec le seuil
-    // 1 000€ de l'escalade weighted_anomalies, mais plus permissif ici car on
-    // a déjà passé le moteur principal et on veut juste empêcher la contradiction).
+    // Sans ces deux conditions, on créerait un faux orange "à négocier pour 0.4% du devis"
+    // qui briserait à nouveau la crédibilité — exactement le piège inverse de Kern.
     // ──────────────────────────────────────────────────────────────────────────
-    const SEUIL_GARDE_COHERENCE_EUR = 500;
     let coherenceEscalated = false;
-    if (
-      preEngine.verdict === "signer" &&
-      typeof surcoutMax === "number" &&
-      surcoutMax > SEUIL_GARDE_COHERENCE_EUR
-    ) {
+    if (preEngine.verdict === "signer" && isMaterialServerSurcout(surcoutMax, totalHT)) {
+      const ratioPct = typeof totalHT === "number" && totalHT > 0
+        ? Math.round((surcoutMax / totalHT) * 100)
+        : 0;
       console.warn(
         `[conclusion] GARDE COHÉRENCE déclenchée — preEngine="signer" mais computeServerSurcout=` +
-        `${surcoutMin}-${surcoutMax}€ → escalade auto en "signer_avec_negociation".`
+        `${surcoutMin}-${surcoutMax}€ (${ratioPct}% du devis) → escalade auto en "signer_avec_negociation".`
       );
       verdictGlobal   = "a_negocier";
       verdictDecision = "signer_avec_negociation";
@@ -1029,10 +1049,11 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     const defensiveWeightedAnomalies = (() => {
       const wa = preEngine.weighted_anomalies;
       if (!wa) return undefined;
-      const serverDetectedCount = typeof surcoutMax === "number" && surcoutMax > 500
-        ? Math.max(2, wa.anomalies_count)
-        : wa.anomalies_count;
-      const serverDetectedSurcout = typeof surcoutMax === "number" && surcoutMax > 0
+      // V3.2.1 — boost SEULEMENT si surcoût matériel (triple garde).
+      // Évite d'injecter de faux anomalies sur un devis 48k€ avec 180€ d'écart.
+      const isMaterial = isMaterialServerSurcout(surcoutMax, totalHT);
+      const serverDetectedCount = isMaterial ? Math.max(2, wa.anomalies_count) : wa.anomalies_count;
+      const serverDetectedSurcout = isMaterial && typeof surcoutMax === "number" && surcoutMax > 0
         ? Math.max(wa.surcout_total, (surcoutMin + surcoutMax) / 2)
         : wa.surcout_total;
       return { ...wa, anomalies_count: serverDetectedCount, surcout_total: serverDetectedSurcout };
