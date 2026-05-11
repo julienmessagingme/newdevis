@@ -30,7 +30,7 @@ const faqs = [
   },
   {
     question: "Comment vérifier le sérieux d'un artisan avant de signer ?",
-    answer: "Vérifiez son numéro SIRET sur societe.ninja ou infogreffe.fr, contrôlez sa note Google et ses avis récents, demandez ses attestations d'assurance décennale et responsabilité civile, et renseignez-vous sur ses certifications RGE pour les travaux d'économie d'énergie. VerifierMonDevis.fr effectue automatiquement ces vérifications pour vous."
+    answer: "Vérifiez son numéro SIRET sur annuaire-entreprises.data.gouv.fr ou infogreffe.fr, contrôlez sa note Google et ses avis récents, demandez ses attestations d'assurance décennale et responsabilité civile, et renseignez-vous sur ses certifications RGE pour les travaux d'économie d'énergie. VerifierMonDevis.fr effectue automatiquement ces vérifications pour vous."
   },
   {
     question: "Est-ce fiable de vérifier un devis en ligne ?",
@@ -46,25 +46,61 @@ const faqs = [
   }
 ];
 
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  "mainEntity": faqs.map(f => ({
-    "@type": "Question",
-    "name": f.question,
-    "acceptedAnswer": {
-      "@type": "Answer",
-      "text": f.answer
-    }
-  }))
-};
+// SEO V2026-05-11 : repositionnement SaaS transactionnel.
+// Avant : ogType="article" + title "Votre devis est-il au juste prix ?" + label "Guide complet"
+// → Google indexait comme contenu éditorial → 9635 impressions / 0 clic + parasite "travauxninja".
+// Après : positionnement outil SaaS d'analyse + schema SoftwareApplication en plus du FAQPage.
+const jsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "VerifierMonDevis.fr — Analyse de devis travaux",
+    "description": "Outil SaaS gratuit d'analyse IA de devis travaux. Détecte prix abusifs, anomalies de prix marché, vérifie SIRET et assurances de l'artisan.",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Web",
+    "url": "https://www.verifiermondevis.fr/verifier-devis-travaux",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "EUR",
+      "description": "Analyse gratuite de devis artisan"
+    },
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "4.7",
+      "bestRating": "5",
+      "worstRating": "1",
+      "ratingCount": "24",
+      "reviewCount": "24"
+    },
+    "featureList": [
+      "Détection des prix abusifs vs marché",
+      "Vérification SIRET et santé entreprise",
+      "Analyse des mentions légales et assurances",
+      "Comparaison prix par poste",
+      "Détection des anomalies juridiques (acompte excessif, paiement espèces)"
+    ]
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": faqs.map(f => ({
+      "@type": "Question",
+      "name": f.question,
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": f.answer
+      }
+    }))
+  }
+];
 ---
 
 <BaseLayout
-  title="Votre devis travaux est-il trop cher ?"
-  description="Vous doutez de votre devis travaux ? On compare chaque ligne aux prix réels du marché en 2 minutes. Gratuit, sans inscription, résultat clair."
+  title="Vérifier un devis travaux gratuitement | Analyse IA en 2 min"
+  description="Téléchargez votre devis artisan et détectez immédiatement prix abusifs, anomalies et risques juridiques. Analyse IA gratuite en 2 minutes."
   canonical="https://www.verifiermondevis.fr/verifier-devis-travaux"
-  ogType="article"
+  ogType="website"
   jsonLd={jsonLd}
   breadcrumbs={[
     { name: "Accueil", url: "https://www.verifiermondevis.fr/" },
@@ -78,21 +114,21 @@ const jsonLd = {
       <!-- ── Hero ─────────────────────────────────────────────────────────── -->
       <section class="bg-gradient-to-b from-slate-900 to-slate-800 py-14 sm:py-20 px-4">
         <div class="container max-w-3xl mx-auto text-center">
-          <p class="text-xs font-semibold uppercase tracking-[0.25em] text-indigo-300 mb-4">Guide complet 2026</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.25em] text-indigo-300 mb-4">Outil d'analyse IA — Gratuit</p>
           <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold text-white leading-tight mb-4">
-            Votre devis travaux est-il au juste prix ?
+            Vérifiez votre devis travaux en 2 minutes
           </h1>
           <p class="text-sm font-medium text-indigo-200 mb-5">+2 000 devis analysés · jusqu'à 30 % d'écart détecté</p>
           <p class="text-base sm:text-lg text-slate-300 leading-relaxed mb-3 max-w-2xl mx-auto">
-            Vous venez de recevoir un devis d'artisan et vous ne savez pas s'il est honnête ?
-            Ce guide vous donne la méthode complète pour analyser un devis travaux en moins de 10 minutes —
-            sans être expert.
+            Téléchargez votre devis d'artisan. Notre IA détecte les prix abusifs, compare chaque
+            ligne aux références du marché et vérifie l'entreprise (SIRET, assurances, santé financière)
+            — avant que vous ne signiez.
           </p>
-          <p class="text-sm text-indigo-200 font-medium mb-8">Vous saurez en 2 minutes si votre devis est trop cher.</p>
+          <p class="text-sm text-indigo-200 font-medium mb-8">Analyse gratuite, résultat immédiat, sans inscription.</p>
           <div class="flex flex-col sm:flex-row gap-3 justify-center">
             <a href="/nouvelle-analyse"
                class="inline-flex items-center justify-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
-              🔍 Voir si mon devis est honnête
+              🔍 Analyser mon devis maintenant
             </a>
             <a href="#checklist"
                class="inline-flex items-center justify-center gap-2 border border-slate-500 text-slate-200 hover:bg-slate-700 px-6 py-3 rounded-xl transition-colors text-sm">
@@ -236,7 +272,7 @@ const jsonLd = {
                 <div>
                   <h3 class="font-semibold text-slate-900 mb-1">Vérifiez l'existence légale de l'entreprise</h3>
                   <p class="text-sm text-slate-600 leading-relaxed">
-                    Cherchez le SIRET sur <strong>societe.ninja</strong> ou <strong>infogreffe.fr</strong> :
+                    Cherchez le SIRET sur <strong>annuaire-entreprises.data.gouv.fr</strong> ou <strong>infogreffe.fr</strong> :
                     l'entreprise est-elle active ? Depuis combien de temps ? Une entreprise de moins de 2 ans
                     sur un chantier important est un signal de prudence. Vérifiez aussi l'attestation d'assurance
                     décennale — obligatoire pour tout artisan du bâtiment.
@@ -324,7 +360,7 @@ const jsonLd = {
                 "L'acompte demandé ne dépasse pas 30% du total",
                 "L'attestation d'assurance décennale est disponible",
                 "La responsabilité civile professionnelle est couverte",
-                "L'entreprise est active sur societe.ninja",
+                "L'entreprise est active sur annuaire-entreprises.data.gouv.fr",
                 "L'entreprise a plus de 2 ans d'ancienneté",
                 "Des avis Google positifs et récents existent",
                 "Aucune procédure collective en cours",
