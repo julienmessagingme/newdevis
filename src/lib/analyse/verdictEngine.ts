@@ -271,7 +271,23 @@ export function computeVerdict(input: VerdictInput): VerdictResult {
     // sortaient en "signer" parce que le poids cumulé restait sous le seuil).
     // Seuils également abaissés (10/30% au lieu de 20/50%) — un poids de 30%
     // = un tiers du devis surfacturé, c'est déjà sévère.
-    const { poids_anomalies, surcout_pct, anomalies_count } = input.weighted_anomalies;
+    const { poids_anomalies, surcout_pct, anomalies_count, surcout_total } = input.weighted_anomalies;
+
+    // ── CAS 2bis — escalade "multiples anomalies" avec triple garde anti-faux-positifs ──
+    // Une anomalie n'a de sens que si elle est matérielle :
+    //   - en NOMBRE : au moins 2 postes problématiques (pas 1 isolé)
+    //   - en VALEUR ABSOLUE : surcoût > 1 000 € (sinon ça ne vaut pas la peine de renégocier)
+    //   - en PROPORTION : poids > 5% du devis (matérialité relative)
+    //
+    // Sans ces garde-fous, on aurait un faux positif sur un devis 50 000 € avec
+    // 2 petits postes à +50 € chacun (surcout total 100 € < 1000 €) : déclencher
+    // "à négocier" dans ce cas serait absurde et briserait la crédibilité.
+    const SEUIL_SURCOUT_ABSOLU = 1000;   // €
+    const SEUIL_POIDS_MIN = 0.05;        // 5% du devis
+    const isMaterialMultipleAnomalies =
+      anomalies_count >= 2 &&
+      surcout_total > SEUIL_SURCOUT_ABSOLU &&
+      poids_anomalies > SEUIL_POIDS_MIN;
 
     if (poids_anomalies >= 0.30) {
       // CAS 3 — anomalies fortes (≥ 30% du total) : trop cher
@@ -279,18 +295,18 @@ export function computeVerdict(input: VerdictInput): VerdictResult {
     } else if (poids_anomalies >= 0.10) {
       // CAS 2 — anomalies modérées (10-30% du total) : à négocier
       price_verdict = "a_negocier";
-    } else if (anomalies_count >= 2) {
-      // CAS 2bis — multiples anomalies même si poids cumulé faible : à négocier
-      // Évite qu'on dise "signer" alors que 2+ postes sont anormalement chers
-      // (vrai pour les devis avec gros postes corrects et plusieurs petits surévalués)
+    } else if (isMaterialMultipleAnomalies) {
+      // CAS 2bis — multiples anomalies matérielles (≥2 postes, surcoût > 1k€, ≥5% du devis)
+      // Évite qu'on dise "signer" sur un devis style Kern (3 carrelages à 3-16× le marché
+      // avec poids cumulé sub-10% mais surcoût total significatif).
       price_verdict = "a_negocier";
     } else {
-      // CAS 1 — anomalie isolée et faible : devis globalement OK
+      // CAS 1 — anomalie isolée, ou multiples anomalies non matérielles : devis OK
       price_verdict = "signer";
     }
 
-    // Log debug (utile en cas de litige)
-    console.log(`[verdictEngine V3.1] poids_anomalies=${Math.round(poids_anomalies * 100)}% | surcout_pct=${Math.round(surcout_pct * 100)}% | impact=${input.weighted_anomalies.impact_anomalies} | anomalies_count=${anomalies_count}/${input.weighted_anomalies.total_analyzed} | price_verdict=${price_verdict}`);
+    // Log debug (utile en cas de litige) — inclut les valeurs de la triple garde
+    console.log(`[verdictEngine V3.1] poids=${Math.round(poids_anomalies * 100)}% | surcout_pct=${Math.round(surcout_pct * 100)}% | surcout_total=${Math.round(surcout_total)}€ | anomalies=${anomalies_count}/${input.weighted_anomalies.total_analyzed} | material_multi=${isMaterialMultipleAnomalies} | verdict=${price_verdict}`);
   } else {
     // ── Legacy (sans données pondérées) — backward compat ────────────────────
     if (overprice_pct <= threshold_ok && anomalies_major_count === 0) {
