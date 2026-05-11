@@ -767,7 +767,12 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
     // (gros sur-prix carrelage + bonne affaire terrassement) n'est PAS "attractif" : il est
     // mal ventilé. Sans cette garde, on a vu Kern Terrassement sortir
     // "+5 900€ trop cher" + "Prix attractif sous la moyenne" sur la même page.
-    const hasAnomalies = (wa?.anomalies_count ?? anomalies_major_count) > 0;
+    //
+    // V3.2 (2026-05-11) : on prend le MAX des deux signaux (wa et legacy) au lieu d'un ?? :
+    // - wa.anomalies_count peut renvoyer 0 si la fonction `computeWeightedAnomalies` filtre
+    //   les postes (forfaits, mismatch unité…) alors que `anomalies_major_count` les compte.
+    // - L'inverse est aussi possible. On veut le signal le plus défensif → MAX.
+    const hasAnomalies = Math.max(wa?.anomalies_count ?? 0, anomalies_major_count) > 0;
 
     if (verdict === "signer") {
       if (hasAnomalies) {
@@ -812,7 +817,8 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
     // Note : si des anomalies existent, on a DÉJÀ ajouté une alerte dans la section Prix ci-dessus
     // (via la garde stricte). On ne réécrit pas un message pédagogique séparé qui pourrait
     // adoucir l'alerte précédente.
-    const hasAnomaliesHere = (wa?.anomalies_count ?? anomalies_major_count) > 0;
+    // V3.2 — même garde que section Prix : MAX des 2 signaux (cf. commentaire ci-dessus)
+    const hasAnomaliesHere = Math.max(wa?.anomalies_count ?? 0, anomalies_major_count) > 0;
     if (!hasAnomaliesHere) {
       reasons.push("✅ Aucun écart significatif détecté sur les postes");
     }

@@ -17,6 +17,10 @@ import type { APIRoute } from "astro";
 import { createClient } from "@supabase/supabase-js";
 import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
+// Version du moteur de scoring — incrémenter à chaque changement de logique pour
+// invalider automatiquement le cache `conclusion_ia` des analyses existantes.
+const ENGINE_VERSION = "3.2";
+
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
@@ -162,31 +166,81 @@ function computeServerSurcout(priceData: unknown[]): { min: number; max: number 
  * Supprime les formulations contradictoires avec le verdict dans les textes générés par Gemini.
  * Appelé AVANT toute persistance ou affichage.
  *
- * Règle : si le verdict n'est pas "signer", les termes validants sont interdits.
+ * V3.2 (2026-05-11) — Sanitization en 2 niveaux :
+ * - ALWAYS_FORBIDDEN : phrases bannies QUEL QUE SOIT le verdict, parce qu'elles ont
+ *   systématiquement créé des contradictions à l'écran (ex: "prix attractif sous la
+ *   moyenne" sur un devis avec +5 000 € détectés en surcoût postes).
+ * - CONDITIONAL_FORBIDDEN : phrases bannies seulement si verdict ≠ signer.
+ *
+ * Cette double protection sert de filet de sécurité ultime — même si le LLM contourne
+ * les règles du prompt, on neutralise les contradictions avant persistance.
  */
-function sanitizeLLMText(text: string, verdict: "signer" | "a_negocier" | "refuser"): string {
-  if (!text || verdict === "signer") return text;
-
-  // Termes interdits quand verdict ≠ signer (ordre : du plus spécifique au plus générique)
-  const FORBIDDEN: Array<[RegExp, string]> = [
-    [/vous pouvez (signer|procéder|valider)/gi,  "vous pouvez négocier ce devis"],
-    [/\bbon devis\b/gi,                           "devis à vérifier"],
-    [/\bdevis (est |semble |paraît )?(correct|acceptable|conforme|cohérent)\b/gi,
-                                                  "devis présente des écarts"],
-    [/\bprix (est |semble |paraît )?(correct|acceptable|conforme|cohérent|dans la norme)\b/gi,
-                                                  "prix présente des écarts"],
-    [/\b(est |semble |paraît )(correct|acceptable|conforme|cohérent)\b/gi,
-                                                  "présente des écarts"],
-    [/\bprix (est |reste )?(justifié|raisonnable|normal)\b/gi,
-                                                  "prix est à négocier"],
-    [/\bpas d['']anomalie\b/gi,                   "des points à vérifier"],
-    [/\baucune anomalie\b/gi,                     "des points à vérifier"],
-  ];
+function sanitizeLLMText(
+  text: string,
+  verdict: "signer" | "a_negocier" | "refuser",
+  hasServerSurcout: boolean = false,
+): string {
+  if (!text) return text;
 
   let result = text;
-  for (const [pattern, replacement] of FORBIDDEN) {
+
+  // ── Niveau 1 — toujours interdit (anti-hallucination universelle) ────────────
+  // Ces termes sont systématiquement source de contradiction à l'écran.
+  // Bug Kern Terrassement : "Prix attractif — 6 k€ sous la moyenne" affiché alors que
+  // computeServerSurcout retournait +3 400 € sur les postes. Impossible.
+  const ALWAYS_FORBIDDEN: Array<[RegExp, string]> = [
+    [/\bprix attractif[fs]?\b/gi,                           "prix à examiner poste par poste"],
+    [/\b(très )?bon (rapport )?qualité[- ]?prix\b/gi,       "ratio à vérifier"],
+    [/\bdevis (compétitif|attractif)\b/gi,                  "devis à examiner"],
+    [/\bsous la moyenne du marché\b/gi,                     "à comparer poste par poste"],
+    [/\binférieur au marché( global)?\b/gi,                 "à examiner poste par poste"],
+    [/\bglobalement cohérent[es]? (avec |au )?(le |la )?marché\b/gi,
+                                                            "à examiner poste par poste"],
+    [/\bglobalement conforme[s]? (avec |au )?(le |la )?marché\b/gi,
+                                                            "à examiner poste par poste"],
+    [/\bdans la norme du marché\b/gi,                       "à comparer poste par poste"],
+    [/\bcohérent[es]? avec les prix du marché\b/gi,         "à examiner poste par poste"],
+  ];
+
+  for (const [pattern, replacement] of ALWAYS_FORBIDDEN) {
     result = result.replace(pattern, replacement);
   }
+
+  // ── Niveau 2 — interdit seulement si verdict ≠ signer ────────────────────────
+  if (verdict !== "signer") {
+    const CONDITIONAL_FORBIDDEN: Array<[RegExp, string]> = [
+      [/vous pouvez (signer|procéder|valider)/gi,  "vous pouvez négocier ce devis"],
+      [/\bbon devis\b/gi,                           "devis à vérifier"],
+      [/\bdevis (est |semble |paraît )?(correct|acceptable|conforme|cohérent)\b/gi,
+                                                    "devis présente des écarts"],
+      [/\bprix (est |semble |paraît )?(correct|acceptable|conforme|cohérent|dans la norme)\b/gi,
+                                                    "prix présente des écarts"],
+      [/\b(est |semble |paraît )(correct|acceptable|conforme|cohérent)\b/gi,
+                                                    "présente des écarts"],
+      [/\bprix (est |reste )?(justifié|raisonnable|normal)\b/gi,
+                                                    "prix est à négocier"],
+      [/\bpas d['']anomalie\b/gi,                   "des points à vérifier"],
+      [/\baucune anomalie\b/gi,                     "des points à vérifier"],
+    ];
+
+    for (const [pattern, replacement] of CONDITIONAL_FORBIDDEN) {
+      result = result.replace(pattern, replacement);
+    }
+  }
+
+  // ── Niveau 3 — anti-hallucination "prix bas" si le serveur a détecté un surcoût ─
+  // Si computeServerSurcout > 0, le LLM ne peut JAMAIS dire que le prix est avantageux.
+  if (hasServerSurcout) {
+    const POSITIVE_PRICE_TERMS: Array<[RegExp, string]> = [
+      [/\b(prix )?avantageux\b/gi,                          "prix à examiner"],
+      [/\bbonne affaire\b/gi,                               "devis à examiner"],
+      [/\beconom[a-z]+ par rapport au marché\b/gi,          "à examiner par rapport au marché"],
+    ];
+    for (const [pattern, replacement] of POSITIVE_PRICE_TERMS) {
+      result = result.replace(pattern, replacement);
+    }
+  }
+
   return result;
 }
 
@@ -399,11 +453,15 @@ export const POST: APIRoute = async ({ params, request }) => {
   if (!forceRegen && analysis.conclusion_ia) {
     try {
       const cached: ConclusionData = JSON.parse(analysis.conclusion_ia);
-      // Valide que c'est bien une ConclusionData v2 (avec les nouveaux champs)
-      if (cached.phrase_intro && cached.verdict_global && cached.verdict_decisionnel) {
+      // V3.2 — invalidation automatique si engine_version désuète.
+      // Ainsi, dès qu'on déploie une version corrigée du moteur, toutes les analyses
+      // existantes sont régénérées à la prochaine visite sans intervention utilisateur.
+      const cachedVersion = (cached as any).engine_version as string | undefined;
+      if (cached.phrase_intro && cached.verdict_global && cached.verdict_decisionnel && cachedVersion === ENGINE_VERSION) {
         return jsonOk({ conclusion: cached, cached: true });
       }
-      // Ancienne version sans verdict_decisionnel → régénère automatiquement
+      console.log(`[conclusion] cache invalidé — version cachée=${cachedVersion ?? "(absente)"} attendue=${ENGINE_VERSION}`);
+      // Sinon : régénère automatiquement avec le moteur courant
     } catch {
       // JSON corrompu → régénère
     }
@@ -570,11 +628,18 @@ RÈGLES ABSOLUES (ne pas déroger):
 3. Si verdict_decisionnel="ne_pas_signer" → INTERDIT d'écrire des phrases comme "vous pouvez signer", "le devis est acceptable", "le prix est cohérent", "prix attractif", "bon rapport qualité-prix", "devis compétitif". Le prix peut être bas ET le verdict refuser (ex: entreprise en cessation) — ne jamais valoriser le prix dans ce cas.
 4. Si verdict_decisionnel="signer" → INTERDIT de recommander de "négocier le prix" ou de "demander une réduction".
 5. Si verdict_decisionnel="signer_avec_negociation" → INTERDIT d'écrire "vous pouvez signer en confiance" ou "aucune anomalie". Il y a au moins un poste trop élevé.
-6. Ton rôle : EXPLIQUER et JUSTIFIER ce verdict factuel, pas le recalculer.${wa?.impact_anomalies === "faible" ? `
-7. IMPACT ANOMALIES FAIBLE (${Math.round((wa?.poids_anomalies ?? 0) * 100)}% du total) — RÈGLES DE WORDING OBLIGATOIRES :
-   - INTERDIT : "surcoût massif", "devis très au-dessus du marché", tout montant global en k€ présenté comme alarmant
-   - OBLIGATOIRE dans phrase_intro : "Devis globalement cohérent avec le marché"
-   - OBLIGATOIRE : mentionner les postes élevés comme négociation locale, pas comme rejet global` : ""}`;
+6. Ton rôle : EXPLIQUER et JUSTIFIER ce verdict factuel, pas le recalculer.
+7. INTERDIT ABSOLU dans TOUS les champs textuels (phrase_intro, justifications, actions) :
+   - "prix attractif", "prix attractive", "très bon prix", "excellent prix"
+   - "sous la moyenne du marché", "inférieur au marché global", "devis compétitif"
+   - "globalement cohérent", "globalement conforme", "dans la norme du marché"
+   Ces wordings créent des contradictions avec le surcoût détecté poste par poste.
+   Même si le total cumulé est sous la moyenne marché (compensation entre postes),
+   tu dois nommer les postes problématiques au lieu de présenter le devis comme attractif.${wa?.impact_anomalies === "faible" ? `
+8. IMPACT ANOMALIES FAIBLE (${Math.round((wa?.poids_anomalies ?? 0) * 100)}% du total) — RÈGLES DE WORDING :
+   - INTERDIT : "surcoût massif", "devis très au-dessus du marché"
+   - OBLIGATOIRE : mentionner les postes élevés comme négociation locale, pas comme rejet global
+   - phrase_intro doit rester factuelle (montant + ville + type) sans qualificatif positif global` : ""}`;
 
   // Si hard block (company_status ou flags), ne pas contextualiser le prix comme "attractif"
   const pricePositionLabel = (() => {
@@ -835,16 +900,27 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       : [];
 
     // Détection mismatch surface/unité — injecte une action spécifique si pertinent
+    // V3.2 : déduplication par job_type_label (avant : Kern Terrassement produisait
+    // 3 fois la même action quasi-identique "Demandez la surface… < 8 m² > 12 m²").
     const surfaceMismatchGroups = Array.isArray(priceData)
       ? (priceData as Record<string, any>[]).filter(
           g => g && typeof g === "object" && g.job_type_label !== "Autre" && hasSurfaceUnitMismatch(g)
         )
       : [];
-    const surfaceActions: string[] = surfaceMismatchGroups.map(g => {
+    // Dédupliquer par job_type_label (un seul message par type de poste, max 2 messages au total)
+    const seenLabels = new Set<string>();
+    const surfaceActions: string[] = [];
+    for (const g of surfaceMismatchGroups) {
       const posteName = (g.job_type_label as string) || "ce poste";
-      const unitUsed  = (g.main_unit as string) || "U";
-      return `Demandez la surface exacte en m² pour "${posteName}" — facturé en ${unitUsed} sans surface précisée, impossible de comparer au marché. Si < 8 m² le prix est élevé, négociez ; si > 12 m² le prix est cohérent.`;
-    });
+      const normalizedLabel = posteName.toLowerCase().trim();
+      if (seenLabels.has(normalizedLabel)) continue;
+      seenLabels.add(normalizedLabel);
+      const unitUsed = (g.main_unit as string) || "U";
+      surfaceActions.push(
+        `Demandez la surface exacte en m² pour "${posteName}" — facturé en ${unitUsed} sans surface précisée, impossible de comparer au marché. Si < 8 m² le prix est élevé, négociez ; si > 12 m² le prix est cohérent.`
+      );
+      if (surfaceActions.length >= 2) break; // max 2 actions surface différentes
+    }
 
     // Merge : actions surface en tête, puis Gemini, puis défauts
     const mergedActions: string[] = [...surfaceActions, ...geminiActions];
@@ -856,22 +932,28 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     while (mergedActions.length < 3) mergedActions.push(DEFAULT_ACTIONS[mergedActions.length % DEFAULT_ACTIONS.length]);
 
     // ── Sanitisation texte LLM — supprime les contradictions avec le verdict ─────
-    // Appliqué avant toute persistance ou affichage.
+    // V3.2 : on passe aussi `hasServerSurcout` (vrai si computeServerSurcout > 500€) pour
+    // déclencher le filet anti-"prix attractif" / "bonne affaire" même quand verdict="signer".
+    // Source de vérité = le calcul serveur déterministe, pas la narration LLM.
     const sanitizeVerdict = preEngine.verdict; // "signer" | "a_negocier" | "refuser"
+    const hasServerSurcout = typeof surcoutMax === "number" && surcoutMax > 500;
+
     const phraseIntro    = sanitizeLLMText(
       typeof parsed.phrase_intro  === "string" ? parsed.phrase_intro.trim()   : "",
       sanitizeVerdict,
+      hasServerSurcout,
     );
     const justifications = sanitizeLLMText(
       typeof parsed.justifications === "string" ? parsed.justifications.trim() : "",
       sanitizeVerdict,
+      hasServerSurcout,
     );
     // Sanitise les explications des anomalies
     sanitizedAnomalies.forEach(a => {
-      if (a.explication) a.explication = sanitizeLLMText(a.explication, sanitizeVerdict);
+      if (a.explication) a.explication = sanitizeLLMText(a.explication, sanitizeVerdict, hasServerSurcout);
     });
     // Sanitise les actions (évite "vous pouvez signer" dans les actions quand verdict ≠ signer)
-    const rawActions = mergedActions.slice(0, 3).map(a => sanitizeLLMText(a, sanitizeVerdict));
+    const rawActions = mergedActions.slice(0, 3).map(a => sanitizeLLMText(a, sanitizeVerdict, hasServerSurcout));
 
     // ── Note contextuelle marché (seuils adaptatifs UX) ──────────────────────────
     // Affichée dans ConclusionIA quand le moteur a assoupli les seuils.
@@ -885,21 +967,6 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     const market_context_note = marketContextParts.length > 0
       ? marketContextParts.join(" · ")
       : undefined;
-
-    // ── Raisons du verdict (section "Pourquoi ce verdict ?") ─────────────────────
-    const verdict_reasons = generateVerdictReasons({
-      verdict:               preEngine.verdict,
-      overprice:             preEngine.overprice,
-      overprice_pct:         preEngine.overprice_pct,
-      anomalies_major_count: preMajorAnomalies,
-      company_risk:          preRisk,
-      flags:                 preFlags,
-      has_market_data:       preEngine.has_market_data,
-      market_dispersion_pct: preEngine.market_dispersion_pct,
-      chantier_complexity:   preEngine.chantier_complexity,
-      threshold_ok:          preEngine.threshold_ok,
-      weighted_anomalies:    preEngine.weighted_anomalies,
-    });
 
     // ── Verdict déterministe — appliqué depuis preEngine (calculé avant Gemini) ──
     // Le LLM génère uniquement les explications textuelles.
@@ -918,6 +985,78 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     let verdictGlobal: ConclusionData["verdict_global"]        = GLOBAL_MAP[preEngine.verdict]   ?? "a_negocier";
     let verdictDecision: ConclusionData["verdict_decisionnel"] = DECISION_MAP[preEngine.verdict] ?? "signer_avec_negociation";
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // GARDE DE COHÉRENCE FINALE (V3.2 — 2026-05-11)
+    //
+    // Source de vérité ultime : `computeServerSurcout` (déterministe).
+    // Si le serveur a détecté un surcoût matériel sur les postes (surcoutMax > 500€)
+    // mais que `preEngine.verdict === "signer"` (parce que `weighted_anomalies`
+    // a raté les anomalies pour une raison quelconque), on ESCALADE automatiquement
+    // en "signer_avec_negociation".
+    //
+    // Sans cette garde, on a vu le devis Kern Terrassement afficher SIMULTANÉMENT :
+    //   - chiffre "+3 400 € environ payé en trop" (computeServerSurcout)
+    //   - bandeau "Vous pouvez signer" (preEngine.verdict = signer)
+    //   - "Prix attractif sous la moyenne" (generateVerdictReasons)
+    // Triple contradiction inacceptable pour la crédibilité du produit.
+    //
+    // Seuil 500€ : aligné sur la matérialité absolue (cohérent avec le seuil
+    // 1 000€ de l'escalade weighted_anomalies, mais plus permissif ici car on
+    // a déjà passé le moteur principal et on veut juste empêcher la contradiction).
+    // ──────────────────────────────────────────────────────────────────────────
+    const SEUIL_GARDE_COHERENCE_EUR = 500;
+    let coherenceEscalated = false;
+    if (
+      preEngine.verdict === "signer" &&
+      typeof surcoutMax === "number" &&
+      surcoutMax > SEUIL_GARDE_COHERENCE_EUR
+    ) {
+      console.warn(
+        `[conclusion] GARDE COHÉRENCE déclenchée — preEngine="signer" mais computeServerSurcout=` +
+        `${surcoutMin}-${surcoutMax}€ → escalade auto en "signer_avec_negociation".`
+      );
+      verdictGlobal   = "a_negocier";
+      verdictDecision = "signer_avec_negociation";
+      coherenceEscalated = true;
+    }
+
+    // ── Raisons du verdict (section "Pourquoi ce verdict ?") ─────────────────────
+    // V3.2 — utilise le verdict FINAL (après garde escalade) pour générer des
+    // raisons cohérentes avec le bandeau affiché. Le `weighted_anomalies` est aussi
+    // "défensif" : si computeServerSurcout a vu un vrai surcoût mais que le moteur
+    // a sous-estimé les anomalies, on injecte les chiffres serveur ici pour que
+    // generateVerdictReasons NE PUISSE PAS sortir "Aucun écart significatif".
+    const defensiveWeightedAnomalies = (() => {
+      const wa = preEngine.weighted_anomalies;
+      if (!wa) return undefined;
+      const serverDetectedCount = typeof surcoutMax === "number" && surcoutMax > 500
+        ? Math.max(2, wa.anomalies_count)
+        : wa.anomalies_count;
+      const serverDetectedSurcout = typeof surcoutMax === "number" && surcoutMax > 0
+        ? Math.max(wa.surcout_total, (surcoutMin + surcoutMax) / 2)
+        : wa.surcout_total;
+      return { ...wa, anomalies_count: serverDetectedCount, surcout_total: serverDetectedSurcout };
+    })();
+
+    const finalVerdictForReasons: "signer" | "a_negocier" | "refuser" =
+      verdictDecision === "ne_pas_signer" ? "refuser"
+      : verdictDecision === "signer_avec_negociation" ? "a_negocier"
+      : "signer";
+
+    const verdict_reasons = generateVerdictReasons({
+      verdict:               finalVerdictForReasons,
+      overprice:             preEngine.overprice,
+      overprice_pct:         preEngine.overprice_pct,
+      anomalies_major_count: hasServerSurcout ? Math.max(2, preMajorAnomalies) : preMajorAnomalies,
+      company_risk:          preRisk,
+      flags:                 preFlags,
+      has_market_data:       preEngine.has_market_data,
+      market_dispersion_pct: preEngine.market_dispersion_pct,
+      chantier_complexity:   preEngine.chantier_complexity,
+      threshold_ok:          preEngine.threshold_ok,
+      weighted_anomalies:    defensiveWeightedAnomalies,
+    });
+
     // ── Cohérence forcée : niveau_risque DOIT correspondre à verdict_global ──
     const RISQUE_FORCED: Record<string, "faible" | "modéré" | "élevé"> = {
       dans_la_norme:  "faible",
@@ -932,7 +1071,7 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       phrase_intro:            phraseIntro,
       anomalies:               sanitizedAnomalies,
       justifications,
-      has_anomalies:           sanitizedAnomalies.length > 0,
+      has_anomalies:           sanitizedAnomalies.length > 0 || hasServerSurcout,
       verdict_decisionnel:     verdictDecision as "signer" | "signer_avec_negociation" | "ne_pas_signer",
       surcout_global:          { min: surcoutMin, max: surcoutMax },
       niveau_risque:           niveauRisque,
@@ -940,7 +1079,11 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       verdict_reasons,
       ...(market_context_note     ? { market_context_note } : {}),
       generated_at:            new Date().toISOString(),
-    };
+      // V3.2 — version du moteur, permet l'invalidation automatique du cache lors d'un futur fix.
+      engine_version:          ENGINE_VERSION,
+      // Trace si la garde de cohérence a été déclenchée (utile pour debug / monitoring)
+      ...(coherenceEscalated ? { coherence_escalated: true } : {}),
+    } as ConclusionData & { engine_version: string; coherence_escalated?: boolean };
 
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erreur inconnue";
