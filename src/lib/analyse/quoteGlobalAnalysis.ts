@@ -1,4 +1,28 @@
 import type { JobTypeDisplayRow } from "@/hooks/useMarketPriceAPI";
+import { isLikelyHeterogeneousGroup, type HomogeneityGroupInput } from "@/lib/analyse/groupHomogeneity";
+
+/**
+ * Adapte un `JobTypeDisplayRow` (format client) vers `HomogeneityGroupInput`
+ * pour pouvoir réutiliser le module partagé `groupHomogeneity.ts` qui attend
+ * un format compatible avec le serveur. Le mapping est trivial — les noms de
+ * champs sont identiques sauf `mainQuantity` ↔ `main_quantity`.
+ */
+function rowToHomogeneityInput(row: JobTypeDisplayRow): HomogeneityGroupInput {
+  return {
+    job_type_label: row.jobTypeLabel,
+    main_quantity:  row.mainQuantity,
+    devis_total_ht: row.devisTotalHT ?? 0,
+    devis_lines:    row.devisLines.map(l => ({
+      description: l.description,
+      amount_ht:   typeof l.amountHT === "number" ? l.amountHT : undefined,
+    })),
+    prices: row.prices.map(p => ({
+      price_max_unit_ht: typeof (p as { price_max_unit_ht?: number }).price_max_unit_ht === "number"
+        ? (p as { price_max_unit_ht: number }).price_max_unit_ht
+        : undefined,
+    })),
+  };
+}
 
 // ============================================================
 // TYPES
@@ -120,46 +144,28 @@ export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
     const surcout = price > marketMax ? price - marketMax : 0;
 
     // ──────────────────────────────────────────────────────────────────────
-    // V3.3.4 Niveau 1 (2026-05-11) — Garde-fou groupes hétérogènes.
+    // V3.4 Niveaux 1+2 — Garde-fou groupes hétérogènes via module partagé.
     //
-    // Si un groupe a un prix unitaire calculé > 2× le max marché unitaire ET
-    // contient ≥ 3 lignes, il est très probablement mal regroupé par Gemini
-    // (chape + primaire + dalle + acier dans un seul "Carrelage"). Le prix
-    // unitaire calculé est aberrant et n'a pas de sens face à la fourchette
-    // marché du poste vraiment dominant.
+    // Si un groupe est probablement mal regroupé par Gemini (chape + primaire +
+    // dalle + acier dans un seul "Carrelage"), le prix unitaire calculé est
+    // aberrant. Dans ce cas, on REFUSE de classer en anomalie ou survalue —
+    // le KPI doit être prudent (faux positif > faux négatif côté crédibilité).
     //
-    // Dans ce cas, on REFUSE de classer en anomalie ou survalue. Le KPI doit
-    // être prudent : faux positif > faux négatif côté crédibilité du produit.
+    // La détection combine :
+    //   - Niveau 2 : scoring sémantique sur les descriptions des lignes (prioritaire)
+    //   - Niveau 1 : critère ratio prix unitaire > 2× max marché (fallback)
+    // Voir `src/lib/analyse/groupHomogeneity.ts` pour le détail de l'algorithme.
     // ──────────────────────────────────────────────────────────────────────
-    if (classification === "anomalie" || classification === "survalue") {
-      const mainQty = row.mainQuantity > 0 ? row.mainQuantity : 0;
-      const unitMaxMarket = mainQty > 0 ? marketMax / mainQty : 0;
-      const unitDevis = mainQty > 0 ? price / mainQty : 0;
-      if (
-        row.devisLines.length >= 3 &&
-        unitMaxMarket > 0 &&
-        unitDevis > unitMaxMarket * 2
-      ) {
-        // Downgrade à "legerement_eleve" — le groupe contient probablement
-        // des lignes étrangères au type de poste. Le wording UI passe en
-        // "Comparaison indicative" plutôt qu'"Anomalie marché".
-        classification = "legerement_eleve";
-      }
+    const isHeterogeneous = isLikelyHeterogeneousGroup(rowToHomogeneityInput(row));
+    if (isHeterogeneous && (classification === "anomalie" || classification === "survalue")) {
+      // Downgrade à "legerement_eleve" — le wording UI passe en "Comparaison
+      // indicative" plutôt qu'"Anomalie marché".
+      classification = "legerement_eleve";
     }
 
-    // Variable partagée : si on a déjà downgradé en "legerement_eleve" via le
-    // garde-fou hétérogénéité V3.3.4, on NE doit PAS re-promouvoir en "anomalie"
-    // via la détection ligne par ligne V3.3.2 — la comparaison serait fausse pour
-    // la même raison (groupe contient des lignes hétérogènes).
-    const wasDowngradedHeterogeneous = (() => {
-      // Détection à nouveau (pour éviter dépendre d'une variable booléenne flottante)
-      const mainQty = row.mainQuantity > 0 ? row.mainQuantity : 0;
-      const unitMaxMarket = mainQty > 0 ? marketMax / mainQty : 0;
-      const unitDevis = mainQty > 0 ? price / mainQty : 0;
-      return row.devisLines.length >= 3
-        && unitMaxMarket > 0
-        && unitDevis > unitMaxMarket * 2;
-    })();
+    // Si groupe hétérogène, la détection d'anomalies par LIGNE (V3.3.2) ne doit
+    // pas non plus s'appliquer — la comparaison serait fausse pour la même raison.
+    const wasDowngradedHeterogeneous = isHeterogeneous;
 
     // V3.3.2 (2026-05-11) — Détection d'anomalies au niveau LIGNE individuelle.
     //

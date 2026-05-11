@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.3.4";
+const ENGINE_VERSION = "3.4";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -353,92 +353,16 @@ function sanitizeLLMText(
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Détection des groupes probablement hétérogènes (V3.3.4 — Niveau 1)
+// Détection des groupes hétérogènes (V3.4 — Niveaux 1 + 2 combinés)
+//
+// Logique extraite dans le module partagé `src/lib/analyse/groupHomogeneity.ts`
+// pour être réutilisée côté client (quoteGlobalAnalysis.ts). Voir ce module pour
+// la documentation détaillée de l'algorithme et du référentiel mots-clés.
 // ──────────────────────────────────────────────────────────────────────────────
-//
-// Problème observé sur Kern Terrassement : Gemini regroupe parfois des lignes
-// hétérogènes sous un même `job_type_label`. Exemple : groupe "Carrelage
-// (fourni+posé)" 13.5 m² Devis 4 422€ contient en réalité :
-//   - Chape ciment        500€   (NON carrelage)
-//   - Primaire accrochage 162€   (NON carrelage)
-//   - Dalle céramique    2160€   (carrelage)
-//   - Coupe dalles       1000€   (carrelage)
-//   - Mise en place ip14  600€   (acier de structure, NON carrelage)
-//
-// Le prix unitaire calculé (4422/13.5 = 327 €/m²) est ABERRANT et n'a pas de sens
-// face à la fourchette marché du carrelage seul (46-94 €/m²). Notre système accusait
-// à tort l'artisan d'une surfacturation × 3.5 alors qu'en réalité la ligne carrelage
-// pure est à 160 €/m² (haut de gamme dans la norme).
-//
-// HEURISTIQUE NIVEAU 1 (cette fonction) : signal binaire défensif.
-// HEURISTIQUE NIVEAU 2 (TODO `groupHomogeneityScore` ci-dessous) : score continu.
-// HEURISTIQUE NIVEAU 3 (TODO docs) : refonte du prompt Gemini de groupement.
-//
-// Effet quand vrai : on instruit le LLM de ne PAS lister ce groupe comme anomalie
-// dans le verdict expert. La comparaison de prix unitaire reste affichée pour
-// transparence, mais avec un wording "indicatif" plutôt qu'"anormal".
 
-function isLikelyHeterogeneousGroup(g: Record<string, any>): boolean {
-  const lines: any[] = g.devis_lines || [];
-  // Au moins 3 lignes : un groupe à 1-2 lignes est rarement mal regroupé
-  if (lines.length < 3) return false;
+import { isLikelyHeterogeneousGroup } from "@/lib/analyse/groupHomogeneity";
 
-  // Calculer prix unitaire devis vs max marché unitaire
-  const mainQty = typeof g.main_quantity === "number" && g.main_quantity > 0 ? g.main_quantity : 0;
-  const devisTotal = typeof g.devis_total_ht === "number" ? g.devis_total_ht : 0;
-  if (mainQty <= 0 || devisTotal <= 0) return false;
-
-  const prices: any[] = Array.isArray(g.prices) ? g.prices : [];
-  if (prices.length === 0) return false;
-
-  // max marché unitaire (somme des price_max_unit_ht des entrées catalogue)
-  let unitMaxMarket = 0;
-  for (const p of prices) {
-    if (!p || typeof p !== "object") continue;
-    const pr = p as Record<string, unknown>;
-    unitMaxMarket += (typeof pr.price_max_unit_ht === "number" ? pr.price_max_unit_ht : 0);
-  }
-  if (unitMaxMarket <= 0) return false;
-
-  const unitDevis = devisTotal / mainQty;
-
-  // Seuil : si le prix unitaire calculé > 2× le max marché unitaire, c'est très
-  // probable que le groupe contient des lignes étrangères au type de poste.
-  // Un VRAI dépassement de 2x sur un groupe homogène est extrêmement rare en BTP.
-  return unitDevis > unitMaxMarket * 2;
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// TODO Niveau 2 — Scoring d'hétérogénéité par analyse des descriptions (à venir)
-// ──────────────────────────────────────────────────────────────────────────────
-//
-// Objectif : remplacer le bool brut de `isLikelyHeterogeneousGroup` par un score
-// 0-1 basé sur l'analyse linguistique des descriptions des lignes du groupe.
-//
-// Algorithme proposé :
-//   1. Extraire mots-clés du `job_type_label` (ex: "Carrelage (fourni+posé)" →
-//      ["carrelage", "dalle", "céramique", "faïence", "carreau"])
-//   2. Pour chaque devis_line, calculer matchScore = |keywords ∩ description| /
-//      |keywords|
-//   3. Moyenne pondérée par montant des matchScores = homogeneityScore du groupe
-//   4. Si homogeneityScore < 0.5 → groupe hétérogène (avec graduation possible)
-//
-// Référentiel de keywords par job_type (à construire) :
-//   - carrelage_*: carrelage, dalle, céramique, faïence, carreau, joint, colle
-//   - peinture_*: peinture, lasure, vernis, sous-couche, primaire (peinture)
-//   - terrassement_*: terrassement, excavation, déblai, remblai
-//   - chape_*: chape, ciment, mortier, ragréage
-//   - ... (à construire par domaine)
-//
-// Avantages vs Niveau 1 :
-//   - Détection plus fine et nuancée (graduation 0-1)
-//   - Couvre les cas où le prix unitaire est élevé mais légitime
-//     (carrelage premium dans un groupe homogène)
-//
-// Estimation : 1 jour dev + tests + référentiel keywords.
-// Quand : après quelques semaines de retours utilisateurs sur Niveau 1.
-//
-// function groupHomogeneityScore(g: Record<string, any>): number { /* TODO V3.4 */ }
+// (Bloc inline supprimé — voir src/lib/analyse/groupHomogeneity.ts pour la logique.)
 
 // ──────────────────────────────────────────────────────────────────────────────
 // TODO Niveau 3 — Refonte du prompt Gemini de groupement (chantier majeur)
