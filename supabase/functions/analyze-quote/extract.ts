@@ -144,6 +144,22 @@ RÈGLES CRITIQUES POUR LE CHAMP "paiement" :
 - acompte_avant_travaux_pct : renseigner UNIQUEMENT si le texte précise explicitement "avant démarrage des travaux" ou "avant début de chantier" en distinguant ce versement d'un acompte général. Sinon null.
 - echeancier_detecte : true si et seulement si le devis liste plusieurs étapes de règlement numérotées ou séparées.
 
+RÈGLE CRITIQUE — modalites_paiement (NOUVEAU, OBLIGATOIRE si echeancier_detecte=true) :
+- Liste TOUTES les étapes de versement présentes dans le devis (signature, démarrage, intermédiaire, livraison matériaux, revue chantier, fin travaux, réception, autre).
+- Pour chaque étape, copie le TEXTE EXACT dans "description" (pas de paraphrase).
+- "etape" doit être l'une de ces valeurs : "signature", "demarrage", "intermediaire", "livraison_materiaux", "revue_chantier", "fin_travaux", "reception", "autre".
+- "reception" = paiement DÛ APRÈS réception / livraison / fin officielle des travaux UNIQUEMENT (le solde final).
+- Tous les autres versements (signature, démarrage, milieu de chantier, etc.) ne sont PAS "reception".
+- "pct" = pourcentage du devis. Si le devis donne un montant en euros et pas un %, calcule le % par rapport au total TTC.
+- Exemple devis avec "30% signature + 30% démarrage + 30% revue intermédiaire + 10% solde réception" :
+  modalites_paiement: [
+    { etape: "signature",     pct: 30, description: "30 % à la signature du devis" },
+    { etape: "demarrage",     pct: 30, description: "30 % au démarrage du chantier" },
+    { etape: "intermediaire", pct: 30, description: "30 % revue de chantier intermédiaire" },
+    { etape: "reception",     pct: 10, description: "solde à la réception du chantier" }
+  ]
+- Si aucun échéancier détaillé n'est mentionné, omets modalites_paiement (ne pas mettre un tableau vide arbitraire).
+
 RÈGLES STRICTES POUR "conditions_paiement" :
 - Extraire UNIQUEMENT les conditions de paiement EXPLICITEMENT MENTIONNÉES dans le document.
 - Ne fais AUCUNE supposition. Si une information n'est pas présente dans le texte, mets null.
@@ -203,6 +219,10 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
     "acompte_avant_travaux_pct": null,
     "modes": ["virement"],
     "echeancier_detecte": false,
+    "modalites_paiement": [
+      { "etape": "signature", "pct": 30, "description": "30 % à la signature du devis" },
+      { "etape": "reception", "pct": 70, "description": "solde à la réception" }
+    ],
     "conditions_paiement": [
       {
         "type": "acompte | progress | solde",
@@ -421,6 +441,19 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
           : null,
         modes: Array.isArray(parsed.paiement?.modes) ? parsed.paiement.modes : [],
         echeancier_detecte: parsed.paiement?.echeancier_detecte === true,
+        // V3.1 — modalités détaillées pour détection acompte cumulé avant réception
+        modalites_paiement: Array.isArray(parsed.paiement?.modalites_paiement)
+          ? parsed.paiement.modalites_paiement
+              .filter((m: any) => m && typeof m === "object" && typeof m.pct === "number")
+              .map((m: any) => ({
+                etape: ["signature", "demarrage", "intermediaire", "livraison_materiaux",
+                        "revue_chantier", "fin_travaux", "reception", "autre"].includes(m.etape)
+                  ? m.etape
+                  : "autre",
+                pct: Math.max(0, Math.min(100, m.pct)),
+                description: typeof m.description === "string" ? m.description.trim().slice(0, 200) : "",
+              }))
+          : undefined,
         conditions_paiement: Array.isArray(parsed.paiement?.conditions_paiement)
           ? parsed.paiement.conditions_paiement
               .filter((c: any) => c && typeof c === "object")

@@ -95,11 +95,41 @@ export function calculateScore(
     rouges.push("Paiement en espèces explicitement demandé sur le devis");
   }
 
-  const acompteAvantTravaux = extracted.paiement.acompte_avant_travaux_pct ??
+  // ──────────────────────────────────────────────────────────────────────────────
+  // Acompte cumulé avant réception (V3.1 — 2026-05-11)
+  //
+  // BUG corrigé : sur un devis "30% signature + 30% démarrage + 30% revue + 10% solde réception"
+  // la version précédente lisait acompte_pct = 30 (premier versement uniquement) et ne déclenchait
+  // PAS le critère rouge. Pourtant 90% sont versés AVANT réception → c'est exactement
+  // le risque "acompte excessif" qu'on doit détecter (cf. devis Kern Terrassement).
+  //
+  // Nouvelle logique : cumule TOUTES les modalités dont l'étape ≠ "reception".
+  // ──────────────────────────────────────────────────────────────────────────────
+  const modalites = extracted.paiement.modalites_paiement;
+
+  let acompteCumulePreReception: number | null = null;
+  if (Array.isArray(modalites) && modalites.length > 0) {
+    acompteCumulePreReception = modalites
+      .filter(m => m.etape !== "reception")
+      .reduce((sum, m) => sum + (m.pct ?? 0), 0);
+  }
+
+  // Fallback historique si modalites_paiement absent (rétrocompat)
+  const acompteAvantTravauxLegacy = extracted.paiement.acompte_avant_travaux_pct ??
     (!extracted.paiement.echeancier_detecte ? extracted.paiement.acompte_pct : null);
 
+  // PRIORITÉ : cumul détaillé si disponible, sinon valeur historique
+  const acompteAvantTravaux = acompteCumulePreReception ?? acompteAvantTravauxLegacy;
+
   if (acompteAvantTravaux !== null && acompteAvantTravaux > 50) {
-    rouges.push(`Acompte supérieur à 50% demandé avant travaux (${acompteAvantTravaux}%)`);
+    // Wording adapté : si on a le détail, on l'affiche pour transparence
+    const detailCumul = Array.isArray(modalites) && modalites.length > 1
+      ? ` (${modalites.filter(m => m.etape !== "reception").map(m => `${m.pct}% à ${m.etape}`).join(" + ")})`
+      : "";
+    rouges.push(
+      `Acompte cumulé supérieur à 50% demandé avant réception des travaux (${acompteAvantTravaux}%${detailCumul}) — ` +
+      `risque majeur en cas de défaillance de l'entreprise`
+    );
   }
 
   // ORANGE criteria

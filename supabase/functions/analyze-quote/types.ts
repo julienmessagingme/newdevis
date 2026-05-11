@@ -80,6 +80,33 @@ export interface ExtractedData {
     modes: string[];
     echeancier_detecte: boolean;
     conditions_paiement: ConditionPaiement[];
+    /**
+     * V3.1 (2026-05-11) — Échéancier détaillé extrait du devis.
+     * Permet de calculer côté score.ts le CUMUL des versements demandés avant
+     * réception des travaux (somme des étapes ≠ "reception").
+     *
+     * Exemple devis Kern Terrassement :
+     *   [
+     *     { etape: "signature",     pct: 30, description: "30 % à la signature du devis" },
+     *     { etape: "demarrage",     pct: 30, description: "30 % au démarrage du chantier" },
+     *     { etape: "intermediaire", pct: 30, description: "30 % revue de chantier intermédiaire" },
+     *     { etape: "reception",     pct: 10, description: "solde à la réception du chantier" },
+     *   ]
+     * → cumul avant réception = 90% → critère ROUGE acompte excessif.
+     */
+    modalites_paiement?: Array<{
+      etape:
+        | "signature"
+        | "demarrage"
+        | "intermediaire"
+        | "livraison_materiaux"
+        | "revue_chantier"
+        | "fin_travaux"
+        | "reception"
+        | "autre";
+      pct: number;
+      description: string;
+    }>;
   };
   dates: {
     date_devis: string | null;

@@ -262,28 +262,35 @@ export function computeVerdict(input: VerdictInput): VerdictResult {
   if (!has_market_data) {
     price_verdict = "signer";
   } else if (input.weighted_anomalies) {
-    // ── V3 : décision basée sur le POIDS RÉEL des anomalies (pas le surcoût global) ──
+    // ── V3.1 : décision basée sur le POIDS RÉEL des anomalies + leur NOMBRE ──
     // Règle fondamentale : un devis ne doit jamais être jugé sur ses pires lignes,
     // mais sur l'impact réel des anomalies dans le montant total.
-    const { poids_anomalies, surcout_pct } = input.weighted_anomalies;
+    //
+    // Évolution V3.1 (2026-05-11) : ajout escalade par nombre d'anomalies pour
+    // éviter le bug Kern Terrassement (3 postes carrelage à 3,5-16× le marché
+    // sortaient en "signer" parce que le poids cumulé restait sous le seuil).
+    // Seuils également abaissés (10/30% au lieu de 20/50%) — un poids de 30%
+    // = un tiers du devis surfacturé, c'est déjà sévère.
+    const { poids_anomalies, surcout_pct, anomalies_count } = input.weighted_anomalies;
 
-    // Anti-bug critique : surcoût % élevé MAIS anomalies sur petits postes → ne pas pénaliser
-    // Ex : 1 poste de 500€ à +200% sur un devis de 25 000€ = surcoût 1 000€ (+4% réel)
-    // → verdict signer, ne pas afficher "+23 600€ trop cher"
-    if (poids_anomalies < 0.20) {
-      // CAS 1 — anomalies faibles (< 20% du total) : devis globalement OK
-      // Règle anti-bug : même si surcout_pct > 30%, l'anomalie est isolée → ignorer
-      price_verdict = "signer";
-    } else if (poids_anomalies < 0.50) {
-      // CAS 2 — anomalies modérées (20-50% du total) : à négocier
+    if (poids_anomalies >= 0.30) {
+      // CAS 3 — anomalies fortes (≥ 30% du total) : trop cher
+      price_verdict = "refuser";
+    } else if (poids_anomalies >= 0.10) {
+      // CAS 2 — anomalies modérées (10-30% du total) : à négocier
+      price_verdict = "a_negocier";
+    } else if (anomalies_count >= 2) {
+      // CAS 2bis — multiples anomalies même si poids cumulé faible : à négocier
+      // Évite qu'on dise "signer" alors que 2+ postes sont anormalement chers
+      // (vrai pour les devis avec gros postes corrects et plusieurs petits surévalués)
       price_verdict = "a_negocier";
     } else {
-      // CAS 3 — anomalies fortes (≥ 50% du total) : trop cher
-      price_verdict = "refuser";
+      // CAS 1 — anomalie isolée et faible : devis globalement OK
+      price_verdict = "signer";
     }
 
     // Log debug (utile en cas de litige)
-    console.log(`[verdictEngine V3] poids_anomalies=${Math.round(poids_anomalies * 100)}% | surcout_pct=${Math.round(surcout_pct * 100)}% | impact=${input.weighted_anomalies.impact_anomalies} | anomalies_count=${input.weighted_anomalies.anomalies_count}/${input.weighted_anomalies.total_analyzed} | price_verdict=${price_verdict}`);
+    console.log(`[verdictEngine V3.1] poids_anomalies=${Math.round(poids_anomalies * 100)}% | surcout_pct=${Math.round(surcout_pct * 100)}% | impact=${input.weighted_anomalies.impact_anomalies} | anomalies_count=${anomalies_count}/${input.weighted_anomalies.total_analyzed} | price_verdict=${price_verdict}`);
   } else {
     // ── Legacy (sans données pondérées) — backward compat ────────────────────
     if (overprice_pct <= threshold_ok && anomalies_major_count === 0) {
@@ -539,9 +546,12 @@ export function computeWeightedAnomalies(
 
   const surcout_pct = totalDevis > 0 ? surcout_total / totalDevis : 0;
 
+  // V3.1 (2026-05-11) : seuils alignés sur computeVerdict (≥30% élevé, ≥10% modéré).
+  // Avant : ≥50% élevé, ≥20% modéré — trop laxiste, faisait sortir des devis avec
+  // 49% d'anomalies en "modéré" / "signer" (cf. Kern Terrassement).
   const impact_anomalies: WeightedAnomaliesResult["impact_anomalies"] =
-    poids_anomalies >= 0.50 ? "élevé"  :
-    poids_anomalies >= 0.20 ? "modéré" : "faible";
+    poids_anomalies >= 0.30 ? "élevé"  :
+    poids_anomalies >= 0.10 ? "modéré" : "faible";
 
   return {
     poids_anomalies: Math.round(poids_anomalies * 1000) / 1000,
@@ -689,16 +699,16 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
   const wa = weighted_anomalies;
 
   // ── Summary — 1 ligne, toujours présent ──────────────────────────────────────
-  // V3 : si impact faible → message neutre même si overprice_pct est élevé
+  // V3.1 : le wording du summary doit toujours être cohérent avec le verdict.
+  // Avant : si verdict="a_negocier" + impact="faible" → "Devis globalement cohérent"
+  // → contradiction visible avec le bandeau "À renégocier" affiché par-dessus.
   const summary =
     hard_block_reason === "company_status"
       ? "🛑 Ne signez pas ce devis — entreprise juridiquement à risque"
     : verdict === "refuser"
       ? "Ce devis présente un risque élevé — ne signez pas"
     : verdict === "a_negocier"
-      ? (wa?.impact_anomalies === "faible"
-          ? "Devis globalement cohérent avec le marché"
-          : "Ce devis est au-dessus du marché et doit être renégocié")
+      ? "Ce devis présente des postes à renégocier avant signature"
     : "Ce devis est cohérent avec les prix du marché";
 
   const reasons: string[] = [];
@@ -736,11 +746,22 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
 
   // ── 2. Prix ───────────────────────────────────────────────────────────────────
   if (has_market_data) {
+    // GARDE STRICTE — toute narration positive ("prix attractif", "conforme") est interdite
+    // dès qu'au moins un poste est en anomalie marché. Un devis qui se compense globalement
+    // (gros sur-prix carrelage + bonne affaire terrassement) n'est PAS "attractif" : il est
+    // mal ventilé. Sans cette garde, on a vu Kern Terrassement sortir
+    // "+5 900€ trop cher" + "Prix attractif sous la moyenne" sur la même page.
+    const hasAnomalies = (wa?.anomalies_count ?? anomalies_major_count) > 0;
+
     if (verdict === "signer") {
-      // V3 : si anomalies faibles → ne pas afficher un surcoût global trompeur
-      if (wa && wa.anomalies_count > 0 && wa.impact_anomalies === "faible") {
-        // Message neutre : anomalies isolées mais non représentatives du devis global
-        reasons.push("✅ Devis globalement conforme au marché");
+      if (hasAnomalies) {
+        const n = wa?.anomalies_count ?? anomalies_major_count;
+        const surcoutPostes = wa?.surcout_total ?? 0;
+        reasons.push(
+          surcoutPostes > 0
+            ? `⚠️ ${n} poste${n > 1 ? "s" : ""} au-dessus du marché — surcoût ${fmtEur(surcoutPostes)} à renégocier`
+            : `⚠️ ${n} poste${n > 1 ? "s" : ""} à vérifier avant signature`
+        );
       } else if (overprice_pct < -0.05) {
         reasons.push(`✅ Prix attractif — environ ${fmtEur(-overprice)} sous la moyenne du marché`);
       } else {
@@ -771,15 +792,12 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
 
   // ── 3. Anomalies ──────────────────────────────────────────────────────────────
   if (verdict === "signer") {
-    // Cas signer : ton positif ou neutre, max 2 raisons
-    if (wa && wa.anomalies_count > 0 && wa.impact_anomalies === "faible") {
-      // V3 : anomalies faibles — message pédagogique séparé du verdict global
-      const n = wa.anomalies_count;
-      reasons.push(
-        `ℹ️ ${n} poste${n > 1 ? "s" : ""} présente${n > 1 ? "nt" : ""} des prix élevés — ` +
-        `impact limité (${Math.round(wa.poids_anomalies * 100)}% du total) — négociation recommandée sur ces postes`
-      );
-    } else if (anomalies_major_count === 0) {
+    // Cas signer : ton positif ou neutre, max 2 raisons.
+    // Note : si des anomalies existent, on a DÉJÀ ajouté une alerte dans la section Prix ci-dessus
+    // (via la garde stricte). On ne réécrit pas un message pédagogique séparé qui pourrait
+    // adoucir l'alerte précédente.
+    const hasAnomaliesHere = (wa?.anomalies_count ?? anomalies_major_count) > 0;
+    if (!hasAnomaliesHere) {
       reasons.push("✅ Aucun écart significatif détecté sur les postes");
     }
     // Cap à 2 pour le cas signer
