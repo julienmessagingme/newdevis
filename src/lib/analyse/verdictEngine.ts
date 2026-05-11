@@ -14,6 +14,8 @@
  * V2 : seuils adaptatifs (dispersion marché + complexité chantier)
  */
 
+import { isLikelyHeterogeneousGroup } from "@/lib/analyse/groupHomogeneity";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface VerdictFlags {
@@ -453,6 +455,10 @@ export function countMajorAnomalies(priceData: unknown[]): number {
     const prices = Array.isArray(group.prices) ? group.prices : [];
     if (prices.length === 0) continue;
     if (FORFAIT_UNITS.has(unit)) continue;
+    // V3.4.1 — exclure les groupes hétérogènes (Niveaux 1+2 combinés).
+    // Sans ça, on comptait comme "anomalie majeure" des groupes contenant
+    // chape + primaire + dalle + acier sous un label "carrelage" → faux positif.
+    if (isLikelyHeterogeneousGroup(group)) continue;
 
     const devisTotal = typeof group.devis_total_ht === "number" ? group.devis_total_ht : 0;
     if (devisTotal <= 0) continue;
@@ -525,6 +531,10 @@ export function computeWeightedAnomalies(
     const isUnitLike = UNIT_LIKE.some((u) => unit === u || unit.startsWith(u + " "));
     const isM2       = M2_UNITS.some((u)  => unit.includes(u));
     if (isUnitLike && !isM2) continue;
+
+    // V3.4.1 — skip groupes hétérogènes : leur prix unitaire calculé est faussé
+    // par des lignes étrangères au domaine principal (Niveaux 1+2 combinés).
+    if (isLikelyHeterogeneousGroup(group)) continue;
 
     const devisTotal = typeof group.devis_total_ht === "number" ? group.devis_total_ht : 0;
     if (devisTotal <= 0) continue;

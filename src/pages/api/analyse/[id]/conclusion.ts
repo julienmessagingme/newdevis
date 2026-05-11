@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.4";
+const ENGINE_VERSION = "3.4.1";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -245,6 +245,11 @@ function computeServerSurcout(priceData: unknown[]): { min: number; max: number 
     const unit = ((group.main_unit as string) || "").toLowerCase().trim();
     if (FORFAIT_UNIT_KEYWORDS.some((kw) => unit === kw || unit.startsWith(kw))) continue;
     if (hasSurfaceUnitMismatch(group)) continue;
+    // V3.4.1 — exclure aussi les groupes hétérogènes : leur prix unitaire calculé
+    // n'a pas de sens face au max marché du domaine principal détecté.
+    // Sans ce filtre, on additionnait des "surcouts" qui venaient de groupes
+    // contenant chape + primaire + dalle + acier comptés comme du carrelage seul.
+    if (isLikelyHeterogeneousGroup(group)) continue;
 
     const qty: number = typeof group.main_quantity === "number" && group.main_quantity > 0
       ? group.main_quantity : 1;
@@ -437,6 +442,10 @@ function computeServerMarketPosition(priceData: unknown[]): MarketPosition {
     if (group.job_type_label === "Autre") continue;
     if (isForfaitGroup(group)) continue;
     if (hasSurfaceUnitMismatch(group)) continue;
+    // V3.4.1 — exclure les groupes hétérogènes du calcul du positionnement global.
+    // Sans ça, un groupe carrelage mal regroupé (incluant chape+primaire+acier)
+    // gonflait le "totalDevis" comparable et faussait la position vs marché.
+    if (isLikelyHeterogeneousGroup(group)) continue;
 
     const devisTotal: number = typeof group.devis_total_ht === "number" ? group.devis_total_ht : 0;
     if (devisTotal <= 0) continue;
