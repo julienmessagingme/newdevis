@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.2.1";
+const ENGINE_VERSION = "3.2.2";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -1041,24 +1041,15 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     }
 
     // ── Raisons du verdict (section "Pourquoi ce verdict ?") ─────────────────────
-    // V3.2 — utilise le verdict FINAL (après garde escalade) pour générer des
-    // raisons cohérentes avec le bandeau affiché. Le `weighted_anomalies` est aussi
-    // "défensif" : si computeServerSurcout a vu un vrai surcoût mais que le moteur
-    // a sous-estimé les anomalies, on injecte les chiffres serveur ici pour que
-    // generateVerdictReasons NE PUISSE PAS sortir "Aucun écart significatif".
-    const defensiveWeightedAnomalies = (() => {
-      const wa = preEngine.weighted_anomalies;
-      if (!wa) return undefined;
-      // V3.2.1 — boost SEULEMENT si surcoût matériel (triple garde).
-      // Évite d'injecter de faux anomalies sur un devis 48k€ avec 180€ d'écart.
-      const isMaterial = isMaterialServerSurcout(surcoutMax, totalHT);
-      const serverDetectedCount = isMaterial ? Math.max(2, wa.anomalies_count) : wa.anomalies_count;
-      const serverDetectedSurcout = isMaterial && typeof surcoutMax === "number" && surcoutMax > 0
-        ? Math.max(wa.surcout_total, (surcoutMin + surcoutMax) / 2)
-        : wa.surcout_total;
-      return { ...wa, anomalies_count: serverDetectedCount, surcout_total: serverDetectedSurcout };
-    })();
-
+    // V3.2.2 — On ne falsifie PLUS les données métier (anomalies_count, surcout_total)
+    // pour forcer une cohérence affichée. On passe les VRAIES valeurs au moteur, et
+    // si la garde de cohérence a escaladé le verdict (divergence inexpliquée entre
+    // computeServerSurcout et weighted_anomalies), on PREPEND une raison HONNÊTE
+    // qui nomme explicitement la divergence — au lieu d'inventer 2 anomalies fictives.
+    //
+    // Raison du changement : injecter `anomalies_count = 2` artificiellement ferait
+    // afficher "2 postes au-dessus du marché" sans pouvoir les nommer. Si un user
+    // demande lesquels, on est nu. Mieux vaut admettre la divergence.
     const finalVerdictForReasons: "signer" | "a_negocier" | "refuser" =
       verdictDecision === "ne_pas_signer" ? "refuser"
       : verdictDecision === "signer_avec_negociation" ? "a_negocier"
@@ -1068,15 +1059,50 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       verdict:               finalVerdictForReasons,
       overprice:             preEngine.overprice,
       overprice_pct:         preEngine.overprice_pct,
-      anomalies_major_count: hasServerSurcout ? Math.max(2, preMajorAnomalies) : preMajorAnomalies,
+      anomalies_major_count: preMajorAnomalies,                    // vraie valeur, pas boostée
       company_risk:          preRisk,
       flags:                 preFlags,
       has_market_data:       preEngine.has_market_data,
       market_dispersion_pct: preEngine.market_dispersion_pct,
       chantier_complexity:   preEngine.chantier_complexity,
       threshold_ok:          preEngine.threshold_ok,
-      weighted_anomalies:    defensiveWeightedAnomalies,
+      weighted_anomalies:    preEngine.weighted_anomalies,         // vraie valeur, pas boostée
     });
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Honnêteté en cas de divergence — V3.2.2
+    //
+    // Si la garde de cohérence a déclenché l'escalade SANS que le moteur ne voie
+    // d'anomalies (cas où preEngine.verdict était "signer" mais computeServerSurcout
+    // a vu un surcoût matériel), on ajoute une raison qui DIT la divergence au lieu
+    // de l'inventer.
+    //
+    // Cas concret : devis avec compensation globale (gros postes correctement chiffrés
+    // qui tirent le total vers le bas + petits postes très au-dessus du marché qui
+    // ne pèsent pas assez dans le poids cumulé pour franchir le seuil V3.1).
+    // Dans ce cas, le user mérite l'info brute, pas une narration fabriquée.
+    //
+    // L'engagement honnête est aussi plus crédible commercialement : "voici ce qu'on
+    // a vu, à toi d'arbitrer avec l'artisan" > "voici 2 anomalies (qui n'existent pas)".
+    // ──────────────────────────────────────────────────────────────────────────
+    const hasAnomaliesIdentified = preMajorAnomalies > 0 ||
+      (preEngine.weighted_anomalies && preEngine.weighted_anomalies.anomalies_count > 0);
+
+    if (coherenceEscalated && !hasAnomaliesIdentified) {
+      const ratioPct = typeof totalHT === "number" && totalHT > 0
+        ? Math.round((surcoutMax / totalHT) * 100)
+        : 0;
+      const surcoutMid = Math.round((surcoutMin + surcoutMax) / 2);
+      const divergenceReason =
+        `⚠️ Écart détecté : l'estimation serveur indique un surcoût d'environ ${surcoutMid.toLocaleString("fr-FR")} € ` +
+        `(${ratioPct}% du devis) sur les postes comparables au marché, mais l'analyse poste par poste n'a pas identifié ` +
+        `de ligne anormalement chère. À approfondir avec l'artisan pour comprendre la composition.`;
+
+      // PREPEND : le message de divergence devient la raison #1, cap à 3 raisons au total
+      verdict_reasons.reasons = [divergenceReason, ...verdict_reasons.reasons].slice(0, 3);
+      // Summary cohérent avec le message
+      verdict_reasons.summary = "Écart détecté — analyse à approfondir avec l'artisan";
+    }
 
     // ── Cohérence forcée : niveau_risque DOIT correspondre à verdict_global ──
     const RISQUE_FORCED: Record<string, "faible" | "modéré" | "élevé"> = {
