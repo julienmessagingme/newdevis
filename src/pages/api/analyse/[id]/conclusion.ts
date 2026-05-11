@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.2.3";
+const ENGINE_VERSION = "3.3";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -39,10 +39,20 @@ const ENGINE_VERSION = "3.2.3";
 const MATERIAL_SURCOUT_EUR_THRESHOLD = 1000;   // €
 const MATERIAL_SURCOUT_PCT_THRESHOLD = 0.03;   // 3% du total devis
 
-function isMaterialServerSurcout(surcoutMax: unknown, totalDevis: unknown): boolean {
+function isMaterialServerSurcout(
+  surcoutMax: unknown,
+  totalDevis: unknown,
+  fallbackTotal?: unknown,
+): boolean {
   if (typeof surcoutMax !== "number" || surcoutMax <= MATERIAL_SURCOUT_EUR_THRESHOLD) return false;
-  if (typeof totalDevis !== "number" || totalDevis <= 0) return false;
-  const ratio = surcoutMax / totalDevis;
+  // V3.3 — accepte un fallback (typiquement marketPosition.totalDevis) quand le totalHT
+  // principal n'a pas été extrait par Gemini. Sans ce fallback, la garde de cohérence
+  // était inopérante sur les devis qui stockent en format legacy.
+  const effectiveTotal = (typeof totalDevis === "number" && totalDevis > 0)
+    ? totalDevis
+    : (typeof fallbackTotal === "number" && fallbackTotal > 0 ? fallbackTotal : 0);
+  if (effectiveTotal <= 0) return false;
+  const ratio = surcoutMax / effectiveTotal;
   return ratio > MATERIAL_SURCOUT_PCT_THRESHOLD;
 }
 
@@ -568,6 +578,10 @@ export const POST: APIRoute = async ({ params, request }) => {
   // ── Parse raw_text ────────────────────────────────────────────────────────
   let priceData: unknown[] = [];
   let extractedData: Record<string, unknown> = {};
+  // V3.3 — capture aussi le format legacy `extracted` (utilisé par certaines anciennes
+  // analyses) pour permettre le fallback de totalHT plus bas. Sans ça, les analyses
+  // pré-format-actuel sortent totalHT=null → garde de cohérence inopérante.
+  let extractedLegacy: Record<string, unknown> = {};
   let isMultipleQuotes = false;
   let segmentAnalyses: Array<Record<string, unknown>> = [];
   let globalMetricsRaw: Record<string, unknown> | null = null;
@@ -575,6 +589,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     const parsed = JSON.parse(analysis.raw_text || "{}");
     priceData       = Array.isArray(parsed.n8n_price_data) ? parsed.n8n_price_data : [];
     extractedData   = (parsed.extracted_data as Record<string, unknown>) || {};
+    extractedLegacy = (parsed.extracted as Record<string, unknown>) || {};
     // Multi-devis : lire segment_analyses + global_metrics pré-calculés
     const docDet    = parsed.document_detection as Record<string, unknown> | undefined;
     isMultipleQuotes = docDet?.multiple_quotes === true && Array.isArray(parsed.segment_analyses) && parsed.segment_analyses.length > 1;
@@ -608,7 +623,44 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   const ville      = (client.ville      as string) || "";
   const codePostal = (client.code_postal as string) || "";
-  const totalHT    = typeof totaux.ht  === "number" ? totaux.ht  : null;
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // totalHT — résolution robuste avec fallbacks alignés sur le client (V3.3)
+  //
+  // Bug observé sur Kern Terrassement : la garde de cohérence retournait false
+  // parce que totaux.ht était null. Sans totalHT, isMaterialServerSurcout ne peut
+  // pas calculer le ratio relatif → pas d'escalade → bandeau "Vous pouvez signer"
+  // affiché malgré +5 900 € de surcoût (36% du devis).
+  //
+  // 3 niveaux de résolution :
+  //   1. extracted_data.totaux.ht (format actuel)
+  //   2. extracted.totaux.ht (format legacy — fallback aligné sur AnalysisResult.tsx)
+  //   3. somme des devis_total_ht de priceData (proxy fiable si tous postes extraits)
+  //
+  // Si les 3 niveaux échouent, totalHT reste null et on log un warning.
+  // ──────────────────────────────────────────────────────────────────────────
+  const totalHT: number | null = (() => {
+    if (typeof totaux.ht === "number" && totaux.ht > 0) return totaux.ht;
+    // Fallback 1 : format legacy
+    const legacyTotaux = (extractedLegacy.totaux as Record<string, unknown> | undefined);
+    if (legacyTotaux && typeof legacyTotaux.ht === "number" && legacyTotaux.ht > 0) {
+      console.warn("[conclusion] totalHT issu du format legacy extracted.totaux.ht");
+      return legacyTotaux.ht;
+    }
+    // Fallback 2 : somme des postes du priceData
+    if (Array.isArray(priceData) && priceData.length > 0) {
+      const sumPostes = (priceData as Array<Record<string, unknown>>).reduce((acc, g) => {
+        const t = typeof g?.devis_total_ht === "number" ? g.devis_total_ht : 0;
+        return acc + t;
+      }, 0);
+      if (sumPostes > 0) {
+        console.warn(`[conclusion] totalHT déduit de la somme priceData : ${sumPostes} €`);
+        return sumPostes;
+      }
+    }
+    console.warn("[conclusion] totalHT introuvable — garde de cohérence relative inopérante");
+    return null;
+  })();
   const totalTTC   = typeof totaux.ttc === "number" ? totaux.ttc : null;
   const tauxTVA    = typeof totaux.taux_tva === "number" ? totaux.taux_tva : null;
   const workType   = (analysis.work_type as string) || "";
@@ -1043,7 +1095,7 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     // > 1 000€ ET poids relatif > 3% du devis) pour éviter de bannir "avantageux"
     // sur un devis 48k€ avec 180€ de surcoût (faux positif de sanitization).
     const sanitizeVerdict = preEngine.verdict; // "signer" | "a_negocier" | "refuser"
-    const hasServerSurcout = isMaterialServerSurcout(surcoutMax, totalHT);
+    const hasServerSurcout = isMaterialServerSurcout(surcoutMax, totalHT, marketPosition.totalDevis);
 
     const phraseIntro    = sanitizeLLMText(
       typeof parsed.phrase_intro  === "string" ? parsed.phrase_intro.trim()   : "",
@@ -1109,7 +1161,7 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     // qui briserait à nouveau la crédibilité — exactement le piège inverse de Kern.
     // ──────────────────────────────────────────────────────────────────────────
     let coherenceEscalated = false;
-    if (preEngine.verdict === "signer" && isMaterialServerSurcout(surcoutMax, totalHT)) {
+    if (preEngine.verdict === "signer" && isMaterialServerSurcout(surcoutMax, totalHT, marketPosition.totalDevis)) {
       const ratioPct = typeof totalHT === "number" && totalHT > 0
         ? Math.round((surcoutMax / totalHT) * 100)
         : 0;
@@ -1171,9 +1223,10 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       (preEngine.weighted_anomalies && preEngine.weighted_anomalies.anomalies_count > 0);
 
     if (coherenceEscalated && !hasAnomaliesIdentified) {
-      const ratioPct = typeof totalHT === "number" && totalHT > 0
-        ? Math.round((surcoutMax / totalHT) * 100)
-        : 0;
+      const refTotal = (typeof totalHT === "number" && totalHT > 0)
+        ? totalHT
+        : (marketPosition.totalDevis > 0 ? marketPosition.totalDevis : 0);
+      const ratioPct = refTotal > 0 ? Math.round((surcoutMax / refTotal) * 100) : 0;
       const surcoutMid = Math.round((surcoutMin + surcoutMax) / 2);
       const divergenceReason =
         `⚠️ Écart détecté : l'estimation serveur indique un surcoût d'environ ${surcoutMid.toLocaleString("fr-FR")} € ` +
@@ -1184,6 +1237,22 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       verdict_reasons.reasons = [divergenceReason, ...verdict_reasons.reasons].slice(0, 3);
       // Summary cohérent avec le message
       verdict_reasons.summary = "Écart détecté — analyse à approfondir avec l'artisan";
+    }
+
+    // ── Sanitization finale du verdict_reasons (V3.3) ─────────────────────────
+    // Le summary et les reasons sont générés par `generateVerdictReasons` (déterministe),
+    // mais l'évolution des wordings au fil du temps peut laisser passer des phrases
+    // contradictoires (ex: "cohérent avec les prix du marché" sur un devis avec surcoût).
+    // On les fait passer par sanitizeLLMText comme dernier filet de sécurité, en réutilisant
+    // les règles ALWAYS_FORBIDDEN (anti-contradiction universelle).
+    const finalSanitizeVerdict: "signer" | "a_negocier" | "refuser" = finalVerdictForReasons;
+    if (verdict_reasons.summary) {
+      verdict_reasons.summary = sanitizeLLMText(verdict_reasons.summary, finalSanitizeVerdict, hasServerSurcout);
+    }
+    if (Array.isArray(verdict_reasons.reasons)) {
+      verdict_reasons.reasons = verdict_reasons.reasons.map(r =>
+        sanitizeLLMText(r, finalSanitizeVerdict, hasServerSurcout)
+      );
     }
 
     // ── Cohérence forcée : niveau_risque DOIT correspondre à verdict_global ──

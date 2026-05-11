@@ -537,6 +537,38 @@ const AnalysisResult = () => {
       } catch { /* ignore */ }
     }
 
+    // V3.3 — SOURCE UNIQUE DE VÉRITÉ pour la pastille mono-devis : conclusion_ia.
+    // Avant : la pastille recompilait via computeVerdict avec des inputs potentiellement
+    // différents de ceux du serveur (notamment totalHT extrait différemment), ce qui créait
+    // une divergence entre la pastille header ("Feu Rouge") et le bandeau verdict
+    // ("Vous pouvez signer"). Désormais, si conclusion_ia est disponible, on l'utilise
+    // comme source unique — exactement comme en multi-devis avec global_metrics.
+    //
+    // Priorité de lecture :
+    //   1. conclusionIaLive (juste regénéré, état local React, le plus frais)
+    //   2. analysis.conclusion_ia (cache DB)
+    //
+    // Cohérence garantie : ConclusionIA et la pastille header lisent le MÊME verdict.
+    const liveOrCached: string | null = (() => {
+      // conclusionIaLive est une chaîne JSON quand fraîchement régénéré
+      if (conclusionIaLive && typeof conclusionIaLive === "string") return conclusionIaLive;
+      // analysis.conclusion_ia est aussi stocké en string JSON par l'API serveur
+      if (analysis.conclusion_ia && typeof analysis.conclusion_ia === "string") return analysis.conclusion_ia;
+      return null;
+    })();
+
+    if (liveOrCached) {
+      try {
+        const parsedConclusion = JSON.parse(liveOrCached);
+        const vg = parsedConclusion?.verdict_global as string | undefined;
+        if (vg) {
+          return (vg === "a_risque" ? "ROUGE"
+                : vg === "a_negocier" ? "ORANGE"
+                : "VERT") as "VERT" | "ORANGE" | "ROUGE";
+        }
+      } catch { /* JSON corrompu → fallback recompute ci-dessous */ }
+    }
+
     // Extraire les critères depuis analysis.score (JSON stocké par score.ts)
     let criteres_rouges: string[] = [];
     let criteres_oranges: string[] = [];
