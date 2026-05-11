@@ -268,47 +268,49 @@ export function computeVerdict(input: VerdictInput): VerdictResult {
     // Règle fondamentale : un devis ne doit jamais être jugé sur ses pires lignes,
     // mais sur l'impact réel des anomalies dans le montant total.
     //
-    // Évolution V3.1 (2026-05-11) : ajout escalade par nombre d'anomalies pour
-    // éviter le bug Kern Terrassement (3 postes carrelage à 3,5-16× le marché
-    // sortaient en "signer" parce que le poids cumulé restait sous le seuil).
-    // Seuils également abaissés (10/30% au lieu de 20/50%) — un poids de 30%
-    // = un tiers du devis surfacturé, c'est déjà sévère.
+    // ÉVOLUTION V3.4.2 (2026-05-11) — BUG CORRIGÉ : on utilisait `poids_anomalies`
+    // (= poids du POSTE anormal dans le devis) au lieu de `surcout_pct` (= poids du
+    // SURCOÛT dans le devis) pour la décision verdict. Conséquence : un gros poste
+    // qui représentait 46% du devis mais avait seulement 6% de surcout (Kern pavé)
+    // déclenchait "refuser" alors qu'il méritait juste "à négocier ce poste".
+    //
+    // Bonne métrique de décision = `surcout_pct` (la part en € QUI dépasse, pas la
+    // part du poste cher dans le devis).
+    //
+    // Seuils calibrés sur cette nouvelle métrique :
+    //   ≥ 15% surcout du devis → refuser (vraiment trop cher globalement)
+    //   ≥ 5% surcout du devis  → a_negocier (significatif)
+    //   triple garde matérielle (multi-anomalies + total > 1k€ + pct > 3%) → a_negocier
+    //   sinon → signer
     const { poids_anomalies, surcout_pct, anomalies_count, surcout_total } = input.weighted_anomalies;
 
-    // ── CAS 2bis — escalade "multiples anomalies" avec triple garde anti-faux-positifs ──
-    // Une anomalie n'a de sens que si elle est matérielle :
-    //   - en NOMBRE : au moins 2 postes problématiques (pas 1 isolé)
-    //   - en VALEUR ABSOLUE : surcoût > 1 000 € (sinon ça ne vaut pas la peine de renégocier)
-    //   - en PROPORTION : poids > 5% du devis (matérialité relative)
-    //
-    // Sans ces garde-fous, on aurait un faux positif sur un devis 50 000 € avec
-    // 2 petits postes à +50 € chacun (surcout total 100 € < 1000 €) : déclencher
-    // "à négocier" dans ce cas serait absurde et briserait la crédibilité.
+    // Triple garde matérielle (cf. V3.1) — maintenant alignée sur surcout_pct.
+    // Conserve la protection contre les faux positifs sur petits surcouts cumulés.
     const SEUIL_SURCOUT_ABSOLU = 1000;   // €
-    const SEUIL_POIDS_MIN = 0.05;        // 5% du devis
+    const SEUIL_SURCOUT_PCT_MIN = 0.03;  // 3% du devis (matérialité relative)
     const isMaterialMultipleAnomalies =
       anomalies_count >= 2 &&
       surcout_total > SEUIL_SURCOUT_ABSOLU &&
-      poids_anomalies > SEUIL_POIDS_MIN;
+      surcout_pct > SEUIL_SURCOUT_PCT_MIN;
 
-    if (poids_anomalies >= 0.30) {
-      // CAS 3 — anomalies fortes (≥ 30% du total) : trop cher
+    if (surcout_pct >= 0.15) {
+      // CAS 3 — surcoût ≥ 15% du devis : trop cher globalement
       price_verdict = "refuser";
-    } else if (poids_anomalies >= 0.10) {
-      // CAS 2 — anomalies modérées (10-30% du total) : à négocier
+    } else if (surcout_pct >= 0.05) {
+      // CAS 2 — surcoût 5-15% du devis : à négocier
       price_verdict = "a_negocier";
     } else if (isMaterialMultipleAnomalies) {
-      // CAS 2bis — multiples anomalies matérielles (≥2 postes, surcoût > 1k€, ≥5% du devis)
-      // Évite qu'on dise "signer" sur un devis style Kern (3 carrelages à 3-16× le marché
-      // avec poids cumulé sub-10% mais surcoût total significatif).
+      // CAS 2bis — multiples anomalies matérielles (≥2 postes, surcoût > 1k€, ≥3% du devis)
+      // Évite qu'on dise "signer" sur un devis avec plusieurs surcouts cumulés modérés.
       price_verdict = "a_negocier";
     } else {
-      // CAS 1 — anomalie isolée, ou multiples anomalies non matérielles : devis OK
+      // CAS 1 — surcoût négligeable (< 5% du devis ET pas matériel) : signer
       price_verdict = "signer";
     }
 
-    // Log debug (utile en cas de litige) — inclut les valeurs de la triple garde
-    console.log(`[verdictEngine V3.1] poids=${Math.round(poids_anomalies * 100)}% | surcout_pct=${Math.round(surcout_pct * 100)}% | surcout_total=${Math.round(surcout_total)}€ | anomalies=${anomalies_count}/${input.weighted_anomalies.total_analyzed} | material_multi=${isMaterialMultipleAnomalies} | verdict=${price_verdict}`);
+    // Log debug enrichi — surcout_pct désormais en priorité car c'est la métrique de décision.
+    // poids_anomalies reste loggué pour debug mais ne sert plus à décider.
+    console.log(`[verdictEngine V3.4.2] surcout_pct=${Math.round(surcout_pct * 100)}% (décision) | poids_poste=${Math.round(poids_anomalies * 100)}% (info) | surcout_total=${Math.round(surcout_total)}€ | anomalies=${anomalies_count}/${input.weighted_anomalies.total_analyzed} | material_multi=${isMaterialMultipleAnomalies} | verdict=${price_verdict}`);
   } else {
     // ── Legacy (sans données pondérées) — backward compat ────────────────────
     if (overprice_pct <= threshold_ok && anomalies_major_count === 0) {
@@ -830,7 +832,9 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
         reasons.push(`⚠️ Certains postes présentent des prix élevés — impact sur le total : ${fmtPct(wa.surcout_pct)}`);
       } else if (wa) {
         // V3.3.2 — surcoût aligné sur le hero (server_surcout_mid si fourni)
-        reasons.push(`⚠️ Postes trop élevés représentant ${Math.round(wa.poids_anomalies * 100)}% du devis (surcoût estimé : ~${fmtEur(surcoutForWording)})`);
+        // V3.4.2 — affiche le surcout_pct (impact réel) et non poids_anomalies (poids du poste).
+        // Sur Kern : 6% (le surcoût du pavé) et non 46% (la part du terrassement dans le devis).
+        reasons.push(`⚠️ Surcoût représentant ${Math.round(wa.surcout_pct * 100)}% du devis (estimé : ~${fmtEur(surcoutForWording)})`);
       } else {
         reasons.push(
           overprice_pct <= threshold_ok
@@ -842,7 +846,8 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
       // refuser — prix fortement dépassé
       // V3.3.2 — surcoût aligné sur le hero (server_surcout_mid si fourni)
       if (wa) {
-        reasons.push(`🛑 Postes trop élevés représentant ${Math.round(wa.poids_anomalies * 100)}% du devis — surcoût estimé ~${fmtEur(surcoutForWording)}`);
+        // V3.4.2 — surcout_pct au lieu de poids_anomalies (cf. commentaire ci-dessus)
+        reasons.push(`🛑 Surcoût représentant ${Math.round(wa.surcout_pct * 100)}% du devis — estimé ~${fmtEur(surcoutForWording)}`);
       } else {
         reasons.push(`🛑 Prix fortement au-dessus du marché — surcoût estimé ${fmtEur(overprice)} (${fmtPct(overprice_pct)})`);
       }
