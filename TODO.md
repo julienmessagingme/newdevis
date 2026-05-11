@@ -6,6 +6,20 @@ Pour le rationnel et l'historique des audits UX, voir `UX-AUDIT.md`.
 
 ---
 
+## Scoring V3.x — qualité d'analyse (suite de la stabilisation 2026-05-11)
+
+### P0 — Crédibilité produit critique
+
+- [ ] **V3.4 Niveau 2 — Scoring d'hétérogénéité des groupes (1 j dev)** : remplacer le bool brut `isLikelyHeterogeneousGroup` (Niveau 1, déjà déployé V3.3.4) par un score 0-1 basé sur l'analyse linguistique des descriptions. Algorithme : extraire les mots-clés du `job_type_label`, calculer pour chaque devis_line le `matchScore = |keywords ∩ description| / |keywords|`, moyenne pondérée par montant → `homogeneityScore`. Construire en parallèle le référentiel mots-clés par job_type (carrelage_* : carrelage, dalle, céramique, faïence, carreau, joint, colle ; chape_* : chape, ciment, mortier, ragréage ; etc.). Avantage : graduation au lieu de binaire, couvre les cas où le prix unitaire est élevé mais légitime (carrelage premium dans un groupe homogène). Stub déjà documenté en commentaire dans `src/pages/api/analyse/[id]/conclusion.ts`.
+
+- [ ] **V3.5 Niveau 3 — Refonte du prompt Gemini de groupement (2-3 j dev)** : auditer `supabase/functions/analyze-quote/market-prices.ts` (prompt actuel de groupement), renforcer les règles d'exclusivité : chape ciment JAMAIS dans groupe carrelage, primaire JAMAIS dans groupe revêtement, IP14/IPE/IPN = structure acier (jamais dans revêtement), coupe dalles OK avec carrelage forfait du même poste. Ajouter exemples few-shot. Tester sur les 4 PDFs Desktop (Kern, Zitelec, multi-devis, SDB). Test de non-régression sur les 200+ analyses passées (chercher les groupes qui changent de composition). À sortir en feature flag pour rollback facile. **Vraie solution de fond** — élimine la cause RACINE des faux positifs, pas juste les symptômes. Niveau 1 et 2 deviennent moins critiques (mais restent comme défense en profondeur).
+
+- [ ] **V3.x — Enrichir le catalogue `market_prices` par niveau de gamme** : aujourd'hui le catalogue donne une fourchette unique par `job_type` (ex: carrelage 46-94 €/m²). Cette fourchette ne couvre que le standard et fait sortir en "anomalie" des prestations légitimes haut de gamme (dalle céramique premium à 160 €/m² posée). Plan : ajouter une dimension `qualite: "entree_gamme" | "standard" | "premium"` au catalogue, permettre au LLM de la déduire des descriptions (mots-clés "premium", "haut de gamme", "grand format", noms de fabricants comme Kann, Cinca, Florim…), et ajuster les fourchettes en conséquence. Estimation : 1 semaine + collecte de prix premium par domaine.
+
+- [ ] **V3.x — Audit qualité externe** : faire valider 100 devis par un panel de 3 experts BTP indépendants, mesurer le taux de concordance avec nos verdicts (cible : >85%). Publier le "Rapport de fiabilité 2026" comme argument commercial principal face aux prescripteurs B2B (courtiers, agents immo, marchands de biens). Sans cette caution externe, nos verdicts restent du "trust me bro" attaquable juridiquement.
+
+---
+
 ## UX/UI cockpit GMC — issus de l'audit #2 (2026-05-09)
 
 ### P0 — Frein produit majeur

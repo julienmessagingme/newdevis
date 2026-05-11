@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.3.3";
+const ENGINE_VERSION = "3.3.4";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -352,6 +352,124 @@ function sanitizeLLMText(
   return result;
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Détection des groupes probablement hétérogènes (V3.3.4 — Niveau 1)
+// ──────────────────────────────────────────────────────────────────────────────
+//
+// Problème observé sur Kern Terrassement : Gemini regroupe parfois des lignes
+// hétérogènes sous un même `job_type_label`. Exemple : groupe "Carrelage
+// (fourni+posé)" 13.5 m² Devis 4 422€ contient en réalité :
+//   - Chape ciment        500€   (NON carrelage)
+//   - Primaire accrochage 162€   (NON carrelage)
+//   - Dalle céramique    2160€   (carrelage)
+//   - Coupe dalles       1000€   (carrelage)
+//   - Mise en place ip14  600€   (acier de structure, NON carrelage)
+//
+// Le prix unitaire calculé (4422/13.5 = 327 €/m²) est ABERRANT et n'a pas de sens
+// face à la fourchette marché du carrelage seul (46-94 €/m²). Notre système accusait
+// à tort l'artisan d'une surfacturation × 3.5 alors qu'en réalité la ligne carrelage
+// pure est à 160 €/m² (haut de gamme dans la norme).
+//
+// HEURISTIQUE NIVEAU 1 (cette fonction) : signal binaire défensif.
+// HEURISTIQUE NIVEAU 2 (TODO `groupHomogeneityScore` ci-dessous) : score continu.
+// HEURISTIQUE NIVEAU 3 (TODO docs) : refonte du prompt Gemini de groupement.
+//
+// Effet quand vrai : on instruit le LLM de ne PAS lister ce groupe comme anomalie
+// dans le verdict expert. La comparaison de prix unitaire reste affichée pour
+// transparence, mais avec un wording "indicatif" plutôt qu'"anormal".
+
+function isLikelyHeterogeneousGroup(g: Record<string, any>): boolean {
+  const lines: any[] = g.devis_lines || [];
+  // Au moins 3 lignes : un groupe à 1-2 lignes est rarement mal regroupé
+  if (lines.length < 3) return false;
+
+  // Calculer prix unitaire devis vs max marché unitaire
+  const mainQty = typeof g.main_quantity === "number" && g.main_quantity > 0 ? g.main_quantity : 0;
+  const devisTotal = typeof g.devis_total_ht === "number" ? g.devis_total_ht : 0;
+  if (mainQty <= 0 || devisTotal <= 0) return false;
+
+  const prices: any[] = Array.isArray(g.prices) ? g.prices : [];
+  if (prices.length === 0) return false;
+
+  // max marché unitaire (somme des price_max_unit_ht des entrées catalogue)
+  let unitMaxMarket = 0;
+  for (const p of prices) {
+    if (!p || typeof p !== "object") continue;
+    const pr = p as Record<string, unknown>;
+    unitMaxMarket += (typeof pr.price_max_unit_ht === "number" ? pr.price_max_unit_ht : 0);
+  }
+  if (unitMaxMarket <= 0) return false;
+
+  const unitDevis = devisTotal / mainQty;
+
+  // Seuil : si le prix unitaire calculé > 2× le max marché unitaire, c'est très
+  // probable que le groupe contient des lignes étrangères au type de poste.
+  // Un VRAI dépassement de 2x sur un groupe homogène est extrêmement rare en BTP.
+  return unitDevis > unitMaxMarket * 2;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// TODO Niveau 2 — Scoring d'hétérogénéité par analyse des descriptions (à venir)
+// ──────────────────────────────────────────────────────────────────────────────
+//
+// Objectif : remplacer le bool brut de `isLikelyHeterogeneousGroup` par un score
+// 0-1 basé sur l'analyse linguistique des descriptions des lignes du groupe.
+//
+// Algorithme proposé :
+//   1. Extraire mots-clés du `job_type_label` (ex: "Carrelage (fourni+posé)" →
+//      ["carrelage", "dalle", "céramique", "faïence", "carreau"])
+//   2. Pour chaque devis_line, calculer matchScore = |keywords ∩ description| /
+//      |keywords|
+//   3. Moyenne pondérée par montant des matchScores = homogeneityScore du groupe
+//   4. Si homogeneityScore < 0.5 → groupe hétérogène (avec graduation possible)
+//
+// Référentiel de keywords par job_type (à construire) :
+//   - carrelage_*: carrelage, dalle, céramique, faïence, carreau, joint, colle
+//   - peinture_*: peinture, lasure, vernis, sous-couche, primaire (peinture)
+//   - terrassement_*: terrassement, excavation, déblai, remblai
+//   - chape_*: chape, ciment, mortier, ragréage
+//   - ... (à construire par domaine)
+//
+// Avantages vs Niveau 1 :
+//   - Détection plus fine et nuancée (graduation 0-1)
+//   - Couvre les cas où le prix unitaire est élevé mais légitime
+//     (carrelage premium dans un groupe homogène)
+//
+// Estimation : 1 jour dev + tests + référentiel keywords.
+// Quand : après quelques semaines de retours utilisateurs sur Niveau 1.
+//
+// function groupHomogeneityScore(g: Record<string, any>): number { /* TODO V3.4 */ }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// TODO Niveau 3 — Refonte du prompt Gemini de groupement (chantier majeur)
+// ──────────────────────────────────────────────────────────────────────────────
+//
+// Le problème de fond : Gemini groupe trop large parce que le prompt actuel
+// n'est pas assez explicite sur les frontières des groupes.
+//
+// Objectif : que Gemini produise des groupes HOMOGÈNES par construction.
+//
+// Plan :
+//   1. Auditer `supabase/functions/analyze-quote/market-prices.ts` (prompt
+//      groupement actuel) — identifier ce qui pousse Gemini à fusionner.
+//   2. Renforcer les règles d'exclusivité :
+//      - "Chape ciment" ne peut JAMAIS être dans un groupe carrelage
+//      - "Primaire d'accrochage" est un préparation, pas un revêtement
+//      - "IP14 / IPE / IPN" = structure acier, jamais dans un groupe revêtement
+//      - "Coupe des dalles" peut accompagner le carrelage si forfait du même poste
+//   3. Ajouter exemples explicites dans le prompt (few-shot)
+//   4. Tester sur les 4 PDFs du Desktop : Kern, Zitelec, multi-devis, SDB.
+//   5. Test de non-régression sur les 200+ analyses passées (chercher les groupes
+//      qui changent de composition après refonte).
+//
+// Estimation : 2-3 jours dev + 1 semaine de tests / validation.
+// Risque : régression sur d'autres cas que les 4 PDFs. Faire en feature flag.
+//
+// Bénéfice à terme : élimine la cause RACINE des faux positifs, pas juste les
+// symptômes. Niveau 1 et 2 deviennent moins critiques (mais restent comme
+// défense en profondeur).
+// ──────────────────────────────────────────────────────────────────────────────
+
 const FORFAIT_DESC_KEYWORDS = ["forfait", "forfait global", "prestation globale", "au forfait", "tout compris"];
 
 function isForfaitGroup(g: any): boolean {
@@ -496,13 +614,19 @@ function buildGroupSummary(priceData: unknown[]): string {
       const ecartVsAvg = hasMarket && avgHT > 0
         ? `${total > avgHT ? "+" : ""}${Math.round(((total - avgHT) / avgHT) * 100)}% vs moyenne`
         : "hors catalogue";
-      const positionLabel = hasMarket
-        ? total < minHT ? " [TRÈS BAS — sous le min marché]"
-          : total < avgHT ? " [BAS — sous la moyenne marché]"
-          : total > maxHT ? " [ÉLEVÉ — au-dessus du max marché]"
-          : total > avgHT ? " [LÉGÈREMENT ÉLEVÉ — au-dessus de la moyenne]"
-          : ""
-        : "";
+      // V3.3.4 Niveau 1 — tag de groupe hétérogène prioritaire sur tout autre tag.
+      // Si le groupe semble mal regroupé (chape + carrelage + ip14 dans "Carrelage"),
+      // on remplace tout autre tag par un avertissement explicite pour le LLM.
+      const heterogeneous = isLikelyHeterogeneousGroup(g);
+      const positionLabel = heterogeneous
+        ? " [⚠️ GROUPE PROBABLEMENT HÉTÉROGÈNE — prix unitaire calculé aberrant, ne PAS pointer comme anomalie de prix]"
+        : hasMarket
+          ? total < minHT ? " [TRÈS BAS — sous le min marché]"
+            : total < avgHT ? " [BAS — sous la moyenne marché]"
+            : total > maxHT ? " [ÉLEVÉ — au-dessus du max marché]"
+            : total > avgHT ? " [LÉGÈREMENT ÉLEVÉ — au-dessus de la moyenne]"
+            : ""
+          : "";
 
       return [
         `POSTE: ${g.job_type_label}${positionLabel}`,
@@ -917,6 +1041,7 @@ RÈGLES STRICTES:
 - Des variations de prix ENTRE LIGNES du même type (ex: volets à des prix différents selon dimensions/options) ne sont PAS des anomalies si le total global est dans ou sous la fourchette marché.
 - INTERDIT : signaler un poste marqué [FORFAIT GLOBAL] comme anomalie de prix. Un forfait global ne peut PAS être comparé à un prix unitaire catalogue. Ces postes sont à commenter uniquement si le montant total semble disproportionné au regard de la prestation décrite.
 - MISMATCH D'UNITÉ : un poste marqué [⚠️ MISMATCH UNITÉ] (ex: cloison ou peinture facturé en U plutôt qu'en m²) ne peut PAS être comparé au catalogue marché — n'inclure AUCUNE anomalie de prix pour ces postes. Dans les actions_avant_signature, inclure UNE action du type : "Demandez la surface exacte en m² pour [nom du poste] — facturé en U sans surface indiquée, impossible de comparer au marché. Si < 8 m² le prix est élevé, négociez ; si > 12 m² le prix est cohérent."
+- GROUPE HÉTÉROGÈNE : un poste marqué [⚠️ GROUPE PROBABLEMENT HÉTÉROGÈNE] contient des lignes de devis hétérogènes (ex: chape + primaire + dalle + acier mis ensemble dans un seul "Carrelage"). Le prix unitaire calculé est donc ABERRANT et ne reflète PAS le vrai prix de la prestation principale. INTERDIT ABSOLU de pointer ce poste comme anomalie de prix. Au lieu de ça, dans les actions_avant_signature, inclure UNE action du type : "Demandez à l'artisan le détail ligne par ligne du poste '[nom du poste]' — plusieurs prestations différentes semblent regroupées, ce qui empêche une comparaison juste au marché."
 - NE PAS signaler comme anomalie ce qui s'explique par la localisation, l'étage, des matériaux premium COHÉRENTS, ou une complexité technique réelle.
 - Surcoût = total_devis_poste − total_fourchette_max_marché (TOTAUX, jamais prix unitaires). Jamais négatif, 0 si dans la fourchette. Pour les forfaits : surcoût = 0 sauf incohérence flagrante sur le montant total.
 - COHÉRENCE OBLIGATOIRE : verdict_global et niveau_risque DOIVENT être alignés (voir règle 5). Ne jamais retourner "a_risque" avec niveau_risque "modéré" ou "faible".
@@ -1006,9 +1131,48 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     const validDecisions   = ["signer", "signer_avec_negociation", "ne_pas_signer"] as const;
     const validRisques     = ["faible", "modéré", "élevé"] as const;
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // V3.3.4 Niveau 1 — Identifier les groupes hétérogènes (mal groupés par Gemini)
+    // pour pouvoir filtrer les anomalies LLM qui pointent ces groupes à tort.
+    //
+    // Le prompt instruit Gemini de ne PAS pointer ces groupes — mais en défense en
+    // profondeur, on filtre aussi en aval au cas où il persisterait.
+    // ──────────────────────────────────────────────────────────────────────────
+    const heterogeneousLabels = new Set<string>();
+    if (Array.isArray(priceData)) {
+      for (const g of priceData as Record<string, any>[]) {
+        if (g && typeof g === "object" && isLikelyHeterogeneousGroup(g)) {
+          const label = (g.job_type_label as string | undefined)?.trim().toLowerCase();
+          if (label) heterogeneousLabels.add(label);
+        }
+      }
+    }
+    if (heterogeneousLabels.size > 0) {
+      console.warn(`[conclusion] ${heterogeneousLabels.size} groupe(s) hétérogène(s) détecté(s) — anomalies LLM correspondantes filtrées : ${Array.from(heterogeneousLabels).join(", ")}`);
+    }
+
     const sanitizedAnomalies: AnomalieConclusion[] = Array.isArray(parsed.anomalies)
       ? parsed.anomalies
           .filter((a: any) => a && typeof a === "object" && a.poste)
+          // V3.3.4 — filtre les anomalies sur des groupes hétérogènes (Niveau 1)
+          .filter((a: any) => {
+            const poste = String(a.poste || "").trim().toLowerCase();
+            const ligne = String(a.ligne_devis || "").trim().toLowerCase();
+            // Une anomalie est filtrée si son `poste` matche un label hétérogène
+            // (fuzzy match : on vérifie inclusion bidirectionnelle pour tolérer
+            // les variantes de wording type "Carrelage (fourni+posé)" vs "Carrelage").
+            for (const hetLabel of heterogeneousLabels) {
+              if (poste.includes(hetLabel) || hetLabel.includes(poste)) {
+                console.warn(`[conclusion] anomalie LLM filtrée (groupe hétérogène "${hetLabel}") : ${a.poste} — ${a.ligne_devis ?? ""}`);
+                return false;
+              }
+              if (ligne && (ligne.includes(hetLabel) || hetLabel.includes(ligne))) {
+                console.warn(`[conclusion] anomalie LLM filtrée (groupe hétérogène "${hetLabel}") via ligne : ${a.poste}`);
+                return false;
+              }
+            }
+            return true;
+          })
           .map((a: any): AnomalieConclusion => ({
             poste:               String(a.poste        || ""),
             ligne_devis:         String(a.ligne_devis  || a.poste || ""),

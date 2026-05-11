@@ -119,6 +119,48 @@ export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
     let classification = classifyItem(price, marketMax);
     const surcout = price > marketMax ? price - marketMax : 0;
 
+    // ──────────────────────────────────────────────────────────────────────
+    // V3.3.4 Niveau 1 (2026-05-11) — Garde-fou groupes hétérogènes.
+    //
+    // Si un groupe a un prix unitaire calculé > 2× le max marché unitaire ET
+    // contient ≥ 3 lignes, il est très probablement mal regroupé par Gemini
+    // (chape + primaire + dalle + acier dans un seul "Carrelage"). Le prix
+    // unitaire calculé est aberrant et n'a pas de sens face à la fourchette
+    // marché du poste vraiment dominant.
+    //
+    // Dans ce cas, on REFUSE de classer en anomalie ou survalue. Le KPI doit
+    // être prudent : faux positif > faux négatif côté crédibilité du produit.
+    // ──────────────────────────────────────────────────────────────────────
+    if (classification === "anomalie" || classification === "survalue") {
+      const mainQty = row.mainQuantity > 0 ? row.mainQuantity : 0;
+      const unitMaxMarket = mainQty > 0 ? marketMax / mainQty : 0;
+      const unitDevis = mainQty > 0 ? price / mainQty : 0;
+      if (
+        row.devisLines.length >= 3 &&
+        unitMaxMarket > 0 &&
+        unitDevis > unitMaxMarket * 2
+      ) {
+        // Downgrade à "legerement_eleve" — le groupe contient probablement
+        // des lignes étrangères au type de poste. Le wording UI passe en
+        // "Comparaison indicative" plutôt qu'"Anomalie marché".
+        classification = "legerement_eleve";
+      }
+    }
+
+    // Variable partagée : si on a déjà downgradé en "legerement_eleve" via le
+    // garde-fou hétérogénéité V3.3.4, on NE doit PAS re-promouvoir en "anomalie"
+    // via la détection ligne par ligne V3.3.2 — la comparaison serait fausse pour
+    // la même raison (groupe contient des lignes hétérogènes).
+    const wasDowngradedHeterogeneous = (() => {
+      // Détection à nouveau (pour éviter dépendre d'une variable booléenne flottante)
+      const mainQty = row.mainQuantity > 0 ? row.mainQuantity : 0;
+      const unitMaxMarket = mainQty > 0 ? marketMax / mainQty : 0;
+      const unitDevis = mainQty > 0 ? price / mainQty : 0;
+      return row.devisLines.length >= 3
+        && unitMaxMarket > 0
+        && unitDevis > unitMaxMarket * 2;
+    })();
+
     // V3.3.2 (2026-05-11) — Détection d'anomalies au niveau LIGNE individuelle.
     //
     // Avant : seul le total du groupe était comparé au marché. Un groupe avec 37 m²
@@ -132,7 +174,7 @@ export function analyzeQuoteGlobal(rows: JobTypeDisplayRow[]): GlobalAnalysis {
     //   - line.unit doit matcher mainUnit (ou les deux doivent être en m²)
     //   - line.quantity > 0
     //   - line.amountHT > 0
-    if (classification === "normal" || classification === "legerement_eleve") {
+    if ((classification === "normal" || classification === "legerement_eleve") && !wasDowngradedHeterogeneous) {
       const mainUnit = row.mainUnit?.toLowerCase().trim() || "";
       const mainQty  = row.mainQuantity > 0 ? row.mainQuantity : 0;
       const unitMaxMarket = mainQty > 0 ? marketMax / mainQty : 0;
