@@ -202,6 +202,31 @@ function ConclusionDisplay({
   const mid          = hasSurcout ? midpoint(conclusion.surcout_global.min, conclusion.surcout_global.max) : 0;
   const anomalies    = conclusion.anomalies ?? [];
   const anomCount    = anomalies.length;
+
+  // ── Cohérence UI V3.3.1 — Règles 2, 3, 4 ───────────────────────────────────
+  //
+  // RÈGLE 2 — Interdiction du chiffre accusatoire si verdict = signer.
+  // RÈGLE 3 — Hero +X € affiché uniquement si action requise (a_negocier / ne_pas_signer).
+  // RÈGLE 4 — Si surcoût > 0 mais 0 anomalie identifiée, le wording neutralise
+  //           "payé en trop" en faveur de "comparaison indicative".
+  //
+  // Ces 3 règles forment un FILET UI DE COHÉRENCE : même si en amont (preEngine,
+  // conclusion.ts) un cas marginal laisse passer surcout > 0 avec verdict = signer
+  // (ex: totalHT manquant qui désactive la garde), l'UI applique ses propres
+  // garde-fous pour ne JAMAIS afficher simultanément :
+  //   "+X € payé en trop" + "Vous pouvez signer"
+  const isVerdictSigner       = conclusion.verdict_decisionnel === "signer";
+  const isVerdictNegocier     = conclusion.verdict_decisionnel === "signer_avec_negociation";
+  const isVerdictRefuser      = conclusion.verdict_decisionnel === "ne_pas_signer";
+  const showAccusatoryHero    = hasSurcout && !isVerdictSigner;        // RÈGLE 2 + 3
+  const surcoutWithoutAnomaly = hasSurcout && anomCount === 0;         // RÈGLE 4
+
+  // Wording neutre quand on a un surcoût détecté mais qu'on ne peut pas l'afficher accusatoire
+  // (RÈGLE 2 si signer, RÈGLE 4 si pas d'anomalie pointée).
+  const showSoftDelta = isVerdictSigner && hasSurcout;                  // bloc neutre discret sous verdict
+  const softDeltaLabel = surcoutWithoutAnomaly
+    ? "Comparaison globale indicative — certaines lignes ne sont pas comparables automatiquement"
+    : "Écart estimatif modéré sans anomalie majeure identifiée";
   const visibleAnom  = showAllAnom ? anomalies : anomalies.slice(0, 3);
   const actions      = conclusion.actions_avant_signature ?? [];
   const visibleActs  = showAllActs ? actions : actions.slice(0, 3);
@@ -212,11 +237,16 @@ function ConclusionDisplay({
       "",
       `Verdict : ${decisionCfg.label}`,
     ];
+    // V3.3.1 — wording du surcoût cohérent avec le verdict (RÈGLE 2)
     if (hasSurcout) {
-      lines.push(`Surcoût estimé : environ ${fmtPrice(mid)} (entre ${fmtPrice(conclusion.surcout_global.min)} et ${fmtPrice(conclusion.surcout_global.max)})`);
+      if (isVerdictSigner) {
+        lines.push(`Écart estimatif vs marché : ~${fmtPrice(mid)} (indicatif, aucune anomalie majeure identifiée)`);
+      } else {
+        lines.push(`Montant à renégocier estimé : ~${fmtPrice(mid)} (entre ${fmtPrice(conclusion.surcout_global.min)} et ${fmtPrice(conclusion.surcout_global.max)})`);
+      }
     }
     if (actions.length > 0) {
-      lines.push("", "Points à discuter avant de signer :");
+      lines.push("", isVerdictSigner ? "Points à vérifier avant de signer :" : "Points à discuter avant de signer :");
       actions.forEach((a, i) => lines.push(`${i + 1}. ${a}`));
     }
     navigator.clipboard.writeText(lines.join("\n")).then(() => {
@@ -230,14 +260,22 @@ function ConclusionDisplay({
     <div className="space-y-4">
 
       {/* ═══════════════════════════════════════════════════════════
-          SECTION 1 — SURCOÛT (chiffre principal, le plus visible)
+          SECTION 1 — SURCOÛT (chiffre principal)
+          V3.3.1 — Affiché UNIQUEMENT si action requise (RÈGLE 2 + 3).
+          Wording adapté selon présence d'anomalies pointées (RÈGLE 4).
       ════════════════════════════════════════════════════════════ */}
-      {hasSurcout && (
+      {showAccusatoryHero && (
         <div className="text-center py-2">
           <p className="text-5xl sm:text-6xl font-extrabold text-foreground tracking-tight leading-none">
             +{fmtPrice(mid)}
           </p>
-          <p className="text-sm text-muted-foreground mt-1">environ payé en trop</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {isVerdictRefuser
+              ? "à renégocier en priorité"
+              : surcoutWithoutAnomaly
+                ? "écart estimatif vs fourchettes marché"
+                : "environ à renégocier sur les postes"}
+          </p>
           <p className="text-xs text-muted-foreground/70 mt-0.5">
             (entre {fmtPrice(conclusion.surcout_global.min)} et {fmtPrice(conclusion.surcout_global.max)})
           </p>
@@ -256,10 +294,15 @@ function ConclusionDisplay({
             <p className={`text-lg sm:text-xl font-extrabold leading-tight ${decisionCfg.text}`}>
               {decisionCfg.label}
             </p>
-            {/* Ligne justificatrice : nombre d'anomalies ou sous-label */}
+            {/* Ligne justificatrice — V3.3.1 wording cohérent avec verdict + surcoût */}
             {anomCount > 0 ? (
               <p className={`text-sm mt-1 font-medium opacity-90 ${decisionCfg.text}`}>
                 → {anomCount} poste{anomCount > 1 ? "s" : ""} dépass{anomCount > 1 ? "ent" : "e"} largement les prix du marché
+              </p>
+            ) : isVerdictSigner && hasSurcout ? (
+              // RÈGLE 5 — verdict signer avec léger écart : wording neutre, jamais "0 poste à vérifier"
+              <p className={`text-sm mt-1 font-medium opacity-90 ${decisionCfg.text}`}>
+                → Quelques écarts estimatifs sans anomalie majeure identifiée
               </p>
             ) : (
               <p className={`text-sm mt-0.5 opacity-85 ${decisionCfg.text}`}>
@@ -269,6 +312,20 @@ function ConclusionDisplay({
           </div>
         </div>
       </div>
+
+      {/* ═══════════════════════════════════════════════════════════
+          SECTION 2bis — Soft delta (RÈGLE 2 + 4)
+          Affiché quand verdict=signer ET surcoût détecté : on ne CACHE pas
+          l'écart (transparence) mais on le présente comme indicatif, pas accusatoire.
+      ════════════════════════════════════════════════════════════ */}
+      {showSoftDelta && (
+        <div className="rounded-lg border border-amber-200/60 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900/40 px-4 py-2.5">
+          <p className="text-sm text-amber-900 dark:text-amber-100 leading-snug">
+            <span aria-hidden="true">ℹ️ </span>
+            {softDeltaLabel} — écart d'environ {fmtPrice(mid)}.
+          </p>
+        </div>
+      )}
 
       {/* Crédibilité */}
       <p className="text-center text-[11px] text-muted-foreground/70">

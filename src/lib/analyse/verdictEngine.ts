@@ -819,8 +819,21 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
     // adoucir l'alerte précédente.
     // V3.2 — même garde que section Prix : MAX des 2 signaux (cf. commentaire ci-dessus)
     const hasAnomaliesHere = Math.max(wa?.anomalies_count ?? 0, anomalies_major_count) > 0;
+
+    // V3.3.1 — RÈGLE 5 : si verdict=signer mais qu'un écart financier existe (overprice
+    // global > 0 OU surcoût postes > 0) sans anomalie majeure identifiée, on l'admet
+    // honnêtement plutôt que d'écrire "0 poste à vérifier" qui crée une dissonance
+    // avec le chiffre soft delta affiché en UI.
+    const hasFinancialDelta =
+      overprice > 0 ||
+      (wa && wa.surcout_total > 0);
+
     if (!hasAnomaliesHere) {
-      reasons.push("✅ Aucun écart significatif détecté sur les postes");
+      if (hasFinancialDelta) {
+        reasons.push("ℹ️ Quelques écarts estimatifs sans anomalie majeure identifiée");
+      } else {
+        reasons.push("✅ Aucun écart significatif détecté sur les postes");
+      }
     }
     // Cap à 2 pour le cas signer
     return { summary, reasons: reasons.slice(0, 2), context: [] };
