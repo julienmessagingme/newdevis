@@ -340,6 +340,12 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 - **Params dynamiques** : `[id].astro` et `[slug].astro` — les composants React extraient les params de `window.location.pathname`.
 - **Commandes** : `npm run dev` | `npm run build` | `npm run preview` | `npm run lint`.
 
+- **Inscription OBLIGATOIRE pour analyser un devis (règle absolue, 2026-05-11)** : `/nouvelle-analyse` redirige vers `/inscription?returnTo=/nouvelle-analyse` si l'utilisateur n'a pas de compte permanent. **Ne JAMAIS** réintroduire un `signInAnonymously()` automatique dans `NewAnalysis.tsx` ni ailleurs dans le funnel d'analyse.
+  - Contexte : entre le 02/05 et le 11/05/2026, un `signInAnonymously()` automatique avait été introduit dans `NewAnalysis.tsx` (useEffect au mount). Conséquence : 0 nouveau compte permanent enregistré pendant 9 jours alors que le site recevait du trafic. Les visiteurs analysaient gratuitement en mode anonyme et ne se convertissaient jamais en compte permanent → 0 email récolté, 0 base de relance, 0 visibilité pipeline.
+  - Le hook `useAnonymousAuth` reste exposé (rétrocompat pour les comptes anonymes legacy créés entre le 02/05 et le 11/05 qui peuvent encore se convertir via `convertToPermanent` dans le PremiumGate), mais aucun composant ne déclenche `signInAnonymously()` automatiquement.
+  - Côté admin : `/api/admin/users.ts` expose désormais `total_anonymous` et `anonymous_by_day` pour mesurer le funnel anonyme legacy (utile pour relance ciblée).
+  - **Anti-régression** : si un futur changement réintroduit `signInAnonymously()` au mount d'une page produit, on perd à nouveau la base d'emails. Tout changement de funnel doit être discuté avant.
+
 ---
 
 ## Multi-domaine — verifiermondevis.fr ↔ gerermonchantier.fr

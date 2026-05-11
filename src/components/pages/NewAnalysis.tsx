@@ -39,18 +39,40 @@ const NewAnalysis = () => {
   const [sourceImages, setSourceImages] = useState<File[]>([]);
   const [isMerging, setIsMerging] = useState(false);
 
-  const { user, isAnonymous, isPermanent, signInAnonymously } = useAnonymousAuth();
+  const { user, isAnonymous, isPermanent } = useAnonymousAuth();
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // V3.4.3 — Restauration du hard signup obligatoire (2026-05-11).
+  //
+  // Décision produit (option A) : avant le 02/05, l'inscription était obligatoire
+  // pour analyser un devis. Un changement avait introduit `signInAnonymously()`
+  // automatique : visiteur arrive → compte anonyme silencieux créé → analyse
+  // possible sans inscription.
+  //
+  // Conséquence (observée 9 jours plus tard) : 0 nouveau compte permanent depuis
+  // le 02/05, alors que le site continuait à recevoir du trafic. Les visiteurs
+  // analysent gratuitement en mode anonyme et ne se convertissent jamais en
+  // compte permanent → 0 email récolté, 0 base de relance, 0 visibilité pipeline.
+  //
+  // Décision : on RETIRE le sign-in anonyme automatique. Si l'utilisateur n'est
+  // pas connecté quand il arrive sur /nouvelle-analyse, on le redirige vers
+  // /inscription en passant returnTo pour qu'il revienne ici après inscription.
+  //
+  // Trade-off assumé : 50-70% de drop sur le top of funnel anonyme, MAIS retour
+  // à une base d'emails exploitable (mesure → relance → conversion premium).
+  // ──────────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    // Auto sign-in anonymously if not logged in
-    const ensureAuth = async () => {
+    const checkAuthOrRedirect = async () => {
       const { data: { user: existing } } = await supabase.auth.getUser();
-      if (!existing) {
-        await signInAnonymously();
+      // Pas de session OU session anonyme legacy (héritée des comptes créés
+      // automatiquement entre le 02/05 et le 11/05) → on redirige vers inscription.
+      if (!existing || existing.is_anonymous === true) {
+        const returnTo = encodeURIComponent("/nouvelle-analyse");
+        window.location.href = `/inscription?returnTo=${returnTo}`;
       }
     };
-    ensureAuth();
-  }, [signInAnonymously]);
+    checkAuthOrRedirect();
+  }, []);
 
   const resetUploadState = () => {
     setUploadStatus("idle");

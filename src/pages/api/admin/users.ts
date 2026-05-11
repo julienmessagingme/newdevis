@@ -56,10 +56,24 @@ export const GET: APIRoute = async ({ request }) => {
       page++;
     }
 
-    // Filter out anonymous users (no email)
+    // V3.4.3 — séparer les utilisateurs inscrits (compte permanent avec email)
+    // des utilisateurs anonymes (créés silencieusement via useAnonymousAuth lors
+    // d'une analyse de devis). Ces derniers étaient invisibles dans le panneau
+    // admin → on les expose désormais pour comprendre le funnel réel.
     const registeredUsers = allUsers
       .filter(u => u.email && !u.is_anonymous)
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    const anonymousUsers = allUsers
+      .filter(u => u.is_anonymous === true)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    // Décompte par jour des comptes anonymes créés (utile pour mesurer le funnel anonyme)
+    const anonymousByDay = anonymousUsers.reduce((acc, u) => {
+      const day = u.created_at.split("T")[0];
+      acc[day] = (acc[day] ?? 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
 
     // Fetch all subscriptions linked to Stripe (any status)
     const { data: subscriptions, error: subError } = await supabase
@@ -97,6 +111,9 @@ export const GET: APIRoute = async ({ request }) => {
       subscribers,
       total_registered: registeredUsers.length,
       total_subscribers: subscribers.length,
+      // V3.4.3 — visibilité du funnel anonyme
+      total_anonymous: anonymousUsers.length,
+      anonymous_by_day: anonymousByDay,
     });
   } catch (err) {
     console.error('Admin users error:', (err as Error).message);
