@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.2.2";
+const ENGINE_VERSION = "3.2.3";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -132,6 +132,79 @@ function hasSurfaceUnitMismatch(group: Record<string, any>): boolean {
 
   return true;
 }
+
+/**
+ * V3.2.3 — Score de confiance pour le mismatch surface/unité, retourné dans [0, 1].
+ *
+ * `hasSurfaceUnitMismatch` retourne un bool brut basé sur des heuristiques qui peuvent
+ * se tromper (extraction Gemini défaillante sur l'unité, label ambigu). Si la fonction
+ * retourne `true` à tort, on injecte une action "Demandez la surface en m²" qui est
+ * **ridicule pour le user** (il sait déjà sa surface, c'est juste qu'on ne l'a pas extraite).
+ *
+ * Ce score additionne plusieurs signaux convergents et permet d'appliquer un SEUIL ÉLEVÉ
+ * avant de générer l'action. On préfère rater quelques mismatches réels que produire
+ * des actions absurdes — la crédibilité passe avant l'exhaustivité.
+ *
+ * Échelle :
+ *   0.00–0.60 : signal faible — ne pas générer d'action surface
+ *   0.60–0.80 : signal moyen — déclenchement optionnel
+ *   0.80–1.00 : signal fort — déclenchement recommandé
+ *
+ * Seuil recommandé pour générer une action : >= 0.70 (cf. emitSurfaceActions).
+ */
+function surfaceMismatchConfidence(group: Record<string, any>): number {
+  // Pré-condition : le mismatch heuristique de base doit déjà tenir
+  if (!hasSurfaceUnitMismatch(group)) return 0;
+
+  const label = (group.job_type_label || "").toLowerCase();
+  const unit  = (group.main_unit || "").toLowerCase().trim();
+  const lines: any[] = group.devis_lines || [];
+  const descriptions: string[] = lines.map((l: any) => (l.description || "").toLowerCase());
+
+  let confidence = 0;
+
+  // (1) Le label match un mot-clé surface → +0.30 (signal fort, label vient de Gemini groupement)
+  if (SURFACE_WORK_KEYWORDS.some(kw => label.includes(kw))) {
+    confidence += 0.30;
+  }
+
+  // (2) Une description match un mot-clé surface → +0.20 (signal fort)
+  //     Plusieurs descriptions matchent → +0.10 supplémentaire (renforce la conviction)
+  const matchingDescCount = descriptions.filter(d =>
+    SURFACE_WORK_KEYWORDS.some(kw => d.includes(kw))
+  ).length;
+  if (matchingDescCount >= 1) confidence += 0.20;
+  if (matchingDescCount >= 2) confidence += 0.10;
+
+  // (3) L'unité est explicitement dans UNIT_LIKE (pas vide ou ambiguë) → +0.20
+  //     Une unité bien identifiée renforce le diagnostic. Une unité vide affaiblit.
+  if (unit.length > 0 && UNIT_LIKE.some(u => unit === u || unit.startsWith(u + " "))) {
+    confidence += 0.20;
+  }
+
+  // (4) Aucune ligne m² dans le groupe → +0.15 (déjà vérifié par hasSurfaceUnitMismatch,
+  //     mais on le récompense explicitement pour aligner avec le narratif "surface non
+  //     précisée"). Si une description CONTIENT "m²" en texte libre sans être l'unité
+  //     officielle de la ligne → on baisse la confiance (Gemini a peut-être loupé l'extraction).
+  const knownSurface = extractKnownSurface(lines);
+  if (knownSurface === null) {
+    confidence += 0.15;
+    // Soft penalty : si une description mentionne "m²" en texte libre, c'est suspect
+    const hasM2InDescription = descriptions.some(d => /\bm[²2]\b/.test(d));
+    if (hasM2InDescription) confidence -= 0.15;
+  }
+
+  // (5) Quantité = 1 ou 2 (cohérent avec un forfait) → +0.05
+  //     Une quantité plus élevée évoque un U comptable (5 portes, 10 cloisons), pas un forfait.
+  const mainQty = typeof group.main_quantity === "number" ? group.main_quantity : 0;
+  if (mainQty >= 1 && mainQty <= 2) confidence += 0.05;
+
+  return Math.max(0, Math.min(1, confidence));
+}
+
+// Seuil au-dessus duquel on génère une action "Demandez la surface". En dessous,
+// on s'abstient pour ne pas demander au user de fournir une info qu'il a déjà donnée.
+const SURFACE_MISMATCH_ACTION_THRESHOLD = 0.70;
 
 /**
  * Calcule le surcoût total côté serveur depuis les données brutes priceData,
@@ -924,23 +997,32 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
           .slice(0, 3)
       : [];
 
-    // Détection mismatch surface/unité — injecte une action spécifique si pertinent
-    // V3.2 : déduplication par job_type_label (avant : Kern Terrassement produisait
-    // 3 fois la même action quasi-identique "Demandez la surface… < 8 m² > 12 m²").
-    const surfaceMismatchGroups = Array.isArray(priceData)
-      ? (priceData as Record<string, any>[]).filter(
-          g => g && typeof g === "object" && g.job_type_label !== "Autre" && hasSurfaceUnitMismatch(g)
-        )
+    // Détection mismatch surface/unité — injecte une action spécifique SI confidence suffisante.
+    // V3.2.3 — On filtre désormais sur un score de confiance >= 0.70 (au lieu d'un bool brut).
+    // Risque sans seuil : une mauvaise extraction d'unité par Gemini déclenchait l'action
+    // "Demandez la surface en m²" alors que le user AVAIT déjà fourni la surface — message
+    // ridicule pour le user, perte de crédibilité.
+    //
+    // V3.2 : déduplication par job_type_label (un seul message par type de poste, max 2).
+    const surfaceMismatchCandidates = Array.isArray(priceData)
+      ? (priceData as Record<string, any>[])
+          .filter(g => g && typeof g === "object" && g.job_type_label !== "Autre")
+          .map(g => ({ group: g, confidence: surfaceMismatchConfidence(g) }))
+          .filter(({ confidence }) => confidence >= SURFACE_MISMATCH_ACTION_THRESHOLD)
+          // Si plusieurs groupes ex-aequo, on garde ceux de plus haute confiance en premier
+          .sort((a, b) => b.confidence - a.confidence)
       : [];
+
     // Dédupliquer par job_type_label (un seul message par type de poste, max 2 messages au total)
     const seenLabels = new Set<string>();
     const surfaceActions: string[] = [];
-    for (const g of surfaceMismatchGroups) {
+    for (const { group: g, confidence } of surfaceMismatchCandidates) {
       const posteName = (g.job_type_label as string) || "ce poste";
       const normalizedLabel = posteName.toLowerCase().trim();
       if (seenLabels.has(normalizedLabel)) continue;
       seenLabels.add(normalizedLabel);
       const unitUsed = (g.main_unit as string) || "U";
+      console.log(`[conclusion] surface mismatch confirmé pour "${posteName}" — confidence=${confidence.toFixed(2)}`);
       surfaceActions.push(
         `Demandez la surface exacte en m² pour "${posteName}" — facturé en ${unitUsed} sans surface précisée, impossible de comparer au marché. Si < 8 m² le prix est élevé, négociez ; si > 12 m² le prix est cohérent.`
       );
