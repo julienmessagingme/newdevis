@@ -151,7 +151,36 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
 - **effectiveScore — champ `verdict_decisionnel` pas `verdict`** (bug détecté 2026-05-01, commit `b411ebd`) : `ConclusionData` stocke le verdict décisionnel dans `verdict_decisionnel`, pas `verdict`. `effectiveScore` dans `AnalysisResult.tsx` lisait `parsed?.verdict` → toujours `undefined` → score restait VERT même si ConclusionIA retournait ORANGE. Fix : `parsed?.verdict_decisionnel`. Ne jamais renommer ce champ sans mettre à jour tous les consommateurs.
 
-- **verdictEngine V3 — anomalies pondérées par poids (2026-05-06)** : `computeWeightedAnomalies(priceData, totalDevis)` dans `verdictEngine.ts` calcule poste par poste le poids des anomalies (> 30% au-dessus du marché) dans le total HT. `VerdictInput.weighted_anomalies` alimente `computeVerdict` : poids < 20% → signer, 20-50% → a_negocier, ≥ 50% → refuser. **Ne pas revenir à `overprice_pct` global pour les décisions prix** — il fausse le verdict sur les devis avec un seul poste cher isolé. Appelé dans `AnalysisResult.tsx` (client) et `conclusion.ts` (serveur).
+- **verdictEngine V3.3.1 — architecture cohérence absolue (2026-05-11)** : moteur à 4 couches de défense en profondeur qui garantit qu'**aucun écran ne peut afficher simultanément rouge + signer + payé en trop**.
+
+  **COUCHE 1 — `computeVerdict` (V3.1, seuils alignés V3.2.1)** dans `src/lib/analyse/verdictEngine.ts` :
+  - Décision par `weighted_anomalies` : poids ≥ 30% → refuser, ≥ 10% → a_negocier, sinon signer.
+  - **Escalade matérielle** : si `anomalies_count >= 2` ET `surcout_total > 1 000€` ET `poids > 5%` → a_negocier même si poids cumulé < 10%. Évite à la fois (a) le bug Kern (3 anomalies mais poids 49% qualifié "modéré" par anciens seuils 20/50) et (b) le faux orange sur micro-écarts (devis 48k€ avec 180€ d'écart = 0.4%).
+  - Hard block priorité 0 : entreprise en cessation/liquidation/radiée → REFUSER forcé.
+
+  **COUCHE 2 — Garde de cohérence finale** dans `src/pages/api/analyse/[id]/conclusion.ts` :
+  - Si `preEngine.verdict === "signer"` mais `isMaterialServerSurcout(surcoutMax, totalHT, marketPosition.totalDevis)` = true → escalade auto en `signer_avec_negociation`. `isMaterialServerSurcout` = triple garde matérielle (>1 000€ ABSOLU ET >3% du devis RELATIF, avec fallback `marketPosition.totalDevis` si `totalHT` manque). Cf. fonction `isMaterialServerSurcout` ligne ~42.
+  - `totalHT` résolu en 3 niveaux : `extracted_data.totaux.ht` → `extracted.totaux.ht` (legacy) → somme des `devis_total_ht` du priceData. Sans ça, certaines analyses anciennes sortaient `totalHT=null` → garde inopérante.
+
+  **COUCHE 3 — Honnêteté plutôt que faux compteurs** :
+  - Si la garde de cohérence escalade SANS qu'aucune anomalie ne soit identifiée (`preMajorAnomalies = 0` ET `wa.anomalies_count = 0`), on PREPEND une raison HONNÊTE : *"⚠️ Écart détecté : l'estimation serveur indique un surcoût d'environ X € sur les postes comparables, mais l'analyse poste par poste n'a pas identifié de ligne anormalement chère. À approfondir avec l'artisan."*
+  - **Ne JAMAIS** falsifier `anomalies_count = Math.max(2, ...)` pour forcer un wording cohérent — c'est de la falsification de donnée métier qui se retournera contre nous quand un user demandera "lesquelles sont ces 2 anomalies ?" (elles n'existent pas).
+
+  **COUCHE 4 — Sanitization LLM en 3 niveaux** dans `conclusion.ts:sanitizeLLMText` :
+  - `ALWAYS_FORBIDDEN` (peu importe verdict) : "prix attractif", "globalement cohérent", "sous la moyenne du marché", "compétitif", "cohérent avec les prix du marché".
+  - `CONDITIONAL_FORBIDDEN` (si verdict ≠ signer) : "vous pouvez signer", "bon devis", etc.
+  - `POSITIVE_PRICE_TERMS` (si `hasServerSurcout` matériel) : "avantageux", "bonne affaire".
+  - Appliqué sur `phrase_intro`, `justifications`, `anomalies[].explication`, `actions_avant_signature`, ET **`verdict_reasons.summary` + `reasons[]`** (V3.3 — éviter qu'un wording déterministe oublié contredise le verdict).
+
+  **Source unique de vérité pour la pastille** (V3.3) : `effectiveScore` dans `AnalysisResult.tsx` lit `conclusion_ia.verdict_global` (ou `conclusionIaLive`) en priorité, exactement comme le multi-devis lit `global_metrics.verdict_global`. Plus de divergence pastille header vs bandeau verdict. **Ne jamais** revenir à un recompute `computeVerdict` côté client en source primaire.
+
+  **ENGINE_VERSION + cache invalidation automatique** : `conclusion_ia.engine_version` stocké à chaque génération. Au cache hit, si version DB ≠ `ENGINE_VERSION` constante du code → régénération forcée automatique (pas besoin de bouton "Régénérer"). À **incrémenter à chaque changement de logique scoring** (ex: 3.3 → 3.3.1).
+
+  **Test unitaire** : `npx tsx src/lib/analyse/verdictEngine.test.ts` (27 cas, 0 régression). Cas critiques anti-régression :
+  - Kern Terrassement (3 anomalies carrelage × 21% du devis) → escalade a_negocier ✓
+  - Devis 48k€ + 180€ surcoût (0.4%) → reste signer (pas de faux orange) ✓
+  - Entreprise "active" + prix attractif → signer ✓
+  - Entreprise radiée + prix attractif → REFUSER ✓
 
 - **TDZ (Temporal Dead Zone) dans les edge functions et composants React** : tout `const`/`let` déclaré APRÈS son utilisation dans le même scope → `ReferenceError: Cannot access 'X' before initialization`. En prod, Vite renomme les variables → message illisible ("Cannot access 'G' before initialization"). Trois cas vécus : (1) `effectiveScore` useMemo référençant une variable déclarée 250 lignes plus bas dans `AnalysisResult.tsx`, (2) `isMultipleQuotes` déclaré ligne 871 utilisé ligne 672 dans `analyze-quote/index.ts`, (3) `preMajorAnomalies` déclaré dans un bloc `else` utilisé hors de ce bloc dans `conclusion.ts`. **Avant tout refacto sur ces fichiers** : vérifier l'ordre de déclaration des variables utilisées dans les useMemo et les early-exit.
 
@@ -163,11 +192,24 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
 - **effectiveScore figé si `conclusion_ia` null au chargement** (bug détecté 2026-05-01, commit `bb7a9a1`) : quand `analysis.conclusion_ia` est null (première visite, conclusion pas encore générée), `effectiveScore` se calcule à partir de `analysis.score` uniquement. Quand `ConclusionIA` génère ensuite le verdict, il ne met à jour que son propre state local — `analysis` dans le parent n'est jamais mis à jour. Fix : prop `onVerdictReady(rawJson)` dans `ConclusionIA` → `setConclusionIaLive(rawJson)` dans `AnalysisResult` → `effectiveScore` utilise `conclusionIaLive ?? analysis.conclusion_ia`. **Ne pas supprimer `onVerdictReady`** ni `conclusionIaLive`.
 
+- **Cohérence UI V3.3.1 — 6 règles inviolables (2026-05-11)** : règles d'affichage dans `ConclusionIA.tsx` qui forment un filet de sécurité ULTIME. Même si une couche amont laisse passer une incohérence, l'UI ne peut PAS afficher simultanément un verdict positif ET un chiffre alarmiste.
+  - **RÈGLE 1** : badge document (pastille header) = `conclusion_ia.verdict_global` mappé (signer→VERT, a_negocier→ORANGE, refuser→ROUGE). Jamais un recompute legacy indépendant.
+  - **RÈGLE 2** : interdiction du chiffre accusatoire si verdict=signer. Variable `showAccusatoryHero = hasSurcout && !isVerdictSigner` contrôle l'affichage du hero "+X €".
+  - **RÈGLE 3** : le hero "+X €" en gros s'affiche UNIQUEMENT si verdict ∈ {a_negocier, ne_pas_signer}. Si verdict=signer + delta détecté → on déplace l'info en bloc soft amber discret sous le verdict (transparence sans accusation).
+  - **RÈGLE 4** : si surcout > 0 ET `anomalies_count === 0` → wording "écart estimatif vs fourchettes marché" / "Comparaison globale indicative" — jamais "payé en trop".
+  - **RÈGLE 5** : reasons cohérents. Dans `generateVerdictReasons` case signer, si `overprice > 0 OU wa.surcout_total > 0` mais 0 anomalie identifiée → "ℹ️ Quelques écarts estimatifs sans anomalie majeure identifiée". Plus jamais "0 poste à vérifier" + delta financier visible.
+  - **RÈGLE 6** : tout composant qui affiche un score/badge/verdict doit lire la même source unique. Composants concernés : `AnalysisResult.tsx`, `ConclusionIA.tsx`, `verdictEngine.ts`, `conclusion.ts`, `scoreUtils.tsx`. `getScoreBadge` est un pure mapping affichage — sa cohérence dépend de l'input qu'on lui passe, qui doit toujours dériver de `verdict_global`/`verdict_decisionnel`.
+  - **handleCopy** : le message à copier suit le wording verdict. Si signer + delta : "Écart estimatif vs marché : ~X € (indicatif, aucune anomalie majeure identifiée)". Si autre verdict : "Montant à renégocier estimé : ~X €".
+
 - **Unités forfait françaises non reconnues** (bug détecté 2026-05-01, commit `6e9ea11`) : `"F"` et `"fft"` sont des abréviations courantes de "forfait" dans les devis BTP français. `FORFAIT_UNIT_KEYWORDS` ne contenait que le mot complet → les groupes `"Dépose carrelage 2F"` traités comme tarifs unitaires → comparaison m² invalide → fausses anomalies. Fix : ajouter `"f"`, `"fft"`, `"ff"`, `"ens"` dans `FORFAIT_UNIT_KEYWORDS` (`conclusion.ts`) et `FORFAIT_UNITS` (`market-prices.ts`).
 
 - **Fourniture+pose vs hors-fourniture** (bug détecté 2026-05-01, commit `96fae4c`) : Gemini peut choisir `carrelage_sol_mo` (hors-fourniture) même quand les descriptions contiennent "Fourniture pose". La validation Level 1 accepte car l'identifiant existe dans le catalogue → comparaison fausse. Fix serveur dans `market-prices.ts` étape 3b-bis : si descriptions contiennent "fourniture" + "pose" et job_type se termine par `_mo` → remplace par `_fourniture_pose` si l'entrée catalogue existe. **Ne pas supprimer cette étape.**
 
-- **Message générique "Si < 8 m² le prix est élevé…" même quand la surface est connue** : symptôme = `hasSurfaceUnitMismatch()` retourne `true` sur un groupe de pose (unité = forfait) même si une ligne "achat matériaux" du même groupe précise la surface en m². Cause : la fonction vérifiait uniquement l'unité du groupe (`main_unit`), pas les `devis_lines` individuelles. **Fix dans `src/pages/api/analyse/[id]/conclusion.ts`** : `extractKnownSurface(lines)` scanne les `devis_lines` du groupe — si au moins une ligne a une unité m² avec une quantité > 0, `hasSurfaceUnitMismatch()` retourne `false` et le message générique n'est pas injecté. **Ne pas supprimer ce guard** : sans lui, tout devis carrelage/parquet avec pose forfait + achat m² séparés déclenche un faux message de mise en garde.
+- **Message générique "Si < 8 m² le prix est élevé…" — bool brut remplacé par score de confidence (V3.2.3, 2026-05-11)** : symptôme historique = `hasSurfaceUnitMismatch()` retournait `true` à tort sur des groupes où la surface était connue ailleurs → action "Demandez la surface" envoyée à un user qui l'avait déjà fournie → perte de crédibilité. Évolution :
+  - **`extractKnownSurface(lines)`** scanne les `devis_lines` ET les descriptions : si au moins une ligne m² existe → `hasSurfaceUnitMismatch()` retourne false.
+  - **`surfaceMismatchConfidence(group): number` (0-1)** dans `conclusion.ts` agrège 5 signaux convergents (label match, ≥1 description match, ≥2 descriptions match, unité explicite, absence de m² connu, qty ∈ [1,2]).
+  - **Seuil `SURFACE_MISMATCH_ACTION_THRESHOLD = 0.70`** : on ne génère une action surface QUE si confidence ≥ 0.70. Cap à 2 actions max, dédupliquées par `job_type_label`. Trade-off assumé : faux négatifs (rater un mismatch réel) > faux positifs (générer une action absurde). La crédibilité passe avant l'exhaustivité.
+  - **Ne pas revenir à un bool brut** : une mauvaise extraction d'unité par Gemini suffit à déclencher le message ridicule sans le seuil.
 
 ### Frontend / React
 
