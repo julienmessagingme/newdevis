@@ -4,9 +4,11 @@ import {
   NARRATIVE_LABELS,
   MOOD_LABELS,
   PRODUCT_BADGE,
+  MACRO_FORMAT_LABELS,
+  MARKETING_PLATFORM_BADGE,
   formatRelativeDate,
 } from "./helpers";
-import type { TemplateListItem, NarrativeType } from "@/types/marketing";
+import type { TemplateListItem, NarrativeType, MacroFormat } from "@/types/marketing";
 
 interface Props {
   templates: TemplateListItem[];
@@ -46,13 +48,14 @@ export default function TemplateTable({
 
   return (
     <div className="overflow-x-auto rounded-xl border bg-card">
-      <table className="w-full min-w-[900px] text-sm">
+      <table className="w-full min-w-[1100px] text-sm">
         <thead className="bg-muted/50 text-muted-foreground text-xs uppercase tracking-wide">
           <tr>
             <th className="px-3 py-2 text-left">ID</th>
             <th className="px-3 py-2 text-left">Titre</th>
             <th className="px-3 py-2 text-center">Produit</th>
-            <th className="px-3 py-2 text-center">Structure</th>
+            <th className="px-3 py-2 text-center">Macro V3</th>
+            <th className="px-3 py-2 text-center">Plateforme</th>
             <th className="px-3 py-2 text-center">Slides</th>
             <th className="px-3 py-2 text-center">Mood</th>
             <th className="px-3 py-2 text-left">Dernier usage</th>
@@ -63,6 +66,10 @@ export default function TemplateTable({
         <tbody className="divide-y">
           {templates.map((t) => {
             const badge = PRODUCT_BADGE[t.product];
+            const macroLabel = t.macro_format
+              ? MACRO_FORMAT_LABELS[t.macro_format as MacroFormat] ?? t.macro_format
+              : null;
+            const platformBadge = t.platform ? MARKETING_PLATFORM_BADGE[t.platform] : null;
             const narrativeLabel =
               NARRATIVE_LABELS[t.narrative_type as NarrativeType] ?? t.narrative_type;
             const inCooldown = allInCooldown(t);
@@ -70,15 +77,32 @@ export default function TemplateTable({
             return (
               <tr key={t.id} className="hover:bg-muted/30 transition">
                 <td className="px-3 py-2 font-mono text-xs">{t.id}</td>
-                <td className="px-3 py-2 max-w-[200px] truncate">{t.title}</td>
+                <td className="px-3 py-2 max-w-[220px] truncate" title={t.title}>{t.title}</td>
                 <td className="px-3 py-2 text-center">
                   <span className={`inline-block px-2 py-0.5 rounded text-xs border font-medium ${badge?.class ?? ""}`}>
                     {badge?.label ?? t.product}
                   </span>
                 </td>
                 <td className="px-3 py-2 text-center">
-                  <span className="font-mono font-bold">{t.narrative_type}</span>{" "}
-                  <span className="text-muted-foreground text-xs">{narrativeLabel}</span>
+                  {t.macro_format ? (
+                    <>
+                      <span className="font-mono font-bold text-xs">{t.macro_format}</span>
+                      <div className="text-muted-foreground text-[10px] leading-tight">{macroLabel}</div>
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground text-xs italic" title={`legacy ${t.narrative_type} · ${narrativeLabel}`}>
+                      legacy {t.narrative_type}
+                    </span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-center">
+                  {platformBadge ? (
+                    <span className={`inline-block px-2 py-0.5 rounded text-xs border font-medium ${platformBadge.class}`}>
+                      {platformBadge.label}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">—</span>
+                  )}
                 </td>
                 <td className="px-3 py-2 text-center">{t.format_size}</td>
                 <td className="px-3 py-2 text-center">

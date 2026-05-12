@@ -59,6 +59,8 @@ export default function AdminMarketingTemplates() {
     const params = new URLSearchParams();
     if (filters.product !== "all") params.set("product", filters.product);
     if (filters.narrative_type !== "all") params.set("narrative_type", filters.narrative_type);
+    if (filters.macro_format !== "all") params.set("macro_format", filters.macro_format);
+    if (filters.platform !== "all") params.set("platform", filters.platform);
     if (filters.mood !== "all") params.set("mood", filters.mood);
     if (filters.usage_status !== "all") params.set("usage_status", filters.usage_status);
 

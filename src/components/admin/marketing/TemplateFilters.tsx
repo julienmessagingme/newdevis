@@ -3,12 +3,16 @@ import {
   MOOD_LABELS,
   ALL_NARRATIVES,
   ALL_MOODS,
+  ALL_MACRO_FORMATS,
+  MACRO_FORMAT_LABELS,
 } from "./helpers";
-import type { NarrativeType } from "@/types/marketing";
+import type { NarrativeType, MacroFormat } from "@/types/marketing";
 
 export interface TemplateFiltersState {
   product: "all" | "vmd" | "gmc";
   narrative_type: "all" | NarrativeType;
+  macro_format: "all" | "any" | MacroFormat;
+  platform: "all" | "instagram" | "tiktok" | "facebook";
   usage_status: "all" | "never_used" | "available" | "cooldown";
   mood: "all" | string;
 }
@@ -16,6 +20,8 @@ export interface TemplateFiltersState {
 export const DEFAULT_TEMPLATE_FILTERS: TemplateFiltersState = {
   product: "all",
   narrative_type: "all",
+  macro_format: "all",
+  platform: "all",
   usage_status: "all",
   mood: "all",
 };
@@ -30,6 +36,12 @@ export default function TemplateFilters({ filters, onChange }: Props) {
     key: K,
     value: TemplateFiltersState[K],
   ) => onChange({ ...filters, [key]: value });
+
+  // Filtre macro_format suit le produit sélectionné
+  const macroFormatOptions = ALL_MACRO_FORMATS.filter((mf) => {
+    if (filters.product === "all") return true;
+    return mf.startsWith(filters.product === "vmd" ? "V-" : "G-");
+  });
 
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -50,13 +62,40 @@ export default function TemplateFilters({ filters, onChange }: Props) {
         ))}
       </div>
 
-      {/* Narrative */}
+      {/* Macro-format V3 */}
+      <select
+        value={filters.macro_format}
+        onChange={(e) => set("macro_format", e.target.value as TemplateFiltersState["macro_format"])}
+        className="rounded-md border border-input bg-background px-3 py-1.5 text-xs"
+      >
+        <option value="all">Macro-format — Tous</option>
+        <option value="any">— V3 uniquement —</option>
+        {macroFormatOptions.map((mf) => (
+          <option key={mf} value={mf}>
+            {mf} — {MACRO_FORMAT_LABELS[mf]}
+          </option>
+        ))}
+      </select>
+
+      {/* Platform V3 */}
+      <select
+        value={filters.platform}
+        onChange={(e) => set("platform", e.target.value as TemplateFiltersState["platform"])}
+        className="rounded-md border border-input bg-background px-3 py-1.5 text-xs"
+      >
+        <option value="all">Plateforme — Toutes</option>
+        <option value="instagram">Instagram</option>
+        <option value="tiktok">TikTok</option>
+        <option value="facebook">Facebook</option>
+      </select>
+
+      {/* Narrative (legacy) */}
       <select
         value={filters.narrative_type}
         onChange={(e) => set("narrative_type", e.target.value as TemplateFiltersState["narrative_type"])}
         className="rounded-md border border-input bg-background px-3 py-1.5 text-xs"
       >
-        <option value="all">Structure — Toutes</option>
+        <option value="all">Structure (legacy) — Toutes</option>
         {ALL_NARRATIVES.map((n) => (
           <option key={n} value={n}>
             {n} — {NARRATIVE_LABELS[n]}

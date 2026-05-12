@@ -11,14 +11,27 @@ export const GET: APIRoute = async ({ request }) => {
   const url = new URL(request.url);
   const product = url.searchParams.get('product');
   const narrativeType = url.searchParams.get('narrative_type');
+  const macroFormat = url.searchParams.get('macro_format');
+  const platform = url.searchParams.get('platform');
   const mood = url.searchParams.get('mood');
 
   try {
     const sb = createServiceClient();
-    const { data, error } = await sb.rpc('get_marketing_templates');
+
+    // V3 : on bascule sur un SELECT direct au lieu du RPC get_marketing_templates
+    // pour récupérer les nouveaux champs macro_format + platform (cf. plan §5).
+    // Le RPC peut rester pour la compat ascendante mais ne connaît pas ces colonnes.
+    const { data, error } = await sb
+      .schema('marketing')
+      .from('script_templates')
+      .select(
+        'id, product, narrative_type, macro_format, platform, format_size, ' +
+        'title, mood, is_active, total_uses, slides'
+      )
+      .order('id', { ascending: false });
 
     if (error) {
-      console.error('[marketing/templates] RPC error:', error.message, error.code, error.details);
+      console.error('[marketing/templates] select error:', error.message, error.code, error.details);
       return jsonError(error.message || 'Erreur Supabase', 500);
     }
 
@@ -26,6 +39,8 @@ export const GET: APIRoute = async ({ request }) => {
       id: t.id,
       product: t.product,
       narrative_type: t.narrative_type,
+      macro_format: t.macro_format ?? null,
+      platform: t.platform ?? null,
       format_size: t.format_size,
       title: t.title,
       mood: t.mood,
@@ -36,9 +51,17 @@ export const GET: APIRoute = async ({ request }) => {
       cooldown_until: {},
     }));
 
-    if (product) templates = templates.filter((t: Record<string, unknown>) => t.product === product);
-    if (narrativeType) templates = templates.filter((t: Record<string, unknown>) => t.narrative_type === narrativeType);
-    if (mood) templates = templates.filter((t: Record<string, unknown>) => t.mood === mood);
+    if (product) templates = templates.filter((t) => t.product === product);
+    if (narrativeType) templates = templates.filter((t) => t.narrative_type === narrativeType);
+    if (mood) templates = templates.filter((t) => t.mood === mood);
+    if (macroFormat) {
+      if (macroFormat === 'any') {
+        templates = templates.filter((t) => t.macro_format !== null);
+      } else {
+        templates = templates.filter((t) => t.macro_format === macroFormat);
+      }
+    }
+    if (platform) templates = templates.filter((t) => t.platform === platform);
 
     return jsonOk({ templates });
   } catch (err) {

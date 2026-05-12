@@ -197,11 +197,29 @@ export interface MarketingSettingsUpdateResponse extends MarketingSettings {
 
 export type NarrativeType = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
 
+/**
+ * Macro-format V3 (cf. plan refonte v3 §5).
+ * V-F01..V-F10 = VMD listicle, case study, POV, quiz, phrases artisan, fourchette,
+ *                red/green flag, bailleur, phrase commercial, série épisode.
+ * G-F01..G-F10 = GMC chaos multi-chantier, démo cascade IA, POV bailleur, ROI × N,
+ *                échéancier prédictif, génération 5 min, WhatsApp 19h, simulateur aides,
+ *                série Marc, 1er vs 4ème.
+ */
+export type MacroFormat =
+  | 'V-F01' | 'V-F02' | 'V-F03' | 'V-F04' | 'V-F05'
+  | 'V-F06' | 'V-F07' | 'V-F08' | 'V-F09' | 'V-F10'
+  | 'G-F01' | 'G-F02' | 'G-F03' | 'G-F04' | 'G-F05'
+  | 'G-F06' | 'G-F07' | 'G-F08' | 'G-F09' | 'G-F10';
+
 export interface TemplateListItem {
   id: string;
   product: 'vmd' | 'gmc';
   narrative_type: NarrativeType;
-  format_size: 5 | 7;
+  /** V3 : macro-format canonique (V-F01..G-F10). null = ancien script pre-v3. */
+  macro_format: MacroFormat | null;
+  /** V3 : plateforme cible principale (instagram, tiktok, facebook). null = ancien. */
+  platform: 'instagram' | 'tiktok' | 'facebook' | null;
+  format_size: 5 | 7 | number;
   title: string;
   mood: string;
   is_active: boolean;

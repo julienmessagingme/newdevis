@@ -1,4 +1,5 @@
 import type {
+  MacroFormat,
   MarketingPersonaCode,
   MarketingPlatform,
   MarketingPostStatus,
@@ -144,3 +145,47 @@ export const CHAR_LIMITS: Record<string, Record<string, number>> = {
 
 export const ALL_MOODS = ['pain', 'fear', 'trust', 'empowerment', 'authority', 'revelation', 'stat_choc', 'complicite', 'celebration'] as const;
 export const ALL_NARRATIVES: NarrativeType[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
+// ─── V3 Macro-formats (refonte v3 §5) ────────────────────────────────────────
+
+export const MACRO_FORMAT_LABELS: Record<MacroFormat, string> = {
+  'V-F01': 'Listicle 7 red flags',
+  'V-F02': 'Case study chiffré',
+  'V-F03': 'POV devis reçu',
+  'V-F04': 'Quiz vote A vs B',
+  'V-F05': '3 phrases artisan',
+  'V-F06': 'Fourchette de prix',
+  'V-F07': 'Quiz Red/Green flag',
+  'V-F08': 'Bailleur économie',
+  'V-F09': 'Phrase commercial',
+  'V-F10': 'Série épisode hebdo',
+  'G-F01': 'Chaos multi-chantier',
+  'G-F02': 'Démo cascade IA',
+  'G-F03': 'POV bailleur lundi',
+  'G-F04': 'ROI × N chantiers',
+  'G-F05': 'Échéancier prédictif',
+  'G-F06': 'Génération 5 min',
+  'G-F07': 'WhatsApp 19h',
+  'G-F08': 'Simulateur aides',
+  'G-F09': 'Série 12 sem. Marc',
+  'G-F10': '1er vs 4ème chantier',
+};
+
+export const ALL_MACRO_FORMATS_VMD: MacroFormat[] = [
+  'V-F01','V-F02','V-F03','V-F04','V-F05','V-F06','V-F07','V-F08','V-F09','V-F10',
+];
+
+export const ALL_MACRO_FORMATS_GMC: MacroFormat[] = [
+  'G-F01','G-F02','G-F03','G-F04','G-F05','G-F06','G-F07','G-F08','G-F09','G-F10',
+];
+
+export const ALL_MACRO_FORMATS: MacroFormat[] = [
+  ...ALL_MACRO_FORMATS_VMD,
+  ...ALL_MACRO_FORMATS_GMC,
+];
+
+export const MARKETING_PLATFORM_BADGE: Record<string, { label: string; class: string }> = {
+  instagram: { label: 'IG',  class: 'bg-pink-100 text-pink-800 border-pink-200' },
+  tiktok:    { label: 'TT',  class: 'bg-slate-100 text-slate-800 border-slate-200' },
+  facebook:  { label: 'FB',  class: 'bg-blue-100 text-blue-800 border-blue-200' },
+};
