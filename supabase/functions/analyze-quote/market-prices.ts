@@ -3,22 +3,34 @@ import { fetchGeminiWithRetry } from "../_shared/gemini-fetch.ts";
 import {
   matchMarketCategory,
   logMatchResult,
+  validateSignature,
   type SemanticSignature,
   type MarketCatalogRow,
+  type MatchResult,
 } from "./market-matcher.ts";
 
 /**
- * V3.6 — Feature flag pour activer/désactiver la nouvelle architecture de matching.
- * Active par défaut. Pour revenir au comportement V3.5 (Gemini choisit le job_type),
- * mettre USE_V36_MATCHER à false ou désactiver via env var MARKET_MATCHER_V36=false.
+ * V3.6 — Feature flags pour le déploiement contrôlé.
+ *
+ * MARKET_MATCHER_V36 :
+ *   - "shadow" (DÉFAUT) : V3.5 visible utilisateur + V3.6 en parallèle silencieux
+ *     → logs [V36_SHADOW] pour comparer les 2 systèmes sur 100+ analyses
+ *     → 0 impact UX, mesure des KPIs (coverage, no_match, verdict_delta)
+ *   - "true"  : V3.6 active en prod, V3.5 fallback uniquement
+ *   - "false" : V3.5 only, V3.6 désactivée (rollback instantané)
+ *
+ * Activation prod V3.6 = "true" uniquement APRÈS validation shadow metrics
+ * (cf. cahier des charges PHASES 1+6).
  */
-const USE_V36_MATCHER: boolean = (() => {
+type MatcherMode = "v35_only" | "shadow" | "v36_only";
+const MATCHER_MODE: MatcherMode = (() => {
   try {
     const env = (typeof Deno !== "undefined" ? Deno.env.get("MARKET_MATCHER_V36") : undefined);
-    if (env === "false" || env === "0") return false;
-    return true;
+    if (env === "false" || env === "0") return "v35_only";
+    if (env === "true" || env === "1") return "v36_only";
+    return "shadow"; // default : shadow mode
   } catch {
-    return true;
+    return "shadow";
   }
 })();
 
@@ -592,6 +604,106 @@ OBJECTIF : Regroupe les ${totalItems} postes en 3 à 7 groupes (un par grand typ
 }
 
 /**
+ * V3.6 SHADOW MODE — exécute V3.6 en parallèle de V3.5 et logge la comparaison.
+ *
+ * Objectif : mesurer les différences entre les deux systèmes sur des analyses
+ * réelles, sans impact UX (V3.5 reste la source visible). Permet de valider
+ * V3.6 avant activation prod (PHASE 6 KPI).
+ *
+ * Log structuré [V36_SHADOW] avec :
+ *   - signature_v36, matched_job_type_v35, matched_job_type_v36
+ *   - same_match, strategy, confidence
+ *   - tous loggés en JSON pour parsing ultérieur
+ */
+async function runShadowComparison(
+  workItems: WorkItemFull[],
+  googleApiKey: string,
+  signatureExpertPrompt: string,
+  catalog: MarketCatalogRow[],
+  legacyJobTypes: GeminiJobType[],
+): Promise<void> {
+  try {
+    const sigGroups = await groupWithGeminiSignature(workItems, googleApiKey, signatureExpertPrompt);
+
+    // Pour chaque groupe V3.6, on tente de retrouver le groupe V3.5 correspondant
+    // via work_items overlap (méthode la plus fiable car les groupes peuvent
+    // avoir des labels différents).
+    for (let i = 0; i < sigGroups.length; i++) {
+      const v36Group = sigGroups[i];
+      const v36Items = new Set(v36Group.work_items);
+
+      // Trouve le groupe V3.5 avec le plus d'overlap d'items
+      let bestLegacyMatch: GeminiJobType | null = null;
+      let bestOverlap = 0;
+      for (const legacy of legacyJobTypes) {
+        const overlap = legacy.work_items.filter(idx => v36Items.has(idx)).length;
+        if (overlap > bestOverlap) {
+          bestOverlap = overlap;
+          bestLegacyMatch = legacy;
+        }
+      }
+
+      // Valide la signature V3.6 et matche
+      const validation = validateSignature(v36Group.signature);
+      let v36MatchResult: MatchResult | null = null;
+      if (validation.valid && validation.signature) {
+        v36MatchResult = matchMarketCategory(validation.signature, catalog);
+      }
+
+      // Construit le log structuré
+      const legacyJobType = bestLegacyMatch?.job_types[0] || null;
+      const v36JobType = v36MatchResult?.matched ? v36MatchResult.job_type : null;
+      const sameMatch = legacyJobType === v36JobType;
+
+      const shadowLog = {
+        v36_group_label: v36Group.job_type_label,
+        v36_work_items_count: v36Group.work_items.length,
+        items_overlap_with_legacy: bestOverlap,
+        legacy: {
+          job_type: legacyJobType,
+          job_type_label: bestLegacyMatch?.job_type_label || null,
+        },
+        v36: validation.valid && validation.signature ? {
+          signature: {
+            domain: validation.signature.domain,
+            subcategory: validation.signature.subcategory,
+            room: validation.signature.room,
+            unit: validation.signature.unit,
+            keywords: validation.signature.keywords.slice(0, 5),
+          },
+          matched_job_type: v36JobType,
+          strategy: v36MatchResult?.match_strategy ?? "no_match",
+          confidence: v36MatchResult?.confidence ?? 0,
+        } : {
+          signature_invalid: true,
+          errors: validation.errors,
+        },
+        diff: {
+          same_match: sameMatch,
+          v36_has_match: v36JobType !== null,
+          legacy_has_match: legacyJobType !== null,
+          v36_no_match_v35_did: legacyJobType !== null && v36JobType === null,
+          v35_no_match_v36_did: legacyJobType === null && v36JobType !== null,
+        },
+      };
+
+      console.log(`[V36_SHADOW] ${JSON.stringify(shadowLog)}`);
+    }
+
+    // Récapitulatif global pour ce devis
+    const stats = sigGroups.reduce((acc, _, i) => {
+      // (réutilise les logs ci-dessus pour ne pas dupliquer le calcul)
+      acc.total++;
+      return acc;
+    }, { total: 0 });
+    console.log(`[V36_SHADOW_SUMMARY] ${stats.total} groups compared`);
+
+  } catch (err) {
+    console.warn("[V36_SHADOW] error during shadow comparison:", err instanceof Error ? err.message : String(err));
+  }
+}
+
+/**
  * Main entry point: identify job types and look up market prices.
  */
 export async function lookupMarketPrices(
@@ -636,53 +748,60 @@ export async function lookupMarketPrices(
     }
   }
 
-  // 3. Ask Gemini to identify job types and assign lines.
-  //
-  // V3.6 (default) : Gemini extrait une signature sémantique neutre, le matching
-  //                  catalogue est fait par market-matcher.ts (déterministe).
-  // V3.5 (legacy)  : Gemini choisit lui-même le job_type dans le catalogue filtré.
-  //
-  // Bascule via env MARKET_MATCHER_V36=false (cf. USE_V36_MATCHER au sommet du fichier).
+  // 3. Identifier les job types — 3 modes possibles
+  //    (cf. MATCHER_MODE et cahier des charges PHASE 1 SHADOW DEPLOYMENT) :
+  //    - "v35_only"  : V3.5 seule (rollback)
+  //    - "shadow"    : V3.5 visible + V3.6 silencieuse en parallèle (DÉFAUT)
+  //    - "v36_only"  : V3.6 visible (après validation shadow)
   let jobTypes: GeminiJobType[];
+  console.log(`[MarketPrices] mode=${MATCHER_MODE}`);
 
-  if (USE_V36_MATCHER && config.marketSignatureExpertPrompt) {
-    console.log(`[MarketPrices] Using V3.6 deterministic matcher (Gemini extracts signature only)`);
+  // Catalogue complet typé pour V3.6 matcher (utilisé en shadow ou v36_only)
+  const fullCatalog: MarketCatalogRow[] = (allPrices as MarketCatalogRow[]);
 
-    // Étape A — Gemini extrait les signatures sémantiques (PAS le catalogue)
+  if (MATCHER_MODE === "v36_only" && config.marketSignatureExpertPrompt) {
+    // ─── V3.6 visible utilisateur ────────────────────────────────────────
     const sigGroups = await groupWithGeminiSignature(
       workItems,
       googleApiKey,
       config.marketSignatureExpertPrompt,
     );
-
-    // Étape B — Pour chaque groupe, le backend applique matchMarketCategory()
-    // sur le catalogue complet et produit le format GeminiJobType compatible avec
-    // la suite du pipeline.
-    const fullCatalog: MarketCatalogRow[] = (allPrices as MarketCatalogRow[]);
     jobTypes = sigGroups.map((g) => {
-      const matchResult = matchMarketCategory(g.signature, fullCatalog);
+      const validation = validateSignature(g.signature);
+      if (!validation.valid || !validation.signature) {
+        console.warn(`[V36_INVALID_SIGNATURE] group "${g.job_type_label}" — fallback to no-catalog`);
+        return {
+          job_type_label: g.job_type_label,
+          job_types: [],
+          main_unit: g.main_unit,
+          main_quantity: g.main_quantity,
+          work_items: g.work_items,
+        };
+      }
+      const matchResult = matchMarketCategory(validation.signature, fullCatalog);
       logMatchResult(matchResult, { groupLabel: g.job_type_label });
-
       return {
-        // Pour la compatibilité avec la suite du pipeline V3.5, on garde le format.
-        // Si matché : on injecte le job_type catalogue. Sinon : tableau vide
-        // (le groupe sera traité comme "Autre" / comparaison indicative).
-        job_type_label: matchResult.matched && matchResult.label
-          ? matchResult.label
-          : g.job_type_label,
+        job_type_label: matchResult.matched && matchResult.label ? matchResult.label : g.job_type_label,
         job_types: matchResult.matched && matchResult.job_type ? [matchResult.job_type] : [],
         main_unit: g.main_unit,
         main_quantity: g.main_quantity,
         work_items: g.work_items,
       };
     });
-
-    console.log(`[MarketPrices] V3.6 — ${jobTypes.length} groups (${jobTypes.filter(jt => jt.job_types.length > 0).length} matched, ${jobTypes.filter(jt => jt.job_types.length === 0).length} no_match)`);
+    console.log(`[MarketPrices] V3.6 — ${jobTypes.length} groups (${jobTypes.filter(jt => jt.job_types.length > 0).length} matched)`);
   } else {
-    // V3.5 legacy — Gemini choisit le job_type
+    // ─── V3.5 visible (modes "v35_only" ET "shadow") ─────────────────────
     const catalog = buildCatalog(relevantPrices);
     jobTypes = await groupWithGemini(workItems, catalog, googleApiKey, config.marketPriceExpertPrompt);
-    console.log(`[MarketPrices] V3.5 legacy — ${workItems.length} work items, ${jobTypes.length} job types from Gemini`);
+    console.log(`[MarketPrices] V3.5 visible — ${workItems.length} work items, ${jobTypes.length} job types`);
+
+    // ─── SHADOW MODE — V3.6 en parallèle silencieux ──────────────────────
+    // En shadow : on exécute V3.6 sur les mêmes work_items et on logge la
+    // comparaison structurée [V36_SHADOW]. Aucun impact sur le retour utilisateur.
+    if (MATCHER_MODE === "shadow" && config.marketSignatureExpertPrompt) {
+      runShadowComparison(workItems, googleApiKey, config.marketSignatureExpertPrompt, fullCatalog, jobTypes)
+        .catch(err => console.warn("[V36_SHADOW] shadow run failed:", err instanceof Error ? err.message : String(err)));
+    }
   }
 
   // 3b-bis. FOURNITURE vs HORS-FOURNITURE override (server-side guard).

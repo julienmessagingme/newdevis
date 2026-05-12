@@ -199,27 +199,8 @@ RÈGLES DE GROUPEMENT (les mêmes qu'avant)
 RÈGLE EXCLUSIVITÉ DE DOMAINE (absolue) :
 Une ligne appartient à UN SEUL domaine BTP. Les domaines ne se mélangent JAMAIS. Si un devis carrelage inclut chape + primaire + dalle + acier IP14 → 4 groupes distincts, pas 1.
 
-Domaines BTP reconnus (utilise EXACTEMENT un de ces noms comme "domain") :
-- carrelage     (dalle, céramique, faïence, carreau, joint, colle)
-- chape         (chape ciment, mortier, ragréage, lissage)
-- peinture      (peinture, lasure, vernis, sous-couche peinture, rebouchage)
-- primaire      (primaire d'accrochage, fond dur — préparation supports)
-- terrassement  (excavation, déblai, remblai, fond de forme, concassé)
-- pavage        (pavé, bordure, sablage)
-- maconnerie    (parpaing, brique, agglo, mur, élévation, chaînage, linteau)
-- plomberie     (robinet, mitigeur, sanitaire, douche, baignoire, tuyau)
-- electricite   (prise, interrupteur, tableau, disjoncteur, fil, câble, batibox, moulure)
-- menuiserie    (fenêtre, porte, volet, vitrage, baie)
-- platrerie    (placo, cloison, doublage, plafond, BA13)
-- charpente     (fermette, lambourde, solive, chevron)
-- couverture    (tuile, ardoise, faîtage, closoir)
-- zinguerie     (gouttière, descente eaux, naissance)
-- isolation     (laine, polystyrène, ouate, vermiculite)
-- etancheite    (membrane, sopralène, bitume, EPDM)
-- enduit        (enduit extérieur, crépi, façade, monocouche)
-- escalier      (marches, contremarches, garde-corps, rampe)
-- acier         (IPN, IPE, IP14, poutre acier, linteau métal)
-- autre         (uniquement si vraiment aucun match)
+⚠️ ENUM STRICT — utilise EXACTEMENT un de ces noms comme "domain" (sinon ta réponse sera rejetée et fallback V3.5 sera appliqué) :
+electricite, plomberie, chauffage, climatisation, carrelage, chape, peinture, primaire, isolation, toiture, menuiserie, maconnerie, terrassement, pavage, facade, enduit, serrurerie, ventilation, platrerie, charpente, couverture, zinguerie, etancheite, escalier, acier, salle_de_bain, cuisine, exterieur, piscine, energies_renouvelables, autre
 
 RÈGLE GROUPEMENT LARGEUR : regroupe préparation + fournitures + accessoires + finitions du MÊME domaine.
 - Joints + colle + carrelage = même groupe carrelage ✓
@@ -232,34 +213,64 @@ EXTRACTION DE LA SIGNATURE (le cœur de V3.6)
 Pour chaque groupe, tu dois extraire 5 champs :
 
 1. domain         : un des 20 domaines ci-dessus.
-2. subcategory    : sous-type métier en 1-2 mots. Exemples :
-                      - "fourniture_pose" si le devis inclut fournitures ET pose
-                      - "mo_seule" / "pose_seule" / "hors_fourniture" si seulement main d'œuvre
-                      - "depose" si seulement dépose / démolition
-                      - "raccordement" pour électricité avec prises/disjoncteurs/fils
-                      - "moulure" pour électricité avec uniquement moulures/goulottes
-                      - "tableau" pour électricité avec uniquement tableau électrique
-                      - "fenetre" / "porte" / "volet" pour menuiserie selon type
-                    Sois précis mais simple. Pas de pièce dans subcategory.
+2. subcategory    : ⚠️ ENUM STRICT contrôlé par domain (sinon rejet). Valeurs autorisées par domaine :
+                      electricite   : raccordement, tableau, moulure, fil, depose, mise_aux_normes, luminaire, domotique
+                      plomberie     : sanitaire, tuyauterie, evacuation, robinetterie, chauffe_eau, depose
+                      chauffage     : chaudiere, radiateur, plancher_chauffant, pompe_a_chaleur, depose
+                      climatisation : mono_split, multi_split, gainable, vrv, accessoires, maintenance
+                      carrelage     : fourniture_pose, pose_seule, depose, faience, plinthe, joint
+                      chape         : liquide, ciment, ragreage, lissage
+                      peinture      : fourniture_pose, pose_seule, lasure, vernis, rebouchage, sous_couche
+                      primaire      : fourniture_pose, fond_dur, accrochage
+                      isolation     : combles, mur, sol, interieur, exterieur
+                      toiture       : couverture, etancheite, zinguerie, reparation
+                      menuiserie    : fenetre, porte, volet, baie_vitree, porte_fenetre, depose, fourniture_pose
+                      maconnerie    : fondation, elevation, dallage, linteau, chainage, demolition
+                      terrassement  : excavation, remblai, fond_de_forme, compactage, decaissement
+                      pavage        : fourniture_pose, bordure, sablage, depose
+                      facade        : enduit, ravalement, isolation_ite, nettoyage, peinture_facade
+                      enduit        : monocouche, traditionnel, decoratif, facade
+                      serrurerie    : porte_blindee, cylindre, garde_corps, grille
+                      ventilation   : vmc_simple, vmc_double_flux, extraction, maintenance
+                      platrerie     : cloison, doublage, plafond, ba13, carreaux_platre
+                      charpente     : fermette, traditionnelle, lamelle_colle
+                      couverture    : tuile, ardoise, zinc, bac_acier, reparation
+                      zinguerie     : gouttiere, descente, abergement, noue
+                      etancheite    : membrane, bitume, epdm, couvertine
+                      escalier      : bois, metal, beton, garde_corps, habillage
+                      acier         : ipn, ipe, ip14, poutre, linteau
+                      salle_de_bain : renovation_complete, douche_italienne, baignoire, lavabo
+                      cuisine       : renovation_complete, ilot, meuble, plan_travail
+                      exterieur     : terrasse, cloture, portail, amenagement
+                      piscine       : construction, renovation, liner, filtration, margelle
+                      energies_renouvelables : photovoltaique, solaire_thermique, eolien, geothermie
+                      autre         : divers, fournitures, main_oeuvre, deplacement, forfait
+                    Pas de pièce dans subcategory (la pièce va dans le champ `room`).
 
-3. room           : SEULEMENT si AU MOINS UNE DESCRIPTION DU DEVIS mentionne explicitement
-                    une pièce. Sinon null.
-                    Valeurs canoniques (utilise exactement ces noms) :
-                      cuisine | sdb | wc | chambre | salon | bureau | garage |
-                      cellier | entree | couloir | exterieur | cave | combles
-                    ⚠️ Synonymes acceptés à mapper :
-                      "salle de bain"/"salle de bains"/"salle d'eau" → "sdb"
-                      "séjour"/"salle à manger" → "salon"
-                      "buanderie"/"lingerie" → "cellier"
-                      "hall"/"vestibule" → "entree"
-                      "dégagement" → "couloir"
-                      "terrasse"/"balcon"/"jardin" → "exterieur"
-                      "sous-sol" → "cave"
+3. room           : ⚠️ ENUM STRICT. Valeurs autorisées (utilise EXACTEMENT ces noms) :
+                      cuisine, salle_de_bain, chambre, salon, garage, exterieur,
+                      local_technique, bureau, couloir, entree, wc, cellier, cave, combles
+                    OU `null` si aucune pièce n'est mentionnée dans les descriptions.
+
+                    Synonymes à mapper vers la valeur canonique :
+                      "sdb" / "salle de bain" / "salle de bains" / "salle d'eau" → "salle_de_bain"
+                      "séjour" / "sejour" / "salle à manger" → "salon"
+                      "buanderie" / "lingerie" → "cellier"
+                      "hall" / "vestibule" → "entree"
+                      "dégagement" / "degagement" / "circulation" → "couloir"
+                      "terrasse" / "balcon" / "jardin" → "exterieur"
+                      "sous-sol" / "sous_sol" → "cave"
                       "grenier" → "combles"
-                    SI AUCUNE description ne mentionne de pièce → room = null. NE JAMAIS deviner.
-                    NE JAMAIS extraire la pièce de l'EN-TÊTE de l'entreprise ou du descriptif global.
+                      "chaufferie" / "local technique" → "local_technique"
+                      "toilettes" → "wc"
 
-4. unit           : unité principale du groupe — m2 | ml | u | forfait | pce | etc.
+                    RÈGLE ABSOLUE : room = SEULEMENT si AU MOINS UNE DESCRIPTION du devis (des
+                    lignes du groupe) mentionne explicitement la pièce. Sinon room = null.
+                    NE JAMAIS deviner. NE JAMAIS extraire la pièce de l'EN-TÊTE de l'entreprise
+                    ou du descriptif global.
+
+4. unit           : ⚠️ ENUM STRICT. Valeurs autorisées : m2, ml, u, forfait, kw, lot, pce, m3
+                    Sinon réponse rejetée.
 
 5. keywords[]     : 5 à 10 mots-clés extraits des descriptions du devis pour aider
                     le backend à matcher avec le catalogue. Tous en minuscule, sans
