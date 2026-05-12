@@ -674,9 +674,11 @@ function FinancementSection({
           {creditOpen && (
             <div className="mt-3 space-y-3">
               {([
-                { label: 'Montant',     id: 'montant', min: 0,   max: 10_000_000, step: 1000, val: slMontant, set: setSlMontant, suffix: '€',   width: 'w-28', decimals: 0 },
-                { label: 'Taux annuel', id: 'taux',    min: 0.5, max: 8,          step: 0.1,  val: slTaux,    set: setSlTaux,    suffix: '%',   width: 'w-16', decimals: 2 },
-                { label: 'Durée',       id: 'duree',   min: 5,   max: 30,         step: 1,    val: slDuree,   set: setSlDuree,   suffix: 'ans', width: 'w-16', decimals: 0 },
+                // Cap montant 1 M€/ligne — au-delà l'user crée une nouvelle ligne de crédit
+                // (slider moins sensible sur 0-1M qu'auparavant sur 0-10M).
+                { label: 'Montant',     id: 'montant', min: 0,   max: 1_000_000, step: 1000, val: slMontant, set: setSlMontant, suffix: '€',   width: 'w-28', decimals: 0 },
+                { label: 'Taux annuel', id: 'taux',    min: 0,   max: 8,         step: 0.1,  val: slTaux,    set: setSlTaux,    suffix: '%',   width: 'w-16', decimals: 2 },
+                { label: 'Durée',       id: 'duree',   min: 5,   max: 30,        step: 1,    val: slDuree,   set: setSlDuree,   suffix: 'ans', width: 'w-16', decimals: 0 },
               ] as const).map(sl => (
                 <div key={sl.id}>
                   <div className="flex justify-between items-center text-[11px] mb-1 gap-2">
@@ -715,6 +717,19 @@ function FinancementSection({
                     style={{ accentColor: C.credit.main }} />
                 </div>
               ))}
+
+              {/* Info plafond — visible quand le montant atteint 1 M€ */}
+              {slMontant >= 1_000_000 && (
+                <div className="rounded-lg px-3 py-2 text-[11px] leading-relaxed flex items-start gap-2"
+                     style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#78350f' }}>
+                  <span className="shrink-0">ℹ️</span>
+                  <div>
+                    <strong>Plafond 1 M€ par ligne atteint.</strong> Si votre prêt dépasse ce montant
+                    (taux différents, in fine, prêt relais, etc.),
+                    {' '}<em>créez une nouvelle ligne de crédit</em> — elles s'additionneront dans le total.
+                  </div>
+                </div>
+              )}
               <div className="rounded-lg p-2.5 space-y-1.5" style={{ background: C.credit.track }}>
                 {[
                   ['Mensualité', `${slMens} €/mois`],
