@@ -151,6 +151,28 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
 - **effectiveScore — champ `verdict_decisionnel` pas `verdict`** (bug détecté 2026-05-01, commit `b411ebd`) : `ConclusionData` stocke le verdict décisionnel dans `verdict_decisionnel`, pas `verdict`. `effectiveScore` dans `AnalysisResult.tsx` lisait `parsed?.verdict` → toujours `undefined` → score restait VERT même si ConclusionIA retournait ORANGE. Fix : `parsed?.verdict_decisionnel`. Ne jamais renommer ce champ sans mettre à jour tous les consommateurs.
 
+- **Matching catalogue V3.6 — architecture déterministe backend (2026-05-12)** : Gemini n'a PLUS la responsabilité de choisir un `job_type` du catalogue marché. Il extrait UNIQUEMENT une **signature sémantique neutre** (`domain`, `subcategory`, `room`, `unit`, `keywords[]`). Le backend TypeScript (`supabase/functions/analyze-quote/market-matcher.ts`) fait le matching déterministe avec règles strictes :
+  1. **Hard block ROOM MISMATCH** : si l'entrée catalogue est `room_specific=true` ET que la signature ne mentionne pas la pièce → REJECT sans fallback.
+  2. **Exact match** : domain + subcategory + room + unit identiques.
+  3. **Partial sans room** : domain + subcategory + unit identiques, room absente → OK uniquement si catalogue !room_specific.
+  4. **Generic family** : fallback sur la famille générique (ex: "raccordements_electricite" pour tous les variants par pièce).
+  5. **Fuzzy keywords** : match sémantique par mots-clés.
+  6. **NO_MATCH** : aucun match → comparaison indicative honnête.
+
+  **Migration SQL** : `supabase/migrations/20260512000000_market_prices_v36_room_specific.sql` ajoute 3 colonnes (`room_specific`, `required_room[]`, `generic_family`) à `market_prices`. SEED initial marque les job_types existants contenant un mot-pièce comme room_specific=true.
+
+  **Le matcher fonctionne SANS la migration SQL** (inférence depuis le job_type via heuristique) — la migration optimise et explicite.
+
+  **Feature flag** : `MARKET_MATCHER_V36=false` dans l'env de l'edge function pour revenir au comportement V3.5 (Gemini choisit). Par défaut V3.6 actif si `marketSignatureExpertPrompt` présent dans le domain config.
+
+  **2 prompts coexistent dans `domain-config.ts`** :
+  - `marketPriceExpertPrompt` (legacy V3.5, requis) : Gemini reçoit catalogue + choisit job_type
+  - `marketSignatureExpertPrompt` (V3.6, optionnel) : Gemini reçoit pas de catalogue + extrait signature
+
+  **Logging audit** : chaque match passe par `logMatchResult()` qui trace dans Supabase Functions logs : `[MatchV36] "<group>" MATCH <reason> → <job_type> ("<label>") | sig: domain=<X> sub=<Y> room=<Z> unit=<U> kw=[...]`. Permet de retracer chaque décision a posteriori. En cas de NO_MATCH ou REJECTED_ROOM_MISMATCH : `mismatch_reason` est loggé en `console.warn`.
+
+  **Anti-régression** : ne JAMAIS faire choisir un job_type au LLM. Si tu refactors `groupWithGeminiSignature` ou `matchMarketCategory`, tester sur les 3 devis canoniques (Thouret Elec → no room cuisine, Kern Terrassement → 4 groupes pas 1, Zitelec Chauffage → cuisine si signalée).
+
 - **verdictEngine V3.3.1 — architecture cohérence absolue (2026-05-11)** : moteur à 4 couches de défense en profondeur qui garantit qu'**aucun écran ne peut afficher simultanément rouge + signer + payé en trop**.
 
   **COUCHE 1 — `computeVerdict` (V3.1, seuils alignés V3.2.1)** dans `src/lib/analyse/verdictEngine.ts` :

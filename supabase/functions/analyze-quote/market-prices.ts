@@ -1,5 +1,26 @@
 import type { DomainConfig } from "./domain-config.ts";
 import { fetchGeminiWithRetry } from "../_shared/gemini-fetch.ts";
+import {
+  matchMarketCategory,
+  logMatchResult,
+  type SemanticSignature,
+  type MarketCatalogRow,
+} from "./market-matcher.ts";
+
+/**
+ * V3.6 — Feature flag pour activer/désactiver la nouvelle architecture de matching.
+ * Active par défaut. Pour revenir au comportement V3.5 (Gemini choisit le job_type),
+ * mettre USE_V36_MATCHER à false ou désactiver via env var MARKET_MATCHER_V36=false.
+ */
+const USE_V36_MATCHER: boolean = (() => {
+  try {
+    const env = (typeof Deno !== "undefined" ? Deno.env.get("MARKET_MATCHER_V36") : undefined);
+    if (env === "false" || env === "0") return false;
+    return true;
+  } catch {
+    return true;
+  }
+})();
 
 // ============================================================
 // MARKET PRICES LOOKUP — Hierarchical job type system
@@ -428,6 +449,149 @@ Réponds UNIQUEMENT en JSON (pas de markdown) :
 }
 
 /**
+ * V3.6 — Groupement Gemini avec extraction de signature sémantique (PAS de catalogue).
+ *
+ * Gemini reçoit uniquement la liste des postes + le `marketSignatureExpertPrompt`
+ * et retourne pour chaque groupe une `SemanticSignature` neutre. Le matching
+ * catalogue est ensuite fait côté backend par `matchMarketCategory()`.
+ *
+ * Différences vs `groupWithGemini` (V3.5) :
+ *   - PAS de catalogue envoyé à Gemini → token budget réduit
+ *   - PAS de risque d'hallucination de job_type
+ *   - Sortie : `signature` au lieu de `job_types`
+ *   - Matching catalogue : déterministe backend (auditabilité)
+ */
+async function groupWithGeminiSignature(
+  workItems: WorkItemFull[],
+  googleApiKey: string,
+  signatureExpertPrompt: string,
+): Promise<Array<{
+  job_type_label: string;
+  signature: SemanticSignature;
+  main_unit: string;
+  main_quantity: number;
+  work_items: number[];
+}>> {
+  const totalItems = workItems.length;
+  const itemsList = workItems
+    .map((item, i) => {
+      const parts = [`${i + 1}. "${item.description}"`];
+      if (item.amount_ht !== null) parts.push(`${item.amount_ht} € HT`);
+      if (item.quantity !== null && item.unit) parts.push(`${item.quantity} ${item.unit}`);
+      else if (item.quantity !== null) parts.push(`qté: ${item.quantity}`);
+      return parts.join(" — ");
+    })
+    .join("\n");
+
+  const prompt = `${signatureExpertPrompt}
+
+POSTES DU DEVIS (${totalItems} postes numérotés de 1 à ${totalItems}) :
+${itemsList}
+
+OBJECTIF : Regroupe les ${totalItems} postes en 3 à 7 groupes (un par grand type de travaux du devis) et produis pour chacun une signature sémantique structurée selon les règles ci-dessus. TOUS les postes (1 à ${totalItems}) doivent apparaître dans un groupe.`;
+
+  try {
+    const response = await fetchGeminiWithRetry(
+      "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${googleApiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gemini-2.0-flash",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0,
+          max_tokens: 4096,
+        }),
+      },
+      { timeoutMs: 20000, maxAttempts: 3, logPrefix: "[MarketPricesV36]" },
+    );
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      console.warn("[MarketPricesV36] Gemini API error:", response.status, response.statusText, errText.substring(0, 200));
+      return [];
+    }
+
+    const data = await response.json();
+    const text = data?.choices?.[0]?.message?.content || "";
+    console.log("[MarketPricesV36] Gemini raw response (500 chars):", text.substring(0, 500));
+
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      console.warn("[MarketPricesV36] Could not parse JSON from Gemini:", text.substring(0, 300));
+      return [];
+    }
+
+    type RawGroup = {
+      job_type_label?: unknown;
+      signature?: {
+        domain?: unknown;
+        subcategory?: unknown;
+        room?: unknown;
+        unit?: unknown;
+        keywords?: unknown;
+      };
+      main_unit?: unknown;
+      main_quantity?: unknown;
+      work_items?: unknown;
+    };
+    const parsed: RawGroup[] = JSON.parse(jsonMatch[0]);
+    if (!Array.isArray(parsed)) {
+      console.warn("[MarketPricesV36] Gemini response is not an array");
+      return [];
+    }
+
+    // Normaliser et valider chaque groupe
+    const normalized = parsed.map((group): {
+      job_type_label: string;
+      signature: SemanticSignature;
+      main_unit: string;
+      main_quantity: number;
+      work_items: number[];
+    } => {
+      const sig = group.signature || {};
+      const signature: SemanticSignature = {
+        domain:      typeof sig.domain === "string" ? sig.domain.toLowerCase().trim() : "autre",
+        subcategory: typeof sig.subcategory === "string" ? sig.subcategory.toLowerCase().trim() : "",
+        room:        typeof sig.room === "string" && sig.room.trim().length > 0 ? sig.room.toLowerCase().trim() : null,
+        unit:        typeof sig.unit === "string" ? sig.unit.toLowerCase().trim() : "u",
+        keywords:    Array.isArray(sig.keywords)
+          ? (sig.keywords as unknown[]).filter((k): k is string => typeof k === "string" && k.length > 0).map(k => k.toLowerCase().trim())
+          : [],
+      };
+      const workItemIndices = Array.isArray(group.work_items)
+        ? (group.work_items as unknown[])
+            .map((n) => (typeof n === "number" ? n - 1 : -1))
+            .filter((n) => n >= 0 && n < workItems.length)
+        : [];
+      return {
+        job_type_label: typeof group.job_type_label === "string" && group.job_type_label.length > 0
+          ? group.job_type_label : "Travaux",
+        signature,
+        main_unit: typeof group.main_unit === "string" && group.main_unit.length > 0
+          ? group.main_unit : signature.unit,
+        main_quantity: typeof group.main_quantity === "number" && group.main_quantity > 0
+          ? group.main_quantity : 1,
+        work_items: workItemIndices,
+      };
+    });
+
+    console.log(
+      "[MarketPricesV36] Gemini signatures:",
+      normalized.map(g => `"${g.job_type_label}" sig={${g.signature.domain}/${g.signature.subcategory}/room=${g.signature.room ?? "null"}/${g.signature.unit}} items=[${g.work_items.join(",")}]`).join(" | "),
+    );
+
+    return normalized;
+  } catch (err) {
+    console.warn("[MarketPricesV36] Gemini grouping error:", err instanceof Error ? err.message : String(err));
+    return [];
+  }
+}
+
+/**
  * Main entry point: identify job types and look up market prices.
  */
 export async function lookupMarketPrices(
@@ -472,11 +636,54 @@ export async function lookupMarketPrices(
     }
   }
 
-  // 3. Ask Gemini to identify job types and assign lines — using FILTERED catalog
-  const catalog = buildCatalog(relevantPrices);
-  const jobTypes = await groupWithGemini(workItems, catalog, googleApiKey, config.marketPriceExpertPrompt);
+  // 3. Ask Gemini to identify job types and assign lines.
+  //
+  // V3.6 (default) : Gemini extrait une signature sémantique neutre, le matching
+  //                  catalogue est fait par market-matcher.ts (déterministe).
+  // V3.5 (legacy)  : Gemini choisit lui-même le job_type dans le catalogue filtré.
+  //
+  // Bascule via env MARKET_MATCHER_V36=false (cf. USE_V36_MATCHER au sommet du fichier).
+  let jobTypes: GeminiJobType[];
 
-  console.log(`[MarketPrices] ${workItems.length} work items, ${jobTypes.length} job types from Gemini`);
+  if (USE_V36_MATCHER && config.marketSignatureExpertPrompt) {
+    console.log(`[MarketPrices] Using V3.6 deterministic matcher (Gemini extracts signature only)`);
+
+    // Étape A — Gemini extrait les signatures sémantiques (PAS le catalogue)
+    const sigGroups = await groupWithGeminiSignature(
+      workItems,
+      googleApiKey,
+      config.marketSignatureExpertPrompt,
+    );
+
+    // Étape B — Pour chaque groupe, le backend applique matchMarketCategory()
+    // sur le catalogue complet et produit le format GeminiJobType compatible avec
+    // la suite du pipeline.
+    const fullCatalog: MarketCatalogRow[] = (allPrices as MarketCatalogRow[]);
+    jobTypes = sigGroups.map((g) => {
+      const matchResult = matchMarketCategory(g.signature, fullCatalog);
+      logMatchResult(matchResult, { groupLabel: g.job_type_label });
+
+      return {
+        // Pour la compatibilité avec la suite du pipeline V3.5, on garde le format.
+        // Si matché : on injecte le job_type catalogue. Sinon : tableau vide
+        // (le groupe sera traité comme "Autre" / comparaison indicative).
+        job_type_label: matchResult.matched && matchResult.label
+          ? matchResult.label
+          : g.job_type_label,
+        job_types: matchResult.matched && matchResult.job_type ? [matchResult.job_type] : [],
+        main_unit: g.main_unit,
+        main_quantity: g.main_quantity,
+        work_items: g.work_items,
+      };
+    });
+
+    console.log(`[MarketPrices] V3.6 — ${jobTypes.length} groups (${jobTypes.filter(jt => jt.job_types.length > 0).length} matched, ${jobTypes.filter(jt => jt.job_types.length === 0).length} no_match)`);
+  } else {
+    // V3.5 legacy — Gemini choisit le job_type
+    const catalog = buildCatalog(relevantPrices);
+    jobTypes = await groupWithGemini(workItems, catalog, googleApiKey, config.marketPriceExpertPrompt);
+    console.log(`[MarketPrices] V3.5 legacy — ${workItems.length} work items, ${jobTypes.length} job types from Gemini`);
+  }
 
   // 3b-bis. FOURNITURE vs HORS-FOURNITURE override (server-side guard).
   // If Gemini picked a "_mo" / "hors_fourniture" catalog entry but the work item descriptions

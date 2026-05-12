@@ -8,7 +8,16 @@ export interface DomainConfig {
   domain: DomainType;
   label: string;
   extractionSystemPrompt: string;
+  /** Prompt LLM legacy V3.5 — Gemini choisit lui-même le job_type dans le catalogue. */
   marketPriceExpertPrompt: string;
+  /**
+   * V3.6 — Nouveau prompt LLM : Gemini extrait UNIQUEMENT une signature
+   * sémantique neutre. Le matching catalogue est fait côté backend déterministe
+   * (market-matcher.ts). Évite les hallucinations type room mismatch.
+   * Optionnel (rétrocompat). Si présent, market-prices.ts l'utilise via la
+   * branche V3.6.
+   */
+  marketSignatureExpertPrompt?: string;
   insuranceChecks: { primary: string; secondary?: string[] };
   certifications: string[];
   insuranceLabels: { primary: string; secondary?: string };
@@ -164,6 +173,139 @@ CLIMATISATION / CVC :
    Gainable / centralisée / conduits → utilise "clim_gainable"
    Entretien / maintenance climatisation → utilise "maintenance_clim"
    Pompe à chaleur air/air → traiter comme climatisation (multi-split ou gainable selon le cas)`,
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // V3.6 — Prompt SIGNATURE SÉMANTIQUE (nouveau, complémentaire au legacy)
+  //
+  // Tu ne reçois PAS le catalogue. Tu n'as PAS à choisir un job_type. Tu produis
+  // uniquement une "signature sémantique neutre" — le backend TypeScript fera le
+  // matching catalogue de façon déterministe à partir de ta signature.
+  //
+  // Cette inversion de responsabilité supprime les hallucinations type :
+  //   - "raccordements_electricite_cuisine" sur devis sans cuisine
+  //   - "monte_escalier" pour des travaux de carrelage sur escalier
+  //   - Préfixes inventés "pose_X" absents du catalogue
+  // ──────────────────────────────────────────────────────────────────────────
+  marketSignatureExpertPrompt: `Tu es un expert en travaux de bâtiment et rénovation.
+
+RÔLE : tu vas grouper les postes du devis en quelques GRANDS types de travaux (3 à 7 groupes) ET pour chaque groupe, extraire une SIGNATURE SÉMANTIQUE structurée.
+
+⚠️ TU N'AS PAS ACCÈS AU CATALOGUE DES PRIX MARCHÉ. Tu ne choisis aucun identifiant catalogue. Tu décris ce que tu vois, c'est tout. Le backend s'occupera de matcher avec le catalogue.
+
+═══════════════════════════════════════════════════════════════════════════
+RÈGLES DE GROUPEMENT (les mêmes qu'avant)
+═══════════════════════════════════════════════════════════════════════════
+
+RÈGLE EXCLUSIVITÉ DE DOMAINE (absolue) :
+Une ligne appartient à UN SEUL domaine BTP. Les domaines ne se mélangent JAMAIS. Si un devis carrelage inclut chape + primaire + dalle + acier IP14 → 4 groupes distincts, pas 1.
+
+Domaines BTP reconnus (utilise EXACTEMENT un de ces noms comme "domain") :
+- carrelage     (dalle, céramique, faïence, carreau, joint, colle)
+- chape         (chape ciment, mortier, ragréage, lissage)
+- peinture      (peinture, lasure, vernis, sous-couche peinture, rebouchage)
+- primaire      (primaire d'accrochage, fond dur — préparation supports)
+- terrassement  (excavation, déblai, remblai, fond de forme, concassé)
+- pavage        (pavé, bordure, sablage)
+- maconnerie    (parpaing, brique, agglo, mur, élévation, chaînage, linteau)
+- plomberie     (robinet, mitigeur, sanitaire, douche, baignoire, tuyau)
+- electricite   (prise, interrupteur, tableau, disjoncteur, fil, câble, batibox, moulure)
+- menuiserie    (fenêtre, porte, volet, vitrage, baie)
+- platrerie    (placo, cloison, doublage, plafond, BA13)
+- charpente     (fermette, lambourde, solive, chevron)
+- couverture    (tuile, ardoise, faîtage, closoir)
+- zinguerie     (gouttière, descente eaux, naissance)
+- isolation     (laine, polystyrène, ouate, vermiculite)
+- etancheite    (membrane, sopralène, bitume, EPDM)
+- enduit        (enduit extérieur, crépi, façade, monocouche)
+- escalier      (marches, contremarches, garde-corps, rampe)
+- acier         (IPN, IPE, IP14, poutre acier, linteau métal)
+- autre         (uniquement si vraiment aucun match)
+
+RÈGLE GROUPEMENT LARGEUR : regroupe préparation + fournitures + accessoires + finitions du MÊME domaine.
+- Joints + colle + carrelage = même groupe carrelage ✓
+- MAIS chape ciment + carrelage = DEUX groupes (chape ≠ carrelage) ✓
+
+═══════════════════════════════════════════════════════════════════════════
+EXTRACTION DE LA SIGNATURE (le cœur de V3.6)
+═══════════════════════════════════════════════════════════════════════════
+
+Pour chaque groupe, tu dois extraire 5 champs :
+
+1. domain         : un des 20 domaines ci-dessus.
+2. subcategory    : sous-type métier en 1-2 mots. Exemples :
+                      - "fourniture_pose" si le devis inclut fournitures ET pose
+                      - "mo_seule" / "pose_seule" / "hors_fourniture" si seulement main d'œuvre
+                      - "depose" si seulement dépose / démolition
+                      - "raccordement" pour électricité avec prises/disjoncteurs/fils
+                      - "moulure" pour électricité avec uniquement moulures/goulottes
+                      - "tableau" pour électricité avec uniquement tableau électrique
+                      - "fenetre" / "porte" / "volet" pour menuiserie selon type
+                    Sois précis mais simple. Pas de pièce dans subcategory.
+
+3. room           : SEULEMENT si AU MOINS UNE DESCRIPTION DU DEVIS mentionne explicitement
+                    une pièce. Sinon null.
+                    Valeurs canoniques (utilise exactement ces noms) :
+                      cuisine | sdb | wc | chambre | salon | bureau | garage |
+                      cellier | entree | couloir | exterieur | cave | combles
+                    ⚠️ Synonymes acceptés à mapper :
+                      "salle de bain"/"salle de bains"/"salle d'eau" → "sdb"
+                      "séjour"/"salle à manger" → "salon"
+                      "buanderie"/"lingerie" → "cellier"
+                      "hall"/"vestibule" → "entree"
+                      "dégagement" → "couloir"
+                      "terrasse"/"balcon"/"jardin" → "exterieur"
+                      "sous-sol" → "cave"
+                      "grenier" → "combles"
+                    SI AUCUNE description ne mentionne de pièce → room = null. NE JAMAIS deviner.
+                    NE JAMAIS extraire la pièce de l'EN-TÊTE de l'entreprise ou du descriptif global.
+
+4. unit           : unité principale du groupe — m2 | ml | u | forfait | pce | etc.
+
+5. keywords[]     : 5 à 10 mots-clés extraits des descriptions du devis pour aider
+                    le backend à matcher avec le catalogue. Tous en minuscule, sans
+                    accents si possible. Exemples :
+                    - groupe électricité : ["prise","disjoncteur","fil","batibox","moulure"]
+                    - groupe carrelage : ["dalle","ceramique","colle","joint","carreau"]
+
+═══════════════════════════════════════════════════════════════════════════
+CALCUL DE main_quantity (inchangé)
+═══════════════════════════════════════════════════════════════════════════
+
+main_quantity = quantité PHYSIQUE totale du groupe (surface réelle ou nombre d'éléments).
+
+RÈGLE CRITIQUE — éviter le double comptage :
+Quand plusieurs opérations s'appliquent à la MÊME surface physique (ex: "Enduisage 56.7 m²" + "Peinture 56.7 m²" sur le même mur), cette surface ne compte QU'UNE SEULE FOIS.
+
+Exemples :
+- 3 lignes à 1 fft = main_quantity 1 (forfait global, pas de somme)
+- 14 radiateurs × 1U chacun → main_quantity = 14U (items distincts, on somme)
+- Enduisage 25.7m² + Peinture 25.7m² (même plafond) → 25.7m² (pas 51.4)
+- Peinture cuisine 56.7m² + salon 54m² + chambre 36.4m² → 147.1m² (surfaces distinctes, on somme)
+- TERRASSEMENT/PAVAGE : fond de forme 65m² + concassé 65m² + pavé 65m² + sablage 65m² = 65m² (même zone, pas 260m²)
+
+═══════════════════════════════════════════════════════════════════════════
+FORMAT DE SORTIE
+═══════════════════════════════════════════════════════════════════════════
+
+Réponds UNIQUEMENT en JSON (pas de markdown) :
+
+[
+  {
+    "job_type_label": "Libellé court humain — ex: 'Travaux électricité (prises, moulures)' (PAS de mention pièce sauf si room renseignée)",
+    "signature": {
+      "domain": "electricite",
+      "subcategory": "raccordement",
+      "room": null,
+      "unit": "u",
+      "keywords": ["prise", "batibox", "moulure", "disjoncteur", "fil"]
+    },
+    "main_unit": "u",
+    "main_quantity": 18,
+    "work_items": [1, 2, 3, 4, 5]
+  }
+]
+
+⚠️ NE JAMAIS inclure de champ "job_types" : c'est le backend qui s'en charge en V3.6.`,
 
   insuranceChecks: {
     primary: "assurance_decennale",
