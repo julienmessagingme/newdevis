@@ -1719,8 +1719,10 @@ export default function BudgetTab({
     setSavingDepense(false);
   }, [chantierId, token, depenseForm, refresh]);
 
-  const toggleExpand = useCallback((lotId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  // Signature simplifiée : pas besoin d'event. Auparavant, on appelait stopPropagation
+  // depuis 2 handlers concurrents (TR + <button> chevron) → clics aléatoires "à côté"
+  // qui touchaient la zone du button (avec padding navigateur invisible) au lieu du TR.
+  const toggleExpand = useCallback((lotId: string) => {
     setExpanded(prev => {
       const next = new Set(prev);
       if (next.has(lotId)) next.delete(lotId); else next.add(lotId);
@@ -2067,19 +2069,27 @@ export default function BudgetTab({
 
                 return (
                   <Fragment key={row.lot.id}>
-                    {/* ── En-tête du lot — récap engagé/facturé/payé/solde/avancement (visible aussi quand collapsed) ── */}
+                    {/* ── En-tête du lot — récap engagé/facturé/payé/solde/avancement (visible aussi quand collapsed) ──
+                        Toute la ligne est cliquable via le TR. On NE met pas de <button> autour du chevron
+                        (ça créait une hitbox concurrente avec stopPropagation → clics aléatoires "à côté"). */}
                     <tr
-                      className="bg-gray-50/80 border-b border-gray-200 cursor-pointer hover:bg-gray-100/80 transition-colors select-none"
-                      onClick={e => toggleExpand(row.lot.id, e)}
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={isExpanded}
+                      className="bg-gray-50/80 border-b border-gray-200 cursor-pointer hover:bg-gray-100/80 transition-colors select-none focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-200"
+                      onClick={() => toggleExpand(row.lot.id)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpand(row.lot.id); }
+                      }}
                     >
                       {/* ARTISAN — chevron + emoji + nom + nb artisans */}
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2 min-w-0">
-                          <button className="shrink-0 text-gray-400" onClick={e => toggleExpand(row.lot.id, e)}>
+                          <span className="shrink-0 text-gray-400" aria-hidden="true">
                             {isExpanded
                               ? <ChevronDown className="h-3.5 w-3.5" />
                               : <ChevronRight className="h-3.5 w-3.5" />}
-                          </button>
+                          </span>
                           {row.lot.emoji && <span className="text-sm leading-none shrink-0">{row.lot.emoji}</span>}
                           <span className="text-[12px] font-bold text-gray-700 truncate">{row.lot.nom}</span>
                           <span className="text-[10px] text-gray-400 shrink-0">
