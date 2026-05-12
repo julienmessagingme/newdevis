@@ -123,16 +123,64 @@ function useBudget(chantierId: string, token: string) {
 
 // ── Hook config financement (localStorage + sync serveur) ─────────────────────
 
+/** Une ligne de crédit travaux. Un chantier peut avoir N lignes (prêts cumulés). */
+interface CreditLine {
+  id:      string;
+  montant: number;
+  taux:    number;  // % annuel
+  duree:   number;  // années
+}
+
 interface FinancingConfig {
   budgetReel:       number | null;
+  // Crédit — legacy mono ligne, dérivés de creditLines (somme / moyenne pondérée).
+  // Conservés pour compat avec les autres lecteurs (BudgetTab, jauges, etc.).
   creditMontant:    number;
   creditTaux:       number;
   creditDuree:      number;
+  /** Nouveau : plusieurs lignes de crédit cumulables. Source de vérité si non vide. */
+  creditLines?:     CreditLine[];
   maprime:          number; maprimeOn: boolean;
   cee:              number; ceeOn:     boolean;
   ecoptz:           number; ecoptzOn:  boolean; ecoptzDuree: number;
   /** Après la première confirmation manuelle "Actualiser le budget" → true = auto-update sans re-demander */
   autoUpdateBudget: boolean;
+}
+
+// ── Helpers crédit multi-ligne ────────────────────────────────────────────────
+let _creditLineCounter = 0;
+function newCreditLineId() {
+  _creditLineCounter += 1;
+  return `cl_${Date.now()}_${_creditLineCounter}`;
+}
+
+function newCreditLine(seed?: Partial<CreditLine>): CreditLine {
+  return { id: newCreditLineId(), montant: seed?.montant ?? 0, taux: seed?.taux ?? 3.5, duree: seed?.duree ?? 20 };
+}
+
+/** Renvoie la liste de lignes courante (rétro-compat : si vide mais creditMontant > 0, on synthétise UNE ligne). */
+function effectiveCreditLines(cfg: FinancingConfig): CreditLine[] {
+  if (cfg.creditLines && cfg.creditLines.length > 0) return cfg.creditLines;
+  if (cfg.creditMontant > 0) return [{ id: 'legacy', montant: cfg.creditMontant, taux: cfg.creditTaux, duree: cfg.creditDuree }];
+  return [];
+}
+
+function mensualiteFn(m: number, t: number, d: number) {
+  const r = (t / 100) / 12; const n = d * 12;
+  if (r === 0 || n === 0) return m / (n || 1);
+  return m * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1);
+}
+
+/** Calcule les totaux d'un ensemble de lignes de crédit. */
+function creditTotals(lines: CreditLine[]) {
+  const montant = lines.reduce((s, l) => s + (l.montant || 0), 0);
+  const mens = lines.reduce((s, l) => s + mensualiteFn(l.montant, l.taux, l.duree), 0);
+  const cout = lines.reduce((s, l) => s + (mensualiteFn(l.montant, l.taux, l.duree) * l.duree * 12 - l.montant), 0);
+  const intercalaires = lines.reduce((s, l) => s + (l.montant * l.taux / 100 / 12), 0);
+  // Pour compat legacy : taux pondéré par le montant, durée = max (la plus longue contraint le horizon).
+  const taux  = montant > 0 ? lines.reduce((s, l) => s + l.taux * l.montant, 0) / montant : 0;
+  const duree = lines.length > 0 ? Math.max(...lines.map(l => l.duree)) : 0;
+  return { montant, mens, cout, intercalaires, taux, duree };
 }
 
 function defaultConfig(initial?: Record<string, unknown> | null): FinancingConfig {
@@ -380,18 +428,29 @@ function FinancementSection({
   const [editingBudget, setEditingBudget] = useState(false);
   const [editBudgetVal, setEditBudgetVal] = useState('');
 
-  // Crédit sliders (état local avant "Appliquer")
-  const [slMontant, setSlMontant] = useState(cfg.creditMontant || 0);
-  const [slTaux,    setSlTaux]    = useState(cfg.creditTaux);
-  const [slDuree,   setSlDuree]   = useState(cfg.creditDuree);
+  // Crédit multi-ligne (état local avant "Appliquer aux financements")
+  // Initialisé depuis cfg.creditLines (ou rétro-compat depuis l'ancien creditMontant mono).
+  const [editLines, setEditLines] = useState<CreditLine[]>(() => {
+    const lines = effectiveCreditLines(cfg);
+    return lines.length > 0 ? lines.map(l => ({ ...l })) : [newCreditLine()];
+  });
   const hasMountedCredit = useRef(false);
   useEffect(() => {
     if (hasMountedCredit.current) return;
     hasMountedCredit.current = true;
-    setSlMontant(cfg.creditMontant);
-    setSlTaux(cfg.creditTaux);
-    setSlDuree(cfg.creditDuree);
+    const lines = effectiveCreditLines(cfg);
+    setEditLines(lines.length > 0 ? lines.map(l => ({ ...l })) : [newCreditLine()]);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function updateLine(id: string, patch: Partial<CreditLine>) {
+    setEditLines(prev => prev.map(l => l.id === id ? { ...l, ...patch } : l));
+  }
+  function addLine() {
+    setEditLines(prev => [...prev, newCreditLine()]);
+  }
+  function removeLine(id: string) {
+    setEditLines(prev => prev.length <= 1 ? prev : prev.filter(l => l.id !== id));
+  }
 
   // Aides state local
   const [aLocal, setALocal] = useState({
@@ -425,16 +484,15 @@ function FinancementSection({
   const pctAides    = budgetRef > 0 ? Math.round((totalAides        / budgetRef) * 100) : 0;
   const manque      = Math.max(0, budgetRef - totalCouvert);
 
-  // Calc mensualité crédit
-  function mensualite(m: number, t: number, d: number) {
-    const r = (t / 100) / 12; const n = d * 12;
-    if (r === 0 || n === 0) return m / (n || 1);
-    return m * r * Math.pow(1+r,n) / (Math.pow(1+r,n)-1);
-  }
-  const slMens       = Math.round(mensualite(slMontant, slTaux, slDuree));
-  const slCout       = Math.round(slMens * slDuree * 12 - slMontant);
-  const slIntercalaire = Math.round(slMontant * (slTaux / 100) / 12);
-  const curIntercalaire = Math.round(cfg.creditMontant * (cfg.creditTaux / 100) / 12);
+  // Mensualité crédit — alias local de l'helper module (compat avec les autres usages).
+  const mensualite = mensualiteFn;
+  // Totaux calculés sur l'ensemble des lignes (édition en cours et config validée).
+  const edited = useMemo(() => creditTotals(editLines), [editLines]);
+  const slMens         = Math.round(edited.mens);
+  const slCout         = Math.round(edited.cout);
+  const slIntercalaire = Math.round(edited.intercalaires);
+  const slMontant      = edited.montant; // exposé pour l'info "plafond atteint"
+  const curIntercalaire = Math.round(creditTotals(effectiveCreditLines(cfg)).intercalaires);
 
   // Conflit : budget choisi par le client < total devis validés
   const conflict     = cfg.budgetReel !== null && devisValides > 0 && devisValides > (cfg.budgetReel ?? 0) * 1.01;
@@ -465,8 +523,19 @@ function FinancementSection({
   }
 
   function applyCredit() {
+    // Nettoie les lignes vides (montant 0) sauf si c'est la seule.
+    const cleaned = editLines.filter(l => l.montant > 0);
+    const lines = cleaned.length > 0 ? cleaned : editLines.slice(0, 1);
+    const tot = creditTotals(lines);
     setCfg(p => {
-      const n = { ...p, creditMontant: slMontant, creditTaux: slTaux, creditDuree: slDuree };
+      const n = {
+        ...p,
+        creditLines: lines,
+        // Legacy (somme / pondéré) — pour les consommateurs qui lisent encore ces champs.
+        creditMontant: tot.montant,
+        creditTaux:    Number(tot.taux.toFixed(2)),
+        creditDuree:   tot.duree,
+      };
       syncServer(n);
       return n;
     });
@@ -668,69 +737,114 @@ function FinancementSection({
           </div>
           <p className="text-[18px] font-black leading-none" style={{ color: C.credit.text }}>{fmtEur(cfg.creditMontant)}</p>
           <p className="text-[10px] text-gray-400 mt-0.5">
-            {cfg.creditMontant > 0 ? `${cfg.creditTaux}% · ${cfg.creditDuree} ans · ${Math.round(mensualite(cfg.creditMontant, cfg.creditTaux, cfg.creditDuree))} €/mois` : 'Non configuré'}
+            {(() => {
+              const savedLines = effectiveCreditLines(cfg);
+              if (cfg.creditMontant <= 0) return 'Non configuré';
+              const totSaved = creditTotals(savedLines);
+              const nbLignes = savedLines.length;
+              const mensSaved = Math.round(totSaved.mens);
+              if (nbLignes <= 1) return `${cfg.creditTaux}% · ${cfg.creditDuree} ans · ${mensSaved} €/mois`;
+              return `${nbLignes} lignes · ${mensSaved} €/mois cumulés`;
+            })()}
           </p>
 
           {creditOpen && (
             <div className="mt-3 space-y-3">
-              {([
-                // Cap montant 1 M€/ligne — au-delà l'user crée une nouvelle ligne de crédit
-                // (slider moins sensible sur 0-1M qu'auparavant sur 0-10M).
-                { label: 'Montant',     id: 'montant', min: 0,   max: 1_000_000, step: 1000, val: slMontant, set: setSlMontant, suffix: '€',   width: 'w-28', decimals: 0 },
-                { label: 'Taux annuel', id: 'taux',    min: 0,   max: 8,         step: 0.1,  val: slTaux,    set: setSlTaux,    suffix: '%',   width: 'w-16', decimals: 2 },
-                { label: 'Durée',       id: 'duree',   min: 5,   max: 30,        step: 1,    val: slDuree,   set: setSlDuree,   suffix: 'ans', width: 'w-16', decimals: 0 },
-              ] as const).map(sl => (
-                <div key={sl.id}>
-                  <div className="flex justify-between items-center text-[11px] mb-1 gap-2">
-                    <span className="text-gray-500 font-semibold shrink-0">{sl.label}</span>
-                    <div className={`flex items-center gap-1 ${sl.width}`}>
-                      <input
-                        type="text" inputMode="decimal"
-                        // Tape libre : on accepte tout pendant la frappe, on clampe au blur.
-                        value={sl.id === 'montant'
-                          ? (sl.val as number).toLocaleString('fr-FR')
-                          : (sl.val as number).toString()
-                        }
-                        onChange={e => {
-                          const cleaned = e.target.value.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '');
-                          const num = parseFloat(cleaned);
-                          if (!isNaN(num)) (sl.set as any)(num);
-                          else if (cleaned === '') (sl.set as any)(0);
-                        }}
-                        onBlur={e => {
-                          const cleaned = e.target.value.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '');
-                          const raw = parseFloat(cleaned);
-                          const clamped = isNaN(raw) ? sl.min : Math.min(sl.max, Math.max(sl.min, raw));
-                          (sl.set as any)(Number(clamped.toFixed(sl.decimals)));
-                        }}
-                        onFocus={e => e.currentTarget.select()}
-                        aria-label={`${sl.label} (${sl.min}–${sl.max})`}
-                        className="flex-1 min-w-0 text-right font-black bg-transparent border-b border-transparent hover:border-orange-200 focus:border-orange-400 focus:outline-none tabular-nums px-0.5"
-                        style={{ color: C.credit.text }}
-                      />
-                      <span className="font-black shrink-0" style={{ color: C.credit.text }}>{sl.suffix}</span>
+              {editLines.map((line, idx) => {
+                const fields = [
+                  { label: 'Montant',     id: 'montant' as const, min: 0,   max: 1_000_000, step: 1000, suffix: '€',   width: 'w-28', decimals: 0, val: line.montant },
+                  { label: 'Taux annuel', id: 'taux'    as const, min: 0,   max: 8,          step: 0.1,  suffix: '%',   width: 'w-16', decimals: 2, val: line.taux    },
+                  { label: 'Durée',       id: 'duree'   as const, min: 5,   max: 30,         step: 1,    suffix: 'ans', width: 'w-16', decimals: 0, val: line.duree   },
+                ];
+                const lineMens = Math.round(mensualite(line.montant, line.taux, line.duree));
+                return (
+                  <div key={line.id} className="rounded-lg p-3 space-y-2"
+                       style={{ background: 'rgba(255,255,255,0.5)', border: '1px solid rgba(0,0,0,0.05)' }}>
+                    {/* En-tête ligne — N° + sous-total + supprimer */}
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-bold text-gray-500">
+                        Ligne {idx + 1}
+                        {line.montant > 0 && (
+                          <span className="ml-2 font-normal text-gray-400 tabular-nums">
+                            → {lineMens} €/mois
+                          </span>
+                        )}
+                      </span>
+                      {editLines.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeLine(line.id)}
+                          className="text-[10px] text-gray-400 hover:text-red-600 font-medium px-1.5 py-0.5 rounded hover:bg-red-50 transition-colors"
+                          aria-label={`Supprimer la ligne ${idx + 1}`}
+                        >
+                          ✕ Supprimer
+                        </button>
+                      )}
                     </div>
+                    {fields.map(sl => (
+                      <div key={sl.id}>
+                        <div className="flex justify-between items-center text-[11px] mb-1 gap-2">
+                          <span className="text-gray-500 font-semibold shrink-0">{sl.label}</span>
+                          <div className={`flex items-center gap-1 ${sl.width}`}>
+                            <input
+                              type="text" inputMode="decimal"
+                              value={sl.id === 'montant' ? sl.val.toLocaleString('fr-FR') : sl.val.toString()}
+                              onChange={e => {
+                                const cleaned = e.target.value.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '');
+                                const num = parseFloat(cleaned);
+                                if (!isNaN(num)) updateLine(line.id, { [sl.id]: num } as any);
+                                else if (cleaned === '') updateLine(line.id, { [sl.id]: 0 } as any);
+                              }}
+                              onBlur={e => {
+                                const cleaned = e.target.value.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '');
+                                const raw = parseFloat(cleaned);
+                                const clamped = isNaN(raw) ? sl.min : Math.min(sl.max, Math.max(sl.min, raw));
+                                updateLine(line.id, { [sl.id]: Number(clamped.toFixed(sl.decimals)) } as any);
+                              }}
+                              onFocus={e => e.currentTarget.select()}
+                              aria-label={`${sl.label} ligne ${idx + 1}`}
+                              className="flex-1 min-w-0 text-right font-black bg-transparent border-b border-transparent hover:border-orange-200 focus:border-orange-400 focus:outline-none tabular-nums px-0.5"
+                              style={{ color: C.credit.text }}
+                            />
+                            <span className="font-black shrink-0" style={{ color: C.credit.text }}>{sl.suffix}</span>
+                          </div>
+                        </div>
+                        <input type="range" min={sl.min} max={sl.max} step={sl.step} value={sl.val}
+                          onChange={e => updateLine(line.id, { [sl.id]: parseFloat(e.target.value) } as any)}
+                          className="w-full h-1 rounded cursor-pointer"
+                          style={{ accentColor: C.credit.main }} />
+                      </div>
+                    ))}
+                    {/* Info plafond — visible si cette ligne atteint 1 M€ */}
+                    {line.montant >= 1_000_000 && (
+                      <div className="rounded-lg px-2.5 py-1.5 text-[11px] leading-relaxed flex items-start gap-2"
+                           style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#78350f' }}>
+                        <span className="shrink-0">ℹ️</span>
+                        <div>
+                          <strong>Plafond 1 M€ atteint sur cette ligne.</strong> Pour un prêt supérieur, ajoutez une nouvelle ligne ci-dessous — les montants s'additionneront.
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <input type="range" min={sl.min} max={sl.max} step={sl.step} value={sl.val as any}
-                    onChange={e => (sl.set as any)(parseFloat(e.target.value))}
-                    className="w-full h-1 rounded cursor-pointer"
-                    style={{ accentColor: C.credit.main }} />
-                </div>
-              ))}
+                );
+              })}
 
-              {/* Info plafond — visible quand le montant atteint 1 M€ */}
-              {slMontant >= 1_000_000 && (
-                <div className="rounded-lg px-3 py-2 text-[11px] leading-relaxed flex items-start gap-2"
-                     style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#78350f' }}>
-                  <span className="shrink-0">ℹ️</span>
-                  <div>
-                    <strong>Plafond 1 M€ par ligne atteint.</strong> Si votre prêt dépasse ce montant
-                    (taux différents, in fine, prêt relais, etc.),
-                    {' '}<em>créez une nouvelle ligne de crédit</em> — elles s'additionneront dans le total.
-                  </div>
-                </div>
-              )}
+              {/* Bouton ajouter une ligne */}
+              <button
+                type="button"
+                onClick={addLine}
+                className="w-full py-2 rounded-lg text-[11px] font-bold border-2 border-dashed transition-colors"
+                style={{ borderColor: C.credit.main, color: C.credit.text, background: 'rgba(255,255,255,0.4)' }}
+              >
+                + Ajouter une ligne de crédit
+              </button>
               <div className="rounded-lg p-2.5 space-y-1.5" style={{ background: C.credit.track }}>
+                {editLines.length > 1 && (
+                  <div className="flex justify-between text-[11px] pb-1.5 mb-0.5" style={{ borderBottom: '1px dashed rgba(0,0,0,0.08)' }}>
+                    <span className="text-gray-500 font-semibold">Total emprunté ({editLines.length} lignes)</span>
+                    <span className="font-black" style={{ color: C.credit.text }}>{fmtEur(slMontant)}</span>
+                  </div>
+                )}
                 {[
                   ['Mensualité', `${slMens} €/mois`],
                   ['Coût total crédit', fmtEur(slCout)],
@@ -745,7 +859,7 @@ function FinancementSection({
               <button onClick={applyCredit}
                 className="w-full py-2 rounded-lg text-[11px] font-bold text-white transition-colors"
                 style={{ background: C.credit.main }}>
-                ✓ Appliquer ce montant
+                ✓ Appliquer aux financements
               </button>
             </div>
           )}
