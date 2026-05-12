@@ -155,7 +155,7 @@ const Register = ({ brand }: Props) => {
       {/* Left Panel - Form */}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
-          <div className="text-center mb-8">
+          <div className="text-center mb-6">
             <a href="/" className="inline-flex mb-6">
               <BrandLogo brand={config.brand} size="md" />
             </a>
@@ -166,6 +166,40 @@ const Register = ({ brand }: Props) => {
               {config.registerSubtitle}
             </p>
           </div>
+
+          {/* V2026-05-11 — Contexte returnTo + bénéfices visibles (mobile + desktop) */}
+          {(() => {
+            const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+            const returnTo = params?.get("returnTo");
+            const isFromAnalysis = returnTo === "/nouvelle-analyse";
+            return (
+              <div className="mb-6 rounded-xl border border-primary/15 bg-primary/[0.04] p-4">
+                {isFromAnalysis && (
+                  <p className="text-sm font-semibold text-foreground mb-2">
+                    ⚡ Création de compte requise pour lancer votre analyse
+                  </p>
+                )}
+                <ul className="space-y-1.5 text-sm text-muted-foreground">
+                  <li className="flex items-start gap-2">
+                    <span className="text-score-green flex-shrink-0 mt-0.5" aria-hidden="true">✓</span>
+                    <span>Analyse de devis gratuite, sans CB</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-score-green flex-shrink-0 mt-0.5" aria-hidden="true">✓</span>
+                    <span>Vérification SIRET, assurances, prix marché</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-score-green flex-shrink-0 mt-0.5" aria-hidden="true">✓</span>
+                    <span>Vos analyses sauvegardées dans votre tableau de bord</span>
+                  </li>
+                </ul>
+                <div className="mt-3 pt-3 border-t border-primary/10 flex items-center gap-3 text-xs text-muted-foreground">
+                  <span className="text-amber-500" aria-hidden="true">★★★★★</span>
+                  <span><strong className="text-foreground">4,7/5</strong> · +2 000 devis analysés</span>
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="mb-6">
             <GoogleSignInButton />
@@ -229,7 +263,10 @@ const Register = ({ brand }: Props) => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="phone">Téléphone portable</Label>
+              <Label htmlFor="phone" className="flex items-center gap-1.5">
+                Téléphone portable
+                <span className="text-xs font-normal text-muted-foreground">— pour vous prévenir si une vérification urgente est nécessaire</span>
+              </Label>
               <div className="flex gap-2">
                 <select
                   value={countryCode}
@@ -326,11 +363,15 @@ const Register = ({ brand }: Props) => {
                 </>
               ) : (
                 <>
-                  Créer mon compte
+                  Créer mon compte gratuit
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}
             </Button>
+            <p className="text-center text-xs text-muted-foreground">
+              <span aria-hidden="true">🔒 </span>
+              Données chiffrées · Aucune carte bancaire requise · RGPD
+            </p>
           </form>
 
           <p className="text-center text-sm text-muted-foreground mt-6">

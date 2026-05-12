@@ -124,8 +124,8 @@ const jsonLd = [
             ligne aux références du marché et vérifie l'entreprise (SIRET, assurances, santé financière)
             — avant que vous ne signiez.
           </p>
-          <p class="text-sm text-indigo-200 font-medium mb-8">Analyse gratuite, résultat immédiat, sans inscription.</p>
-          <div class="flex flex-col sm:flex-row gap-3 justify-center">
+          <p class="text-sm text-indigo-200 font-medium mb-6">Analyse gratuite, résultat immédiat.</p>
+          <div class="flex flex-col sm:flex-row gap-3 justify-center mb-6">
             <a href="/nouvelle-analyse"
                class="inline-flex items-center justify-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
               🔍 Analyser mon devis maintenant
@@ -134,6 +134,21 @@ const jsonLd = [
                class="inline-flex items-center justify-center gap-2 border border-slate-500 text-slate-200 hover:bg-slate-700 px-6 py-3 rounded-xl transition-colors text-sm">
               📋 Voir la checklist
             </a>
+          </div>
+          <!-- Social proof above the fold (V2026-05-11) -->
+          <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-slate-300">
+            <div class="flex items-center gap-1.5">
+              <span class="text-amber-400" aria-hidden="true">★★★★★</span>
+              <span><strong class="text-white">4,7/5</strong> sur Trustpilot</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span aria-hidden="true">📊</span>
+              <span><strong class="text-white">+2 000</strong> devis analysés</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span aria-hidden="true">🔒</span>
+              <span>Données <strong class="text-white">RGPD</strong>, traitement français</span>
+            </div>
           </div>
         </div>
       </section>
@@ -213,22 +228,28 @@ const jsonLd = [
       <article class="py-12 sm:py-16 px-4">
         <div class="container max-w-3xl mx-auto">
 
-          <!-- Intro problème -->
+          <!-- Intro produit -->
           <section class="mb-12">
             <p class="text-slate-600 leading-relaxed mb-4 text-base sm:text-lg">
-              Chaque année en France, des millions de particuliers signent des devis travaux sans vraiment les comprendre.
-              Résultat : surfacturations, malfaçons, entreprises fantômes — et des litiges qui peuvent durer des années.
-              Pourtant, <strong>vérifier un devis travaux n'est pas réservé aux professionnels</strong> :
-              il suffit de savoir quoi regarder.
+              Chaque année en France, des millions de particuliers signent des devis travaux sans pouvoir
+              vérifier les prix au marché. Résultat : surfacturations de 15 à 40 %, entreprises sans assurance,
+              acomptes excessifs — et des litiges qui peuvent durer des années.
             </p>
             <p class="text-slate-600 leading-relaxed mb-4">
-              Ce guide vous explique, étape par étape, comment analyser un devis d'artisan comme un pro :
-              les mentions légales indispensables, comment comparer les prix du marché, les signaux d'alerte
-              qui doivent vous faire reculer, et les questions à poser avant de signer.
+              <strong>VerifierMonDevis.fr est l'outil d'analyse IA qui vérifie tout ça pour vous en 2 minutes</strong> :
+              comparaison prix poste par poste, vérification SIRET et santé de l'entreprise, détection des
+              anomalies juridiques. Vous obtenez un score clair (vert / orange / rouge) et les arguments
+              exacts à présenter à votre artisan.
             </p>
-            <div class="rounded-xl border border-indigo-100 bg-indigo-50 p-5 mt-6">
-              <p class="text-sm font-semibold text-indigo-800 mb-1">⏱️ Temps de lecture : 8 minutes</p>
-              <p class="text-sm text-indigo-700">À la fin de ce guide, vous saurez exactement si votre devis est correct, trop cher ou incomplet.</p>
+            <div class="rounded-xl border border-indigo-100 bg-indigo-50 p-5 mt-6 flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+              <div>
+                <p class="text-sm font-semibold text-indigo-800 mb-1">⚡ Analyse en 2 minutes — sans inscription préalable</p>
+                <p class="text-sm text-indigo-700">Uploadez votre PDF, notre IA détecte instantanément les écarts de prix et les risques juridiques.</p>
+              </div>
+              <a href="/nouvelle-analyse"
+                 class="shrink-0 inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors whitespace-nowrap">
+                Analyser maintenant →
+              </a>
             </div>
           </section>
 
