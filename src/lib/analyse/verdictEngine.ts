@@ -822,7 +822,24 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
             : `⚠️ ${n} poste${n > 1 ? "s" : ""} à vérifier avant signature`
         );
       } else if (overprice_pct < -0.05) {
-        reasons.push(`✅ Prix attractif — environ ${fmtEur(-overprice)} sous la moyenne du marché`);
+        // V3.4.7 (2026-05-12) — Garde de plausibilité : un écart négatif > 20%
+        // est presque toujours un artefact (multi-devis non segmenté, bounds
+        // gonflés par cumul de postes hétérogènes, catégories matchées hors
+        // domaine). Bug observé sur multi-devis SALLEM : "170.8 k€ sous la
+        // moyenne du marché" affiché alors que l'extraction n'a même pas
+        // segmenté les artisans. Cas où un user fait confiance à ce chiffre
+        // et signe un mauvais devis = perte de crédibilité totale.
+        //
+        // Seuil 20% : conservateur. Au-delà, on suspend le chiffre absolu
+        // et on affiche un message neutre "comparaison globale indicative".
+        // En-deçà, le wording reste mais sanitizeLLMText remplacera "sous la
+        // moyenne du marché" → "à comparer poste par poste" downstream.
+        const underpriceAmplitude = Math.abs(overprice_pct);
+        if (underpriceAmplitude > 0.20) {
+          reasons.push("✅ Comparaison globale indicative — la fourchette marché agrégée n'est pas représentative sur ce profil de devis");
+        } else {
+          reasons.push(`✅ Prix attractif — environ ${fmtEur(-overprice)} sous la moyenne du marché`);
+        }
       } else {
         reasons.push("✅ Prix conforme au marché");
       }

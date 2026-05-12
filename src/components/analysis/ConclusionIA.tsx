@@ -294,10 +294,18 @@ function ConclusionDisplay({
             <p className={`text-lg sm:text-xl font-extrabold leading-tight ${decisionCfg.text}`}>
               {decisionCfg.label}
             </p>
-            {/* Ligne justificatrice — V3.3.1 wording cohérent avec verdict + surcoût */}
+            {/* Ligne justificatrice — V3.3.1 wording cohérent avec verdict + surcoût
+                V3.4.7 (2026-05-12) — amplitude-aware : "largement" est dangereux
+                quand l'écart est minime (Kern : 3 postes / 267€ total → 90€/poste).
+                Sous pastille Vert, on ne dit JAMAIS "largement". */}
             {anomCount > 0 ? (
               <p className={`text-sm mt-1 font-medium opacity-90 ${decisionCfg.text}`}>
-                → {anomCount} poste{anomCount > 1 ? "s" : ""} dépass{anomCount > 1 ? "ent" : "e"} largement les prix du marché
+                → {anomCount} poste{anomCount > 1 ? "s" : ""}{" "}
+                {isVerdictRefuser
+                  ? `dépass${anomCount > 1 ? "ent" : "e"} largement les prix du marché`
+                  : isVerdictSigner
+                    ? `présent${anomCount > 1 ? "ent" : "e"} un léger écart vs marché`
+                    : `au-dessus du marché à renégocier`}
               </p>
             ) : isVerdictSigner && hasSurcout ? (
               // RÈGLE 5 — verdict signer avec léger écart : wording neutre, jamais "0 poste à vérifier"
