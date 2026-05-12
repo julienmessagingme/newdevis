@@ -34,7 +34,13 @@ export function initAmplitude(): void {
 }
 
 /**
- * Track un événement custom. No-op côté serveur (SSR-safe).
+ * Track un événement custom — propagé à Amplitude ET à Google Analytics (gtag) si chargé.
+ * No-op côté serveur (SSR-safe).
+ *
+ * V2026-05-11 : ajout propagation gtag pour avoir le funnel visible côté GA4 (la
+ * référence des outils marketing classiques) en plus d'Amplitude (product analytics).
+ * Sans ça, les events comme `redirect_to_inscription` n'étaient pas visibles dans GA4 où
+ * l'équipe marketing pilote ses KPIs.
  */
 export function trackEvent(
   eventName: string,
@@ -42,6 +48,15 @@ export function trackEvent(
 ): void {
   if (typeof window === 'undefined') return;
   amplitude.track(eventName, properties ?? {});
+  // Propagation GA4 — fail silently si gtag pas chargé (consent pending / adblock / SSR)
+  try {
+    const gtag = (window as unknown as { gtag?: (...args: unknown[]) => void }).gtag;
+    if (typeof gtag === 'function') {
+      gtag('event', eventName, properties ?? {});
+    }
+  } catch {
+    /* never throw */
+  }
 }
 
 /**

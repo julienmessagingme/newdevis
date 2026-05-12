@@ -9,6 +9,7 @@ import SEOHead from "@/components/SEOHead";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import BrandLogo from "@/components/auth/BrandLogo";
 import { type Brand, getBrandConfig, getConfigForBrand } from "@/lib/auth/brand";
+import { trackEvent } from "@/lib/integrations/amplitude";
 
 interface Props {
   brand?: Brand;
@@ -119,9 +120,18 @@ const Register = ({ brand }: Props) => {
           // Non-blocking: don't prevent redirect if webhook fails
         }
 
-        toast.success("Compte créé avec succès !");
+        // V3.4.3 — tracking event critique pour mesurer la conversion top of funnel.
+        // Comparé à `redirect_to_inscription` dans GA4/Amplitude, on obtient le ratio
+        // visiteurs redirigés → inscriptions effectives → taux de drop précis.
         const params = new URLSearchParams(window.location.search);
         const returnTo = params.get("returnTo");
+        trackEvent('account_created', {
+          signup_source: signupSource,
+          accept_commercial: acceptCommercial,
+          return_to: returnTo || '/tableau-de-bord',
+        });
+
+        toast.success("Compte créé avec succès !");
         window.location.href = returnTo || "/tableau-de-bord";
       }
     } catch (error) {

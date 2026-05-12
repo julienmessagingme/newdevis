@@ -67,6 +67,15 @@ const NewAnalysis = () => {
       // Pas de session OU session anonyme legacy (héritée des comptes créés
       // automatiquement entre le 02/05 et le 11/05) → on redirige vers inscription.
       if (!existing || existing.is_anonymous === true) {
+        // V3.4.3 — tracking GA4 + Amplitude pour mesurer le drop entre "visiteur
+        // arrive sur /nouvelle-analyse" et "compte permanent créé".
+        // Permet de calculer le taux de conversion top of funnel
+        // (redirect_to_inscription / inscriptions_finales).
+        trackEvent('redirect_to_inscription', {
+          reason: existing?.is_anonymous === true ? 'anonymous_legacy' : 'no_session',
+          source_path: '/nouvelle-analyse',
+          referrer: document.referrer || undefined,
+        });
         const returnTo = encodeURIComponent("/nouvelle-analyse");
         window.location.href = `/inscription?returnTo=${returnTo}`;
       }
