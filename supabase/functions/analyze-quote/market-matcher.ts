@@ -123,7 +123,7 @@ export const ALLOWED_SUBCATEGORIES_BY_DOMAIN: Record<AllowedDomain, readonly str
   exterieur:   ["terrasse", "cloture", "portail", "amenagement"],
   piscine:     ["construction", "renovation", "liner", "filtration", "margelle"],
   energies_renouvelables: ["photovoltaique", "solaire_thermique", "eolien", "geothermie"],
-  autre:       ["divers", "fournitures", "main_oeuvre", "deplacement", "forfait"],
+  autre:       ["divers", "fournitures", "main_oeuvre", "deplacement", "forfait", "autre"],
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -343,8 +343,13 @@ function inferRoomSpecific(row: MarketCatalogRow): { isRoomSpecific: boolean; ro
 
 const SCORE_THRESHOLD_EXACT = 80;       // ≥80 → match exact usable
 const SCORE_THRESHOLD_INDICATIVE = 60;  // 60-79 → comparaison indicative
-const SCORE_THRESHOLD_FUZZY = 40;       // 40-59 → fuzzy fallback (warning)
-                                        // <40 → no_match
+const SCORE_THRESHOLD_FUZZY = 50;       // 50-59 → fuzzy fallback (V3.6.1 — raised from 40 to reduce false positives observed on SALLEM multi-devis)
+                                        // <50 → no_match
+/** V3.6.1 — Garde additionnelle : un fuzzy fallback exige un domain match ≥ 30/40.
+ *  Sans ça, on observait des matchs aberrants type "Pose IPN → couverture_bac_acier"
+ *  où le domain ne matchait pas du tout (score domain=0) mais le total atteignait 40+
+ *  via subcategory/unit. */
+const FUZZY_MIN_DOMAIN_SCORE = 30;
 
 /**
  * Calcule le breakdown du score pour un candidat catalogue donné.
@@ -505,7 +510,7 @@ export function matchMarketCategory(
     matched = true;
     fallbackReason = `score=${best.score.total}/100 (60-79 range) — comparaison indicative uniquement`;
   } else if (best.score.total >= SCORE_THRESHOLD_FUZZY) {
-    // 40-59 — fuzzy fallback. Interdit sur catégories room_specific (hard block déjà passé)
+    // 50-59 — fuzzy fallback. Interdit sur catégories room_specific (hard block déjà passé)
     // mais ici on peut imposer une garde supplémentaire : si le best candidat est
     // room_specific et qu'on est arrivé par fuzzy → REJECT.
     const { isRoomSpecific } = inferRoomSpecific(best.row);
@@ -521,9 +526,24 @@ export function matchMarketCategory(
         signature,
       };
     }
+    // V3.6.1 — Garde domain : un fuzzy doit avoir un vrai signal domain.
+    // Sans ça, on accepte des matchs croisés (pose IPN ↔ couverture, terrassement ↔ enrobé)
+    // qui ne partagent que des subcategory génériques ("fourniture_pose", unit "m2").
+    if (best.score.domain < FUZZY_MIN_DOMAIN_SCORE) {
+      return {
+        matched: false,
+        job_type: null,
+        label: null,
+        match_strategy: "no_match",
+        confidence: best.score.total,
+        candidates: top5,
+        mismatch_reason: `fuzzy fallback rejected: best candidate "${best.row.job_type}" domain_score=${best.score.domain}/40 < ${FUZZY_MIN_DOMAIN_SCORE} (cross-domain false positive)`,
+        signature,
+      };
+    }
     strategy = "fuzzy_fallback";
     matched = true;
-    fallbackReason = `score=${best.score.total}/100 (40-59) — fuzzy fallback (warning)`;
+    fallbackReason = `score=${best.score.total}/100 (50-59) — fuzzy fallback (warning)`;
   } else {
     strategy = "no_match";
     matched = false;
