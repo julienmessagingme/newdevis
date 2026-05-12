@@ -245,12 +245,12 @@ Pour chaque groupe, tu dois extraire 5 champs :
                       piscine       : construction, renovation, liner, filtration, margelle
                       energies_renouvelables : photovoltaique, solaire_thermique, eolien, geothermie
                       autre         : divers, fournitures, main_oeuvre, deplacement, forfait
-                    Pas de pièce dans subcategory (la pièce va dans le champ `room`).
+                    Pas de pièce dans subcategory (la pièce va dans le champ "room").
 
 3. room           : ⚠️ ENUM STRICT. Valeurs autorisées (utilise EXACTEMENT ces noms) :
                       cuisine, salle_de_bain, chambre, salon, garage, exterieur,
                       local_technique, bureau, couloir, entree, wc, cellier, cave, combles
-                    OU `null` si aucune pièce n'est mentionnée dans les descriptions.
+                    OU null (sans guillemets, valeur JSON) si aucune pièce n'est mentionnée dans les descriptions.
 
                     Synonymes à mapper vers la valeur canonique :
                       "sdb" / "salle de bain" / "salle de bains" / "salle d'eau" → "salle_de_bain"
