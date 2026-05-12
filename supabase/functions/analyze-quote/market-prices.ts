@@ -12,26 +12,58 @@ import {
 /**
  * V3.6 — Feature flags pour le déploiement contrôlé.
  *
- * MARKET_MATCHER_V36 :
- *   - "shadow" (DÉFAUT) : V3.5 visible utilisateur + V3.6 en parallèle silencieux
- *     → logs [V36_SHADOW] pour comparer les 2 systèmes sur 100+ analyses
- *     → 0 impact UX, mesure des KPIs (coverage, no_match, verdict_delta)
- *   - "true"  : V3.6 active en prod, V3.5 fallback uniquement
- *   - "false" : V3.5 only, V3.6 désactivée (rollback instantané)
+ * MARKET_MATCHER_V36 (parsing strict, valeurs inconnues = warn + shadow par défaut) :
+ *   - "v35_only" | "false" | "0" → V3.5 only (rollback complet)
+ *   - "shadow"   | absent          → SHADOW mode (DÉFAUT) avec sampling
+ *   - "v36_only" | "true"  | "1"   → V3.6 visible (après validation shadow)
  *
- * Activation prod V3.6 = "true" uniquement APRÈS validation shadow metrics
- * (cf. cahier des charges PHASES 1+6).
+ * V36_SHADOW_SAMPLE_RATE :
+ *   - Pourcentage [0.0, 1.0] des analyses sur lesquelles le shadow tourne
+ *   - DÉFAUT 0.2 (20%) — réduit le coût Gemini ×0.2 vs full shadow
+ *   - Set à 1.0 pour shadow exhaustif (déconseillé en early validation)
+ *   - Set à 0.0 pour désactiver le shadow sans toucher au mode
+ *
+ * Pourquoi sampling : en shadow, V3.6 déclenche un 2e appel Gemini par analyse.
+ * Sampling à 20% maintient la collecte de données KPI tout en divisant par 5
+ * le surcoût Gemini. Sur 500 analyses/jour : 100 shadows × ~4s Gemini = budget
+ * acceptable. Validation possible dès ~100 observations (5-7 jours à 20%).
  */
 type MatcherMode = "v35_only" | "shadow" | "v36_only";
+
 const MATCHER_MODE: MatcherMode = (() => {
+  let raw: string | undefined;
   try {
-    const env = (typeof Deno !== "undefined" ? Deno.env.get("MARKET_MATCHER_V36") : undefined);
-    if (env === "false" || env === "0") return "v35_only";
-    if (env === "true" || env === "1") return "v36_only";
-    return "shadow"; // default : shadow mode
+    raw = typeof Deno !== "undefined" ? Deno.env.get("MARKET_MATCHER_V36") : undefined;
   } catch {
-    return "shadow";
+    raw = undefined;
   }
+  if (raw === undefined || raw === null || raw === "") return "shadow";
+  const normalized = String(raw).toLowerCase().trim();
+
+  // Parsing explicite (whitelist)
+  if (normalized === "v35_only" || normalized === "false" || normalized === "0") return "v35_only";
+  if (normalized === "v36_only" || normalized === "true"  || normalized === "1") return "v36_only";
+  if (normalized === "shadow") return "shadow";
+
+  // Valeur non reconnue → warn + fallback shadow safe
+  console.warn(`[MarketPrices] MARKET_MATCHER_V36="${raw}" not recognized (expected: v35_only|shadow|v36_only|true|false). Falling back to "shadow".`);
+  return "shadow";
+})();
+
+const V36_SHADOW_SAMPLE_RATE: number = (() => {
+  let raw: string | undefined;
+  try {
+    raw = typeof Deno !== "undefined" ? Deno.env.get("V36_SHADOW_SAMPLE_RATE") : undefined;
+  } catch {
+    raw = undefined;
+  }
+  if (raw === undefined || raw === null || raw === "") return 0.2; // default 20%
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0 || n > 1) {
+    console.warn(`[MarketPrices] V36_SHADOW_SAMPLE_RATE="${raw}" invalid (expected float 0.0-1.0). Falling back to 0.2.`);
+    return 0.2;
+  }
+  return n;
 })();
 
 // ============================================================
@@ -622,84 +654,123 @@ async function runShadowComparison(
   catalog: MarketCatalogRow[],
   legacyJobTypes: GeminiJobType[],
 ): Promise<void> {
+  // ── Outer guard : tout throw remonté ici ne propage jamais. ──────────────
+  // L'analyse user a déjà été retournée à ce stade — on est purement en
+  // background task. Un throw ici DOIT être silencieux pour l'user.
   try {
-    const sigGroups = await groupWithGeminiSignature(workItems, googleApiKey, signatureExpertPrompt);
-
-    // Pour chaque groupe V3.6, on tente de retrouver le groupe V3.5 correspondant
-    // via work_items overlap (méthode la plus fiable car les groupes peuvent
-    // avoir des labels différents).
-    for (let i = 0; i < sigGroups.length; i++) {
-      const v36Group = sigGroups[i];
-      const v36Items = new Set(v36Group.work_items);
-
-      // Trouve le groupe V3.5 avec le plus d'overlap d'items
-      let bestLegacyMatch: GeminiJobType | null = null;
-      let bestOverlap = 0;
-      for (const legacy of legacyJobTypes) {
-        const overlap = legacy.work_items.filter(idx => v36Items.has(idx)).length;
-        if (overlap > bestOverlap) {
-          bestOverlap = overlap;
-          bestLegacyMatch = legacy;
-        }
-      }
-
-      // Valide la signature V3.6 et matche
-      const validation = validateSignature(v36Group.signature);
-      let v36MatchResult: MatchResult | null = null;
-      if (validation.valid && validation.signature) {
-        v36MatchResult = matchMarketCategory(validation.signature, catalog);
-      }
-
-      // Construit le log structuré
-      const legacyJobType = bestLegacyMatch?.job_types[0] || null;
-      const v36JobType = v36MatchResult?.matched ? v36MatchResult.job_type : null;
-      const sameMatch = legacyJobType === v36JobType;
-
-      const shadowLog = {
-        v36_group_label: v36Group.job_type_label,
-        v36_work_items_count: v36Group.work_items.length,
-        items_overlap_with_legacy: bestOverlap,
-        legacy: {
-          job_type: legacyJobType,
-          job_type_label: bestLegacyMatch?.job_type_label || null,
-        },
-        v36: validation.valid && validation.signature ? {
-          signature: {
-            domain: validation.signature.domain,
-            subcategory: validation.signature.subcategory,
-            room: validation.signature.room,
-            unit: validation.signature.unit,
-            keywords: validation.signature.keywords.slice(0, 5),
-          },
-          matched_job_type: v36JobType,
-          strategy: v36MatchResult?.match_strategy ?? "no_match",
-          confidence: v36MatchResult?.confidence ?? 0,
-        } : {
-          signature_invalid: true,
-          errors: validation.errors,
-        },
-        diff: {
-          same_match: sameMatch,
-          v36_has_match: v36JobType !== null,
-          legacy_has_match: legacyJobType !== null,
-          v36_no_match_v35_did: legacyJobType !== null && v36JobType === null,
-          v35_no_match_v36_did: legacyJobType === null && v36JobType !== null,
-        },
-      };
-
-      console.log(`[V36_SHADOW] ${JSON.stringify(shadowLog)}`);
+    // ── Step 1 — appel Gemini signature ──────────────────────────────────
+    // Failure ici = pas de shadow data pour cette analyse, mais V3.5 a déjà
+    // produit son résultat → user not impacted.
+    let sigGroups: Awaited<ReturnType<typeof groupWithGeminiSignature>>;
+    try {
+      sigGroups = await groupWithGeminiSignature(workItems, googleApiKey, signatureExpertPrompt);
+    } catch (err) {
+      console.warn(`[V36_SHADOW_ERROR] gemini_signature_call_failed: ${err instanceof Error ? err.message : String(err)}`);
+      return;
     }
 
-    // Récapitulatif global pour ce devis
-    const stats = sigGroups.reduce((acc, _, i) => {
-      // (réutilise les logs ci-dessus pour ne pas dupliquer le calcul)
-      acc.total++;
-      return acc;
-    }, { total: 0 });
-    console.log(`[V36_SHADOW_SUMMARY] ${stats.total} groups compared`);
+    if (!Array.isArray(sigGroups) || sigGroups.length === 0) {
+      console.log(`[V36_SHADOW] gemini returned 0 groups (legacy=${legacyJobTypes.length} groups)`);
+      return;
+    }
 
+    // ── Step 2 — pour chaque groupe, comparer V3.5 et V3.6 ────────────────
+    // Chaque itération est isolée : si un groupe throw, les autres continuent.
+    let okCount = 0;
+    let errCount = 0;
+
+    for (const v36Group of sigGroups) {
+      try {
+        const v36Items = new Set(v36Group.work_items);
+
+        // Trouve le groupe V3.5 avec le plus d'overlap d'items
+        let bestLegacyMatch: GeminiJobType | null = null;
+        let bestOverlap = 0;
+        for (const legacy of legacyJobTypes) {
+          const overlap = legacy.work_items.filter(idx => v36Items.has(idx)).length;
+          if (overlap > bestOverlap) {
+            bestOverlap = overlap;
+            bestLegacyMatch = legacy;
+          }
+        }
+
+        // Validation + matching V3.6 (chacun isolé)
+        let validation: ReturnType<typeof validateSignature>;
+        try {
+          validation = validateSignature(v36Group.signature);
+        } catch (err) {
+          console.warn(`[V36_SHADOW_ERROR] validate_signature_threw: ${err instanceof Error ? err.message : String(err)}`);
+          errCount++;
+          continue;
+        }
+
+        let v36MatchResult: MatchResult | null = null;
+        if (validation.valid && validation.signature) {
+          try {
+            v36MatchResult = matchMarketCategory(validation.signature, catalog);
+          } catch (err) {
+            console.warn(`[V36_SHADOW_ERROR] match_market_category_threw: ${err instanceof Error ? err.message : String(err)}`);
+            errCount++;
+            continue;
+          }
+        }
+
+        // Construit et logge le log structuré
+        const legacyJobType = bestLegacyMatch?.job_types[0] || null;
+        const v36JobType = v36MatchResult?.matched ? v36MatchResult.job_type : null;
+        const sameMatch = legacyJobType === v36JobType;
+
+        const shadowLog = {
+          v36_group_label: v36Group.job_type_label,
+          v36_work_items_count: v36Group.work_items.length,
+          items_overlap_with_legacy: bestOverlap,
+          legacy: {
+            job_type: legacyJobType,
+            job_type_label: bestLegacyMatch?.job_type_label || null,
+          },
+          v36: validation.valid && validation.signature ? {
+            signature: {
+              domain: validation.signature.domain,
+              subcategory: validation.signature.subcategory,
+              room: validation.signature.room,
+              unit: validation.signature.unit,
+              keywords: validation.signature.keywords.slice(0, 5),
+            },
+            matched_job_type: v36JobType,
+            strategy: v36MatchResult?.match_strategy ?? "no_match",
+            confidence: v36MatchResult?.confidence ?? 0,
+          } : {
+            signature_invalid: true,
+            errors: validation.errors,
+          },
+          diff: {
+            same_match: sameMatch,
+            v36_has_match: v36JobType !== null,
+            legacy_has_match: legacyJobType !== null,
+            v36_no_match_v35_did: legacyJobType !== null && v36JobType === null,
+            v35_no_match_v36_did: legacyJobType === null && v36JobType !== null,
+          },
+        };
+
+        try {
+          console.log(`[V36_SHADOW] ${JSON.stringify(shadowLog)}`);
+          okCount++;
+        } catch (err) {
+          // Si JSON.stringify échoue (circular ref?) → fallback log minimal
+          console.warn(`[V36_SHADOW_ERROR] log_serialize_failed: ${err instanceof Error ? err.message : String(err)} | group=${v36Group.job_type_label}`);
+          errCount++;
+        }
+      } catch (err) {
+        // Catch ultime par itération
+        console.warn(`[V36_SHADOW_ERROR] group_iteration_failed: ${err instanceof Error ? err.message : String(err)}`);
+        errCount++;
+      }
+    }
+
+    console.log(`[V36_SHADOW_SUMMARY] groups_compared=${okCount} errors=${errCount} total_v36=${sigGroups.length} total_v35=${legacyJobTypes.length}`);
   } catch (err) {
-    console.warn("[V36_SHADOW] error during shadow comparison:", err instanceof Error ? err.message : String(err));
+    // Outer guard final
+    console.warn(`[V36_SHADOW_ERROR] outer_guard: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
@@ -760,35 +831,52 @@ export async function lookupMarketPrices(
   const fullCatalog: MarketCatalogRow[] = (allPrices as MarketCatalogRow[]);
 
   if (MATCHER_MODE === "v36_only" && config.marketSignatureExpertPrompt) {
-    // ─── V3.6 visible utilisateur ────────────────────────────────────────
-    const sigGroups = await groupWithGeminiSignature(
-      workItems,
-      googleApiKey,
-      config.marketSignatureExpertPrompt,
-    );
-    jobTypes = sigGroups.map((g) => {
-      const validation = validateSignature(g.signature);
-      if (!validation.valid || !validation.signature) {
-        console.warn(`[V36_INVALID_SIGNATURE] group "${g.job_type_label}" — fallback to no-catalog`);
-        return {
-          job_type_label: g.job_type_label,
-          job_types: [],
-          main_unit: g.main_unit,
-          main_quantity: g.main_quantity,
-          work_items: g.work_items,
-        };
+    // ─── V3.6 visible utilisateur — avec fallback V3.5 si crash ──────────
+    let v36Success = false;
+    try {
+      const sigGroups = await groupWithGeminiSignature(
+        workItems,
+        googleApiKey,
+        config.marketSignatureExpertPrompt,
+      );
+      if (Array.isArray(sigGroups) && sigGroups.length > 0) {
+        jobTypes = sigGroups.map((g) => {
+          const validation = validateSignature(g.signature);
+          if (!validation.valid || !validation.signature) {
+            console.warn(`[V36_INVALID_SIGNATURE] group "${g.job_type_label}" — fallback to no-catalog`);
+            return {
+              job_type_label: g.job_type_label,
+              job_types: [],
+              main_unit: g.main_unit,
+              main_quantity: g.main_quantity,
+              work_items: g.work_items,
+            };
+          }
+          const matchResult = matchMarketCategory(validation.signature, fullCatalog);
+          logMatchResult(matchResult, { groupLabel: g.job_type_label });
+          return {
+            job_type_label: matchResult.matched && matchResult.label ? matchResult.label : g.job_type_label,
+            job_types: matchResult.matched && matchResult.job_type ? [matchResult.job_type] : [],
+            main_unit: g.main_unit,
+            main_quantity: g.main_quantity,
+            work_items: g.work_items,
+          };
+        });
+        v36Success = true;
+        console.log(`[MarketPrices] V3.6 — ${jobTypes.length} groups (${jobTypes.filter(jt => jt.job_types.length > 0).length} matched)`);
+      } else {
+        console.warn(`[V36_PROD_FALLBACK] V3.6 returned 0 groups, falling back to V3.5`);
       }
-      const matchResult = matchMarketCategory(validation.signature, fullCatalog);
-      logMatchResult(matchResult, { groupLabel: g.job_type_label });
-      return {
-        job_type_label: matchResult.matched && matchResult.label ? matchResult.label : g.job_type_label,
-        job_types: matchResult.matched && matchResult.job_type ? [matchResult.job_type] : [],
-        main_unit: g.main_unit,
-        main_quantity: g.main_quantity,
-        work_items: g.work_items,
-      };
-    });
-    console.log(`[MarketPrices] V3.6 — ${jobTypes.length} groups (${jobTypes.filter(jt => jt.job_types.length > 0).length} matched)`);
+    } catch (err) {
+      console.warn(`[V36_PROD_FALLBACK] V3.6 threw: ${err instanceof Error ? err.message : String(err)} — falling back to V3.5`);
+    }
+
+    // Failsafe : si V3.6 a échoué (catch ou 0 groups), bascule sur V3.5
+    if (!v36Success) {
+      const catalog = buildCatalog(relevantPrices);
+      jobTypes = await groupWithGemini(workItems, catalog, googleApiKey, config.marketPriceExpertPrompt);
+      console.log(`[MarketPrices] V3.5 fallback (post-V3.6 fail) — ${jobTypes.length} groups`);
+    }
   } else {
     // ─── V3.5 visible (modes "v35_only" ET "shadow") ─────────────────────
     const catalog = buildCatalog(relevantPrices);
@@ -796,11 +884,48 @@ export async function lookupMarketPrices(
     console.log(`[MarketPrices] V3.5 visible — ${workItems.length} work items, ${jobTypes.length} job types`);
 
     // ─── SHADOW MODE — V3.6 en parallèle silencieux ──────────────────────
-    // En shadow : on exécute V3.6 sur les mêmes work_items et on logge la
-    // comparaison structurée [V36_SHADOW]. Aucun impact sur le retour utilisateur.
-    if (MATCHER_MODE === "shadow" && config.marketSignatureExpertPrompt) {
-      runShadowComparison(workItems, googleApiKey, config.marketSignatureExpertPrompt, fullCatalog, jobTypes)
-        .catch(err => console.warn("[V36_SHADOW] shadow run failed:", err instanceof Error ? err.message : String(err)));
+    //
+    // GARANTIES :
+    //   1. Sampling : seules ~20% des analyses déclenchent un shadow (réduit
+    //      le coût du 2e appel Gemini par 5).
+    //   2. Background task via EdgeRuntime.waitUntil : la fonction continue
+    //      après envoi de la réponse, MAIS Deno Deploy garantit que la promise
+    //      finit avant de tuer la fonction (vs un fire-and-forget classique
+    //      qui peut être interrompu — cf. CLAUDE.md "Fire-and-forget sur
+    //      serverless ne marche pas").
+    //   3. Latence user inchangée (l'attente du shadow se fait AVANT la
+    //      réponse HTTP, mais on n'awaite PAS le shadow ici).
+    //   4. Failsafe complet : aucune exception ne peut casser l'analyse user
+    //      (V3.5 a déjà retourné jobTypes avant cette branche).
+    if (MATCHER_MODE === "shadow"
+        && config.marketSignatureExpertPrompt
+        && V36_SHADOW_SAMPLE_RATE > 0
+        && Math.random() < V36_SHADOW_SAMPLE_RATE) {
+      const shadowPromise = runShadowComparison(
+        workItems,
+        googleApiKey,
+        config.marketSignatureExpertPrompt,
+        fullCatalog,
+        jobTypes,
+      ).catch(err => {
+        // Failsafe ultime : tout error est logguée mais jamais propagée.
+        console.warn(`[V36_SHADOW_ERROR] runShadowComparison threw: ${err instanceof Error ? err.message : String(err)}`);
+      });
+
+      // EdgeRuntime.waitUntil — Supabase Edge Functions / Deno Deploy API
+      // qui permet à une promesse de continuer en background APRÈS l'envoi de
+      // la réponse HTTP, sans risque d'interruption.
+      // Cf. https://supabase.com/docs/guides/functions/background-tasks
+      try {
+        const er = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
+        if (er && typeof er.waitUntil === "function") {
+          er.waitUntil(shadowPromise);
+        }
+        // Sinon : la promise tourne en fire-and-forget (best effort).
+        // En local Deno la promise complete naturellement.
+      } catch {
+        // EdgeRuntime non disponible — fallback fire-and-forget silencieux.
+      }
     }
   }
 
