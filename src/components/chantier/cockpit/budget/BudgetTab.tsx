@@ -1667,6 +1667,10 @@ export default function BudgetTab({
     if (!depenseForm.label.trim() || isNaN(amount) || amount <= 0) {
       setDepenseError('Libellé et montant requis'); return;
     }
+    // 'sans_lot' = pseudo-bucket budget (id non-UUID) → on l'envoie comme null.
+    const lotIdToSend = depenseForm.lot_id && depenseForm.lot_id !== 'sans_lot'
+      ? depenseForm.lot_id
+      : null;
     setSavingDepense(true); setDepenseError(null);
     try {
       const bearer = await freshToken(token);
@@ -1677,20 +1681,30 @@ export default function BudgetTab({
           label:        depenseForm.label.trim(),
           amount,
           depense_type: depenseForm.depense_type,
-          lot_id:       depenseForm.lot_id || null,
+          lot_id:       lotIdToSend,
           note:         depenseForm.note.trim() || null,
           date:         depenseForm.date,
         }),
       });
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        setDepenseError(j.error ?? 'Erreur lors de l\'enregistrement');
+        const rawText = await res.text().catch(() => '');
+        let j: { error?: string } = {};
+        try { j = JSON.parse(rawText); } catch { /* non-JSON */ }
+        // Log brut pour debug — visible dans la console du navigateur.
+        // eslint-disable-next-line no-console
+        console.error('[saveDepenseRapide] HTTP', res.status, rawText);
+        const msg = j.error || `Erreur ${res.status}${rawText && !j.error ? ` — ${rawText.slice(0, 200)}` : ''}`;
+        setDepenseError(msg);
         setSavingDepense(false); return;
       }
       setDepenseRapide(null);
       setDepenseForm({ label: '', amount: '', depense_type: 'achat_materiaux', lot_id: '', note: '', date: new Date().toISOString().slice(0, 10) });
       refresh();
-    } catch { setDepenseError('Erreur réseau. Réessayez.'); }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[saveDepenseRapide] network error:', e);
+      setDepenseError(e instanceof Error ? `Erreur réseau : ${e.message}` : 'Erreur réseau. Réessayez.');
+    }
     setSavingDepense(false);
   }, [chantierId, token, depenseForm, refresh]);
 

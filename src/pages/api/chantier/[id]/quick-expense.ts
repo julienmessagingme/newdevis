@@ -41,7 +41,12 @@ export const POST: APIRoute = async ({ params, request }) => {
   const amount      = typeof body.amount === 'number' && body.amount > 0     ? body.amount         : null;
   const rawType     = typeof body.depense_type === 'string'                  ? body.depense_type   : 'achat_materiaux';
   const depenseType: DepenseType = ALLOWED_TYPES.includes(rawType as DepenseType) ? rawType as DepenseType : 'achat_materiaux';
-  const lotId       = typeof body.lot_id === 'string' && body.lot_id         ? body.lot_id         : null;
+  // Filtre les ids non-UUID (ex: pseudo-buckets côté Budget: 'sans_lot', 'fallback-X')
+  // pour éviter "invalid input syntax for type uuid" silencieux côté Postgres.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const lotId       = typeof body.lot_id === 'string' && body.lot_id && UUID_RE.test(body.lot_id)
+    ? body.lot_id
+    : null;
   const note        = typeof body.note   === 'string' && body.note.trim()    ? body.note.trim()    : null;
   const date        = typeof body.date   === 'string' && body.date           ? body.date           : new Date().toISOString().slice(0, 10);
   // Source de financement (chantier_entrees.id) — optionnel
@@ -65,13 +70,17 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   // Vérifier que le lot appartient bien au chantier si fourni
   if (lotId) {
-    const { data: lot } = await ctx.supabase
+    const { data: lot, error: lotErr } = await ctx.supabase
       .from('lots_chantier')
       .select('id')
       .eq('id', lotId)
       .eq('chantier_id', chantierId)
       .maybeSingle();
-    if (!lot) return jsonError('Lot introuvable ou non autorisé', 404);
+    if (lotErr) {
+      console.error('[quick-expense] lot lookup error:', lotErr.message);
+      return jsonError(`Lot introuvable : ${lotErr.message}`, 400);
+    }
+    if (!lot) return jsonError('Lot introuvable ou non autorisé pour ce chantier', 404);
   }
 
   // Créer le document dépense (sans fichier)
@@ -120,9 +129,16 @@ export const POST: APIRoute = async ({ params, request }) => {
     .single();
 
   if (error || !inserted) {
-    console.error('[quick-expense] insert error:', error?.message);
+    // Log complet côté serveur (Vercel logs) + message exact côté client pour debug.
+    console.error('[quick-expense] insert error:', {
+      message: error?.message,
+      details: (error as any)?.details,
+      hint:    (error as any)?.hint,
+      code:    (error as any)?.code,
+      payload: { chantierId, label, amount, depenseType, lotId, hasCashflowTerms: cashflow_terms.length > 0 },
+    });
     return jsonError(
-      `Erreur lors de la création de la dépense${error?.message ? ' : ' + error.message : ''}`,
+      error?.message ?? 'Erreur lors de la création de la dépense (insert null)',
       500,
     );
   }
