@@ -4,6 +4,18 @@ import type { APIRoute } from 'astro';
 import { createClient } from '@supabase/supabase-js';
 import type { UpdateChantierPayload } from '@/types/chantier-dashboard';
 import type { ArtisanIA, ChantierIAResult, LotChantier, TacheIA } from '@/types/chantier-ia';
+import { getSemanticEmoji } from '@/lib/chantier/lotUtils';
+
+// Garde anti-hallucination Gemini (ex: "タイル" pour carreleur).
+// Si l'emoji DB n'est pas un vrai emoji, on dérive depuis le nom du lot.
+function safeEmoji(raw: string | null | undefined, lotName: string): string | undefined {
+  if (!raw || typeof raw !== 'string') return undefined;
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.length > 8) return getSemanticEmoji(lotName);
+  if (/[a-zA-Z0-9]/.test(trimmed)) return getSemanticEmoji(lotName);
+  if (/[Ͱ-ϿЀ-ӿ֐-׿؀-ۿ぀-ゟ゠-ヿ㐀-䶿一-鿿가-힯]/.test(trimmed)) return getSemanticEmoji(lotName);
+  return trimmed;
+}
 
 const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -164,7 +176,7 @@ export const GET: APIRoute = async ({ params, request }) => {
         nom: l.nom,
         statut: l.statut as LotChantier['statut'],
         ordre: l.ordre,
-        emoji: l.emoji ?? undefined,
+        emoji: safeEmoji(l.emoji, l.nom),
         role: l.role ?? undefined,
         // Prix de référence calculés (null si lot sans match market_prices)
         job_type:       l.job_type       ?? null,
@@ -182,7 +194,7 @@ export const GET: APIRoute = async ({ params, request }) => {
         nom: a.metier,
         statut: a.statut as LotChantier['statut'],
         ordre: i,
-        emoji: a.emoji,
+        emoji: safeEmoji(a.emoji, a.metier),
         role: a.role,
       }));
 

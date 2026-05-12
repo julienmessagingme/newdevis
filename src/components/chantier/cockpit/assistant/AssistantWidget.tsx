@@ -190,15 +190,15 @@ export default function AssistantWidget({ chantierId, token, hidden, onOpenFull 
   if (hidden) return null;
 
   // ══════════════════════════════════════════════════════════════════════════
-  // FAB (état fermé) — bouton flottant en bas-GAUCHE (le bas-droite est réservé
-  // au widget WhatsApp / support externe pour éviter la collision)
+  // FAB (état fermé) — bouton flottant en bas-DROITE
+  // (Avant en bas-gauche : masquait Paramètres/Déconnexion de la sidebar desktop.)
   // ══════════════════════════════════════════════════════════════════════════
   if (!open) {
     return (
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 left-6 lg:bottom-8 lg:left-8 w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center z-40 group touch-manipulation"
+        className="fixed bottom-6 right-6 lg:bottom-8 lg:right-8 w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center z-40 group touch-manipulation"
         style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
         aria-label="Ouvrir l'Assistant chantier"
       >
@@ -208,7 +208,7 @@ export default function AssistantWidget({ chantierId, token, hidden, onOpenFull 
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
-        <span className="absolute left-full ml-3 top-1/2 -translate-y-1/2 bg-gray-900 text-white text-[11px] font-medium px-2 py-1 rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none hidden lg:block">
+        <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-gray-900 text-white text-[11px] font-medium px-2 py-1 rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none hidden lg:block">
           Assistant chantier
         </span>
       </button>
@@ -228,7 +228,7 @@ export default function AssistantWidget({ chantierId, token, hidden, onOpenFull 
         onClick={() => setOpen(false)}
       />
 
-      <div className="fixed inset-0 lg:inset-auto lg:bottom-6 lg:left-6 lg:w-[380px] lg:h-[600px] lg:max-h-[calc(100vh-3rem)] bg-white lg:rounded-2xl shadow-2xl border-0 lg:border border-gray-100 z-50 flex flex-col overflow-hidden">
+      <div className="fixed inset-0 lg:inset-auto lg:bottom-6 lg:right-6 lg:w-[380px] lg:h-[600px] lg:max-h-[calc(100vh-3rem)] bg-white lg:rounded-2xl shadow-2xl border-0 lg:border border-gray-100 z-50 flex flex-col overflow-hidden">
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-br from-indigo-50/60 to-violet-50/40 flex items-center gap-3 shrink-0">

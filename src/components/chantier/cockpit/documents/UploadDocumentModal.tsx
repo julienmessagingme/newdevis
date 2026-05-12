@@ -70,6 +70,11 @@ export default function UploadDocumentModal({
   const [loadingAnalyses, setLoadingAnalyses] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Lots réels (hors fallback) — seule liste exposée à l'utilisateur.
+  const availableLots = lots.filter(l => !l.id.startsWith('fallback-'));
+  // Devis + lots dispo + aucun choix explicite → on bloque l'envoi pour forcer une décision.
+  const needsLotSelection = docType === 'devis' && availableLots.length > 0 && lotId === '';
+
   useEffect(() => {
     if (tab !== 'import') return;
     setLoadingAnalyses(true);
@@ -156,8 +161,8 @@ export default function UploadDocumentModal({
         } else {
           finalLotId = '';  // Fallback: pas de lot
         }
-      } else if (lotId === '__new__') {
-        finalLotId = '';  // User selected "new" but didn't type a name
+      } else if (lotId === '__new__' || lotId === '__unattached__') {
+        finalLotId = '';  // explicit "no lot" or unfinished "new lot"
       }
 
       // ── Étape 3 : enregistrer les métadonnées en base ──
@@ -209,7 +214,7 @@ export default function UploadDocumentModal({
       const fd = new FormData();
       fd.append('nom', titre); fd.append('documentType', 'devis');
       fd.append('source', 'verifier_mon_devis'); fd.append('analyseId', analyseId);
-      if (lotId) fd.append('lotId', lotId);
+      if (lotId && lotId !== '__unattached__' && lotId !== '__new__') fd.append('lotId', lotId);
       const res = await fetch(`/api/chantier/${chantierId}/documents`, {
         method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
       });
@@ -319,31 +324,50 @@ export default function UploadDocumentModal({
                 </div>
                 {file && (
                   <div className="space-y-3">
-                    <input value={docName} onChange={e => setDocName(e.target.value)} placeholder="Nom du document"
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300" />
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Nom du document</label>
+                      <input value={docName} onChange={e => setDocName(e.target.value)} placeholder="Nom du document"
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300" />
+                    </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <select value={docType} onChange={e => setDocType(e.target.value as DocumentType)}
-                        className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100">
-                        {Object.entries(TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                      </select>
-                      <select value={lotId} onChange={e => { setLotId(e.target.value); if (e.target.value !== '__new__') setNewLotName(''); }}
-                        className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100">
-                        <option value="">— Aucun lot —</option>
-                        {lots.filter(l => !l.id.startsWith('fallback-')).map(l => <option key={l.id} value={l.id}>{l.emoji ?? '🔧'} {l.nom}</option>)}
-                        <option value="__new__">+ Nouveau lot</option>
-                      </select>
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Type</label>
+                        <select value={docType} onChange={e => setDocType(e.target.value as DocumentType)}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100">
+                          {Object.entries(TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">
+                          Intervenant {docType === 'devis' && availableLots.length > 0 && <span className="text-amber-600">*</span>}
+                        </label>
+                        <select value={lotId} onChange={e => { setLotId(e.target.value); if (e.target.value !== '__new__') setNewLotName(''); }}
+                          className={`w-full border rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 ${
+                            needsLotSelection ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'
+                          }`}>
+                          <option value="">— Choisir un intervenant —</option>
+                          {availableLots.map(l => <option key={l.id} value={l.id}>{l.emoji ?? '🔧'} {l.nom}</option>)}
+                          <option value="__new__">+ Nouvel intervenant</option>
+                          <option value="__unattached__">Sans intervenant (rattacher plus tard)</option>
+                        </select>
+                      </div>
                     </div>
                     {lotId === '__new__' && (
                       <div className="flex items-center gap-2">
                         <Plus className="h-4 w-4 text-blue-400 shrink-0" />
-                        <input value={newLotName} onChange={e => setNewLotName(e.target.value)} placeholder="Nom du nouveau lot"
+                        <input value={newLotName} onChange={e => setNewLotName(e.target.value)} placeholder="Nom du nouvel intervenant"
                           className="flex-1 border border-blue-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
                           autoFocus />
                       </div>
                     )}
+                    {needsLotSelection && (
+                      <p className="text-[11px] text-amber-700 flex items-center gap-1.5">
+                        <AlertCircle className="h-3 w-3 shrink-0" /> Choisis un intervenant pour rattacher ce devis — sinon il sera invisible sur l'Accueil.
+                      </p>
+                    )}
                   </div>
                 )}
-                <button onClick={handleUpload} disabled={!file || !docName.trim()}
+                <button onClick={handleUpload} disabled={!file || !docName.trim() || needsLotSelection}
                   className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-30 text-white font-semibold rounded-xl py-3 text-sm transition-colors">
                   Importer
                 </button>
@@ -351,12 +375,16 @@ export default function UploadDocumentModal({
             )}
             {tab === 'import' && (
               <div className="space-y-3">
-                <select value={lotId} onChange={e => { setLotId(e.target.value); if (e.target.value !== '__new__') setNewLotName(''); }}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 mb-1">
-                  <option value="">— Aucun lot —</option>
-                  {lots.filter(l => !l.id.startsWith('fallback-')).map(l => <option key={l.id} value={l.id}>{l.emoji ?? '🔧'} {l.nom}</option>)}
-                  <option value="__new__">+ Nouveau lot</option>
-                </select>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Intervenant à rattacher</label>
+                  <select value={lotId} onChange={e => { setLotId(e.target.value); if (e.target.value !== '__new__') setNewLotName(''); }}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100">
+                    <option value="">— Choisir un intervenant —</option>
+                    {availableLots.map(l => <option key={l.id} value={l.id}>{l.emoji ?? '🔧'} {l.nom}</option>)}
+                    <option value="__new__">+ Nouvel intervenant</option>
+                    <option value="__unattached__">Sans intervenant (rattacher plus tard)</option>
+                  </select>
+                </div>
                 {lotId === '__new__' && (
                   <div className="flex items-center gap-2 mb-1">
                     <Plus className="h-4 w-4 text-blue-400 shrink-0" />

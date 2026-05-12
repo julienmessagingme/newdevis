@@ -3,6 +3,19 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { optionsResponse, jsonOk, jsonError, requireAuth, parseJsonBody } from '@/lib/api/apiHelpers';
 import type { ArtisanIA, ChantierIAResult } from '@/types/chantier-ia';
+import { getSemanticEmoji } from '@/lib/chantier/lotUtils';
+
+// Vrai emoji Unicode = pas de lettres/chiffres ASCII, pas de scripts CJK/kana/hangul.
+// Évite les hallucinations Gemini type "タイル" ou "Tile" rendues comme texte au lieu d'icône.
+function isValidEmoji(s: string | null | undefined): boolean {
+  if (!s || typeof s !== 'string') return false;
+  const trimmed = s.trim();
+  if (!trimmed || trimmed.length > 8) return false;
+  if (/[a-zA-Z0-9]/.test(trimmed)) return false;
+  // CJK ideographs, Hiragana, Katakana, Hangul, Arabic, Hebrew, Cyrillic, Greek
+  if (/[Ͱ-ϿЀ-ӿ֐-׿؀-ۿ぀-ゟ゠-ヿ㐀-䶿一-鿿가-힯]/.test(trimmed)) return false;
+  return true;
+}
 
 /** POST /api/chantier/sauvegarder — Sauvegarde le résultat IA en base */
 export const POST: APIRoute = async ({ request }) => {
@@ -67,7 +80,7 @@ export const POST: APIRoute = async ({ request }) => {
         nom: a.metier,
         statut: a.statut,
         ordre: i,
-        emoji: a.emoji ?? null,
+        emoji: isValidEmoji(a.emoji) ? a.emoji : getSemanticEmoji(a.metier),
         role: a.role ?? null,
         // Planning IA
         duree_jours: a.duree_jours_estime ?? null,

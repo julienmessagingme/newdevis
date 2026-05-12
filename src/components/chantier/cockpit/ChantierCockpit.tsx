@@ -674,6 +674,14 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
             refreshInsights();
             // Refresh agent insights after upload (mismatch detection may have created one)
             setTimeout(() => agentInsights.refresh(), 2000);
+            // Devis non rattaché → toast pour rediriger l'user vers Documents (sinon invisible sur l'Accueil).
+            if (doc.document_type === 'devis' && !doc.lot_id && lots.filter(l => !l.id.startsWith('fallback-')).length > 0) {
+              toast('Devis non rattaché à un intervenant', {
+                description: 'Rends-toi dans Documents pour l\'attribuer.',
+                action: { label: 'Documents', onClick: () => navigateTo('documents') },
+                duration: 8000,
+              });
+            }
             // Auto-analyse for devis: already triggered by UploadDocumentModal (line 167)
             // which sets doc.analyse_id before calling onSuccess. No need to call again.
             if (doc.document_type === 'devis' && doc.analyse_id) {
