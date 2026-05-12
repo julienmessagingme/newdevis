@@ -1286,7 +1286,7 @@ function PreuvesTab({ events, chantierId, token }: {
   const allArtisans = artisans;
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto pb-32">
       <div className="p-4 pb-8 space-y-5">
 
         {/* Rappel légal */}
@@ -1589,14 +1589,14 @@ export default function TresoreriePanel({
 
       {/* ── Budget ──────────────────────────────────────────────────────────── */}
       {tab === 'budget' && (
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto pb-32">
           <BudgetTab chantierId={chantierId} token={token} rangeMin={rangeMin} rangeMax={rangeMax} initialEnveloppePrevue={initialEnveloppePrevue} />
         </div>
       )}
 
       {/* ── Trésorerie (nouveau) ─────────────────────────────────────────────── */}
       {tab === 'cockpit' && (
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto pb-32">
           <TresorerieView
             chantierId={chantierId}
             token={token}
@@ -1609,7 +1609,7 @@ export default function TresoreriePanel({
 
       {/* ── Echeancier ──────────────────────────────────────────────────────── */}
       {tab === 'timeline' && (
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 pb-32">
           <Echeancier chantierId={chantierId} token={token} />
         </div>
       )}

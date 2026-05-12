@@ -674,9 +674,9 @@ function FinancementSection({
           {creditOpen && (
             <div className="mt-3 space-y-3">
               {([
-                { label: 'Montant', id: 'montant', min: 0, max: 100000, step: 500,  val: slMontant, set: setSlMontant, fmt: (v: number) => fmtEur(v) },
+                { label: 'Montant', id: 'montant', min: 0, max: 10_000_000, step: 1000, val: slMontant, set: setSlMontant, fmt: (v: number) => fmtEur(v) },
                 { label: 'Taux annuel', id: 'taux', min: 0.5, max: 8, step: 0.1, val: slTaux, set: setSlTaux, fmt: (v: number) => v.toFixed(1) + ' %' },
-                { label: 'Durée', id: 'duree', min: 5, max: 25, step: 1, val: slDuree, set: setSlDuree, fmt: (v: number) => v + ' ans' },
+                { label: 'Durée', id: 'duree', min: 5, max: 30, step: 1, val: slDuree, set: setSlDuree, fmt: (v: number) => v + ' ans' },
               ] as const).map(sl => (
                 <div key={sl.id}>
                   <div className="flex justify-between text-[11px] mb-1">
