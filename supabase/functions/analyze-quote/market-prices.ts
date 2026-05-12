@@ -75,6 +75,75 @@ const V36_SHADOW_SAMPLE_RATE: number = (() => {
 // 4. Returns hierarchical results for frontend display
 // ============================================================
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Startup log — affiché une fois au chargement de l'instance edge function.
+// ─────────────────────────────────────────────────────────────────────────────
+console.log(`[MarketPrices] startup — matcher_mode=${MATCHER_MODE} shadow_sample_rate=${V36_SHADOW_SAMPLE_RATE}`);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AUTO KILL SWITCH pour shadow (V3.6 hardening)
+//
+// Si trop d'erreurs shadow sur une fenêtre temporelle → on désactive le shadow
+// pour le reste de la vie de l'instance edge function. Empêche que des erreurs
+// runtime répétées dégradent la plateforme (logs spammés, latence dégradée).
+//
+// État en mémoire par instance edge function. Reset au redémarrage de l'instance
+// (acceptable pour ce cas d'usage — le kill switch est une protection court terme).
+//
+// Seuils paramétrables via env :
+//   V36_SHADOW_KILL_THRESHOLD : nombre max d'erreurs avant kill (default 20)
+//   V36_SHADOW_KILL_WINDOW_MS : fenêtre temporelle ms (default 1h)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SHADOW_KILL_THRESHOLD: number = (() => {
+  try {
+    const raw = typeof Deno !== "undefined" ? Deno.env.get("V36_SHADOW_KILL_THRESHOLD") : undefined;
+    if (!raw) return 20;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 20;
+  } catch { return 20; }
+})();
+
+const SHADOW_KILL_WINDOW_MS: number = (() => {
+  try {
+    const raw = typeof Deno !== "undefined" ? Deno.env.get("V36_SHADOW_KILL_WINDOW_MS") : undefined;
+    if (!raw) return 3_600_000; // 1h par défaut
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 3_600_000;
+  } catch { return 3_600_000; }
+})();
+
+interface ShadowKillState {
+  errors: number[];      // timestamps ms d'erreurs récentes
+  killedAt: number | null; // si non null, shadow désactivé depuis ce timestamp
+}
+
+const shadowKillState: ShadowKillState = { errors: [], killedAt: null };
+
+/**
+ * Enregistre une erreur shadow. Si seuil dépassé sur la fenêtre → kill switch.
+ * Appelé après chaque [V36_SHADOW_ERROR] significatif.
+ */
+function recordShadowError(): void {
+  const now = Date.now();
+  shadowKillState.errors.push(now);
+  // Garde uniquement les erreurs dans la fenêtre
+  shadowKillState.errors = shadowKillState.errors.filter(t => now - t < SHADOW_KILL_WINDOW_MS);
+  if (shadowKillState.errors.length >= SHADOW_KILL_THRESHOLD && shadowKillState.killedAt === null) {
+    shadowKillState.killedAt = now;
+    console.warn(`[V36_SHADOW_KILLED] error_count=${shadowKillState.errors.length} threshold=${SHADOW_KILL_THRESHOLD} window_ms=${SHADOW_KILL_WINDOW_MS} → shadow DISABLED on this instance for safety`);
+  }
+}
+
+/**
+ * Indique si le shadow doit être skippé suite à un kill switch.
+ */
+function isShadowKilled(): boolean {
+  return shadowKillState.killedAt !== null;
+}
+
+console.log(`[MarketPrices] startup — kill_switch_threshold=${SHADOW_KILL_THRESHOLD} window_ms=${SHADOW_KILL_WINDOW_MS}`);
+
 // deno-lint-ignore no-explicit-any
 type SupabaseClient = any;
 
@@ -666,6 +735,7 @@ async function runShadowComparison(
       sigGroups = await groupWithGeminiSignature(workItems, googleApiKey, signatureExpertPrompt);
     } catch (err) {
       console.warn(`[V36_SHADOW_ERROR] gemini_signature_call_failed: ${err instanceof Error ? err.message : String(err)}`);
+      recordShadowError();
       return;
     }
 
@@ -771,6 +841,7 @@ async function runShadowComparison(
   } catch (err) {
     // Outer guard final
     console.warn(`[V36_SHADOW_ERROR] outer_guard: ${err instanceof Error ? err.message : String(err)}`);
+    recordShadowError();
   }
 }
 
@@ -900,6 +971,7 @@ export async function lookupMarketPrices(
     if (MATCHER_MODE === "shadow"
         && config.marketSignatureExpertPrompt
         && V36_SHADOW_SAMPLE_RATE > 0
+        && !isShadowKilled()
         && Math.random() < V36_SHADOW_SAMPLE_RATE) {
       const shadowPromise = runShadowComparison(
         workItems,
@@ -910,6 +982,7 @@ export async function lookupMarketPrices(
       ).catch(err => {
         // Failsafe ultime : tout error est logguée mais jamais propagée.
         console.warn(`[V36_SHADOW_ERROR] runShadowComparison threw: ${err instanceof Error ? err.message : String(err)}`);
+        recordShadowError();
       });
 
       // EdgeRuntime.waitUntil — Supabase Edge Functions / Deno Deploy API
