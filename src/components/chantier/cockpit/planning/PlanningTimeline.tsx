@@ -212,10 +212,134 @@ interface Props {
   token: string | null | undefined;
 }
 
+// Niveaux de zoom — du plus fin (jour) au plus large (année).
+// pxPerWeek dicte la largeur d'une semaine (1 colonne) sur le Gantt.
+// Toutes les positions des barres restent calculées en semaines → bars
+// se redimensionnent automatiquement quand on change de zoom.
+type ZoomLevel = 'day' | 'week' | 'month' | 'quarter' | 'year';
+const ZOOM_CONFIG: Record<ZoomLevel, { pxPerWeek: number; label: string }> = {
+  day:     { pxPerWeek: 350, label: 'Jour'      }, // 50 px / jour, calendrier semaine
+  week:    { pxPerWeek: 96,  label: 'Semaine'   }, // historique — défaut
+  month:   { pxPerWeek: 22,  label: 'Mois'      }, // ~1 mois ≈ 95 px
+  quarter: { pxPerWeek: 11,  label: 'Trimestre' }, // ~13 sem ≈ 143 px
+  year:    { pxPerWeek: 5,   label: 'Année'     }, // ~52 sem ≈ 260 px / année
+};
+
+const DAY_LABELS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+const MONTH_NAMES = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+
+// Helpers date pour l'header zoom-adapté.
+function addDays(d: Date, days: number) { const n = new Date(d); n.setDate(n.getDate() + days); return n; }
+function weekStart(start: Date, idx: number) { return addDays(start, idx * 7); }
+
+/** Rendu du header de timeline selon le zoom courant.
+ *  Day      → 2 niveaux : mois en haut, 7 jours par semaine en bas.
+ *  Week     → 1 niveau : "S{i} / 1 juil." par colonne (rendu legacy).
+ *  Month    → 1 niveau : "Juillet 2026" affiché uniquement sur la 1re sem du mois.
+ *  Quarter  → 1 niveau : "T1 2026" sur la 1re sem du trimestre.
+ *  Year     → 1 niveau : "2026" sur la 1re sem de l'année.
+ */
+function renderTimelineHeader(
+  weeks: Array<{ label: string; date: string }>,
+  startDate: Date | null,
+  zoom: ZoomLevel,
+  weekWidth: number,
+) {
+  if (!startDate) return null;
+
+  if (zoom === 'week') {
+    return (
+      <div className="flex border-b border-gray-100">
+        {weeks.map((w, i) => (
+          <div key={i} className="flex-none text-center border-r border-gray-50 py-2" style={{ width: weekWidth }}>
+            <p className="text-xs font-bold text-gray-600">{w.label}</p>
+            <p className="text-[10px] text-gray-400">{w.date}</p>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (zoom === 'day') {
+    // 2 niveaux : ligne du haut = mois groupé, ligne du bas = jours individuels.
+    // 1 semaine = 7 jours, chaque jour = weekWidth/7 px.
+    const dayPx = weekWidth / 7;
+    // Groupes mois pour le bandeau haut (fusion des semaines partageant le même mois).
+    const monthGroups: { label: string; widthWeeks: number }[] = [];
+    weeks.forEach((_, i) => {
+      const wd = weekStart(startDate, i);
+      const m = wd.getMonth(); const y = wd.getFullYear();
+      const lbl = `${MONTH_NAMES[m]} ${y}`;
+      const last = monthGroups[monthGroups.length - 1];
+      if (last && last.label === lbl) last.widthWeeks += 1;
+      else monthGroups.push({ label: lbl, widthWeeks: 1 });
+    });
+    return (
+      <div className="border-b border-gray-100">
+        <div className="flex">
+          {monthGroups.map((g, i) => (
+            <div key={i} className="flex-none text-center border-r border-gray-100 py-1 bg-gray-50/60"
+                 style={{ width: g.widthWeeks * weekWidth }}>
+              <p className="text-[11px] font-bold text-gray-600 capitalize">{g.label}</p>
+            </div>
+          ))}
+        </div>
+        <div className="flex">
+          {weeks.map((_, wi) => (
+            <div key={wi} className="flex-none flex border-r border-gray-200" style={{ width: weekWidth }}>
+              {Array.from({ length: 7 }, (_, di) => {
+                const d = addDays(weekStart(startDate, wi), di);
+                const isWeekend = di >= 5;
+                return (
+                  <div key={di} className={`flex-none text-center py-1.5 border-r border-gray-50 ${isWeekend ? 'bg-gray-50/60' : ''}`}
+                       style={{ width: dayPx }}>
+                    <p className="text-[9px] text-gray-400 leading-none mb-0.5">{DAY_LABELS[di]}</p>
+                    <p className={`text-[10px] tabular-nums ${isWeekend ? 'text-gray-400' : 'font-semibold text-gray-700'}`}>{d.getDate()}</p>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // month / quarter / year — un seul niveau, label rendu uniquement aux ruptures de période.
+  const period = (d: Date): string => {
+    if (zoom === 'month')   return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+    if (zoom === 'quarter') return `T${Math.floor(d.getMonth() / 3) + 1} ${d.getFullYear()}`;
+    return `${d.getFullYear()}`;
+  };
+  // On agrège les semaines partageant la même période → fusion visuelle.
+  const groups: { label: string; widthWeeks: number }[] = [];
+  weeks.forEach((_, i) => {
+    const wd = weekStart(startDate, i);
+    const lbl = period(wd);
+    const last = groups[groups.length - 1];
+    if (last && last.label === lbl) last.widthWeeks += 1;
+    else groups.push({ label: lbl, widthWeeks: 1 });
+  });
+  return (
+    <div className="flex border-b border-gray-100">
+      {groups.map((g, i) => (
+        <div key={i} className="flex-none text-center border-r border-gray-100 py-2 bg-gray-50/40"
+             style={{ width: g.widthWeeks * weekWidth }}>
+          <p className="text-[11px] font-bold text-gray-600 capitalize whitespace-nowrap overflow-hidden text-ellipsis px-1">
+            {g.label}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function PlanningTimeline({ chantierId, token }: Props) {
   const { lots, deps, startDate, totalWeeks, loading, saving, updateLot, updateStartDate, updateEndDate, applyDragChange, recompactPlanning } = usePlanning(chantierId, token);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [dateMode, setDateMode] = useState<null | 'start' | 'end'>(null);
+  // Zoom courant — non persisté volontairement (préférence d'écran, pas de projet).
+  const [zoom, setZoom] = useState<ZoomLevel>('week');
 
   // Lots affichés sur le Gantt : ceux qui ont une durée et des dates calculées
   const planningLots = useMemo(() =>
@@ -236,7 +360,9 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
     [startDate, totalWeeks]
   );
 
-  const WEEK_WIDTH = 96; // px par semaine
+  // Largeur d'une colonne semaine (px) — pilotée par le zoom.
+  // Tous les calculs (position barres, drag/resize, grille) en dérivent.
+  const WEEK_WIDTH = ZOOM_CONFIG[zoom].pxPerWeek;
 
   // (Drag & drop reorder + édition inline durée supprimés — les barres du Gantt
   // gèrent maintenant directement drag, resize, et les lanes remplacent l'ordre manuel.)
@@ -640,6 +766,40 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
             {saving && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
           </div>
         </div>
+
+        {/* -- Zoom toolbar : Jour / Semaine / Mois / Trimestre / Année + Aujourd'hui (intérieur card) ---- */}
+        <div className="mt-4 pt-3 border-t border-gray-100 flex items-center gap-1.5 flex-wrap">
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mr-1.5">Zoom</span>
+          {(Object.keys(ZOOM_CONFIG) as ZoomLevel[]).map(z => (
+            <button
+              key={z}
+              onClick={() => setZoom(z)}
+              className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg border transition-all ${
+                zoom === z
+                  ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                  : 'bg-white border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-700'
+              }`}
+            >
+              {ZOOM_CONFIG[z].label}
+            </button>
+          ))}
+          <span className="text-gray-300 mx-1">|</span>
+          <button
+            onClick={() => {
+              if (!scrollRef.current || !startDate) return;
+              const today = new Date();
+              const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+              const offsetWeeks = Math.max(0, (today.getTime() - startDate.getTime()) / msPerWeek);
+              // Centre la position d'aujourd'hui dans la vue scrollable.
+              const targetLeft = Math.max(0, offsetWeeks * ZOOM_CONFIG[zoom].pxPerWeek - scrollRef.current.clientWidth / 2);
+              scrollRef.current.scrollTo({ left: targetLeft, behavior: 'smooth' });
+            }}
+            title="Recentrer la vue sur la date du jour"
+            className="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-500 hover:border-blue-300 hover:text-blue-700 transition-colors"
+          >
+            📍 Aujourd'hui
+          </button>
+        </div>
       </div>
 
       {/* -- Date picker modal ----------------------------------------------- */}
@@ -712,15 +872,8 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
           {/* ====== RIGHT: scrollable Gantt area ====== */}
           <div ref={scrollRef} className="flex-1 overflow-x-auto min-w-0">
             <div style={{ minWidth: `${Math.max(weeks.length * WEEK_WIDTH, 300)}px` }}>
-              {/* Week headers */}
-              <div className="flex border-b border-gray-100">
-                {weeks.map((w, i) => (
-                  <div key={i} className="flex-none text-center border-r border-gray-50 py-2" style={{ width: WEEK_WIDTH }}>
-                    <p className="text-xs font-bold text-gray-600">{w.label}</p>
-                    <p className="text-[10px] text-gray-400">{w.date}</p>
-                  </div>
-                ))}
-              </div>
+              {/* Header — rendu adaptatif par zoom (jour → 7 jours/sem, mois/trimestre/an → label macro uniquement aux ruptures) */}
+              {renderTimelineHeader(weeks, startDate, zoom, WEEK_WIDTH)}
 
               {/* Gantt bar rows — 1 ligne par lane, toutes les barres d'une lane côte à côte */}
               {lanes.map((lane, laneIdx) => (
