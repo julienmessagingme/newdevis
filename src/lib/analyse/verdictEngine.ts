@@ -827,14 +827,26 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
         reasons.push("✅ Prix conforme au marché");
       }
     } else if (verdict === "a_negocier") {
-      if (wa && wa.impact_anomalies === "faible") {
-        // Impact faible : ne pas alarmer avec un gros montant global
+      // V3.4.6 (2026-05-12) — Cas escalade sans anomalie identifiée :
+      // si la garde de cohérence a escaladé en a_negocier (server_surcout_mid > 1000€
+      // ET > 3% du devis) MAIS qu'aucune anomalie n'est identifiée poste par poste
+      // (anomalies_count === 0), on ne peut PAS écrire "certains postes présentent
+      // des prix élevés" — ce serait mensonger. On affiche un écart estimatif global
+      // honnête, qui correspond au hero "+X € écart estimatif vs fourchettes marché".
+      // Cf. CLAUDE.md règles V3.3.1 #4 et #5.
+      if (hasAnomalies && wa && wa.impact_anomalies === "faible") {
+        // Impact faible mais anomalies réellement identifiées : ne pas alarmer.
         reasons.push(`⚠️ Certains postes présentent des prix élevés — impact sur le total : ${fmtPct(wa.surcout_pct)}`);
-      } else if (wa) {
+      } else if (hasAnomalies && wa) {
         // V3.3.2 — surcoût aligné sur le hero (server_surcout_mid si fourni)
         // V3.4.2 — affiche le surcout_pct (impact réel) et non poids_anomalies (poids du poste).
         // Sur Kern : 6% (le surcoût du pavé) et non 46% (la part du terrassement dans le devis).
         reasons.push(`⚠️ Surcoût représentant ${Math.round(wa.surcout_pct * 100)}% du devis (estimé : ~${fmtEur(surcoutForWording)})`);
+      } else if (surcoutForWording > 0 || overprice > 0) {
+        // Escalade SANS anomalie identifiée → wording d'écart estimatif global.
+        // Cohérent avec le hero "+X € écart estimatif vs fourchettes marché".
+        const montant = surcoutForWording > 0 ? surcoutForWording : overprice;
+        reasons.push(`⚠️ Écart estimatif d'environ ${fmtEur(montant)} vs les fourchettes marché — à approfondir avec l'artisan (aucune anomalie majeure identifiée poste par poste)`);
       } else {
         reasons.push(
           overprice_pct <= threshold_ok

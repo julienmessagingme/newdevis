@@ -498,6 +498,32 @@ serve(async (req) => {
         }
       }
 
+      // ── HEURISTIQUE FILENAME — Safety net multi-devis (V3.4.6, 2026-05-12) ──
+      // Si Gemini a manqué la détection multi-devis (multiple_quotes=false) mais que
+      // le nom du fichier crie "multi devis" / "plusieurs entreprises" / "synthèse"
+      // → on log un warning visible pour qu'on retrouve ces cas dans les logs.
+      // On NE FORCE PAS multiple_quotes=true ici car sans devis_list valide la
+      // segmentation downstream ne peut rien faire — on alerte juste.
+      try {
+        const fnLower = (analysis.file_name || "").toLowerCase();
+        const filenameSuggestsMulti =
+          /multi[\s_-]*devis|plusieurs[\s_-]*(entreprises?|artisans?|devis)|synth[èe]se[\s_-]*devis|r[ée]capitulatif[\s_-]*devis|comparatif[\s_-]*devis/i.test(fnLower);
+        const looksLikeBigQuote = Array.isArray(extracted.travaux) && extracted.travaux.length >= 50;
+        if (filenameSuggestsMulti && !extracted.multiple_quotes) {
+          console.warn(
+            `[MultiDevis][HEURISTIC_MISS] analysis=${analysisId} file="${analysis.file_name}" — filename suggests multi-devis but Gemini returned multiple_quotes=false. travaux.length=${extracted.travaux?.length ?? 0}. Manual re-extraction may be needed.`,
+          );
+        }
+        if (looksLikeBigQuote && !extracted.multiple_quotes) {
+          console.log(
+            `[MultiDevis][LARGE_SINGLE] analysis=${analysisId} file="${analysis.file_name}" — 50+ work items but multiple_quotes=false. Either a true "tous corps d'état" artisan, or missed multi-devis detection. Review if ConclusionIA shows inconsistencies.`,
+          );
+        }
+      } catch (heuristicErr) {
+        // Heuristic non bloquant — log et continue.
+        console.warn("[MultiDevis][HEURISTIC] non-blocking error:", heuristicErr instanceof Error ? heuristicErr.message : String(heuristicErr));
+      }
+
       // Handle rejected documents (facture)
       if (extracted.type_document === "facture") {
         if (extractionId) {

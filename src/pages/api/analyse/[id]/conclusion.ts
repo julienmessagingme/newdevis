@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.4.5";
+const ENGINE_VERSION = "3.4.6";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -313,6 +313,15 @@ function sanitizeLLMText(
                                                             "à examiner poste par poste"],
     [/\bdans la norme du marché\b/gi,                       "à comparer poste par poste"],
     [/\bcohérent[es]? avec les prix du marché\b/gi,         "à examiner poste par poste"],
+    // V3.4.6 (2026-05-12) — Patterns observés sur multi-devis SALLEM
+    // qui contredisaient le hero "+18 600€" + verdict ORANGE.
+    [/\bcohérent[es]? avec (les )?(attentes|fourchettes|estimations) (du )?marché\b/gi,
+                                                            "à examiner poste par poste"],
+    [/\b(le )?montant (global )?(du )?devis (est |reste |semble |paraît )?(cohérent|conforme|raisonnable|normal)\b/gi,
+                                                            "le montant global présente des écarts vs marché"],
+    [/\bsans surcoût significatif( identifié)?( sur les postes comparables)?\b/gi,
+                                                            "avec des écarts vs marché à examiner"],
+    [/\b(au|dans le) niveau (du |des )?(prix )?marché\b/gi, "à examiner vs fourchettes marché"],
   ];
 
   for (const [pattern, replacement] of ALWAYS_FORBIDDEN) {

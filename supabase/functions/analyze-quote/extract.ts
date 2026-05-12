@@ -178,12 +178,24 @@ RÈGLES MULTI-PAGES :
 - Les TOTAUX (Total HT, Total TTC, Net à payer) figurent souvent sur une page de récapitulatif séparée (ex: page 2/3), dans un tableau en bas à droite. Si une telle page existe, utilise ses valeurs pour "totaux".
 - L'ADRESSE CLIENT / CHANTIER peut apparaître dans une mise en page à deux colonnes (adresse à gauche et dans un encadré à droite) — lire les deux colonnes.
 
-DÉTECTION MULTI-DEVIS (PRIORITÉ HAUTE) :
-Certains PDF sont des recueils de plusieurs devis distincts pour un même chantier (un artisan par lot : maçonnerie, plomberie, électricité, etc.).
-SIGNAL de détection : le document contient 2+ blocs distincts ayant chacun (a) un nom d'entreprise différent, (b) un identifiant légal (SIRET/RCS) différent, (c) un total HT/TTC propre.
-Si détecté : mets "multiple_quotes": true et remplis "devis_list" avec UN objet par devis (dans l'ordre d'apparition).
-Pour les champs racines (entreprise, totaux, travaux) : utilise les données du PREMIER devis uniquement.
-"devis_list" : extrait TOUS les devis présents dans le PDF, sans en omettre aucun.
+DÉTECTION MULTI-DEVIS (PRIORITÉ ABSOLUE — règle métier critique) :
+Certains PDF sont des recueils de plusieurs devis distincts pour un même chantier (un artisan par lot : maçonnerie, plomberie, électricité, etc.). Ces PDF peuvent être très volumineux (10+ pages, 100+ lignes de travaux). C'est un cas FRÉQUENT et il faut le détecter avec une politique "PRÉFÉRER LE FAUX POSITIF" : si tu hésites, mets multiple_quotes=true.
+
+SIGNAUX de détection (UN seul des signaux suivants suffit à activer multiple_quotes=true) :
+  - SIGNAL 1 (fort) : 2+ blocs avec un nom d'entreprise DIFFÉRENT ET un SIRET/RCS DIFFÉRENT.
+  - SIGNAL 2 (fort) : 2+ en-têtes "Devis N°...", "Numéro de devis :", "Quote n°..." DISTINCTS sur des pages séparées.
+  - SIGNAL 3 (moyen) : 2+ pages avec leur propre tableau "Total HT / Total TTC / Net à payer" avec des montants DIFFÉRENTS et un en-tête entreprise distinct au-dessus.
+  - SIGNAL 4 (moyen) : 2+ blocs visuellement séparés (saut de page + en-tête entreprise) qui couvrent chacun un lot/corps d'état différent (maçonnerie, charpente, plomberie, etc.).
+  - SIGNAL 5 (faible) : nom de fichier ou texte qui mentionne explicitement "multi devis", "plusieurs entreprises", "récapitulatif devis", "synthèse devis" → multiple_quotes=true même si tu n'es pas sûr.
+
+Si AUCUN de ces signaux n'est présent ET que toutes les pages partagent le même en-tête entreprise → un seul devis (multiple_quotes=false).
+
+Si détecté (multiple_quotes=true) :
+  - remplis "devis_list" avec UN objet par devis dans l'ordre d'apparition (UN entry par entreprise/lot distinct, JAMAIS regroupés).
+  - "devis_list" DOIT contenir au minimum 2 entrées (sinon multiple_quotes=false par cohérence).
+  - chaque entrée doit avoir SON nom d'entreprise, SON SIRET si présent, SON total_ht, SON total_ttc, ET ses propres "lignes" (libellé + montant + quantité + unité) — copie TOUTES les lignes du devis correspondant.
+  - Pour les champs racines (entreprise, totaux, travaux) : utilise les données du PREMIER devis uniquement (les segments downstream utilisent devis_list).
+  - "devis_list" : extrait TOUS les devis présents dans le PDF, sans en omettre aucun.
 
 EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes de travaux) :
 
