@@ -25,9 +25,15 @@ export const GET: APIRoute = async ({ request }) => {
   // V3.3.1 règle #1 et #6). Le `score` legacy peut diverger après escalade par
   // la garde de cohérence (ex: hero "+18 600€" + escalade en a_negocier, mais
   // score legacy resté à "VERT" si pas d'anomalie identifiée poste par poste).
+  //
+  // ATTENTION schéma :
+  //  - `conclusion_ia` est une colonne TEXT (JSON sérialisé) — JSON.parse requis.
+  //  - `multiple_quotes` + `global_metrics` ne sont PAS des colonnes — ils vivent
+  //    dans `raw_text` (TEXT, JSON sérialisé aussi). Cf. analyze-quote/index.ts:
+  //    le rawDataForDebug contient { multiple_quotes, global_metrics, ... }.
   const { data, error } = await supabase
     .from('analyses')
-    .select('id, file_name, file_path, created_at, user_id, score, status, conclusion_ia, global_metrics, multiple_quotes')
+    .select('id, file_name, file_path, created_at, user_id, score, status, conclusion_ia, raw_text')
     .order('created_at', { ascending: false })
     .limit(30);
 
@@ -49,30 +55,49 @@ export const GET: APIRoute = async ({ request }) => {
     }
   };
 
+  // Parser TEXT → object de façon sûre (les anciennes analyses peuvent avoir
+  // un raw_text non-JSON ou un conclusion_ia mal formé).
+  const safeParse = (s: unknown): any => {
+    if (!s || typeof s !== 'string') return null;
+    try { return JSON.parse(s); } catch { return null; }
+  };
+
   const normalized = (data ?? []).map((row: any) => {
+    const rawObj        = safeParse(row.raw_text);
+    const conclusionObj = safeParse(row.conclusion_ia);
+    const multi         = rawObj?.document_detection?.multiple_quotes === true
+                          || rawObj?.multiple_quotes === true;
+    const globalMetrics = rawObj?.global_metrics ?? null;
+
     // 1) Multi-devis : global_metrics.verdict_global est la source canonique.
-    //    (cf. AnalysisResult.tsx — branche multi).
-    if (row.multiple_quotes === true && row.global_metrics?.verdict_global) {
-      const fromGlobal = mapVerdictToScore(row.global_metrics.verdict_global);
+    if (multi && globalMetrics?.verdict_global) {
+      const fromGlobal = mapVerdictToScore(globalMetrics.verdict_global);
       if (fromGlobal) {
-        return { ...row, score: fromGlobal };
+        return {
+          id: row.id, file_name: row.file_name, file_path: row.file_path,
+          created_at: row.created_at, user_id: row.user_id, status: row.status,
+          score: fromGlobal,
+        };
       }
     }
     // 2) Mono-devis : conclusion_ia.verdict_global (post-escalade garde cohérence).
-    const fromConclusion = mapVerdictToScore(row.conclusion_ia?.verdict_global);
+    const fromConclusion = mapVerdictToScore(conclusionObj?.verdict_global);
     if (fromConclusion) {
-      return { ...row, score: fromConclusion };
+      return {
+        id: row.id, file_name: row.file_name, file_path: row.file_path,
+        created_at: row.created_at, user_id: row.user_id, status: row.status,
+        score: fromConclusion,
+      };
     }
-    // 3) Fallback legacy : si conclusion_ia n'est pas encore généré, on garde
-    //    le score colonne (visible "en attente" pour les analyses très anciennes
-    //    ou si la conclusion n'a jamais été générée).
-    return row;
+    // 3) Fallback legacy.
+    return {
+      id: row.id, file_name: row.file_name, file_path: row.file_path,
+      created_at: row.created_at, user_id: row.user_id, status: row.status,
+      score: row.score,
+    };
   });
 
-  // On n'expose pas les blobs JSON volumineux côté client.
-  const slimDevis = normalized.map(({ conclusion_ia: _ci, global_metrics: _gm, ...rest }) => rest);
-
-  return jsonOk({ devis: slimDevis });
+  return jsonOk({ devis: normalized });
 };
 
 export const OPTIONS: APIRoute = () => optionsResponse('GET,OPTIONS');
