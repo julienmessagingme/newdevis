@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { cleanJobTypeLabel, detectRoomMismatch, type HomogeneityGroupInput } from "@/lib/analyse/groupHomogeneity";
 
 // ========================================
 // TYPES — New hierarchical job type format
@@ -228,8 +229,26 @@ export function processJobTypes(data: unknown): JobTypeDisplayRow[] {
       unit: line.unit ?? null,
     }));
 
+    // V3.4.5 — Détection room mismatch : si le job_type_label contient une pièce
+    // qui n'apparaît dans AUCUNE description, on (a) nettoie le label affiché,
+    // (b) force le verdict en "Comparaison indicative" car la fourchette marché
+    // utilisée est probablement celle d'une autre pièce (≠ travaux réels).
+    const homogeneityInput: HomogeneityGroupInput = {
+      job_type_label: item.job_type_label,
+      devis_lines: (item.devis_lines || []).map((l: { description?: string; amount_ht?: number | null }) => ({
+        description: l.description,
+        amount_ht: typeof l.amount_ht === "number" ? l.amount_ht : undefined,
+      })),
+    };
+    const rawLabel = item.job_type_label || "Sans catégorie";
+    const cleanedLabel = cleanJobTypeLabel(rawLabel, homogeneityInput);
+    const hasRoomMismatch = detectRoomMismatch(homogeneityInput) !== null;
+    if (hasRoomMismatch && verdict !== null) {
+      verdict = "Comparaison indicative";
+    }
+
     rows.push({
-      jobTypeLabel: item.job_type_label || "Sans catégorie",
+      jobTypeLabel: cleanedLabel,
       catalogJobTypes: item.catalog_job_types || item.job_types || [],
       mainUnit: item.main_unit || "unité",
       mainQuantity,

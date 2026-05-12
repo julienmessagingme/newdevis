@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.4.2";
+const ENGINE_VERSION = "3.4.5";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -365,7 +365,7 @@ function sanitizeLLMText(
 // la documentation détaillée de l'algorithme et du référentiel mots-clés.
 // ──────────────────────────────────────────────────────────────────────────────
 
-import { isLikelyHeterogeneousGroup } from "@/lib/analyse/groupHomogeneity";
+import { isLikelyHeterogeneousGroup, cleanJobTypeLabel, detectRoomMismatch } from "@/lib/analyse/groupHomogeneity";
 
 // (Bloc inline supprimé — voir src/lib/analyse/groupHomogeneity.ts pour la logique.)
 
@@ -506,11 +506,17 @@ function buildGroupSummary(priceData: unknown[]): string {
         .map((l: any) => `"${l.description}"${l.amount_ht ? ` (${l.amount_ht}€)` : ""}`)
         .join(" | ");
 
+      // V3.4.5 — Label nettoyé pour le LLM (retire mot-pièce si room mismatch).
+      // Évite que le LLM produise des wordings du type "Demandez le détail du poste
+      // 'Raccordements électricité cuisine'" alors que le devis ne parle pas de cuisine.
+      const displayLabel = cleanJobTypeLabel(String(g.job_type_label || ""), g);
+      const roomMismatch = detectRoomMismatch(g);
+
       // Pour les forfaits globaux, on ne calcule PAS de fourchette unitaire
       // car la comparaison est non pertinente (prix global ≠ prix unitaire catalogue)
       if (forfait) {
         return [
-          `POSTE: ${g.job_type_label} [FORFAIT GLOBAL — comparaison unitaire NON APPLICABLE]`,
+          `POSTE: ${displayLabel} [FORFAIT GLOBAL — comparaison unitaire NON APPLICABLE]`,
           `  Facturation: forfait global`,
           `  Total devis: ${total.toFixed(0)} €`,
           `  Note: Ce poste est facturé en forfait. Le prix unitaire marché ne s'applique PAS ici.`,
@@ -522,7 +528,7 @@ function buildGroupSummary(priceData: unknown[]): string {
       // → la comparaison unitaire est impossible, on signale explicitement
       if (hasSurfaceUnitMismatch(g)) {
         return [
-          `POSTE: ${g.job_type_label} [⚠️ MISMATCH UNITÉ — comparaison impossible]`,
+          `POSTE: ${displayLabel} [⚠️ MISMATCH UNITÉ — comparaison impossible]`,
           `  Facturation: ${qty} ${unit} (mais le catalogue raisonne en m²)`,
           `  Total devis: ${total.toFixed(0)} €`,
           `  ⚠️ IMPORTANT: L'unité "${unit}" est incompatible avec le catalogue m². NE PAS signaler ce poste comme anomalie de prix. Action requise : demander la surface en m² à l'artisan pour pouvoir comparer.`,
@@ -547,22 +553,24 @@ function buildGroupSummary(priceData: unknown[]): string {
       const ecartVsAvg = hasMarket && avgHT > 0
         ? `${total > avgHT ? "+" : ""}${Math.round(((total - avgHT) / avgHT) * 100)}% vs moyenne`
         : "hors catalogue";
-      // V3.3.4 Niveau 1 — tag de groupe hétérogène prioritaire sur tout autre tag.
-      // Si le groupe semble mal regroupé (chape + carrelage + ip14 dans "Carrelage"),
-      // on remplace tout autre tag par un avertissement explicite pour le LLM.
+      // V3.3.4 Niveau 1 + V3.4.5 — tag prioritaire sur tout autre tag.
+      // - Groupe hétérogène (mal regroupé) → ne pas pointer comme anomalie.
+      // - Room mismatch (catalogue mal matché par pièce) → comparaison marché suspecte.
       const heterogeneous = isLikelyHeterogeneousGroup(g);
-      const positionLabel = heterogeneous
-        ? " [⚠️ GROUPE PROBABLEMENT HÉTÉROGÈNE — prix unitaire calculé aberrant, ne PAS pointer comme anomalie de prix]"
-        : hasMarket
-          ? total < minHT ? " [TRÈS BAS — sous le min marché]"
-            : total < avgHT ? " [BAS — sous la moyenne marché]"
-            : total > maxHT ? " [ÉLEVÉ — au-dessus du max marché]"
-            : total > avgHT ? " [LÉGÈREMENT ÉLEVÉ — au-dessus de la moyenne]"
-            : ""
-          : "";
+      const positionLabel = roomMismatch
+        ? ` [⚠️ ROOM MISMATCH — le job_type catalogue mentionne "${roomMismatch}" mais aucune ligne ne parle de cette pièce. Fourchette marché probablement non pertinente. NE PAS pointer comme anomalie de prix.]`
+        : heterogeneous
+          ? " [⚠️ GROUPE PROBABLEMENT HÉTÉROGÈNE — prix unitaire calculé aberrant, ne PAS pointer comme anomalie de prix]"
+          : hasMarket
+            ? total < minHT ? " [TRÈS BAS — sous le min marché]"
+              : total < avgHT ? " [BAS — sous la moyenne marché]"
+              : total > maxHT ? " [ÉLEVÉ — au-dessus du max marché]"
+              : total > avgHT ? " [LÉGÈREMENT ÉLEVÉ — au-dessus de la moyenne]"
+              : ""
+            : "";
 
       return [
-        `POSTE: ${g.job_type_label}${positionLabel}`,
+        `POSTE: ${displayLabel}${positionLabel}`,
         `  Quantité: ${qty} ${unit}`,
         `  Prix unitaire devis: ${unitPrice.toFixed(2)} €/${unit}`,
         `  Total devis: ${total.toFixed(0)} €`,
@@ -975,6 +983,7 @@ RÈGLES STRICTES:
 - INTERDIT : signaler un poste marqué [FORFAIT GLOBAL] comme anomalie de prix. Un forfait global ne peut PAS être comparé à un prix unitaire catalogue. Ces postes sont à commenter uniquement si le montant total semble disproportionné au regard de la prestation décrite.
 - MISMATCH D'UNITÉ : un poste marqué [⚠️ MISMATCH UNITÉ] (ex: cloison ou peinture facturé en U plutôt qu'en m²) ne peut PAS être comparé au catalogue marché — n'inclure AUCUNE anomalie de prix pour ces postes. Dans les actions_avant_signature, inclure UNE action du type : "Demandez la surface exacte en m² pour [nom du poste] — facturé en U sans surface indiquée, impossible de comparer au marché. Si < 8 m² le prix est élevé, négociez ; si > 12 m² le prix est cohérent."
 - GROUPE HÉTÉROGÈNE : un poste marqué [⚠️ GROUPE PROBABLEMENT HÉTÉROGÈNE] contient des lignes de devis hétérogènes (ex: chape + primaire + dalle + acier mis ensemble dans un seul "Carrelage"). Le prix unitaire calculé est donc ABERRANT et ne reflète PAS le vrai prix de la prestation principale. INTERDIT ABSOLU de pointer ce poste comme anomalie de prix. Au lieu de ça, dans les actions_avant_signature, inclure UNE action du type : "Demandez à l'artisan le détail ligne par ligne du poste '[nom du poste]' — plusieurs prestations différentes semblent regroupées, ce qui empêche une comparaison juste au marché."
+- ROOM MISMATCH : un poste marqué [⚠️ ROOM MISMATCH] signale que notre matching automatique a choisi une fourchette marché spécifique à une pièce (cuisine, sdb, chambre...) qui n'apparaît PAS dans le devis. La comparaison vs marché n'est donc PAS fiable. INTERDIT ABSOLU de pointer ce poste comme anomalie de prix ni de citer la pièce du label dans tes commentaires. Dans phrase_intro / justifications / actions, NE JAMAIS mentionner le mot "cuisine", "salle de bain", "chambre" si ce mot ne vient pas explicitement des descriptions du devis.
 - NE PAS signaler comme anomalie ce qui s'explique par la localisation, l'étage, des matériaux premium COHÉRENTS, ou une complexité technique réelle.
 - Surcoût = total_devis_poste − total_fourchette_max_marché (TOTAUX, jamais prix unitaires). Jamais négatif, 0 si dans la fourchette. Pour les forfaits : surcoût = 0 sauf incohérence flagrante sur le montant total.
 - COHÉRENCE OBLIGATOIRE : verdict_global et niveau_risque DOIVENT être alignés (voir règle 5). Ne jamais retourner "a_risque" avec niveau_risque "modéré" ou "faible".
