@@ -83,6 +83,49 @@ ESCALIER vs MONTE-ESCALIER : Un escalier en maçonnerie/carrelage (dépose carre
 
 PISCINE — RÈGLE ABSOLUE : N'utilise JAMAIS un identifiant catalogue contenant "piscine" (pompe_piscine, filtration_piscine, liner_piscine, etc.) si aucun poste du devis ne mentionne explicitement les mots "piscine", "bassin", "liner", "margelle" ou "filtration". La présence de "Piscine" dans le nom ou l'en-tête de l'entreprise ne constitue PAS un travaux de piscine.
 
+RÈGLE ROOM MISMATCH (V3.5 — règle absolue, identique pour TOUTES les pièces) :
+N'utilise JAMAIS un identifiant catalogue contenant un mot-pièce (cuisine, sdb, salle_de_bain, salle_de_bains, chambre, salon, sejour, bureau, garage, cellier, buanderie, wc, toilettes, entree, couloir, terrasse, balcon, jardin, cave, sous_sol, combles) si CE MOT-PIÈCE n'apparaît dans AUCUNE description du devis du groupe.
+Exemple à éviter : sur un devis qui mentionne uniquement "Prise de courant", "Disjoncteur", "Fil 2.5mm", "Plafonnier chambre" → INTERDIT d'utiliser "raccordements_electricite_cuisine" parce qu'aucune ligne ne parle de cuisine.
+Si aucun identifiant catalogue générique n'existe (sans mot-pièce) pour ce type de travaux → utilise "job_types": [] (pas de référence marché) plutôt qu'un identifiant avec mauvaise pièce. C'est préférable d'admettre l'absence de référence que de mentir avec une mauvaise fourchette.
+Pour qu'un identifiant "cuisine" soit utilisé, AU MOINS UNE description du groupe doit contenir explicitement le mot "cuisine" (idem pour les autres pièces).
+
+RÈGLE EXCLUSIVITÉ DE DOMAINE (V3.5 — règle absolue) :
+Une ligne de devis appartient à UN SEUL domaine BTP. Les lignes de domaines différents ne se mélangent JAMAIS dans le même groupe, même si elles concernent la même zone physique. Si un devis "Carrelage" inclut chape + primaire + dalle + acier IP14, cela fait QUATRE groupes distincts, pas un.
+
+Domaines incompatibles entre eux (jamais dans le même groupe) :
+- CHAPE / RAGRÉAGE (chape ciment, mortier de ragréage, lissage) — domaine SOL/SUPPORT, jamais avec carrelage ou peinture
+- PRIMAIRE / SOUS-COUCHE (primaire d'accrochage, fond dur) — préparation, jamais avec le revêtement final
+- CARRELAGE / FAÏENCE / DALLE CÉRAMIQUE / CARREAU / JOINT / COLLE — revêtement final
+- PEINTURE / LASURE / VERNIS / ENDUIT DE LISSAGE — finition murale, jamais avec carrelage
+- TERRASSEMENT / EXCAVATION / DÉBLAI / REMBLAI / FOND DE FORME / CONCASSÉ / COMPACTAGE — gros œuvre extérieur
+- PAVAGE / PAVÉ / BORDURE / SABLAGE — revêtement extérieur, distinct du terrassement même si même zone
+- MAÇONNERIE / PARPAING / BRIQUE / AGGLOMÉRÉ / ÉLÉVATION / MUR / CHAÎNAGE / LINTEAU — gros œuvre intérieur/extérieur
+- PLOMBERIE / ROBINETTERIE / SANITAIRE / DOUCHE / BAIGNOIRE / TUYAU / ÉVACUATION PVC — fluides eau
+- ÉLECTRICITÉ / PRISE / INTERRUPTEUR / TABLEAU / DISJONCTEUR / FIL / CÂBLE — fluides électriques
+- MENUISERIE / FENÊTRE / PORTE / VOLET / VITRAGE / BAIE — ouvertures
+- PLÂTRERIE / PLACO / CLOISON / DOUBLAGE / PLAFOND / BA13 — second œuvre cloisonnement
+- CHARPENTE / FERMETTE / LAMBOURDE / SOLIVE / CHEVRON — structure bois
+- COUVERTURE / TUILE / ARDOISE / FAÎTAGE / CLOSOIR — toiture
+- ZINGUERIE / GOUTTIÈRE / DESCENTE EAUX / NAISSANCE — évacuation toiture (peut accompagner couverture)
+- ISOLATION / LAINE / POLYSTYRÈNE / OUATE — isolant, distinct du parement
+- ÉTANCHÉITÉ / MEMBRANE / SOPRALÈNE / BITUME / EFIGREEN — étanchéité (toiture-terrasse, dalle béton)
+- ENDUIT EXTÉRIEUR / CRÉPI / FAÇADE / MONOCOUCHE — façade
+- ACIER STRUCTUREL / IPN / IPE / IP14 / POUTRE ACIER — métal porteur, JAMAIS dans un groupe revêtement
+- COUPE / DÉCOUPE — accompagne légitimement carrelage ou pavage (du même type uniquement)
+
+Exemples concrets à appliquer :
+- Devis avec "Chape ciment 56m²" + "Primaire 56m²" + "Dalle céramique 56m²" + "Coupe dalles 1F" + "IP14 1F" → CRÉER 4 GROUPES :
+  1. "Chape" avec [Chape ciment]
+  2. "Primaire d'accrochage" avec [Primaire 56m²]
+  3. "Carrelage fourniture+pose" avec [Dalle céramique 56m², Coupe dalles]
+  4. "Acier IP14" avec [IP14] OU job_types: [] si pas de référence catalogue acier
+  → JAMAIS un seul groupe "Carrelage" avec tout dedans.
+
+- Devis avec "Excavation 65m²" + "Concassé 65m²" + "Pavé Kann 65m²" + "Sablage 65m²" + "Bordure 6ml" → 2 GROUPES :
+  1. "Pavage" avec [Pavé Kann, Sablage, Coupe pavés] (revêtement)
+  2. "Terrassement" avec [Excavation, Concassé, Fond de forme] (gros œuvre support)
+  (Bordure peut être avec Pavage car directement attenante. Domaine adjacent acceptable.)
+
 RÈGLE GÉNÉRALE : Pour tous les postes du devis, sélectionne l'identifiant du CATALOGUE qui correspond le mieux. Les règles ci-dessous sont des précisions pour des cas ambigus uniquement — elles ne remplacent pas la correspondance catalogue pour les autres types de travaux (électricité, plomberie, peinture, maçonnerie, etc.).
 
 PRÉCISIONS PAR TYPE DE TRAVAUX (cas ambigus uniquement) :
@@ -108,7 +151,8 @@ ESCALIER :
 CARRELAGE / REVÊTEMENT SOL — RÈGLE FOURNITURE vs HORS FOURNITURE :
 - Si le libellé contient "fourniture" ET "pose" (ex: "Fourniture pose dalle céramique", "Fourniture et pose carrelage", "Fourniture et pose faïence") → utilise OBLIGATOIREMENT un identifiant "fourniture_pose". Ne jamais utiliser un identifiant "_mo", "_pose_seule" ou contenant "hors_fourniture" pour un poste qui inclut la fourniture.
 - Si le libellé contient "pose seule", "hors fourniture", "MO", "main d'œuvre seule" → version hors fourniture uniquement.
-- Les postes accessoires d'un groupe carrelage (chape, primaire d'accrochage, étanchéité, baguette de finition, coupe) → rattacher au groupe carrelage principal, ne pas créer un groupe séparé.
+- Les VRAIS accessoires d'un groupe carrelage qu'on rattache au même groupe : joint, colle à carrelage, baguette de finition, plinthe assortie, coupe des dalles. Ce sont des éléments DIRECTEMENT liés à la pose du carrelage.
+- ⚠️ NE PAS RATTACHER au groupe carrelage les éléments suivants (cf. RÈGLE EXCLUSIVITÉ DE DOMAINE ci-dessus) : chape ciment, primaire d'accrochage, étanchéité, IP14/IPE acier, garde-corps. Ces postes sont d'AUTRES DOMAINES BTP (chape = support, primaire = préparation, acier = structure) et ne peuvent pas partager le prix unitaire d'un carrelage. Créer des groupes séparés (chape, primaire, acier) avec leur propre job_type catalogue ou "job_types": [] si pas de match.
 
 DÉPOSE / DÉMOLITION — RÈGLE UNITÉ FORFAIT :
 - Si des postes de dépose (dépose carrelage, démolition chape, etc.) sont en UNITÉ FORFAIT (F, forfait, ensemble) → NE PAS les regrouper avec des postes au m². Créer un groupe séparé avec job_types: [] si aucune référence catalogue en forfait n'est disponible, plutôt que de comparer un forfait à un prix au m².
