@@ -427,8 +427,14 @@ function BudgetKpiDashboard({
   const aRegler        = totaux?.a_payer  ?? 0;                         // factures reçues non soldées
   const litige         = totaux?.litige   ?? 0;
   const devisValides   = totaux?.devis_valides ?? 0;
-  // Montant encore à facturer = devis signés - déjà facturé
-  const aVenir         = Math.max(0, devisValides - (totaux?.facture ?? 0));
+  // Reste à venir (net des acomptes) : ce que l'utilisateur va encore décaisser.
+  // = devis signés − déjà facturé − acomptes versés (sur devis sans facture).
+  // L'ancien calcul (devis − facture) masquait les acomptes → l'user voyait un
+  // chiffre identique avant/après avoir versé un acompte, ce qui était trompeur.
+  const aVenir         = Math.max(
+    0,
+    devisValides - (totaux?.facture ?? 0) - (totaux?.acompte ?? 0),
+  );
   // Budget cible : saisi manuellement OU estimation IA (jamais "engagé")
   const effectiveReel  = budgetReel ?? ((data?.budget_ia ?? 0) > 0 ? data!.budget_ia : null);
   const budgetRestant  = effectiveReel ? Math.max(0, effectiveReel - decaisse - aRegler) : 0;
@@ -698,16 +704,19 @@ function BudgetKpiDashboard({
           </div>
         </div>
 
-        {/* ── 4. À venir (devis signés, pas encore facturés) ─────── */}
+        {/* ── 4. À venir — engagement net : devis signés − factures − acomptes versés ─── */}
         <div className="px-5 py-5 sm:px-7 sm:py-6">
           <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center">
             À venir
             <InfoTooltip lines={[
-              'Montant encore à facturer par vos artisans.',
-              'Calculé sur la base de vos devis validés moins ce qui a déjà été facturé.',
+              'Ce qu\'il vous reste à décaisser sur vos devis signés.',
+              'Formule : devis signés − déjà facturé − acomptes versés.',
+              (totaux?.acompte ?? 0) > 0
+                ? `Acomptes déjà versés : ${fmtEur(totaux!.acompte)} (déduits)`
+                : null,
               aVenir > 0
-                ? `Reste à recevoir : ${fmtEur(aVenir)}`
-                : 'Tous vos devis ont été facturés.',
+                ? `Reste à régler : ${fmtEur(aVenir)}`
+                : 'Tout est réglé ou facturé.',
             ].filter(Boolean) as string[]} />
           </p>
           <div className="flex items-center gap-4">
@@ -722,7 +731,9 @@ function BudgetKpiDashboard({
                 {aVenir > 0 ? fmtEur(aVenir) : '—'}
               </p>
               <p className="text-[11px] text-gray-400 mt-1.5">
-                {aVenir > 0 ? 'encore à facturer' : devisValides > 0 ? 'Tout facturé ✓' : 'Aucun devis signé'}
+                {aVenir > 0
+                  ? ((totaux?.acompte ?? 0) > 0 ? 'reste à régler (acomptes déduits)' : 'reste à régler')
+                  : devisValides > 0 ? 'Tout réglé ✓' : 'Aucun devis signé'}
               </p>
             </div>
           </div>
@@ -2046,14 +2057,23 @@ export default function BudgetTab({
                 // lotTotal = budgetTotal calculé par buildRow (per-artisan : devis validés + factures sans devis)
                 const lotTotal = row.devisAmount ?? 0;
 
+                // Agrégats lot (utilisés pour le récap collapsed)
+                const lotEngage     = lotTotal; // déjà calculé par buildRow (devis_valides + factures hors-devis)
+                const lotFacture    = row.lot.totaux.facture;
+                const lotPaye       = row.lot.totaux.paye + row.lot.totaux.acompte;
+                const lotSoldeRest  = row.lot.totaux.a_payer; // factures reçues non soldées (canonique)
+                const lotPctAvance  = lotEngage > 0 ? Math.min(100, Math.round((lotPaye / lotEngage) * 100)) : 0;
+                const lotIsSolded   = lotSoldeRest === 0 && lotPaye > 0 && lotEngage > 0 && lotPaye >= lotEngage * 0.99;
+
                 return (
                   <Fragment key={row.lot.id}>
-                    {/* ── En-tête du lot ── */}
+                    {/* ── En-tête du lot — récap engagé/facturé/payé/solde/avancement (visible aussi quand collapsed) ── */}
                     <tr
                       className="bg-gray-50/80 border-b border-gray-200 cursor-pointer hover:bg-gray-100/80 transition-colors select-none"
                       onClick={e => toggleExpand(row.lot.id, e)}
                     >
-                      <td colSpan={COLS} className="px-4 py-2.5">
+                      {/* ARTISAN — chevron + emoji + nom + nb artisans */}
+                      <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2 min-w-0">
                           <button className="shrink-0 text-gray-400" onClick={e => toggleExpand(row.lot.id, e)}>
                             {isExpanded
@@ -2065,12 +2085,55 @@ export default function BudgetTab({
                           <span className="text-[10px] text-gray-400 shrink-0">
                             {row.lot.artisans.length} artisan{row.lot.artisans.length > 1 ? 's' : ''}
                           </span>
-                          <div className="ml-auto flex items-center gap-2 shrink-0">
-                            {lotTotal > 0 && (
-                              <span className="text-[12px] font-bold text-gray-700">{fmtEur(lotTotal)}</span>
-                            )}
-                          </div>
                         </div>
+                      </td>
+                      {/* ENGAGÉ */}
+                      <td className="px-3 py-2.5 text-right">
+                        {lotEngage > 0
+                          ? <span className="text-[12px] font-bold text-gray-700 tabular-nums">{fmtEur(lotEngage)}</span>
+                          : <span className="text-[11px] text-gray-300">—</span>}
+                      </td>
+                      {/* FACTURÉ */}
+                      <td className="px-3 py-2.5 text-right">
+                        {lotFacture > 0
+                          ? <span className="text-[12px] font-semibold text-gray-600 tabular-nums">{fmtEur(lotFacture)}</span>
+                          : <span className="text-[11px] text-gray-300">—</span>}
+                      </td>
+                      {/* PAYÉ (paye + acompte) */}
+                      <td className="px-3 py-2.5 text-right">
+                        {lotPaye > 0
+                          ? <span className="text-[12px] font-semibold text-emerald-600 tabular-nums">{fmtEur(lotPaye)}</span>
+                          : <span className="text-[11px] text-gray-300">—</span>}
+                      </td>
+                      {/* SOLDE */}
+                      <td className="px-3 py-2.5 text-right">
+                        {lotIsSolded ? (
+                          <span className="text-[11px] font-bold text-emerald-600 flex items-center justify-end gap-1">
+                            <Check className="h-3 w-3" />Soldé
+                          </span>
+                        ) : lotSoldeRest > 0 ? (
+                          <span className="text-[12px] font-bold text-orange-600 tabular-nums">{fmtEur(lotSoldeRest)}</span>
+                        ) : (
+                          <span className="text-[11px] text-gray-300">—</span>
+                        )}
+                      </td>
+                      {/* AVANCEMENT — barre + % */}
+                      <td className="px-3 py-2.5">
+                        {lotEngage > 0 ? (
+                          <div className="flex items-center gap-2 justify-end">
+                            <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden shrink-0">
+                              <div
+                                className={`h-full rounded-full transition-all ${lotPctAvance >= 100 ? 'bg-emerald-500' : lotPctAvance >= 50 ? 'bg-indigo-500' : 'bg-indigo-300'}`}
+                                style={{ width: `${lotPctAvance}%` }}
+                              />
+                            </div>
+                            <span className={`text-[11px] font-bold tabular-nums w-9 text-right ${lotPctAvance >= 100 ? 'text-emerald-600' : 'text-gray-500'}`}>
+                              {lotPctAvance}%
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-gray-300">—</span>
+                        )}
                       </td>
                     </tr>
 
