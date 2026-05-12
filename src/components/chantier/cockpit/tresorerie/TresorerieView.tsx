@@ -674,14 +674,40 @@ function FinancementSection({
           {creditOpen && (
             <div className="mt-3 space-y-3">
               {([
-                { label: 'Montant', id: 'montant', min: 0, max: 10_000_000, step: 1000, val: slMontant, set: setSlMontant, fmt: (v: number) => fmtEur(v) },
-                { label: 'Taux annuel', id: 'taux', min: 0.5, max: 8, step: 0.1, val: slTaux, set: setSlTaux, fmt: (v: number) => v.toFixed(1) + ' %' },
-                { label: 'Durée', id: 'duree', min: 5, max: 30, step: 1, val: slDuree, set: setSlDuree, fmt: (v: number) => v + ' ans' },
+                { label: 'Montant',     id: 'montant', min: 0,   max: 10_000_000, step: 1000, val: slMontant, set: setSlMontant, suffix: '€',   width: 'w-28', decimals: 0 },
+                { label: 'Taux annuel', id: 'taux',    min: 0.5, max: 8,          step: 0.1,  val: slTaux,    set: setSlTaux,    suffix: '%',   width: 'w-16', decimals: 2 },
+                { label: 'Durée',       id: 'duree',   min: 5,   max: 30,         step: 1,    val: slDuree,   set: setSlDuree,   suffix: 'ans', width: 'w-16', decimals: 0 },
               ] as const).map(sl => (
                 <div key={sl.id}>
-                  <div className="flex justify-between text-[11px] mb-1">
-                    <span className="text-gray-500 font-semibold">{sl.label}</span>
-                    <span className="font-black" style={{ color: C.credit.text }}>{sl.fmt(sl.val as any)}</span>
+                  <div className="flex justify-between items-center text-[11px] mb-1 gap-2">
+                    <span className="text-gray-500 font-semibold shrink-0">{sl.label}</span>
+                    <div className={`flex items-center gap-1 ${sl.width}`}>
+                      <input
+                        type="text" inputMode="decimal"
+                        // Tape libre : on accepte tout pendant la frappe, on clampe au blur.
+                        value={sl.id === 'montant'
+                          ? (sl.val as number).toLocaleString('fr-FR')
+                          : (sl.val as number).toString()
+                        }
+                        onChange={e => {
+                          const cleaned = e.target.value.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '');
+                          const num = parseFloat(cleaned);
+                          if (!isNaN(num)) (sl.set as any)(num);
+                          else if (cleaned === '') (sl.set as any)(0);
+                        }}
+                        onBlur={e => {
+                          const cleaned = e.target.value.replace(/\s/g, '').replace(',', '.').replace(/[^\d.]/g, '');
+                          const raw = parseFloat(cleaned);
+                          const clamped = isNaN(raw) ? sl.min : Math.min(sl.max, Math.max(sl.min, raw));
+                          (sl.set as any)(Number(clamped.toFixed(sl.decimals)));
+                        }}
+                        onFocus={e => e.currentTarget.select()}
+                        aria-label={`${sl.label} (${sl.min}–${sl.max})`}
+                        className="flex-1 min-w-0 text-right font-black bg-transparent border-b border-transparent hover:border-orange-200 focus:border-orange-400 focus:outline-none tabular-nums px-0.5"
+                        style={{ color: C.credit.text }}
+                      />
+                      <span className="font-black shrink-0" style={{ color: C.credit.text }}>{sl.suffix}</span>
+                    </div>
                   </div>
                   <input type="range" min={sl.min} max={sl.max} step={sl.step} value={sl.val as any}
                     onChange={e => (sl.set as any)(parseFloat(e.target.value))}
