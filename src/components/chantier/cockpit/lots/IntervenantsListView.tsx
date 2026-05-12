@@ -142,6 +142,12 @@ export default function IntervenantsListView({
     documents.filter(d => !d.lot_id && d.document_type === 'facture'),
   [documents]);
 
+  // Devis "orphelins" : pas de lot_id → invisibles sous un intervenant tant qu'on ne les rattache pas.
+  const unassignedDevis = useMemo(() =>
+    documents.filter(d => !d.lot_id && d.document_type === 'devis' && (d as any).depense_type !== 'frais'),
+  [documents]);
+  const realLots = useMemo(() => lots.filter(l => !l.id.startsWith('fallback-')), [lots]);
+
   const filterOptions: { key: FilterStatus; label: string; dot?: string }[] = [
     { key: 'all',        label: 'Tous' },
     { key: 'bloque',     label: 'Bloqués',  dot: 'bg-red-400' },
@@ -202,6 +208,60 @@ export default function IntervenantsListView({
           </div>
           <div className="px-4 py-2.5" />
         </div>
+
+        {/* ── Devis non affectés (orphelins) — section pinned ── */}
+        {unassignedDevis.length > 0 && (
+          <div className="border-b-2 border-amber-200">
+            <div className={`grid ${GRID} bg-amber-50/60 border-b border-amber-100 border-l-4 border-l-amber-400`}>
+              <div className="px-4 py-3 flex items-center gap-2.5 col-span-3">
+                <span className="text-base leading-none shrink-0">📎</span>
+                <span className="font-extrabold text-sm text-amber-900 truncate">
+                  {unassignedDevis.length} devis non affecté{unassignedDevis.length > 1 ? 's' : ''}
+                </span>
+                <span className="text-[11px] text-amber-700 italic">→ rattache-les à un intervenant pour les voir sur l'Accueil</span>
+              </div>
+              <div className="px-4 py-3 col-span-3" />
+            </div>
+            {unassignedDevis.map(doc => {
+              const data = analysisData[doc.id];
+              const ttc  = data?.ttc ?? (doc.montant && doc.montant > 0 ? doc.montant : null);
+              return (
+                <div key={doc.id} className={`grid ${GRID} bg-amber-50/30 hover:bg-amber-50/60 border-b border-amber-100 border-l-4 border-l-amber-200`}>
+                  <div className="px-4 py-2.5 pl-10 flex items-center gap-2 min-w-0">
+                    <span className="text-[12px] font-semibold text-gray-800 truncate">{doc.nom}</span>
+                  </div>
+                  <div className="px-4 py-2.5 flex items-center">
+                    <DocTypeBadge type={doc.document_type} signedUrl={doc.signedUrl} />
+                  </div>
+                  <div className="px-4 py-2.5 flex items-center justify-end">
+                    {ttc != null && ttc > 0
+                      ? <span className="text-sm tabular-nums font-medium text-gray-700">{fmtEur(ttc)}</span>
+                      : <span className="text-xs text-gray-300">—</span>}
+                  </div>
+                  <div className="px-4 py-2.5 flex items-center col-span-2">
+                    <select
+                      defaultValue=""
+                      onChange={e => { if (e.target.value) moveDocToLot(doc.id, e.target.value); }}
+                      className="w-full text-[11px] border border-amber-300 bg-white text-amber-900 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-200">
+                      <option value="" disabled>→ Rattacher à un intervenant…</option>
+                      {realLots.map(l => (
+                        <option key={l.id} value={l.id}>{l.emoji ?? '🔧'} {l.nom}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="px-4 py-2.5 flex items-center justify-end">
+                    <button
+                      onClick={() => onDeleteDoc(doc.id)}
+                      title="Supprimer ce document"
+                      className="text-gray-300 hover:text-red-500 hover:bg-red-50 p-1 rounded-lg transition-colors">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {sorted.length === 0 ? (
           <div className="py-12 flex flex-col items-center text-center">

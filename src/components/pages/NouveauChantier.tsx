@@ -24,9 +24,11 @@ export default function NouveauChantier() {
     return session?.access_token ?? null;
   }, []);
 
+  const [budgetCible, setBudgetCible] = useState<number | null>(null);
+
   // ── Étape 1 : saisie de la description → génération directe ───────────────
   const handleGenerate = useCallback(
-    async (description: string, mode: 'libre' | 'guide', guidedForm?: ChantierGuideForm) => {
+    async (description: string, mode: 'libre' | 'guide', guidedForm?: ChantierGuideForm, userBudget?: number | null) => {
       const token = await getToken();
       if (!token) {
         toast.error('Vous devez être connecté pour créer un chantier');
@@ -36,7 +38,12 @@ export default function NouveauChantier() {
 
       setIsLoading(true);
       startTimeRef.current = Date.now();
-      setRequestBody(JSON.stringify({ description, mode, ...(guidedForm ? { guidedForm } : {}) }));
+      setBudgetCible(userBudget ?? null);
+      setRequestBody(JSON.stringify({
+        description, mode,
+        ...(guidedForm ? { guidedForm } : {}),
+        ...(userBudget && userBudget > 0 ? { budgetCible: userBudget } : {}),
+      }));
       setEcran('generating');
       setIsLoading(false);
     },
@@ -44,6 +51,7 @@ export default function NouveauChantier() {
   );
 
   // ── Étape 3 : génération terminée → sauvegarder → rediriger ───────────────
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const handleResult = useCallback(async (r: ChantierIAResult) => {
     setEcran('saving');
     try {
@@ -55,10 +63,16 @@ export default function NouveauChantier() {
         return;
       }
 
+      // Si l'utilisateur a déclaré un budget cible, on l'impose à la place de la valeur
+      // inventée par Gemini — évite les chiffres au doigt mouillé sur le dashboard.
+      const resultToSave = budgetCible && budgetCible > 0
+        ? { ...r, budgetTotal: budgetCible, budgetUserDefined: true }
+        : { ...r, budgetUserDefined: false };
+
       const res = await fetch('/api/chantier/sauvegarder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
-        body: JSON.stringify({ result: r }),
+        body: JSON.stringify({ result: resultToSave }),
       });
 
       if (res.ok) {
@@ -76,7 +90,7 @@ export default function NouveauChantier() {
       toast.error('Erreur réseau');
       setEcran('prompt');
     }
-  }, []);
+  }, [budgetCible]);
 
   const handleError = useCallback((msg: string) => {
     toast.error(msg);

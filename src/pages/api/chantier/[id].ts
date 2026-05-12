@@ -279,6 +279,7 @@ export const GET: APIRoute = async ({ params, request }) => {
       budgetAffine: meta.budget_affine ?? null,
       financing: meta.financing ?? null,
       enveloppePrevue: safeNumber(chantier.budget) || null,
+      budgetUserDefined: meta.budgetUserDefined === true,
     }),
     { status: 200, headers: CORS },
   );

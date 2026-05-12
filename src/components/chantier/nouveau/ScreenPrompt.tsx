@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ArrowLeft, Loader2, ArrowRight, Plus, Check } from 'lucide-react';
+import { ArrowLeft, Loader2, ArrowRight, Plus, Check, Wallet, Sparkles } from 'lucide-react';
 import type { ChantierGuideForm } from '@/types/chantier-ia';
 
 // ── Exemples cliquables ───────────────────────────────────────────────────────
@@ -77,12 +77,6 @@ const SUGGESTION_RULES: SuggestionRule[] = [
     absent: (d) => !/\b\d{5}\b|paris|lyon|marseille|bordeaux|lille|nantes|toulouse|rennes|strasbourg|nice|montpellier/i.test(d),
   },
   {
-    id: 'budget',
-    label: '💶 Budget',
-    appendText: ', budget environ ___',
-    absent: (d) => !/budget|€|euro|k€/i.test(d),
-  },
-  {
     id: 'timing',
     label: '📅 Délai souhaité',
     appendText: ', pour ___',
@@ -111,15 +105,24 @@ function getRelevantSuggestions(description: string): SuggestionRule[] {
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface ScreenPromptProps {
-  onGenerate: (description: string, mode: 'libre' | 'guide', guidedForm?: ChantierGuideForm) => void;
+  onGenerate: (description: string, mode: 'libre' | 'guide', guidedForm?: ChantierGuideForm, budgetCible?: number | null) => void;
   isLoading?: boolean;
 }
 
 // ── Composant ─────────────────────────────────────────────────────────────────
 
+type BudgetMode = 'idle' | 'has_budget' | 'estimate';
+
 export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPromptProps) {
   const [description, setDescription]           = useState('');
   const [selectedSuggestions, setSelectedSuggestions] = useState<Set<string>>(new Set());
+  // Budget — question fondamentale pour éviter les chiffres au doigt mouillé côté IA.
+  const [budgetMode, setBudgetMode]   = useState<BudgetMode>('idle');
+  const [budgetValue, setBudgetValue] = useState<string>('');
+  const parsedBudget = useMemo(() => {
+    const n = parseInt(budgetValue.replace(/[^0-9]/g, ''), 10);
+    return isFinite(n) && n > 0 ? n : null;
+  }, [budgetValue]);
 
   const slot   = getTimeSlot();
   const config = TIME_CONFIG[slot];
@@ -156,7 +159,14 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
   const handleSubmit = () => {
     const text = description.trim();
     if (!text || isLoading) return;
-    onGenerate(text, 'libre');
+    if (budgetMode === 'idle') return; // décision budget obligatoire
+    if (budgetMode === 'has_budget' && !parsedBudget) return; // budget chiffré obligatoire si déclaré
+    // Si l'utilisateur a indiqué un budget, on l'injecte dans la description côté IA
+    // pour qu'elle s'aligne dessus (budgetTotal, lignesBudget, mensualité, etc.).
+    const enriched = parsedBudget
+      ? `${text}\n[Budget cible utilisateur (à respecter) : ${parsedBudget} €]`
+      : `${text}\n[Pas de budget fixé — estimer une fourchette honnête à affiner avec les devis]`;
+    onGenerate(enriched, 'libre', undefined, parsedBudget);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -166,7 +176,10 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
     }
   };
 
-  const canSubmit = description.trim().length > 0 && !isLoading;
+  const canSubmit =
+    description.trim().length > 0 &&
+    !isLoading &&
+    (budgetMode === 'estimate' || (budgetMode === 'has_budget' && parsedBudget !== null));
 
   return (
     <div className="min-h-screen relative flex flex-col pb-[env(safe-area-inset-bottom,16px)] overflow-hidden">
@@ -256,6 +269,89 @@ export default function ScreenPrompt({ onGenerate, isLoading = false }: ScreenPr
               </button>
             </div>
           </div>
+
+          {/* ── Budget — question fondamentale (apparaît après début de saisie) ── */}
+          {description.trim().length > 10 && (
+            <div className="mt-4 bg-white/95 backdrop-blur-md rounded-2xl border border-white/30 shadow-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <Wallet className="h-4 w-4 text-blue-600 shrink-0" />
+                  <p className="text-sm font-bold text-gray-900">Avez-vous une idée de budget pour votre projet ?</p>
+                </div>
+                <p className="text-[12px] text-gray-500 mt-1 ml-6">
+                  Important — sans repère, l'IA invente un chiffre arbitraire qui ne reflète pas votre réalité.
+                </p>
+              </div>
+              <div className="px-5 py-4 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setBudgetMode('has_budget')}
+                    className={`text-left rounded-xl border-2 px-4 py-3 transition-all ${
+                      budgetMode === 'has_budget'
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-blue-200 hover:bg-blue-50/30 bg-white'
+                    }`}>
+                    <p className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                      {budgetMode === 'has_budget' && <Check className="h-3.5 w-3.5 text-blue-600" />}
+                      💶 J'ai un budget cible
+                    </p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">Mon plan s'alignera dessus</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setBudgetMode('estimate'); setBudgetValue(''); }}
+                    className={`text-left rounded-xl border-2 px-4 py-3 transition-all ${
+                      budgetMode === 'estimate'
+                        ? 'border-indigo-500 bg-indigo-50'
+                        : 'border-gray-200 hover:border-indigo-200 hover:bg-indigo-50/30 bg-white'
+                    }`}>
+                    <p className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                      {budgetMode === 'estimate' && <Check className="h-3.5 w-3.5 text-indigo-600" />}
+                      <Sparkles className="h-3.5 w-3.5 text-indigo-500" /> Estimation IA
+                    </p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">Fourchette honnête, affinée au fil des devis</p>
+                  </button>
+                </div>
+                {budgetMode === 'has_budget' && (
+                  <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={budgetValue}
+                        onChange={e => setBudgetValue(e.target.value)}
+                        placeholder="Ex : 100000"
+                        autoFocus
+                        className="w-full border-2 border-blue-200 focus:border-blue-400 bg-white text-gray-900 placeholder-gray-300 rounded-xl px-4 py-3 pr-10 text-base font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-100"
+                      />
+                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">€</span>
+                    </div>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {[30000, 50000, 100000, 200000].map(v => (
+                        <button
+                          key={v} type="button"
+                          onClick={() => setBudgetValue(String(v))}
+                          className="text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg px-2.5 py-1.5 whitespace-nowrap transition-colors">
+                          {(v / 1000).toLocaleString('fr-FR')}k
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {budgetMode === 'has_budget' && parsedBudget && (
+                  <p className="text-[11px] text-blue-700 flex items-center gap-1.5">
+                    <Check className="h-3 w-3 shrink-0" /> Budget cible : <strong>{parsedBudget.toLocaleString('fr-FR')} €</strong> — utilisé tel quel dans votre plan.
+                  </p>
+                )}
+                {budgetMode === 'estimate' && (
+                  <p className="text-[11px] text-indigo-700 flex items-center gap-1.5">
+                    <Sparkles className="h-3 w-3 shrink-0" /> L'IA proposera une fourchette indicative. Vous l'affinerez en ajoutant vos devis.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* ── Suggestions IA ─────────────────────────────────────────── */}
           {description.trim().length > 10 && suggestions.length > 0 && (

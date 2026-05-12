@@ -32,6 +32,18 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const { artisans, aides, formalites, roadmap, taches, ...rest } = result;
+
+  // Si l'utilisateur a explicitement déclaré son budget, on rescale les lignes
+  // budget pour que leur somme corresponde — sinon la jauge sera fausse.
+  let lignesBudget = result.lignesBudget ?? [];
+  if (result.budgetUserDefined && lignesBudget.length > 0) {
+    const sumLignes = lignesBudget.reduce((s, l) => s + (l.montant ?? 0), 0);
+    if (sumLignes > 0 && Math.abs(sumLignes - result.budgetTotal) / sumLignes > 0.02) {
+      const factor = result.budgetTotal / sumLignes;
+      lignesBudget = lignesBudget.map(l => ({ ...l, montant: Math.round((l.montant ?? 0) * factor) }));
+    }
+  }
+
   const metadonnees = JSON.stringify({
     // Tableaux (lot 1)
     artisans,
@@ -39,23 +51,28 @@ export const POST: APIRoute = async ({ request }) => {
     formalites,
     aides,
     // Champs scalaires manquants — lot 2
-    lignesBudget:      result.lignesBudget       ?? [],
+    lignesBudget,
     prochaineAction:   result.prochaineAction,
     description:       result.description        ?? '',
     dureeEstimeeMois:  result.dureeEstimeeMois    ?? 0,
     financement:       result.financement         ?? 'apport',
     // Signaux de fiabilité — lot 8A
     estimationSignaux: result.estimationSignaux  ?? null,
+    // True = l'utilisateur a fixé son enveloppe cible ; false = estimation IA à affiner.
+    budgetUserDefined: result.budgetUserDefined === true,
   });
 
-  // Créer le chantier
+  // Créer le chantier.
+  // budget : on stocke la cible utilisateur seulement quand elle est explicite.
+  // Sinon, on laisse null pour que le dashboard affiche la fourchette IA (« estimation »)
+  // plutôt qu'un faux chiffre arrêté arbitrairement par Gemini.
   const { data: chantier, error: insertError } = await supabase
     .from('chantiers')
     .insert({
       user_id: user.id,
       nom: result.nom,
       emoji: result.emoji,
-      budget: result.budgetTotal,
+      budget: result.budgetUserDefined ? result.budgetTotal : null,
       phase: 'preparation',
       type_projet: result.typeProjet,
       mensualite: result.mensualite ?? null,

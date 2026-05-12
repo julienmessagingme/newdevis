@@ -318,8 +318,13 @@ function BudgetDonutCard({
             <span className="text-[17px] font-extrabold text-gray-900 leading-none">
               {budgetReel && budgetReel > 0 ? fmtEurShort(budgetReel) : (iaMin > 0 ? `${fmtK(iaMin)}–${fmtK(iaMax)}` : '—')}
             </span>
-            <span className="text-[10px] text-gray-400">cible</span>
+            <span className="text-[10px] text-gray-400">
+              {budgetReel && budgetReel > 0 ? 'cible' : 'estimation IA'}
+            </span>
           </div>
+          {(!budgetReel || budgetReel <= 0) && iaMin > 0 && (
+            <p className="text-[10px] text-indigo-500 mt-0.5 italic">à affiner avec vos devis</p>
+          )}
           {statusLabel && <p className={`text-[10px] font-semibold mt-0.5 ${statusCls}`}>{statusLabel}</p>}
         </div>
       </div>
@@ -399,9 +404,10 @@ function BudgetProgressBars({
   const displayDecaisse = decaisse ?? totalPaye;
   const displayAPayer  = aPayer30j ?? 0;
 
+  const hasUserBudget = !!(budgetReel && budgetReel > 0);
   const bars = [
     {
-      label: 'Budget cible',
+      label: hasUserBudget ? 'Budget cible' : 'Estimation IA',
       value: ref,
       pct: 100,
       color: 'bg-indigo-500',

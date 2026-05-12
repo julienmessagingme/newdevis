@@ -198,6 +198,8 @@ export interface ChantierIAResult {
   dateDebutChantier?: string | null;
   /** Date de fin souhaitée (ISO date string) — si renseignée, le planning est calculé en arrière */
   dateFinSouhaitee?: string | null;
+  /** True si l'utilisateur a fourni un budget cible (vs estimation IA arbitraire). */
+  budgetUserDefined?: boolean;
 }
 
 export interface ChantierGuideForm {

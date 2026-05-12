@@ -25,6 +25,70 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
 }
 
+// Stopwords FR + raisons sociales (à ignorer dans le matching artisan ↔ lot).
+const STOPWORDS_FR = new Set([
+  'de','la','le','les','du','des','et','sa','sas','sarl','eurl','sci','eirl',
+  'micro','societe','sociétés','entreprise','ets','mr','mme','pour','sur','avec',
+]);
+
+// Mots-clés métier → variantes acceptées dans le nom de lot.
+const PROFESSION_HINTS: Array<{ artisan: RegExp; lot: RegExp }> = [
+  { artisan: /carrel/i,       lot: /carrel|carreleur/i },
+  { artisan: /plomb/i,        lot: /plomb|sanitaire/i },
+  { artisan: /elec|electric/i, lot: /electric|courant|tableau/i },
+  { artisan: /peintur|peintre/i, lot: /peintur|peintre/i },
+  { artisan: /macon|maçon/i,  lot: /macon|maçon|gros.oeuvre/i },
+  { artisan: /couvr|toit|tuile|zingu/i, lot: /toiture|couvr|charpent/i },
+  { artisan: /menuis/i,       lot: /menuis|fenetre|porte|placard/i },
+  { artisan: /parquet/i,      lot: /parquet|sol/i },
+  { artisan: /terrass/i,      lot: /terrass|vrd/i },
+  { artisan: /plaq|placo/i,   lot: /plaq|placo|cloison/i },
+  { artisan: /chauff/i,       lot: /chauff|chaudiere/i },
+  { artisan: /isolat/i,       lot: /isolat|combles/i },
+  { artisan: /jardin|paysag/i, lot: /jardin|paysag/i },
+  { artisan: /piscin/i,       lot: /piscin/i },
+];
+
+function normalizeForMatch(s: string): string[] {
+  return s.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(t => t.length >= 3 && !STOPWORDS_FR.has(t));
+}
+
+// Match best-effort artisan ↔ lot existant. Renvoie null si pas de match confiant.
+function findBestLotForArtisan(
+  artisanNom: string | null | undefined,
+  lots: LotChantier[],
+): LotChantier | null {
+  if (!artisanNom) return null;
+  const realLots = lots.filter(l => !l.id.startsWith('fallback-'));
+  if (realLots.length === 0) return null;
+  const artisanRaw = artisanNom.toLowerCase();
+  const artisanTokens = normalizeForMatch(artisanNom);
+
+  let best: { lot: LotChantier; score: number } | null = null;
+  for (const lot of realLots) {
+    const lotRaw = lot.nom.toLowerCase();
+    const lotTokens = normalizeForMatch(lot.nom);
+    let score = 0;
+    // 1. Token exact en commun (poids fort)
+    for (const at of artisanTokens) if (lotTokens.includes(at)) score += 3;
+    // 2. Inclusion stem 4+ chars
+    for (const at of artisanTokens) {
+      if (lotTokens.some(lt => lt.startsWith(at.slice(0, 4)) || at.startsWith(lt.slice(0, 4)))) score += 1;
+    }
+    // 3. Profession hints
+    for (const h of PROFESSION_HINTS) {
+      if (h.artisan.test(artisanRaw) && h.lot.test(lotRaw)) score += 4;
+    }
+    if (!best || score > best.score) best = { lot, score };
+  }
+  // Seuil minimal pour éviter les faux positifs.
+  return best && best.score >= 3 ? best.lot : null;
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const TYPE_LABELS: Record<DocumentType, string> = {
@@ -211,10 +275,20 @@ export default function UploadDocumentModal({
   async function handleImportAnalyse(analyseId: string, titre: string) {
     setUploadState('uploading');
     try {
+      // Auto-match best-effort si l'user n'a pas explicitement choisi de lot.
+      // L'analyse VMD porte l'artisanNom → on tente de l'aligner avec un intervenant existant.
+      let resolvedLotId: string | null = null;
+      if (lotId && lotId !== '__unattached__' && lotId !== '__new__') {
+        resolvedLotId = lotId;
+      } else if (lotId === '') {
+        const a = analyses.find(x => x.id === analyseId);
+        const match = findBestLotForArtisan(a?.artisanNom ?? null, lots);
+        if (match) resolvedLotId = match.id;
+      }
       const fd = new FormData();
       fd.append('nom', titre); fd.append('documentType', 'devis');
       fd.append('source', 'verifier_mon_devis'); fd.append('analyseId', analyseId);
-      if (lotId && lotId !== '__unattached__' && lotId !== '__new__') fd.append('lotId', lotId);
+      if (resolvedLotId) fd.append('lotId', resolvedLotId);
       const res = await fetch(`/api/chantier/${chantierId}/documents`, {
         method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd,
       });
