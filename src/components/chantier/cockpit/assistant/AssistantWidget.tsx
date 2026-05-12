@@ -190,15 +190,16 @@ export default function AssistantWidget({ chantierId, token, hidden, onOpenFull 
   if (hidden) return null;
 
   // ══════════════════════════════════════════════════════════════════════════
-  // FAB (état fermé) — bouton flottant en bas-DROITE
-  // (Avant en bas-gauche : masquait Paramètres/Déconnexion de la sidebar desktop.)
+  // FAB (état fermé) — bouton flottant empilé AU-DESSUS du widget WhatsApp.
+  // Le widget support externe (chat WhatsApp) occupe bottom-6 right-6 — on se
+  // place plus haut (bottom-24/28) pour éviter le chevauchement.
   // ══════════════════════════════════════════════════════════════════════════
   if (!open) {
     return (
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 lg:bottom-8 lg:right-8 w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center z-40 group touch-manipulation"
+        className="fixed bottom-24 right-6 lg:bottom-28 lg:right-8 w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center z-40 group touch-manipulation"
         style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
         aria-label="Ouvrir l'Assistant chantier"
       >
@@ -228,7 +229,7 @@ export default function AssistantWidget({ chantierId, token, hidden, onOpenFull 
         onClick={() => setOpen(false)}
       />
 
-      <div className="fixed inset-0 lg:inset-auto lg:bottom-6 lg:right-6 lg:w-[380px] lg:h-[600px] lg:max-h-[calc(100vh-3rem)] bg-white lg:rounded-2xl shadow-2xl border-0 lg:border border-gray-100 z-50 flex flex-col overflow-hidden">
+      <div className="fixed inset-0 lg:inset-auto lg:bottom-24 lg:right-6 lg:w-[380px] lg:h-[600px] lg:max-h-[calc(100vh-7rem)] bg-white lg:rounded-2xl shadow-2xl border-0 lg:border border-gray-100 z-50 flex flex-col overflow-hidden">
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-br from-indigo-50/60 to-violet-50/40 flex items-center gap-3 shrink-0">

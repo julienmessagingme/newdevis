@@ -674,6 +674,14 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
             refreshInsights();
             // Refresh agent insights after upload (mismatch detection may have created one)
             setTimeout(() => agentInsights.refresh(), 2000);
+            // L'endpoint /analyser tourne en fire-and-forget après le register
+            // → analyse_id n'est pas encore set sur le doc renvoyé. On reload
+            // le doc list à 4s + 12s pour récupérer analyse_id + score VMD + TTC
+            // sans que l'user ait à actualiser la page.
+            if (doc.document_type === 'devis' && !doc.analyse_id) {
+              setTimeout(() => loadDocuments(), 4000);
+              setTimeout(() => loadDocuments(), 12000);
+            }
             // Devis non rattaché → toast pour rediriger l'user vers Documents (sinon invisible sur l'Accueil).
             if (doc.document_type === 'devis' && !doc.lot_id && lots.filter(l => !l.id.startsWith('fallback-')).length > 0) {
               toast('Devis non rattaché à un intervenant', {

@@ -95,9 +95,17 @@ export default function IntervenantsListView({
   }
   const [comparingLot, setComparingLot] = useState<{ lot: LotChantier; docs: DocumentChantier[] } | null>(null);
 
-  const allDevis = useMemo(() =>
-    lots.flatMap(l => getDevisEtFactures(docsByLot[l.id] ?? [])),
-  [lots, docsByLot]);
+  // Inclut AUSSI les devis orphelins (sans lot_id) pour que leur score VMD + TTC
+  // soient fetchés dès l'affichage de la section «Non affecté» — sinon les chiffres
+  // n'apparaissent qu'après rattachement à un lot, et l'user a l'impression que
+  // la page est cassée.
+  const allDevis = useMemo(() => {
+    const inLots = lots.flatMap(l => getDevisEtFactures(docsByLot[l.id] ?? []));
+    const orphans = documents.filter(d =>
+      !d.lot_id && (d.document_type === 'devis' || d.document_type === 'facture') && (d as any).depense_type !== 'frais',
+    );
+    return [...inLots, ...orphans];
+  }, [lots, docsByLot, documents]);
 
   const { data: analysisData } = useAnalysisScores(allDevis);
 
