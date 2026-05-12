@@ -7,7 +7,7 @@ import { useState, useRef, useCallback, useMemo } from 'react';
 import { Calendar, Loader2, AlertCircle, Users, AlignLeft, Plus } from 'lucide-react';
 import type { LotChantier } from '@/types/chantier-ia';
 import { usePlanning } from '@/hooks/usePlanning';
-import { formatDuration, getWeekLabels, businessDaysBetween } from '@/lib/chantier/planningUtils';
+import { formatDuration, getWeekLabels, businessDaysBetween, isoWeekNumber } from '@/lib/chantier/planningUtils';
 
 // -- Couleurs par lot (cyclique) ----------------------------------------------
 
@@ -261,7 +261,7 @@ function renderTimelineHeader(
   }
 
   if (zoom === 'day') {
-    // 2 niveaux : ligne du haut = mois groupé, ligne du bas = jours individuels.
+    // 3 niveaux : mois (top), numéro de semaine ISO (mid), jours individuels (bottom).
     // 1 semaine = 7 jours, chaque jour = weekWidth/7 px.
     const dayPx = weekWidth / 7;
     // Groupes mois pour le bandeau haut (fusion des semaines partageant le même mois).
@@ -276,6 +276,7 @@ function renderTimelineHeader(
     });
     return (
       <div className="border-b border-gray-100">
+        {/* Bandeau mois */}
         <div className="flex">
           {monthGroups.map((g, i) => (
             <div key={i} className="flex-none text-center border-r border-gray-100 py-1 bg-gray-50/60"
@@ -284,6 +285,21 @@ function renderTimelineHeader(
             </div>
           ))}
         </div>
+        {/* Bandeau numéro de semaine ISO */}
+        <div className="flex border-t border-gray-100">
+          {weeks.map((_, wi) => {
+            const wd = weekStart(startDate, wi);
+            return (
+              <div key={wi} className="flex-none text-center border-r border-gray-200 py-0.5 bg-blue-50/40"
+                   style={{ width: weekWidth }}>
+                <p className="text-[9px] font-semibold text-blue-700/80 tabular-nums">
+                  S{isoWeekNumber(wd)}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+        {/* Bandeau jours */}
         <div className="flex">
           {weeks.map((_, wi) => (
             <div key={wi} className="flex-none flex border-r border-gray-200" style={{ width: weekWidth }}>
@@ -379,7 +395,11 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
       left: startOffset * WEEK_WIDTH,
       width: Math.max(duration * WEEK_WIDTH, WEEK_WIDTH * 0.5), // min 0.5 semaine visible
     };
-  }, [startDate]);
+    // WEEK_WIDTH dépend du zoom — il DOIT être dans les deps, sinon le useCallback
+    // garde la closure de l'ancien zoom et les barres ne se redimensionnent pas
+    // au changement de niveau (bug observé : barre 9 semaines en Semaine reste à
+    // 9 colonnes en Jour, donc visuellement 9 jours seulement).
+  }, [startDate, WEEK_WIDTH]);
 
   // -- Lanes (first-fit interval scheduling) ---------------------------------
   // Regroupe les lots qui se chaînent dans le temps sur une MÊME ligne visuelle.
@@ -605,7 +625,9 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
       if (depsBatch.length === 0 && lotsUpdates.length === 0) return;
       applyDragChange(depsBatch, lotsUpdates);
     },
-    [lanes, deps, lots, applyDragChange, getBarStyle]
+    // WEEK_WIDTH référencé via pxPerDay et pxPerCalendarDay → dep nécessaire
+    // (sinon le drag à un autre zoom calcule avec l'ancienne largeur de semaine).
+    [lanes, deps, lots, applyDragChange, getBarStyle, WEEK_WIDTH, startDate]
   );
 
   // -- Loading state ----------------------------------------------------------

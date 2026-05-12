@@ -274,14 +274,26 @@ export function getTotalWeeks(lots: LotChantier[]): number {
   return Math.ceil(diffDays / 7) || 1;
 }
 
-/** Génère les labels de semaines (S1, S2...) avec la date de début de chaque semaine */
+/** Numéro de semaine ISO 8601 (1-53). Semaine 1 = celle qui contient le 1er jeudi de l'année.
+ *  Aligné avec les calendriers FR/UE/Outlook (lundi = début de semaine). */
+export function isoWeekNumber(d: Date): number {
+  const target = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = target.getUTCDay() === 0 ? 7 : target.getUTCDay(); // 1..7 (lundi=1)
+  target.setUTCDate(target.getUTCDate() + 4 - dayNum); // jeudi de la semaine ISO
+  const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1));
+  return Math.ceil((((target.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+}
+
+/** Génère les labels de semaines avec numéro ISO (S27, S28…) + date de début de semaine.
+ *  Avant : numérotation 1-based interne au chantier (S1, S2…) — incohérent avec un calendrier
+ *  Outlook où chaque semaine a son numéro ISO unique. */
 export function getWeekLabels(startDate: Date, totalWeeks: number): { label: string; date: string }[] {
   const labels: { label: string; date: string }[] = [];
   for (let i = 0; i < totalWeeks; i++) {
     const weekStart = new Date(startDate);
     weekStart.setDate(weekStart.getDate() + i * 7);
     labels.push({
-      label: `S${i + 1}`,
+      label: `S${isoWeekNumber(weekStart)}`,
       date: weekStart.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
     });
   }
