@@ -18,7 +18,7 @@ const SCORE_CFG = {
 } as const;
 
 const STATUT_LABELS: Record<string, string> = {
-  en_cours: 'En cours', a_relancer: 'À relancer', valide: '✓ Validé', attente_facture: 'Att. facture',
+  en_cours: 'En cours', a_relancer: 'À relancer', valide: '✓ Devis signé', attente_facture: '✓ Devis signé',
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────

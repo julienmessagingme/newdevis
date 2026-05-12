@@ -123,10 +123,12 @@ export default function IntervenantsListView({
     if (sortKey === 'none') return filtered;
     return [...filtered].sort((a, b) => {
       const bestPrice = (g: typeof a) => {
+        const isSigned = (d: DocumentChantier) =>
+          d.devis_statut === 'valide' || d.devis_statut === 'attente_facture';
         const getDocPrice = (d: DocumentChantier) =>
           analysisData[d.id]?.ttc ?? (d.montant && d.montant > 0 ? d.montant : 0);
-        const validated = g.devisDocs.find(d => d.devis_statut === 'valide');
-        if (validated) return getDocPrice(validated);
+        const signed = g.devisDocs.filter(isSigned);
+        if (signed.length > 0) return signed.reduce((s, d) => s + getDocPrice(d), 0);
         const prices = g.devisDocs.map(getDocPrice).filter(p => p > 0);
         return prices.length ? Math.min(...prices) : 0;
       };
@@ -134,14 +136,16 @@ export default function IntervenantsListView({
     });
   }, [filtered, sortKey, analysisData]);
 
-  // Total : pour chaque lot, on prend le devis validé le plus récent ou le moins cher
+  // Total estimé : pour chaque lot, SOMME des devis signés (cohérent avec Budget) ;
+  // si aucun signé → fallback sur le prix min des devis en cours.
   const totalEstimated = useMemo(() => sorted.reduce((acc, { devisDocs }) => {
-    const validatedAll = devisDocs.filter(d => d.devis_statut === 'valide');
-    const validated = validatedAll.length > 1
-      ? validatedAll.reduce((latest, d) => d.created_at > latest.created_at ? d : latest)
-      : validatedAll[0] ?? undefined;
-    if (validated) return acc + (analysisData[validated.id]?.ttc ?? 0);
-    const prices = devisDocs.map(d => analysisData[d.id]?.ttc ?? 0).filter(p => p > 0);
+    const isSigned = (d: DocumentChantier) =>
+      d.devis_statut === 'valide' || d.devis_statut === 'attente_facture';
+    const getTtc = (d: DocumentChantier) =>
+      analysisData[d.id]?.ttc ?? (d.montant && d.montant > 0 ? d.montant : 0);
+    const signed = devisDocs.filter(isSigned);
+    if (signed.length > 0) return acc + signed.reduce((s, d) => s + getTtc(d), 0);
+    const prices = devisDocs.map(getTtc).filter(p => p > 0);
     return acc + (prices.length ? Math.min(...prices) : 0);
   }, 0), [sorted, analysisData]);
 
@@ -278,19 +282,22 @@ export default function IntervenantsListView({
         ) : (
           sorted.map(({ lot, devisDocs, fraisDocs, fraisTotal, status }) => {
             const cfg      = LOT_STATUS_CFG[status];
-            // Total du lot : si plusieurs devis validés, prendre le plus récemment créé
-            // (évite que l'ancien validé prime sur un nouveau sélectionné)
-            const validatedAll = devisDocs.filter(d => d.devis_statut === 'valide');
-            const validated = validatedAll.length > 1
-              ? validatedAll.reduce((latest, d) => d.created_at > latest.created_at ? d : latest)
-              : validatedAll[0] ?? undefined;
-            const lotPrice  = validated
-              ? (analysisData[validated.id]?.ttc ?? 0)
+            // Total du lot : SOMME de tous les devis signés (cohérent avec Budget).
+            // Si rien de signé → fallback prix MIN des devis en cours (badge "prix min").
+            const isSigned = (d: DocumentChantier) =>
+              d.devis_statut === 'valide' || d.devis_statut === 'attente_facture';
+            const signedDocs = devisDocs.filter(isSigned);
+            const getTtc = (d: DocumentChantier) =>
+              analysisData[d.id]?.ttc ?? (d.montant && d.montant > 0 ? d.montant : 0);
+            const validated = signedDocs.length > 0 ? signedDocs[0] : undefined; // pour le badge "signé"
+            const lotPrice = signedDocs.length > 0
+              ? signedDocs.reduce((s, d) => s + getTtc(d), 0)
               : (() => {
-                  const prices = devisDocs.map(d => analysisData[d.id]?.ttc ?? 0).filter(p => p > 0);
+                  const prices = devisDocs.map(getTtc).filter(p => p > 0);
                   return prices.length ? Math.min(...prices) : 0;
                 })();
-            const hasMultiplePrices = !validated && devisDocs.filter(d => (analysisData[d.id]?.ttc ?? 0) > 0).length > 1;
+            const hasMultiplePrices = signedDocs.length === 0 && devisDocs.filter(d => getTtc(d) > 0).length > 1;
+            const isMultiSigned = signedDocs.length > 1;
 
             return (
               <div key={lot.id} className="border-b border-gray-100 last:border-0">
@@ -334,7 +341,9 @@ export default function IntervenantsListView({
                           <p className="text-[9px] text-gray-400 mt-0.5 leading-none">prix min</p>
                         )}
                         {validated && (
-                          <p className="text-[9px] text-emerald-600 mt-0.5 leading-none font-semibold">validé</p>
+                          <p className="text-[9px] text-emerald-600 mt-0.5 leading-none font-semibold">
+                            {isMultiSigned ? `${signedDocs.length} devis signés` : 'devis signé'}
+                          </p>
                         )}
                       </div>
                     ) : (

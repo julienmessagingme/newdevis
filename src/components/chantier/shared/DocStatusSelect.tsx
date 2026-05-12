@@ -4,11 +4,13 @@ import type { DocumentChantier, DevisStatut, FactureStatut } from '@/types/chant
 
 // ── Options & styles ────────────────────────────────────────────────────────
 
+// Le statut DB 'attente_facture' (legacy) est traité comme 'valide' côté UI :
+// même libellé "Devis signé", même style. On ne propose plus qu'une seule option
+// d'engagement — l'utilisateur n'a pas à comprendre la nuance.
 const DEVIS_OPTIONS: { value: DevisStatut; label: string }[] = [
   { value: 'en_cours',        label: 'En cours' },
   { value: 'a_relancer',      label: 'À relancer' },
-  { value: 'valide',          label: '✓ Validé' },
-  { value: 'attente_facture', label: 'Att. facture' },
+  { value: 'valide',          label: '✓ Devis signé' },
 ];
 
 const FACTURE_OPTIONS: { value: FactureStatut; label: string }[] = [
@@ -21,7 +23,7 @@ const STYLE: Record<string, string> = {
   en_cours:              'bg-blue-50 border-blue-200 text-blue-700',
   a_relancer:            'bg-orange-50 border-orange-200 text-orange-700',
   valide:                'bg-emerald-50 border-emerald-200 text-emerald-700',
-  attente_facture:       'bg-violet-50 border-violet-200 text-violet-700',
+  attente_facture:       'bg-emerald-50 border-emerald-200 text-emerald-700', // alias visuel = signé
   recue:                 'bg-blue-50 border-blue-200 text-blue-700',
   payee:                 'bg-emerald-50 border-emerald-200 text-emerald-700',
   payee_partiellement:   'bg-amber-50 border-amber-200 text-amber-700',
@@ -102,9 +104,14 @@ export default function DocStatusSelect({ doc, chantierId, token, onUpdated, onM
     ? `text-[11px] font-semibold px-2 py-0.5 rounded-full border-0 focus:outline-none focus:ring-1 focus:ring-blue-200 cursor-pointer ${style}`
     : `text-[11px] font-bold px-2.5 py-1.5 rounded-lg border appearance-none cursor-pointer outline-none transition-colors ${style}`;
 
+  // Si le statut DB est legacy 'attente_facture', on l'affiche comme 'valide'
+  // (même libellé, même style) sans toucher la DB. Au prochain changement,
+  // l'user posera explicitement 'valide' ou un autre statut.
+  const selectValue = statut === 'attente_facture' ? 'valide' : statut;
+
   return (
     <div className="flex flex-col gap-1">
-      <select value={statut} onChange={e => handleChange(e.target.value)} className={selectCls}>
+      <select value={selectValue} onChange={e => handleChange(e.target.value)} className={selectCls}>
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
 
