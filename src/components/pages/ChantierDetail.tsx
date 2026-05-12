@@ -99,6 +99,23 @@ export default function ChantierDetail() {
     })();
   }, [getToken]);
 
+  // Sync enveloppePrevue avec les updates persistés depuis BudgetTab/TresorerieView.
+  // Sans ce listener, le state ChantierDetail reste sur la valeur du premier fetch,
+  // donc quand l'utilisateur change d'onglet et revient sur Budget, BudgetTab remount
+  // avec la valeur stale → le drift se re-détecte et la bannière "Quel chiffre garder ?"
+  // réapparaît alors que l'user vient de répondre.
+  useEffect(() => {
+    function onBudgetReelChanged(e: Event) {
+      const detail = (e as CustomEvent).detail;
+      if (!detail || detail.chantierId !== chantierId) return;
+      if (typeof detail.value === 'number' && detail.value >= 0) {
+        setEnveloppePrevue(detail.value);
+      }
+    }
+    window.addEventListener('budgetReelChanged', onBudgetReelChanged);
+    return () => window.removeEventListener('budgetReelChanged', onBudgetReelChanged);
+  }, [chantierId]);
+
   /** Persiste le statut d'un lot en DB — fire and forget.
    *  Si lotId commence par 'fallback-', le lot est read-only (ancien chantier) : no-op. */
   const handleLotStatutChange = useCallback(async (lotId: string, statut: StatutArtisan) => {
