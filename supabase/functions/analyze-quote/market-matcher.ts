@@ -425,6 +425,7 @@ function scoreCandidate(signature: SemanticSignature, row: MarketCatalogRow): Ma
  * direct pour ne pas polluer la comparaison marché.
  */
 const NON_WORK_KEYWORDS = [
+  // Lignes financières (V3.4.8)
   "acompte", "solde", "capital", "prime", "prime cee", "cee",
   "reste a", "reste à", "reste a facturer", "reste à facturer",
   "versement", "echeance", "échéance",
@@ -432,10 +433,39 @@ const NON_WORK_KEYWORDS = [
   "tva", "ht ", " ht", "ttc ", " ttc",
 ];
 
+// V3.4.9 (2026-05-13) — Prestations intellectuelles (MOE, architecte, études, diagnostics).
+// Observé sur devis "maitre d oeuvre" : Gemini a matché "Diagnostic / devis approfondi"
+// (libellé d'une mission MOE complète à 4 706€) contre un poste catalogue
+// "diagnostic_immobilier" (0-250€) → anomalie aberrante +4 500€ alors que le prix MOE
+// est en réalité dans la norme (8-12% du coût travaux).
+//
+// Le catalogue market_prices ne contient AUCUNE entrée pour ces prestations.
+// On retourne no_match honnête → comparaison indicative sans génération d'anomalie.
+const INTELLECTUAL_SERVICE_KEYWORDS = [
+  "maitrise oeuvre", "maîtrise œuvre", "maitrise d'oeuvre", "maîtrise d'œuvre",
+  "moe", "architecte", "architecture",
+  "etude", "étude", "etude faisabilite", "étude de faisabilité",
+  "avant projet", "avant-projet", "apd", "aps",
+  "conception", "execution suivi", "exécution suivi", "suivi chantier",
+  "amo", "opc", "assistance maitrise", "assistance maîtrise",
+  "ingenierie", "ingénierie", "bureau d'etudes", "bureau d'études",
+  "diagnostic", "audit", "expertise", "consultation",
+  "permis de construire", "declaration prealable", "déclaration préalable",
+  "honoraires",
+];
+
 function isNonWorkSignature(sig: SemanticSignature): boolean {
-  if (sig.domain !== "autre") return false;
   const kw = sig.keywords.map(k => k.toLowerCase()).join(" ");
-  return NON_WORK_KEYWORDS.some(nk => kw.includes(nk));
+  // Lignes financières : uniquement si Gemini a classifié en "autre"
+  // (sinon risque de bloquer un vrai poste qui contient le mot "prime" par hasard)
+  if (sig.domain === "autre" && NON_WORK_KEYWORDS.some(nk => kw.includes(nk))) return true;
+  // Prestations intellectuelles : bloque QUEL QUE SOIT le domain Gemini.
+  // Cas réel : Gemini a parfois choisi domain="electricite" pour un "diagnostic électrique"
+  // ou domain="batiment" pour une "étude de faisabilité construction". Dans tous ces cas,
+  // le catalogue market_prices ne contient PAS de référence MOE/étude/architecte,
+  // donc on doit refuser le match peu importe le domain.
+  if (INTELLECTUAL_SERVICE_KEYWORDS.some(nk => kw.includes(nk))) return true;
+  return false;
 }
 
 export function matchMarketCategory(
