@@ -1,4 +1,4 @@
-import { Loader2, Pencil, Play, Ban } from "lucide-react";
+import { Loader2, Pencil, Play, Ban, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   NARRATIVE_LABELS,
@@ -16,6 +16,16 @@ interface Props {
   onEdit: (t: TemplateListItem) => void;
   onGenerate: (t: TemplateListItem) => void;
   onToggleActive: (t: TemplateListItem) => void;
+  onPreview?: (t: TemplateListItem) => void;
+}
+
+/** Compte le nombre total de slides dans preview_urls (toutes plateformes confondues). */
+function previewSlideCount(t: TemplateListItem): number {
+  if (!t.preview_urls) return 0;
+  return Object.values(t.preview_urls).reduce(
+    (acc, slides) => acc + (slides ? Object.keys(slides).length : 0),
+    0,
+  );
 }
 
 export default function TemplateTable({
@@ -24,6 +34,7 @@ export default function TemplateTable({
   onEdit,
   onGenerate,
   onToggleActive,
+  onPreview,
 }: Props) {
   if (loading) {
     return (
@@ -57,6 +68,7 @@ export default function TemplateTable({
             <th className="px-3 py-2 text-center">Macro V3</th>
             <th className="px-3 py-2 text-center">Plateforme</th>
             <th className="px-3 py-2 text-center">Slides</th>
+            <th className="px-3 py-2 text-center">Aperçu</th>
             <th className="px-3 py-2 text-center">Mood</th>
             <th className="px-3 py-2 text-left">Dernier usage</th>
             <th className="px-3 py-2 text-center">Dispo</th>
@@ -106,6 +118,15 @@ export default function TemplateTable({
                 </td>
                 <td className="px-3 py-2 text-center">{t.format_size}</td>
                 <td className="px-3 py-2 text-center">
+                  {previewSlideCount(t) > 0 ? (
+                    <span className="inline-block px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-700 border border-blue-200 font-medium">
+                      {previewSlideCount(t)} PNG
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">—</span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-center">
                   <span className="text-xs">{MOOD_LABELS[t.mood] ?? t.mood}</span>
                 </td>
                 <td className="px-3 py-2 text-xs">
@@ -129,6 +150,21 @@ export default function TemplateTable({
                 </td>
                 <td className="px-3 py-2 text-right">
                   <div className="flex justify-end gap-1">
+                    {onPreview && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onPreview(t)}
+                        disabled={previewSlideCount(t) === 0}
+                        title={
+                          previewSlideCount(t) === 0
+                            ? "Pas encore d'aperçu rendu"
+                            : "Voir l'aperçu carousel"
+                        }
+                      >
+                        <Eye className={`h-3.5 w-3.5 ${previewSlideCount(t) === 0 ? "" : "text-blue-600"}`} />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"

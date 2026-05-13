@@ -211,6 +211,18 @@ export type MacroFormat =
   | 'G-F01' | 'G-F02' | 'G-F03' | 'G-F04' | 'G-F05'
   | 'G-F06' | 'G-F07' | 'G-F08' | 'G-F09' | 'G-F10';
 
+/**
+ * URLs B2 des previews carousels par plateforme et numéro de slide.
+ * Renseigné par `scripts/upload_previews_to_b2.py` côté gerermonchantier-marketing.
+ * Structure : `{ "instagram": { "slide_1": "https://...", ... }, "facebook": {...}, "tiktok": {...} }`
+ * null si pas encore généré.
+ */
+export type PreviewUrls = {
+  [platform in 'instagram' | 'facebook' | 'tiktok']?: {
+    [slideKey: string]: string;
+  };
+} | null;
+
 export interface TemplateListItem {
   id: string;
   product: 'vmd' | 'gmc';
@@ -226,6 +238,8 @@ export interface TemplateListItem {
   last_usage: { platform: string; date: string; post_id: string } | null;
   cooldown_until: Record<string, string | null>;
   total_uses: number;
+  /** Previews B2 multi-ratio si le carousel a été rendu et uploadé. */
+  preview_urls: PreviewUrls;
 }
 
 export interface SlideData {

@@ -26,7 +26,7 @@ export const GET: APIRoute = async ({ request }) => {
       .from('script_templates')
       .select(
         'id, product, narrative_type, macro_format, platform, format_size, ' +
-        'title, mood, is_active, total_uses, slides'
+        'title, mood, is_active, total_uses, slides, preview_urls'
       )
       .order('id', { ascending: false });
 
@@ -35,7 +35,7 @@ export const GET: APIRoute = async ({ request }) => {
       return jsonError(error.message || 'Erreur Supabase', 500);
     }
 
-    let templates = (data ?? []).map((t: Record<string, unknown>) => ({
+    let templates = ((data as unknown as Record<string, unknown>[] | null) ?? []).map((t) => ({
       id: t.id,
       product: t.product,
       narrative_type: t.narrative_type,
@@ -47,6 +47,7 @@ export const GET: APIRoute = async ({ request }) => {
       is_active: t.is_active,
       total_uses: (t.total_uses as number) ?? 0,
       slides: t.slides,
+      preview_urls: t.preview_urls ?? null,
       last_usage: null,
       cooldown_until: {},
     }));

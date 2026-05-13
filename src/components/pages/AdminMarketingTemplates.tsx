@@ -11,6 +11,7 @@ import TemplateFilters, {
 import TemplateTable from "@/components/admin/marketing/TemplateTable";
 import TemplateEditDialog from "@/components/admin/marketing/TemplateEditDialog";
 import GenerateDialog from "@/components/admin/marketing/GenerateDialog";
+import TemplatePreviewDialog from "@/components/admin/marketing/TemplatePreviewDialog";
 import type { TemplateListItem } from "@/types/marketing";
 
 export default function AdminMarketingTemplates() {
@@ -25,6 +26,7 @@ export default function AdminMarketingTemplates() {
 
   const [editId, setEditId] = useState<string | null>(null);
   const [generateTarget, setGenerateTarget] = useState<TemplateListItem | null>(null);
+  const [previewTarget, setPreviewTarget] = useState<TemplateListItem | null>(null);
 
   const reqIdRef = useRef(0);
 
@@ -155,6 +157,7 @@ export default function AdminMarketingTemplates() {
             onEdit={(t) => setEditId(t.id)}
             onGenerate={(t) => setGenerateTarget(t)}
             onToggleActive={handleToggleActive}
+            onPreview={(t) => setPreviewTarget(t)}
           />
         </section>
       </main>
@@ -174,6 +177,11 @@ export default function AdminMarketingTemplates() {
         authToken={authToken}
         onClose={() => setGenerateTarget(null)}
         onGenerated={fetchTemplates}
+      />
+
+      <TemplatePreviewDialog
+        template={previewTarget}
+        onClose={() => setPreviewTarget(null)}
       />
     </div>
   );
