@@ -173,6 +173,57 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
   **Anti-régression** : ne JAMAIS faire choisir un job_type au LLM. Si tu refactors `groupWithGeminiSignature` ou `matchMarketCategory`, tester sur les 3 devis canoniques (Thouret Elec → no room cuisine, Kern Terrassement → 4 groupes pas 1, Zitelec Chauffage → cuisine si signalée).
 
+- **V3.6 ACTIF EN PROD (2026-05-13)** — `MARKET_MATCHER_V36=v36_only` flipé via `npx supabase secrets set`. Mode SHADOW retiré. Toutes les nouvelles analyses passent par le matcher déterministe backend. Rollback express : `npx supabase secrets set MARKET_MATCHER_V36=v35_only` (effet immédiat, pas de redéploiement).
+
+  **V3.6.1 hardening matcher (commit `53e2a29`)** — 3 fixes anti faux-fuzzy :
+  1. `SCORE_THRESHOLD_FUZZY` 40 → **50** (zone permissive divisée par 2).
+  2. **`FUZZY_MIN_DOMAIN_SCORE = 30/40`** : un fuzzy_fallback exige désormais un vrai signal domaine. Bloque les matchs croisés type "Pose IPN → couverture_bac_acier" (domain score 0 mais total 40+ via subcategory générique).
+  3. `"autre"` ajouté dans `ALLOWED_SUBCATEGORIES_BY_DOMAIN.autre` (sinon Gemini retournant `{domain:"autre", subcategory:"autre"}` était rejeté en invalid_signature).
+
+  **V3.4.9 — Garde prestations intellectuelles (commit `612267e`)** : 21 patterns bloqués dans `isNonWorkSignature` (MOE, maitrise oeuvre, architecte, étude, avant-projet, conception, AMO, OPC, ingénierie, diagnostic, audit, expertise, permis de construire, honoraires, ...). Spécificité : ces keywords bloquent **quel que soit le `domain` choisi par Gemini** (contrairement à `NON_WORK_KEYWORDS` qui ne s'applique qu'à `domain="autre"`). Raison : un "diagnostic électrique" peut être classé en `domain=electricite` mais reste une prestation intellectuelle non comparable au catalogue. Cas d'origine : devis MOE 4 706€ matché à `diagnostic_immobilier` 250€ → anomalie aberrante +4 500€.
+
+  **V3.4.10 — Filtre groupes hallucinés (commit `bd0c329`)** dans `useMarketPriceAPI.ts` `processJobTypes` : skip silencieux des groupes sans `devis_total_ht > 0` ET sans aucune `devis_line` avec `amount_ht > 0`. Couvre les cas où Gemini invente des groupes (ex: "Local technique piscine" sur un devis MOE) sans correspondance dans le devis. Ne JAMAIS supprimer ce filtre — sinon affichage absurde "Marché 1 625-3 375€, Devis : —" sur des postes fantômes.
+
+  **V3.4.11 + V3.4.12 — Filtre lignes récap (commits `060ff5c`, `7501d3e`)** : double défense contre les "Montant Total HT/TVA/TTC" extraites à tort comme postes travaux par Gemini.
+  - **V3.4.11 côté serveur** : `extract.ts` filtre `parsed.travaux` selon 8 regex (`/^montant\s+(total|sous-?total|tva|ht|ttc|acompte|solde|...)/i`). Prompt renforcé avec règle absolue listant les patterns interdits.
+  - **V3.4.12 côté front** : `processJobTypes` filtre AUSSI les `devis_lines` au sein de chaque groupe selon les mêmes patterns. Recompute `devis_total_ht` depuis les lignes restantes. Couvre les anciennes analyses en DB créées avant V3.4.11 (sinon le user voit toujours le bug au F5 sans re-uploader).
+  - Cas d'origine : devis MOE total 5 647€ TTC mais 3 lignes récap sommées affichaient 11 294€ (= 2× le réel : HT 4 706 + TVA 941 + TTC 5 647).
+
+  **V3.4.7 — Garde plausibilité underprice (commit `3dceae8`)** dans `verdictEngine.ts` ligne ~825 : si `overprice_pct < -0.20` (devis > 20% sous le marché), au lieu d'afficher "X k€ sous la moyenne du marché", on affiche "Comparaison globale indicative — la fourchette marché agrégée n'est pas représentative sur ce profil de devis". Cas d'origine : multi-devis SALLEM affichait "170.8 k€ sous la moyenne" en Vert (PDF non segmenté + bounds gonflés par cumul postes hétérogènes). Aberration qui décrédibilisait l'analyse.
+
+  **V3.4.7 — Wording "dépassent largement" amplitude-aware** dans `ConclusionIA.tsx` ligne 297-311 : adapter selon verdict :
+  - `refuser` → "dépass(ent) **largement** les prix du marché"
+  - `signer` → "présent(ent) un **léger écart** vs marché"
+  - `a_negocier` → "au-dessus du marché à renégocier"
+  Cas d'origine : Kern Vert + 3 postes / 267€ total / 90€/poste affichait "dépassent **largement**" → contradictoire avec pastille Verte.
+
+  **V3.4.8 (commit `6150512`)** — 3 fixes extraction issus du batch baseline 93 devis :
+  - **TTC < HT swap** : dans `extract.ts`, si `parsed.totaux.ht > parsed.totaux.ttc × 1.10` → swap automatique avec log warning (impossible avec TVA française normale, signe que Gemini a inversé).
+  - **Sanitization nom entreprise** : `sanitizeEntrepriseNom` rejette si commence par minuscule OU matche 12 patterns de blabla légal observés ("Pour le client...", "détient la certification...", "se réserve le droit...", "s prestataires jusqu'au...", etc.). Sinon Gemini sortait des fragments de phrases comme nom d'entreprise.
+  - **Garde non-postes financiers dans matcher** : `NON_WORK_KEYWORDS` ("acompte", "solde", "capital", "prime cee", "reste à facturer", etc.) → retour `no_match` direct si `domain="autre"` + keywords matchent. Bloque les libellés purement financiers du polluer le matching catalogue.
+
+  **Tests anti-régression V3.6 + V3.4.x** : `supabase/functions/analyze-quote/market-matcher.test.ts` (17 cas), `src/lib/analyse/verdictEngine.test.ts` (27 cas). À relancer avant toute modif matcher/scoring : `npx tsx <path>`. Cas critiques couverts : Thouret room=null + catalog cuisine = REJECT, SALLEM terrassement → enrobé = REJECT (V3.6.1 domain guard), MOE/architecte/diagnostic = NO_MATCH, validateSignature avec subcategory "autre" sur domain "autre" = OK.
+
+- **2 jeux de valeurs distincts pour `verdict_global` (RÈGLE CRITIQUE — bug détecté 2026-05-13)** : il existe DEUX sets de valeurs dans `verdict_global` selon la source. Tout mapping qui ignore un set fait diverger pastille header vs bandeau verdict.
+  - **Set #1 — `conclusion_ia.verdict_global`** (mono-devis, type `ConclusionData`, cf. `conclusion.ts:1253` GLOBAL_MAP) :
+    - `"dans_la_norme"` → VERT
+    - `"eleve_justifie"` → ORANGE (cher mais justifié — **piège : ne JAMAIS tomber en VERT par défaut**)
+    - `"a_negocier"` → ORANGE
+    - `"a_risque"` → ROUGE
+  - **Set #2 — `global_metrics.verdict_global`** (multi-devis, calculé par `computeGlobalFromSegments`) :
+    - `"signer"` → VERT
+    - `"a_negocier"` → ORANGE
+    - `"refuser"` → ROUGE
+
+  Bug d'origine : `Carrelage LEONARD` affichait Feu Vert sur la page mais ROUGE dans l'admin. Cause : le mapping admin ne gérait que set #2 → `verdict_global="dans_la_norme"` retournait null → fallback sur la colonne legacy `score`.
+
+  **Fix appliqué (commit `3c36029`)** : 3 endroits avec mapping complet des 2 sets :
+  - `src/pages/api/admin/devis.ts` (API admin liste des devis)
+  - `src/components/pages/AnalysisResult.tsx` `effectiveScore` (pastille header)
+  - `supabase/migrations/20260513150000_derive_display_score_full_mapping.sql` (fonction SQL pour `admin_kpis_*` views)
+
+  **Anti-régression** : tout nouveau composant qui lit `verdict_global` DOIT supporter les 2 sets. Ne JAMAIS écrire un `switch` avec seulement `signer/refuser` OU seulement `dans_la_norme/a_risque` — toujours les 8 valeurs.
+
 - **verdictEngine V3.3.1 — architecture cohérence absolue (2026-05-11)** : moteur à 4 couches de défense en profondeur qui garantit qu'**aucun écran ne peut afficher simultanément rouge + signer + payé en trop**.
 
   **COUCHE 1 — `computeVerdict` (V3.1, seuils alignés V3.2.1)** dans `src/lib/analyse/verdictEngine.ts` :
@@ -196,7 +247,7 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
   **Source unique de vérité pour la pastille** (V3.3) : `effectiveScore` dans `AnalysisResult.tsx` lit `conclusion_ia.verdict_global` (ou `conclusionIaLive`) en priorité, exactement comme le multi-devis lit `global_metrics.verdict_global`. Plus de divergence pastille header vs bandeau verdict. **Ne jamais** revenir à un recompute `computeVerdict` côté client en source primaire.
 
-  **ENGINE_VERSION + cache invalidation automatique** : `conclusion_ia.engine_version` stocké à chaque génération. Au cache hit, si version DB ≠ `ENGINE_VERSION` constante du code → régénération forcée automatique (pas besoin de bouton "Régénérer"). À **incrémenter à chaque changement de logique scoring** (ex: 3.3 → 3.3.1).
+  **ENGINE_VERSION + cache invalidation automatique** : `conclusion_ia.engine_version` stocké à chaque génération. Au cache hit, si version DB ≠ `ENGINE_VERSION` constante du code → régénération forcée automatique (pas besoin de bouton "Régénérer"). À **incrémenter à chaque changement de logique scoring** (ex: 3.3 → 3.3.1). État courant : **`ENGINE_VERSION = "3.4.7"`** (incrémenté avec le fix wording amplitude-aware + garde plausibilité underprice).
 
   **Test unitaire** : `npx tsx src/lib/analyse/verdictEngine.test.ts` (27 cas, 0 régression). Cas critiques anti-régression :
   - Kern Terrassement (3 anomalies carrelage × 21% du devis) → escalade a_negocier ✓
@@ -215,7 +266,7 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 - **effectiveScore figé si `conclusion_ia` null au chargement** (bug détecté 2026-05-01, commit `bb7a9a1`) : quand `analysis.conclusion_ia` est null (première visite, conclusion pas encore générée), `effectiveScore` se calcule à partir de `analysis.score` uniquement. Quand `ConclusionIA` génère ensuite le verdict, il ne met à jour que son propre state local — `analysis` dans le parent n'est jamais mis à jour. Fix : prop `onVerdictReady(rawJson)` dans `ConclusionIA` → `setConclusionIaLive(rawJson)` dans `AnalysisResult` → `effectiveScore` utilise `conclusionIaLive ?? analysis.conclusion_ia`. **Ne pas supprimer `onVerdictReady`** ni `conclusionIaLive`.
 
 - **Cohérence UI V3.3.1 — 6 règles inviolables (2026-05-11)** : règles d'affichage dans `ConclusionIA.tsx` qui forment un filet de sécurité ULTIME. Même si une couche amont laisse passer une incohérence, l'UI ne peut PAS afficher simultanément un verdict positif ET un chiffre alarmiste.
-  - **RÈGLE 1** : badge document (pastille header) = `conclusion_ia.verdict_global` mappé (signer→VERT, a_negocier→ORANGE, refuser→ROUGE). Jamais un recompute legacy indépendant.
+  - **RÈGLE 1** : badge document (pastille header) = `conclusion_ia.verdict_global` mappé. ⚠️ **2 sets de valeurs distinctes** : mono-devis (`dans_la_norme`→VERT, `eleve_justifie`/`a_negocier`→ORANGE, `a_risque`→ROUGE) ET multi-devis (`signer`→VERT, `a_negocier`→ORANGE, `refuser`→ROUGE). Cf. piège dédié "2 jeux de valeurs distincts pour `verdict_global`" plus haut. Jamais un recompute legacy indépendant.
   - **RÈGLE 2** : interdiction du chiffre accusatoire si verdict=signer. Variable `showAccusatoryHero = hasSurcout && !isVerdictSigner` contrôle l'affichage du hero "+X €".
   - **RÈGLE 3** : le hero "+X €" en gros s'affiche UNIQUEMENT si verdict ∈ {a_negocier, ne_pas_signer}. Si verdict=signer + delta détecté → on déplace l'info en bloc soft amber discret sous le verdict (transparence sans accusation).
   - **RÈGLE 4** : si surcout > 0 ET `anomalies_count === 0` → wording "écart estimatif vs fourchettes marché" / "Comparaison globale indicative" — jamais "payé en trop".
@@ -249,7 +300,7 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
 ### Supabase / DB
 
-- **ES256 JWT et `verify_jwt`** : Supabase Auth signe les JWT avec ES256, le runtime edge function ne le supporte pas → "Invalid JWT". Solution : `verify_jwt = false` dans `config.toml` + déployer avec `--no-verify-jwt`. Chaque fonction admin vérifie le rôle manuellement.
+- **ES256 JWT et `verify_jwt`** : Supabase Auth signe les JWT avec ES256, le runtime edge function ne le supporte pas → "Invalid JWT". Solution : `verify_jwt = false` dans `config.toml`. Chaque fonction admin vérifie le rôle manuellement. ⚠️ Le flag CLI `--no-verify-jwt` n'existe plus dans les versions récentes (`unknown flag` error) — utiliser **uniquement** la config TOML. Deploy : `npx supabase functions deploy <name>` (sans flag, le CLI lit `config.toml`).
 - **RLS sur tables côté frontend** : les edge functions bypass RLS via `service_role_key`, mais le frontend utilise `anon key`. Si on requête une table sans policy SELECT pour `anon` depuis le client, on obtient un tableau vide **sans erreur**. Toujours vérifier qu'une policy `anon` existe.
 - **RLS nouvelles tables — wrapper auth.uid()** : `auth.uid()` appelé seul = 1 éval par ligne. Toujours écrire `(select auth.uid())` dans les nouvelles policies. Voir migrations `20260226` et `20260401400000` pour les patterns corrects.
 - **Planning API — batch DB** : utiliser `Promise.all` pour les UPDATE simultanés sur `lots_chantier`. Les boucles `for` séquentielles peuvent provoquer des deadlocks Postgres sous charge.
