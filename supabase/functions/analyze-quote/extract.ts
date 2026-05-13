@@ -197,6 +197,17 @@ Si détecté (multiple_quotes=true) :
   - Pour les champs racines (entreprise, totaux, travaux) : utilise les données du PREMIER devis uniquement (les segments downstream utilisent devis_list).
   - "devis_list" : extrait TOUS les devis présents dans le PDF, sans en omettre aucun.
 
+RÈGLE ABSOLUE - "travaux" CONTIENT UNIQUEMENT DES PRESTATIONS, JAMAIS DES TOTAUX :
+- N'INCLUS PAS dans "travaux" les lignes du récapitulatif financier en bas de devis :
+  ❌ "Total HT", "Montant Total HT", "Sous-total HT"
+  ❌ "TVA", "Montant TVA", "Taux de TVA"
+  ❌ "Total TTC", "Montant Total TTC", "Net à payer"
+  ❌ "Acompte", "Solde", "Reste à régler"
+  ❌ "Remise", "Rabais", "Prime CEE", "Aide MaPrimeRénov"
+- Ces valeurs vont UNIQUEMENT dans le champ "totaux" (ht, tva, ttc) et "paiement" (acompte_pct), JAMAIS dans "travaux".
+- "travaux" contient SEULEMENT des prestations facturables (pose, fourniture, dépose, étude, conception, etc.).
+- Si une ligne du tableau ressemble à un total/sous-total/taxe → exclus-la de "travaux".
+
 EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes de travaux) :
 
 {
@@ -471,15 +482,46 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
         code_postal: parsed.client?.code_postal || null,
         ville: parsed.client?.ville || null,
       },
-      travaux: Array.isArray(parsed.travaux)
-        ? parsed.travaux.map((t: any) => ({
-            libelle: t.libelle || "",
-            categorie: t.categorie || "autre",
-            montant: typeof t.montant === "number" ? t.montant : null,
-            quantite: typeof t.quantite === "number" ? t.quantite : null,
-            unite: t.unite || null,
-          }))
-        : [],
+      travaux: (() => {
+        if (!Array.isArray(parsed.travaux)) return [];
+
+        // V3.4.11 (2026-05-13) — Filtre des lignes récapitulatives mal extraites.
+        // Observé sur "devis maitre d oeuvre.pdf" : Gemini a inclus dans travaux[]
+        // les lignes du récap totaux ("Montant Total HT", "Montant TVA",
+        // "Montant TTC") → groupé en "Autre" et sommé à 11 294 € (= 2× le total
+        // réel de 5 647 €). Affichage absurde.
+        //
+        // Ces libellés correspondent au tableau récap de fin de devis, JAMAIS
+        // à des postes de travaux. On les filtre post-extraction.
+        const RECAP_PATTERNS: RegExp[] = [
+          /^montant\s+(total|sous[- ]?total|tva|ht|ttc|acompte|solde|net|brut)/i,
+          /^(total|sous[- ]?total|tva|ht|ttc|acompte|solde|net\s+a\s+payer|net\s+à\s+payer)\b/i,
+          /^total\s+(ht|ttc|tva|général|general)/i,
+          /^(sous[- ]?total|s\/?total)\b/i,
+          /^(remise|rabais|ristourne|escompte)\b/i,
+          /^(prime|aide)\s+(cee|effy|maprime|anah)/i,
+          /^(reste|montant)\s+(a|à)\s+(facturer|r[ée]gler|payer)/i,
+          /^(versement|paiement|acompte)\s+(à|a|au|de|du)/i,
+        ];
+
+        const filtered = parsed.travaux.filter((t: any) => {
+          const libelle = String(t?.libelle || "").trim();
+          if (libelle.length === 0) return false;
+          if (RECAP_PATTERNS.some(p => p.test(libelle))) {
+            console.log(`[extract] travaux: drop recap line "${libelle}" (montant=${t?.montant})`);
+            return false;
+          }
+          return true;
+        });
+
+        return filtered.map((t: any) => ({
+          libelle: t.libelle || "",
+          categorie: t.categorie || "autre",
+          montant: typeof t.montant === "number" ? t.montant : null,
+          quantite: typeof t.quantite === "number" ? t.quantite : null,
+          unite: t.unite || null,
+        }));
+      })(),
       paiement: {
         acompte_pct: typeof parsed.paiement?.acompte_pct === "number" ? parsed.paiement.acompte_pct : null,
         acompte_avant_travaux_pct: typeof parsed.paiement?.acompte_avant_travaux_pct === "number"
