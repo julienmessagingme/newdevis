@@ -167,6 +167,25 @@ export function processJobTypes(data: unknown): JobTypeDisplayRow[] {
   const rows: JobTypeDisplayRow[] = [];
 
   for (const item of data) {
+    // V3.4.10 (2026-05-13) — Filtre des groupes hallucinés.
+    // Observé sur "devis maitre d oeuvre.pdf" : Gemini a inventé 3 groupes
+    // ("Local technique piscine", "Rénovation électricité 80m²") avec
+    // devis_total_ht=null et aucune ligne devis correspondante, mais des
+    // fourchettes marché renvoyées par le catalogue. Affichage absurde
+    // sur la page (Devis : —, Marché : 1 625-3 375 €) qui décrédibilise
+    // l'analyse.
+    //
+    // Critère : un groupe SANS montant devis ET SANS aucune ligne devis
+    // avec amount_ht > 0 est une hallucination → skip silencieux.
+    const rawDevisLines: Array<{ amount_ht?: number | null }> = item.devis_lines || [];
+    const hasDevisAmount = typeof item.devis_total_ht === "number" && item.devis_total_ht > 0;
+    const hasDevisLines  = rawDevisLines.length > 0 && rawDevisLines.some(
+      (l) => typeof l.amount_ht === "number" && l.amount_ht > 0,
+    );
+    if (!hasDevisAmount && !hasDevisLines) {
+      continue;
+    }
+
     const prices: N8NPriceLine[] = item.prices || [];
 
     // Start with Gemini's main_quantity
