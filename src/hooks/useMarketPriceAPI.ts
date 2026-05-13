@@ -161,12 +161,60 @@ function isNewFormat(data: unknown): boolean {
   return typeof first === "object" && first !== null && "job_type_label" in first;
 }
 
+// V3.4.12 (2026-05-13) — Patterns de lignes récapitulatives à filtrer côté front.
+// Couvre les analyses existantes (avant le fix server V3.4.11) en DB qui
+// contenaient ces lignes dans `analysis_work_items`.
+const RECAP_LINE_PATTERNS: RegExp[] = [
+  /^montant\s+(total|sous[- ]?total|tva|ht|ttc|acompte|solde|net|brut)/i,
+  /^(total|sous[- ]?total)\s*(ht|ttc|tva|général|general)?\s*:?$/i,
+  /^tva(\s|$|:|\s+\d)/i,
+  /^(montant\s+)?net\s+(a|à)\s+payer/i,
+  /^(remise|rabais|ristourne|escompte)\b/i,
+  /^(prime|aide)\s+(cee|effy|maprime|anah)/i,
+  /^(reste|montant)\s+(a|à)\s+(facturer|r[ée]gler|payer)/i,
+  /^(versement|paiement|acompte)\s+(à|a|au|de|du)/i,
+];
+
+function isRecapLineDescription(desc: string | undefined | null): boolean {
+  if (!desc) return false;
+  const trimmed = String(desc).trim();
+  return RECAP_LINE_PATTERNS.some(p => p.test(trimmed));
+}
+
 export function processJobTypes(data: unknown): JobTypeDisplayRow[] {
   if (!data || !Array.isArray(data)) return [];
 
   const rows: JobTypeDisplayRow[] = [];
 
   for (const item of data) {
+    // V3.4.12 (2026-05-13) — Filtre des LIGNES récap au sein du groupe.
+    // Couvre les anciennes analyses (pré V3.4.11) où Gemini avait inclus
+    // "Montant Total HT", "Montant TVA", "Montant TTC" comme lignes devis.
+    // Ces 3 lignes sommées = 2× le total réel → affichage absurde "11 294 €"
+    // sur un devis à 5 647 €.
+    if (Array.isArray(item.devis_lines)) {
+      const cleanedLines = item.devis_lines.filter(
+        (l: { description?: string }) => !isRecapLineDescription(l?.description)
+      );
+      if (cleanedLines.length !== item.devis_lines.length) {
+        // Recompute devis_total_ht as the sum of remaining lines' amount_ht
+        const recomputedTotal = cleanedLines.reduce(
+          (sum: number, l: { amount_ht?: number | null }) =>
+            sum + (typeof l.amount_ht === "number" ? l.amount_ht : 0),
+          0,
+        );
+        item.devis_lines = cleanedLines;
+        // Override devis_total_ht only if at least one line was dropped AND
+        // recomputed total is plausible (> 0). Sinon laisse l'original (cas edge).
+        if (recomputedTotal > 0) {
+          item.devis_total_ht = recomputedTotal;
+        } else {
+          // Plus aucune ligne valable → marquer comme groupe vide pour skip downstream
+          item.devis_total_ht = null;
+        }
+      }
+    }
+
     // V3.4.10 (2026-05-13) — Filtre des groupes hallucinés.
     // Observé sur "devis maitre d oeuvre.pdf" : Gemini a inventé 3 groupes
     // ("Local technique piscine", "Rénovation électricité 80m²") avec
