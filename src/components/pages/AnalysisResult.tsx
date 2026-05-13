@@ -562,8 +562,16 @@ const AnalysisResult = () => {
         const parsedConclusion = JSON.parse(liveOrCached);
         const vg = parsedConclusion?.verdict_global as string | undefined;
         if (vg) {
+          // V3.4.8 (2026-05-13) — mapping complet conclusion_ia.verdict_global
+          //   "dans_la_norme"  → VERT
+          //   "eleve_justifie" → ORANGE (cher mais justifié — bug avant : VERT par défaut)
+          //   "a_negocier"     → ORANGE
+          //   "a_risque"       → ROUGE
+          // Bug détecté : la version précédente ne reconnaissait que "a_risque" et
+          // "a_negocier" — donc "eleve_justifie" tombait en VERT, créant une
+          // divergence avec ConclusionIA qui affichait "À négocier".
           return (vg === "a_risque" ? "ROUGE"
-                : vg === "a_negocier" ? "ORANGE"
+                : vg === "a_negocier" || vg === "eleve_justifie" ? "ORANGE"
                 : "VERT") as "VERT" | "ORANGE" | "ROUGE";
         }
       } catch { /* JSON corrompu → fallback recompute ci-dessous */ }

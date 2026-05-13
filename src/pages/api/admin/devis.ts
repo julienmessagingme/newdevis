@@ -41,16 +41,32 @@ export const GET: APIRoute = async ({ request }) => {
     return jsonError(error.message, 500);
   }
 
-  // Mapping verdict_global → score affiché en admin (même règle que AnalysisResult.tsx).
+  // Mapping verdict_global → score affiché en admin.
+  // ⚠️ Deux jeux de valeurs distinctes coexistent dans `verdict_global` selon la source :
+  //   1. `conclusion_ia.verdict_global` (mono-devis, ConclusionData type) :
+  //      "dans_la_norme" | "eleve_justifie" | "a_negocier" | "a_risque"
+  //      (cf. conclusion.ts:1253 GLOBAL_MAP et MultiDevisBlock.tsx pour le typage)
+  //   2. `global_metrics.verdict_global` (multi-devis, calculé côté edge function) :
+  //      "signer" | "a_negocier" | "refuser"
+  //
+  // Le mapping doit gérer LES DEUX. Bug détecté 2026-05-13 : la version précédente ne
+  // gérait que le set #2 (signer/refuser), donc tous les mono-devis avec verdict
+  // "dans_la_norme" tombaient en fallback legacy → divergence admin vs page.
   type AdminScore = 'VERT' | 'ORANGE' | 'ROUGE' | null;
   const mapVerdictToScore = (v: unknown): AdminScore => {
     if (typeof v !== 'string') return null;
     switch (v) {
+      // Set #1 — conclusion_ia.verdict_global (mono-devis)
+      case 'dans_la_norme':          return 'VERT';
+      case 'eleve_justifie':         return 'ORANGE';
+      case 'a_risque':               return 'ROUGE';
+      // Set #2 — global_metrics.verdict_global (multi-devis)
       case 'signer':                 return 'VERT';
-      case 'signer_avec_negociation':
-      case 'a_negocier':             return 'ORANGE';
-      case 'ne_pas_signer':
       case 'refuser':                return 'ROUGE';
+      // Communs aux deux sets
+      case 'a_negocier':             return 'ORANGE';
+      case 'signer_avec_negociation':return 'ORANGE';
+      case 'ne_pas_signer':          return 'ROUGE';
       default:                       return null;
     }
   };
