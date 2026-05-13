@@ -414,10 +414,52 @@ function scoreCandidate(signature: SemanticSignature, row: MarketCatalogRow): Ma
 // Matching principal — version hardened
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * V3.4.8 (2026-05-13) — Patterns de "non-postes" : lignes purement financières
+ * ou contractuelles qui ne sont PAS des prestations à comparer au marché.
+ * Observé sur le batch baseline : "Reste à facturer", "Prime CEE Effy",
+ * "Capital", "Acompte à joindre", "Solde", "Montant à régler", etc.
+ *
+ * Quand une signature retournée par Gemini correspond à un non-poste (souvent
+ * signature.domain="autre" avec keywords financiers), on rejette en no_match
+ * direct pour ne pas polluer la comparaison marché.
+ */
+const NON_WORK_KEYWORDS = [
+  "acompte", "solde", "capital", "prime", "prime cee", "cee",
+  "reste a", "reste à", "reste a facturer", "reste à facturer",
+  "versement", "echeance", "échéance",
+  "remise", "rabais", "ristourne",
+  "tva", "ht ", " ht", "ttc ", " ttc",
+];
+
+function isNonWorkSignature(sig: SemanticSignature): boolean {
+  if (sig.domain !== "autre") return false;
+  const kw = sig.keywords.map(k => k.toLowerCase()).join(" ");
+  return NON_WORK_KEYWORDS.some(nk => kw.includes(nk));
+}
+
 export function matchMarketCategory(
   signature: SemanticSignature,
   catalog: MarketCatalogRow[],
 ): MatchResult {
+  // ── 0. Garde non-postes — rejet direct sans toucher au catalogue ─────────
+  // V3.4.8 : empêche un libellé purement financier ("Reste à facturer",
+  // "Prime CEE Effy", "Acompte à joindre") de matcher accidentellement
+  // un poste catalogue. Ces lignes existent dans les devis mais ne sont
+  // PAS des prestations comparables au marché.
+  if (isNonWorkSignature(signature)) {
+    return {
+      matched: false,
+      job_type: null,
+      label: null,
+      match_strategy: "no_match",
+      confidence: 0,
+      candidates: [],
+      mismatch_reason: `non-work signature (domain="autre" + financial keywords: ${signature.keywords.join(", ")})`,
+      signature,
+    };
+  }
+
   // ── 1. Filtrer les candidats par domain (préfixe job_type ou label) ──────
   const candidates = catalog.filter(row => {
     const jt = normalize(row.job_type);

@@ -417,10 +417,44 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
       modes_paiement: parsed.paiement?.modes || [],
     });
 
+    // V3.4.8 (2026-05-13) — Validation post-extraction du nom d'entreprise.
+    // Observé sur le batch baseline : Gemini retourne parfois des fragments
+    // de phrases légales ou de clauses contractuelles dans `entreprise.nom`
+    // (ex: "Pour le client...", "détient la certification RGE de chez QUA...",
+    // "se réserve le droit de quitter le chantier...", "s prestataires
+    // jusqu'au 31 décembre"). Ces noms n'ont aucune valeur identifiante et
+    // polluent l'affichage. Heuristique : si le nom commence par une
+    // minuscule, ou matche un pattern de blabla légal, on le rejette en null.
+    const sanitizeEntrepriseNom = (raw: unknown): string | null => {
+      if (typeof raw !== "string") return null;
+      const trimmed = raw.trim();
+      if (trimmed.length === 0 || trimmed.length > 120) return null;
+      // Commence par une minuscule ou un caractère non-alpha → fragment de phrase
+      if (/^[a-zàâäéèêëîïôöùûüç]/.test(trimmed)) return null;
+      // Patterns de blabla légal explicites
+      const BLABLA_PATTERNS = [
+        /^pour le client/i,
+        /^pour\s+(la|le|l['']|les)\s+/i,
+        /^détient la certification/i,
+        /^se réserve le droit/i,
+        /possède son siège/i,
+        /^générale de/i,           // ex: "générale de Bâtiment..." (faux match SARL)
+        /^individuelle\s+/i,        // ex: "individuelle CH Elec..."
+        /^et son client/i,
+        /^de confiance pilotée/i,
+        /^ne sera en aucun cas/i,
+        /^s sous-traitantes/i,
+        /^sGros\s+oeuvre/i,
+        /^s prestataires/i,
+      ];
+      if (BLABLA_PATTERNS.some(p => p.test(trimmed))) return null;
+      return trimmed;
+    };
+
     return {
       type_document: typeDocument,
       entreprise: {
-        nom: parsed.entreprise?.nom || null,
+        nom: sanitizeEntrepriseNom(parsed.entreprise?.nom),
         siret: parsed.entreprise?.siret?.replace(/\s/g, "") || null,
         adresse: parsed.entreprise?.adresse || null,
         email: parsed.entreprise?.email || null,
@@ -485,12 +519,24 @@ EXTRACTION STRICTE - Réponds UNIQUEMENT avec ce JSON COMPLET (TOUS les postes d
         date_devis: parsed.dates?.date_devis || null,
         date_execution_max: parsed.dates?.date_execution_max || null,
       },
-      totaux: {
-        ht: typeof parsed.totaux?.ht === "number" ? parsed.totaux.ht : null,
-        tva: typeof parsed.totaux?.tva === "number" ? parsed.totaux.tva : null,
-        ttc: typeof parsed.totaux?.ttc === "number" ? parsed.totaux.ttc : null,
-        taux_tva: typeof parsed.totaux?.taux_tva === "number" ? parsed.totaux.taux_tva : null,
-      },
+      totaux: (() => {
+        let ht  = typeof parsed.totaux?.ht  === "number" ? parsed.totaux.ht  : null;
+        let ttc = typeof parsed.totaux?.ttc === "number" ? parsed.totaux.ttc : null;
+        const tva = typeof parsed.totaux?.tva === "number" ? parsed.totaux.tva : null;
+        const taux_tva = typeof parsed.totaux?.taux_tva === "number" ? parsed.totaux.taux_tva : null;
+
+        // V3.4.8 (2026-05-13) — Validation post-extraction TTC ≥ HT.
+        // Observé sur le batch baseline : 2 devis avaient TTC < HT × 0.9 →
+        // extraction inversée (Gemini a confondu les champs). Swap si HT > TTC × 1.10
+        // (impossible avec TVA française normale, sauf erreur d'extraction).
+        if (ht !== null && ttc !== null && ht > 0 && ttc > 0 && ht > ttc * 1.10) {
+          console.warn(`[extract] totaux HT (${ht}) > TTC (${ttc}) × 1.10 — swap automatique (extraction probablement inversée)`);
+          const tmp = ht;
+          ht = ttc;
+          ttc = tmp;
+        }
+        return { ht, tva, ttc, taux_tva };
+      })(),
       anomalies_detectees: Array.isArray(parsed.anomalies_detectees) ? parsed.anomalies_detectees : [],
       resume_factuel: parsed.resume_factuel || "Devis analysé",
       multiple_quotes: parsed.multiple_quotes === true,
