@@ -102,6 +102,23 @@ export default function AdminMarketingTemplates() {
     }
   };
 
+  const handleMarkRegen = async (t: TemplateListItem) => {
+    if (!authToken) return;
+    try {
+      const res = await fetch(`/api/admin/marketing/templates/${encodeURIComponent(t.id)}/mark-regen`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success("Marqué pour régénération", {
+        description: "Sera traité au prochain run de scripts/regen_pending.mjs",
+      });
+      fetchTemplates();
+    } catch (err) {
+      toast.error("Erreur", { description: err instanceof Error ? err.message : "Erreur" });
+    }
+  };
+
   if (authChecking) return <AdminLoading />;
   if (!isAdmin) return <AdminAccessDenied />;
 
@@ -158,6 +175,7 @@ export default function AdminMarketingTemplates() {
             onGenerate={(t) => setGenerateTarget(t)}
             onToggleActive={handleToggleActive}
             onPreview={(t) => setPreviewTarget(t)}
+            onMarkRegen={handleMarkRegen}
           />
         </section>
       </main>

@@ -1,4 +1,4 @@
-import { Loader2, Pencil, Play, Ban, Eye } from "lucide-react";
+import { Loader2, Pencil, Play, Ban, Eye, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   NARRATIVE_LABELS,
@@ -17,6 +17,7 @@ interface Props {
   onGenerate: (t: TemplateListItem) => void;
   onToggleActive: (t: TemplateListItem) => void;
   onPreview?: (t: TemplateListItem) => void;
+  onMarkRegen?: (t: TemplateListItem) => void;
 }
 
 /** Compte le nombre total de slides dans preview_urls (toutes plateformes confondues). */
@@ -35,6 +36,7 @@ export default function TemplateTable({
   onGenerate,
   onToggleActive,
   onPreview,
+  onMarkRegen,
 }: Props) {
   if (loading) {
     return (
@@ -163,6 +165,20 @@ export default function TemplateTable({
                         }
                       >
                         <Eye className={`h-3.5 w-3.5 ${previewSlideCount(t) === 0 ? "" : "text-blue-600"}`} />
+                      </Button>
+                    )}
+                    {onMarkRegen && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onMarkRegen(t)}
+                        title={
+                          t.preview_regen_at
+                            ? `Déjà marqué pour régénération (${new Date(t.preview_regen_at).toLocaleString("fr-FR")})`
+                            : "Marquer pour régénération de l'aperçu"
+                        }
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 ${t.preview_regen_at ? "text-amber-600 animate-pulse" : "text-muted-foreground"}`} />
                       </Button>
                     )}
                     <Button

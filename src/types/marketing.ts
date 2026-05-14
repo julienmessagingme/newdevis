@@ -240,6 +240,8 @@ export interface TemplateListItem {
   total_uses: number;
   /** Previews B2 multi-ratio si le carousel a été rendu et uploadé. */
   preview_urls: PreviewUrls;
+  /** Marqué pour régénération des previews (ISO timestamp ou null). */
+  preview_regen_at: string | null;
 }
 
 export interface SlideData {

@@ -26,7 +26,7 @@ export const GET: APIRoute = async ({ request }) => {
       .from('script_templates')
       .select(
         'id, product, narrative_type, macro_format, platform, format_size, ' +
-        'title, mood, is_active, total_uses, slides, preview_urls'
+        'title, mood, is_active, total_uses, slides, preview_urls, preview_regen_at'
       )
       .order('id', { ascending: false });
 
@@ -48,6 +48,7 @@ export const GET: APIRoute = async ({ request }) => {
       total_uses: (t.total_uses as number) ?? 0,
       slides: t.slides,
       preview_urls: t.preview_urls ?? null,
+      preview_regen_at: t.preview_regen_at ?? null,
       last_usage: null,
       cooldown_until: {},
     }));
