@@ -23,6 +23,7 @@ import AssistantWidget from './assistant/AssistantWidget';
 import DocumentsView from './documents/DocumentsView';
 import { fmtK } from '@/lib/chantier/dashboardHelpers';
 import Sidebar, { type Section, type NavBadge } from './Sidebar';
+import BottomNav from './BottomNav';
 import LotDetail from './lots/LotDetail';
 import DashboardHome from './DashboardHome';
 import AnalyseDevisSection from './AnalyseDevisSection';
@@ -635,33 +636,28 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
           {renderContent()}
         </main>
 
-        {/* ── Footer sticky mobile — ÉTAPES 4 & 5 ──────────────────────────── */}
-        <div className="lg:hidden shrink-0 border-t border-gray-100 bg-white pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          {/* Bandeau assistant — ÉTAPE 5 */}
-          {totalAlertCount > 0 && (
-            <button
-              onClick={() => navigateTo('assistant')}
-              className="w-full flex items-center gap-2 px-4 pt-2.5 pb-1 text-left touch-manipulation"
-            >
-              <span className="flex-1 text-[12px] font-semibold text-amber-700">
-                💬 L'assistant a {totalAlertCount} recommandation{totalAlertCount > 1 ? 's' : ''} →
-              </span>
-              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${hasCriticalInsight ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700'}`}>
-                {totalAlertCount}
-              </span>
-            </button>
-          )}
-          {/* CTA principal — ÉTAPE 4 */}
-          <div className="px-4 pt-2">
-            <button
-              onClick={() => navigateTo(activeSection === 'budget' ? 'assistant' : 'budget')}
-              className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl min-h-[44px] touch-manipulation transition-colors"
-            >
-              👉 {activeSection === 'budget' ? 'Demander à l\'assistant' : 'Continuer mon chantier'}
-            </button>
-          </div>
-        </div>
+        {/* ── Bandeau assistant mobile (au-dessus du BottomNav) ─────────────── */}
+        {totalAlertCount > 0 && (
+          <button
+            onClick={() => navigateTo('assistant')}
+            className="lg:hidden shrink-0 border-t border-gray-100 bg-amber-50 w-full flex items-center gap-2 px-4 py-2 text-left touch-manipulation active:bg-amber-100"
+          >
+            <span className="flex-1 text-[12px] font-semibold text-amber-700">
+              💬 L'assistant a {totalAlertCount} recommandation{totalAlertCount > 1 ? 's' : ''} →
+            </span>
+            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${hasCriticalInsight ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700'}`}>
+              {totalAlertCount}
+            </span>
+          </button>
+        )}
       </div>
+
+      {/* ── Bottom Navigation mobile (M4 — refonte mobile cockpit GMC) ────── */}
+      <BottomNav
+        activeSection={activeSection}
+        onSelect={navigateTo}
+        badges={navBadges}
+      />
 
       {/* ── Upload modal ──────────────────────────────────────────────────── */}
       {uploadModal.open && chantierId && token && (

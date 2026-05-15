@@ -16,10 +16,17 @@
  *   5. Section Alertes cohérence (collapsible)
  */
 import { useState } from "react";
-import { Pencil, ChevronDown, ChevronRight, AlertTriangle, Plus, Check } from "lucide-react";
+import { Pencil, ChevronDown, ChevronRight, AlertTriangle, Check, X, Loader2 } from "lucide-react";
 import { fmtEur } from "@/lib/chantier/financingUtils";
+import DepenseRapideModal from "../budget/DepenseRapideModal";
+import { AddEntreeModal } from "./Echeancier";
+import type { LotChantier } from "@/types/chantier-ia";
 
 interface TresorerieMobileProps {
+  chantierId:    string;
+  token:         string;
+  lots:          LotChantier[];
+
   // KPI canoniques
   budgetCible:   number;
   engage:        number;
@@ -39,10 +46,15 @@ interface TresorerieMobileProps {
 
   // Handlers
   onEditBudget:        () => void;
-  onAddDepense:        () => void;
-  onAddVersement:      () => void;
-  onOpenFinancement:   () => void;  // ouvre l'éditeur complet du plan
-  onOpenConsommation:  () => void;  // ouvre la vue détaillée par artisan
+  onRefresh:           () => void;   // appelé après dépense/versement ajouté pour rafraîchir les KPI
+  onEditPlan: (next: {
+    apport: number;
+    credit: number;
+    maprime: number;
+    cee: number;
+    ecoptz: number;
+  }) => void;
+  onOpenConsommation:  () => void;   // détail par artisan (fallback desktop temporaire)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -265,15 +277,20 @@ function FinancementCard({
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function TresorerieMobile({
+  chantierId, token, lots,
   budgetCible, engage, decaisse, aPayer, fluxCertains,
   apportCible, creditCible, aidesCible,
   apportReel,  creditReel,  aidesReel,
-  onEditBudget, onAddDepense, onAddVersement,
-  onOpenFinancement, onOpenConsommation,
+  onEditBudget, onRefresh, onEditPlan, onOpenConsommation,
 }: TresorerieMobileProps) {
   const totalFinancement = apportCible + creditCible + aidesCible;
   const totalReel        = apportReel  + creditReel  + aidesReel;
   const couverturePct    = budgetCible > 0 ? Math.min(100, Math.round((totalFinancement / budgetCible) * 100)) : 0;
+
+  // ── Drawers state (M2) ─────────────────────────────────────────────────────
+  const [showDepense, setShowDepense]     = useState(false);
+  const [showVersement, setShowVersement] = useState(false);
+  const [showPlanEdit, setShowPlanEdit]   = useState(false);
 
   return (
     <div className="flex flex-col bg-white pb-[max(2rem,env(safe-area-inset-bottom))]">
@@ -286,8 +303,8 @@ export default function TresorerieMobile({
       />
 
       <ActionBar
-        onAddDepense={onAddDepense}
-        onAddVersement={onAddVersement}
+        onAddDepense={() => setShowDepense(true)}
+        onAddVersement={() => setShowVersement(true)}
       />
 
       {/* Section Plan de financement */}
@@ -295,7 +312,7 @@ export default function TresorerieMobile({
         title="Plan de financement"
         subtitle={`${fmtEur(totalFinancement)} prévu · ${couverturePct}% du budget`}
         defaultOpen={true}
-        action={{ label: "Modifier le plan", onClick: onOpenFinancement }}
+        action={{ label: "Modifier le plan", onClick: () => setShowPlanEdit(true) }}
       >
         <FinancementCard label="Apport personnel" emoji="💼" color="indigo"
           valueCible={apportCible} valueReel={apportReel} />
@@ -342,6 +359,158 @@ export default function TresorerieMobile({
           (Apport → Crédit → Aides) sauf si vous précisez la source. Pour gérer le détail des paiements,
           allez dans l'onglet <strong>Échéancier</strong>.
         </p>
+      </div>
+
+      {/* ── Drawers M2 ──────────────────────────────────────────────────────── */}
+      {showDepense && (
+        <DepenseRapideModal
+          chantierId={chantierId}
+          token={token}
+          lots={lots}
+          onClose={() => setShowDepense(false)}
+          onSaved={() => { setShowDepense(false); onRefresh(); }}
+        />
+      )}
+
+      {showVersement && (
+        <AddEntreeModal
+          chantierId={chantierId}
+          token={token}
+          onAdded={onRefresh}
+          onClose={() => setShowVersement(false)}
+        />
+      )}
+
+      {showPlanEdit && (
+        <PlanEditDrawer
+          initialApport={apportCible}
+          initialCredit={creditCible}
+          initialAides={aidesCible}
+          onClose={() => setShowPlanEdit(false)}
+          onSave={(next) => {
+            onEditPlan({
+              apport:  next.apport,
+              credit:  next.credit,
+              maprime: next.aides, // pour le mobile on consolide les 3 aides en 1 input simplifié
+              cee:     0,
+              ecoptz:  0,
+            });
+            setShowPlanEdit(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PlanEditDrawer — édition simplifiée mobile du plan de financement
+// ─────────────────────────────────────────────────────────────────────────────
+
+function PlanEditDrawer({
+  initialApport, initialCredit, initialAides,
+  onClose, onSave,
+}: {
+  initialApport: number;
+  initialCredit: number;
+  initialAides:  number;
+  onClose: () => void;
+  onSave:  (next: { apport: number; credit: number; aides: number }) => void;
+}) {
+  const [apport, setApport] = useState(String(Math.round(initialApport)));
+  const [credit, setCredit] = useState(String(Math.round(initialCredit)));
+  const [aides,  setAides]  = useState(String(Math.round(initialAides)));
+
+  const a = parseFloat(apport) || 0;
+  const c = parseFloat(credit) || 0;
+  const ai = parseFloat(aides) || 0;
+  const total = a + c + ai;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-white flex flex-col pb-[max(1rem,env(safe-area-inset-bottom))]">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg">
+          <X className="h-5 w-5" />
+        </button>
+        <h2 className="text-base font-extrabold text-gray-900">Modifier le plan</h2>
+        <button
+          onClick={() => onSave({ apport: a, credit: c, aides: ai })}
+          className="text-indigo-600 font-bold text-sm active:text-indigo-800"
+        >
+          Enregistrer
+        </button>
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto px-4 py-5 space-y-5">
+        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3">
+          <p className="text-[11px] uppercase tracking-wider text-indigo-500 font-semibold">Total prévu</p>
+          <p className="text-2xl font-black text-indigo-900 tabular-nums leading-tight mt-0.5">
+            {fmtEur(total)}
+          </p>
+        </div>
+
+        <PlanInput
+          label="💼 Apport personnel"
+          color="indigo"
+          hint="Économies, livret, héritage…"
+          value={apport}
+          onChange={setApport}
+        />
+        <PlanInput
+          label="🏦 Crédit travaux"
+          color="orange"
+          hint="Montant total emprunté"
+          value={credit}
+          onChange={setCredit}
+        />
+        <PlanInput
+          label="🌿 Aides & primes"
+          color="emerald"
+          hint="MaPrimeRénov + CEE + Éco-PTZ"
+          value={aides}
+          onChange={setAides}
+        />
+
+        <p className="text-[11px] text-gray-400 leading-relaxed">
+          ℹ️ Pour configurer chaque aide séparément (MaPrimeRénov, CEE, Éco-PTZ avec durées et taux),
+          utilisez la <strong>vue desktop</strong>. Le montant global sera réparti automatiquement
+          sur MaPrimeRénov ici.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function PlanInput({ label, color, hint, value, onChange }: {
+  label:    string;
+  color:    "indigo" | "orange" | "emerald";
+  hint:     string;
+  value:    string;
+  onChange: (v: string) => void;
+}) {
+  const palette = {
+    indigo:  "border-indigo-200 focus:ring-indigo-200",
+    orange:  "border-orange-200 focus:ring-orange-200",
+    emerald: "border-emerald-200 focus:ring-emerald-200",
+  }[color];
+  return (
+    <div>
+      <label className="text-sm font-bold text-gray-800 block mb-1">{label}</label>
+      <p className="text-[11px] text-gray-500 mb-2">{hint}</p>
+      <div className="relative">
+        <input
+          type="number"
+          inputMode="decimal"
+          min="0"
+          step="100"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="0"
+          className={`w-full text-lg font-bold border-2 rounded-xl px-4 py-3 outline-none focus:ring-4 ${palette} tabular-nums`}
+        />
+        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold pointer-events-none">€</span>
       </div>
     </div>
   );

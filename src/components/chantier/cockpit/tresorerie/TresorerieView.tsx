@@ -1371,6 +1371,9 @@ export default function TresorerieView({
 
     return (
       <TresorerieMobile
+        chantierId={chantierId}
+        token={token}
+        lots={lots as unknown as Parameters<typeof TresorerieMobile>[0]["lots"]}
         budgetCible={budgetRef || 0}
         engage={devisValides}
         decaisse={decaisse}
@@ -1383,9 +1386,27 @@ export default function TresorerieView({
         creditReel={entresTotaux.credit}
         aidesReel={entresTotaux.aides}
         onEditBudget={() => setForceDesktop(true)}
-        onAddDepense={() => setForceDesktop(true)}
-        onAddVersement={() => setForceDesktop(true)}
-        onOpenFinancement={() => setForceDesktop(true)}
+        onRefresh={() => {
+          // Trigger refresh des données budget (BudgetTab écoute cet event)
+          window.dispatchEvent(new CustomEvent("chantierBudgetChanged"));
+        }}
+        onEditPlan={(next) => {
+          // Sauvegarde du plan édité depuis le drawer mobile
+          setCfg(prev => {
+            const updated = {
+              ...prev,
+              creditMontant: next.credit,
+              maprime: next.maprime,
+              maprimeOn: next.maprime > 0,
+              cee: next.cee,
+              ceeOn: next.cee > 0,
+              ecoptz: next.ecoptz,
+              ecoptzOn: next.ecoptz > 0,
+            };
+            syncServer(updated);
+            return updated;
+          });
+        }}
         onOpenConsommation={() => setForceDesktop(true)}
       />
     );

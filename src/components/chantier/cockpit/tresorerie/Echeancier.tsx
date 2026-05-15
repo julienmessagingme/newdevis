@@ -26,6 +26,8 @@ import { usePaymentEvents, type PaymentEvent } from '@/hooks/usePaymentEvents';
 import { fmtEur, fmtDateFR, fmtDateShort, daysUntil } from '@/lib/chantier/financingUtils';
 import DepenseRapideModal from '../budget/DepenseRapideModal';
 import type { LotChantier } from '@/types/chantier-ia';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import EcheancierMobile from './EcheancierMobile';
 
 // ── Supabase (token frais pour upload justificatifs) ──────────────────────────
 
@@ -274,7 +276,7 @@ interface CoherenceAlert {
   planAmount: number;
 }
 
-function AddEntreeModal({ chantierId, token, onAdded, onClose }: {
+export function AddEntreeModal({ chantierId, token, onAdded, onClose }: {
   chantierId: string; token: string; onAdded: () => void; onClose: () => void;
 }) {
   const [form, setForm] = useState({
@@ -1506,7 +1508,48 @@ function PaidEventsAccordion({
 
 // ── Composant principal ───────────────────────────────────────────────────────
 
-export default function Echeancier({
+// ── Wrapper routing mobile/desktop (M3 — refonte mobile cockpit GMC) ────────
+// Sur mobile, vue timeline verticale épurée + FAB pour ajout rapide.
+// On wrap pour éviter de mélanger les hooks de la version desktop avec ceux
+// de la version mobile (chacun a ses propres hooks → Rules of Hooks respectées).
+// Cf. CLAUDE.md § "Composants mobile dédiés via useIsMobile()".
+export default function Echeancier(props: { chantierId: string; token: string }) {
+  const isMobile = useIsMobile();
+  const [forceDesktop, setForceDesktop] = useState(false);
+
+  if (isMobile && !forceDesktop) {
+    return (
+      <div className="flex flex-col h-full">
+        <EcheancierMobile chantierId={props.chantierId} token={props.token} />
+        <div className="px-4 py-2 bg-gray-50 border-t border-gray-100 text-center">
+          <button
+            onClick={() => setForceDesktop(true)}
+            className="text-[11px] text-gray-400 hover:text-indigo-600 underline"
+          >
+            Voir version complète (graphique + statistiques)
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {isMobile && forceDesktop && (
+        <button
+          onClick={() => setForceDesktop(false)}
+          className="md:hidden flex items-center gap-2 px-4 py-2.5 bg-indigo-50 border-b border-indigo-200 text-indigo-700 text-sm font-semibold active:bg-indigo-100"
+        >
+          ← Retour à la vue mobile
+        </button>
+      )}
+      <EcheancierDesktop {...props} />
+    </>
+  );
+}
+
+// ── Composant desktop (renommé depuis l'ancien `Echeancier`) ─────────────────
+function EcheancierDesktop({
   chantierId,
   token,
 }: {
