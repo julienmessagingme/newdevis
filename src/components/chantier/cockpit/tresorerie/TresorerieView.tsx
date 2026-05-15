@@ -12,6 +12,8 @@
  */
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import TresorerieMobile from './TresorerieMobile';
 import {
   Pencil, Check, ChevronDown, ChevronUp, AlertTriangle,
   ExternalLink, Loader2,
@@ -1348,8 +1350,59 @@ export default function TresorerieView({
   const decaisse = (data?.totaux.paye ?? 0) + (data?.totaux.acompte ?? 0);
   const aPayer   = data?.totaux.a_payer ?? 0;
 
+  // ── Routing mobile ←→ desktop (V3.4.x — refonte mobile cockpit GMC 2026-05-13)
+  // Sur mobile, on délègue à TresorerieMobile (vue épurée hero-first, scroll vertical).
+  // La logique data (hooks ci-dessus) reste partagée pour éviter le doublage.
+  // Fallback "Voir version desktop" pour les actions complexes (édition plan, détail
+  // par artisan) qui n'ont pas encore de drawer mobile dédié → on permet à l'user
+  // de basculer manuellement vers la vue desktop scrollable sur mobile.
+  const isMobile          = useIsMobile();
+  const [forceDesktop, setForceDesktop] = useState(false);
+
+  if (isMobile && !forceDesktop) {
+    // Approximation simple sans ouvrir l'éditeur complet : tap sur Budget = focus
+    // BudgetTab via un event custom déjà écouté (cf. BudgetTab.tsx persistBudgetReel).
+    // Les autres handlers (modifier le plan / voir détail) renvoient sur l'éditeur
+    // desktop temporairement via scroll — refacto en M2 (drawers dédiés).
+    const totalCreditCible = (cfg.creditLines && cfg.creditLines.length > 0)
+      ? cfg.creditLines.reduce((s, l) => s + (l.montant || 0), 0)
+      : cfg.creditMontant;
+    const apportCible = Math.max(0, (budgetRef || 0) - totalCreditCible - totalAides);
+
+    return (
+      <TresorerieMobile
+        budgetCible={budgetRef || 0}
+        engage={devisValides}
+        decaisse={decaisse}
+        aPayer={aPayer}
+        fluxCertains={fluxCertains}
+        apportCible={apportCible}
+        creditCible={totalCreditCible}
+        aidesCible={totalAides}
+        apportReel={entresTotaux.apport}
+        creditReel={entresTotaux.credit}
+        aidesReel={entresTotaux.aides}
+        onEditBudget={() => setForceDesktop(true)}
+        onAddDepense={() => setForceDesktop(true)}
+        onAddVersement={() => setForceDesktop(true)}
+        onOpenFinancement={() => setForceDesktop(true)}
+        onOpenConsommation={() => setForceDesktop(true)}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col bg-white">
+      {/* Bouton retour vers la vue mobile — uniquement visible si on a forcé desktop sur mobile */}
+      {isMobile && forceDesktop && (
+        <button
+          onClick={() => setForceDesktop(false)}
+          className="md:hidden flex items-center gap-2 px-4 py-2.5 bg-indigo-50 border-b border-indigo-200 text-indigo-700 text-sm font-semibold active:bg-indigo-100"
+        >
+          ← Retour à la vue mobile
+        </button>
+      )}
+
       {/* Bandeau cohérence 5 chiffres clés (alignés avec BudgetTab — CLAUDE.md) */}
       <KpiBandeauCanonique
         budgetCible={budgetRef}
