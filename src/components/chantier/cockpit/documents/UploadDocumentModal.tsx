@@ -305,15 +305,21 @@ export default function UploadDocumentModal({
 
   const isUploading = uploadState === 'uploading' || uploadState === 'analyzing';
 
+  // Vague A4 (2026-05-13) — Mobile : fullscreen pour ne plus écraser le contenu
+  // dans un modal max-w-md mx-4 (~320px sur 360px). Sur ≥sm, modal centered classique.
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={!isUploading ? onClose : undefined} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+    <div className="fixed inset-0 z-50 sm:flex sm:items-center sm:justify-center">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm hidden sm:block" onClick={!isUploading ? onClose : undefined} />
+      <div className="relative bg-white sm:rounded-2xl shadow-2xl w-full sm:max-w-md sm:mx-4 h-full sm:h-auto sm:max-h-[90vh] overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-0">
+        <div className="sticky top-0 z-10 bg-white flex items-center justify-between px-5 sm:px-6 py-4 sm:py-5 border-b border-gray-100">
           <h2 className="font-bold text-gray-900">Ajouter un document</h2>
           {!isUploading && (
-            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
-              <X className="h-4 w-4 text-gray-500" />
+            <button
+              onClick={onClose}
+              className="w-10 h-10 sm:w-8 sm:h-8 flex items-center justify-center rounded-full active:bg-gray-100 sm:hover:bg-gray-100 transition-colors touch-manipulation"
+              aria-label="Fermer"
+            >
+              <X className="h-5 w-5 sm:h-4 sm:w-4 text-gray-500" />
             </button>
           )}
         </div>

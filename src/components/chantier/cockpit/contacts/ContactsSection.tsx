@@ -622,34 +622,46 @@ function ContactFormModal({ contact, lots, saving, onSave, onClose }: {
     });
   }
 
+  // Vague A2 (2026-05-13) — Refonte mobile :
+  //  • Conteneur : fullscreen sm:flex (modal centered desktop, fullscreen mobile)
+  //  • Inputs Email/Tel et Catégorie/Métier : `grid-cols-1 sm:grid-cols-2` (empilés mobile)
+  //  • inputMode partout (`tel`, `numeric` pour SIRET, `email` géré par type)
+  //  • autoComplete pour faciliter la saisie répétée
   return (
-    <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 bg-black/30 z-50 sm:flex sm:items-center sm:justify-center sm:p-4"
+      onClick={onClose}
+    >
       <div
-        className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        className="bg-white sm:rounded-2xl shadow-xl w-full sm:max-w-lg h-full sm:h-auto sm:max-h-[90vh] overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-0"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="sticky top-0 z-10 bg-white flex items-center justify-between px-5 sm:px-6 py-4 border-b border-gray-100">
           <h3 className="font-semibold text-gray-900">{isEdit ? 'Modifier le contact' : 'Nouveau contact'}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 -m-1 rounded-lg touch-manipulation" aria-label="Fermer">
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+        <form onSubmit={handleSubmit} className="px-5 sm:px-6 py-5 space-y-4">
           {/* Nom */}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Nom / Entreprise *</label>
             <input
               type="text" required value={nom} onChange={e => setNom(e.target.value)}
+              autoComplete="organization"
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
               placeholder="Ex: Dupont Électricité"
             />
           </div>
 
-          {/* Email + Téléphone */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Email + Téléphone — empilés mobile, côte à côte ≥sm */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Email</label>
               <input
                 type="email" value={email} onChange={e => setEmail(e.target.value)}
+                inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
                 placeholder="contact@artisan.fr"
               />
@@ -658,24 +670,26 @@ function ContactFormModal({ contact, lots, saving, onSave, onClose }: {
               <label className="block text-xs font-medium text-gray-500 mb-1">Téléphone</label>
               <input
                 type="tel" value={telephone} onChange={e => setTelephone(e.target.value)}
+                inputMode="tel" autoComplete="tel"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
                 placeholder="06 12 34 56 78"
               />
             </div>
           </div>
 
-          {/* SIRET */}
+          {/* SIRET — clavier numérique mobile */}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">SIRET</label>
             <input
               type="text" value={siret} onChange={e => setSiret(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+              inputMode="numeric" pattern="[0-9 ]*" maxLength={17}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 tabular-nums"
               placeholder="12345678901234"
             />
           </div>
 
-          {/* Catégorie (pour l'agent IA) + Métier libre */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Catégorie + Métier libre — empilés mobile */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Catégorie</label>
               <select
@@ -751,14 +765,14 @@ function ContactFormModal({ contact, lots, saving, onSave, onClose }: {
             />
           </div>
 
-          {/* Submit */}
-          <div className="flex justify-end gap-2 pt-2">
+          {/* Submit — sticky bottom mobile (au-dessus du clavier virtuel) */}
+          <div className="sticky bottom-0 -mx-5 sm:mx-0 px-5 sm:px-0 py-3 sm:py-0 sm:pt-2 bg-white sm:bg-transparent border-t border-gray-100 sm:border-0 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
             <button type="button" onClick={onClose}
-              className="px-4 py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors">
+              className="px-4 py-3 sm:py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors touch-manipulation min-h-[44px]">
               Annuler
             </button>
             <button type="submit" disabled={saving || !nom.trim()}
-              className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 rounded-xl transition-colors flex items-center gap-2">
+              className="px-5 py-3 sm:py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 rounded-xl transition-colors flex items-center justify-center gap-2 touch-manipulation min-h-[44px]">
               {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {isEdit ? 'Enregistrer' : 'Ajouter'}
             </button>

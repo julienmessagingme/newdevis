@@ -611,12 +611,20 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
 
       {/* ── Contenu principal ──────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* ── Header minimal : nom chantier + menu mobile ─────────────────── */}
+        {/* ── Header minimal : nom chantier + menu mobile ───────────────────
+            Vague A5 : hamburger retiré sur mobile (redondant avec BottomNav).
+            La sidebar slide reste accessible via long-tap sur le logo emoji
+            (pattern alternatif : pas de tap qui ouvre le menu, mais le user
+            peut toujours accéder à "Mes chantiers" via le BottomNav > Plus). */}
         <header className="bg-white border-b border-gray-100 px-5 py-3 shrink-0">
           <div className="flex items-center gap-3">
+            {/* Hamburger conservé uniquement sur tablette (lg- ≤ width < lg) au cas où
+                le user a un viewport entre 768 et 1024px où le BottomNav est encore
+                visible mais où une sidebar latérale aurait du sens. Sur mobile pur
+                (< 768) on retire complètement. */}
             <button onClick={() => setMobileOpen(v => !v)}
               aria-label="Ouvrir le menu"
-              className="lg:hidden w-11 h-11 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 shrink-0 touch-manipulation">
+              className="hidden md:flex lg:hidden w-11 h-11 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 shrink-0 touch-manipulation">
               <Menu className="h-5 w-5" />
             </button>
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center text-lg shrink-0">

@@ -222,6 +222,8 @@ const Register = ({ brand }: Props) => {
                   <Input
                     id="firstName"
                     type="text"
+                    autoComplete="given-name"
+                    autoCapitalize="words"
                     placeholder="Jean"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
@@ -236,6 +238,8 @@ const Register = ({ brand }: Props) => {
                 <Input
                   id="lastName"
                   type="text"
+                  autoComplete="family-name"
+                  autoCapitalize="words"
                   placeholder="Dupont"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
@@ -252,6 +256,10 @@ const Register = ({ brand }: Props) => {
                 <Input
                   id="email"
                   type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  autoCapitalize="none"
+                  spellCheck={false}
                   placeholder="vous@exemple.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -285,6 +293,8 @@ const Register = ({ brand }: Props) => {
                   <Input
                     id="phone"
                     type="tel"
+                    inputMode="tel"
+                    autoComplete="tel-national"
                     placeholder={countryCode === "+33" ? "06 12 34 56 78" : "612 345 678"}
                     value={phone}
                     onChange={handlePhoneChange}
@@ -303,6 +313,7 @@ const Register = ({ brand }: Props) => {
                 <Input
                   id="password"
                   type="password"
+                  autoComplete="new-password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

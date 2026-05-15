@@ -56,8 +56,8 @@ function GanttBar({ lot, color, left, width, weekWidth, laneHeight, onResize, on
 
   const pxPerDay = weekWidth / 5;
 
-  // Resize (bords gauche/droit)
-  const handleResizeStart = useCallback((e: React.MouseEvent, side: 'left' | 'right') => {
+  // Resize (bords gauche/droit) — Vague A1 : PointerEvents pour mouse + touch + stylet
+  const handleResizeStart = useCallback((e: React.PointerEvent, side: 'left' | 'right') => {
     e.preventDefault();
     e.stopPropagation();
     setInteraction(side);
@@ -65,7 +65,7 @@ function GanttBar({ lot, color, left, width, weekWidth, laneHeight, onResize, on
     startWidthRef.current = width;
     startLeftRef.current = left;
 
-    const onMouseMove = (ev: MouseEvent) => {
+    const onPointerMove = (ev: PointerEvent) => {
       if (!barRef.current) return;
       const dx = ev.clientX - startXRef.current;
       if (side === 'right') {
@@ -75,19 +75,22 @@ function GanttBar({ lot, color, left, width, weekWidth, laneHeight, onResize, on
         barRef.current.style.left = `${startLeftRef.current + dx}px`;
       }
     };
-    const onMouseUp = (ev: MouseEvent) => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
+    const onPointerUp = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
       setInteraction(null);
       const deltaDays = Math.round((ev.clientX - startXRef.current) / pxPerDay);
       if (deltaDays !== 0) onResize(side === 'right' ? deltaDays : -deltaDays);
     };
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
   }, [width, left, pxPerDay, onResize]);
 
   // Move (centre de la barre = glisser horizontalement + verticalement pour changer de lane)
-  const handleMoveStart = useCallback((e: React.MouseEvent) => {
+  // Vague A1 : PointerEvents pour supporter mouse + touch + stylet
+  const handleMoveStart = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setInteraction('move');
@@ -126,7 +129,7 @@ function GanttBar({ lot, color, left, width, weekWidth, laneHeight, onResize, on
       return row;
     };
 
-    const onMouseMove = (ev: MouseEvent) => {
+    const onPointerMove = (ev: PointerEvent) => {
       if (!barRef.current) return;
       const dx = ev.clientX - startXRef.current;
       const dy = ev.clientY - startYRef.current;
@@ -134,9 +137,10 @@ function GanttBar({ lot, color, left, width, weekWidth, laneHeight, onResize, on
       barRef.current.style.transform = `translateY(${dy}px)`;
       highlightRowUnderCursor(ev.clientX, ev.clientY);
     };
-    const onMouseUp = (ev: MouseEvent) => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
+    const onPointerUp = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
       setInteraction(null);
       if (barRef.current) {
         barRef.current.style.transform = '';
@@ -155,8 +159,9 @@ function GanttBar({ lot, color, left, width, weekWidth, laneHeight, onResize, on
 
       if (deltaDays !== 0 || targetLaneIdx !== null) onMove(deltaDays, targetLaneIdx);
     };
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
   }, [left, pxPerDay, onMove]);
 
   const cursorCls = interaction === 'move' ? 'cursor-grabbing' : interaction ? 'cursor-col-resize' : 'cursor-grab';
@@ -169,14 +174,20 @@ function GanttBar({ lot, color, left, width, weekWidth, laneHeight, onResize, on
         left,
         width: Math.max(width, 24),
         minWidth: 24,
+        // Vague A1 : empêche le scroll de la page de capturer le geste sur mobile
+        // pendant le drag. Sans ça, le pointer event est volé par le scroll natif.
+        touchAction: 'none',
       }}
       title={`${lot.nom} — ${formatDuration(lot.duree_jours ?? 0)} · Glissez pour déplacer`}
-      onMouseDown={handleMoveStart}
+      onPointerDown={handleMoveStart}
     >
-      {/* Poignée gauche */}
+      {/* Poignée gauche — Vague A1 : poignées toujours visibles sur tactile
+          (opacity-100 sm:opacity-0 sm:group-hover/bar:opacity-100) car
+          pas de hover sur tactile → l'utilisateur ne saurait pas qu'elles existent. */}
       <div
-        className="absolute left-0 top-0 bottom-0 w-2.5 cursor-w-resize z-10 opacity-0 group-hover/bar:opacity-100 flex items-center justify-center transition-opacity"
-        onMouseDown={(e) => handleResizeStart(e, 'left')}
+        className="absolute left-0 top-0 bottom-0 w-3.5 sm:w-2.5 cursor-w-resize z-10 opacity-60 sm:opacity-0 sm:group-hover/bar:opacity-100 flex items-center justify-center transition-opacity"
+        style={{ touchAction: 'none' }}
+        onPointerDown={(e) => handleResizeStart(e, 'left')}
       >
         <div className="w-0.5 h-3.5 bg-white/70 rounded" />
       </div>
@@ -188,8 +199,9 @@ function GanttBar({ lot, color, left, width, weekWidth, laneHeight, onResize, on
 
       {/* Poignée droite */}
       <div
-        className="absolute right-0 top-0 bottom-0 w-2.5 cursor-e-resize z-10 opacity-0 group-hover/bar:opacity-100 flex items-center justify-center transition-opacity"
-        onMouseDown={(e) => handleResizeStart(e, 'right')}
+        className="absolute right-0 top-0 bottom-0 w-3.5 sm:w-2.5 cursor-e-resize z-10 opacity-60 sm:opacity-0 sm:group-hover/bar:opacity-100 flex items-center justify-center transition-opacity"
+        style={{ touchAction: 'none' }}
+        onPointerDown={(e) => handleResizeStart(e, 'right')}
       >
         <div className="w-0.5 h-3.5 bg-white/70 rounded" />
       </div>

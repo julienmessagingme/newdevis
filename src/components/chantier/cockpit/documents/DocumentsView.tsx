@@ -12,7 +12,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   FolderOpen, Plus, Search, X, ExternalLink, Pencil,
-  Loader2, Trash2, ChevronDown, ChevronRight,
+  Loader2, Trash2, ChevronDown, ChevronRight, Check,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { DocumentChantier, LotChantier } from '@/types/chantier-ia';
@@ -326,16 +326,40 @@ function DocRow({ doc, lots, chantierId, token, sectionKey, onDelete, onLotChang
       {/* Nom + meta + badge */}
       <div className="flex-1 min-w-0">
         {editing ? (
-          <div className="flex items-center gap-2">
+          /* Vague A6 : édition inline avec boutons Valider/Annuler explicites au lieu
+             de onBlur (qui masquait l'input dès que le clavier mobile apparaissait).
+             Sur mobile, onBlur peut être déclenché involontairement → on désactive
+             le auto-save et on force l'action explicite. */
+          <div className="flex items-center gap-1.5">
             <input
               autoFocus
               value={editName}
               onChange={e => setEditName(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') setEditing(false); }}
-              onBlur={saveRename}
-              className="flex-1 min-w-0 text-sm font-medium bg-blue-50 border border-blue-300 rounded-lg px-2.5 py-1 outline-none focus:ring-2 focus:ring-blue-200"
+              className="flex-1 min-w-0 text-sm font-medium bg-blue-50 border border-blue-300 rounded-lg px-2.5 py-1.5 outline-none focus:ring-2 focus:ring-blue-200"
             />
-            {saving && <Loader2 className="h-3.5 w-3.5 text-blue-400 animate-spin shrink-0" />}
+            {saving ? (
+              <Loader2 className="h-4 w-4 text-blue-400 animate-spin shrink-0" />
+            ) : (
+              <>
+                <button
+                  onClick={saveRename}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-600 text-white active:bg-blue-700 touch-manipulation shrink-0"
+                  aria-label="Valider le nouveau nom"
+                  title="Valider"
+                >
+                  <Check className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setEditing(false)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 active:bg-gray-50 touch-manipulation shrink-0"
+                  aria-label="Annuler"
+                  title="Annuler"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <div className="flex items-center gap-1.5">
@@ -352,10 +376,13 @@ function DocRow({ doc, lots, chantierId, token, sectionKey, onDelete, onLotChang
                 {doc.nom}
               </span>
             )}
+            {/* Vague A6 : bouton renommer toujours visible sur mobile (pas de hover tactile),
+                opacity-50 sm:opacity-0 sm:group-hover:opacity-100 sur desktop pour rester subtil. */}
             {!isDescribing && (
               <button
                 onClick={() => { setEditing(true); setEditName(doc.nom); }}
-                className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-300 hover:text-blue-500 transition-all shrink-0"
+                aria-label="Renommer"
+                className="opacity-50 sm:opacity-0 sm:group-hover:opacity-100 p-1 sm:p-0.5 rounded text-gray-400 sm:text-gray-300 active:text-blue-500 hover:text-blue-500 transition-all shrink-0 touch-manipulation"
                 title="Renommer"
               >
                 <Pencil className="h-3 w-3" />
