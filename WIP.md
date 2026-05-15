@@ -11,6 +11,79 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ---
 
+## Refonte mobile cockpit GMC (Trésorerie / Budget / Échéancier)
+
+🟡 **M1 livré 2026-05-13 — prototype TresorerieMobile à tester. M2/M3/M4 à venir.**
+
+### Problème d'origine
+
+Audit mobile du 13/05 sur 3 écrans cockpit GMC :
+
+| Écran | Lignes | Breakpoints responsive | Vue mobile dédiée |
+|---|---|---|---|
+| `BudgetTab.tsx` | 2 843 | 36 | ✅ `ArtisanCardMobile` |
+| `TresorerieView.tsx` | 1 385 | **8** | ❌ Aucune (desktop écrasé) |
+| `Echeancier.tsx` | 1 987 | **8** | ❌ Aucune (desktop écrasé) |
+
+Sur Trésorerie + Échéancier (3 372 lignes cumulées) → 16 breakpoints au total. Tout pensé desktop, "ça passera bien sur mobile" → ça ne passe pas. KPI compressés, sliders intactiles, modals centered qui dépassent, sidebar slide pour switcher d'onglet = 2 taps minimum.
+
+### Décision architecture
+
+**`useIsMobile()` hook + composants dédiés** (option A de l'audit) plutôt que Tailwind responsive écrasé. Critère : si > 50% du JSX diffère entre mobile et desktop → composant mobile dédié. Sinon → Tailwind `sm:`/`md:`.
+
+Hooks data partagés (pas de doublage logique). Pattern `forceDesktop` pour bascule fallback temporaire vers desktop sur les actions complexes pas encore migrées.
+
+Cf. CLAUDE.md § "Composants mobile dédiés via `useIsMobile()`" pour le pattern complet.
+
+### M1 — Livré (commit `934409e`)
+
+- `src/hooks/useIsMobile.ts` — hook matchMedia 767px (compat Safari <14)
+- `src/components/chantier/cockpit/tresorerie/TresorerieMobile.tsx` (~370 lignes) :
+  - HeroBudget : budget cible éditable + gauge horizontale empilée (décaissé / engagé non décaissé / dépassement) + triplette KPI condensée (À payer / Flux / Reste)
+  - ActionBar 2 boutons tactiles (Dépense / Versement)
+  - SectionCard collapsible × 2 (Plan de financement / Consommation) avec FinancementCard et ConsommationGauge
+  - Bannières contextuelles : dépassement budget, plan sous-couvert, versements faibles
+- `TresorerieView.tsx` : routing `useIsMobile()` + state `forceDesktop` + bannière "← Retour vue mobile" en haut de la vue desktop quand `forceDesktop=true`
+
+### À tester E2E
+
+- [ ] Ouvrir `gerermonchantier.fr/mon-chantier/<id>` sur mobile (ou Chrome DevTools mobile mode iPhone 12)
+- [ ] Onglet Trésorerie → la vue TresorerieMobile s'affiche (hero gauge + 2 boutons + sections)
+- [ ] Tap "+ Dépense" → bascule vers vue desktop avec bannière retour visible
+- [ ] Tap "Modifier le plan" → idem
+- [ ] Tap "← Retour à la vue mobile" → retour TresorerieMobile sans rechargement
+- [ ] Redimensionner navigateur < 768px → bascule auto vers mobile (sans F5)
+- [ ] Redimensionner > 768px → bascule auto vers desktop
+
+### M2 — À faire (~0.5 jour)
+
+- [ ] Drawers fullscreen mobile dédiés pour Dépense / Versement (remplacer le fallback `forceDesktop`)
+- [ ] Drawer fullscreen pour édition plan financement (apport / crédit / aides)
+- [ ] Suppression du fallback `forceDesktop` une fois les drawers en place
+
+### M3 — Échéancier mobile (~2 jours)
+
+- [ ] `EcheancierMobile.tsx` : timeline verticale chronologique
+- [ ] Entête sticky "Solde au [date] : XXX €"
+- [ ] Cards événements (date + montant + libellé + statut, couleur verte/rouge entrée/sortie)
+- [ ] Tap sur card → drawer fullscreen édition/suppression (pas modal centered)
+- [ ] FAB rond bas-droite pour ajouter
+- [ ] Filtre 3 chips en haut (Tout / À venir / Passé)
+
+### M4 — Bottom Navigation cockpit (~1 jour)
+
+- [ ] Barre tabs en bas sur mobile (4 onglets : Accueil / Budget / Tréso / Plus)
+- [ ] Onglets moins fréquents (Documents, Lots, Contacts, Messagerie) dans "Plus" qui ouvre un menu
+- [ ] Remplace la sidebar slide-from-left pour mobile (sidebar reste sur desktop)
+- [ ] Switch d'onglet en **1 tap au lieu de 2-3**
+
+### Limites prototype M1 (assumées)
+
+- BudgetTab et Echeancier non encore migrés vers le pattern `useIsMobile()` (mais BudgetTab a déjà `ArtisanCardMobile`, c'est partiellement OK)
+- Les boutons d'action du TresorerieMobile basculent en vue desktop (M2 corrigera)
+
+---
+
 ## NEW. Refonte Assistant — widget homepage cohérent + suppression legacy
 
 🟢 **Livré 2026-05-10. À tester E2E par Julien — Vercel preview attendu.**

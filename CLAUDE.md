@@ -531,6 +531,45 @@ className="... pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-0"
 ```
 Bouton retour `lg:hidden` dans le header du panneau détail.
 
+### Composants mobile dédiés via `useIsMobile()` (refonte cockpit GMC 2026-05-13)
+
+Pour les écrans **trop complexes pour du responsive Tailwind** (TresorerieView 1385 lignes / 8 breakpoints, Echeancier 1987 lignes / 8 breakpoints — quasi rien repensé tactile), pattern dédié :
+
+```tsx
+// src/hooks/useIsMobile.ts — matchMedia 767px, compat Safari <14
+import { useIsMobile } from '@/hooks/useIsMobile';
+
+export default function TresorerieView(props) {
+  // ... hooks data (partagés mobile/desktop, AVANT le check isMobile)
+  const isMobile = useIsMobile();
+  const [forceDesktop, setForceDesktop] = useState(false);
+
+  if (isMobile && !forceDesktop) {
+    return <TresorerieMobile {...computedProps} onOpenComplexAction={() => setForceDesktop(true)} />;
+  }
+
+  return (
+    <>
+      {isMobile && forceDesktop && (
+        <button onClick={() => setForceDesktop(false)} className="md:hidden ...">← Retour vue mobile</button>
+      )}
+      {/* Vue desktop complète */}
+    </>
+  );
+}
+```
+
+**Règles** :
+1. **Les hooks data restent dans le composant parent** (`useBudget`, `useFinancingConfig`, etc.). On ne duplique JAMAIS la logique data dans la version mobile — uniquement le rendu.
+2. **Le check `isMobile` arrive APRÈS tous les hooks** (sinon `Cannot use hooks conditionally`).
+3. **Pattern `forceDesktop`** : pour les actions complexes (édition plan financement, détail par artisan) pas encore migrées en drawer mobile dédié → on bascule l'utilisateur en vue desktop avec un bouton "← Retour vue mobile" visible.
+4. **Composant mobile reçoit des valeurs déjà calculées en props** (pas de re-fetch). Conserve la cohérence avec la version desktop.
+5. **Composants mobile vivent à côté du desktop** : `TresorerieMobile.tsx` dans `cockpit/tresorerie/` (pas un sous-dossier `mobile/` qui éparpille).
+
+**Quand utiliser `useIsMobile()` vs Tailwind `md:hidden`** :
+- ✅ Tailwind `sm:`/`md:` pour les **ajustements** (taille typo, padding, grid-cols, drawer side vs fullscreen).
+- ✅ `useIsMobile()` quand mobile et desktop ont **des UX fondamentalement différentes** (hero KPI + 2 actions vs tableau dense, timeline verticale vs grid 3 colonnes, etc.). Le critère : > 50% du JSX diffère.
+
 État P0 mobile cockpit → voir `WIP.md`.
 
 ---
