@@ -570,6 +570,23 @@ export default function TresorerieView(props) {
 - ✅ Tailwind `sm:`/`md:` pour les **ajustements** (taille typo, padding, grid-cols, drawer side vs fullscreen).
 - ✅ `useIsMobile()` quand mobile et desktop ont **des UX fondamentalement différentes** (hero KPI + 2 actions vs tableau dense, timeline verticale vs grid 3 colonnes, etc.). Le critère : > 50% du JSX diffère.
 
+**Composants mobile-dédiés existants** (cockpit GMC) :
+- `TresorerieMobile.tsx` — hero KPI + 2 actions + plan financement condensé + PlanEditDrawer (inputs gros doigts)
+- `EcheancierMobile.tsx` — timeline verticale + 3 chips filtre + FAB rond bas-droite (Versement/Dépense)
+- `BottomNav.tsx` — 5 onglets fixes en bas (Accueil/Budget/Planning/Documents/Plus). "Plus" → bottom sheet avec onglets secondaires. Remplace la sidebar slide-from-left sur mobile uniquement.
+
+**Pattern wrapper export default** (pour respecter Rules of Hooks) : quand l'ancien composant a beaucoup de hooks (ex: Echeancier 1900+ lignes), on **wrap** au lieu de mettre le check `isMobile` dans le composant existant. Le wrapper export default ne fait que router :
+```tsx
+export default function Echeancier(props) {
+  const isMobile = useIsMobile();
+  const [forceDesktop, setForceDesktop] = useState(false);
+  if (isMobile && !forceDesktop) return <EcheancierMobile {...props} />;
+  return <EcheancierDesktop {...props} />;
+}
+function EcheancierDesktop(props) { /* 1900 lignes de hooks + JSX */ }
+```
+Sinon les hooks de la version desktop seraient appelés conditionnellement → crash "Rendered fewer hooks than expected".
+
 État P0 mobile cockpit → voir `WIP.md`.
 
 ---

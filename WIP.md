@@ -13,7 +13,7 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ## Refonte mobile cockpit GMC (Trésorerie / Budget / Échéancier)
 
-🟡 **M1 livré 2026-05-13 — prototype TresorerieMobile à tester. M2/M3/M4 à venir.**
+🟢 **M1+M2+M3+M4 livrés 2026-05-13 (commits `934409e`, `1feba7e`). À tester E2E par Julien.**
 
 ### Problème d'origine
 
@@ -55,32 +55,53 @@ Cf. CLAUDE.md § "Composants mobile dédiés via `useIsMobile()`" pour le patter
 - [ ] Redimensionner navigateur < 768px → bascule auto vers mobile (sans F5)
 - [ ] Redimensionner > 768px → bascule auto vers desktop
 
-### M2 — À faire (~0.5 jour)
+### M2 — Drawers fullscreen (livré commit `1feba7e`)
 
-- [ ] Drawers fullscreen mobile dédiés pour Dépense / Versement (remplacer le fallback `forceDesktop`)
-- [ ] Drawer fullscreen pour édition plan financement (apport / crédit / aides)
-- [ ] Suppression du fallback `forceDesktop` une fois les drawers en place
+- ✅ DepenseRapideModal réutilisé pour "+ Dépense" depuis TresorerieMobile et EcheancierMobile
+- ✅ AddEntreeModal exporté depuis Echeancier.tsx, réutilisé pour "+ Versement"
+- ✅ Nouveau PlanEditDrawer mobile (inputs Apport/Crédit/Aides gros doigts, fullscreen)
+- ✅ TresorerieView.onEditPlan() câblé sur cfg/syncServer
 
-### M3 — Échéancier mobile (~2 jours)
+### M3 — Échéancier mobile (livré commit `1feba7e`)
 
-- [ ] `EcheancierMobile.tsx` : timeline verticale chronologique
-- [ ] Entête sticky "Solde au [date] : XXX €"
-- [ ] Cards événements (date + montant + libellé + statut, couleur verte/rouge entrée/sortie)
-- [ ] Tap sur card → drawer fullscreen édition/suppression (pas modal centered)
-- [ ] FAB rond bas-droite pour ajouter
-- [ ] Filtre 3 chips en haut (Tout / À venir / Passé)
+- ✅ `src/components/chantier/cockpit/tresorerie/EcheancierMobile.tsx` (~370 lignes)
+- ✅ Header sticky : Solde estimé + 3 chips filtre (Tout / À venir / Passé) avec compteurs
+- ✅ Timeline verticale chronologique unifiée (entrées vertes + sorties rouges)
+- ✅ Tap badge statut = toggle Reçu/Attendu ou Payé/À payer
+- ✅ FAB rond bas-droite (Plus) → 2 boutons stackés Versement/Dépense
+- ✅ Empty state contextuel selon filtre
+- ✅ Wrapper export default avec routing `useIsMobile` + forceDesktop fallback (respecte Rules of Hooks)
+- ✅ Lien discret "Voir version complète" pour les power-users
 
-### M4 — Bottom Navigation cockpit (~1 jour)
+### M4 — Bottom Navigation (livré commit `1feba7e`)
 
-- [ ] Barre tabs en bas sur mobile (4 onglets : Accueil / Budget / Tréso / Plus)
-- [ ] Onglets moins fréquents (Documents, Lots, Contacts, Messagerie) dans "Plus" qui ouvre un menu
-- [ ] Remplace la sidebar slide-from-left pour mobile (sidebar reste sur desktop)
-- [ ] Switch d'onglet en **1 tap au lieu de 2-3**
+- ✅ `src/components/chantier/cockpit/BottomNav.tsx` : 5 onglets (Accueil/Budget/Planning/Documents/Plus)
+- ✅ Indicateur actif (barre indigo top + texte bold + stroke épaissi)
+- ✅ Badges par onglet (réutilise navBadges existants)
+- ✅ Bouton "Plus" → bottom sheet avec Contacts/Messagerie/Journal/Assistant/Paramètres
+- ✅ Safe-area iOS (`pb-[max(0.25rem,env(safe-area-inset-bottom))]`)
+- ✅ Footer mobile "Demander à l'assistant" supprimé (remplacé par BottomNav)
+- ✅ Bandeau alertes IA conservé au-dessus du BottomNav si totalAlertCount > 0
+- ✅ Sidebar slide-from-left reste accessible via hamburger (cas marginal)
 
-### Limites prototype M1 (assumées)
+### À tester E2E
 
-- BudgetTab et Echeancier non encore migrés vers le pattern `useIsMobile()` (mais BudgetTab a déjà `ArtisanCardMobile`, c'est partiellement OK)
-- Les boutons d'action du TresorerieMobile basculent en vue desktop (M2 corrigera)
+- [ ] **BottomNav** : 5 onglets visibles sur mobile, switch 1 tap, badges affichés
+- [ ] **Plus** → sheet bas slide avec 5 onglets secondaires
+- [ ] **TresorerieMobile** : tap "+ Dépense" ouvre DepenseRapideModal fullscreen
+- [ ] **TresorerieMobile** : tap "+ Versement" ouvre AddEntreeModal
+- [ ] **TresorerieMobile** : tap "Modifier le plan" ouvre PlanEditDrawer mobile
+- [ ] **EcheancierMobile** : timeline triée par date, filtres chips fonctionnels
+- [ ] **EcheancierMobile** : FAB rond bas-droite, menu Versement/Dépense visible
+- [ ] **EcheancierMobile** : tap badge "Reçu" toggle vers "Attendu" et inverse
+- [ ] **EcheancierMobile** : tap "Voir version complète" → bascule vers EcheancierDesktop + bannière "← Retour"
+- [ ] **Redimension < 768px → > 768px** : bascule auto mobile↔desktop sans rechargement
+
+### Limites assumées (non bloquantes)
+
+- BudgetTab non migré vers le pattern complet (a déjà `ArtisanCardMobile` partiel — suffisant pour l'instant)
+- onEditBudget et onOpenConsommation gardent le fallback `forceDesktop` (cas marginaux, pas P0)
+- Le PlanEditDrawer mobile consolide les 3 aides (MaPrimeRénov + CEE + Éco-PTZ) en 1 input simplifié — la configuration détaillée reste en desktop (mention explicite dans le drawer)
 
 ---
 
