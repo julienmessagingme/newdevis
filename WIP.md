@@ -13,7 +13,32 @@ Document vivant — état réel des chantiers en cours sur GérerMonChantier. Di
 
 ## Refonte mobile cockpit GMC (Trésorerie / Budget / Échéancier)
 
-🟢 **M1+M2+M3+M4 livrés 2026-05-13 (commits `934409e`, `1feba7e`). À tester E2E par Julien.**
+🟢 **M1+M2+M3+M4 + Vague A + Vague B + V3.4.13 livrés 2026-05-13/16. À tester E2E par Julien.**
+
+### Vague A — Critiques (livré 2026-05-13 commit `062be57`)
+
+- ✅ A1 Planning : `onMouseDown` → `onPointerDown` + `touch-action: none` (drag/resize fonctionnels mobile)
+- ✅ A2 ContactsSection : drawer fullscreen mobile + `inputMode`/`autoComplete` + grid empilée mobile
+- ✅ A3 Login/Register : `inputMode`/`autoComplete`/`autoCapitalize` partout
+- ✅ A4 UploadDocumentModal : fullscreen mobile (au lieu max-w-md mx-4)
+- ✅ A5 Hamburger retiré sur mobile pur (redondant avec BottomNav)
+- ✅ A6 DocumentsView : bouton renommer toujours visible + boutons Valider/Annuler explicites (suppression onBlur)
+
+### Vague B — Premium UX (livré 2026-05-16)
+
+- ✅ B1 `PullToRefresh.tsx` (~150 lignes, PointerEvents, indicateur flèche → spinner) + intégré dans EcheancierMobile
+- ✅ B2 `@/lib/chantier/haptics` : `haptic()` avec 7 patterns sémantiques (success/warning/error/selection/light/medium/heavy). Désactivable via localStorage.
+- ✅ B3 `EmptyState.tsx` composant unifié + intégré dans EcheancierMobile (3 cas : Tout/À venir/Passé)
+- ✅ B4 Optimistic UI dans EcheancierMobile.toggleEntreeStatut + deleteEntree (update local immédiat, rollback si API échoue, haptics success/error)
+- ✅ B5 `overscroll-x-contain` ajouté sur 4 fichiers (LotDetail, PlanningTimeline, TimelineHorizontale, ScreenAmeliorations) + nouveau hook `useScrollIntoViewOnFocus` pour inputs masqués par le clavier mobile
+
+### V3.4.13 — Garde plausibilité UPSIDE (livré 2026-05-16)
+
+Bug observé : devis assainissement réhabilitation complète 22k€ matché à un seul "micro-station" catalogue 7-14k€ → hero "+11 100€" alarmiste contredit par conclusion textuelle "ce qui justifie le montant global".
+
+Fix : nouveau flag `comparison_indicative: true` dans `ConclusionData` quand `overprice_pct > 0.50 && anomalies_count === 0`. Côté UI, ConclusionIA masque le hero accusatoire et affiche un encadré ambre "Comparaison globale indicative — la fourchette marché agrégée semble sous-couvrir la prestation".
+
+ENGINE_VERSION 3.4.7 → 3.4.13 (régénération auto du cache `conclusion_ia` au prochain affichage).
 
 ### Problème d'origine
 

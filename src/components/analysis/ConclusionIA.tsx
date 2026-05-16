@@ -218,7 +218,12 @@ function ConclusionDisplay({
   const isVerdictSigner       = conclusion.verdict_decisionnel === "signer";
   const isVerdictNegocier     = conclusion.verdict_decisionnel === "signer_avec_negociation";
   const isVerdictRefuser      = conclusion.verdict_decisionnel === "ne_pas_signer";
-  const showAccusatoryHero    = hasSurcout && !isVerdictSigner;        // RÈGLE 2 + 3
+  // V3.4.13 (2026-05-16) — Catalogue sous-couvrant (overprice > +50% sans anomalie
+  // poste par poste). Cas devis assainissement réhabilitation complète matché à
+  // un seul "micro-station" → hero "+11 100€" alarmiste contredit par texte
+  // "ce qui justifie le montant global". On masque le hero dans ce cas.
+  const isComparisonIndicative = conclusion.comparison_indicative === true;
+  const showAccusatoryHero    = hasSurcout && !isVerdictSigner && !isComparisonIndicative;  // RÈGLE 2 + 3 + V3.4.13
   const surcoutWithoutAnomaly = hasSurcout && anomCount === 0;         // RÈGLE 4
 
   // Wording neutre quand on a un surcoût détecté mais qu'on ne peut pas l'afficher accusatoire
@@ -263,6 +268,7 @@ function ConclusionDisplay({
           SECTION 1 — SURCOÛT (chiffre principal)
           V3.3.1 — Affiché UNIQUEMENT si action requise (RÈGLE 2 + 3).
           Wording adapté selon présence d'anomalies pointées (RÈGLE 4).
+          V3.4.13 — Masqué aussi si comparison_indicative (catalogue sous-couvrant).
       ════════════════════════════════════════════════════════════ */}
       {showAccusatoryHero && (
         <div className="text-center py-2">
@@ -278,6 +284,25 @@ function ConclusionDisplay({
           </p>
           <p className="text-xs text-muted-foreground/70 mt-0.5">
             (entre {fmtPrice(conclusion.surcout_global.min)} et {fmtPrice(conclusion.surcout_global.max)})
+          </p>
+        </div>
+      )}
+
+      {/* V3.4.13 — Encadré "Comparaison indicative" en remplacement du hero
+          quand le catalogue marché sous-couvre la prestation (overprice > +50%
+          SANS anomalie identifiée poste par poste). Cas typique : assainissement
+          réhabilitation, prestations très techniques, lots regroupés. */}
+      {isComparisonIndicative && !isVerdictSigner && (
+        <div className="rounded-xl border border-amber-200/70 bg-amber-50/50 px-4 py-3.5">
+          <p className="text-sm font-semibold text-amber-900 leading-snug">
+            <span aria-hidden="true">ℹ️ </span>
+            Comparaison globale indicative
+          </p>
+          <p className="text-xs text-amber-800/85 mt-1 leading-relaxed">
+            Les fourchettes marché agrégées ({fmtPrice(conclusion.surcout_global.min)} – {fmtPrice(conclusion.surcout_global.max)})
+            semblent <strong>sous-couvrir la prestation</strong> proposée (catalogue partiel sur ce type de devis).
+            Aucune anomalie poste par poste n'a été identifiée — l'écart apparent doit être
+            <strong> examiné avec l'artisan</strong> ligne par ligne avant signature.
           </p>
         </div>
       )}

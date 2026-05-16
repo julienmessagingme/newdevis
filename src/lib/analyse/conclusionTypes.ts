@@ -47,6 +47,17 @@ export interface ConclusionData {
   /** Phrase courte expliquant pourquoi les seuils ont été ajustés (dispersion / complexité) */
   market_context_note?: string;
 
+  /**
+   * V3.4.13 — `true` quand `overprice_pct > 0.50` ET `anomalies_count === 0`.
+   * Cas typique : catalogue marché qui sous-couvre la prestation (ex: assainissement
+   * réhabilitation complète matché à un seul "micro-station" → écart aberrant).
+   * Quand ce flag est set, ConclusionIA :
+   *  - Masque le hero "+X €" alarmiste (chiffre non fiable)
+   *  - Affiche un encadré "Comparaison globale indicative" à la place
+   *  - Garde le verdict `signer_avec_negociation` (action de précaution conseillée)
+   */
+  comparison_indicative?: boolean;
+
   // ── Métadonnée ─────────────────────────────────────────────────────────────
   generated_at: string;
 }

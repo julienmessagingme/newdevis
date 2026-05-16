@@ -258,7 +258,7 @@ export default function ScreenAmeliorations({
 
           {/* Suggestions */}
           <div className="px-4 sm:px-6 py-3 border-t border-white/[0.04]">
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            <div className="flex gap-2 overflow-x-auto overscroll-x-contain pb-1 scrollbar-hide">
               {SUGGESTIONS.map((s) => (
                 <button
                   key={s}

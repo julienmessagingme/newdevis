@@ -904,7 +904,7 @@ export default function PlanningTimeline({ chantierId, token }: Props) {
           </div>
 
           {/* ====== RIGHT: scrollable Gantt area ====== */}
-          <div ref={scrollRef} className="flex-1 overflow-x-auto min-w-0">
+          <div ref={scrollRef} className="flex-1 overflow-x-auto overscroll-x-contain min-w-0">
             <div style={{ minWidth: `${Math.max(weeks.length * WEEK_WIDTH, 300)}px` }}>
               {/* Header — rendu adaptatif par zoom (jour → 7 jours/sem, mois/trimestre/an → label macro uniquement aux ruptures) */}
               {renderTimelineHeader(weeks, startDate, zoom, WEEK_WIDTH)}

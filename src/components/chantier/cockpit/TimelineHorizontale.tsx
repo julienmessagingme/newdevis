@@ -11,7 +11,7 @@ export default function TimelineHorizontale({ roadmap, onEtapeClick }: TimelineH
   const currentIdx = roadmap.findIndex((e) => e.isCurrent);
 
   return (
-    <div className="overflow-x-auto scrollbar-none">
+    <div className="overflow-x-auto overscroll-x-contain scrollbar-none">
       <div className="flex items-start min-w-max gap-0">
         {roadmap.map((etape, i) => {
           const isPast    = i < currentIdx;

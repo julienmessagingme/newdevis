@@ -859,6 +859,22 @@ export function generateVerdictReasons(input: VerdictReasonsInput): VerdictReaso
         // V3.4.2 — affiche le surcout_pct (impact réel) et non poids_anomalies (poids du poste).
         // Sur Kern : 6% (le surcoût du pavé) et non 46% (la part du terrassement dans le devis).
         reasons.push(`⚠️ Surcoût représentant ${Math.round(wa.surcout_pct * 100)}% du devis (estimé : ~${fmtEur(surcoutForWording)})`);
+      } else if (overprice_pct > 0.50) {
+        // V3.4.13 (2026-05-16) — Garde plausibilité UPSIDE symétrique de V3.4.7.
+        // Si overprice_pct > +50% (devis 1.5× le marché ou plus) ET aucune anomalie
+        // identifiée poste par poste, c'est presque toujours un catalogue qui
+        // SOUS-COUVRE la vraie prestation (ex: assainissement réhabilitation
+        // complète matché à un seul "micro-station" forfait → écart aberrant
+        // alors que les 4-5 autres postes ne sont pas comptés côté marché).
+        //
+        // Cas réel : devis ANC 22k€ vs catalogue qui ne couvre que la micro-station
+        // 7-14k€ → "+11 100€ écart" alarmiste alors que la conclusion textuelle
+        // dit "ce qui justifie le montant global". Incohérence pastille vs texte.
+        //
+        // Symétrie de V3.4.7 (underprice > 20%) : seuil 50% car les sous-
+        // estimations catalogue sont plus dispersées que les sur-estimations
+        // (un poste peut facilement valoir 1.5× le standard sans être anormal).
+        reasons.push("⚠️ Comparaison globale indicative — la fourchette marché agrégée semble sous-couvrir la prestation (catalogue partiel). À examiner poste par poste avec l'artisan.");
       } else if (surcoutForWording > 0 || overprice > 0) {
         // Escalade SANS anomalie identifiée → wording d'écart estimatif global.
         // Cohérent avec le hero "+X € écart estimatif vs fourchettes marché".

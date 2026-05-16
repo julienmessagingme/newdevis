@@ -19,7 +19,7 @@ import { jsonOk, jsonError, optionsResponse } from "@/lib/api/apiHelpers";
 
 // Version du moteur de scoring — incrémenter à chaque changement de logique pour
 // invalider automatiquement le cache `conclusion_ia` des analyses existantes.
-const ENGINE_VERSION = "3.4.7";
+const ENGINE_VERSION = "3.4.13";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Matérialité du surcoût serveur — triple garde alignée sur computeVerdict V3.1
@@ -1391,6 +1391,14 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
     };
     const niveauRisque: "faible" | "modéré" | "élevé" = RISQUE_FORCED[verdictGlobal] ?? "modéré";
 
+    // V3.4.13 (2026-05-16) — Détection catalogue sous-couvrant (overprice > +50%
+    // SANS anomalie poste par poste identifiée). Quand ce flag est set, le hero
+    // accusatoire "+X €" est masqué côté UI au profit d'un encadré "Comparaison
+    // indicative". Cf. ConclusionIA.tsx pour le rendu.
+    const comparisonIndicative = (preEngine.overprice_pct ?? 0) > 0.50
+      && sanitizedAnomalies.length === 0
+      && (wa?.anomalies_count ?? 0) === 0;
+
     conclusionData = {
       verdict_global:          verdictGlobal,
       phrase_intro:            phraseIntro,
@@ -1403,6 +1411,7 @@ RÉPONDS UNIQUEMENT avec ce JSON (pas de texte avant ou après) :
       actions_avant_signature: rawActions,
       verdict_reasons,
       ...(market_context_note     ? { market_context_note } : {}),
+      ...(comparisonIndicative    ? { comparison_indicative: true } : {}),
       generated_at:            new Date().toISOString(),
       // V3.2 — version du moteur, permet l'invalidation automatique du cache lors d'un futur fix.
       engine_version:          ENGINE_VERSION,

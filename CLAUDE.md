@@ -191,6 +191,13 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
   **V3.4.7 — Garde plausibilité underprice (commit `3dceae8`)** dans `verdictEngine.ts` ligne ~825 : si `overprice_pct < -0.20` (devis > 20% sous le marché), au lieu d'afficher "X k€ sous la moyenne du marché", on affiche "Comparaison globale indicative — la fourchette marché agrégée n'est pas représentative sur ce profil de devis". Cas d'origine : multi-devis SALLEM affichait "170.8 k€ sous la moyenne" en Vert (PDF non segmenté + bounds gonflés par cumul postes hétérogènes). Aberration qui décrédibilisait l'analyse.
 
+  **V3.4.13 — Garde plausibilité UPSIDE symétrique (2026-05-16)** dans `verdictEngine.ts` ligne ~862 + nouveau flag `comparison_indicative` dans `ConclusionData` :
+  - Si `overprice_pct > +0.50` (devis +50% au-dessus du marché) ET aucune anomalie identifiée poste par poste (`sanitizedAnomalies.length === 0` ET `wa.anomalies_count === 0`), c'est presque toujours un catalogue qui **SOUS-COUVRE** la vraie prestation.
+  - Côté `conclusion.ts` : flag `comparison_indicative: true` set dans `ConclusionData`.
+  - Côté `ConclusionIA.tsx` : `showAccusatoryHero` set à `false` si `isComparisonIndicative` → le hero "+X €" alarmiste est masqué, remplacé par un encadré ambre "Comparaison globale indicative — la fourchette marché agrégée semble sous-couvrir la prestation".
+  - Cas d'origine : devis ANC réhabilitation complète 22k€ matché à un seul "micro-station" forfait 7-14k€ → "+11 100€ écart" alarmiste contredit par conclusion textuelle "ce qui justifie le montant global".
+  - **Seuil 50% asymétrique** (vs 20% pour V3.4.7 underprice) : les sous-estimations catalogue sont plus dispersées que les sur-estimations. Un vrai poste peut facilement valoir 1.5× le standard sans être anormal (haut de gamme, technique).
+
   **V3.4.7 — Wording "dépassent largement" amplitude-aware** dans `ConclusionIA.tsx` ligne 297-311 : adapter selon verdict :
   - `refuser` → "dépass(ent) **largement** les prix du marché"
   - `signer` → "présent(ent) un **léger écart** vs marché"
@@ -247,7 +254,7 @@ Endpoint OpenAI-compatible : `generativelanguage.googleapis.com/v1beta/openai/ch
 
   **Source unique de vérité pour la pastille** (V3.3) : `effectiveScore` dans `AnalysisResult.tsx` lit `conclusion_ia.verdict_global` (ou `conclusionIaLive`) en priorité, exactement comme le multi-devis lit `global_metrics.verdict_global`. Plus de divergence pastille header vs bandeau verdict. **Ne jamais** revenir à un recompute `computeVerdict` côté client en source primaire.
 
-  **ENGINE_VERSION + cache invalidation automatique** : `conclusion_ia.engine_version` stocké à chaque génération. Au cache hit, si version DB ≠ `ENGINE_VERSION` constante du code → régénération forcée automatique (pas besoin de bouton "Régénérer"). À **incrémenter à chaque changement de logique scoring** (ex: 3.3 → 3.3.1). État courant : **`ENGINE_VERSION = "3.4.7"`** (incrémenté avec le fix wording amplitude-aware + garde plausibilité underprice).
+  **ENGINE_VERSION + cache invalidation automatique** : `conclusion_ia.engine_version` stocké à chaque génération. Au cache hit, si version DB ≠ `ENGINE_VERSION` constante du code → régénération forcée automatique (pas besoin de bouton "Régénérer"). À **incrémenter à chaque changement de logique scoring** (ex: 3.3 → 3.3.1). État courant : **`ENGINE_VERSION = "3.4.13"`** (V3.4.13 = garde plausibilité UPSIDE symétrique + flag `comparison_indicative` dans ConclusionData pour masquer le hero alarmiste quand le catalogue sous-couvre la prestation).
 
   **Test unitaire** : `npx tsx src/lib/analyse/verdictEngine.test.ts` (27 cas, 0 régression). Cas critiques anti-régression :
   - Kern Terrassement (3 anomalies carrelage × 21% du devis) → escalade a_negocier ✓
@@ -574,6 +581,17 @@ export default function TresorerieView(props) {
 - `TresorerieMobile.tsx` — hero KPI + 2 actions + plan financement condensé + PlanEditDrawer (inputs gros doigts)
 - `EcheancierMobile.tsx` — timeline verticale + 3 chips filtre + FAB rond bas-droite (Versement/Dépense)
 - `BottomNav.tsx` — 5 onglets fixes en bas (Accueil/Budget/Planning/Documents/Plus). "Plus" → bottom sheet avec onglets secondaires. Remplace la sidebar slide-from-left sur mobile uniquement.
+- `PullToRefresh.tsx` (Vague B1) — geste tirer-pour-rafraîchir natif. Wrap autour du contenu scrollable. Désactivé si scrollTop > 0 ou si refresh déjà en cours. PointerEvents (touch + stylet). Indicateur visible uniquement sur mobile (`lg:hidden`).
+- `EmptyState.tsx` (Vague B3) — composant unifié pour les listes vides. Impose icône + titre + sous-titre + CTA optionnel. Pattern mobile-first (padding généreux, CTA pleine largeur). À utiliser à la place du HTML inline pour homogénéiser.
+
+**Utilitaires mobile** (Vague B) :
+- `@/lib/chantier/haptics` — `haptic("success" | "warning" | "error" | "light" | "selection")` qui wrap `navigator.vibrate()`. Patterns sémantiques (`success` = double-tap court, `warning` = double-tap marqué, `error` = triple-tap). iOS Safari ignore silencieusement (Apple bride). Désactivable globalement via `localStorage["haptics_disabled"]="1"`.
+- `@/hooks/useScrollIntoViewOnFocus` (Vague B5) — scroll auto l'input dans la zone visible quand le clavier mobile apparaît. Délai 350ms (le temps que viewport-resize stabilise). Désactivé sur desktop (≥ 1024px).
+- `@/hooks/useIsMobile` — matchMedia 767px, déjà documenté plus haut.
+
+**Pattern optimistic UI + haptics** (à généraliser sur les toggles statut) : on update le state LOCAL immédiatement (`setEntrees(prev => prev.map(...))`) + on call `haptic("selection")` au tap, puis on lance la requête. En cas d'échec API : rollback state + `haptic("error")`. L'utilisateur voit le toggle bascule instantanément même sur 3G lente. Implémenté dans `EcheancierMobile.toggleEntreeStatut` et `deleteEntree`.
+
+**Pattern overflow horizontal** (Vague B5) : tout `overflow-x-auto` doit être complété par `overscroll-x-contain` pour empêcher le swipe horizontal de déclencher le back-gesture iOS Safari. Find/replace simple à appliquer dès qu'un nouveau bloc scrollable horizontal est ajouté.
 
 **Pattern wrapper export default** (pour respecter Rules of Hooks) : quand l'ancien composant a beaucoup de hooks (ex: Echeancier 1900+ lignes), on **wrap** au lieu de mettre le check `isMobile` dans le composant existant. Le wrapper export default ne fait que router :
 ```tsx

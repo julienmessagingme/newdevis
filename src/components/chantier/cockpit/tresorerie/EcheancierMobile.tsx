@@ -22,6 +22,9 @@ import { fmtEur } from "@/lib/chantier/financingUtils";
 import { usePaymentEvents, type PaymentEvent } from "@/hooks/usePaymentEvents";
 import DepenseRapideModal from "../budget/DepenseRapideModal";
 import { AddEntreeModal } from "./Echeancier";
+import PullToRefresh from "../PullToRefresh";
+import EmptyStateComponent from "../EmptyState";
+import { haptic } from "@/lib/chantier/haptics";
 import type { LotChantier } from "@/types/chantier-ia";
 
 const _sb = createClient(
@@ -171,25 +174,49 @@ export default function EcheancierMobile({
   const countUpcoming = useMemo(() => allItems.filter(it => !isPast(it.date)).length, [allItems]);
   const countPast     = useMemo(() => allItems.filter(it => isPast(it.date)).length,  [allItems]);
 
-  // ── Actions entrées ───────────────────────────────────────────────────────
+  // ── Actions entrées (B4 — optimistic UI + haptics) ───────────────────────
+  // Pattern : on update le state LOCAL immédiatement, on lance la requête,
+  // on rollback si elle échoue. L'utilisateur voit le toggle bascule
+  // instantanément même sur 3G lente.
   const toggleEntreeStatut = useCallback(async (id: string, cur: StatutEntree) => {
-    const bearer = await freshToken(token);
-    await fetch(`/api/chantier/${chantierId}/entrees`, {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${bearer}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ id, statut: cur === "recu" ? "attendu" : "recu" }),
-    });
-    fetchEntrees();
-  }, [chantierId, token, fetchEntrees]);
+    const newStatut: StatutEntree = cur === "recu" ? "attendu" : "recu";
+    haptic("selection");
+    // Optimistic update
+    setEntrees(prev => prev.map(e => e.id === id ? { ...e, statut: newStatut } : e));
+    try {
+      const bearer = await freshToken(token);
+      const res = await fetch(`/api/chantier/${chantierId}/entrees`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${bearer}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ id, statut: newStatut }),
+      });
+      if (!res.ok) throw new Error("API error");
+      haptic(newStatut === "recu" ? "success" : "light");
+    } catch {
+      // Rollback en cas d'échec réseau
+      haptic("error");
+      setEntrees(prev => prev.map(e => e.id === id ? { ...e, statut: cur } : e));
+    }
+  }, [chantierId, token]);
 
   const deleteEntree = useCallback(async (id: string) => {
-    const bearer = await freshToken(token);
-    await fetch(`/api/chantier/${chantierId}/entrees?id=${id}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${bearer}` },
-    });
-    fetchEntrees();
-  }, [chantierId, token, fetchEntrees]);
+    haptic("warning");
+    // Snapshot pour rollback
+    const snapshot = entrees;
+    // Optimistic remove
+    setEntrees(prev => prev.filter(e => e.id !== id));
+    try {
+      const bearer = await freshToken(token);
+      const res = await fetch(`/api/chantier/${chantierId}/entrees?id=${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${bearer}` },
+      });
+      if (!res.ok) throw new Error("API error");
+    } catch {
+      haptic("error");
+      setEntrees(snapshot);
+    }
+  }, [chantierId, token, entrees]);
 
   const loading = evLoading || entreesLoading;
 
@@ -213,8 +240,11 @@ export default function EcheancierMobile({
         </div>
       </div>
 
-      {/* Timeline */}
-      <div className="flex-1 overflow-y-auto">
+      {/* Timeline avec pull-to-refresh (mobile) */}
+      <PullToRefresh
+        onRefresh={async () => { await Promise.all([refreshEvents(), fetchEntrees()]); }}
+        className="flex-1 overflow-y-auto"
+      >
         {loading && timeline.length === 0 ? (
           <div className="p-4 space-y-2">
             {[0, 1, 2].map(i => <div key={i} className="h-16 bg-white rounded-xl animate-pulse" />)}
@@ -234,19 +264,27 @@ export default function EcheancierMobile({
               <EventCard
                 key={`p-${item.event.id}`}
                 event={item.event}
-                onMarkPaid={async () => { await markPaid(item.event.id); }}
-                onMarkUnpaid={async () => { await markUnpaid(item.event.id); }}
+                onMarkPaid={async () => {
+                  haptic("selection");
+                  const ok = await markPaid(item.event.id);
+                  haptic(ok ? "success" : "error");
+                }}
+                onMarkUnpaid={async () => {
+                  haptic("selection");
+                  await markUnpaid(item.event.id);
+                  haptic("light");
+                }}
               />
             ))}
           </ul>
         )}
-      </div>
+      </PullToRefresh>
 
       {/* FAB rond bas-droite */}
       {!showFab && (
         <button
-          onClick={() => setShowFab(true)}
-          className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 w-14 h-14 rounded-full bg-indigo-600 text-white shadow-2xl flex items-center justify-center active:bg-indigo-700 transition-colors z-40"
+          onClick={() => { haptic("light"); setShowFab(true); }}
+          className="fixed bottom-[max(5rem,calc(env(safe-area-inset-bottom)+4rem))] right-4 w-14 h-14 rounded-full bg-indigo-600 text-white shadow-2xl flex items-center justify-center active:bg-indigo-700 transition-colors z-40"
           aria-label="Ajouter"
         >
           <Plus className="h-6 w-6" />
@@ -256,16 +294,16 @@ export default function EcheancierMobile({
       {showFab && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setShowFab(false)} />
-          <div className="fixed bottom-[max(5rem,env(safe-area-inset-bottom))] right-4 z-50 flex flex-col gap-2.5 animate-in fade-in slide-in-from-bottom-4">
+          <div className="fixed bottom-[max(9rem,calc(env(safe-area-inset-bottom)+8rem))] right-4 z-50 flex flex-col gap-2.5 animate-in fade-in slide-in-from-bottom-4">
             <button
-              onClick={() => { setShowFab(false); setShowVersement(true); }}
+              onClick={() => { haptic("light"); setShowFab(false); setShowVersement(true); }}
               className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-3 rounded-2xl shadow-xl font-bold text-sm active:bg-emerald-700"
             >
               <span className="text-lg">💰</span>
               Versement reçu
             </button>
             <button
-              onClick={() => { setShowFab(false); setShowDepense(true); }}
+              onClick={() => { haptic("light"); setShowFab(false); setShowDepense(true); }}
               className="flex items-center gap-2 bg-rose-600 text-white px-4 py-3 rounded-2xl shadow-xl font-bold text-sm active:bg-rose-700"
             >
               <span className="text-lg">🧾</span>
@@ -274,6 +312,7 @@ export default function EcheancierMobile({
             <button
               onClick={() => setShowFab(false)}
               className="self-end bg-white text-gray-600 w-10 h-10 rounded-full shadow-lg flex items-center justify-center active:bg-gray-50"
+              aria-label="Fermer"
             >
               <X className="h-4 w-4" />
             </button>
@@ -329,21 +368,13 @@ function FilterChip({ active, onClick, label, count }: {
 }
 
 function EmptyState({ filter }: { filter: Filter }) {
-  const msg =
-    filter === "upcoming" ? "Aucun événement à venir"
-    : filter === "past"    ? "Aucun événement passé"
-    : "Aucun mouvement enregistré";
-  return (
-    <div className="flex flex-col items-center justify-center py-20 px-8 text-center">
-      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-3">
-        <span className="text-2xl">📋</span>
-      </div>
-      <p className="text-sm font-semibold text-gray-700">{msg}</p>
-      <p className="text-xs text-gray-400 mt-1">
-        Utilisez le bouton <strong>+</strong> en bas à droite pour ajouter une dépense ou un versement.
-      </p>
-    </div>
-  );
+  const config =
+    filter === "upcoming"
+      ? { icon: "📅", title: "Aucun événement à venir",  subtitle: "Tous vos paiements et versements à venir s'afficheront ici." }
+    : filter === "past"
+      ? { icon: "🗓️", title: "Aucun événement passé",    subtitle: "L'historique des paiements et versements passés s'affichera ici." }
+      : { icon: "📋", title: "Aucun mouvement enregistré", subtitle: "Utilisez le bouton + en bas à droite pour ajouter une dépense ou un versement." };
+  return <EmptyStateComponent icon={config.icon} title={config.title} subtitle={config.subtitle} />;
 }
 
 function EntreeCard({ entree, onToggle, onDelete }: {
