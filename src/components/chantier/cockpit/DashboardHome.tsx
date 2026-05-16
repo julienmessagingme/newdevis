@@ -382,10 +382,7 @@ function DashboardHome({
 
           <div className="cr-budget">
             <div className="cr-b-head">
-              <div>
-                <div className="cr-b-eyebrow">Budget chantier</div>
-                <div className="cr-b-title">{hasBudget ? 'Budget cible' : 'Estimation IA'}</div>
-              </div>
+              <div className="cr-b-title">Budget</div>
               <button className="cr-b-edit" onClick={onAffineBudget}>
                 <EditIcon />{editLabel}
               </button>
@@ -399,7 +396,7 @@ function DashboardHome({
               {pctFlux > 0 && <span className="pill">{pctFlux} %</span>}
             </div>
             <div className="cr-b-note">
-              {hasBudget ? 'Budget cible défini · suivi des flux certains' : 'À affiner avec vos devis · estimation IA indicative'}
+              {hasBudget ? 'Budget défini · suivi des flux certains' : 'À affiner avec vos devis · estimation IA indicative'}
             </div>
 
             <div className="cr-b-bar">
