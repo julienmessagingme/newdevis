@@ -60,7 +60,6 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
   const [showAmelioration, setShowAmelioration] = useState(false);
   const [showBudgetDetail, setShowBudgetDetail]   = useState(false);
   const [activeSection, setActiveSection] = useState<Section>('budget');
-  const [homeViewMode, setHomeViewMode]   = useState<'cards' | 'list'>('cards');
   const [mobileOpen, setMobileOpen]       = useState(false);
   const [documents, setDocuments]         = useState<DocumentChantier[]>([]);
   const [pendingDescribeIds, setPendingDescribeIds] = useState<string[]>([]);
@@ -360,8 +359,6 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
             onGoToDiy={() => navigateTo('diy')}
             chantierId={chantierId!}
             token={token}
-            viewMode={homeViewMode}
-            onViewModeChange={setHomeViewMode}
             onDocStatutUpdated={(docId, statut) =>
               setDocuments(prev => prev.map(d => {
                 if (d.id !== docId) return d;

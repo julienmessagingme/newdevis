@@ -416,26 +416,6 @@
   border-radius:999px;
   letter-spacing:.04em;
 }
-.cr-sh-tabs{
-  display:flex;
-  background:#fff;
-  border:1px solid var(--cr-line);
-  border-radius:10px;
-  padding:3px;
-  flex-shrink:0;
-}
-.cr-sh-tabs button{
-  border:none; background:transparent;
-  font-family:"DM Sans",sans-serif;
-  font-size:13px; font-weight:600;
-  color:var(--cr-muted);
-  padding:6px 14px;
-  border-radius:7px;
-  cursor:pointer;
-  display:inline-flex; align-items:center; gap:6px;
-}
-.cr-sh-tabs button.active{background:var(--cr-navy); color:#fff}
-
 /* Intervenants grid */
 .cr-intervenants-wrap{position:relative}
 .cr-intervenants-wrap.scrollable{max-height:560px; overflow:hidden}

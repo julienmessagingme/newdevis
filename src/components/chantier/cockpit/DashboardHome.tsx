@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { LayoutGrid, List } from 'lucide-react';
 import type { DocumentChantier, LotChantier } from '@/types/chantier-ia';
 import PaiementDrawer from './tresorerie/PaiementDrawer';
-import IntervenantsListView from './lots/IntervenantsListView';
 import { fmtK } from '@/lib/chantier/dashboardHelpers';
 import type { BreakdownItem } from './tresorerie/BudgetTresorerie';
 import '@/styles/cockpit-refonte.css';
@@ -11,6 +9,21 @@ const fmtEurShort = (n: number) => (n >= 1000 ? fmtK(n) : `${Math.round(n)} €`
 
 function fmtDateShort(iso: string): string {
   return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/**
+ * Extrait le nom de l'entreprise depuis le libellé d'un document.
+ * Coupe la description du devis/facture : "Gouttière Alu System - devis pour
+ * la fourniture et la pose" → "Gouttière Alu System".
+ */
+function cleanCompanyName(raw?: string | null): string {
+  if (!raw) return '';
+  let s = raw.trim();
+  const dashIdx = s.search(/\s[-–—]\s/);
+  if (dashIdx > 2) s = s.slice(0, dashIdx).trim();
+  const kw = s.match(/^(.*?)\s+(?:devis|facture)\b/i);
+  if (kw && kw[1].trim().length > 2) s = kw[1].trim();
+  return s;
 }
 
 // ── Icônes inline (design) ────────────────────────────────────────────────────
@@ -67,7 +80,7 @@ function computeLotCard(lot: LotChantier, docs: DocumentChantier[]) {
   const validated = STATUTS_VALIDES.includes(lot.statut ?? '') || hasValidatedDevis || hasPaidFacture;
   const status: LotStatus = validated ? 'ready' : devis.length > 0 ? 'selecting' : 'blocked';
 
-  const artisan = (devis[0]?.nom ?? factures[0]?.nom ?? '').split(' – ')[0]?.trim();
+  const artisan = cleanCompanyName(devis[0]?.nom ?? factures[0]?.nom);
 
   return { devisCount: devis.length, paye, fraisTotal, photos, reste, status, artisan };
 }
@@ -128,9 +141,8 @@ function ProCard({ lot, docs, onOpen }: { lot: LotChantier; docs: DocumentChanti
 
 function DashboardHome({
   lots, documents, docsByLot, displayMin, displayMax, budgetReel, refinedBreakdown, onAffineBudget,
-  onAddDevisForLot, onGoToLot, onAddDoc, onGoToAssistant, onGoToTresorerie, onGoToDocuments,
-  onAddIntervenant, onDeleteLot, onDeleteDoc, onGoToDiy, chantierId, token,
-  viewMode, onViewModeChange, onDocStatutUpdated, onDocMoved, urgentActions,
+  onGoToLot, onAddDoc, onGoToAssistant, onGoToTresorerie, onGoToDocuments,
+  onAddIntervenant, chantierId, token, urgentActions,
 }: {
   lots: LotChantier[];
   documents: DocumentChantier[];
@@ -155,8 +167,6 @@ function DashboardHome({
   onGoToDiy: () => void;
   chantierId: string;
   token: string | null | undefined;
-  viewMode: 'cards' | 'list';
-  onViewModeChange: (v: 'cards' | 'list') => void;
   onDocStatutUpdated?: (docId: string, statut: string) => void;
   onDocMoved?: (docId: string, newLotId: string) => void;
   urgentActions?: number;
@@ -231,7 +241,7 @@ function DashboardHome({
     const list: { id: string; kind: 'facture' | 'devis'; label: string; sub: string; onClick: () => void }[] = [];
     for (const d of documents) {
       if (d.document_type === 'facture' && (d.facture_statut === 'recue' || d.facture_statut === 'payee_partiellement')) {
-        const artisan = d.nom?.split(' – ')[0] ?? d.nom ?? 'Facture';
+        const artisan = cleanCompanyName(d.nom) || 'Facture';
         const restant = d.facture_statut === 'payee_partiellement' ? ((d.montant ?? 0) - (d.montant_paye ?? 0)) : (d.montant ?? 0);
         list.push({
           id: d.id, kind: 'facture',
@@ -362,16 +372,6 @@ function DashboardHome({
               <span className="cr-sh-eyebrow">Équipe chantier</span>
               <h2 className="cr-sh-title">Intervenants</h2>
             </div>
-            {total > 0 && (
-              <div className="cr-sh-tabs">
-                <button className={viewMode === 'cards' ? 'active' : ''} onClick={() => onViewModeChange('cards')}>
-                  <LayoutGrid className="h-3.5 w-3.5" /> Cartes
-                </button>
-                <button className={viewMode === 'list' ? 'active' : ''} onClick={() => onViewModeChange('list')}>
-                  <List className="h-3.5 w-3.5" /> Liste
-                </button>
-              </div>
-            )}
           </div>
 
           {total === 0 ? (
@@ -381,21 +381,6 @@ function DashboardHome({
               <p className="s">Décrivez votre projet et l'IA génère la liste des intervenants et une estimation de budget.</p>
               <a href="/mon-chantier/nouveau" className="cta"><span>＋</span> Créer avec l'IA</a>
             </div>
-          ) : viewMode === 'list' ? (
-            <IntervenantsListView
-              lots={lots}
-              docsByLot={docsByLot}
-              documents={documents}
-              onAddDevisForLot={onAddDevisForLot}
-              onDeleteDoc={onDeleteDoc}
-              onDeleteLot={onDeleteLot}
-              onGoToLot={onGoToLot}
-              onGoToDiy={onGoToDiy}
-              chantierId={chantierId}
-              token={token}
-              onDocStatutUpdated={onDocStatutUpdated}
-              onDocMoved={onDocMoved}
-            />
           ) : (
             <div className={`cr-intervenants-wrap${lots.length > 6 ? ' scrollable' : ''}`}>
               <div className="cr-intervenants">
