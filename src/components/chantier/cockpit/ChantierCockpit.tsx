@@ -72,6 +72,16 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
     if (chantierId) localStorage.setItem('lastChantierId', chantierId);
   }, [chantierId]);
 
+  // Ouverture auto de l'éditeur de projet via ?edit=1 (lien "Modifier avec l'IA" du hub)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('edit') === '1') {
+      setShowAmelioration(true);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   // Messagerie: unread count for sidebar badge
   const { totalUnread: msgUnread } = useConversations(chantierId);
 

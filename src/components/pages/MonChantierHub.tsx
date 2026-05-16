@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { ArrowRight, Loader2, Plus, Trash2, HardHat, LayoutDashboard } from 'lucide-react';
+import { ArrowRight, Loader2, Plus, Trash2, HardHat, LayoutDashboard, Pencil, Check, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import AddChantierCard from '@/components/chantier/shared/AddChantierCard';
 import { PHASE_LABELS, type PhaseChantier } from '@/types/chantier-dashboard';
@@ -27,14 +27,50 @@ function ChantierHubCard({
   token,
   delay = 0,
   onDelete,
+  onRename,
 }: {
   chantier: ChantierItem;
   token: string;
   delay?: number;
   onDelete: (id: string) => void;
+  onRename: (id: string, nom: string) => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [nameDraft, setNameDraft] = useState(chantier.nom);
+  const [saving, setSaving] = useState(false);
+
+  const handleEditClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setNameDraft(chantier.nom);
+    setEditing(true);
+  };
+
+  const handleSaveName = async () => {
+    const newNom = nameDraft.trim();
+    if (!newNom || newNom === chantier.nom) { setEditing(false); return; }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/chantier/${chantier.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ nom: newNom }),
+      });
+      if (res.ok) {
+        toast.success('Nom du chantier mis à jour');
+        onRename(chantier.id, newNom);
+        setEditing(false);
+      } else {
+        toast.error('Impossible de renommer ce chantier');
+      }
+    } catch {
+      toast.error('Erreur réseau');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const phase = PHASE_LABELS[chantier.phase] ?? chantier.phase;
   const nbDevis = chantier.devis.length;
@@ -80,6 +116,65 @@ function ChantierHubCard({
     e.stopPropagation();
     setConfirmDelete(false);
   };
+
+  // ── Mode édition ──
+  if (editing) {
+    return (
+      <div
+        className="flex flex-col gap-3 bg-white border border-blue-200 rounded-2xl p-5
+          min-h-[180px] animate-fade-up shadow-sm"
+        style={{ animationDelay: `${delay}s`, animationFillMode: 'both' }}
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100
+            flex items-center justify-center text-lg flex-shrink-0 select-none">
+            {chantier.emoji}
+          </div>
+          <label className="text-[11px] font-bold uppercase tracking-wide text-gray-400">
+            Nom du chantier
+          </label>
+        </div>
+        <input
+          autoFocus
+          value={nameDraft}
+          onChange={(e) => setNameDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleSaveName();
+            if (e.key === 'Escape') setEditing(false);
+          }}
+          placeholder="Nom du chantier"
+          className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-semibold
+            text-gray-900 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+        />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSaveName}
+            disabled={saving || !nameDraft.trim()}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold bg-blue-600
+              hover:bg-blue-700 text-white rounded-xl px-4 py-2 transition-all disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+            {saving ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+          <button
+            onClick={() => setEditing(false)}
+            className="text-xs text-gray-500 hover:text-gray-700 bg-gray-50 hover:bg-gray-100
+              border border-gray-200 rounded-xl px-4 py-2 transition-all font-medium"
+          >
+            Annuler
+          </button>
+        </div>
+        <a
+          href={`/mon-chantier/${chantier.id}?edit=1`}
+          className="mt-auto inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600
+            hover:text-blue-700 no-underline"
+        >
+          <Sparkles className="h-3.5 w-3.5" />
+          Modifier le projet avec l'IA
+        </a>
+      </div>
+    );
+  }
 
   // ── Écran de confirmation ──
   if (confirmDelete) {
@@ -130,8 +225,16 @@ function ChantierHubCard({
         min-h-[180px] relative"
       style={{ animationDelay: `${delay}s`, animationFillMode: 'both' }}
     >
-      {/* ── Bouton corbeille (coin haut droit) ── */}
-      <div className="absolute top-3 right-3 z-10" onClick={(e) => e.stopPropagation()}>
+      {/* ── Actions (coin haut droit) ── */}
+      <div className="absolute top-3 right-3 z-10 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+        <button
+          onClick={handleEditClick}
+          className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-300 hover:text-blue-500
+            hover:bg-blue-50 rounded-lg transition-all"
+          title="Renommer / modifier ce chantier"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
         <button
           onClick={handleDeleteClick}
           className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-300 hover:text-red-500
@@ -143,7 +246,7 @@ function ChantierHubCard({
       </div>
 
       {/* ── Header ── */}
-      <div className="flex items-start gap-3 pr-8">
+      <div className="flex items-start gap-3 pr-14">
         <div className="w-12 h-12 rounded-xl bg-blue-50 border border-blue-100
           flex items-center justify-center text-2xl flex-shrink-0 select-none">
           {chantier.emoji}
@@ -257,6 +360,10 @@ export default function MonChantierHub() {
 
   const handleDelete = useCallback((id: string) => {
     setChantiers((prev) => prev.filter((c) => c.id !== id));
+  }, []);
+
+  const handleRename = useCallback((id: string, nom: string) => {
+    setChantiers((prev) => prev.map((c) => (c.id === id ? { ...c, nom } : c)));
   }, []);
 
   // ── Loading ────────────────────────────────────────────────────────────────
@@ -375,6 +482,7 @@ export default function MonChantierHub() {
                 token={token ?? ''}
                 delay={i * 0.06}
                 onDelete={handleDelete}
+                onRename={handleRename}
               />
             ))}
             {/* Carte d'ajout toujours visible */}
