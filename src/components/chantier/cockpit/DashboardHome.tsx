@@ -349,7 +349,6 @@ function DashboardHome({
         <section>
           <div className="cr-section-head">
             <div className="cr-sh-left">
-              <span className="cr-sh-eyebrow">Équipe chantier</span>
               <h2 className="cr-sh-title">Intervenants</h2>
             </div>
           </div>
