@@ -213,17 +213,7 @@ function DashboardHome({
   const reste = Math.max(0, budgetRef - decaisse - aPayer30j);
   const pctFlux = hasBudgetRef && fluxCertains > 0 ? Math.round((fluxCertains / budgetRef) * 100) : 0;
 
-  // ── Intervenants — comptage statuts ────────────────────────────────────────
   const total = lots.length;
-  const { validated, blocked } = useMemo(() => {
-    let v = 0, b = 0;
-    for (const lot of lots) {
-      const { status } = computeLotCard(lot, docsByLot[lot.id] ?? []);
-      if (status === 'ready') v++;
-      else if (status === 'blocked') b++;
-    }
-    return { validated: v, blocked: b };
-  }, [lots, docsByLot]);
 
   // ── Montant à régler (factures reçues + partielles) ────────────────────────
   const { aRegler, nbARegler } = useMemo(() => {
@@ -370,12 +360,7 @@ function DashboardHome({
           <div className="cr-section-head">
             <div className="cr-sh-left">
               <span className="cr-sh-eyebrow">Équipe chantier</span>
-              <h2 className="cr-sh-title">
-                Intervenants
-                {total > 0 && (
-                  <span className="pill">{total} lot{total > 1 ? 's' : ''}{blocked > 0 ? ` · ${blocked} sans devis` : ''}</span>
-                )}
-              </h2>
+              <h2 className="cr-sh-title">Intervenants</h2>
             </div>
             {total > 0 && (
               <div className="cr-sh-tabs">
