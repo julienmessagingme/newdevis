@@ -4,23 +4,21 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Démo · Gérer Mon Chantier</title>
-  <meta name="description" content="Découvrez Gérer Mon Chantier en 40 secondes : un cockpit qui pilote votre chantier au millimètre." />
+  <meta name="description" content="Découvrez Gérer Mon Chantier en 50 secondes : un cockpit qui pilote votre chantier au millimètre." />
   <meta name="robots" content="index, follow" />
   <link rel="icon" href="/favicon.ico" />
-  <link rel="stylesheet" href="/demo/tokens.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
   <style>
     html, body, #root { height: 100%; margin: 0; padding: 0; }
     body {
       background: #0a0a0a;
-      font-family: "DM Sans", system-ui, -apple-system, sans-serif;
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
       color: #fff;
       overflow: hidden;
     }
-    /* When loaded inside a modal iframe (?embed=1), the body becomes transparent
-       so the parent page's blurred backdrop shows through the letterbox bars. */
-    body.embed { background: transparent; }
-    body.embed .demo-back { display: none; }
-    #root { width: 100%; height: 100%; }
+    #root { position: fixed; inset: 0; }
 
     .demo-back {
       position: fixed;
@@ -39,6 +37,7 @@
       transition: background .2s;
     }
     .demo-back:hover { background: rgba(255,255,255,0.16); }
+    body.embed .demo-back { display: none; }
   </style>
   <script>
     if (location.search.includes('embed=1')) {
@@ -51,7 +50,7 @@
   <script src="/demo/vendor/babel.min.js"></script>
 </head>
 <body>
-  <a href="/" class="demo-back" data-when="standalone" aria-label="Retour à l'accueil">
+  <a href="/" class="demo-back" aria-label="Retour à l'accueil">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M19 12H5M12 19l-7-7 7-7" />
     </svg>
@@ -61,31 +60,10 @@
   <div id="root"></div>
 
   <script type="text/babel" src="/demo/animations.jsx"></script>
-  <script type="text/babel" src="/demo/cockpit-ui.jsx"></script>
-  <script type="text/babel" src="/demo/scene-v1.jsx"></script>
-  <script type="text/babel" src="/demo/scene-v2.jsx"></script>
+  <script type="text/babel" src="/demo/video-scenes.jsx"></script>
   <script type="text/babel" data-presets="env,react">
-    function DemoPlayer() {
-      const W = 1920, H = 1080;
-      const isEmbed = typeof location !== 'undefined' && location.search.indexOf('embed=1') !== -1;
-      return (
-        <div style={{ position: 'absolute', inset: 0, background: isEmbed ? 'transparent' : '#0a0a0a' }}>
-          <Stage
-            width={W}
-            height={H}
-            duration={40}
-            background={COL.page}
-            persistKey="gmc-demo-v2"
-            autoplay={true}
-            loop={true}
-          >
-            <SceneV2 w={W} h={H} />
-          </Stage>
-        </div>
-      );
-    }
     const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<DemoPlayer />);
+    root.render(<window.Video />);
   </script>
 </body>
 </html>
