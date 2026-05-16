@@ -50,7 +50,7 @@ function GMCMark({ size = 64, dark = false, animated = false, animKey = 0 }) {
   );
 }
 
-function GMCWordmark({ size = 36, color = C.navy, sub = 'Pilote ton chantier au millimètre', subColor = C.muted }) {
+function GMCWordmark({ size = 36, color = C.navy, sub = 'Pilotez votre chantier au millimètre', subColor = C.muted }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, lineHeight: 1 }}>
       <span style={{
@@ -76,7 +76,7 @@ function GMCWordmark({ size = 36, color = C.navy, sub = 'Pilote ton chantier au 
   );
 }
 
-function GMCLogo({ markSize = 72, fontSize = 36, color = C.navy, subColor = C.muted, sub = 'Pilote ton chantier au millimètre', dark = false, animKey = 0 }) {
+function GMCLogo({ markSize = 72, fontSize = 36, color = C.navy, subColor = C.muted, sub = 'Pilotez votre chantier au millimètre', dark = false, animKey = 0 }) {
   return (
     <div style={{ display: 'inline-flex', alignItems: 'center', gap: markSize * 0.25 }}>
       <GMCMark size={markSize} dark={dark} animKey={animKey} />
@@ -163,7 +163,7 @@ function SceneTitle() {
           filter: `drop-shadow(0 24px 60px rgba(27,63,161,${0.20 * logoT}))`,
         }}>
           <GMCLogo markSize={120} fontSize={56} color={C.navy} subColor={C.muted}
-                   sub="Pilote ton chantier au millimètre" />
+                   sub="Pilotez votre chantier au millimètre" />
         </div>
 
         <div style={{
@@ -199,24 +199,8 @@ function SceneTitle() {
             letterSpacing: '-0.02em',
             marginTop: 28,
           }}>
-            *sauf le tien.
+            *sauf le vôtre.
           </div>
-        </div>
-
-        <div style={{
-          fontFamily: FONT_SANS,
-          fontSize: 28, fontWeight: 400,
-          color: C.body,
-          letterSpacing: '-0.005em',
-          textAlign: 'center',
-          opacity: subT,
-          maxWidth: 1100,
-          transform: `translateY(${(1 - subT) * 18}px)`,
-          lineHeight: 1.4,
-        }}>
-          Que tu aies <b style={{ color: C.navy, fontWeight: 700 }}>1 chantier</b> ou
-          <b style={{ color: C.navy, fontWeight: 700 }}> 10</b>, l'IA pilote pour toi —
-          sans que tu perdes un appel, un devis ou une nuit.
         </div>
       </div>
     </div>
@@ -232,6 +216,11 @@ function SceneProblem() {
   const headT = ease(window.clamp(localTime / 0.5, 0, 1), eo);
   const exitT = window.clamp((localTime - (duration - 0.5)) / 0.5, 0, 1);
   const outOp = 1 - ease(exitT, eio);
+
+  // Brain overlay appears around t=2.6
+  const brainT = ease(window.clamp((localTime - 2.6) / 0.7, 0, 1), eoBack);
+  // Tiles dim once brain comes in
+  const tilesDim = window.clamp((localTime - 2.6) / 0.5, 0, 1);
 
   // counter values that scale up (data inlined below)
   return (
@@ -258,7 +247,7 @@ function SceneProblem() {
         transform: `translateY(${(1 - headT) * 18}px)`,
       }}>
         Un seul chantier suffit<br />
-        à <span style={{ color: C.red }}>te noyer</span>.
+        à <span style={{ color: C.red }}>vous noyer</span>.
       </div>
 
       {/* 4 counter tiles */}
@@ -284,9 +273,10 @@ function SceneProblem() {
               borderTop: `4px solid ${c.isZero ? C.red : C.navy}`,
               borderRadius: 18,
               padding: '32px 32px 28px',
-              opacity: window.clamp(t * 2, 0, 1),
-              transform: `translateY(${(1 - e) * 40}px) scale(${0.92 + 0.08 * e})`,
+              opacity: window.clamp(t * 2, 0, 1) * (1 - tilesDim * 0.55),
+              transform: `translateY(${(1 - e) * 40}px) scale(${(0.92 + 0.08 * e) * (1 - tilesDim * 0.10)})`,
               boxShadow: '0 12px 32px rgba(26,74,127,0.08)',
+              transition: 'none',
             }}>
               <div style={{
                 fontFamily: FONT_MONO,
@@ -312,17 +302,178 @@ function SceneProblem() {
         })}
       </div>
 
-      {/* punchline */}
-      <FadeIn start={2.5} dur={0.6} from={20} style={{
-        position: 'absolute', left: 0, right: 0, bottom: 80,
-        textAlign: 'center',
-        fontFamily: FONT_SANS,
-        fontSize: 26, fontWeight: 500,
-        color: C.body,
-        letterSpacing: '-0.01em',
+      {/* (brain punchline moved to its own scene) */}
+
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// SCENE — Un seul cerveau (planche dédiée)
+// ─────────────────────────────────────────────────────────────
+function SceneCerveau() {
+  const { localTime, duration } = window.useSprite();
+  const exitT = window.clamp((localTime - (duration - 0.5)) / 0.5, 0, 1);
+  const outOp = 1 - ease(exitT, eio);
+
+  const t1 = ease(window.clamp(localTime / 0.55, 0, 1), eo);
+  const t2 = ease(window.clamp((localTime - 0.55) / 0.6, 0, 1), eoBack);
+  const t3 = ease(window.clamp((localTime - 1.4) / 0.5, 0, 1), eo);
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: C.cream, opacity: outOp }}>
+      {/* soft radial glow center */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: `radial-gradient(circle at 50% 50%, rgba(245,138,6,0.10) 0%, transparent 55%)`,
+      }} />
+
+      <div style={{
+        position: 'absolute', left: 0, right: 0, top: '50%',
+        transform: 'translateY(-50%)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 30,
       }}>
-        … et <b style={{ color: C.navy, fontWeight: 700 }}>un seul cerveau</b> pour tout tenir.
-      </FadeIn>
+        <div style={{
+          fontFamily: FONT_SANS,
+          fontSize: 140, fontWeight: 700,
+          color: C.navy,
+          letterSpacing: '-0.04em',
+          lineHeight: 0.98,
+          textAlign: 'center',
+          opacity: t1, transform: `translateY(${(1 - t1) * 24}px) scale(${0.94 + 0.06 * t1})`,
+        }}>
+          Et un seul<br/>
+          <span style={{ color: BRAND_ORANGE, position: 'relative', display: 'inline-block' }}>
+            cerveau
+            <span style={{
+              position: 'absolute', left: 0, right: 0, bottom: 12,
+              height: 14, borderRadius: 7,
+              background: 'rgba(245,138,6,0.22)',
+              zIndex: -1,
+            }} />
+          </span><br/>
+          pour tout retenir.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// SCENE — Personas (planche "pour qui ?")
+// ─────────────────────────────────────────────────────────────
+function ScenePersonas() {
+  const { localTime, duration } = window.useSprite();
+  const headT = ease(window.clamp(localTime / 0.5, 0, 1), eo);
+  const exitT = window.clamp((localTime - (duration - 0.6)) / 0.6, 0, 1);
+  const outOp = 1 - ease(exitT, eio);
+
+  const personas = [
+    { emoji: '👤', title: 'Solo',                sub: '1 chantier, votre maison',          delay: 0.5 },
+    { emoji: '🤝', title: 'Courtier',            sub: '4 chantiers clients en parallèle',delay: 0.75 },
+    { emoji: '🏛️', title: 'Family office',      sub: 'Patrimoine multi-biens',          delay: 1.0 },
+    { emoji: '📈', title: 'Investisseur',        sub: 'Locatif & opérations',            delay: 1.25 },
+    { emoji: '📐', title: 'Architecte',          sub: 'Suivi de projets clients',        delay: 1.5 },
+  ];
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: C.cream, opacity: outOp }}>
+      <div style={{
+        position: 'absolute', left: 120, top: 100,
+        fontFamily: FONT_MONO, fontSize: 18, fontWeight: 700,
+        color: C.gold, letterSpacing: '0.16em', textTransform: 'uppercase',
+        opacity: headT,
+      }}>
+        Étape 1 · pour qui ?
+      </div>
+      <div style={{
+        position: 'absolute', left: 120, right: 120, top: 138,
+        fontFamily: FONT_SANS, fontSize: 64, fontWeight: 700,
+        color: C.navy, letterSpacing: '-0.025em', lineHeight: 1.1,
+        opacity: headT,
+        transform: `translateY(${(1 - headT) * 16}px)`,
+      }}>
+        Que vous soyez <span style={{ color: BRAND_ORANGE }}>solo</span> ou
+        que vous pilotiez <span style={{ color: BRAND_ORANGE }}>10 chantiers</span>.
+      </div>
+
+      <div style={{
+        position: 'absolute', left: 120, right: 120, top: 320, bottom: 100,
+        display: 'flex', flexDirection: 'column',
+        justifyContent: 'center', gap: 36,
+      }}>
+        {/* Row of emoji squares */}
+        <div style={{
+          display: 'flex', gap: 28, justifyContent: 'center',
+          alignItems: 'center', flexWrap: 'nowrap',
+        }}>
+          {personas.map((p, i) => {
+            const t = window.clamp((localTime - p.delay) / 0.45, 0, 1);
+            const e = ease(t, eoBack);
+            return (
+              <div key={i} style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14,
+                opacity: window.clamp(t * 2.5, 0, 1),
+                transform: `scale(${0.5 + 0.5 * e})`,
+                transformOrigin: 'center',
+              }}>
+                <div style={{
+                  width: 132, height: 132, borderRadius: 28,
+                  background: '#fff',
+                  border: `2px solid ${C.line}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 72, lineHeight: 1,
+                  boxShadow: `0 12px 28px rgba(26,74,127,0.10), inset 0 -3px 0 ${C.line}`,
+                }}>{p.emoji}</div>
+                <div style={{
+                  fontFamily: FONT_SANS, fontSize: 20, fontWeight: 700,
+                  color: C.navy, letterSpacing: '-0.01em',
+                  textAlign: 'center', whiteSpace: 'nowrap',
+                }}>{p.title}</div>
+              </div>
+            );
+          })}
+
+          {/* "+" badge appearing after all personas */}
+          {(() => {
+            const t = window.clamp((localTime - 1.75) / 0.5, 0, 1);
+            const e = ease(t, eoBack);
+            if (t <= 0) return null;
+            return (
+              <div style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14,
+                opacity: t,
+                transform: `scale(${0.5 + 0.5 * e})`,
+              }}>
+                <div style={{
+                  width: 132, height: 132, borderRadius: 28,
+                  background: 'transparent',
+                  border: `2px dashed ${C.muted}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: FONT_SANS,
+                  fontSize: 54, fontWeight: 300,
+                  color: C.muted,
+                  lineHeight: 1,
+                }}>+</div>
+                <div style={{
+                  fontFamily: FONT_MONO, fontSize: 14, fontWeight: 600,
+                  color: C.muted, letterSpacing: '0.04em', textTransform: 'uppercase',
+                }}>et vous&nbsp;?</div>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* footer line */}
+        <div style={{
+          textAlign: 'center',
+          fontFamily: FONT_SANS, fontSize: 22, fontWeight: 500,
+          color: C.body, letterSpacing: '-0.005em',
+          opacity: ease(window.clamp((localTime - 2.2) / 0.5, 0, 1), eo),
+        }}>
+          Un cockpit qui s'adapte — pas l'inverse.
+        </div>
+      </div>
     </div>
   );
 }
@@ -361,19 +512,19 @@ function SceneHub() {
         letterSpacing: '0.16em', textTransform: 'uppercase',
         opacity: headT,
       }}>
-        Étape 1 · le hub
+        Étape 2 · le hub
       </div>
       <div style={{
-        position: 'absolute', left: 120, top: 138,
+        position: 'absolute', left: 120, top: 138, right: 120,
         fontFamily: FONT_SANS,
-        fontSize: 64, fontWeight: 700,
+        fontSize: 56, fontWeight: 700,
         color: C.navy,
         letterSpacing: '-0.025em',
-        lineHeight: 1.1,
+        lineHeight: 1.05,
         opacity: headT,
         transform: `translateY(${(1 - headT) * 16}px)`,
       }}>
-        1 chantier ou 10 — le même cockpit.
+        Suivez tous vos chantiers sur le <span style={{ color: BRAND_ORANGE }}>même cockpit</span>.
       </div>
       <div style={{
         position: 'absolute', left: 120, top: 232,
@@ -546,7 +697,7 @@ function SceneGantt() {
         letterSpacing: '0.16em', textTransform: 'uppercase',
         opacity: headT,
       }}>
-        Étape 4 · gère ton planning
+        Étape 4 · gérez votre planning
       </div>
       <div style={{
         position: 'absolute', left: 120, top: 118,
@@ -731,6 +882,21 @@ function SceneGantt() {
         </div>
       </div>
 
+      {/* Footer mono line */}
+      <div style={{
+        position: 'absolute',
+        left: 0, right: 0, bottom: 22,
+        textAlign: 'center',
+        fontFamily: FONT_MONO,
+        fontSize: 18, fontWeight: 700,
+        color: C.muted,
+        letterSpacing: '0.10em',
+        textTransform: 'uppercase',
+        opacity: ease(window.clamp((localTime - 3.9) / 0.5, 0, 1), eo),
+      }}>
+        Votre planning, géré et mis à jour <span style={{ color: BRAND_ORANGE }}>automatiquement</span>.
+      </div>
+
     </div>
   );
 }
@@ -799,9 +965,9 @@ function SceneWhatsApp() {
           maxWidth: 720,
         }}>
           Pas d'app à télécharger, pas de mot de passe.
-          <b style={{ color: C.navy, fontWeight: 700 }}> L'IA fait le job pour toi</b>
+          <b style={{ color: C.navy, fontWeight: 700 }}> L'IA fait le job pour vous</b>
           — elle détecte, notifie, propose, applique.
-          Toi, tu valides en un mot.
+          Vous, vous validez en un mot.
         </FadeIn>
 
         {/* mini stats */}
@@ -1188,7 +1354,7 @@ function SceneTreso() {
         color: C.gold, letterSpacing: '0.16em', textTransform: 'uppercase',
         opacity: headT,
       }}>
-        Étape 5 · gère ton budget
+        Étape 5 · gérez votre budget
       </div>
       <div style={{
         position: 'absolute', left: 120, top: 118,
@@ -1416,7 +1582,7 @@ function SceneDevis() {
         color: C.gold, letterSpacing: '0.16em', textTransform: 'uppercase',
         opacity: headT,
       }}>
-        Étape 3 · compare tes devis
+        Étape 3 · comparez vos devis
       </div>
       <div style={{
         position: 'absolute', left: 120, top: 118,
@@ -1425,7 +1591,7 @@ function SceneDevis() {
         opacity: headT,
         transform: `translateY(${(1 - headT) * 16}px)`,
       }}>
-        Compare tes devis. Choisis le bon — <span style={{ color: BRAND_ORANGE }}>pas le moins cher</span>.
+        Comparez vos devis. Choisissez le bon — <span style={{ color: BRAND_ORANGE }}>pas le moins cher</span>.
       </div>
 
       {/* 3 cols */}
@@ -1584,7 +1750,7 @@ function SceneAides() {
         color: C.gold, letterSpacing: '0.16em', textTransform: 'uppercase',
         opacity: headT,
       }}>
-        Étape 2 · affine ton budget
+        Étape 2 · affinez votre budget
       </div>
       <div style={{
         position: 'absolute', left: 120, top: 118, right: 120,
@@ -1593,7 +1759,7 @@ function SceneAides() {
         opacity: headT,
         transform: `translateY(${(1 - headT) * 16}px)`,
       }}>
-        Affine ton budget : <span style={{ color: BRAND_ORANGE }}>MPR + CEE + Éco-PTZ</span>,
+        Affinez votre budget : <span style={{ color: BRAND_ORANGE }}>MPR + CEE + Éco-PTZ</span>,
         <br/>cumulés automatiquement.
       </div>
 
@@ -1873,7 +2039,7 @@ function SceneOutro() {
           transform: `scale(${0.7 + 0.3 * ease(t1, eoBack)})`,
         }}>
           <GMCLogo markSize={108} fontSize={52} color="#fff"
-                   subColor="rgba(255,255,255,0.55)" sub="Pilote ton chantier au millimètre" dark />
+                   subColor="rgba(255,255,255,0.55)" sub="Pilotez votre chantier au millimètre" dark />
         </div>
 
         <div style={{
@@ -1891,7 +2057,7 @@ function SceneOutro() {
           textAlign: 'center',
           opacity: t2, transform: `translateY(${(1 - t2) * 20}px)`,
         }}>
-          Pilote ton chantier<br />
+          Pilotez votre chantier<br />
           <span style={{ color: BRAND_ORANGE }}>au millimètre.</span>
         </div>
 
@@ -1932,9 +2098,10 @@ function SceneOutro() {
 // MAIN APP
 // ─────────────────────────────────────────────────────────────
 function Video() {
-  // Scene durations
   const T1 = 3.5;   // Title
-  const T2 = 4.5;   // Problem
+  const T2 = 4.5;   // Problem (no more brain overlay)
+  const T2c = 4.5;  // Cerveau planche
+  const T2b = 5.0;  // Personas
   const T3 = 5.5;   // Hub
   const T4 = 5.5;   // Aides
   const T5 = 5.5;   // Devis
@@ -1943,19 +2110,21 @@ function Video() {
   const T8 = 5.5;   // WhatsApp
   const T9 = 5.5;   // Journal
   const T10 = 4.5;  // Outro
-  const TOTAL = T1 + T2 + T3 + T4 + T5 + T6 + T7 + T8 + T9 + T10;  // ≈ 50s
+  const TOTAL = T1 + T2 + T2c + T2b + T3 + T4 + T5 + T6 + T7 + T8 + T9 + T10;
 
-  const s1  = 0;
-  const s2  = s1 + T1;
-  const s3  = s2 + T2;
-  const s4  = s3 + T3;
-  const s5  = s4 + T4;
-  const s6  = s5 + T5;
-  const s7  = s6 + T6;
-  const s8  = s7 + T7;
-  const s9  = s8 + T8;
-  const s10 = s9 + T9;
-  const end = s10 + T10;
+  const s1   = 0;
+  const s2   = s1 + T1;
+  const s2c  = s2 + T2;
+  const s2b  = s2c + T2c;
+  const s3   = s2b + T2b;
+  const s4   = s3 + T3;
+  const s5   = s4 + T4;
+  const s6   = s5 + T5;
+  const s7   = s6 + T6;
+  const s8   = s7 + T7;
+  const s9   = s8 + T8;
+  const s10  = s9 + T9;
+  const end  = s10 + T10;
 
   return (
     <window.Stage
@@ -1967,7 +2136,9 @@ function Video() {
       loop={true}
     >
       <window.Sprite start={s1}  end={s2}><SceneTitle /></window.Sprite>
-      <window.Sprite start={s2}  end={s3}><SceneProblem /></window.Sprite>
+      <window.Sprite start={s2}  end={s2c}><SceneProblem /></window.Sprite>
+      <window.Sprite start={s2c} end={s2b}><SceneCerveau /></window.Sprite>
+      <window.Sprite start={s2b} end={s3}><ScenePersonas /></window.Sprite>
       <window.Sprite start={s3}  end={s4}><SceneHub /></window.Sprite>
       <window.Sprite start={s4}  end={s5}><SceneAides /></window.Sprite>
       <window.Sprite start={s5}  end={s6}><SceneDevis /></window.Sprite>
