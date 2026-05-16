@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import {
   Wallet, Layers, Calendar, FolderOpen, Bot, Settings, Users, Mail, BookOpen, LogOut,
 } from 'lucide-react';
@@ -54,6 +55,11 @@ export const NAV_GROUPS: NavGroup[] = [
 // Flat list pour les composants qui en ont besoin (breadcrumbs, etc.)
 export const NAV_ITEMS = NAV_GROUPS.flatMap(g => g.items);
 
+const supabase = createClient(
+  import.meta.env.PUBLIC_SUPABASE_URL,
+  import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+);
+
 /** Mark GMC — maison + bras de grue (design system). */
 function GmcMark() {
   return (
@@ -76,6 +82,25 @@ function badgeClass(text: string): string {
 }
 
 export default function Sidebar({ result, activeSection, onSelect, badges, mobileOpen, onCloseMobile, onAmeliorer }: SidebarProps) {
+  const [user, setUser] = useState<{ name: string; initials: string } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase.auth.getUser().then(({ data }) => {
+      if (cancelled || !data.user) return;
+      const meta = data.user.user_metadata ?? {};
+      const rawName = (meta.full_name || meta.name || data.user.email?.split('@')[0] || 'Mon compte') as string;
+      const initials = rawName
+        .split(/[\s.@_-]+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(p => p[0]?.toUpperCase() ?? '')
+        .join('') || 'JD';
+      setUser({ name: rawName, initials });
+    });
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <>
       {/* Overlay mobile */}
@@ -136,8 +161,15 @@ export default function Sidebar({ result, activeSection, onSelect, badges, mobil
           ))}
         </nav>
 
-        {/* Footer — profil + actions */}
+        {/* Footer — carte profil avec les actions à l'intérieur */}
         <div className="cr-sb-foot">
+          <div className="cr-sb-profile">
+            <div className="av">{user?.initials ?? 'JD'}</div>
+            <div className="who">
+              <div className="n">{user?.name ?? 'Mon compte'}</div>
+              <div className="r">Pilote du chantier</div>
+            </div>
+          </div>
           {onAmeliorer && (
             <button type="button" onClick={onAmeliorer} className="cr-sb-link">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>

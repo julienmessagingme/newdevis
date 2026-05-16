@@ -142,8 +142,10 @@ function ProCard({ lot, docs, onOpen }: { lot: LotChantier; docs: DocumentChanti
 function DashboardHome({
   lots, documents, docsByLot, displayMin, displayMax, budgetReel, refinedBreakdown, onAffineBudget,
   onGoToLot, onAddDoc, onGoToAssistant, onGoToTresorerie, onGoToDocuments,
-  onAddIntervenant, chantierId, token, urgentActions,
+  onAddIntervenant, chantierId, token, urgentActions, chantierNom, chantierEmoji,
 }: {
+  chantierNom: string;
+  chantierEmoji?: string | null;
   lots: LotChantier[];
   documents: DocumentChantier[];
   docsByLot: Record<string, DocumentChantier[]>;
@@ -311,8 +313,10 @@ function DashboardHome({
       {/* ── Header projet ─────────────────────────────────────────────────── */}
       <div className="cr-project-header">
         <div className="cr-ph-left">
-          <div className="cr-ph-eyebrow"><span className="dot" />Cockpit chantier · pilote IA actif</div>
-          <h1 className="cr-ph-title"><span className="emoji">{(lots[0]?.emoji) ?? '🏠'}</span>Mon chantier</h1>
+          <h1 className="cr-ph-title">
+            <span className="emoji">{chantierEmoji ?? lots[0]?.emoji ?? '🏠'}</span>
+            {chantierNom || 'Mon chantier'}
+          </h1>
           <div className="cr-ph-meta">
             {planningStartDate && <><span>Démarré le <b>{fmtDateShort(planningStartDate.toISOString())}</b></span><span className="sep">·</span></>}
             {receptionDate

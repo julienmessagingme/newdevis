@@ -336,6 +336,8 @@ export default function ChantierCockpit({ result: resultProp, chantierId, token,
         }
         return (
           <DashboardHome
+            chantierNom={result.nom}
+            chantierEmoji={result.emoji}
             lots={lots}
             documents={documents}
             docsByLot={docsByLot}
