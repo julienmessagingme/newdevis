@@ -26,6 +26,17 @@ function cleanCompanyName(raw?: string | null): string {
   return s;
 }
 
+/** Date relative compacte : "aujourd'hui", "hier", "il y a 3 j", "il y a 2 sem.". */
+function relTime(iso?: string | null): string {
+  if (!iso) return '';
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  if (days <= 0) return "aujourd'hui";
+  if (days === 1) return 'hier';
+  if (days < 7) return `il y a ${days} j`;
+  if (days < 30) return `il y a ${Math.floor(days / 7)} sem.`;
+  return `il y a ${Math.floor(days / 30)} mois`;
+}
+
 // ── Icônes inline (design) ────────────────────────────────────────────────────
 
 const ArrowRight = () => (
@@ -56,81 +67,66 @@ const STATUTS_VALIDES = ['ok', 'termine', 'en_cours', 'contrat_signe'];
 function computeLotCard(lot: LotChantier, docs: DocumentChantier[]) {
   const devis    = docs.filter(d => d.document_type === 'devis');
   const factures = docs.filter(d => d.document_type === 'facture');
-  const photos   = docs.filter(d => d.document_type === 'photo').length;
 
   const hasValidatedDevis = devis.some(d => d.devis_statut === 'valide' || d.devis_statut === 'attente_facture');
   const hasPaidFacture    = factures.some(d => d.facture_statut === 'payee' || d.facture_statut === 'payee_partiellement');
 
-  const paye = factures.reduce((s, f) =>
-    s + (f.facture_statut === 'payee' ? (f.montant ?? 0)
-       : f.facture_statut === 'payee_partiellement' ? (f.montant_paye ?? 0) : 0), 0);
-
-  const fraisTotal = docs
-    .filter(d => d.document_type === 'facture' && d.depense_type === 'frais')
-    .reduce((s, d) => s + (d.montant ?? 0), 0);
-
-  // Montant engagé du lot : devis validés + factures sans devis validé
-  const engageDevis = devis
-    .filter(d => d.devis_statut === 'valide' || d.devis_statut === 'attente_facture')
-    .reduce((s, d) => s + (d.montant ?? 0), 0);
-  const engageFactures = hasValidatedDevis ? 0 : factures.reduce((s, f) => s + (f.montant ?? 0), 0);
-  const engageTotal = engageDevis + engageFactures;
-  const reste = engageTotal > 0 ? Math.max(0, engageTotal - paye) : null;
-
   const validated = STATUTS_VALIDES.includes(lot.statut ?? '') || hasValidatedDevis || hasPaidFacture;
   const status: LotStatus = validated ? 'ready' : devis.length > 0 ? 'selecting' : 'blocked';
 
-  const artisan = cleanCompanyName(devis[0]?.nom ?? factures[0]?.nom);
+  // Dernière action sur le lot = document le plus récent, décrit en une ligne.
+  const last = [...docs].sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))[0];
+  let lastAction = 'Aucun devis reçu — demande à envoyer';
+  let lastDate: string | null = null;
+  if (last) {
+    lastDate = last.created_at ?? null;
+    const company = cleanCompanyName(last.nom);
+    const suffix = company ? ` · ${company}` : '';
+    if (last.document_type === 'devis') {
+      const signed = last.devis_statut === 'valide' || last.devis_statut === 'attente_facture';
+      lastAction = (signed ? 'Devis signé' : 'Devis reçu') + suffix;
+    } else if (last.document_type === 'facture') {
+      if (last.depense_type === 'frais') {
+        lastAction = 'Frais' + suffix;
+      } else {
+        lastAction = (
+          last.facture_statut === 'payee'                ? 'Facture payée'
+          : last.facture_statut === 'payee_partiellement' ? 'Facture payée en partie'
+          : last.facture_statut === 'en_litige'           ? 'Facture en litige'
+          :                                                 'Facture reçue'
+        ) + suffix;
+      }
+    } else if (last.document_type === 'photo') {
+      lastAction = 'Photo ajoutée';
+    } else {
+      lastAction = 'Document ajouté';
+    }
+  }
 
-  return { devisCount: devis.length, paye, fraisTotal, photos, reste, status, artisan };
+  return { status, lastAction, lastDate };
 }
 
+const STATUS_LABEL: Record<LotStatus, string> = {
+  ready:     'Engagé',
+  selecting: 'En sélection',
+  blocked:   'À démarrer',
+};
+
 function ProCard({ lot, docs, onOpen }: { lot: LotChantier; docs: DocumentChantier[]; onOpen: () => void }) {
-  const c = computeLotCard(lot, docs);
-
-  const statusLabel =
-    c.status === 'ready'     ? (c.paye > 0 ? 'Acompte versé' : 'Engagé')
-    : c.status === 'selecting' ? 'À comparer'
-    :                            'Aucun devis';
-
-  const assigned =
-    c.status === 'ready'     ? (c.artisan ? <><b>{c.artisan}</b> · devis signé</> : 'Artisan engagé')
-    : c.status === 'selecting' ? <>{c.devisCount} devis reçu{c.devisCount > 1 ? 's' : ''} · à <b>comparer</b></>
-    :                            'Demande de devis non envoyée';
-
-  const footMeta =
-    c.status === 'ready' && c.reste != null ? <>Solde · <b>{fmtEurShort(c.reste)}</b></>
-    : c.photos > 0 ? <>📷 <b>{c.photos}</b> photo{c.photos > 1 ? 's' : ''}</>
-    : <>{c.devisCount} devis</>;
-
-  const stats: { l: string; v: string; cls?: string }[] = [
-    { l: 'Devis',   v: String(c.devisCount), cls: c.devisCount === 0 ? 'zero' : undefined },
-    { l: 'Payé',    v: c.paye > 0 ? fmtEurShort(c.paye) : '0€', cls: c.paye > 0 ? 'paid' : 'zero' },
-    { l: 'Frais',   v: c.fraisTotal > 0 ? fmtEurShort(c.fraisTotal) : '—', cls: c.fraisTotal > 0 ? 'frais' : 'zero' },
-    { l: 'Reste',   v: c.reste != null ? fmtEurShort(c.reste) : '—', cls: c.reste != null && c.reste > 0 ? undefined : 'zero' },
-    { l: 'Photos',  v: c.photos > 0 ? String(c.photos) : '0', cls: c.photos > 0 ? undefined : 'zero' },
-  ];
+  const { status, lastAction, lastDate } = computeLotCard(lot, docs);
 
   return (
-    <button type="button" onClick={onOpen} className={`cr-pro-card ${c.status}`}>
+    <button type="button" onClick={onOpen} className={`cr-pro-card ${status}`}>
       <div className="cr-pc-top">
         <div className="cr-pc-emoji-wrap">{lot.emoji ?? '🔧'}</div>
-        <span className={`cr-pc-status ${c.status}`}><span className="d" />{statusLabel}</span>
+        <span className={`cr-pc-status ${status}`}><span className="d" />{STATUS_LABEL[status]}</span>
       </div>
       <div className="cr-pc-mid">
         <div className="cr-pc-trade">{lot.nom}</div>
-        <div className="cr-pc-assigned">{assigned}</div>
-      </div>
-      <div className="cr-pc-stats">
-        {stats.map(s => (
-          <div key={s.l} className="cr-pc-stat">
-            <span className={`cr-pc-stat-v ${s.cls ?? ''}`}>{s.v}</span>
-            <span className="cr-pc-stat-l">{s.l}</span>
-          </div>
-        ))}
+        <div className="cr-pc-assigned">{lastAction}</div>
       </div>
       <div className="cr-pc-foot">
-        <span className="cr-pc-foot-meta">{footMeta}</span>
+        <span className="cr-pc-foot-meta">{lastDate ? relTime(lastDate) : '—'}</span>
         <span className="cr-pc-open">Ouvrir<ArrowRight /></span>
       </div>
     </button>
