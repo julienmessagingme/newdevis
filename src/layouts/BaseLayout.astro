@@ -16,6 +16,8 @@ interface Props {
   jsonLd?: object;
   breadcrumbs?: BreadcrumbItem[];
   noindex?: boolean;
+  /** Si true, n'injecte pas le widget de chat MessagingMe (ex: cockpit chantier). */
+  noChatWidget?: boolean;
 }
 
 const {
@@ -28,6 +30,7 @@ const {
   jsonLd,
   breadcrumbs,
   noindex = false,
+  noChatWidget = false,
 } = Astro.props;
 
 // Auto-canonical : utilise l'URL explicite si fournie, sinon construit depuis Astro.url
@@ -152,7 +155,9 @@ const breadcrumbLd = breadcrumbs && breadcrumbs.length > 0 ? {
       "inLanguage": "fr-FR"
     })} />
 
-    <script src="https://ai.messagingme.app/widget/f236879w135897.js" async="async"></script>
+    {!noChatWidget && (
+      <script src="https://ai.messagingme.app/widget/f236879w135897.js" async="async"></script>
+    )}
 
     <!-- Google Analytics 4 — Consent Mode v2 -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-HJFMR8ST50"></script>
